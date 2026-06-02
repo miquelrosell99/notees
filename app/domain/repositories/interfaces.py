@@ -116,8 +116,28 @@ class NodeHierarchyRepository(ABC):
         pass
 
     @abstractmethod
+    async def get_breadcrumbs_batch(
+        self, exit_node_ids: list[int], enter_node_id: int | None = None
+    ) -> dict[int, list[Node]]:
+        """Get breadcrumb paths for multiple nodes in a single recursive CTE.
+
+        Returns a mapping of exit_node_id -> list of ancestor nodes.
+        """
+        pass
+
+    @abstractmethod
     async def get_ancestors(self, node_id: int, include_self: bool = False) -> list[int]:
         """Get all ancestor IDs of a node using recursive CTE."""
+        pass
+
+    @abstractmethod
+    async def get_ancestors_batch(
+        self, node_ids: list[int], include_self: bool = False
+    ) -> dict[int, list[int]]:
+        """Get ancestor IDs for multiple nodes in a single recursive CTE.
+
+        Returns a mapping of node_id -> list of ancestor IDs.
+        """
         pass
 
     @abstractmethod

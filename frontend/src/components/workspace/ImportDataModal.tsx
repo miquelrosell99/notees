@@ -57,7 +57,7 @@ export function ImportDataModal({
       } else {
         setParsedData(null); setError('Invalid format. Expected Notees block data format.');;
       }
-    } catch (e) {
+    } catch {
       setParsedData(null);
       if (content.trim().length > 10) {
         setError('Invalid JSON format');

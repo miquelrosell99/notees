@@ -107,7 +107,7 @@ export function ListSortable<T extends ListSortableItem>({
         const style = getItemStyle(index);
 
         return (
-          <div
+          <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }}
             key={item.id}
             className={`list-sortable__item ${itemClassName} ${isDragging ? 'list-sortable__item--dragging' : ''} ${isSettling ? 'list-sortable__item--settling' : ''}`}
             style={style}
@@ -116,7 +116,7 @@ export function ListSortable<T extends ListSortableItem>({
           >
             {/* Drag handle */}
             {showDragHandle && (
-              <span
+              <span role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }}
                 className="list-sortable__drag-handle"
                 onMouseDown={(e) => handleDragHandleMouseDown(index, e)}
                 onClick={(e) => e.stopPropagation()}

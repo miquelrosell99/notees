@@ -98,16 +98,15 @@ def validate_scope(scope: ScopeNode, path: str) -> list[ValidationIssue]:
     issues: list[ValidationIssue] = []
 
     # Validate specific_pages scope has page_uuids
-    if scope.scope_type == "specific_pages":
-        if not scope.page_uuids or len(scope.page_uuids) == 0:
-            issues.append(
-                ValidationIssue(
-                    severity="error",
-                    message="Specific pages scope requires at least one page",
-                    path=f"{path}.page_uuids",
-                    suggestion="Add pages to search within or change scope type",
-                )
+    if scope.scope_type == "specific_pages" and (not scope.page_uuids or len(scope.page_uuids) == 0):
+        issues.append(
+            ValidationIssue(
+                severity="error",
+                message="Specific pages scope requires at least one page",
+                path=f"{path}.page_uuids",
+                suggestion="Add pages to search within or change scope type",
             )
+        )
 
     return issues
 
@@ -181,8 +180,8 @@ def validate_condition(condition: ConditionNode, path: str) -> list[ValidationIs
 
     elif isinstance(condition, PropertyCondition):
         # Built-in columns are identified by name only (they have no UUID)
-        BUILTIN_COLUMNS = {"uuid", "name", "id", "parent_id", "is_page", "is_favorite"}
-        is_builtin = condition.property_name in BUILTIN_COLUMNS
+        builtin_columns = {"uuid", "name", "id", "parent_id", "is_page", "is_favorite"}
+        is_builtin = condition.property_name in builtin_columns
         if not is_builtin and not condition.property_uuid:
             issues.append(
                 ValidationIssue(
@@ -203,16 +202,15 @@ def validate_condition(condition: ConditionNode, path: str) -> list[ValidationIs
             )
 
         # Check for value when operator requires it
-        if condition.operator not in ("is_empty", "is_not_empty"):
-            if condition.value is None or condition.value == "":
-                issues.append(
-                    ValidationIssue(
-                        severity="warning",
-                        message=f'Property condition with operator "{condition.operator}" has no value',
-                        path=f"{path}.value",
-                        suggestion="Provide a value to compare against",
-                    )
+        if condition.operator not in ("is_empty", "is_not_empty") and (condition.value is None or condition.value == ""):
+            issues.append(
+                ValidationIssue(
+                    severity="warning",
+                    message=f'Property condition with operator "{condition.operator}" has no value',
+                    path=f"{path}.value",
+                    suggestion="Provide a value to compare against",
                 )
+            )
 
     elif isinstance(condition, ContentCondition):
         if not condition.value:
@@ -228,16 +226,15 @@ def validate_condition(condition: ConditionNode, path: str) -> list[ValidationIs
     elif isinstance(condition, ReferenceCondition):
         operator = getattr(condition, "operator", "references")
         # Only validate target_uuid if operator requires a value
-        if operator not in ("has_references", "has_no_references"):
-            if not condition.target_uuid and not getattr(condition, "target_uuids", None):
-                issues.append(
-                    ValidationIssue(
-                        severity="error",
-                        message="Reference condition missing target UUID",
-                        path=f"{path}.target_uuid",
-                        suggestion="Select a node to check references against",
-                    )
+        if operator not in ("has_references", "has_no_references") and not condition.target_uuid and not getattr(condition, "target_uuids", None):
+            issues.append(
+                ValidationIssue(
+                    severity="error",
+                    message="Reference condition missing target UUID",
+                    path=f"{path}.target_uuid",
+                    suggestion="Select a node to check references against",
                 )
+            )
 
     elif isinstance(condition, ParentCondition):
         operator = getattr(condition, "operator", "has_parent")

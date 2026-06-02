@@ -163,7 +163,7 @@ async def get_shared_node(
     properties_dict = extract_properties_dict(raw_properties)
 
     # Only include property definitions for properties that have values on this node
-    active_prop_ids = {int(k) for k in properties_dict.keys()}
+    active_prop_ids = {int(k) for k in properties_dict}
     all_props = await prop_repo.get_all(include_local=True)
     property_definitions = [
         _property_to_public_dict(p)

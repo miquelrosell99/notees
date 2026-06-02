@@ -10,11 +10,11 @@ Query block trees are stored as JSON:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 
-class QueryBlockType(str, Enum):
+class QueryBlockType(StrEnum):
     """Types of blocks that can appear in a query block tree."""
 
     # Containers
@@ -36,7 +36,7 @@ class QueryBlockType(str, Enum):
     UUID = "UUID"
 
 
-class PropertyOperator(str, Enum):
+class PropertyOperator(StrEnum):
     """Operators for property conditions."""
 
     EQUALS = "="
@@ -54,7 +54,7 @@ class PropertyOperator(str, Enum):
     NOT_IN = "not_in"
 
 
-class ContentOperator(str, Enum):
+class ContentOperator(StrEnum):
     """Operators for content/text search conditions."""
 
     CONTAINS = "contains"

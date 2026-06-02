@@ -69,6 +69,37 @@ from .trash import router as trash_router
 from .versions import router as versions_router
 from .views import router as views_router
 
+__all__ = [
+    "router",
+    # Re-exported helpers
+    "_get_class_ids",
+    "_get_class_ids_batch",
+    "_get_node_service",
+    "_get_tag_ids",
+    "_node_to_response",
+    # Re-exported models
+    "BacklinkResponse",
+    "BatchGetNodesRequest",
+    "BatchGetNodesResponse",
+    "BreadcrumbItem",
+    "BreadcrumbSegment",
+    "BreadcrumbsResponse",
+    "ClassRequest",
+    "CommentCreateRequest",
+    "DateFormatUpdateRequest",
+    "InlineClassResponse",
+    "LinkedReferenceResponse",
+    "MoveNodeRequest",
+    "NodeCreateRequest",
+    "NodeLinkResponse",
+    "NodeResponse",
+    "NodeUpdateRequest",
+    "PropertyBacklinkResponse",
+    "PropertyRequest",
+    "PropertyValueResponse",
+    "TagLinkRequest",
+]
+
 # Create the main router
 router = APIRouter(prefix="/nodes", tags=["Nodes"])
 

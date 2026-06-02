@@ -103,7 +103,7 @@ export function ColorPickerRow({ currentColor, onColorChange }: ColorPickerRowPr
   };
 
   return (
-    <div 
+    <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }} 
       className="context-menu-color-row" 
       onMouseDown={handleMouseDown}
       onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}
@@ -180,7 +180,7 @@ function IconColorPickerRow({ currentIcon, currentColor, isFavorited, onFavorite
   };
 
   return (
-    <div
+    <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }}
       className="context-menu-icon-color-row"
       onMouseDown={handleMouseDown}
       onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}

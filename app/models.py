@@ -17,8 +17,8 @@ Journal pages use tags: 'day', 'month', 'year' with YYYYMMdd format names.
 
 import uuid
 from datetime import datetime
-from enum import Enum
-from typing import Generic, TypeVar
+from enum import StrEnum
+from typing import TypeVar
 
 from pydantic import BaseModel, field_validator
 
@@ -28,7 +28,7 @@ def generate_uuid() -> str:
     return str(uuid.uuid4())
 
 
-class ExportFormat(str, Enum):
+class ExportFormat(StrEnum):
     """Export formats."""
 
     MARKDOWN = "markdown"
@@ -217,7 +217,7 @@ class ErrorResponse(BaseModel):
     error: ErrorDetail
 
 
-class PaginatedResponse(BaseModel, Generic[T]):
+class PaginatedResponse[T](BaseModel):
     """Generic paginated response for list endpoints."""
 
     items: list[T]

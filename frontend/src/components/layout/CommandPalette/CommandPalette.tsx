@@ -76,7 +76,7 @@ export function CommandPalette(props: CommandPaletteProps) {
 
   return (
     <>
-    <div className={`command-palette__backdrop${isOpen ? '' : ' command-palette__backdrop--hidden'}`} onClick={handleBackdropClick}>
+    <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }} className={`command-palette__backdrop${isOpen ? '' : ' command-palette__backdrop--hidden'}`} onClick={handleBackdropClick}>
       <div ref={containerRef} className="command-palette">
         <div className="command-palette__input-container">
           <input

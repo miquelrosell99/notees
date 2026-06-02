@@ -547,7 +547,7 @@ export const NodeCard = memo(function NodeCard({
 
   const coverElement = layout !== 'no-cover' && (
     coverImageId ? (
-      <div
+      <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }}
         className={`node-card__cover${isCoverDragging ? ' node-card__cover--drag-over' : ''}`}
         onClick={(e) => e.stopPropagation()}
         onMouseEnter={() => setIsCoverHovered(true)}
@@ -589,7 +589,7 @@ export const NodeCard = memo(function NodeCard({
       </div>
     ) : (
       editable ? (
-        <div
+        <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }}
           className={`node-card__cover${isCoverDragging ? ' node-card__cover--drag-over' : ''}`}
           onClick={(e) => e.stopPropagation()}
           onDragOver={handleDragOver}
@@ -617,7 +617,7 @@ export const NodeCard = memo(function NodeCard({
       >
         {/* Selection checkbox — shown on hover */}
         {onSelectionChange && (
-          <div className="node-card__checkbox" onClick={handleCheckboxClick}>
+          <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }} className="node-card__checkbox" onClick={handleCheckboxClick}>
             <Checkbox
               size="sm"
               checked={isSelected}

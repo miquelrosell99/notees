@@ -59,7 +59,7 @@ export function DatePropertyCell({
 
   if (!dayNodeId) {
     return (
-      <div
+      <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }}
         ref={cellRef}
         className={`property-cell ${editable ? 'property-cell--editable' : ''} property-cell--empty`}
         onClick={async (e) => {
@@ -87,7 +87,7 @@ export function DatePropertyCell({
   }
 
   return (
-    <div
+    <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }}
       ref={cellRef}
       className={`property-cell property-cell--date ${editable ? 'property-cell--editable' : ''}`}
       onClick={() => editable && setIsPickerOpen(true)}

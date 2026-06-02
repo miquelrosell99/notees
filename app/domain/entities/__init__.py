@@ -80,6 +80,7 @@ __all__ = [
     "RELATION_TYPES",
     "ALWAYS_SINGLE_TYPES",
     # Link
+    "BacklinkInfo",
     "NodeLink",
     # ClassExtend
     "ClassExtend",

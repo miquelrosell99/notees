@@ -28,6 +28,7 @@ select = [
 ]
 ignore = [
     "E501",  # Line too long (handled by formatter)
+    "B008",  # FastAPI standard pattern: Depends() in argument defaults
 ]
 
 [tool.ruff.lint.pydocstyle]

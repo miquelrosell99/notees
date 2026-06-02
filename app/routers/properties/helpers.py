@@ -55,14 +55,14 @@ def _property_to_response(prop: Property) -> PropertyResponse:
         class_filters=prop._class_filters,
         options=[  # Aligned with frontend naming
             SelectionLineResponse(
-                id=l.id,  # type: ignore[arg-type]  # id is always set for persisted lines
-                property_id=l.property_id,
-                name=l.name,
-                icon=l.icon,
-                color=l.color,
-                order=l.order,
+                id=line.id,  # type: ignore[arg-type]  # id is always set for persisted lines
+                property_id=line.property_id,
+                name=line.name,
+                icon=line.icon,
+                color=line.color,
+                order=line.order,
             )
-            for l in prop._selection_lines
+            for line in prop._selection_lines
         ],
     )
 

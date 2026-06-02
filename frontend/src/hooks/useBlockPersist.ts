@@ -27,6 +27,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { getNodeGraphRuntime } from '../runtime/NodeGraphRuntime';
 import { createNode as createNodeApi, updateNode as updateNodeApi, batchDeleteNodes as batchDeleteNodesApi } from '@/api/nodes';
 import type { NodeCreate, Node, LinkedReference, PropertyBacklink } from '@/types/api';
+import type { ASTDocument } from '@/types/ast';
 import { parseAST, convertMarkdownInAST } from '@/lib/astBuilder';
 import { nodeKeys } from './queryKeys';
 import { removeNodeFromTreeImmutable } from '@/utils/nodeTree';
@@ -430,7 +431,7 @@ export function useBlockPersist(options: UseBlockPersistOptions = {}) {
  * Serialize a ContentAST to a string suitable for the `name` field.
  * For newly-created blocks this is typically empty or minimal.
  */
-function serializeContentForAPI(contentAST: import('../runtime/types').ContentAST): string {
+function serializeContentForAPI(contentAST: ASTDocument): string {
   if (!contentAST || contentAST.length === 0) return '';
 
   // Check if it's just an empty paragraph

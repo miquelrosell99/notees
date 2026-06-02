@@ -642,10 +642,9 @@ class NodeService:
             await self._link_service.update_inline_classes(node.id, node.name)
 
         # Update classes path if parent changed (inherited classes may have changed)
-        if data.parent_id is not None and data.parent_id != old_parent_id:
-            if node.id is not None:
-                await self._link_service.update_classes_path(node.id)
-                await self._log_activity(node.id, "moved", f"Moved to parent {data.parent_id}")
+        if data.parent_id is not None and data.parent_id != old_parent_id and node.id is not None:
+            await self._link_service.update_classes_path(node.id)
+            await self._log_activity(node.id, "moved", f"Moved to parent {data.parent_id}")
 
         return node
 
@@ -973,7 +972,7 @@ class NodeService:
                         if node_item.get("type") == "node_link":
                             link_id = str(node_item.get("link_id", ""))
                             node_identifier = link_id.split(":", 1)[0]
-                            if node_identifier and (node_identifier == target_uuid or node_identifier == target_id_str):
+                            if node_identifier and (node_identifier in (target_uuid, target_id_str)):
                                 changed = True
                                 label = node_item.get("label")
                                 if preserve_as_broken:
@@ -1306,6 +1305,33 @@ class NodeService:
         """Get a node by ID (resolves aliases transparently)."""
         node = await self._node_repo.get_by_id(node_id)
         return await self._resolve_alias(node)
+
+    async def get_nodes_batch(self, node_ids: list[int]) -> dict[int, Node]:
+        """Get multiple nodes by ID in a single query (resolves aliases transparently).
+
+        Returns a dict mapping node_id -> Node.
+        """
+        if not node_ids:
+            return {}
+        nodes = await self._node_repo.get_by_ids(node_ids)
+        result: dict[int, Node] = {}
+        alias_ids: list[int] = []
+        alias_map: dict[int, int] = {}  # aliased_id -> original node_id
+        for node in nodes:
+            if node.aliased_id:
+                alias_ids.append(node.aliased_id)
+                alias_map[node.aliased_id] = node.id
+            else:
+                if node.id is not None:
+                    result[node.id] = node
+        if alias_ids:
+            targets = await self._node_repo.get_by_ids(alias_ids)
+            for target in targets:
+                if target.id is not None:
+                    original_id = alias_map.get(target.id)
+                    if original_id is not None:
+                        result[original_id] = target
+        return result
 
     async def get_node_by_uuid(self, uuid: str) -> Node | None:
         """Get a node by UUID (resolves aliases transparently)."""

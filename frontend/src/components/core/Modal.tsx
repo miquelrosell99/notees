@@ -99,7 +99,7 @@ export function Modal({
   if (!isOpen) return null;
 
   const modal = (
-    <div className="modal-backdrop" onClick={handleBackdropClick}>
+    <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }} className="modal-backdrop" onClick={handleBackdropClick}>
       <Card
         ref={containerRef}
         className={`modal modal--${size} ${className}`}

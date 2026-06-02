@@ -7,7 +7,7 @@
 
 import { useState } from 'react';
 
-import type { QueryAST } from '@/types/queryAST';
+import type { QueryAST, GroupNode, ConditionNode, PageCondition } from '@/types/queryAST';
 import './QuerySQLPreview.css';
 import { Icon } from '@/components/core/icons';
 
@@ -74,7 +74,7 @@ function generateScopeSQL(ast: QueryAST): string {
   }
 }
 
-function generateGroupSQL(group: import('@/types/queryAST').GroupNode, indent: number): string {
+function generateGroupSQL(group: GroupNode, indent: number): string {
   if (group.children.length === 0) {
     return '';
   }
@@ -90,7 +90,7 @@ function generateGroupSQL(group: import('@/types/queryAST').GroupNode, indent: n
       } else if (child.type === 'not') {
         const innerSQL = child.child.type === 'group'
           ? generateGroupSQL(child.child, indent + 1)
-          : generateConditionSQL(child.child as import('@/types/queryAST').ConditionNode);
+          : generateConditionSQL(child.child as ConditionNode);
         return innerSQL ? `NOT (${innerSQL})` : '';
       } else {
         return generateConditionSQL(child);
@@ -106,7 +106,7 @@ function generateGroupSQL(group: import('@/types/queryAST').GroupNode, indent: n
   return childSQLs.join(`\n${indentStr}${logicOp} `);
 }
 
-function generateConditionSQL(condition: import('@/types/queryAST').ConditionNode): string {
+function generateConditionSQL(condition: ConditionNode): string {
   switch (condition.condition_type) {
     case 'class':
       return `has_class('${condition.class_uuid}')`;
@@ -166,8 +166,8 @@ function generateConditionSQL(condition: import('@/types/queryAST').ConditionNod
       return `inside_page(...)`;
 
     case 'page': {
-      const pageOp = (condition as import('@/types/queryAST').PageCondition).operator;
-      const nodeUuid = (condition as import('@/types/queryAST').PageCondition).page_uuid;
+      const pageOp = (condition as PageCondition).operator;
+      const nodeUuid = (condition as PageCondition).page_uuid;
       if (pageOp === 'is_not_page') return `page != '${nodeUuid}'`;
       if (pageOp === 'has_no_page') return 'page IS NULL';
       if (pageOp === 'has_any_page') return 'page IS NOT NULL';

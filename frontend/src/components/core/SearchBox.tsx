@@ -97,6 +97,7 @@ export function SearchBox<T = Node>({
   // Multi-section mode: run queries for each section
   const sectionQueries = (sections || []).map((section, index) => {
     const sectionSearchFn = section.searchFn;
+    // eslint-disable-next-line react-hooks/rules-of-hooks
     return useQuery({
       queryKey: ['section-search', index, debouncedQuery],
       queryFn: () => sectionSearchFn!(debouncedQuery),

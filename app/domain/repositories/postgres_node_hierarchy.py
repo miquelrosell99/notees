@@ -97,6 +97,47 @@ class PostgresNodeHierarchyMixin(_PostgresNodeBase):
             )
             return [self._row_to_node(row) for row in rows]
 
+    async def get_breadcrumbs_batch(
+        self,
+        exit_node_ids: list[int],
+        enter_node_id: int | None = None,
+    ) -> dict[int, list[object]]:
+        """Get breadcrumb paths for multiple nodes in a single recursive CTE.
+
+        Returns a mapping of exit_node_id -> list of ancestor nodes ordered
+        from exit node (deepest) to root (shallowest).
+        """
+        if not exit_node_ids:
+            return {}
+
+        async with acquire_connection(self._pool) as conn:
+            rows = await conn.fetch(
+                """
+                WITH RECURSIVE ancestors AS (
+                    SELECT id, parent_id, 0 AS depth, id AS exit_node_id
+                    FROM node
+                    WHERE id = ANY($1) AND workspace_id = $2 AND active = TRUE AND is_deleted = FALSE
+                    UNION ALL
+                    SELECT n.id, n.parent_id, a.depth + 1, a.exit_node_id
+                    FROM node n
+                    INNER JOIN ancestors a ON n.id = a.parent_id
+                    WHERE n.workspace_id = $2 AND n.active = TRUE AND n.is_deleted = FALSE
+                )
+                SELECT n.*, a.exit_node_id, a.depth FROM ancestors a
+                JOIN node n ON n.id = a.id
+                WHERE ($3::int IS NULL OR a.id != $3::int)
+                ORDER BY a.exit_node_id, a.depth DESC
+                """,
+                exit_node_ids,
+                self._workspace_id,
+                enter_node_id,
+            )
+            result: dict[int, list[object]] = {}
+            for row in rows:
+                exit_id = row["exit_node_id"]
+                result.setdefault(exit_id, []).append(self._row_to_node(row))
+            return result
+
     async def get_ancestors(
         self,
         node_id: int,
@@ -125,6 +166,45 @@ class PostgresNodeHierarchyMixin(_PostgresNodeBase):
                 include_self,
             )
             return [row["id"] for row in rows]
+
+    async def get_ancestors_batch(
+        self,
+        node_ids: list[int],
+        include_self: bool = False,
+    ) -> dict[int, list[int]]:
+        """Get ancestor IDs for multiple nodes in a single recursive CTE.
+
+        Returns a mapping of node_id -> list of ancestor IDs ordered by depth DESC.
+        """
+        if not node_ids:
+            return {}
+
+        async with acquire_connection(self._pool) as conn:
+            rows = await conn.fetch(
+                """
+                WITH RECURSIVE ancestors AS (
+                    SELECT id, parent_id, 0 AS depth, id AS start_node_id
+                    FROM node
+                    WHERE id = ANY($1) AND workspace_id = $2 AND active = TRUE AND is_deleted = FALSE
+                    UNION ALL
+                    SELECT n.id, n.parent_id, a.depth + 1, a.start_node_id
+                    FROM node n
+                    INNER JOIN ancestors a ON n.id = a.parent_id
+                    WHERE n.workspace_id = $2 AND n.active = TRUE AND n.is_deleted = FALSE
+                )
+                SELECT id, start_node_id FROM ancestors
+                WHERE ($3::boolean OR depth > 0)
+                ORDER BY start_node_id, depth DESC
+                """,
+                node_ids,
+                self._workspace_id,
+                include_self,
+            )
+            result: dict[int, list[int]] = {}
+            for row in rows:
+                start_id = row["start_node_id"]
+                result.setdefault(start_id, []).append(row["id"])
+            return result
 
     async def get_descendants(
         self,

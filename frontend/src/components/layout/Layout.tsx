@@ -14,7 +14,8 @@
  */
 import React, { useEffect, useCallback, useRef, useState, Suspense } from 'react';
 import { useNavigationStore, useModalStore, useSettingsStore, useFavoritesStore, usePresentationStore } from '@/stores';
-import { useCommand, COMMAND_IDS } from '@/hooks/useKeyboardShortcuts';
+import { useCommand } from '@/hooks/useCommand';
+import { COMMAND_IDS } from '@/stores/commandRegistry';
 import { useTodayNote, RouterSync, useCreateNode, useNode, useIsMobile } from '@/hooks';
 import { useSettingsQuery } from '@/hooks/useSettings';
 import { markPageOpened, fixLinksForUuid } from '@/api/nodes';

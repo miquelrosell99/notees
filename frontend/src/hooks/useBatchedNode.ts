@@ -85,7 +85,7 @@ function queueForBatch(id: number, queryClient: QueryClient): Promise<Record<str
         }
 
         resolvers.forEach(r => r(allNodes));
-      } catch (error) {
+      } catch {
         // On error, resolve with empty — individual queries will show as errors
         resolvers.forEach(r => r({}));
       }

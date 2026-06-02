@@ -191,7 +191,7 @@ class PostgresPropertyRepository(BasePostgresRepository, PropertyRepository):
             name=row["name"],
             icon=row.get("icon"),
             color=row.get("color"),
-            order=row["sequence"] if "sequence" in row.keys() else 0,
+            order=row.get("sequence", 0),
             create_date=create_date,
             write_date=write_date,
         )
@@ -297,7 +297,7 @@ class PostgresPropertyRepository(BasePostgresRepository, PropertyRepository):
                 line_rows = await conn.fetch(
                     "SELECT * FROM property_selection_line WHERE property_id = $1 ORDER BY sequence, name", property_id
                 )
-                prop._selection_lines = [self._row_to_selection_line(l) for l in line_rows]
+                prop._selection_lines = [self._row_to_selection_line(line) for line in line_rows]
 
             return prop
 

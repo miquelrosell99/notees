@@ -30,14 +30,14 @@ async def list_selection_lines(
     return {
         "selection_lines": [
             SelectionLineResponse(
-                id=l.id,  # type: ignore[arg-type]  # id is set for persisted lines
-                property_id=l.property_id,
-                name=l.name,
-                icon=l.icon,
-                color=l.color,
-                order=l.order,
+                id=line.id,  # type: ignore[arg-type]  # id is set for persisted lines
+                property_id=line.property_id,
+                name=line.name,
+                icon=line.icon,
+                color=line.color,
+                order=line.order,
             )
-            for l in lines
+            for line in lines
         ]
     }
 

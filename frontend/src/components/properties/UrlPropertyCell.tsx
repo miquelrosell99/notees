@@ -76,7 +76,7 @@ export function UrlPropertyCell({
 
   if (!urlValue) {
     return (
-      <div
+      <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }}
         className={`property-cell ${editable ? 'property-cell--editable' : ''} property-cell--empty`}
         onClick={handleClick}
       >
@@ -86,7 +86,7 @@ export function UrlPropertyCell({
   }
 
   return (
-    <div className="property-cell property-cell--url" onClick={editable ? handleClick : undefined}>
+    <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }} className="property-cell property-cell--url" onClick={editable ? handleClick : undefined}>
       <a
         href={urlValue}
         target="_blank"

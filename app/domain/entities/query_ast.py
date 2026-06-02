@@ -17,13 +17,13 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
-from enum import Enum
-from typing import Any, Literal, Union
+from enum import Enum, StrEnum
+from typing import Any, Literal
 
 # ==================== AST Node Types ====================
 
 
-class ASTNodeType(str, Enum):
+class ASTNodeType(StrEnum):
     """Types of nodes in the query AST."""
 
     QUERY = "query"
@@ -36,7 +36,7 @@ class ASTNodeType(str, Enum):
 # ==================== Scope Node ====================
 
 
-class ScopeType(str, Enum):
+class ScopeType(StrEnum):
     """Scope types define the universe of nodes to query."""
 
     ENTIRE_WORKSPACE = "entire_workspace"  # All nodes in the workspace
@@ -86,7 +86,7 @@ class ScopeNode:
 # ==================== Condition Node ====================
 
 
-class ConditionType(str, Enum):
+class ConditionType(StrEnum):
     """Types of conditions."""
 
     CLASS = "class"
@@ -104,7 +104,7 @@ class ConditionType(str, Enum):
     PAGE = "page"
 
 
-class PropertyOperator(str, Enum):
+class PropertyOperator(StrEnum):
     """Operators for property conditions."""
 
     EQUALS = "equals"
@@ -122,7 +122,7 @@ class PropertyOperator(str, Enum):
     NOT_IN = "not_in"
 
 
-class ContentOperator(str, Enum):
+class ContentOperator(StrEnum):
     """Operators for content/text search conditions."""
 
     CONTAINS = "contains"
@@ -133,7 +133,7 @@ class ContentOperator(str, Enum):
     FTS = "fts"  # Full-text search
 
 
-class PropertyType(str, Enum):
+class PropertyType(StrEnum):
     """Property types."""
 
     TEXT = "text"
@@ -220,7 +220,7 @@ class ContentCondition(BaseConditionNode):
     case_sensitive: bool | None = None
 
 
-class StyleType(str, Enum):
+class StyleType(StrEnum):
     """Style types for formatting filters."""
 
     BOLD = "bold"
@@ -230,7 +230,7 @@ class StyleType(str, Enum):
     BROKEN_LINK = "broken_link"
 
 
-class StyleOperator(str, Enum):
+class StyleOperator(StrEnum):
     """Operators for style/formatting conditions."""
 
     IS = "is"
@@ -349,27 +349,27 @@ class ChildPathCondition(BaseConditionNode):
 
 
 # Union type for all conditions
-ConditionNode = Union[
-    ClassCondition,
-    ExtendsCondition,
-    PropertyCondition,
-    ContentCondition,
-    StyleCondition,
-    ReferenceCondition,
-    ReferencePathCondition,
-    ParentPathCondition,
-    ParentCondition,
-    ChildCondition,
-    ChildPathCondition,
-    FlagCondition,
-    PageCondition,
-]
+ConditionNode = (
+    ClassCondition
+    | ExtendsCondition
+    | PropertyCondition
+    | ContentCondition
+    | StyleCondition
+    | ReferenceCondition
+    | ReferencePathCondition
+    | ParentPathCondition
+    | ParentCondition
+    | ChildCondition
+    | ChildPathCondition
+    | FlagCondition
+    | PageCondition
+)
 
 
 # ==================== Group Node ====================
 
 
-class LogicType(str, Enum):
+class LogicType(StrEnum):
     """Logic type for how conditions in a group combine."""
 
     AND = "AND"

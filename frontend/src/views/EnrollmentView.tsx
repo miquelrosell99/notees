@@ -70,7 +70,7 @@ export function EnrollmentView({ onComplete }: EnrollmentViewProps) {
           setSetting('date_format', selectedDateFormat),
           setSetting('enrollment_completed', true),
         ]);
-      } catch (e) {
+      } catch {
         notifyError('Failed to save preferences', 'Your settings may not persist after refresh.');
       }
       setIsSaving(false);
@@ -84,7 +84,7 @@ export function EnrollmentView({ onComplete }: EnrollmentViewProps) {
     setIsSaving(true);
     try {
       await setSetting('enrollment_completed', true);
-    } catch (e) {
+    } catch {
       notifyError('Failed to save enrollment status', 'Please refresh and try again.');
     }
     setIsSaving(false);

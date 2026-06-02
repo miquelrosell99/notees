@@ -19,7 +19,7 @@ import { ContextMenu, type ContextMenuItem } from '@/components/core/ContextMenu
 import { ColorPickerRow } from './NodeContextMenu';
 import { useBatchedNode } from '@/hooks';
 import { useNodeDisplay } from '@/hooks/useNodeDisplay';
-import { useReferencedNode } from '@/contexts/ReferencedNodesContext';
+import { useReferencedNode } from '@/contexts/useReferencedNode';
 import { useNodeByUuid } from '@/hooks/useNodeQueries';
 import { useNavigationStore } from '@/stores';
 import { parseAST, parseLinkId } from '@/lib/astBuilder';
@@ -456,7 +456,7 @@ function NodeRefInteractive({
 
   return (
     <>
-      <div 
+      <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }} 
         ref={pillRef}
         className={pillClass}
         onClick={handleClick}
@@ -493,7 +493,7 @@ function NodeRefInteractive({
           {onColorChange && !readOnly && (
             <>
               {/* Backdrop to catch clicks outside */}
-              <div 
+              <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }} 
                 className="node-pill-context-menu-backdrop"
                 style={{
                   position: 'fixed',
@@ -505,7 +505,7 @@ function NodeRefInteractive({
                 }}
                 onClick={handleCloseContextMenu}
               />
-              <div 
+              <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }} 
                 ref={contextMenuWrapperRef}
                 className="node-pill-context-menu-wrapper"
                 style={{
@@ -572,12 +572,12 @@ function PillColorPicker({ position, currentColor, onColorChange, onClose }: Pil
   }, []);
 
   return (
-    <div 
+    <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }} 
       className="pill-color-picker-overlay"
       onClick={handleClickOutside}
       onContextMenu={(e) => e.preventDefault()}
     >
-      <div 
+      <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }} 
         className="pill-color-picker"
         style={{ 
           position: 'fixed',

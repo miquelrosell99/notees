@@ -771,7 +771,7 @@ export function useNodePhysics({
       // (merges what were 3-4 separate loops over all nodes)
       const nodeMap = frameNodeMapRef.current;
       nodeMap.clear();
-      let comX = 0, comY = 0, comCount = 0;
+      let _comX = 0, _comY = 0, comCount = 0;
       for (const node of nodes) {
         const mass = useMass ? (massCache.get(node.id) ?? 1) : 1;
         (node as GraphNode & { _mass?: number })._mass = mass;
@@ -781,8 +781,8 @@ export function useNodePhysics({
         if (node.contentSize > maxContentSize) maxContentSize = node.contentSize;
         nodeMap.set(node.id, node);
         if (!node.pinned) {
-          comX += node.x;
-          comY += node.y;
+          _comX += node.x;
+          _comY += node.y;
           comCount++;
         }
       }

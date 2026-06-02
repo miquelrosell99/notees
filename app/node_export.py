@@ -171,13 +171,12 @@ async def export_nodes(
         # Automatically skip the root page node for Markdown exports.
         # Pages are files: the title belongs in YAML frontmatter, not as a bullet.
         # Blocks are content: the block itself must appear in the output.
-        if format == ExportFormat.MARKDOWN or format == "markdown":
-            if nodes_data and nodes_data[0].get("is_page", False) and include_children:
-                nodes_data = [nd for nd in nodes_data if nd.get("depth", 0) > 0]
-                for nd in nodes_data:
-                    nd["depth"] = max(0, nd["depth"] - 1)
-                if not nodes_data:
-                    raise ValueError("No child nodes found to export")
+        if (format == ExportFormat.MARKDOWN or format == "markdown") and nodes_data and nodes_data[0].get("is_page", False) and include_children:
+            nodes_data = [nd for nd in nodes_data if nd.get("depth", 0) > 0]
+            for nd in nodes_data:
+                nd["depth"] = max(0, nd["depth"] - 1)
+            if not nodes_data:
+                raise ValueError("No child nodes found to export")
 
         # Filter out text property value blocks (post-query safety net)
         if include_children and len(nodes_data) > 1:
@@ -604,9 +603,9 @@ async def export_nodes(
             cover_page=cover_page,
         )
         try:
-            from weasyprint import HTML as WeasyprintHTML
+            from weasyprint import HTML as WEASYPRINT_HTML
 
-            pdf_bytes = WeasyprintHTML(string=html_content).write_pdf()
+            pdf_bytes = WEASYPRINT_HTML(string=html_content).write_pdf()
             return pdf_bytes, "export.pdf", "application/pdf"
         except Exception as e:
             logger.warning(f"WeasyPrint PDF generation failed: {e}; falling back to HTML")

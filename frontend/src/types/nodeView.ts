@@ -6,6 +6,7 @@
  */
 
 import type { QueryAST } from './queryAST';
+import type { Node } from '@/types/api';
 
 // Re-export commonly used types from queryAST
 export type { QueryAST } from './queryAST';
@@ -91,7 +92,7 @@ export interface QueryExecuteRequest {
  * Response from query execution (extended with pagination + metrics)
  */
 export interface QueryExecuteResponse {
-  nodes: import('@/types/api').Node[];
+  nodes: Node[];
   /** Total matching rows (present when limit/offset used) */
   total_count?: number;
   /** Execution metrics from backend */

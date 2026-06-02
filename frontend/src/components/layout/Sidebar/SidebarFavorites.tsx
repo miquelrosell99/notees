@@ -82,14 +82,14 @@ const SortableFavoriteItem = memo(function SortableFavoriteItem({
   );
 
   return (
-    <div
+    <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }}
       className={`sidebar-favorite-item ${isActive ? 'active' : ''} ${isDragging ? 'dragging' : ''}`}
       style={style}
       onClick={handleClick}
       onContextMenu={handleContextMenu}
     >
       {/* Drag handle */}
-      <span
+      <span role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }}
         className="sidebar-drag-handle"
         onMouseDown={handleDragHandleMouseDown}
         onClick={(e) => e.stopPropagation()}

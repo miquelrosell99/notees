@@ -376,7 +376,7 @@ export function useRouter() {
           log.debug('Found node from UUID', { uuid: route.entityUuid, nodeId: node.id, is_page: node.is_page });
           currentNodeUuidRef.current = node.uuid;
           openNode(node.id);
-        } catch (err) {
+        } catch {
           log.warn('Entity not found for UUID, navigating to home', { uuid: route.entityUuid });
           navigateHome();
         }

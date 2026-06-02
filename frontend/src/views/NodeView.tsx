@@ -27,7 +27,10 @@ import { nodeKeys } from '@/hooks/queryKeys';
 import * as nodesApi from '@/api/nodes';
 import { useNavigationStore, useAppStore, useSettingsStore, formatDate } from '@/stores';
 import { useFindReplaceStore } from '@/stores/findReplaceStore';
-import { useKeyboardShortcut, SHORTCUT_IDS, useCommand, COMMAND_IDS } from '@/hooks/useKeyboardShortcuts';
+import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut';
+import { useCommand } from '@/hooks/useCommand';
+import { SHORTCUT_IDS } from '@/stores/keyboardStore';
+import { COMMAND_IDS } from '@/stores/commandRegistry';
 import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
 import { useBlockPersist } from '@/hooks/useBlockPersist';
 import { generateUUID } from '@/utils/uuid';
@@ -60,7 +63,7 @@ import { SelectionButton } from '../components/core/SelectionButton';
 import { SYSTEM_PROPERTY_UUIDS, SYSTEM_CLASS_UUIDS, isNonRemovableClass, isBlockOnlyClass } from '@/constants';
 import { buildScheduledForDayQueryAST, buildOverdueQueryAST } from '@/utils/taskQueries';
 import { isDayUuid, getTodayDayUuid } from '@/utils/dateUuid';
-import { ReferencedNodesProvider } from '@/contexts/ReferencedNodesContext';
+import { ReferencedNodesProvider } from '@/contexts/ReferencedNodesProvider';
 import type { Asset } from '../api/assets';
 import { extractImageFromDragEvent } from '@/hooks/useDragDropImage';
 import { uploadAsset } from '@/api/assets';
@@ -1453,8 +1456,8 @@ export function NodeView({
       {showFooter && (
         <footer className="node-view-footer">
           <div className="node-view-metadata">
-            <span>Created: <a className="node-view-metadata-date" onClick={() => navigateToDay(node.create_date)}>{formatDate(new Date(node.create_date), useSettingsStore.getState().dateFormat)}</a></span>
-            <span>Updated: <a className="node-view-metadata-date" onClick={() => navigateToDay(node.write_date)}>{formatDate(new Date(node.write_date), useSettingsStore.getState().dateFormat)}</a></span>
+            <span>Created: <a role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }} className="node-view-metadata-date" onClick={() => navigateToDay(node.create_date)}>{formatDate(new Date(node.create_date), useSettingsStore.getState().dateFormat)}</a></span>
+            <span>Updated: <a role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }} className="node-view-metadata-date" onClick={() => navigateToDay(node.write_date)}>{formatDate(new Date(node.write_date), useSettingsStore.getState().dateFormat)}</a></span>
             {liveSyncStatus !== 'connected' && node?.is_page && (
               <span className={`live-sync-status live-sync-status--${liveSyncStatus}`} title={`Live sync ${liveSyncStatus}`}>
                 {liveSyncStatus === 'connecting' ? 'Connecting…' : liveSyncStatus === 'error' ? 'Sync error' : 'Offline'}

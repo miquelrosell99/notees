@@ -79,7 +79,7 @@ class Settings(BaseSettings):
             warnings.warn(
                 "CORS is configured with wildcard '*'. This is insecure for production. "
                 "Set CORS_ORIGINS to specific allowed origins.",
-                UserWarning,
+                UserWarning, stacklevel=2,
             )
         return v
 

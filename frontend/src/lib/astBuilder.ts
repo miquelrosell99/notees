@@ -32,6 +32,7 @@ import type {
   ASTInlineNode,
 } from '@/types/ast';
 import type { WhiteboardData } from '@/types/whiteboard';
+import type { QueryAST } from '@/types/queryAST';
 
 // Re-export types for convenience
 export type { ASTDocument, ASTInlineNode };
@@ -156,7 +157,7 @@ export function heading(level: number, ...children: ASTInlineNode[]): ASTHeading
 export function whiteboard(data: WhiteboardData): ASTWhiteboard {
   return { type: 'whiteboard', data };
 }
-export function queryBlock(data: import('@/types/queryAST').QueryAST): ASTQuery {
+export function queryBlock(data: QueryAST): ASTQuery {
   return { type: 'query', data };
 }
 /**

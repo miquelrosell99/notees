@@ -263,9 +263,8 @@ class QueryASTToSQL:
 
         operator = condition.operator or "contains"
 
-        if operator == "does_not_contain":
-            # Node does NOT have this class (or any subclass) in its class_ids array
-            return f"""(
+        return {
+            "does_not_contain": f"""(
             NOT EXISTS (
                 SELECT 1 FROM (
                     {class_hierarchy_cte}
@@ -273,14 +272,12 @@ class QueryASTToSQL:
                 ) AS matching_classes
                 WHERE matching_classes.id = ANY(n.class_ids)
             )
-        )"""
-        elif operator == "defined":
-            return "n.class_ids IS NOT NULL AND array_length(n.class_ids, 1) > 0"
-        elif operator == "not_defined":
-            return "(n.class_ids IS NULL OR array_length(n.class_ids, 1) = 0)"
-        else:
-            # Default: 'contains' / 'is' — node has this class (or a subclass)
-            return f"""(
+        )""",
+            "defined": "n.class_ids IS NOT NULL AND array_length(n.class_ids, 1) > 0",
+            "not_defined": "(n.class_ids IS NULL OR array_length(n.class_ids, 1) = 0)",
+        }.get(
+            operator,
+            f"""(
             EXISTS (
                 SELECT 1 FROM (
                     {class_hierarchy_cte}
@@ -288,7 +285,8 @@ class QueryASTToSQL:
                 ) AS matching_classes
                 WHERE matching_classes.id = ANY(n.class_ids)
             )
-        )"""
+        )""",
+        )
 
     def _generate_extends_condition(self, condition: ExtendsCondition) -> str | None:
         """Generate SQL for extends condition.
@@ -339,10 +337,10 @@ class QueryASTToSQL:
             return None
 
         # Built-in node columns that should be queried directly
-        BUILTIN_COLUMNS = {"uuid", "name", "id", "parent_id", "is_page", "is_favorite", "page_uuid"}
+        builtin_columns = {"uuid", "name", "id", "parent_id", "is_page", "is_favorite", "page_uuid"}
 
         # Check if this is a built-in column
-        if condition.property_name in BUILTIN_COLUMNS:
+        if condition.property_name in builtin_columns:
             # For IS_EMPTY/IS_NOT_EMPTY on built-in columns
             if condition.operator == "is_empty":
                 return f"n.{condition.property_name} IS NULL"
@@ -621,7 +619,7 @@ class QueryASTToSQL:
         - is_not: NOT all content is styled with this type
         """
         # Map style_type to AST node type name
-        STYLE_TO_AST_TYPE = {
+        style_to_ast_type = {
             "bold": "strong",
             "italic": "em",
             "underline": "underline",
@@ -629,7 +627,7 @@ class QueryASTToSQL:
             "broken_link": "broken_link",
         }
 
-        ast_type = STYLE_TO_AST_TYPE.get(
+        ast_type = style_to_ast_type.get(
             condition.style_type.value if hasattr(condition.style_type, "value") else condition.style_type
         )
         if not ast_type:
@@ -937,18 +935,11 @@ class QueryASTToSQL:
             param_refs = ", ".join([f"%({p})s" for p in param_names])
             logger.debug(f"Generating parent condition SQL with uuids={valid_uuids}, operator={operator}")
 
-            if operator == "not_has_parent":
-                # Parent is NOT one of the specified nodes
-                return f"n.parent_id NOT IN (SELECT id FROM node WHERE uuid IN ({param_refs}) AND workspace_id = %(workspace_id)s)"
-            elif operator == "has_no_parent":
-                # Ignore the specified parents and just check for NULL
-                return "n.parent_id IS NULL"
-            elif operator == "has_any_parent":
-                # Ignore the specified parents and just check for NOT NULL
-                return "n.parent_id IS NOT NULL"
-            else:  # has_parent (default)
-                # Parent is one of the specified nodes
-                return f"n.parent_id IN (SELECT id FROM node WHERE uuid IN ({param_refs}) AND workspace_id = %(workspace_id)s)"
+            return {
+                "not_has_parent": f"n.parent_id NOT IN (SELECT id FROM node WHERE uuid IN ({param_refs}) AND workspace_id = %(workspace_id)s)",
+                "has_no_parent": "n.parent_id IS NULL",
+                "has_any_parent": "n.parent_id IS NOT NULL",
+            }.get(operator, f"n.parent_id IN (SELECT id FROM node WHERE uuid IN ({param_refs}) AND workspace_id = %(workspace_id)s)")
 
         # Dynamic mode: nested group filters
         if not condition.nested_group:
@@ -971,25 +962,22 @@ class QueryASTToSQL:
 
         parent_sql = re.sub(r"\bn\.", "parent_n.", nested_sql)
 
-        if operator == "not_has_parent":
-            # Negate: node's parent must NOT match the criteria
-            return f"""n.parent_id NOT IN (
+        return {
+            "not_has_parent": f"""n.parent_id NOT IN (
                 SELECT parent_n.id FROM node parent_n
                 WHERE parent_n.workspace_id = %(workspace_id)s AND parent_n.active = TRUE
                 AND ({parent_sql})
-            )"""
-        elif operator == "has_no_parent":
-            # Node has no parent at all
-            return "n.parent_id IS NULL"
-        elif operator == "has_any_parent":
-            # Node has any parent
-            return "n.parent_id IS NOT NULL"
-        else:  # has_parent (default)
-            return f"""n.parent_id IN (
+            )""",
+            "has_no_parent": "n.parent_id IS NULL",
+            "has_any_parent": "n.parent_id IS NOT NULL",
+        }.get(
+            operator,
+            f"""n.parent_id IN (
                 SELECT parent_n.id FROM node parent_n
                 WHERE parent_n.workspace_id = %(workspace_id)s AND parent_n.active = TRUE
                 AND ({parent_sql})
-            )"""
+            )""",
+        )
 
     def _generate_page_condition(self, condition: PageCondition) -> str | None:
         """Generate SQL for page condition - filter by containing page (page_id).
@@ -1039,22 +1027,22 @@ class QueryASTToSQL:
 
         page_sql = re.sub(r"\bn\.", "page_n.", nested_sql)
 
-        if operator == "is_not_page":
-            return f"""(n.page_id IS NULL OR n.page_id NOT IN (
+        return {
+            "is_not_page": f"""(n.page_id IS NULL OR n.page_id NOT IN (
                 SELECT page_n.id FROM node page_n
                 WHERE page_n.workspace_id = %(workspace_id)s AND page_n.active = TRUE
                 AND ({page_sql})
-            ))"""
-        elif operator == "has_no_page":
-            return "n.page_id IS NULL"
-        elif operator == "has_any_page":
-            return "n.page_id IS NOT NULL"
-        else:  # is_page (default)
-            return f"""n.page_id IN (
+            ))""",
+            "has_no_page": "n.page_id IS NULL",
+            "has_any_page": "n.page_id IS NOT NULL",
+        }.get(
+            operator,
+            f"""n.page_id IN (
                 SELECT page_n.id FROM node page_n
                 WHERE page_n.workspace_id = %(workspace_id)s AND page_n.active = TRUE
                 AND ({page_sql})
-            )"""
+            )""",
+        )
 
     def _generate_child_condition(self, condition: ChildCondition) -> str | None:
         """Generate SQL for child condition - direct children match.

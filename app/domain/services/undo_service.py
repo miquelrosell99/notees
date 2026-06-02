@@ -375,9 +375,8 @@ class UndoService:
                 # Had no value before — remove it
                 prop_id = before_state["property_id"]
                 await self._delete_property_value(conn, entity_id, prop_id, before_state.get("property_type", ""))
-        elif operation == "remove_property":
-            if before_state and before_state.get("had_value"):
-                await self._restore_property_value(conn, entity_id, before_state)
+        elif operation == "remove_property" and before_state and before_state.get("had_value"):
+            await self._restore_property_value(conn, entity_id, before_state)
 
     async def _apply_redo(
         self,
@@ -427,10 +426,9 @@ class UndoService:
         elif operation == "set_property":
             if after_state and after_state.get("had_value"):
                 await self._restore_property_value(conn, entity_id, after_state)
-        elif operation == "remove_property":
-            if after_state:
-                prop_id = after_state["property_id"]
-                await self._delete_property_value(conn, entity_id, prop_id, after_state.get("property_type", ""))
+        elif operation == "remove_property" and after_state:
+            prop_id = after_state["property_id"]
+            await self._delete_property_value(conn, entity_id, prop_id, after_state.get("property_type", ""))
 
     # ------------------------------------------------------------------
     # Low-level restore

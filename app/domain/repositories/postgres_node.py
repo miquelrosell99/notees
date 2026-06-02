@@ -100,46 +100,45 @@ class PostgresNodeRepository(
         if is_page:
             page_id = None
 
-        async with acquire_connection(self._pool) as conn:
-            async with conn.transaction():
-                row = await conn.fetchrow(
-                    """
-                    INSERT INTO node (
-                        uuid, workspace_id, name, icon, color, parent_id, page_id,
-                        sequence, collapsed,
-                        is_class, is_page, is_day, is_month, is_year,
-                        is_asset, is_template, is_comment,
-                        class_ids,
-                        create_date, write_date, create_uid, write_uid
-                    )
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $19, $20, $20)
-                    RETURNING id
-                """,
-                    uuid,
-                    self._workspace_id,
-                    normalized_name,
-                    data.icon,
-                    data.color,
-                    data.parent_id,
-                    page_id,
-                    data.sequence,
-                    data.collapsed,
-                    is_class,
-                    is_page,
-                    is_day,
-                    is_month,
-                    is_year,
-                    is_asset,
-                    is_template,
-                    is_comment,
-                    data.classes if data.classes else [],
-                    now,
-                    uid,
+        async with acquire_connection(self._pool) as conn, conn.transaction():
+            row = await conn.fetchrow(
+                """
+                INSERT INTO node (
+                    uuid, workspace_id, name, icon, color, parent_id, page_id,
+                    sequence, collapsed,
+                    is_class, is_page, is_day, is_month, is_year,
+                    is_asset, is_template, is_comment,
+                    class_ids,
+                    create_date, write_date, create_uid, write_uid
                 )
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $19, $20, $20)
+                RETURNING id
+                """,
+                uuid,
+                self._workspace_id,
+                normalized_name,
+                data.icon,
+                data.color,
+                data.parent_id,
+                page_id,
+                data.sequence,
+                data.collapsed,
+                is_class,
+                is_page,
+                is_day,
+                is_month,
+                is_year,
+                is_asset,
+                is_template,
+                is_comment,
+                data.classes if data.classes else [],
+                now,
+                uid,
+            )
 
-                if row is None:
-                    raise RuntimeError("Failed to create node")
-                node_id = row["id"]
+            if row is None:
+                raise RuntimeError("Failed to create node")
+            node_id = row["id"]
 
         return Node(
             id=node_id,
@@ -180,9 +179,8 @@ class PostgresNodeRepository(
             if not row:
                 return None
 
-            if self._user_id:
-                if not await self.permissions.can_read_node(node_id):
-                    return None
+            if self._user_id and not await self.permissions.can_read_node(node_id):
+                return None
 
             return self._row_to_node(row)
 
@@ -210,9 +208,8 @@ class PostgresNodeRepository(
             if not row:
                 return None
 
-            if self._user_id:
-                if not await self.permissions.can_read_node(row["id"]):
-                    return None
+            if self._user_id and not await self.permissions.can_read_node(row["id"]):
+                return None
 
             return self._row_to_node(row)
 
@@ -270,9 +267,9 @@ class PostgresNodeRepository(
             current_node = await self.get_by_id(node_id)
             node_is_page = current_node.is_page if current_node else False
             if data.classes is not None:
-                from ...db.schema.constants import SYSTEM_CLASS_UUIDS as _sc
+                from ...db.schema.constants import SYSTEM_CLASS_UUIDS
 
-                page_class_uuid = _sc["page"]
+                page_class_uuid = SYSTEM_CLASS_UUIDS["page"]
                 node_is_page = False
                 for cid in data.classes:
                     cn = await self.get_by_id(cid)

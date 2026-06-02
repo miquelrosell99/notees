@@ -2,16 +2,15 @@
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from ...logging_config import get_logger
-
-logger = get_logger(__name__)
-
 from ...db.connection import acquire_connection
+from ...logging_config import get_logger
 from ...models import User
 from ..auth import get_current_user
 from .helpers import (
     _get_node_service,
 )
+
+logger = get_logger(__name__)
 
 router = APIRouter()
 

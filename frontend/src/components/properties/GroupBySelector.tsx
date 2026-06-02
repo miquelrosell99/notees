@@ -118,7 +118,7 @@ export function GroupBySelector({ value, onChange, onClose }: GroupBySelectorPro
         {pseudoOptions.map((opt) => {
           const isActive = value === opt.uuid;
           return (
-            <div
+            <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }}
               key={opt.uuid}
               className={`group-by-selector__item ${isActive ? 'group-by-selector__item--active' : ''}`}
               onClick={() => handleSelect(opt.uuid)}
@@ -143,7 +143,7 @@ export function GroupBySelector({ value, onChange, onClose }: GroupBySelectorPro
         {filteredProperties.map((prop) => {
           const isActive = value === prop.uuid;
           return (
-            <div
+            <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }}
               key={prop.uuid}
               className={`group-by-selector__item ${isActive ? 'group-by-selector__item--active' : ''}`}
               onClick={() => handleSelect(prop.uuid)}

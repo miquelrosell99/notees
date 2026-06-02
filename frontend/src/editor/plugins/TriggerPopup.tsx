@@ -249,7 +249,7 @@ export function TriggerPopup({
   }, [type]);
 
   const popup = (
-    <div
+    <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }}
       ref={containerRef}
       data-editor-companion
       className={`trigger-popup trigger-popup--${type}`}

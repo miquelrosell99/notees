@@ -5,9 +5,6 @@ from fastapi_limiter.depends import RateLimiter
 from pyrate_limiter import Duration, Limiter, Rate
 
 from ...logging_config import get_logger
-
-logger = get_logger(__name__)
-
 from ...models import User
 from ..auth import get_current_user
 from .helpers import (
@@ -19,6 +16,8 @@ from .models import (
     BatchPermanentDeleteResponse,
     BatchPermanentDeleteResultItem,
 )
+
+logger = get_logger(__name__)
 
 _trash_limiter = Limiter(Rate(120, Duration.MINUTE))
 router = APIRouter()

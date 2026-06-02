@@ -283,7 +283,7 @@ export function PropertyCell({
   // Handle boolean toggle
   if (property.type === 'boolean' && !isEditing) {
     return (
-      <div
+      <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }}
         className="property-cell property-cell--boolean"
         onClick={handleClick}
       >
@@ -321,7 +321,7 @@ export function PropertyCell({
 
   // Display mode for scalar types (text, integer, float, date)
   return (
-    <div
+    <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }}
       className={`property-cell ${editable ? 'property-cell--editable' : ''} ${!displayValue ? 'property-cell--empty' : ''}`}
       onClick={handleClick}
       title={editable ? 'Click to edit' : undefined}

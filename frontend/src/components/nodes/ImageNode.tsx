@@ -148,7 +148,7 @@ export function ImageNode({
 
   // Render image content
   const imageContent = (
-    <img
+    <img role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }}
       key={imageUrl}
       src={imageUrl}
       alt={alt}

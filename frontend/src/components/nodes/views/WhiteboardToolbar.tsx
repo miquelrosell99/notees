@@ -422,7 +422,7 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
             onClick={() => wb.setViewport({ ...data.viewport, zoom: Math.max(0.1, data.viewport.zoom - 0.1) })}
             title="Zoom Out"
           />
-          <div
+          <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }}
             className="whiteboard-zoom__level"
             onClick={() => wb.setViewport({ ...data.viewport, zoom: 1 })}
             title="Reset zoom (Ctrl+0)"

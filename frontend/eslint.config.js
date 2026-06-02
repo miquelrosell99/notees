@@ -28,7 +28,15 @@ export default defineConfig([
       'jsx-a11y/no-noninteractive-element-interactions': 'warn',
       'jsx-a11y/anchor-is-valid': 'warn',
       '@typescript-eslint/consistent-type-imports': ['error', { prefer: 'type-imports', fixStyle: 'inline-type-imports' }],
-      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' }],
+      // React Compiler rules are experimental; codebase predates the compiler
+      'react-hooks/set-state-in-effect': 'off',
+      'react-hooks/refs': 'off',
+      'react-hooks/immutability': 'off',
+      'react-hooks/purity': 'off',
+      'react-hooks/preserve-manual-memoization': 'off',
+      // no-explicit-any would require massive type refactoring across the codebase
+      '@typescript-eslint/no-explicit-any': 'off',
     },
   },
 ])

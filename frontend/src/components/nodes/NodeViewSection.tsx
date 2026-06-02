@@ -72,7 +72,7 @@ export function NodeViewSection({
   
   return (
     <section className={`node-view-section ${isExpanded ? 'expanded' : 'collapsed'} ${className}`}>
-      <header className="node-view-section__header" onClick={handleToggle}>
+      <header role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }} className="node-view-section__header" onClick={handleToggle}>
         <Button 
           variant="ghost"
           size="xs"
@@ -92,7 +92,7 @@ export function NodeViewSection({
         </div>
         
         {headerActions && (
-          <div className="node-view-section__actions" onClick={e => e.stopPropagation()}>
+          <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }} className="node-view-section__actions" onClick={e => e.stopPropagation()}>
             {headerActions}
           </div>
         )}

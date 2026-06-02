@@ -574,6 +574,8 @@ class LinkParsingService:
 
         backlinks = []
         seen_source_target_pairs: set[tuple[int, int]] = set()
+        # Collect unique source node IDs for batch breadcrumb fetching
+        backlink_source_ids: set[int] = set()
 
         for row in rows:
             pair = (row["source_id"], row["target_id"])
@@ -588,10 +590,7 @@ class LinkParsingService:
                 position=row["position"] or 0,
             )
 
-            breadcrumb_path = await self._build_breadcrumb_path(
-                source_node_id=row["source_id"],
-                property_name=row["property_name"],
-            )
+            backlink_source_ids.add(row["source_id"])
 
             backlink_info = BacklinkInfo(
                 link=link,
@@ -604,7 +603,7 @@ class LinkParsingService:
                 source_page_uuid=row["page_uuid"],
                 property_id=row["property_id"],
                 property_name=row["property_name"],
-                breadcrumb_path=breadcrumb_path,
+                breadcrumb_path=[],
             )
             backlinks.append(backlink_info)
 
@@ -619,10 +618,7 @@ class LinkParsingService:
                 position=0,
             )
 
-            breadcrumb_path = await self._build_breadcrumb_path(
-                source_node_id=row["source_id"],
-                property_name=row["property_name"],
-            )
+            backlink_source_ids.add(row["source_id"])
 
             backlink_info = BacklinkInfo(
                 link=link,
@@ -635,20 +631,28 @@ class LinkParsingService:
                 source_page_uuid=row["page_uuid"],
                 property_id=row["property_id"],
                 property_name=row["property_name"],
-                breadcrumb_path=breadcrumb_path,
+                breadcrumb_path=[],
             )
             backlinks.append(backlink_info)
+
+        # Batch build breadcrumbs for all unique source nodes
+        if backlink_source_ids:
+            breadcrumb_map = await self._node_repo.get_breadcrumbs_batch(list(backlink_source_ids))
+            for b in backlinks:
+                ancestors = breadcrumb_map.get(b.source_node_id, [])
+                b.breadcrumb_path = self._build_breadcrumb_path_from_ancestors(
+                    ancestors,
+                    property_name=b.property_name,
+                )
 
         # ── Detect text property context ──────────────────────────────
         text_link_backlinks = [b for b in backlinks if b.property_id is None and not b.source_is_page]
 
         if text_link_backlinks:
+            text_source_ids = [b.source_node_id for b in text_link_backlinks]
+            source_ancestor_map = await self._node_repo.get_ancestors_batch(text_source_ids, include_self=True)
             all_ancestor_ids: set[int] = set()
-            source_ancestor_map: dict[int, list[int]] = {}
-
-            for b in text_link_backlinks:
-                ancestors = await self._node_repo.get_ancestors(b.source_node_id, include_self=True)
-                source_ancestor_map[b.source_node_id] = ancestors
+            for ancestors in source_ancestor_map.values():
                 all_ancestor_ids.update(ancestors)
 
             if all_ancestor_ids:
@@ -690,8 +694,10 @@ class LinkParsingService:
                                     b.source_page_id = info["owner_page_id"]
                                     b.source_page_name = info["owner_page_name"]
                                     b.source_page_uuid = info["owner_page_uuid"]
-                                b.breadcrumb_path = await self._build_breadcrumb_path(
-                                    source_node_id=info["owner_id"],
+                                # Rebuild breadcrumb for the new owner
+                                owner_ancestors = breadcrumb_map.get(info["owner_id"], [])
+                                b.breadcrumb_path = self._build_breadcrumb_path_from_ancestors(
+                                    owner_ancestors,
                                     property_name=info["property_name"],
                                 )
                                 break
@@ -746,6 +752,35 @@ class LinkParsingService:
             if node.is_page:
                 break
 
+        return breadcrumbs
+
+    def _build_breadcrumb_path_from_ancestors(
+        self,
+        ancestor_nodes: list[object],
+        property_name: str | None = None,
+    ) -> list[tuple[int | None, str, bool]]:
+        """Build breadcrumb path from pre-fetched ancestor nodes.
+
+        Mirrors the logic of `_build_breadcrumb_path` but uses already-fetched
+        ancestor nodes to avoid a recursive CTE per backlink.
+
+        Format: [(node_id, name, is_property_segment), ...]
+        """
+        breadcrumbs: list[tuple[int | None, str, bool]] = []
+        if not ancestor_nodes:
+            return breadcrumbs
+
+        reversed_nodes = list(reversed(ancestor_nodes))
+        first_node = True
+        for node in reversed_nodes:
+            if first_node and property_name:
+                breadcrumbs.append((node.id, node.name or "", False))
+                breadcrumbs.append((None, property_name, True))
+                first_node = False
+            else:
+                breadcrumbs.append((node.id, node.name or "", False))
+            if node.is_page:
+                break
         return breadcrumbs
 
     async def get_path_references(self, node_id: int) -> list[int]:

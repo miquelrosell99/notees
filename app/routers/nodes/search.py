@@ -1,5 +1,7 @@
 """Search, list, and workspace endpoints for nodes."""
 
+import contextlib
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from ...db.connection import acquire_connection
@@ -707,10 +709,8 @@ async def search_nodes(
     # Parse class filters if provided
     filter_class_ids: list[int] | None = None
     if class_filters:
-        try:
+        with contextlib.suppress(ValueError):
             filter_class_ids = [int(cid.strip()) for cid in class_filters.split(",") if cid.strip()]
-        except ValueError:
-            pass
 
     offset = (page - 1) * limit
     nodes = await service.search(
@@ -785,10 +785,8 @@ async def list_nodes(
     # Parse class filters if provided
     filter_class_ids: set | None = None
     if class_filters:
-        try:
+        with contextlib.suppress(ValueError):
             filter_class_ids = {int(cid.strip()) for cid in class_filters.split(",") if cid.strip()}
-        except ValueError:
-            pass
 
     # Batch fetch class_ids for all nodes
     node_ids = [n.id for n in nodes if n.id is not None]
@@ -806,9 +804,8 @@ async def list_nodes(
         node_class_ids = class_ids_map.get(n.id, [])
 
         # Apply class filter if specified
-        if filter_class_ids:
-            if not filter_class_ids.intersection(node_class_ids):
-                continue
+        if filter_class_ids and not filter_class_ids.intersection(node_class_ids):
+            continue
 
         result.append(_node_to_response(n, classes=node_class_ids))
 
