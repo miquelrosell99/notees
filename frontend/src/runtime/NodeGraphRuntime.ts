@@ -102,6 +102,7 @@ export class NodeGraphRuntime {
    *   value is used instead of a stale runtime value from a previous view.
    */
   upsertNodes(nodes: GraphNode[], options?: { preserveCollapsed?: boolean }): void {
+    console.log('[NodeGraphRuntime/upsertNodes] called', { nodeCount: nodes.length, first: nodes[0]?.blockId, firstParentId: nodes[0]?.parentId });
     const preserveCollapsed = options?.preserveCollapsed ?? true;
     const changedParents = new Set<string>();
     const changedBlockIds: string[] = [];
@@ -168,6 +169,8 @@ export class NodeGraphRuntime {
         this.nodes.set(node.blockId, merged);
       }
     }
+
+    console.log('[NodeGraphRuntime/upsertNodes] done', { changedParents: [...changedParents], changedBlockIds, willRebuild: changedParents.size > 0 || changedBlockIds.length > 0 });
 
     // Only rebuild index and emit events if something actually changed
     if (changedParents.size > 0 || changedBlockIds.length > 0) {
@@ -495,24 +498,20 @@ export class NodeGraphRuntime {
     if (hasChildren && !forceSibling) {
       // Block has children: create new block as FIRST CHILD
       newParentId = blockId;
-      orderIndex = 0;
-
-      // Shift all existing children down
-      for (const child of children) {
-        child.orderIndex += 1;
-      }
+      const firstChild = children[0];
+      const firstOrder = firstChild?.orderIndex ?? 0;
+      orderIndex = firstOrder - 1.0;
     } else {
       // Block has no children (or forceSibling): create new block as SIBLING
       newParentId = node.parentId;
       const siblings = newParentId ? (this.childrenIndex.get(newParentId) || []) : [];
       const myIndex = siblings.indexOf(blockId);
-      orderIndex = myIndex >= 0 ? myIndex + 1 : siblings.length;
-
-      // Shift subsequent siblings
-      for (let i = orderIndex; i < siblings.length; i++) {
-        const sib = this.nodes.get(siblings[i]);
-        if (sib) sib.orderIndex = i + 1;
-      }
+      const nextNode = myIndex >= 0 && myIndex + 1 < siblings.length
+        ? this.nodes.get(siblings[myIndex + 1])
+        : null;
+      const myOrder = node.orderIndex;
+      const nextOrder = nextNode?.orderIndex ?? (myOrder + 1.0);
+      orderIndex = (myOrder + nextOrder) / 2.0;
     }
 
     const newNode: GraphNode = {
@@ -582,16 +581,27 @@ export class NodeGraphRuntime {
 
     if (afterBlockId) {
       const afterIndex = siblings.indexOf(afterBlockId);
-      orderIndex = afterIndex >= 0 ? afterIndex + 1 : siblings.length;
+      const afterNode = afterIndex >= 0 ? this.nodes.get(siblings[afterIndex]) : null;
+      const nextNode = afterIndex >= 0 && afterIndex + 1 < siblings.length
+        ? this.nodes.get(siblings[afterIndex + 1])
+        : null;
+      const afterOrder = afterNode?.orderIndex ?? 0;
+      const nextOrder = nextNode?.orderIndex ?? (afterOrder + 1.0);
+      orderIndex = (afterOrder + nextOrder) / 2.0;
     } else {
-      orderIndex = 0;
+      // Insert at beginning
+      const firstNode = siblings.length > 0 ? this.nodes.get(siblings[0]) : null;
+      const firstOrder = firstNode?.orderIndex ?? 0;
+      orderIndex = firstOrder - 1.0;
     }
 
-    // Shift subsequent siblings
-    for (let i = orderIndex; i < siblings.length; i++) {
-      const sib = this.nodes.get(siblings[i]);
-      if (sib) sib.orderIndex = i + 1;
-    }
+    console.log('[NodeGraphRuntime/execCreateBlock]', {
+      parentId,
+      afterBlockId,
+      blockId,
+      siblingCount: siblings.length,
+      orderIndex,
+    });
 
     const newNode: GraphNode = {
       blockId,
@@ -654,35 +664,27 @@ export class NodeGraphRuntime {
       ? oldChildren
       : (this.childrenIndex.get(newParentId) || []);
 
-    // Determine insertion index
-    let insertIdx: number;
+    // Determine insertion position using fractional floats
+    let newOrderIndex: number;
     if (afterBlockId) {
       const afterIdx = newSiblings.indexOf(afterBlockId);
-      insertIdx = afterIdx >= 0 ? afterIdx + 1 : newSiblings.length;
+      const afterNode = afterIdx >= 0 ? this.nodes.get(newSiblings[afterIdx]) : null;
+      const nextNode = afterIdx >= 0 && afterIdx + 1 < newSiblings.length
+        ? this.nodes.get(newSiblings[afterIdx + 1])
+        : null;
+      const afterOrder = afterNode?.orderIndex ?? 0;
+      const nextOrder = nextNode?.orderIndex ?? (afterOrder + 1.0);
+      newOrderIndex = (afterOrder + nextOrder) / 2.0;
     } else {
-      insertIdx = 0;
+      const firstNode = newSiblings.length > 0 ? this.nodes.get(newSiblings[0]) : null;
+      const firstOrder = firstNode?.orderIndex ?? 0;
+      newOrderIndex = firstOrder - 1.0;
     }
 
-    // Update parent
     node.parentId = newParentId;
-
-    // Reindex all siblings at the target parent for clean ordering
-    // Insert moved block at the right position
-    newSiblings.splice(insertIdx, 0, blockId);
-    for (let i = 0; i < newSiblings.length; i++) {
-      const sibling = this.nodes.get(newSiblings[i]);
-      if (sibling) sibling.orderIndex = i;
-    }
-
-    // Also reindex old parent's children if different
-    if (newParentId !== oldParentId) {
-      for (let i = 0; i < oldChildren.length; i++) {
-        const sibling = this.nodes.get(oldChildren[i]);
-        if (sibling) sibling.orderIndex = i;
-      }
-    }
-
+    node.orderIndex = newOrderIndex;
     node.updatedAt = new Date().toISOString();
+
     this.rebuildChildrenIndex();
     this.scheduleEmit(blockId, oldParentId);
     if (newParentId !== oldParentId) {
@@ -704,7 +706,10 @@ export class NodeGraphRuntime {
 
     const oldParentId = node.parentId;
     node.parentId = newParentId;
-    node.orderIndex = newParentChildren.length;
+    const lastOrder = newParentChildren.length > 0
+      ? newParentChildren[newParentChildren.length - 1].orderIndex
+      : -1.0;
+    node.orderIndex = lastOrder + 1.0;
     node.updatedAt = new Date().toISOString();
 
     this.rebuildChildrenIndex();
@@ -725,12 +730,16 @@ export class NodeGraphRuntime {
     // Position after current parent in grandparent's children
     const grandparentChildren = this.getChildren(grandparentId);
     const parentIndex = grandparentChildren.findIndex(s => s.blockId === oldParentId);
-
+    const parentOrder = grandparentChildren[parentIndex]?.orderIndex ?? 0;
+    const nextNode = parentIndex + 1 < grandparentChildren.length
+      ? grandparentChildren[parentIndex + 1]
+      : null;
+    const nextOrder = nextNode?.orderIndex ?? (parentOrder + 1.0);
     node.parentId = grandparentId;
-    node.orderIndex = parentIndex + 1;
+    node.orderIndex = (parentOrder + nextOrder) / 2.0;
     node.updatedAt = new Date().toISOString();
 
-    // Move subsequent siblings of the indented node to become its children
+    // Move subsequent siblings of the outdented node to become its children
     const formerSiblings = this.getChildren(oldParentId);
     const myOldIndex = formerSiblings.findIndex(s => s.blockId === blockId);
     const subsequentSiblings = formerSiblings.filter((_, i) => i > myOldIndex);
@@ -769,12 +778,13 @@ export class NodeGraphRuntime {
     const myIndex = siblings.findIndex(s => s.blockId === blockId);
     
     if (myIndex > 0) {
-      // Not first sibling - swap with previous sibling
+      // Not first sibling - move before previous sibling
       const prevSibling = siblings[myIndex - 1];
-      node.orderIndex = myIndex - 1;
-      prevSibling.orderIndex = myIndex;
+      const beforePrev = myIndex > 1 ? siblings[myIndex - 2] : null;
+      const prevOrder = prevSibling.orderIndex;
+      const beforePrevOrder = beforePrev?.orderIndex ?? (prevOrder - 1.0);
+      node.orderIndex = (beforePrevOrder + prevOrder) / 2.0;
       node.updatedAt = new Date().toISOString();
-      prevSibling.updatedAt = new Date().toISOString();
       
       this.rebuildChildrenIndex();
       this.scheduleEmit(blockId, node.parentId);
@@ -793,7 +803,10 @@ export class NodeGraphRuntime {
         
         const oldParentId = node.parentId;
         node.parentId = prevParentId;
-        node.orderIndex = prevParentChildren.length;
+        const lastOrder = prevParentChildren.length > 0
+          ? prevParentChildren[prevParentChildren.length - 1].orderIndex
+          : -1.0;
+        node.orderIndex = lastOrder + 1.0;
         node.updatedAt = new Date().toISOString();
         
         this.rebuildChildrenIndex();
@@ -818,12 +831,13 @@ export class NodeGraphRuntime {
     const myIndex = siblings.findIndex(s => s.blockId === blockId);
     
     if (myIndex < siblings.length - 1) {
-      // Not last sibling - swap with next sibling
+      // Not last sibling - move after next sibling
       const nextSibling = siblings[myIndex + 1];
-      node.orderIndex = myIndex + 1;
-      nextSibling.orderIndex = myIndex;
+      const afterNext = myIndex + 2 < siblings.length ? siblings[myIndex + 2] : null;
+      const nextOrder = nextSibling.orderIndex;
+      const afterNextOrder = afterNext?.orderIndex ?? (nextOrder + 1.0);
+      node.orderIndex = (nextOrder + afterNextOrder) / 2.0;
       node.updatedAt = new Date().toISOString();
-      nextSibling.updatedAt = new Date().toISOString();
       
       this.rebuildChildrenIndex();
       this.scheduleEmit(blockId, node.parentId);
@@ -841,14 +855,10 @@ export class NodeGraphRuntime {
         
         const oldParentId = node.parentId;
         node.parentId = nextParentId;
-        node.orderIndex = 0;
+        const firstNode = this.getChildren(nextParentId)[0];
+        const firstOrder = firstNode?.orderIndex ?? 0;
+        node.orderIndex = firstOrder - 1.0;
         node.updatedAt = new Date().toISOString();
-        
-        // Shift existing children of next parent down
-        const nextParentChildren = this.getChildren(nextParentId);
-        for (const child of nextParentChildren) {
-          child.orderIndex += 1;
-        }
         
         this.rebuildChildrenIndex();
         this.scheduleEmit(blockId, oldParentId);
@@ -1240,6 +1250,7 @@ export class NodeGraphRuntime {
   // ─── Internal helpers ─────────────────────────────────────────
 
   private rebuildChildrenIndex(): void {
+    const beforeKeys = [...this.childrenIndex.keys()];
     this.childrenIndex.clear();
     for (const node of this.nodes.values()) {
       if (node.parentId) {
@@ -1260,6 +1271,12 @@ export class NodeGraphRuntime {
         return (nodeA?.orderIndex ?? 0) - (nodeB?.orderIndex ?? 0);
       });
     }
+    console.log('[NodeGraphRuntime/rebuildChildrenIndex]', {
+      beforeKeys,
+      afterKeys: [...this.childrenIndex.keys()],
+      afterSizes: [...this.childrenIndex.entries()].map(([k, v]) => ({ key: k, size: v.length })),
+      nodeCount: this.nodes.size,
+    });
   }
 
   private computeReverse(intent: MutationIntent): MutationIntent | null {

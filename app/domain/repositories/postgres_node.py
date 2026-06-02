@@ -102,9 +102,6 @@ class PostgresNodeRepository(
 
         async with acquire_connection(self._pool) as conn:
             async with conn.transaction():
-                if data.parent_id is not None and data.sequence is not None:
-                    await self._shift_siblings_for_insert(conn, data.parent_id, data.sequence)
-
                 row = await conn.fetchrow(
                     """
                     INSERT INTO node (
@@ -674,7 +671,7 @@ class PostgresNodeRepository(
             )
             return [row["id"] for row in rows]
 
-    async def get_max_sequence(self, parent_id: int) -> int:
+    async def get_max_sequence(self, parent_id: int) -> float:
         """Get the maximum sequence among children of a parent."""
         async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow(
@@ -683,7 +680,7 @@ class PostgresNodeRepository(
             return row["max_seq"] if row else -1
 
     async def reparent_nodes(
-        self, node_ids: list[int], new_parent_id: int, new_page_id: int, start_sequence: int
+        self, node_ids: list[int], new_parent_id: int, new_page_id: int, start_sequence: float
     ) -> None:
         """Reparent multiple nodes to a new parent with sequential ordering."""
         if not node_ids:
@@ -867,7 +864,7 @@ class PostgresNodeRepository(
             )
             return [self._row_to_node(row) for row in rows]
 
-    async def get_node_sequence(self, node_id: int) -> int | None:
+    async def get_node_sequence(self, node_id: int) -> float | None:
         """Get the sequence of a node."""
         async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow(
@@ -875,7 +872,7 @@ class PostgresNodeRepository(
             )
             return row["sequence"] if row else None
 
-    async def shift_sequences(self, parent_id: int, from_sequence: int, amount: int) -> None:
+    async def shift_sequences(self, parent_id: int, from_sequence: float, amount: float) -> None:
         """Shift sequences of children at or after from_sequence by amount."""
         async with acquire_connection(self._pool) as conn:
             await conn.execute(

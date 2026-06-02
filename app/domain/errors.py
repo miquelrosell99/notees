@@ -65,6 +65,19 @@ class NodeValidationError(NodeError):
         super().__init__(message=message, code="NODE_VALIDATION_ERROR")
 
 
+class OptimisticLockError(NodeError):
+    """Raised when a concurrent update modifies the node version."""
+
+    def __init__(self, node_id: str, expected_version: int, actual_version: int):
+        self.node_id = node_id
+        self.expected_version = expected_version
+        self.actual_version = actual_version
+        super().__init__(
+            message=f"Optimistic lock conflict for node {node_id}: expected v{expected_version}, found v{actual_version}",
+            code="OPTIMISTIC_LOCK_CONFLICT",
+        )
+
+
 class CircularReferenceError(NodeError):
     """Raised when a circular reference would be created."""
 

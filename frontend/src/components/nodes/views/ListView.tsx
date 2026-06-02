@@ -465,6 +465,7 @@ export const ListView = memo(function ListView({
         onOpenInSidebar={handleOpenInSidebar}
         onPillClick={handleNavigateToNode}
         nodeUuid={_nodeUuid}
+        nodeId={_pageId}
         maxDepth={maxDepth}
         pagesOnly={pagesOnly}
         skipPages={!pagesOnly}
