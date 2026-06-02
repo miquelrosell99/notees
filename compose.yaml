@@ -28,13 +28,11 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
       TZ: ${TZ:-UTC}
       POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
-    # NOTE: fsync/synchronous_commit/full_page_writes are OFF for dev speed.
-    # Data WILL be lost on unclean shutdown. Never use these settings in production.
+    # Durability settings enabled for stability. On unclean shutdown/reboot,
+    # PostgreSQL replays the WAL and guarantees no data loss.
+    # (These were previously disabled for dev speed but caused data loss.)
     command: >
       postgres
-      -c fsync=off
-      -c synchronous_commit=off
-      -c full_page_writes=off
     volumes:
       - ./.config/notees-postgres-dev:/var/lib/postgresql/data
     healthcheck:
