@@ -21,6 +21,10 @@ interface BlockUIProps {
   onContextMenu?: (nodeId: number, event: React.MouseEvent) => void;
   /** Remote users currently editing this block (for lock indicator). */
   lockedBy?: PresenceUser[];
+  /** Remote users currently focused on this block (presence). */
+  presenceUsers?: PresenceUser[];
+  /** Remote users currently typing in this block (ephemeral). */
+  typingUsers?: PresenceUser[];
 }
 
 export function BlockUI({
@@ -30,6 +34,8 @@ export function BlockUI({
   onOpenInSidebar,
   onContextMenu,
   lockedBy,
+  presenceUsers,
+  typingUsers,
 }: BlockUIProps): JSX.Element {
   const { isTask, taskStatus, toggleTask } = useTaskActions(node);
 
@@ -57,9 +63,35 @@ export function BlockUI({
         taskStatus={isTask ? taskStatus : undefined}
         onTaskToggle={toggleTask}
       />
+      {presenceUsers && presenceUsers.length > 0 && (
+        <div className="block-ui__presence">
+          {presenceUsers.map((u) => (
+            <span
+              key={u.id}
+              className="block-ui__presence-avatar"
+              title={`${u.name} is here`}
+              style={{ backgroundColor: u.color || '#888' }}
+            >
+              {u.name.charAt(0).toUpperCase()}
+            </span>
+          ))}
+        </div>
+      )}
       {lockedBy && lockedBy.length > 0 && (
         <div className="block-ui__lock" title={`Editing by ${lockedBy.map((u) => u.name).join(', ')}`}>
           <Icon path="mdi mdi-lock-outline" size={0.7} color={lockedBy[0].color} />
+        </div>
+      )}
+      {typingUsers && typingUsers.length > 0 && (
+        <div className="block-ui__typing">
+          {typingUsers.map((u) => (
+            <span
+              key={u.id}
+              className="block-ui__typing-dot"
+              title={`${u.name} is typing…`}
+              style={{ backgroundColor: u.color || '#888' }}
+            />
+          ))}
         </div>
       )}
     </div>
