@@ -9,7 +9,7 @@ import { getMdiClass } from '@/utils/iconDom';
 export { Icon } from './Icon';
 
 // Icon size presets
-export const ICON_SIZE = {
+const ICON_SIZE = {
   xs: 0.6,  // 14.4px at 24px base
   sm: 0.75, // 18px
   md: 1,    // 24px (default)
@@ -290,49 +290,6 @@ export const CheckboxCheckedIcon = ({ size = 'md', className, color, title }: Ic
 export const CheckboxUncheckedIcon = ({ size = 'md', className, color, title }: IconProps) => (
   <Icon path="mdi-checkbox-blank-outline" size={getSize(size)} className={className} color={color} title={title} />
 );
-
-/**
- * Default icons for system tags and pages
- * Maps system tag/page names to their default icon components
- */
-export const DEFAULT_ICONS = {
-  // Page types
-  page: PageIcon,
-  daily: CalendarIcon,
-  journal: JournalIcon,
-  
-  // System views
-  'all-pages': AllPagesIcon,
-  graph: GraphIcon,
-  
-  // Organization
-  tag: TagIcon,
-  folder: FolderIcon,
-  
-  // Links
-  link: LinkIcon,
-  backlink: LinkIcon,
-  
-  // Properties
-  properties: PropertiesIcon,
-  
-  // Navigation
-  home: HomeIcon,
-  
-  // Status
-  starred: StarIcon,
-  pinned: PinIcon,
-  clock: ClockIcon,
-  recent: ClockIcon,
-} as const;
-
-/**
- * Get the default icon component for a given type
- */
-export function getDefaultIcon(type: keyof typeof DEFAULT_ICONS): React.ComponentType<IconProps> {
-  return DEFAULT_ICONS[type] || PageIcon;
-}
-
 /**
  * Render an icon from a node's icon field
  * 

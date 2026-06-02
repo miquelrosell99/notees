@@ -102,7 +102,7 @@ export function TableSizeSelector({
     : hintText;
 
   return (
-    <div 
+    <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }} 
       className="table-size-selector"
       onClick={handleBackdropClick}
     >

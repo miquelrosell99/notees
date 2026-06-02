@@ -590,7 +590,7 @@ export function useUpdateNode() {
       // that were set by addClass/addTag mutations.
       const mergeUpdate = (oldNode: Node | undefined): Node => {
         if (!oldNode) return updatedNode;
-        const { children, backlinks, linked_references, properties, classes, tags, ...rest } = updatedNode;
+        const { children, backlinks, linked_references, properties, classes: _classes, tags: _tags, ...rest } = updatedNode;
         return {
           ...oldNode,
           ...rest,

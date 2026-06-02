@@ -310,7 +310,7 @@ function PropertyRow({
   return (
     <>
       <div ref={rowRef} className={`property-row${hideLabel ? ' property-row--continuation' : ''}`} onContextMenu={handleContextMenu}>
-        <div className="property-row__label" onClick={handleNameClick}>
+        <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }} className="property-row__label" onClick={handleNameClick}>
           {!hideLabel && (
             <>
               <NodeInline

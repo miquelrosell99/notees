@@ -262,7 +262,7 @@ export function PropertyColumnSelector({
             {filteredProperties
               .filter(prop => !selectedPropertyUuids.includes(prop.uuid))
               .map(property => (
-                <div
+                <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }}
                   key={property.uuid}
                   className="property-column-selector__item"
                   onClick={() => handleToggle(property.uuid)}

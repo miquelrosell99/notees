@@ -69,7 +69,7 @@ const LINK_OR_ASSET_RE = /\[([^\]]+)\]\(\[\[([^\]]+)\]\]\)|!\[[^\]]*\]\(\.\.\/as
  */
 function parseDateLink(link: string): string | null {
   // Accept both `/` and `-` as separators
-  const m = link.match(/^(\d{1,4})[/\-](\d{1,2})[/\-](\d{1,4})$/);
+  const m = link.match(/^(\d{1,4})[-/](\d{1,2})[-/](\d{1,4})$/);
   if (!m) return null;
 
   const [, a, b, c] = m;

@@ -93,7 +93,7 @@ export const ClassPillsRow = memo(function ClassPillsRow({
           />
         ))}
         {overflowCount > 0 && (
-          <span className="class-pills-row__overflow-wrapper" onClick={handleOverflowClick}>
+          <span role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }} className="class-pills-row__overflow-wrapper" onClick={handleOverflowClick}>
             <Pill
               text={`+${overflowCount}`}
               className="class-pills-row__overflow"
@@ -104,7 +104,7 @@ export const ClassPillsRow = memo(function ClassPillsRow({
 
       {showPopup && (
         <>
-          <div className="class-pills-popup-backdrop" onClick={handleClosePopup} />
+          <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }} className="class-pills-popup-backdrop" onClick={handleClosePopup} />
           <div
             className="class-pills-popup"
             style={{

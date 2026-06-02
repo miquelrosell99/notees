@@ -10,6 +10,9 @@
  * Child blocks are separate nodes — they are NEVER embedded in a parent's AST.
  */
 
+import type { WhiteboardData } from './whiteboard';
+import type { QueryAST } from './queryAST';
+
 // ─── Leaf nodes ────────────────────────────────────────────────────
 
 /** Plain text. */
@@ -134,7 +137,7 @@ export interface ASTHeading {
  */
 export interface ASTWhiteboard {
   readonly type: 'whiteboard';
-  readonly data: import('./whiteboard').WhiteboardData;
+  readonly data: WhiteboardData;
   readonly children?: ASTInlineNode[];
   readonly title?: string;
 }
@@ -153,7 +156,7 @@ export interface ASTWhiteboard {
  */
 export interface ASTQuery {
   readonly type: 'query';
-  readonly data: import('./queryAST').QueryAST;
+  readonly data: QueryAST;
   readonly children?: ASTInlineNode[];
 }
 

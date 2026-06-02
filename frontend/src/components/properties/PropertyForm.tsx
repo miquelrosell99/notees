@@ -15,14 +15,14 @@ import { ListSortable } from '@/components/core/ListSortable';
 import { NodeSelector } from '@/components/nodes/NodeSelector';
 import './PropertyForm.css';
 
-export interface PropertyTypeOption {
+interface PropertyTypeOption {
   type: PropertyType;
   label: string;
   description: string;
   supportsMultiValue: boolean;
 }
 
-export const PROPERTY_TYPE_OPTIONS: PropertyTypeOption[] = [
+const PROPERTY_TYPE_OPTIONS: PropertyTypeOption[] = [
   { type: 'text', label: 'Text', description: 'Single or multi-line text', supportsMultiValue: true },
   { type: 'integer', label: 'Number', description: 'Whole numbers', supportsMultiValue: false },
   { type: 'float', label: 'Decimal', description: 'Numbers with decimals', supportsMultiValue: false },

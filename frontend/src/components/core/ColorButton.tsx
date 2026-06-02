@@ -230,7 +230,7 @@ export const ColorButton = forwardRef<HTMLButtonElement, ColorButtonProps>(funct
       </button>
 
       {showPicker && isPickerOpen && createPortal(
-        <div
+        <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }}
           ref={pickerRef}
           className="color-btn-picker"
           onClick={(e) => e.stopPropagation()}

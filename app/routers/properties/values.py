@@ -52,13 +52,13 @@ async def _handle_closed_date_automation(
     else:
         selected_id = int(selection_value)
 
-    CLOSED_STATUSES = {"Done", "Cancelled"}
+    closed_statuses = {"Done", "Cancelled"}
     should_close = False
 
     if selected_id is not None and prop.id is not None:
         lines = await repo.get_selection_lines(prop.id)
-        selected_line = next((l for l in lines if l.id == selected_id), None)
-        if selected_line and selected_line.name in CLOSED_STATUSES:
+        selected_line = next((line for line in lines if line.id == selected_id), None)
+        if selected_line and selected_line.name in closed_statuses:
             should_close = True
 
     if should_close:
@@ -109,7 +109,7 @@ async def _handle_recurrence_automation(
     if prop.id is None:
         return
     lines = await repo.get_selection_lines(prop.id)
-    selected_line = next((l for l in lines if l.id == selected_id), None)
+    selected_line = next((line for line in lines if line.id == selected_id), None)
     if not selected_line or selected_line.name not in {"Done", "Cancelled"}:
         return
 
@@ -136,7 +136,7 @@ async def _handle_recurrence_automation(
     if rec_id is None:
         return
     rec_lines = await repo.get_selection_lines(recurrence_prop.id)
-    rec_line = next((l for l in rec_lines if l.id == rec_id), None)
+    rec_line = next((line for line in rec_lines if line.id == rec_id), None)
     if not rec_line:
         return
 
@@ -229,7 +229,7 @@ async def _handle_recurrence_automation(
             await repo.set_relation_value(node_id, date_prop.id, new_day_id)
 
     # Reset status to Pending
-    pending_line = next((l for l in lines if l.name == "Pending"), None)
+    pending_line = next((line for line in lines if line.name == "Pending"), None)
     if pending_line and pending_line.id is not None:
         await repo.set_selection_value(node_id, prop.id, pending_line.id)
 

@@ -3,9 +3,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Path
 
 from ...logging_config import get_logger
-
-logger = get_logger(__name__)
-
 from ...models import User
 from ..auth import get_current_user
 from .helpers import (
@@ -14,6 +11,8 @@ from .helpers import (
 from .models import (
     TemplateVariablesResponse,
 )
+
+logger = get_logger(__name__)
 
 router = APIRouter()
 

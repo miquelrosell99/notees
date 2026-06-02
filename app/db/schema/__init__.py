@@ -11,6 +11,7 @@ Note: "workspace" terminology has been replaced with "workspace" in v2.
 Legacy aliases are provided for backward compatibility.
 """
 
+from ...utils.datetime_utils import utc_now_iso
 from .constants import (
     DEFAULT_PAGES,
     SCHEMA_VERSION,
@@ -24,7 +25,6 @@ from .constants import (
     generate_year_uuid,
     parse_date_uuid,
 )
-from ...utils.datetime_utils import utc_now_iso
 from .init import (
     create_workspace_for_user,
     get_or_create_user_workspace,

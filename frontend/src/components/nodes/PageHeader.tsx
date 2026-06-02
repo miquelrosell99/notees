@@ -422,7 +422,7 @@ export function PageHeader({
 
   return (
     <>
-      <header 
+      <header role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }} 
         className="page-header" 
         onClick={handleHeaderClick} 
         onContextMenu={onContextMenu}

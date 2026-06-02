@@ -16,7 +16,7 @@
  * const SafeComponent = withErrorBoundary(MyComponent, { fallback: <ErrorFallback /> });
  * ```
  */
-import { Component, type ReactNode, type ErrorInfo, type ComponentType } from 'react';
+import { Component, type ReactNode, type ErrorInfo } from 'react';
 import { Button } from './Button';
 import { Card } from './Card';
 import './ErrorBoundary.css';
@@ -123,67 +123,5 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 
     return this.props.children;
   }
-}
-
-/**
- * HOC to wrap a component with an error boundary
- */
-export function withErrorBoundary<P extends object>(
-  WrappedComponent: ComponentType<P>,
-  errorBoundaryProps?: Omit<ErrorBoundaryProps, 'children'>
-) {
-  const displayName = WrappedComponent.displayName || WrappedComponent.name || 'Component';
-  
-  function WithErrorBoundary(props: P) {
-    return (
-      <ErrorBoundary {...errorBoundaryProps}>
-        <WrappedComponent {...props} />
-      </ErrorBoundary>
-    );
-  }
-  
-  WithErrorBoundary.displayName = `withErrorBoundary(${displayName})`;
-  
-  return WithErrorBoundary;
-}
-
-/**
- * Specialized error boundary for block rendering
- */
-export function BlockErrorBoundary({ children }: { children: ReactNode }) {
-  return (
-    <ErrorBoundary 
-      context="Block"
-      showRetry={true}
-      fallback={
-        <div className="block-error-fallback">
-          <span className="block-error-fallback__icon">⚠️</span>
-          <span className="block-error-fallback__text">Failed to render block</span>
-        </div>
-      }
-    >
-      {children}
-    </ErrorBoundary>
-  );
-}
-
-/**
- * Specialized error boundary for views (NodeView, etc.)
- */
-export function ViewErrorBoundary({ 
-  children, 
-  viewName 
-}: { 
-  children: ReactNode; 
-  viewName?: string;
-}) {
-  return (
-    <ErrorBoundary 
-      context={viewName || 'View'}
-      showRetry={true}
-    >
-      {children}
-    </ErrorBoundary>
-  );
 }
 

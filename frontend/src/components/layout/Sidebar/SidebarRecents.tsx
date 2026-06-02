@@ -23,7 +23,7 @@ const RecentItem = memo(function RecentItem({ nodeId, isActive, onClick, onConte
   if (!node) return <div className="sidebar-item-skeleton" />;
 
   return (
-    <div onClick={onClick} onContextMenu={onContextMenu} className={`sidebar-recent-item ${isActive ? 'active' : ''}`}>
+    <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }} onClick={onClick} onContextMenu={onContextMenu} className={`sidebar-recent-item ${isActive ? 'active' : ''}`}>
       <div className="sidebar-recent-block">
         <NodeInline
           name={node.name}

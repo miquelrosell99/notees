@@ -40,8 +40,9 @@ function ShortcutRow({ keys, action }: { keys: string; action: string }) {
 }
 import { WhiteboardCardRenderer } from './WhiteboardCardRenderer';
 import { WhiteboardShapeRenderer } from './WhiteboardShapeRenderer';
-import { getShapePath } from './WhiteboardShapeRenderer';
-import { WhiteboardStrokeRenderer, strokeToLivePath } from './WhiteboardStrokeRenderer';
+import { getShapePath } from './whiteboardShapeUtils';
+import { WhiteboardStrokeRenderer } from './WhiteboardStrokeRenderer';
+import { strokeToLivePath } from './whiteboardStrokeUtils';
 import { useWhiteboardStore } from '@/stores/whiteboardStore';
 import './WhiteboardView.css';
 
@@ -1312,6 +1313,8 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
           }
           break;
         case 'Escape':
+          if (isSearchOpen) { setIsSearchOpen(false); setSearchQuery(''); }
+          if (showShortcuts) setShowShortcuts(false);
           wb.clearSelection();
           wb.setTool('select');
           break;
@@ -1420,11 +1423,6 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
           if (!e.ctrlKey && !e.metaKey) {
             setShowShortcuts(prev => !prev);
           }
-          break;
-        case 'Escape':
-          if (isSearchOpen) { setIsSearchOpen(false); setSearchQuery(''); }
-          if (showShortcuts) setShowShortcuts(false);
-          if (interaction.selectedIds.size > 0) wb.clearSelection();
           break;
         case 'Shift':
           recomputeShapePreview(true);
@@ -1839,8 +1837,8 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
 
       {/* Keyboard shortcuts modal */}
       {showShortcuts && (
-        <div className="wb-shortcuts-modal" style={{ position: 'absolute', inset: 0, zIndex: 'var(--wb-z-overlay)', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.3)' }} onClick={() => setShowShortcuts(false)}>
-          <div className="wb-shortcuts-modal__content" style={{ background: 'var(--color-surface)', borderRadius: 'var(--shape-large)', padding: 24, maxWidth: 480, width: '90%', boxShadow: 'var(--shadow-3)' }} onClick={e => e.stopPropagation()}>
+        <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }} className="wb-shortcuts-modal" style={{ position: 'absolute', inset: 0, zIndex: 'var(--wb-z-overlay)', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.3)' }} onClick={() => setShowShortcuts(false)}>
+          <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }} className="wb-shortcuts-modal__content" style={{ background: 'var(--color-surface)', borderRadius: 'var(--shape-large)', padding: 24, maxWidth: 480, width: '90%', boxShadow: 'var(--shadow-3)' }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <h3 style={{ margin: 0, fontSize: 18, fontWeight: 600 }}>Keyboard Shortcuts</h3>
               <button className="wb-align-panel__btn" onClick={() => setShowShortcuts(false)}><Icon path="mdi-close" /></button>

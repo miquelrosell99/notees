@@ -15,24 +15,6 @@ from fastapi import APIRouter
 
 from .classes import router as classes_router
 from .crud import router as crud_router
-from .selection_lines import router as selection_lines_router
-
-# Main router that combines all sub-routers
-router = APIRouter(prefix="/properties", tags=["Properties"])
-
-# Include sub-routers with proper ordering
-# Note: More specific routes must come before generic ones to avoid conflicts
-
-# Classes router - /classes/{class_node_id}/* routes
-router.include_router(classes_router)
-
-# Selection lines router - /{property_id}/selection-lines/* routes
-router.include_router(selection_lines_router)
-
-# CRUD router - /{property_id}/* and base routes (most generic, must be last)
-router.include_router(crud_router)
-
-# Re-export models for convenience
 from .models import (
     ClassExtendsRequest,
     ClassExtendsResponse,
@@ -53,6 +35,22 @@ from .models import (
     SelectionValueRequest,
     SelectionValueResponse,
 )
+from .selection_lines import router as selection_lines_router
+
+# Main router that combines all sub-routers
+router = APIRouter(prefix="/properties", tags=["Properties"])
+
+# Include sub-routers with proper ordering
+# Note: More specific routes must come before generic ones to avoid conflicts
+
+# Classes router - /classes/{class_node_id}/* routes
+router.include_router(classes_router)
+
+# Selection lines router - /{property_id}/selection-lines/* routes
+router.include_router(selection_lines_router)
+
+# CRUD router - /{property_id}/* and base routes (most generic, must be last)
+router.include_router(crud_router)
 
 __all__ = [
     "router",

@@ -8,7 +8,7 @@ PostgresNodeSearchMixin.
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING, Union
+from typing import TYPE_CHECKING
 
 import asyncpg
 from asyncpg import Connection
@@ -17,14 +17,13 @@ from asyncpg.pool import PoolConnectionProxy
 from ...db.connection import acquire_connection
 from ..entities import Node
 from ..permissions import PermissionChecker
+from ..stringify_ast import ParseMode, parse_ast, serialize_ast
 from .base import BasePostgresRepository, normalize_timestamp
 
 if TYPE_CHECKING:
     pass
 
-ConnectionType = Union[Connection, PoolConnectionProxy]
-
-from ..stringify_ast import ParseMode, parse_ast, serialize_ast
+ConnectionType = Connection | PoolConnectionProxy
 
 
 def _normalize_name_to_ast(name: str | None) -> str | None:

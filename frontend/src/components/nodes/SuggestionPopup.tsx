@@ -519,7 +519,7 @@ export function SuggestionPopup({
   };
   
   return (
-    <div
+    <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }}
       ref={containerRef}
       className={`suggestion-popup ${multiSelect ? 'suggestion-popup--multi-select' : ''}`}
       style={{
