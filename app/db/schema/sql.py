@@ -177,6 +177,9 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_node_uuid_per_workspace ON node(workspace_
 CREATE INDEX IF NOT EXISTS idx_node_parent_id ON node(parent_id);
 CREATE INDEX IF NOT EXISTS idx_node_page_id ON node(page_id);
 CREATE INDEX IF NOT EXISTS idx_node_page_sequence ON node(page_id, sequence);
+CREATE INDEX IF NOT EXISTS idx_node_page_content ON node(page_id, sequence)
+INCLUDE (id, uuid, name, icon, color, parent_id, collapsed, active, class_ids)
+WHERE active = TRUE AND is_deleted = FALSE AND is_comment = FALSE;
 CREATE INDEX IF NOT EXISTS idx_node_visibility ON node(workspace_id, visibility) WHERE active = TRUE AND is_deleted = FALSE;
 -- HASH index: node names can be large AST JSON blobs exceeding B-tree's 2704-byte limit.
 -- HASH supports equality lookups; use idx_node_search (GIN/FTS) for text search.

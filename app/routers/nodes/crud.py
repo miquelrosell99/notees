@@ -1195,24 +1195,33 @@ async def get_page_content(
     # This eliminates N+1 GET /api/nodes/uuid/{uuid} calls from inline pills.
     all_source_ids = [page_id] + block_ids
     if all_source_ids:
-        target_rows = await pool.fetch(
+        target_id_rows = await pool.fetch(
             """
-            SELECT DISTINCT n.id, n.uuid, n.name, n.icon, n.color, n.is_page, n.is_class,
-                   n.create_date, n.write_date, n.parent_id, n.page_id, n.sequence,
-                   n.collapsed, n.active, n.class_ids
-            FROM node_link nl
-            JOIN node n ON n.id = nl.target_id
-            WHERE nl.source_id = ANY($1)
-              AND nl.is_tag = FALSE
-              AND nl.is_inline_class = FALSE
-              AND nl.property_id IS NULL
-              AND n.active = TRUE
-              AND n.is_deleted = FALSE
+            SELECT DISTINCT target_id
+            FROM node_link
+            WHERE source_id = ANY($1)
+              AND is_tag = FALSE
+              AND is_inline_class = FALSE
+              AND property_id IS NULL
         """,
             all_source_ids,
         )
+        target_ids = [r["target_id"] for r in target_id_rows]
+        target_rows = []
+        if target_ids:
+            target_rows = await pool.fetch(
+                """
+                SELECT id, uuid, name, icon, color, is_page, is_class,
+                       create_date, write_date, parent_id, page_id, sequence,
+                       collapsed, active, class_ids
+                FROM node
+                WHERE id = ANY($1)
+                  AND active = TRUE
+                  AND is_deleted = FALSE
+            """,
+                target_ids,
+            )
 
-        display_names = await _resolve_referenced_display_names(pool, service.workspace_id or 0, target_rows)
         referenced_nodes: dict[str, NodeResponse] = {}
         for row in target_rows:
             uuid_str = str(row["uuid"])
@@ -1231,7 +1240,7 @@ async def get_page_content(
                 sequence=row["sequence"],
                 collapsed=row["collapsed"],
                 active=row["active"],
-                display_name=display_names.get(uuid_str),
+                display_name=None,
                 classes=list(row["class_ids"] or []),
             )
         page_response.referenced_nodes = referenced_nodes

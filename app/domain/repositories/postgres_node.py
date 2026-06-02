@@ -19,6 +19,12 @@ from .postgres_node_base import _normalize_name_to_ast
 from .postgres_node_hierarchy import PostgresNodeHierarchyMixin
 from .postgres_node_search import PostgresNodeSearchMixin
 
+_NODE_SELECT_COLUMNS = (
+    "id, uuid, workspace_id, name, icon, color, parent_id, page_id, sequence, collapsed, active, "
+    "is_page, is_class, is_day, is_month, is_year, is_asset, is_template, is_comment, "
+    "parent_locked, visibility, class_ids, classes_path, create_date, write_date, open_date, aliased_id"
+)
+
 
 class PostgresNodeRepository(
     PostgresNodeHierarchyMixin,
@@ -172,7 +178,7 @@ class PostgresNodeRepository(
         """Get node by internal ID."""
         async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow(
-                "SELECT * FROM node WHERE id = $1 AND workspace_id = $2 AND active = TRUE AND is_deleted = FALSE",
+                f"SELECT {_NODE_SELECT_COLUMNS} FROM node WHERE id = $1 AND workspace_id = $2 AND active = TRUE AND is_deleted = FALSE",
                 node_id,
                 self._workspace_id,
             )
@@ -191,7 +197,7 @@ class PostgresNodeRepository(
 
         async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch(
-                "SELECT * FROM node WHERE id = ANY($1) AND workspace_id = $2 AND active = TRUE AND is_deleted = FALSE",
+                f"SELECT {_NODE_SELECT_COLUMNS} FROM node WHERE id = ANY($1) AND workspace_id = $2 AND active = TRUE AND is_deleted = FALSE",
                 node_ids,
                 self._workspace_id,
             )
@@ -201,7 +207,7 @@ class PostgresNodeRepository(
         """Get node by UUID."""
         async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow(
-                "SELECT * FROM node WHERE uuid = $1 AND workspace_id = $2 AND active = TRUE AND is_deleted = FALSE",
+                f"SELECT {_NODE_SELECT_COLUMNS} FROM node WHERE uuid = $1 AND workspace_id = $2 AND active = TRUE AND is_deleted = FALSE",
                 uuid,
                 self._workspace_id,
             )
@@ -219,7 +225,7 @@ class PostgresNodeRepository(
             return []
         async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch(
-                "SELECT * FROM node WHERE uuid = ANY($1) AND workspace_id = $2 AND active = TRUE AND is_deleted = FALSE",
+                f"SELECT {_NODE_SELECT_COLUMNS} FROM node WHERE uuid = ANY($1) AND workspace_id = $2 AND active = TRUE AND is_deleted = FALSE",
                 uuids,
                 self._workspace_id,
             )
@@ -448,7 +454,7 @@ class PostgresNodeRepository(
         """Get direct children of a node (excludes comments)."""
         async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch(
-                "SELECT * FROM node WHERE parent_id = $1 AND workspace_id = $2 AND active = TRUE AND is_deleted = FALSE AND is_comment = FALSE ORDER BY sequence",
+                f"SELECT {_NODE_SELECT_COLUMNS} FROM node WHERE parent_id = $1 AND workspace_id = $2 AND active = TRUE AND is_deleted = FALSE AND is_comment = FALSE ORDER BY sequence",
                 parent_id,
                 self._workspace_id,
             )
@@ -605,7 +611,7 @@ class PostgresNodeRepository(
         """Get all soft-deleted nodes in the workspace ordered by deleted_at DESC."""
         async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch(
-                "SELECT * FROM node WHERE workspace_id = $1 AND is_deleted = true ORDER BY deleted_at DESC NULLS LAST",
+                f"SELECT {_NODE_SELECT_COLUMNS}, is_deleted, deleted_at FROM node WHERE workspace_id = $1 AND is_deleted = true ORDER BY deleted_at DESC NULLS LAST",
                 self._workspace_id,
             )
             return [self._row_to_node(row) for row in rows]
@@ -614,7 +620,7 @@ class PostgresNodeRepository(
         """Get a node by ID, verifying it belongs to this workspace."""
         async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow(
-                "SELECT * FROM node WHERE id = $1 AND workspace_id = $2", node_id, self._workspace_id
+                f"SELECT {_NODE_SELECT_COLUMNS}, is_deleted, deleted_at FROM node WHERE id = $1 AND workspace_id = $2", node_id, self._workspace_id
             )
             return self._row_to_node(row) if row else None
 
@@ -767,7 +773,7 @@ class PostgresNodeRepository(
         """List all active templates in the workspace."""
         async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch(
-                """SELECT * FROM node
+                f"""SELECT {_NODE_SELECT_COLUMNS} FROM node
                    WHERE workspace_id = $1 AND is_template = TRUE AND active = TRUE
                      AND (is_deleted = FALSE OR is_deleted IS NULL)
                    ORDER BY name""",
@@ -807,7 +813,7 @@ class PostgresNodeRepository(
         """List all active class nodes in the workspace, ordered by name."""
         async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch(
-                "SELECT * FROM node WHERE is_class = TRUE AND active = TRUE AND workspace_id = $1 ORDER BY name",
+                f"SELECT {_NODE_SELECT_COLUMNS} FROM node WHERE is_class = TRUE AND active = TRUE AND workspace_id = $1 ORDER BY name",
                 self._workspace_id,
             )
             return [self._row_to_node(row) for row in rows]
@@ -824,7 +830,7 @@ class PostgresNodeRepository(
             if len(q) >= 3:
                 rows = await conn.fetch(
                     f"""
-                    SELECT *, ts_rank(search_vector, plainto_tsquery('english', $1)) AS rank
+                    SELECT {_NODE_SELECT_COLUMNS}, ts_rank(search_vector, plainto_tsquery('english', $1)) AS rank
                     FROM node
                     WHERE workspace_id = $2 AND active = TRUE AND is_deleted = FALSE
                       AND is_class = TRUE AND parent_id IS NULL
@@ -844,7 +850,7 @@ class PostgresNodeRepository(
             else:
                 rows = await conn.fetch(
                     f"""
-                    SELECT * FROM node
+                    SELECT {_NODE_SELECT_COLUMNS} FROM node
                     WHERE {name_text} ILIKE $1
                       AND workspace_id = $2 AND active = TRUE AND is_deleted = FALSE
                       AND is_class = TRUE AND parent_id IS NULL
@@ -866,7 +872,7 @@ class PostgresNodeRepository(
         """Get all nodes that have any of the given class IDs in their class_ids array."""
         async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch(
-                """SELECT * FROM node
+                f"""SELECT {_NODE_SELECT_COLUMNS} FROM node
                    WHERE class_ids && $1::integer[]
                      AND workspace_id = $2
                      AND active = TRUE

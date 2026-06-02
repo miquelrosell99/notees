@@ -29,6 +29,7 @@ import { useUpdateNodeView } from '@/hooks/useNodeViews';
 import { useProperties } from '@/hooks';
 import type {
   NodeCollectionProps,
+  NodeCollectionContextValue,
   NodeCollectionGroupBy,
 } from '@/types/nodeCollection';
 import type { Property } from '@/types';

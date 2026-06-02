@@ -88,7 +88,7 @@ export function NodeInline({
   }, [nodeUuid, nodeId, providedDisplayText, displayText]);
 
   return (
-    <span role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }}
+    <span onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }}
       className={`node-inline ${onClick ? 'node-inline--clickable' : ''} ${className}`}
       onClick={handleClick}
       role={onClick ? 'button' : undefined}
