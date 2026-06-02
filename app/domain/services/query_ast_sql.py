@@ -6,7 +6,6 @@ Generates optimized SQL with proper indexing and filtering.
 
 from typing import Any
 
-from ...logging_config import get_logger
 from app.domain.entities.query_ast import (
     ChildCondition,
     ChildPathCondition,
@@ -30,6 +29,8 @@ from app.domain.entities.query_ast import (
     ScopeType,
     StyleCondition,
 )
+
+from ...logging_config import get_logger
 
 logger = get_logger(__name__)
 

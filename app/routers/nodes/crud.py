@@ -10,10 +10,11 @@ logger = get_logger(__name__)
 
 from datetime import UTC
 
-from ...db.connection import acquire_connection, get_workspace_assets_dir, get_workspace_uuid
+from ...db.connection import acquire_connection, get_pool, get_workspace_assets_dir, get_workspace_uuid
 from ...domain.entities import NodeCreateData, NodeUpdateData
 from ...domain.errors import DatePageDeletionError, DuplicateNodeError, SystemClassConstraintError
 from ...models import User
+from ...node_export import write_share_html
 from ..auth import get_current_user
 from .helpers import (
     _get_alias_ids,
@@ -1317,6 +1318,7 @@ async def update_node(
         parent_id=body.parent_id,
         sequence=body.sequence,
         collapsed=body.collapsed,
+        visibility=body.visibility,
     )
 
     logger.info(f"[UPDATE_NODE] NodeUpdateData color={data.color!r}, clear_color={data.clear_color}")
@@ -1335,6 +1337,22 @@ async def update_node(
         # Apply class reconciliation and property values if provided
         if body.classes is not None or body.properties:
             await _apply_node_extras(service, node_id, body.classes, body.properties)
+
+        # Invalidate static share HTML caches for this node
+        try:
+            pool = await get_pool()
+            async with acquire_connection(pool) as conn:
+                share_rows = await conn.fetch(
+                    "SELECT uuid FROM node_public_share WHERE node_id = $1 AND active = TRUE",
+                    node_id,
+                )
+                for share_row in share_rows:
+                    try:
+                        await write_share_html(str(share_row["uuid"]), node.workspace_id, node.uuid)
+                    except Exception:
+                        logger.exception(f"Failed to regenerate share HTML for {share_row['uuid']}")
+        except Exception:
+            logger.exception("Failed to invalidate share HTML caches")
 
         # Record for undo
         if before:

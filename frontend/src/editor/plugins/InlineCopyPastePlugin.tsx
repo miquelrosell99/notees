@@ -24,6 +24,7 @@ import { generateUUID } from '@/utils/uuid';
 import {
   copyToClipboard,
   tryParseInternalFormat,
+  analyzeClipboard,
 } from '@/utils/clipboardManager';
 import type { ASTDocument, ASTParagraph, ASTInlineNode } from '@/types/ast';
 import { useClipboardStore } from '@/stores/clipboardStore';
@@ -33,6 +34,7 @@ import { serializeContentAST } from '@/editor/editorConfig';
 interface InlineCopyPastePluginProps {
   blockId: string;
   onContentChange?: (blockId: string, content: string) => void;
+  onPasteImage?: (blockServerId: number, file: File, hasContent: boolean) => void;
 }
 
 function isBlockEmpty(contentAST: ASTDocument | null | undefined): boolean {
@@ -167,12 +169,14 @@ function pasteBlockTree(
   return createdIds;
 }
 
-export function InlineCopyPastePlugin({ blockId, onContentChange }: InlineCopyPastePluginProps): null {
+export function InlineCopyPastePlugin({ blockId, onContentChange, onPasteImage }: InlineCopyPastePluginProps): null {
   const [editor] = useLexicalComposerContext();
   const onContentChangeRef = useRef(onContentChange);
+  const onPasteImageRef = useRef(onPasteImage);
   useEffect(() => {
     onContentChangeRef.current = onContentChange;
-  }, [onContentChange]);
+    onPasteImageRef.current = onPasteImage;
+  }, [onContentChange, onPasteImage]);
 
   // COPY_COMMAND: copy [[blockUuid]] when no text selected
   useEffect(() => {
@@ -197,13 +201,31 @@ export function InlineCopyPastePlugin({ blockId, onContentChange }: InlineCopyPa
     );
   }, [editor, blockId]);
 
-  // PASTE_COMMAND: handle internal blocks or link pills
+  // PASTE_COMMAND: handle internal blocks, link pills, or image paste
   useEffect(() => {
     return editor.registerCommand<ClipboardEvent>(
       PASTE_COMMAND,
       (event) => {
         const clipboardData = event?.clipboardData;
         if (!clipboardData) return false;
+
+        // Image / file paste (highest priority — must intercept before text handlers)
+        const analysis = analyzeClipboard(clipboardData);
+        if (analysis.type === 'image' || analysis.type === 'audio' || analysis.type === 'file') {
+          if (analysis.file) {
+            const runtime = getNodeGraphRuntime();
+            const graphNode = runtime.getNode(blockId);
+            const blockServerId = graphNode?.serverId;
+            if (blockServerId != null && onPasteImageRef.current) {
+              const hasContent = !isBlockEmpty(graphNode?.contentAST);
+              onPasteImageRef.current(blockServerId, analysis.file, hasContent);
+              event.preventDefault();
+              return true;
+            }
+          }
+          return false;
+        }
+
         const text = clipboardData.getData('text/plain');
         if (!text) return false;
 

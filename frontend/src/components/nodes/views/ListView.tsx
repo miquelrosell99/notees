@@ -66,6 +66,7 @@ export const ListView = memo(function ListView({
   onContentChange,
   onAddClass,
   onSlashCommand,
+  onPasteImage,
   onTemplateInstantiate,
   templateClassFilters,
   onEnterAtRoot: _onEnterAtRoot,
@@ -287,6 +288,7 @@ export const ListView = memo(function ListView({
                 nodeId={_pageId}
                 onAddClass={onAddClass}
                 onSlashCommand={onSlashCommand}
+                onPasteImage={onPasteImage}
                 onTemplateInstantiate={onTemplateInstantiate}
                 templateClassFilters={templateClassFilters}
                 skipPages={false}
@@ -332,6 +334,7 @@ export const ListView = memo(function ListView({
               handleContentChangeBridge={handleContentChangeBridge}
               onAddClass={onAddClass}
               onSlashCommand={onSlashCommand}
+              onPasteImage={onPasteImage}
               onTemplateInstantiate={onTemplateInstantiate}
               templateClassFilters={templateClassFilters}
               onNodeClick={onNodeClick}
@@ -358,6 +361,7 @@ export const ListView = memo(function ListView({
                 nodeId={_pageId}
                 onAddClass={onAddClass}
                 onSlashCommand={onSlashCommand}
+                onPasteImage={onPasteImage}
                 onTemplateInstantiate={onTemplateInstantiate}
                 templateClassFilters={templateClassFilters}
               />
@@ -441,6 +445,7 @@ export const ListView = memo(function ListView({
                 nodeId={_pageId}
                 onAddClass={onAddClass}
                 onSlashCommand={onSlashCommand}
+                onPasteImage={onPasteImage}
                 onTemplateInstantiate={onTemplateInstantiate}
                 templateClassFilters={templateClassFilters}
               />
@@ -459,6 +464,7 @@ export const ListView = memo(function ListView({
         onContentChange={handleContentChangeBridge}
         onAddClass={onAddClass}
         onSlashCommand={onSlashCommand}
+        onPasteImage={onPasteImage}
         onTemplateInstantiate={onTemplateInstantiate}
         templateClassFilters={templateClassFilters}
         onNavigateToNode={handleNavigateToNode}
@@ -497,6 +503,7 @@ function ListViewGroup({
   handleContentChangeBridge,
   onAddClass,
   onSlashCommand,
+  onPasteImage,
   onTemplateInstantiate,
   templateClassFilters,
   onNodeClick,
@@ -513,6 +520,7 @@ function ListViewGroup({
   handleContentChangeBridge: (blockId: string, content: string) => void;
   onAddClass?: (nodeId: number, classId: number) => void;
   onSlashCommand?: (commandId: string, blockServerId: number | undefined) => void;
+  onPasteImage?: (blockServerId: number, file: File, hasContent: boolean) => void;
   onTemplateInstantiate?: (templateNodeId: number, blockServerId: number | undefined) => void;
   templateClassFilters?: number[];
   onNodeClick?: (node: Node) => void;
@@ -588,6 +596,7 @@ function ListViewGroup({
                     nodeId={nodeId}
                     onAddClass={onAddClass}
                     onSlashCommand={onSlashCommand}
+                    onPasteImage={onPasteImage}
                     onTemplateInstantiate={onTemplateInstantiate}
                     templateClassFilters={templateClassFilters}
                   />
@@ -603,6 +612,7 @@ function ListViewGroup({
               onContentChange={handleContentChangeBridge}
               onAddClass={onAddClass}
               onSlashCommand={onSlashCommand}
+              onPasteImage={onPasteImage}
               onTemplateInstantiate={onTemplateInstantiate}
               templateClassFilters={templateClassFilters}
               nodeUuid={nodeUuid}

@@ -159,7 +159,7 @@ function postSharedBufferRefs(): void {
  * Buffers are allocated to the EXACT size needed (n*2 floats) so they can
  * be transferred directly without .slice() — zero per-frame allocation.
  */
-let bufs: Float32Array[] = [new Float32Array(0), new Float32Array(0), new Float32Array(0)];
+const bufs: Float32Array[] = [new Float32Array(0), new Float32Array(0), new Float32Array(0)];
 let bufIdx = 0;
 let allocatedSize = 0;
 

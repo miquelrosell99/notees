@@ -5,6 +5,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
+from ...db.connection import get_pool
 from ...db.schema.constants import SYSTEM_PROPERTY_UUIDS, generate_day_uuid
 from ...domain.entities import RELATION_TYPES, SCALAR_TYPES, PropertyType
 from ...logging_config import get_logger
@@ -380,6 +381,28 @@ async def set_property_value(
             await _handle_recurrence_automation(node_id, prop, request.value, repo, node_service)
         except Exception as e:
             logger.warning(f"[RECURRENCE] Automation failed for node {node_id}: {e}")
+
+    # Log property change activity
+    try:
+        from datetime import UTC, datetime
+
+        from ...db.connection import acquire_connection
+
+        now = datetime.now(UTC)
+        async with acquire_connection(await get_pool()) as conn:
+            await conn.execute(
+                """
+                INSERT INTO node_activity (node_id, action, details, target_node_id, create_date)
+                VALUES ($1, $2, $3, $4, $5)
+                """,
+                node_id,
+                "property_changed",
+                f"Property '{prop.name}' changed",
+                request.property_id,
+                now,
+            )
+    except Exception:
+        pass  # Activity logging must never fail the user operation
 
     # Fetch and return the updated node with properties
     node = await node_service.get_node(node_id)

@@ -13,7 +13,7 @@
  * Used by both page view and block view.
  */
 import { useRef, useCallback, useState, useMemo } from 'react';
-import { useContentSave, useNodeNavigation, useAddClass, useRemoveClass, useClasses, useUpdateNode } from '@/hooks';
+import { useContentSave, useNodeNavigation, useAddClass, useRemoveClass, useClasses, useUpdateNode, useSetNodeProperty, useProperties } from '@/hooks';
 import { generateUUID } from '@/utils/uuid';
 import { useBlockPersist } from '@/hooks/useBlockPersist';
 import { useLazyChildren } from '@/hooks/useLazyChildren';
@@ -27,7 +27,7 @@ import { Modal } from '@/components/core/Modal';
 import { NodeSelector } from './NodeSelector';
 import { type Asset, type AssetCategory, uploadAsset } from '@/api/assets';
 import { createNode, getNode } from '@/api/nodes';
-import { SYSTEM_CLASS_UUIDS } from '@/constants/systemProperties';
+import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from '@/constants/systemProperties';
 import { TableCreationModal, type TableGridSize } from '@/components/core/TableCreationModal';
 
 import './NodeContent.css';
@@ -41,6 +41,10 @@ interface NodeContentProps {
   displayMode?: 'bullet' | 'document' | 'card';
   /** Total children count (before filtering) */
   totalChildrenCount?: number;
+  /** Whether content is editable (defaults to true) */
+  editable?: boolean;
+  /** Whether new blocks can be created (defaults to true) */
+  canCreate?: boolean;
 }
 
 // Map display mode to NodeCollection view mode
@@ -56,6 +60,8 @@ export function NodeContent({
   node, 
   children,
   displayMode = 'bullet',
+  editable = true,
+  canCreate = true,
 }: NodeContentProps) {
   const contentRef = useRef<HTMLDivElement>(null);
 
@@ -71,6 +77,10 @@ export function NodeContent({
   // Add/remove class mutations
   const addClass = useAddClass();
   const removeClass = useRemoveClass();
+  const setNodeProperty = useSetNodeProperty();
+
+  // Resolve properties for slash command side-effects (e.g. task status)
+  const { data: allProperties } = useProperties();
 
   // Resolve system class IDs for slash commands
   const { data: allClasses } = useClasses();
@@ -149,7 +159,7 @@ export function NodeContent({
       const runtime = getNodeGraphRuntime();
 
       // Insert template children as children of the block where /template was typed
-      let parentId = blockServerId ?? node.id;
+      const parentId = blockServerId ?? node.id;
       let parentUuid = node.uuid;
       if (blockServerId != null) {
         const allRuntimeNodes = runtime.getAllNodes();
@@ -163,11 +173,9 @@ export function NodeContent({
         as_blocks: true,
         variables: {},
       });
-      console.log('[TEMPLATE] API returned', result.blocks.length, 'blocks:', result.blocks.map(b => ({ id: b.id, parent_id: b.parent_id, name: b.name?.slice(0, 30) })));
       if (result.blocks.length > 0) {
         const { apiNodesToGraphNodes } = await import('@/hooks/useRuntimeSync');
         const { graphNodes } = apiNodesToGraphNodes(result.blocks, parentId, parentUuid);
-        console.log('[TEMPLATE] graphNodes:', graphNodes.length, 'parentId:', parentId, 'parentUuid:', parentUuid);
         runtime.upsertNodes(graphNodes);
 
         // Optimistically update the TanStack query cache so that BlockEditor's
@@ -212,7 +220,6 @@ export function NodeContent({
         };
         const queryCache = queryClient.getQueryCache();
         const detailQueries = queryCache.findAll({ queryKey: nodeKeys.details() });
-        console.log('[TEMPLATE] Cache update: topLevel blocks:', topLevel.length, 'matching queries:', detailQueries.length);
         let cacheUpdated = false;
         for (const query of detailQueries) {
           const oldData = query.state.data as Node | undefined;
@@ -221,7 +228,6 @@ export function NodeContent({
             if (newData !== oldData) {
               queryClient.setQueryData(query.queryKey, newData);
               cacheUpdated = true;
-              console.log('[TEMPLATE] Cache updated for query:', query.queryKey);
             }
           }
         }
@@ -269,6 +275,16 @@ export function NodeContent({
         const classId = systemClassMap?.task;
         if (classId != null && blockServerId != null) {
           addClass.mutate({ nodeId: blockServerId, classId });
+          // Also set task_status to 'Pending' so the checkbox appears immediately
+          const statusProp = allProperties?.find(p => p.uuid === SYSTEM_PROPERTY_UUIDS.task_status);
+          const pendingOption = statusProp?.options?.find(o => o.name === 'Pending');
+          if (statusProp && pendingOption) {
+            setNodeProperty.mutate({
+              nodeId: blockServerId,
+              propertyId: statusProp.id,
+              value: pendingOption.id,
+            });
+          }
         }
         break;
       }
@@ -308,7 +324,7 @@ export function NodeContent({
         }
         break;
     }
-  }, [systemClassMap, addClass, node.id]);
+  }, [systemClassMap, addClass, node.id, allProperties, setNodeProperty]);
 
   // Ensure blocks created via the Add Block button get persisted even when
   // no BlockEditor (which normally hosts useBlockPersist) is mounted yet.
@@ -364,7 +380,6 @@ export function NodeContent({
   }, []);
 
   const handleAddBlock = useCallback(() => {
-    console.log('[NodeContent] handleAddBlock triggered', { nodeUuid: node.uuid, childrenCount: children.length });
     // Create via runtime intent so the block appears immediately (no API roundtrip)
     // and useBlockPersist handles persistence automatically.
     const runtime = getNodeGraphRuntime();
@@ -377,7 +392,6 @@ export function NodeContent({
     // The API orders children by sequence, so the last array element is the rightmost block.
     const lastChild = children.length > 0 ? children[children.length - 1] : null;
 
-    console.log('[NodeContent] Applying create_block intent', { newBlockId, parentId: node.uuid, afterBlockId: lastChild?.uuid ?? null });
     runtime.requestFocus(newBlockId);
     runtime.applyIntent({
       type: 'create_block',
@@ -387,7 +401,6 @@ export function NodeContent({
       contentAST: [{ type: 'paragraph', children: [{ type: 'text', text: '' }] }],
     });
     runtime.flushEvents();
-    console.log('[NodeContent] Intent flushed');
   }, [node.uuid, children]);
 
   // Handle successful asset upload
@@ -459,7 +472,7 @@ export function NodeContent({
             nodes={children}
             viewMode={viewMode}
             availableViewModes={[viewMode]}
-            editable={true}
+            editable={editable}
             onNodeClick={handleNodeClick}
             onNodeShiftClick={handleNodeShiftClick}
             onContentChange={handleBlockChange}
@@ -479,18 +492,22 @@ export function NodeContent({
       {/* Empty state */}
       {children.length === 0 && (
         <div className="node-content-empty">
-          <Button icon={"mdi mdi-plus"} onClick={handleAddBlock} className="add-block-btn" title="Add block" size="sm" variant="ghost">
-            Add block
-          </Button>
+          {canCreate && (
+            <Button icon={"mdi mdi-plus"} onClick={handleAddBlock} className="add-block-btn" title="Add block" size="sm" variant="ghost">
+              Add block
+            </Button>
+          )}
         </div>
       )}
       
       {/* Add block button when there are children */}
       {children.length > 0 && (
         <div className="node-content-add">
-          <Button icon={"mdi mdi-plus"} onClick={handleAddBlock} className="add-block-btn" title="Add block" size="sm" variant="ghost">
-            Add block
-          </Button>
+          {canCreate && (
+            <Button icon={"mdi mdi-plus"} onClick={handleAddBlock} className="add-block-btn" title="Add block" size="sm" variant="ghost">
+              Add block
+            </Button>
+          )}
         </div>
       )}
       

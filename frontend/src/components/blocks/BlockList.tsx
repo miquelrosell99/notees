@@ -1,11 +1,10 @@
 /* eslint-disable jsx-a11y/no-noninteractive-element-interactions */
 /**
- * BlockList — Static list container for the block-level editor (Phase 1).
+ * BlockList — List container for the block-level editor.
  *
  * Renders BlockRow components for each visible block.
  * Handles list-level keyboard navigation (Enter, Backspace, Tab, Arrows).
- *
- * In Phase 3 this will be virtualized with @tanstack/react-virtual.
+ * Large lists (>50 items) are window-virtualized with @tanstack/react-virtual.
  */
 
 import {
@@ -18,6 +17,7 @@ import {
   type KeyboardEvent,
   type JSX,
 } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { apiNodesToGraphNodes } from '@/hooks/useRuntimeSync';
 import { useStructureSync } from '@/hooks/useStructureSync';
 import { useBlockPersist } from '@/hooks/useBlockPersist';
@@ -68,6 +68,10 @@ interface BlockListProps {
   onAddClass?: (blockServerId: number, classId: number) => void;
   /** Called when a slash command is selected. */
   onSlashCommand?: (commandId: string, blockServerId: number | undefined) => void;
+  /** Called when an image is pasted into a block. */
+  onPasteImage?: (blockServerId: number, file: File, hasContent: boolean) => void;
+  /** Called when files are dropped from outside the browser. */
+  onDropFiles?: (files: File[]) => void;
   /** Called when a template is selected. */
   onTemplateInstantiate?: (templateNodeId: number, blockServerId: number | undefined) => void;
   /** Class IDs to pre-filter template picker. */
@@ -216,6 +220,8 @@ export function BlockList({
   skipPages = false,
   onAddClass,
   onSlashCommand,
+  onPasteImage,
+  onDropFiles,
   onTemplateInstantiate,
   templateClassFilters,
   nodeUuid,
@@ -240,14 +246,7 @@ export function BlockList({
     if (!hasRuntimeData) {
       return flattenNodes(nodes, maxDepth, pagesOnly, skipPages);
     }
-    const result = flattenNodesFromRuntime(nodes, maxDepth, pagesOnly, skipPages, runtime);
-    console.log('[BlockList/flatNodes]', {
-      count: result.length,
-      uuids: result.map((r) => r.node.uuid),
-      sequences: result.map((r) => r.node.sequence),
-      runtimeOrderIndexes: result.map((r) => runtime.getNode(r.node.uuid)?.orderIndex ?? null),
-    });
-    return result;
+    return flattenNodesFromRuntime(nodes, maxDepth, pagesOnly, skipPages, runtime);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nodes, maxDepth, pagesOnly, skipPages, structureVersion]);
 
@@ -272,27 +271,9 @@ export function BlockList({
     };
     for (const n of nodes) collect(n);
 
-    console.log('[BlockList/useLayoutEffect] syncing', {
-      nodeCount: allNodes.length,
-      nodeId,
-      nodeUuid,
-      topLevelUuids: nodes.map((n) => n.uuid),
-    });
-
     if (allNodes.length > 0) {
       const { graphNodes } = apiNodesToGraphNodes(allNodes, nodeId, nodeUuid);
-      console.log('[BlockList/useLayoutEffect] graphNodes sample', {
-        first: graphNodes[0]?.blockId,
-        firstParentId: graphNodes[0]?.parentId,
-        firstOrderIndex: graphNodes[0]?.orderIndex,
-        total: graphNodes.length,
-      });
       runtime.upsertNodes(graphNodes);
-      console.log('[BlockList/useLayoutEffect] runtime after upsert', {
-        sampleNode: runtime.getNode(nodes[0]?.uuid)?.blockId ?? null,
-        sampleParentId: runtime.getNode(nodes[0]?.uuid)?.parentId ?? null,
-        sampleChildrenCount: nodeUuid ? runtime.getChildren(nodeUuid).length : null,
-      });
     }
 
     if (nodeId != null && nodeUuid) {
@@ -381,17 +362,6 @@ export function BlockList({
         if (!parentId && nodeUuid) {
           parentId = nodeUuid;
         }
-        const siblings = runtime.getChildren(parentId);
-        const afterIndex = siblings.findIndex((s) => s.blockId === blockId);
-        console.log('[BlockList/handleEnter] create_block', {
-          blockId,
-          parentId,
-          nodeUuid,
-          afterBlockId: blockId,
-          siblingCount: siblings.length,
-          afterIndex,
-          runtimeParentId: currentRuntimeNode?.parentId ?? null,
-        });
         runtime.applyIntent({
           type: 'create_block',
           parentId,
@@ -553,53 +523,168 @@ export function BlockList({
     [activeBlockId, blockIds, focusPreviousBlock, focusNextBlock],
   );
 
-  // ─── Focus pending block on mount/update ────────────────────────
+  // ─── Virtualization ─────────────────────────────────────────────
 
+  const enableVirtualization = flatNodes.length > 50;
+
+  // Find the nearest scrollable parent so virtualization works in any context
+  // (main-content, sidebar, modal, etc.)
+  const scrollElementRef = useRef<HTMLElement | null>(null);
+  useLayoutEffect(() => {
+    if (!containerRef.current) return;
+    let el: HTMLElement | null = containerRef.current;
+    while (el) {
+      const style = window.getComputedStyle(el);
+      if (/(auto|scroll)/.test(style.overflow + style.overflowY + style.overflowX)) {
+        scrollElementRef.current = el;
+        return;
+      }
+      el = el.parentElement;
+    }
+    scrollElementRef.current = null;
+  }, []);
+
+  const virtualizer = useVirtualizer({
+    count: flatNodes.length,
+    getScrollElement: () => scrollElementRef.current,
+    estimateSize: () => 32,
+    overscan: 10,
+    scrollPaddingEnd: 80,
+    enabled: enableVirtualization,
+  });
+
+  const virtualItems = virtualizer.getVirtualItems();
+  const totalSize = virtualizer.getTotalSize();
+
+  // Focus pending block, scrolling into view if virtualized away
   useEffect(() => {
     const pending = useEditorFocusStore.getState().pendingFocusBlockId;
-    if (pending && rowRefs.current.has(pending)) {
-      rowRefs.current.get(pending)?.focus();
+    if (!pending) return;
+    const row = rowRefs.current.get(pending);
+    if (row) {
+      row.focus();
       useEditorFocusStore.getState().setPendingFocus(null);
+    } else if (enableVirtualization) {
+      const idx = blockIds.indexOf(pending);
+      if (idx >= 0) {
+        virtualizer.scrollToIndex(idx, { align: 'center' });
+      }
     }
   });
 
   // ─── Render ─────────────────────────────────────────────────────
 
+  const [isDragOver, setIsDragOver] = useState(false);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    if (readOnly || !onDropFiles) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+    setIsDragOver(true);
+  }, [readOnly, onDropFiles]);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    if (readOnly || !onDropFiles) return;
+    e.preventDefault();
+    setIsDragOver(false);
+  }, [readOnly, onDropFiles]);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    if (readOnly || !onDropFiles) return;
+    e.preventDefault();
+    setIsDragOver(false);
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length > 0) {
+      onDropFiles(files);
+    }
+  }, [readOnly, onDropFiles]);
+
   return (
     <div
       ref={containerRef}
-      className="block-list notees-editor"
+      className={`block-list notees-editor ${isDragOver ? 'drag-over' : ''}`}
       onKeyDown={handleKeyDown}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
       role="application"
       aria-label="Block editor"
       tabIndex={-1}
     >
-      {flatNodes.map(({ node, depth }) => (
-        <BlockRow
-          key={node.uuid}
-          ref={(ref) => setRowRef(node.uuid, ref)}
-          node={node}
-          depth={depth}
-          readOnly={readOnly}
-          placeholder={placeholder}
-          onContentChange={onContentChange}
-          onPillClick={onPillClick}
-          onPillRemove={onPillRemove}
-          onNavigate={onNavigateToNode}
-          onOpenInSidebar={onOpenInSidebar}
-          onAddClass={onAddClass}
-          onSlashCommand={onSlashCommand}
-          onTemplateInstantiate={onTemplateInstantiate}
-          templateClassFilters={templateClassFilters}
-          nodeUuid={nodeUuid}
-          onEnter={handleEnter}
-          onBackspaceAtStart={handleBackspaceAtStart}
-          onDeleteAtEnd={handleDeleteAtEnd}
-          onTab={handleTab}
-          onEscape={handleEscape}
-          onCollapseToggle={handleCollapseToggle}
-        />
-      ))}
+      {enableVirtualization ? (
+        <div style={{ position: 'relative', height: `${totalSize}px` }}>
+          {virtualItems.map((virtualRow) => {
+            const { node, depth } = flatNodes[virtualRow.index];
+            return (
+              <div
+                key={node.uuid}
+                ref={virtualizer.measureElement}
+                data-index={virtualRow.index}
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  transform: `translateY(${virtualRow.start}px)`,
+                }}
+              >
+                <BlockRow
+                  ref={(ref) => setRowRef(node.uuid, ref)}
+                  node={node}
+                  depth={depth}
+                  readOnly={readOnly}
+                  placeholder={placeholder}
+                  onContentChange={onContentChange}
+                  onPillClick={onPillClick}
+                  onPillRemove={onPillRemove}
+                  onNavigate={onNavigateToNode}
+                  onOpenInSidebar={onOpenInSidebar}
+                  onAddClass={onAddClass}
+                  onSlashCommand={onSlashCommand}
+                  onPasteImage={onPasteImage}
+                  onTemplateInstantiate={onTemplateInstantiate}
+                  templateClassFilters={templateClassFilters}
+                  nodeUuid={nodeUuid}
+                  onEnter={handleEnter}
+                  onBackspaceAtStart={handleBackspaceAtStart}
+                  onDeleteAtEnd={handleDeleteAtEnd}
+                  onTab={handleTab}
+                  onEscape={handleEscape}
+                  onCollapseToggle={handleCollapseToggle}
+                />
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        flatNodes.map(({ node, depth }) => (
+          <BlockRow
+            key={node.uuid}
+            ref={(ref) => setRowRef(node.uuid, ref)}
+            node={node}
+            depth={depth}
+            readOnly={readOnly}
+            placeholder={placeholder}
+            onContentChange={onContentChange}
+            onPillClick={onPillClick}
+            onPillRemove={onPillRemove}
+            onNavigate={onNavigateToNode}
+            onOpenInSidebar={onOpenInSidebar}
+            onAddClass={onAddClass}
+            onSlashCommand={onSlashCommand}
+            onPasteImage={onPasteImage}
+            onTemplateInstantiate={onTemplateInstantiate}
+            templateClassFilters={templateClassFilters}
+            nodeUuid={nodeUuid}
+            onEnter={handleEnter}
+            onBackspaceAtStart={handleBackspaceAtStart}
+            onDeleteAtEnd={handleDeleteAtEnd}
+            onTab={handleTab}
+            onEscape={handleEscape}
+            onCollapseToggle={handleCollapseToggle}
+          />
+        ))
+      )}
       {!readOnly && <BlockFindReplacePlugin />}
     </div>
   );

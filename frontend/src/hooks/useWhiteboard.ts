@@ -43,7 +43,7 @@ function parseWhiteboardData(node: Node | undefined): WhiteboardData {
   const wb = ast.find(b => b.type === 'whiteboard') as ASTWhiteboard | undefined;
   if (wb) {
     // Strip legacy per-document fields (grid, background) that are now global.
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+     
     const { grid: _grid, background: _bg, ...rest } = wb.data as WhiteboardData & { grid?: unknown; background?: unknown };
     // Ensure groups array exists (backward compatibility)
     return { ...rest, groups: (rest as WhiteboardData).groups || [] } as WhiteboardData;
