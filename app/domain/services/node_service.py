@@ -724,22 +724,8 @@ class NodeService:
         # Remove from all users' favorites
         await self._cleanup_favorites(node_id)
 
-        # If this is an asset node, delete the asset folder
-        if node.is_asset and node.uuid:
-            try:
-                from ...domain.services.asset_service import AssetService
-
-                # Get workspace UUID for asset storage
-                workspace_uuid = await get_workspace_uuid(self._workspace_id)
-                if workspace_uuid:
-                    asset_service = AssetService(workspace_uuid)
-                    asset_service.delete_asset(node.uuid)
-                    logger.info(f"[DELETE] Deleted asset folder for node {node_id} (uuid={node.uuid})")
-                else:
-                    logger.error(f"[DELETE] Could not get workspace UUID for workspace_id {self._workspace_id}")
-            except Exception as e:
-                logger.error(f"[DELETE] Failed to delete asset folder for node {node_id}: {e}", exc_info=True)
-                # Continue with soft-delete even if asset deletion fails
+        # NOTE: Asset files are NOT deleted on soft-delete.
+        # They are cleaned up by the asset cleanup job or deleted on hard-delete.
 
         return True
 
@@ -825,6 +811,19 @@ class NodeService:
 
         # Remove from all users' favorites
         await self._cleanup_favorites(node_id)
+
+        # If this is an asset node, delete the asset folder on hard-delete
+        if node.is_asset and node.uuid:
+            try:
+                from ...domain.services.asset_service import AssetService
+
+                workspace_uuid = await get_workspace_uuid(self._workspace_id)
+                if workspace_uuid:
+                    asset_service = AssetService(workspace_uuid)
+                    asset_service.delete_asset(node.uuid)
+                    logger.info(f"[PERM_DELETE] Deleted asset folder for node {node_id} (uuid={node.uuid})")
+            except Exception as e:
+                logger.error(f"[PERM_DELETE] Failed to delete asset folder for node {node_id}: {e}", exc_info=True)
 
         return result
 
@@ -1242,13 +1241,23 @@ class NodeService:
             root_node = await self._node_repo.get_by_id(old_id_to_new_id[template_node.id])
             return {"node": root_node, "blocks": [], "as_blocks": False}
 
+    async def _resolve_alias(self, node: Node | None) -> Node | None:
+        """If the node is an alias, return the target node instead."""
+        if node and node.aliased_id:
+            target = await self._node_repo.get_by_id(node.aliased_id)
+            if target:
+                return target
+        return node
+
     async def get_node(self, node_id: int) -> Node | None:
-        """Get a node by ID."""
-        return await self._node_repo.get_by_id(node_id)
+        """Get a node by ID (resolves aliases transparently)."""
+        node = await self._node_repo.get_by_id(node_id)
+        return await self._resolve_alias(node)
 
     async def get_node_by_uuid(self, uuid: str) -> Node | None:
-        """Get a node by UUID."""
-        return await self._node_repo.get_by_uuid(uuid)
+        """Get a node by UUID (resolves aliases transparently)."""
+        node = await self._node_repo.get_by_uuid(uuid)
+        return await self._resolve_alias(node)
 
     async def get_node_with_properties(self, node_id: int) -> dict[str, Any] | None:
         """Get a node with all its property values."""

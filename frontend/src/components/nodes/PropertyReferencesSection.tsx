@@ -80,6 +80,7 @@ function applyCollapseLevelToChildren(node: Node, collapseLevel: number, current
 function flattenNodes(nodes: Node[]): Node[] {
   const result: Node[] = [];
   const collect = (n: Node) => {
+    if (n.is_comment) return;
     result.push(n);
     if (n.children) {
       for (const child of n.children) {
