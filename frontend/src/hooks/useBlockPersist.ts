@@ -31,6 +31,13 @@ import { parseAST, convertMarkdownInAST } from '@/lib/astBuilder';
 import { nodeKeys } from './queryKeys';
 import { removeNodeFromTreeImmutable } from '@/utils/nodeTree';
 import { queryClient as sharedQueryClient } from '@/lib/queryClient';
+import { offlineQueue } from '@/lib/offlineQueue';
+
+function isRetryableError(error: unknown): boolean {
+  const axiosError = error as { response?: { status?: number }; message?: string };
+  const status = axiosError.response?.status;
+  return status == null || status >= 500;
+}
 
 // ─── Singleton state ──────────────────────────────────────────────
 
@@ -84,7 +91,16 @@ function scheduleDeleteFlush(): void {
       sharedQueryClient.invalidateQueries({ queryKey: ['nodes', 'property-backlinks'], refetchType: 'active' });
       sharedQueryClient.invalidateQueries({ queryKey: ['nodes', 'backlinks'], refetchType: 'active' });
     }).catch((error) => {
-      console.error('[useBlockPersist] Failed to batch-delete blocks:', error);
+      if (isRetryableError(error)) {
+        for (const uuid of uuids) {
+          offlineQueue.enqueue({
+            type: 'delete_block',
+            blockUuid: uuid,
+          }).catch(console.error);
+        }
+      } else {
+        console.error('[useBlockPersist] Failed to batch-delete blocks:', error);
+      }
     });
   });
 }
@@ -256,8 +272,17 @@ export function useBlockPersist(options: UseBlockPersistOptions = {}) {
         },
         onError: (error) => {
           inFlightBlocks.delete(blockId);
-          console.error('[useBlockPersist] Failed to persist block:', blockId, error);
-          onError?.(blockId, error as Error);
+          if (isRetryableError(error)) {
+            offlineQueue.enqueue({
+              type: 'create_block',
+              parentBlockUuid: graphNode.parentId || '__root__',
+              name,
+              sequence: graphNode.orderIndex,
+            }).catch(console.error);
+          } else {
+            console.error('[useBlockPersist] Failed to persist block:', blockId, error);
+            onError?.(blockId, error as Error);
+          }
         },
       },
     );

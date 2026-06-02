@@ -29,7 +29,14 @@ import { getNodeGraphRuntime } from '../runtime/NodeGraphRuntime';
 import { updateNode as updateNodeApi } from '@/api/nodes';
 import { updateNodeInTreeImmutable, findNodeInRootTree } from '@/utils/nodeTree';
 import { nodeKeys } from './queryKeys';
+import { offlineQueue } from '@/lib/offlineQueue';
 import type { Node, NodeUpdate } from '@/types/api';
+
+function isRetryableError(error: unknown): boolean {
+  const axiosError = error as { response?: { status?: number }; message?: string };
+  const status = axiosError.response?.status;
+  return status == null || status >= 500;
+}
 
 interface UseStructureSyncOptions {
   /** When false, the hook becomes a no-op (no singleton claim, no subscriptions). Used by draft-mode editors. */
@@ -128,10 +135,19 @@ export function useStructureSync(options: UseStructureSyncOptions = {}) {
         },
         {
           onError: (error) => {
-            console.error('[useStructureSync] Error syncing node:', error);
-            onError?.(blockId, error as Error);
             // Clear from recently synced on error so it can retry
             recentlySynced.delete(graphNode.serverId!);
+            if (isRetryableError(error)) {
+              offlineQueue.enqueue({
+                type: 'move_block',
+                blockUuid: blockId,
+                parentBlockUuid: graphNode.parentId || null,
+                sequence: graphNode.orderIndex,
+              }).catch(console.error);
+            } else {
+              console.error('[useStructureSync] Error syncing node:', error);
+              onError?.(blockId, error as Error);
+            }
           },
         }
       );

@@ -10,7 +10,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { offlineQueue } from '@/lib/offlineQueue';
 import { useOnlineStatus } from './useOnlineStatus';
-import { useUpdateNode } from './useNodeMutations';
+import { useUpdateNode, useCreateNode, useDeleteNode, useMoveNode } from './useNodeMutations';
+import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
+import { useNotificationStore } from '@/stores/notificationStore';
 
 interface UseOfflineQueueResult {
   /** Number of mutations waiting in the queue. */
@@ -26,6 +28,9 @@ interface UseOfflineQueueResult {
 export function useOfflineQueue(): UseOfflineQueueResult {
   const isOnline = useOnlineStatus();
   const updateNode = useUpdateNode();
+  const createNode = useCreateNode();
+  const deleteNode = useDeleteNode();
+  const moveNode = useMoveNode();
   const [pendingCount, setPendingCount] = useState(0);
   const [isDraining, setIsDraining] = useState(false);
   const [lastResult, setLastResult] = useState<{
@@ -34,9 +39,15 @@ export function useOfflineQueue(): UseOfflineQueueResult {
     dropped: number;
   } | null>(null);
 
-  // Keep a ref to avoid stale closure in the drain callback
-  const mutateRef = useRef(updateNode.mutateAsync);
-  mutateRef.current = updateNode.mutateAsync;
+  // Keep refs to avoid stale closure in the drain callback
+  const updateRef = useRef(updateNode.mutateAsync);
+  const createRef = useRef(createNode.mutateAsync);
+  const deleteRef = useRef(deleteNode.mutateAsync);
+  const moveRef = useRef(moveNode.mutateAsync);
+  updateRef.current = updateNode.mutateAsync;
+  createRef.current = createNode.mutateAsync;
+  deleteRef.current = deleteNode.mutateAsync;
+  moveRef.current = moveNode.mutateAsync;
 
   // Poll pending count
   const refreshCount = useCallback(async () => {
@@ -55,11 +66,71 @@ export function useOfflineQueue(): UseOfflineQueueResult {
     try {
       const result = await offlineQueue.drain(async (item) => {
         if (item.type === 'content') {
-          await mutateRef.current({ id: item.blockId, data: item.data });
+          await updateRef.current({ id: item.blockId, data: item.data });
+          return;
+        }
+
+        const runtime = getNodeGraphRuntime();
+
+        if (item.type === 'create_block') {
+          const parentServerId = runtime.resolveParentServerId(item.parentBlockUuid);
+          if (parentServerId == null) {
+            throw new Error(`Parent server ID not found for ${item.parentBlockUuid}`);
+          }
+          await createRef.current({
+            name: item.name,
+            parent_id: parentServerId,
+            sequence: item.sequence,
+          });
+          return;
+        }
+
+        if (item.type === 'delete_block') {
+          const node = runtime.getNode(item.blockUuid);
+          const serverId = node?.serverId;
+          if (serverId == null) {
+            // Block was never persisted — just skip
+            return;
+          }
+          await deleteRef.current(serverId);
+          return;
+        }
+
+        if (item.type === 'move_block') {
+          const node = runtime.getNode(item.blockUuid);
+          const serverId = node?.serverId;
+          if (serverId == null) {
+            throw new Error(`Server ID not found for ${item.blockUuid}`);
+          }
+          const parentServerId = item.parentBlockUuid
+            ? runtime.resolveParentServerId(item.parentBlockUuid)
+            : null;
+          await moveRef.current({ id: serverId, parentId: parentServerId, position: item.sequence });
         }
       });
       setLastResult(result);
       await refreshCount();
+
+      // Show notifications for failures / drops
+      if (result.failed > 0) {
+        useNotificationStore.getState().warning(
+          'Sync delayed',
+          `${result.failed} change${result.failed === 1 ? '' : 's'} could not sync and will retry.`,
+        );
+      }
+      if (result.dropped > 0) {
+        useNotificationStore.getState().error(
+          'Sync conflict',
+          `${result.dropped} change${result.dropped === 1 ? '' : 's'} failed permanently. You may need to redo them.`,
+        );
+      }
+      if (result.succeeded > 0 && result.failed === 0 && result.dropped === 0) {
+        useNotificationStore.getState().success(
+          'Synced',
+          `${result.succeeded} change${result.succeeded === 1 ? '' : 's'} synced successfully.`,
+        );
+      }
+
       return result;
     } finally {
       setIsDraining(false);
