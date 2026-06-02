@@ -9,10 +9,22 @@ const BASE = '/activity';
 
 // ==================== Types ====================
 
+export type NodeActivityAction =
+  | 'created'
+  | 'edited'
+  | 'link_inserted'
+  | 'archived'
+  | 'unarchived'
+  | 'type_added'
+  | 'type_removed'
+  | 'property_changed'
+  | 'moved'
+  | 'deleted';
+
 export interface NodeActivity {
   id: number;
   node_id: number;
-  action: 'created' | 'edited' | 'link_added' | 'link_removed' | 'link_inserted' | 'archived' | 'unarchived' | 'type_added' | 'type_removed' | 'property_changed' | 'moved';
+  action: NodeActivityAction;
   details?: string;
   target_node_id?: number;
   target_node_name?: string;

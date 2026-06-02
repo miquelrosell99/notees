@@ -191,10 +191,10 @@ export function EmbedBlock({
   const embeddedName = nodeNameToText(embeddedNode.name) || '[Untitled]';
 
   return (
-    <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }}
+    <div role="button" onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }}
       ref={containerRef}
       className={`embed-block-card${borderSelected ? ' embed-block-card--border-selected' : ''}`}
-      tabIndex={-1}
+      tabIndex={0}
       onClick={() => borderSelected && setBorderSelected(false)}
     >
       {/* Header bar showing the embed origin */}

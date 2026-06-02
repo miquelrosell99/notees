@@ -1285,16 +1285,19 @@ class NodeService:
             from ...db.connection import acquire_connection
 
             now = datetime.now(UTC)
+            uid = self._user_id
             async with acquire_connection(self._pool) as conn:
                 await conn.execute(
                     """
-                    INSERT INTO node_activity (node_id, action, details, target_node_id, create_date)
-                    VALUES ($1, $2, $3, $4, $5)
+                    INSERT INTO node_activity (node_id, action, details, target_node_id, user_id, create_uid, create_date)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7)
                     """,
                     node_id,
                     action,
                     details,
                     target_node_id,
+                    uid,
+                    uid,
                     now,
                 )
         except Exception:
