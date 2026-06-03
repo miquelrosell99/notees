@@ -127,6 +127,7 @@ function SingleTextBlock({
         pageId={blockNode.id}
         nodeUuid={blockNode.uuid}
         hideToolbar={true}
+        showClasses={true}
         onEnterAtRoot={onEnterAtRoot}
       />
     </div>

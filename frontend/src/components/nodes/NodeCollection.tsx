@@ -108,6 +108,7 @@ export const NodeCollection = memo(function NodeCollection({
   onEnterAtRoot,
   hideProperties = false,
   size,
+  showClasses = false,
   ganttStartDateProperty: ganttStartDatePropertyProp,
   ganttEndDateProperty: ganttEndDatePropertyProp,
   onGanttStartDatePropertyChange,
@@ -315,6 +316,7 @@ export const NodeCollection = memo(function NodeCollection({
           hideProperties,
           size,
           maxDepth,
+          showClasses,
         };
 
       case 'document':

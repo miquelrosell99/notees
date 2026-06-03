@@ -74,6 +74,19 @@
   line-height: 1.6;
 }
 
+/* Inline content + class pills row */
+.block-row__content-line {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  min-height: 1.6em;
+}
+
+.block-row__content-line > .block-row__content {
+  flex: 1;
+  min-width: 0;
+}
+
 /* Lightweight plain-text fallback when InlineEditor is lazy-mounted */
 .block-row__content-fallback {
   min-height: 1.6em;

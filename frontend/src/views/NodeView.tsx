@@ -1250,10 +1250,10 @@ export function NodeView({
             onRemoveExtends={handleRemoveExtends}
             onAddExtends={handleAddExtends}
             onCreateExtends={handleCreateExtends}
-            onVisibilityChange={(visibility) => {
-              updateNode.mutate({ id: node.id, data: { visibility } });
+            onIsPrivateChange={(isPrivate) => {
+              updateNode.mutate({ id: node.id, data: { is_private: isPrivate } });
             }}
-            canChangeVisibility={!!isOwner}
+            canChangeIsPrivate={!!isOwner}
             defaultExpanded={!isMobile}
           />
           </>)}

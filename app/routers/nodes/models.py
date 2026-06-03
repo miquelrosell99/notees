@@ -25,7 +25,7 @@ class NodeResponse(BaseModel):
     is_yearly: bool = False  # Yearly journal page
     is_comment: bool = False  # Whether this node is a comment
     parent_locked: bool = False  # Whether this node's parent is locked
-    visibility: str = "workspace"  # private | workspace | public
+    is_private: bool = False  # If true, only the owner can access this node
     create_date: str
     write_date: str
     open_date: str | None = None  # When the page was last opened/viewed
@@ -143,7 +143,7 @@ class NodeUpdateRequest(BaseModel):
     parent_id: int | None = None
     sequence: float | None = None
     collapsed: bool | None = None
-    visibility: str | None = None
+    is_private: bool | None = None
     # Optional: when provided, reconcile node classes to exactly this set
     classes: list[int] | None = None
     # Optional: when provided, apply each property_id -> value pair

@@ -1,11 +1,11 @@
 /**
- * LiveSyncIndicator — Global connection status dot for the top bar.
+ * LiveSyncIndicator — Minimal dot indicator next to the app title.
  *
  * Shows a colored dot indicating the WebSocket live-sync state:
  * - Green pulse = connected and syncing
  * - Yellow = connecting / reconnecting
- * - Red = error / disconnected
- * - Gray = no page active (idle)
+ * - Red hollow circle = error / disconnected
+ * - Hidden = no page active (idle)
  */
 
 import { useEffect, useState } from 'react';
@@ -34,14 +34,11 @@ export function LiveSyncIndicator() {
           : 'Offline';
 
   return (
-    <div
+    <span
       className={`live-sync-indicator live-sync-indicator--${status}`}
       title={label}
       aria-label={label}
       role="status"
-    >
-      <span className="live-sync-indicator__dot" />
-      <span className="live-sync-indicator__label">{label}</span>
-    </div>
+    />
   );
 }
