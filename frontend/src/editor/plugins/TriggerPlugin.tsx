@@ -21,6 +21,7 @@ import {
   $getNodeByKey,
   $createTextNode,
   KEY_DOWN_COMMAND,
+  CONTROLLED_TEXT_INSERTION_COMMAND,
   COMMAND_PRIORITY_NORMAL,
   type LexicalEditor,
 } from 'lexical';
@@ -165,8 +166,94 @@ export function TriggerPlugin({
           default:
             return false;
         }
+        popupOpenRef.current = true;
         setPopup({ type: triggerType, position: coords });
 
+        return true;
+      },
+      COMMAND_PRIORITY_NORMAL,
+    );
+  }, [editor, blockIdProp]);
+
+  // ─── Detect triggers on text insertion (Android soft keyboards) ──
+
+  useEffect(() => {
+    return editor.registerCommand(
+      CONTROLLED_TEXT_INSERTION_COMMAND,
+      (payload: InputEvent | string) => {
+        if (popupOpenRef.current) return false;
+
+        let insertedText: string | null = null;
+        if (typeof payload === 'string') {
+          insertedText = payload;
+        } else if (payload instanceof InputEvent && payload.data) {
+          insertedText = payload.data;
+        }
+
+        if (!insertedText || insertedText.length !== 1 || !['+', '@', '#', '/'].includes(insertedText)) {
+          return false;
+        }
+
+        const selection = $getSelection();
+        if (!$isRangeSelection(selection) || !selection.isCollapsed()) return false;
+
+        const anchorNode = selection.anchor.getNode();
+        if (!$isTextNode(anchorNode)) return false;
+
+        const text = anchorNode.getTextContent();
+        const offset = selection.anchor.offset;
+        const triggerOffset = offset - 1;
+        const prevChar = triggerOffset > 0 ? text[triggerOffset - 1] : null;
+
+        let valid = false;
+        if (insertedText === '+' && (triggerOffset === 0 || /[^a-zA-Z0-9]/.test(prevChar || ''))) {
+          valid = true;
+        } else if (insertedText === '@' && (triggerOffset === 0 || /[^a-zA-Z0-9]/.test(prevChar || ''))) {
+          valid = true;
+        } else if (insertedText === '#' && (triggerOffset === 0 || /[^a-zA-Z0-9]/.test(prevChar || ''))) {
+          valid = true;
+        } else if (insertedText === '/' && (triggerOffset === 0 || /\s/.test(prevChar || ''))) {
+          valid = true;
+        }
+
+        if (!valid) return false;
+
+        const coords = getCaretCoordinates(editor);
+        const rootEl = editor.getRootElement();
+        hadFocusBeforeRef.current =
+          rootEl != null &&
+          (rootEl === document.activeElement || rootEl.contains(document.activeElement));
+
+        placeholderRef.current = {
+          nodeKey: anchorNode.getKey(),
+          offset: triggerOffset,
+          char: insertedText,
+        };
+
+        const runtime = getNodeGraphRuntime();
+        const graphNode = runtime.getNode(blockIdProp);
+        blockServerIdRef.current = graphNode?.serverId;
+
+        let triggerType: TriggerPopupType;
+        switch (insertedText) {
+          case '+':
+            triggerType = 'class';
+            break;
+          case '@':
+            triggerType = 'link';
+            break;
+          case '#':
+            triggerType = 'tag';
+            break;
+          case '/':
+            triggerType = 'slash';
+            break;
+          default:
+            return false;
+        }
+
+        popupOpenRef.current = true;
+        setPopup({ type: triggerType, position: coords });
         return true;
       },
       COMMAND_PRIORITY_NORMAL,
