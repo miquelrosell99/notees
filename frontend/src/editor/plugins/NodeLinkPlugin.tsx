@@ -32,6 +32,7 @@ import {
   KEY_BACKSPACE_COMMAND,
   KEY_DELETE_COMMAND,
   KEY_DOWN_COMMAND,
+  DELETE_CHARACTER_COMMAND,
   CLICK_COMMAND,
   SELECTION_CHANGE_COMMAND,
 } from 'lexical';
@@ -454,6 +455,54 @@ export function NodeLinkPlugin({
       return true;
     };
 
+    // Android fallback: deleteCharacter fixup without KeyboardEvent
+    const handleDeleteCharacterFixup = (isBackward: boolean) => {
+      const selection = $getSelection();
+      if ($isNodeSelection(selection)) return false;
+      if (!$isRangeSelection(selection) || !selection.isCollapsed()) return false;
+
+      const { anchor } = selection;
+      const node = anchor.getNode();
+      let nearPill = false;
+
+      if ($isTextNode(node)) {
+        const text = node.getTextContent();
+        if (isBackward) {
+          const atStart = anchor.offset === 0 || (anchor.offset === 1 && text === '\u200B');
+          if (atStart) {
+            let prev = node.getPreviousSibling();
+            while (prev) {
+              if ($isInlineLinkNode(prev)) { nearPill = true; break; }
+              if ($isTextNode(prev) && prev.getTextContent().replace(/\u200B/g, '') === '') {
+                prev = prev.getPreviousSibling();
+                continue;
+              }
+              break;
+            }
+          }
+        } else {
+          const atEnd = anchor.offset >= text.length || text === '\u200B';
+          if (atEnd) {
+            let next = node.getNextSibling();
+            while (next) {
+              if ($isInlineLinkNode(next)) { nearPill = true; break; }
+              if ($isTextNode(next) && next.getTextContent().replace(/\u200B/g, '') === '') {
+                next = next.getNextSibling();
+                continue;
+              }
+              break;
+            }
+          }
+        }
+      }
+
+      if (!nearPill) return false;
+
+      selection.deleteCharacter(isBackward);
+      $selectAdjacentPill(isBackward);
+      return true;
+    };
+
     // HIGH priority: fire callback before deletion (doesn't consume the event)
     const unsubBackHigh = editor.registerCommand(KEY_BACKSPACE_COMMAND, handlePillDeletion, COMMAND_PRIORITY_HIGH);
     const unsubDelHigh = editor.registerCommand(KEY_DELETE_COMMAND, handlePillDeletion, COMMAND_PRIORITY_HIGH);
@@ -462,11 +511,17 @@ export function NodeLinkPlugin({
     const unsubBackNormal = editor.registerCommand(KEY_BACKSPACE_COMMAND, handleBackspaceFixup, COMMAND_PRIORITY_NORMAL);
     const unsubDelNormal = editor.registerCommand(KEY_DELETE_COMMAND, handleDeleteFixup, COMMAND_PRIORITY_NORMAL);
 
+    // Android fallbacks for soft keyboards that don't fire keydown events
+    const unsubDeleteCharHigh = editor.registerCommand(DELETE_CHARACTER_COMMAND, handlePillDeletion, COMMAND_PRIORITY_HIGH);
+    const unsubDeleteCharNormal = editor.registerCommand(DELETE_CHARACTER_COMMAND, handleDeleteCharacterFixup, COMMAND_PRIORITY_NORMAL);
+
     return () => {
       unsubBackHigh();
       unsubDelHigh();
       unsubBackNormal();
       unsubDelNormal();
+      unsubDeleteCharHigh();
+      unsubDeleteCharNormal();
     };
   }, [editor, onPillRemove]);
 
