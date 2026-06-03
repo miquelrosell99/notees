@@ -9,6 +9,7 @@ import { useCommandPaletteSelection } from './useCommandPaletteSelection';
 
 export function useCommandPalette({ isOpen, onClose, onSelect }: CommandPaletteProps) {
   const state = useCommandPaletteState({ isOpen, onClose });
+  const currentNodeId = useNavigationStore((s) => s.currentNodeId);
 
   const allItems = useCommandPaletteItems({
     rawPages: state.rawPages,
@@ -34,6 +35,7 @@ export function useCommandPalette({ isOpen, onClose, onSelect }: CommandPaletteP
     suggestedPrefixes: state.suggestedPrefixes,
     activeFilter: state.activeFilter,
     formatParsedDateLabel: state.formatParsedDateLabel,
+    currentNodeId,
   });
 
   const { handleSelect } = useCommandPaletteSelection({

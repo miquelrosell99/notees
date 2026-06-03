@@ -80,6 +80,8 @@ interface BlockListProps {
   nodeUuid?: string;
   /** Server ID of the containing node (for runtime parent resolution). */
   nodeId?: number;
+  /** Whether to show class pills below each block's content. */
+  showClasses?: boolean;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────
@@ -226,6 +228,7 @@ export function BlockList({
   templateClassFilters,
   nodeUuid,
   nodeId,
+  showClasses = false,
 }: BlockListProps): JSX.Element {
   // Subscribe to runtime structural changes so the UI updates immediately
   // after drag-and-drop, indent, outdent, etc.
@@ -645,6 +648,7 @@ export function BlockList({
                   onTemplateInstantiate={onTemplateInstantiate}
                   templateClassFilters={templateClassFilters}
                   nodeUuid={nodeUuid}
+                  showClasses={showClasses}
                   onEnter={handleEnter}
                   onBackspaceAtStart={handleBackspaceAtStart}
                   onDeleteAtEnd={handleDeleteAtEnd}
@@ -676,6 +680,7 @@ export function BlockList({
             onTemplateInstantiate={onTemplateInstantiate}
             templateClassFilters={templateClassFilters}
             nodeUuid={nodeUuid}
+            showClasses={showClasses}
             onEnter={handleEnter}
             onBackspaceAtStart={handleBackspaceAtStart}
             onDeleteAtEnd={handleDeleteAtEnd}

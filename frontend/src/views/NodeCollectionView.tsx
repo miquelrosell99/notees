@@ -78,6 +78,7 @@ export function NodeCollectionView({ title, queryAST, nodes }: NodeCollectionVie
             onCountChange={setResultCount}
             hideViewManagement
             can_create={false}
+            showClasses={true}
             showAddButton={false}
           >
             {({ results }) => results}

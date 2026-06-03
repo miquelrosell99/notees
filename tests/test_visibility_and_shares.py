@@ -1,9 +1,9 @@
-"""Tests for page visibility enforcement and public share static HTML.
+"""Tests for page privacy enforcement and public share static HTML.
 
 These tests verify:
-1. Page visibility levels (private, workspace, public) are enforced
+1. Page privacy (is_private flag) is enforced
 2. Public share static HTML files are generated, served, regenerated, and cleaned up
-3. PermissionChecker returns correct permissions based on visibility
+3. PermissionChecker returns correct permissions based on is_private
 """
 
 import pytest
@@ -16,8 +16,8 @@ from app.domain.permissions import PermissionChecker, Permissions
 from app.node_export import get_static_share_path
 
 
-class TestPageVisibility:
-    """Test page visibility levels: private, workspace, public."""
+class TestPagePrivacy:
+    """Test page privacy: is_private flag."""
 
     @pytest.mark.asyncio
     async def test_private_page_inaccessible_to_other_workspace_member(
@@ -34,9 +34,9 @@ class TestPageVisibility:
         page = create_resp.json()
         page_id = page["id"]
 
-        # Set visibility to private
+        # Set page to private
         update_resp = await authenticated_client.put(
-            f"/api/nodes/{page_id}", json={"visibility": "private"}
+            f"/api/nodes/{page_id}", json={"is_private": True}
         )
         assert update_resp.status_code == 200
 
@@ -79,7 +79,7 @@ class TestPageVisibility:
         page_id = page["id"]
 
         update_resp = await authenticated_client.put(
-            f"/api/nodes/{page_id}", json={"visibility": "private"}
+            f"/api/nodes/{page_id}", json={"is_private": True}
         )
         assert update_resp.status_code == 200
 
@@ -87,7 +87,7 @@ class TestPageVisibility:
         assert get_resp.status_code == 200
         data = get_resp.json()
         assert data["id"] == page_id
-        assert data["visibility"] == "private"
+        assert data["is_private"] is True
 
     @pytest.mark.asyncio
     async def test_workspace_page_accessible_to_workspace_member(
@@ -103,9 +103,9 @@ class TestPageVisibility:
         page = create_resp.json()
         page_id = page["id"]
 
-        # Default visibility is workspace; ensure it explicitly
+        # Default is not private; ensure it explicitly
         update_resp = await authenticated_client.put(
-            f"/api/nodes/{page_id}", json={"visibility": "workspace"}
+            f"/api/nodes/{page_id}", json={"is_private": False}
         )
         assert update_resp.status_code == 200
 
@@ -132,7 +132,7 @@ class TestPageVisibility:
         assert get_resp.status_code == 200
         data = get_resp.json()
         assert data["id"] == page_id
-        assert data["visibility"] == "workspace"
+        assert data["is_private"] is False
 
         del other_client.headers["Authorization"]
 
@@ -149,7 +149,7 @@ class TestPageVisibility:
         page_id = page["id"]
 
         update_resp = await authenticated_client.put(
-            f"/api/nodes/{page_id}", json={"visibility": "public"}
+            f"/api/nodes/{page_id}", json={"is_private": False}
         )
         assert update_resp.status_code == 200
 
@@ -266,8 +266,8 @@ class TestPublicShareStaticHtml:
         assert not html_path.exists(), f"Expected static HTML to be removed: {html_path}"
 
 
-class TestPermissionCheckerVisibility:
-    """Test PermissionChecker visibility logic directly."""
+class TestPermissionCheckerPrivacy:
+    """Test PermissionChecker privacy logic directly."""
 
     @pytest.mark.asyncio
     async def test_private_page_returns_none_for_non_owners(
@@ -281,8 +281,8 @@ class TestPermissionCheckerVisibility:
         page = await node_service.create_page("Private Permission Page")
         assert page.id is not None
 
-        # Set visibility to private via repository to bypass permission checks on update
-        await node_service._node_repo.update(page.id, NodeUpdateData(visibility="private"))
+        # Set page to private via repository to bypass permission checks on update
+        await node_service._node_repo.update(page.id, NodeUpdateData(is_private=True))
 
         # Create a PermissionChecker for a different user
         other_user = await auth.create_user("permission_checker@example.com", "password123")
@@ -306,7 +306,7 @@ class TestPermissionCheckerVisibility:
         page = await node_service.create_page("Workspace Permission Page")
         assert page.id is not None
 
-        await node_service._node_repo.update(page.id, NodeUpdateData(visibility="workspace"))
+        await node_service._node_repo.update(page.id, NodeUpdateData(is_private=False))
 
         # Create a user who has workspace read access
         other_user = await auth.create_user("workspace_reader@example.com", "password123")
@@ -335,11 +335,11 @@ class TestPermissionCheckerVisibility:
         test_user: dict,
         node_service,
     ):
-        """The owner should have full permissions regardless of visibility."""
+        """The owner should have full permissions regardless of privacy."""
         page = await node_service.create_page("Owner Permission Page")
         assert page.id is not None
 
-        await node_service._node_repo.update(page.id, NodeUpdateData(visibility="private"))
+        await node_service._node_repo.update(page.id, NodeUpdateData(is_private=True))
 
         checker = PermissionChecker(db_pool, int(test_user["id"]))
         perms = await checker.get_node_permissions(page.id)

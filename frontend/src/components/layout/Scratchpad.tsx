@@ -347,6 +347,7 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
             onContentChange={handleContentChange}
             nodeUuid={scratchpadPage.uuid}
             nodeId={scratchpadPage.id}
+            showClasses={true}
           />
         )}
         <div className="scratchpad-add-block">

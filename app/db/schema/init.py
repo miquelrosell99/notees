@@ -80,8 +80,8 @@ async def init_database(conn: asyncpg.Connection) -> None:
     # Ensure Inbox pages use the fixed system UUID (migration for existing DBs)
     await _ensure_inbox_system_uuid(conn)
 
-    # Ensure visibility column exists on node (migration for existing DBs)
-    await _ensure_node_visibility_column(conn)
+    # Migrate from visibility column to is_private boolean (migration for existing DBs)
+    await _migrate_visibility_to_is_private(conn)
 
     # Seed default system settings
     await _seed_system_settings(conn)
@@ -422,17 +422,17 @@ async def _ensure_inbox_system_uuid(conn: asyncpg.Connection) -> None:
             logger.info(f"Created Inbox for workspace {ws_id}")
 
 
-async def _ensure_node_visibility_column(conn: asyncpg.Connection) -> None:
-    """Ensure the visibility column exists on the node table.
+async def _migrate_visibility_to_is_private(conn: asyncpg.Connection) -> None:
+    """Migrate from visibility VARCHAR column to is_private BOOLEAN.
 
-    Idempotent migration for existing databases.
+    Idempotent one-way migration for existing databases.
     """
     from ...logging_config import get_logger
 
     logger = get_logger(__name__)
 
-    # Check if column exists
-    col_exists = await conn.fetchval(
+    # Check if old visibility column still exists
+    old_col_exists = await conn.fetchval(
         """
         SELECT EXISTS (
             SELECT 1 FROM information_schema.columns
@@ -441,18 +441,39 @@ async def _ensure_node_visibility_column(conn: asyncpg.Connection) -> None:
         """
     )
 
-    if not col_exists:
-        await conn.execute(
-            "ALTER TABLE node ADD COLUMN visibility VARCHAR(20) NOT NULL DEFAULT 'workspace'"
+    # Check if new is_private column exists
+    new_col_exists = await conn.fetchval(
+        """
+        SELECT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = 'node' AND column_name = 'is_private'
         )
-        logger.info("Added visibility column to node table")
+        """
+    )
 
-    # Ensure index exists
+    if not new_col_exists:
+        await conn.execute(
+            "ALTER TABLE node ADD COLUMN is_private BOOLEAN NOT NULL DEFAULT FALSE"
+        )
+        logger.info("Added is_private column to node table")
+
+    if old_col_exists and new_col_exists:
+        # Migrate data: private -> TRUE, everything else -> FALSE
+        await conn.execute(
+            "UPDATE node SET is_private = TRUE WHERE visibility = 'private'"
+        )
+        logger.info("Migrated visibility data to is_private")
+
+        # Drop old column (cascade to index)
+        await conn.execute("ALTER TABLE node DROP COLUMN visibility CASCADE")
+        logger.info("Dropped old visibility column")
+
+    # Ensure new index exists
     idx_exists = await conn.fetchval(
         """
         SELECT EXISTS (
             SELECT 1 FROM pg_indexes
-            WHERE indexname = 'idx_node_visibility'
+            WHERE indexname = 'idx_node_is_private'
         )
         """
     )
@@ -460,11 +481,11 @@ async def _ensure_node_visibility_column(conn: asyncpg.Connection) -> None:
     if not idx_exists:
         await conn.execute(
             """
-            CREATE INDEX idx_node_visibility ON node(workspace_id, visibility)
+            CREATE INDEX idx_node_is_private ON node(workspace_id, is_private)
             WHERE active = TRUE AND is_deleted = FALSE
             """
         )
-        logger.info("Created idx_node_visibility index")
+        logger.info("Created idx_node_is_private index")
 
 
 async def seed_workspace(conn: asyncpg.Connection, workspace_id: int, user_id: int) -> None:

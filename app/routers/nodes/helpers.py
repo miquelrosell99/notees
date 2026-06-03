@@ -105,7 +105,7 @@ def _node_to_response(
         is_yearly=node.is_year,
         is_comment=node.is_comment,
         parent_locked=node.parent_locked,
-        visibility=node.visibility,
+        is_private=node.is_private,
         create_date=node.create_date,
         write_date=node.write_date,
         open_date=node.open_date,

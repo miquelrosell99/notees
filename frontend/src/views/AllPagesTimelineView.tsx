@@ -15,12 +15,12 @@ export interface AllPagesTimelineViewProps {
 }
 
 export function AllPagesTimelineView({ className = '' }: AllPagesTimelineViewProps) {
-  const { data: pages, isLoading, error, refetch } = usePages();
+  const { data: pages, isLoading, error, refetch, isPlaceholderData } = usePages();
 
   return (
     <div className={`all-pages-timeline-view ${className}`}>
       <DataStateView
-        isLoading={isLoading}
+        isLoading={isLoading || isPlaceholderData}
         error={error}
         isEmpty={!pages || pages.length === 0}
         skeletonRows={6}

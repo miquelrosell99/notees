@@ -22,7 +22,7 @@ from .postgres_node_search import PostgresNodeSearchMixin
 _NODE_SELECT_COLUMNS = (
     "id, uuid, workspace_id, name, icon, color, parent_id, page_id, sequence, collapsed, active, "
     "is_page, is_class, is_day, is_month, is_year, is_asset, is_template, is_comment, "
-    "parent_locked, visibility, class_ids, classes_path, create_date, write_date, open_date, aliased_id"
+    "parent_locked, is_private, class_ids, classes_path, create_date, write_date, open_date, aliased_id"
 )
 
 
@@ -305,9 +305,9 @@ class PostgresNodeRepository(
             params.append(data.collapsed)
             param_idx += 1
 
-        if data.visibility is not None:
-            set_clauses.append(f"visibility = ${param_idx}")
-            params.append(data.visibility)
+        if data.is_private is not None:
+            set_clauses.append(f"is_private = ${param_idx}")
+            params.append(data.is_private)
             param_idx += 1
 
         if data.classes is not None:
@@ -469,7 +469,7 @@ class PostgresNodeRepository(
                     id, uuid, workspace_id, name, icon, color, parent_id, page_id,
                     sequence, collapsed, active, is_shared, version, is_deleted,
                     deleted_at, is_class, is_page, is_day, is_month, is_year,
-                    is_asset, is_template, is_comment, parent_locked, visibility,
+                    is_asset, is_template, is_comment, parent_locked, is_private,
                     class_ids, classes_path, open_date, create_date, write_date,
                     create_uid, write_uid, aliased_id
                 FROM node

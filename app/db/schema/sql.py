@@ -152,8 +152,8 @@ CREATE TABLE IF NOT EXISTS node (
     is_comment BOOLEAN DEFAULT FALSE,
     -- Parent lock flag
     parent_locked BOOLEAN DEFAULT FALSE,
-    -- Visibility: private (owner only), workspace (all members), public (unauthenticated)
-    visibility VARCHAR(20) DEFAULT 'workspace',
+    -- Privacy: if true, only the owner can access this node
+    is_private BOOLEAN DEFAULT FALSE,
     -- Class IDs stored directly on the node
     class_ids INTEGER[] DEFAULT '{}',
     classes_path JSONB DEFAULT '[]'::jsonb,
@@ -180,7 +180,7 @@ CREATE INDEX IF NOT EXISTS idx_node_page_sequence ON node(page_id, sequence);
 CREATE INDEX IF NOT EXISTS idx_node_page_content ON node(page_id, sequence)
 INCLUDE (id, uuid, icon, color, parent_id, collapsed, active, class_ids)
 WHERE active = TRUE AND is_deleted = FALSE AND is_comment = FALSE;
-CREATE INDEX IF NOT EXISTS idx_node_visibility ON node(workspace_id, visibility) WHERE active = TRUE AND is_deleted = FALSE;
+CREATE INDEX IF NOT EXISTS idx_node_is_private ON node(workspace_id, is_private) WHERE active = TRUE AND is_deleted = FALSE;
 -- HASH index: node names can be large AST JSON blobs exceeding B-tree's 2704-byte limit.
 -- HASH supports equality lookups; use idx_node_search (GIN/FTS) for text search.
 CREATE INDEX IF NOT EXISTS idx_node_name ON node USING HASH (name);

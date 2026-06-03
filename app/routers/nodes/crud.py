@@ -1332,7 +1332,7 @@ async def update_node(
         parent_id=body.parent_id,
         sequence=body.sequence,
         collapsed=body.collapsed,
-        visibility=body.visibility,
+        is_private=body.is_private,
     )
 
     logger.info(f"[UPDATE_NODE] NodeUpdateData color={data.color!r}, clear_color={data.clear_color}")

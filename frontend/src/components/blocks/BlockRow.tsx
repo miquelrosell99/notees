@@ -21,6 +21,8 @@ import { pasteBlocksAfterBlock } from '@/editor/utils/pasteBlocks';
 import { useLivePresenceStore } from '@/stores/livePresenceStore';
 import { useShallow } from 'zustand/react/shallow';
 import { useTaskActions } from '@/hooks/useTaskActions';
+import { useResolvedClassDetails } from '@/hooks/useResolvedClassDetails';
+import { ClassPillsRow } from '@/components/nodes/ClassPillsRow';
 import './BlockRow.css';
 import type { Node } from '@/types/api';
 import type { JSX } from 'react';
@@ -58,6 +60,8 @@ interface BlockRowProps {
   onEscape?: (blockId: string) => void;
   /** UUID of the containing page (for live sync lock indicators). */
   nodeUuid?: string;
+  /** Whether to show class pills below the block content. */
+  showClasses?: boolean;
 }
 
 // ─── Component ────────────────────────────────────────────────────
@@ -86,6 +90,7 @@ export const BlockRow = memo(
       onTab,
       onEscape,
       nodeUuid,
+      showClasses = false,
     },
     ref,
   ): JSX.Element {
@@ -209,6 +214,49 @@ export const BlockRow = memo(
     }, [node.uuid]);
 
     const plainTextFallback = useMemo(() => nodeNameToText(node.name), [node.name]);
+    const classDetails = useResolvedClassDetails(node.classes);
+    const hasClasses = showClasses && classDetails.length > 0;
+
+    const editorElement = shouldMountEditor ? (
+      <InlineEditor
+        ref={editorRef}
+        blockId={node.uuid}
+        initialContentAST={contentAST}
+        readOnly={readOnly || isLocked}
+        placeholder={placeholder}
+        onContentChange={onContentChange}
+        onPillClick={onPillClick}
+        onPillRemove={onPillRemove}
+        onAddClass={onAddClass}
+        onSlashCommand={onSlashCommand}
+        onPasteImage={onPasteImage}
+        onTemplateInstantiate={onTemplateInstantiate}
+        templateClassFilters={templateClassFilters}
+        onEnter={handleEnter}
+        onCtrlEnter={cycleTaskStatus}
+        onBackspaceAtStart={handleBackspaceAtStart}
+        onDeleteAtEnd={handleDeleteAtEnd}
+        onTab={handleTab}
+        onEscape={handleEscape}
+        nodeUuid={nodeUuid}
+      />
+    ) : (
+      <div
+        className="block-row__content-fallback"
+        onClick={() => setIsInViewport(true)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            setIsInViewport(true);
+          }
+        }}
+        role="button"
+        tabIndex={0}
+        aria-label="Load editor"
+      >
+        {plainTextFallback || '\u00A0'}
+      </div>
+    );
 
     return (
       <>
@@ -230,48 +278,18 @@ export const BlockRow = memo(
           typingUsers={typingUsers}
         />
         <div className="block-row__body">
-          <div className="block-row__content">
-            {shouldMountEditor ? (
-              <InlineEditor
-                ref={editorRef}
-                blockId={node.uuid}
-                initialContentAST={contentAST}
-                readOnly={readOnly || isLocked}
-                placeholder={placeholder}
-                onContentChange={onContentChange}
-                onPillClick={onPillClick}
-                onPillRemove={onPillRemove}
-                onAddClass={onAddClass}
-                onSlashCommand={onSlashCommand}
-                onPasteImage={onPasteImage}
-                onTemplateInstantiate={onTemplateInstantiate}
-                templateClassFilters={templateClassFilters}
-                onEnter={handleEnter}
-                onCtrlEnter={cycleTaskStatus}
-                onBackspaceAtStart={handleBackspaceAtStart}
-                onDeleteAtEnd={handleDeleteAtEnd}
-                onTab={handleTab}
-                onEscape={handleEscape}
-                nodeUuid={nodeUuid}
-              />
-            ) : (
-              <div
-                className="block-row__content-fallback"
-                onClick={() => setIsInViewport(true)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    setIsInViewport(true);
-                  }
-                }}
-                role="button"
-                tabIndex={0}
-                aria-label="Load editor"
-              >
-                {plainTextFallback || '\u00A0'}
+          {hasClasses ? (
+            <div className="block-row__content-line">
+              <div className="block-row__content">
+                {editorElement}
               </div>
-            )}
-          </div>
+              <ClassPillsRow classes={classDetails} nodeId={node.id} readOnly={readOnly} />
+            </div>
+          ) : (
+            <div className="block-row__content">
+              {editorElement}
+            </div>
+          )}
           <BlockAfterContent node={node} />
         </div>
       </div>

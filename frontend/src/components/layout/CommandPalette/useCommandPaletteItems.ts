@@ -31,6 +31,7 @@ interface UseCommandPaletteItemsParams {
   suggestedPrefixes: FilterPrefixConfig[];
   activeFilter: { prefix: string; value: string; config: FilterPrefixConfig } | null;
   formatParsedDateLabel: (pd: ParsedDate) => string;
+  currentNodeId: number | null;
 }
 
 export function useCommandPaletteItems(params: UseCommandPaletteItemsParams): ItemEntry[] {
@@ -58,6 +59,7 @@ export function useCommandPaletteItems(params: UseCommandPaletteItemsParams): It
     suggestedPrefixes,
     activeFilter,
     formatParsedDateLabel,
+    currentNodeId,
   } = params;
 
   return useMemo<ItemEntry[]>(() => {
@@ -96,6 +98,7 @@ export function useCommandPaletteItems(params: UseCommandPaletteItemsParams): It
     if (searchTerm.trim() && !uuidSearch) {
       const lowerSearch = searchTerm.toLowerCase();
       for (const cmd of commands) {
+        if (cmd.requiresPage && !currentNodeId) continue;
         if (cmd.label.toLowerCase().includes(lowerSearch)) {
           items.push({ type: 'command', label: cmd.label, commandId: cmd.id, commandIcon: cmd.icon, commandDevOnly: cmd.devOnly });
         }
@@ -173,6 +176,6 @@ export function useCommandPaletteItems(params: UseCommandPaletteItemsParams): It
     rawPages, rawBlocks, rawProperties, searchTerm, pageNameForCreation, selectedClasses,
     parsedDate, existingDateNode, commands, pageMap, recentAccessedPages, recentCreatedPages,
     randomPages, maxPages, maxBlocks, maxProperties, uuidSearch, appliedFilters, isTypingBoolean,
-    booleanOptions, suggestedPrefixes, activeFilter, formatParsedDateLabel,
+    booleanOptions, suggestedPrefixes, activeFilter, formatParsedDateLabel, currentNodeId,
   ]);
 }

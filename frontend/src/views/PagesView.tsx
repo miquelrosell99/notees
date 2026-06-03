@@ -45,7 +45,7 @@ export function PagesView() {
     setNodeViewMode(PSEUDO_NODE_ID, PSEUDO_VIEW_TYPE, mode);
   }, [setNodeViewMode]);
 
-  const { data: pages, isLoading } = usePages({
+  const { data: pages, isLoading, isPlaceholderData } = usePages({
     includeChildren: true,
     rootOnly: true,
   });
@@ -124,7 +124,7 @@ export function PagesView() {
 
       {/* Content */}
       <div className="pages-view__content">
-        {isLoading ? (
+        {isLoading || isPlaceholderData ? (
           <div className="pages-view__loading">
             <Spinner size="lg" centered />
           </div>
@@ -141,6 +141,7 @@ export function PagesView() {
             editable={true}
             onContentChange={saveContent}
             onNodeClick={(node) => openNode(node.id)}
+            showClasses={true}
             showEmpty={true}
             emptyMessage="No pages found"
             className="pages-view__node-collection"
