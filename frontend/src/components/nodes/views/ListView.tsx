@@ -79,6 +79,7 @@ export const ListView = memo(function ListView({
   showBreadcrumbs = false,
   size,
   maxDepth,
+  showClasses = false,
 }: NodeListViewProps) {
   const sizeClass = size === 'sm' ? 'node-list-view--sm' : '';
 
@@ -291,6 +292,7 @@ export const ListView = memo(function ListView({
                 onPasteImage={onPasteImage}
                 onTemplateInstantiate={onTemplateInstantiate}
                 templateClassFilters={templateClassFilters}
+                showClasses={showClasses}
                 skipPages={false}
               />
             </div>
@@ -337,6 +339,7 @@ export const ListView = memo(function ListView({
               onPasteImage={onPasteImage}
               onTemplateInstantiate={onTemplateInstantiate}
               templateClassFilters={templateClassFilters}
+              showClasses={showClasses}
               onNodeClick={onNodeClick}
               onNodeShiftClick={onNodeShiftClick}
               showBreadcrumbs={showBreadcrumbs}
@@ -364,6 +367,7 @@ export const ListView = memo(function ListView({
                 onPasteImage={onPasteImage}
                 onTemplateInstantiate={onTemplateInstantiate}
                 templateClassFilters={templateClassFilters}
+                showClasses={showClasses}
               />
             </div>
           </div>
@@ -448,6 +452,7 @@ export const ListView = memo(function ListView({
                 onPasteImage={onPasteImage}
                 onTemplateInstantiate={onTemplateInstantiate}
                 templateClassFilters={templateClassFilters}
+                showClasses={showClasses}
               />
             </div>
           );
@@ -475,6 +480,7 @@ export const ListView = memo(function ListView({
         maxDepth={maxDepth}
         pagesOnly={pagesOnly}
         skipPages={!pagesOnly}
+        showClasses={showClasses}
       />
     </div>
   );
@@ -511,6 +517,7 @@ function ListViewGroup({
   showBreadcrumbs = false,
   nodeUuid,
   nodeId,
+  showClasses = false,
 }: {
   group: NodeGroup;
   sortedGroupNodes: Node[];
@@ -528,6 +535,7 @@ function ListViewGroup({
   showBreadcrumbs?: boolean;
   nodeUuid?: string;
   nodeId?: number;
+  showClasses?: boolean;
 }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   
@@ -599,6 +607,7 @@ function ListViewGroup({
                     onPasteImage={onPasteImage}
                     onTemplateInstantiate={onTemplateInstantiate}
                     templateClassFilters={templateClassFilters}
+                    showClasses={showClasses}
                   />
                 </div>
               );
@@ -615,6 +624,7 @@ function ListViewGroup({
               onPasteImage={onPasteImage}
               onTemplateInstantiate={onTemplateInstantiate}
               templateClassFilters={templateClassFilters}
+              showClasses={showClasses}
               nodeUuid={nodeUuid}
               nodeId={nodeId}
             />

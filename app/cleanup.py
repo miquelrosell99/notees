@@ -100,13 +100,13 @@ class CleanupScheduler:
         if int(user_days) > 0:
             await self._cleanup_users(data_dir, int(user_days))
 
-    async def _cleanup_workspaces(self, data_dir: Path):
+    async def _cleanup_workspaces(self, data_dir: Path, max_age_days: int):
         """Remove orphaned workspace directories."""
         workspaces_dir = data_dir / "workspaces"
         if not workspaces_dir.exists():
             return
 
-        cutoff = datetime.now(UTC) - timedelta(days=self.workspace_max_age_days)
+        cutoff = datetime.now(UTC) - timedelta(days=max_age_days)
 
         async with get_connection() as conn:
             for entry in workspaces_dir.iterdir():
@@ -133,13 +133,13 @@ class CleanupScheduler:
                 except Exception as e:
                     logger.error(f"Failed to remove {entry}: {e}")
 
-    async def _cleanup_users(self, data_dir: Path):
+    async def _cleanup_users(self, data_dir: Path, max_age_days: int):
         """Remove orphaned user directories."""
         users_dir = data_dir / "users"
         if not users_dir.exists():
             return
 
-        cutoff = datetime.now(UTC) - timedelta(days=self.user_max_age_days)
+        cutoff = datetime.now(UTC) - timedelta(days=max_age_days)
 
         async with get_connection() as conn:
             for entry in users_dir.iterdir():

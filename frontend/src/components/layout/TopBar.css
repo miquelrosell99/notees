@@ -41,6 +41,10 @@
   align-items: center;
 }
 
+.app-title + .live-sync-indicator {
+  margin-left: var(--spacing-1-5);
+}
+
 /* ==================== Top Bar Center Section ==================== */
 .top-bar-center {
   flex: 1;

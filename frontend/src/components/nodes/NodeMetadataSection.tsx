@@ -36,8 +36,8 @@ interface NodeMetadataSectionProps {
   onRemoveExtends?: (node: Node) => void;
   onAddExtends?: (node: Node) => void;
   onCreateExtends?: (name: string) => void;
-  onVisibilityChange?: (visibility: string) => void;
-  canChangeVisibility?: boolean;
+  onIsPrivateChange?: (isPrivate: boolean) => void;
+  canChangeIsPrivate?: boolean;
   defaultExpanded?: boolean;
 }
 
@@ -66,8 +66,8 @@ export function NodeMetadataSection({
   onRemoveExtends,
   onAddExtends,
   onCreateExtends,
-  onVisibilityChange,
-  canChangeVisibility,
+  onIsPrivateChange,
+  canChangeIsPrivate,
   defaultExpanded = true,
 }: NodeMetadataSectionProps) {
   const count =
@@ -86,26 +86,18 @@ export function NodeMetadataSection({
       defaultExpanded={defaultExpanded}
     >
       <div className="node-metadata-content">
-        {/* Visibility */}
+        {/* Private toggle */}
         {node.is_page && (
           <div className="node-metadata-row">
-            <div className="section-label">Visibility:</div>
-            {canChangeVisibility && onVisibilityChange ? (
-              <select
-                className="visibility-select"
-                value={node.visibility || 'workspace'}
-                onChange={(e) => onVisibilityChange(e.target.value)}
-                title="Page visibility"
-              >
-                <option value="private">🔒 Private</option>
-                <option value="workspace">🏢 Workspace</option>
-                <option value="public">🌐 Public</option>
-              </select>
-            ) : (
-              <span className="visibility-readonly">
-                {node.visibility === 'private' ? '🔒 Private' : node.visibility === 'public' ? '🌐 Public' : '🏢 Workspace'}
-              </span>
-            )}
+            <label className="private-toggle" title={node.is_private ? 'Only you can access this page' : 'Workspace members can access this page'}>
+              <input
+                type="checkbox"
+                checked={!!node.is_private}
+                onChange={(e) => onIsPrivateChange?.(e.target.checked)}
+                disabled={!canChangeIsPrivate || !onIsPrivateChange}
+              />
+              <span className="private-toggle-label">Private</span>
+            </label>
           </div>
         )}
 

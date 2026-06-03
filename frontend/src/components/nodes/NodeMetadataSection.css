@@ -13,22 +13,27 @@
   align-items: center;
 }
 
-.visibility-select {
-  background: var(--bg-tertiary);
-  color: var(--text-primary);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-md);
-  padding: var(--spacing-0-5) var(--spacing-2);
-  font-size: var(--text-sm);
+.private-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1-5);
   cursor: pointer;
-  outline: none;
-}
-
-.visibility-select:focus {
-  border-color: var(--border-focus);
-}
-
-.visibility-readonly {
   font-size: var(--text-sm);
-  color: var(--text-secondary);
+  color: var(--text-primary);
+}
+
+.private-toggle input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--color-primary);
+  cursor: pointer;
+}
+
+.private-toggle input[type="checkbox"]:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.private-toggle-label {
+  user-select: none;
 }

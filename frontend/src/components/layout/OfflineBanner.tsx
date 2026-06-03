@@ -7,28 +7,15 @@
 import React from 'react';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { useOfflineQueue } from '@/hooks/useOfflineQueue';
-import { useLiveSyncStatus } from '@/hooks/useLiveSyncStatus';
-import { useNavigationStore } from '@/stores/navigationStore';
 import { Icon } from '@/components/core/Icon';
 import './OfflineBanner.css';
 
 export function OfflineBanner(): React.ReactNode {
   const isOnline = useOnlineStatus();
   const { pendingCount, isDraining } = useOfflineQueue();
-  const liveSyncStatus = useLiveSyncStatus();
-  const currentNodeId = useNavigationStore((s) => s.currentNodeId);
 
-  // Show banner when:
-  // - Browser is offline
-  // - REST mutations are pending / draining
-  // - Browser is online but WS live sync is disconnected/error
-  //   AND we are actually viewing a page (live sync only applies to open pages)
-  const wsDisconnected =
-    isOnline &&
-    currentNodeId != null &&
-    (liveSyncStatus === 'disconnected' || liveSyncStatus === 'error');
-
-  if (isOnline && pendingCount === 0 && !wsDisconnected) return null;
+  // Show banner when browser is offline or REST mutations are pending / draining
+  if (isOnline && pendingCount === 0) return null;
 
   let text: string;
   let icon: string;
@@ -42,12 +29,6 @@ export function OfflineBanner(): React.ReactNode {
     }
     icon = 'mdi mdi-wifi-off';
     statusClass = 'offline-banner--offline';
-  } else if (wsDisconnected) {
-    text = liveSyncStatus === 'error'
-      ? 'Live sync error — edits may not appear for others'
-      : 'Live sync disconnected — reconnecting…';
-    icon = 'mdi mdi-sync-off';
-    statusClass = 'offline-banner--warning';
   } else if (isDraining) {
     text = `Syncing ${pendingCount} change${pendingCount === 1 ? '' : 's'}...`;
     icon = 'mdi mdi-sync';

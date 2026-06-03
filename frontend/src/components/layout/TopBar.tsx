@@ -12,9 +12,7 @@ import { useRef, useState, useMemo, useCallback, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigationStore, useModalStore, useNavigationHistoryStore, useUndoStore } from '@/stores';
 import { useAutoExportStore } from '@/stores/autoExportStore';
-import { useCommentCount, useDailyNote, useWorkspaceRole } from '@/hooks';
-import { useQuery } from '@tanstack/react-query';
-import { listWorkspaces, type WorkspaceListResponse } from '@/api/workspaces';
+import { useCommentCount, useDailyNote } from '@/hooks';
 import { Icon } from '@/components/core/Icon';
 import { Button } from '@/components/core/Button';
 import type { ButtonBadge } from '@/components/core/Button';
@@ -25,7 +23,6 @@ import type { ContextMenuItem } from '@/components/core/ContextMenu';
 import { Scratchpad } from './Scratchpad';
 import { AccountMenu } from './AccountMenu';
 import { UserSettingsModal, SystemSettingsModal } from './Modals';
-import { WorkspaceShareModal } from '@/components/workspace/WorkspaceShareModal';
 import { LiveSyncIndicator } from '@/components/collab/LiveSyncIndicator';
 import './TopBar.css';
 
@@ -80,14 +77,7 @@ export function TopBar() {
   const redoBtnRef = useRef<HTMLButtonElement>(null);
   const [isUserSettingsOpen, setIsUserSettingsOpen] = useState(false);
   const [isSystemSettingsOpen, setIsSystemSettingsOpen] = useState(false);
-  const [isWorkspaceShareOpen, setIsWorkspaceShareOpen] = useState(false);
   const [scratchpadEntryCount, setScratchpadEntryCount] = useState(0);
-  const { isOwner } = useWorkspaceRole();
-  const { data: workspacesData } = useQuery<WorkspaceListResponse>({
-    queryKey: ['workspaces'],
-    queryFn: listWorkspaces,
-    staleTime: 30000,
-  });
   const [goToTodaySignal] = useState(0);
 
   // Navigation history for back/forward buttons
@@ -197,6 +187,7 @@ export function TopBar() {
           />
         
           <h1 className="app-title">Notees</h1>
+          <LiveSyncIndicator />
         </div>
       
         <div className="top-bar-center">
@@ -341,22 +332,6 @@ export function TopBar() {
           />
         </div>
         
-        {/* Workspace share button (owners only) */}
-        {isOwner && (
-          <Button
-            icon={"mdi mdi-account-multiple-plus"}
-            variant="ghost"
-            size="sm"
-            onClick={() => setIsWorkspaceShareOpen(true)}
-            aria-label="Share workspace"
-            title="Share workspace"
-            className="toolbar-btn"
-          />
-        )}
-
-        {/* Live sync connection indicator */}
-        <LiveSyncIndicator />
-
         {/* Auto-export sync indicator */}
         <AutoExportIndicator />
 
@@ -400,14 +375,7 @@ export function TopBar() {
         onClose={() => setIsSystemSettingsOpen(false)}
       />
 
-      {/* Workspace Share Modal */}
-      {isOwner && workspacesData?.active && (
-        <WorkspaceShareModal
-          workspaceUuid={workspacesData.active}
-          isOpen={isWorkspaceShareOpen}
-          onClose={() => setIsWorkspaceShareOpen(false)}
-        />
-      )}
+
     </Card>
   );
 }
