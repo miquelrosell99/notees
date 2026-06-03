@@ -527,13 +527,13 @@
 }
 
 /* Remove per-block color accents inside cards — the card itself is already colored */
-.node-card .node-block[style*="--node-block-color"]::before {
+.node-card .node-block[style*="--node-color"]::before {
   display: none;
 }
 
-.node-card .node-block[style*="--node-block-color"] > p,
-.node-card .node-block[style*="--node-block-color"] > span,
-.node-card .node-block[style*="--node-block-color"] > .notees-editor-paragraph {
+.node-card .node-block[style*="--node-color"] > p,
+.node-card .node-block[style*="--node-color"] > span,
+.node-card .node-block[style*="--node-color"] > .notees-editor-paragraph {
   background: transparent;
   padding: 0;
 }

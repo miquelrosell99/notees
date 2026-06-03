@@ -390,15 +390,15 @@
 }
 
 /* Suppress color border for the root block in focused view (article element already has colored border) */
-.focused-block-content .notees-editor-content > .node-block:first-child[style*="--node-block-color"] {
+.focused-block-content .notees-editor-content > .node-block:first-child[style*="--node-color"] {
   border-left: none !important;
   padding-left: 0 !important;
 }
 
 /* Suppress colored background for the root block in focused view */
-.focused-block-content .notees-editor-content > .node-block:first-child[style*="--node-block-color"] > p,
-.focused-block-content .notees-editor-content > .node-block:first-child[style*="--node-block-color"] > span,
-.focused-block-content .notees-editor-content > .node-block:first-child[style*="--node-block-color"] > .notees-editor-paragraph {
+.focused-block-content .notees-editor-content > .node-block:first-child[style*="--node-color"] > p,
+.focused-block-content .notees-editor-content > .node-block:first-child[style*="--node-color"] > span,
+.focused-block-content .notees-editor-content > .node-block:first-child[style*="--node-color"] > .notees-editor-paragraph {
   background-color: transparent !important;
   padding: 0 !important;
 }
