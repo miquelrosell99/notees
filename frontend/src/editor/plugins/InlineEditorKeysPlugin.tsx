@@ -6,7 +6,7 @@
  * awareness. ArrowUp/ArrowDown navigation stays in BlockList.
  */
 
-import { useEffect } from 'react';
+import { useCallback, useEffect } from 'react';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
 import {
   $getSelection,
@@ -17,6 +17,8 @@ import {
   KEY_DELETE_COMMAND,
   KEY_TAB_COMMAND,
   KEY_ESCAPE_COMMAND,
+  INSERT_PARAGRAPH_COMMAND,
+  DELETE_CHARACTER_COMMAND,
 } from 'lexical';
 import { useInputContext } from '@/stores/inputContext';
 
@@ -75,22 +77,54 @@ export function InlineEditorKeysPlugin({
     );
   }, [editor, onEnter, onCtrlEnter]);
 
+  // Fallback for Android soft keyboards that dispatch insertParagraph
+  // via beforeinput instead of firing a keydown event.
+  useEffect(() => {
+    if (!onEnter) return;
+    return editor.registerCommand(
+      INSERT_PARAGRAPH_COMMAND,
+      () => {
+        onEnter();
+        return true;
+      },
+      COMMAND_PRIORITY_HIGH,
+    );
+  }, [editor, onEnter]);
+
   // ─── Backspace ──────────────────────────────────────────────────
+
+  const checkAtStart = useCallback(() => {
+    let atStart = false;
+    editor.getEditorState().read(() => {
+      const selection = $getSelection();
+      if (!$isRangeSelection(selection)) return;
+      if (selection.anchor.offset === 0 && selection.focus.offset === 0) {
+        atStart = true;
+      }
+    });
+    return atStart;
+  }, [editor]);
+
+  const checkAtEnd = useCallback(() => {
+    let atEnd = false;
+    editor.getEditorState().read(() => {
+      const selection = $getSelection();
+      if (!$isRangeSelection(selection)) return;
+      const node = selection.anchor.getNode();
+      const textLength = node.getTextContent().length;
+      if (selection.anchor.offset >= textLength && selection.focus.offset >= textLength) {
+        atEnd = true;
+      }
+    });
+    return atEnd;
+  }, [editor]);
 
   useEffect(() => {
     return editor.registerCommand(
       KEY_BACKSPACE_COMMAND,
       (_event) => {
         if (!onBackspaceAtStart) return false;
-        let atStart = false;
-        editor.getEditorState().read(() => {
-          const selection = $getSelection();
-          if (!$isRangeSelection(selection)) return;
-          if (selection.anchor.offset === 0 && selection.focus.offset === 0) {
-            atStart = true;
-          }
-        });
-        if (atStart) {
+        if (checkAtStart()) {
           onBackspaceAtStart();
           return true;
         }
@@ -98,7 +132,25 @@ export function InlineEditorKeysPlugin({
       },
       COMMAND_PRIORITY_HIGH,
     );
-  }, [editor, onBackspaceAtStart]);
+  }, [editor, onBackspaceAtStart, checkAtStart]);
+
+  // Fallback for Android soft keyboards that dispatch deleteCharacter
+  // via beforeinput instead of firing a keydown event.
+  useEffect(() => {
+    if (!onBackspaceAtStart) return;
+    return editor.registerCommand(
+      DELETE_CHARACTER_COMMAND,
+      (isBackward: boolean) => {
+        if (!isBackward) return false;
+        if (checkAtStart()) {
+          onBackspaceAtStart();
+          return true;
+        }
+        return false;
+      },
+      COMMAND_PRIORITY_HIGH,
+    );
+  }, [editor, onBackspaceAtStart, checkAtStart]);
 
   // ─── Delete ─────────────────────────────────────────────────────
 
@@ -107,17 +159,7 @@ export function InlineEditorKeysPlugin({
       KEY_DELETE_COMMAND,
       (_event) => {
         if (!onDeleteAtEnd) return false;
-        let atEnd = false;
-        editor.getEditorState().read(() => {
-          const selection = $getSelection();
-          if (!$isRangeSelection(selection)) return;
-          const node = selection.anchor.getNode();
-          const textLength = node.getTextContent().length;
-          if (selection.anchor.offset >= textLength && selection.focus.offset >= textLength) {
-            atEnd = true;
-          }
-        });
-        if (atEnd) {
+        if (checkAtEnd()) {
           onDeleteAtEnd();
           return true;
         }
@@ -125,7 +167,25 @@ export function InlineEditorKeysPlugin({
       },
       COMMAND_PRIORITY_HIGH,
     );
-  }, [editor, onDeleteAtEnd]);
+  }, [editor, onDeleteAtEnd, checkAtEnd]);
+
+  // Fallback for Android soft keyboards and other input methods that
+  // dispatch deleteCharacter forward via beforeinput.
+  useEffect(() => {
+    if (!onDeleteAtEnd) return;
+    return editor.registerCommand(
+      DELETE_CHARACTER_COMMAND,
+      (isBackward: boolean) => {
+        if (isBackward) return false;
+        if (checkAtEnd()) {
+          onDeleteAtEnd();
+          return true;
+        }
+        return false;
+      },
+      COMMAND_PRIORITY_HIGH,
+    );
+  }, [editor, onDeleteAtEnd, checkAtEnd]);
 
   // ─── Tab ────────────────────────────────────────────────────────
 
