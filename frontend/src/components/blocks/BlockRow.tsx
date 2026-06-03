@@ -23,6 +23,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { useTaskActions } from '@/hooks/useTaskActions';
 import { useResolvedClassDetails } from '@/hooks/useResolvedClassDetails';
 import { ClassPillsRow } from '@/components/nodes/ClassPillsRow';
+import { getNodeColorStylesAuto } from '@/utils/color';
 import './BlockRow.css';
 import type { Node } from '@/types/api';
 import type { JSX } from 'react';
@@ -217,6 +218,11 @@ export const BlockRow = memo(
     const classDetails = useResolvedClassDetails(node.classes);
     const hasClasses = showClasses && classDetails.length > 0;
 
+    const colorStyle = useMemo(() => {
+      if (!node.color) return undefined;
+      return getNodeColorStylesAuto(node.color);
+    }, [node.color]);
+
     const editorElement = shouldMountEditor ? (
       <InlineEditor
         ref={editorRef}
@@ -262,10 +268,10 @@ export const BlockRow = memo(
       <>
       <div
         ref={rowRef}
-        className={`block-row node-block ${isActive ? 'block-row--active' : ''}`}
+        className={`block-row node-block ${isActive ? 'block-row--active' : ''} ${node.is_page ? 'node-block--page' : ''}`}
         data-block-id={node.uuid}
         data-depth={depth}
-        style={{ '--block-depth': depth } as React.CSSProperties}
+        style={{ '--block-depth': depth, ...colorStyle } as React.CSSProperties}
       >
         <BlockUI
           node={node}
