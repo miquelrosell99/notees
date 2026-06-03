@@ -244,3 +244,48 @@ body.notees-dragging-block .node-block:hover {
 body.notees-dragging-block .node-block--has-children:hover .bullet-collapse-arrow {
   opacity: 0;
 }
+
+/* ─── Page blocks ──────────────────────────────────────────────── */
+
+.node-block--page .inline-editor__content {
+  font-weight: 500;
+}
+
+/* ─── Colored block backgrounds ────────────────────────────────── */
+
+.block-row.node-block[style*="--node-color"] .inline-editor__content {
+  background-color: rgba(var(--node-color-rgb, 128, 128, 128), 0.08);
+  padding: 2px 8px;
+  border-radius: var(--shape-small);
+}
+
+@media (max-width: 768px) {
+  .block-row.node-block[style*="--node-color"] .inline-editor__content {
+    padding: 2px 4px;
+  }
+}
+
+/* ─── Touch swipe indent / outdent (mobile) ─────────────────────── */
+
+/* Disable bullet transitions while a swipe gesture is active */
+.node-block--swipe-indent .block-ui > .bullet-wrapper,
+.node-block--swipe-outdent .block-ui > .bullet-wrapper {
+  transition: none;
+}
+
+/* Shift the bullet horizontally with rubber-band feel */
+.node-block--swipe-indent .block-ui > .bullet-wrapper {
+  transform: translateX(calc(var(--swipe-progress, 0) * 12px));
+}
+
+.node-block--swipe-outdent .block-ui > .bullet-wrapper {
+  transform: translateX(calc(var(--swipe-progress, 0) * -12px));
+}
+
+/* Brighten and scale the bullet dot as the gesture confirms */
+.node-block--swipe-indent .bullet-dot,
+.node-block--swipe-outdent .bullet-dot {
+  opacity: calc(0.55 + var(--swipe-progress, 0) * 0.45);
+  transform: scale(calc(1 + var(--swipe-progress, 0) * 0.3));
+  transition: none;
+}

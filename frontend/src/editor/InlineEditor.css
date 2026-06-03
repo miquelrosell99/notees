@@ -54,3 +54,57 @@
   content: '\200B';
   display: inline;
 }
+
+/* ─── Headings ─────────────────────────────────────────────────── */
+
+.notees-heading-h1,
+.notees-heading-h2,
+.notees-heading-h3 {
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+  color: var(--color-on-surface);
+  margin: 0;
+}
+
+.notees-heading-h1 {
+  font-size: 1.875rem;
+}
+
+.notees-heading-h2 {
+  font-size: 1.5rem;
+}
+
+.notees-heading-h3 {
+  font-size: 1.25rem;
+}
+
+/* ─── Inline text formatting ───────────────────────────────────── */
+
+.notees-text-bold {
+  font-weight: 600;
+}
+
+.notees-text-italic {
+  font-style: italic;
+}
+
+.notees-text-underline {
+  text-decoration: underline;
+}
+
+.notees-text-strikethrough {
+  text-decoration: line-through;
+}
+
+.notees-text-underline-strikethrough {
+  text-decoration: underline line-through;
+}
+
+.notees-text-code {
+  background: var(--color-surface-container-high);
+  border-radius: 3px;
+  padding: 1px 4px;
+  font-family: var(--font-family-mono);
+  font-size: 0.9em;
+}
