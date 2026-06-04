@@ -150,6 +150,10 @@ export interface TableProps<T> {
   nodeEditable?: boolean;
   /** Initial sort state — columns are sorted in this order on first render */
   defaultSort?: SortEntry[];
+  /** Controlled sort state — overrides internal sort state when provided */
+  sort?: SortEntry[];
+  /** Called when sort changes (enables controlled sort mode) */
+  onSortChange?: (sort: SortEntry[]) => void;
   /** Whether to virtualize row rendering (only works when expandable is disabled) */
   virtualized?: boolean;
   /** Estimated row height in pixels for virtualization (default: 48) */
@@ -202,18 +206,24 @@ export function Table<T>({
   onNodeOpenInSidebar,
   nodeEditable,
   defaultSort,
+  sort,
+  onSortChange,
   virtualized = false,
   virtualizedRowHeight = 48,
 }: TableProps<T>) {
   // User-selected sort columns. Empty means fall back to defaultSort.
-  const [userSortColumns, setUserSortColumns] = useState<SortEntry[]>([]);
+  const [internalUserSortColumns, setInternalUserSortColumns] = useState<SortEntry[]>([]);
+  const isControlledSort = sort !== undefined;
 
-  // Reset user sorts when defaultSort changes (e.g., view/column changes)
+  // Reset internal user sorts when defaultSort changes (e.g., view/column changes)
   useEffect(() => {
-    setUserSortColumns([]);
-  }, [defaultSort]);
+    if (!isControlledSort) {
+      setInternalUserSortColumns([]);
+    }
+  }, [defaultSort, isControlledSort]);
 
-  // Effective sort: user selection takes precedence; fall back to default
+  // Effective sort: controlled prop takes precedence, then internal state, then default
+  const userSortColumns = isControlledSort ? sort : internalUserSortColumns;
   const sortColumns = userSortColumns.length > 0 ? userSortColumns : (defaultSort ?? []);
   
   // Internal expanded state (when uncontrolled) - currently only controlled mode is supported
@@ -235,7 +245,7 @@ export function Table<T>({
   const handleSort = useCallback((column: TableColumn<T>) => {
     if (!column.sortable) return;
 
-    setUserSortColumns(prev => {
+    const computeNextSort = (prev: SortEntry[]): SortEntry[] => {
       const existingIndex = prev.findIndex(s => s.key === column.key);
       
       if (existingIndex === -1) {
@@ -254,8 +264,14 @@ export function Table<T>({
         // Currently descending - remove from sort list
         return prev.filter(s => s.key !== column.key);
       }
-    });
-  }, []);
+    };
+
+    if (isControlledSort) {
+      onSortChange?.(computeNextSort(userSortColumns));
+    } else {
+      setInternalUserSortColumns(computeNextSort);
+    }
+  }, [isControlledSort, onSortChange, userSortColumns]);
 
   const handleToggleSelect = useCallback((key: string | number) => {
     if (!selectable || !onSelectionChange) return;

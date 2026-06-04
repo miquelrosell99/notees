@@ -8,6 +8,7 @@ import type { Node, Property } from './api';
 import type { NodeView } from './nodeView';
 import type { ReactNode } from 'react';
 import type { ContextMenuItem } from '../components/core/ContextMenu';
+import type { SortEntry } from '../components/core/Table';
 
 // ==================== GroupBy Options ====================
 
@@ -442,6 +443,12 @@ export interface NodeTableViewProps extends NodeCollectionViewBaseProps {
   
   /** Called when selection changes */
   onSelectionChange?: (selectedIds: Set<number>) => void;
+  
+  /** Controlled sort columns */
+  sort?: SortEntry[];
+  
+  /** Called when sort changes */
+  onSortChange?: (sort: SortEntry[]) => void;
 }
 
 /**

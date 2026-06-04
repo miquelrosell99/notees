@@ -29,12 +29,9 @@ import { NodeSelector } from '../NodeSelector';
 import { Button } from '../../core/Button';
 import { isNonRemovableClass, SYSTEM_CLASS_UUIDS } from '@/constants';
 import { compareBySequence, compareByWriteDateDesc, compareByCreateDateDesc, compareDateFirstAlpha } from '@/utils/nodeSort';
+import { VIRTUAL_FIELD_IDS } from '@/types/viewFields';
 import './TableView.css';
 import { registerView } from './registry';
-// Virtual column UUIDs (match PropertyColumnSelector)
-const CLASSES_VIRTUAL_UUID = '__classes__';
-const CREATED_VIRTUAL_UUID = '__created__';
-const MODIFIED_VIRTUAL_UUID = '__modified__';
 
 // Custom column definition for node tables (external API)
 interface NodeTableColumn {
@@ -118,6 +115,8 @@ export const TableView = memo(function TableView({
   propertyUuids = [],
   className = '',
   customContextMenu,
+  sort,
+  onSortChange,
 }: NodeTableViewProps) {
   // Get openNode and addSidebarCard from store for navigation
   const { openNode, addSidebarCard } = useNavigationStore();
@@ -214,7 +213,7 @@ export const TableView = memo(function TableView({
   // If no columns are explicitly configured, default to useful virtual columns
   const effectivePropertyUuids = propertyUuids.length > 0
     ? propertyUuids
-    : [CLASSES_VIRTUAL_UUID, CREATED_VIRTUAL_UUID, MODIFIED_VIRTUAL_UUID];
+    : [VIRTUAL_FIELD_IDS.classes, VIRTUAL_FIELD_IDS.created, VIRTUAL_FIELD_IDS.modified];
 
   // Generate property columns from propertyUuids
   const propertyColumns = useMemo<NodeTableColumn[]>(() => {
@@ -223,7 +222,7 @@ export const TableView = memo(function TableView({
     return effectivePropertyUuids
       .map((uuid: string): NodeTableColumn | null => {
         // Handle virtual Classes column
-        if (uuid === CLASSES_VIRTUAL_UUID) {
+        if (uuid === VIRTUAL_FIELD_IDS.classes) {
           return {
             key: 'classes',
             label: 'Classes',
@@ -257,7 +256,7 @@ export const TableView = memo(function TableView({
         }
 
         // Handle virtual Created column
-        if (uuid === CREATED_VIRTUAL_UUID) {
+        if (uuid === VIRTUAL_FIELD_IDS.created) {
           return {
             key: 'create_date',
             label: 'Created',
@@ -267,7 +266,7 @@ export const TableView = memo(function TableView({
         }
 
         // Handle virtual Modified column
-        if (uuid === MODIFIED_VIRTUAL_UUID) {
+        if (uuid === VIRTUAL_FIELD_IDS.modified) {
           return {
             key: 'write_date',
             label: 'Modified',
@@ -418,6 +417,8 @@ export const TableView = memo(function TableView({
           onNodeOpenInSidebar={(nodeId) => addSidebarCard(nodeId, 'block')}
           nodeEditable={editable}
           defaultSort={defaultSort}
+          sort={sort}
+          onSortChange={onSortChange}
           virtualized={nodes.length > 200}
         />
       )}
@@ -439,5 +440,5 @@ registerView({
   label: 'Table',
   icon: 'mdi mdi-table',
   component: TableView,
-  capabilities: { propertyColumns: true },
+  capabilities: { propertyColumns: true, sorting: true },
 });
