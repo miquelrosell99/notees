@@ -21,11 +21,13 @@ import { pasteBlocksAfterBlock } from '@/editor/utils/pasteBlocks';
 import { useLivePresenceStore } from '@/stores/livePresenceStore';
 import { useShallow } from 'zustand/react/shallow';
 import { useTaskActions } from '@/hooks/useTaskActions';
-import { useResolvedClassDetails } from '@/hooks/useResolvedClassDetails';
+import { useResolvedClassDetails, useProperties, useClasses } from '@/hooks';
 import { ClassPillsRow } from '@/components/nodes/ClassPillsRow';
+import { PropertyIconButton } from '@/components/properties/PropertyIconButton';
 import { getNodeColorStylesAuto } from '@/utils/color';
+import { SYSTEM_CLASS_UUIDS } from '@/constants';
 import './BlockRow.css';
-import type { Node } from '@/types/api';
+import type { Node, Property } from '@/types/api';
 import type { JSX } from 'react';
 
 // ─── Types ────────────────────────────────────────────────────────
@@ -262,6 +264,39 @@ export const BlockRow = memo(
 
     const hasClasses = showClasses && visibleClassDetails.length > 0;
 
+    // Query class detection for collapse arrow
+    const { data: allClasses } = useClasses();
+    const queryClass = useMemo(() => {
+      if (!allClasses) return null;
+      return allClasses.find((c) => c.uuid === SYSTEM_CLASS_UUIDS.query) ?? null;
+    }, [allClasses]);
+    const hasQueryClass = !!(queryClass && node.classes?.includes(queryClass.id));
+
+    // Property icons inline based on icon_visibility
+    const { data: allProperties } = useProperties();
+    const propertyIcons = useMemo(() => {
+      if (!node.properties || !allProperties) return { beforeContent: [] as Array<{ property: Property; value: unknown }>, afterBullet: [] as Array<{ property: Property; value: unknown }> };
+
+      const beforeContent: Array<{ property: Property; value: unknown }> = [];
+      const afterBullet: Array<{ property: Property; value: unknown }> = [];
+
+      for (const prop of allProperties) {
+        if (prop.icon_visibility === 'hidden') continue;
+
+        const propIdKey = prop.id;
+        const value = node.properties[propIdKey];
+        if (value === undefined || value === null) continue;
+
+        if (prop.icon_visibility === 'before_content') {
+          beforeContent.push({ property: prop, value });
+        } else if (prop.icon_visibility === 'after_bullet') {
+          afterBullet.push({ property: prop, value });
+        }
+      }
+
+      return { beforeContent, afterBullet };
+    }, [node.properties, allProperties]);
+
     const colorStyle = useMemo(() => {
       if (!node.color) return undefined;
       return getNodeColorStylesAuto(node.color);
@@ -320,6 +355,7 @@ export const BlockRow = memo(
         <BlockUI
           node={node}
           icon={bulletIcon}
+          hasChildren={hasQueryClass || (node.has_children ?? false)}
           onCollapseToggle={handleCollapseToggleLocal}
           onNavigate={onNavigate}
           onOpenInSidebar={onOpenInSidebar}
@@ -328,16 +364,57 @@ export const BlockRow = memo(
           presenceUsers={presenceUsers}
           typingUsers={typingUsers}
         />
+        {propertyIcons.afterBullet.length > 0 && (
+          <div className="block-property-icons">
+            {propertyIcons.afterBullet.map(({ property: prop, value: val }) => (
+              <PropertyIconButton
+                key={prop.id}
+                property={prop}
+                node={node}
+                value={val}
+                editable={!readOnly}
+              />
+            ))}
+          </div>
+        )}
         <div className="block-row__body">
           {hasClasses ? (
             <div className="block-row__content-line">
               <div className="block-row__content">
+                {/* Property value icons - before content position */}
+                {propertyIcons.beforeContent.length > 0 && !isActive && (
+                  <span className="block-property-icons--before-content">
+                    {propertyIcons.beforeContent.map(({ property: prop, value: val }) => (
+                      <PropertyIconButton
+                        key={prop.id}
+                        property={prop}
+                        node={node}
+                        value={val}
+                        editable={!readOnly}
+                      />
+                    ))}
+                  </span>
+                )}
                 {editorElement}
               </div>
               <ClassPillsRow classes={visibleClassDetails} nodeId={node.id} readOnly={readOnly} />
             </div>
           ) : (
             <div className="block-row__content">
+              {/* Property value icons - before content position */}
+              {propertyIcons.beforeContent.length > 0 && !isActive && (
+                <span className="block-property-icons--before-content">
+                  {propertyIcons.beforeContent.map(({ property: prop, value: val }) => (
+                    <PropertyIconButton
+                      key={prop.id}
+                      property={prop}
+                      node={node}
+                      value={val}
+                      editable={!readOnly}
+                    />
+                  ))}
+                </span>
+              )}
               {editorElement}
             </div>
           )}
