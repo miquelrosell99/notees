@@ -88,17 +88,41 @@ export function TriggerPopup({
     [pageResults, blockResults]
   );
 
-  // Slash command filtering
+  // Slash command usage tracking (localStorage)
+  const commandUsage = useMemo(() => {
+    try {
+      const raw = localStorage.getItem('notees_slash_cmd_usage');
+      return raw ? (JSON.parse(raw) as Record<string, number>) : {};
+    } catch {
+      return {} as Record<string, number>;
+    }
+  }, []);
+
+  const bumpCommandUsage = useCallback((commandId: string) => {
+    try {
+      const next = { ...commandUsage, [commandId]: (commandUsage[commandId] || 0) + 1 };
+      localStorage.setItem('notees_slash_cmd_usage', JSON.stringify(next));
+    } catch {
+      // ignore quota errors
+    }
+  }, [commandUsage]);
+
+  // Slash command filtering + frequency sorting
   const commandItems: SlashCommand[] = useMemo(() => {
     if (type !== 'slash') return [];
-    if (!query) return SLASH_COMMANDS;
     const lower = query.toLowerCase();
-    return SLASH_COMMANDS.filter(
-      (c) =>
-        c.label.toLowerCase().includes(lower) ||
-        c.description.toLowerCase().includes(lower)
-    );
-  }, [type, query]);
+    const scored = SLASH_COMMANDS.map((c) => {
+      const labelMatch = c.label.toLowerCase().includes(lower);
+      const descMatch = c.description.toLowerCase().includes(lower);
+      const textScore = (labelMatch ? 2 : 0) + (descMatch ? 1 : 0);
+      return { cmd: c, textScore, freq: commandUsage[c.id] || 0 };
+    }).filter((s) => s.textScore > 0 || !query);
+    scored.sort((a, b) => {
+      if (b.textScore !== a.textScore) return b.textScore - a.textScore;
+      return b.freq - a.freq;
+    });
+    return scored.map((s) => s.cmd);
+  }, [type, query, commandUsage]);
 
   const items = isNodeTrigger ? nodeItems : commandItems;
   const itemCount = items.length + (isNodeTrigger && showCreateOption && query.trim() ? 1 : 0);
@@ -206,7 +230,9 @@ export function TriggerPopup({
           if (isNodeTrigger) {
             onSelectNode?.(nodeItems[effectiveSelectedIndex].node, mode);
           } else {
-            onSelectCommand?.(commandItems[effectiveSelectedIndex].id);
+            const cmdId = commandItems[effectiveSelectedIndex].id;
+            bumpCommandUsage(cmdId);
+            onSelectCommand?.(cmdId);
           }
         } else if (isNodeTrigger && showCreateOption && query.trim()) {
           handleCreate(query.trim(), mode);
@@ -237,6 +263,7 @@ export function TriggerPopup({
       onClose,
       onDeletePlaceholder,
       handleCreate,
+      bumpCommandUsage,
     ]
   );
 
