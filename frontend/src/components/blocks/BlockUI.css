@@ -51,6 +51,15 @@
   line-height: 1;
 }
 
+/* Private indicator — shown when this block/page is private */
+.block-ui__private {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 2px;
+  opacity: 0.6;
+}
+
 /* Typing indicator — ephemeral dots for remote users typing in this block */
 .block-ui__typing {
   display: flex;

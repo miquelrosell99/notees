@@ -18,7 +18,7 @@ import {
 import { resetNodeViews } from '@/api/nodeViews';
 import { useNavigationStore, useModalStore, useSettingsStore, usePresentationStore } from '@/stores';
 import { useNotifications } from '@/stores/notificationStore';
-import { useCreateNode } from '@/hooks';
+import { useCreateNode, useUpdateNode } from '@/hooks';
 import { nodeKeys } from '@/hooks/queryKeys';
 import { nodeViewKeys } from '@/hooks/useNodeViews';
 import { parseHierarchicalPath, resolveHierarchicalParent } from '@/utils/hierarchicalPath';
@@ -62,6 +62,7 @@ export function useCommandPaletteSelection(params: UseCommandPaletteSelectionPar
   } = params;
 
   const queryClient = useQueryClient();
+  const updateNode = useUpdateNode();
   const { openNode, openPropertyView, openNodeCollection } = useNavigationStore();
   const { error: notifyError, warning: notifyWarning, success: notifySuccess } = useNotifications();
   const createNodeMutation = useCreateNode();
@@ -260,6 +261,20 @@ export function useCommandPaletteSelection(params: UseCommandPaletteSelectionPar
           } else if (item.commandId === 'share-page') {
             const currentId = useNavigationStore.getState().currentNodeId;
             if (currentId) useModalStore.getState().setShareModalOpen(true);
+          } else if (item.commandId === 'toggle-private') {
+            const currentId = useNavigationStore.getState().currentNodeId;
+            if (currentId) {
+              const allDetails = queryClient.getQueriesData<Node>({ queryKey: nodeKeys.details() });
+              const currentNodeEntry = allDetails.find(([key]) => Array.isArray(key) && key[2] === currentId);
+              const currentNode = currentNodeEntry?.[1];
+              if (currentNode) {
+                updateNode.mutate({ id: currentId, data: { is_private: !currentNode.is_private } });
+              } else {
+                notifyWarning('Cannot toggle privacy', 'Page data is not loaded. Please try again.');
+              }
+            } else {
+              notifyWarning('No page active', 'Open a page to toggle its privacy.');
+            }
           } else if (item.commandId === 'force-reexport-markdown') {
             useModalStore.getState().setAutoExportProgressModalOpen(true);
           } else if (item.commandId === 'open-broken-links') {
@@ -331,7 +346,7 @@ export function useCommandPaletteSelection(params: UseCommandPaletteSelectionPar
     allClasses, destinationPage, onSelect, openNode, openPropertyView, openNodeCollection, createNodeMutation,
     onClose, queryClient, handlePrefixSelect, handleBooleanSelect,
     setDuplicateModal, setMaxPages, setMaxBlocks, setMaxProperties,
-    notifyError, notifyWarning, notifySuccess,
+    notifyError, notifyWarning, notifySuccess, updateNode,
   ]);
 
   return { handleSelect };

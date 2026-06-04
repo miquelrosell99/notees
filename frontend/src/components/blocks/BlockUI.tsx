@@ -82,6 +82,11 @@ export function BlockUI({
           <Icon path="mdi mdi-lock-outline" size={0.7} color={lockedBy[0].color} />
         </div>
       )}
+      {node.is_private && (
+        <div className="block-ui__private" title="Private">
+          <Icon path="mdi mdi-eye-off-outline" size={0.7} color="var(--color-outline)" />
+        </div>
+      )}
       {typingUsers && typingUsers.length > 0 && (
         <div className="block-ui__typing">
           {typingUsers.map((u) => (

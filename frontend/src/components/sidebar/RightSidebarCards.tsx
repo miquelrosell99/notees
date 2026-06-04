@@ -7,7 +7,7 @@
  * - shift-click on bullets adds page/block cards
  * - local graph button adds a localGraph card
  */
-import { useCallback, memo } from 'react';
+import { useCallback, memo, useEffect, useRef } from 'react';
 import { useNavigationStore } from '@/stores';
 import type { SidebarCard } from '@/stores';
 import { SidebarCardLocalGraph, SidebarCardNode } from '.';
@@ -59,11 +59,15 @@ export function RightSidebarCards() {
     sidebarCards, 
     removeSidebarCard, 
     clearSidebarCards,
+    flashSidebarCardId,
   } = useNavigationStore();
+  const listRef = useRef<HTMLDivElement>(null);
 
   const handleCardClose = useCallback((cardId: number) => {
     removeSidebarCard(cardId);
   }, [removeSidebarCard]);
+
+  useFlashScroll(listRef, flashSidebarCardId);
 
   if (sidebarCards.length === 0) {
     return (
@@ -95,18 +99,33 @@ export function RightSidebarCards() {
           Clear all
         </Button>
       </div>
-      <div className="right-sidebar-cards__list">
+      <div className="right-sidebar-cards__list" ref={listRef}>
         {sidebarCards.map(card => (
-          <SidebarCardRenderer
+          <div
             key={card.id}
-            card={card}
-            onClose={handleCardClose}
-          />
+            data-card-id={card.id}
+            className={`right-sidebar-cards__item ${flashSidebarCardId === card.id ? 'right-sidebar-cards__item--flash' : ''}`}
+          >
+            <SidebarCardRenderer
+              card={card}
+              onClose={handleCardClose}
+            />
+          </div>
         ))}
       </div>
       {/* Context sections always appear at bottom, after all cards */}
       <SidebarContextSections />
     </div>
   );
+}
+
+function useFlashScroll(listRef: React.RefObject<HTMLDivElement | null>, flashId: number | null) {
+  useEffect(() => {
+    if (!flashId || !listRef.current) return;
+    const el = listRef.current.querySelector(`[data-card-id="${flashId}"]`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [flashId, listRef]);
 }
 

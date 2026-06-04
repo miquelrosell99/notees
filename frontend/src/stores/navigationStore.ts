@@ -43,6 +43,7 @@ interface NavigationState {
   sidebarNode: SidebarNode | null;
   sidebarCards: SidebarCard[];
   localGraphNodeId: number | null;
+  flashSidebarCardId: number | null;
 
   // View / layout
   viewMode: ViewMode;
@@ -76,6 +77,7 @@ interface NavigationState {
   addSidebarCards: (nodeIds: number[], cardType: SidebarCardType) => void;
   removeSidebarCard: (cardId: number) => void;
   clearSidebarCards: () => void;
+  flashSidebarCard: (cardId: number) => void;
   openLocalGraph: (nodeId: number) => void;
   closeLocalGraph: () => void;
 }
@@ -93,6 +95,7 @@ export const useNavigationStore = create<NavigationState>()((set, _get) => ({
   sidebarNode: null,
   sidebarCards: [],
   localGraphNodeId: null,
+  flashSidebarCardId: null,
   viewMode: 'default',
   preFocusModeSidebarCollapsed: null,
   mainViewType: 'node' as MainViewType,
@@ -192,6 +195,12 @@ export const useNavigationStore = create<NavigationState>()((set, _get) => ({
       return { sidebarCards: newCards };
     }),
   clearSidebarCards: () => set({ sidebarCards: [], rightSidebarOpen: false, rightSidebarContent: null }),
+  flashSidebarCard: (cardId) => {
+    set({ flashSidebarCardId: cardId, rightSidebarOpen: true, rightSidebarContent: 'node' });
+    setTimeout(() => {
+      set({ flashSidebarCardId: null });
+    }, 1500);
+  },
   openLocalGraph: (nodeId) =>
     set((s) => {
       const existingIndex = s.sidebarCards.findIndex(

@@ -36,8 +36,6 @@ interface NodeMetadataSectionProps {
   onRemoveExtends?: (node: Node) => void;
   onAddExtends?: (node: Node) => void;
   onCreateExtends?: (name: string) => void;
-  onIsPrivateChange?: (isPrivate: boolean) => void;
-  canChangeIsPrivate?: boolean;
   defaultExpanded?: boolean;
 }
 
@@ -66,8 +64,6 @@ export function NodeMetadataSection({
   onRemoveExtends,
   onAddExtends,
   onCreateExtends,
-  onIsPrivateChange,
-  canChangeIsPrivate,
   defaultExpanded = true,
 }: NodeMetadataSectionProps) {
   const count =
@@ -86,21 +82,6 @@ export function NodeMetadataSection({
       defaultExpanded={defaultExpanded}
     >
       <div className="node-metadata-content">
-        {/* Private toggle */}
-        {node.is_page && (
-          <div className="node-metadata-row">
-            <label className="private-toggle" title={node.is_private ? 'Only you can access this page' : 'Workspace members can access this page'}>
-              <input
-                type="checkbox"
-                checked={!!node.is_private}
-                onChange={(e) => onIsPrivateChange?.(e.target.checked)}
-                disabled={!canChangeIsPrivate || !onIsPrivateChange}
-              />
-              <span className="private-toggle-label">Private</span>
-            </label>
-          </div>
-        )}
-
         {/* Classes */}
         <div className="node-metadata-row">
           <div className="section-label">Classes{isAlias ? ' (inherited)' : ''}:</div>

@@ -249,6 +249,7 @@ export type ActionName =
   | 'copy-text'
   | 'share'
   | 'view-ast'
+  | 'toggle-private'
   | 'archive'
   | 'delete';
 
@@ -273,6 +274,7 @@ const DEFAULT_ACTIONS: ActionConfig[] = [
   ['presentation',    'both'],
   ['view-ast',        'both'],
   ['archive',         'both'],
+  ['toggle-private',  'page'],
   ['delete',          'both'],
 ];
 
@@ -357,7 +359,7 @@ export function NodeContextMenu({
   const archiveNode = useArchiveNode();
   const unarchiveNode = useUnarchiveNode();
   const updateNode = useUpdateNode();
-  const { addSidebarCard, openLocalGraph, openNode } = useNavigationStore();
+  const { addSidebarCard, openLocalGraph, openNode, currentNodeId, sidebarCards, flashSidebarCard } = useNavigationStore();
   const { showDevOptions } = useSettingsStore();
   const favorites = useFavoritesStore((state) => state.favorites);
   const isPageFavorited = favorites.some(f => f.nodeId === node.id);
@@ -496,6 +498,7 @@ export function NodeContextMenu({
           break;
 
         case 'open-main-view':
+          if (node.id === currentNodeId) break;
           items.push({
             id: 'open-main-view',
             label: 'Open in main view',
@@ -527,14 +530,25 @@ export function NodeContextMenu({
           });
           break;
 
-        case 'open-sidebar':
+        case 'open-sidebar': {
+          const existingCard = sidebarCards.find(
+            (c) => c.nodeId === node.id && c.cardType === (node.is_page ? 'page' : 'block')
+          );
           items.push({
             id: 'open-sidebar',
-            label: 'Open in sidebar',
+            label: existingCard ? 'Scroll to sidebar card' : 'Open in sidebar',
             icon: 'mdi-dock-right',
-            onClick: () => { addSidebarCard(node.id, node.is_page ? 'page' : 'block'); onClose(); },
+            onClick: () => {
+              if (existingCard) {
+                flashSidebarCard(existingCard.id);
+              } else {
+                addSidebarCard(node.id, node.is_page ? 'page' : 'block');
+              }
+              onClose();
+            },
           });
           break;
+        }
 
         case 'local-graph':
           items.push({
@@ -613,6 +627,18 @@ export function NodeContextMenu({
             badge: 'DEV',
             keepOpen: true,
             onClick: () => setShowASTModal(true),
+          });
+          break;
+
+        case 'toggle-private':
+          items.push({
+            id: 'toggle-private',
+            label: node.is_private ? 'Make public' : 'Make private',
+            icon: node.is_private ? 'mdi-eye-outline' : 'mdi-eye-off-outline',
+            onClick: () => {
+              updateNode.mutate({ id: node.id, data: { is_private: !node.is_private } });
+              onClose();
+            },
           });
           break;
 

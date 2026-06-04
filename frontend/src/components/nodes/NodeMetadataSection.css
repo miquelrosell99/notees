@@ -13,27 +13,4 @@
   align-items: center;
 }
 
-.private-toggle {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-1-5);
-  cursor: pointer;
-  font-size: var(--text-sm);
-  color: var(--text-primary);
-}
 
-.private-toggle input[type="checkbox"] {
-  width: 16px;
-  height: 16px;
-  accent-color: var(--color-primary);
-  cursor: pointer;
-}
-
-.private-toggle input[type="checkbox"]:disabled {
-  cursor: default;
-  opacity: 0.5;
-}
-
-.private-toggle-label {
-  user-select: none;
-}
