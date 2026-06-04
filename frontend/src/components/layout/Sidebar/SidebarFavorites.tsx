@@ -116,7 +116,7 @@ const SortableFavoriteItem = memo(function SortableFavoriteItem({
         icon={"mdi mdi-close"}
         size="xs"
         variant="ghost"
-        className="sidebar-favorite-remove"
+        className="sidebar-favorite-remove hover-reveal"
         onClick={(e) => {
           e.stopPropagation();
           onRemove(nodeId);

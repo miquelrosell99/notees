@@ -143,3 +143,16 @@ input:focus, textarea:focus, select:focus {
     scroll-behavior: auto !important;
   }
 }
+
+/* Utility: hidden by default, revealed on parent hover via component CSS */
+.hover-reveal {
+  opacity: 0;
+  transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+@media (max-width: 768px) {
+  .hover-reveal {
+    opacity: 1 !important;
+    pointer-events: auto !important;
+  }
+}

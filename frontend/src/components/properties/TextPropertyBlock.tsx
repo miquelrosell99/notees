@@ -90,7 +90,7 @@ function SingleTextBlock({
 
   return (
     <div className="text-property-block__editor">
-      <div className="text-property-block__nav-actions">
+      <div className="text-property-block__nav-actions hover-reveal">
         {onOpenInSidebar && (
           <Button
             icon={"mdi mdi-dock-right"}

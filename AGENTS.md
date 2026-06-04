@@ -588,6 +588,38 @@ The app uses **SVG-only icon rendering** via a shared sprite sheet (`frontend/pu
 - **Regeneration**: After updating `@mdi/svg`, run `node scripts/generate-mdi-sprite.js` to rebuild the sprite.
 - **PWA caching**: The sprite is precached by the service worker. If the sprite grows beyond 4 MB raw, update `maximumFileSizeToCacheInBytes` in `vite.config.ts`.
 
+#### Mobile Hover-Reveal Pattern
+
+Buttons that are only visible on `:hover` are impossible to discover on touch devices. The codebase uses a shared `.hover-reveal` utility class to solve this centrally:
+
+```css
+/* frontend/src/index.css */
+.hover-reveal {
+  opacity: 0;
+  transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+@media (max-width: 768px) {
+  .hover-reveal {
+    opacity: 1 !important;
+    pointer-events: auto !important;
+  }
+}
+```
+
+**Usage:** add `hover-reveal` to any element that should be hidden by default and revealed on parent hover:
+
+```tsx
+<button className="my-action-button hover-reveal">…</button>
+```
+
+The component's existing parent-hover rule (e.g., `.my-container:hover .my-action-button { opacity: 1; }`) is typically **more specific** than `.hover-reveal`, so desktop behavior is unchanged. On mobile the `!important` override forces visibility.
+
+**Rules:**
+- Always prefer `.hover-reveal` over scattering `@media (max-width: 768px)` opacity overrides across individual component CSS files.
+- If an element also collapses `width` or `transform` (not just opacity), keep the layout collapse in the component CSS and add a co-located mobile override for that property only (see `NodeBreadcrumbs.css` and `WhiteboardView.css` for examples).
+- Do not add `.hover-reveal` to elements that are already always visible; it is only for hover-only affordances.
+
 ### Frontend Data Flow Architecture
 
 The frontend uses a **three-layer data model** with clear ownership:

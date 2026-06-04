@@ -180,7 +180,7 @@ function KanbanColumn({
           icon={collapsed ? 'mdi mdi-chevron-right' : 'mdi mdi-chevron-down'}
           variant="ghost"
           size="xs"
-          className="kanban-column__collapse-btn"
+          className="kanban-column__collapse-btn hover-reveal"
           onClick={(e) => { e.stopPropagation(); onToggleCollapse(); }}
         />
       </div>

@@ -443,7 +443,7 @@ export function PageHeader({
                 className="page-icon-large"
               />
             ) : (
-              <span className="page-icon-placeholder">+</span>
+              <span className="page-icon-placeholder hover-reveal">+</span>
             )}
           </button>
           

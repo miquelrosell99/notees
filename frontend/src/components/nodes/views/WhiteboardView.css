@@ -676,3 +676,10 @@
 .wb-shortcuts-modal__content {
   animation: wb-pop-in var(--motion-duration-short) var(--motion-easing-standard);
 }
+
+/* Mobile: show whiteboard connector anchors at full scale */
+@media (max-width: 768px) {
+  .whiteboard-element__anchor {
+    transform: translate(-50%, -50%) scale(1);
+  }
+}

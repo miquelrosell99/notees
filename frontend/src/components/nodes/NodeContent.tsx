@@ -489,7 +489,7 @@ export function NodeContent({
       
       {/* Add block button when there are children */}
       {children.length > 0 && (
-        <div className="node-content-add">
+        <div className="node-content-add hover-reveal">
           {canCreate && (
             <Button icon={"mdi mdi-plus"} onClick={handleAddBlock} className="add-block-btn" title="Add block" size="sm" variant="ghost">
               Add block

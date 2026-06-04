@@ -246,3 +246,9 @@
 .node-breadcrumb-add-parent:hover {
   opacity: 1;
 }
+/* Mobile: expand breadcrumb edit button width */
+@media (max-width: 768px) {
+  .node-breadcrumb-edit-btn {
+    width: 18px !important;
+  }
+}

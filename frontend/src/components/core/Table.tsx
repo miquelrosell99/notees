@@ -497,7 +497,7 @@ export function Table<T>({
           {/* Drag handle - positioned element to the left of row */}
           {reorderable && currentDepth === depth && (
             <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }}
-              className="table-drag-handle"
+              className="table-drag-handle hover-reveal"
               onMouseDown={(e) => handleDragStart(index, e)}
               onClick={(e) => e.stopPropagation()}
               title="Drag to reorder"
@@ -542,7 +542,7 @@ export function Table<T>({
                         <NodeNameContent name={(cellValue as unknown as Node).name} />
                       </span>
                     )}
-                    <div className="table-node-cell__actions">
+                    <div className="table-node-cell__actions hover-reveal">
                       {onNodeOpenInSidebar && (
                         <Button
                           icon={"mdi mdi-dock-right"}
