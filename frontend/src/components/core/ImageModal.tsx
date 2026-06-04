@@ -90,7 +90,7 @@ export function ImageModal({
   if (!isOpen) return null;
 
   const modalContent = (
-    <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }} className="image-modal-backdrop" onClick={handleBackdropClick}>
+    <div className="image-modal-backdrop" onClick={handleBackdropClick}>
       {/* Action buttons - top right corner of screen */}
       <div className="image-modal-actions">
         <Button
