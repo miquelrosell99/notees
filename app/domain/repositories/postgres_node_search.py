@@ -71,6 +71,9 @@ class PostgresNodeSearchMixin(_PostgresNodeBase):
                 (LOWER({pt_n}) = LOWER($3)) DESC,
                 (LOWER({pt_n}) LIKE LOWER($3) || '%') DESC,
                 rank DESC,
+                (CASE WHEN n.open_date > NOW() - INTERVAL '7 days' THEN 1 ELSE 0 END) DESC,
+                (CASE WHEN ls.last_linked_date > NOW() - INTERVAL '7 days' THEN 1 ELSE 0 END) DESC,
+                COALESCE(ls.backlink_count, 0) DESC,
                 n.write_date DESC NULLS LAST"""
         else:
             search_order_clause = list_order_clause
@@ -151,11 +154,22 @@ class PostgresNodeSearchMixin(_PostgresNodeBase):
                                 AND tn.active = TRUE AND tn.is_deleted = FALSE
                             WHERE nl.source_id = c.id AND nl.workspace_id = $1
                         ) la ON TRUE
+                    ),
+                    link_stats AS (
+                        SELECT
+                            nl.target_id AS node_id,
+                            COUNT(*) AS backlink_count,
+                            MAX(nl.create_date) AS last_linked_date
+                        FROM node_link nl
+                        WHERE nl.workspace_id = $1
+                          AND nl.is_inline_class = FALSE
+                        GROUP BY nl.target_id
                     )
                     SELECT n.*,
                            ts_rank(n.search_vector, plainto_tsquery('english', $3)) AS rank
                     FROM node n
                     JOIN node_full_text nft ON nft.id = n.id
+                    LEFT JOIN link_stats ls ON ls.node_id = n.id
                     WHERE {all_full}
                       AND (${fp}::int[] IS NULL OR n.class_ids && ${fp})
                       AND (${fp + 1}::boolean IS NULL OR n.is_page = ${fp + 1})
