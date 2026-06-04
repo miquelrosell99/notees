@@ -26,7 +26,7 @@ import { Button } from '@/components/core/Button';
 import { Modal } from '@/components/core/Modal';
 import { NodeSelector } from './NodeSelector';
 import { type Asset, type AssetCategory, uploadAsset } from '@/api/assets';
-import { createNode, getNode } from '@/api/nodes';
+import { createNode } from '@/api/nodes';
 import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from '@/constants/systemProperties';
 import { TableCreationModal, type TableGridSize } from '@/components/core/TableCreationModal';
 
@@ -96,7 +96,6 @@ export function NodeContent({
 
   // State for manual asset class addition
   const [manualAssetBlockId, setManualAssetBlockId] = useState<number | null>(null);
-  const [manualAssetBlockContent, setManualAssetBlockContent] = useState<string>('');
 
   const handleAddClass = useCallback((blockId: number, classId: number) => {
     // Optimistically update the runtime so the block's color/icon change
@@ -120,12 +119,8 @@ export function NodeContent({
     if (systemClassMap?.asset != null && classId === systemClassMap.asset) {
       // Add the class first
       addClass.mutate({ nodeId: blockId, classId });
-      // Find the block to check its content
-      const block = children.find(c => c.id === blockId);
-      const blockContent = block?.name || '';
       // Store state for the upload modal
       setManualAssetBlockId(blockId);
-      setManualAssetBlockContent(blockContent);
       // Open asset upload modal
       setTargetBlockId(blockId);
       setConvertToAsset(true);
@@ -134,7 +129,7 @@ export function NodeContent({
       return;
     }
     addClass.mutate({ nodeId: blockId, classId });
-  }, [addClass, systemClassMap, children, allClasses]);
+  }, [addClass, systemClassMap, allClasses]);
 
   // Asset upload state
   const [isAssetUploadOpen, setIsAssetUploadOpen] = useState(false);
@@ -405,8 +400,9 @@ export function NodeContent({
 
   // Handle successful asset upload
   // Strategy:
-  // - If block was converted to asset: handle manual asset class flow (name vs filename)
-  // - If block has content: insert [[assetNodeId]] link at end
+  // - If block was NOT converted to asset: insert [[assetNodeId]] link at end
+  // - If block WAS converted to asset: restore original text content (backend
+  //   overwrites name with filename when existing_node_id is passed)
   const handleAssetUploaded = useCallback(async (asset: Asset) => {
     if (targetBlockId && !convertToAsset) {
       const block = children.find(c => c.id === targetBlockId);
@@ -417,13 +413,15 @@ export function NodeContent({
         saveImmediate(targetBlockId, newContent);
       }
     }
-    // Manual asset class flow: if block had no content, use filename as content
-    if (manualAssetBlockId && targetBlockId === manualAssetBlockId) {
-      if (!manualAssetBlockContent) {
-        // Block was empty — use the uploaded file's name as content
-        saveImmediate(manualAssetBlockId, asset.filename);
+    // When converting to asset (slash command or manual class add), restore
+    // the block's original text content so it stays visible above the asset.
+    if (targetBlockId && convertToAsset) {
+      const block = children.find(c => c.id === targetBlockId);
+      if (block?.name) {
+        saveImmediate(targetBlockId, block.name);
+      } else {
+        saveImmediate(targetBlockId, asset.filename);
       }
-      // If block had content, the content is already preserved (it was passed as existingNodeId)
     }
     setIsAssetUploadOpen(false);
     setTargetBlockId(null);
@@ -431,31 +429,31 @@ export function NodeContent({
     setAssetTypeFilter(undefined);
     setPendingFile(null);
     setManualAssetBlockId(null);
-    setManualAssetBlockContent('');
-  }, [targetBlockId, convertToAsset, children, saveImmediate, manualAssetBlockId, manualAssetBlockContent]);
+
+    // Invalidate so the asset preview renders
+    const { queryClient } = await import('@/lib/queryClient');
+    const { nodeKeys } = await import('@/hooks/queryKeys');
+    queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(node.id) });
+  }, [targetBlockId, convertToAsset, children, saveImmediate, node.id]);
 
   // Handle image paste in a block
-  // - If block has NO content: convert block directly to asset (upload with existingNodeId)
-  // - If block HAS content: upload as new asset, insert [[uuid]] link into content
-  const handlePasteImage = useCallback(async (blockServerId: number, file: File, hasContent: boolean) => {
+  // - Convert the block to an asset via existing_node_id
+  // - Restore the original text content so the block keeps its text while
+  //   gaining the asset preview from the asset class.
+  const handlePasteImage = useCallback(async (blockServerId: number, file: File, _hasContent: boolean) => {
     try {
-      if (!hasContent) {
-        // Empty block: convert to asset directly
-        await uploadAsset(file, node.id, blockServerId);
-      } else {
-        // Block has content: upload as new asset node, then insert link
-        const asset = await uploadAsset(file, node.id);
-        // Get the asset node to obtain its UUID for the link
-        const assetNode = await getNode(asset.node_id);
-        if (assetNode?.uuid) {
-          // Insert [[uuid]] link at the end of the block content
-          const block = children.find(c => c.id === blockServerId);
-          const currentContent = block?.name || '';
-          const link = `[[${assetNode.uuid}]]`;
-          const newContent = currentContent ? `${currentContent} ${link}` : link;
-          saveImmediate(blockServerId, newContent);
-        }
+      const block = children.find(c => c.id === blockServerId);
+      const savedContent = block?.name || '';
+      // Convert block to asset (backend overwrites name with filename)
+      await uploadAsset(file, node.id, blockServerId);
+      // Restore original text content if there was any
+      if (savedContent) {
+        saveImmediate(blockServerId, savedContent);
       }
+      // Invalidate so the asset preview renders
+      const { queryClient } = await import('@/lib/queryClient');
+      const { nodeKeys } = await import('@/hooks/queryKeys');
+      queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(node.id) });
     } catch (err) {
       console.error('[NodeContent] Failed to handle pasted image:', err);
     }
@@ -525,7 +523,6 @@ export function NodeContent({
           setAssetTypeFilter(undefined); 
           setPendingFile(null);
           setManualAssetBlockId(null);
-          setManualAssetBlockContent('');
         }}
         onUpload={handleAssetUploaded}
         parentId={targetBlockId || node.id}
