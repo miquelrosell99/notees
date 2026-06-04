@@ -111,7 +111,7 @@ def _node_to_response(
         open_date=node.open_date,
         display_name=node.display_name,
         tags=tags or [],
-        classes=classes or [],
+        classes=classes if classes is not None else node.class_ids,
         comment_count=comment_count,
         backlink_count=backlink_count,
         classes_path=json.loads(node.classes_path) if isinstance(node.classes_path, str) else (node.classes_path or []),
