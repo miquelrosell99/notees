@@ -71,8 +71,17 @@ export function TriggerPopup({
 }: TriggerPopupProps) {
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const [placement, setPlacement] = useState<'below' | 'above'>('below');
+  const [placement, setPlacement] = useState<'below' | 'above'>(() => {
+    const estimatedHeight = 280;
+    const gap = 4;
+    const roomBelow = window.innerHeight - position.top - gap;
+    const roomAbove = position.caretTop - gap;
+    if (estimatedHeight <= roomBelow) return 'below';
+    if (estimatedHeight <= roomAbove) return 'above';
+    return 'below';
+  });
   const [popupPos, setPopupPos] = useState<{ top: number; left: number }>({ top: position.top, left: position.left });
+  const [isPositioned, setIsPositioned] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -184,6 +193,7 @@ export function TriggerPopup({
       setPlacement('below');
       setPopupPos({ top: Math.max(padding, Math.min(position.top + gap, window.innerHeight - height - padding)), left });
     }
+    setIsPositioned(true);
   }, [position]);
 
   // Create new node
@@ -408,6 +418,7 @@ export function TriggerPopup({
         top: popupPos.top,
         left: popupPos.left,
         zIndex: 1000,
+        visibility: isPositioned ? 'visible' : 'hidden',
       }}
       onMouseDown={(e) => e.stopPropagation()}
     >
