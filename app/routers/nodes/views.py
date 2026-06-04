@@ -283,6 +283,23 @@ async def _include_children_for_results(
         node_id = result.get("id")
         result["children"] = children_by_parent.get(node_id, [])
 
+    # Remove any top-level result that already appears as a child of another result.
+    # This prevents duplicate display when a child node matches the query but is
+    # also nested under another matching parent node.
+    def _collect_child_ids(nodes: list[dict[str, Any]]) -> set[int]:
+        ids: set[int] = set()
+        for node in nodes:
+            if node.get("children"):
+                for child in node["children"]:
+                    child_id = child.get("id")
+                    if child_id is not None:
+                        ids.add(child_id)
+                ids.update(_collect_child_ids(node["children"]))
+        return ids
+
+    all_child_ids = _collect_child_ids(results)
+    results = [r for r in results if r.get("id") not in all_child_ids]
+
     return results
 
 
