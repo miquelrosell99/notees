@@ -199,9 +199,11 @@ export function TriggerPopup({
         e.stopPropagation();
         onClose();
       } else if (e.key === 'Backspace' || e.key === 'Delete') {
-        e.preventDefault();
-        e.stopPropagation();
-        onDeletePlaceholder?.();
+        if (query.length === 0) {
+          e.preventDefault();
+          e.stopPropagation();
+          onDeletePlaceholder?.();
+        }
       }
     },
     [
@@ -249,7 +251,7 @@ export function TriggerPopup({
   }, [type]);
 
   const popup = (
-    <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }}
+    <div
       ref={containerRef}
       data-editor-companion
       className={`trigger-popup trigger-popup--${type}`}
@@ -260,7 +262,6 @@ export function TriggerPopup({
         zIndex: 1000,
       }}
       onMouseDown={(e) => e.stopPropagation()}
-      onClick={(e) => e.stopPropagation()}
     >
       <div className="trigger-popup__header">{headerText}</div>
 
