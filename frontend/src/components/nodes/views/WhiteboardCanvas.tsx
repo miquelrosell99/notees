@@ -1837,8 +1837,8 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
 
       {/* Keyboard shortcuts modal */}
       {showShortcuts && (
-        <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }} className="wb-shortcuts-modal" style={{ position: 'absolute', inset: 0, zIndex: 'var(--wb-z-overlay)', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.3)' }} onClick={() => setShowShortcuts(false)}>
-          <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }} className="wb-shortcuts-modal__content" style={{ background: 'var(--color-surface)', borderRadius: 'var(--shape-large)', padding: 24, maxWidth: 480, width: '90%', boxShadow: 'var(--shadow-3)' }} onClick={e => e.stopPropagation()}>
+        <div className="wb-shortcuts-modal" style={{ position: 'absolute', inset: 0, zIndex: 'var(--wb-z-overlay)', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.3)' }} onClick={() => setShowShortcuts(false)}>
+          <div className="wb-shortcuts-modal__content" style={{ background: 'var(--color-surface)', borderRadius: 'var(--shape-large)', padding: 24, maxWidth: 480, width: '90%', boxShadow: 'var(--shadow-3)' }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <h3 style={{ margin: 0, fontSize: 18, fontWeight: 600 }}>Keyboard Shortcuts</h3>
               <button className="wb-align-panel__btn" onClick={() => setShowShortcuts(false)}><Icon path="mdi-close" /></button>
