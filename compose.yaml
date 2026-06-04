@@ -50,6 +50,7 @@ services:
     restart: unless-stopped
     volumes:
       - ./app:/app/app                           # source code (hot reload)
+      - ./scripts:/app/scripts                   # utility scripts
       - ./.config/notees-backend-dev/data:/app/data    # assets, backups, exports
       - ./.config/notees-backend-dev/logs:/app/logs    # logs
     env_file:

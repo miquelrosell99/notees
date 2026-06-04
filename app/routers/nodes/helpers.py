@@ -503,6 +503,26 @@ async def _build_children_tree(service, nodes: list[Any], class_ids_map: dict[in
 
         result.append(node_response)
 
+    # Remove any root that already appears as a child of another root.
+    def _collect_child_ids(children: list[Any]) -> set[int]:
+        ids: set[int] = set()
+        for child in children:
+            child_id = child.get("id") if isinstance(child, dict) else getattr(child, "id", None)
+            if child_id is not None:
+                ids.add(child_id)
+            child_children = child.get("children") if isinstance(child, dict) else getattr(child, "children", None)
+            if child_children:
+                ids.update(_collect_child_ids(child_children))
+        return ids
+
+    all_child_ids: set[int] = set()
+    for node_response in result:
+        children = node_response.get("children") if isinstance(node_response, dict) else getattr(node_response, "children", None)
+        if children:
+            all_child_ids.update(_collect_child_ids(children))
+
+    result = [r for r in result if (r.get("id") if isinstance(r, dict) else getattr(r, "id", None)) not in all_child_ids]
+
     return result
 
 

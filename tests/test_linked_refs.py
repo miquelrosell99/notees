@@ -395,3 +395,65 @@ async def test_linked_references_dedup_self_and_child_links(auth_client, link_se
     linked_refs = data.get("linked_references", [])
     assert len(linked_refs) == 1, f'Expected 1 linked reference, got {len(linked_refs)}'
     assert linked_refs[0]["source_node"]["id"] == block.id
+
+
+@pytest.mark.asyncio
+async def test_linked_references_dedup_child_of_source(auth_client, link_service_fixtures):
+    """A child block linking to the target should not appear separately when its parent also links.
+
+    If Block A links to Target and Block B (child of A) also links to Target,
+    Block B should appear only as a child under Block A, not as a separate entry.
+    """
+    from app.domain.entities import NodeCreateData
+
+    node_repo = link_service_fixtures['node_repo']
+    link_service = link_service_fixtures['link_service']
+
+    # Create target page
+    target = await node_repo.create(NodeCreateData(name='Target Page'))
+    assert target.id is not None
+
+    # Create source page
+    source_page = await node_repo.create(NodeCreateData(name='Source Page'))
+    assert source_page.id is not None
+
+    # Create parent block that links to target
+    parent_block = await node_repo.create(NodeCreateData(
+        name=json.dumps([{"type": "paragraph", "children": [
+            {"type": "text", "text": "Parent linking to "},
+            {"type": "node_link", "ref_type": "node", "link_id": target.uuid}
+        ]}]),
+        parent_id=source_page.id,
+    ))
+    assert parent_block.id is not None
+
+    # Create child block under parent that also links to target
+    child_block = await node_repo.create(NodeCreateData(
+        name=json.dumps([{"type": "paragraph", "children": [
+            {"type": "text", "text": "Child linking to "},
+            {"type": "node_link", "ref_type": "node", "link_id": target.uuid}
+        ]}]),
+        parent_id=parent_block.id,
+    ))
+    assert child_block.id is not None
+
+    # Update links
+    await link_service.update_node_links(parent_block.id, parent_block.name)
+    await link_service.update_node_links(child_block.id, child_block.name)
+
+    # get_backlinks should return 2 (one for parent, one for child)
+    backlinks = await link_service.get_backlinks(target.id)
+    assert len(backlinks) == 2, f'Expected 2 backlinks, got {len(backlinks)}'
+
+    # linked-references endpoint should return 1 top-level entry (parent) with child nested
+    response = await auth_client.get(f"/api/nodes/{target.id}/linked-references")
+    assert response.status_code == 200
+    data = response.json()
+    linked_refs = data.get("linked_references", [])
+    assert len(linked_refs) == 1, f'Expected 1 top-level linked reference, got {len(linked_refs)}'
+    assert linked_refs[0]["source_node"]["id"] == parent_block.id
+
+    # Child should be nested under parent
+    children = linked_refs[0]["source_node"].get("children", [])
+    child_ids = [c["id"] for c in children]
+    assert child_block.id in child_ids, f'Child block should be nested under parent, got children: {child_ids}'
