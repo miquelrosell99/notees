@@ -17,6 +17,8 @@ interface BlockUIProps {
   node: Node;
   /** Resolved icon override (e.g. inherited from classes). Falls back to node.icon. */
   icon?: string | null;
+  /** Override hasChildren (e.g. query blocks without tree children). */
+  hasChildren?: boolean;
   onCollapseToggle?: () => void;
   onNavigate?: (blockId: string) => void;
   onOpenInSidebar?: (blockId: string) => void;
@@ -32,6 +34,7 @@ interface BlockUIProps {
 export function BlockUI({
   node,
   icon: iconOverride,
+  hasChildren: hasChildrenOverride,
   onCollapseToggle,
   onNavigate,
   onOpenInSidebar,
@@ -56,7 +59,7 @@ export function BlockUI({
         nodeId={node.id}
         icon={iconOverride ?? node.icon}
         isPage={node.is_page}
-        hasChildren={node.has_children ?? false}
+        hasChildren={hasChildrenOverride ?? (node.has_children ?? false)}
         collapsed={node.collapsed ?? false}
         onClick={handleClick}
         onShiftClick={handleShiftClick}
