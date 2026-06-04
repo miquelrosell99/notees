@@ -13,6 +13,9 @@ import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import type { Node } from '@/types';
 import { useNodeSearch, type NodeSearchItem } from '@/hooks';
+import { nodeNameToText } from '@/hooks/useStringifyAST';
+import { useClasses } from '@/hooks/useNodeQueries';
+import { SYSTEM_CLASS_UUIDS } from '@/constants';
 import { NodeResultItem } from '@/components/nodes/NodeResultItem';
 import { useCreateNode } from '@/hooks/useNodes';
 import { usePageClass, useClassClass } from '@/hooks/usePageClass';
@@ -149,6 +152,7 @@ export function TriggerPopup({
   const createNode = useCreateNode();
   const { pageClassId } = usePageClass();
   const { classClassId } = useClassClass();
+  const { data: allClasses = [] } = useClasses();
 
   const handleCreate = useCallback(
     (name: string, mode: 'default' | 'alternative' = 'default') => {
@@ -167,6 +171,19 @@ export function TriggerPopup({
     },
     [createNode, pageClassId, classClassId, type, onSelectNode]
   );
+
+  const getDisplayClasses = useCallback((node: Node): Array<{ id: number; name: string }> => {
+    if (!node.classes || node.classes.length === 0) return [];
+    return node.classes
+      .map(classId => {
+        const classNode = allClasses.find(c => c.id === classId);
+        if (!classNode || classNode.uuid === SYSTEM_CLASS_UUIDS.page) return null;
+        const name = nodeNameToText(classNode.name);
+        if (!name) return null;
+        return { id: classId, name };
+      })
+      .filter((c): c is { id: number; name: string } => c !== null);
+  }, [allClasses]);
 
   // Keyboard handling
   const handleKeyDown = useCallback(
@@ -301,6 +318,8 @@ export function TriggerPopup({
                 <NodeResultItem
                   key={item.node.id}
                   node={item.node}
+                  displayClasses={getDisplayClasses(item.node)}
+                  allClasses={allClasses}
                   isHighlighted={index === effectiveSelectedIndex}
                   onClick={() => onSelectNode?.(item.node, 'default')}
                   onMouseEnter={() => setSelectedIndex(index)}
