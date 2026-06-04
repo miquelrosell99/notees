@@ -491,7 +491,7 @@ registerView({
   label: 'List',
   icon: 'mdi mdi-format-list-bulleted',
   component: ListView,
-  capabilities: { groupBy: true },
+  capabilities: { groupBy: true, sorting: true },
 });
 
 // ==================== ListViewGroup ====================

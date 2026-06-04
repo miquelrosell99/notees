@@ -187,5 +187,5 @@ registerView({
   label: 'Document',
   icon: 'mdi mdi-file-document-outline',
   component: DocumentView,
-  capabilities: {},
+  capabilities: { sorting: true },
 });

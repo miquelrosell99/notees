@@ -4,8 +4,9 @@
  * All sorting is performed at the view level — the query layer fetches and
  * filters, views sort, and projection renders in the order given.
  */
-import type { Node } from '@/types';
+import type { Node, Property } from '@/types';
 import { parseDateUuid } from '@/types/api';
+import type { SortEntry } from '@/components/core/Table';
 
 // ─── Helpers ──────────────────────────────────────────────────────
 
@@ -97,4 +98,110 @@ export function sortDateFirstAlpha(nodes: Node[]): Node[] {
 /** Sort nodes by write_date descending. Returns a new array. */
 export function sortByWriteDateDesc(nodes: Node[]): Node[] {
   return [...nodes].sort(compareByWriteDateDesc);
+}
+
+/**
+ * Compare two property values with type-aware logic.
+ */
+function comparePropertyValues(aVal: unknown, bVal: unknown, prop: Property | undefined): number {
+  if (aVal == null && bVal == null) return 0;
+  if (aVal == null) return 1;
+  if (bVal == null) return -1;
+
+  switch (prop?.type) {
+    case 'integer':
+    case 'float':
+      return (aVal as number) - (bVal as number);
+    case 'boolean':
+      return (aVal ? 1 : 0) - (bVal ? 1 : 0);
+    case 'selection': {
+      const getOptionName = (v: unknown): string => {
+        if (typeof v === 'number') {
+          return prop.options?.find((o) => o.id === v)?.name ?? String(v);
+        }
+        if (v && typeof v === 'object' && 'id' in v) {
+          return prop.options?.find((o) => o.id === (v as { id: number }).id)?.name ?? String(v);
+        }
+        return String(v);
+      };
+      return getOptionName(aVal).localeCompare(getOptionName(bVal));
+    }
+    default:
+      return String(aVal).localeCompare(String(bVal));
+  }
+}
+
+/**
+ * Compare two nodes by a list of sort entries (multi-column sort).
+ * Supports name, write_date, create_date, sequence, and property columns.
+ */
+export function compareBySortEntries(
+  a: Node,
+  b: Node,
+  sortEntries: SortEntry[],
+  allProperties: Property[]
+): number {
+  for (const entry of sortEntries) {
+    let comparison = 0;
+
+    switch (entry.key) {
+      case 'name': {
+        const aDate = isDateNode(a);
+        const bDate = isDateNode(b);
+        if (aDate && bDate) {
+          comparison = dateNodeSortKey(b) - dateNodeSortKey(a);
+        } else if (aDate) {
+          comparison = -1;
+        } else if (bDate) {
+          comparison = 1;
+        } else {
+          comparison = (a.name ?? '').localeCompare(b.name ?? '');
+        }
+        break;
+      }
+      case 'write_date': {
+        const aTime = a.write_date ? new Date(a.write_date).getTime() : 0;
+        const bTime = b.write_date ? new Date(b.write_date).getTime() : 0;
+        comparison = aTime - bTime;
+        break;
+      }
+      case 'create_date': {
+        const aTime = a.create_date ? new Date(a.create_date).getTime() : 0;
+        const bTime = b.create_date ? new Date(b.create_date).getTime() : 0;
+        comparison = aTime - bTime;
+        break;
+      }
+      case 'sequence': {
+        comparison = (a.sequence ?? Infinity) - (b.sequence ?? Infinity);
+        break;
+      }
+      default: {
+        if (entry.key.startsWith('property_')) {
+          const propertyId = parseInt(entry.key.replace('property_', ''), 10);
+          const prop = allProperties.find((p) => p.id === propertyId);
+          const aVal = a.properties?.[propertyId];
+          const bVal = b.properties?.[propertyId];
+          comparison = comparePropertyValues(aVal, bVal, prop);
+        }
+        break;
+      }
+    }
+
+    if (comparison !== 0) {
+      return entry.direction === 'asc' ? comparison : -comparison;
+    }
+  }
+  return 0;
+}
+
+/**
+ * Sort an array of nodes by sort entries. Returns a new array.
+ */
+export function sortNodesByEntries(
+  nodes: Node[],
+  sortEntries: SortEntry[],
+  allProperties: Property[]
+): Node[] {
+  if (sortEntries.length === 0) return nodes;
+  return [...nodes].sort((a, b) => compareBySortEntries(a, b, sortEntries, allProperties));
 }
