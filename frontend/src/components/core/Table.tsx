@@ -205,8 +205,16 @@ export function Table<T>({
   virtualized = false,
   virtualizedRowHeight = 48,
 }: TableProps<T>) {
-  // Multi-column sort state: array of { key, direction } in sort priority order
-  const [sortColumns, setSortColumns] = useState<SortEntry[]>(defaultSort ?? []);
+  // User-selected sort columns. Empty means fall back to defaultSort.
+  const [userSortColumns, setUserSortColumns] = useState<SortEntry[]>([]);
+
+  // Reset user sorts when defaultSort changes (e.g., view/column changes)
+  useEffect(() => {
+    setUserSortColumns([]);
+  }, [defaultSort]);
+
+  // Effective sort: user selection takes precedence; fall back to default
+  const sortColumns = userSortColumns.length > 0 ? userSortColumns : (defaultSort ?? []);
   
   // Internal expanded state (when uncontrolled) - currently only controlled mode is supported
   // since no internal toggle UI exists
@@ -227,12 +235,12 @@ export function Table<T>({
   const handleSort = useCallback((column: TableColumn<T>) => {
     if (!column.sortable) return;
 
-    setSortColumns(prev => {
+    setUserSortColumns(prev => {
       const existingIndex = prev.findIndex(s => s.key === column.key);
       
       if (existingIndex === -1) {
         // Column not in sort list - add it with ascending
-        return [...prev, { key: column.key, direction: 'asc' }];
+        return [...prev, { key: column.key, direction: 'asc' as const }];
       }
       
       const existing = prev[existingIndex];
@@ -240,7 +248,7 @@ export function Table<T>({
       if (existing.direction === 'asc') {
         // Currently ascending - toggle to descending
         const updated = [...prev];
-        updated[existingIndex] = { key: column.key, direction: 'desc' };
+        updated[existingIndex] = { key: column.key, direction: 'desc' as const };
         return updated;
       } else {
         // Currently descending - remove from sort list
