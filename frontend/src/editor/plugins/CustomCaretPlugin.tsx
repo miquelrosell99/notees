@@ -268,13 +268,17 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
     // ─── Single read() to gather all Lexical state ───
     let isPillSelected = false;
     let hasFormat = false;
+    let lexicalIsCollapsed = true;
     editor.getEditorState().read(() => {
       const selection = $getSelection();
       if ($isNodeSelection(selection)) {
         const nodes = selection.getNodes();
         isPillSelected = nodes.length === 1 && $isInlineLinkNode(nodes[0]);
-      } else if ($isRangeSelection(selection) && selection.isCollapsed()) {
-        hasFormat = selection.format !== 0;
+      } else if ($isRangeSelection(selection)) {
+        lexicalIsCollapsed = selection.isCollapsed();
+        if (lexicalIsCollapsed) {
+          hasFormat = selection.format !== 0;
+        }
       }
     });
 
@@ -325,7 +329,7 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
 
     // ─── Non-collapsed: selection highlight mode ───
 
-    if (!domSelection.isCollapsed) {
+    if (!domSelection.isCollapsed && !lexicalIsCollapsed) {
       const range = domSelection.getRangeAt(0);
       const clientRects = range.getClientRects();
 
