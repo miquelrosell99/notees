@@ -8,8 +8,11 @@
  * - Inside NodeCollection: Rendered automatically unless hideToolbar is true
  * - In NodeViewSection: Pass as headerActions to move buttons to section header
  */
-import { useMemo } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import { useAppStore } from '@/stores';
+import { DndContext, closestCenter, type DragEndEvent } from '@dnd-kit/core';
+import { SortableContext, useSortable, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 import type { NodeCollectionViewMode, NodeCollectionGroupBy } from '@/types/nodeCollection';
 import { getViewDefinition, getViewModeOptions } from './views';
@@ -23,7 +26,8 @@ import type { GanttTimeScale } from '@/components/properties/GanttPropertySelect
 import type { Property } from '@/types/api';
 import { useProperties } from '@/hooks/useProperties';
 import './NodeCollectionToolbar.css';
-import { Icon } from '@/components/core/icons';
+import { Icon, DragVerticalIcon } from '@/components/core/icons';
+import type { SortEntry } from '@/components/core/Table';
 
 /** Max number of view mode icons shown inline before overflow */
 const INLINE_VIEW_COUNT = 4;
@@ -87,6 +91,12 @@ export interface NodeCollectionToolbarProps {
   leftElement?: React.ReactNode;
   /** Hide toolbar controls while keeping leftElement visible */
   hideToolbarControls?: boolean;
+  /** Active sort columns */
+  sortColumns?: SortEntry[];
+  /** Called when sort changes */
+  onSortChange?: (sort: SortEntry[]) => void;
+  /** Available columns for sorting */
+  availableSortColumns?: { key: string; label: string }[];
   /** Additional CSS class */
   className?: string;
 }
@@ -115,6 +125,9 @@ export function NodeCollectionToolbar({
   onGanttEndDatePropertyChange,
   ganttTimeScale,
   onGanttTimeScaleChange,
+  sortColumns = [],
+  onSortChange,
+  availableSortColumns = [],
   toolbarPrefix,
   leftElement,
   hideToolbarControls = false,
@@ -140,6 +153,7 @@ export function NodeCollectionToolbar({
   const showCardLayoutSelector = capabilities.cardLayout;
   const showPropertyColumnSelector = capabilities.propertyColumns && onPropertyColumnsChange;
   const showGanttPropertySelector = capabilities.ganttConfig && (onGanttStartDatePropertyChange || onGanttEndDatePropertyChange);
+  const showSortButton = capabilities.sorting && onSortChange;
 
   // Whether we have any view-mode-specific settings to show
   const hasViewSettings = showGroupByButton || showPropertyColumnSelector || showGanttPropertySelector || showCardLayoutSelector;
@@ -296,6 +310,29 @@ export function NodeCollectionToolbar({
             </span>
           )}
 
+          {/* Sort button */}
+          {showSortButton && (
+            <ButtonWithPanel
+              icon={"mdi mdi-sort"}
+              variant="ghost"
+              size="sm"
+              panelPosition="bottom"
+              panelAlignment="end"
+              panelWidth={260}
+              usePortal={true}
+              className="node-collection-toolbar__sort"
+              tooltip="Sort"
+            >
+              {() => (
+                <SortConfigurator
+                  sortColumns={sortColumns}
+                  onSortChange={onSortChange}
+                  availableSortColumns={availableSortColumns}
+                />
+              )}
+            </ButtonWithPanel>
+          )}
+
           {/* View Settings – single button combining all view-specific config */}
           {hasViewSettings && (
             <ButtonWithPanel
@@ -360,6 +397,170 @@ export function NodeCollectionToolbar({
 
         </div>
       )}
+    </div>
+  );
+}
+
+// ==================== Sort Configurator ====================
+
+interface SortConfiguratorProps {
+  sortColumns: SortEntry[];
+  onSortChange: (sort: SortEntry[]) => void;
+  availableSortColumns: { key: string; label: string }[];
+}
+
+function SortConfigurator({ sortColumns, onSortChange, availableSortColumns }: SortConfiguratorProps) {
+  const [showAddList, setShowAddList] = useState(false);
+
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = sortColumns.findIndex((s) => s.key === active.id);
+    const newIndex = sortColumns.findIndex((s) => s.key === over.id);
+    if (oldIndex !== -1 && newIndex !== -1) {
+      onSortChange(arrayMove(sortColumns, oldIndex, newIndex));
+    }
+  }, [sortColumns, onSortChange]);
+
+  const toggleDirection = (key: string) => {
+    onSortChange(
+      sortColumns.map((s) =>
+        s.key === key ? { ...s, direction: s.direction === 'asc' ? 'desc' : 'asc' } : s
+      )
+    );
+  };
+
+  const removeSort = (key: string) => {
+    onSortChange(sortColumns.filter((s) => s.key !== key));
+  };
+
+  const addSort = (key: string) => {
+    onSortChange([...sortColumns, { key, direction: 'asc' }]);
+    setShowAddList(false);
+  };
+
+  const unusedColumns = availableSortColumns.filter(
+    (c) => !sortColumns.some((s) => s.key === c.key)
+  );
+
+  return (
+    <div className="sort-configurator">
+      <div className="sort-configurator__header">Sort by</div>
+
+      {sortColumns.length > 0 && (
+        <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext
+            items={sortColumns.map((s) => s.key)}
+            strategy={verticalListSortingStrategy}
+          >
+            <div className="sort-configurator__list">
+              {sortColumns.map((sort) => (
+                <SortConfiguratorItem
+                  key={sort.key}
+                  sort={sort}
+                  label={availableSortColumns.find((c) => c.key === sort.key)?.label ?? sort.key}
+                  onToggleDirection={() => toggleDirection(sort.key)}
+                  onRemove={() => removeSort(sort.key)}
+                />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
+      )}
+
+      {unusedColumns.length > 0 && (
+        <div className="sort-configurator__add">
+          {showAddList ? (
+            <div className="sort-configurator__add-list">
+              {unusedColumns.map((col) => (
+                <button
+                  key={col.key}
+                  className="sort-configurator__add-item"
+                  onClick={() => addSort(col.key)}
+                  type="button"
+                >
+                  {col.label}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <button
+              className="sort-configurator__add-btn"
+              onClick={() => setShowAddList(true)}
+              type="button"
+            >
+              + Add sort field
+            </button>
+          )}
+        </div>
+      )}
+
+      {sortColumns.length > 0 && (
+        <button
+          className="sort-configurator__reset"
+          onClick={() => onSortChange([])}
+          type="button"
+        >
+          Reset
+        </button>
+      )}
+    </div>
+  );
+}
+
+function SortConfiguratorItem({
+  sort,
+  label,
+  onToggleDirection,
+  onRemove,
+}: {
+  sort: SortEntry;
+  label: string;
+  onToggleDirection: () => void;
+  onRemove: () => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: sort.key });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="sort-configurator__item"
+      {...attributes}
+    >
+      <span className="sort-configurator__drag-handle" {...listeners}>
+        <DragVerticalIcon size="xs" />
+      </span>
+      <span className="sort-configurator__label">{label}</span>
+      <button
+        className="sort-configurator__direction"
+        onClick={onToggleDirection}
+        type="button"
+        title={sort.direction === 'asc' ? 'Ascending' : 'Descending'}
+      >
+        {sort.direction === 'asc' ? '↑' : '↓'}
+      </button>
+      <button
+        className="sort-configurator__remove"
+        onClick={onRemove}
+        type="button"
+        title="Remove"
+      >
+        <Icon path="mdi mdi-close" size={0.6} />
+      </button>
     </div>
   );
 }

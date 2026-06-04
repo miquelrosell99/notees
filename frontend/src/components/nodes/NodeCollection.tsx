@@ -35,6 +35,8 @@ import type {
 import type { Property } from '@/types';
 import { DEFAULT_VIEW_MODES_ORDER } from '@/constants/viewModes';
 import { SYSTEM_PROPERTY_UUIDS } from '@/constants/systemProperties';
+import { VIRTUAL_FIELD_IDS } from '@/types/viewFields';
+import type { SortEntry } from '@/components/core/Table';
 import { getViewDefinition } from './views';
 import { NodeCollectionToolbar } from './NodeCollectionToolbar';
 import { Card } from '@/components/core/Card';
@@ -148,6 +150,55 @@ export const NodeCollection = memo(function NodeCollection({
   // Default to Created and Modified columns (matches default table columns)
   const [internalPropertyUuids, setInternalPropertyUuids] = useState<string[]>([]);
   const selectedPropertyUuids = selectedPropertyUuidsProp ?? internalPropertyUuids;
+
+  // Explicit sort columns for table view (empty = fall back to default sort)
+  const [tableSortColumns, setTableSortColumns] = useState<SortEntry[]>([]);
+
+  // Available sort columns for table view (used by the sort popup)
+  const tableAvailableSortColumns = useMemo(() => {
+    if (viewMode !== 'table') return [];
+
+    const columns: { key: string; label: string }[] = [];
+
+    // Name is always available and sortable
+    columns.push({ key: 'name', label: 'Name' });
+
+    // Virtual columns based on effective property UUIDs
+    const effectiveUuids = selectedPropertyUuids.length > 0
+      ? selectedPropertyUuids
+      : [VIRTUAL_FIELD_IDS.classes, VIRTUAL_FIELD_IDS.created, VIRTUAL_FIELD_IDS.modified];
+
+    if (effectiveUuids.includes(VIRTUAL_FIELD_IDS.created)) {
+      columns.push({ key: 'create_date', label: 'Created' });
+    }
+    if (effectiveUuids.includes(VIRTUAL_FIELD_IDS.modified)) {
+      columns.push({ key: 'write_date', label: 'Modified' });
+    }
+
+    // Custom table columns
+    tableColumns?.forEach((col) => {
+      if (col.key !== 'name' && !columns.some((c) => c.key === col.key)) {
+        columns.push({ key: col.key, label: col.label });
+      }
+    });
+
+    // Property columns
+    effectiveUuids.forEach((uuid) => {
+      if (
+        uuid === VIRTUAL_FIELD_IDS.classes ||
+        uuid === VIRTUAL_FIELD_IDS.created ||
+        uuid === VIRTUAL_FIELD_IDS.modified
+      ) {
+        return;
+      }
+      const prop = allProperties.find((p) => p.uuid === uuid);
+      if (prop && !columns.some((c) => c.key === `property_${prop.id}`)) {
+        columns.push({ key: `property_${prop.id}`, label: prop.name });
+      }
+    });
+
+    return columns;
+  }, [viewMode, selectedPropertyUuids, tableColumns, allProperties]);
 
   // Gantt date property state (controlled or uncontrolled)
   // In uncontrolled mode: drive from the persisted store UUIDs
@@ -399,6 +450,8 @@ export const NodeCollection = memo(function NodeCollection({
           onPasteImage,
           onTemplateInstantiate,
           templateClassFilters,
+          sort: tableSortColumns,
+          onSortChange: setTableSortColumns,
         };
 
       case 'gantt': {
@@ -562,6 +615,9 @@ export const NodeCollection = memo(function NodeCollection({
               onCardLayoutChange={onCardLayoutChange}
               selectedPropertyUuids={selectedPropertyUuids}
               onPropertyColumnsChange={handlePropertyColumnsChange}
+              sortColumns={tableSortColumns}
+              onSortChange={setTableSortColumns}
+              availableSortColumns={tableAvailableSortColumns}
               ganttStartDateProperty={ganttStartDateProperty}
               ganttEndDateProperty={ganttEndDateProperty}
               onGanttStartDatePropertyChange={handleGanttStartDatePropertyChange}

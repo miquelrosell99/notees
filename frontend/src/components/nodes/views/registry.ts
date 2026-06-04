@@ -18,6 +18,8 @@ export interface ViewCapabilities {
   propertyColumns?: boolean;
   /** View supports gantt date property / time scale config */
   ganttConfig?: boolean;
+  /** View supports explicit multi-column sort popup */
+  sorting?: boolean;
   /** View should be wrapped in ErrorBoundary */
   errorBoundary?: boolean;
   /** View should be wrapped in Card when containerCard=true */
