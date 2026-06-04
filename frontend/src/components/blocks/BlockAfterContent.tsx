@@ -443,6 +443,7 @@ export function BlockAfterContent({ node }: BlockAfterContentProps): JSX.Element
   const calloutType = detectCalloutType(classIds);
   const embedLinkId = useMemo(() => findEmbedLinkId(node.name), [node.name]);
   const hasEmbed = embedLinkId != null;
+  const isCollapsed = graphNode?.collapsed ?? node.collapsed ?? false;
 
   const hasContent =
     isAsset || isCode || isQuery || isTable || hasBacklinks || isTask || calloutType != null || hasEmbed;
@@ -458,7 +459,7 @@ export function BlockAfterContent({ node }: BlockAfterContentProps): JSX.Element
       {isCode && <CodePreview node={node} />}
       {calloutType && <CalloutPreview node={node} type={calloutType} />}
       {hasBacklinks && <BacklinkPreview node={node} />}
-      {isQuery && <QueryPreview node={node} />}
+      {isQuery && !isCollapsed && <QueryPreview node={node} />}
       {isTable && <TablePreview node={node} />}
       {hasEmbed && <EmbedPreview node={node} />}
     </div>
