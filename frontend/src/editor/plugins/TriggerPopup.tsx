@@ -9,7 +9,7 @@
  * - Position adjustment to stay in viewport
  */
 
-import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 import type { Node } from '@/types';
 import { useNodeSearch, type NodeSearchItem } from '@/hooks';
@@ -53,7 +53,7 @@ const SLASH_COMMANDS: SlashCommand[] = [
 
 export interface TriggerPopupProps {
   type: TriggerPopupType;
-  position: { top: number; left: number };
+  position: { top: number; left: number; caretTop: number };
   onSelectNode?: (node: Node, mode: 'default' | 'alternative') => void;
   onSelectCommand?: (commandId: string) => void;
   onClose: () => void;
@@ -71,6 +71,8 @@ export function TriggerPopup({
 }: TriggerPopupProps) {
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [placement, setPlacement] = useState<'below' | 'above'>('below');
+  const [popupPos, setPopupPos] = useState<{ top: number; left: number }>({ top: position.top, left: position.left });
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -150,26 +152,38 @@ export function TriggerPopup({
     return () => document.removeEventListener('mousedown', handler);
   }, [onClose]);
 
-  // Position adjustment
-  const adjustedPosition = useMemo(() => {
-    const popupWidth = 320;
-    const popupHeight = 400;
-    const padding = 8;
-    let { top, left } = position;
+  // Position adjustment — measure actual popup height and place searchbox adjacent to trigger
+  useLayoutEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
 
+    const gap = 4;
+    const padding = 8;
+    const popupWidth = 320;
+    let left = position.left;
+
+    // Horizontal clamp
     if (left + popupWidth > window.innerWidth - padding) {
       left = window.innerWidth - popupWidth - padding;
     }
     if (left < padding) left = padding;
 
-    if (top + popupHeight > window.innerHeight - padding) {
-      const topAbove = position.top - popupHeight - 24;
-      if (topAbove >= padding) top = topAbove;
-      else top = window.innerHeight - popupHeight - padding;
-    }
-    if (top < padding) top = padding;
+    const height = el.getBoundingClientRect().height;
+    const roomBelow = window.innerHeight - position.top - gap;
+    const roomAbove = position.caretTop - gap;
 
-    return { top, left };
+    // Prefer below when possible
+    if (height <= roomBelow) {
+      setPlacement('below');
+      setPopupPos({ top: position.top + gap, left });
+    } else if (height <= roomAbove) {
+      setPlacement('above');
+      setPopupPos({ top: position.caretTop - height - gap, left });
+    } else {
+      // Not enough room either way; clamp to viewport and prefer below
+      setPlacement('below');
+      setPopupPos({ top: Math.max(padding, Math.min(position.top + gap, window.innerHeight - height - padding)), left });
+    }
   }, [position]);
 
   // Create new node
@@ -294,102 +308,124 @@ export function TriggerPopup({
     }
   }, [type]);
 
+  const header = <div className="trigger-popup__header">{headerText}</div>;
+
+  const search = (
+    <div className="trigger-popup__search">
+      <input
+        ref={inputRef}
+        type="text"
+        value={query}
+        autoFocus
+        onChange={(e) => {
+          setQuery(e.target.value);
+          setSelectedIndex(0);
+        }}
+        onKeyDown={handleKeyDown}
+        placeholder={type === 'slash' ? 'Search commands...' : 'Search...'}
+        className="trigger-popup__input"
+      />
+    </div>
+  );
+
+  const list = (
+    <div className="trigger-popup__list">
+      {isLoading && query.length > 0 ? (
+        <div className="trigger-popup__loading">
+          <Spinner size="sm" />
+        </div>
+      ) : items.length === 0 && !(isNodeTrigger && showCreateOption && query.trim()) ? (
+        <div className="trigger-popup__empty">
+          {query
+            ? 'No matches'
+            : type === 'slash'
+              ? 'Type to filter commands'
+              : 'Start typing to search'}
+        </div>
+      ) : (
+        <>
+          {isNodeTrigger &&
+            nodeItems.map((item, index) => (
+              <NodeResultItem
+                key={item.node.id}
+                node={item.node}
+                displayClasses={getDisplayClasses(item.node)}
+                allClasses={allClasses}
+                isHighlighted={index === effectiveSelectedIndex}
+                onClick={() => onSelectNode?.(item.node, 'default')}
+                onMouseEnter={() => setSelectedIndex(index)}
+              />
+            ))}
+
+          {!isNodeTrigger &&
+            commandItems.map((cmd, index) => (
+              <button
+                key={cmd.id}
+                className={`trigger-popup__command ${
+                  index === effectiveSelectedIndex ? 'trigger-popup__command--selected' : ''
+                }`}
+                onClick={() => onSelectCommand?.(cmd.id)}
+                onMouseEnter={() => setSelectedIndex(index)}
+              >
+                <span className="trigger-popup__command-label">{cmd.label}</span>
+                <span className="trigger-popup__command-desc">{cmd.description}</span>
+              </button>
+            ))}
+
+          {isNodeTrigger && showCreateOption && query.trim() && (
+            <button
+              className={`trigger-popup__create ${
+                effectiveSelectedIndex === items.length ? 'trigger-popup__create--selected' : ''
+              }`}
+              onClick={() => handleCreate(query.trim())}
+              onMouseEnter={() => setSelectedIndex(items.length)}
+            >
+              <AddIcon size="sm" />
+              Create &quot;{query.trim()}&quot;
+            </button>
+          )}
+        </>
+      )}
+    </div>
+  );
+
+  const footer = (
+    <div className="trigger-popup__footer">
+      <span className="trigger-popup__hint">{hints.default}</span>
+      {hints.alternative && (
+        <span className="trigger-popup__hint">{hints.alternative}</span>
+      )}
+    </div>
+  );
+
   const popup = (
     <div
       ref={containerRef}
       data-editor-companion
-      className={`trigger-popup trigger-popup--${type}`}
+      className={`trigger-popup trigger-popup--${type} ${placement === 'above' ? 'trigger-popup--above' : ''}`}
       style={{
         position: 'fixed',
-        top: adjustedPosition.top,
-        left: adjustedPosition.left,
+        top: popupPos.top,
+        left: popupPos.left,
         zIndex: 1000,
       }}
       onMouseDown={(e) => e.stopPropagation()}
     >
-      <div className="trigger-popup__header">{headerText}</div>
-
-      <div className="trigger-popup__search">
-        <input
-          ref={inputRef}
-          type="text"
-          value={query}
-          autoFocus
-          onChange={(e) => {
-        setQuery(e.target.value);
-        setSelectedIndex(0);
-      }}
-          onKeyDown={handleKeyDown}
-          placeholder={type === 'slash' ? 'Search commands...' : 'Search...'}
-          className="trigger-popup__input"
-        />
-      </div>
-
-      <div className="trigger-popup__list">
-        {isLoading && query.length > 0 ? (
-          <div className="trigger-popup__loading">
-            <Spinner size="sm" />
-          </div>
-        ) : items.length === 0 && !(isNodeTrigger && showCreateOption && query.trim()) ? (
-          <div className="trigger-popup__empty">
-            {query
-              ? 'No matches'
-              : type === 'slash'
-                ? 'Type to filter commands'
-                : 'Start typing to search'}
-          </div>
-        ) : (
-          <>
-            {isNodeTrigger &&
-              nodeItems.map((item, index) => (
-                <NodeResultItem
-                  key={item.node.id}
-                  node={item.node}
-                  displayClasses={getDisplayClasses(item.node)}
-                  allClasses={allClasses}
-                  isHighlighted={index === effectiveSelectedIndex}
-                  onClick={() => onSelectNode?.(item.node, 'default')}
-                  onMouseEnter={() => setSelectedIndex(index)}
-                />
-              ))}
-
-            {!isNodeTrigger &&
-              commandItems.map((cmd, index) => (
-                <button
-                  key={cmd.id}
-                  className={`trigger-popup__command ${
-                    index === effectiveSelectedIndex ? 'trigger-popup__command--selected' : ''
-                  }`}
-                  onClick={() => onSelectCommand?.(cmd.id)}
-                  onMouseEnter={() => setSelectedIndex(index)}
-                >
-                  <span className="trigger-popup__command-label">{cmd.label}</span>
-                  <span className="trigger-popup__command-desc">{cmd.description}</span>
-                </button>
-              ))}
-
-            {isNodeTrigger && showCreateOption && query.trim() && (
-              <button
-                className={`trigger-popup__create ${
-                  effectiveSelectedIndex === items.length ? 'trigger-popup__create--selected' : ''
-                }`}
-                onClick={() => handleCreate(query.trim())}
-                onMouseEnter={() => setSelectedIndex(items.length)}
-              >
-                <AddIcon size="sm" />
-                Create &quot;{query.trim()}&quot;
-              </button>
-            )}
-          </>
-        )}
-      </div>
-
-      <div className="trigger-popup__footer">
-        <span className="trigger-popup__hint">{hints.default}</span>
-        {hints.alternative && (
-          <span className="trigger-popup__hint">{hints.alternative}</span>
-        )}
-      </div>
+      {placement === 'below' ? (
+        <>
+          {header}
+          {search}
+          {list}
+          {footer}
+        </>
+      ) : (
+        <>
+          {list}
+          {footer}
+          {header}
+          {search}
+        </>
+      )}
     </div>
   );
 

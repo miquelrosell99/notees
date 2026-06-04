@@ -142,6 +142,19 @@
   background: var(--color-surface-container);
 }
 
+/* When popup is above the trigger, the footer sits at the top of the list area */
+.trigger-popup--above .trigger-popup__footer {
+  border-top: none;
+  border-bottom: 1px solid var(--color-outline-variant);
+}
+
+/* When popup is above, the header sits just above the searchbox with a top border
+   to separate it from the list/footer above */
+.trigger-popup--above .trigger-popup__header {
+  border-bottom: none;
+  border-top: 1px solid var(--color-outline-variant);
+}
+
 .trigger-popup__hint {
   display: flex;
   align-items: center;

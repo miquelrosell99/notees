@@ -35,7 +35,7 @@ import type { Node } from '../../types/api';
 
 interface PopupState {
   type: TriggerPopupType;
-  position: { top: number; left: number };
+  position: { top: number; left: number; caretTop: number };
   context?: 'template' | 'embed';
   classFilters?: number[];
 }
@@ -519,15 +519,16 @@ export function TriggerPlugin({
 function getCaretCoordinates(editor: LexicalEditor): {
   top: number;
   left: number;
+  caretTop: number;
 } {
   const rootEl = editor.getRootElement();
-  if (!rootEl) return { top: 0, left: 0 };
+  if (!rootEl) return { top: 0, left: 0, caretTop: 0 };
 
   const nativeSelection = window.getSelection();
-  if (!nativeSelection || nativeSelection.rangeCount === 0) return { top: 0, left: 0 };
+  if (!nativeSelection || nativeSelection.rangeCount === 0) return { top: 0, left: 0, caretTop: 0 };
 
   const range = nativeSelection.getRangeAt(0);
-  if (!rootEl.contains(range.startContainer)) return { top: 0, left: 0 };
+  if (!rootEl.contains(range.startContainer)) return { top: 0, left: 0, caretTop: 0 };
 
   const cloned = range.cloneRange();
   cloned.collapse(true);
@@ -536,5 +537,6 @@ function getCaretCoordinates(editor: LexicalEditor): {
   return {
     top: rect.bottom + window.scrollY,
     left: rect.left + window.scrollX,
+    caretTop: rect.top + window.scrollY,
   };
 }
