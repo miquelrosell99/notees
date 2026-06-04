@@ -413,16 +413,9 @@ export function NodeContent({
         saveImmediate(targetBlockId, newContent);
       }
     }
-    // When converting to asset (slash command or manual class add), restore
-    // the block's original text content so it stays visible above the asset.
-    if (targetBlockId && convertToAsset) {
-      const block = children.find(c => c.id === targetBlockId);
-      if (block?.name) {
-        saveImmediate(targetBlockId, block.name);
-      } else {
-        saveImmediate(targetBlockId, asset.filename);
-      }
-    }
+    // When converting to asset (slash command or manual class add), the
+    // backend already preserves the block's text content via the optional
+    // `content` parameter, so no restore is needed here.
     setIsAssetUploadOpen(false);
     setTargetBlockId(null);
     setConvertToAsset(false);
@@ -438,18 +431,14 @@ export function NodeContent({
 
   // Handle image paste in a block
   // - Convert the block to an asset via existing_node_id
-  // - Restore the original text content so the block keeps its text while
-  //   gaining the asset preview from the asset class.
+  // - Pass the original content so the backend preserves it
   const handlePasteImage = useCallback(async (blockServerId: number, file: File, _hasContent: boolean) => {
     try {
       const block = children.find(c => c.id === blockServerId);
       const savedContent = block?.name || '';
-      // Convert block to asset (backend overwrites name with filename)
-      await uploadAsset(file, node.id, blockServerId);
-      // Restore original text content if there was any
-      if (savedContent) {
-        saveImmediate(blockServerId, savedContent);
-      }
+      // Convert block to asset, passing original content so the backend
+      // preserves the node's text instead of overwriting it with the filename.
+      await uploadAsset(file, node.id, blockServerId, savedContent || undefined);
       // Invalidate so the asset preview renders
       const { queryClient } = await import('@/lib/queryClient');
       const { nodeKeys } = await import('@/hooks/queryKeys');
@@ -457,7 +446,7 @@ export function NodeContent({
     } catch (err) {
       console.error('[NodeContent] Failed to handle pasted image:', err);
     }
-  }, [node.id, children, saveImmediate]);
+  }, [node.id, children]);
 
   const viewMode = toViewMode(displayMode);
 
