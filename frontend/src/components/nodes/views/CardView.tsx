@@ -368,5 +368,5 @@ registerView({
   label: 'Cards',
   icon: 'mdi mdi-view-grid',
   component: CardView,
-  capabilities: { groupBy: true, cardLayout: true },
+  capabilities: { groupBy: true, cardLayout: true, sorting: true },
 });
