@@ -272,6 +272,7 @@ async def upload_asset(
     file: UploadFile = File(...),
     parent_id: int | None = None,
     existing_node_id: int | None = None,
+    content: str | None = None,
     current_user: User = Depends(get_current_user),
 ):
     """Upload a new asset file using AssetService.
@@ -281,6 +282,8 @@ async def upload_asset(
 
     If existing_node_id is provided, converts that node to an asset
     instead of creating a new one (useful for empty blocks).
+    If content is also provided, the node's name is set to that value
+    rather than the filename (useful for preserving existing text).
 
     Supported file types: Images (JPEG, PNG, WebP), Audio (MP3, WAV, OGG, OPUS, WebM)
     Max file size: 50MB
@@ -348,6 +351,9 @@ async def upload_asset(
             if not node:
                 raise HTTPException(status_code=404, detail=f"Node {existing_node_id} not found")
 
+            # Use provided content if available, otherwise fall back to filename
+            node_name = content if content is not None else filename_without_ext
+
             # Update the node to be an asset
             async with acquire_connection(pool) as conn:
                 now = datetime.now(UTC)
@@ -357,7 +363,7 @@ async def upload_asset(
                     SET name = $1, uuid = $2, is_asset = TRUE, write_date = $3, write_uid = $4
                     WHERE id = $5 AND workspace_id = $6
                 """,
-                    filename_without_ext,
+                    node_name,
                     asset_uuid,
                     now,
                     user_id,

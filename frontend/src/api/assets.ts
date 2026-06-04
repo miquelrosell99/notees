@@ -60,15 +60,22 @@ export const SUPPORTED_CONTENT_TYPES = {
  * @param file - The file to upload
  * @param parentId - Optional parent node ID to associate the asset with
  * @param existingNodeId - Optional existing node ID to convert to an asset (for empty blocks)
+ * @param content - Optional content to set as the node's name when converting an existing node
  * @returns The created asset
  */
-export async function uploadAsset(file: File, parentId?: number, existingNodeId?: number): Promise<Asset> {
+export async function uploadAsset(
+  file: File,
+  parentId?: number,
+  existingNodeId?: number,
+  content?: string,
+): Promise<Asset> {
   const formData = new FormData();
   formData.append('file', file);
   
-  const params: Record<string, number> = {};
+  const params: Record<string, string | number> = {};
   if (parentId !== undefined) params.parent_id = parentId;
   if (existingNodeId !== undefined) params.existing_node_id = existingNodeId;
+  if (content !== undefined) params.content = content;
   
   log.info(`Uploading asset: ${file.name} (${file.type}, ${file.size} bytes)${existingNodeId ? ` (converting node ${existingNodeId})` : ''}`);
   
