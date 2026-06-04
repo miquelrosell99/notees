@@ -63,7 +63,7 @@ export function WorkspaceSwitcher() {
   }, [workspaces]);
 
   const handleChange = useCallback((value: string | null) => {
-    if (!value || value === data?.active) return;
+    if (!value || value === data?.active || switchMutation.isPending) return;
     switchMutation.mutate(value);
   }, [data?.active, switchMutation]);
 
@@ -88,6 +88,7 @@ export function WorkspaceSwitcher() {
           placeholder="Select graph..."
           searchable
           size="sm"
+          disabled={switchMutation.isPending}
           renderOption={renderOption}
           footer={
             <button

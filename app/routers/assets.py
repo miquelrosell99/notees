@@ -20,7 +20,7 @@ from typing import cast
 
 import asyncpg
 import jwt
-from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 
@@ -272,7 +272,7 @@ async def upload_asset(
     file: UploadFile = File(...),
     parent_id: int | None = None,
     existing_node_id: int | None = None,
-    content: str | None = None,
+    content: str | None = Form(None),
     current_user: User = Depends(get_current_user),
 ):
     """Upload a new asset file using AssetService.
@@ -297,17 +297,17 @@ async def upload_asset(
         )
 
     # Read file content
-    content = await file.read()
+    file_content = await file.read()
 
     # Validate file size
-    if len(content) > MAX_FILE_SIZE:
+    if len(file_content) > MAX_FILE_SIZE:
         raise HTTPException(
             status_code=400, detail=f"File too large. Maximum size is {MAX_FILE_SIZE // (1024 * 1024)}MB"
         )
 
     # Validate actual file content matches the declared MIME type to prevent
     # attackers from uploading arbitrary files with a spoofed Content-Type.
-    if not _check_magic_bytes(content, content_type):
+    if not _check_magic_bytes(file_content, content_type):
         raise HTTPException(
             status_code=400,
             detail=f"File content does not match declared type '{content_type}'. "
@@ -334,7 +334,7 @@ async def upload_asset(
         # Create asset using service (ATOMIC OPERATION)
         # This creates folder + writes file before we create node
         asset_uuid, extension = await asset_service.create_asset(
-            file_bytes=content,
+            file_bytes=file_content,
             original_filename=file.filename or f"asset{get_extension_from_content_type(content_type)}",
             content_type=content_type,
         )
@@ -412,7 +412,7 @@ async def upload_asset(
             filename=file.filename or f"asset{extension}",
             content_type=content_type,
             category=category,
-            size_bytes=len(content),
+            size_bytes=len(file_content),
             url=f"/api/assets/{node.uuid}",
         )
 

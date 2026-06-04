@@ -71,11 +71,9 @@ export async function uploadAsset(
 ): Promise<Asset> {
   const formData = new FormData();
   formData.append('file', file);
-  
-  const params: Record<string, string | number> = {};
-  if (parentId !== undefined) params.parent_id = parentId;
-  if (existingNodeId !== undefined) params.existing_node_id = existingNodeId;
-  if (content !== undefined) params.content = content;
+  if (parentId !== undefined) formData.append('parent_id', String(parentId));
+  if (existingNodeId !== undefined) formData.append('existing_node_id', String(existingNodeId));
+  if (content !== undefined) formData.append('content', content);
   
   log.info(`Uploading asset: ${file.name} (${file.type}, ${file.size} bytes)${existingNodeId ? ` (converting node ${existingNodeId})` : ''}`);
   
@@ -83,7 +81,6 @@ export async function uploadAsset(
     headers: {
       'Content-Type': 'multipart/form-data',
     },
-    params,
   });
   
   log.info(`Asset uploaded: ${response.data.uuid}`);

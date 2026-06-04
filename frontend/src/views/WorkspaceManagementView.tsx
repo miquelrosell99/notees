@@ -203,6 +203,7 @@ export function WorkspaceManagementView({
   };
 
   const handleSelectWorkspace = (workspace: WorkspaceInfo) => {
+    if (switchMutation.isPending) return;
     if (workspace.uuid !== data?.active) {
       switchMutation.mutate(workspace.uuid);
     } else {
@@ -364,6 +365,7 @@ export function WorkspaceManagementView({
                         onClick={() => handleSelectWorkspace(workspace)}
                         title="Open workspace"
                         className="workspace-management__access-btn"
+                        disabled={switchMutation.isPending}
                       >
                         <ArrowRightIcon size="sm" />
                       </Button>
@@ -518,6 +520,15 @@ export function WorkspaceManagementView({
           isOpen={shareModalState.isOpen}
           onClose={() => setShareModalState({ isOpen: false, workspaceUuid: null })}
         />
+      )}
+
+      {/* Switching overlay – locks the interface during workspace switch */}
+      {switchMutation.isPending && (
+        <div className="workspace-management__switching-overlay" aria-live="assertive" role="status">
+          <div className="workspace-management__switching-box">
+            <Spinner size="lg" label="Switching workspace…" />
+          </div>
+        </div>
       )}
 
       {/* Deleting overlay – locks the interface during workspace deletion */}

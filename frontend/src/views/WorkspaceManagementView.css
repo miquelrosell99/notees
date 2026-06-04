@@ -174,6 +174,33 @@
   font-size: var(--spacing-5);
 }
 
+/* Switching overlay */
+.workspace-management__switching-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal-backdrop);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-scrim);
+  backdrop-filter: blur(2px);
+  pointer-events: all;
+}
+
+.workspace-management__switching-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-4);
+  padding: var(--spacing-8) var(--spacing-12);
+  background: var(--color-surface);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--shape-extra-large);
+  color: var(--color-on-surface);
+  font-size: var(--font-size-md);
+  font-weight: 500;
+}
+
 /* Deleting overlay */
 .workspace-management__deleting-overlay {
   position: fixed;
