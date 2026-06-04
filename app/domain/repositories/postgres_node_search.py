@@ -58,11 +58,21 @@ class PostgresNodeSearchMixin(_PostgresNodeBase):
 
         order_dir = "DESC" if order == "desc" else "ASC"
         if sort_by == "name":
-            order_clause = f"ORDER BY LOWER({pt_n}) {order_dir}"
+            list_order_clause = f"ORDER BY LOWER({pt_n}) {order_dir}"
         elif sort_by == "create_date":
-            order_clause = f"ORDER BY n.create_date {order_dir} NULLS LAST"
+            list_order_clause = f"ORDER BY n.create_date {order_dir} NULLS LAST"
         else:
-            order_clause = f"ORDER BY n.write_date {order_dir} NULLS LAST"
+            list_order_clause = f"ORDER BY n.write_date {order_dir} NULLS LAST"
+
+        # For text searches, default to relevance when sort_by is write_date (the default)
+        if query and query.strip() and sort_by == "write_date":
+            search_order_clause = f"""ORDER BY
+                (LOWER({pt_n}) = LOWER($3)) DESC,
+                (LOWER({pt_n}) LIKE LOWER($3) || '%') DESC,
+                rank DESC,
+                n.write_date DESC NULLS LAST"""
+        else:
+            search_order_clause = list_order_clause
 
         async with acquire_connection(self._pool) as conn:
             if not query or not query.strip():
@@ -74,7 +84,7 @@ class PostgresNodeSearchMixin(_PostgresNodeBase):
                       AND ($4::boolean IS NULL OR n.is_page = $4)
                       AND ($5::boolean IS NULL OR n.is_class = $5)
                       AND ($6::boolean IS NULL OR n.is_day = $6)
-                    {order_clause}
+                    {list_order_clause}
                     LIMIT $2 OFFSET $7
                 """,
                     self._workspace_id,
@@ -150,7 +160,7 @@ class PostgresNodeSearchMixin(_PostgresNodeBase):
                       AND (${fp + 1}::boolean IS NULL OR n.is_page = ${fp + 1})
                       AND (${fp + 2}::boolean IS NULL OR n.is_class = ${fp + 2})
                       AND (${fp + 3}::boolean IS NULL OR n.is_day = ${fp + 3})
-                    {order_clause}
+                    {search_order_clause}
                     LIMIT $2 OFFSET ${fp + 4}
                 """
 
