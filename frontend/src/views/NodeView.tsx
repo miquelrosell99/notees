@@ -238,7 +238,7 @@ function FocusedBlockContent({ node, onAddSidebarCard, displayMode = 'bullet', e
           nodeUuid={node.uuid}
           onAddClass={handleAddClass}
         />
-        <div className="focused-block-content-add">
+        <div className="focused-block-content-add hover-reveal">
           {canCreate && (
             <Button icon={"mdi mdi-plus"} onClick={handleAddBlock} className="add-block-btn" title="Add block" size="sm" variant="ghost">
               Add block
@@ -265,7 +265,7 @@ function FocusedBlockContent({ node, onAddSidebarCard, displayMode = 'bullet', e
         nodeUuid={node.uuid}
         onAddClass={handleAddClass}
       />
-      <div className="focused-block-content-add">
+      <div className="focused-block-content-add hover-reveal">
         {canCreate && (
           <Button icon={"mdi mdi-plus"} onClick={handleAddBlock} className="add-block-btn" title="Add block" size="sm" variant="ghost">
             Add block

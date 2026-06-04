@@ -90,7 +90,7 @@ export function DatePropertyValue({
         <Button
           variant="ghost"
           size="xs"
-          className="property-value-date-clear"
+          className="property-value-date-clear hover-reveal"
           onClick={(e) => { e.stopPropagation(); onDelete?.(); }}
           title="Clear date"
         >

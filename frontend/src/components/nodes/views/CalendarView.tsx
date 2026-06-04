@@ -407,7 +407,7 @@ export const CalendarView = memo(function CalendarView({
           )}
           {!hasEvents && onAdd && (
             <button
-              className="calendar-view__day-add"
+              className="calendar-view__day-add hover-reveal"
               onClick={(e) => {
                 e.stopPropagation();
                 onAdd();
