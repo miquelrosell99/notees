@@ -1635,7 +1635,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
         {(isHovered || isSelected) && interaction.tool === 'connector' && (
           <div className="whiteboard-element__anchor-points">
             {['top', 'right', 'bottom', 'left'].map(anchor => (
-              <div key={anchor} className={`whiteboard-element__anchor whiteboard-element__anchor--${anchor}`} />
+              <div key={anchor} className={`whiteboard-element__anchor whiteboard-element__anchor--${anchor} hover-reveal`} />
             ))}
           </div>
         )}

@@ -110,7 +110,7 @@ function NodeBreadcrumbsElement({
           icon={"mdi mdi-chevron-down"}
           variant="ghost"
           size="xs"
-          className="node-breadcrumb-edit-btn"
+          className="node-breadcrumb-edit-btn hover-reveal"
           onClick={handleEditClick}
           aria-label="Change parent"
           title="Change parent"

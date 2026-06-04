@@ -617,7 +617,7 @@ export const NodeCard = memo(function NodeCard({
       >
         {/* Selection checkbox — shown on hover */}
         {onSelectionChange && (
-          <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }} className="node-card__checkbox" onClick={handleCheckboxClick}>
+          <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }} className="node-card__checkbox hover-reveal" onClick={handleCheckboxClick}>
             <Checkbox
               size="sm"
               checked={isSelected}
@@ -655,7 +655,7 @@ export const NodeCard = memo(function NodeCard({
                 size="sm"
                 onClick={handleOpenInSidebar}
                 icon={"mdi mdi-dock-right"}
-                className="node-card__action-button"
+                className="node-card__action-button hover-reveal"
                 aria-label="Open in sidebar"
               />
             )}
@@ -665,7 +665,7 @@ export const NodeCard = memo(function NodeCard({
                 size="sm"
                 onClick={handleOpenInView}
                 icon={"mdi mdi-arrow-right"}
-                className="node-card__action-button"
+                className="node-card__action-button hover-reveal"
                 aria-label="Open node"
               />
             )}

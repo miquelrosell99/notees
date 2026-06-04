@@ -65,7 +65,7 @@ export function QueryBlockCard({
       {/* Corner button - lock for system, delete for removable */}
       {isSystem ? (
         <div 
-          className="query-block-card__corner-button query-block-card__corner-button--system" 
+          className="query-block-card__corner-button query-block-card__corner-button--system hover-reveal" 
           title={systemTooltip}
         >
           <Icon path={"mdi mdi-lock"} size={0.55} />
@@ -76,7 +76,7 @@ export function QueryBlockCard({
           size="xs"
           onClick={onRemove}
           title="Remove"
-          className="query-block-card__corner-button"
+          className="query-block-card__corner-button hover-reveal"
           icon={"mdi mdi-close"}
           iconOnly
         />

@@ -350,7 +350,7 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
             showClasses={true}
           />
         )}
-        <div className="scratchpad-add-block">
+        <div className="scratchpad-add-block hover-reveal">
           <Button icon={"mdi mdi-plus"} onClick={handleAddBlock} className="add-block-btn" title="Add block" size="sm" variant="ghost">
             Add block
           </Button>

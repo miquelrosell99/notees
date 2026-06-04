@@ -187,7 +187,7 @@ export function ClassPropertiesEditor({
               !readOnly ? (
                 <div className="class-property-actions">
                   <button
-                    className={`class-property-required-btn ${item.required ? 'class-property-required-btn--active' : ''}`}
+                    className={`class-property-required-btn ${item.required ? 'class-property-required-btn--active' : ''} hover-reveal`}
                     title={item.required ? 'Required (click to make optional)' : 'Optional (click to make required)'}
                     onClick={(e) => {
                       e.stopPropagation();
@@ -201,7 +201,7 @@ export function ClassPropertiesEditor({
                     <Icon path={"mdi mdi-asterisk"} size={0.55} />
                   </button>
                   <button
-                    className="class-property-menu-btn"
+                    className="class-property-menu-btn hover-reveal"
                     title="Property options"
                     onClick={(e) => {
                       e.stopPropagation();
