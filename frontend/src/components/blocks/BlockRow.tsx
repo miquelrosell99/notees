@@ -10,7 +10,7 @@ import { InlineEditor, type InlineEditorHandle } from '@/editor/InlineEditor';
 import { BlockUI } from './BlockUI';
 import { BlockAfterContent } from './BlockAfterContent';
 import { useEditorFocusStore } from '@/stores/editorFocusStore';
-import { parseAST } from '@/lib/astBuilder';
+import { parseAST, parseLinkId } from '@/lib/astBuilder';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
 import { NodeContextMenu } from '@/components/nodes/NodeContextMenu';
@@ -215,8 +215,52 @@ export const BlockRow = memo(
     }, [node.uuid]);
 
     const plainTextFallback = useMemo(() => nodeNameToText(node.name), [node.name]);
-    const classDetails = useResolvedClassDetails(node.classes);
-    const hasClasses = showClasses && classDetails.length > 0;
+    const classDetails = useResolvedClassDetails(node.classes, { skipNodesFallback: true });
+
+    // Determine the icon to show on the bullet
+    // Priority: block's own icon > first class's icon
+    const bulletIcon = useMemo(() => {
+      if (node.icon) {
+        return node.icon;
+      }
+      if (classDetails.length > 0) {
+        const firstClassWithIcon = classDetails.find((c) => c.icon);
+        if (firstClassWithIcon?.icon) {
+          return firstClassWithIcon.icon;
+        }
+      }
+      return undefined;
+    }, [node.icon, classDetails]);
+
+    // Hide class pills that are already referenced inline in the block content
+    const inlineClassUuids = useMemo(() => {
+      const uuids = new Set<string>();
+
+      function walkInlines(inlines: Array<{ type: string; ref_type?: string; link_id?: string; children?: unknown[] }>) {
+        for (const n of inlines) {
+          if (n.type === 'node_link' && n.ref_type === 'class' && n.link_id) {
+            const { nodeUuid } = parseLinkId(n.link_id);
+            if (nodeUuid) uuids.add(nodeUuid);
+          } else if (Array.isArray(n.children)) {
+            walkInlines(n.children as Array<{ type: string; ref_type?: string; link_id?: string; children?: unknown[] }>);
+          }
+        }
+      }
+
+      for (const block of contentAST) {
+        if ('children' in block && Array.isArray(block.children)) {
+          walkInlines(block.children as Array<{ type: string; ref_type?: string; link_id?: string; children?: unknown[] }>);
+        }
+      }
+      return uuids;
+    }, [contentAST]);
+
+    const visibleClassDetails = useMemo(
+      () => classDetails.filter((cls) => !inlineClassUuids.has(cls.uuid)),
+      [classDetails, inlineClassUuids],
+    );
+
+    const hasClasses = showClasses && visibleClassDetails.length > 0;
 
     const colorStyle = useMemo(() => {
       if (!node.color) return undefined;
@@ -275,6 +319,7 @@ export const BlockRow = memo(
       >
         <BlockUI
           node={node}
+          icon={bulletIcon}
           onCollapseToggle={handleCollapseToggleLocal}
           onNavigate={onNavigate}
           onOpenInSidebar={onOpenInSidebar}
@@ -289,7 +334,7 @@ export const BlockRow = memo(
               <div className="block-row__content">
                 {editorElement}
               </div>
-              <ClassPillsRow classes={classDetails} nodeId={node.id} readOnly={readOnly} />
+              <ClassPillsRow classes={visibleClassDetails} nodeId={node.id} readOnly={readOnly} />
             </div>
           ) : (
             <div className="block-row__content">

@@ -15,6 +15,8 @@ import { useTaskActions } from '@/hooks/useTaskActions';
 
 interface BlockUIProps {
   node: Node;
+  /** Resolved icon override (e.g. inherited from classes). Falls back to node.icon. */
+  icon?: string | null;
   onCollapseToggle?: () => void;
   onNavigate?: (blockId: string) => void;
   onOpenInSidebar?: (blockId: string) => void;
@@ -29,6 +31,7 @@ interface BlockUIProps {
 
 export function BlockUI({
   node,
+  icon: iconOverride,
   onCollapseToggle,
   onNavigate,
   onOpenInSidebar,
@@ -51,7 +54,7 @@ export function BlockUI({
     <div className="block-ui">
       <Bullet
         nodeId={node.id}
-        icon={node.icon}
+        icon={iconOverride ?? node.icon}
         isPage={node.is_page}
         hasChildren={node.has_children ?? false}
         collapsed={node.collapsed ?? false}
