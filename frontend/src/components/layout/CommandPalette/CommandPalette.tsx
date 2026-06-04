@@ -326,6 +326,8 @@ export function CommandPalette(props: CommandPaletteProps) {
                           <Icon path={"mdi mdi-presentation-play"} size={0.7} />
                         ) : item.commandIcon === 'share' ? (
                           <Icon path={"mdi mdi-share-variant-outline"} size={0.7} />
+                        ) : item.commandIcon === 'lock' ? (
+                          <Icon path={"mdi mdi-lock-outline"} size={0.7} />
                         ) : item.commandIcon === 'sync' ? (
                           <Icon path={"mdi mdi-sync"} size={0.7} />
                         ) : (

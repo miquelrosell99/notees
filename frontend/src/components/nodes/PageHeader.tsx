@@ -489,6 +489,9 @@ export function PageHeader({
             {page.active === false && (
               <span className="archived-badge">Archived</span>
             )}
+            {page.is_private && (
+              <span className="private-badge">Private</span>
+            )}
 
           </div>
         </div>

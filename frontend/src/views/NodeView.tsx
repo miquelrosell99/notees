@@ -54,7 +54,6 @@ import { NodeMetadataSection } from '../components/nodes/NodeMetadataSection';
 import { Modal } from '../components/core/Modal';
 import { TableIcon, PageIcon, LinkIcon, SearchIcon } from '../components/core/icons';
 import { Button } from '../components/core/Button';
-import { ShareModal } from '../components/nodes/ShareModal';
 import { BlockPresenceOverlay } from '../components/collab/BlockPresenceOverlay';
 
 import { NodeBreadcrumbs } from '../components/nodes/NodeBreadcrumbs';
@@ -522,6 +521,23 @@ export function NodeView({
     if (!node) return;
     removeAlias.mutate({ nodeId: node.id, aliasId: aliasNode.id });
   }, [node, removeAlias]);
+
+  // Register toggle-private command for command palette
+  const togglePrivate = useCallback(() => {
+    if (!node || !isOwner) return;
+    updateNode.mutate({ id: node.id, data: { is_private: !node.is_private } });
+  }, [node, isOwner, updateNode]);
+
+  useCommand(
+    COMMAND_IDS.TOGGLE_PRIVATE,
+    togglePrivate,
+    {
+      label: node?.is_private ? 'Make page public' : 'Make page private',
+      icon: 'lock',
+      requiresPage: true,
+      enabled: !!node && node.is_page && !!isOwner,
+    }
+  );
   
   const handleNavigateToNode = useCallback((id: number) => {
     openNode(id);
@@ -679,7 +695,6 @@ export function NodeView({
   const [isCoverDragging, setIsCoverDragging] = useState(false);
   const [isBannerHovered, setIsBannerHovered] = useState(false);
   const [isCoverHovered, setIsCoverHovered] = useState(false);
-  const [showShareModal, setShowShareModal] = useState(false);
   // Auto-enable lightweight live sync when viewing a page
   const liveSyncStatus = useLivePageSync({ nodeUuid: node?.is_page ? node?.uuid ?? null : null, pageId: node?.id ?? null });
   
@@ -1047,15 +1062,6 @@ export function NodeView({
             size="sm"
           />
 
-          {/* Share button */}
-          <Button
-            variant="ghost"
-            size="sm"
-            icon={"mdi mdi-share-variant"}
-            title="Share"
-            onClick={() => setShowShareModal(true)}
-          />
-
           {/* 3-dot context menu button */}
           <Button
             ref={topBarMenuBtnRef}
@@ -1092,11 +1098,7 @@ export function NodeView({
     <>
       {baseHeaderContent}
       {topBarMenu}
-      <ShareModal
-        nodeId={nodeId}
-        isOpen={showShareModal}
-        onClose={() => setShowShareModal(false)}
-      />
+
     </>
   );
 
@@ -1250,10 +1252,6 @@ export function NodeView({
             onRemoveExtends={handleRemoveExtends}
             onAddExtends={handleAddExtends}
             onCreateExtends={handleCreateExtends}
-            onIsPrivateChange={(isPrivate) => {
-              updateNode.mutate({ id: node.id, data: { is_private: isPrivate } });
-            }}
-            canChangeIsPrivate={!!isOwner}
             defaultExpanded={!isMobile}
           />
           </>)}

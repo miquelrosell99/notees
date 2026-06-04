@@ -129,6 +129,7 @@ export const COMMAND_IDS = {
   // Page / Node
   SHARE_PAGE: 'page.share',
   EXPORT_PAGE: 'page.export',
+  TOGGLE_PRIVATE: 'page.togglePrivate',
   START_PRESENTATION: 'page.present',
   TOGGLE_FOCUS_MODE: 'ui.focusMode',
   TOGGLE_WIDE_MODE: 'ui.wideMode',
