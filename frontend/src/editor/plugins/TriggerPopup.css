@@ -27,6 +27,21 @@
   }
 }
 
+.trigger-popup--above {
+  animation: trigger-popup-enter-above 150ms var(--motion-easing-standard);
+}
+
+@keyframes trigger-popup-enter-above {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .trigger-popup__header {
   display: flex;
   align-items: center;
