@@ -419,6 +419,20 @@ async def get_linked_references(
             seen_source_ids[link.source_node_id] = link
     backlinks = list(seen_source_ids.values())
 
+    # Filter out sources that are descendants of another source in the list.
+    # If Block A links to Target and Block B (child of A) also links to Target,
+    # Block B should appear only as a child under Block A, not as a separate entry.
+    source_ids = [link.source_node_id for link in backlinks]
+    if source_ids:
+        ancestors_map = await service._node_repo.get_ancestors_batch(source_ids, include_self=False)
+        source_id_set = set(source_ids)
+        filtered_backlinks = []
+        for link in backlinks:
+            ancestors = ancestors_map.get(link.source_node_id, [])
+            if not any(ancestor_id in source_id_set for ancestor_id in ancestors):
+                filtered_backlinks.append(link)
+        backlinks = filtered_backlinks
+
     total_count = len(backlinks)
 
     if count:

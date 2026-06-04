@@ -30,6 +30,18 @@ logger = get_logger(__name__)
 MAX_HIERARCHY_DEPTH = 100
 
 
+def _format_node_name(raw_name: str | None) -> str:
+    """Extract plain text from a node name, handling AST JSON gracefully."""
+    if not raw_name:
+        return "Unknown"
+    try:
+        ast = parse_ast(raw_name, ParseMode.JSON)
+        text = stringify_ast(ast, StringifyOptions(mode=StringifyMode.TEXT_ONLY))
+        return text.strip() or "Unknown"
+    except (ValueError, TypeError, KeyError):
+        return raw_name
+
+
 class NodeService:
     """Domain service for node operations."""
 
@@ -1411,7 +1423,7 @@ class NodeService:
         )
         if result:
             class_node = await self._node_repo.get_by_id(class_node_id)
-            await self._log_activity(node_id, "type_added", f"Added class '{class_node.name if class_node else 'Unknown'}'")
+            await self._log_activity(node_id, "type_added", f"Added class '{_format_node_name(class_node.name if class_node else None)}'")
         return result
 
     async def remove_class(self, node_id: int, class_node_id: int) -> bool:
@@ -1419,7 +1431,7 @@ class NodeService:
         class_node = await self._node_repo.get_by_id(class_node_id)
         result = await self._class_service.remove_class(node_id, class_node_id)
         if result:
-            await self._log_activity(node_id, "type_removed", f"Removed class '{class_node.name if class_node else 'Unknown'}'")
+            await self._log_activity(node_id, "type_removed", f"Removed class '{_format_node_name(class_node.name if class_node else None)}'")
         return result
 
     async def get_node_classes(self, node_id: int) -> list[Node]:
