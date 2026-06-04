@@ -67,6 +67,7 @@ class PostgresNodeSearchMixin(_PostgresNodeBase):
         # For text searches, default to relevance when sort_by is write_date (the default)
         if query and query.strip() and sort_by == "write_date":
             search_order_clause = f"""ORDER BY
+                n.is_page DESC,
                 (LOWER({pt_n}) = LOWER($3)) DESC,
                 (LOWER({pt_n}) LIKE LOWER($3) || '%') DESC,
                 rank DESC,
