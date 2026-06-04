@@ -1036,7 +1036,7 @@ export function useDeleteNode() {
         ]);
       }
     },
-    onSuccess: async ({ deletedNode: _deletedNode, tableCellInfo }, deletedId) => {
+    onSuccess: async ({ deletedNode, tableCellInfo }, deletedId) => {
       // Check if we're currently viewing the deleted node (page or block)
       // Use dynamic import to avoid circular dependency issues
       const { useNavigationStore } = await import('@/stores');
@@ -1064,6 +1064,22 @@ export function useDeleteNode() {
           refetchType: 'active',
         });
       }
+
+      // Invalidate the parent node's detail cache so property values refresh
+      // (e.g. text properties that reference the deleted block as their value)
+      if (deletedNode?.parent_id) {
+        invalidateNodeCaches(queryClient, {
+          nodeId: deletedNode.parent_id,
+          refetch: true,
+        });
+      }
+
+      // Invalidate batch-properties caches so table/list views don't show stale values
+      queryClient.invalidateQueries({
+        predicate: (q) =>
+          Array.isArray(q.queryKey) && q.queryKey.includes('batch-properties'),
+        refetchType: 'none',
+      });
       
       // Remove from favorites and recents
       const { useFavoritesStore } = await import('@/stores');

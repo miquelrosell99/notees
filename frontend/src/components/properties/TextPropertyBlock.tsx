@@ -25,6 +25,7 @@ import {
   useNodeNavigation,
 } from '@/hooks';
 import { useBlockPersist } from '@/hooks/useBlockPersist';
+import { isApiError } from '@/api/client';
 import type { Property } from '@/types/api';
 import type { Node } from '@/types/api';
 import { NodeCollection } from '@/components/nodes/NodeCollection';
@@ -60,16 +61,25 @@ function SingleTextBlock({
   onOpenInSidebar,
   onOpenNode,
   onEnterAtRoot,
+  onMissing,
 }: {
   blockNodeId: number;
   readOnly: boolean;
   onOpenInSidebar?: (blockId: number) => void;
   onOpenNode?: (blockId: number) => void;
   onEnterAtRoot?: () => void;
+  onMissing?: (blockId: number) => void;
 }) {
-  const { data: blockNode, isLoading } = useNode(blockNodeId, {
+  const { data: blockNode, isLoading, error } = useNode(blockNodeId, {
     include_children: true,
+    meta: { skipGlobalError: true },
   });
+
+  useEffect(() => {
+    if (error && isApiError(error) && error.response?.status === 404) {
+      onMissing?.(blockNodeId);
+    }
+  }, [error, blockNodeId, onMissing]);
   const { handleNodeClick } = useNodeNavigation();
   const { handleContentChange } = useContentSave();
   useBlockPersist();
@@ -154,10 +164,24 @@ export function TextPropertyBlock({
   const ids = isMulti ? (blockNodeIds ?? []) : (blockNodeId != null ? [blockNodeId] : []);
   
   // For single mode, still fetch the node for legacy compatibility
-  const { data: singleBlockNode, isLoading: blockLoading } = useNode(
+  const { data: singleBlockNode, isLoading: blockLoading, error: singleBlockError } = useNode(
     !isMulti ? blockNodeId : null, 
-    { include_children: true }
+    { include_children: true, meta: { skipGlobalError: true } }
   );
+
+  // Auto-clear the property value when the referenced block has been deleted
+  useEffect(() => {
+    if (
+      singleBlockError &&
+      isApiError(singleBlockError) &&
+      singleBlockError.response?.status === 404 &&
+      blockNodeId != null &&
+      !isMulti &&
+      !readOnly
+    ) {
+      onPropertyChange(property.id, null);
+    }
+  }, [singleBlockError, blockNodeId, isMulti, readOnly, property.id, onPropertyChange]);
   
   const createNode = useCreateNode();
   const moveNode = useMoveNode();
@@ -311,6 +335,11 @@ export function TextPropertyBlock({
             onOpenInSidebar={onOpenInSidebar}
             onOpenNode={(blockId) => handleNodeClick({ id: blockId } as Node)}
             onEnterAtRoot={handleAddText}
+            onMissing={(missingId) => {
+              if (!readOnly) {
+                onPropertyChange(property.id, ids.filter((i) => i !== missingId));
+              }
+            }}
           />
         ))}
       </div>
