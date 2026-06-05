@@ -208,39 +208,6 @@
   font-size: var(--font-size-sm);
 }
 
-/* ── View overflow dropdown ─────────────────────────────────── */
-
-.view-overflow-menu {
-  display: flex;
-  flex-direction: column;
-  padding: var(--spacing-1);
-}
-
-.view-overflow-menu__item {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-2);
-  padding: var(--spacing-2) var(--spacing-3);
-  border: none;
-  background: none;
-  border-radius: var(--shape-small);
-  cursor: pointer;
-  font-size: var(--font-size-sm);
-  color: var(--color-on-surface);
-  text-align: left;
-  width: 100%;
-  transition: background-color var(--motion-duration-short) var(--motion-easing-standard);
-}
-
-.view-overflow-menu__item:hover {
-  background-color: var(--color-hover-overlay);
-}
-
-.view-overflow-menu__item--active {
-  background-color: var(--color-pressed-overlay);
-  font-weight: 500;
-}
-
 /* ── View settings panel ────────────────────────────────────── */
 
 .view-settings-panel {
