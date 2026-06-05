@@ -290,11 +290,11 @@ export const KanbanView = memo(function KanbanView(props: NodeKanbanViewProps) {
       }
     }
 
-    // Sort columns: option-defined ones first (by option sequence), then discovered ones, then None last
+    // Sort columns: None first, then option-defined ones (by option sequence), then discovered ones
     const sorted = Array.from(valueMap.values());
     sorted.sort((a, b) => {
-      const aIsNone = a.id === 'none' ? 1 : 0;
-      const bIsNone = b.id === 'none' ? 1 : 0;
+      const aIsNone = a.id === 'none' ? -1 : 0;
+      const bIsNone = b.id === 'none' ? -1 : 0;
       if (aIsNone !== bIsNone) return aIsNone - bIsNone;
 
       // If both are from options, sort by option sequence
