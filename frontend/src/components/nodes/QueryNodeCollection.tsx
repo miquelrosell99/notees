@@ -304,8 +304,13 @@ export function QueryNodeCollection({
     setCollectionViewMode(mode);
   };
 
+  // Document mode is only meaningful in main content view, not query views
+  const queryAvailableViewModes: NodeCollectionViewMode[] = [
+    'list', 'table', 'card', 'gantt', 'calendar', 'chart', 'graph', 'timeline'
+  ];
+
   // View modes that actually render nested children
-  const childrenFriendlyViewModes: NodeCollectionViewMode[] = ['list', 'document', 'table', 'card'];
+  const childrenFriendlyViewModes: NodeCollectionViewMode[] = ['list', 'table', 'card'];
   const needsChildren = childrenFriendlyViewModes.includes(collectionViewMode);
   const queryPagesOnly = viewType === 'all_pages' || viewType === 'child_pages' || viewType === 'extended_by';
   
@@ -521,7 +526,7 @@ export function QueryNodeCollection({
   const { linkedReferencesBlocks, linkedReferencesPages } = useMemo(() => {
     if (!dedupedLinkedRefs.length) return { linkedReferencesBlocks: [] as Node[], linkedReferencesPages: [] as Node[] };
     
-    const isListView = collectionViewMode === 'list' || collectionViewMode === 'document';
+    const isListView = collectionViewMode === 'list';
     
     const blocks: Node[] = [];
     const pages: Node[] = [];
@@ -741,10 +746,10 @@ export function QueryNodeCollection({
     return { resultBlocks: blocks, resultPages: pages };
   }, [windowedResultNodes, activeAST?.scope?.scope_type]);
 
-  // Only render blocks/pages as separate sections in list/document view when BOTH exist
+  // Only render blocks/pages as separate sections in list view when BOTH exist
   // When only blocks or only pages, show everything in a single section (no PAGES header needed)
-  const isListOrDocView = collectionViewMode === 'list' || collectionViewMode === 'document';
-  const showPageSeparation = isListOrDocView && resultBlocks.length > 0 && resultPages.length > 0;
+  const isListView = collectionViewMode === 'list';
+  const showPageSeparation = isListView && resultBlocks.length > 0 && resultPages.length > 0;
 
   // Show the PAGES section when there are both blocks and pages to display
   const showPagesSection = showPageSeparation;
@@ -1044,7 +1049,7 @@ export function QueryNodeCollection({
             viewId={activeView?.id}
             view={activeView ?? undefined}
             viewMode={collectionViewMode}
-            availableViewModes={[]}
+            availableViewModes={queryAvailableViewModes}
             onViewModeChange={handleViewModeChange}
             editable={can_edit}
             onContentChange={saveContent}
@@ -1114,7 +1119,7 @@ export function QueryNodeCollection({
                 viewId={activeView?.id}
                 view={activeView ?? undefined}
                 viewMode={collectionViewMode}
-                availableViewModes={[]}
+                availableViewModes={queryAvailableViewModes}
                 onViewModeChange={handleViewModeChange}
                 editable={can_edit}
                 onContentChange={saveContent}
