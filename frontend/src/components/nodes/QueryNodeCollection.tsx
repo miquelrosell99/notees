@@ -272,25 +272,36 @@ export function QueryNodeCollection({
     const validationResult = validateQueryAST(newAST);
     setValidation(validationResult);
   }, []);
-  
-  // Get persisted view mode from store
-  const getNodeViewMode = useAppStore(state => state.getNodeViewMode);
-  const setNodeViewMode = useAppStore(state => state.setNodeViewMode);
   const getNodeGroupBy = useAppStore(state => state.getNodeGroupBy);
   const setNodeGroupBy = useAppStore(state => state.setNodeGroupBy);
   const openNode = useNavigationStore(state => state.openNode);
-  const persistedViewMode = getNodeViewMode(nodeId, viewType);
-  
-  // Default to 'table' for classed_nodes, 'list' for others
-  const defaultViewMode: NodeCollectionViewMode = viewType === 'classed_nodes' ? 'table' : 'list';
-  
-  const [collectionViewMode, setCollectionViewMode] = useState<NodeCollectionViewMode>(
-    persistedViewMode ?? defaultViewMode
-  );
-  
+
+  /** Define default view modes per view section — never persisted. */
+  function getDefaultViewMode(type: string): NodeCollectionViewMode {
+    switch (type) {
+      case 'classed_nodes':
+        return 'table';
+      case 'child_pages':
+      case 'linked_references':
+      case 'unlinked_references':
+      case 'all_pages':
+      case 'extended_by':
+      default:
+        return 'list';
+    }
+  }
+
+  const defaultViewMode = getDefaultViewMode(viewType);
+
+  const [collectionViewMode, setCollectionViewMode] = useState<NodeCollectionViewMode>(defaultViewMode);
+
+  // Always reset to the default view mode when the node or section changes.
+  useEffect(() => {
+    setCollectionViewMode(getDefaultViewMode(viewType));
+  }, [nodeId, viewType]);
+
   const handleViewModeChange = (mode: NodeCollectionViewMode) => {
     setCollectionViewMode(mode);
-    setNodeViewMode(nodeId, viewType, mode);
   };
 
   // View modes that actually render nested children
@@ -355,13 +366,14 @@ export function QueryNodeCollection({
 
   // Fetch views for this node and view type (skipped in inline mode)
   const { 
-    data: views = [], 
+    data: viewsRaw, 
     isLoading: viewsLoading,
     refetch: refetchViews,
   } = useNodeViews(nodeId, { 
     viewType, 
     enabled: !isInlineMode && nodeId > 0 && hasInitialized,
   });
+  const views = viewsRaw ?? [];
 
   // Mutations
   const createViewMutation = useCreateNodeView();
@@ -662,6 +674,11 @@ export function QueryNodeCollection({
     : isInlineMode ? inlineQueryLoading
     : (isPseudoNode ? pseudoQueryLoading : queryLoading);
 
+  // Distinguish initial load (no data yet) from background refresh.
+  // With placeholderData keeping previous results, we only want to show the
+  // full spinner replacement on first load — not on every refetch.
+  const isInitialLoading = isQueryLoading && resultNodes.length === 0;
+
   // Virtualization: for large result sets (>500 nodes), render in windows
   // to keep DOM size manageable and perceived latency <100ms
   const WINDOW_SIZE = 500;
@@ -939,8 +956,10 @@ export function QueryNodeCollection({
     onCountChange?.(resultCount);
   }, [resultCount, onCountChange]);
 
-  // Loading state - return empty result (inline mode is always initialized)
-  if (!isInlineMode && (viewsLoading || isInitializing)) {
+  // Loading state - return empty result only when we truly have no data yet.
+  // With placeholderData, viewsLoading may be true during refetch but viewsRaw
+  // still holds previous data. We only block when initializing or on first fetch.
+  if (!isInlineMode && (isInitializing || (viewsLoading && viewsRaw === undefined))) {
     return children({
       controls: null,
       results: null,
@@ -1009,10 +1028,16 @@ export function QueryNodeCollection({
   // Results with integrated toolbar
   const results = (
     <>
-      {isQueryLoading ? (
+      {isInitialLoading ? (
         <div className="query-section__loading"><Spinner size="sm" /></div>
       ) : (
         <>
+          {/* Subtle refresh indicator — keeps previous results visible during refetch */}
+          {isQueryLoading && (
+            <div className="query-section__refreshing" aria-label="Refreshing results">
+              <Spinner size="sm" />
+            </div>
+          )}
           {/* Main results - blocks only when separating, all results otherwise */}
           <NodeCollection
             nodes={showPageSeparation ? resultBlocks : windowedResultNodes}

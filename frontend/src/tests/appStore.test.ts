@@ -5,7 +5,6 @@ const resetState = () =>
   useAppStore.setState({
     contentDisplayMode: 'bullet',
     cardLayout: 'no-cover',
-    nodeViewModes: {},
     nodeGroupBy: {},
     ganttTimeScale: 'week',
   });
@@ -46,23 +45,6 @@ describe('appStore — card layout', () => {
   });
 });
 
-describe('appStore — node view modes', () => {
-  it('setNodeViewMode stores mode keyed by nodeId+viewType', () => {
-    useAppStore.getState().setNodeViewMode(1, 'children', 'list');
-    expect(useAppStore.getState().getNodeViewMode(1, 'children')).toBe('list');
-  });
-
-  it('getNodeViewMode returns undefined for unknown key', () => {
-    expect(useAppStore.getState().getNodeViewMode(999, 'unknown')).toBeUndefined();
-  });
-
-  it('setNodeViewMode does not overwrite other keys', () => {
-    useAppStore.getState().setNodeViewMode(1, 'children', 'list');
-    useAppStore.getState().setNodeViewMode(2, 'children', 'card');
-    expect(useAppStore.getState().getNodeViewMode(1, 'children')).toBe('list');
-    expect(useAppStore.getState().getNodeViewMode(2, 'children')).toBe('card');
-  });
-});
 
 describe('appStore — node group by', () => {
   it('setNodeGroupBy stores groupBy keyed by nodeId+viewType', () => {

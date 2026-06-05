@@ -6,7 +6,7 @@
  */
 import { useState, useCallback, useMemo } from 'react';
 import { usePages, useContentSave } from '@/hooks';
-import { useNavigationStore, useModalStore, useAppStore } from '@/stores';
+import { useNavigationStore, useModalStore } from '@/stores';
 import { NodeCollection } from '@/components/nodes/NodeCollection';
 import { NodeCollectionToolbar } from '@/components/nodes/NodeCollectionToolbar';
 import { SearchBox } from '@/components/core/SearchBox';
@@ -16,9 +16,6 @@ import { PageIcon } from '@/components/core/icons';
 import type { NodeCollectionViewMode } from '@/types/nodeCollection';
 import type { Node } from '@/types';
 import './PagesView.css';
-
-const PSEUDO_NODE_ID = 0;
-const PSEUDO_VIEW_TYPE = 'all_pages';
 
 const AVAILABLE_VIEW_MODES: NodeCollectionViewMode[] = [
   'list',
@@ -31,19 +28,13 @@ const AVAILABLE_VIEW_MODES: NodeCollectionViewMode[] = [
 export function PagesView() {
   const { openNode } = useNavigationStore();
   const { setCommandPaletteOpen } = useModalStore();
-  const getNodeViewMode = useAppStore((state) => state.getNodeViewMode);
-  const setNodeViewMode = useAppStore((state) => state.setNodeViewMode);
   const { handleContentChange: saveContent } = useContentSave();
 
-  const persistedViewMode = getNodeViewMode(PSEUDO_NODE_ID, PSEUDO_VIEW_TYPE);
-  const [viewMode, setViewMode] = useState<NodeCollectionViewMode>(
-    persistedViewMode ?? 'list'
-  );
+  const [viewMode, setViewMode] = useState<NodeCollectionViewMode>('list');
 
   const handleViewModeChange = useCallback((mode: NodeCollectionViewMode) => {
     setViewMode(mode);
-    setNodeViewMode(PSEUDO_NODE_ID, PSEUDO_VIEW_TYPE, mode);
-  }, [setNodeViewMode]);
+  }, []);
 
   const { data: pages, isLoading, isPlaceholderData } = usePages({
     includeChildren: true,
