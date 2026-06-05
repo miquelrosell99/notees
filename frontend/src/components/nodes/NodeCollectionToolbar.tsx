@@ -29,9 +29,6 @@ import './NodeCollectionToolbar.css';
 import { Icon, DragVerticalIcon } from '@/components/core/icons';
 import type { SortEntry } from '@/components/core/Table';
 
-/** Max number of view mode icons shown inline before overflow */
-const INLINE_VIEW_COUNT = 4;
-
 // Card layout mode icon mappings
 const CARD_LAYOUT_ICONS: Record<string, string> = {
   'no-cover': "mdi mdi-card-outline",
@@ -177,26 +174,9 @@ export function NodeCollectionToolbar({
     return map;
   }, [allModeOptions]);
 
-  // ── View mode inline/overflow split ─────────────────────────────────────
-  const { inlineModes, overflowModes } = useMemo(() => {
-    if (availableViewModes.length <= INLINE_VIEW_COUNT) {
-      return { inlineModes: availableViewModes, overflowModes: [] as NodeCollectionViewMode[] };
-    }
-    const inline = [...availableViewModes.slice(0, INLINE_VIEW_COUNT)];
-    const overflow = [...availableViewModes.slice(INLINE_VIEW_COUNT)];
-    // If the currently-active mode is in overflow, swap it into view
-    const overflowIdx = overflow.indexOf(viewMode);
-    if (overflowIdx !== -1) {
-      const swapped = inline[inline.length - 1];
-      inline[inline.length - 1] = viewMode;
-      overflow[overflowIdx] = swapped;
-    }
-    return { inlineModes: inline, overflowModes: overflow };
-  }, [availableViewModes, viewMode]);
-
-  // Build inline SelectionButton options
+  // Build SelectionButton options for all available view modes
   const viewModeOptions = useMemo<SelectionButtonOption[]>(() =>
-    inlineModes.map((mode) => {
+    availableViewModes.map((mode) => {
       const meta = modeMeta.get(mode);
       return {
         value: mode,
@@ -204,7 +184,7 @@ export function NodeCollectionToolbar({
         label: meta?.label ?? mode,
       };
     }),
-    [inlineModes, modeMeta]
+    [availableViewModes, modeMeta]
   );
 
   // Build SelectionButton options for card layouts
@@ -250,49 +230,16 @@ export function NodeCollectionToolbar({
             />
           )}
 
-          {/* View Mode Switcher – inline icons */}
+          {/* View Mode Switcher */}
           {showViewSwitcher && (
             <SelectionButton
               options={viewModeOptions}
               value={viewMode}
               onChange={(val) => onViewModeChange?.(val as NodeCollectionViewMode)}
               size="sm"
+              maxVisibleOptions={4}
               className="node-collection-toolbar__view-switcher"
             />
-          )}
-
-          {/* Overflow view modes dropdown */}
-          {showViewSwitcher && overflowModes.length > 0 && (
-            <ButtonWithPanel
-              icon={"mdi mdi-dots-horizontal"}
-              variant="ghost"
-              size="sm"
-              panelPosition="bottom"
-              panelAlignment="end"
-              panelWidth={160}
-              usePortal={true}
-              showCloseButton={false}
-              className="node-collection-toolbar__overflow"
-              tooltip="More views"
-            >
-              {(closePanel) => (
-                <div className="view-overflow-menu">
-                  {overflowModes.map((mode) => {
-                    const meta = modeMeta.get(mode);
-                    return (
-                      <button
-                        key={mode}
-                        className={`view-overflow-menu__item ${mode === viewMode ? 'view-overflow-menu__item--active' : ''}`}
-                        onClick={() => { onViewModeChange?.(mode); closePanel(); }}
-                      >
-                        <Icon path={meta?.icon ?? 'mdi mdi-help-circle'} size={0.7} />
-                        <span>{meta?.label ?? mode}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </ButtonWithPanel>
           )}
 
           {/* Active group-by badge */}
