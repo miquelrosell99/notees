@@ -153,15 +153,16 @@ export function useNodeViewQuery(
     orderBy?: string;
     includeChildren?: boolean;
     includeAllChildren?: boolean;
+    pagesOnly?: boolean;
     includeProperties?: boolean;
     enrich?: { children?: boolean; classes?: boolean; properties?: boolean };
     enabled?: boolean;
   }
 ) {
-  const { runtimeParams, limit, offset, orderBy, includeChildren, includeAllChildren, includeProperties, enrich, enabled = true } = options ?? {};
+  const { runtimeParams, limit, offset, orderBy, includeChildren, includeAllChildren, pagesOnly, includeProperties, enrich, enabled = true } = options ?? {};
 
   return useQuery({
-    queryKey: nodeViewKeys.queryResult(viewId, { runtimeParams, limit, offset, orderBy, includeChildren, includeAllChildren, includeProperties, enrich }),
+    queryKey: nodeViewKeys.queryResult(viewId, { runtimeParams, limit, offset, orderBy, includeChildren, includeAllChildren, pagesOnly, includeProperties, enrich }),
     queryFn: async () => {
       const response = await executeNodeViewQuery(viewId, {
         runtime_params: runtimeParams,
@@ -170,6 +171,7 @@ export function useNodeViewQuery(
         order_by: orderBy,
         include_children: includeChildren,
         include_all_children: includeAllChildren,
+        pages_only: pagesOnly,
         include_properties: includeProperties,
         enrich,
       });
