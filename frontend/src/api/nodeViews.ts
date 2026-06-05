@@ -139,6 +139,7 @@ export async function executeNodeViewQuery(
     order_by?: string;
     include_children?: boolean;
     include_all_children?: boolean;
+    pages_only?: boolean;
     include_properties?: boolean;
     enrich?: { children?: boolean; classes?: boolean; properties?: boolean };
   }
