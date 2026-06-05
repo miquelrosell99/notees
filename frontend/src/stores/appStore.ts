@@ -11,7 +11,6 @@
  */
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { NodeCollectionViewMode } from '@/types/nodeCollection';
 import { SYSTEM_PROPERTY_UUIDS } from '@/constants/systemProperties';
 
 // ── Shared type aliases (used by navigationStore + external consumers) ──────────
@@ -53,7 +52,6 @@ export type CardLayoutMode = 'no-cover' | 'cover-top' | 'cover-left' | 'cover-ri
 interface DisplayPrefsState {
   contentDisplayMode: ContentDisplayMode;
   cardLayout: CardLayoutMode;
-  nodeViewModes: Record<string, NodeCollectionViewMode>;
   nodeGroupBy: Record<string, string>;
   ganttStartDatePropertyUuid: string;
   ganttEndDatePropertyUuid: string;
@@ -62,8 +60,6 @@ interface DisplayPrefsState {
   toggleContentDisplayMode: () => void;
   setContentDisplayMode: (mode: ContentDisplayMode) => void;
   setCardLayout: (layout: CardLayoutMode) => void;
-  setNodeViewMode: (nodeId: number, viewType: string, mode: NodeCollectionViewMode) => void;
-  getNodeViewMode: (nodeId: number, viewType: string) => NodeCollectionViewMode | undefined;
   setNodeGroupBy: (nodeId: number, viewType: string, groupBy: string) => void;
   getNodeGroupBy: (nodeId: number, viewType: string) => string | undefined;
   setGanttStartDatePropertyUuid: (uuid: string) => void;
@@ -76,7 +72,6 @@ export const useAppStore = create<DisplayPrefsState>()(
     (set, get) => ({
       contentDisplayMode: 'bullet' as ContentDisplayMode,
       cardLayout: 'no-cover' as CardLayoutMode,
-      nodeViewModes: {},
       nodeGroupBy: {},
       ganttStartDatePropertyUuid: SYSTEM_PROPERTY_UUIDS.task_scheduled,
       ganttEndDatePropertyUuid: SYSTEM_PROPERTY_UUIDS.task_deadline,
@@ -94,10 +89,6 @@ export const useAppStore = create<DisplayPrefsState>()(
       setContentDisplayMode: (mode) => set({ contentDisplayMode: mode }),
       setCardLayout: (layout) => set({ cardLayout: layout }),
 
-      setNodeViewMode: (nodeId, viewType, mode) =>
-        set((s) => ({ nodeViewModes: { ...s.nodeViewModes, [`${nodeId}-${viewType}`]: mode } })),
-      getNodeViewMode: (nodeId, viewType) => get().nodeViewModes[`${nodeId}-${viewType}`],
-
       setNodeGroupBy: (nodeId, viewType, groupBy) =>
         set((s) => ({ nodeGroupBy: { ...s.nodeGroupBy, [`${nodeId}-${viewType}`]: groupBy } })),
       getNodeGroupBy: (nodeId, viewType) => get().nodeGroupBy[`${nodeId}-${viewType}`],
@@ -109,7 +100,6 @@ export const useAppStore = create<DisplayPrefsState>()(
     {
       name: 'notees-node-view-modes',
       partialize: (state) => ({
-        nodeViewModes: state.nodeViewModes,
         nodeGroupBy: state.nodeGroupBy,
         cardLayout: state.cardLayout,
         contentDisplayMode: state.contentDisplayMode,
