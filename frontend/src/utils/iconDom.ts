@@ -30,12 +30,13 @@ function resolveMdiKebabName(iconName: string): string | null {
     // not JSON
   }
 
-  if (iconName.startsWith('mdi:')) {
-    return iconName.slice(4);
-  }
-
   if (iconName.match(/^mdi[A-Z]/)) {
     return camelToKebab(iconName);
+  }
+
+  // Plain kebab-case MDI name (e.g. "circle-outline")
+  if (iconName.match(/^[a-z0-9-]+$/)) {
+    return iconName;
   }
 
   return null;
@@ -91,7 +92,7 @@ export function formatIconField(icon: string, color?: string | null): string {
 
 /**
  * Convert a Logseq/Python mdi:kebab-name icon to the kebab name.
- * e.g. "mdi:heart-outline" → "heart-outline"
+ * Used by import parsers that consume external data formats.
  */
 export function normalizeMdiIcon(icon: string): string {
   if (!icon.startsWith('mdi:')) return icon;

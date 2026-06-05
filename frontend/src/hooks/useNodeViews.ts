@@ -3,7 +3,7 @@
  * 
  * TanStack Query hooks for NodeView data fetching and mutations.
  */
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { queryClient as sharedQueryClient } from '@/lib/queryClient';
 import {
   listNodeViews,
@@ -67,6 +67,7 @@ export function useNodeViews(
         include_query_ast: includeQueryAST,
       }),
     enabled: enabled && nodeId > 0,
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -180,6 +181,7 @@ export function useNodeViewQuery(
     },
     enabled: enabled && viewId > 0,
     staleTime: 30_000,  // 30s stale time for view queries
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -203,6 +205,7 @@ export function useQuery_(
     },
     enabled,
     staleTime: 0,
+    placeholderData: keepPreviousData,
   });
 }
 

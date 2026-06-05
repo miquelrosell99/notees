@@ -30,6 +30,7 @@ Key features:
 - **Dev vs. Prod**: Dev PostgreSQL settings (`fsync=off`, etc.) in `compose.yaml` must never be used in production.
 - **Technical Excellence**: Always take the technically best path, not the simpler path. Proper extraction, clean interfaces, and type safety take precedence over minimal diff size.
 - **Root Causes Over Hacks**: Always fix root causes instead of adding defensive workarounds. If a symptom points to a deeper architectural issue (stale state, lifecycle mismatches, incorrect boundaries), refactor the underlying cause rather than patching around it.
+- **Fix Bad Data at the Source**: If a bug is caused by incorrect data in the database or schema (e.g., wrong icon format, malformed enum values), fix the data and add a migration — never add frontend/backend "backward compatibility" code to tolerate bad data. Clean data is cheaper than defensive code.
 - **Docker-first**: Development and production are both Docker-based. Local venv setup is possible but not the supported path.
 
 ---

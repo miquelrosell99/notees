@@ -83,14 +83,16 @@ function scheduleDeleteFlush(): void {
     pendingDeleteUuids = [];
     if (uuids.length === 0) return;
     batchDeleteNodesApi({ uuids }).then(() => {
-      // Invalidate query result caches so views reflect the deletion
-      sharedQueryClient.invalidateQueries({ queryKey: ['nodeViews', 'queryResults'], refetchType: 'active' });
-      sharedQueryClient.invalidateQueries({ queryKey: nodeKeys.pseudoNodeQuery(), refetchType: 'active' });
-      sharedQueryClient.invalidateQueries({ queryKey: nodeKeys.inlineQuery(), refetchType: 'active' });
+      // Soft-invalidate query result caches so views reflect the deletion
+      // on their next natural refresh. Active refetch causes visible spinner
+      // flashes because every block delete would trigger a full re-fetch.
+      sharedQueryClient.invalidateQueries({ queryKey: ['nodeViews', 'queryResults'], refetchType: 'none' });
+      sharedQueryClient.invalidateQueries({ queryKey: nodeKeys.pseudoNodeQuery(), refetchType: 'none' });
+      sharedQueryClient.invalidateQueries({ queryKey: nodeKeys.inlineQuery(), refetchType: 'none' });
       // Invalidate backlinks and linked references since deleted blocks may have been referenced
-      sharedQueryClient.invalidateQueries({ queryKey: ['nodes', 'linked-refs'], refetchType: 'active' });
-      sharedQueryClient.invalidateQueries({ queryKey: ['nodes', 'property-backlinks'], refetchType: 'active' });
-      sharedQueryClient.invalidateQueries({ queryKey: ['nodes', 'backlinks'], refetchType: 'active' });
+      sharedQueryClient.invalidateQueries({ queryKey: ['nodes', 'linked-refs'], refetchType: 'none' });
+      sharedQueryClient.invalidateQueries({ queryKey: ['nodes', 'property-backlinks'], refetchType: 'none' });
+      sharedQueryClient.invalidateQueries({ queryKey: ['nodes', 'backlinks'], refetchType: 'none' });
     }).catch((error) => {
       if (isRetryableError(error)) {
         for (const uuid of uuids) {

@@ -191,30 +191,30 @@ SYSTEM_PROPERTY_UUIDS = {
 
 # Task status options with their icons (icon field may be JSON with embedded color)
 TASK_STATUS_OPTIONS = [
-    {"name": "Backlog", "icon": "mdi:dots-circle"},
-    {"name": "Pending", "icon": "mdi:circle-outline"},
-    {"name": "Doing", "icon": '{"icon":"mdi:circle-slice-4","color":"var(--color-preset-yellow)"}'},
-    {"name": "Reviewing", "icon": '{"icon":"mdi:help-circle-outline","color":"var(--color-preset-blue)"}'},
-    {"name": "Done", "icon": '{"icon":"mdi:check-circle","color":"var(--color-preset-green)"}'},
-    {"name": "Cancelled", "icon": '{"icon":"mdi:close-circle","color":"var(--color-preset-red)"}'},
+    {"name": "Backlog", "icon": "dots-circle"},
+    {"name": "Pending", "icon": "circle-outline"},
+    {"name": "Doing", "icon": '{"icon":"circle-slice-4","color":"var(--color-preset-yellow)"}'},
+    {"name": "Reviewing", "icon": '{"icon":"help-circle-outline","color":"var(--color-preset-blue)"}'},
+    {"name": "Done", "icon": '{"icon":"check-circle","color":"var(--color-preset-green)"}'},
+    {"name": "Cancelled", "icon": '{"icon":"close-circle","color":"var(--color-preset-red)"}'},
 ]
 
 # Task priority options with their icons
 TASK_PRIORITY_OPTIONS = [
-    {"name": "Low", "icon": "mdi:chevron-down"},
-    {"name": "Medium", "icon": "mdi:equal"},
-    {"name": "High", "icon": "mdi:chevron-up"},
-    {"name": "Urgent", "icon": "mdi:chevron-double-up"},
+    {"name": "Low", "icon": "chevron-down"},
+    {"name": "Medium", "icon": "equal"},
+    {"name": "High", "icon": "chevron-up"},
+    {"name": "Urgent", "icon": "chevron-double-up"},
 ]
 
 # Task recurrence options
 TASK_RECURRENCE_OPTIONS = [
-    {"name": "Daily", "icon": "mdi:calendar-today"},
-    {"name": "Every Weekday", "icon": "mdi:calendar-week"},
-    {"name": "Weekly", "icon": "mdi:calendar-week"},
-    {"name": "Biweekly", "icon": "mdi:calendar-multiselect"},
-    {"name": "Monthly", "icon": "mdi:calendar-month"},
-    {"name": "Yearly", "icon": "mdi:calendar-star"},
+    {"name": "Daily", "icon": "calendar-today"},
+    {"name": "Every Weekday", "icon": "calendar-week"},
+    {"name": "Weekly", "icon": "calendar-week"},
+    {"name": "Biweekly", "icon": "calendar-multiselect"},
+    {"name": "Monthly", "icon": "calendar-month"},
+    {"name": "Yearly", "icon": "calendar-star"},
 ]
 
 SYSTEM_PROPERTIES = [
