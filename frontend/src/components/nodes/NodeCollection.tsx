@@ -34,7 +34,6 @@ import type {
 } from '@/types/nodeCollection';
 import type { Property } from '@/types';
 import { DEFAULT_VIEW_MODES_ORDER } from '@/constants/viewModes';
-import { SYSTEM_PROPERTY_UUIDS } from '@/constants/systemProperties';
 import type { SortEntry } from '@/components/core/Table';
 import { sortNodesByEntries } from '@/utils/nodeSort';
 import { getViewDefinition } from './views';
@@ -388,27 +387,6 @@ export const NodeCollection = memo(function NodeCollection({
           onTemplateInstantiate,
           templateClassFilters,
         };
-
-      case 'kanban': {
-        // Use the user's chosen groupByProperty; fall back to task_status if none selected
-        const kanbanGroupByProperty = groupByProperty ?? allProperties.find((p) => p.uuid === SYSTEM_PROPERTY_UUIDS.task_status);
-        return {
-          nodes,
-          editable,
-          onNodeClick: stableOnNodeClick,
-          onNodeShiftClick: stableOnNodeShiftClick,
-          onContentChange: stableOnContentChange,
-          onAdd,
-          customContextMenu,
-          className: '',
-          groupByProperty: kanbanGroupByProperty,
-          onAddClass,
-          onSlashCommand,
-          onPasteImage,
-          onTemplateInstantiate,
-          templateClassFilters,
-        };
-      }
 
       case 'table':
         return {

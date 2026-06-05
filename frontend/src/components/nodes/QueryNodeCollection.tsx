@@ -568,7 +568,7 @@ export function QueryNodeCollection({
       
       const shouldCollapse = isListView && showPageCollapsed;
       
-      // For non-page-collapsed cases, add page info for breadcrumbs / kanban grouping
+      // For non-page-collapsed cases, add page info for breadcrumbs / card grouping
       const pageInfo = (!showPageCollapsed && ref.source_page) ? {
         page_id: ref.source_page.id,
         page_name: ref.source_page.name,
@@ -1053,7 +1053,7 @@ export function QueryNodeCollection({
             leftElement={resolvedLeftElement}
             hideToolbarControls={hideToolbarControls}
             hideContent={hideContent}
-            showGroupBy={!hideViewManagement && (collectionViewMode === 'list' || collectionViewMode === 'card' || collectionViewMode === 'kanban' || collectionViewMode === 'gantt') && viewType !== 'all_pages' && viewType !== 'child_pages'}
+            showGroupBy={!hideViewManagement && (collectionViewMode === 'list' || collectionViewMode === 'card' || collectionViewMode === 'gantt') && viewType !== 'all_pages' && viewType !== 'child_pages'}
             groupBy={groupBy}
             onGroupByChange={setGroupBy}
             showAddButton={effectiveCanCreate && viewType !== 'linked_references'}
