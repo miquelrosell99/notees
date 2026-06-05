@@ -305,9 +305,10 @@ export function QueryNodeCollection({
   };
 
   // Document mode is only meaningful in main content view, not query views
-  const queryAvailableViewModes: NodeCollectionViewMode[] = [
-    'list', 'table', 'card', 'gantt', 'calendar', 'chart', 'graph', 'timeline'
-  ];
+  const queryAvailableViewModes: NodeCollectionViewMode[] =
+    viewType === 'classed_nodes'
+      ? ['list', 'table', 'card', 'graph']
+      : ['list', 'table', 'card', 'gantt', 'calendar', 'chart', 'graph', 'timeline'];
 
   // View modes that actually render nested children
   const childrenFriendlyViewModes: NodeCollectionViewMode[] = ['list', 'table', 'card'];
