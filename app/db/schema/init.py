@@ -86,6 +86,9 @@ async def init_database(conn: asyncpg.Connection) -> None:
     # Strip mdi: prefix from property and selection line icons (migration for existing DBs)
     await _migrate_mdi_prefix_icons(conn)
 
+    # Remove non-system task statuses and migrate nodes that have them
+    await _migrate_non_system_task_statuses(conn)
+
     # Seed default system settings
     await _seed_system_settings(conn)
 
@@ -489,6 +492,95 @@ async def _migrate_visibility_to_is_private(conn: asyncpg.Connection) -> None:
             """
         )
         logger.info("Created idx_node_is_private index")
+
+
+async def _migrate_non_system_task_statuses(conn: asyncpg.Connection) -> None:
+    """Remove non-system task status options and migrate nodes that use them.
+
+    Task statuses are defined in TASK_STATUS_OPTIONS. Any custom selection lines
+    added to the Status property that are not in this list are considered
+    non-system. Nodes using these statuses are migrated to 'Pending' (or the
+    first available system status as fallback).
+    """
+    from ...logging_config import get_logger
+
+    logger = get_logger(__name__)
+
+    system_names = [opt["name"] for opt in TASK_STATUS_OPTIONS]
+    status_uuid = SYSTEM_PROPERTY_UUIDS["task_status"]
+
+    # Find all Status properties across workspaces
+    status_props = await conn.fetch(
+        "SELECT id, workspace_id FROM property WHERE uuid = $1",
+        status_uuid,
+    )
+
+    if not status_props:
+        return
+
+    total_migrated = 0
+    total_removed = 0
+
+    for prop_row in status_props:
+        prop_id = prop_row["id"]
+        ws_id = prop_row["workspace_id"]
+
+        # Find system status lines for this property
+        system_lines = await conn.fetch(
+            "SELECT id, name FROM property_selection_line WHERE property_id = $1 AND name = ANY($2)",
+            prop_id,
+            system_names,
+        )
+
+        if not system_lines:
+            continue
+
+        # Prefer 'Pending' as fallback, then first available system status
+        fallback_id = None
+        for line in system_lines:
+            if line["name"] == "Pending":
+                fallback_id = line["id"]
+                break
+        if fallback_id is None:
+            fallback_id = system_lines[0]["id"]
+
+        # Find non-system status lines for this property
+        non_system = await conn.fetch(
+            "SELECT id, name FROM property_selection_line WHERE property_id = $1 AND NOT (name = ANY($2))",
+            prop_id,
+            system_names,
+        )
+
+        for line in non_system:
+            line_id = line["id"]
+            line_name = line["name"]
+
+            # Migrate nodes using this non-system status to the fallback
+            result = await conn.execute(
+                "UPDATE property_value_selection SET selection_line_id = $1 WHERE selection_line_id = $2",
+                fallback_id,
+                line_id,
+            )
+            migrated = int(result.split()[-1]) if result else 0
+            total_migrated += migrated
+
+            # Remove the non-system selection line
+            await conn.execute(
+                "DELETE FROM property_selection_line WHERE id = $1",
+                line_id,
+            )
+            total_removed += 1
+
+            logger.info(
+                f"Removed non-system task status '{line_name}' from workspace {ws_id}, "
+                f"migrated {migrated} node(s) to fallback status"
+            )
+
+    if total_removed > 0:
+        logger.info(
+            f"Migration complete: removed {total_removed} non-system task status(es), "
+            f"migrated {total_migrated} node(s)"
+        )
 
 
 async def _migrate_mdi_prefix_icons(conn: asyncpg.Connection) -> None:
