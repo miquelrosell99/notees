@@ -10,6 +10,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import type { Property, SelectionOption, Node } from '@/types/api';
 import { useSetNodeProperty } from '@/hooks';
+import { NodeIcon } from '@/components/core/icons';
 import './PropertyIconButton.css';
 
 interface PropertyIconButtonProps {
@@ -108,7 +109,7 @@ export function PropertyIconButton({
         onClick={handleClick}
         title={`${property.name}: ${resolvedOptions.map((o) => o.name).join(', ')}`}
       >
-        {displayIcon}
+        {displayIcon && <NodeIcon icon={displayIcon} size="xs" />}
       </button>
       {isPickerOpen && (
         <div className="property-icon-picker" ref={pickerRef}>
@@ -122,7 +123,9 @@ export function PropertyIconButton({
               }}
             >
               {option.icon && (
-                <span className="property-icon-picker__icon">{option.icon}</span>
+                <span className="property-icon-picker__icon">
+                  <NodeIcon icon={option.icon} size="xs" />
+                </span>
               )}
               <span className="property-icon-picker__name">{option.name}</span>
               {resolvedOptions.some((r) => r.id === option.id) && (
