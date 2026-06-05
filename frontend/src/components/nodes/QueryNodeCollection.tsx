@@ -292,6 +292,11 @@ export function QueryNodeCollection({
     setCollectionViewMode(mode);
     setNodeViewMode(nodeId, viewType, mode);
   };
+
+  // View modes that actually render nested children
+  const childrenFriendlyViewModes: NodeCollectionViewMode[] = ['list', 'document', 'table', 'card'];
+  const needsChildren = childrenFriendlyViewModes.includes(collectionViewMode);
+  const queryPagesOnly = viewType === 'all_pages' || viewType === 'child_pages' || viewType === 'extended_by';
   
   // Default to 'page' — group by page automatically in list view
   const defaultGroupBy: NodeCollectionGroupBy = 'page';
@@ -462,8 +467,9 @@ export function QueryNodeCollection({
       current_node_id: nodeId,
       current_node_name: nodeNameToText(nodeName),
     },
-    includeChildren: viewType === 'linked_references' || viewType === 'child_pages' || viewType === 'all_pages' || collectionViewMode === 'card',
+    includeChildren: needsChildren,
     includeAllChildren: collectionViewMode === 'card',
+    pagesOnly: queryPagesOnly,
     includeProperties: true,
     enabled: !!activeView && nodeId > 0 && viewType !== 'linked_references',
   });
@@ -610,7 +616,9 @@ export function QueryNodeCollection({
         current_node_id: nodeId,
         current_node_name: nodeNameToText(nodeName),
       },
-      include_children: viewType === 'all_pages' || collectionViewMode === 'card',
+      include_children: needsChildren,
+      include_all_children: collectionViewMode === 'card',
+      pages_only: queryPagesOnly,
       include_properties: true,
     },
     {
@@ -631,7 +639,9 @@ export function QueryNodeCollection({
         current_node_id: nodeId,
         current_node_name: nodeNameToText(nodeName),
       },
-      include_children: collectionViewMode === 'card',
+      include_children: needsChildren,
+      include_all_children: collectionViewMode === 'card',
+      pages_only: queryPagesOnly,
       include_properties: true,
     },
     {
@@ -743,7 +753,9 @@ export function QueryNodeCollection({
         current_node_id: nodeId,
         current_node_name: nodeNameToText(nodeName),
       },
-      include_children: viewType === 'all_pages' || collectionViewMode === 'card',
+      include_children: needsChildren,
+      include_all_children: collectionViewMode === 'card',
+      pages_only: queryPagesOnly,
       include_properties: true,
     },
     {
@@ -1024,7 +1036,7 @@ export function QueryNodeCollection({
             can_create={can_create}
             can_edit={can_edit}
             can_delete={can_delete}
-            pagesOnly={viewType === 'all_pages' || viewType === 'child_pages' || viewType === 'extended_by'}
+            pagesOnly={queryPagesOnly}
             showClasses={showClasses}
             selectedPropertyUuids={selectedPropertyUuids}
             onPropertyColumnsChange={handlePropertyColumnsChange}

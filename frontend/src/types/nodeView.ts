@@ -79,6 +79,8 @@ export interface QueryExecuteRequest {
   offset?: number;
   order_by?: string;
   include_children?: boolean;
+  include_all_children?: boolean;
+  pages_only?: boolean;
   include_properties?: boolean;
   /** Fine-grained enrichment control */
   enrich?: {

@@ -75,6 +75,7 @@ class QueryExecuteRequest(BaseModel):
     order_by: str | None = None
     include_children: bool | None = False
     include_all_children: bool | None = False
+    pages_only: bool | None = False
     include_properties: bool | None = False
     # Enrichment control — only fetch what the view actually needs
     enrich: dict[str, bool] | None = None
@@ -203,14 +204,15 @@ async def _include_classes_for_results(user: User, results: list[dict[str, Any]]
 
 
 async def _include_children_for_results(
-    user: User, results: list[dict[str, Any]], blocks_only: bool = False
+    user: User, results: list[dict[str, Any]], blocks_only: bool = False, pages_only: bool = False
 ) -> list[dict[str, Any]]:
     """Recursively fetch children for each node in results.
 
     This adds 'children' to each node dict, populated with their child nodes.
 
-    When blocks_only is False (default): if results are pages, only fetches child pages recursively.
     When blocks_only is True (e.g. card view): only fetches direct child blocks (not pages), no recursion.
+    When pages_only is True (e.g. all_pages view): only fetches child pages recursively, skipping blocks.
+    Otherwise: fetches all descendants (pages and blocks) recursively.
     """
     if not results:
         return results
@@ -227,8 +229,8 @@ async def _include_children_for_results(
     if not node_ids:
         return results
 
-    # Default mode: if all results are pages, filter to pages only
-    pages_only = not blocks_only and all(r.get("is_page", False) for r in results if r.get("id"))
+    # Honour explicit pages_only flag unless we are in blocks_only mode
+    pages_only = pages_only and not blocks_only
 
     # Fetch all children for each node recursively
     # We'll use the repository's get_children method which returns direct children
@@ -756,7 +758,7 @@ async def execute_node_view_query(
     # Lazy enrichment: only fetch what's actually needed
     if should_include_children:
         logger.info(f"[execute_node_view_query] Fetching children for {len(results)} nodes")
-        results = await _include_children_for_results(user, results, blocks_only=request.include_all_children or False)
+        results = await _include_children_for_results(user, results, blocks_only=request.include_all_children or False, pages_only=request.pages_only or False)
 
     if should_include_classes:
         results = await _include_classes_for_results(user, results)
@@ -820,7 +822,7 @@ async def execute_query(
     should_include_properties = enrich.get("properties", request.include_properties or False)
 
     if should_include_children:
-        results = await _include_children_for_results(user, results, blocks_only=request.include_all_children or False)
+        results = await _include_children_for_results(user, results, blocks_only=request.include_all_children or False, pages_only=request.pages_only or False)
 
     if should_include_classes:
         results = await _include_classes_for_results(user, results)
