@@ -26,6 +26,8 @@ import { Table } from '../../core/Table';
 import { DragHandleIcon } from '../../core/icons';
 import { PropertyCell } from '../../properties/PropertyCell';
 import { NodeSelector } from '../NodeSelector';
+import { NodeRef } from '../NodeRef';
+import { CollapsiblePillRow } from '../CollapsiblePillRow';
 import { Button } from '../../core/Button';
 import { isNonRemovableClass, SYSTEM_CLASS_UUIDS } from '@/constants';
 import { compareBySequence, compareByWriteDateDesc, compareByCreateDateDesc, compareDateFirstAlpha } from '@/utils/nodeSort';
@@ -233,22 +235,38 @@ export const TableView = memo(function TableView({
                 .filter((c): c is Node => c !== undefined && c.uuid !== SYSTEM_CLASS_UUIDS.page);
 
               return (
-                <NodeSelector
-                  nodes={classNodes}
-                  searchMode="classes"
-                  emptyText="Add class"
-                  searchPlaceholder="Search classes..."
-                  onNodeClick={(classNode) => {
-                    openNode(classNode.id);
-                  }}
-                  onAdd={editable ? (classNode) => {
-                    addClass.mutate({ nodeId: node.id, classId: classNode.id });
-                  } : undefined}
-                  onRemove={editable ? (classNode) => {
-                    removeClass.mutate({ nodeId: node.id, classId: classNode.id });
-                  } : undefined}
-                  canRemove={(classNode) => !isNonRemovableClass(classNode.uuid)}
-                  readOnly={!editable}
+                <CollapsiblePillRow
+                  items={classNodes}
+                  getKey={(classNode) => classNode.id}
+                  renderPill={(classNode) => (
+                    <NodeRef
+                      node={classNode}
+                      onClick={() => openNode(classNode.id)}
+                      onRemove={
+                        editable && !isNonRemovableClass(classNode.uuid)
+                          ? () => removeClass.mutate({ nodeId: node.id, classId: classNode.id })
+                          : undefined
+                      }
+                      readOnly={!editable}
+                    />
+                  )}
+                  renderAddButton={
+                    editable
+                      ? () => (
+                          <NodeSelector
+                            nodes={[]}
+                            searchMode="classes"
+                            emptyText="+"
+                            searchPlaceholder="Search classes..."
+                            onAdd={(classNode) => {
+                              addClass.mutate({ nodeId: node.id, classId: classNode.id });
+                            }}
+                            readOnly={false}
+                          />
+                        )
+                      : undefined
+                  }
+                  popupTitle="Classes"
                 />
               );
             },
