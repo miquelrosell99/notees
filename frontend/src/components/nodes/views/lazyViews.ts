@@ -13,7 +13,6 @@ import './ListView';
 import './DocumentView';
 import './CardView';
 import './TableView';
-import './KanbanView';
 
 // Lazy-load heavy views (wrap named export into default for React.lazy)
 const GanttView = lazy(() => import('./GanttView').then((m) => ({ default: m.GanttView })));

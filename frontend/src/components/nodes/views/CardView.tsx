@@ -1,11 +1,9 @@
 /**
  * CardView — Card grid container.
  *
- * Adaptive CSS multi-column masonry layout.
- * - Column count determined by container width and card min-width (CSS)
- * - Sortable drag support
- * - Selectable checkboxes
- * - "Add card" button
+ * Adaptive CSS multi-column masonry layout when ungrouped.
+ * When grouped by a property, renders as a horizontal kanban board with
+ * drag-and-drop between columns that mutates the property value.
  *
  * Each card is rendered by NodeCard (from CardItem.tsx).
  */
@@ -20,6 +18,18 @@ import {
   type JSX,
 } from 'react';
 
+import {
+  DndContext,
+  type DragEndEvent,
+  type DragStartEvent,
+  DragOverlay,
+  useDraggable,
+  useDroppable,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+
 import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
 import { apiNodesToGraphNodes } from '@/hooks/useRuntimeSync';
 import { useStructureSync } from '@/hooks/useStructureSync';
@@ -27,15 +37,19 @@ import { useCollapsePersist } from '@/hooks/useCollapsePersist';
 import { useBlockPersist } from '@/hooks/useBlockPersist';
 import type { Node } from '@/types';
 import type { NodeCardViewProps } from '@/types/nodeCollection';
+
 import { useClasses, useNodes, useTags } from '@/hooks';
+import { useSetNodeProperty } from '@/hooks/useProperties';
 import { NodeCard } from './CardItem';
 import { getPropertyGroupInfo } from './viewHelpers';
 import { NodeIcon } from '@/components/core/icons';
+import { Button } from '@/components/core/Button';
 import { sortBySequence } from '@/utils/nodeSort';
-import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { useInView } from '@/hooks/useInView';
 
 import './CardView.css';
+
+import { registerView } from './registry';
 
 /** Lazy wrapper around NodeCard that only mounts the expensive BlockEditor when visible */
 function LazyNodeCard(props: React.ComponentProps<typeof NodeCard>) {
@@ -50,26 +64,166 @@ function LazyNodeCard(props: React.ComponentProps<typeof NodeCard>) {
     </div>
   );
 }
-import { registerView } from './registry';
-// ── Group type ───────────────────────────────────────────────────────────────
 
-interface CardGroup {
-  page?: Node | null;
-  label?: string;
-  /** Icon for the group header (selection option icon) */
-  headerIcon?: string | null;
+// ── Types ────────────────────────────────────────────────────────────────────
+
+interface PropertyColumnData {
+  id: string;
+  label: string;
+  icon: string | null;
   nodes: Node[];
+  value: unknown;
 }
 
-// ── Group sorting helper ───────────────────────────────────────────────────
+// ── Draggable Card (grouped mode) ────────────────────────────────────────────
 
-/** Move the "None" group to the end so informed values appear first. */
-function sortGroupsNoneLast(groups: CardGroup[]): CardGroup[] {
-  const noneIndex = groups.findIndex(g => g.label === 'None' && !g.page);
-  if (noneIndex === -1) return groups;
-  const noneGroup = groups[noneIndex];
-  const others = groups.filter((_, i) => i !== noneIndex);
-  return [...others, noneGroup];
+interface KanbanCardProps {
+  node: Node;
+  editable: boolean;
+  layout: 'no-cover' | 'cover-top' | 'cover-left' | 'cover-right';
+  allClasses?: Node[];
+  allNodes?: Node[];
+  allTags?: Node[];
+  onNodeClick?: (node: Node) => void;
+  onNodeShiftClick?: (node: Node) => void;
+  onContentChange?: (nodeId: number, content: string) => void;
+  customContextMenu?: React.ComponentType<{
+    node: Node;
+    position: { x: number; y: number };
+    onClose: () => void;
+  }>;
+}
+
+function KanbanCard({
+  node,
+  editable,
+  layout,
+  allClasses,
+  allNodes,
+  allTags,
+  onNodeClick,
+  onNodeShiftClick,
+  onContentChange,
+  customContextMenu,
+}: KanbanCardProps) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: `card-dnd-${node.id}`,
+    data: { type: 'card', nodeId: node.id },
+  });
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={`node-card-view__kanban-card ${isDragging ? 'node-card-view__kanban-card--dragging' : ''}`}
+      {...attributes}
+      {...listeners}
+    >
+      <LazyNodeCard
+        node={node}
+        index={0}
+        layout={layout}
+        sortable={false}
+        isDragging={isDragging}
+        isDropTarget={false}
+        editable={editable}
+        allClasses={allClasses}
+        allNodes={allNodes}
+        allTags={allTags}
+        onNodeClick={onNodeClick}
+        onNodeShiftClick={onNodeShiftClick}
+        onContentChange={onContentChange}
+        customContextMenu={customContextMenu}
+      />
+    </div>
+  );
+}
+
+// ── Droppable Column (grouped mode) ──────────────────────────────────────────
+
+interface KanbanColumnProps {
+  column: PropertyColumnData;
+  editable: boolean;
+  layout: 'no-cover' | 'cover-top' | 'cover-left' | 'cover-right';
+  allClasses?: Node[];
+  allNodes?: Node[];
+  allTags?: Node[];
+  onNodeClick?: (node: Node) => void;
+  onNodeShiftClick?: (node: Node) => void;
+  onContentChange?: (nodeId: number, content: string) => void;
+  customContextMenu?: React.ComponentType<{
+    node: Node;
+    position: { x: number; y: number };
+    onClose: () => void;
+  }>;
+  collapsed: boolean;
+  onToggleCollapse: () => void;
+}
+
+function KanbanColumn({
+  column,
+  editable,
+  layout,
+  allClasses,
+  allNodes,
+  allTags,
+  onNodeClick,
+  onNodeShiftClick,
+  onContentChange,
+  customContextMenu,
+  collapsed,
+  onToggleCollapse,
+}: KanbanColumnProps) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: `card-column-${column.id}`,
+    data: { type: 'column', columnId: column.id, value: column.value },
+  });
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={`node-card-view__kanban-column ${isOver ? 'node-card-view__kanban-column--over' : ''} ${collapsed ? 'node-card-view__kanban-column--collapsed' : ''}`}
+      data-column-id={column.id}
+    >
+      <div
+        className="node-card-view__kanban-header"
+        onClick={onToggleCollapse}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggleCollapse(); } }}
+        role="button"
+        tabIndex={0}
+      >
+        {column.icon && <NodeIcon icon={column.icon} size="xs" className="node-card-view__kanban-icon" />}
+        <span className="node-card-view__kanban-title">{column.label}</span>
+        <span className="node-card-view__kanban-count">{column.nodes.length}</span>
+        <Button
+          icon={collapsed ? 'mdi mdi-chevron-right' : 'mdi mdi-chevron-down'}
+          variant="ghost"
+          size="xs"
+          className="node-card-view__kanban-collapse-btn hover-reveal"
+          onClick={(e) => { e.stopPropagation(); onToggleCollapse(); }}
+        />
+      </div>
+
+      {!collapsed && (
+        <div className="node-card-view__kanban-cards">
+          {column.nodes.map((node) => (
+            <KanbanCard
+              key={node.id}
+              node={node}
+              editable={editable}
+              layout={layout}
+              allClasses={allClasses}
+              allNodes={allNodes}
+              allTags={allTags}
+              onNodeClick={onNodeClick}
+              onNodeShiftClick={onNodeShiftClick}
+              onContentChange={onContentChange}
+              customContextMenu={customContextMenu}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ─── Component ────────────────────────────────────────────────────
@@ -88,7 +242,7 @@ export const CardView = memo(function CardView({
   onContentChange,
   customContextMenu,
   className = '',
-  groupBy = 'none',
+  groupBy: _groupBy,
   groupByProperty,
 }: NodeCardViewProps): JSX.Element {
   // ─── Sync structural changes to database ───────────────────
@@ -120,69 +274,74 @@ export const CardView = memo(function CardView({
   // Sort cards by sequence (order field)
   const sortedNodes = useMemo(() => sortBySequence(nodes), [nodes]);
 
-  // Group nodes by page or property value
-  const groupedNodes = useMemo((): CardGroup[] | null => {
-    if (groupBy === 'none') {
-      return null; // No grouping
+  // ─── Build property columns (grouped kanban mode) ──────────
+  const propertyColumns = useMemo((): PropertyColumnData[] | null => {
+    if (!groupByProperty) {
+      return null;
     }
 
-    if (groupBy === 'page') {
-      const groups = new Map<string, CardGroup>();
+    const propId = String(groupByProperty.id);
+    const valueMap = new Map<string, PropertyColumnData>();
 
-      for (const node of sortedNodes) {
-        const pageId = node.page_id;
+    // Seed columns from property options (for selection properties)
+    if (groupByProperty.type === 'selection' && groupByProperty.options) {
+      for (const opt of groupByProperty.options) {
+        const key = `opt-${opt.id}`;
+        valueMap.set(key, {
+          id: key,
+          label: opt.name,
+          icon: opt.icon ?? null,
+          nodes: [],
+          value: opt.id,
+        });
+      }
+    }
 
-        if (pageId) {
-          const pageKey = `page-${pageId}`;
-          if (!groups.has(pageKey)) {
-            const pageNode = {
-              id: pageId,
-              name: node.page_name || 'Untitled',
-              uuid: node.page_uuid || '',
-              is_page: true,
-            } as Node;
-            groups.set(pageKey, { page: pageNode, nodes: [] });
-          }
-          groups.get(pageKey)!.nodes.push(node);
-        } else {
-          // Pages and blocks without a page_id → None group
-          if (!groups.has('none')) {
-            groups.set('none', { label: 'None', nodes: [] });
-          }
-          groups.get('none')!.nodes.push(node);
+    // Distribute nodes into columns
+    for (const node of sortedNodes) {
+      const rawValue = (node.properties as Record<string, unknown> | undefined)?.[propId] ?? null;
+
+      if (rawValue === null || rawValue === undefined) {
+        if (!valueMap.has('none')) {
+          valueMap.set('none', { id: 'none', label: 'None', icon: null, nodes: [], value: null });
         }
+        valueMap.get('none')!.nodes.push(node);
+      } else {
+        const { label, icon } = getPropertyGroupInfo(groupByProperty, rawValue);
+        let key: string;
+        if (typeof rawValue === 'number') {
+          key = `opt-${rawValue}`;
+        } else if (typeof rawValue === 'object' && rawValue !== null && 'id' in rawValue) {
+          key = `opt-${(rawValue as { id: number }).id}`;
+        } else {
+          key = `val-${label}`;
+        }
+
+        if (!valueMap.has(key)) {
+          valueMap.set(key, { id: key, label, icon, nodes: [], value: rawValue });
+        }
+        valueMap.get(key)!.nodes.push(node);
+      }
+    }
+
+    // Sort columns: None first, then option-defined ones (by option sequence), then discovered ones
+    const sorted = Array.from(valueMap.values());
+    sorted.sort((a, b) => {
+      const aIsNone = a.id === 'none' ? -1 : 0;
+      const bIsNone = b.id === 'none' ? -1 : 0;
+      if (aIsNone !== bIsNone) return aIsNone - bIsNone;
+
+      if (groupByProperty.type === 'selection' && groupByProperty.options) {
+        const aOpt = groupByProperty.options.find((o) => `opt-${o.id}` === a.id);
+        const bOpt = groupByProperty.options.find((o) => `opt-${o.id}` === b.id);
+        if (aOpt && bOpt) return (aOpt.sequence ?? 0) - (bOpt.sequence ?? 0);
       }
 
-      return sortGroupsNoneLast(Array.from(groups.values()));
-    }
+      return a.label.localeCompare(b.label);
+    });
 
-    // Property-based grouping
-    if (groupByProperty) {
-      const propId = String(groupByProperty.id);
-      const groups = new Map<string, CardGroup>();
-
-      for (const node of sortedNodes) {
-        const rawValue = (node.properties as Record<string, unknown> | undefined)?.[propId] ?? null;
-
-        if (rawValue === null || rawValue === undefined) {
-          if (!groups.has('none')) {
-            groups.set('none', { label: 'None', nodes: [] });
-          }
-          groups.get('none')!.nodes.push(node);
-        } else {
-          const { label, icon } = getPropertyGroupInfo(groupByProperty, rawValue);
-          if (!groups.has(label)) {
-            groups.set(label, { label, headerIcon: icon, nodes: [] });
-          }
-          groups.get(label)!.nodes.push(node);
-        }
-      }
-
-      return sortGroupsNoneLast(Array.from(groups.values()));
-    }
-
-    return null;
-  }, [sortedNodes, groupBy, groupByProperty]);
+    return sorted.map((col) => ({ ...col, nodes: sortBySequence(col.nodes) }));
+  }, [sortedNodes, groupByProperty]);
 
   // Fetch all classes, nodes, and tags for icon/metadata resolution
   const { data: allClasses } = useClasses();
@@ -195,7 +354,7 @@ export const CardView = memo(function CardView({
   const selectedIds = selectable ? (controlledSelectedIds ?? internalSelectedIds) : undefined;
   const onSelectionChange = selectable ? (controlledOnSelectionChange ?? setInternalSelectedIds) : undefined;
 
-  // Drag state
+  // ─── Reorder drag state (ungrouped only) ────────────────────
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [dropTargetIndex, setDropTargetIndex] = useState<number | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -213,9 +372,8 @@ export const CardView = memo(function CardView({
     onSelectionChange(newSelectedIds);
   }, [selectedIds, onSelectionChange]);
 
-  // Handle drag start
+  // Handle drag start (reorder)
   const handleDragStart = useCallback((index: number) => {
-    // Cache card positions at drag start to avoid layout thrashing on every mousemove
     if (containerRef.current) {
       cardRectsRef.current = Array.from(containerRef.current.querySelectorAll('.node-card')).map(
         (el) => el.getBoundingClientRect()
@@ -224,7 +382,7 @@ export const CardView = memo(function CardView({
     setDragIndex(index);
   }, []);
 
-  // Handle mouse move during drag
+  // Handle mouse move during drag (reorder)
   useEffect(() => {
     if (dragIndex === null || !sortable) return;
 
@@ -265,75 +423,123 @@ export const CardView = memo(function CardView({
     };
   }, [dragIndex, dropTargetIndex, sortable, onReorder]);
 
+  // ─── Kanban DnD state (grouped only) ────────────────────────
+  const setNodeProperty = useSetNodeProperty();
+  const [collapsedColumns, setCollapsedColumns] = useState<Set<string>>(new Set());
+  const [dndActiveId, setDndActiveId] = useState<string | null>(null);
+
+  const dndActiveNode = useMemo(() => {
+    if (!dndActiveId) return null;
+    const nodeId = Number(dndActiveId.replace('card-dnd-', ''));
+    return nodes.find((n) => n.id === nodeId) ?? null;
+  }, [dndActiveId, nodes]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
+  );
+
+  const toggleColumn = useCallback((columnId: string) => {
+    setCollapsedColumns((prev) => {
+      const next = new Set(prev);
+      if (next.has(columnId)) next.delete(columnId);
+      else next.add(columnId);
+      return next;
+    });
+  }, []);
+
+  const handleDndDragStart = useCallback((event: DragStartEvent) => {
+    setDndActiveId(String(event.active.id));
+  }, []);
+
+  const handleDndDragEnd = useCallback((event: DragEndEvent) => {
+    const { active, over } = event;
+    setDndActiveId(null);
+    if (!over || !active.data.current) return;
+
+    const activeNodeId = Number(String(active.id).replace('card-dnd-', ''));
+    const overData = over.data.current as { type?: string; columnId?: string; value?: unknown } | undefined;
+
+    if (!overData || overData.type !== 'column') return;
+
+    const targetColumn = propertyColumns?.find((c) => c.id === overData.columnId);
+    if (!targetColumn || !groupByProperty) return;
+
+    const activeNodeData = active.data.current as { type?: string; nodeId?: number } | undefined;
+    const sourceColumn = propertyColumns?.find((c) => c.nodes.some((n) => n.id === activeNodeData?.nodeId));
+    if (sourceColumn && sourceColumn.id === targetColumn.id) return;
+
+    const newValue = targetColumn.value;
+    setNodeProperty.mutate({
+      nodeId: activeNodeId,
+      propertyId: groupByProperty.id,
+      value: newValue,
+    });
+  }, [propertyColumns, groupByProperty, setNodeProperty]);
+
   const gridClassName = [
     'node-card-view',
     sortable && 'node-card-view--sortable',
     selectable && 'node-card-view--selectable',
     layout === 'cover-top' && 'node-card-view--vertical-layout',
-    groupedNodes && groupedNodes.length > 0 && 'node-card-view--kanban',
+    propertyColumns && propertyColumns.length > 0 && 'node-card-view--kanban',
     className,
   ].filter(Boolean).join(' ');
 
-  // Kanban view (grouped)
-  if (groupedNodes && groupedNodes.length > 0) {
+  // ─── Property-grouped kanban view ────────────────────────────
+  if (propertyColumns && propertyColumns.length > 0) {
     return (
-      <div className={gridClassName} ref={containerRef}>
-        {groupedNodes.map((group, groupIndex) => {
-          const groupKey = group.page?.id
-            ? `page-${group.page.id}`
-            : group.label !== undefined
-              ? `prop-${group.label}`
-              : `group-${groupIndex}`;
+      <DndContext
+        sensors={sensors}
+        onDragStart={handleDndDragStart}
+        onDragEnd={handleDndDragEnd}
+      >
+        <div className={gridClassName}>
+          {propertyColumns.map((column) => (
+            <KanbanColumn
+              key={column.id}
+              column={column}
+              editable={editable}
+              layout="no-cover"
+              allClasses={allClasses}
+              allNodes={allNodes}
+              allTags={allTags}
+              onNodeClick={onNodeClick}
+              onNodeShiftClick={onNodeShiftClick}
+              onContentChange={onContentChange}
+              customContextMenu={customContextMenu}
+              collapsed={collapsedColumns.has(column.id)}
+              onToggleCollapse={() => toggleColumn(column.id)}
+            />
+          ))}
+        </div>
 
-          return (
-            <div key={groupKey} className="node-card-view__kanban-column">
-              <div className="node-card-view__kanban-header">
-                {group.page ? (
-                  <>
-                    {group.page.icon && <NodeIcon icon={group.page.icon} size="xs" className="node-card-view__kanban-icon" />}
-                    <span className="node-card-view__kanban-title">{nodeNameToText(group.page.name) || 'Untitled'}</span>
-                    <span className="node-card-view__kanban-count">{group.nodes.length}</span>
-                  </>
-                ) : (
-                  <>
-                    {group.headerIcon && <NodeIcon icon={group.headerIcon} size="xs" className="node-card-view__kanban-icon" />}
-                    <span className="node-card-view__kanban-title">{group.label ?? 'None'}</span>
-                    <span className="node-card-view__kanban-count">{group.nodes.length}</span>
-                  </>
-                )}
-              </div>
-              <div className="node-card-view__kanban-cards">
-                {group.nodes.map((node, index) => (
-                  <LazyNodeCard
-                    key={node.id}
-                    node={node}
-                    index={index}
-                    layout={layout}
-                    sortable={false}
-                    isDragging={false}
-                    isDropTarget={false}
-                    editable={editable}
-                    allClasses={allClasses}
-                    allNodes={allNodes}
-                    allTags={allTags}
-                    isSelected={selectable && selectedIds?.has(node.id)}
-                    onNodeClick={onNodeClick}
-                    onNodeShiftClick={onNodeShiftClick}
-                    onContentChange={onContentChange}
-                    onDragStart={handleDragStart}
-                    onSelectionChange={selectable ? handleCardSelectionChange : undefined}
-                    customContextMenu={customContextMenu}
-                  />
-                ))}
-              </div>
+        <DragOverlay>
+          {dndActiveNode ? (
+            <div className="node-card-view__kanban-card node-card-view__kanban-card--overlay">
+              <NodeCard
+                node={dndActiveNode}
+                index={0}
+                layout="no-cover"
+                sortable={false}
+                isDragging={true}
+                isDropTarget={false}
+                editable={editable}
+                allClasses={allClasses}
+                allNodes={allNodes}
+                allTags={allTags}
+                onNodeClick={onNodeClick}
+                onNodeShiftClick={onNodeShiftClick}
+                onContentChange={onContentChange}
+                customContextMenu={customContextMenu}
+              />
             </div>
-          );
-        })}
-      </div>
+          ) : null}
+        </DragOverlay>
+      </DndContext>
     );
   }
 
-  // Normal grid view
+  // ─── Normal grid view ────────────────────────────────────────
   return (
     <div className={gridClassName} ref={containerRef}>
       {sortedNodes.map((node, index) => (
@@ -358,7 +564,6 @@ export const CardView = memo(function CardView({
           customContextMenu={customContextMenu}
         />
       ))}
-
     </div>
   );
 });
