@@ -381,33 +381,36 @@ export interface NodeDocumentViewProps extends NodeCollectionViewBaseProps {
 export interface NodeCardViewProps extends NodeCollectionViewBaseProps {
   /** Card layout style */
   layout?: 'no-cover' | 'cover-top' | 'cover-left' | 'cover-right';
-  
+
   /** Number of columns (default: auto) */
   columns?: number;
-  
+
   /** Whether cards are sortable (enables drag-and-drop reordering) */
   sortable?: boolean;
-  
+
   /** Called when nodes are reordered (only when sortable=true) */
   onReorder?: (fromIndex: number, toIndex: number) => void;
-  
+
   /** Whether cards are selectable (shows checkbox on hover) */
   selectable?: boolean;
-  
+
   /** Callback when Add button is clicked */
   onAdd?: () => void;
-  
+
   /** Controlled selected node IDs */
   selectedIds?: Set<number>;
-  
+
   /** Called when selection changes */
   onSelectionChange?: (selectedIds: Set<number>) => void;
-  
+
   /** Group by option - property UUID for property-based kanban columns; 'none' for masonry grid */
   groupBy?: NodeCollectionGroupBy;
 
   /** Property object when groupBy is a property UUID */
   groupByProperty?: Property;
+
+  /** Whether to show breadcrumbs above card titles (default: false) */
+  showBreadcrumbs?: boolean;
 }
 
 /**

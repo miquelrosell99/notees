@@ -386,6 +386,7 @@ export const NodeCollection = memo(function NodeCollection({
           onPasteImage,
           onTemplateInstantiate,
           templateClassFilters,
+          showBreadcrumbs,
         };
 
       case 'table':

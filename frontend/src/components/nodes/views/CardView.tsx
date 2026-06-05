@@ -92,6 +92,7 @@ interface KanbanCardProps {
     position: { x: number; y: number };
     onClose: () => void;
   }>;
+  showBreadcrumbs?: boolean;
 }
 
 function KanbanCard({
@@ -105,6 +106,7 @@ function KanbanCard({
   onNodeShiftClick,
   onContentChange,
   customContextMenu,
+  showBreadcrumbs,
 }: KanbanCardProps) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `card-dnd-${node.id}`,
@@ -133,6 +135,7 @@ function KanbanCard({
         onNodeShiftClick={onNodeShiftClick}
         onContentChange={onContentChange}
         customContextMenu={customContextMenu}
+        showBreadcrumbs={showBreadcrumbs}
       />
     </div>
   );
@@ -157,6 +160,7 @@ interface KanbanColumnProps {
   }>;
   collapsed: boolean;
   onToggleCollapse: () => void;
+  showBreadcrumbs?: boolean;
 }
 
 function KanbanColumn({
@@ -172,6 +176,7 @@ function KanbanColumn({
   customContextMenu,
   collapsed,
   onToggleCollapse,
+  showBreadcrumbs,
 }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({
     id: `card-column-${column.id}`,
@@ -218,6 +223,7 @@ function KanbanColumn({
               onNodeShiftClick={onNodeShiftClick}
               onContentChange={onContentChange}
               customContextMenu={customContextMenu}
+              showBreadcrumbs={showBreadcrumbs}
             />
           ))}
         </div>
@@ -244,6 +250,7 @@ export const CardView = memo(function CardView({
   className = '',
   groupBy: _groupBy,
   groupByProperty,
+  showBreadcrumbs = false,
 }: NodeCardViewProps): JSX.Element {
   // ─── Sync structural changes to database ───────────────────
   useStructureSync();
@@ -509,6 +516,7 @@ export const CardView = memo(function CardView({
               customContextMenu={customContextMenu}
               collapsed={collapsedColumns.has(column.id)}
               onToggleCollapse={() => toggleColumn(column.id)}
+              showBreadcrumbs={showBreadcrumbs}
             />
           ))}
         </div>
@@ -531,6 +539,7 @@ export const CardView = memo(function CardView({
                 onNodeShiftClick={onNodeShiftClick}
                 onContentChange={onContentChange}
                 customContextMenu={customContextMenu}
+                showBreadcrumbs={showBreadcrumbs}
               />
             </div>
           ) : null}
@@ -562,6 +571,7 @@ export const CardView = memo(function CardView({
           onDragStart={handleDragStart}
           onSelectionChange={selectable ? handleCardSelectionChange : undefined}
           customContextMenu={customContextMenu}
+          showBreadcrumbs={showBreadcrumbs}
         />
       ))}
     </div>
