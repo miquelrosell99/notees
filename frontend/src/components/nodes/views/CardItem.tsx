@@ -41,6 +41,7 @@ import { ImageNode } from '@/components/nodes/ImageNode';
 import { AddCoverButton } from '@/components/core/AddCoverButton';
 import { AssetUploadModal } from '@/components/assets/AssetUploadModal';
 import { PageContextMenu, BlockContextMenu } from '@/components/nodes/NodeContextMenu';
+import { CardBreadcrumbs } from '@/components/nodes/CardBreadcrumbs';
 import { SYSTEM_PROPERTY_UUIDS, SYSTEM_CLASS_UUIDS, isNonRemovableClass } from '@/constants';
 import { useQueryClient } from '@tanstack/react-query';
 import { nodeKeys } from '@/hooks/queryKeys';
@@ -118,6 +119,7 @@ export interface NodeCardProps {
     position: { x: number; y: number };
     onClose: () => void;
   }>;
+  showBreadcrumbs?: boolean;
 }
 
 /**
@@ -142,6 +144,7 @@ export const NodeCard = memo(function NodeCard({
   customContextMenu,
   allNodes,
   allTags,
+  showBreadcrumbs = false,
 }: NodeCardProps): JSX.Element {
   const children = useMemo(() => node.children ?? [], [node.children]);
   const hasChildren = children.length > 0;
@@ -631,44 +634,51 @@ export const NodeCard = memo(function NodeCard({
         {layout !== 'no-cover' && coverElement}
 
         {/* Row: Title */}
-        <div className="node-card__header">
-          <button
-            className={`node-card__collapse-btn${hasChildren ? ' node-card__collapse-btn--has-children' : ''}`}
-            onClick={(e) => { e.stopPropagation(); setIsBodyCollapsed(v => !v); }}
-            title={isBodyCollapsed ? 'Expand' : 'Collapse'}
-            aria-label={isBodyCollapsed ? 'Expand' : 'Collapse'}
-            aria-expanded={!isBodyCollapsed}
-          >
-            <Icon path={"mdi mdi-chevron-down"} size={0.6} rotate={isBodyCollapsed ? -90 : 0} />
-          </button>
-          <div className="node-card__title-wrapper">
-            <CardTitleEditor
-              blockId={String(node.uuid || node.id)}
-              initialContent={node.name}
-              readOnly={!editable}
-              onContentChange={handleLexicalContentChange}
-              onNavigateToNode={handleNavigateToNode}
-            />
-            {editable && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleOpenInSidebar}
-                icon={"mdi mdi-dock-right"}
-                className="node-card__action-button hover-reveal"
-                aria-label="Open in sidebar"
+        <div className={`node-card__header${showBreadcrumbs ? ' node-card__header--with-breadcrumbs' : ''}`}>
+          {showBreadcrumbs && (
+            <div className="node-card__breadcrumbs-row">
+              <CardBreadcrumbs node={node} />
+            </div>
+          )}
+          <div className="node-card__header-row">
+            <button
+              className={`node-card__collapse-btn${hasChildren ? ' node-card__collapse-btn--has-children' : ''}`}
+              onClick={(e) => { e.stopPropagation(); setIsBodyCollapsed(v => !v); }}
+              title={isBodyCollapsed ? 'Expand' : 'Collapse'}
+              aria-label={isBodyCollapsed ? 'Expand' : 'Collapse'}
+              aria-expanded={!isBodyCollapsed}
+            >
+              <Icon path={"mdi mdi-chevron-down"} size={0.6} rotate={isBodyCollapsed ? -90 : 0} />
+            </button>
+            <div className="node-card__title-wrapper">
+              <CardTitleEditor
+                blockId={String(node.uuid || node.id)}
+                initialContent={node.name}
+                readOnly={!editable}
+                onContentChange={handleLexicalContentChange}
+                onNavigateToNode={handleNavigateToNode}
               />
-            )}
-            {editable && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleOpenInView}
-                icon={"mdi mdi-arrow-right"}
-                className="node-card__action-button hover-reveal"
-                aria-label="Open node"
-              />
-            )}
+              {editable && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleOpenInSidebar}
+                  icon={"mdi mdi-dock-right"}
+                  className="node-card__action-button hover-reveal"
+                  aria-label="Open in sidebar"
+                />
+              )}
+              {editable && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleOpenInView}
+                  icon={"mdi mdi-arrow-right"}
+                  className="node-card__action-button hover-reveal"
+                  aria-label="Open node"
+                />
+              )}
+            </div>
           </div>
         </div>
 
