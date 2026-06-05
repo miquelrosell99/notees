@@ -256,7 +256,7 @@ export const TableView = memo(function TableView({
                           <NodeSelector
                             nodes={[]}
                             searchMode="classes"
-                            emptyText="+"
+                            emptyText=""
                             searchPlaceholder="Search classes..."
                             onAdd={(classNode) => {
                               addClass.mutate({ nodeId: node.id, classId: classNode.id });
