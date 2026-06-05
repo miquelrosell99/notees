@@ -114,7 +114,7 @@ function AppContent() {
   
   // Check enrollment status from user settings (useQuery avoids setState-in-effect)
   const { isLoading: isCheckingEnrollment, data: enrollmentSettings } = useQuery({
-    queryKey: ['enrollment-check'],
+    queryKey: settingsKeys.all,
     queryFn: getSettings,
     enabled: isAuthenticated,
     staleTime: Infinity,
@@ -165,23 +165,23 @@ function AppContent() {
     toggleCalendar();
   }, { enabled: isAuthenticated, label: 'Go to Today' });
   
-  // Gate Layout behind settings: fetch settings BEFORE Layout mounts.
-  // This ensures GET /settings completes before journal/workspace views
-  // start their request flood, so settings doesn't compete for browser connections.
-  const { isSuccess: settingsLoaded, isLoading: isLoadingSettings } = useQuery({
-    queryKey: settingsKeys.all,
-    queryFn: getSettings,
-    enabled: !!dbData?.active,
-    staleTime: 1000 * 60 * 5,
-  });
+  // Settings are already fetched above for enrollment check. Re-use that query
+  // for the Layout gate instead of firing a duplicate GET /settings.
+  const settingsLoaded = !!enrollmentSettings;
+  const isLoadingSettings = isCheckingEnrollment;
 
-  // Load favorites and recents AFTER settings load — prevents connection contention
+  // Load favorites and recents AFTER critical requests complete.
+  // Defer by 1.5s so the browser's 6-connection pool is free for
+  // daily-node, workspace, and page-list requests first.
   useEffect(() => {
     if (!settingsLoaded) return;
-    const store = useFavoritesStore.getState();
-    store.loadFavorites();
-    store.loadRecents();
-    clearScratchpad().catch(() => {/* ignore — scratchpad may not exist yet */});
+    const timer = setTimeout(() => {
+      const store = useFavoritesStore.getState();
+      store.loadFavorites();
+      store.loadRecents();
+      clearScratchpad().catch(() => {/* ignore — scratchpad may not exist yet */});
+    }, 1500);
+    return () => clearTimeout(timer);
   }, [settingsLoaded]);
   
   useEffect(() => {
