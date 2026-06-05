@@ -171,11 +171,12 @@ export function useNodeByUuid(
     meta?: Record<string, unknown>;
   }
 ) {
+  const { meta, ...apiOptions } = options || {};
   return useQuery({
     queryKey: nodeKeys.byUuid(uuid ?? ''),
-    queryFn: () => nodesApi.getNodeByUuid(uuid!, options),
+    queryFn: () => nodesApi.getNodeByUuid(uuid!, apiOptions),
     enabled: !!uuid,
-    meta: options?.meta,
+    meta,
   });
 }
 

@@ -866,7 +866,7 @@ BEGIN
 
         -- Insert the Closed Date property
         INSERT INTO property (uuid, workspace_id, name, icon, type, is_multi, is_system, create_date, write_date)
-        VALUES ('00000000-0000-0000-0003-000000000005', ws.id, 'Closed Date', 'mdi:calendar-remove', 'date', FALSE, FALSE, NOW(), NOW())
+        VALUES ('00000000-0000-0000-0003-000000000005', ws.id, 'Closed Date', 'calendar-remove', 'date', FALSE, FALSE, NOW(), NOW())
         ON CONFLICT (workspace_id, uuid) DO NOTHING
         RETURNING id INTO prop_id;
 

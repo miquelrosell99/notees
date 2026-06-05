@@ -11,7 +11,7 @@ from ...db.connection import get_workspace_uuid
 from ...db.schema.constants import SYSTEM_CLASS_UUIDS
 from ...logging_config import get_logger
 from ..entities import Node, NodeCreateData, NodeUpdateData
-from ..errors import DatePageDeletionError, DuplicateNodeError, PermissionDeniedError
+from ..errors import DatePageDeletionError, DuplicateNodeError, NodeValidationError, PermissionDeniedError
 from ..permissions import PermissionChecker
 from ..stringify_ast import ParseMode, StringifyMode, StringifyOptions, parse_ast, serialize_ast, stringify_ast
 from ..validation import validate_node_create, validate_node_update
@@ -352,6 +352,15 @@ class NodeService:
 
         # Validate input
         validate_node_create(data.name, data.icon, data.color)
+
+        # Validate parent_id exists when provided
+        if data.parent_id is not None:
+            parent = await self._node_repo.get_by_id(data.parent_id)
+            if parent is None:
+                raise NodeValidationError(
+                    f"Parent node does not exist: {data.parent_id}",
+                    field="parent_id",
+                )
 
         # Validate page name uniqueness if it's a page with classes
         if is_page and data.classes:
@@ -1065,7 +1074,7 @@ class NodeService:
                         '[]'::jsonb
                     ),
                     write_date = NOW()
-                    WHERE key = 'favorites' AND value @> to_jsonb($1)
+                    WHERE key = 'favorites' AND value @> to_jsonb($1::int)
                 """,
                     node_id,
                 )

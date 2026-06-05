@@ -52,6 +52,15 @@
   padding-left: calc(20px + var(--spacing-2));
 }
 
+/* Refresh indicator — shown when results are being updated in the background.
+   Positioned subtly so it doesn't cause layout shifts. */
+.query-section__refreshing {
+  display: flex;
+  justify-content: center;
+  padding: 0.5rem;
+  opacity: 0.6;
+}
+
 /* ==================== Linked References ==================== */
 
 /* PAGES section header in linked references list view */

@@ -83,6 +83,9 @@ async def init_database(conn: asyncpg.Connection) -> None:
     # Migrate from visibility column to is_private boolean (migration for existing DBs)
     await _migrate_visibility_to_is_private(conn)
 
+    # Strip mdi: prefix from property and selection line icons (migration for existing DBs)
+    await _migrate_mdi_prefix_icons(conn)
+
     # Seed default system settings
     await _seed_system_settings(conn)
 
@@ -267,7 +270,7 @@ async def _ensure_task_recurrence_property(conn: asyncpg.Connection) -> None:
         recurrence_row = await conn.fetchrow(
             """
             INSERT INTO property (uuid, workspace_id, name, icon, type, is_multi, is_system, create_date, write_date, create_uid, write_uid)
-            VALUES ($1, $2, 'Recurrence', 'mdi:repeat', 'selection', FALSE, FALSE, $3, $3, $4, $4)
+            VALUES ($1, $2, 'Recurrence', 'repeat', 'selection', FALSE, FALSE, $3, $3, $4, $4)
             ON CONFLICT (workspace_id, uuid) DO UPDATE SET uuid = EXCLUDED.uuid
             RETURNING id
         """,
@@ -486,6 +489,58 @@ async def _migrate_visibility_to_is_private(conn: asyncpg.Connection) -> None:
             """
         )
         logger.info("Created idx_node_is_private index")
+
+
+async def _migrate_mdi_prefix_icons(conn: asyncpg.Connection) -> None:
+    """Strip the legacy 'mdi:' prefix from property and selection line icons.
+
+    The frontend icon system expects plain kebab-case names (e.g. 'circle-outline').
+    Older data was stored with a Logseq-style 'mdi:' prefix (e.g. 'mdi:circle-outline')
+    which renders as raw text in components that do not handle the prefix.
+
+    This migration updates both property.icon and property_selection_line.icon,
+    including JSON-encoded icon objects that contain an 'icon' key.
+    """
+    from ...logging_config import get_logger
+
+    logger = get_logger(__name__)
+
+    # plain property icons
+    result = await conn.execute(
+        """
+        UPDATE property
+        SET icon = REGEXP_REPLACE(icon, '^mdi:', '')
+        WHERE icon LIKE 'mdi:%'
+        """
+    )
+    prop_count = int(result.split()[-1]) if result else 0
+
+    # selection line plain icons
+    result = await conn.execute(
+        """
+        UPDATE property_selection_line
+        SET icon = REGEXP_REPLACE(icon, '^mdi:', '')
+        WHERE icon LIKE 'mdi:%' AND icon NOT LIKE '{%}'
+        """
+    )
+    line_count = int(result.split()[-1]) if result else 0
+
+    # JSON-encoded selection line icons: {"icon":"mdi:...","color":"..."}
+    result = await conn.execute(
+        """
+        UPDATE property_selection_line
+        SET icon = REGEXP_REPLACE(icon, '"icon":"mdi:', '"icon":"', 'g')
+        WHERE icon LIKE '%"icon":"mdi:%'
+        """
+    )
+    json_count = int(result.split()[-1]) if result else 0
+
+    total = prop_count + line_count + json_count
+    if total > 0:
+        logger.info(
+            f"Stripped mdi: prefix from {total} icon rows "
+            f"({prop_count} properties, {line_count} selection lines, {json_count} JSON icons)"
+        )
 
 
 async def seed_workspace(conn: asyncpg.Connection, workspace_id: int, user_id: int) -> None:
@@ -716,7 +771,7 @@ async def seed_workspace(conn: asyncpg.Connection, workspace_id: int, user_id: i
         status_row = await conn.fetchrow(
             """
             INSERT INTO property (uuid, workspace_id, name, icon, type, is_multi, is_system, icon_visibility, create_date, write_date, create_uid, write_uid)
-            VALUES ($1, $2, 'Status', 'mdi:list-status', 'selection', FALSE, FALSE, 'after_bullet', $3, $3, $4, $4)
+            VALUES ($1, $2, 'Status', 'list-status', 'selection', FALSE, FALSE, 'after_bullet', $3, $3, $4, $4)
             ON CONFLICT (workspace_id, uuid) DO UPDATE SET uuid = EXCLUDED.uuid
             RETURNING id
         """,
@@ -759,7 +814,7 @@ async def seed_workspace(conn: asyncpg.Connection, workspace_id: int, user_id: i
         deadline_row = await conn.fetchrow(
             """
             INSERT INTO property (uuid, workspace_id, name, icon, type, is_multi, is_system, create_date, write_date, create_uid, write_uid)
-            VALUES ($1, $2, 'Deadline', 'mdi:calendar-clock', 'date', FALSE, FALSE, $3, $3, $4, $4)
+            VALUES ($1, $2, 'Deadline', 'calendar-clock', 'date', FALSE, FALSE, $3, $3, $4, $4)
             ON CONFLICT (workspace_id, uuid) DO UPDATE SET uuid = EXCLUDED.uuid
             RETURNING id
         """,
@@ -783,7 +838,7 @@ async def seed_workspace(conn: asyncpg.Connection, workspace_id: int, user_id: i
         scheduled_row = await conn.fetchrow(
             """
             INSERT INTO property (uuid, workspace_id, name, icon, type, is_multi, is_system, create_date, write_date, create_uid, write_uid)
-            VALUES ($1, $2, 'Scheduled Date', 'mdi:calendar-check', 'date', FALSE, FALSE, $3, $3, $4, $4)
+            VALUES ($1, $2, 'Scheduled Date', 'calendar-check', 'date', FALSE, FALSE, $3, $3, $4, $4)
             ON CONFLICT (workspace_id, uuid) DO UPDATE SET uuid = EXCLUDED.uuid
             RETURNING id
         """,
@@ -807,7 +862,7 @@ async def seed_workspace(conn: asyncpg.Connection, workspace_id: int, user_id: i
         priority_row = await conn.fetchrow(
             """
             INSERT INTO property (uuid, workspace_id, name, icon, type, is_multi, is_system, create_date, write_date, create_uid, write_uid)
-            VALUES ($1, $2, 'Priority', 'mdi:flag', 'selection', FALSE, FALSE, $3, $3, $4, $4)
+            VALUES ($1, $2, 'Priority', 'flag', 'selection', FALSE, FALSE, $3, $3, $4, $4)
             ON CONFLICT (workspace_id, uuid) DO UPDATE SET uuid = EXCLUDED.uuid
             RETURNING id
         """,
@@ -844,7 +899,7 @@ async def seed_workspace(conn: asyncpg.Connection, workspace_id: int, user_id: i
         closed_date_row = await conn.fetchrow(
             """
             INSERT INTO property (uuid, workspace_id, name, icon, type, is_multi, is_system, create_date, write_date, create_uid, write_uid)
-            VALUES ($1, $2, 'Closed Date', 'mdi:calendar-remove', 'date', FALSE, FALSE, $3, $3, $4, $4)
+            VALUES ($1, $2, 'Closed Date', 'calendar-remove', 'date', FALSE, FALSE, $3, $3, $4, $4)
             ON CONFLICT (workspace_id, uuid) DO UPDATE SET uuid = EXCLUDED.uuid
             RETURNING id
         """,
@@ -868,7 +923,7 @@ async def seed_workspace(conn: asyncpg.Connection, workspace_id: int, user_id: i
         recurrence_row = await conn.fetchrow(
             """
             INSERT INTO property (uuid, workspace_id, name, icon, type, is_multi, is_system, create_date, write_date, create_uid, write_uid)
-            VALUES ($1, $2, 'Recurrence', 'mdi:repeat', 'selection', FALSE, FALSE, $3, $3, $4, $4)
+            VALUES ($1, $2, 'Recurrence', 'repeat', 'selection', FALSE, FALSE, $3, $3, $4, $4)
             ON CONFLICT (workspace_id, uuid) DO UPDATE SET uuid = EXCLUDED.uuid
             RETURNING id
         """,

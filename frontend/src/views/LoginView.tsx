@@ -84,7 +84,7 @@ export function LoginView({ registrationEnabled = true }: LoginViewProps) {
             onChange={(e) => setEmail(e.target.value)}
             placeholder="Enter email"
             required
-            autoComplete="email"
+            autoComplete={isRegister ? 'email' : 'username'}
           />
 
           <TextField
