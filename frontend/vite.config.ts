@@ -12,8 +12,10 @@ export default defineConfig({
       includeAssets: ['notees-icon.svg', 'apple-touch-icon.png'],
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
-        // Don't precache the WASM file (large, loaded on demand)
-        globIgnores: ['**/sql-wasm.wasm'],
+        // Don't precache large on-demand files:
+        // - sql-wasm.wasm: loaded only for Logseq import
+        // - mdi-sprite.svg: 3MB icon sprite; icons load on-demand via <use href>
+        globIgnores: ['**/sql-wasm.wasm', '**/mdi-sprite.svg'],
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024, // 4 MB (covers the MDI SVG sprite sheet)
         runtimeCaching: [
           {
