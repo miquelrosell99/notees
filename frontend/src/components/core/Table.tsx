@@ -19,6 +19,8 @@ import type { Node } from '@/types';
 import { NodeInline } from '@/components/blocks/NodeInline';
 import { NodeNameContent } from '@/components/blocks/NodeNameContent';
 import { NodeCellEditable } from '@/components/nodes/NodeCellEditable';
+import { TableCellBreadcrumbs } from '@/components/nodes/TableCellBreadcrumbs';
+import { Icon, PageIcon } from '@/components/core/icons';
 import { Checkbox } from './Checkbox';
 import { Button } from './Button';
 import './Table.css';
@@ -539,6 +541,12 @@ export function Table<T>({
                       <NodeCellEditable node={cellValue as unknown as Node} />
                     ) : (
                       <span className="table-node-cell__name">
+                        <TableCellBreadcrumbs node={cellValue as unknown as Node} />
+                        {(cellValue as unknown as Node).is_page ? (
+                          <PageIcon size="sm" className="table-node-cell__type-icon table-node-cell__type-icon--page" title="Page" />
+                        ) : (
+                          <Icon path="mdi-circle-small" size={0.75} className="table-node-cell__type-icon table-node-cell__type-icon--block" title="Block" />
+                        )}
                         <NodeNameContent name={(cellValue as unknown as Node).name} />
                       </span>
                     )}

@@ -566,6 +566,22 @@
   padding-bottom: 2px;
 }
 
+.table-node-cell__type-icon {
+  display: inline-block;
+  vertical-align: middle;
+  opacity: 0.4;
+  color: var(--color-on-surface-variant);
+  margin-right: 2px;
+}
+
+.table-node-cell__type-icon--page {
+  opacity: 0.35;
+}
+
+.table-node-cell__type-icon--block {
+  opacity: 0.25;
+}
+
 .table-node-cell__actions {
   display: flex;
   align-items: center;
