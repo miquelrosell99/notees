@@ -21,6 +21,7 @@ export * from './FloatingButtonArray';
 export * from './ImageModal';
 export * from './InlineConfirmButton';
 export * from './ListSortable';
+export * from './LoadingScreen';
 export * from './LoadingSkeleton';
 export * from './Modal';
 

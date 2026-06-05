@@ -113,15 +113,7 @@
   text-decoration: underline;
 }
 
-/* Loading Screen */
-.loading-screen {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 100vh;
-  background: var(--color-surface-container);
-}
-
+/* Login-specific loading indicator */
 .loading-spinner {
   color: var(--color-on-surface-variant);
   font-size: 1.125rem;
