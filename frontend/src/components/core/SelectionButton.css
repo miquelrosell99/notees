@@ -1,6 +1,6 @@
 /**
  * SelectionButton Component Styles
- * 
+ *
  * Button-style multi-option selector with animated indicator
  */
 
@@ -68,15 +68,93 @@
   color: var(--color-on-primary);
 }
 
+/* Overflow toggle button */
+.selection-button__overflow-toggle {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: var(--shape-medium);
+  color: var(--color-on-surface-variant);
+  cursor: pointer;
+  transition: color var(--motion-duration-short) var(--motion-easing-standard),
+              background var(--motion-duration-short) var(--motion-easing-standard);
+  z-index: 1;
+}
+
+.selection-button__overflow-toggle:hover:not(:disabled) {
+  color: var(--color-on-surface);
+}
+
+.selection-button__overflow-toggle:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
+}
+
+.selection-button__overflow-toggle--open {
+  color: var(--color-primary);
+  background: var(--color-surface-container-highest);
+}
+
+/* Overflow dropdown */
+.selection-button__overflow-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 160px;
+  padding: 4px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--shape-medium);
+  box-shadow: var(--elevation-2);
+}
+
+.selection-button__overflow-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  width: 100%;
+  padding: 6px 10px;
+  border: none;
+  border-radius: var(--shape-small);
+  background: transparent;
+  color: var(--color-on-surface);
+  font-size: 0.875rem;
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.selection-button__overflow-item:hover:not(:disabled) {
+  background: var(--color-surface-container-highest);
+}
+
+.selection-button__overflow-item:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
+}
+
+.selection-button__overflow-item--active {
+  color: var(--color-primary);
+}
+
 /* Size variants */
-.selection-button--sm .selection-button__option {
+.selection-button--sm .selection-button__option,
+.selection-button--sm .selection-button__overflow-toggle {
   width: 28px;
   height: 28px;
 }
 
 /* Mobile: slightly smaller view-mode switcher to save header space */
 @media (max-width: 768px) {
-  .selection-button--sm .selection-button__option {
+  .selection-button--sm .selection-button__option,
+  .selection-button--sm .selection-button__overflow-toggle {
     width: 26px;
     height: 26px;
   }
@@ -91,12 +169,14 @@
   }
 }
 
-.selection-button--md .selection-button__option {
+.selection-button--md .selection-button__option,
+.selection-button--md .selection-button__overflow-toggle {
   width: 34px;
   height: 34px;
 }
 
-.selection-button--lg .selection-button__option {
+.selection-button--lg .selection-button__option,
+.selection-button--lg .selection-button__overflow-toggle {
   width: 42px;
   height: 42px;
 }
