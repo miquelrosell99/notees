@@ -27,8 +27,7 @@ export type NodeCollectionGroupBy = string;
 export type NodeCollectionViewMode = 
   | 'list'      // Bullet list with indentation (outline)
   | 'document'  // Flat list without bullets (document style)
-  | 'card'      // Card grid layout
-  | 'kanban'    // Kanban board (grouped card view)
+  | 'card'      // Card grid layout (ungrouped) or kanban board (grouped by property)
   | 'table'     // Table with rows
   | 'gantt'     // Timeline/Gantt view
   | 'calendar'  // Calendar month/week view
@@ -404,7 +403,7 @@ export interface NodeCardViewProps extends NodeCollectionViewBaseProps {
   /** Called when selection changes */
   onSelectionChange?: (selectedIds: Set<number>) => void;
   
-  /** Group by option - when 'page', displays as kanban columns; property UUID for property-based kanban */
+  /** Group by option - property UUID for property-based kanban columns; 'none' for masonry grid */
   groupBy?: NodeCollectionGroupBy;
 
   /** Property object when groupBy is a property UUID */

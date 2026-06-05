@@ -46,11 +46,13 @@ export interface GroupBySelectorProps {
   onChange: (groupBy: NodeCollectionGroupBy) => void;
   /** Optional close callback (passed from ButtonWithPanel) */
   onClose?: () => void;
+  /** Hide the "Page" pseudo-option (e.g. for card view where page grouping is not supported) */
+  hidePageOption?: boolean;
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export function GroupBySelector({ value, onChange, onClose }: GroupBySelectorProps) {
+export function GroupBySelector({ value, onChange, onClose, hidePageOption = false }: GroupBySelectorProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const { data: properties = [], isLoading } = useProperties();
 
@@ -75,7 +77,9 @@ export function GroupBySelector({ value, onChange, onClose }: GroupBySelectorPro
   // Show pseudo-options only when not searching
   const showPseudo = !searchQuery.trim();
 
-  const pseudoOptions: PseudoOption[] = showPseudo ? [NONE_OPTION, PAGE_OPTION] : [];
+  const pseudoOptions: PseudoOption[] = showPseudo
+    ? (hidePageOption ? [NONE_OPTION] : [NONE_OPTION, PAGE_OPTION])
+    : [];
 
   const handleSelect = (uuid: string) => {
     onChange(uuid);

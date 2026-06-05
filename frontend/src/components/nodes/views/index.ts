@@ -10,7 +10,7 @@ import './ListView';
 import './DocumentView';
 import './CardView';
 import './TableView';
-import './KanbanView';
+
 import './CalendarView';
 
 // Lazy registrations for heavy views (metadata eager, components lazy)
@@ -28,8 +28,7 @@ export { GraphView } from './GraphView';
 export type { GraphViewProps } from './GraphView';
 export { TimelineView } from './TimelineView';
 export { WhiteboardView } from './WhiteboardView';
-export { KanbanView } from './KanbanView';
-export type { NodeKanbanViewProps } from './KanbanView';
+
 export { CalendarView } from './CalendarView';
 export { ChartView } from './ChartView';
 export type { NodeChartViewProps } from '@/types/nodeCollection';

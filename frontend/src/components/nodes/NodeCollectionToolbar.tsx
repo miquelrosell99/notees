@@ -388,6 +388,7 @@ export function NodeCollectionToolbar({
                       value={groupBy ?? 'page'}
                       onChange={onGroupByChange}
                       onClose={closePanel}
+                      hidePageOption={viewMode === 'card'}
                     />
                   )}
                 </div>
