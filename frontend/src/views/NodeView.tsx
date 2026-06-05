@@ -1293,7 +1293,7 @@ export function NodeView({
       
       {/* Class properties definition - only for class nodes (pages used as classes) */}
       {isClassNode && resolvedType === 'page' && (
-        <ClassPropertiesEditor classNodeId={node.id} defaultExpanded={!isMobile} />
+        <ClassPropertiesEditor classNodeId={node.id} defaultExpanded={false} />
       )}
       
       {/* Node Content - Children blocks (pages only, blocks use focused block view) */}
