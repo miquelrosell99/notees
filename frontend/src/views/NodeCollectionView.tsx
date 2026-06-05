@@ -14,6 +14,17 @@ import type { Node } from '@/types';
 import type { NodeCollectionViewMode } from '@/types/nodeCollection';
 import './NodeCollectionView.css';
 
+const AVAILABLE_VIEW_MODES: NodeCollectionViewMode[] = [
+  'list',
+  'table',
+  'card',
+  'gantt',
+  'calendar',
+  'chart',
+  'graph',
+  'timeline',
+];
+
 interface NodeCollectionViewProps {
   title: string;
   queryAST?: QueryAST | null;
@@ -87,7 +98,7 @@ export function NodeCollectionView({ title, queryAST, nodes }: NodeCollectionVie
           <NodeCollection
             nodes={nodes}
             viewMode={viewMode}
-            availableViewModes={[]}
+            availableViewModes={AVAILABLE_VIEW_MODES}
             onViewModeChange={setViewMode}
             onNodeClick={(node) => openNode(node.id)}
             onNodeShiftClick={(node) => addSidebarCard(node.id, node.is_page ? 'page' : 'block')}
