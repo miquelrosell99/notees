@@ -31,7 +31,7 @@ import type {
   PhysicsReadyMessage,
   PhysicsSharedBufferMessage,
 } from './graphPhysicsWorkerProtocol';
-import { META_SEQ, META_COUNT, META_TICKS, META_ALPHA, META_ENERGY } from './graphPhysicsWorkerProtocol';
+import { META_SEQ, META_COUNT, META_TICKS, META_ENERGY } from './graphPhysicsWorkerProtocol';
 
 // Typed alias for the worker's postMessage that supports the transferable overload.
 const workerPost = (
@@ -50,17 +50,8 @@ const TICK_MS = 16;
  *  are scheduled immediately but never stacked. */
 const MAX_TICK_BUDGET_MS = 50;
 
-/**
- * Warm-up convergence target.  Run physics steps synchronously until the
- * average kinetic energy drops below this threshold so the layout is visually
- * stable on the first frame.  A hard time-budget cap prevents blocking the
- * worker for too long on very large graphs.
- */
-const WARMUP_ENERGY_TARGET = 0.05;
 /** Maximum wall-clock milliseconds to spend on warm-up. */
-const WARMUP_TIME_BUDGET_MS = 3000;
-/** Minimum warm-up steps before checking energy convergence. */
-const WARMUP_MIN_STEPS = 100;
+const WARMUP_TIME_BUDGET_MS = 800;
 
 
 
@@ -127,7 +118,6 @@ function writeSABFrame(): void {
     sPosF32[i * 2]     = posX[i];
     sPosF32[i * 2 + 1] = posY[i];
   }
-  sMetaF32[META_ALPHA]  = state.alpha;
   sMetaF32[META_ENERGY] = state.energy;
   Atomics.store(sMetaI32, META_COUNT, n);
   Atomics.store(sMetaI32, META_TICKS, state.ticks);
@@ -219,7 +209,6 @@ function postFrame(): void {
     positions: buf,
     nodeIds,          // shared reference — not transferred; re-sent on topology change
     nodeCount: n,
-    alpha: state.alpha,
     energy: state.energy,
     ticks: state.ticks,
   };
@@ -293,17 +282,8 @@ function tick(): void {
 
   postFrame();
 
-  // Auto-freeze when the simulation has fully settled.
-  // We stop when kinetic energy is very low OR when alpha has decayed to
-  // its minimum (forces are essentially zero). The higher threshold (0.005)
-  // prevents perpetual micro-movements from persistent tiny forces.
-  if (engine) {
-    const state = engine.getState();
-    if (substeps > 0 && (state.energy < 0.005 || state.alpha <= engine.getAlphaMin())) {
-      stopLoop();
-      return;
-    }
-  }
+  // Continuous physics — loop never auto-stops. Friction keeps the graph
+  // settled but alive; only explicit user pause can stop the loop.
 
   // Schedule next tick: if step was slow, fire immediately (0ms) to maximise
   // throughput; otherwise honour the target interval.
@@ -328,18 +308,12 @@ self.onmessage = (e: MessageEvent<MainToPhysicsMessage>): void => {
       const rawConfig = msg.config ? buildSGEConfig(msg.config) : undefined;
       engine = new SemanticGraphEngine(msg.nodes, msg.edges, rawConfig);
 
-      // ── Warm-up: run physics synchronously until the layout stabilises so
-      //    nodes are well-separated before the first frame.
+      // ── Warm-up: run physics synchronously for a short burst so linked
+      //    nodes pull together before the first frame is rendered.
       {
         const t0 = performance.now();
-        let steps = 0;
-        while (true) {
+        while (performance.now() - t0 < WARMUP_TIME_BUDGET_MS) {
           engine.step();
-          steps++;
-          // Check energy convergence only after a minimum number of steps
-          if (steps >= WARMUP_MIN_STEPS && engine.getState().energy < WARMUP_ENERGY_TARGET) break;
-          // Bail out if we've spent too long (large graphs)
-          if (performance.now() - t0 > WARMUP_TIME_BUDGET_MS) break;
         }
       }
 
@@ -383,7 +357,6 @@ self.onmessage = (e: MessageEvent<MainToPhysicsMessage>): void => {
         }
       }
 
-      engine.reheat();
       rebuildNodeIds();
       ensureBuffers(msg.nodes.length);
       if (SAB_ENABLED) postSharedBufferRefs();
@@ -490,15 +463,6 @@ self.onmessage = (e: MessageEvent<MainToPhysicsMessage>): void => {
       if (!engine) break;
       lastUserConfig = msg.config;
       engine.setConfig(buildSGEConfig(msg.config));
-      engine.reheat();
-      startLoop();
-      break;
-    }
-
-    // ── Reheat ───────────────────────────────────────────────
-    case 'reheat': {
-      if (!engine) break;
-      engine.reheat();
       startLoop();
       break;
     }
@@ -511,8 +475,6 @@ self.onmessage = (e: MessageEvent<MainToPhysicsMessage>): void => {
 
     // ── Resume physics ────────────────────────────────────────
     case 'resume': {
-      if (!engine) break;
-      engine.reheat();
       startLoop();
       break;
     }

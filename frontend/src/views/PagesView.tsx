@@ -12,7 +12,6 @@ import { NodeCollectionToolbar } from '@/components/nodes/NodeCollectionToolbar'
 import { SearchBox } from '@/components/core/SearchBox';
 import { Button } from '@/components/core/Button';
 import { Spinner } from '@/components/core/Spinner';
-import { PageIcon } from '@/components/core/icons';
 import type { NodeCollectionViewMode } from '@/types/nodeCollection';
 import type { Node } from '@/types';
 import './PagesView.css';
@@ -78,7 +77,6 @@ export function PagesView() {
         <div className="page-header-section__header">
           <div className="page-header pages-view__header">
             <h1 className="page-header__title">
-              <PageIcon size="md" className="pages-view__title-icon" />
               Pages
             </h1>
             <div className="pages-view__header-actions">
