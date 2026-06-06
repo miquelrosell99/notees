@@ -95,6 +95,7 @@ async def get_workspace_data_endpoint(
                     is_yearly=row["is_year"],
                     class_ids=node_class_ids,
                     block_count=block_count_map.get(row["id"], 0),
+                    aliased_id=row["aliased_id"],
                 )
             )
 
@@ -278,7 +279,7 @@ async def get_workspace_nodes_endpoint(
 
         page_rows = await conn.fetch(
             """
-            SELECT id, uuid, name, icon, is_class, is_day, is_month, is_year
+            SELECT id, uuid, name, icon, is_class, is_day, is_month, is_year, aliased_id
             FROM node
             WHERE workspace_id = $1 AND is_page = TRUE AND active = TRUE
               AND uuid::text NOT IN (SELECT unnest($2::text[]))

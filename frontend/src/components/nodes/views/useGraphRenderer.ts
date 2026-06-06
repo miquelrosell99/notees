@@ -487,7 +487,7 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
       if (lodEnabled) {
         const z = cam.zoom;
         let mask = 0;
-        if (z >= 0.15) mask |= (1 << LINK_TYPE_IDS.parent) | (1 << LINK_TYPE_IDS.class) | (1 << LINK_TYPE_IDS.extends);
+        if (z >= 0.15) mask |= (1 << LINK_TYPE_IDS.parent) | (1 << LINK_TYPE_IDS.class) | (1 << LINK_TYPE_IDS.extends) | (1 << LINK_TYPE_IDS.alias);
         if (z >= 0.40) mask |= (1 << LINK_TYPE_IDS.reference);
         if (z >= 0.80) mask |= (1 << LINK_TYPE_IDS['property-reference']);
         if (z >= 1.20) mask |= (1 << LINK_TYPE_IDS.cooccurrence) | (1 << LINK_TYPE_IDS.temporal);

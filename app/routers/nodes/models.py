@@ -453,6 +453,7 @@ class WorkspaceNodeResponse(BaseModel):
     is_yearly: bool = False
     class_ids: list[int] = []
     block_count: int = 0
+    aliased_id: int | None = None
 
 
 class WorkspaceLinkResponse(BaseModel):

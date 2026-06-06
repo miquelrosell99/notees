@@ -462,6 +462,7 @@ export interface GraphNode {
   backlink_count?: number;
   internal_link_count?: number;
   block_count?: number;
+  aliased_id?: number | null;
 }
 
 /**

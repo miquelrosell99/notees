@@ -510,8 +510,25 @@ export function GraphView({
         createdAt: apiNode.created_at,
         visible: true,
         isClassNode,
+        aliased_id: apiNode.aliased_id ?? null,
       };
     });
+
+    // Build alias resolution map: alias node ID → main node ID (follows chains)
+    const aliasMap = new Map<number, number>();
+    const nodeMap = new Map(allNodes.map(n => [n.id, n]));
+    for (const n of allNodes) {
+      if (n.aliased_id) {
+        let target = n.aliased_id;
+        // Follow alias chains to the root
+        let depth = 0;
+        while (nodeMap.get(target)?.aliased_id && depth < 10) {
+          target = nodeMap.get(target)!.aliased_id!;
+          depth++;
+        }
+        aliasMap.set(n.id, target);
+      }
+    }
 
     // Apply visibility filters to nodes
     const visibleNodes = allNodes.filter(n => {
@@ -520,6 +537,8 @@ export function GraphView({
       if (!visibilityFilters.showMonthPages && n.isMonthly)  return false;
       if (!visibilityFilters.showYearPages  && n.isYearly)   return false;
       if (!visibilityFilters.showSystemPages && n.isSystemPage) return false;
+      // Hide aliases unless explicitly shown
+      if (!visibilityFilters.showAliases && aliasMap.has(n.id)) return false;
       // Local graph: hide the ego / center node when requested
       if (localGraphMode && visibilityFilters.hideSelfNode && currentNodeId != null && n.id === currentNodeId) {
         return false;
@@ -548,10 +567,17 @@ export function GraphView({
 
     const visibleIds = new Set(visibleNodes.map(n => n.id));
 
-    // Apply visibility filters to links
-    const visibleLinks: GraphLink[] = sourceLinks
+    // Apply visibility filters to links, resolving aliases when hidden
+    const rawVisibleLinks: GraphLink[] = sourceLinks
       .filter(link => {
-        if (!visibleIds.has(link.source) || !visibleIds.has(link.target)) return false;
+        // Resolve alias endpoints when aliases are hidden
+        const src = !visibilityFilters.showAliases && aliasMap.has(link.source)
+          ? aliasMap.get(link.source)!
+          : link.source;
+        const tgt = !visibilityFilters.showAliases && aliasMap.has(link.target)
+          ? aliasMap.get(link.target)!
+          : link.target;
+        if (!visibleIds.has(src) || !visibleIds.has(tgt)) return false;
         if (!visibilityFilters.showClassLinks &&
             (link.type === 'class')) return false;
         if (!visibilityFilters.showParentLinks &&
@@ -564,11 +590,42 @@ export function GraphView({
         }
         // Local graph: hide edges touching the ego / center node when requested
         if (localGraphMode && visibilityFilters.hideSelfNode && currentNodeId != null) {
-          if (link.source === currentNodeId || link.target === currentNodeId) return false;
+          if (src === currentNodeId || tgt === currentNodeId) return false;
         }
         return true;
       })
-      .map(link => ({ source: link.source, target: link.target, type: link.type, weight: link.weight }));
+      .map(link => {
+        // Redirect through alias map when aliases are hidden
+        const src = !visibilityFilters.showAliases && aliasMap.has(link.source)
+          ? aliasMap.get(link.source)!
+          : link.source;
+        const tgt = !visibilityFilters.showAliases && aliasMap.has(link.target)
+          ? aliasMap.get(link.target)!
+          : link.target;
+        return { source: src, target: tgt, type: link.type, weight: link.weight };
+      });
+
+    // Deduplicate links that collapsed to the same source/target after alias resolution
+    const linkKeySet = new Set<string>();
+    const visibleLinks: GraphLink[] = [];
+    for (const link of rawVisibleLinks) {
+      // Skip self-loops created by alias resolution
+      if (link.source === link.target) continue;
+      const key = `${Math.min(link.source, link.target)}-${Math.max(link.source, link.target)}-${link.type}`;
+      if (!linkKeySet.has(key)) {
+        linkKeySet.add(key);
+        visibleLinks.push(link);
+      }
+    }
+
+    // When aliases are visible, synthesize alias edges from each alias to its main node
+    if (visibilityFilters.showAliases) {
+      for (const [aliasId, mainId] of aliasMap) {
+        if (visibleIds.has(aliasId) && visibleIds.has(mainId)) {
+          visibleLinks.push({ source: aliasId, target: mainId, type: 'alias' });
+        }
+      }
+    }
 
     // Temporal link injection: connect consecutive daily/monthly/yearly pages
     if (graphSettings.showTemporalLinks) {
