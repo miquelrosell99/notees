@@ -139,11 +139,12 @@ async def create_user_share(
             """
             INSERT INTO node_share (node_id, user_id, can_read, can_write, can_create, can_delete,
                                     active, create_uid, write_uid)
-            VALUES ($1, $2, TRUE, $3, FALSE, FALSE, TRUE, $4, $4)
+            VALUES ($1, $2, TRUE, $3, $3, FALSE, TRUE, $4, $4)
             ON CONFLICT (node_id, user_id)
             DO UPDATE SET
                 can_read = TRUE,
                 can_write = EXCLUDED.can_write,
+                can_create = EXCLUDED.can_create,
                 active = TRUE,
                 write_uid = EXCLUDED.write_uid,
                 write_date = NOW()

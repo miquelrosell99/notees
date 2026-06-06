@@ -46,3 +46,4 @@ export * from './useInView';
 export * from './useCanvasViewport';
 export * from './useLivePageSync';
 export * from './useWorkspaceRole';
+export * from './useEffectiveNodePermissions';
