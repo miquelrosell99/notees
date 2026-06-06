@@ -47,13 +47,12 @@ import type { SGEEdge, SGEUserConfig } from './SemanticGraphEngine';
  *  positions  Float32Array  [x0,y0, x1,y1, …]   n × 2 floats
  *  meta                                           5 × 4 bytes
  *   Int32 view:  [0]=seq  [1]=nodeCount  [2]=ticks
- *   Float32 view:[3]=alpha               [4]=energy
+ *   Float32 view:[3]=energy
  */
 export const META_SEQ    = 0;  // Int32 slot: incremented by worker after each write
 export const META_COUNT  = 1;  // Int32 slot: active node count
 export const META_TICKS  = 2;  // Int32 slot: simulation tick counter
-export const META_ALPHA  = 3;  // Float32 slot: cooling alpha
-export const META_ENERGY = 4;  // Float32 slot: kinetic energy
+export const META_ENERGY = 3;  // Float32 slot: kinetic energy
 
 export interface PhysicsSharedBufferMessage {
   type: 'sharedBuffer';
@@ -217,8 +216,7 @@ export interface PhysicsReadyMessage {
  * Buffer layout (Float32Array, transferred ownership):
  *   [x0, y0,  x1, y1,  x2, y2, …]   (2 floats per node, ordered by init/setTopology order)
  *
- * alpha and energy let the main thread show convergence status.
- * When alpha < alphaMin the worker stops emitting frames automatically.
+ * Energy lets the main thread show activity status.
  */
 export interface PhysicsFrameMessage {
   type: 'frame';
@@ -230,7 +228,6 @@ export interface PhysicsFrameMessage {
   /** Node IDs in the same order as the positions buffer. */
   nodeIds: Int32Array;
   nodeCount: number;
-  alpha: number;
   energy: number;
   ticks: number;
 }

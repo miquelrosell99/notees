@@ -185,7 +185,7 @@ export function TrashView({ className = '' }: TrashViewProps) {
         <div className="page-header-section__header">
           <div className="page-header">
             <h1 className="page-header__title">
-              <TrashIcon size="lg" /> Trash
+              Trash
             </h1>
             <div className="page-header__actions">
               {!isLoading && nodes && nodes.length > 0 && selectedIds.size > 0 && (

@@ -7,7 +7,6 @@ import { useCallback } from 'react';
 import { QuerySection } from '../components/nodes/QuerySection';
 import { SearchBox } from '../components/core/SearchBox';
 import { Button } from '../components/core/Button';
-import { PageIcon } from '../components/core/icons';
 import { useNavigationStore } from '@/stores';
 import { useModalStore } from '@/stores';
 import type { Node } from '@/types';
@@ -63,7 +62,6 @@ export function AllPagesView({ className = '' }: AllPagesViewProps) {
         nodeUuid={PSEUDO_NODE_UUID}
         viewType="all_pages"
         title="Pages"
-        icon={<PageIcon size="sm" />}
         hideWhenEmpty={false}
         defaultExpanded={true}
         onNodeClick={(targetNodeId) => openNode(targetNodeId)}

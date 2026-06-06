@@ -25,7 +25,7 @@ export type LiveSyncMessage =
   | { type: 'users_list'; users: Array<LiveSyncUser & { block_uuid: string }> };
 
 type MessageListener = (msg: LiveSyncMessage) => void;
-type StatusListener = (status: 'connected' | 'disconnected' | 'connecting' | 'error') => void;
+type StatusListener = (status: 'connected' | 'disconnected' | 'connecting' | 'error' | 'idle') => void;
 
 class LiveSyncManager {
   private ws: WebSocket | null = null;
@@ -37,7 +37,7 @@ class LiveSyncManager {
   private reconnectAttempts = 0;
   private intentionalClose = false;
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
-  private status: 'connected' | 'disconnected' | 'connecting' | 'error' = 'disconnected';
+  private status: 'connected' | 'disconnected' | 'connecting' | 'error' | 'idle' = 'idle';
 
   /** Subscribe to incoming server messages. */
   onMessage(cb: MessageListener): () => void {
@@ -112,7 +112,7 @@ class LiveSyncManager {
     this.nodeUuid = null;
     this.pendingMessages = [];
     this.reconnectAttempts = 0;
-    this._setStatus('disconnected');
+    this._setStatus('idle');
   }
 
   private _open(): void {
@@ -170,7 +170,7 @@ class LiveSyncManager {
         this._setStatus('disconnected');
         this._scheduleReconnect();
       } else {
-        this._setStatus('disconnected');
+        this._setStatus('idle');
       }
     };
 

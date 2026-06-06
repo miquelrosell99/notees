@@ -102,9 +102,12 @@ export const GLARE_OPACITY_DIM = 0.02;
 export const LABEL_FADE_ZOOM_MIN = 0.3;
 export const LABEL_FADE_ZOOM_MAX = 0.6;
 
+/** Minimum on-screen node radius in pixels. Prevents nodes from disappearing when zoomed out. */
+export const MIN_NODE_SCREEN_RADIUS_PX = 3.0;
+
 // Link type priority
 export const LINK_TYPE_PRIORITY: Record<
-  'parent' | 'reference' | 'property-reference' | 'class' | 'extends' | 'cooccurrence',
+  'parent' | 'reference' | 'property-reference' | 'class' | 'extends' | 'cooccurrence' | 'temporal',
   number
 > = {
   parent: 3,
@@ -113,7 +116,58 @@ export const LINK_TYPE_PRIORITY: Record<
   'property-reference': 1,
   reference: 0,
   cooccurrence: 0,
+  temporal: 0,
 };
+
+/** Compact numeric IDs for link types (shader & physics use). */
+type LinkTypeKey = 'parent' | 'reference' | 'property-reference' | 'class' | 'extends' | 'cooccurrence' | 'temporal';
+
+export const LINK_TYPE_IDS: Record<LinkTypeKey, number> = {
+  parent: 0,
+  class: 1,
+  extends: 2,
+  reference: 3,
+  'property-reference': 4,
+  cooccurrence: 5,
+  temporal: 6,
+};
+
+/** Curvature factor per link type for quadratic Bezier edge bending. */
+export const LINK_TYPE_CURVATURE: Record<LinkTypeKey, number> = {
+  parent: 0.0,
+  extends: 0.05,
+  class: 0.05,
+  reference: 0.12,
+  'property-reference': 0.08,
+  cooccurrence: 0.18,
+  temporal: 0.25,
+};
+
+/** Rest-length multiplier per link type (relative to idealDistance). */
+export const LINK_TYPE_REST_MULT: Record<LinkTypeKey, number> = {
+  parent: 0.6,
+  extends: 0.7,
+  class: 0.8,
+  reference: 1.0,
+  'property-reference': 1.1,
+  cooccurrence: 1.6,
+  temporal: 2.0,
+};
+
+/** Stiffness multiplier per link type (relative to base spring strength). */
+export const LINK_TYPE_STIFF_MULT: Record<LinkTypeKey, number> = {
+  parent: 1.3,
+  extends: 1.2,
+  class: 1.0,
+  reference: 0.9,
+  'property-reference': 0.8,
+  cooccurrence: 0.4,
+  temporal: 0.3,
+};
+
+/** Source/target width multipliers for tapered edges. */
+export const EDGE_TAPER_SOURCE_MULT = 1.4;
+export const EDGE_TAPER_TARGET_MULT = 0.6;
 
 // Line dash patterns (allocated once)
 export const LINE_DASH_NONE: number[] = [];

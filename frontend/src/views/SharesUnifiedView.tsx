@@ -47,7 +47,6 @@ export function SharesUnifiedView({ initialTab = 'shared-out' }: SharesUnifiedVi
     <div className="shares-unified-view">
       <div className="shares-unified-view__header">
         <h1 className="shares-unified-view__title">
-          <Icon path="mdi mdi-share-variant" size={1} />
           Shares
         </h1>
         <div className="shares-unified-view__tabs">

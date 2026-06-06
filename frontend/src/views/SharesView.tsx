@@ -25,7 +25,6 @@ export function SharesView() {
     <div className="shares-view">
       <div className="shares-view__header">
         <h1 className="shares-view__title">
-          <Icon path="mdi mdi-share-variant" size={1} />
           Shared Links
         </h1>
       </div>

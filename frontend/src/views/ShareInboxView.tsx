@@ -7,7 +7,6 @@ import { useShareInbox } from '@/hooks/useShares';
 import { useNavigationStore } from '@/stores';
 import { switchWorkspace } from '@/api/workspaces';
 import { Button } from '@/components/core/Button';
-import { Icon } from '@/components/core/icons';
 import { NodeInline } from '@/components/blocks/NodeInline';
 import './ShareInboxView.css';
 
@@ -29,7 +28,6 @@ export function ShareInboxView() {
     <div className="share-inbox-view">
       <div className="share-inbox-view__header">
         <h1 className="share-inbox-view__title">
-          <Icon path="mdi mdi-inbox-arrow-down" size={1} />
           Share Inbox
         </h1>
       </div>

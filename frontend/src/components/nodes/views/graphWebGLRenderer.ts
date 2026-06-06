@@ -20,6 +20,8 @@
  * • Clip space: standard WebGL NDC (-1..1).
  */
 
+import { MIN_NODE_SCREEN_RADIUS_PX } from './graphConstants';
+
 // ─── GLSL Shaders ─────────────────────────────────────────────────────────────
 
 const NODE_VERT_SRC = /* glsl */ `#version 300 es
@@ -37,6 +39,7 @@ in vec4  a_color;  // RGBA 0..1
 uniform vec2  u_resolution; // canvas size in pixels
 uniform vec2  u_camera;     // world position of screen centre
 uniform float u_zoom;       // pixels per world unit
+uniform float u_minRadiusPx; // minimum screen-space radius in pixels
 
 out vec2 v_uv;
 out vec4 v_color;
@@ -45,8 +48,10 @@ void main() {
   v_uv    = a_quad * 2.0;  // -1..1 for SDF
   v_color = a_color;
 
+  // Ensure node never shrinks below a readable dot when zoomed out
+  float effRadius = max(a_radius, u_minRadiusPx / (2.0 * u_zoom));
   // world-space vertex position
-  vec2 world  = a_pos + a_quad * a_radius * 2.0;
+  vec2 world  = a_pos + a_quad * effRadius * 2.0;
   // world → screen (pixels, origin centre)
   vec2 screen = (world - u_camera) * u_zoom;
   // screen → NDC
@@ -104,11 +109,15 @@ precision highp float;
 in vec2  a_local;  // x = side (-0.5..0.5), y = t (0..1 along edge)
 
 // Per-instance — STATIC topology, no positions baked in
-in float a_i1;     // source node index → texelFetch into u_positions
-in float a_i2;     // target node index → texelFetch into u_positions
-in float a_width;  // world-space half-width
-in vec4  a_color;  // RGBA 0..1
-in float a_dashed; // 0 = solid, 1 = dashed
+in float a_i1;           // source node index → texelFetch into u_positions
+in float a_i2;           // target node index → texelFetch into u_positions
+in float a_width;        // world-space base half-width
+in vec4  a_colorSrc;     // RGBA 0..1 at source
+in vec4  a_colorTgt;     // RGBA 0..1 at target
+in float a_curvature;    // quadratic Bezier bend factor
+in float a_linkType;     // compact type id for LOD masking
+in float a_sameComm;     // 1.0 = same community, 0.0 = different
+in float a_dashed;       // 0 = solid, 1 = dashed
 
 // Camera
 uniform vec2  u_resolution;
@@ -118,15 +127,23 @@ uniform float u_zoom;
 // RG32F position texture: texel(i, 0).rg = (x, y) for node i
 uniform highp sampler2D u_positions;
 
-out vec4  v_color;
+out vec4  v_colorSrc;
+out vec4  v_colorTgt;
 out float v_dashed;
-out float v_t;      // parametric position along edge (0..1)
-out float v_screenLen; // edge length in screen pixels
+out float v_t;           // parametric position along edge (0..1)
+out float v_screenLen;   // edge length in screen pixels
+out float v_linkType;
+out float v_sameComm;
+out float v_localX;
 
 void main() {
-  v_color  = a_color;
-  v_dashed = a_dashed;
-  v_t      = a_local.y;
+  v_colorSrc = a_colorSrc;
+  v_colorTgt = a_colorTgt;
+  v_dashed   = a_dashed;
+  v_t        = a_local.y;
+  v_linkType = a_linkType;
+  v_sameComm = a_sameComm;
+  v_localX   = a_local.x;
 
   // Zero-copy GPU-side position read
   int si = int(a_i1);
@@ -142,13 +159,26 @@ void main() {
 
   v_screenLen = len * u_zoom;
 
+  // Curvature: smooth arc for most links, wiggly sine for class links
+  float curveOffset;
+  if (abs(a_linkType - 1.0) < 0.5) {
+    curveOffset = (3.0 / u_zoom) * sin(25.13274 * a_local.y);
+  } else {
+    curveOffset = a_curvature * sin(3.14159265 * a_local.y) * len;
+  }
+  vec2 center = mix(p1, p2, a_local.y) + perp * curveOffset;
+
+  // Tapered width: wider at source (t=0), narrower at target (t=1)
+  float srcW = a_width * 1.4;
+  float tgtW = a_width * 0.6;
+  float halfWidth = mix(srcW, tgtW, a_local.y) * 0.5;
+
   // Ensure edge is at least 1.0 screen-pixel wide to prevent
   // sub-pixel aliasing that makes lines appear dashed when zoomed out.
   float minWorldWidth = 1.0 / u_zoom;
-  float halfWidth = max(a_width, minWorldWidth);
+  halfWidth = max(halfWidth, minWorldWidth);
 
-  vec2 base  = mix(p1, p2, a_local.y);
-  vec2 world = base + perp * a_local.x * halfWidth;
+  vec2 world = center + perp * a_local.x * halfWidth;
 
   vec2 screen = (world - u_camera) * u_zoom;
   vec2 clip   = screen / (u_resolution * 0.5);
@@ -160,14 +190,26 @@ void main() {
 const EDGE_FRAG_SRC = /* glsl */ `#version 300 es
 precision mediump float;
 
-in vec4  v_color;
+in vec4  v_colorSrc;
+in vec4  v_colorTgt;
 in float v_dashed;
 in float v_t;
 in float v_screenLen;
+in float v_linkType;
+in float v_sameComm;
+in float v_localX;
+
+uniform int   u_edgeMask;      // bitmask of visible link types
+uniform float u_communityDim;  // alpha multiplier for cross-community edges
+uniform float u_hoverEdgeAlpha; // 1.0 normally, lower when an edge is hovered
 
 out vec4 outColor;
 
 void main() {
+  // LOD mask: discard if this link type is hidden at current zoom
+  int typeBit = 1 << int(v_linkType + 0.5);
+  if ((u_edgeMask & typeBit) == 0) discard;
+
   // Dotted edges: discard fragments that fall in the gaps.
   // Dot period = 6px (2px on, 4px off) in screen space — tight dots.
   if (v_dashed > 0.5 && v_screenLen > 1.0) {
@@ -176,7 +218,22 @@ void main() {
     float onLen  = 2.0;
     if (mod(pos, period) > onLen) discard;
   }
-  outColor = v_color;
+
+  // Double line for parent links
+  if (abs(v_linkType - 0.0) < 0.5) {
+    if (abs(v_localX) < 0.15) discard;
+  }
+
+  // Gradient color from source to target
+  vec4 color = mix(v_colorSrc, v_colorTgt, v_t);
+
+  // Community dimming
+  float alpha = color.a * mix(u_communityDim, 1.0, v_sameComm);
+
+  // Edge-hover dimming of non-hovered edges
+  alpha *= u_hoverEdgeAlpha;
+
+  outColor = vec4(color.rgb, alpha);
 }
 `;
 
@@ -253,9 +310,8 @@ out vec4 outColor;
 void main() {
   float d = length(v_uv);
   float fw = fwidth(d);
-  // Soft radial falloff: strongest at center, fading to edges
-  float rawAlpha = 1.0 - smoothstep(0.0, 1.0 + fw, d);
-  rawAlpha = rawAlpha * rawAlpha; // quadratic falloff for softer look
+  // Sharp-edged outer circle (bullet-style halo) instead of soft gradient
+  float rawAlpha = 1.0 - smoothstep(1.0 - fw, 1.0 + fw, d);
   float alpha = pow(rawAlpha, 1.0 / 2.2) * v_color.a;
   if (alpha <= 0.005) discard;
   outColor = vec4(v_color.rgb, alpha);
@@ -280,6 +336,7 @@ in vec4  a_color;
 uniform vec2  u_resolution;
 uniform vec2  u_camera;
 uniform float u_zoom;
+uniform float u_minRadiusPx;
 uniform highp sampler2D u_positions;
 
 out vec4 v_color;
@@ -299,8 +356,9 @@ void main() {
   vec2 local = a_local * a_size;
   vec2 rotated = local.x * perp + local.y * n;
 
-  // Offset to just outside the target node radius
-  float offset = a_targetRadius + a_size * 0.3;
+  // Offset to just outside the target node radius (accounting for min-size clamp)
+  float effTargetRadius = max(a_targetRadius, u_minRadiusPx / (2.0 * u_zoom));
+  float offset = effTargetRadius + a_size * 0.3;
   vec2 world = p2 - n * offset + rotated;
 
   vec2 screen = (world - u_camera) * u_zoom;
@@ -336,6 +394,8 @@ export interface RendererOptions {
   arrowSize?: number;
   /** Node glow radius multiplier. Default: 4.5 */
   glowRadiusMult?: number;
+  /** Minimum node radius on screen in pixels when zoomed out. Default: 3 */
+  minNodeRadiusPx?: number;
   /** Cull nodes/edges outside this many world units beyond the viewport. 0 = no culling. */
   cullMargin?: number;
   /** Pre-allocate instance capacity (resize automatically if exceeded). Default: 512 */
@@ -354,7 +414,7 @@ export interface CameraState {
 // Floats per node instance
 const NODE_STRIDE = 7; // x, y, radius, r, g, b, a
 // Floats per edge instance (no positions baked in — GPU samples from texture)
-const EDGE_STRIDE = 8; // i1, i2, width, r, g, b, a, dashed
+const EDGE_STRIDE = 15; // i1, i2, width, colorSrc*4, colorTgt*4, curvature, linkType, sameComm, dashed
 // Floats per arrow instance (samples position texture like edges)
 const ARROW_STRIDE = 8; // i1, i2, targetRadius, size, r, g, b, a
 
@@ -497,6 +557,23 @@ const EDGE_QUAD_VERTS = new Float32Array([
   -0.5, 1.0,
 ]);
 
+export interface RendererEdge {
+  source: number;
+  target: number;
+  dashed?: boolean;
+  /** Per-link-type curvature factor (overrides default). */
+  curvature?: number;
+  /** Compact link type id for LOD masking. */
+  linkType?: number;
+  /** Source node color RGBA — overrides default. */
+  colorSrc?: [number, number, number, number];
+  /** Target node color RGBA — overrides default. */
+  colorTgt?: [number, number, number, number];
+  /** Legacy single color (used as both src/tgt when gradient not needed). */
+  color?: [number, number, number, number];
+  width?: number;
+}
+
 // ─── Main Renderer Class ──────────────────────────────────────────────────────
 
 export class GraphWebGLRenderer {
@@ -564,11 +641,16 @@ export class GraphWebGLRenderer {
     camera:     WebGLUniformLocation | null;
     zoom:       WebGLUniformLocation | null;
     positions:  WebGLUniformLocation | null;
-  } = { resolution: null, camera: null, zoom: null, positions: null };
+    minRadiusPx: WebGLUniformLocation | null;
+  } = { resolution: null, camera: null, zoom: null, positions: null, minRadiusPx: null };
 
   // --- Hover / selection state ---
   private _hoveredNodeId  = -1;
   private _selectedNodeId = -1;
+  private _hoveredEdgeIndex = -1;
+  private _edgeMask = 0xFFFFFFFF; // show all link types by default
+  private _communityDim = 1.0;
+  private _hoverEdgeAlpha = 1.0;
 
   // --- Position texture (RG32F) ---
   // Uploaded once per physics frame; edge shader samples by node index.
@@ -592,7 +674,7 @@ export class GraphWebGLRenderer {
   private positions: Float32Array = new Float32Array(0);
 
   // --- Edge topology ---
-  private edges: Array<{ source: number; target: number; dashed?: boolean; color?: [number, number, number, number]; width?: number }> = [];
+  private edges: RendererEdge[] = [];
 
   // --- Adjacency for dimming ---
   private _adjacency = new Map<number, Set<number>>();
@@ -608,14 +690,18 @@ export class GraphWebGLRenderer {
     resolution: WebGLUniformLocation | null;
     camera: WebGLUniformLocation | null;
     zoom: WebGLUniformLocation | null;
-  } = { resolution: null, camera: null, zoom: null };
+    minRadiusPx: WebGLUniformLocation | null;
+  } = { resolution: null, camera: null, zoom: null, minRadiusPx: null };
 
   private edgeUniforms: {
     resolution: WebGLUniformLocation | null;
     camera: WebGLUniformLocation | null;
     zoom: WebGLUniformLocation | null;
     positions: WebGLUniformLocation | null;
-  } = { resolution: null, camera: null, zoom: null, positions: null };
+    edgeMask: WebGLUniformLocation | null;
+    communityDim: WebGLUniformLocation | null;
+    hoverEdgeAlpha: WebGLUniformLocation | null;
+  } = { resolution: null, camera: null, zoom: null, positions: null, edgeMask: null, communityDim: null, hoverEdgeAlpha: null };
 
   // --- Pre-allocated typed arrays for uniforms (zero per-frame GC) ---
   private readonly _resBuf = new Float32Array(2);
@@ -636,6 +722,7 @@ export class GraphWebGLRenderer {
       edgeWidth: opts.edgeWidth ?? 0.8,
       arrowSize: opts.arrowSize ?? 3.5,
       glowRadiusMult: opts.glowRadiusMult ?? 4.5,
+      minNodeRadiusPx: opts.minNodeRadiusPx ?? MIN_NODE_SCREEN_RADIUS_PX,
       cullMargin: opts.cullMargin ?? 150,
       initialCapacity: opts.initialCapacity ?? 512,
     };
@@ -673,12 +760,16 @@ export class GraphWebGLRenderer {
       resolution: gl.getUniformLocation(this.nodeProg, 'u_resolution'),
       camera:     gl.getUniformLocation(this.nodeProg, 'u_camera'),
       zoom:       gl.getUniformLocation(this.nodeProg, 'u_zoom'),
+      minRadiusPx: gl.getUniformLocation(this.nodeProg, 'u_minRadiusPx'),
     };
     this.edgeUniforms = {
       resolution: gl.getUniformLocation(this.edgeProg, 'u_resolution'),
       camera:     gl.getUniformLocation(this.edgeProg, 'u_camera'),
       zoom:       gl.getUniformLocation(this.edgeProg, 'u_zoom'),
       positions:  gl.getUniformLocation(this.edgeProg, 'u_positions'),
+      edgeMask:   gl.getUniformLocation(this.edgeProg, 'u_edgeMask'),
+      communityDim: gl.getUniformLocation(this.edgeProg, 'u_communityDim'),
+      hoverEdgeAlpha: gl.getUniformLocation(this.edgeProg, 'u_hoverEdgeAlpha'),
     };
     this.ringUniforms = {
       resolution: gl.getUniformLocation(this.ringProg, 'u_resolution'),
@@ -695,6 +786,7 @@ export class GraphWebGLRenderer {
       camera:     gl.getUniformLocation(this.arrowProg, 'u_camera'),
       zoom:       gl.getUniformLocation(this.arrowProg, 'u_zoom'),
       positions:  gl.getUniformLocation(this.arrowProg, 'u_positions'),
+      minRadiusPx: gl.getUniformLocation(this.arrowProg, 'u_minRadiusPx'),
     };
 
     this._initNodeBuffers();
@@ -893,44 +985,60 @@ export class GraphWebGLRenderer {
     gl.vertexAttribPointer(aLocal, 2, gl.FLOAT, false, 0, 0);
 
     // Static topology instance buffer
-    // Layout: [ i1(f32), i2(f32), width(f32), r, g, b, a ] = 7 floats = 28 bytes
+    // Layout: i1, i2, width, colorSrc(4), colorTgt(4), curvature, linkType, sameComm, dashed = 14 floats
     this.edgeInstCapacity = this.opts.initialCapacity * EDGE_STRIDE;
     this.edgeInstData     = new Float32Array(this.edgeInstCapacity);
     this.edgeInstBuf      = gl.createBuffer()!;
     gl.bindBuffer(gl.ARRAY_BUFFER, this.edgeInstBuf);
     gl.bufferData(gl.ARRAY_BUFFER, this.edgeInstData, gl.DYNAMIC_DRAW);
 
-    const STRIDE  = EDGE_STRIDE * 4; // 32 bytes
-    const aI1     = gl.getAttribLocation(this.edgeProg!, 'a_i1');
-    const aI2     = gl.getAttribLocation(this.edgeProg!, 'a_i2');
-    const aWidth  = gl.getAttribLocation(this.edgeProg!, 'a_width');
-    const aColor  = gl.getAttribLocation(this.edgeProg!, 'a_color');
-    const aDashed = gl.getAttribLocation(this.edgeProg!, 'a_dashed');
+    const STRIDE  = EDGE_STRIDE * 4; // 56 bytes
+    const aI1         = gl.getAttribLocation(this.edgeProg!, 'a_i1');
+    const aI2         = gl.getAttribLocation(this.edgeProg!, 'a_i2');
+    const aWidth      = gl.getAttribLocation(this.edgeProg!, 'a_width');
+    const aColorSrc   = gl.getAttribLocation(this.edgeProg!, 'a_colorSrc');
+    const aColorTgt   = gl.getAttribLocation(this.edgeProg!, 'a_colorTgt');
+    const aCurvature  = gl.getAttribLocation(this.edgeProg!, 'a_curvature');
+    const aLinkType   = gl.getAttribLocation(this.edgeProg!, 'a_linkType');
+    const aSameComm   = gl.getAttribLocation(this.edgeProg!, 'a_sameComm');
+    const aDashed     = gl.getAttribLocation(this.edgeProg!, 'a_dashed');
 
-    // a_i1: float at offset 0
+    let off = 0;
     gl.enableVertexAttribArray(aI1);
-    gl.vertexAttribPointer(aI1, 1, gl.FLOAT, false, STRIDE, 0);
-    gl.vertexAttribDivisor(aI1, 1);
+    gl.vertexAttribPointer(aI1, 1, gl.FLOAT, false, STRIDE, off);
+    gl.vertexAttribDivisor(aI1, 1); off += 4;
 
-    // a_i2: float at offset 4
     gl.enableVertexAttribArray(aI2);
-    gl.vertexAttribPointer(aI2, 1, gl.FLOAT, false, STRIDE, 4);
-    gl.vertexAttribDivisor(aI2, 1);
+    gl.vertexAttribPointer(aI2, 1, gl.FLOAT, false, STRIDE, off);
+    gl.vertexAttribDivisor(aI2, 1); off += 4;
 
-    // a_width: float at offset 8
     gl.enableVertexAttribArray(aWidth);
-    gl.vertexAttribPointer(aWidth, 1, gl.FLOAT, false, STRIDE, 8);
-    gl.vertexAttribDivisor(aWidth, 1);
+    gl.vertexAttribPointer(aWidth, 1, gl.FLOAT, false, STRIDE, off);
+    gl.vertexAttribDivisor(aWidth, 1); off += 4;
 
-    // a_color: vec4 at offset 12
-    gl.enableVertexAttribArray(aColor);
-    gl.vertexAttribPointer(aColor, 4, gl.FLOAT, false, STRIDE, 12);
-    gl.vertexAttribDivisor(aColor, 1);
+    gl.enableVertexAttribArray(aColorSrc);
+    gl.vertexAttribPointer(aColorSrc, 4, gl.FLOAT, false, STRIDE, off);
+    gl.vertexAttribDivisor(aColorSrc, 1); off += 16;
 
-    // a_dashed: float at offset 28
+    gl.enableVertexAttribArray(aColorTgt);
+    gl.vertexAttribPointer(aColorTgt, 4, gl.FLOAT, false, STRIDE, off);
+    gl.vertexAttribDivisor(aColorTgt, 1); off += 16;
+
+    gl.enableVertexAttribArray(aCurvature);
+    gl.vertexAttribPointer(aCurvature, 1, gl.FLOAT, false, STRIDE, off);
+    gl.vertexAttribDivisor(aCurvature, 1); off += 4;
+
+    gl.enableVertexAttribArray(aLinkType);
+    gl.vertexAttribPointer(aLinkType, 1, gl.FLOAT, false, STRIDE, off);
+    gl.vertexAttribDivisor(aLinkType, 1); off += 4;
+
+    gl.enableVertexAttribArray(aSameComm);
+    gl.vertexAttribPointer(aSameComm, 1, gl.FLOAT, false, STRIDE, off);
+    gl.vertexAttribDivisor(aSameComm, 1); off += 4;
+
     if (aDashed >= 0) {
       gl.enableVertexAttribArray(aDashed);
-      gl.vertexAttribPointer(aDashed, 1, gl.FLOAT, false, STRIDE, 28);
+      gl.vertexAttribPointer(aDashed, 1, gl.FLOAT, false, STRIDE, off);
       gl.vertexAttribDivisor(aDashed, 1);
     }
 
@@ -1016,8 +1124,8 @@ export class GraphWebGLRenderer {
     this._posDirty  = true;
   }
 
-  /** Replace the edge list. Edges reference node IDs. `dashed` marks reference/non-parent links. `color` overrides the default edge color (RGBA 0..1). `width` overrides the default edge width. */
-  setEdges(edges: Array<{ source: number; target: number; dashed?: boolean; color?: [number, number, number, number]; width?: number }>): void {
+  /** Replace the edge list. Edges reference node IDs. */
+  setEdges(edges: RendererEdge[]): void {
     this.edges = edges;
     this._edgeDirty = true;
     this._rebuildAdjacency();
@@ -1239,27 +1347,37 @@ export class GraphWebGLRenderer {
 
     let count = 0;
     for (let i = 0; i < ne; i++) {
-      const { source, target, dashed, color, width } = edges[i];
-      const si = this.nodeIndex.get(source);
-      const ti = this.nodeIndex.get(target);
+      const e = edges[i];
+      const si = this.nodeIndex.get(e.source);
+      const ti = this.nodeIndex.get(e.target);
       if (si === undefined || ti === undefined) continue;
 
-      const [er, eg, eb, ea] = color ?? defaultColor;
+      const srcVis = this.nodeVisuals.get(e.source);
+      const tgtVis = this.nodeVisuals.get(e.target);
+      const srcColor = e.colorSrc ?? e.color ?? srcVis?.color ?? defaultColor;
+      const tgtColor = e.colorTgt ?? e.color ?? tgtVis?.color ?? defaultColor;
 
       // Edge dimming: edges not touching a highlighted node fade out
-      const edgeHighlighted = !hasFocus || this._highlightedIds.has(source) || this._highlightedIds.has(target);
-      const finalAlpha = edgeHighlighted ? ea : ea * this.DIM_ALPHA;
+      const edgeHighlighted = !hasFocus || this._highlightedIds.has(e.source) || this._highlightedIds.has(e.target);
+      const dimMult = edgeHighlighted ? 1.0 : this.DIM_ALPHA;
 
       // Store indices as floats — shader casts to int via int()
       const base = count * EDGE_STRIDE;
-      this.edgeInstData[base    ] = si;           // source node index
-      this.edgeInstData[base + 1] = ti;           // target node index
-      this.edgeInstData[base + 2] = width ?? this.opts.edgeWidth;
-      this.edgeInstData[base + 3] = er;
-      this.edgeInstData[base + 4] = eg;
-      this.edgeInstData[base + 5] = eb;
-      this.edgeInstData[base + 6] = finalAlpha;
-      this.edgeInstData[base + 7] = dashed ? 1.0 : 0.0; // dashed flag
+      this.edgeInstData[base     ] = si;           // source node index
+      this.edgeInstData[base +  1] = ti;           // target node index
+      this.edgeInstData[base +  2] = e.width ?? this.opts.edgeWidth;
+      this.edgeInstData[base +  3] = srcColor[0];
+      this.edgeInstData[base +  4] = srcColor[1];
+      this.edgeInstData[base +  5] = srcColor[2];
+      this.edgeInstData[base +  6] = srcColor[3] * dimMult;
+      this.edgeInstData[base +  7] = tgtColor[0];
+      this.edgeInstData[base +  8] = tgtColor[1];
+      this.edgeInstData[base +  9] = tgtColor[2];
+      this.edgeInstData[base + 10] = tgtColor[3] * dimMult;
+      this.edgeInstData[base + 11] = e.curvature ?? 0.0;
+      this.edgeInstData[base + 12] = e.linkType ?? 0.0;
+      this.edgeInstData[base + 13] = 1.0; // sameCommunity placeholder
+      this.edgeInstData[base + 14] = e.dashed ? 1.0 : 0.0; // dashed flag
       count++;
     }
 
@@ -1297,13 +1415,13 @@ export class GraphWebGLRenderer {
 
     let count = 0;
     for (let i = 0; i < ne; i++) {
-      const { source, target, dashed, color } = edges[i];
+      const { source, target, color, linkType } = edges[i];
       const si = this.nodeIndex.get(source);
       const ti = this.nodeIndex.get(target);
       if (si === undefined || ti === undefined) continue;
 
-      // Skip arrows on dashed (reference) edges to reduce clutter
-      if (dashed) continue;
+      // Skip arrows on reference edges to reduce clutter
+      if (linkType === 3 || linkType === 4) continue;
 
       const [er, eg, eb, ea] = color ?? defaultColor;
 
@@ -1439,6 +1557,7 @@ export class GraphWebGLRenderer {
     // Helper: write one ring instance at the given node's position.
     // Ring radius = node_radius * scale so it peeks out from behind the node.
     // Color is always taken from the node's own visual color (or CSS default).
+    const minWorldRadius = this.opts.minNodeRadiusPx / (2.0 * zoom);
     const writeRing = (nodeId: number, scale: number, a: number): void => {
       const idx = this.nodeIndex.get(nodeId);
       if (idx === undefined) return;
@@ -1446,11 +1565,12 @@ export class GraphWebGLRenderer {
       const py  = this.positions[idx * 2 + 1];
       const vis = this.nodeVisuals.get(nodeId);
       const baseRadius = vis?.radius ?? this.opts.defaultRadius;
+      const effBaseRadius = Math.max(baseRadius, minWorldRadius);
       const nodeCol: ArrayLike<number> = vis?.color ?? getCssNodeDefaultColor();
       const base = this.ringInstCount * NODE_STRIDE;
       rid[base    ] = px;
       rid[base + 1] = py;
-      rid[base + 2] = baseRadius * scale;
+      rid[base + 2] = effBaseRadius * scale;
       rid[base + 3] = nodeCol[0];
       rid[base + 4] = nodeCol[1];
       rid[base + 5] = nodeCol[2];
@@ -1485,6 +1605,9 @@ export class GraphWebGLRenderer {
       gl.uniform2fv(this.edgeUniforms.resolution, this._resBuf);
       gl.uniform2fv(this.edgeUniforms.camera, this._camBuf);
       gl.uniform1f( this.edgeUniforms.zoom, zoom);
+      gl.uniform1i( this.edgeUniforms.edgeMask, this._edgeMask);
+      gl.uniform1f( this.edgeUniforms.communityDim, this._communityDim);
+      gl.uniform1f( this.edgeUniforms.hoverEdgeAlpha, this._hoverEdgeAlpha);
       // Bind position texture to unit 0 for the edge shader
       gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(gl.TEXTURE_2D, this.posTex);
@@ -1499,6 +1622,7 @@ export class GraphWebGLRenderer {
       gl.uniform2fv(this.nodeUniforms.resolution, this._resBuf);
       gl.uniform2fv(this.nodeUniforms.camera, this._camBuf);
       gl.uniform1f( this.nodeUniforms.zoom, zoom);
+      gl.uniform1f( this.nodeUniforms.minRadiusPx, this.opts.minNodeRadiusPx);
       gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, this.nodeInstCount);
     }
 
@@ -1509,6 +1633,7 @@ export class GraphWebGLRenderer {
       gl.uniform2fv(this.arrowUniforms.resolution, this._resBuf);
       gl.uniform2fv(this.arrowUniforms.camera, this._camBuf);
       gl.uniform1f( this.arrowUniforms.zoom, zoom);
+      gl.uniform1f( this.arrowUniforms.minRadiusPx, this.opts.minNodeRadiusPx);
       gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(gl.TEXTURE_2D, this.posTex);
       gl.uniform1i(this.arrowUniforms.positions, 0);
@@ -1597,5 +1722,51 @@ export class GraphWebGLRenderer {
     }
 
     return best >= 0 ? this.nodeIdOrder[best] : null;
+  }
+
+  /** Find the closest edge to a world-space point within maxDist world units.
+   *  Returns the edge index in the current edges array, or -1 if none is close. */
+  pickEdge(wx: number, wy: number, maxDist = 10): number {
+    const pos = this.positions;
+    const threshold2 = maxDist * maxDist;
+    let bestIdx = -1;
+    let bestD2 = threshold2;
+
+    for (let i = 0; i < this.edges.length; i++) {
+      const e = this.edges[i];
+      const si = this.nodeIndex.get(e.source);
+      const ti = this.nodeIndex.get(e.target);
+      if (si === undefined || ti === undefined) continue;
+      const x1 = pos[si * 2], y1 = pos[si * 2 + 1];
+      const x2 = pos[ti * 2], y2 = pos[ti * 2 + 1];
+
+      // Project (wx,wy) onto segment (x1,y1)-(x2,y2)
+      const dx = x2 - x1, dy = y2 - y1;
+      const len2 = dx * dx + dy * dy;
+      let t = len2 > 0 ? ((wx - x1) * dx + (wy - y1) * dy) / len2 : 0;
+      t = Math.max(0, Math.min(1, t));
+      const cx = x1 + t * dx;
+      const cy = y1 + t * dy;
+      const d2 = (wx - cx) * (wx - cx) + (wy - cy) * (wy - cy);
+      if (d2 < bestD2) {
+        bestD2 = d2;
+        bestIdx = i;
+      }
+    }
+    return bestIdx;
+  }
+
+  setEdgeMask(mask: number): void {
+    this._edgeMask = mask;
+  }
+
+  setCommunityDim(dim: number): void {
+    this._communityDim = dim;
+  }
+
+  setHoveredEdge(index: number): void {
+    if (this._hoveredEdgeIndex === index) return;
+    this._hoveredEdgeIndex = index;
+    this._hoverEdgeAlpha = index >= 0 ? 0.35 : 1.0;
   }
 }

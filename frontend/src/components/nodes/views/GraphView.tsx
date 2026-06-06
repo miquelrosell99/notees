@@ -110,7 +110,75 @@ function buildSGEUserConfig(settings: GraphSettings, viewMode: 'normal' | 'circl
     heightMode: settings.heightMode,
     viewMode,
     constraintMode: settings.constraintMode,
+    strongClustering: settings.strongClustering,
   };
+}
+
+/** Compute shortest path highlights between consecutive selected nodes. */
+function computePathHighlights(
+  selectedIds: number[],
+  links: GraphLink[],
+): { pathNodeIds: Set<number>; pathEdgeKeys: Set<string> } {
+  if (selectedIds.length < 2) return { pathNodeIds: new Set(), pathEdgeKeys: new Set() };
+
+  // Build adjacency list
+  const adjacency = new Map<number, number[]>();
+  const edgeKeys = new Map<string, string>(); // "a-b" -> "min-max"
+  for (const link of links) {
+    const a = link.source, b = link.target;
+    if (!adjacency.has(a)) adjacency.set(a, []);
+    if (!adjacency.has(b)) adjacency.set(b, []);
+    adjacency.get(a)!.push(b);
+    adjacency.get(b)!.push(a);
+    const key = `${Math.min(a, b)}-${Math.max(a, b)}`;
+    edgeKeys.set(`${a}-${b}`, key);
+    edgeKeys.set(`${b}-${a}`, key);
+  }
+
+  const pathNodeIds = new Set<number>();
+  const pathEdgeKeys = new Set<string>();
+
+  // Find shortest path between each consecutive pair using BFS
+  for (let i = 0; i < selectedIds.length - 1; i++) {
+    const start = selectedIds[i];
+    const end = selectedIds[i + 1];
+    if (!adjacency.has(start) || !adjacency.has(end)) continue;
+
+    const parent = new Map<number, number>();
+    const visited = new Set<number>();
+    const queue: number[] = [start];
+    visited.add(start);
+    let found = false;
+
+    while (queue.length > 0 && !found) {
+      const current = queue.shift()!;
+      for (const neighbor of adjacency.get(current) || []) {
+        if (!visited.has(neighbor)) {
+          visited.add(neighbor);
+          parent.set(neighbor, current);
+          if (neighbor === end) {
+            found = true;
+            break;
+          }
+          queue.push(neighbor);
+        }
+      }
+    }
+
+    if (found) {
+      let cur = end;
+      while (cur !== start) {
+        pathNodeIds.add(cur);
+        const p = parent.get(cur)!;
+        const key = edgeKeys.get(`${cur}-${p}`);
+        if (key) pathEdgeKeys.add(key);
+        cur = p;
+      }
+      pathNodeIds.add(start);
+    }
+  }
+
+  return { pathNodeIds, pathEdgeKeys };
 }
 
 export function GraphView({ 
@@ -167,6 +235,15 @@ export function GraphView({
     linkDirection: 'all',
     minLinkWeight: 0,
     physicsPreset: 'balanced',
+    taperedEdges: true,
+    coloredEdges: true,
+    curvedEdges: true,
+    enableLinkLOD: true,
+    dimCrossCommunityLinks: true,
+    aggregateParallelEdges: true,
+    showTemporalLinks: false,
+    strongClustering: false,
+    highlightPaths: true,
   });
   const settingsLoadedRef = useRef(false);
   
@@ -493,6 +570,26 @@ export function GraphView({
       })
       .map(link => ({ source: link.source, target: link.target, type: link.type, weight: link.weight }));
 
+    // Temporal link injection: connect consecutive daily/monthly/yearly pages
+    if (graphSettings.showTemporalLinks) {
+      const dailyNodes = visibleNodes.filter(n => n.isDaily || n.isMonthly || n.isYearly);
+      const dateNodes = dailyNodes
+        .map(n => {
+          const d = new Date(n.displayName);
+          return isNaN(d.getTime()) ? null : { id: n.id, date: d, type: n.isDaily ? 'daily' : n.isMonthly ? 'monthly' : 'yearly' };
+        })
+        .filter((x): x is NonNullable<typeof x> => x !== null)
+        .sort((a, b) => a.date.getTime() - b.date.getTime());
+
+      for (let i = 1; i < dateNodes.length; i++) {
+        const prev = dateNodes[i - 1];
+        const curr = dateNodes[i];
+        if (prev.type === curr.type) {
+          visibleLinks.push({ source: prev.id, target: curr.id, type: 'temporal' });
+        }
+      }
+    }
+
     // Orphan filter: re-apply after link filtering so orphans are determined by *visible* links
     if (visibilityFilters.hideOrphans) {
       const linkedIds = new Set<number>();
@@ -507,8 +604,17 @@ export function GraphView({
     }
     
     return { nodes: visibleNodes, links: visibleLinks };
-  }, [sourceNodes, sourceLinks, pinnedNodes, classIds, colorGroups, classes, visibilityFilters, viewMode, baseNodeRadius, graphSettings.constraintMode, graphSettings.minLinkWeight, graphSettings.linkDirection, graphDataMode, localGraphMode, currentNodeId]);
+  }, [sourceNodes, sourceLinks, pinnedNodes, classIds, colorGroups, classes, visibilityFilters, viewMode, baseNodeRadius, graphSettings.constraintMode, graphSettings.minLinkWeight, graphSettings.linkDirection, graphDataMode, localGraphMode, currentNodeId, graphSettings.showTemporalLinks]);
   
+  // Compute path highlights between selected nodes
+  const { pathNodeIds, pathEdgeKeys } = useMemo(() => {
+    if (!graphSettings.highlightPaths || selectedNodes.length < 2) {
+      return { pathNodeIds: new Set<number>(), pathEdgeKeys: new Set<string>() };
+    }
+    const selectedIds = selectedNodes.map(s => s.id);
+    return computePathHighlights(selectedIds, links);
+  }, [selectedNodes, links, graphSettings.highlightPaths]);
+
   // Forward live graph-settings changes to the physics worker
   useEffect(() => {
     if (!settingsLoadedRef.current) return;
@@ -780,6 +886,12 @@ export function GraphView({
         onNodeClick={handleNodeClick}
         onNodeDblClick={handleNodeDoubleClick}
         onEmptyClick={() => setSelectedNodes([])}
+        curvedEdges={graphSettings.curvedEdges}
+        coloredEdges={graphSettings.coloredEdges}
+        taperedEdges={graphSettings.taperedEdges}
+        enableLinkLOD={graphSettings.enableLinkLOD}
+        pathNodeIds={pathNodeIds}
+        pathEdgeKeys={pathEdgeKeys}
         className="node-graph-view__renderer"
       />
 

@@ -73,7 +73,7 @@ export interface GraphNode {
 export interface GraphLink {
   source: number;
   target: number;
-  type: 'parent' | 'reference' | 'property-reference' | 'class' | 'extends' | 'cooccurrence';
+  type: 'parent' | 'reference' | 'property-reference' | 'class' | 'extends' | 'cooccurrence' | 'temporal';
   /** Co-occurrence strength (number of shared blocks/contexts). Higher = stronger relation. */
   weight?: number;
 }
@@ -112,8 +112,26 @@ export interface GraphSettings {
   showDebugGrid?: boolean;
   /** Minimum co-occurrence weight to show a link (0 = all). Only affects co-occurrence mode. */
   minLinkWeight: number;
-  /** Physics density preset: sparse (large graphs), balanced (medium), compact (small). */
-  physicsPreset: 'sparse' | 'balanced' | 'compact';
+  /** Physics density preset: sparse (large graphs), balanced (medium), compact (small), clustered (tight communities). */
+  physicsPreset: 'sparse' | 'balanced' | 'compact' | 'clustered';
+  /** Enable tapered edges (wider at source, narrower at target). */
+  taperedEdges: boolean;
+  /** Enable edge color gradients from source to target node color. */
+  coloredEdges: boolean;
+  /** Enable curved edges with per-link-type curvature. */
+  curvedEdges: boolean;
+  /** Hide weaker link types when zoomed out. */
+  enableLinkLOD: boolean;
+  /** Dim links between different communities. */
+  dimCrossCommunityLinks: boolean;
+  /** Bundle parallel edges into thicker single edges. */
+  aggregateParallelEdges: boolean;
+  /** Show synthetic temporal links between consecutive daily/monthly/yearly pages. */
+  showTemporalLinks: boolean;
+  /** Increase clustering strength and repulsion for clearer community separation. */
+  strongClustering: boolean;
+  /** Highlight shortest paths between selected nodes. */
+  highlightPaths: boolean;
 }
 
 /**
@@ -198,6 +216,15 @@ export const DEFAULT_GRAPH_SETTINGS: GraphSettings = {
   showDebugGrid: false,
   minLinkWeight: 0,
   physicsPreset: 'balanced',
+  taperedEdges: true,
+  coloredEdges: true,
+  curvedEdges: true,
+  enableLinkLOD: true,
+  dimCrossCommunityLinks: true,
+  aggregateParallelEdges: true,
+  showTemporalLinks: false,
+  strongClustering: false,
+  highlightPaths: true,
 };
 
 export const DEFAULT_VISIBILITY_FILTERS: VisibilityFilters = {

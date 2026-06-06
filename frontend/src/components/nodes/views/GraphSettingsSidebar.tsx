@@ -209,6 +209,19 @@ export function GraphSettingsSidebar({
             }))}
           />
         </div>
+        <div className="visibility-option">
+          <BooleanToggle
+            size="sm"
+            label="Strong clustering"
+            labelPosition="left"
+            checked={graphSettings.strongClustering}
+            onChange={(e) => onGraphSettingsChange(prev => ({
+              ...prev,
+              strongClustering: e.target.checked
+            }))}
+          />
+        </div>
+
       </GraphSidebarSection>
 
       <GraphSidebarSection title="Nodes" icon="mdi mdi-filter" defaultOpen={false}>
@@ -355,6 +368,66 @@ export function GraphSettingsSidebar({
             }))}
           />
         </div>
+        <div className="visibility-option">
+          <BooleanToggle
+            size="sm"
+            label="Curved edges"
+            labelPosition="left"
+            checked={graphSettings.curvedEdges}
+            onChange={(e) => onGraphSettingsChange(prev => ({
+              ...prev,
+              curvedEdges: e.target.checked
+            }))}
+          />
+        </div>
+        <div className="visibility-option">
+          <BooleanToggle
+            size="sm"
+            label="Colored edges"
+            labelPosition="left"
+            checked={graphSettings.coloredEdges}
+            onChange={(e) => onGraphSettingsChange(prev => ({
+              ...prev,
+              coloredEdges: e.target.checked
+            }))}
+          />
+        </div>
+        <div className="visibility-option">
+          <BooleanToggle
+            size="sm"
+            label="Tapered edges"
+            labelPosition="left"
+            checked={graphSettings.taperedEdges}
+            onChange={(e) => onGraphSettingsChange(prev => ({
+              ...prev,
+              taperedEdges: e.target.checked
+            }))}
+          />
+        </div>
+        <div className="visibility-option">
+          <BooleanToggle
+            size="sm"
+            label="Link LOD"
+            labelPosition="left"
+            checked={graphSettings.enableLinkLOD}
+            onChange={(e) => onGraphSettingsChange(prev => ({
+              ...prev,
+              enableLinkLOD: e.target.checked
+            }))}
+          />
+        </div>
+        <div className="visibility-option">
+          <BooleanToggle
+            size="sm"
+            label="Temporal links"
+            labelPosition="left"
+            checked={graphSettings.showTemporalLinks}
+            onChange={(e) => onGraphSettingsChange(prev => ({
+              ...prev,
+              showTemporalLinks: e.target.checked
+            }))}
+          />
+        </div>
       </GraphSidebarSection>
 
       <GraphSidebarSection title="Style" icon="mdi mdi-palette" defaultOpen={false}>
@@ -425,6 +498,18 @@ export function GraphSettingsSidebar({
             />
           </div>
         )}
+        <div className="visibility-option">
+          <BooleanToggle
+            size="sm"
+            label="Highlight paths"
+            labelPosition="left"
+            checked={graphSettings.highlightPaths}
+            onChange={(e) => onGraphSettingsChange(prev => ({
+              ...prev,
+              highlightPaths: e.target.checked
+            }))}
+          />
+        </div>
       </GraphSidebarSection>
     </div>
   );

@@ -20,9 +20,10 @@ import type {
   MainToPhysicsMessage,
   PhysicsToMainMessage,
 } from './graphPhysicsWorkerProtocol';
-import { META_SEQ, META_COUNT, META_TICKS, META_ALPHA, META_ENERGY } from './graphPhysicsWorkerProtocol';
+import { META_SEQ, META_COUNT, META_TICKS, META_ENERGY } from './graphPhysicsWorkerProtocol';
 import type { SGEUserConfig } from './SemanticGraphEngine';
 import type { GraphNode, GraphLink } from './viewTypes';
+import { LINK_TYPE_IDS, LINK_TYPE_CURVATURE } from './graphConstants';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -132,7 +133,6 @@ export interface GraphRendererStats {
   visibleEdges: number;
   arrowInstCount: number;
   glowInstCount: number;
-  alpha: number;
   energy: number;
   ticks: number;
   fps: number;
@@ -153,6 +153,18 @@ export interface GraphRendererOptions {
   onNodeDblClick?: (nodeId: number) => void;
   /** Callback when user clicks on empty space (no node hit). */
   onEmptyClick?: () => void;
+  /** Enable curved edges. Default: true. */
+  curvedEdges?: boolean;
+  /** Enable colored edge gradients. Default: true. */
+  coloredEdges?: boolean;
+  /** Enable tapered edge widths. Default: true. */
+  taperedEdges?: boolean;
+  /** Enable link-type LOD based on zoom. Default: true. */
+  enableLinkLOD?: boolean;
+  /** Node IDs that are on a highlighted path. */
+  pathNodeIds?: Set<number>;
+  /** Edge keys ("min-max") that are on a highlighted path. */
+  pathEdgeKeys?: Set<string>;
 }
 
 export interface GraphRendererHandle {
@@ -166,8 +178,8 @@ export interface GraphRendererHandle {
   selectedNodeId: number;
   /** Currently hovered node info for tooltip (null = none). */
   hoveredNode: { id: number; name: string; screenX: number; screenY: number } | null;
-  /** Restart the physics simulation cooling schedule. */
-  reheat: () => void;
+  /** Currently hovered edge info for tooltip (null = none). */
+  hoveredEdge: { source: number; target: number; type: string; screenX: number; screenY: number } | null;
   /** Pause the physics simulation without destroying state. */
   pause: () => void;
   /** Resume the physics simulation. */
@@ -189,7 +201,9 @@ export interface GraphRendererHandle {
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
 export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandle {
-  const { nodes, edges, config, sizeByConnections = true, baseNodeRadius = BASE_RADIUS } = opts;
+  const { nodes, edges, config, sizeByConnections = true, baseNodeRadius = BASE_RADIUS,
+    curvedEdges = true, coloredEdges = true, taperedEdges = true, enableLinkLOD: _enableLinkLOD,
+    pathNodeIds, pathEdgeKeys } = opts;
 
   const canvasRef  = useRef<HTMLCanvasElement | null>(null);
   const labelCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -213,12 +227,16 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
 
   // Hover / selection (mutable refs = no re-renders on mouse move)
   const hoveredNodeRef = useRef(-1);
+  const hoveredEdgeRef = useRef(-1);
   const selectedRef    = useRef(-1);
   const [selectedNodeId, setSelectedNodeId] = useState<number>(-1);
   const [hoveredNode, setHoveredNode] = useState<{ id: number; name: string; screenX: number; screenY: number } | null>(null);
+  const [hoveredEdge, setHoveredEdge] = useState<{ source: number; target: number; type: string; screenX: number; screenY: number } | null>(null);
 
   // Node name map for label rendering (id → displayName)
   const nodeNamesRef = useRef(new Map<number, string>());
+  // Node radius map for label offset (id → world radius)
+  const nodeRadiiRef = useRef(new Map<number, number>());
 
   // Drag state
   type DragMode = 'none' | 'camera' | 'node';
@@ -241,10 +259,10 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
   const [stats, setStats] = useState<GraphRendererStats>({
     nodeCount: 0, edgeCount: 0, visibleNodes: 0, visibleEdges: 0,
     arrowInstCount: 0, glowInstCount: 0,
-    alpha: 1, energy: 0, ticks: 0, fps: 0,
+    energy: 0, ticks: 0, fps: 0,
   });
 
-  const statsAccRef = useRef({ alpha: 1, energy: 0, ticks: 0 });
+  const statsAccRef = useRef({ energy: 0, ticks: 0 });
   const fpsRef      = useRef({ frames: 0, last: performance.now() });
 
   // When a real topology init fires, auto-fit the camera to the physics
@@ -310,7 +328,6 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
       const msg = e.data;
 
       if (msg.type === 'ready') {
-        statsAccRef.current.alpha  = 1;
         statsAccRef.current.energy = 0;
         statsAccRef.current.ticks  = 0;
         return;
@@ -331,7 +348,6 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
         // Update renderer positions (packs instance buffers on CPU, uploads to GPU)
         renderer.updatePositions(msg.positions, msg.nodeIds);
         // Stash converged stats
-        statsAccRef.current.alpha  = msg.alpha;
         statsAccRef.current.energy = msg.energy;
         statsAccRef.current.ticks  = msg.ticks;
         // Mark frame dirty so the RAF loop knows to re-render
@@ -389,7 +405,6 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
           sabSeq.current = seq;
           const n = Atomics.load(metaI32, META_COUNT);
           rend.updatePositions(sabPos.subarray(0, n * 2), sabNids.subarray(0, n));
-          statsAccRef.current.alpha  = metaF32[META_ALPHA];
           statsAccRef.current.energy = metaF32[META_ENERGY];
           statsAccRef.current.ticks  = Atomics.load(metaI32, META_TICKS);
           dirtyRef.current.positions = true;
@@ -449,7 +464,6 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
             ...prev,
             visibleNodes: rStats.nodeInstCount,
             visibleEdges: rStats.edgeInstCount,
-            alpha:  s.alpha,
             energy: s.energy,
             ticks:  s.ticks,
             fps,
@@ -467,6 +481,21 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
 
       // Sync camera & render WebGL
       rend.setCamera(cam.x, cam.y, cam.zoom);
+
+      // Update edge LOD mask based on zoom
+      const lodEnabled = optsRef.current.enableLinkLOD ?? true;
+      if (lodEnabled) {
+        const z = cam.zoom;
+        let mask = 0;
+        if (z >= 0.15) mask |= (1 << LINK_TYPE_IDS.parent) | (1 << LINK_TYPE_IDS.class) | (1 << LINK_TYPE_IDS.extends);
+        if (z >= 0.40) mask |= (1 << LINK_TYPE_IDS.reference);
+        if (z >= 0.80) mask |= (1 << LINK_TYPE_IDS['property-reference']);
+        if (z >= 1.20) mask |= (1 << LINK_TYPE_IDS.cooccurrence) | (1 << LINK_TYPE_IDS.temporal);
+        rend.setEdgeMask(mask || 0xFFFFFFFF);
+      } else {
+        rend.setEdgeMask(0xFFFFFFFF);
+      }
+
       rend.render();
 
       // ── 2D label overlay ──
@@ -536,8 +565,13 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
 
               if (sx < -margin || sx > cw + margin || sy < -40 || sy > ch + 40) continue;
 
+              const baseR = optsRef.current.baseNodeRadius ?? BASE_RADIUS;
+              const worldRadius = nodeRadiiRef.current.get(id) ?? baseR;
+              const screenRadius = worldRadius * zoom * dpr;
+              const labelOffset = screenRadius + 4 * dpr;
+
               const label = name.length > 28 ? name.slice(0, 27) + '\u2026' : name;
-              ctx.fillText(label, sx, sy + 12 * dpr);
+              ctx.fillText(label, sx, sy + labelOffset);
               rendered++;
             }
 
@@ -550,9 +584,13 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
                   // worldToScreen already returns physical pixels
                   const sx = rend.worldToScreen(pos[hIdx * 2], pos[hIdx * 2 + 1]).x;
                   const sy = rend.worldToScreen(pos[hIdx * 2], pos[hIdx * 2 + 1]).y;
+                  const baseR = optsRef.current.baseNodeRadius ?? BASE_RADIUS;
+                  const worldRadius = nodeRadiiRef.current.get(hoveredNodeRef.current) ?? baseR;
+                  const screenRadius = worldRadius * zoom * dpr;
+                  const labelOffset = screenRadius + 4 * dpr;
                   ctx.fillStyle = getLabelEmphasisColor();
                   const label = hName.length > 28 ? hName.slice(0, 27) + '\u2026' : hName;
-                  ctx.fillText(label, sx, sy + 12 * dpr);
+                  ctx.fillText(label, sx, sy + labelOffset);
                 }
               }
             }
@@ -566,9 +604,13 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
                   // worldToScreen already returns physical pixels
                   const sx = rend.worldToScreen(pos[sIdx * 2], pos[sIdx * 2 + 1]).x;
                   const sy = rend.worldToScreen(pos[sIdx * 2], pos[sIdx * 2 + 1]).y;
+                  const baseR = optsRef.current.baseNodeRadius ?? BASE_RADIUS;
+                  const worldRadius = nodeRadiiRef.current.get(selectedRef.current) ?? baseR;
+                  const screenRadius = worldRadius * zoom * dpr;
+                  const labelOffset = screenRadius + 4 * dpr;
                   ctx.fillStyle = getLabelEmphasisColor();
                   const label = sName.length > 28 ? sName.slice(0, 27) + '\u2026' : sName;
-                  ctx.fillText(label, sx, sy + 12 * dpr);
+                  ctx.fillText(label, sx, sy + labelOffset);
                 }
               }
             }
@@ -590,7 +632,6 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
           ...prev,
           visibleNodes: rStats.nodeInstCount,
           visibleEdges: rStats.edgeInstCount,
-          alpha:  s.alpha,
           energy: s.energy,
           ticks:  s.ticks,
           fps,
@@ -676,24 +717,51 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
         ...edges.filter(e => e.type === 'cooccurrence').map(e => e.weight ?? 1),
         1
       );
-      const physEdges = edges.map(e => ({
-        source: e.source,
-        target: e.target,
-        dashed: e.type === 'reference' || e.type === 'property-reference' || e.type === 'cooccurrence',
-        color: e.type === 'cooccurrence' ? COOCCURRENCE_COLOR : undefined,
-        width: e.type === 'cooccurrence'
+
+      // Build node color lookup for edge gradients
+      const nodeColorMap = new Map<number, [number, number, number, number]>();
+      for (const n of nodes) {
+        const c = nodeColor(n);
+        if (c) {
+          nodeColorMap.set(n.id, [c[0], c[1], c[2], c[3]]);
+        }
+      }
+      const defaultEdgeColor: [number, number, number, number] = [0.65, 0.65, 0.7, 0.35];
+
+      const PATH_EDGE_COLOR: [number, number, number, number] = [1.0, 0.75, 0.2, 0.9];
+      const physEdges = edges.map(e => {
+        const edgeKey = `${Math.min(e.source, e.target)}-${Math.max(e.source, e.target)}`;
+        const isPath = pathEdgeKeys?.has(edgeKey) ?? false;
+        const srcColor = coloredEdges ? (nodeColorMap.get(e.source) ?? defaultEdgeColor) : undefined;
+        const tgtColor = coloredEdges ? (nodeColorMap.get(e.target) ?? defaultEdgeColor) : undefined;
+        const baseWidth = e.type === 'cooccurrence'
           ? 0.8 + 2.0 * ((e.weight ?? 1) / maxCooccurrenceWeight)
-          : e.type === 'parent' || e.type === 'extends' ? 1.2
+          : e.type === 'parent' || e.type === 'extends' ? 3.0
           : e.type === 'class' ? 1.0
-          : 0.6,
-      }));
+          : 0.6;
+        return {
+          source: e.source,
+          target: e.target,
+          type: e.type,
+          dashed: false,
+          color: (!coloredEdges && e.type === 'cooccurrence') ? COOCCURRENCE_COLOR : undefined,
+          colorSrc: isPath ? PATH_EDGE_COLOR : (coloredEdges ? srcColor : undefined),
+          colorTgt: isPath ? PATH_EDGE_COLOR : (coloredEdges ? tgtColor : undefined),
+          width: isPath ? baseWidth * 1.6 : (taperedEdges ? baseWidth : baseWidth * 0.8),
+          curvature: curvedEdges ? (LINK_TYPE_CURVATURE[e.type] ?? 0.0) : 0.0,
+          linkType: LINK_TYPE_IDS[e.type] ?? 0,
+        };
+      });
+
+      const PATH_COLOR = new Float32Array([1.0, 0.75, 0.2, 1.0]);
 
       // Build visual metadata map
       const visuals = new Map<number, NodeVisual>();
       for (const n of nodes) {
+        const isPath = pathNodeIds?.has(n.id) ?? false;
         visuals.set(n.id, {
           radius: sizeByConnections ? nodeRadius(n, maxConn, baseNodeRadius) : baseNodeRadius,
-          color:  nodeColor(n),
+          color: isPath ? PATH_COLOR : nodeColor(n),
         });
       }
 
@@ -702,11 +770,14 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
       renderer.setNodeVisuals(idArr, visuals);
       renderer.setEdges(physEdges);
 
-      // Populate label name map
+      // Populate label name map and radius map
       const names = nodeNamesRef.current;
       names.clear();
+      const radii = nodeRadiiRef.current;
+      radii.clear();
       for (const n of nodes) {
         names.set(n.id, n.displayName || n.name || String(n.id));
+        radii.set(n.id, sizeByConnections ? nodeRadius(n, maxConn, baseNodeRadius) : baseNodeRadius);
       }
 
       // Send to worker (full topology init/swap)
@@ -871,12 +942,31 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
           const cssY = (py / (canvas.height / rect.height));
           const name = nodeNamesRef.current.get(hit) ?? '';
           setHoveredNode({ id: hit, name, screenX: cssX, screenY: cssY });
+          setHoveredEdge(null);
+          rend.setHoveredEdge(-1);
         } else {
           setHoveredNode(null);
+          // Check edge hover when no node is hovered
+          const edgeIdx = rend.pickEdge(world.x, world.y, 12 / camRef.current.zoom);
+          if (edgeIdx >= 0) {
+            const e = optsRef.current.edges[edgeIdx];
+            if (e) {
+              const rect = canvas.getBoundingClientRect();
+              const cssX = (px / (canvas.width / rect.width));
+              const cssY = (py / (canvas.height / rect.height));
+              setHoveredEdge({ source: e.source, target: e.target, type: e.type, screenX: cssX, screenY: cssY });
+              hoveredEdgeRef.current = edgeIdx;
+              rend.setHoveredEdge(edgeIdx);
+            }
+          } else {
+            setHoveredEdge(null);
+            hoveredEdgeRef.current = -1;
+            rend.setHoveredEdge(-1);
+          }
         }
       }
       if (d.mode === 'none') {
-        canvas.style.cursor = hit >= 0 ? 'pointer' : 'grab';
+        canvas.style.cursor = hit >= 0 ? 'pointer' : (hoveredEdgeRef.current >= 0 ? 'pointer' : 'grab');
       } else if (d.mode === 'node') {
         canvas.style.cursor = 'grabbing';
       } else {
@@ -967,10 +1057,6 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
   }, []);
 
   // ─── Public API ─────────────────────────────────────────────────────────────
-  const reheat = useCallback(() => {
-    post({ type: 'reheat' });
-  }, [post]);
-
   const pause = useCallback(() => {
     post({ type: 'pause' });
   }, [post]);
@@ -1055,8 +1141,8 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
     labelCanvasRef,
     selectedNodeId,
     hoveredNode,
+    hoveredEdge,
     stats,
-    reheat,
     pause,
     resume,
     setConfig,
