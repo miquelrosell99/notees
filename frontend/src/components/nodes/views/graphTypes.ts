@@ -65,6 +65,7 @@ export interface GraphNode {
   createdAt?: string;
   visible: boolean;
   isClassNode: boolean;
+  aliased_id?: number | null;
 }
 
 /**
@@ -73,7 +74,7 @@ export interface GraphNode {
 export interface GraphLink {
   source: number;
   target: number;
-  type: 'parent' | 'reference' | 'property-reference' | 'class' | 'extends' | 'cooccurrence' | 'temporal';
+  type: 'parent' | 'reference' | 'property-reference' | 'class' | 'extends' | 'cooccurrence' | 'temporal' | 'alias';
   /** Co-occurrence strength (number of shared blocks/contexts). Higher = stronger relation. */
   weight?: number;
 }
@@ -155,6 +156,8 @@ export interface VisibilityFilters {
   hideSelfNode?: boolean;
   /** Hide nodes with no visible connections (orphans) */
   hideOrphans: boolean;
+  /** Show alias nodes; when false aliases are hidden and their links are redirected to the main node */
+  showAliases?: boolean;
 }
 
 // ==================== Physics Types ====================
@@ -238,4 +241,5 @@ export const DEFAULT_VISIBILITY_FILTERS: VisibilityFilters = {
   showSystemPages: false,
   hideSelfNode: false,
   hideOrphans: false,
+  showAliases: false,
 };

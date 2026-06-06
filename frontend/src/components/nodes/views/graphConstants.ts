@@ -107,7 +107,7 @@ export const MIN_NODE_SCREEN_RADIUS_PX = 3.0;
 
 // Link type priority
 export const LINK_TYPE_PRIORITY: Record<
-  'parent' | 'reference' | 'property-reference' | 'class' | 'extends' | 'cooccurrence' | 'temporal',
+  'parent' | 'reference' | 'property-reference' | 'class' | 'extends' | 'cooccurrence' | 'temporal' | 'alias',
   number
 > = {
   parent: 3,
@@ -117,10 +117,11 @@ export const LINK_TYPE_PRIORITY: Record<
   reference: 0,
   cooccurrence: 0,
   temporal: 0,
+  alias: 0,
 };
 
 /** Compact numeric IDs for link types (shader & physics use). */
-type LinkTypeKey = 'parent' | 'reference' | 'property-reference' | 'class' | 'extends' | 'cooccurrence' | 'temporal';
+type LinkTypeKey = 'parent' | 'reference' | 'property-reference' | 'class' | 'extends' | 'cooccurrence' | 'temporal' | 'alias';
 
 export const LINK_TYPE_IDS: Record<LinkTypeKey, number> = {
   parent: 0,
@@ -130,6 +131,7 @@ export const LINK_TYPE_IDS: Record<LinkTypeKey, number> = {
   'property-reference': 4,
   cooccurrence: 5,
   temporal: 6,
+  alias: 7,
 };
 
 /** Curvature factor per link type for quadratic Bezier edge bending. */
@@ -141,6 +143,7 @@ export const LINK_TYPE_CURVATURE: Record<LinkTypeKey, number> = {
   'property-reference': 0.08,
   cooccurrence: 0.18,
   temporal: 0.25,
+  alias: 0.0,
 };
 
 /** Rest-length multiplier per link type (relative to idealDistance). */
@@ -152,6 +155,7 @@ export const LINK_TYPE_REST_MULT: Record<LinkTypeKey, number> = {
   'property-reference': 1.1,
   cooccurrence: 1.6,
   temporal: 2.0,
+  alias: 0.5,
 };
 
 /** Stiffness multiplier per link type (relative to base spring strength). */
@@ -163,6 +167,7 @@ export const LINK_TYPE_STIFF_MULT: Record<LinkTypeKey, number> = {
   'property-reference': 0.8,
   cooccurrence: 0.4,
   temporal: 0.3,
+  alias: 1.5,
 };
 
 /** Source/target width multipliers for tapered edges. */
