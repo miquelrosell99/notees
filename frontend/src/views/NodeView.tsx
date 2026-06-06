@@ -21,7 +21,7 @@
  */
 import React, { useState, useMemo, useCallback, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useNode, useClasses, useNodesWithClass, useUpdateNode, useAddTag, useAddClass, useCreateNode, useProperties, useSetNodeProperty, useRemoveClass, useRemoveTag, useTags, useContentSave, useLinkedReferencesCount, usePageClass, useClassExtends, useAddClassExtends, useRemoveClassExtends, useCreateProperty, useResolvedClassDetails, useNodeNavigation, useAddAlias, useRemoveAlias, useLivePageSync, useWorkspaceRole, nodeNameToText } from '@/hooks';
+import { useNode, useClasses, useNodesWithClass, useUpdateNode, useAddTag, useAddClass, useCreateNode, useProperties, useSetNodeProperty, useRemoveClass, useRemoveTag, useTags, useContentSave, useLinkedReferencesCount, usePageClass, useClassExtends, useAddClassExtends, useRemoveClassExtends, useCreateProperty, useResolvedClassDetails, useNodeNavigation, useAddAlias, useRemoveAlias, useLivePageSync, useEffectiveNodePermissions, nodeNameToText } from '@/hooks';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { nodeKeys } from '@/hooks/queryKeys';
 import * as nodesApi from '@/api/nodes';
@@ -381,7 +381,7 @@ export function NodeView({
   const { addSidebarCard, openNode } = useNavigationStore();
   const { contentDisplayMode } = useAppStore();
   const isMobile = useIsMobile();
-  const { canWrite: workspaceCanWrite, canCreate: workspaceCanCreate, isOwner } = useWorkspaceRole();
+  const { canWrite: workspaceCanWrite, canCreate: workspaceCanCreate, isOwner } = useEffectiveNodePermissions(node);
   const { navigateToNode } = useNodeNavigation();
   const updateNode = useUpdateNode();
   const removeClass = useRemoveClass();
@@ -1356,6 +1356,7 @@ export function NodeView({
               defaultExpanded={true}
               onNodeClick={(targetNodeId) => openNode(targetNodeId)}
               onBlockCreated={(targetNodeId) => addSidebarCard(targetNodeId, 'block')}
+              can_create={workspaceCanCreate}
             />
           )}
           
@@ -1373,6 +1374,7 @@ export function NodeView({
               onNodeClick={(targetNodeId) => openNode(targetNodeId)}
               onBlockCreated={(targetNodeId) => addSidebarCard(targetNodeId, 'block')}
               hideViewManagement={true}
+              can_create={workspaceCanCreate}
             />
           )}
           
@@ -1392,6 +1394,7 @@ export function NodeView({
                 hideViewManagement={true}
                 onNodeClick={(targetNodeId) => openNode(targetNodeId)}
                 onBlockCreated={(targetNodeId) => addSidebarCard(targetNodeId, 'block')}
+                can_create={workspaceCanCreate}
               />
               {node.uuid === getTodayDayUuid() && (
                 <QuerySection
@@ -1407,6 +1410,7 @@ export function NodeView({
                   hideViewManagement={true}
                   onNodeClick={(targetNodeId) => openNode(targetNodeId)}
                   onBlockCreated={(targetNodeId) => addSidebarCard(targetNodeId, 'block')}
+                  can_create={workspaceCanCreate}
                 />
               )}
             </>
@@ -1456,7 +1460,7 @@ export function NodeView({
           <div className="node-view-metadata">
             <span>Created: <a role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }} className="node-view-metadata-date" onClick={() => navigateToDay(node.create_date)}>{formatDate(new Date(node.create_date), useSettingsStore.getState().dateFormat)}</a></span>
             <span>Updated: <a role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }} className="node-view-metadata-date" onClick={() => navigateToDay(node.write_date)}>{formatDate(new Date(node.write_date), useSettingsStore.getState().dateFormat)}</a></span>
-            {liveSyncStatus !== 'connected' && node?.is_page && (
+            {liveSyncStatus !== 'connected' && liveSyncStatus !== 'idle' && node?.is_page && (
               <span className={`live-sync-status live-sync-status--${liveSyncStatus}`} title={`Live sync ${liveSyncStatus}`}>
                 {liveSyncStatus === 'connecting' ? 'Connecting…' : liveSyncStatus === 'error' ? 'Sync error' : 'Offline'}
               </span>

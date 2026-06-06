@@ -175,7 +175,12 @@ class NodeService:
         predetermined and normal validation / link-parsing is not needed.
         """
         if self._user_id:
-            await self.permissions.require_workspace_create(self._workspace_id)
+            has_workspace_create = await self.permissions.can_create_in_workspace(self._workspace_id)
+            has_parent_write = False
+            if data.parent_id is not None:
+                has_parent_write = await self.permissions.can_write_node(data.parent_id)
+            if not has_workspace_create and not has_parent_write:
+                await self.permissions.require_workspace_create(self._workspace_id)
         return await self._node_repo.create(data, uuid=uuid)
 
     async def _compute_flags_from_classes(self, class_ids: list[int]) -> dict[str, bool]:
@@ -372,7 +377,12 @@ class NodeService:
 
         # Create the node
         if self._user_id:
-            await self.permissions.require_workspace_create(self._workspace_id)
+            has_workspace_create = await self.permissions.can_create_in_workspace(self._workspace_id)
+            has_parent_write = False
+            if data.parent_id is not None:
+                has_parent_write = await self.permissions.can_write_node(data.parent_id)
+            if not has_workspace_create and not has_parent_write:
+                await self.permissions.require_workspace_create(self._workspace_id)
         node = await self._node_repo.create(data, user_id)
 
         # Parse and store links and inline classes from content

@@ -53,6 +53,9 @@ class NodeResponse(BaseModel):
     # Referenced nodes map — uuid → node data for outgoing link targets.
     # Populated by page content endpoint so inline links resolve without N+1 queries.
     referenced_nodes: dict[str, "NodeResponse"] | None = None
+    # Resolved permissions for the current user on this node.
+    # Only populated for top-level node fetches, not batch/list responses.
+    permissions: dict[str, bool] | None = None
 
     class Config:
         from_attributes = True
