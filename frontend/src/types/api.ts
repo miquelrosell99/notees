@@ -75,6 +75,15 @@ export interface Node {
   // Class extension (Extends chain) - parent class IDs in order
   extends?: number[];
 
+  // Resolved permissions for the current user on this node.
+  // Only populated for top-level node fetches.
+  permissions?: {
+    can_read: boolean;
+    can_write: boolean;
+    can_create: boolean;
+    can_delete: boolean;
+  };
+
   // Referenced nodes map — uuid → node data for outgoing link targets.
   // Populated by page content endpoint so inline links resolve without N+1 queries.
   referenced_nodes?: Record<string, Node>;

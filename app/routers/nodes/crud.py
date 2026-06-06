@@ -24,6 +24,7 @@ from .helpers import (
     _name_text,
     _node_snapshot,
     _node_to_response,
+    _node_to_response_with_permissions,
     _resolve_referenced_display_names,
     extract_properties_dict,
 )
@@ -797,7 +798,9 @@ async def get_node(
     # Get aliases for the node (nodes that have aliased_id pointing to this node)
     alias_ids = await _get_alias_ids(service.pool, service.workspace_id or 0, node_id)
 
-    response = _node_to_response(node, tags=tag_ids, classes=class_ids, aliases=alias_ids)
+    response = await _node_to_response_with_permissions(
+        node, service.permissions, tags=tag_ids, classes=class_ids, aliases=alias_ids
+    )
 
     if include_children:
         pool = service.pool
@@ -1042,7 +1045,7 @@ async def get_node_by_uuid(
     if not node:
         raise HTTPException(404, "Node not found")
 
-    response = _node_to_response(node)
+    response = await _node_to_response_with_permissions(node, service.permissions)
 
     if include_children and node.id:
         children = await service.get_node_children(node.id)
@@ -1152,7 +1155,9 @@ async def get_page_content(
     # Get aliases for the page
     page_alias_ids = await _get_alias_ids(service.pool, service.workspace_id or 0, page_id)
 
-    page_response = _node_to_response(page, tags=page_tag_ids, classes=page_class_ids, aliases=page_alias_ids)
+    page_response = await _node_to_response_with_permissions(
+        page, service.permissions, tags=page_tag_ids, classes=page_class_ids, aliases=page_alias_ids
+    )
     page_response.children = root_children
 
     # Add properties - get the full property values

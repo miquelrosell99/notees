@@ -5,6 +5,7 @@ from typing import Any
 
 from ...db.connection import acquire_connection, get_pool
 from ...domain.entities import Node
+from ...domain.permissions import PermissionChecker
 from ...domain.repositories import (
     PostgresLinkRepository,
     PostgresNodeRepository,
@@ -120,6 +121,23 @@ def _node_to_response(
         has_children=has_children,
         extends=extends or [],
     )
+
+
+async def _node_to_response_with_permissions(
+    node: Node,
+    permission_checker: PermissionChecker,
+    **kwargs,
+) -> NodeResponse:
+    """Convert domain Node to API response and inject resolved permissions."""
+    response = _node_to_response(node, **kwargs)
+    if node.id is not None:
+        response.permissions = {
+            "can_read": await permission_checker.can_read_node(node.id),
+            "can_write": await permission_checker.can_write_node(node.id),
+            "can_create": await permission_checker.can_create_in_node(node.id),
+            "can_delete": await permission_checker.can_delete_node(node.id),
+        }
+    return response
 
 
 def _build_children_response(
