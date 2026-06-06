@@ -297,6 +297,18 @@ export function GraphSettingsSidebar({
             }))}
           />
         </div>
+        <div className="visibility-option">
+          <BooleanToggle
+            size="sm"
+            label="Show aliases"
+            labelPosition="left"
+            checked={visibilityFilters.showAliases ?? false}
+            onChange={(e) => onVisibilityFiltersChange(prev => ({
+              ...prev,
+              showAliases: e.target.checked
+            }))}
+          />
+        </div>
       </GraphSidebarSection>
 
       <GraphSidebarSection title="Links" icon="mdi mdi-link-variant" defaultOpen={false}>

@@ -472,6 +472,7 @@ export const NodeCollection = memo(function NodeCollection({
           is_yearly: n.is_yearly,
           icon: n.icon ?? undefined,
           backlink_count: n.backlink_count,
+          aliased_id: n.aliased_id,
         }));
         if (activeNode && !graphNodes.some((n) => n.id === activeNode.id)) {
           graphNodes.unshift({
@@ -488,6 +489,7 @@ export const NodeCollection = memo(function NodeCollection({
             is_yearly: (activeNode as { is_yearly?: boolean }).is_yearly,
             icon: (activeNode as { icon?: string }).icon ?? undefined,
             backlink_count: (activeNode as { backlink_count?: number }).backlink_count,
+            aliased_id: (activeNode as { aliased_id?: number | null }).aliased_id,
           });
         }
         return {
