@@ -133,7 +133,7 @@ function applyRemoteBlockUpdate(
 export function useLivePageSync({ nodeUuid }: UseLivePageSyncOptions) {
   const queryClient = useQueryClient();
   const unsubRef = useRef<(() => void) | null>(null);
-  const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'connecting' | 'error'>('disconnected');
+  const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'connecting' | 'error' | 'idle'>('idle');
 
   useEffect(() => {
     if (!nodeUuid) return;

@@ -28,8 +28,6 @@ import './GraphRenderer.css';
 // ─── Imperative ref API ───────────────────────────────────────────────────────
 
 export interface GraphRendererRef {
-  /** Restart the physics cooling schedule. */
-  reheat: () => void;
   /** Pause the physics tick loop. */
   pauseSimulation: () => void;
   /** Resume the physics tick loop. */
@@ -69,6 +67,18 @@ export interface GraphRendererProps {
   onNodeDblClick?: (nodeId: number) => void;
   /** Called when user clicks on empty canvas space (no node hit). */
   onEmptyClick?: () => void;
+  /** Enable curved edges. Default: true */
+  curvedEdges?: boolean;
+  /** Enable colored edge gradients. Default: true */
+  coloredEdges?: boolean;
+  /** Enable tapered edge widths. Default: true */
+  taperedEdges?: boolean;
+  /** Enable link-type LOD based on zoom. Default: true */
+  enableLinkLOD?: boolean;
+  /** Node IDs that are on a highlighted path. */
+  pathNodeIds?: Set<number>;
+  /** Edge keys ("min-max") that are on a highlighted path. */
+  pathEdgeKeys?: Set<string>;
 }
 
 // ─── WebGL2 availability check ────────────────────────────────────────────────
@@ -85,7 +95,6 @@ function hasWebGL2(): boolean {
 // ─── Stats overlay ────────────────────────────────────────────────────────────
 
 interface StatsOverlayProps {
-  alpha: number;
   energy: number;
   ticks: number;
   fps: number;
@@ -96,14 +105,13 @@ interface StatsOverlayProps {
 }
 
 function StatsOverlay({
-  alpha, energy, ticks, fps,
+  energy, ticks, fps,
   nodeCount, edgeCount,
   visibleNodes, visibleEdges,
 }: StatsOverlayProps) {
   return (
     <div className="sge-stats">
       <span>{fps} fps</span>
-      <span>α {alpha.toFixed(4)}</span>
       <span>E {energy.toFixed(4)}</span>
       <span>t {ticks}</span>
       <span>{visibleNodes}/{nodeCount} nodes</span>
@@ -125,6 +133,12 @@ export const GraphRenderer = memo(forwardRef<GraphRendererRef, GraphRendererProp
   onNodeClick,
   onNodeDblClick,
   onEmptyClick,
+  curvedEdges = true,
+  coloredEdges = true,
+  taperedEdges = true,
+  enableLinkLOD = true,
+  pathNodeIds,
+  pathEdgeKeys,
 }, ref) {
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -140,6 +154,12 @@ export const GraphRenderer = memo(forwardRef<GraphRendererRef, GraphRendererProp
     onNodeClick,
     onNodeDblClick,
     onEmptyClick,
+    curvedEdges,
+    coloredEdges,
+    taperedEdges,
+    enableLinkLOD,
+    pathNodeIds,
+    pathEdgeKeys,
   };
 
   const {
@@ -147,7 +167,7 @@ export const GraphRenderer = memo(forwardRef<GraphRendererRef, GraphRendererProp
     labelCanvasRef,
     stats,
     hoveredNode,
-    reheat,
+    hoveredEdge,
     pause,
     resume,
     recenter,
@@ -170,7 +190,6 @@ export const GraphRenderer = memo(forwardRef<GraphRendererRef, GraphRendererProp
 
   // Expose imperative API to parent via ref
   useImperativeHandle(ref, () => ({
-    reheat,
     pauseSimulation: pause,
     resumeSimulation: resume,
     recenter,
@@ -178,7 +197,7 @@ export const GraphRenderer = memo(forwardRef<GraphRendererRef, GraphRendererProp
     zoomBy,
     clearSelection,
     setConfig: _setConfig,
-  }), [reheat, pause, resume, recenter, panBy, zoomBy, clearSelection, _setConfig]);
+  }), [pause, resume, recenter, panBy, zoomBy, clearSelection, _setConfig]);
 
   // Prevent native context menu on right-click
   const onContextMenu = useCallback((e: React.MouseEvent) => {
@@ -234,7 +253,6 @@ export const GraphRenderer = memo(forwardRef<GraphRendererRef, GraphRendererProp
       {/* Optional stats overlay */}
       {showStats && (
         <StatsOverlay
-          alpha={stats.alpha}
           energy={stats.energy}
           ticks={stats.ticks}
           fps={stats.fps}
@@ -245,7 +263,7 @@ export const GraphRenderer = memo(forwardRef<GraphRendererRef, GraphRendererProp
         />
       )}
 
-      {/* Hover tooltip — Obsidian-style node preview card */}
+      {/* Hover tooltip — node preview card */}
       {hoveredNode && (
         <div
           className="sge-graph-tooltip"
@@ -255,6 +273,19 @@ export const GraphRenderer = memo(forwardRef<GraphRendererRef, GraphRendererProp
           }}
         >
           <span className="sge-graph-tooltip__name">{hoveredNode.name}</span>
+        </div>
+      )}
+
+      {/* Edge hover tooltip */}
+      {hoveredEdge && (
+        <div
+          className="sge-graph-tooltip sge-graph-tooltip--edge"
+          style={{
+            left: hoveredEdge.screenX + 12,
+            top: hoveredEdge.screenY + 12,
+          }}
+        >
+          <span className="sge-graph-tooltip__edge-type">{hoveredEdge.type}</span>
         </div>
       )}
     </div>

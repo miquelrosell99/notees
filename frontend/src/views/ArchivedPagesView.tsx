@@ -127,7 +127,7 @@ export function ArchivedPagesView({ className = '' }: ArchivedPagesViewProps) {
         <div className="page-header-section__header">
           <div className="page-header">
             <h1 className="page-header__title">
-              <ArchiveIcon size="sm" /> Archived Pages
+              Archived Pages
             </h1>
             <div className="page-header__actions">
               {!isLoading && nodes && nodes.length > 0 && (
