@@ -123,7 +123,7 @@ export { getViewModeOptions } from './nodes/views';
 // NodeCollection view mode components
 export { ListView } from './nodes/views/ListView';
 export { DocumentView } from './nodes/views/DocumentView';
-export { CardView } from './nodes/views/CardView';
+export { KanbanView } from './nodes/views/KanbanView';
 export { TableView } from './nodes/views/TableView';
 export { GanttView } from './nodes/views/GanttView';
 export { GraphView as GraphViewComponent } from './nodes/views/GraphView';

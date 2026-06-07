@@ -17,7 +17,7 @@ import './NodeCollectionView.css';
 const AVAILABLE_VIEW_MODES: NodeCollectionViewMode[] = [
   'list',
   'table',
-  'card',
+  'kanban',
   'gantt',
   'calendar',
   'chart',

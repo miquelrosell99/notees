@@ -31,6 +31,11 @@ async def get_comments(
     if not node:
         raise HTTPException(404, "Node not found")
 
+    # Check permissions (can_read or can_comment)
+    perms = await service.permissions.get_node_permissions(node_id)
+    if not (perms.can_read or perms.can_comment):
+        raise HTTPException(403, "Not allowed to view comments")
+
     # Get comment child nodes for this node
     pool = service.pool
     rows = await pool.fetch(
@@ -91,6 +96,11 @@ async def create_comment(
     target_node = await service.get_node(node_id)
     if not target_node:
         raise HTTPException(404, "Node not found")
+
+    # Check permissions (can_comment or can_write)
+    perms = await service.permissions.get_node_permissions(node_id)
+    if not (perms.can_comment or perms.can_write):
+        raise HTTPException(403, "Not allowed to create comments")
 
     # Get the Comment class
     comment_class = await service.get_node_by_uuid(SYSTEM_CLASS_UUIDS["comment"])

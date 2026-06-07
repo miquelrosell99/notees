@@ -211,6 +211,7 @@ class NodeSearchRepository(ABC):
         is_page: bool | None = None,
         is_class: bool | None = None,
         is_daily: bool | None = None,
+        is_user_page: bool | None = None,
         sort_by: str = "write_date",
         order: str = "desc",
     ) -> list[Node]:

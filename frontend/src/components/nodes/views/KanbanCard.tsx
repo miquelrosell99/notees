@@ -1,7 +1,7 @@
 /**
- * CardItem — Per-card component for Card Mode.
+ * KanbanCard — Per-card component for Card Mode.
  *
- * Reproduces the exact same UI as the old NodeCardView (cover images,
+ * Reproduces the exact same UI as the old NodeKanbanView (cover images,
  * class/tag pills, hover-reveal body, action buttons, context menus,
  * checkboxes) but uses Lexical editors for title and children content.
  *
@@ -51,7 +51,7 @@ import type { Asset } from '@/api/assets';
 import { extractImageFromDragEvent } from '@/hooks/useDragDropImage';
 import { TableCreationModal, type TableGridSize } from '@/components/core/TableCreationModal';
 
-import './CardItem.css';
+import './KanbanCard.css';
 
 // ─── Card Title Editor (InlineEditor wrapper) ────────────────────
 
@@ -124,7 +124,7 @@ export interface NodeCardProps {
 
 /**
  * NodeCard — Individual card with cover, metadata rows, and Lexical editors.
- * Reproduces the old NodeCardView card layout exactly.
+ * Reproduces the old NodeKanbanView card layout exactly.
  */
 export const NodeCard = memo(function NodeCard({
   node,
@@ -503,7 +503,7 @@ export const NodeCard = memo(function NodeCard({
         );
       }
     } catch (err) {
-      console.error('[CardItem] Failed to create table structure:', err);
+      console.error('[KanbanCard] Failed to create table structure:', err);
     }
     setIsTableModalOpen(false);
     setTableTargetBlockId(null);

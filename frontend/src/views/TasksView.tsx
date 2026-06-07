@@ -168,7 +168,7 @@ export function TasksView() {
           <NodeCollection
             nodes={tasks}
             viewMode={viewMode}
-            availableViewModes={['list', 'card', 'table']}
+            availableViewModes={['list', 'kanban', 'table']}
             onViewModeChange={setViewMode}
             onNodeClick={handleNodeClick}
             onNodeShiftClick={handleNodeShiftClick}

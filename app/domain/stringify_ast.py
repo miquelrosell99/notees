@@ -298,6 +298,12 @@ def _render_inline(node: dict, opts: StringifyOptions) -> str:
         ast_label = node.get("label") or None
         return _render_node_link(link_id, ref_type, opts, ast_label=ast_label)
 
+    if node_type == "user_mention":
+        label = node.get("label") or ""
+        if is_text:
+            return f"@{label}"
+        return f"[@{label}](@user)"
+
     # Unknown inline node — ignore silently.
     return ""
 
@@ -375,6 +381,8 @@ def _render_node_link(link_id: str, ref_type: str, opts: StringifyOptions, *, as
     resolved_text = stringify_ast(target_ast, child_opts)
 
     if opts.mode is StringifyMode.NODE_MARKDOWN:
+        if ref_type == "user":
+            return f"[@{label or resolved_text}](@user)"
         if ref_type == "class":
             return label if label else f"{{{{{resolved_text}}}}}"
         # Node references
@@ -384,6 +392,8 @@ def _render_node_link(link_id: str, ref_type: str, opts: StringifyOptions, *, as
 
     # PLAIN_MARKDOWN / TEXT_ONLY
     display = label if label else resolved_text
+    if ref_type == "user":
+        return f"@{display}"
     if opts.strip_link_syntax:
         return display
     if opts.html_anchors and opts.mode is StringifyMode.PLAIN_MARKDOWN:
@@ -518,6 +528,58 @@ _WS_RE = re.compile(r"\s+")
 
 def _collapse_whitespace(s: str) -> str:
     return _WS_RE.sub(" ", s).strip()
+
+
+def extract_user_mentions(ast: list[dict]) -> list[dict]:
+    """Extract all user_mention nodes from an AST document.
+
+    Returns a list of dicts with keys: user_id, label.
+    """
+    mentions: list[dict] = []
+    for block in ast:
+        children = block.get("children", [])
+        _extract_mentions_from_nodes(children, mentions)
+    return mentions
+
+
+def _extract_mentions_from_nodes(nodes: list[dict], mentions: list[dict]) -> None:
+    for node in nodes:
+        if node.get("type") == "user_mention":
+            mentions.append({
+                "user_id": node.get("user_id", ""),
+                "label": node.get("label") or "",
+            })
+        elif node.get("type") == "node_link" and node.get("ref_type") == "user":
+            mentions.append({
+                "user_id": node.get("link_id", "").split(":")[0],
+                "label": node.get("label") or "",
+            })
+        elif "children" in node:
+            _extract_mentions_from_nodes(node["children"], mentions)
+
+
+def extract_node_links(ast: list[dict]) -> list[dict]:
+    """Extract all node_link nodes from an AST document.
+
+    Returns a list of dicts with keys: link_id, ref_type, label.
+    """
+    links: list[dict] = []
+    for block in ast:
+        children = block.get("children", [])
+        _extract_links_from_nodes(children, links)
+    return links
+
+
+def _extract_links_from_nodes(nodes: list[dict], links: list[dict]) -> None:
+    for node in nodes:
+        if node.get("type") == "node_link":
+            links.append({
+                "link_id": node.get("link_id", ""),
+                "ref_type": node.get("ref_type", "node"),
+                "label": node.get("label") or "",
+            })
+        elif "children" in node:
+            _extract_links_from_nodes(node["children"], links)
 
 
 def _validate_document(doc: Any) -> list[dict]:

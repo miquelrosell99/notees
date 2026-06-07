@@ -45,7 +45,7 @@ interface BlockRowProps {
   readOnly?: boolean;
   placeholder?: string;
   onContentChange?: (blockId: string, content: string) => void;
-  onPillClick?: (linkId: string, refType: 'node' | 'class' | 'url' | 'embed' | 'broken') => void;
+  onPillClick?: (linkId: string, refType: 'node' | 'class' | 'url' | 'embed' | 'broken' | 'user') => void;
   onPillRemove?: (linkId: string) => void;
   onCollapseToggle?: (blockId: string) => void;
   onNavigate?: (blockId: string) => void;

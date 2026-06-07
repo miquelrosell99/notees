@@ -9,9 +9,11 @@ from pyrate_limiter import Duration, Limiter, Rate
 from ...db.connection import acquire_connection, get_pool, get_workspace_assets_dir, get_workspace_uuid
 from ...domain.entities import NodeCreateData, NodeUpdateData
 from ...domain.errors import DatePageDeletionError, DuplicateNodeError, SystemClassConstraintError
+from ...domain.stringify_ast import extract_node_links, parse_ast
 from ...logging_config import get_logger
 from ...models import User
 from ...node_export import write_share_html
+from ...routers.notifications import create_notification
 from ..auth import get_current_user
 from .helpers import (
     _get_alias_ids,
@@ -46,6 +48,48 @@ logger = get_logger(__name__)
 
 _crud_limiter = Limiter(Rate(120, Duration.MINUTE))
 router = APIRouter()
+
+
+async def _notify_mentions(node, actor_user_id: int) -> None:
+    """Scan node name AST for node links to user pages and create notifications."""
+    if not node or not node.name:
+        return
+    try:
+        ast = parse_ast(node.name, mode="JSON")
+        links = extract_node_links(ast)
+        if not links:
+            return
+
+        pool = await get_pool()
+        async with acquire_connection(pool) as conn:
+            for link in links:
+                link_id = link.get("link_id", "")
+                if not link_id:
+                    continue
+                # link_id may be "nodeUuid:linkUuid" or just "nodeUuid"
+                colon = link_id.find(":")
+                node_uuid = link_id[:colon] if colon > 0 else link_id
+
+                # Check if this node is a user page
+                user_row = await conn.fetchrow(
+                    'SELECT id FROM "user" WHERE user_page_node_id = (SELECT id FROM node WHERE uuid::text = $1)',
+                    node_uuid,
+                )
+                if not user_row:
+                    continue
+                target_user_id = user_row["id"]
+                if target_user_id == actor_user_id:
+                    continue
+                label = link.get("label") or "someone"
+                await create_notification(
+                    user_id=target_user_id,
+                    type="mention",
+                    actor_user_id=actor_user_id,
+                    node_id=node.id,
+                    message=f"mentioned you in '{label}'",
+                )
+    except Exception:
+        logger.exception("Failed to process mentions for node")
 
 
 @router.post(
@@ -100,6 +144,9 @@ async def create_node(
         )
     except Exception:
         pass  # Never fail the mutation because of undo logging
+
+    # Notify mentions
+    await _notify_mentions(node, int(user.id))
 
     return _node_to_response(node, classes=list(body.classes))
 
@@ -1396,6 +1443,9 @@ async def update_node(
                     )
             except Exception:
                 pass
+
+        # Notify mentions
+        await _notify_mentions(node, int(user.id))
 
         return _node_to_response(node)
     except SystemClassConstraintError as e:

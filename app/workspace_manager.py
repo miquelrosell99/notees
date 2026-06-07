@@ -18,6 +18,57 @@ logger = get_logger(__name__)
 _active_workspaces: dict[str, str] = {}
 
 
+async def _ensure_user_page(conn, user_id: int, workspace_id: int) -> int | None:
+    """Create a system user page node if the user doesn't have one yet.
+
+    Returns the node ID of the user page.
+    """
+    from .domain.stringify_ast import serialize_ast
+
+    # Check if user already has a page
+    existing = await conn.fetchrow(
+        'SELECT user_page_node_id FROM "user" WHERE id = $1', user_id
+    )
+    if existing and existing["user_page_node_id"]:
+        # Verify it still exists
+        node_exists = await conn.fetchrow(
+            "SELECT 1 FROM node WHERE id = $1", existing["user_page_node_id"]
+        )
+        if node_exists:
+            return existing["user_page_node_id"]
+
+    user = await conn.fetchrow(
+        'SELECT email, name FROM "user" WHERE id = $1', user_id
+    )
+    if not user:
+        return None
+
+    display = user["name"] or user["email"]
+    name_ast = [{"type": "paragraph", "children": [{"type": "text", "text": display}]}]
+
+    node_row = await conn.fetchrow(
+        """
+        INSERT INTO node (workspace_id, name, is_page, is_system, active, create_uid, write_uid)
+        VALUES ($1, $2, TRUE, TRUE, TRUE, $3, $3)
+        RETURNING id
+        """,
+        workspace_id,
+        serialize_ast(name_ast),
+        user_id,
+    )
+    if not node_row:
+        return None
+
+    node_id = node_row["id"]
+    await conn.execute(
+        'UPDATE "user" SET user_page_node_id = $1 WHERE id = $2',
+        node_id,
+        user_id,
+    )
+    logger.info(f"Created user page node {node_id} for user {user_id}")
+    return node_id
+
+
 async def _get_numeric_user_id(user_id: str) -> int | None:
     """Convert string user_id to numeric PostgreSQL ID."""
     async with get_connection() as conn:
@@ -108,6 +159,9 @@ async def create_workspace(user_id: str, name: str) -> dict[str, Any]:
         workspace_id = row["id"]
         logger.info(f"Seeding workspace {workspace_id} with system data")
         await seed_workspace(conn, workspace_id, numeric_user_id)
+
+        # Ensure user has a pseudo-page (for @mentions) in their first workspace
+        await _ensure_user_page(conn, numeric_user_id, workspace_id)
 
         _active_workspaces[user_id] = str(row["uuid"])
         return {

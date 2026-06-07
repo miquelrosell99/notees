@@ -650,6 +650,7 @@ async def search_nodes(
     is_page: bool | None = None,  # Filter by is_page flag
     is_class: bool | None = None,  # Filter by is_class flag
     is_daily: bool | None = None,  # Filter by is_day flag
+    is_user_page: bool | None = None,  # Filter to user pages only
     user: User = Depends(get_current_user),
 ):
     """Search nodes by name, UUID, or filtered by properties.
@@ -665,6 +666,7 @@ async def search_nodes(
         is_page: Optional boolean to filter pages vs blocks
         is_class: Optional boolean to filter class definitions
         is_daily: Optional boolean to filter daily notes
+        is_user_page: Optional boolean to filter user pages (mentions)
 
     Returns nodes with class_ids populated for reliable filtering.
     """
@@ -722,6 +724,7 @@ async def search_nodes(
         is_page=is_page,
         is_class=is_class,
         is_daily=is_daily,
+        is_user_page=is_user_page,
         sort_by=sort_by,
         order=order,
     )

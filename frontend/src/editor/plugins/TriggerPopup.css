@@ -72,6 +72,95 @@
   border-color: var(--color-primary);
 }
 
+/* ─── Filter pills ──────────────────────────────────────────────── */
+
+.trigger-popup__filter-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-1);
+  margin-bottom: var(--spacing-2);
+}
+
+.trigger-popup__filter-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  padding: 2px 6px;
+  background: var(--color-primary-container);
+  color: var(--color-on-primary-container);
+  border-radius: var(--shape-small);
+  font: var(--font-label-small);
+  line-height: 1.4;
+}
+
+.trigger-popup__filter-pill-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1px;
+  background: transparent;
+  border: none;
+  border-radius: var(--shape-small);
+  color: inherit;
+  cursor: pointer;
+  opacity: 0.7;
+  transition: opacity var(--motion-duration-short) var(--motion-easing-standard),
+              background var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.trigger-popup__filter-pill-remove:hover {
+  opacity: 1;
+  background: color-mix(in srgb, currentColor 12%, transparent);
+}
+
+/* ─── Filter suggestions ────────────────────────────────────────── */
+
+.trigger-popup__filter-suggestion {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  width: 100%;
+  padding: var(--spacing-2) var(--spacing-2);
+  background: transparent;
+  border: none;
+  border-radius: var(--shape-small);
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.trigger-popup__filter-suggestion:hover,
+.trigger-popup__filter-suggestion--selected {
+  background: var(--color-hover-overlay);
+}
+
+.trigger-popup__filter-suggestion-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--shape-small);
+  background: var(--color-primary-container);
+  color: var(--color-on-primary-container);
+  font-size: 14px;
+}
+
+.trigger-popup__filter-suggestion-label {
+  font: var(--font-body-small);
+  color: var(--color-on-surface);
+  font-weight: 500;
+}
+
+.trigger-popup__filter-suggestion-desc {
+  margin-left: auto;
+  font: var(--font-label-small);
+  color: var(--color-on-surface-variant);
+  opacity: 0.7;
+}
+
+/* ─── List area ─────────────────────────────────────────────────── */
+
 .trigger-popup__list {
   flex: 1;
   overflow-y: auto;

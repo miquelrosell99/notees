@@ -34,16 +34,17 @@ class Permissions:
     can_write: bool = False
     can_create: bool = False
     can_delete: bool = False
+    can_comment: bool = False
 
     @property
     def has_any(self) -> bool:
         """Check if any permission is granted."""
-        return self.can_read or self.can_write or self.can_create or self.can_delete
+        return self.can_read or self.can_write or self.can_create or self.can_delete or self.can_comment
 
     @classmethod
     def owner(cls) -> Permissions:
         """Return full permissions (for owners)."""
-        return cls(can_read=True, can_write=True, can_create=True, can_delete=True)
+        return cls(can_read=True, can_write=True, can_create=True, can_delete=True, can_comment=True)
 
     @classmethod
     def none(cls) -> Permissions:
@@ -55,6 +56,11 @@ class Permissions:
         """Return read-only permissions."""
         return cls(can_read=True)
 
+    @classmethod
+    def comment_only(cls) -> Permissions:
+        """Return read + comment permissions."""
+        return cls(can_read=True, can_comment=True)
+
     def merge(self, other: Permissions) -> Permissions:
         """Merge with another permission set (OR operation)."""
         return Permissions(
@@ -62,6 +68,7 @@ class Permissions:
             can_write=self.can_write or other.can_write,
             can_create=self.can_create or other.can_create,
             can_delete=self.can_delete or other.can_delete,
+            can_comment=self.can_comment or other.can_comment,
         )
 
 
@@ -122,7 +129,7 @@ class PermissionChecker:
                 # Check workspace_share
                 share_row = await conn.fetchrow(
                     """
-                    SELECT can_read, can_write, can_create, can_delete
+                    SELECT can_read, can_write, can_create, can_delete, can_comment
                     FROM workspace_share
                     WHERE workspace_id = $1 AND user_id = $2 AND active = TRUE
                 """,
@@ -214,7 +221,7 @@ class PermissionChecker:
             # Check node_share for explicit permissions on this node
             share_row = await conn.fetchrow(
                 """
-                SELECT can_read, can_write, can_create, can_delete
+                SELECT can_read, can_write, can_create, can_delete, can_comment
                 FROM node_share
                 WHERE node_id = $1 AND user_id = $2 AND active = TRUE
             """,
@@ -228,6 +235,7 @@ class PermissionChecker:
                     can_write=share_row["can_write"],
                     can_create=share_row["can_create"],
                     can_delete=share_row["can_delete"],
+                    can_comment=share_row["can_comment"],
                 )
                 self._node_cache[node_id] = perms
                 return perms
@@ -245,7 +253,7 @@ class PermissionChecker:
                     FROM node n
                     INNER JOIN ancestors a ON n.id = a.parent_id
                 )
-                SELECT ns.can_read, ns.can_write, ns.can_create, ns.can_delete
+                SELECT ns.can_read, ns.can_write, ns.can_create, ns.can_delete, ns.can_comment
                 FROM ancestors a
                 JOIN node n ON n.id = a.id
                 JOIN node_share ns ON ns.node_id = n.id
@@ -266,6 +274,7 @@ class PermissionChecker:
                     can_write=ancestor_share_row["can_write"],
                     can_create=ancestor_share_row["can_create"],
                     can_delete=ancestor_share_row["can_delete"],
+                    can_comment=ancestor_share_row["can_comment"],
                 )
                 self._node_cache[node_id] = perms
                 return perms
@@ -311,6 +320,11 @@ class PermissionChecker:
         """Check if user can create children in a node."""
         perms = await self.get_node_permissions(node_id)
         return perms.can_create
+
+    async def can_comment_on_node(self, node_id: int) -> bool:
+        """Check if user can comment on a node."""
+        perms = await self.get_node_permissions(node_id)
+        return perms.can_comment or perms.can_write
 
     async def can_delete_node(self, node_id: int) -> bool:
         """Check if user can delete a node."""

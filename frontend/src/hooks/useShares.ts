@@ -16,6 +16,7 @@ import {
   listWorkspaceMembers,
   updateWorkspaceMember,
   removeWorkspaceMember,
+  removePendingInvite,
 } from '@/api/shares';
 
 const sharesKeys = {
@@ -48,8 +49,8 @@ export function useWorkspaceShares() {
 export function useCreateShare() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ nodeId, expiryDate }: { nodeId: number; expiryDate?: string | null }) =>
-      createShare(nodeId, expiryDate),
+    mutationFn: ({ nodeId, expiryDate, password }: { nodeId: number; expiryDate?: string | null; password?: string | null }) =>
+      createShare(nodeId, expiryDate, password),
     onSuccess: (_, { nodeId }) => {
       queryClient.invalidateQueries({ queryKey: sharesKeys.node(nodeId) });
       queryClient.invalidateQueries({ queryKey: sharesKeys.workspace() });
@@ -95,7 +96,7 @@ export function useCreateUserShare() {
     }: {
       nodeId: number;
       email: string;
-      permission: 'read' | 'write';
+      permission: 'read' | 'write' | 'comment';
     }) => createUserShare(nodeId, email, permission),
     onSuccess: (_, { nodeId }) => {
       queryClient.invalidateQueries({ queryKey: sharesKeys.userShares(nodeId) });
@@ -178,6 +179,18 @@ export function useRemoveWorkspaceMember() {
       workspaceUuid: string;
       memberUserId: number;
     }) => removeWorkspaceMember(workspaceUuid, memberUserId),
+    onSuccess: (_, { workspaceUuid }) => {
+      queryClient.invalidateQueries({ queryKey: sharesKeys.workspaceMembers(workspaceUuid) });
+    },
+  });
+}
+
+
+export function useRemovePendingInvite() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ workspaceUuid, email }: { workspaceUuid: string; email: string }) =>
+      removePendingInvite(workspaceUuid, email),
     onSuccess: (_, { workspaceUuid }) => {
       queryClient.invalidateQueries({ queryKey: sharesKeys.workspaceMembers(workspaceUuid) });
     },

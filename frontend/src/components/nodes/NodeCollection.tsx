@@ -366,7 +366,7 @@ export const NodeCollection = memo(function NodeCollection({
           hideProperties,
         };
 
-      case 'card':
+      case 'kanban':
         return {
           nodes: sortedNodes,
           editable,

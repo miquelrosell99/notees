@@ -38,7 +38,7 @@ interface NodeContentProps {
   /** Children blocks to display (filtered if needed) */
   children: Node[];
   /** Display mode for content */
-  displayMode?: 'bullet' | 'document' | 'card';
+  displayMode?: 'bullet' | 'document' | 'kanban';
   /** Total children count (before filtering) */
   totalChildrenCount?: number;
   /** Whether content is editable (defaults to true) */
@@ -48,11 +48,11 @@ interface NodeContentProps {
 }
 
 // Map display mode to NodeCollection view mode
-function toViewMode(displayMode: 'bullet' | 'document' | 'card'): NodeCollectionViewMode {
+function toViewMode(displayMode: 'bullet' | 'document' | 'kanban'): NodeCollectionViewMode {
   switch (displayMode) {
     case 'bullet': return 'list';
     case 'document': return 'document';
-    case 'card': return 'card';
+    case 'kanban': return 'kanban';
   }
 }
 

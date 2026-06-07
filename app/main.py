@@ -71,6 +71,7 @@ from .routers import (
 from .routers.activity import router as activity_router
 from .routers.admin import router as admin_router
 from .routers.events import router as events_router
+from .routers.notifications import router as notifications_router
 from .routers.public import router as public_router
 from .routers.shares import router as shares_router
 
@@ -450,6 +451,7 @@ routers = [
     events_router,
     undo_router,
     shares_router,
+    notifications_router,
     public_router,
     admin_router,
 ]

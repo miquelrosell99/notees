@@ -83,7 +83,7 @@ interface InlineEditorProps {
   /** Called when content changes (debounced by parent). */
   onContentChange?: (blockId: string, content: string) => void;
   /** Called when a pill is clicked for navigation. */
-  onPillClick?: (linkId: string, refType: 'node' | 'class' | 'url' | 'embed' | 'broken') => void;
+  onPillClick?: (linkId: string, refType: 'node' | 'class' | 'url' | 'embed' | 'broken' | 'user') => void;
   /** Called when a pill is removed. */
   onPillRemove?: (linkId: string) => void;
   /** Called when a class should be added via + trigger. */

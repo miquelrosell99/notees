@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 
+from ..auth import verify_password
 from ..db.connection import acquire_connection, get_pool
 from ..domain.repositories import PostgresNodeRepository, PostgresPropertyRepository, PostgresShareRepository
 from ..domain.services.share_service import ShareService
@@ -78,6 +79,7 @@ def _property_to_public_dict(prop) -> dict:
 @router.get("/n/{share_uuid}")
 async def get_shared_node(
     share_uuid: str,
+    request: Request,
 ):
     """Get a publicly shared node and its direct children."""
     # First, resolve the share to get the workspace_id
@@ -87,6 +89,12 @@ async def get_shared_node(
 
     if share is None or not share.is_valid():
         raise HTTPException(status_code=404, detail="Share not found or expired")
+
+    # Check password if set
+    if share.password_hash:
+        password = request.query_params.get("password") or ""
+        if not password or not verify_password(password, share.password_hash):
+            raise HTTPException(status_code=403, detail="password_required")
 
     service = await _get_public_share_service(share.workspace_id)
     node = await service.get_shared_node(share_uuid)

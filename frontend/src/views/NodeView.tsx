@@ -119,7 +119,7 @@ function setCollapsedState(key: string, pageId: number, collapsed: boolean): voi
 interface FocusedBlockContentProps {
   node: Node;
   onAddSidebarCard: (nodeId: number) => void;
-  displayMode?: 'bullet' | 'document' | 'card';
+  displayMode?: 'bullet' | 'document' | 'kanban';
   editable?: boolean;
   canCreate?: boolean;
 }
@@ -203,7 +203,7 @@ function FocusedBlockContent({ node, onAddSidebarCard, displayMode = 'bullet', e
   // then its children separately as cards.
   // In list mode, the single NodeCollection handles both the block and children.
   // Document mode is not supported for focused blocks; treat it as list.
-  const isCardMode = displayMode === 'card';
+  const isCardMode = displayMode === 'kanban';
 
   if (isCardMode) {
     return (
@@ -227,8 +227,8 @@ function FocusedBlockContent({ node, onAddSidebarCard, displayMode = 'bullet', e
         {/* Children shown as cards */}
         <NodeCollection
           nodes={node.children ?? []}
-          viewMode="card"
-          availableViewModes={['list', 'card']}
+          viewMode="kanban"
+          availableViewModes={['list', 'kanban']}
           editable={editable}
           onNodeClick={handleNodeClick}
           onNodeShiftClick={handleNodeShiftClick}
@@ -255,7 +255,7 @@ function FocusedBlockContent({ node, onAddSidebarCard, displayMode = 'bullet', e
         key="focused-block-list"
         nodes={[node]}
         viewMode="list"
-        availableViewModes={['list', 'card']}
+        availableViewModes={['list', 'kanban']}
         editable={editable}
         onNodeClick={handleNodeClick}
         onNodeShiftClick={handleNodeShiftClick}
@@ -1010,7 +1010,7 @@ export function NodeView({
       right={
         <div className="node-view-controls">
           {/* Card layout selector - only visible in card mode */}
-          {contentDisplayMode === 'card' && (
+          {contentDisplayMode === 'kanban' && (
             <div className="card-layout-selector">
               <Button 
                 variant="ghost"
@@ -1051,14 +1051,14 @@ export function NodeView({
           <SelectionButton
             options={resolvedType === 'block' ? [
               { value: 'bullet', icon: "mdi mdi-format-list-bulleted", label: 'Bullet mode' },
-              { value: 'card', icon: "mdi mdi-view-grid", label: 'Card mode' },
+              { value: 'kanban', icon: "mdi mdi-view-grid", label: 'Card mode' },
             ] : [
               { value: 'bullet', icon: "mdi mdi-format-list-bulleted", label: 'Bullet mode' },
               { value: 'document', icon: "mdi mdi-text-box-outline", label: 'Document mode' },
-              { value: 'card', icon: "mdi mdi-view-grid", label: 'Card mode' },
+              { value: 'kanban', icon: "mdi mdi-view-grid", label: 'Card mode' },
             ]}
             value={contentDisplayMode}
-            onChange={(val) => useAppStore.getState().setContentDisplayMode(val as 'bullet' | 'document' | 'card')}
+            onChange={(val) => useAppStore.getState().setContentDisplayMode(val as 'bullet' | 'document' | 'kanban')}
             size="sm"
           />
 

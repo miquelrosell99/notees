@@ -11,7 +11,7 @@ import React, { useMemo, useCallback } from 'react';
 import { Spinner } from '@/components/core/Spinner';
 import type { WhiteboardCardElement } from '@/types/whiteboard';
 import { useNode } from '@/hooks/useNodes';
-import { NodeCard } from './CardItem';
+import { NodeCard } from './KanbanCard';
 import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
 import { apiNodesToGraphNodes } from '@/hooks/useRuntimeSync';
 import type { Node } from '@/types/api';

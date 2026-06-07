@@ -152,21 +152,25 @@ export function PublicShareView() {
   const [data, setData] = useState<PublicSharedNode | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [needsPassword, setNeedsPassword] = useState(false);
+  const [password, setPassword] = useState('');
+  const [shareUuid, setShareUuid] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
 
     async function load() {
-      const shareUuid = window.location.pathname.split('/').pop();
-      if (!shareUuid) {
+      const uuid = window.location.pathname.split('/').pop();
+      if (!uuid) {
         if (!cancelled) {
           setError('Invalid share link');
           setLoading(false);
         }
         return;
       }
+      setShareUuid(uuid);
       try {
-        const res = await getPublicSharedNode(shareUuid);
+        const res = await getPublicSharedNode(uuid);
         if (!cancelled) {
           setData(res);
         }
@@ -175,7 +179,11 @@ export function PublicShareView() {
           const detail =
             (err as { response?: { data?: { detail?: string } } })?.response?.data
               ?.detail || 'Share not found or expired';
-          setError(detail);
+          if (detail === 'password_required') {
+            setNeedsPassword(true);
+          } else {
+            setError(detail);
+          }
         }
       } finally {
         if (!cancelled) {
@@ -188,10 +196,56 @@ export function PublicShareView() {
     return () => { cancelled = true; };
   }, []);
 
+  const handleSubmitPassword = async () => {
+    if (!shareUuid || !password) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await getPublicSharedNode(shareUuid, password);
+      setData(res);
+      setNeedsPassword(false);
+    } catch (err: unknown) {
+      const detail =
+        (err as { response?: { data?: { detail?: string } } })?.response?.data
+          ?.detail || 'Incorrect password';
+      setError(detail === 'password_required' ? 'Incorrect password' : detail);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="public-share-view public-share-view--centered">
         <Spinner size="lg" label="Loading shared page..." centered />
+      </div>
+    );
+  }
+
+  if (needsPassword) {
+    return (
+      <div className="public-share-view public-share-view--centered">
+        <div className="public-share-view__password-gate">
+          <h1>Password protected</h1>
+          <p>This shared page requires a password to view.</p>
+          <div className="public-share-view__password-row">
+            <input
+              type="password"
+              className="public-share-view__password-input"
+              placeholder="Enter password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleSubmitPassword(); }}
+            />
+            <button
+              className="public-share-view__password-btn"
+              onClick={handleSubmitPassword}
+            >
+              Unlock
+            </button>
+          </div>
+          {error && <p className="public-share-view__password-error">{error}</p>}
+        </div>
       </div>
     );
   }

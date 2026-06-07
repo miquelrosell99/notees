@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
+import uuid
+from datetime import UTC, datetime, timedelta
+
 from fastapi import APIRouter, Depends, HTTPException, Path, Request
 from fastapi_limiter.depends import RateLimiter
 from pydantic import BaseModel
 from pyrate_limiter import Duration, Limiter, Rate
 
+from ...auth import hash_password
+from ...config import settings
 from ...db.connection import acquire_connection, get_pool
 from ...dependencies import _get_workspace_context_cached
 from ...domain.repositories import PostgresNodeRepository, PostgresShareRepository
@@ -14,6 +19,7 @@ from ...domain.services.share_service import ShareService
 from ...logging_config import get_logger
 from ...models import User
 from ...node_export import write_share_html
+from ...utils.email import render_invite_email, send_email
 from ..auth import get_current_user
 
 logger = get_logger(__name__)
@@ -45,6 +51,11 @@ def _share_to_response(share, request: Request | None = None) -> dict:
     }
 
 
+class PublicShareCreateRequest(BaseModel):
+    expiry_date: str | None = None
+    password: str | None = None
+
+
 @router.post(
     "/{node_id}/shares",
     dependencies=[Depends(RateLimiter(limiter=_node_shares_limiter))],
@@ -52,17 +63,25 @@ def _share_to_response(share, request: Request | None = None) -> dict:
 async def create_share(
     request: Request,
     node_id: int = Path(..., ge=1),
-    body: dict | None = None,
+    body: PublicShareCreateRequest = ...,  # type: ignore[assignment]
     user: User = Depends(get_current_user),  # noqa: B008
 ):
     """Create a new public share link for a node."""
     service = await _get_share_service(user)
-    body = body or {}
-    expiry_date = body.get("expiry_date")
     try:
-        share = await service.create_share(node_id, expiry_date=expiry_date)
+        share = await service.create_share(node_id, expiry_date=body.expiry_date)
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
+
+    # Store password hash if provided
+    if body.password:
+        pool = await get_pool()
+        async with acquire_connection(pool) as conn:
+            await conn.execute(
+                "UPDATE node_public_share SET password_hash = $1 WHERE id = $2",
+                hash_password(body.password),
+                share.id,
+            )
 
     # Generate static HTML for the share
     try:
@@ -128,7 +147,47 @@ async def create_user_share(
             body.email,
         )
         if not target:
-            raise HTTPException(status_code=404, detail=f"User '{body.email}' not found")
+            # Target user does not exist — create a pending invite
+            invite_uuid = str(uuid.uuid4())
+            expires_at = datetime.now(UTC) + timedelta(days=7)
+            await conn.execute(
+                """
+                INSERT INTO pending_invite (uuid, email, workspace_id, node_id, role, invited_by, expires_at, active)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, TRUE)
+                ON CONFLICT (email, workspace_id, node_id)
+                DO UPDATE SET
+                    role = EXCLUDED.role,
+                    invited_by = EXCLUDED.invited_by,
+                    expires_at = EXCLUDED.expires_at,
+                    active = TRUE,
+                    created_at = NOW()
+                """,
+                invite_uuid,
+                body.email,
+                workspace_id,
+                node_id,
+                body.permission,
+                user_id,
+                expires_at,
+            )
+
+            invite_link = f"{settings.public_url}/enroll?token={invite_uuid}"
+            node_name_row = await conn.fetchrow("SELECT name FROM node WHERE id = $1", node_id)
+            node_name = node_name_row["name"] if node_name_row else None
+            html, plain = render_invite_email(
+                inviter_name=user.name or user.email,
+                workspace_name=None,
+                invite_link=invite_link,
+                node_name=node_name,
+            )
+            sent = await send_email(body.email, "Invitation to collaborate on Notees", html, plain)
+
+            return {
+                "status": "pending",
+                "email": body.email,
+                "invite_link": None if sent else invite_link,
+            }
+
         target_id = target["id"]
         if target_id == user_id:
             raise HTTPException(status_code=400, detail="Cannot share with yourself")

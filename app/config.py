@@ -83,6 +83,20 @@ class Settings(BaseSettings):
             )
         return v
 
+    # Email / SMTP (optional — invitations work without SMTP by returning links)
+    smtp_host: str | None = None
+    smtp_port: int = 587
+    smtp_user: str | None = None
+    smtp_password: str | None = None
+    smtp_tls: bool = True
+    smtp_from: str | None = None
+    public_url: str = "http://localhost:8000"
+
+    @field_validator("public_url", mode="after")
+    @classmethod
+    def strip_trailing_slash(cls, v: str) -> str:
+        return v.rstrip("/")
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", case_sensitive=False, extra="ignore")
 
 

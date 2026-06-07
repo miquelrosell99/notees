@@ -1,11 +1,11 @@
 /**
- * CardView — Card grid container.
+ * KanbanView — Card grid container.
  *
  * Adaptive CSS multi-column masonry layout when ungrouped.
  * When grouped by a property, renders as a horizontal kanban board with
  * drag-and-drop between columns that mutates the property value.
  *
- * Each card is rendered by NodeCard (from CardItem.tsx).
+ * Each card is rendered by NodeCard (from KanbanCard.tsx).
  */
 
 import {
@@ -36,18 +36,18 @@ import { useStructureSync } from '@/hooks/useStructureSync';
 import { useCollapsePersist } from '@/hooks/useCollapsePersist';
 import { useBlockPersist } from '@/hooks/useBlockPersist';
 import type { Node } from '@/types';
-import type { NodeCardViewProps } from '@/types/nodeCollection';
+import type { NodeKanbanViewProps } from '@/types/nodeCollection';
 
 import { useClasses, useNodes, useTags } from '@/hooks';
 import { useSetNodeProperty } from '@/hooks/useProperties';
-import { NodeCard } from './CardItem';
+import { NodeCard } from './KanbanCard';
 import { getPropertyGroupInfo } from './viewHelpers';
 import { NodeIcon } from '@/components/core/icons';
 import { Button } from '@/components/core/Button';
 import { sortBySequence } from '@/utils/nodeSort';
 import { useInView } from '@/hooks/useInView';
 
-import './CardView.css';
+import './KanbanView.css';
 
 import { registerView } from './registry';
 
@@ -116,7 +116,7 @@ function KanbanCard({
   return (
     <div
       ref={setNodeRef}
-      className={`node-card-view__kanban-card ${isDragging ? 'node-card-view__kanban-card--dragging' : ''}`}
+      className={`node-kanban-view__kanban-card ${isDragging ? 'node-kanban-view__kanban-card--dragging' : ''}`}
       {...attributes}
       {...listeners}
     >
@@ -186,30 +186,30 @@ function KanbanColumn({
   return (
     <div
       ref={setNodeRef}
-      className={`node-card-view__kanban-column ${isOver ? 'node-card-view__kanban-column--over' : ''} ${collapsed ? 'node-card-view__kanban-column--collapsed' : ''}`}
+      className={`node-kanban-view__kanban-column ${isOver ? 'node-kanban-view__kanban-column--over' : ''} ${collapsed ? 'node-kanban-view__kanban-column--collapsed' : ''}`}
       data-column-id={column.id}
     >
       <div
-        className="node-card-view__kanban-header"
+        className="node-kanban-view__kanban-header"
         onClick={onToggleCollapse}
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggleCollapse(); } }}
         role="button"
         tabIndex={0}
       >
-        {column.icon && <NodeIcon icon={column.icon} size="xs" className="node-card-view__kanban-icon" />}
-        <span className="node-card-view__kanban-title">{column.label}</span>
-        <span className="node-card-view__kanban-count">{column.nodes.length}</span>
+        {column.icon && <NodeIcon icon={column.icon} size="xs" className="node-kanban-view__kanban-icon" />}
+        <span className="node-kanban-view__kanban-title">{column.label}</span>
+        <span className="node-kanban-view__kanban-count">{column.nodes.length}</span>
         <Button
           icon={collapsed ? 'mdi mdi-chevron-right' : 'mdi mdi-chevron-down'}
           variant="ghost"
           size="xs"
-          className="node-card-view__kanban-collapse-btn hover-reveal"
+          className="node-kanban-view__kanban-collapse-btn hover-reveal"
           onClick={(e) => { e.stopPropagation(); onToggleCollapse(); }}
         />
       </div>
 
       {!collapsed && (
-        <div className="node-card-view__kanban-cards">
+        <div className="node-kanban-view__kanban-cards">
           {column.nodes.map((node) => (
             <KanbanCard
               key={node.id}
@@ -234,7 +234,7 @@ function KanbanColumn({
 
 // ─── Component ────────────────────────────────────────────────────
 
-export const CardView = memo(function CardView({
+export const KanbanView = memo(function KanbanView({
   nodes,
   layout = 'no-cover',
   sortable,
@@ -251,7 +251,7 @@ export const CardView = memo(function CardView({
   groupBy: _groupBy,
   groupByProperty,
   showBreadcrumbs = false,
-}: NodeCardViewProps): JSX.Element {
+}: NodeKanbanViewProps): JSX.Element {
   // ─── Sync structural changes to database ───────────────────
   useStructureSync();
 
@@ -339,8 +339,8 @@ export const CardView = memo(function CardView({
       if (aIsNone !== bIsNone) return aIsNone - bIsNone;
 
       if (groupByProperty.type === 'selection' && groupByProperty.options) {
-        const aOpt = groupByProperty.options.find((o) => `opt-${o.id}` === a.id);
-        const bOpt = groupByProperty.options.find((o) => `opt-${o.id}` === b.id);
+        const aOpt = groupByProperty.options.find((o: { id: string | number; sequence?: number }) => `opt-${o.id}` === a.id);
+        const bOpt = groupByProperty.options.find((o: { id: string | number; sequence?: number }) => `opt-${o.id}` === b.id);
         if (aOpt && bOpt) return (aOpt.sequence ?? 0) - (bOpt.sequence ?? 0);
       }
 
@@ -438,7 +438,7 @@ export const CardView = memo(function CardView({
   const dndActiveNode = useMemo(() => {
     if (!dndActiveId) return null;
     const nodeId = Number(dndActiveId.replace('card-dnd-', ''));
-    return nodes.find((n) => n.id === nodeId) ?? null;
+    return nodes.find((n: Node) => n.id === nodeId) ?? null;
   }, [dndActiveId, nodes]);
 
   const sensors = useSensors(
@@ -484,11 +484,11 @@ export const CardView = memo(function CardView({
   }, [propertyColumns, groupByProperty, setNodeProperty]);
 
   const gridClassName = [
-    'node-card-view',
-    sortable && 'node-card-view--sortable',
-    selectable && 'node-card-view--selectable',
-    layout === 'cover-top' && 'node-card-view--vertical-layout',
-    propertyColumns && propertyColumns.length > 0 && 'node-card-view--kanban',
+    'node-kanban-view',
+    sortable && 'node-kanban-view--sortable',
+    selectable && 'node-kanban-view--selectable',
+    layout === 'cover-top' && 'node-kanban-view--vertical-layout',
+    propertyColumns && propertyColumns.length > 0 && 'node-kanban-view--kanban',
     className,
   ].filter(Boolean).join(' ');
 
@@ -523,7 +523,7 @@ export const CardView = memo(function CardView({
 
         <DragOverlay>
           {dndActiveNode ? (
-            <div className="node-card-view__kanban-card node-card-view__kanban-card--overlay">
+            <div className="node-kanban-view__kanban-card node-kanban-view__kanban-card--overlay">
               <NodeCard
                 node={dndActiveNode}
                 index={0}
@@ -579,9 +579,9 @@ export const CardView = memo(function CardView({
 });
 
 registerView({
-  id: 'card',
-  label: 'Cards',
+  id: 'kanban',
+  label: 'Kanban',
   icon: 'mdi mdi-view-grid',
-  component: CardView,
+  component: KanbanView,
   capabilities: { groupBy: true, cardLayout: true, sorting: true },
 });

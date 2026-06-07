@@ -17,6 +17,7 @@ const Layout = React.lazy(() => import('./components/layout/Layout').then(m => (
 const LoginView = React.lazy(() => import('./views/LoginView').then(m => ({ default: m.LoginView })));
 const WorkspaceManagementView = React.lazy(() => import('./views/WorkspaceManagementView').then(m => ({ default: m.WorkspaceManagementView })));
 const EnrollmentView = React.lazy(() => import('./views/EnrollmentView').then(m => ({ default: m.EnrollmentView })));
+const InviteAcceptView = React.lazy(() => import('./views/InviteAcceptView').then(m => ({ default: m.InviteAcceptView })));
 const PublicShareView = React.lazy(() => import('./views/PublicShareView').then(m => ({ default: m.PublicShareView })));
 const OnboardingView = React.lazy(() => import('./views/OnboardingView').then(m => ({ default: m.OnboardingView })));
 import { NotificationToast } from './components/core/NotificationToast';
@@ -195,11 +196,20 @@ function AppContent() {
 
   // Public share links work without authentication
   const isPublicSharePath = window.location.pathname.startsWith('/s/');
+  const isInvitePath = window.location.pathname === '/enroll';
 
   if (!isAuthenticated && isPublicSharePath) {
     return (
       <Suspense fallback={<LoadingScreen label="Loading…" />}>
         <PublicShareView />
+      </Suspense>
+    );
+  }
+
+  if (isInvitePath) {
+    return (
+      <Suspense fallback={<LoadingScreen label="Loading…" />}>
+        <InviteAcceptView />
       </Suspense>
     );
   }

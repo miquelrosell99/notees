@@ -850,6 +850,21 @@ export function generateYearUuid(year: number): string {
 }
 
 /**
+ * Notification item
+ */
+export interface NotificationResponse {
+  id: string;
+  type: string;
+  actor_user_id: string | null;
+  actor_name: string | null;
+  node_id: string | null;
+  node_name: string | null;
+  message: string | null;
+  is_read: boolean;
+  create_date: string;
+}
+
+/**
  * Check if a UUID is a date UUID
  */
 export function isDateUuid(uuid: string): boolean {
