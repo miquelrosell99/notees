@@ -342,7 +342,7 @@ export function TriggerPlugin({
   // ─── Insert inline pill helper ───────────────────────────────
 
   const insertPill = useCallback(
-    (nodeUuid: string, refType: 'node' | 'class') => {
+    (nodeUuid: string, refType: 'node' | 'class' | 'user') => {
       editor.update(() => {
         const selection = $getSelection();
         if (!$isRangeSelection(selection)) return;
@@ -420,7 +420,7 @@ export function TriggerPlugin({
   // ─── Handle node selection (+, @, #) ─────────────────────────
 
   const handleSelectNode = useCallback(
-    (node: Node, mode: 'default' | 'alternative') => {
+    (node: Node, mode: 'default' | 'alternative', isUserMention = false) => {
       if (!popup) return;
 
       selectionMadeRef.current = true;
@@ -450,7 +450,11 @@ export function TriggerPlugin({
           }
           break;
         }
-        case 'link':
+        case 'link': {
+          insertPill(node.uuid, isUserMention ? 'user' : 'node');
+          // TODO: mode === 'alternative' → open link editor modal
+          break;
+        }
         case 'tag': {
           insertPill(node.uuid, 'node');
           // TODO: mode === 'alternative' → open link editor modal

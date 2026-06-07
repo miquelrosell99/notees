@@ -8,7 +8,7 @@
 // Eager side-effect registrations (light views)
 import './ListView';
 import './DocumentView';
-import './CardView';
+import './KanbanView';
 import './TableView';
 
 import './CalendarView';
@@ -19,9 +19,9 @@ import './lazyViews';
 // Re-export components for direct use
 export { ListView } from './ListView';
 export { DocumentView } from './DocumentView';
-export { CardView } from './CardView';
-export { NodeCard } from './CardItem';
-export type { NodeCardProps } from './CardItem';
+export { KanbanView } from './KanbanView';
+export { NodeCard } from './KanbanCard';
+export type { NodeCardProps } from './KanbanCard';
 export { TableView } from './TableView';
 export { GanttView } from './GanttView';
 export { GraphView } from './GraphView';

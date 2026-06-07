@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS "user" (
     profile_pic TEXT,
     role VARCHAR(20) DEFAULT 'user',
     active BOOLEAN DEFAULT TRUE,
+    user_page_node_id INTEGER REFERENCES node(id) ON DELETE SET NULL,
     create_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     write_date TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -108,6 +109,7 @@ CREATE TABLE IF NOT EXISTS workspace_share (
     can_write BOOLEAN DEFAULT FALSE,
     can_create BOOLEAN DEFAULT FALSE,
     can_delete BOOLEAN DEFAULT FALSE,
+    can_comment BOOLEAN DEFAULT FALSE,
     active BOOLEAN DEFAULT TRUE,
     create_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     write_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -226,6 +228,7 @@ CREATE TABLE IF NOT EXISTS node_share (
     can_write BOOLEAN DEFAULT FALSE,
     can_create BOOLEAN DEFAULT FALSE,
     can_delete BOOLEAN DEFAULT FALSE,
+    can_comment BOOLEAN DEFAULT FALSE,
     inherited BOOLEAN DEFAULT FALSE,
     active BOOLEAN DEFAULT TRUE,
     create_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -247,12 +250,44 @@ CREATE TABLE IF NOT EXISTS node_public_share (
     created_by INTEGER NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     expiry_date TIMESTAMPTZ,
+    password_hash TEXT,
     active BOOLEAN DEFAULT TRUE,
     UNIQUE(node_id, uuid)
 );
 
 CREATE INDEX IF NOT EXISTS idx_node_public_share_uuid ON node_public_share(uuid);
 CREATE INDEX IF NOT EXISTS idx_node_public_share_node ON node_public_share(node_id) WHERE active = TRUE;
+
+-- Pending invites (for users who don't have an account yet)
+CREATE TABLE IF NOT EXISTS pending_invite (
+    id SERIAL PRIMARY KEY,
+    uuid UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
+    email VARCHAR(255) NOT NULL,
+    workspace_id INTEGER REFERENCES workspace(id) ON DELETE CASCADE,
+    node_id INTEGER REFERENCES node(id) ON DELETE CASCADE,
+    role VARCHAR(20) DEFAULT 'viewer',
+    invited_by INTEGER NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    expires_at TIMESTAMPTZ,
+    active BOOLEAN DEFAULT TRUE,
+    UNIQUE(email, workspace_id, node_id)
+);
+CREATE INDEX IF NOT EXISTS idx_pending_invite_email ON pending_invite(email);
+CREATE INDEX IF NOT EXISTS idx_pending_invite_uuid ON pending_invite(uuid);
+
+-- Notifications (mentions, shares, comments)
+CREATE TABLE IF NOT EXISTS notification (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+    type VARCHAR(50) NOT NULL,
+    actor_user_id INTEGER REFERENCES "user"(id) ON DELETE SET NULL,
+    node_id INTEGER REFERENCES node(id) ON DELETE CASCADE,
+    message TEXT,
+    is_read BOOLEAN DEFAULT FALSE,
+    create_date TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_notification_user_unread ON notification(user_id, is_read) WHERE is_read = FALSE;
+CREATE INDEX IF NOT EXISTS idx_notification_user_date ON notification(user_id, create_date DESC);
 
 -- ============================================================
 -- PROPERTIES

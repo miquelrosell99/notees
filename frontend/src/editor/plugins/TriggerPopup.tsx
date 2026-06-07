@@ -7,6 +7,8 @@
  * - Shift+Enter for alternative action
  * - Focus management (editor → popup → editor)
  * - Position adjustment to stay in viewport
+ * - Filter pills: typing prefixes like user:, page:, class:, daily: adds filter pills
+ * - Value picker: certain filters open an inline value selector
  */
 
 import { useState, useRef, useEffect, useMemo, useCallback, useLayoutEffect } from 'react';
@@ -20,7 +22,8 @@ import { NodeResultItem } from '@/components/nodes/NodeResultItem';
 import { useCreateNode } from '@/hooks/useNodes';
 import { usePageClass, useClassClass } from '@/hooks/usePageClass';
 import { Spinner } from '@/components/core/Spinner';
-import { AddIcon } from '@/components/core/icons';
+import { AddIcon, CloseIcon } from '@/components/core/icons';
+import { Icon } from '@/components/core/Icon';
 import './TriggerPopup.css';
 
 export type TriggerPopupType = 'class' | 'link' | 'tag' | 'slash';
@@ -51,10 +54,75 @@ const SLASH_COMMANDS: SlashCommand[] = [
   { id: 'move', label: 'Move to page', description: 'Move this block under a different page' },
 ];
 
+// ─── Filter system ─────────────────────────────────────────────────
+
+export interface ActiveFilter {
+  key: string;
+  label: string;
+  value?: string;
+}
+
+interface FilterDef {
+  key: string;
+  label: string;
+  prefix: string;
+  icon: string;
+  description: string;
+  apply: () => { isUserPage?: boolean; isPage?: boolean; isClass?: boolean; isDaily?: boolean };
+  hasValuePicker?: boolean;
+}
+
+const TRIGGER_FILTERS: FilterDef[] = [
+  { key: 'user', label: 'user', prefix: 'user:', icon: 'mdi mdi-account', description: 'User pages only', apply: () => ({ isUserPage: true }), hasValuePicker: true },
+  { key: 'page', label: 'page', prefix: 'page:', icon: 'mdi mdi-file-document', description: 'Pages only', apply: () => ({ isPage: true }) },
+  { key: 'class', label: 'class', prefix: 'class:', icon: 'mdi mdi-tag', description: 'Classes only', apply: () => ({ isClass: true }) },
+  { key: 'daily', label: 'daily', prefix: 'daily:', icon: 'mdi mdi-calendar-today', description: 'Daily notes only', apply: () => ({ isDaily: true }) },
+];
+
+/**
+ * Scan query text for standalone filter tokens anywhere in the string.
+ * A token is a filter if it exactly matches a filter prefix (e.g. "user:")
+ * and is surrounded by whitespace (or start/end of string).
+ *
+ * Returns the query with confirmed-filter tokens removed, and any
+ * newly-detected pending filter.
+ */
+function scanQueryFilters(
+  query: string,
+  activeFilters: ActiveFilter[],
+  dismissedKeys: Set<string>,
+): { cleanQuery: string; pendingFilter: FilterDef | null } {
+  const tokens = query.split(/(\s+)/);
+  const cleanTokens: string[] = [];
+  let pendingFilter: FilterDef | null = null;
+
+  for (const token of tokens) {
+    const lowerToken = token.toLowerCase().trim();
+    if (!lowerToken) {
+      cleanTokens.push(token);
+      continue;
+    }
+    const matched = TRIGGER_FILTERS.find(
+      (f) =>
+        f.prefix === lowerToken &&
+        !activeFilters.some((a) => a.key === f.key) &&
+        !dismissedKeys.has(f.key),
+    );
+    if (matched) {
+      pendingFilter = matched;
+      // Drop this token from cleanQuery — it's shown as a suggestion
+    } else {
+      cleanTokens.push(token);
+    }
+  }
+
+  return { cleanQuery: cleanTokens.join(''), pendingFilter };
+}
+
 export interface TriggerPopupProps {
   type: TriggerPopupType;
   position: { top: number; left: number; caretTop: number };
-  onSelectNode?: (node: Node, mode: 'default' | 'alternative') => void;
+  onSelectNode?: (node: Node, mode: 'default' | 'alternative', isUserMention: boolean) => void;
   onSelectCommand?: (commandId: string) => void;
   onClose: () => void;
   /** Called when user presses Backspace/Delete to remove the trigger placeholder */
@@ -82,21 +150,63 @@ export function TriggerPopup({
   });
   const [popupPos, setPopupPos] = useState<{ top: number; left: number }>({ top: position.top, left: position.left });
   const [isPositioned, setIsPositioned] = useState(false);
+  const [activeFilters, setActiveFilters] = useState<ActiveFilter[]>([]);
+  const [dismissedFilterKeys, setDismissedFilterKeys] = useState<Set<string>>(new Set());
+  const [valuePickerFilter, setValuePickerFilter] = useState<FilterDef | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const isNodeTrigger = type !== 'slash';
 
-  // Node search
+  // Scan query for filter tokens anywhere in the text.
+  // Confirmed active filters are NOT re-detected; dismissed filters are ignored.
+  const { cleanQuery, pendingFilter } = useMemo(
+    () => scanQueryFilters(query, activeFilters, dismissedFilterKeys),
+    [query, activeFilters, dismissedFilterKeys]
+  );
+
+  // Clear dismissed filters when the query changes enough that the user
+  // might want to re-try (e.g. they backspaced and re-typed).
+  // We keep it simple: clear all dismissed on any query change.
+  // If this feels too eager we can refine later.
+  useEffect(() => {
+    if (dismissedFilterKeys.size > 0) {
+      setDismissedFilterKeys(new Set());
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query]);
+
+  // Determine search mode and filter props from active filters
   const searchMode = type === 'class' ? 'classes' : type === 'tag' ? 'tags' : 'all';
+  const filterProps = useMemo(() => {
+    const props: { isUserPage?: boolean; isPage?: boolean; isClass?: boolean; isDaily?: boolean } = {};
+    for (const f of activeFilters) {
+      const def = TRIGGER_FILTERS.find(d => d.key === f.key);
+      if (def) Object.assign(props, def.apply());
+    }
+    return props;
+  }, [activeFilters]);
+
+  const isUserMention = activeFilters.some(f => f.key === 'user');
+
   const { pageResults, blockResults, isLoading, showCreateOption } = useNodeSearch(
-    query,
-    { mode: searchMode, maxResults: 10 }
+    cleanQuery,
+    {
+      mode: searchMode,
+      maxResults: 10,
+      ...filterProps,
+    }
   );
 
   const nodeItems: NodeSearchItem[] = useMemo(
     () => [...pageResults, ...blockResults],
     [pageResults, blockResults]
+  );
+
+  // Value picker data (for user filter)
+  const { pageResults: userPickerResults } = useNodeSearch(
+    '',
+    { mode: 'all', maxResults: 50, isUserPage: true }
   );
 
   // Slash command usage tracking (localStorage)
@@ -109,40 +219,51 @@ export function TriggerPopup({
     }
   }, []);
 
-  const bumpCommandUsage = useCallback((commandId: string) => {
-    try {
-      const next = { ...commandUsage, [commandId]: (commandUsage[commandId] || 0) + 1 };
-      localStorage.setItem('notees_slash_cmd_usage', JSON.stringify(next));
-    } catch {
-      // ignore quota errors
+  // Build the combined list of selectable items
+  const { selectableItems } = useMemo(() => {
+    const items: Array<
+      | { kind: 'filter'; filter: FilterDef }
+      | { kind: 'node'; item: NodeSearchItem }
+      | { kind: 'command'; cmd: SlashCommand }
+    > = [];
+
+    if (type !== 'slash') {
+      // Pending filter suggestion (only if query is non-empty and no value picker)
+      if (pendingFilter && !valuePickerFilter) {
+        items.push({ kind: 'filter', filter: pendingFilter });
+      }
+      // Node results
+      for (const item of nodeItems) {
+        items.push({ kind: 'node', item });
+      }
+    } else {
+      // Slash commands
+      const lower = query.toLowerCase();
+      const scored = SLASH_COMMANDS.map((c) => {
+        const labelMatch = c.label.toLowerCase().includes(lower);
+        const descMatch = c.description.toLowerCase().includes(lower);
+        const textScore = (labelMatch ? 2 : 0) + (descMatch ? 1 : 0);
+        return { cmd: c, textScore, freq: commandUsage[c.id] || 0 };
+      }).filter((s) => s.textScore > 0 || !query);
+      scored.sort((a, b) => {
+        if (b.textScore !== a.textScore) return b.textScore - a.textScore;
+        return b.freq - a.freq;
+      });
+      for (const s of scored) {
+        items.push({ kind: 'command', cmd: s.cmd });
+      }
     }
-  }, [commandUsage]);
 
-  // Slash command filtering + frequency sorting
-  const commandItems: SlashCommand[] = useMemo(() => {
-    if (type !== 'slash') return [];
-    const lower = query.toLowerCase();
-    const scored = SLASH_COMMANDS.map((c) => {
-      const labelMatch = c.label.toLowerCase().includes(lower);
-      const descMatch = c.description.toLowerCase().includes(lower);
-      const textScore = (labelMatch ? 2 : 0) + (descMatch ? 1 : 0);
-      return { cmd: c, textScore, freq: commandUsage[c.id] || 0 };
-    }).filter((s) => s.textScore > 0 || !query);
-    scored.sort((a, b) => {
-      if (b.textScore !== a.textScore) return b.textScore - a.textScore;
-      return b.freq - a.freq;
-    });
-    return scored.map((s) => s.cmd);
-  }, [type, query, commandUsage]);
+    return { selectableItems: items };
+  }, [type, pendingFilter, valuePickerFilter, nodeItems, query, commandUsage]);
 
-  const items = isNodeTrigger ? nodeItems : commandItems;
-  const itemCount = items.length + (isNodeTrigger && showCreateOption && query.trim() ? 1 : 0);
+  const showCreate = isNodeTrigger && showCreateOption && cleanQuery.trim() && !valuePickerFilter;
+  const itemCount = selectableItems.length + (showCreate ? 1 : 0);
 
-  // Clamp selected index to valid range whenever itemCount changes
+  // Clamp selected index
   const effectiveSelectedIndex = Math.min(selectedIndex, Math.max(0, itemCount - 1));
 
-  // Focus input on mount — autoFocus is unreliable across React versions
-  // and portal contexts, so we explicitly focus after the first paint.
+  // Focus input on mount
   useEffect(() => {
     const id = requestAnimationFrame(() => {
       inputRef.current?.focus();
@@ -161,7 +282,7 @@ export function TriggerPopup({
     return () => document.removeEventListener('mousedown', handler);
   }, [onClose]);
 
-  // Position adjustment — measure actual popup height and place searchbox adjacent to trigger
+  // Position adjustment
   useLayoutEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -171,7 +292,6 @@ export function TriggerPopup({
     const popupWidth = 320;
     let left = position.left;
 
-    // Horizontal clamp
     if (left + popupWidth > window.innerWidth - padding) {
       left = window.innerWidth - popupWidth - padding;
     }
@@ -181,7 +301,6 @@ export function TriggerPopup({
     const roomBelow = window.innerHeight - position.top - gap;
     const roomAbove = position.caretTop - gap;
 
-    // Prefer below when possible
     if (height <= roomBelow) {
       setPlacement('below');
       setPopupPos({ top: position.top + gap, left });
@@ -189,7 +308,6 @@ export function TriggerPopup({
       setPlacement('above');
       setPopupPos({ top: position.caretTop - height - gap, left });
     } else {
-      // Not enough room either way; clamp to viewport and prefer below
       setPlacement('below');
       setPopupPos({ top: Math.max(padding, Math.min(position.top + gap, window.innerHeight - height - padding)), left });
     }
@@ -202,6 +320,15 @@ export function TriggerPopup({
   const { classClassId } = useClassClass();
   const { data: allClasses = [] } = useClasses();
 
+  const bumpCommandUsage = useCallback((commandId: string) => {
+    try {
+      const next = { ...commandUsage, [commandId]: (commandUsage[commandId] || 0) + 1 };
+      localStorage.setItem('notees_slash_cmd_usage', JSON.stringify(next));
+    } catch {
+      // ignore quota errors
+    }
+  }, [commandUsage]);
+
   const handleCreate = useCallback(
     (name: string, mode: 'default' | 'alternative' = 'default') => {
       if (!pageClassId) return;
@@ -212,7 +339,7 @@ export function TriggerPopup({
         { name, classes },
         {
           onSuccess: (newNode) => {
-            onSelectNode?.(newNode, mode);
+            onSelectNode?.(newNode, mode, false);
           },
         }
       );
@@ -233,9 +360,80 @@ export function TriggerPopup({
       .filter((c): c is { id: number; name: string } => c !== null);
   }, [allClasses]);
 
-  // Keyboard handling
+  // ─── Filter actions ──────────────────────────────────────────────
+
+  const addFilter = useCallback((filter: FilterDef) => {
+    if (activeFilters.some(f => f.key === filter.key)) return;
+    const newFilter: ActiveFilter = { key: filter.key, label: filter.label };
+    setActiveFilters(prev => [...prev, newFilter]);
+    if (filter.hasValuePicker) {
+      setValuePickerFilter(filter);
+    }
+    // Remove the filter token from anywhere in the query
+    setQuery(prev => {
+      const regex = new RegExp(`(^|\\s)${filter.prefix}(?=\\s|$)`, 'gi');
+      return prev.replace(regex, '$1').replace(/\s+/g, ' ').trim();
+    });
+    setSelectedIndex(0);
+  }, [activeFilters]);
+
+  const removeFilter = useCallback((key: string) => {
+    setActiveFilters(prev => prev.filter(f => f.key !== key));
+    if (valuePickerFilter?.key === key) {
+      setValuePickerFilter(null);
+    }
+    setSelectedIndex(0);
+  }, [valuePickerFilter]);
+
+  const dismissPendingFilter = useCallback((filterKey: string) => {
+    setDismissedFilterKeys(prev => new Set([...prev, filterKey]));
+    setSelectedIndex(0);
+    inputRef.current?.focus();
+  }, []);
+
+  const confirmValuePicker = useCallback((filterKey: string, valueLabel: string) => {
+    setActiveFilters(prev =>
+      prev.map(f => (f.key === filterKey ? { ...f, value: valueLabel } : f))
+    );
+    setValuePickerFilter(null);
+    setSelectedIndex(0);
+    inputRef.current?.focus();
+  }, []);
+
+  const closeValuePicker = useCallback(() => {
+    setValuePickerFilter(null);
+    inputRef.current?.focus();
+  }, []);
+
+  // ─── Keyboard handling ───────────────────────────────────────────
+
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
+      if (valuePickerFilter) {
+        // Value picker mode: simple list navigation
+        const pickerItems = userPickerResults.length;
+        if (e.key === 'ArrowDown') {
+          e.preventDefault();
+          e.stopPropagation();
+          setSelectedIndex((i) => Math.min(i + 1, pickerItems - 1));
+        } else if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          e.stopPropagation();
+          setSelectedIndex((i) => Math.max(i - 1, 0));
+        } else if (e.key === 'Enter') {
+          e.preventDefault();
+          e.stopPropagation();
+          if (valuePickerFilter.key === 'user' && userPickerResults[selectedIndex]) {
+            confirmValuePicker('user', nodeNameToText(userPickerResults[selectedIndex].node.name));
+          }
+        } else if (e.key === 'Escape') {
+          e.preventDefault();
+          e.stopPropagation();
+          closeValuePicker();
+        }
+        return;
+      }
+
       if (e.key === 'ArrowDown') {
         e.preventDefault();
         e.stopPropagation();
@@ -250,23 +448,36 @@ export function TriggerPopup({
         const mode: 'default' | 'alternative' =
           e.shiftKey || e.ctrlKey || e.metaKey ? 'alternative' : 'default';
 
-        if (effectiveSelectedIndex < items.length) {
-          if (isNodeTrigger) {
-            onSelectNode?.(nodeItems[effectiveSelectedIndex].node, mode);
+        if (effectiveSelectedIndex < selectableItems.length) {
+          const selected = selectableItems[effectiveSelectedIndex];
+          if (selected.kind === 'filter') {
+            addFilter(selected.filter);
+          } else if (selected.kind === 'node') {
+            onSelectNode?.(selected.item.node, mode, isUserMention);
           } else {
-            const cmdId = commandItems[effectiveSelectedIndex].id;
+            const cmdId = selected.cmd.id;
             bumpCommandUsage(cmdId);
             onSelectCommand?.(cmdId);
           }
-        } else if (isNodeTrigger && showCreateOption && query.trim()) {
-          handleCreate(query.trim(), mode);
+        } else if (showCreate) {
+          handleCreate(cleanQuery.trim(), mode);
         }
       } else if (e.key === 'Escape') {
         e.preventDefault();
         e.stopPropagation();
-        onClose();
+        // If there's a pending filter suggestion, dismiss it instead of closing the popup
+        if (pendingFilter) {
+          dismissPendingFilter(pendingFilter.key);
+        } else {
+          onClose();
+        }
       } else if (e.key === 'Backspace' || e.key === 'Delete') {
-        if (query.length === 0) {
+        if (query.length === 0 && activeFilters.length > 0) {
+          e.preventDefault();
+          e.stopPropagation();
+          // Remove last filter
+          removeFilter(activeFilters[activeFilters.length - 1].key);
+        } else if (query.length === 0) {
           e.preventDefault();
           e.stopPropagation();
           onDeletePlaceholder?.();
@@ -274,25 +485,38 @@ export function TriggerPopup({
       }
     },
     [
+      valuePickerFilter,
+      userPickerResults,
       itemCount,
       effectiveSelectedIndex,
-      items,
-      isNodeTrigger,
-      nodeItems,
-      commandItems,
-      showCreateOption,
+      selectableItems,
+      showCreate,
+      cleanQuery,
+      isUserMention,
       query,
+      activeFilters,
       onSelectNode,
       onSelectCommand,
       onClose,
       onDeletePlaceholder,
       handleCreate,
       bumpCommandUsage,
+      selectedIndex,
+      pendingFilter,
+      dismissPendingFilter,
+      addFilter,
+      removeFilter,
+      confirmValuePicker,
+      closeValuePicker,
     ]
   );
 
-  // Hints
+  // ─── Hints ───────────────────────────────────────────────────────
+
   const hints = useMemo(() => {
+    if (valuePickerFilter) {
+      return { default: '↵ Select', alternative: '' };
+    }
     switch (type) {
       case 'class':
         return { default: '↵ Add silently', alternative: '⇧↵ Insert pill' };
@@ -303,50 +527,103 @@ export function TriggerPopup({
       case 'slash':
         return { default: '↵ Execute', alternative: '' };
     }
-  }, [type]);
+  }, [type, valuePickerFilter]);
 
   const headerText = useMemo(() => {
+    if (valuePickerFilter) {
+      return `Select ${valuePickerFilter.label}`;
+    }
     switch (type) {
       case 'class':
         return '+ Add Class';
       case 'link':
-        return '@ Insert Link';
+        return isUserMention ? '@ Mention User' : '@ Insert Link';
       case 'tag':
         return '# Insert Tag';
       case 'slash':
         return '/ Commands';
     }
-  }, [type]);
+  }, [type, isUserMention, valuePickerFilter]);
+
+  // ─── Render helpers ──────────────────────────────────────────────
 
   const header = <div className="trigger-popup__header">{headerText}</div>;
 
+  const filterPills = activeFilters.length > 0 && (
+    <div className="trigger-popup__filter-pills">
+      {activeFilters.map((filter) => (
+        <span key={filter.key} className="trigger-popup__filter-pill">
+          <span className="trigger-popup__filter-pill-label">
+            {filter.key}
+            {filter.value && `: ${filter.value}`}
+          </span>
+          <button
+            type="button"
+            className="trigger-popup__filter-pill-remove"
+            onClick={() => removeFilter(filter.key)}
+            title="Remove filter"
+          >
+            <CloseIcon size="xs" />
+          </button>
+        </span>
+      ))}
+    </div>
+  );
+
   const search = (
     <div className="trigger-popup__search">
+      {filterPills}
       <input
         ref={inputRef}
         type="text"
-        value={query}
+        value={cleanQuery}
         autoFocus
         onChange={(e) => {
           setQuery(e.target.value);
           setSelectedIndex(0);
         }}
         onKeyDown={handleKeyDown}
-        placeholder={type === 'slash' ? 'Search commands...' : 'Search...'}
+        placeholder={type === 'slash' ? 'Search commands...' : 'Search or type filter (user:, page:, class:, daily:)...'}
         className="trigger-popup__input"
       />
     </div>
   );
 
-  const list = (
+  const valuePickerList = useMemo(() => {
+    if (!valuePickerFilter) return null;
+    if (valuePickerFilter.key === 'user') {
+      return (
+        <div className="trigger-popup__list">
+          {userPickerResults.length === 0 ? (
+            <div className="trigger-popup__empty">No users found</div>
+          ) : (
+            userPickerResults.map((item, index) => (
+              <NodeResultItem
+                key={item.node.id}
+                node={item.node}
+                displayClasses={getDisplayClasses(item.node)}
+                allClasses={allClasses}
+                isHighlighted={index === selectedIndex}
+                onClick={() => confirmValuePicker('user', nodeNameToText(item.node.name))}
+                onMouseEnter={() => setSelectedIndex(index)}
+              />
+            ))
+          )}
+        </div>
+      );
+    }
+    return null;
+  }, [valuePickerFilter, userPickerResults, selectedIndex, getDisplayClasses, allClasses, confirmValuePicker]);
+
+  const mainList = (
     <div className="trigger-popup__list">
-      {isLoading && query.length > 0 ? (
+      {isLoading && cleanQuery.length > 0 ? (
         <div className="trigger-popup__loading">
           <Spinner size="sm" />
         </div>
-      ) : items.length === 0 && !(isNodeTrigger && showCreateOption && query.trim()) ? (
+      ) : selectableItems.length === 0 && !showCreate ? (
         <div className="trigger-popup__empty">
-          {query
+          {cleanQuery || activeFilters.length > 0
             ? 'No matches'
             : type === 'slash'
               ? 'Type to filter commands'
@@ -354,44 +631,70 @@ export function TriggerPopup({
         </div>
       ) : (
         <>
-          {isNodeTrigger &&
-            nodeItems.map((item, index) => (
-              <NodeResultItem
-                key={item.node.id}
-                node={item.node}
-                displayClasses={getDisplayClasses(item.node)}
-                allClasses={allClasses}
-                isHighlighted={index === effectiveSelectedIndex}
-                onClick={() => onSelectNode?.(item.node, 'default')}
-                onMouseEnter={() => setSelectedIndex(index)}
-              />
-            ))}
-
-          {!isNodeTrigger &&
-            commandItems.map((cmd, index) => (
+          {selectableItems.map((item, index) => {
+            if (item.kind === 'filter') {
+              return (
+                <button
+                  key={`filter-${item.filter.key}`}
+                  className={`trigger-popup__filter-suggestion ${
+                    index === effectiveSelectedIndex ? 'trigger-popup__filter-suggestion--selected' : ''
+                  }`}
+                  onClick={() => addFilter(item.filter)}
+                  onMouseEnter={() => setSelectedIndex(index)}
+                >
+                  <span className="trigger-popup__filter-suggestion-icon">
+                    <Icon path={item.filter.icon} size="14px" />
+                  </span>
+                  <span className="trigger-popup__filter-suggestion-label">
+                    Filter: {item.filter.label}
+                  </span>
+                  <span className="trigger-popup__filter-suggestion-desc">
+                    {item.filter.description}
+                  </span>
+                </button>
+              );
+            }
+            if (item.kind === 'node') {
+              return (
+                <NodeResultItem
+                  key={item.item.node.id}
+                  node={item.item.node}
+                  displayClasses={getDisplayClasses(item.item.node)}
+                  allClasses={allClasses}
+                  isHighlighted={index === effectiveSelectedIndex}
+                  onClick={() => onSelectNode?.(item.item.node, 'default', isUserMention)}
+                  onMouseEnter={() => setSelectedIndex(index)}
+                />
+              );
+            }
+            return (
               <button
-                key={cmd.id}
+                key={item.cmd.id}
                 className={`trigger-popup__command ${
                   index === effectiveSelectedIndex ? 'trigger-popup__command--selected' : ''
                 }`}
-                onClick={() => onSelectCommand?.(cmd.id)}
+                onClick={() => {
+                  bumpCommandUsage(item.cmd.id);
+                  onSelectCommand?.(item.cmd.id);
+                }}
                 onMouseEnter={() => setSelectedIndex(index)}
               >
-                <span className="trigger-popup__command-label">{cmd.label}</span>
-                <span className="trigger-popup__command-desc">{cmd.description}</span>
+                <span className="trigger-popup__command-label">{item.cmd.label}</span>
+                <span className="trigger-popup__command-desc">{item.cmd.description}</span>
               </button>
-            ))}
+            );
+          })}
 
-          {isNodeTrigger && showCreateOption && query.trim() && (
+          {showCreate && (
             <button
               className={`trigger-popup__create ${
-                effectiveSelectedIndex === items.length ? 'trigger-popup__create--selected' : ''
+                effectiveSelectedIndex === selectableItems.length ? 'trigger-popup__create--selected' : ''
               }`}
-              onClick={() => handleCreate(query.trim())}
-              onMouseEnter={() => setSelectedIndex(items.length)}
+              onClick={() => handleCreate(cleanQuery.trim())}
+              onMouseEnter={() => setSelectedIndex(selectableItems.length)}
             >
               <AddIcon size="sm" />
-              Create &quot;{query.trim()}&quot;
+              Create &quot;{cleanQuery.trim()}&quot;
             </button>
           )}
         </>
@@ -426,12 +729,12 @@ export function TriggerPopup({
         <>
           {header}
           {search}
-          {list}
+          {valuePickerFilter ? valuePickerList : mainList}
           {footer}
         </>
       ) : (
         <>
-          {list}
+          {valuePickerFilter ? valuePickerList : mainList}
           {footer}
           {header}
           {search}

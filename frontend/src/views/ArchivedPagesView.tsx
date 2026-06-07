@@ -150,7 +150,7 @@ export function ArchivedPagesView({ className = '' }: ArchivedPagesViewProps) {
         <div className="archived-pages-view__toolbar">
           <NodeCollectionToolbar
             viewMode={viewMode}
-            availableViewModes={['list', 'table', 'card']}
+            availableViewModes={['list', 'table', 'kanban']}
             onViewModeChange={setViewMode}
             groupBy="none"
             onGroupByChange={() => {}}

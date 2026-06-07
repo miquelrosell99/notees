@@ -395,6 +395,7 @@ export function useSearch(query: string, filters?: {
   isPage?: boolean;
   isClass?: boolean;
   isDaily?: boolean;
+  isUserPage?: boolean;
 }) {
   const searchFilters: Record<string, string | boolean | undefined> = {
     classFilters: filters?.classFilters,
@@ -402,6 +403,7 @@ export function useSearch(query: string, filters?: {
     isPage: filters?.isPage,
     isClass: filters?.isClass,
     isDaily: filters?.isDaily,
+    isUserPage: filters?.isUserPage,
   };
   return useQuery({
     queryKey: nodeKeys.search(query, searchFilters),
@@ -411,8 +413,9 @@ export function useSearch(query: string, filters?: {
       is_page: filters?.isPage,
       is_class: filters?.isClass,
       is_daily: filters?.isDaily,
+      is_user_page: filters?.isUserPage,
     }),
-    enabled: query.length > 0 || !!filters?.uuid || !!filters?.classFilters || filters?.isPage !== undefined || filters?.isClass !== undefined || filters?.isDaily !== undefined,
+    enabled: query.length > 0 || !!filters?.uuid || !!filters?.classFilters || filters?.isPage !== undefined || filters?.isClass !== undefined || filters?.isDaily !== undefined || filters?.isUserPage !== undefined,
     placeholderData: keepPreviousData,
     staleTime: 1000 * 30, // 30s - search results change less often than typed
   });

@@ -89,6 +89,9 @@ async def init_database(conn: asyncpg.Connection) -> None:
     # Remove non-system task statuses and migrate nodes that have them
     await _migrate_non_system_task_statuses(conn)
 
+    # Add collaboration schema updates (pending invites, notifications, comment permissions, share passwords)
+    await _migrate_collaboration_schema(conn)
+
     # Seed default system settings
     await _seed_system_settings(conn)
 
@@ -633,6 +636,98 @@ async def _migrate_mdi_prefix_icons(conn: asyncpg.Connection) -> None:
             f"Stripped mdi: prefix from {total} icon rows "
             f"({prop_count} properties, {line_count} selection lines, {json_count} JSON icons)"
         )
+
+
+async def _migrate_collaboration_schema(conn: asyncpg.Connection) -> None:
+    """Idempotent migration for collaboration features.
+
+    Adds columns/tables introduced for email invites, comment permissions,
+    password-protected shares, @mentions, and notifications.
+    """
+    from ...logging_config import get_logger
+
+    logger = get_logger(__name__)
+    changes = 0
+
+    # user.user_page_node_id
+    has_col = await conn.fetchval(
+        "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'user' AND column_name = 'user_page_node_id')"
+    )
+    if not has_col:
+        await conn.execute('ALTER TABLE "user" ADD COLUMN user_page_node_id INTEGER REFERENCES node(id) ON DELETE SET NULL')
+        changes += 1
+
+    # workspace_share.can_comment
+    has_col = await conn.fetchval(
+        "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'workspace_share' AND column_name = 'can_comment')"
+    )
+    if not has_col:
+        await conn.execute("ALTER TABLE workspace_share ADD COLUMN can_comment BOOLEAN DEFAULT FALSE")
+        changes += 1
+
+    # node_share.can_comment
+    has_col = await conn.fetchval(
+        "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'node_share' AND column_name = 'can_comment')"
+    )
+    if not has_col:
+        await conn.execute("ALTER TABLE node_share ADD COLUMN can_comment BOOLEAN DEFAULT FALSE")
+        changes += 1
+
+    # node_public_share.password_hash
+    has_col = await conn.fetchval(
+        "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'node_public_share' AND column_name = 'password_hash')"
+    )
+    if not has_col:
+        await conn.execute("ALTER TABLE node_public_share ADD COLUMN password_hash TEXT")
+        changes += 1
+
+    # pending_invite table
+    has_table = await conn.fetchval(
+        "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'pending_invite')"
+    )
+    if not has_table:
+        await conn.execute("""
+            CREATE TABLE pending_invite (
+                id SERIAL PRIMARY KEY,
+                uuid UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
+                email VARCHAR(255) NOT NULL,
+                workspace_id INTEGER REFERENCES workspace(id) ON DELETE CASCADE,
+                node_id INTEGER REFERENCES node(id) ON DELETE CASCADE,
+                role VARCHAR(20) DEFAULT 'viewer',
+                invited_by INTEGER NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                expires_at TIMESTAMPTZ,
+                active BOOLEAN DEFAULT TRUE,
+                UNIQUE(email, workspace_id, node_id)
+            )
+        """)
+        await conn.execute("CREATE INDEX idx_pending_invite_email ON pending_invite(email)")
+        await conn.execute("CREATE INDEX idx_pending_invite_uuid ON pending_invite(uuid)")
+        changes += 1
+
+    # notification table
+    has_table = await conn.fetchval(
+        "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'notification')"
+    )
+    if not has_table:
+        await conn.execute("""
+            CREATE TABLE notification (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+                type VARCHAR(50) NOT NULL,
+                actor_user_id INTEGER REFERENCES "user"(id) ON DELETE SET NULL,
+                node_id INTEGER REFERENCES node(id) ON DELETE CASCADE,
+                message TEXT,
+                is_read BOOLEAN DEFAULT FALSE,
+                create_date TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+        """)
+        await conn.execute("CREATE INDEX idx_notification_user_unread ON notification(user_id, is_read) WHERE is_read = FALSE")
+        await conn.execute("CREATE INDEX idx_notification_user_date ON notification(user_id, create_date DESC)")
+        changes += 1
+
+    if changes:
+        logger.info(f"Collaboration schema migration applied ({changes} change sets)")
 
 
 async def seed_workspace(conn: asyncpg.Connection, workspace_id: int, user_id: int) -> None:

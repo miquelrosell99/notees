@@ -227,7 +227,7 @@ export function TrashView({ className = '' }: TrashViewProps) {
         <div className="trash-view__toolbar">
           <NodeCollectionToolbar
             viewMode={viewMode}
-            availableViewModes={['list', 'table', 'card']}
+            availableViewModes={['list', 'table', 'kanban']}
             onViewModeChange={setViewMode}
             groupBy="none"
             onGroupByChange={() => {}}

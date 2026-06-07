@@ -47,7 +47,7 @@ export { TrashNodeContextMenu } from './TrashNodeContextMenu';
 export {
   ListView,
   DocumentView,
-  CardView,
+  KanbanView,
   TableView,
   GanttView,
   GraphView,

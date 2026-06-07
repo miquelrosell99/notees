@@ -23,7 +23,7 @@ import type { Node } from '@/types';
 import { parseHierarchicalPath, filterNodesByHierarchy } from '@/utils/hierarchicalPath';
 import { nodeNameToText } from './useStringifyAST';
 
-export type NodeSearchMode = 'all' | 'pages' | 'blocks' | 'classes' | 'tags' | 'aliases';
+export type NodeSearchMode = 'all' | 'pages' | 'blocks' | 'classes' | 'tags' | 'aliases' | 'users';
 
 export interface NodeSearchFilters {
   /** What types of nodes to include */
@@ -44,6 +44,8 @@ export interface NodeSearchFilters {
   isClass?: boolean;
   /** Filter to daily notes */
   isDaily?: boolean;
+  /** Filter to user pages (for @mentions) */
+  isUserPage?: boolean;
 }
 
 export interface NodeSearchItem {
@@ -101,6 +103,7 @@ export function useNodeSearch(
     isPage,
     isClass,
     isDaily,
+    isUserPage,
   } = filters;
 
   // Debounce the search query to avoid firing API on every keystroke
@@ -116,6 +119,7 @@ export function useNodeSearch(
     ...(isPage !== undefined ? { isPage } : {}),
     ...(isClass !== undefined ? { isClass } : {}),
     ...(isDaily !== undefined ? { isDaily } : {}),
+    ...(isUserPage !== undefined ? { isUserPage } : {}),
   };
   const hasSearchFilters = Object.keys(searchFilterOptions).length > 0;
   const { data: searchResults, isLoading: isSearchLoading } = useSearch(
@@ -127,7 +131,7 @@ export function useNodeSearch(
   const useSuggestionsForEmpty = mode === 'pages' || mode === 'all';
   const { data: suggestions } = useSuggestions(
     classFiltersParam,
-    useSuggestionsForEmpty && !uuid && isPage === undefined && isClass === undefined && isDaily === undefined,
+    useSuggestionsForEmpty && !uuid && isPage === undefined && isClass === undefined && isDaily === undefined && isUserPage === undefined,
   );
   // Filtered pages query for when class_filters are present (empty-query case)
   const { data: filteredPages } = useQuery({
@@ -181,6 +185,27 @@ export function useNodeSearch(
         })),
         blockResults: [],
         truncated: truncatedClasses,
+      };
+    }
+
+    // Users mode - show user pages only (for @mentions)
+    if (mode === 'users') {
+      let results = searchQuery.length > 0
+        ? (searchResults ?? [])
+        : [];
+
+      if (excludeNodeId !== undefined) {
+        results = results.filter(n => n.id !== excludeNodeId);
+      }
+
+      const truncatedUsers = results.length > maxResults;
+      return {
+        pageResults: results.slice(0, maxResults).map(node => ({
+          node,
+          section: 'page' as const,
+        })),
+        blockResults: [],
+        truncated: truncatedUsers,
       };
     }
 

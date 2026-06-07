@@ -56,8 +56,8 @@ export interface ASTMath {
 export interface ASTNodeLink {
   readonly type: 'node_link';
   readonly link_id: string;
-  /** 'node' — regular reference, 'class' — class reference, 'embed' — full node embed portal */
-  readonly ref_type: 'node' | 'class' | 'embed';
+  /** 'node' — regular reference, 'class' — class reference, 'embed' — full node embed portal, 'user' — user mention */
+  readonly ref_type: 'node' | 'class' | 'embed' | 'user';
   readonly label?: string | null;
 }
 

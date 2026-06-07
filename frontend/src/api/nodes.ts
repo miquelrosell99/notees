@@ -383,6 +383,7 @@ export async function searchNodes(query: string, options?: {
   is_page?: boolean;
   is_class?: boolean;
   is_daily?: boolean;
+  is_user_page?: boolean;
 }): Promise<Node[]> {
   const params: Record<string, string | boolean> = { q: query };
   if (options?.class_filters) params.class_filters = options.class_filters;
@@ -390,6 +391,7 @@ export async function searchNodes(query: string, options?: {
   if (options?.is_page !== undefined) params.is_page = options.is_page;
   if (options?.is_class !== undefined) params.is_class = options.is_class;
   if (options?.is_daily !== undefined) params.is_daily = options.is_daily;
+  if (options?.is_user_page !== undefined) params.is_user_page = options.is_user_page;
   const response = await api.get<NodesResponse>(`${BASE}/search`, { params });
   return response.data.nodes ?? [];
 }

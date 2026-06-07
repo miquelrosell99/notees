@@ -8,6 +8,7 @@ import asyncio
 import json
 import shutil
 import tempfile
+import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
@@ -15,12 +16,14 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from .. import workspace_manager as wm
+from ..config import settings
 from ..db.connection import acquire_connection, clear_request_conn, get_pool
 from ..dependencies import invalidate_workspace_cache
 from ..domain import DuplicateWorkspaceError, WorkspaceNotFoundError
 from ..export_jobs import create_job, get_job, update_job
 from ..logging_config import get_logger
 from ..models import User, WorkspaceCreate
+from ..utils.email import render_invite_email, send_email
 from ..workspace_io import (
     export_workspace_by_uuid,
     export_workspace_formatted_zip,
@@ -426,9 +429,10 @@ class MemberUpdateRequest(BaseModel):
 
 
 ROLE_PERMS = {
-    "viewer": {"can_read": True, "can_write": False, "can_create": False, "can_delete": False},
-    "editor": {"can_read": True, "can_write": True, "can_create": True, "can_delete": False},
-    "admin": {"can_read": True, "can_write": True, "can_create": True, "can_delete": True},
+    "viewer": {"can_read": True, "can_write": False, "can_create": False, "can_delete": False, "can_comment": False},
+    "commenter": {"can_read": True, "can_write": False, "can_create": False, "can_delete": False, "can_comment": True},
+    "editor": {"can_read": True, "can_write": True, "can_create": True, "can_delete": False, "can_comment": True},
+    "admin": {"can_read": True, "can_write": True, "can_create": True, "can_delete": True, "can_comment": True},
 }
 
 
@@ -454,46 +458,87 @@ async def invite_member(
             'SELECT id FROM "user" WHERE email = $1 AND active = TRUE',
             body.email,
         )
-        if not target:
-            raise HTTPException(status_code=404, detail=f"User '{body.email}' not found")
-        target_id = target["id"]
-        if target_id == int(user.id):
-            raise HTTPException(status_code=400, detail="Cannot invite yourself")
+        if target:
+            target_id = target["id"]
+            if target_id == int(user.id):
+                raise HTTPException(status_code=400, detail="Cannot invite yourself")
 
-        perms = ROLE_PERMS.get(body.role, ROLE_PERMS["viewer"])
+            perms = ROLE_PERMS.get(body.role, ROLE_PERMS["viewer"])
 
+            await conn.execute(
+                """
+                INSERT INTO workspace_share (
+                    workspace_id, user_id, can_read, can_write, can_create, can_delete, can_comment,
+                    active, create_uid, write_uid
+                )
+                VALUES ($1, $2, $3, $4, $5, $6, $7, TRUE, $8, $8)
+                ON CONFLICT (workspace_id, user_id)
+                DO UPDATE SET
+                    can_read = EXCLUDED.can_read,
+                    can_write = EXCLUDED.can_write,
+                    can_create = EXCLUDED.can_create,
+                    can_delete = EXCLUDED.can_delete,
+                    can_comment = EXCLUDED.can_comment,
+                    active = TRUE,
+                    write_uid = EXCLUDED.write_uid,
+                    write_date = NOW()
+                """,
+                ws_row["id"],
+                target_id,
+                perms["can_read"],
+                perms["can_write"],
+                perms["can_create"],
+                perms["can_delete"],
+                perms["can_comment"],
+                int(user.id),
+            )
+
+            await conn.execute(
+                "UPDATE workspace SET is_shared = TRUE WHERE id = $1",
+                ws_row["id"],
+            )
+
+            return {"status": "ok", "email": body.email, "role": body.role}
+
+        # Target user does not exist — create a pending invite
+        from datetime import UTC, datetime, timedelta
+
+        invite_uuid = str(uuid.uuid4())
+        expires_at = datetime.now(UTC) + timedelta(days=7)
         await conn.execute(
             """
-            INSERT INTO workspace_share (
-                workspace_id, user_id, can_read, can_write, can_create, can_delete,
-                active, create_uid, write_uid
-            )
-            VALUES ($1, $2, $3, $4, $5, $6, TRUE, $7, $7)
-            ON CONFLICT (workspace_id, user_id)
+            INSERT INTO pending_invite (uuid, email, workspace_id, role, invited_by, expires_at, active)
+            VALUES ($1, $2, $3, $4, $5, $6, TRUE)
+            ON CONFLICT (email, workspace_id, node_id)
             DO UPDATE SET
-                can_read = EXCLUDED.can_read,
-                can_write = EXCLUDED.can_write,
-                can_create = EXCLUDED.can_create,
-                can_delete = EXCLUDED.can_delete,
+                role = EXCLUDED.role,
+                invited_by = EXCLUDED.invited_by,
+                expires_at = EXCLUDED.expires_at,
                 active = TRUE,
-                write_uid = EXCLUDED.write_uid,
-                write_date = NOW()
+                created_at = NOW()
             """,
+            invite_uuid,
+            body.email,
             ws_row["id"],
-            target_id,
-            perms["can_read"],
-            perms["can_write"],
-            perms["can_create"],
-            perms["can_delete"],
+            body.role,
             int(user.id),
+            expires_at,
         )
 
-        await conn.execute(
-            "UPDATE workspace SET is_shared = TRUE WHERE id = $1",
-            ws_row["id"],
+        invite_link = f"{settings.public_url}/enroll?token={invite_uuid}"
+        html, plain = render_invite_email(
+            inviter_name=user.name or user.email,
+            workspace_name=workspace_uuid,
+            invite_link=invite_link,
         )
+        sent = await send_email(body.email, "Invitation to collaborate on Notees", html, plain)
 
-    return {"status": "ok", "email": body.email, "role": body.role}
+        return {
+            "status": "pending",
+            "email": body.email,
+            "role": body.role,
+            "invite_link": None if sent else invite_link,
+        }
 
 
 @router.get("/{workspace_uuid}/members")
@@ -527,12 +572,23 @@ async def list_members(
         rows = await conn.fetch(
             """
             SELECT u.id, u.email, u.uuid as user_uuid,
-                   gs.can_read, gs.can_write, gs.can_create, gs.can_delete,
+                   gs.can_read, gs.can_write, gs.can_create, gs.can_delete, gs.can_comment,
                    gs.create_date
             FROM workspace_share gs
             JOIN "user" u ON u.id = gs.user_id
             WHERE gs.workspace_id = $1 AND gs.active = TRUE
             ORDER BY gs.create_date DESC
+            """,
+            ws_id,
+        )
+
+        pending_rows = await conn.fetch(
+            """
+            SELECT email, role, created_at
+            FROM pending_invite
+            WHERE workspace_id = $1 AND node_id IS NULL AND active = TRUE
+              AND (expires_at IS NULL OR expires_at > NOW())
+            ORDER BY created_at DESC
             """,
             ws_id,
         )
@@ -559,6 +615,8 @@ async def list_members(
             role = "admin"
         elif r["can_write"]:
             role = "editor"
+        elif r["can_comment"]:
+            role = "commenter"
         members.append(
             {
                 "user_id": r["id"],
@@ -566,6 +624,17 @@ async def list_members(
                 "user_uuid": str(r["user_uuid"]),
                 "role": role,
                 "joined_at": r["create_date"].isoformat() if r["create_date"] else None,
+            }
+        )
+    for p in pending_rows:
+        members.append(
+            {
+                "user_id": None,
+                "email": p["email"],
+                "user_uuid": None,
+                "role": p["role"],
+                "joined_at": None,
+                "status": "pending",
             }
         )
     return {"members": members}
@@ -596,14 +665,15 @@ async def update_member(
         result = await conn.execute(
             """
             UPDATE workspace_share
-            SET can_read = $1, can_write = $2, can_create = $3, can_delete = $4,
-                write_uid = $5, write_date = NOW()
-            WHERE workspace_id = $6 AND user_id = $7 AND active = TRUE
+            SET can_read = $1, can_write = $2, can_create = $3, can_delete = $4, can_comment = $5,
+                write_uid = $6, write_date = NOW()
+            WHERE workspace_id = $7 AND user_id = $8 AND active = TRUE
             """,
             perms["can_read"],
             perms["can_write"],
             perms["can_create"],
             perms["can_delete"],
+            perms["can_comment"],
             int(user.id),
             ws_row["id"],
             member_user_id,
@@ -639,4 +709,30 @@ async def remove_member(
             member_user_id,
         )
     invalidate_workspace_cache(member_user_id)
+    return {"status": "ok"}
+
+
+@router.delete("/{workspace_uuid}/pending-invites/{email}")
+async def remove_pending_invite(
+    workspace_uuid: str,
+    email: str,
+    user: User = Depends(get_current_user),  # noqa: B008
+):
+    """Cancel a pending invite by email."""
+    pool = await get_pool()
+    async with acquire_connection(pool) as conn:
+        ws_row = await conn.fetchrow(
+            "SELECT id, create_uid FROM workspace WHERE uuid::text = $1 AND active = TRUE",
+            workspace_uuid,
+        )
+        if not ws_row:
+            raise HTTPException(status_code=404, detail="Workspace not found")
+        if ws_row["create_uid"] != int(user.id):
+            raise HTTPException(status_code=403, detail="Only workspace owners can remove invites")
+
+        await conn.execute(
+            "UPDATE pending_invite SET active = FALSE WHERE workspace_id = $1 AND email = $2 AND node_id IS NULL",
+            ws_row["id"],
+            email,
+        )
     return {"status": "ok"}

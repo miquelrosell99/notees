@@ -30,6 +30,7 @@ class PostgresNodeSearchMixin(_PostgresNodeBase):
         is_page: bool | None = None,
         is_class: bool | None = None,
         is_daily: bool | None = None,
+        is_user_page: bool | None = None,
         sort_by: str = "write_date",
         order: str = "desc",
     ) -> list[object]:
@@ -88,8 +89,9 @@ class PostgresNodeSearchMixin(_PostgresNodeBase):
                       AND ($4::boolean IS NULL OR n.is_page = $4)
                       AND ($5::boolean IS NULL OR n.is_class = $5)
                       AND ($6::boolean IS NULL OR n.is_day = $6)
+                      AND ($7::boolean IS NULL OR EXISTS (SELECT 1 FROM "user" u WHERE u.user_page_node_id = n.id) = $7)
                     {list_order_clause}
-                    LIMIT $2 OFFSET $7
+                    LIMIT $2 OFFSET $8
                 """,
                     self._workspace_id,
                     limit,
@@ -97,6 +99,7 @@ class PostgresNodeSearchMixin(_PostgresNodeBase):
                     is_page,
                     is_class,
                     is_daily,
+                    is_user_page,
                     offset,
                 )
             else:
@@ -175,14 +178,15 @@ class PostgresNodeSearchMixin(_PostgresNodeBase):
                       AND (${fp + 1}::boolean IS NULL OR n.is_page = ${fp + 1})
                       AND (${fp + 2}::boolean IS NULL OR n.is_class = ${fp + 2})
                       AND (${fp + 3}::boolean IS NULL OR n.is_day = ${fp + 3})
+                      AND (${fp + 4}::boolean IS NULL OR EXISTS (SELECT 1 FROM "user" u WHERE u.user_page_node_id = n.id) = ${fp + 4})
                     {search_order_clause}
-                    LIMIT $2 OFFSET ${fp + 4}
+                    LIMIT $2 OFFSET ${fp + 5}
                 """
 
                 params = (
                     [self._workspace_id, limit, query]
                     + token_patterns
-                    + [class_filters, is_page, is_class, is_daily, offset]
+                    + [class_filters, is_page, is_class, is_daily, is_user_page, offset]
                 )
                 rows = await conn.fetch(sql, *params)
 

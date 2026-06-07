@@ -218,7 +218,7 @@ export function InlineLink({ linkId, refType, url, label }: InlineLinkProps) {
         onClick: handleOpen,
       });
     } else {
-      const isPage = refType === 'node';
+      const isPage = refType === 'node' || refType === 'user';
       items.push({
         id: 'open',
         label: isPage ? 'Open page' : 'Open block',
@@ -352,6 +352,41 @@ export function InlineLink({ linkId, refType, url, label }: InlineLinkProps) {
             isOpen={true}
             linkId={linkId}
             refType="broken"
+            currentLabel={label}
+            onSave={handleEditSave}
+            onClose={handleCloseEditModal}
+          />
+        )}
+      </>
+    );
+  }
+
+  // ─── User mention pill ─────────────────────────────────────
+  if (refType === 'user') {
+    return (
+      <>
+        <span
+          className="inline-link-inner inline-link-inner--user"
+          data-ref-type="user"
+          onContextMenu={handleContextMenu}
+        >
+          <span className="inline-link-icon">
+            <Icon path={"mdi mdi-at"} size="14px" />
+          </span>
+          <span className="inline-link-text">{label || nodeUuid?.slice(0, 8)}</span>
+        </span>
+        {menuPos && (
+          <ContextMenu
+            items={menuItems}
+            position={menuPos}
+            onClose={handleCloseMenu}
+          />
+        )}
+        {isEditModalOpen && (
+          <LinkEditModal
+            isOpen={true}
+            linkId={linkId}
+            refType="user"
             currentLabel={label}
             onSave={handleEditSave}
             onClose={handleCloseEditModal}

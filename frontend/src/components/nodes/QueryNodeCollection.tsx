@@ -307,11 +307,11 @@ export function QueryNodeCollection({
   // Document mode is only meaningful in main content view, not query views
   const queryAvailableViewModes: NodeCollectionViewMode[] =
     viewType === 'classed_nodes'
-      ? ['list', 'table', 'card', 'graph']
-      : ['list', 'table', 'card', 'gantt', 'calendar', 'chart', 'graph', 'timeline'];
+      ? ['list', 'table', 'kanban', 'graph']
+      : ['list', 'table', 'kanban', 'gantt', 'calendar', 'chart', 'graph', 'timeline'];
 
   // View modes that actually render nested children
-  const childrenFriendlyViewModes: NodeCollectionViewMode[] = ['list', 'table', 'card'];
+  const childrenFriendlyViewModes: NodeCollectionViewMode[] = ['list', 'table', 'kanban'];
   const needsChildren = childrenFriendlyViewModes.includes(collectionViewMode);
   const queryPagesOnly = viewType === 'all_pages' || viewType === 'child_pages' || viewType === 'extended_by';
   
@@ -486,7 +486,7 @@ export function QueryNodeCollection({
       current_node_name: nodeNameToText(nodeName),
     },
     includeChildren: needsChildren,
-    includeAllChildren: collectionViewMode === 'card',
+    includeAllChildren: collectionViewMode === 'kanban',
     pagesOnly: queryPagesOnly,
     includeProperties: true,
     enabled: !!activeView && nodeId > 0 && viewType !== 'linked_references',
@@ -635,7 +635,7 @@ export function QueryNodeCollection({
         current_node_name: nodeNameToText(nodeName),
       },
       include_children: needsChildren,
-      include_all_children: collectionViewMode === 'card',
+      include_all_children: collectionViewMode === 'kanban',
       pages_only: queryPagesOnly,
       include_properties: true,
     },
@@ -658,7 +658,7 @@ export function QueryNodeCollection({
         current_node_name: nodeNameToText(nodeName),
       },
       include_children: needsChildren,
-      include_all_children: collectionViewMode === 'card',
+      include_all_children: collectionViewMode === 'kanban',
       pages_only: queryPagesOnly,
       include_properties: true,
     },
@@ -777,7 +777,7 @@ export function QueryNodeCollection({
         current_node_name: nodeNameToText(nodeName),
       },
       include_children: needsChildren,
-      include_all_children: collectionViewMode === 'card',
+      include_all_children: collectionViewMode === 'kanban',
       pages_only: queryPagesOnly,
       include_properties: true,
     },
@@ -1059,7 +1059,7 @@ export function QueryNodeCollection({
             leftElement={resolvedLeftElement}
             hideToolbarControls={hideToolbarControls}
             hideContent={hideContent}
-            showGroupBy={!hideViewManagement && (collectionViewMode === 'list' || collectionViewMode === 'card' || collectionViewMode === 'gantt') && viewType !== 'all_pages' && viewType !== 'child_pages'}
+            showGroupBy={!hideViewManagement && (collectionViewMode === 'list' || collectionViewMode === 'kanban' || collectionViewMode === 'gantt') && viewType !== 'all_pages' && viewType !== 'child_pages'}
             groupBy={groupBy}
             onGroupByChange={setGroupBy}
             showAddButton={effectiveCanCreate && viewType !== 'linked_references'}

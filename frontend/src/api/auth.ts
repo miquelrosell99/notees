@@ -104,3 +104,11 @@ export async function revokeApiKey(keyId: string): Promise<{ success: boolean }>
   const response = await api.delete<{ success: boolean }>(`/auth/api-keys/${keyId}`);
   return response.data;
 }
+
+/**
+ * Accept a pending invitation
+ */
+export async function acceptInvite(data: { token: string; password?: string; name?: string }): Promise<Token> {
+  const response = await api.post<Token>('/auth/invites/accept', data);
+  return response.data;
+}

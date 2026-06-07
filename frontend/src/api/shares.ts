@@ -69,7 +69,7 @@ export interface UserShare {
   node_id: number;
   shared_with_user_id: number;
   shared_with_email: string;
-  permission: 'read' | 'write';
+  permission: 'read' | 'write' | 'comment';
   created_at: string;
   created_by: number;
 }
@@ -103,11 +103,12 @@ export interface ShareInboxResponse {
 }
 
 export interface WorkspaceMember {
-  user_id: number;
+  user_id: number | null;
   email: string;
-  user_uuid: string;
+  user_uuid: string | null;
   role: string;
   joined_at: string | null;
+  status?: string | null;
 }
 
 export interface WorkspaceMembersResponse {
@@ -124,10 +125,12 @@ const WORKSPACES_BASE = '/workspaces';
  */
 export async function createShare(
   nodeId: number,
-  expiryDate?: string | null
+  expiryDate?: string | null,
+  password?: string | null
 ): Promise<Share> {
   const response = await api.post<Share>(`${BASE}/${nodeId}/shares`, {
     expiry_date: expiryDate ?? null,
+    password: password ?? null,
   });
   return response.data;
 }
@@ -159,8 +162,10 @@ export async function deleteShare(shareUuid: string): Promise<{ success: boolean
 /**
  * Get a publicly shared node (no auth required)
  */
-export async function getPublicSharedNode(shareUuid: string): Promise<PublicSharedNode> {
-  const response = await api.get<PublicSharedNode>(`${PUBLIC_BASE}/${shareUuid}`);
+export async function getPublicSharedNode(shareUuid: string, password?: string): Promise<PublicSharedNode> {
+  const response = await api.get<PublicSharedNode>(`${PUBLIC_BASE}/${shareUuid}`, {
+    params: password ? { password } : undefined,
+  });
   return response.data;
 }
 
@@ -172,7 +177,7 @@ export async function getPublicSharedNode(shareUuid: string): Promise<PublicShar
 export async function createUserShare(
   nodeId: number,
   email: string,
-  permission: 'read' | 'write' = 'read'
+  permission: 'read' | 'write' | 'comment' = 'read'
 ): Promise<UserShare> {
   const response = await api.post<UserShare>(`${BASE}/${nodeId}/user-shares`, {
     email,
@@ -254,5 +259,13 @@ export async function removeWorkspaceMember(
   memberUserId: number
 ): Promise<{ status: string }> {
   const response = await api.delete(`${WORKSPACES_BASE}/${workspaceUuid}/members/${memberUserId}`);
+  return response.data;
+}
+
+export async function removePendingInvite(
+  workspaceUuid: string,
+  email: string
+): Promise<{ status: string }> {
+  const response = await api.delete(`${WORKSPACES_BASE}/${workspaceUuid}/pending-invites/${encodeURIComponent(email)}`);
   return response.data;
 }

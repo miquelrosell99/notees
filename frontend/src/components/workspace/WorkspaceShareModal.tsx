@@ -15,6 +15,7 @@ import {
   useInviteWorkspaceMember,
   useUpdateWorkspaceMember,
   useRemoveWorkspaceMember,
+  useRemovePendingInvite,
 } from '@/hooks/useShares';
 import type { WorkspaceMember } from '@/api/shares';
 import './WorkspaceShareModal.css';
@@ -27,13 +28,15 @@ interface WorkspaceShareModalProps {
 
 const ROLE_OPTIONS = [
   { value: 'viewer', label: 'Viewer' },
+  { value: 'commenter', label: 'Commenter' },
   { value: 'editor', label: 'Editor' },
   { value: 'admin', label: 'Admin' },
 ];
 
-const ROLE_BADGE_VARIANT: Record<string, 'neutral' | 'primary' | 'warning'> = {
+const ROLE_BADGE_VARIANT: Record<string, 'neutral' | 'primary' | 'warning' | 'secondary'> = {
   owner: 'warning',
   viewer: 'neutral',
+  commenter: 'secondary',
   editor: 'primary',
   admin: 'warning',
 };
@@ -43,6 +46,7 @@ export function WorkspaceShareModal({ workspaceUuid, isOpen, onClose }: Workspac
   const inviteMember = useInviteWorkspaceMember();
   const updateMember = useUpdateWorkspaceMember();
   const removeMember = useRemoveWorkspaceMember();
+  const removePending = useRemovePendingInvite();
 
   const currentUser = useAuthStore((s) => s.user);
   const [inviteEmail, setInviteEmail] = useState('');
@@ -94,6 +98,13 @@ export function WorkspaceShareModal({ workspaceUuid, isOpen, onClose }: Workspac
       removeMember.mutate({ workspaceUuid, memberUserId });
     },
     [workspaceUuid, removeMember]
+  );
+
+  const handleRemovePending = useCallback(
+    (email: string) => {
+      removePending.mutate({ workspaceUuid, email });
+    },
+    [workspaceUuid, removePending]
   );
 
   return (
@@ -164,13 +175,15 @@ export function WorkspaceShareModal({ workspaceUuid, isOpen, onClose }: Workspac
                 <div className="workspace-share-modal__people-list">
                   {otherMembers.map((member) => (
                     <MemberRow
-                      key={member.user_id}
+                      key={member.email}
                       member={member}
                       isCurrentUserOwner={isCurrentUserOwner}
                       onRoleChange={handleRoleChange}
                       onRemove={handleRemove}
+                      onRemovePending={handleRemovePending}
                       isUpdating={updateMember.isPending}
                       isRemoving={removeMember.isPending}
+                      isRemovingPending={removePending.isPending}
                     />
                   ))}
                 </div>
@@ -192,40 +205,48 @@ function MemberRow({
   isCurrentUserOwner,
   onRoleChange,
   onRemove,
+  onRemovePending,
   isUpdating,
   isRemoving,
+  isRemovingPending,
 }: {
   member: WorkspaceMember;
   isCurrentUserOwner: boolean;
   onRoleChange: (userId: number, role: string) => void;
   onRemove: (userId: number) => void;
+  onRemovePending: (email: string) => void;
   isUpdating: boolean;
   isRemoving: boolean;
+  isRemovingPending: boolean;
 }) {
+  const isPending = member.status === 'pending' || member.user_id === null;
   return (
     <div className="workspace-share-modal__people-row">
       <div className="workspace-share-modal__user-info">
         <Icon path="mdi mdi-account-circle" size={1} />
         <span className="workspace-share-modal__user-name">{member.email}</span>
+        {isPending && <Badge variant="neutral" size="sm">Pending</Badge>}
       </div>
       <div className="workspace-share-modal__people-actions">
         {isCurrentUserOwner ? (
           <>
-            <Dropdown
-              options={ROLE_OPTIONS}
-              value={member.role}
-              onChange={(val) => val && onRoleChange(member.user_id, val)}
-              size="sm"
-              disabled={isUpdating}
-              className="workspace-share-modal__role-dropdown"
-            />
+            {!isPending && (
+              <Dropdown
+                options={ROLE_OPTIONS}
+                value={member.role}
+                onChange={(val) => val && member.user_id !== null && onRoleChange(member.user_id, val)}
+                size="sm"
+                disabled={isUpdating}
+                className="workspace-share-modal__role-dropdown"
+              />
+            )}
             <Button
               variant="ghost"
               size="sm"
               icon="mdi mdi-delete-outline"
-              title="Remove member"
-              onClick={() => onRemove(member.user_id)}
-              disabled={isRemoving}
+              title={isPending ? "Cancel invite" : "Remove member"}
+              onClick={() => isPending ? onRemovePending(member.email) : onRemove(member.user_id!)}
+              disabled={isRemoving || isRemovingPending}
             />
           </>
         ) : (

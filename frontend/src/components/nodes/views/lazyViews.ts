@@ -11,7 +11,7 @@ import { registerView } from './registry';
 // Eagerly load light views
 import './ListView';
 import './DocumentView';
-import './CardView';
+import './KanbanView';
 import './TableView';
 
 // Lazy-load heavy views (wrap named export into default for React.lazy)
