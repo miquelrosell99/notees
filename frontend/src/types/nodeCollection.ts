@@ -27,7 +27,7 @@ export type NodeCollectionGroupBy = string;
 export type NodeCollectionViewMode = 
   | 'list'      // Bullet list with indentation (outline)
   | 'document'  // Flat list without bullets (document style)
-  | 'card'      // Card grid layout (ungrouped) or kanban board (grouped by property)
+  | 'kanban'    // Kanban board (grouped by property) or card grid (ungrouped)
   | 'table'     // Table with rows
   | 'gantt'     // Timeline/Gantt view
   | 'calendar'  // Calendar month/week view
@@ -378,7 +378,7 @@ export interface NodeDocumentViewProps extends NodeCollectionViewBaseProps {
 /**
  * Props for NodeCardView (card mode)
  */
-export interface NodeCardViewProps extends NodeCollectionViewBaseProps {
+export interface NodeKanbanViewProps extends NodeCollectionViewBaseProps {
   /** Card layout style */
   layout?: 'no-cover' | 'cover-top' | 'cover-left' | 'cover-right';
 

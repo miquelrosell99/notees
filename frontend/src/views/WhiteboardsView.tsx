@@ -36,7 +36,7 @@ export function WhiteboardsView({ className = '' }: WhiteboardsViewProps) {
 
   const createNode = useCreateNode();
 
-  const [viewMode, setViewMode] = useState<NodeCollectionViewMode>('card');
+  const [viewMode, setViewMode] = useState<NodeCollectionViewMode>('kanban');
 
   const handleCreateWhiteboard = useCallback(async () => {
     if (!whiteboardClassId || !pageClassId) return;
@@ -110,7 +110,7 @@ export function WhiteboardsView({ className = '' }: WhiteboardsViewProps) {
           <NodeCollection
             nodes={whiteboards}
             viewMode={viewMode}
-            availableViewModes={['card', 'list', 'table']}
+            availableViewModes={['kanban', 'list', 'table']}
             onViewModeChange={setViewMode}
             onNodeClick={handleNodeClick}
             onNodeShiftClick={handleNodeShiftClick}

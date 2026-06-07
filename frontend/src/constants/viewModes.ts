@@ -13,7 +13,7 @@ import type { NodeCollectionViewMode } from '@/types/nodeCollection';
 export const DEFAULT_VIEW_MODES_ORDER: NodeCollectionViewMode[] = [
   'list',
   'table', 
-  'card',
+  'kanban',
   'document',
   'gantt',
   'calendar',
@@ -28,7 +28,7 @@ export const DEFAULT_VIEW_MODES_ORDER: NodeCollectionViewMode[] = [
 export const VIEW_MODE_ICONS: Record<NodeCollectionViewMode, string> = {
   list: "mdi mdi-format-list-bulleted",
   document: "mdi mdi-file-document-outline",
-  card: "mdi mdi-view-grid",
+  kanban: "mdi mdi-view-grid",
   table: "mdi mdi-table",
   gantt: "mdi mdi-chart-gantt",
   calendar: "mdi mdi-calendar-month",
@@ -43,7 +43,7 @@ export const VIEW_MODE_ICONS: Record<NodeCollectionViewMode, string> = {
 export const VIEW_MODE_LABELS: Record<NodeCollectionViewMode, string> = {
   list: 'List',
   document: 'Document',
-  card: 'Cards',
+  kanban: 'Kanban',
   table: 'Table',
   gantt: 'Gantt',
   calendar: 'Calendar',

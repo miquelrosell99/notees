@@ -51,7 +51,7 @@ interface BlockListProps {
   /** Called when any block's content changes. */
   onContentChange?: (blockId: string, content: string) => void;
   /** Called when a pill is clicked. */
-  onPillClick?: (linkId: string, refType: 'node' | 'class' | 'url' | 'embed' | 'broken') => void;
+  onPillClick?: (linkId: string, refType: 'node' | 'class' | 'url' | 'embed' | 'broken' | 'user') => void;
   /** Called when a pill is removed. */
   onPillRemove?: (linkId: string) => void;
   /** Called when a node is navigated to (page click). Receives block UUID. */

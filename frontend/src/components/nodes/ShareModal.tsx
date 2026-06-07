@@ -28,6 +28,7 @@ interface ShareModalProps {
 
 const PERMISSION_OPTIONS = [
   { value: 'read' as const, label: 'Read only' },
+  { value: 'comment' as const, label: 'Can comment' },
   { value: 'write' as const, label: 'Can edit' },
 ];
 
@@ -43,14 +44,15 @@ export function ShareModal({ nodeId, isOpen, onClose }: ShareModalProps) {
   const createUserShare = useCreateUserShare();
   const deleteUserShare = useDeleteUserShare();
   const [inviteEmail, setInviteEmail] = useState('');
-  const [invitePermission, setInvitePermission] = useState<'read' | 'write'>('read');
+  const [invitePermission, setInvitePermission] = useState<'read' | 'write' | 'comment'>('read');
+  const [publicPassword, setPublicPassword] = useState('');
 
   const handleCreatePublic = useCallback(() => {
     createShare.mutate(
-      { nodeId, expiryDate: expiryDate || null },
-      { onSuccess: () => setExpiryDate('') }
+      { nodeId, expiryDate: expiryDate || null, password: publicPassword || null },
+      { onSuccess: () => { setExpiryDate(''); setPublicPassword(''); } }
     );
-  }, [nodeId, expiryDate, createShare]);
+  }, [nodeId, expiryDate, publicPassword, createShare]);
 
   const handleCopy = useCallback((url: string) => {
     copyToClipboard(url);
@@ -88,6 +90,16 @@ export function ShareModal({ nodeId, isOpen, onClose }: ShareModalProps) {
                 className="share-modal__date-input"
                 value={expiryDate}
                 onChange={(e) => setExpiryDate(e.target.value)}
+              />
+            </div>
+            <label className="share-modal__label">Optional password</label>
+            <div className="share-modal__create-row">
+              <TextField
+                type="password"
+                placeholder="Leave empty for no password"
+                value={publicPassword}
+                onChange={(e) => setPublicPassword(e.target.value)}
+                size="sm"
               />
               <Button
                 variant="primary"
@@ -201,10 +213,10 @@ export function ShareModal({ nodeId, isOpen, onClose }: ShareModalProps) {
                       </div>
                       <div className="share-modal__people-actions">
                         <Badge
-                          variant={share.permission === 'write' ? 'primary' : 'neutral'}
+                          variant={share.permission === 'write' ? 'primary' : share.permission === 'comment' ? 'secondary' : 'neutral'}
                           size="sm"
                         >
-                          {share.permission === 'write' ? 'Can edit' : 'Read only'}
+                          {share.permission === 'write' ? 'Can edit' : share.permission === 'comment' ? 'Can comment' : 'Read only'}
                         </Badge>
                         <Button
                           variant="ghost"

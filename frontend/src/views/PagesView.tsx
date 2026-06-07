@@ -18,7 +18,7 @@ import './PagesView.css';
 
 const AVAILABLE_VIEW_MODES: NodeCollectionViewMode[] = [
   'list',
-  'card',
+  'kanban',
   'table',
   'graph',
   'timeline',

@@ -103,7 +103,7 @@ export function extractInlineContent(parent: ElementNode): ContentAST {
         const nodeLink: ASTNodeLink = {
           type: 'node_link',
           link_id: child.getLinkId(),
-          ref_type: rt,
+          ref_type: rt === 'user' ? 'user' : rt,
           ...(pillLabel ? { label: pillLabel } : {}),
         };
         inlines.push(nodeLink);

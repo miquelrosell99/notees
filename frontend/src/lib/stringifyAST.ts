@@ -239,7 +239,7 @@ function renderInline(node: ASTInlineNode, opts: StringifyOptions): string {
  */
 function renderNodeLink(
   linkId: string,
-  refType: 'node' | 'class' | 'embed',
+  refType: 'node' | 'class' | 'embed' | 'user',
   opts: StringifyOptions,
   astLabel?: string | null,
 ): string {
@@ -277,6 +277,9 @@ function renderNodeLink(
 
   switch (opts.mode) {
     case StringifyMode.NODE_MARKDOWN: {
+      if (refType === 'user') {
+        return `[@${label ?? resolvedText}](@user)`;
+      }
       if (refType === 'class') {
         // Class references: {{resolved_text}} or label
         if (label) {
@@ -292,10 +295,10 @@ function renderNodeLink(
     }
 
     case StringifyMode.PLAIN_MARKDOWN:
-      return label ?? resolvedText;
+      return refType === 'user' ? `@${label ?? resolvedText}` : (label ?? resolvedText);
 
     case StringifyMode.TEXT_ONLY:
-      return label ?? resolvedText;
+      return refType === 'user' ? `@${label ?? resolvedText}` : (label ?? resolvedText);
 
     default:
       return label ?? resolvedText;

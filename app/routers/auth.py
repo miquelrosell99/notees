@@ -18,6 +18,7 @@ from ..models import (
     ApiKeyCreate,
     ApiKeyCreateResponse,
     ApiKeyResponse,
+    InviteAcceptRequest,
     Token,
     User,
     UserCreate,
@@ -212,6 +213,119 @@ async def login(request: Request, credentials: UserLogin):
     logger.info(f"Login successful for '{credentials.email}' (id={user.get('id')})")
     token = auth.create_token(user["id"], user["email"], user["role"])
     return {"access_token": token, "token_type": "bearer", "user": user}
+
+
+@router.post("/invites/accept")
+async def accept_invite(request: InviteAcceptRequest):
+    """Accept a pending invitation and create/login user.
+
+    If the user already exists, this converts the pending invite to a share.
+    If not, a new user is created (if registration is enabled or this is first boot).
+    """
+    from ..db.connection import get_connection
+
+    async with get_connection() as conn:
+        invite = await conn.fetchrow(
+            """
+            SELECT id, email, workspace_id, node_id, role, invited_by, expires_at
+            FROM pending_invite
+            WHERE uuid::text = $1 AND active = TRUE
+            """,
+            request.token,
+        )
+        if not invite:
+            raise HTTPException(status_code=404, detail="Invite not found or expired")
+
+        if invite["expires_at"] and invite["expires_at"] < datetime.now():
+            await conn.execute(
+                "UPDATE pending_invite SET active = FALSE WHERE id = $1", invite["id"]
+            )
+            raise HTTPException(status_code=410, detail="Invite has expired")
+
+        email = invite["email"]
+        existing = await auth.get_user_by_email(email)
+
+        if existing:
+            user_id = int(existing["id"])
+        else:
+            is_first = await auth.is_first_boot()
+            if not settings.registration_enabled and not is_first:
+                raise HTTPException(status_code=403, detail="Registration is disabled")
+
+            if not request.password:
+                raise HTTPException(status_code=400, detail="Password is required to create account")
+
+            role = "admin" if is_first else "user"
+            user = await auth.create_user(
+                email=email,
+                password=request.password,
+                name=request.name,
+                role=role,
+            )
+            user_id = int(user["id"])
+
+        # Convert pending invite to actual share
+        if invite["workspace_id"]:
+            perms = {"viewer": (True, False, False, False, False), "commenter": (True, False, False, False, True), "editor": (True, True, True, False, True), "admin": (True, True, True, True, True)}.get(
+                invite["role"], (True, False, False, False, False)
+            )
+            await conn.execute(
+                """
+                INSERT INTO workspace_share (workspace_id, user_id, can_read, can_write, can_create, can_delete, can_comment, active, create_uid, write_uid)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, TRUE, $8, $8)
+                ON CONFLICT (workspace_id, user_id)
+                DO UPDATE SET can_read = EXCLUDED.can_read, can_write = EXCLUDED.can_write,
+                              can_create = EXCLUDED.can_create, can_delete = EXCLUDED.can_delete,
+                              can_comment = EXCLUDED.can_comment, active = TRUE, write_uid = EXCLUDED.write_uid,
+                              write_date = NOW()
+                """,
+                invite["workspace_id"],
+                user_id,
+                perms[0],
+                perms[1],
+                perms[2],
+                perms[3],
+                perms[4],
+                invite["invited_by"],
+            )
+            await conn.execute(
+                "UPDATE workspace SET is_shared = TRUE WHERE id = $1",
+                invite["workspace_id"],
+            )
+
+        if invite["node_id"]:
+            perm = invite["role"]  # "read" or "write"
+            can_write = perm == "write"
+            await conn.execute(
+                """
+                INSERT INTO node_share (node_id, user_id, can_read, can_write, can_create, can_delete, can_comment, active, create_uid, write_uid)
+                VALUES ($1, $2, TRUE, $3, FALSE, FALSE, FALSE, TRUE, $4, $4)
+                ON CONFLICT (node_id, user_id)
+                DO UPDATE SET can_read = TRUE, can_write = EXCLUDED.can_write, active = TRUE,
+                              write_uid = EXCLUDED.write_uid, write_date = NOW()
+                """,
+                invite["node_id"],
+                user_id,
+                can_write,
+                invite["invited_by"],
+            )
+            await conn.execute(
+                "UPDATE node SET is_shared = TRUE WHERE id = $1",
+                invite["node_id"],
+            )
+
+        await conn.execute(
+            "UPDATE pending_invite SET active = FALSE WHERE id = $1",
+            invite["id"],
+        )
+
+        # Get full user record for token
+        user_record = await auth.get_user_by_id(user_id)
+        if not user_record:
+            raise HTTPException(status_code=500, detail="Failed to retrieve user after invite acceptance")
+
+        token = auth.create_token(user_record["id"], user_record["email"], user_record["role"])
+        return {"access_token": token, "token_type": "bearer", "user": user_record}
 
 
 @router.get("/me")

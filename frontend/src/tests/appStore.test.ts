@@ -19,16 +19,16 @@ describe('appStore — content display mode', () => {
   it('setContentDisplayMode updates mode', () => {
     useAppStore.getState().setContentDisplayMode('document');
     expect(useAppStore.getState().contentDisplayMode).toBe('document');
-    useAppStore.getState().setContentDisplayMode('card');
-    expect(useAppStore.getState().contentDisplayMode).toBe('card');
+    useAppStore.getState().setContentDisplayMode('kanban');
+    expect(useAppStore.getState().contentDisplayMode).toBe('kanban');
   });
 
-  it('toggleContentDisplayMode cycles bullet → document → card → bullet', () => {
+  it('toggleContentDisplayMode cycles bullet → document → kanban → bullet', () => {
     expect(useAppStore.getState().contentDisplayMode).toBe('bullet');
     useAppStore.getState().toggleContentDisplayMode();
     expect(useAppStore.getState().contentDisplayMode).toBe('document');
     useAppStore.getState().toggleContentDisplayMode();
-    expect(useAppStore.getState().contentDisplayMode).toBe('card');
+    expect(useAppStore.getState().contentDisplayMode).toBe('kanban');
     useAppStore.getState().toggleContentDisplayMode();
     expect(useAppStore.getState().contentDisplayMode).toBe('bullet');
   });

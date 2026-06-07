@@ -240,21 +240,54 @@ class WorkspaceCreate(BaseModel):
 # ==================== SYNC MODELS ====================
 
 
+class ClientNodeState(BaseModel):
+    """Client-side node state sent during sync."""
+
+    uuid: str
+    version: int
+    name: str | None = None
+    parent_id: str | None = None
+    sequence: float | None = None
+    is_deleted: bool = False
+
+
 class SyncRequest(BaseModel):
     """Request for syncing data."""
 
     last_sync: datetime | None = None
-    nodes: list[dict] = []
-    deleted_nodes: list[str] = []
+    client_nodes: list[ClientNodeState] = []
+    workspace_uuid: str | None = None
+
+
+class ServerNodeState(BaseModel):
+    """Server-side node state returned during sync."""
+
+    uuid: str
+    version: int
+    name: str | None = None
+    parent_id: str | None = None
+    sequence: float | None = None
+    is_deleted: bool = False
+    write_date: datetime | None = None
+
+
+class SyncConflict(BaseModel):
+    """Conflict detected during sync."""
+
+    uuid: str
+    server_version: int
+    client_version: int
+    server_node: ServerNodeState | None = None
+    reason: str
 
 
 class SyncResponse(BaseModel):
     """Response from sync."""
 
     server_time: datetime
-    nodes: list[dict] = []
-    deleted_nodes: list[str] = []
-    conflicts: list[dict] = []
+    server_nodes: list[ServerNodeState] = []
+    deleted_node_uuids: list[str] = []
+    conflicts: list[SyncConflict] = []
 
 
 # ==================== EXPORT MODELS ====================
@@ -347,6 +380,28 @@ class ExportResponse(BaseModel):
 
 
 # ==================== SETTINGS MODELS ====================
+
+
+class InviteAcceptRequest(BaseModel):
+    """Accept a pending invitation."""
+
+    token: str
+    password: str | None = None
+    name: str | None = None
+
+
+class NotificationResponse(BaseModel):
+    """Notification item."""
+
+    id: str
+    type: str
+    actor_user_id: str | None = None
+    actor_name: str | None = None
+    node_id: str | None = None
+    node_name: str | None = None
+    message: str | None = None
+    is_read: bool
+    create_date: datetime
 
 
 class UserSettings(BaseModel):

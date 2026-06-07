@@ -44,8 +44,8 @@ export interface SidebarCard {
 }
 
 // ── Display preference types ──────────────────────────────────────────────────
-/** Display mode for node content: document (prose), bullet (outline), or card */
-export type ContentDisplayMode = 'document' | 'bullet' | 'card';
+/** Display mode for node content: document (prose), bullet (outline), or kanban */
+export type ContentDisplayMode = 'document' | 'bullet' | 'kanban';
 /** Card layout when in card display mode */
 export type CardLayoutMode = 'no-cover' | 'cover-top' | 'cover-left' | 'cover-right';
 
@@ -83,7 +83,7 @@ export const useAppStore = create<DisplayPrefsState>()(
             s.contentDisplayMode === 'bullet'
               ? 'document'
               : s.contentDisplayMode === 'document'
-                ? 'card'
+                ? 'kanban'
                 : 'bullet',
         })),
       setContentDisplayMode: (mode) => set({ contentDisplayMode: mode }),

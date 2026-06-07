@@ -1416,6 +1416,7 @@ class NodeService:
         is_page: bool | None = None,
         is_class: bool | None = None,
         is_daily: bool | None = None,
+        is_user_page: bool | None = None,
         sort_by: str = "write_date",
         order: str = "desc",
     ) -> list[Node]:
@@ -1428,6 +1429,7 @@ class NodeService:
             is_page=is_page,
             is_class=is_class,
             is_daily=is_daily,
+            is_user_page=is_user_page,
             sort_by=sort_by,
             order=order,
         )
