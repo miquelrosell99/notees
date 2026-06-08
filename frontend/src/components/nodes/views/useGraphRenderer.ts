@@ -565,7 +565,9 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
 
     const nodeIdStr = nodes.map(n => n.id).join(',');
     const edgeStr   = edges.map(e => `${e.source}-${e.target}`).join(',');
-    const fingerprint = `${nodeIdStr}|${edgeStr}|${sizeByConnections}`;
+    const pathNodeStr = pathNodeIds ? [...pathNodeIds].sort().join(',') : '';
+    const pathEdgeStr = pathEdgeKeys ? [...pathEdgeKeys].sort().join(',') : '';
+    const fingerprint = `${nodeIdStr}|${edgeStr}|${sizeByConnections}|${baseNodeRadius}|${curvedEdges}|${coloredEdges}|${taperedEdges}|${pathNodeStr}|${pathEdgeStr}`;
 
     if (fingerprint === topoFingerprintRef.current) return;
     topoFingerprintRef.current = fingerprint;
@@ -656,7 +658,7 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
       }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nodes, edges, sizeByConnections, baseNodeRadius]);
+  }, [nodes, edges, sizeByConnections, baseNodeRadius, curvedEdges, coloredEdges, taperedEdges, pathNodeIds, pathEdgeKeys]);
 
   // ─── Visual-only updates (radius, color) ────────────────────────────────────
   useEffect(() => {
