@@ -461,28 +461,16 @@ export class SGEEngine {
       (a, b) => (componentGroups.get(b)?.length ?? 0) - (componentGroups.get(a)?.length ?? 0),
     );
 
-    let bigComponentAngle = 0;
-    let isolatedIdx = 0;
-    let bigCi = 0;
-    const goldenAngle = 2.399963229728653;
+    let componentAngle = 0;
     for (let ci = 0; ci < componentIds.length; ci++) {
       const cId = componentIds[ci];
       const nodeIndices = componentGroups.get(cId)!;
       let compCX = 0, compCY = 0;
-      if (nodeIndices.length === 1) {
-        // Isolated nodes: seed on an expanding spiral near the core.
-        // Radius grows with √idx so they spread out without overlapping.
-        const r = cfg.idealDistance * (3 + Math.sqrt(isolatedIdx + 1) * 0.5);
-        const angle = isolatedIdx * goldenAngle;
-        compCX = r * Math.cos(angle);
-        compCY = r * Math.sin(angle);
-        isolatedIdx++;
-      } else if (ci > 0) {
-        bigCi++;
-        const r = cfg.componentSpacing * Math.sqrt(bigCi);
-        compCX = r * Math.cos(bigComponentAngle);
-        compCY = r * Math.sin(bigComponentAngle);
-        bigComponentAngle += goldenAngle;
+      if (ci > 0) {
+        const r = cfg.componentSpacing * Math.sqrt(ci);
+        compCX = r * Math.cos(componentAngle);
+        compCY = r * Math.sin(componentAngle);
+        componentAngle += 2.399963;
       }
 
       const clusterGroups = new Map<number, number[]>();
