@@ -7,6 +7,25 @@
   position: relative;
 }
 
+/* ==================== Button Inner ==================== */
+.account-menu__button-inner {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.account-menu__notification-dot {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 8px;
+  height: 8px;
+  background: var(--color-error);
+  border-radius: 50%;
+  border: 2px solid var(--color-surface);
+}
+
 /* ==================== Dropdown Menu ==================== */
 .account-menu__dropdown {
   min-width: 200px;
@@ -69,6 +88,17 @@
   text-align: left;
 }
 
+.account-menu__badge {
+  margin-left: auto;
+  background: var(--color-error);
+  color: white;
+  font-size: 0.65rem;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: 999px;
+  line-height: 1;
+}
+
 .account-menu__item:hover {
   background: var(--color-hover-overlay);
 }
@@ -88,4 +118,11 @@
 
 .account-menu__item--danger:hover {
   background: var(--color-error-container);
+}
+
+/* ==================== Notification Panel ==================== */
+.account-menu__notification-panel {
+  z-index: var(--z-modal-backdrop);
+  width: 320px;
+  max-height: 400px;
 }

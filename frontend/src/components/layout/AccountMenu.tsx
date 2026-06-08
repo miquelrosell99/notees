@@ -7,6 +7,8 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuthStore, useModalStore } from '@/stores';
+import { useNotifications } from '@/hooks/useNotifications';
+import { NotificationPanel } from './NotificationBell';
 
 import { Card } from '@/components/core/Card';
 import { Button } from '@/components/core/Button';
@@ -24,13 +26,24 @@ interface AccountMenuProps {
 export function AccountMenu({ onOpenUserSettings, onOpenSystemSettings }: AccountMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
+  const [notificationPanel, setNotificationPanel] = useState<{ open: boolean; filter?: string; title?: string }>({ open: false });
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  const notifRef = useRef<HTMLDivElement>(null);
   const { user, logout } = useAuthStore();
   const { setShowWorkspaceManager } = useModalStore();
+  const { data: notificationsData } = useNotifications(false);
+
+  const unreadCount = notificationsData?.unread_count ?? 0;
+  const unreadMentions = (notificationsData?.notifications ?? []).filter(
+    (n) => n.type === 'mention' && !n.is_read
+  ).length;
 
   useClickOutside([triggerRef, menuRef], () => setIsOpen(false), isOpen);
-  useEscapeKey(() => setIsOpen(false));
+  useEscapeKey(() => {
+    setIsOpen(false);
+    setNotificationPanel({ open: false });
+  });
 
   // Compute portal position when opened
   const updatePosition = useCallback(() => {
@@ -47,6 +60,18 @@ export function AccountMenu({ onOpenUserSettings, onOpenSystemSettings }: Accoun
       updatePosition();
     }
   }, [isOpen, updatePosition]);
+
+  // Close notification panel when clicking outside
+  useEffect(() => {
+    if (!notificationPanel.open) return;
+    function handleClickOutside(e: MouseEvent) {
+      if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
+        setNotificationPanel({ open: false });
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [notificationPanel.open]);
 
   const handleUserSettings = () => {
     setIsOpen(false);
@@ -73,6 +98,11 @@ export function AccountMenu({ onOpenUserSettings, onOpenSystemSettings }: Accoun
     window.Android?.showServerSettings();
   };
 
+  const handleOpenNotifications = (filter?: string, title?: string) => {
+    setIsOpen(false);
+    setNotificationPanel({ open: true, filter, title });
+  };
+
   const displayName = user?.name || user?.email?.split('@')[0] || 'User';
   const initial = displayName.charAt(0).toUpperCase() || '?';
 
@@ -86,7 +116,10 @@ export function AccountMenu({ onOpenUserSettings, onOpenSystemSettings }: Accoun
         title={displayName}
         active={isOpen}
       >
-        {initial}
+        <span className="account-menu__button-inner">
+          {initial}
+          {unreadCount > 0 && <span className="account-menu__notification-dot" />}
+        </span>
       </Button>
 
       {isOpen && menuPos && createPortal(
@@ -105,6 +138,17 @@ export function AccountMenu({ onOpenUserSettings, onOpenSystemSettings }: Accoun
             <span className="account-menu__user-avatar">{initial}</span>
             <span className="account-menu__username">{displayName}</span>
           </div>
+          <div className="account-menu__divider" />
+          <button className="account-menu__item" onClick={() => handleOpenNotifications(undefined, 'Notifications')}>
+            <Icon path={"mdi mdi-bell-outline"} size={0.7} />
+            <span>Notifications</span>
+            {unreadCount > 0 && <span className="account-menu__badge">{unreadCount}</span>}
+          </button>
+          <button className="account-menu__item" onClick={() => handleOpenNotifications('mention', 'Mentions')}>
+            <Icon path={"mdi mdi-at"} size={0.7} />
+            <span>Mentions</span>
+            {unreadMentions > 0 && <span className="account-menu__badge">{unreadMentions}</span>}
+          </button>
           <div className="account-menu__divider" />
           <button className="account-menu__item" onClick={handleUserSettings}>
             <Icon path={"mdi mdi-cog"} size={0.7} />
@@ -135,6 +179,25 @@ export function AccountMenu({ onOpenUserSettings, onOpenSystemSettings }: Accoun
             </>
           )}
         </Card>,
+        document.body
+      )}
+
+      {notificationPanel.open && menuPos && createPortal(
+        <div
+          ref={notifRef}
+          className="account-menu__notification-panel"
+          style={{
+            position: 'fixed',
+            top: `${menuPos.top}px`,
+            right: `${window.innerWidth - menuPos.left}px`,
+          }}
+        >
+          <NotificationPanel
+            filterType={notificationPanel.filter}
+            title={notificationPanel.title}
+            onClose={() => setNotificationPanel({ open: false })}
+          />
+        </div>,
         document.body
       )}
     </div>
