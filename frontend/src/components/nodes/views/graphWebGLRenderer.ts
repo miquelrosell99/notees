@@ -1723,17 +1723,25 @@ export class GraphWebGLRenderer {
     return { ...this.camera };
   }
 
-  /** Find the closest node to a world-space point within maxDist world units. */
-  pickNode(wx: number, wy: number, maxDist = 20): number | null {
+  /** Find the closest node to a world-space point, using each node's rendered radius as the hit threshold. */
+  pickNode(wx: number, wy: number, screenPaddingPx = 0): number | null {
     const pos = this.positions;
+    const zoom = this.camera.zoom;
+    const minWorldRadius = this.opts.minNodeRadiusPx / (2.0 * zoom);
+    const padWorld = screenPaddingPx / zoom;
     let best = -1;
-    let bestD2 = maxDist * maxDist;
+    let bestD2 = Infinity;
 
     for (let i = 0; i < this.nodeIdOrder.length; i++) {
       const dx = pos[i * 2]     - wx;
       const dy = pos[i * 2 + 1] - wy;
       const d2 = dx * dx + dy * dy;
-      if (d2 < bestD2) {
+      const id = this.nodeIdOrder[i];
+      const vis = this.nodeVisuals.get(id);
+      const radius = vis?.radius ?? this.opts.defaultRadius;
+      const effRadius = Math.max(radius, minWorldRadius) + padWorld;
+      const hitD2 = effRadius * effRadius;
+      if (d2 < hitD2 && d2 < bestD2) {
         bestD2 = d2;
         best   = i;
       }
