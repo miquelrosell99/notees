@@ -5,17 +5,16 @@
   flex-direction: column;
   height: 100%;
   overflow: hidden;
-  padding-top: var(--spacing-12);
+  padding: 0;
 }
 
-/* Header row — title + close button, matching AllPagesView / TrashView pattern */
+/* Header row — title + close button, matching graph view header pattern */
 .node-collection-view__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--spacing-3);
-  padding: 0 var(--spacing-4);
-  margin-bottom: var(--spacing-4);
+  padding: var(--spacing-2) var(--spacing-6);
   flex-shrink: 0;
 }
 
@@ -36,5 +35,21 @@
 .node-collection-view__results {
   flex: 1;
   overflow: auto;
-  padding: 0 var(--spacing-4) var(--spacing-6);
+  padding: var(--spacing-4) var(--spacing-6) var(--spacing-6);
+}
+
+@media (max-width: 768px) {
+  .node-collection-view__header,
+  .node-collection-view__results {
+    padding-left: var(--spacing-4);
+    padding-right: var(--spacing-4);
+  }
+}
+
+@media (max-width: 480px) {
+  .node-collection-view__header,
+  .node-collection-view__results {
+    padding-left: var(--spacing-3);
+    padding-right: var(--spacing-3);
+  }
 }

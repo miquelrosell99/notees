@@ -3,25 +3,49 @@
  */
 
 .journals-view {
-  max-width: 900px;
-  margin: 0 auto;
-  padding: var(--spacing-12) var(--spacing-4) var(--spacing-4);
+  max-width: none;
+  padding: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.journals-view__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-4);
+}
+
+.journals-view .page-header-section {
+  padding: var(--spacing-2) var(--spacing-6);
+  margin-bottom: 0;
+  flex-shrink: 0;
 }
 
 .journals-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: var(--spacing-12);
+  padding: var(--spacing-4) var(--spacing-6);
 }
 
 @media (max-width: 768px) {
   .journals-view {
     max-width: 100%;
-    padding: var(--spacing-12) var(--spacing-3) var(--spacing-3);
+  }
+
+  .journals-view .page-header-section {
+    padding-left: var(--spacing-4);
+    padding-right: var(--spacing-4);
   }
 
   .journals-list {
     gap: var(--spacing-6);
+    padding: var(--spacing-4);
   }
 
   .journal-entry {
@@ -34,12 +58,14 @@
 }
 
 @media (max-width: 480px) {
-  .journals-view {
-    padding: var(--spacing-12) var(--spacing-2) var(--spacing-2);
+  .journals-view .page-header-section {
+    padding-left: var(--spacing-3);
+    padding-right: var(--spacing-3);
   }
 
   .journals-list {
     gap: var(--spacing-4);
+    padding: var(--spacing-3);
   }
 
   .has-node-border .journals-view {
