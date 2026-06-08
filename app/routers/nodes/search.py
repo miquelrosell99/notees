@@ -792,6 +792,24 @@ async def list_nodes(
         with contextlib.suppress(ValueError):
             filter_class_ids = {int(cid.strip()) for cid in class_filters.split(",") if cid.strip()}
 
+    # Expand class filters to include all subclasses (inheritance)
+    if filter_class_ids:
+        async with acquire_connection(service.pool) as conn:
+            hierarchy_rows = await conn.fetch(
+                """
+                WITH RECURSIVE filter_hierarchy AS (
+                    SELECT id FROM node WHERE id = ANY($1::int[]) AND workspace_id = $2
+                    UNION
+                    SELECT ce.target_id FROM class_extend ce
+                    INNER JOIN filter_hierarchy fh ON ce.source_id = fh.id
+                )
+                SELECT id FROM filter_hierarchy
+                """,
+                list(filter_class_ids),
+                service.workspace_id,
+            )
+            filter_class_ids = {row["id"] for row in hierarchy_rows}
+
     # Batch fetch class_ids for all nodes
     node_ids = [n.id for n in nodes if n.id is not None]
     class_ids_map = await _get_class_ids_batch(service.pool, service.workspace_id or 0, node_ids)

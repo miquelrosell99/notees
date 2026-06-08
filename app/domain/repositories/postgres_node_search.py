@@ -85,7 +85,15 @@ class PostgresNodeSearchMixin(_PostgresNodeBase):
                     f"""
                     SELECT n.* FROM node n
                     WHERE n.workspace_id = $1 AND n.active = TRUE AND n.is_deleted = FALSE
-                      AND ($3::int[] IS NULL OR n.class_ids && $3::int[])
+                      AND ($3::int[] IS NULL OR EXISTS (
+                          WITH RECURSIVE filter_hierarchy AS (
+                              SELECT id FROM node WHERE id = ANY($3::int[]) AND workspace_id = $1
+                              UNION
+                              SELECT ce.target_id FROM class_extend ce
+                              INNER JOIN filter_hierarchy fh ON ce.source_id = fh.id
+                          )
+                          SELECT 1 FROM filter_hierarchy fh WHERE fh.id = ANY(n.class_ids)
+                      ))
                       AND ($4::boolean IS NULL OR n.is_page = $4)
                       AND ($5::boolean IS NULL OR n.is_class = $5)
                       AND ($6::boolean IS NULL OR n.is_day = $6)
@@ -174,7 +182,15 @@ class PostgresNodeSearchMixin(_PostgresNodeBase):
                     JOIN node_full_text nft ON nft.id = n.id
                     LEFT JOIN link_stats ls ON ls.node_id = n.id
                     WHERE {all_full}
-                      AND (${fp}::int[] IS NULL OR n.class_ids && ${fp})
+                      AND (${fp}::int[] IS NULL OR EXISTS (
+                          WITH RECURSIVE filter_hierarchy AS (
+                              SELECT id FROM node WHERE id = ANY(${fp}::int[]) AND workspace_id = $1
+                              UNION
+                              SELECT ce.target_id FROM class_extend ce
+                              INNER JOIN filter_hierarchy fh ON ce.source_id = fh.id
+                          )
+                          SELECT 1 FROM filter_hierarchy fh WHERE fh.id = ANY(n.class_ids)
+                      ))
                       AND (${fp + 1}::boolean IS NULL OR n.is_page = ${fp + 1})
                       AND (${fp + 2}::boolean IS NULL OR n.is_class = ${fp + 2})
                       AND (${fp + 3}::boolean IS NULL OR n.is_day = ${fp + 3})
