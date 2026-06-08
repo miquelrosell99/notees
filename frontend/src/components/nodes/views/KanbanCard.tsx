@@ -51,7 +51,7 @@ import type { Asset } from '@/api/assets';
 import { extractImageFromDragEvent } from '@/hooks/useDragDropImage';
 import { TableCreationModal, type TableGridSize } from '@/components/core/TableCreationModal';
 
-import './KanbanCard.css';
+import './CardItem.css';
 
 // ─── Card Title Editor (InlineEditor wrapper) ────────────────────
 
