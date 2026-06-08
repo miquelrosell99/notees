@@ -358,6 +358,24 @@ async def get_node_suggestions(
     if class_filters:
         class_filter_ids = [int(c.strip()) for c in class_filters.split(",") if c.strip().isdigit()]
 
+    # Expand class filters to include all subclasses (inheritance)
+    if class_filter_ids:
+        async with acquire_connection(service.pool) as conn:
+            hierarchy_rows = await conn.fetch(
+                """
+                WITH RECURSIVE filter_hierarchy AS (
+                    SELECT id FROM node WHERE id = ANY($1::int[]) AND workspace_id = $2
+                    UNION
+                    SELECT ce.target_id FROM class_extend ce
+                    INNER JOIN filter_hierarchy fh ON ce.source_id = fh.id
+                )
+                SELECT id FROM filter_hierarchy
+                """,
+                class_filter_ids,
+                service.workspace_id,
+            )
+            class_filter_ids = [row["id"] for row in hierarchy_rows]
+
     class_filter_clause = ""
     if class_filter_ids:
         class_filter_clause = " AND n.class_ids && $3::int[]"
