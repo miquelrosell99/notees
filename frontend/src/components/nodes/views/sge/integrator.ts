@@ -53,10 +53,15 @@ export function integrate(
       vx *= s; vy *= s;
     }
     vx *= friction; vy *= friction;
+    // Sleep threshold: model static friction. When speed drops below this,
+    // clamp to zero so the node truly rests instead of drifting forever.
+    // Any force will re-awaken it automatically on the next tick.
+    const SLEEP_V = 1e-4;
+    if (Math.abs(vx) < SLEEP_V && Math.abs(vy) < SLEEP_V) { vx = 0; vy = 0; }
     posX[i] += velX[i] * dt + oax * hdt2;
     posY[i] += velY[i] * dt + oay * hdt2;
     velX[i] = vx; velY[i] = vy;
-    totalEnergy += v2 * friction * friction;
+    totalEnergy += (vx * vx + vy * vy);
   }
 
   const energy = n > 0 ? totalEnergy / n : 0;
