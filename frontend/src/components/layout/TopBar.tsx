@@ -24,7 +24,7 @@ import { Scratchpad } from './Scratchpad';
 import { AccountMenu } from './AccountMenu';
 import { UserSettingsModal, SystemSettingsModal } from './Modals';
 import { LiveSyncIndicator } from '@/components/collab/LiveSyncIndicator';
-import { NotificationBell } from './NotificationBell';
+
 import './TopBar.css';
 
 function AutoExportIndicator() {
@@ -349,9 +349,6 @@ export function TopBar() {
           badges={sidebarBadges}
         />
         
-        {/* Notification bell */}
-        <NotificationBell />
-
         {/* Account menu */}
         <AccountMenu
           onOpenUserSettings={() => setIsUserSettingsOpen(true)}

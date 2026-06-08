@@ -759,12 +759,21 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
     const world   = rendRef.current?.screenToWorld(px, py);
     if (!world) return;
 
-    const hitNode = rendRef.current?.pickNode(world.x, world.y, 8 / camRef.current.zoom);
-
     const d = dragRef.current;
     d.startPx = px;
     d.startPy = py;
     d.moved   = false;
+
+    // Middle mouse button always pans, regardless of what is under the cursor
+    if (e.button === 1) {
+      e.preventDefault();
+      d.mode      = 'camera';
+      d.camStartX = camRef.current.x;
+      d.camStartY = camRef.current.y;
+      return;
+    }
+
+    const hitNode = rendRef.current?.pickNode(world.x, world.y, 8 / camRef.current.zoom);
 
     if (hitNode !== null && hitNode !== undefined) {
       d.mode   = 'node';
