@@ -39,8 +39,18 @@ function nodeColor(n: GraphNode): Float32Array | undefined {
   return undefined;
 }
 
-function withAlpha(c: [number, number, number, number], a: number): [number, number, number, number] {
-  return [c[0], c[1], c[2], a];
+function tintEdgeColor(
+  c: [number, number, number, number],
+  base: [number, number, number, number],
+  tint: number,
+): [number, number, number, number] {
+  const inv = 1 - tint;
+  return [
+    c[0] * tint + base[0] * inv,
+    c[1] * tint + base[1] * inv,
+    c[2] * tint + base[2] * inv,
+    base[3],
+  ];
 }
 
 // ─── CSS label colour cache (theme-reactive) ──────────────────────────────────
@@ -603,10 +613,10 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
         const srcNodeColor = nodeColorMap.get(e.source);
         const tgtNodeColor = nodeColorMap.get(e.target);
         const srcColor = coloredEdges
-          ? (srcNodeColor ? withAlpha(srcNodeColor, 0.35) : defaultEdgeColor)
+          ? (srcNodeColor ? tintEdgeColor(srcNodeColor, defaultEdgeColor, 0.3) : defaultEdgeColor)
           : undefined;
         const tgtColor = coloredEdges
-          ? (tgtNodeColor ? withAlpha(tgtNodeColor, 0.35) : defaultEdgeColor)
+          ? (tgtNodeColor ? tintEdgeColor(tgtNodeColor, defaultEdgeColor, 0.3) : defaultEdgeColor)
           : undefined;
         const baseWidth = e.type === 'cooccurrence'
           ? 0.8 + 2.0 * ((e.weight ?? 1) / maxCooccurrenceWeight)
