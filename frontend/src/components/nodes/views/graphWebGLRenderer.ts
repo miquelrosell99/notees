@@ -524,14 +524,14 @@ function getCssEdgeColor(): [number, number, number, number] {
           parseFloat(m[4]),
         ];
       } else {
-        cssCache.edge = [0.83, 0.83, 0.83, 0.25];
+        cssCache.edge = [0.83, 0.83, 0.83, 1.0];
       }
     } else if (val && val.startsWith('#')) {
-      cssCache.edge = hexToTuple(val, 0.25);
+      cssCache.edge = hexToTuple(val, 1.0);
     } else {
       const fallback = getComputedStyle(document.documentElement)
         .getPropertyValue('--color-accent').trim();
-      cssCache.edge = fallback ? hexToTuple(fallback, 0.25) : [0.83, 0.83, 0.83, 0.25];
+      cssCache.edge = fallback ? hexToTuple(fallback, 1.0) : [0.83, 0.83, 0.83, 1.0];
     }
   }
   return cssCache.edge;

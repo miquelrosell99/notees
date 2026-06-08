@@ -725,7 +725,7 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
           nodeColorMap.set(n.id, [c[0], c[1], c[2], c[3]]);
         }
       }
-      const defaultEdgeColor: [number, number, number, number] = [0.65, 0.65, 0.7, 0.35];
+      const defaultEdgeColor: [number, number, number, number] = [0.83, 0.83, 0.83, 1.0];
 
       const PATH_EDGE_COLOR: [number, number, number, number] = [1.0, 0.75, 0.2, 0.9];
       const physEdges = edges.map(e => {
