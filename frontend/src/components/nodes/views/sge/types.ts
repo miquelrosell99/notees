@@ -32,8 +32,6 @@ export interface SGEConfig {
   friction: number;
   dt: number;
   bhTheta: number;
-  alphaDecay: number;
-  alphaMin: number;
   linkCountAttraction: boolean;
 }
 
