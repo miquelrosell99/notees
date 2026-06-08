@@ -2,6 +2,9 @@ import { Button } from '@/components/core/Button';
 import { SelectionButton } from '@/components/core/SelectionButton';
 import { BooleanToggle } from '@/components/core/BooleanToggle';
 import { Icon } from '@/components/core/Icon';
+import { ListSortable } from '@/components/core/ListSortable';
+import { ColorButton } from '@/components/core/ColorButton';
+import type { ColorEntry } from '@/components/core/ColorButton';
 import { GraphSidebarSection } from './GraphSidebarSection';
 import type {
   GraphSettings,
@@ -30,6 +33,17 @@ export interface GraphSettingsSidebarProps {
   onCollapse: () => void;
   localGraphMode?: boolean;
 }
+
+const GRAPH_COLOR_ENTRIES: ColorEntry[] = [
+  { cssVar: '#c55a55', label: 'Red' },
+  { cssVar: '#c98557', label: 'Orange' },
+  { cssVar: '#b8a23a', label: 'Yellow' },
+  { cssVar: '#4f8f6a', label: 'Green' },
+  { cssVar: '#4a8a83', label: 'Teal' },
+  { cssVar: '#5a79c9', label: 'Blue' },
+  { cssVar: '#8a6cc9', label: 'Purple' },
+  { cssVar: '#c06a9a', label: 'Pink' },
+];
 
 export function GraphSettingsSidebar({
   colorGroups,
@@ -85,56 +99,51 @@ export function GraphSettingsSidebar({
           <p className="graph-groups-empty">No color groups. Add one to highlight pages matching any query.</p>
         )}
         {colorGroups.length > 0 && (
-          <div className="graph-groups-list">
-            {colorGroups.map((group, index) => (
-              <div key={group.id} className="graph-group-item">
-                <div className="graph-group-dot" style={{ backgroundColor: group.color }} />
-                <div className="graph-group-info">
-                  <span className="graph-group-name">{group.name}</span>
-                </div>
-                <div className="graph-group-actions">
-                  <Button
-                    icon="mdi mdi-pencil-outline"
-                    size="xs"
-                    variant="ghost"
-                    onClick={() => onEditGroup(group.id)}
-                  />
-                  <Button
-                    icon="mdi mdi-chevron-up"
-                    size="xs"
-                    variant="ghost"
-                    disabled={index === 0}
-                    onClick={() => {
-                      onColorGroupsChange(prev => {
-                        const newGroups = [...prev];
-                        [newGroups[index - 1], newGroups[index]] = [newGroups[index], newGroups[index - 1]];
-                        return newGroups;
-                      });
-                    }}
-                  />
-                  <Button
-                    icon="mdi mdi-chevron-down"
-                    size="xs"
-                    variant="ghost"
-                    disabled={index === colorGroups.length - 1}
-                    onClick={() => {
-                      onColorGroupsChange(prev => {
-                        const newGroups = [...prev];
-                        [newGroups[index], newGroups[index + 1]] = [newGroups[index + 1], newGroups[index]];
-                        return newGroups;
-                      });
-                    }}
-                  />
-                  <Button
-                    icon="mdi mdi-trash-can-outline"
-                    size="xs"
-                    variant="ghost"
-                    onClick={() => onColorGroupsChange(prev => prev.filter(g => g.id !== group.id))}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
+          <ListSortable
+            className="graph-groups-list"
+            itemClassName="graph-group-item"
+            items={colorGroups}
+            onReorder={(fromIndex, toIndex) => {
+              onColorGroupsChange(prev => {
+                const next = [...prev];
+                const [removed] = next.splice(fromIndex, 1);
+                next.splice(toIndex, 0, removed);
+                return next;
+              });
+            }}
+            onItemClick={(group) => onEditGroup(group.id)}
+            renderIcon={(group) => (
+              <ColorButton
+                color={group.color}
+                size="xs"
+                showPicker
+                colors={GRAPH_COLOR_ENTRIES}
+                onColorChange={(color) => {
+                  if (color) {
+                    onColorGroupsChange(prev =>
+                      prev.map(g => g.id === group.id ? { ...g, color } : g)
+                    );
+                  }
+                }}
+                title="Change color"
+              />
+            )}
+            renderText={(group) => (
+              <span className="graph-group-name">{group.name}</span>
+            )}
+            renderActions={(group) => [
+              <Button
+                key="delete"
+                icon="mdi mdi-trash-can-outline"
+                size="xs"
+                variant="ghost"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onColorGroupsChange(prev => prev.filter(g => g.id !== group.id));
+                }}
+              />,
+            ]}
+          />
         )}
         <Button
           icon="mdi mdi-plus"
