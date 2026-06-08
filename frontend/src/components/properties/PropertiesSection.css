@@ -358,10 +358,6 @@
   align-items: center;
 }
 
-.text-property-block--has-content {
-  padding: 0;
-}
-
 .text-property-block__spinner {
   color: var(--color-on-surface-variant);
   font: var(--font-body-small);

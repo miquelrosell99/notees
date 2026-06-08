@@ -77,16 +77,29 @@
   height: 18px;
   border-radius: 50%;
   background-color: transparent;
-  transition: background-color var(--motion-duration-short) var(--motion-easing-standard);
+  transition: background-color var(--motion-duration-short) var(--motion-easing-standard),
+              transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
   pointer-events: none;
 }
 
 .bullet-interactive:hover {
-  transform: scale(1.06);
+  transform: scale(1.05);
 }
 
 .bullet-interactive:hover::after {
-  background-color: color-mix(in srgb, var(--color-hover-overlay) 60%, transparent);
+  background-color: color-mix(in srgb, var(--color-primary) 25%, transparent);
+  transform: scale(2.2);
+}
+
+.bullet-interactive:hover .bullet-dot {
+  opacity: 1;
+  background-color: var(--color-primary);
+  transform: scale(1.12);
+  box-shadow: 0 0 5px color-mix(in srgb, var(--color-primary) 40%, transparent);
+  transition: opacity 0.35s cubic-bezier(0.34, 1.56, 0.64, 1),
+              background-color 0.25s ease,
+              transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1),
+              box-shadow 0.35s ease;
 }
 
 .bullet-interactive[draggable="true"] {
