@@ -325,7 +325,7 @@
 
   /* Graph view tokens */
   --graph-node-default: #b8b8b8;
-  --graph-edge-color: rgba(130, 130, 130, 0.45);
+  --graph-edge-color: rgba(140, 140, 140, 0.75);
   --graph-bg: #0f0f0f;
   --graph-glow-alpha: 0.08;
 }

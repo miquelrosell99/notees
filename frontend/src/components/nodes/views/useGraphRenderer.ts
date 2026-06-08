@@ -599,8 +599,8 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
         const baseWidth = e.type === 'cooccurrence'
           ? 0.8 + 2.0 * ((e.weight ?? 1) / maxCooccurrenceWeight)
           : e.type === 'parent' || e.type === 'extends' ? 3.0
-          : e.type === 'class' ? 1.0
-          : 0.6;
+          : e.type === 'class' ? 1.2
+          : 1.0;
         return {
           source: e.source,
           target: e.target,

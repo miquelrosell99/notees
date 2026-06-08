@@ -139,7 +139,7 @@ export const LINK_TYPE_CURVATURE: Record<LinkTypeKey, number> = {
   parent: 0.0,
   extends: 0.05,
   class: 0.05,
-  reference: 0.12,
+  reference: 0.25,
   'property-reference': 0.08,
   cooccurrence: 0.18,
   temporal: 0.25,

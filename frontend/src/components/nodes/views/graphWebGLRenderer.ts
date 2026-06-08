@@ -524,7 +524,7 @@ function getCssEdgeColor(): [number, number, number, number] {
           parseFloat(m[4]),
         ];
       } else {
-        cssCache.edge = [0.51, 0.51, 0.51, 0.45];
+        cssCache.edge = [0.55, 0.55, 0.55, 0.75];
       }
     } else if (val && val.startsWith('#')) {
       cssCache.edge = hexToTuple(val, 0.45);
