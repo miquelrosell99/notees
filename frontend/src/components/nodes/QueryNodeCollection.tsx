@@ -9,6 +9,7 @@
  * - Page sections (wrapped in NodeViewSection)
  */
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Spinner } from '@/components/core/Spinner';
 import { copyToClipboard } from '@/utils/clipboardManager';
 import { 
@@ -89,6 +90,59 @@ function applyCollapseLevelToChildren(node: Node, collapseLevel: number, current
     ...node,
     children: processedChildren,
   };
+}
+
+/**
+ * Extract all node UUIDs referenced in a QueryAST (for prose rendering lookups).
+ */
+function extractUuidsFromAST(ast: QueryAST | undefined | null): Set<string> {
+  const uuids = new Set<string>();
+  if (!ast) return uuids;
+
+  function walkGroup(group: { children: Array<{ type: string } & Record<string, unknown>> }) {
+    for (const child of group.children || []) {
+      if (child.type === 'group') {
+        walkGroup(child as unknown as { children: Array<{ type: string } & Record<string, unknown>> });
+      } else if (child.type === 'not') {
+        const notChild = (child as unknown as { child: { type: string } & Record<string, unknown> }).child;
+        if (notChild.type === 'group') {
+          walkGroup(notChild as unknown as { children: Array<{ type: string } & Record<string, unknown>> });
+        } else {
+          extractFromCondition(notChild);
+        }
+      } else {
+        extractFromCondition(child);
+      }
+    }
+  }
+
+  function extractFromCondition(cond: Record<string, unknown>) {
+    const type = cond.condition_type as string;
+    if (type === 'class' && cond.class_uuid) uuids.add(cond.class_uuid as string);
+    if (type === 'extends' && cond.extends_class_uuid) uuids.add(cond.extends_class_uuid as string);
+    if (type === 'reference' && cond.target_uuid) uuids.add(cond.target_uuid as string);
+    if (type === 'parent' && cond.parent_uuid) uuids.add(cond.parent_uuid as string);
+    if (type === 'page' && cond.page_uuid) uuids.add(cond.page_uuid as string);
+    if (type === 'property' && typeof cond.value === 'string' && cond.value.includes('-')) {
+      // Property values can be UUID references
+      uuids.add(cond.value as string);
+    }
+    if (type === 'reference_path' && Array.isArray(cond.target_uuids)) {
+      (cond.target_uuids as string[]).forEach(u => uuids.add(u));
+    }
+    if (type === 'parent_path' && Array.isArray(cond.ancestor_uuids)) {
+      (cond.ancestor_uuids as string[]).forEach(u => uuids.add(u));
+    }
+    if (type === 'child_path' && Array.isArray(cond.descendant_uuids)) {
+      (cond.descendant_uuids as string[]).forEach(u => uuids.add(u));
+    }
+    if (type === 'class_path' && Array.isArray(cond.class_uuids)) {
+      (cond.class_uuids as string[]).forEach(u => uuids.add(u));
+    }
+  }
+
+  walkGroup(ast.root_group as unknown as { children: Array<{ type: string } & Record<string, unknown>> });
+  return uuids;
 }
 
 /**
@@ -787,9 +841,11 @@ export function QueryNodeCollection({
     }
   );
 
+  const queryClient = useQueryClient();
+
   // Build nodesMap for prose rendering
   const nodesMap = useMemo(() => {
-    const map = new Map();
+    const map = new Map<string, Node>();
     // Add preview results
     if (previewResults) {
       previewResults.forEach(node => {
@@ -800,8 +856,17 @@ export function QueryNodeCollection({
     allClasses.forEach(node => {
       map.set(node.uuid, node);
     });
+    // Scan query cache for any nodes referenced in the AST
+    const astUuids = extractUuidsFromAST(editAST);
+    astUuids.forEach(uuid => {
+      if (map.has(uuid)) return;
+      const cached = queryClient.getQueryData<Node>(['nodes', 'uuid', uuid]);
+      if (cached) {
+        map.set(uuid, cached);
+      }
+    });
     return map;
-  }, [previewResults, allClasses]);
+  }, [previewResults, allClasses, editAST, queryClient]);
 
   // Handle clicking on a node link in prose preview
   const handleNodeLinkClick = useCallback((uuid: string) => {
