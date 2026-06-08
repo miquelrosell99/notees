@@ -129,8 +129,8 @@ export interface GraphSettings {
   aggregateParallelEdges: boolean;
   /** Show synthetic temporal links between consecutive daily/monthly/yearly pages. */
   showTemporalLinks: boolean;
-  /** Increase clustering strength and repulsion for clearer community separation. */
-  strongClustering: boolean;
+  /** Pull connected nodes into tighter clusters and push separate components apart. */
+  clustering: boolean;
   /** Highlight shortest paths between selected nodes. */
   highlightPaths: boolean;
 }
@@ -226,7 +226,7 @@ export const DEFAULT_GRAPH_SETTINGS: GraphSettings = {
   dimCrossCommunityLinks: true,
   aggregateParallelEdges: true,
   showTemporalLinks: false,
-  strongClustering: false,
+  clustering: false,
   highlightPaths: true,
 };
 
