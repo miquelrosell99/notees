@@ -210,9 +210,9 @@ function renderClassProse(condition: ClassCondition, nodesMap?: Map<string, Node
     case 'is_not':
       return `do not have class ${displayValue}`;
     case 'contains':
-      return `have a class containing ${displayValue}`;
+      return `are classed as ${displayValue}`;
     case 'does_not_contain':
-      return `do not have a class containing ${displayValue}`;
+      return `are not classed as ${displayValue}`;
     case 'defined':
       return 'have a class defined';
     case 'not_defined':
@@ -356,7 +356,8 @@ function toThirdPersonSingular(phrase: string): string {
     .replace(/^reference /i, 'references ')
     .replace(/^match /i, 'matches ')
     .replace(/^start /i, 'starts ')
-    .replace(/^end /i, 'ends ');
+    .replace(/^end /i, 'ends ')
+    .replace(/^are /i, 'is ');
 }
 
 /**
