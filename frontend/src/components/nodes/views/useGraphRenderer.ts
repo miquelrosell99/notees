@@ -39,6 +39,10 @@ function nodeColor(n: GraphNode): Float32Array | undefined {
   return undefined;
 }
 
+function withAlpha(c: [number, number, number, number], a: number): [number, number, number, number] {
+  return [c[0], c[1], c[2], a];
+}
+
 // ─── CSS label colour cache (theme-reactive) ──────────────────────────────────
 
 const labelColorCache: {
@@ -596,8 +600,14 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
       const physEdges = edges.map(e => {
         const edgeKey = `${Math.min(e.source, e.target)}-${Math.max(e.source, e.target)}`;
         const isPath = pathEdgeKeys?.has(edgeKey) ?? false;
-        const srcColor = coloredEdges ? (nodeColorMap.get(e.source) ?? defaultEdgeColor) : undefined;
-        const tgtColor = coloredEdges ? (nodeColorMap.get(e.target) ?? defaultEdgeColor) : undefined;
+        const srcNodeColor = nodeColorMap.get(e.source);
+        const tgtNodeColor = nodeColorMap.get(e.target);
+        const srcColor = coloredEdges
+          ? (srcNodeColor ? withAlpha(srcNodeColor, 0.35) : defaultEdgeColor)
+          : undefined;
+        const tgtColor = coloredEdges
+          ? (tgtNodeColor ? withAlpha(tgtNodeColor, 0.35) : defaultEdgeColor)
+          : undefined;
         const baseWidth = e.type === 'cooccurrence'
           ? 0.8 + 2.0 * ((e.weight ?? 1) / maxCooccurrenceWeight)
           : e.type === 'parent' || e.type === 'extends' ? 2.0
