@@ -7,15 +7,73 @@ import { Icon } from '@/components/core/Icon';
 import { Button } from '@/components/core/Button';
 import './NotificationBell.css';
 
-export function NotificationBell() {
-  const [open, setOpen] = useState(false);
-  const panelRef = useRef<HTMLDivElement>(null);
+export interface NotificationPanelProps {
+  filterType?: string;
+  title?: string;
+  onClose?: () => void;
+}
+
+export function NotificationPanel({ filterType, title, onClose }: NotificationPanelProps) {
   const { data, isLoading } = useNotifications(false);
   const markRead = useMarkNotificationRead();
   const markAllRead = useMarkAllNotificationsRead();
 
+  const allNotifications = data?.notifications ?? [];
+  const notifications = filterType
+    ? allNotifications.filter((n) => n.type === filterType)
+    : allNotifications;
+  const unreadCount = notifications.filter((n) => !n.is_read).length;
+
+  return (
+    <div className="notification-bell__panel">
+      <div className="notification-bell__header">
+        <span className="notification-bell__title">{title ?? 'Notifications'}</span>
+        {unreadCount > 0 && (
+          <Button variant="ghost" size="sm" onClick={() => markAllRead.mutate()}>
+            Mark all read
+          </Button>
+        )}
+      </div>
+
+      <div className="notification-bell__list">
+        {isLoading ? (
+          <div className="notification-bell__empty">Loading…</div>
+        ) : notifications.length === 0 ? (
+          <div className="notification-bell__empty">No new notifications</div>
+        ) : (
+          notifications.map((n) => (
+            <div
+              key={n.id}
+              className={`notification-bell__item ${n.is_read ? 'notification-bell__item--read' : ''}`}
+              onClick={() => {
+                if (!n.is_read) markRead.mutate(Number(n.id));
+                if (n.node_id) {
+                  window.location.href = `/node/${n.node_id}`;
+                }
+                onClose?.();
+              }}
+            >
+              <div className="notification-bell__item-text">
+                <strong>{n.actor_name || 'Someone'}</strong>{' '}
+                {n.message || 'notified you'}
+              </div>
+              <span className="notification-bell__item-time">
+                {new Date(n.create_date).toLocaleString()}
+              </span>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function NotificationBell() {
+  const [open, setOpen] = useState(false);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const { data } = useNotifications(false);
+
   const unreadCount = data?.unread_count ?? 0;
-  const notifications = data?.notifications ?? [];
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -43,47 +101,7 @@ export function NotificationBell() {
         )}
       </button>
 
-      {open && (
-        <div className="notification-bell__panel">
-          <div className="notification-bell__header">
-            <span className="notification-bell__title">Notifications</span>
-            {unreadCount > 0 && (
-              <Button variant="ghost" size="sm" onClick={() => markAllRead.mutate()}>
-                Mark all read
-              </Button>
-            )}
-          </div>
-
-          <div className="notification-bell__list">
-            {isLoading ? (
-              <div className="notification-bell__empty">Loading…</div>
-            ) : notifications.length === 0 ? (
-              <div className="notification-bell__empty">No new notifications</div>
-            ) : (
-              notifications.map((n) => (
-                <div
-                  key={n.id}
-                  className={`notification-bell__item ${n.is_read ? 'notification-bell__item--read' : ''}`}
-                  onClick={() => {
-                    if (!n.is_read) markRead.mutate(Number(n.id));
-                    if (n.node_id) {
-                      window.location.href = `/node/${n.node_id}`;
-                    }
-                  }}
-                >
-                  <div className="notification-bell__item-text">
-                    <strong>{n.actor_name || 'Someone'}</strong>{' '}
-                    {n.message || 'notified you'}
-                  </div>
-                  <span className="notification-bell__item-time">
-                    {new Date(n.create_date).toLocaleString()}
-                  </span>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      )}
+      {open && <NotificationPanel onClose={() => setOpen(false)} />}
     </div>
   );
 }
