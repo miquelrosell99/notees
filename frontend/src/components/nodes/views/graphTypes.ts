@@ -104,7 +104,8 @@ export interface GraphColorGroup {
  */
 export interface GraphSettings {
   linkCountAttraction: boolean;
-  centralGravity: boolean;
+  /** Center gravity strength (0–100). 0 = free-floating, 100 = strong recentering. */
+  centralGravity: number;
   nodeSizeMode: NodeSizeMode;
   heightMode: HeightMode;
   peakSizeMode: PeakSizeMode;
@@ -210,7 +211,7 @@ export interface FrameData {
 
 export const DEFAULT_GRAPH_SETTINGS: GraphSettings = {
   linkCountAttraction: false,
-  centralGravity: true,
+  centralGravity: 50,
   nodeSizeMode: 'uniform',
   heightMode: 'hierarchy',
   peakSizeMode: 'links',

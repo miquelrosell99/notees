@@ -9,7 +9,8 @@
 /** User-facing physics configuration — maps directly from GraphSettings. */
 export interface SGEPhysicsConfig {
   preset: 'sparse' | 'balanced' | 'compact' | 'clustered';
-  centralGravity: boolean;
+  /** Center gravity strength slider (0–100). Maps to componentCenterStrength. */
+  centralGravity: number;
   linkCountAttraction: boolean;
   clustering: boolean;
 }

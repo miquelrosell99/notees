@@ -224,7 +224,7 @@ export function GraphView({
   // Settings state
   const [graphSettings, setGraphSettings] = useState<GraphSettings>({
     linkCountAttraction: false,
-    centralGravity: true,
+    centralGravity: 50,
     nodeSizeMode: 'uniform',
     heightMode: 'hierarchy',
     peakSizeMode: 'links',
