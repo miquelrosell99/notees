@@ -588,7 +588,7 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
         const c = nodeColor(n);
         if (c) nodeColorMap.set(n.id, [c[0], c[1], c[2], c[3]]);
       }
-      const defaultEdgeColor: [number, number, number, number] = [0.51, 0.51, 0.51, 0.45];
+      const defaultEdgeColor: [number, number, number, number] = [0.38, 0.38, 0.38, 1.0];
 
       const PATH_EDGE_COLOR: [number, number, number, number] = [1.0, 0.75, 0.2, 0.9];
       const physEdges = edges.map(e => {
@@ -599,8 +599,8 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
         const baseWidth = e.type === 'cooccurrence'
           ? 0.8 + 2.0 * ((e.weight ?? 1) / maxCooccurrenceWeight)
           : e.type === 'parent' || e.type === 'extends' ? 3.0
-          : e.type === 'class' ? 1.2
-          : 1.0;
+          : e.type === 'class' ? 1.5
+          : 1.5;
         return {
           source: e.source,
           target: e.target,
