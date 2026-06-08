@@ -71,8 +71,6 @@ export function buildSGEConfig(user: SGEPhysicsConfig): SGEConfig {
     friction: 0.92,
     dt: 0.5,
     bhTheta: 1.0,
-    alphaDecay: 0.02,
-    alphaMin: 0.001,
     linkCountAttraction: user.linkCountAttraction,
   };
 }
