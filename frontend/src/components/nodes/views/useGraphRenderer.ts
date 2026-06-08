@@ -600,7 +600,7 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
         const tgtColor = coloredEdges ? (nodeColorMap.get(e.target) ?? defaultEdgeColor) : undefined;
         const baseWidth = e.type === 'cooccurrence'
           ? 0.8 + 2.0 * ((e.weight ?? 1) / maxCooccurrenceWeight)
-          : e.type === 'parent' || e.type === 'extends' ? 3.0
+          : e.type === 'parent' || e.type === 'extends' ? 2.0
           : e.type === 'class' ? 1.2
           : 1.0;
         return {
