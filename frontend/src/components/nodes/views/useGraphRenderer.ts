@@ -202,7 +202,7 @@ export interface GraphRendererHandle {
 
 export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandle {
   const { nodes, edges, config, sizeByConnections = true, baseNodeRadius = BASE_RADIUS,
-    curvedEdges = true, coloredEdges = true, taperedEdges = true, enableLinkLOD: _enableLinkLOD,
+    curvedEdges = true, coloredEdges = false, taperedEdges = false, enableLinkLOD: _enableLinkLOD,
     pathNodeIds, pathEdgeKeys } = opts;
 
   const canvasRef  = useRef<HTMLCanvasElement | null>(null);
@@ -725,7 +725,7 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
           nodeColorMap.set(n.id, [c[0], c[1], c[2], c[3]]);
         }
       }
-      const defaultEdgeColor: [number, number, number, number] = [0.83, 0.83, 0.83, 1.0];
+      const defaultEdgeColor: [number, number, number, number] = [0.51, 0.51, 0.51, 0.45];
 
       const PATH_EDGE_COLOR: [number, number, number, number] = [1.0, 0.75, 0.2, 0.9];
       const physEdges = edges.map(e => {
