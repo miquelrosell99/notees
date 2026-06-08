@@ -34,7 +34,7 @@ import type {
   GraphColorGroup,
 } from './viewTypes';
 import { DEFAULT_VISIBILITY_FILTERS } from './graphTypes';
-import type { SGEUserConfig } from './SemanticGraphEngine';
+import type { D3PhysicsConfig } from './graphD3Physics';
 import { applyCircleLayout } from './circleLayout';
 import { applyTreeLayout } from './treeLayout';
 import { Button } from '@/components/core/Button';
@@ -101,15 +101,12 @@ function getTagColor(tag: string): string {
   return TAG_COLOR_PALETTE[index];
 }
 
-/** Build semantic physics config for the worker — raw constants are computed inside the worker. */
-function buildSGEUserConfig(settings: GraphSettings, viewMode: 'normal' | 'circle' | 'tree'): SGEUserConfig {
+/** Build d3-force physics config. */
+function buildD3PhysicsConfig(settings: GraphSettings): D3PhysicsConfig {
   return {
     preset: settings.physicsPreset,
     centralGravity: settings.centralGravity,
     linkCountAttraction: settings.linkCountAttraction,
-    heightMode: settings.heightMode,
-    viewMode,
-    constraintMode: settings.constraintMode,
     strongClustering: settings.strongClustering,
   };
 }
@@ -281,7 +278,7 @@ export function GraphView({
   const [searchOpen, setSearchOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'normal' | 'circle' | 'tree'>('normal');
 
-  const sgeUserConfig = useMemo(() => buildSGEUserConfig(graphSettings, viewMode), [graphSettings, viewMode]);
+  const d3PhysicsConfig = useMemo(() => buildD3PhysicsConfig(graphSettings), [graphSettings]);
   
   // Load graph settings from cached TanStack Query data
   useEffect(() => {
@@ -675,8 +672,8 @@ export function GraphView({
   // Forward live graph-settings changes to the physics worker
   useEffect(() => {
     if (!settingsLoadedRef.current) return;
-    rendererRef.current?.setConfig(sgeUserConfig);
-  }, [sgeUserConfig]);
+    rendererRef.current?.setConfig(d3PhysicsConfig);
+  }, [d3PhysicsConfig]);
 
   // Event handlers — SGEGraphView fires (nodeId: number) without event objects
   const handleNodeClick = useCallback((nodeId: number) => {
@@ -937,7 +934,7 @@ export function GraphView({
         ref={rendererRef}
         nodes={linksLoading ? EMPTY_NODES : nodes}
         edges={linksLoading ? EMPTY_EDGES : links}
-        config={sgeUserConfig}
+        config={d3PhysicsConfig}
         sizeByConnections={graphSettings.nodeSizeMode === 'connections'}
         baseNodeRadius={baseNodeRadius}
         onNodeClick={handleNodeClick}
