@@ -808,6 +808,7 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
       if (!world) return;
       post({ type: 'dragMove', nodeId: d.nodeId, x: world.x, y: world.y });
       rend?.overridePosition(d.nodeId, world.x, world.y);
+      dirtyRef.current.positions = true;
     }
   }, []);
 
