@@ -13,7 +13,7 @@
  *   <ColorButton color="var(--color-preset-red)" showPicker onColorChange={handleChange} />
  *   <ColorButton color={myColor} showPicker colors={myPalette} onColorChange={handleChange} />
  */
-import { forwardRef, useState, useRef, useEffect, useCallback, type ButtonHTMLAttributes } from 'react';
+import { forwardRef, useState, useRef, useEffect, useLayoutEffect, useCallback, type ButtonHTMLAttributes } from 'react';
 import { createPortal } from 'react-dom';
 import { Button } from './Button';
 import { TextField } from './TextField';
@@ -140,7 +140,7 @@ export const ColorButton = forwardRef<HTMLButtonElement, ColorButtonProps>(funct
     setPickerPosition({ top, left });
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (isPickerOpen) {
       calculatePosition();
       window.addEventListener('resize', calculatePosition);

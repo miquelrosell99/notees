@@ -35,24 +35,6 @@
   flex-wrap: wrap;
 }
 
-.graph-group-modal__color-swatch {
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  border: 2px solid transparent;
-  cursor: pointer;
-  transition: transform 0.15s, border-color 0.15s;
-  padding: 0;
-}
-
-.graph-group-modal__color-swatch:hover {
-  transform: scale(1.1);
-}
-
-.graph-group-modal__color-swatch.active {
-  border-color: var(--color-on-surface);
-}
-
 .graph-group-modal__query-section {
   display: flex;
   flex-direction: column;
