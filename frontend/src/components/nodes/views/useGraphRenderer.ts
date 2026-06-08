@@ -10,7 +10,7 @@
  */
 
 import { useEffect, useRef, useCallback, useState } from 'react';
-import { GraphWebGLRenderer, type NodeVisual } from './graphWebGLRenderer';
+import { GraphWebGLRenderer, type NodeVisual, getCssEdgeColor, getCssEdgeCooccurrenceColor, getCssEdgePathColor, getCssNodePathColor } from './graphWebGLRenderer';
 import type { SGEPhysicsConfig } from './sge';
 import type { GraphNode, GraphLink } from './viewTypes';
 import { LINK_TYPE_IDS, LINK_TYPE_CURVATURE } from './graphConstants';
@@ -394,9 +394,9 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
       if (lodEnabled) {
         const z = cam.zoom;
         let mask = (1 << LINK_TYPE_IDS.parent) | (1 << LINK_TYPE_IDS.class) | (1 << LINK_TYPE_IDS.extends) | (1 << LINK_TYPE_IDS.alias);
-        if (z >= 0.40) mask |= (1 << LINK_TYPE_IDS.reference);
-        if (z >= 0.80) mask |= (1 << LINK_TYPE_IDS['property-reference']);
-        if (z >= 1.20) mask |= (1 << LINK_TYPE_IDS.cooccurrence) | (1 << LINK_TYPE_IDS.temporal);
+        if (z >= 0.30) mask |= (1 << LINK_TYPE_IDS.reference);
+        if (z >= 0.60) mask |= (1 << LINK_TYPE_IDS['property-reference']);
+        if (z >= 1.00) mask |= (1 << LINK_TYPE_IDS.cooccurrence) | (1 << LINK_TYPE_IDS.temporal);
         rend.setEdgeMask(mask);
       } else {
         rend.setEdgeMask(0xFFFFFFFF);
@@ -577,7 +577,7 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
 
       const maxConn = nodes.reduce((m, n) => Math.max(m, n.connectionCount), 0);
 
-      const COOCCURRENCE_COLOR: [number, number, number, number] = [0.65, 0.3, 0.9, 0.65];
+      const COOCCURRENCE_COLOR = getCssEdgeCooccurrenceColor();
       const maxCooccurrenceWeight = Math.max(
         ...edges.filter(e => e.type === 'cooccurrence').map(e => e.weight ?? 1),
         1
@@ -588,9 +588,9 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
         const c = nodeColor(n);
         if (c) nodeColorMap.set(n.id, [c[0], c[1], c[2], c[3]]);
       }
-      const defaultEdgeColor: [number, number, number, number] = [0.38, 0.38, 0.38, 1.0];
+      const defaultEdgeColor = getCssEdgeColor();
 
-      const PATH_EDGE_COLOR: [number, number, number, number] = [1.0, 0.75, 0.2, 0.9];
+      const PATH_EDGE_COLOR = getCssEdgePathColor();
       const physEdges = edges.map(e => {
         const edgeKey = `${Math.min(e.source, e.target)}-${Math.max(e.source, e.target)}`;
         const isPath = pathEdgeKeys?.has(edgeKey) ?? false;
@@ -615,7 +615,7 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
         };
       });
 
-      const PATH_COLOR = new Float32Array([1.0, 0.75, 0.2, 1.0]);
+      const PATH_COLOR = getCssNodePathColor();
 
       const visuals = new Map<number, NodeVisual>();
       for (const n of nodes) {

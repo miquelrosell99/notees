@@ -326,8 +326,30 @@
   /* Graph view tokens */
   --graph-node-default: #b8b8b8;
   --graph-edge-color: #606060;
-  --graph-bg: #0f0f0f;
+  --graph-bg: transparent;
   --graph-glow-alpha: 0.08;
+
+  /* Graph semantic colors */
+  --graph-edge-cooccurrence: #a855f7;
+  --graph-edge-path: #fbbf24;
+  --graph-node-path: #fbbf24;
+
+  /* Graph UI surfaces */
+  --graph-btn-bg: rgba(23, 23, 23, 0.75);
+  --graph-btn-border: rgba(82, 82, 82, 0.5);
+  --graph-btn-color: rgba(212, 212, 212, 0.8);
+  --graph-btn-hover-bg: rgba(38, 38, 38, 0.9);
+  --graph-btn-hover-color: #e5e5e5;
+
+  --graph-stats-bg: rgba(0, 0, 0, 0.55);
+  --graph-stats-color: rgba(163, 163, 163, 0.85);
+
+  --graph-tooltip-bg: rgba(23, 23, 23, 0.85);
+  --graph-tooltip-border: rgba(82, 82, 82, 0.5);
+  --graph-tooltip-color: rgba(212, 212, 212, 0.9);
+  --graph-tooltip-edge-color: rgba(212, 175, 55, 0.95);
+
+  --graph-fallback-msg-color: rgba(163, 163, 163, 0.55);
 }
 
 /* ==================== OLED Pure-Black Overrides ==================== */
