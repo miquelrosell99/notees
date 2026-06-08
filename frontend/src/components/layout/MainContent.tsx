@@ -21,8 +21,6 @@ import { JournalsView } from '@/views/JournalsView';
 import { NodeCollectionView } from '@/views/NodeCollectionView';
 import { WhiteboardsView } from '@/views/WhiteboardsView';
 import { TasksView } from '@/views/TasksView';
-const AllPagesGraphView = React.lazy(() => import('@/views/AllPagesGraphView').then(m => ({ default: m.AllPagesGraphView })));
-const AllPagesTimelineView = React.lazy(() => import('@/views/AllPagesTimelineView').then(m => ({ default: m.AllPagesTimelineView })));
 const PropertyViewFull = React.lazy(() => import('@/views/PropertyView').then(m => ({ default: m.PropertyViewFull })));
 const WhiteboardView = React.lazy(() => import('@/components/nodes/views/WhiteboardView').then(m => ({ default: m.WhiteboardView })));
 const SharesUnifiedView = React.lazy(() => import('@/views/SharesUnifiedView').then(m => ({ default: m.SharesUnifiedView })));
@@ -122,20 +120,16 @@ export function MainContent() {
   
   if (mainViewType === 'graph') {
     return (
-      <main className="main-content graph-content">
-        <Suspense fallback={<LoadingScreen fullscreen={false} label="Loading…" />}>
-          <AllPagesGraphView className="main-graph-view" />
-        </Suspense>
+      <main className="main-content">
+        <PagesView initialViewMode="graph" />
       </main>
     );
   }
-  
+
   if (mainViewType === 'timeline') {
     return (
-      <main className="main-content timeline-content">
-        <Suspense fallback={<LoadingScreen fullscreen={false} label="Loading…" />}>
-          <AllPagesTimelineView className="main-timeline-view" />
-        </Suspense>
+      <main className="main-content">
+        <PagesView initialViewMode="timeline" />
       </main>
     );
   }

@@ -1,7 +1,15 @@
 .trash-view {
-  padding: var(--spacing-12) var(--spacing-8) var(--spacing-8);
-  max-width: 900px;
-  margin: 0 auto;
+  max-width: none;
+  padding: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.trash-view .page-header-section {
+  padding: var(--spacing-2) var(--spacing-6);
+  margin-bottom: 0;
+  flex-shrink: 0;
 }
 
 .trash-view .page-header {
@@ -22,9 +30,13 @@
 }
 
 .trash-view__content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: var(--spacing-4);
+  padding: var(--spacing-4) var(--spacing-6);
 }
 
 .trash-view__toolbar {
@@ -146,4 +158,20 @@
 
 .trash-item__actions button:hover {
   background: var(--color-hover-overlay);
+}
+
+@media (max-width: 768px) {
+  .trash-view .page-header-section,
+  .trash-view__content {
+    padding-left: var(--spacing-4);
+    padding-right: var(--spacing-4);
+  }
+}
+
+@media (max-width: 480px) {
+  .trash-view .page-header-section,
+  .trash-view__content {
+    padding-left: var(--spacing-3);
+    padding-right: var(--spacing-3);
+  }
 }
