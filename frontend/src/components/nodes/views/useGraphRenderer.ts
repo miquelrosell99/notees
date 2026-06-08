@@ -1,27 +1,18 @@
 /**
- * useSGEGraph
+ * useGraphRenderer
  *
  * React hook that wires together:
- *   • The SGE physics Web Worker (sgePhysicsWorker.ts)
- *   • The WebGL2 renderer (sgeWebGLRenderer.ts)
+ *   • The d3-force physics engine (graphD3Physics.ts)
+ *   • The WebGL2 renderer (graphWebGLRenderer.ts)
  *   • Camera pan / zoom interaction
  *   • Node drag interaction
  *   • 60-fps render loop (requestAnimationFrame)
- *
- * Usage
- * ─────
- * const { canvasRef, stats, reheat, setConfig } = useSGEGraph({ nodes, edges, onNodeClick });
- * <canvas ref={canvasRef} style={{ width: '100%', height: '100%' }} />
  */
 
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { GraphWebGLRenderer, type NodeVisual } from './graphWebGLRenderer';
-import type {
-  MainToPhysicsMessage,
-  PhysicsToMainMessage,
-} from './graphPhysicsWorkerProtocol';
-import { META_SEQ, META_COUNT, META_TICKS, META_ENERGY } from './graphPhysicsWorkerProtocol';
-import type { SGEUserConfig } from './SemanticGraphEngine';
+import { D3GraphEngine } from './graphD3Physics';
+import type { D3PhysicsConfig } from './graphD3Physics';
 import type { GraphNode, GraphLink } from './viewTypes';
 import { LINK_TYPE_IDS, LINK_TYPE_CURVATURE } from './graphConstants';
 
@@ -46,12 +37,10 @@ function hexToRGBA(hex: string, alpha = 1): Float32Array {
 
 function nodeColor(n: GraphNode): Float32Array | undefined {
   if (n.color) return hexToRGBA(n.color);
-  return undefined; // renderer reads --color-outline from CSS
+  return undefined;
 }
 
 // ─── CSS label colour cache (theme-reactive) ──────────────────────────────────
-// 2D canvas contexts don't support CSS variables natively, so we read them
-// via getComputedStyle and cache the results until the theme changes.
 
 const labelColorCache: {
   regular:  string | null;
@@ -78,53 +67,52 @@ function _ensureLabelThemeObserver() {
 /** Hex CSS variable → `rgba(r,g,b,a)` string. Returns fallback if variable missing. */
 function _hexVarToRgba(varName: string, alpha: number, fallback: string): string {
   const hex = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
-  if (!hex || hex[0] !== '#') return fallback;
+  if (!hex) return fallback;
   const c = hex.replace('#', '');
-  const r = parseInt(c.slice(0, 2), 16);
-  const g = parseInt(c.slice(2, 4), 16);
-  const b = parseInt(c.slice(4, 6), 16);
+  let r = 0, g = 0, b = 0;
+  if (c.length === 3) {
+    r = parseInt(c[0] + c[0], 16);
+    g = parseInt(c[1] + c[1], 16);
+    b = parseInt(c[2] + c[2], 16);
+  } else if (c.length >= 6) {
+    r = parseInt(c.slice(0, 2), 16);
+    g = parseInt(c.slice(2, 4), 16);
+    b = parseInt(c.slice(4, 6), 16);
+  }
   return `rgba(${r},${g},${b},${alpha})`;
 }
 
-/** Dimmed label color for non-focused nodes (--color-on-surface-variant @ 80%). */
 function getLabelRegularColor(): string {
+  _ensureLabelThemeObserver();
   if (!labelColorCache.regular) {
-    _ensureLabelThemeObserver();
-    labelColorCache.regular = _hexVarToRgba('--color-on-surface-variant', 0.80, 'rgba(160,160,165,0.80)');
+    labelColorCache.regular = _hexVarToRgba('--color-on-surface', 0.85, 'rgba(220,220,220,0.85)');
   }
   return labelColorCache.regular;
 }
 
-/** Bright label color for hovered/selected nodes (--color-on-surface @ 95%). */
 function getLabelEmphasisColor(): string {
+  _ensureLabelThemeObserver();
   if (!labelColorCache.emphasis) {
-    _ensureLabelThemeObserver();
-    labelColorCache.emphasis = _hexVarToRgba('--color-on-surface', 0.95, 'rgba(228,228,228,0.95)');
+    labelColorCache.emphasis = _hexVarToRgba('--color-on-surface', 1.0, 'rgba(240,240,240,1.0)');
   }
   return labelColorCache.emphasis;
 }
 
-/** Text shadow color for label halos (--color-scrim, already an rgba value). */
 function getLabelShadowColor(): string {
+  _ensureLabelThemeObserver();
   if (!labelColorCache.shadow) {
-    _ensureLabelThemeObserver();
-    const val = getComputedStyle(document.documentElement).getPropertyValue('--color-scrim').trim();
-    labelColorCache.shadow = val || 'rgba(0,0,0,0.5)';
+    labelColorCache.shadow = _hexVarToRgba('--color-surface', 0.9, 'rgba(18,18,18,0.9)');
   }
   return labelColorCache.shadow;
 }
 
-const BASE_RADIUS   = 20;
-const MAX_RADIUS    = 50;
-
-function nodeRadius(n: GraphNode, maxConnections: number, base = BASE_RADIUS): number {
-  if (maxConnections <= 0) return base;
-  // Scale logarithmically so hubs don't dominate visually
-  const t = Math.log1p(n.connectionCount) / Math.log1p(maxConnections);
-  return base + (MAX_RADIUS - base) * t;
+function nodeRadius(n: GraphNode, maxConn: number, base: number): number {
+  if (maxConn <= 0) return base;
+  const scale = 1 + (n.connectionCount / maxConn) * 0.6;
+  return base * scale;
 }
 
-// ─── Public API types ─────────────────────────────────────────────────────────
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface GraphRendererStats {
   nodeCount: number;
@@ -139,19 +127,25 @@ export interface GraphRendererStats {
 }
 
 export interface GraphRendererOptions {
+  /** Graph nodes to display. */
   nodes: GraphNode[];
+  /** Graph edges. */
   edges: GraphLink[];
-  /** Semantic physics preset + toggles — translated to raw SGEConfig by the worker. */
-  config?: SGEUserConfig;
-  /** Scale node size by connection count. Default: true. */
+  /** Semantic physics preset + toggles. */
+  config?: D3PhysicsConfig;
+  /** Scale node radius by connection count. Default: true */
   sizeByConnections?: boolean;
-  /** Base node radius in world units when not scaling by connections. Default: 7. */
+  /** Base node radius in world units. Default: 7 */
   baseNodeRadius?: number;
+  /** Node IDs on a highlighted path. */
+  pathNodeIds?: Set<number>;
+  /** Edge keys on a highlighted path. */
+  pathEdgeKeys?: Set<string>;
   /** Callback when user clicks a node (no drag involved). */
   onNodeClick?: (nodeId: number) => void;
   /** Callback when user double-clicks a node. */
   onNodeDblClick?: (nodeId: number) => void;
-  /** Callback when user clicks on empty space (no node hit). */
+  /** Callback when user clicks on empty space. */
   onEmptyClick?: () => void;
   /** Enable curved edges. Default: true. */
   curvedEdges?: boolean;
@@ -161,42 +155,26 @@ export interface GraphRendererOptions {
   taperedEdges?: boolean;
   /** Enable link-type LOD based on zoom. Default: true. */
   enableLinkLOD?: boolean;
-  /** Node IDs that are on a highlighted path. */
-  pathNodeIds?: Set<number>;
-  /** Edge keys ("min-max") that are on a highlighted path. */
-  pathEdgeKeys?: Set<string>;
 }
 
 export interface GraphRendererHandle {
-  /** Ref to attach to the <canvas> element. */
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
-  /** Ref to attach to the 2D label overlay <canvas>. */
   labelCanvasRef: React.RefObject<HTMLCanvasElement | null>;
-  /** Runtime stats for debug overlays. */
   stats: GraphRendererStats;
-  /** Currently selected node ID (-1 = none). */
   selectedNodeId: number;
-  /** Currently hovered node info for tooltip (null = none). */
   hoveredNode: { id: number; name: string; screenX: number; screenY: number } | null;
-  /** Currently hovered edge info for tooltip (null = none). */
   hoveredEdge: { source: number; target: number; type: string; screenX: number; screenY: number } | null;
-  /** Pause the physics simulation without destroying state. */
   pause: () => void;
-  /** Resume the physics simulation. */
   resume: () => void;
-  /** Live-update physics config without restarting the worker. */
-  setConfig: (cfg: SGEUserConfig) => void;
-  /** Programmatically centre the camera on the graph centroid. */
+  setConfig: (cfg: D3PhysicsConfig) => void;
   recenter: () => void;
-  /** Pan the camera by a screen-pixel delta. */
   panBy: (dx: number, dy: number) => void;
-  /** Zoom by a factor (1 = no change, >1 = in, <1 = out). */
   zoomBy: (factor: number) => void;
-  /** Clear the current node selection. */
   clearSelection: () => void;
-  /** Convert canvas pixel coords to world-space. */
   screenToWorld: (x: number, y: number) => { x: number; y: number };
 }
+
+const BASE_RADIUS = 7;
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
@@ -208,36 +186,25 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
   const canvasRef  = useRef<HTMLCanvasElement | null>(null);
   const labelCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const rendRef    = useRef<GraphWebGLRenderer | null>(null);
-  const workerRef  = useRef<Worker | null>(null);
+  const engineRef  = useRef<D3GraphEngine | null>(null);
   const rafRef     = useRef<number>(0);
   const optsRef    = useRef(opts);
 
-  // ── SharedArrayBuffer shared-memory path ──────────────────────────────────
-  // When crossOriginIsolated, the worker writes positions into a SAB each tick
-  // and increments a seq counter.  RAF polls the counter; when it changes, reads
-  // positions directly — no postMessage overhead per frame.
-  const sabPosRef    = useRef<Float32Array  | null>(null);
-  const sabMetaI32   = useRef<Int32Array    | null>(null);
-  const sabMetaF32   = useRef<Float32Array  | null>(null);
-  const sabNodeIds   = useRef<Int32Array    | null>(null);
-  const sabSeq       = useRef<number>(0);
+  // Reusable position buffer passed to the WebGL renderer each frame.
+  const posBufRef    = useRef<Float32Array>(new Float32Array(0));
+  const nodeIdBufRef = useRef<Int32Array>(new Int32Array(0));
 
-  // Camera state (mutable, not React state — avoid re-renders on every frame)
   const camRef = useRef({ x: 0, y: 0, zoom: 1 });
 
-  // Hover / selection (mutable refs = no re-renders on mouse move)
   const hoveredNodeRef = useRef(-1);
   const selectedRef    = useRef(-1);
   const [selectedNodeId, setSelectedNodeId] = useState<number>(-1);
   const [hoveredNode, setHoveredNode] = useState<{ id: number; name: string; screenX: number; screenY: number } | null>(null);
   const [hoveredEdge, setHoveredEdge] = useState<{ source: number; target: number; type: string; screenX: number; screenY: number } | null>(null);
 
-  // Node name map for label rendering (id → displayName)
   const nodeNamesRef = useRef(new Map<number, string>());
-  // Node radius map for label offset (id → world radius)
   const nodeRadiiRef = useRef(new Map<number, number>());
 
-  // Drag state
   type DragMode = 'none' | 'camera' | 'node';
   const dragRef = useRef<{
     mode: DragMode;
@@ -254,7 +221,6 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
     moved: false,
   });
 
-  // Physics stats (only re-render periodically)
   const [stats, setStats] = useState<GraphRendererStats>({
     nodeCount: 0, edgeCount: 0, visibleNodes: 0, visibleEdges: 0,
     arrowInstCount: 0, glowInstCount: 0,
@@ -264,183 +230,85 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
   const statsAccRef = useRef({ energy: 0, ticks: 0 });
   const fpsRef      = useRef({ frames: 0, last: performance.now() });
 
-  // When a real topology init fires, auto-fit the camera to the physics
-  // layout on the first position frame so all nodes/edges are visible.
   const needsAutoFitRef = useRef(false);
 
-  // ── Dirty tracking for skip-frame optimisation ──
-  // We only re-render when something actually changed:
-  //   • Physics delivered new positions
-  //   • Camera moved (pan/zoom)
-  //   • Hover or selection changed
   const dirtyRef = useRef({
     positions: false,
     camera: false,
     hover: false,
-    /** Last camera state we rendered at */
     lastCamX: 0, lastCamY: 0, lastCamZoom: 1,
-    /** Cached font string — only rebuild when zoom changes */
     lastFontZoom: -1,
     cachedFont: '',
   });
 
-  // Keep opts ref current so callbacks don't go stale
   useEffect(() => { optsRef.current = opts; }, [opts]);
 
-  // ─── Post-to-worker helper ──────────────────────────────────────────────────
-  const post = useCallback((msg: MainToPhysicsMessage): void => {
-    workerRef.current?.postMessage(msg);
-  }, []);
-
-  // ─── Worker initialisation ──────────────────────────────────────────────────
+  // ─── Renderer + physics init ────────────────────────────────────────────────
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    // ── Prime canvas backing-buffer size at device resolution ──
-    // The ResizeObserver fires asynchronously, so canvas.width/height are still
-    // the browser defaults (300×150) when renderer.init() runs.  Set them now
-    // from getBoundingClientRect() so the initial viewport is correct.
     {
       const rect = canvas.getBoundingClientRect();
       const dpr  = window.devicePixelRatio || 1;
       canvas.width  = Math.round(rect.width  * dpr);
       canvas.height = Math.round(rect.height * dpr);
-      // Note: style.width/height are intentionally NOT set here.
-      // The CSS class already has `width: 100%; height: 100%` which controls
-      // the layout size; canvas.width/height only control the backing buffer.
     }
 
-    // ── WebGL Renderer ──
     const renderer = new GraphWebGLRenderer({ cullMargin: 200 });
     renderer.init(canvas);
     rendRef.current = renderer;
 
-    // ── Worker ──
-    const worker = new Worker(
-      new URL('./graphPhysicsWorker.ts', import.meta.url),
-      { type: 'module' },
-    );
-    workerRef.current = worker;
-
-    worker.onmessage = (e: MessageEvent<PhysicsToMainMessage>): void => {
-      const msg = e.data;
-
-      if (msg.type === 'ready') {
-        statsAccRef.current.energy = 0;
-        statsAccRef.current.ticks  = 0;
-        return;
-      }
-
-      // ── SharedArrayBuffer path ─ store views, reset seq counter ────────
-      if (msg.type === 'sharedBuffer') {
-        sabPosRef.current  = new Float32Array(msg.positions);
-        sabMetaI32.current = new Int32Array(msg.meta);
-        sabMetaF32.current = new Float32Array(msg.meta);
-        sabNodeIds.current = msg.nodeIds;
-        sabSeq.current     = Atomics.load(sabMetaI32.current, META_SEQ);
-        return;
-      }
-
-      // ── Transferable fallback (no crossOriginIsolated) ────────────────
-      if (msg.type === 'frame') {
-        // Update renderer positions (packs instance buffers on CPU, uploads to GPU)
-        renderer.updatePositions(msg.positions, msg.nodeIds);
-        // Stash converged stats
-        statsAccRef.current.energy = msg.energy;
-        statsAccRef.current.ticks  = msg.ticks;
-        // Mark frame dirty so the RAF loop knows to re-render
-        dirtyRef.current.positions = true;
-
-        // Auto-fit the camera on the first position frame after a topology init
-        if (needsAutoFitRef.current && msg.nodeCount > 0) {
-          needsAutoFitRef.current = false;
-          const c = canvasRef.current;
-          if (c) {
-            const pos = msg.positions;
-            const nn  = msg.nodeCount;
-            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-            for (let i = 0; i < nn; i++) {
-              const x = pos[i * 2], y = pos[i * 2 + 1];
-              if (x < minX) minX = x; if (y < minY) minY = y;
-              if (x > maxX) maxX = x; if (y > maxY) maxY = y;
-            }
-            const pad = 60 * (window.devicePixelRatio || 1);
-            const worldW = (maxX - minX) + 32;
-            const worldH = (maxY - minY) + 32;
-            const cam = camRef.current;
-            cam.x = (minX + maxX) / 2;
-            cam.y = (minY + maxY) / 2;
-            cam.zoom = (worldW > 0 && worldH > 0)
-              ? Math.min(
-                  (c.width  - pad * 2) / worldW,
-                  (c.height - pad * 2) / worldH,
-                  40,
-                )
-              : 1;
-          }
-        }
-      }
-    };
-
-    worker.onerror = (e) => console.error('[SGEWorker]', e);
-
-    // ── RAF render loop ────────────────────────────────────────────────────────────────────────────
-    // Only does GPU/canvas work when something actually changed.
     const loop = () => {
       rafRef.current = requestAnimationFrame(loop);
 
       const rend = rendRef.current;
-      if (!rend) return;
+      const engine = engineRef.current;
+      if (!rend || !engine) return;
 
-      // ── SAB poll: check if worker wrote new physics data ────────────────
-      const metaI32  = sabMetaI32.current;
-      const metaF32  = sabMetaF32.current;
-      const sabPos   = sabPosRef.current;
-      const sabNids  = sabNodeIds.current;
-      if (metaI32 && metaF32 && sabPos && sabNids) {
-        const seq = Atomics.load(metaI32, META_SEQ);
-        if (seq !== sabSeq.current) {
-          sabSeq.current = seq;
-          const n = Atomics.load(metaI32, META_COUNT);
-          rend.updatePositions(sabPos.subarray(0, n * 2), sabNids.subarray(0, n));
-          statsAccRef.current.energy = metaF32[META_ENERGY];
-          statsAccRef.current.ticks  = Atomics.load(metaI32, META_TICKS);
+      engine.tick();
+      const n = engine.nodeCount;
+      if (n > 0) {
+        const posBuf = posBufRef.current;
+        const idBuf = nodeIdBufRef.current;
+        if (posBuf.length >= n * 2) {
+          engine.packPositions(posBuf, idBuf);
+          rend.updatePositions(posBuf, idBuf);
+          statsAccRef.current.energy = engine.energy;
           dirtyRef.current.positions = true;
-
-          // Auto-fit the camera on the first position frame after a topology init
-          // so all nodes (and their edges) are in view from the start.
-          if (needsAutoFitRef.current && n > 0) {
-            needsAutoFitRef.current = false;
-            const canvas = canvasRef.current;
-            if (canvas) {
-              const pos = sabPos;
-              let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-              for (let i = 0; i < n; i++) {
-                const x = pos[i * 2], y = pos[i * 2 + 1];
-                if (x < minX) minX = x; if (y < minY) minY = y;
-                if (x > maxX) maxX = x; if (y > maxY) maxY = y;
-              }
-              const pad = 60 * (window.devicePixelRatio || 1);
-              const worldW = (maxX - minX) + 32;
-              const worldH = (maxY - minY) + 32;
-              camRef.current.x = (minX + maxX) / 2;
-              camRef.current.y = (minY + maxY) / 2;
-              camRef.current.zoom = (worldW > 0 && worldH > 0)
-                ? Math.min(
-                    (canvas.width  - pad * 2) / worldW,
-                    (canvas.height - pad * 2) / worldH,
-                    40,
-                  )
-                : 1;
-            }
-          }
         }
       }
+
+      if (needsAutoFitRef.current && n > 0) {
+        needsAutoFitRef.current = false;
+        const c = canvasRef.current;
+        if (c) {
+          const pos = rend.nodePositions;
+          let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+          for (let i = 0; i < n; i++) {
+            const x = pos[i * 2], y = pos[i * 2 + 1];
+            if (x < minX) minX = x; if (y < minY) minY = y;
+            if (x > maxX) maxX = x; if (y > maxY) maxY = y;
+          }
+          const pad = 60 * (window.devicePixelRatio || 1);
+          const worldW = (maxX - minX) + 32;
+          const worldH = (maxY - minY) + 32;
+          const cam = camRef.current;
+          cam.x = (minX + maxX) / 2;
+          cam.y = (minY + maxY) / 2;
+          cam.zoom = (worldW > 0 && worldH > 0)
+            ? Math.min(
+                (c.width  - pad * 2) / worldW,
+                (c.height - pad * 2) / worldH,
+                40,
+              )
+            : 1;
+        }
+      }
+
       const cam   = camRef.current;
       const dirty = dirtyRef.current;
 
-      // Detect camera movement
       if (cam.x !== dirty.lastCamX || cam.y !== dirty.lastCamY || cam.zoom !== dirty.lastCamZoom) {
         dirty.camera   = true;
         dirty.lastCamX = cam.x;
@@ -448,10 +316,8 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
         dirty.lastCamZoom = cam.zoom;
       }
 
-      // Skip entire frame if nothing changed
       const needsRender = dirty.positions || dirty.camera || dirty.hover;
       if (!needsRender) {
-        // Still count FPS even on skipped frames
         const fr = fpsRef.current;
         fr.frames++;
         const now = performance.now();
@@ -464,7 +330,7 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
             visibleNodes: rStats.nodeInstCount,
             visibleEdges: rStats.edgeInstCount,
             energy: s.energy,
-            ticks:  s.ticks,
+            ticks:  0,
             fps,
           }));
           fr.frames = 0;
@@ -473,19 +339,15 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
         return;
       }
 
-      // Clear dirty flags
       dirty.positions = false;
       dirty.camera    = false;
       dirty.hover     = false;
 
-      // Sync camera & render WebGL
       rend.setCamera(cam.x, cam.y, cam.zoom);
 
-      // Update edge LOD mask based on zoom
       const lodEnabled = optsRef.current.enableLinkLOD ?? true;
       if (lodEnabled) {
         const z = cam.zoom;
-        // Always show structural links; reveal weaker/secondary types as the user zooms in.
         let mask = (1 << LINK_TYPE_IDS.parent) | (1 << LINK_TYPE_IDS.class) | (1 << LINK_TYPE_IDS.extends) | (1 << LINK_TYPE_IDS.alias);
         if (z >= 0.40) mask |= (1 << LINK_TYPE_IDS.reference);
         if (z >= 0.80) mask |= (1 << LINK_TYPE_IDS['property-reference']);
@@ -497,34 +359,25 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
 
       rend.render();
 
-      // ── 2D label overlay ──
       const lc = labelCanvasRef.current;
       if (lc) {
         const ctx = lc.getContext('2d');
         if (ctx) {
           ctx.clearRect(0, 0, lc.width, lc.height);
           const zoom = cam.zoom;
-          // Only render labels when zoomed in enough to read them
           if (zoom >= 0.12 && rend.nodeOrder.length > 0) {
             const pos   = rend.nodePositions;
             const order = rend.nodeOrder;
             const names = nodeNamesRef.current;
             const n     = order.length;
-            // dpr is used only for font/shadow sizing — coordinates are already
-            // physical pixels because worldToScreen uses the DPR-scaled canvasW/H.
             const dpr   = window.devicePixelRatio || 1;
 
-            // Cache font string — only rebuild when zoom changes.
-            // Font size is in physical pixels (no ctx.scale; canvas is DPR-scaled).
             const fontSize  = Math.round(Math.min(14, Math.max(9, 11 * zoom)) * dpr);
             if (dirty.lastFontZoom !== fontSize) {
               dirty.lastFontZoom = fontSize;
               dirty.cachedFont   = `${fontSize}px system-ui, -apple-system, sans-serif`;
             }
-            const labelAlpha = Math.min(1, (zoom - 0.12) / 0.35); // fade in
-
-            // Limit label count to avoid CPU thrash at low zoom with many nodes.
-            // At zoom < 1, many labels overlap and are unreadable anyway.
+            const labelAlpha = Math.min(1, (zoom - 0.12) / 0.35);
             const maxLabels = zoom < 0.3 ? 40 : zoom < 0.6 ? 100 : zoom < 1.0 ? 200 : 500;
 
             ctx.save();
@@ -532,22 +385,16 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
             ctx.font         = dirty.cachedFont;
             ctx.textAlign    = 'center';
             ctx.textBaseline = 'top';
-
-            // Use shadow for text halo instead of expensive strokeText.
-            // One fillText call per label instead of strokeText + fillText.
             ctx.shadowColor   = getLabelShadowColor();
             ctx.shadowBlur    = 4 * dpr;
             ctx.shadowOffsetX = 0;
             ctx.shadowOffsetY = 0;
 
-            // Pre-compute viewport bounds for culling (physical pixels)
             const cw      = lc.width;
             const ch      = lc.height;
             const margin  = 100;
             let rendered  = 0;
 
-            // Batch by fill color to minimise state changes.
-            // Phase 1: default color labels
             ctx.fillStyle = getLabelRegularColor();
             for (let i = 0; i < n && rendered < maxLabels; i++) {
               const id = order[i];
@@ -557,7 +404,6 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
 
               const wx = pos[i * 2];
               const wy = pos[i * 2 + 1];
-              // worldToScreen already returns physical pixels — do NOT multiply by dpr
               const sp = rend.worldToScreen(wx, wy);
               const sx = sp.x;
               const sy = sp.y;
@@ -574,13 +420,11 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
               rendered++;
             }
 
-            // Phase 2: hovered label (on top, brighter)
             if (hoveredNodeRef.current >= 0 && hoveredNodeRef.current !== selectedRef.current) {
               const hIdx = rend.nodeOrder.indexOf(hoveredNodeRef.current);
               if (hIdx >= 0) {
                 const hName = names.get(hoveredNodeRef.current);
                 if (hName) {
-                  // worldToScreen already returns physical pixels
                   const sx = rend.worldToScreen(pos[hIdx * 2], pos[hIdx * 2 + 1]).x;
                   const sy = rend.worldToScreen(pos[hIdx * 2], pos[hIdx * 2 + 1]).y;
                   const baseR = optsRef.current.baseNodeRadius ?? BASE_RADIUS;
@@ -594,13 +438,11 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
               }
             }
 
-            // Phase 3: selected label (on top, bright white)
             if (selectedRef.current >= 0) {
               const sIdx = rend.nodeOrder.indexOf(selectedRef.current);
               if (sIdx >= 0) {
                 const sName = names.get(selectedRef.current);
                 if (sName) {
-                  // worldToScreen already returns physical pixels
                   const sx = rend.worldToScreen(pos[sIdx * 2], pos[sIdx * 2 + 1]).x;
                   const sy = rend.worldToScreen(pos[sIdx * 2], pos[sIdx * 2 + 1]).y;
                   const baseR = optsRef.current.baseNodeRadius ?? BASE_RADIUS;
@@ -619,7 +461,6 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
         }
       }
 
-      // FPS counter
       const fr = fpsRef.current;
       fr.frames++;
       const now = performance.now();
@@ -632,7 +473,7 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
           visibleNodes: rStats.nodeInstCount,
           visibleEdges: rStats.edgeInstCount,
           energy: s.energy,
-          ticks:  s.ticks,
+          ticks:  0,
           fps,
         }));
         fr.frames = 0;
@@ -643,14 +484,12 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
 
     return () => {
       cancelAnimationFrame(rafRef.current);
-      worker.postMessage({ type: 'destroy' } satisfies MainToPhysicsMessage);
-      worker.terminate();
-      workerRef.current = null;
+      engineRef.current?.dispose();
+      engineRef.current = null;
       renderer.destroy();
       rendRef.current = null;
     };
-   
-  }, []); // run once on mount
+  }, []);
 
   // ─── Canvas resize observer ─────────────────────────────────────────────────
   useEffect(() => {
@@ -661,10 +500,6 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
       for (const entry of entries) {
         const { width, height } = entry.contentRect;
         const dpr = window.devicePixelRatio || 1;
-        // Set backing-buffer size at device resolution.
-        // CSS layout size is owned by the class (`width: 100%; height: 100%`);
-        // do NOT set style.width/height or it locks the canvas at a fixed CSS
-        // pixel size and breaks responsiveness.
         canvas.width  = Math.round(width  * dpr);
         canvas.height = Math.round(height * dpr);
         rendRef.current?.resize(canvas.width, canvas.height);
@@ -674,21 +509,15 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
     return () => ro.disconnect();
   }, []);
 
-  // ─── Topology sync: nodes + edges → worker + renderer ──────────────────────
-  // Track the last topology fingerprint to skip no-op re-inits (e.g., TanStack
-  // Query returning a new reference with identical data).
+  // ─── Topology sync: nodes + edges → physics + renderer ──────────────────────
   const topoFingerprintRef = useRef('');
-  // Debounce timer to coalesce rapid successive topology changes (e.g.,
-  // placeholder → real data transitions) into a single worker init.
   const topoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    const worker   = workerRef.current;
+    const engine = engineRef.current;
     const renderer = rendRef.current;
-    if (!worker || !renderer) return;
+    if (!renderer) return;
 
-    // Build a fingerprint from node IDs + edge pairs + sizing mode.
-    // Cheap string comparison prevents duplicate worker re-inits.
     const nodeIdStr = nodes.map(n => n.id).join(',');
     const edgeStr   = edges.map(e => `${e.source}-${e.target}`).join(',');
     const fingerprint = `${nodeIdStr}|${edgeStr}|${sizeByConnections}`;
@@ -696,34 +525,23 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
     if (fingerprint === topoFingerprintRef.current) return;
     topoFingerprintRef.current = fingerprint;
 
-    // Clear any pending debounced init
     if (topoTimerRef.current) clearTimeout(topoTimerRef.current);
 
-    // Debounce: wait a tick before committing to let rapid changes coalesce
     topoTimerRef.current = setTimeout(() => {
       topoTimerRef.current = null;
 
       const maxConn = nodes.reduce((m, n) => Math.max(m, n.connectionCount), 0);
 
-      // Build physics nodes (compact)
-      const physNodes = nodes.map(n => ({ id: n.id, x: n.x, y: n.y }));
-
-      // Build edges (only unique source/target pairs), with dashed flag and width by type + weight
-      // Parent/class/extends links are solid and thicker; reference links are dashed and thinner;
-      // co-occurrence links scale in width by their weight (normalized per-view).
       const COOCCURRENCE_COLOR: [number, number, number, number] = [0.65, 0.3, 0.9, 0.65];
       const maxCooccurrenceWeight = Math.max(
         ...edges.filter(e => e.type === 'cooccurrence').map(e => e.weight ?? 1),
         1
       );
 
-      // Build node color lookup for edge gradients
       const nodeColorMap = new Map<number, [number, number, number, number]>();
       for (const n of nodes) {
         const c = nodeColor(n);
-        if (c) {
-          nodeColorMap.set(n.id, [c[0], c[1], c[2], c[3]]);
-        }
+        if (c) nodeColorMap.set(n.id, [c[0], c[1], c[2], c[3]]);
       }
       const defaultEdgeColor: [number, number, number, number] = [0.51, 0.51, 0.51, 0.45];
 
@@ -754,7 +572,6 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
 
       const PATH_COLOR = new Float32Array([1.0, 0.75, 0.2, 1.0]);
 
-      // Build visual metadata map
       const visuals = new Map<number, NodeVisual>();
       for (const n of nodes) {
         const isPath = pathNodeIds?.has(n.id) ?? false;
@@ -764,12 +581,10 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
         });
       }
 
-      // Register with renderer
       const idArr = new Int32Array(nodes.map(n => n.id));
       renderer.setNodeVisuals(idArr, visuals);
       renderer.setEdges(physEdges);
 
-      // Populate label name map and radius map
       const names = nodeNamesRef.current;
       names.clear();
       const radii = nodeRadiiRef.current;
@@ -779,22 +594,23 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
         radii.set(n.id, sizeByConnections ? nodeRadius(n, maxConn, baseNodeRadius) : baseNodeRadius);
       }
 
-      // Send to worker (full topology init/swap)
-      worker.postMessage({
-        type: 'init',
-        nodes: physNodes,
-        edges: physEdges,
-        config,
-      } satisfies MainToPhysicsMessage);
+      // Resize position buffers
+      const n = nodes.length;
+      posBufRef.current = new Float32Array(n * 2);
+      nodeIdBufRef.current = idArr;
 
-      // Request auto-fit once the first physics frame arrives so the camera
-      // zoom encompasses all nodes (physics positions differ from input positions).
+      if (engine) {
+        engine.rebuild(nodes, edges);
+      } else {
+        engineRef.current = new D3GraphEngine(nodes, edges, config);
+      }
+
       if (nodes.length > 0) {
         needsAutoFitRef.current = true;
       }
 
       setStats(prev => ({ ...prev, nodeCount: nodes.length, edgeCount: edges.length }));
-    }, 30); // 30ms debounce — coalesces fast successive updates without visible delay
+    }, 30);
 
     return () => {
       if (topoTimerRef.current) {
@@ -806,8 +622,6 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
   }, [nodes, edges, sizeByConnections, baseNodeRadius]);
 
   // ─── Visual-only updates (radius, color) ────────────────────────────────────
-  // These don't affect physics, so we skip the worker re-init and update the
-  // renderer directly. We mark the RAF dirty so the new radii appear immediately.
   useEffect(() => {
     const renderer = rendRef.current;
     if (!renderer) return;
@@ -823,7 +637,6 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
     const idArr = new Int32Array(nodes.map(n => n.id));
     renderer.setNodeVisuals(idArr, visuals);
     dirtyRef.current.positions = true;
-   
   }, [nodes, baseNodeRadius, sizeByConnections]);
 
   // ─── Label canvas resize observer ─────────────────────────────────────────
@@ -834,7 +647,6 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
       for (const entry of entries) {
         const { width, height } = entry.contentRect;
         const dpr = window.devicePixelRatio || 1;
-        // Backing buffer at device resolution; CSS layout handled by `inset: 0`.
         lc.width  = Math.round(width  * dpr);
         lc.height = Math.round(height * dpr);
       }
@@ -843,14 +655,7 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
     return () => ro.disconnect();
   }, []);
 
-  // ─── DPR change listener (monitor switch) ──────────────────────────────────
-  // ResizeObserver only fires when CSS layout size changes.  Moving the window
-  // to a monitor with a different devicePixelRatio leaves CSS size identical, so
-  // ResizeObserver never fires and the backing buffers stay at the wrong DPR.
-  //
-  // Fix: watch `(resolution: Xdppx)` via matchMedia.  When the query stops
-  // matching (DPR changed), re-apply BoundingClientRect × new DPR to both
-  // canvases and re-register for the next change.
+  // ─── DPR change listener ──────────────────────────────────────────────────
   useEffect(() => {
     let mql: MediaQueryList | null = null;
     let listener: (() => void) | null = null;
@@ -871,10 +676,7 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
         lc.width    = Math.round(rect.width  * dpr);
         lc.height   = Math.round(rect.height * dpr);
       }
-
-      // Re-register: the current MQL no longer matches after DPR changed,
-      // so we need a fresh query at the new DPR to catch the *next* change.
-      register();  
+      register();
     };
 
     const register = () => {
@@ -886,7 +688,7 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
 
     register();
     return () => { if (mql && listener) mql.removeEventListener('change', listener); };
-  }, []);  
+  }, []);
 
   // ─── Pointer interaction ────────────────────────────────────────────────────
   const onPointerDown = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
@@ -910,13 +712,13 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
       d.nodeId = hitNode;
       d.startWx = world.x;
       d.startWy = world.y;
-      post({ type: 'dragStart', nodeId: hitNode });
+      engineRef.current?.startDrag(hitNode);
     } else {
       d.mode      = 'camera';
       d.camStartX = camRef.current.x;
       d.camStartY = camRef.current.y;
     }
-  }, [post]);
+  }, []);
 
   const onPointerMove = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
     const d      = dragRef.current;
@@ -925,7 +727,6 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
     const px     = (e.clientX - rect.left) * (canvas.width  / rect.width);
     const py     = (e.clientY - rect.top)  * (canvas.height / rect.height);
 
-    // Hover detection (always, even when not dragging)
     const rend = rendRef.current;
     if (rend) {
       const world  = rend.screenToWorld(px, py);
@@ -934,7 +735,6 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
         hoveredNodeRef.current = hit;
         rend.setHoveredNode(hit);
         dirtyRef.current.hover = true;
-        // Update tooltip state (convert canvas pixels to CSS pixels for positioning)
         if (hit >= 0) {
           const rect = canvas.getBoundingClientRect();
           const cssX = (px / (canvas.width / rect.width));
@@ -944,7 +744,6 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
         } else {
           setHoveredNode(null);
         }
-        // Ensure any lingering edge hover state is cleared
         setHoveredEdge(null);
         rend.setHoveredEdge(-1);
       }
@@ -970,19 +769,17 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
     } else if (d.mode === 'node') {
       const world = rend?.screenToWorld(px, py);
       if (!world) return;
-      post({ type: 'dragMove', nodeId: d.nodeId, x: world.x, y: world.y });
-      // Also override locally so drag feels instant (before next worker frame)
+      engineRef.current?.moveDrag(d.nodeId, world.x, world.y);
       rend?.overridePosition(d.nodeId, world.x, world.y);
     }
-  }, [post]);
+  }, []);
 
   const onPointerUp = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
     const d = dragRef.current;
 
     if (d.mode === 'node') {
-      post({ type: 'dragEnd', nodeId: d.nodeId });
+      engineRef.current?.endDrag(d.nodeId);
       if (!d.moved) {
-        // It was a tap/click — select node and fire the callback
         const nodeId = d.nodeId;
         selectedRef.current = nodeId;
         setSelectedNodeId(nodeId);
@@ -991,7 +788,6 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
         optsRef.current.onNodeClick?.(nodeId);
       }
     } else if (d.mode === 'camera' && !d.moved) {
-      // Click on empty space — deselect and notify parent
       if (selectedRef.current >= 0) {
         selectedRef.current = -1;
         setSelectedNodeId(-1);
@@ -1004,9 +800,8 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
     d.nodeId = -1;
     d.moved  = false;
     e.currentTarget.releasePointerCapture(e.pointerId);
-  }, [post]);
+  }, []);
 
-  // Zoom with wheel
   const onDblClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     const rend   = rendRef.current;
@@ -1034,23 +829,22 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
     const cam    = camRef.current;
     cam.zoom    *= factor;
     cam.zoom     = Math.min(cam.zoom, 40);
-    // Zoom towards cursor
     cam.x       += (world.x - cam.x) * (1 - 1 / factor);
     cam.y       += (world.y - cam.y) * (1 - 1 / factor);
   }, []);
 
   // ─── Public API ─────────────────────────────────────────────────────────────
   const pause = useCallback(() => {
-    post({ type: 'pause' });
-  }, [post]);
+    engineRef.current?.pause();
+  }, []);
 
   const resume = useCallback(() => {
-    post({ type: 'resume' });
-  }, [post]);
+    engineRef.current?.resume();
+  }, []);
 
-  const setConfig = useCallback((cfg: SGEUserConfig) => {
-    post({ type: 'setConfig', config: cfg });
-  }, [post]);
+  const setConfig = useCallback((cfg: D3PhysicsConfig) => {
+    engineRef.current?.setConfig(cfg);
+  }, []);
 
   const recenter = useCallback(() => {
     const rend = rendRef.current;
@@ -1059,7 +853,6 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
     const n = rend.nodeOrder.length;
     if (n === 0) return;
 
-    // Compute AABB from live physics positions
     const pos = rend.nodePositions;
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
     for (let i = 0; i < n; i++) {
@@ -1073,8 +866,8 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
 
     const cx  = (minX + maxX) / 2;
     const cy  = (minY + maxY) / 2;
-    const pad = 60 * devicePixelRatio; // pixels
-    const worldW = (maxX - minX) + 32; // add rough node radius margin
+    const pad = 60 * devicePixelRatio;
+    const worldW = (maxX - minX) + 32;
     const worldH = (maxY - minY) + 32;
 
     let zoom = 1;
@@ -1088,7 +881,6 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
     camRef.current.y    = cy;
     camRef.current.zoom = Math.min(zoom, 40);
     dirtyRef.current.camera = true;
-   
   }, []);
 
   const screenToWorld = useCallback((sx: number, sy: number) => {
@@ -1099,7 +891,6 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
     const cam = camRef.current;
     const canvas = canvasRef.current;
     if (!canvas) return;
-    // Convert screen-pixel delta to world-space delta
     const dpr = devicePixelRatio;
     cam.x -= (dx * dpr) / cam.zoom;
     cam.y += (dy * dpr) / cam.zoom;
@@ -1134,8 +925,6 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
     zoomBy,
     clearSelection,
     screenToWorld,
-    // Expose interaction handlers so the component can attach them to the canvas
-    // (returned as extra fields consumed by SGEGraphView)
     _pointerDown:  onPointerDown,
     _pointerMove:  onPointerMove,
     _pointerUp:    onPointerUp,
