@@ -221,10 +221,6 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
   const nodeNamesRef = useRef(new Map<number, string>());
   const nodeRadiiRef = useRef(new Map<number, number>());
 
-  // Track last mouse position so the render loop can re-check hover
-  // when nodes move under a stationary cursor.
-  const lastMouseRef = useRef<{ px: number; py: number; overCanvas: boolean } | null>(null);
-
   type DragMode = 'none' | 'camera' | 'node';
   const dragRef = useRef<{
     mode: DragMode;
@@ -377,35 +373,6 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
         dirty.lastCamX = cam.x;
         dirty.lastCamY = cam.y;
         dirty.lastCamZoom = cam.zoom;
-      }
-
-      // Re-check hover if nodes moved under a stationary mouse
-      if (dirty.positions && dragRef.current.mode === 'none' && lastMouseRef.current?.overCanvas) {
-        const rend = rendRef.current;
-        const m = lastMouseRef.current;
-        if (rend) {
-          const world = rend.screenToWorld(m.px, m.py);
-          const hit = rend.pickNode(world.x, world.y, 2) ?? -1;
-          if (hit !== hoveredNodeRef.current) {
-            hoveredNodeRef.current = hit;
-            rend.setHoveredNode(hit);
-            dirty.hover = true;
-            if (hit >= 0) {
-              const canvas = canvasRef.current;
-              if (canvas) {
-                const rect = canvas.getBoundingClientRect();
-                const cssX = (m.px / (canvas.width / rect.width));
-                const cssY = (m.py / (canvas.height / rect.height));
-                const name = nodeNamesRef.current.get(hit) ?? '';
-                setHoveredNode({ id: hit, name, screenX: cssX, screenY: cssY });
-              }
-            } else {
-              setHoveredNode(null);
-            }
-            setHoveredEdge(null);
-            rend.setHoveredEdge(-1);
-          }
-        }
       }
 
       const needsRender = dirty.positions || dirty.camera || dirty.hover;
@@ -806,7 +773,7 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
       return;
     }
 
-    const hitNode = rendRef.current?.pickNode(world.x, world.y, 2);
+    const hitNode = rendRef.current?.pickNode(world.x, world.y, 8 / camRef.current.zoom);
 
     if (hitNode !== null && hitNode !== undefined) {
       d.mode   = 'node';
@@ -912,7 +879,7 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
     const px   = (e.clientX - rect.left) * (canvas.width  / rect.width);
     const py   = (e.clientY - rect.top)  * (canvas.height / rect.height);
     const world = rend.screenToWorld(px, py);
-    const hit   = rend.pickNode(world.x, world.y, 2);
+    const hit   = rend.pickNode(world.x, world.y, 8 / camRef.current.zoom);
     if (hit !== null && hit !== undefined && hit >= 0) {
       optsRef.current.onNodeDblClick?.(hit);
     }
