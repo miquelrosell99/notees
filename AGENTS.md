@@ -799,14 +799,15 @@ Detailed guides for complex subsystems that agents frequently need to understand
 
 ### Graph View
 
-The graph view (`frontend/src/components/nodes/views/GraphView.tsx`) is a force-directed visualization built on a custom WebGL2 instanced renderer with a physics worker.
+The graph view (`frontend/src/components/nodes/views/GraphView.tsx`) is a force-directed visualization built on a custom WebGL2 instanced renderer with a modular physics engine (SGE v2) running in a Web Worker.
 
 **Architecture:**
 ```
 GraphView (React)
   ├── GraphRenderer (React wrapper)
   │     ├── graphWebGLRenderer.ts (WebGL2 instanced drawing)
-  │     └── physics worker (force simulation)
+  │     └── sgeWorker.ts (physics Web Worker)
+  │           └── sge/engine.ts (force-directed simulation)
   ├── Inline Sidebar (220px accordion)
   │     ├── Groups (QueryAST color rules)
   │     ├── Physics (simulation toggles)
@@ -817,6 +818,38 @@ GraphView (React)
   ├── Search Panel (top-right)
   └── Mode Switcher (bottom-center, hover-only)
 ```
+
+**SGE v2 Physics Engine (`frontend/src/components/nodes/views/sge/`)**
+
+Modular replacement for the original monolithic SemanticGraphEngine. Uses Structure-of-Arrays (SoA) typed arrays and a force-plugin API.
+
+| Module | Purpose |
+|--------|---------|
+| `engine.ts` | Orchestrator: SoA buffers, composes forces, runs integration loop |
+| `types.ts` | `SGEPhysicsConfig`, `SGEConfig`, `SGEEdge`, `SGEState` |
+| `config.ts` | `GraphSettings` → raw numeric `SGEConfig` translation |
+| `spatialHash.ts` | Robin Hood typed-array spatial hash (local repulsion queries) |
+| `barnesHut.ts` | Pool-based Barnes–Hut quadtree (cluster repulsion) |
+| `integrator.ts` | Velocity Verlet + adaptive timestep |
+| `forces/springs.ts` | Edge springs (per-type rest length & stiffness) |
+| `forces/localRepel.ts` | Short-range node-node repulsion via spatial hash |
+| `forces/clusterCohesion.ts` | Shell-model community cohesion |
+| `forces/clusterRepulsion.ts` | Barnes–Hut / direct O(K²) cluster repulsion |
+| `forces/radialStability.ts` | Prevents expansion drift within clusters |
+| `forces/componentBubble.ts` | Connected-component bounding bubbles |
+| `forces/centerGravity.ts` | Global center gravity + isolate soft wall |
+
+**Worker Protocol (main ↔ sgeWorker.ts):**
+- `init` — full topology + config (creates or reuses engine)
+- `setTopology` — incremental topology update
+- `setConfig` — live physics parameter update
+- `dragStart` / `dragMove` / `dragEnd` — node drag interaction
+- `pause` / `resume` — stop/start tick loop
+- `destroy` — clean up and terminate
+
+**SharedArrayBuffer path:** When `crossOriginIsolated` is true, the worker writes positions into a SAB each tick and signals via `Atomics.load(meta, META_SEQ)`. The main thread polls in its RAF loop — zero per-frame `postMessage` overhead.
+
+**Transferable fallback:** When SAB is unavailable, the worker posts a `Float32Array` of positions each tick via transferable (zero-copy).
 
 **Color Resolution Pipeline (evaluated per node during `useMemo`):**
 1. Explicit `node.properties.color`
@@ -830,6 +863,7 @@ GraphView (React)
 | `GraphView.tsx` | Main component: state, sidebar, filters, color resolution |
 | `GraphRenderer.tsx` | Canvas wrapper: handles events, labels, keyboard shortcuts |
 | `graphWebGLRenderer.ts` | WebGL2 renderer: instanced nodes, glow, edges, picking |
+| `sgeWorker.ts` | Web Worker entry point: thin wrapper around SGEEngine |
 | `evaluateQueryAST.ts` | Client-side QueryAST evaluator for group coloring |
 | `GraphGroupModal.tsx` | Modal for creating/editing QueryAST color groups |
 | `graphTypes.ts` | `GraphNode`, `GraphLink`, `GraphColorGroup`, `GraphSettings` types |
@@ -842,6 +876,7 @@ GraphView (React)
 1. Add to `GraphSettings` in `graphTypes.ts`
 2. Add UI control in `GraphSettingsSidebar.tsx`
 3. Persist via `setSetting('graph_settings', ...)`
+4. If the setting affects physics, wire it through `buildSGEPhysicsConfig()` in `GraphView.tsx`
 
 ---
 
