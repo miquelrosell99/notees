@@ -173,9 +173,9 @@ void main() {
   float tgtW = a_width * 0.6;
   float halfWidth = mix(srcW, tgtW, a_local.y) * 0.5;
 
-  // Ensure edge is at least 1.5 screen-pixel wide to prevent
+  // Ensure edge is at least 1.0 screen-pixel wide to prevent
   // sub-pixel aliasing that makes lines appear dashed when zoomed out.
-  float minWorldWidth = 1.5 / u_zoom;
+  float minWorldWidth = 1.0 / u_zoom;
   halfWidth = max(halfWidth, minWorldWidth);
 
   vec2 world = center + perp * a_local.x * halfWidth;
