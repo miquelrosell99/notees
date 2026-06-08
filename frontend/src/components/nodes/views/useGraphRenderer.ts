@@ -773,7 +773,7 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
       return;
     }
 
-    const hitNode = rendRef.current?.pickNode(world.x, world.y, 8 / camRef.current.zoom);
+    const hitNode = rendRef.current?.pickNode(world.x, world.y, 2);
 
     if (hitNode !== null && hitNode !== undefined) {
       d.mode   = 'node';
@@ -879,7 +879,7 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
     const px   = (e.clientX - rect.left) * (canvas.width  / rect.width);
     const py   = (e.clientY - rect.top)  * (canvas.height / rect.height);
     const world = rend.screenToWorld(px, py);
-    const hit   = rend.pickNode(world.x, world.y, 8 / camRef.current.zoom);
+    const hit   = rend.pickNode(world.x, world.y, 2);
     if (hit !== null && hit !== undefined && hit >= 0) {
       optsRef.current.onNodeDblClick?.(hit);
     }
