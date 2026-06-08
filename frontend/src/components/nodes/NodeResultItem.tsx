@@ -22,6 +22,7 @@ export interface NodeResultItemProps {
   /** Whether this item is already selected — renders a checkmark */
   isSelected?: boolean;
   onClick: () => void;
+  onCtrlClick?: () => void;
   onMouseEnter?: () => void;
   /** Extra CSS classes on the root button */
   className?: string;
@@ -42,6 +43,7 @@ export function NodeResultItem({
   isHighlighted = false,
   isSelected = false,
   onClick,
+  onCtrlClick,
   onMouseEnter,
   className = '',
   before,
@@ -52,7 +54,14 @@ export function NodeResultItem({
   return (
     <button
       className={`node-result-item${isHighlighted ? ' node-result-item--highlighted' : ''}${className ? ` ${className}` : ''}`}
-      onClick={onClick}
+      onClick={(e) => {
+        if ((e.ctrlKey || e.metaKey) && onCtrlClick) {
+          e.preventDefault();
+          onCtrlClick();
+        } else {
+          onClick();
+        }
+      }}
       onMouseEnter={onMouseEnter}
     >
       {parentPath && (

@@ -12,7 +12,7 @@ import {
 interface RecentItemProps {
   nodeId: number;
   isActive: boolean;
-  onClick: () => void;
+  onClick: (event: React.MouseEvent) => void;
   onContextMenu?: (event: React.MouseEvent) => void;
 }
 
@@ -51,6 +51,7 @@ export function SidebarRecents({ onContextMenu }: SidebarRecentsProps) {
     mainViewType,
     currentNodeId,
     openNode,
+    openNodeInNewTab,
     isSidebarCollapsed,
     toggleSidebar,
   } = useNavigationStore();
@@ -60,10 +61,14 @@ export function SidebarRecents({ onContextMenu }: SidebarRecentsProps) {
     if (isMobile && !isSidebarCollapsed) toggleSidebar();
   }, [isMobile, isSidebarCollapsed, toggleSidebar]);
 
-  const handleNavigate = useCallback((nodeId: number) => {
-    openNode(nodeId);
-    closeMobileDrawer();
-  }, [openNode, closeMobileDrawer]);
+  const handleNavigate = useCallback((nodeId: number, e?: React.MouseEvent) => {
+    if (e?.ctrlKey || e?.metaKey) {
+      openNodeInNewTab(nodeId);
+    } else {
+      openNode(nodeId);
+      closeMobileDrawer();
+    }
+  }, [openNode, openNodeInNewTab, closeMobileDrawer]);
 
   return (
     <div className="sidebar-section">
@@ -87,7 +92,7 @@ export function SidebarRecents({ onContextMenu }: SidebarRecentsProps) {
                 key={recent.nodeId}
                 nodeId={recent.nodeId}
                 isActive={currentNodeId === recent.nodeId && mainViewType === 'node'}
-                onClick={() => handleNavigate(recent.nodeId)}
+                onClick={(e) => handleNavigate(recent.nodeId, e)}
                 onContextMenu={(e) => onContextMenu(recent.nodeId, e)}
               />
             ))

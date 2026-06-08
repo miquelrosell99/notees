@@ -78,6 +78,7 @@ export function Sidebar({ collapsed }: SidebarProps) {
     mainViewType,
     setMainViewType,
     openNode,
+    openNodeInNewTab,
     isSidebarCollapsed,
     toggleSidebar,
   } = useNavigationStore();
@@ -137,12 +138,16 @@ export function Sidebar({ collapsed }: SidebarProps) {
   }, []);
 
   // Open the real Inbox system page
-  const handleOpenInbox = useCallback(() => {
+  const handleOpenInbox = useCallback((e?: React.MouseEvent) => {
     if (inboxNode?.id) {
-      openNode(inboxNode.id);
+      if (e?.ctrlKey || e?.metaKey) {
+        openNodeInNewTab(inboxNode.id);
+      } else {
+        openNode(inboxNode.id);
+      }
       closeMobileDrawer();
     }
-  }, [inboxNode, openNode, closeMobileDrawer]);
+  }, [inboxNode, openNode, openNodeInNewTab, closeMobileDrawer]);
 
   const emptyTrashMutation = useMutation({
     mutationFn: emptyTrash,

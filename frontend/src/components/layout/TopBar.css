@@ -49,9 +49,10 @@
 .top-bar-center {
   flex: 1;
   display: flex;
-  justify-content: center;
-  max-width: 500px;
-  margin: 0 var(--spacing-4);
+  align-items: flex-end;
+  min-width: 0;
+  margin: 0 var(--spacing-2);
+  height: var(--topbar-height);
 }
 
 /* ==================== Top Bar Right Section ==================== */

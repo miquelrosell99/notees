@@ -24,6 +24,7 @@ import { Scratchpad } from './Scratchpad';
 import { AccountMenu } from './AccountMenu';
 import { UserSettingsModal, SystemSettingsModal } from './Modals';
 import { LiveSyncIndicator } from '@/components/collab/LiveSyncIndicator';
+import { TabBar } from './TabBar/TabBar';
 
 import './TopBar.css';
 
@@ -192,7 +193,7 @@ export function TopBar() {
         </div>
       
         <div className="top-bar-center">
-          {/* Search removed - use Ctrl+K */}
+          <TabBar />
         </div>
       
         <div className="top-bar-right">

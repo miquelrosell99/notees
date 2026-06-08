@@ -1,0 +1,18 @@
+.new-tab-button {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.new-tab-button__btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  color: var(--color-text-muted);
+}
+
+.new-tab-button__btn:hover {
+  color: var(--color-text-primary);
+  background: var(--color-surface-hover);
+}
