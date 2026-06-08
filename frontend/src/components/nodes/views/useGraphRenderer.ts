@@ -227,7 +227,6 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
 
   // Hover / selection (mutable refs = no re-renders on mouse move)
   const hoveredNodeRef = useRef(-1);
-  const hoveredEdgeRef = useRef(-1);
   const selectedRef    = useRef(-1);
   const [selectedNodeId, setSelectedNodeId] = useState<number>(-1);
   const [hoveredNode, setHoveredNode] = useState<{ id: number; name: string; screenX: number; screenY: number } | null>(null);
@@ -373,11 +372,11 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
             cam.x = (minX + maxX) / 2;
             cam.y = (minY + maxY) / 2;
             cam.zoom = (worldW > 0 && worldH > 0)
-              ? Math.max(0.02, Math.min(
+              ? Math.min(
                   (c.width  - pad * 2) / worldW,
                   (c.height - pad * 2) / worldH,
                   40,
-                ))
+                )
               : 1;
           }
         }
@@ -428,11 +427,11 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
               camRef.current.x = (minX + maxX) / 2;
               camRef.current.y = (minY + maxY) / 2;
               camRef.current.zoom = (worldW > 0 && worldH > 0)
-                ? Math.max(0.02, Math.min(
+                ? Math.min(
                     (canvas.width  - pad * 2) / worldW,
                     (canvas.height - pad * 2) / worldH,
                     40,
-                  ))
+                  )
                 : 1;
             }
           }
@@ -486,12 +485,12 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
       const lodEnabled = optsRef.current.enableLinkLOD ?? true;
       if (lodEnabled) {
         const z = cam.zoom;
-        let mask = 0;
-        if (z >= 0.15) mask |= (1 << LINK_TYPE_IDS.parent) | (1 << LINK_TYPE_IDS.class) | (1 << LINK_TYPE_IDS.extends) | (1 << LINK_TYPE_IDS.alias);
+        // Always show structural links; reveal weaker/secondary types as the user zooms in.
+        let mask = (1 << LINK_TYPE_IDS.parent) | (1 << LINK_TYPE_IDS.class) | (1 << LINK_TYPE_IDS.extends) | (1 << LINK_TYPE_IDS.alias);
         if (z >= 0.40) mask |= (1 << LINK_TYPE_IDS.reference);
         if (z >= 0.80) mask |= (1 << LINK_TYPE_IDS['property-reference']);
         if (z >= 1.20) mask |= (1 << LINK_TYPE_IDS.cooccurrence) | (1 << LINK_TYPE_IDS.temporal);
-        rend.setEdgeMask(mask || 0xFFFFFFFF);
+        rend.setEdgeMask(mask);
       } else {
         rend.setEdgeMask(0xFFFFFFFF);
       }
@@ -899,7 +898,7 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
     const world   = rendRef.current?.screenToWorld(px, py);
     if (!world) return;
 
-    const hitNode = rendRef.current?.pickNode(world.x, world.y, 20 / camRef.current.zoom);
+    const hitNode = rendRef.current?.pickNode(world.x, world.y, 8 / camRef.current.zoom);
 
     const d = dragRef.current;
     d.startPx = px;
@@ -930,7 +929,7 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
     const rend = rendRef.current;
     if (rend) {
       const world  = rend.screenToWorld(px, py);
-      const hit    = rend.pickNode(world.x, world.y, 20 / camRef.current.zoom) ?? -1;
+      const hit    = rend.pickNode(world.x, world.y, 8 / camRef.current.zoom) ?? -1;
       if (hit !== hoveredNodeRef.current) {
         hoveredNodeRef.current = hit;
         rend.setHoveredNode(hit);
@@ -942,31 +941,15 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
           const cssY = (py / (canvas.height / rect.height));
           const name = nodeNamesRef.current.get(hit) ?? '';
           setHoveredNode({ id: hit, name, screenX: cssX, screenY: cssY });
-          setHoveredEdge(null);
-          rend.setHoveredEdge(-1);
         } else {
           setHoveredNode(null);
-          // Check edge hover when no node is hovered
-          const edgeIdx = rend.pickEdge(world.x, world.y, 12 / camRef.current.zoom);
-          if (edgeIdx >= 0) {
-            const e = optsRef.current.edges[edgeIdx];
-            if (e) {
-              const rect = canvas.getBoundingClientRect();
-              const cssX = (px / (canvas.width / rect.width));
-              const cssY = (py / (canvas.height / rect.height));
-              setHoveredEdge({ source: e.source, target: e.target, type: e.type, screenX: cssX, screenY: cssY });
-              hoveredEdgeRef.current = edgeIdx;
-              rend.setHoveredEdge(edgeIdx);
-            }
-          } else {
-            setHoveredEdge(null);
-            hoveredEdgeRef.current = -1;
-            rend.setHoveredEdge(-1);
-          }
         }
+        // Ensure any lingering edge hover state is cleared
+        setHoveredEdge(null);
+        rend.setHoveredEdge(-1);
       }
       if (d.mode === 'none') {
-        canvas.style.cursor = hit >= 0 ? 'pointer' : (hoveredEdgeRef.current >= 0 ? 'pointer' : 'grab');
+        canvas.style.cursor = hit >= 0 ? 'pointer' : 'grab';
       } else if (d.mode === 'node') {
         canvas.style.cursor = 'grabbing';
       } else {
@@ -1032,7 +1015,7 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
     const px   = (e.clientX - rect.left) * (canvas.width  / rect.width);
     const py   = (e.clientY - rect.top)  * (canvas.height / rect.height);
     const world = rend.screenToWorld(px, py);
-    const hit   = rend.pickNode(world.x, world.y, 20 / camRef.current.zoom);
+    const hit   = rend.pickNode(world.x, world.y, 8 / camRef.current.zoom);
     if (hit !== null && hit !== undefined && hit >= 0) {
       optsRef.current.onNodeDblClick?.(hit);
     }
@@ -1050,7 +1033,7 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
     const factor = e.deltaY < 0 ? 1.12 : 1 / 1.12;
     const cam    = camRef.current;
     cam.zoom    *= factor;
-    cam.zoom     = Math.max(0.02, Math.min(cam.zoom, 40));
+    cam.zoom     = Math.min(cam.zoom, 40);
     // Zoom towards cursor
     cam.x       += (world.x - cam.x) * (1 - 1 / factor);
     cam.y       += (world.y - cam.y) * (1 - 1 / factor);
@@ -1103,7 +1086,7 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
     }
     camRef.current.x    = cx;
     camRef.current.y    = cy;
-    camRef.current.zoom = Math.max(0.02, Math.min(zoom, 40));
+    camRef.current.zoom = Math.min(zoom, 40);
     dirtyRef.current.camera = true;
    
   }, []);
@@ -1126,7 +1109,7 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
   const zoomBy = useCallback((factor: number) => {
     const cam = camRef.current;
     cam.zoom *= factor;
-    cam.zoom = Math.max(0.02, Math.min(cam.zoom, 40));
+    cam.zoom = Math.min(cam.zoom, 40);
     dirtyRef.current.camera = true;
   }, []);
 
