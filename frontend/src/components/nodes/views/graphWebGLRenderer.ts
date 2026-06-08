@@ -477,11 +477,17 @@ function hexToTuple(hex: string, alpha = 1): [number, number, number, number] {
 const cssCache: {
   nodeDefault: [number, number, number, number] | null;
   edge: [number, number, number, number] | null;
-} = { nodeDefault: null, edge: null };
+  edgeCooccurrence: [number, number, number, number] | null;
+  edgePath: [number, number, number, number] | null;
+  nodePath: [number, number, number, number] | null;
+} = { nodeDefault: null, edge: null, edgeCooccurrence: null, edgePath: null, nodePath: null };
 
 function invalidateCssCache() {
   cssCache.nodeDefault = null;
   cssCache.edge = null;
+  cssCache.edgeCooccurrence = null;
+  cssCache.edgePath = null;
+  cssCache.nodePath = null;
 }
 
 let themeObserverReady = false;
@@ -509,32 +515,47 @@ function getCssNodeDefaultColor(): [number, number, number, number] {
   return cssCache.nodeDefault;
 }
 
-function getCssEdgeColor(): [number, number, number, number] {
+export function getCssEdgeColor(): [number, number, number, number] {
   if (!cssCache.edge) {
     const val = getComputedStyle(document.documentElement)
       .getPropertyValue('--graph-edge-color').trim();
-    // Handle rgba() syntax
-    if (val && val.startsWith('rgba')) {
-      const m = val.match(/rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)/);
-      if (m) {
-        cssCache.edge = [
-          parseInt(m[1]) / 255,
-          parseInt(m[2]) / 255,
-          parseInt(m[3]) / 255,
-          parseFloat(m[4]),
-        ];
-      } else {
-        cssCache.edge = [0.38, 0.38, 0.38, 1.0];
-      }
-    } else if (val && val.startsWith('#')) {
-      cssCache.edge = hexToTuple(val, 0.45);
+    if (val && val.startsWith('#')) {
+      cssCache.edge = hexToTuple(val, 1.0);
     } else {
-      const fallback = getComputedStyle(document.documentElement)
-        .getPropertyValue('--color-accent').trim();
-      cssCache.edge = fallback ? hexToTuple(fallback, 1.0) : [0.38, 0.38, 0.38, 1.0];
+      cssCache.edge = [0.38, 0.38, 0.38, 1.0];
     }
   }
   return cssCache.edge;
+}
+
+function readCssColor(varName: string, fallback: [number, number, number, number]): [number, number, number, number] {
+  const val = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+  if (val && val.startsWith('#')) {
+    return hexToTuple(val, 1.0);
+  }
+  return fallback;
+}
+
+export function getCssEdgeCooccurrenceColor(): [number, number, number, number] {
+  if (!cssCache.edgeCooccurrence) {
+    cssCache.edgeCooccurrence = readCssColor('--graph-edge-cooccurrence', [0.65, 0.3, 0.9, 1.0]);
+  }
+  return cssCache.edgeCooccurrence;
+}
+
+export function getCssEdgePathColor(): [number, number, number, number] {
+  if (!cssCache.edgePath) {
+    cssCache.edgePath = readCssColor('--graph-edge-path', [0.98, 0.73, 0.14, 0.9]);
+  }
+  return cssCache.edgePath;
+}
+
+export function getCssNodePathColor(): Float32Array {
+  if (!cssCache.nodePath) {
+    const c = readCssColor('--graph-node-path', [0.98, 0.73, 0.14, 1.0]);
+    cssCache.nodePath = c;
+  }
+  return new Float32Array(cssCache.nodePath);
 }
 
 // Unit quad: 6 vertices (2 triangles), each a vec2 in [-0.5, 0.5]
