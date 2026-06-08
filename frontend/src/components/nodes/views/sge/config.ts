@@ -58,8 +58,9 @@ export function buildSGEConfig(user: SGEPhysicsConfig): SGEConfig {
     localRepelStrength: (preset.localRepelStrength ?? 3000) * (user.clustering ? 1.4 : 1.0),
     localRepelRadius: 500,
     radialStrength: 0,
-    // Slider 0–100 → 0 to 0.005. Centroid gravity; 0.0025 is a comfortable default.
-    componentCenterStrength: (user.centralGravity / 100) * 0.005,
+    // Slider 0–100 → 0 to 0.012. Per-node gravity; default 0.006 pulls
+    // isolated nodes inward without compressing the connected core.
+    componentCenterStrength: (user.centralGravity / 100) * 0.012,
     componentSpacing: preset.componentSpacing ?? 800,
     damping: 0.85,
     maxVelocity: 10,
