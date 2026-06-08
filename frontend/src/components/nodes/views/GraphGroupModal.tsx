@@ -9,7 +9,8 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { Modal } from '@/components/core/Modal';
 import { Button } from '@/components/core/Button';
-
+import { ColorButton } from '@/components/core/ColorButton';
+import type { ColorEntry } from '@/components/core/ColorButton';
 import { TextField } from '@/components/core/TextField';
 import { ViewBuilder } from '@/components/queries';
 import type { QueryAST } from '@/types/queryAST';
@@ -38,15 +39,15 @@ interface GraphGroupModalProps {
   classes: Node[];
 }
 
-const PRESET_COLORS = [
-  '#c55a55', // red
-  '#c98557', // orange
-  '#b8a23a', // yellow
-  '#4f8f6a', // green
-  '#4a8a83', // teal
-  '#5a79c9', // blue
-  '#8a6cc9', // purple
-  '#c06a9a', // pink
+const COLOR_ENTRIES: ColorEntry[] = [
+  { cssVar: '#c55a55', label: 'Red' },
+  { cssVar: '#c98557', label: 'Orange' },
+  { cssVar: '#b8a23a', label: 'Yellow' },
+  { cssVar: '#4f8f6a', label: 'Green' },
+  { cssVar: '#4a8a83', label: 'Teal' },
+  { cssVar: '#5a79c9', label: 'Blue' },
+  { cssVar: '#8a6cc9', label: 'Purple' },
+  { cssVar: '#c06a9a', label: 'Pink' },
 ];
 
 // ==================== Component ====================
@@ -64,14 +65,14 @@ export function GraphGroupModal({
 
   const [name, setName] = useState('');
   const [query, setQuery] = useState<QueryAST>(createEmptyQueryAST());
-  const [color, setColor] = useState(PRESET_COLORS[0]);
+  const [color, setColor] = useState(COLOR_ENTRIES[0].cssVar);
 
   // Reset state when opening for a new group; load existing data when editing
   useEffect(() => {
     if (isOpen) {
       setName(initialGroup?.name ?? '');
       setQuery(initialGroup?.query ?? createEmptyQueryAST());
-      setColor(initialGroup?.color ?? PRESET_COLORS[0]);
+      setColor(initialGroup?.color ?? COLOR_ENTRIES[0].cssVar);
     }
   }, [isOpen, initialGroup]);
 
@@ -151,17 +152,16 @@ export function GraphGroupModal({
         <div className="graph-group-modal__color-row">
           <span className="graph-group-modal__label">Color</span>
           <div className="graph-group-modal__color-palette">
-            {PRESET_COLORS.map(c => (
-              <button
-                key={c}
-                className={`graph-group-modal__color-swatch ${color === c ? 'active' : ''}`}
-                style={{ backgroundColor: c }}
-                onClick={() => setColor(c)}
-                type="button"
-                title={c}
+            {COLOR_ENTRIES.map(({ cssVar, label }) => (
+              <ColorButton
+                key={cssVar}
+                color={cssVar}
+                size="xs"
+                active={color === cssVar}
+                onClick={() => setColor(cssVar)}
+                title={label}
               />
             ))}
-
           </div>
         </div>
 

@@ -257,16 +257,7 @@
   background: var(--color-hover-overlay);
 }
 
-.graph-group-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  flex-shrink: 0;
-  border: 1px solid var(--graph-btn-border);
-}
-
 .graph-group-name {
-  flex: 1;
   font-size: 12px;
   font-weight: 500;
   color: var(--color-on-surface);
@@ -275,16 +266,18 @@
   white-space: nowrap;
 }
 
-.graph-group-actions {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-1);
-  opacity: 0.6;
-  transition: opacity var(--motion-duration-short);
+.graph-group-item .list-sortable__actions {
+  opacity: 1;
 }
 
-.graph-group-item:hover .graph-group-actions {
-  opacity: 1;
+.graph-group-item .color-btn {
+  width: 18px;
+  height: 18px;
+}
+
+.graph-group-item .list-sortable__text {
+  display: flex;
+  align-items: center;
 }
 
 .graph-add-group-btn {

@@ -102,7 +102,7 @@ export function buildEvalContext(
   const transitiveParentMap = buildTransitiveClosure(parentMap);
   const transitiveChildMap = buildTransitiveClosure(childMap);
 
-  const classDescendants = buildClassDescendants(classes);
+  const classDescendants = buildClassDescendants(classes, links);
 
   return {
     allNodes: nodes,
@@ -229,7 +229,16 @@ function evaluateClassCondition(
 
   if (!targetId) return false;
 
-  const hasClass = nodeClassIds.includes(targetId);
+  // Direct class membership
+  const hasDirectClass = nodeClassIds.includes(targetId);
+
+  // Inherited class membership: check if any of the node's classes extend the target
+  const descendants = ctx.classDescendants.get(targetId);
+  const hasDescendantClass = descendants
+    ? nodeClassIds.some(cid => descendants.has(cid))
+    : false;
+
+  const hasClass = hasDirectClass || hasDescendantClass;
 
   switch (op) {
     case 'is':
@@ -752,22 +761,46 @@ function buildTransitiveClosure(directMap: Map<number, number[]>): Map<number, S
 
 // ==================== Helper: Class Descendants ====================
 
-function buildClassDescendants(classes: Node[]): Map<number, Set<number>> {
+function buildClassDescendants(classes: Node[], links: GraphLink[]): Map<number, Set<number>> {
   const descendants = new Map<number, Set<number>>();
 
-  // Initialize empty sets
+  // Collect all class IDs involved in the hierarchy
+  const allClassIds = new Set<number>();
   for (const cls of classes) {
-    descendants.set(cls.id, new Set());
+    allClassIds.add(cls.id);
+  }
+  for (const link of links) {
+    if (link.type === 'extends') {
+      allClassIds.add(link.source);
+      allClassIds.add(link.target);
+    }
+  }
+
+  // Initialize empty sets
+  for (const id of allClassIds) {
+    descendants.set(id, new Set());
   }
 
   // Build direct parent -> child relationships
-  // A class extends another if its class_ids contains the parent class ID
   const children = new Map<number, number[]>();
+
+  // From class nodes' own classes (if available)
   for (const cls of classes) {
     for (const parentId of cls.classes ?? []) {
       const siblings = children.get(parentId) ?? [];
       siblings.push(cls.id);
       children.set(parentId, siblings);
+    }
+  }
+
+  // From extends links (source is child, target is parent)
+  for (const link of links) {
+    if (link.type === 'extends') {
+      const siblings = children.get(link.target) ?? [];
+      if (!siblings.includes(link.source)) {
+        siblings.push(link.source);
+      }
+      children.set(link.target, siblings);
     }
   }
 
