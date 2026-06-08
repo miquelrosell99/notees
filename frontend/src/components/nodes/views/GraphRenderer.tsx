@@ -21,7 +21,7 @@
 
 import { useRef, useCallback, useEffect, memo, forwardRef, useImperativeHandle } from 'react';
 import { useGraphRenderer, type GraphRendererOptions } from './useGraphRenderer';
-import type { D3PhysicsConfig } from './graphD3Physics';
+import type { SGEPhysicsConfig } from './sge';
 import type { GraphNode, GraphLink } from './viewTypes';
 import './GraphRenderer.css';
 
@@ -41,7 +41,7 @@ export interface GraphRendererRef {
   /** Clear the current node selection. */
   clearSelection: () => void;
   /** Live-update SGE config without recreating the worker. */
-  setConfig: (cfg: D3PhysicsConfig) => void;
+  setConfig: (cfg: SGEPhysicsConfig) => void;
 }
 
 // ─── Props ────────────────────────────────────────────────────────────────────
@@ -52,7 +52,7 @@ export interface GraphRendererProps {
   /** Graph edges. */
   edges: GraphLink[];
   /** Semantic physics config — translated to raw constants by the worker. */
-  config?: D3PhysicsConfig;
+  config?: SGEPhysicsConfig;
   /** Scale node size by connection count. Default: true */
   sizeByConnections?: boolean;
   /** Base node radius in world units (used when sizeByConnections=false or as the minimum). Default: 7 */
