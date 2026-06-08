@@ -658,8 +658,8 @@ const PHYSICS_PRESETS: Record<SGEUserConfig['preset'], Partial<SGEConfig>> = {
     springStrength: 0.018,
     idealDistance: 130,
     componentCenterStrength: 0.0010,
-    clusterRepelStrength: 3200,
-    localRepelStrength: 4200,
+    clusterRepelStrength: 2700,
+    localRepelStrength: 3600,
     clusterSpacing: 450,
     componentSpacing: 1000,
   },
@@ -667,8 +667,8 @@ const PHYSICS_PRESETS: Record<SGEUserConfig['preset'], Partial<SGEConfig>> = {
     springStrength: 0.025,
     idealDistance: 100,
     componentCenterStrength: 0.0012,
-    clusterRepelStrength: 2400,
-    localRepelStrength: 3500,
+    clusterRepelStrength: 2000,
+    localRepelStrength: 3000,
     clusterSpacing: 350,
     componentSpacing: 800,
   },
@@ -676,8 +676,8 @@ const PHYSICS_PRESETS: Record<SGEUserConfig['preset'], Partial<SGEConfig>> = {
     springStrength: 0.040,
     idealDistance: 70,
     componentCenterStrength: 0.0024,
-    clusterRepelStrength: 1280,
-    localRepelStrength: 1680,
+    clusterRepelStrength: 1100,
+    localRepelStrength: 1400,
     clusterSpacing: 200,
     componentSpacing: 500,
   },
@@ -685,8 +685,8 @@ const PHYSICS_PRESETS: Record<SGEUserConfig['preset'], Partial<SGEConfig>> = {
     springStrength: 0.022,
     idealDistance: 110,
     componentCenterStrength: 0.0010,
-    clusterRepelStrength: 4000,
-    localRepelStrength: 5000,
+    clusterRepelStrength: 3400,
+    localRepelStrength: 4200,
     clusterSpacing: 400,
     componentSpacing: 900,
   },
@@ -702,9 +702,9 @@ export function buildSGEConfig(user: SGEUserConfig): SGEConfig {
   const clusterMult = user.strongClustering ? 1.8 : 1.0;
   return {
     seed: 42,
-    springStrength: isConstrained ? 0.15 : user.linkCountAttraction
-      ? (preset.springStrength ?? 0.025) * 1.8
-      : (preset.springStrength ?? 0.025),
+    springStrength: isConstrained ? 0.12 : user.linkCountAttraction
+      ? (preset.springStrength ?? 0.020) * 1.8
+      : (preset.springStrength ?? 0.020),
     idealDistance: isConstrained ? 90 : (preset.idealDistance ?? 100),
     clusterStrength: (isConstrained ? 0.008 : user.heightMode === 'hierarchy' ? 0.006 : 0.003) * clusterMult,
     clusterRepelStrength: (preset.clusterRepelStrength ?? 1500) * clusterMult,
@@ -717,9 +717,9 @@ export function buildSGEConfig(user: SGEUserConfig): SGEConfig {
       : 0,
     componentSpacing: preset.componentSpacing ?? 800,
     damping: isConstrained ? 0.78 : 0.85,
-    maxVelocity: isConstrained ? 8 : 15,
-    friction: 0.94,
-    dt: 0.6,
+    maxVelocity: isConstrained ? 5 : 10,
+    friction: 0.92,
+    dt: 0.5,
     bhTheta: 1.0,
     linkCountAttraction: user.linkCountAttraction,
   };
@@ -808,8 +808,6 @@ export class SemanticGraphEngine {
   private prevDt:  number;
   private oscillationCounter = 0;
   private prevEnergy = Infinity;
-  private dragMode = false;
-
   constructor(
     inputNodes: Array<{ id: number; x?: number; y?: number }>,
     inputEdges: SGEEdge[],
@@ -1117,12 +1115,11 @@ export class SemanticGraphEngine {
     const activeCount = this.activeCount;
     // ax/ay are already zeroed — cleared at the tail of the previous integrate().
 
-    const dragScale = this.dragMode ? 0.15 : 1.0;
     this.updateClusterData();
     const clCx = this.clCx, clCy = this.clCy, clCC = this.clCount;
 
     // ─ A) Intra-cluster cohesion (shell model) ─────────────────────────────────
-    const clusterStr = cfg.clusterStrength * dragScale;
+    const clusterStr = cfg.clusterStrength;
     const idealDist  = cfg.idealDistance;
     for (let i = 0; i < N; i++) {
       if (pin[i]) continue;
@@ -1142,7 +1139,7 @@ export class SemanticGraphEngine {
     // Cap N scaling so cluster repulsion doesn't explode on large graphs.
     // sqrt(10000) = 100 would give repelStr = 150,000 — far too strong.
     const nScale   = N > 1 ? Math.min(Math.sqrt(N), 20) : 1;
-    const repelStr = cfg.clusterRepelStrength * nScale * dragScale;
+    const repelStr = cfg.clusterRepelStrength * nScale;
 
     if (bigK > 0) {
       for (let i = 0; i < bigK; i++) { const c = bigIds[i]; clFx[c] = 0; clFy[c] = 0; }
@@ -1222,7 +1219,7 @@ export class SemanticGraphEngine {
     }
 
     // ─ E) Radial stability ───────────────────────────────────────────────────── 
-    const radialStr = cfg.radialStrength * dragScale;
+    const radialStr = cfg.radialStrength;
     if (radialStr > 0) {
       for (let k = 0; k < activeCount; k++) {
         const i = activeIdx[k];
@@ -1252,7 +1249,7 @@ export class SemanticGraphEngine {
       for (let c = 0; c < C; c++) { if (cc[c] > 0) { cx[c] /= cc[c]; cy[c] /= cc[c]; } }
 
       // 2) pairwise repulsion between component centroids
-      const compRepelStr = 2500 * dragScale;
+      const compRepelStr = 2500;
       const compRepelRadius = 600;
       const cfx = new Float32Array(C), cfy = new Float32Array(C);
       for (let a = 0; a < C; a++) {
@@ -1299,7 +1296,7 @@ export class SemanticGraphEngine {
     // an outer rim (targetR).  Once beyond targetR they feel no gravity,
     // so they float freely in the periphery, kept in check only by local
     // repulsion and component repulsion from other clusters.
-    const centerStr = cfg.componentCenterStrength * dragScale;
+    const centerStr = cfg.componentCenterStrength;
     if (centerStr > 0) {
       const targetR = cfg.idealDistance * 8; // ~640
       const eps = 0.001;
@@ -1595,16 +1592,6 @@ export class SemanticGraphEngine {
   }
 
   // ─── Simulation control ───────────────────────────────────────────────────────
-
-  /** Enter drag mode: suppress global forces so only local springs/repulsion react. */
-  startDrag(): void {
-    this.dragMode = true;
-  }
-
-  /** Exit drag mode: restore global forces. */
-  endDrag(): void {
-    this.dragMode = false;
-  }
 
   getEnergy(): number { return this.energy; }
 
