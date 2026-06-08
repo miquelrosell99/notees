@@ -6,10 +6,10 @@
  * Scope is always locked to 'pages'.
  */
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { Modal } from '@/components/core/Modal';
 import { Button } from '@/components/core/Button';
-import { ColorButton } from '@/components/core/ColorButton';
+
 import { TextField } from '@/components/core/TextField';
 import { ViewBuilder } from '@/components/queries';
 import type { QueryAST } from '@/types/queryAST';
@@ -19,6 +19,7 @@ import type { GraphColorGroup } from './viewTypes';
 import type { GraphNode as ApiGraphNode, GraphLink } from '@/api/nodes';
 import type { Node } from '@/types';
 import { evaluateQueryAST, buildEvalContext } from './evaluateQueryAST';
+import type { Node as ApiNode } from '@/types/api';
 import './GraphGroupModal.css';
 
 // ==================== Types ====================
@@ -61,9 +62,18 @@ export function GraphGroupModal({
 }: GraphGroupModalProps) {
   const isEditing = !!initialGroup;
 
-  const [name, setName] = useState(initialGroup?.name ?? '');
-  const [query, setQuery] = useState<QueryAST>(initialGroup?.query ?? createEmptyQueryAST());
-  const [color, setColor] = useState(initialGroup?.color ?? PRESET_COLORS[0]);
+  const [name, setName] = useState('');
+  const [query, setQuery] = useState<QueryAST>(createEmptyQueryAST());
+  const [color, setColor] = useState(PRESET_COLORS[0]);
+
+  // Reset state when opening for a new group; load existing data when editing
+  useEffect(() => {
+    if (isOpen) {
+      setName(initialGroup?.name ?? '');
+      setQuery(initialGroup?.query ?? createEmptyQueryAST());
+      setColor(initialGroup?.color ?? PRESET_COLORS[0]);
+    }
+  }, [isOpen, initialGroup]);
 
   // Live match count
   const matchCount = useMemo(() => {
@@ -76,13 +86,24 @@ export function GraphGroupModal({
     }
   }, [query, nodes, links, classes]);
 
+  const nodesMap = useMemo(() => {
+    const map = new Map<string, ApiNode>();
+    for (const n of nodes) {
+      map.set(n.uuid, n as ApiNode);
+    }
+    for (const c of classes) {
+      map.set(c.uuid, c as ApiNode);
+    }
+    return map;
+  }, [nodes, classes]);
+
   const proseSummary = useMemo(() => {
     try {
-      return getQueryIntent(query);
+      return getQueryIntent(query, nodesMap);
     } catch {
       return 'Invalid query';
     }
-  }, [query]);
+  }, [query, nodesMap]);
 
   const handleSave = useCallback(() => {
     if (!name.trim()) return;
@@ -140,12 +161,7 @@ export function GraphGroupModal({
                 title={c}
               />
             ))}
-            <ColorButton
-              color={color}
-              size="sm"
-              showPicker
-              onColorChange={(c) => c && setColor(c)}
-            />
+
           </div>
         </div>
 

@@ -29,6 +29,7 @@ import type {
   ClassPathCondition,
 } from '@/types/queryAST';
 import type { Node } from '@/types/api';
+import { nodeNameToText } from '@/hooks/useStringifyAST';
 
 // ==================== Types ====================
 
@@ -371,8 +372,9 @@ function formatNodeReference(uuid: string, nodesMap?: Map<string, Node>): string
     return `"${uuid}"`;
   }
 
+  const displayName = nodeNameToText(node.name) || node.name || 'Untitled';
   // Return markdown link format with quotes: "[node name](uuid)"
-  return `"[${node.name}](${uuid})"`;
+  return `"[${displayName}](${uuid})"`;
 }
 
 // ==================== Capabilities ====================
