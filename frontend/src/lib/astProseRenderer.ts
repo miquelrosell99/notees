@@ -373,8 +373,7 @@ function formatNodeReference(uuid: string, nodesMap?: Map<string, Node>): string
   }
 
   const displayName = nodeNameToText(node.name) || node.name || 'Untitled';
-  // Return markdown link format with quotes: "[node name](uuid)"
-  return `"[${displayName}](${uuid})"`;
+  return `"${displayName}"`;
 }
 
 // ==================== Capabilities ====================
