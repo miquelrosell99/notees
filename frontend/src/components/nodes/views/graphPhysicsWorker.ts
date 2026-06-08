@@ -417,7 +417,6 @@ self.onmessage = (e: MessageEvent<MainToPhysicsMessage>): void => {
       if (!engine) break;
       engine.pinNode(msg.nodeId);
       pinnedWorkerSet.add(msg.nodeId);
-      engine.startDrag();
       startLoop();
       break;
     }
@@ -437,7 +436,6 @@ self.onmessage = (e: MessageEvent<MainToPhysicsMessage>): void => {
       if (!engine) break;
       engine.unpinNode(msg.nodeId);
       pinnedWorkerSet.delete(msg.nodeId);
-      engine.endDrag();
       startLoop();
       break;
     }
