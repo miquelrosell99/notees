@@ -6,6 +6,8 @@
   display: flex;
   flex-direction: column;
   height: 100%;
+  max-width: none;
+  padding: 0;
 }
 
 .pages-view__header {
@@ -66,19 +68,16 @@
   height: 100%;
 }
 
-/* Immersive view modes (graph / timeline): remove side padding and let the view fill the canvas */
-.pages-view.pages-view--graph,
-.pages-view.pages-view--timeline {
-  max-width: none;
-  padding: 0;
-  height: 100%;
-}
-
-/* Header in immersive modes: generous padding so controls don't hug the edge */
-.pages-view--graph .page-header-section,
-.pages-view--timeline .page-header-section {
+/* Header: generous padding so controls don't hug the edge */
+.pages-view .page-header-section {
   padding: var(--spacing-2) var(--spacing-6);
   margin-bottom: 0;
+}
+
+/* Search aligns with header padding */
+.pages-view__search {
+  padding: 0 var(--spacing-6);
+  margin-bottom: var(--spacing-3);
 }
 
 /* Prevent toolbar from expanding and pushing the button against the edge */
@@ -92,22 +91,21 @@
   overflow: visible;
 }
 
-.pages-view--graph .pages-view__content,
-.pages-view--timeline .pages-view__content {
+.pages-view .pages-view__content {
   padding: 0;
 }
 
 @media (max-width: 768px) {
-  .pages-view--graph .page-header-section,
-  .pages-view--timeline .page-header-section {
+  .pages-view .page-header-section,
+  .pages-view__search {
     padding-left: var(--spacing-4);
     padding-right: var(--spacing-4);
   }
 }
 
 @media (max-width: 480px) {
-  .pages-view--graph .page-header-section,
-  .pages-view--timeline .page-header-section {
+  .pages-view .page-header-section,
+  .pages-view__search {
     padding-left: var(--spacing-3);
     padding-right: var(--spacing-3);
   }

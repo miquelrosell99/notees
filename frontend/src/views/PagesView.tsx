@@ -24,12 +24,16 @@ const AVAILABLE_VIEW_MODES: NodeCollectionViewMode[] = [
   'timeline',
 ];
 
-export function PagesView() {
+interface PagesViewProps {
+  initialViewMode?: NodeCollectionViewMode;
+}
+
+export function PagesView({ initialViewMode }: PagesViewProps) {
   const { openNode } = useNavigationStore();
   const { setCommandPaletteOpen } = useModalStore();
   const { handleContentChange: saveContent } = useContentSave();
 
-  const [viewMode, setViewMode] = useState<NodeCollectionViewMode>('list');
+  const [viewMode, setViewMode] = useState<NodeCollectionViewMode>(initialViewMode ?? 'list');
 
   const handleViewModeChange = useCallback((mode: NodeCollectionViewMode) => {
     setViewMode(mode);
@@ -142,3 +146,4 @@ export function PagesView() {
 }
 
 export default PagesView;
+

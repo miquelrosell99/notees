@@ -114,6 +114,23 @@ export function JournalsView({ className = '' }: JournalsViewProps) {
   
   return (
     <div className={`journals-view ${className}`}>
+      {/* Page Header */}
+      <div className="page-header-section">
+        <div className="page-header-section__header">
+          <div className="page-header journals-view__header">
+            <h1 className="page-header__title">Journals</h1>
+            <Button
+              variant="primary"
+              size="sm"
+              icon="mdi mdi-notebook-edit-outline"
+              onClick={handleOpenToday}
+            >
+              Open today&apos;s note
+            </Button>
+          </div>
+        </div>
+      </div>
+
       <div className="journals-list">
         {visiblePages && visiblePages.length > 0 ? (
           <>
