@@ -219,11 +219,6 @@ void main() {
     if (mod(pos, period) > onLen) discard;
   }
 
-  // Double line for parent links
-  if (abs(v_linkType - 0.0) < 0.5) {
-    if (abs(v_localX) < 0.15) discard;
-  }
-
   // Gradient color from source to target
   vec4 color = mix(v_colorSrc, v_colorTgt, v_t);
 
@@ -358,7 +353,7 @@ void main() {
 
   // Offset to just outside the target node radius (accounting for min-size clamp)
   float effTargetRadius = max(a_targetRadius, u_minRadiusPx / (2.0 * u_zoom));
-  float offset = effTargetRadius + a_size * 0.3;
+  float offset = effTargetRadius + a_size * 0.15;
   vec2 world = p2 - n * offset + rotated;
 
   vec2 screen = (world - u_camera) * u_zoom;
@@ -420,9 +415,9 @@ const ARROW_STRIDE = 8; // i1, i2, targetRadius, size, r, g, b, a
 
 // Triangle geometry for arrowheads
 const ARROW_VERTS = new Float32Array([
-  0.0,  0.5,   // tip
- -0.5, -0.5,   // bottom left
-  0.5, -0.5,   // bottom right
+  0.0,  0.55,   // tip (slightly longer)
+ -0.3, -0.45,   // bottom left (narrower)
+  0.3, -0.45,   // bottom right (narrower)
 ]);
 
 // ─── WebGL Helpers ────────────────────────────────────────────────────────────
@@ -522,7 +517,7 @@ export function getCssEdgeColor(): [number, number, number, number] {
     if (val && val.startsWith('#')) {
       cssCache.edge = hexToTuple(val, 1.0);
     } else {
-      cssCache.edge = [0.38, 0.38, 0.38, 1.0];
+      cssCache.edge = [0.38, 0.38, 0.38, 0.6];
     }
   }
   return cssCache.edge;
@@ -741,7 +736,7 @@ export class GraphWebGLRenderer {
     this.opts = {
       defaultRadius: opts.defaultRadius ?? 8,
       edgeWidth: opts.edgeWidth ?? 0.8,
-      arrowSize: opts.arrowSize ?? 3.5,
+      arrowSize: opts.arrowSize ?? 2.2,
       glowRadiusMult: opts.glowRadiusMult ?? 4.5,
       minNodeRadiusPx: opts.minNodeRadiusPx ?? MIN_NODE_SCREEN_RADIUS_PX,
       cullMargin: opts.cullMargin ?? 150,
