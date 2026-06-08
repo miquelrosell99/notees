@@ -37,15 +37,21 @@ export function RouterSync({ children }: RouterSyncProps) {
     mainViewType: MainViewType;
     currentNodeId: number | null;
     currentPropertyId: number | null;
+    secondaryTabId: string | null;
+    splitOrientation: string | null;
   } | null>(null);
   
   const { 
     mainViewType, 
     currentNodeId,
     currentPropertyId,
+    tabs,
+    secondaryTabId,
+    splitOrientation,
     setMainViewType,
     openNode,
     openPropertyView,
+    openNodeInNewTab,
   } = useNavigationStore();
   
   const queryClient = useQueryClient();
@@ -196,7 +202,7 @@ export function RouterSync({ children }: RouterSyncProps) {
     }
     
     const currentPath = window.location.pathname;
-    const route = parseUrl(currentPath);
+    const route = parseUrl(currentPath, window.location.search);
     
     // Handle special views immediately (with workspace UUID) - they don't need database data
     if (route.type === 'special-view' && route.viewType && route.workspaceUuid) {
@@ -212,6 +218,12 @@ export function RouterSync({ children }: RouterSyncProps) {
       return;
     }
     
+    // Handle split params on initial load
+    if (route.splitUuid && route.splitOrientation) {
+      // We'll resolve the split after the primary route is processed
+      // Store it in a ref for the next effect
+    }
+    
     // Node/property/workspace-home routes will be handled by the db-dependent effect below
   }, [setMainViewType]);
   
@@ -222,7 +234,7 @@ export function RouterSync({ children }: RouterSyncProps) {
     if (hasInitialized.current || isLoadingDbs || !dbData) return;
     
     const currentPath = window.location.pathname;
-    const route = parseUrl(currentPath);
+    const route = parseUrl(currentPath, window.location.search);
     
     log.info('Processing URL', { path: currentPath, route });
     hasInitialized.current = true;
@@ -248,8 +260,32 @@ export function RouterSync({ children }: RouterSyncProps) {
     }
     
     // Process the route (handles workspace switching, node loading, etc.)
-    processRoute(route);
-  }, [dbData, isLoadingDbs, processRoute, setMainViewType]);
+    processRoute(route).then(() => {
+      // After primary route is processed, handle split if present
+      if (route.splitUuid && route.splitOrientation) {
+        const resolveSplit = async () => {
+          try {
+            const node = await getNodeByUuid(route.splitUuid!);
+            // Open the split node in a new tab, then activate the original tab
+            openNodeInNewTab(node.id);
+            // Activate the first tab (primary) and set this new tab as secondary
+            const state = useNavigationStore.getState();
+            const newTab = state.tabs[state.tabs.length - 1];
+            if (newTab) {
+              useNavigationStore.setState({
+                activeTabId: state.tabs[0]?.id ?? newTab.id,
+                secondaryTabId: newTab.id,
+                splitOrientation: route.splitOrientation!,
+              });
+            }
+          } catch {
+            log.warn('Split UUID not found, ignoring split', { uuid: route.splitUuid });
+          }
+        };
+        resolveSplit();
+      }
+    });
+  }, [dbData, isLoadingDbs, processRoute, setMainViewType, openNodeInNewTab]);
   
   /**
    * Update URL when navigation state changes
@@ -267,15 +303,40 @@ export function RouterSync({ children }: RouterSyncProps) {
     const stateChanged = !prevState || 
       prevState.mainViewType !== mainViewType ||
       prevState.currentNodeId !== currentNodeId ||
-      prevState.currentPropertyId !== currentPropertyId;
+      prevState.currentPropertyId !== currentPropertyId ||
+      prevState.secondaryTabId !== secondaryTabId ||
+      prevState.splitOrientation !== (splitOrientation ?? null);
     
     if (!stateChanged) return;
     
     // Update ref
-    prevStateRef.current = { mainViewType, currentNodeId, currentPropertyId };
+    prevStateRef.current = { mainViewType, currentNodeId, currentPropertyId, secondaryTabId: secondaryTabId ?? null, splitOrientation: splitOrientation ?? null };
     
     // Build and push URL
     const updateUrlAsync = async () => {
+      // Resolve secondary tab UUID for split URLs
+      let splitUuid: string | undefined;
+      const splitOrient = splitOrientation;
+      const secondaryTab = tabs.find((t) => t.id === secondaryTabId);
+      if (secondaryTab && splitOrient) {
+        if (secondaryTab.nodeId) {
+          try {
+            const node = await getNode(secondaryTab.nodeId);
+            splitUuid = node.uuid;
+          } catch {
+            // ignore
+          }
+        } else if (secondaryTab.propertyId) {
+          try {
+            const { getProperty } = await import('@/api/properties');
+            const property = await getProperty(secondaryTab.propertyId);
+            splitUuid = property.uuid;
+          } catch {
+            // ignore
+          }
+        }
+      }
+      
       // Property view
       if (mainViewType === 'property' && currentPropertyId) {
         try {
@@ -285,6 +346,8 @@ export function RouterSync({ children }: RouterSyncProps) {
             viewType: 'property',
             nodeUuid: null,
             propertyUuid: property.uuid,
+            splitUuid,
+            splitOrientation: splitOrient,
           });
         } catch (err) {
           log.error('Failed to get property UUID for URL', err);
@@ -298,6 +361,8 @@ export function RouterSync({ children }: RouterSyncProps) {
           viewType: mainViewType, 
           nodeUuid: null,
           propertyUuid: null,
+          splitUuid,
+          splitOrientation: splitOrient,
         });
         return;
       }
@@ -310,6 +375,8 @@ export function RouterSync({ children }: RouterSyncProps) {
             viewType: 'node',
             nodeUuid: node.uuid,
             propertyUuid: null,
+            splitUuid,
+            splitOrientation: splitOrient,
           });
         } catch (err) {
           log.error('Failed to get node UUID for URL', err);
@@ -320,6 +387,8 @@ export function RouterSync({ children }: RouterSyncProps) {
           viewType: 'node', 
           nodeUuid: null,
           propertyUuid: null,
+          splitUuid,
+          splitOrientation: splitOrient,
         });
       }
     };
@@ -334,8 +403,8 @@ export function RouterSync({ children }: RouterSyncProps) {
     const handlePopState = (event: PopStateEvent) => {
       const navIndex = event.state?.navIndex ?? 0;
       useNavigationHistoryStore.getState().handlePopState(navIndex);
-      const route = parseUrl(window.location.pathname);
-      log.debug('Popstate event', { path: window.location.pathname, route, navIndex });
+      const route = parseUrl(window.location.pathname, window.location.search);
+      log.debug('Popstate event', { path: window.location.pathname, search: window.location.search, route, navIndex });
       processRoute(route);
     };
     

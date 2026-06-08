@@ -77,17 +77,31 @@ export interface ParsedRoute {
   /** UUID of a node or property — resolved at navigation time */
   entityUuid?: string;
   workspaceUuid?: string;
+  /** Split pane UUID (from ?h= or ?v= query params) */
+  splitUuid?: string;
+  /** Split orientation derived from query param key */
+  splitOrientation?: 'horizontal' | 'vertical';
+}
+
+function parseSplitParams(search: string): { splitUuid?: string; splitOrientation?: 'horizontal' | 'vertical' } {
+  const params = new URLSearchParams(search);
+  const h = params.get('h');
+  if (h && isUuid(h)) return { splitUuid: h, splitOrientation: 'horizontal' };
+  const v = params.get('v');
+  if (v && isUuid(v)) return { splitUuid: v, splitOrientation: 'vertical' };
+  return {};
 }
 
 /**
  * Parse URL pathname into route information
  */
-export function parseUrl(pathname: string): ParsedRoute {
+export function parseUrl(pathname: string, search = ''): ParsedRoute {
   // Remove leading slash and split
   const parts = pathname.replace(/^\//, '').split('/').filter(Boolean);
+  const splitInfo = parseSplitParams(search);
   
   if (parts.length === 0) {
-    return { type: 'home' };
+    return { type: 'home', ...splitInfo };
   }
   
   // Auth is always at root level (no workspace prefix)
@@ -102,6 +116,7 @@ export function parseUrl(pathname: string): ParsedRoute {
     return { 
       type: 'special-view', 
       viewType: SPECIAL_VIEWS[firstPart] as MainViewType,
+      ...splitInfo,
     };
   }
   
@@ -114,6 +129,7 @@ export function parseUrl(pathname: string): ParsedRoute {
     return {
       type: 'home',
       workspaceUuid: parts[0],
+      ...splitInfo,
     };
   }
   
@@ -123,7 +139,7 @@ export function parseUrl(pathname: string): ParsedRoute {
     
     // /{workspace_uuid} only -> workspace home
     if (parts.length === 1) {
-      return { type: 'home', workspaceUuid };
+      return { type: 'home', workspaceUuid, ...splitInfo };
     }
     
     const secondPart = parts[1].toLowerCase();
@@ -134,6 +150,7 @@ export function parseUrl(pathname: string): ParsedRoute {
         type: 'special-view',
         viewType: SPECIAL_VIEWS[secondPart] as MainViewType,
         workspaceUuid,
+        ...splitInfo,
       };
     }
     
@@ -143,6 +160,7 @@ export function parseUrl(pathname: string): ParsedRoute {
         type: 'entity',
         entityUuid: parts[1],
         workspaceUuid,
+        ...splitInfo,
       };
     }
     
@@ -152,6 +170,7 @@ export function parseUrl(pathname: string): ParsedRoute {
         type: 'entity',
         entityUuid: parts[2],
         workspaceUuid,
+        ...splitInfo,
       };
     }
   }
@@ -161,12 +180,13 @@ export function parseUrl(pathname: string): ParsedRoute {
     return {
       type: 'entity',
       entityUuid: parts[1],
+      ...splitInfo,
     };
   }
   
   // Unknown path - go home
   log.warn('Invalid URL path, navigating to home', { pathname });
-  return { type: 'home' };
+  return { type: 'home', ...splitInfo };
 }
 
 /**
@@ -177,8 +197,10 @@ export function buildUrl(params: {
   nodeUuid?: string | null;
   propertyUuid?: string | null;
   workspaceUuid?: string | null;
+  splitUuid?: string | null;
+  splitOrientation?: 'horizontal' | 'vertical' | null;
 }): string {
-  const { viewType, nodeUuid, propertyUuid, workspaceUuid } = params;
+  const { viewType, nodeUuid, propertyUuid, workspaceUuid, splitUuid, splitOrientation } = params;
   
   // Without workspace UUID, fall back to root
   if (!workspaceUuid) {
@@ -186,25 +208,29 @@ export function buildUrl(params: {
   }
   
   const base = `/${workspaceUuid}`;
+  let path: string;
   
   // Property view with UUID — same format as node: /{ws}/{uuid}
   if (viewType === 'property' && propertyUuid) {
-    return `${base}/${propertyUuid}`;
+    path = `${base}/${propertyUuid}`;
+  } else if (viewType === 'node' && nodeUuid) {
+    // Node view with UUID
+    path = `${base}/${nodeUuid}`;
+  } else if (VIEW_TO_PATH[viewType]) {
+    // Special view
+    path = `${base}/${VIEW_TO_PATH[viewType]}`;
+  } else {
+    // Workspace home
+    path = `${base}`;
   }
   
-  // Node view with UUID
-  if (viewType === 'node' && nodeUuid) {
-    return `${base}/${nodeUuid}`;
+  // Append split query param
+  if (splitUuid && splitOrientation) {
+    const param = splitOrientation === 'horizontal' ? 'h' : 'v';
+    path += `?${param}=${splitUuid}`;
   }
   
-  // Special view
-  const viewPath = VIEW_TO_PATH[viewType];
-  if (viewPath) {
-    return `${base}/${viewPath}`;
-  }
-  
-  // Workspace home
-  return `${base}`;
+  return path;
 }
 
 /**
@@ -233,13 +259,15 @@ export function pushUrl(params: {
   nodeUuid?: string | null;
   propertyUuid?: string | null;
   workspaceUuid?: string | null;
+  splitUuid?: string | null;
+  splitOrientation?: 'horizontal' | 'vertical' | null;
 }) {
   const wsUuid = params.workspaceUuid ?? getActiveWorkspaceUuid();
   const url = buildUrl({ ...params, workspaceUuid: wsUuid });
-  const currentPath = window.location.pathname;
+  const currentUrl = window.location.pathname + window.location.search;
   
-  if (url !== currentPath) {
-    log.debug('Pushing URL', { from: currentPath, to: url });
+  if (url !== currentUrl) {
+    log.debug('Pushing URL', { from: currentUrl, to: url });
     const newIndex = useNavigationHistoryStore.getState().push();
     window.history.pushState({ navIndex: newIndex }, '', url);
   }
@@ -253,13 +281,15 @@ export function replaceUrl(params: {
   nodeUuid?: string | null;
   propertyUuid?: string | null;
   workspaceUuid?: string | null;
+  splitUuid?: string | null;
+  splitOrientation?: 'horizontal' | 'vertical' | null;
 }) {
   const wsUuid = params.workspaceUuid ?? getActiveWorkspaceUuid();
   const url = buildUrl({ ...params, workspaceUuid: wsUuid });
-  const currentPath = window.location.pathname;
+  const currentUrl = window.location.pathname + window.location.search;
   
-  if (url !== currentPath) {
-    log.debug('Replacing URL', { from: currentPath, to: url });
+  if (url !== currentUrl) {
+    log.debug('Replacing URL', { from: currentUrl, to: url });
     const currentIndex = useNavigationHistoryStore.getState().currentIndex;
     window.history.replaceState({ navIndex: currentIndex }, '', url);
   }

@@ -1,0 +1,41 @@
+.tab-bar-normal {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  padding: 0 6px;
+  height: 100%;
+}
+
+.tab-bar-normal__strip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  padding: 2px 0;
+}
+
+.tab-bar-normal__strip::-webkit-scrollbar {
+  display: none;
+}
+
+.tab-bar-normal__slot {
+  display: flex;
+  align-items: center;
+  position: relative;
+}
+
+.tab-bar-normal__insert-indicator {
+  width: 2px;
+  height: 24px;
+  background: var(--color-primary);
+  border-radius: 1px;
+  margin: 0 1px;
+  flex-shrink: 0;
+}

@@ -269,6 +269,7 @@ function NodeRefInteractive({
   
   // Use selectors to avoid subscribing to full store — actions are stable refs
   const openNode = useNavigationStore(s => s.openNode);
+  const openNodeInNewTab = useNavigationStore(s => s.openNodeInNewTab);
   const addSidebarCard = useNavigationStore(s => s.addSidebarCard);
   
   // Only batch-fetch when no node is provided (need to fetch by ID)
@@ -326,7 +327,10 @@ function NodeRefInteractive({
     
     if (isLink && node) {
       // Navigation mode (for inline links)
-      if (e.shiftKey) {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        openNodeInNewTab(node.id);
+      } else if (e.shiftKey) {
         addSidebarCard(node.id, isPage ? 'page' : 'block');
       } else {
         openNode(node.id);
@@ -334,7 +338,7 @@ function NodeRefInteractive({
     } else if (onClick) {
       onClick();
     }
-  }, [readOnly, editMode, isLink, onClick, node, isPage, openNode, addSidebarCard]);
+  }, [readOnly, editMode, isLink, onClick, node, isPage, openNode, openNodeInNewTab, addSidebarCard]);
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     if (readOnly) return;
