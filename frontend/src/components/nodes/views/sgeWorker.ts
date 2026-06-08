@@ -51,8 +51,9 @@ let sMetaI32: Int32Array | null = null;
 let posSAB: SharedArrayBuffer | null = null;
 let metaSAB: SharedArrayBuffer | null = null;
 
-// Fallback transferable buffers
-const bufA: Float32Array[] = [new Float32Array(0), new Float32Array(0)];
+// Fallback triple-buffer: 3 buffers so one is always writable
+// even if the main thread is slow to process frames.
+const bufs: Float32Array[] = [new Float32Array(0), new Float32Array(0), new Float32Array(0)];
 let bufIdx = 0;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -72,9 +73,10 @@ function ensureSABs(n: number): void {
 function ensureFallbackBuffers(n: number): void {
   if (SAB_ENABLED) return;
   const needed = n * 2;
-  if (bufA[0].length !== needed) {
-    bufA[0] = new Float32Array(needed);
-    bufA[1] = new Float32Array(needed);
+  if (bufs[0].length !== needed) {
+    bufs[0] = new Float32Array(needed);
+    bufs[1] = new Float32Array(needed);
+    bufs[2] = new Float32Array(needed);
   }
 }
 
@@ -95,8 +97,22 @@ function writeFrame(): void {
     (sMetaI32 as unknown as Float32Array)[3] = state.energy;
     Atomics.add(sMetaI32, META_SEQ, 1);
   } else {
-    const buf = bufA[bufIdx % 2];
-    bufIdx++;
+    // Find a buffer whose ArrayBuffer hasn't been transferred yet
+    let buf: Float32Array | null = null;
+    for (let attempts = 0; attempts < bufs.length; attempts++) {
+      const idx = bufIdx % bufs.length;
+      bufIdx++;
+      if (bufs[idx].byteLength > 0) {
+        buf = bufs[idx];
+        break;
+      }
+    }
+    // Fallback: all buffers in flight — allocate a fresh one
+    if (!buf) {
+      buf = new Float32Array(n * 2);
+      bufs[bufIdx % bufs.length] = buf;
+      bufIdx++;
+    }
     const posX = state.posX, posY = state.posY;
     for (let i = 0; i < n; i++) {
       buf[i * 2]     = posX[i];
