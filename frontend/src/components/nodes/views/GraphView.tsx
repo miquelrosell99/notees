@@ -107,7 +107,7 @@ function buildD3PhysicsConfig(settings: GraphSettings): D3PhysicsConfig {
     preset: settings.physicsPreset,
     centralGravity: settings.centralGravity,
     linkCountAttraction: settings.linkCountAttraction,
-    strongClustering: settings.strongClustering,
+    clustering: settings.clustering,
   };
 }
 
@@ -239,7 +239,7 @@ export function GraphView({
     dimCrossCommunityLinks: true,
     aggregateParallelEdges: true,
     showTemporalLinks: false,
-    strongClustering: false,
+    clustering: false,
     highlightPaths: true,
   });
   const settingsLoadedRef = useRef(false);
