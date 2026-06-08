@@ -136,14 +136,14 @@ function findConnectedComponents(nodes: D3Node[], links: D3Link[]): Map<number, 
 }
 
 /** Custom force that pulls nodes toward their component centroid and pushes components apart. */
-function forceCluster(strength: number, repel: number) {
+function forceCluster(strength: number, repel: number, getLinks: () => D3Link[]) {
   let nodes: D3Node[] = [];
-  let links: D3Link[] = [];
   let compMap = new Map<number, number>();
 
   function force(alpha: number) {
+    const links = getLinks();
     // Recompute components if topology changed (simple heuristic)
-    if (nodes.length > 0) {
+    if (nodes.length > 0 && links.length > 0) {
       compMap = findConnectedComponents(nodes, links);
       for (const n of nodes) n.compId = compMap.get(n.id) ?? 0;
     }
@@ -200,17 +200,13 @@ function forceCluster(strength: number, repel: number) {
     }
   }
 
-  (force as unknown as { initialize: (n: D3Node[], l: D3Link[]) => void }).initialize = (
-    n: D3Node[],
-    l: D3Link[],
-  ) => {
+  (force as unknown as { initialize: (n: D3Node[]) => void }).initialize = (n: D3Node[]) => {
     nodes = n;
-    links = l;
   };
 
   return force as unknown as (
     alpha: number,
-  ) => void & { initialize: (n: D3Node[], l: D3Link[]) => void };
+  ) => void & { initialize: (n: D3Node[]) => void };
 }
 
 // ─── Engine class ─────────────────────────────────────────────────────────────
@@ -228,7 +224,7 @@ export class D3GraphEngine {
   private fLink = forceLink<D3Node, D3Link>();
   private fCenter = forceCenter<D3Node>(0, 0);
   private fCollide = forceCollide<D3Node>(10);
-  private fCluster = forceCluster(0, 0);
+  private fCluster = forceCluster(0, 0, () => this.d3Links);
 
   constructor(
     nodes: GraphNode[],
@@ -333,8 +329,7 @@ export class D3GraphEngine {
     // Cluster force
     const clusterStr = config.clustering ? preset.clusterStrength : 0;
     const clusterRepel = config.clustering ? preset.clusterRepel : 0;
-    this.fCluster = forceCluster(clusterStr, clusterRepel);
-    (this.fCluster as unknown as { initialize: (n: D3Node[], l: D3Link[]) => void }).initialize(this.d3Nodes, this.d3Links);
+    this.fCluster = forceCluster(clusterStr, clusterRepel, () => this.d3Links);
 
     // Re-assemble force list
     this.simulation
