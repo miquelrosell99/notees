@@ -33,7 +33,7 @@ export interface D3PhysicsConfig {
   preset: 'sparse' | 'balanced' | 'compact' | 'clustered';
   centralGravity: boolean;
   linkCountAttraction: boolean;
-  strongClustering?: boolean;
+  clustering?: boolean;
 }
 
 interface D3Node extends SimulationNodeDatum {
@@ -331,12 +331,8 @@ export class D3GraphEngine {
     this.fCollide.radius((_d: D3Node) => preset.collideRadius);
 
     // Cluster force
-    const clusterStr = config.strongClustering
-      ? preset.clusterStrength * 2.2
-      : preset.clusterStrength;
-    const clusterRepel = config.strongClustering
-      ? preset.clusterRepel * 1.8
-      : preset.clusterRepel;
+    const clusterStr = config.clustering ? preset.clusterStrength : 0;
+    const clusterRepel = config.clustering ? preset.clusterRepel : 0;
     this.fCluster = forceCluster(clusterStr, clusterRepel);
     (this.fCluster as unknown as { initialize: (n: D3Node[], l: D3Link[]) => void }).initialize(this.d3Nodes, this.d3Links);
 

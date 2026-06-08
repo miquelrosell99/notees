@@ -212,12 +212,12 @@ export function GraphSettingsSidebar({
         <div className="visibility-option">
           <BooleanToggle
             size="sm"
-            label="Strong clustering"
+            label="Clustering"
             labelPosition="left"
-            checked={graphSettings.strongClustering}
+            checked={graphSettings.clustering}
             onChange={(e) => onGraphSettingsChange(prev => ({
               ...prev,
-              strongClustering: e.target.checked
+              clustering: e.target.checked
             }))}
           />
         </div>
