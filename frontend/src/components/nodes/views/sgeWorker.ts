@@ -217,7 +217,6 @@ self.onmessage = (e: MessageEvent) => {
     case 'dragStart': {
       if (!engine) break;
       engine.pinNode(msg.nodeId);
-      engine.reheat();
       break;
     }
     case 'dragMove': {

@@ -257,7 +257,6 @@ export class SGEEngine {
   // Simulation state
   energy = Infinity;
   ticks = 0;
-  alpha = 1.0;
   private integratorState = createIntegratorState({} as SGEConfig);
 
   // Forces
@@ -400,8 +399,7 @@ export class SGEEngine {
     // Re-initialize forces with new topology
     for (const f of this.forces) f.initialize(this);
 
-    // Reset alpha on topology change
-    this.alpha = 1.0;
+
   }
 
   private _rebuildEdgeArrays(): void {
@@ -548,16 +546,7 @@ export class SGEEngine {
 
     // Apply forces
     for (const f of this.forces) {
-      f.apply(this.alpha);
-    }
-
-    // Alpha scaling — reduces effective force as simulation cools
-    if (this.alpha < 1.0) {
-      const a = this.alpha;
-      for (let i = 0; i < this.n; i++) {
-        this.axBuf[i] *= a;
-        this.ayBuf[i] *= a;
-      }
+      f.apply(1.0);
     }
 
     // Integrate
@@ -580,13 +569,7 @@ export class SGEEngine {
     this.axBuf.fill(0, 0, this.n);
     this.ayBuf.fill(0, 0, this.n);
 
-    // Alpha cooling
-    this.alpha *= (1 - this.config.alphaDecay);
-    if (this.alpha < this.config.alphaMin) this.alpha = 0;
-  }
 
-  reheat(): void {
-    this.alpha = 0.3;
   }
 
   // ─── Public API ─────────────────────────────────────────────────────────────
