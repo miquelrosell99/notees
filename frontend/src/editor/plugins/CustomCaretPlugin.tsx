@@ -28,6 +28,42 @@ import {
 import { $isInlineLinkNode } from '../nodes/InlineLinkNode';
 import './CustomCaretPlugin.css';
 
+// ─── Editing trail tracking ───────────────────────────────────────
+
+const trailBlocksRef: { current: HTMLElement[] } = { current: [] };
+
+function clearEditingTrail() {
+  for (const el of trailBlocksRef.current) {
+    el.classList.remove('node-block--editing-trail');
+  }
+  trailBlocksRef.current = [];
+}
+
+function setEditingTrail(activeBlock: HTMLElement | null) {
+  clearEditingTrail();
+  if (!activeBlock) return;
+
+  const container = activeBlock.closest('.block-list');
+  if (!container) return;
+
+  const allBlocks = Array.from(container.querySelectorAll('.node-block')) as HTMLElement[];
+  const activeIndex = allBlocks.indexOf(activeBlock);
+  if (activeIndex < 0) return;
+
+  const activeDepth = parseInt(activeBlock.getAttribute('data-depth') || '0', 10);
+  let expectedDepth = activeDepth - 1;
+
+  for (let i = activeIndex - 1; i >= 0 && expectedDepth >= 0; i--) {
+    const block = allBlocks[i];
+    const depth = parseInt(block.getAttribute('data-depth') || '0', 10);
+    if (depth === expectedDepth) {
+      block.classList.add('node-block--editing-trail');
+      trailBlocksRef.current.push(block);
+      expectedDepth--;
+    }
+  }
+}
+
 // ─── Component ──────────────────────────────────────────────────
 
 export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }): JSX.Element | null {
@@ -69,7 +105,9 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
 
     if (newBlock !== activeBlockRef.current) {
       activeBlockRef.current?.classList.remove('node-block--editing');
+      clearEditingTrail();
       newBlock?.classList.add('node-block--editing');
+      setEditingTrail(newBlock);
       activeBlockRef.current = newBlock;
     }
   }, [editor]);
@@ -666,6 +704,7 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
       rafRef.current = requestAnimationFrame(updateCaretPosition);
       // Remove active block class on blur
       activeBlockRef.current?.classList.remove('node-block--editing');
+      clearEditingTrail();
       activeBlockRef.current = null;
       // Remove styled span highlight on blur
       activeStyledNodeRef.current?.classList.remove('notees-text--cursor-inside');
@@ -741,7 +780,10 @@ export function CustomCaretPlugin({ readOnly = false }: { readOnly?: boolean }):
 
   useEffect(() => {
     return () => {
-      activeBlockRef.current?.classList.remove('node-block--editing');      activeStyledNodeRef.current?.classList.remove('notees-text--cursor-inside');    };
+      activeBlockRef.current?.classList.remove('node-block--editing');
+      clearEditingTrail();
+      activeStyledNodeRef.current?.classList.remove('notees-text--cursor-inside');
+    };
   }, []);
 
   // ─── Render ──────────────────────────────────────────────────
