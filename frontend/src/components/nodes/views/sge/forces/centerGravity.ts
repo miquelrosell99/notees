@@ -1,9 +1,13 @@
 /**
- * SGE v2 — Center gravity + isolate soft wall.
+ * SGE v2 — Centroid-based center force (d3-force style).
  *
- * Connected nodes feel linear gravity toward the origin (stronger for hubs).
- * Isolated nodes (degree=0) are pushed outward to a target radius so they
- * don't collapse into the centre.
+ * Matches Obsidian's forceCenter: computes the centroid of all active nodes
+ * and applies a uniform translation force that pulls the *center of mass*
+ * toward the origin. This prevents the graph from drifting off-screen
+ * without compressing nodes into a dense sphere.
+ *
+ * Unlike the old per-node gravity, every node receives the SAME force vector,
+ * so the internal structure (cluster spacing, node distances) is preserved.
  */
 
 import type { ForcePlugin } from './interface';
@@ -18,39 +22,32 @@ export class CenterGravityForce implements ForcePlugin {
 
   apply(_alpha: number): void {
     const e = this.engine;
-    const centerStr = e.config.componentCenterStrength;
-    if (centerStr <= 0) return;
+    const strength = e.config.componentCenterStrength;
+    if (strength <= 0) return;
 
-    const targetR = e.config.idealDistance * 8;
-    const eps = 0.001;
-    const degArr = e.degArr;
     const posX = e.posX, posY = e.posY;
     const ax = e.axBuf, ay = e.ayBuf;
     const activeIdx = e.activeNodeIndices;
     const activeCount = e.activeCount;
 
+    // Compute centroid
+    let cx = 0, cy = 0;
     for (let k = 0; k < activeCount; k++) {
       const i = activeIdx[k];
-      const degree = degArr[i];
-      const scale = 0.5 + Math.min(degree * 0.1, 2.5);
-      const strength = centerStr * scale;
+      cx += posX[i];
+      cy += posY[i];
+    }
+    cx /= activeCount;
+    cy /= activeCount;
 
-      if (degree === 0) {
-        const dx = posX[i], dy = posY[i];
-        const r = Math.sqrt(dx * dx + dy * dy);
-        if (r < targetR) {
-          const f = strength * (targetR - r);
-          if (r > eps) {
-            ax[i] += (dx / r) * f;
-            ay[i] += (dy / r) * f;
-          } else {
-            ax[i] += f;
-          }
-        }
-      } else {
-        ax[i] -= strength * posX[i];
-        ay[i] -= strength * posY[i];
-      }
+    // Pull centroid toward origin — uniform translation, no compression
+    const dx = cx * strength;
+    const dy = cy * strength;
+
+    for (let k = 0; k < activeCount; k++) {
+      const i = activeIdx[k];
+      ax[i] -= dx;
+      ay[i] -= dy;
     }
   }
 }

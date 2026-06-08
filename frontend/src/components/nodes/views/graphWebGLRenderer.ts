@@ -1527,7 +1527,9 @@ export class GraphWebGLRenderer {
         }
         this._dimDirty = false;
         this._packNodeInstances();     // O(N): positions + radii + colors + dim per node
-        this._packGlowInstances();     // O(N): large soft halos behind nodes
+        // Glow disabled — was creating muddy overlapping halos on dense graphs.
+        // Re-enable here and in render() if a subtler effect is desired later.
+        if (false) this._packGlowInstances();
       }
     }
 
@@ -1539,14 +1541,14 @@ export class GraphWebGLRenderer {
     this._camBuf[0] = cx;
     this._camBuf[1] = cy;
 
-    // ── Draw cluster glow halos (behind everything) ───────────────────────
-    if (this.glowInstCount > 0 && this.glowVAO && this.positions.length > 0) {
-      gl.useProgram(this.glowProg);
-      gl.bindVertexArray(this.glowVAO);
-      gl.uniform2fv(this.glowUniforms.resolution, this._resBuf);
-      gl.uniform2fv(this.glowUniforms.camera, this._camBuf);
-      gl.uniform1f( this.glowUniforms.zoom, zoom);
-      gl.drawArraysInstanced(gl.TRIANGLES, 0, 6, this.glowInstCount);
+    // Glow pass disabled — see _packGlowInstances() comment above.
+    if (false && this.glowInstCount > 0 && this.glowVAO && this.positions.length > 0) {
+      gl!.useProgram(this.glowProg);
+      gl!.bindVertexArray(this.glowVAO);
+      gl!.uniform2fv(this.glowUniforms.resolution, this._resBuf);
+      gl!.uniform2fv(this.glowUniforms.camera, this._camBuf);
+      gl!.uniform1f( this.glowUniforms.zoom, zoom);
+      gl!.drawArraysInstanced(gl!.TRIANGLES, 0, 6, this.glowInstCount);
     }
 
     // ── Build hover / selection glow rings ────────────────────────────────

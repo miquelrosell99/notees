@@ -185,17 +185,23 @@ export function GraphSettingsSidebar({
             }))}
           />
         </div>
-        <div className="visibility-option">
-          <BooleanToggle
-            size="sm"
-            label="Central gravity"
-            labelPosition="left"
-            checked={graphSettings.centralGravity}
-            onChange={(e) => onGraphSettingsChange(prev => ({
-              ...prev,
-              centralGravity: e.target.checked
-            }))}
-          />
+        <div className="visibility-option visibility-option--slider">
+          <span className="visibility-option__label">Center force</span>
+          <div className="visibility-option__slider-row">
+            <input
+              type="range"
+              min={0}
+              max={100}
+              step={1}
+              value={graphSettings.centralGravity}
+              onChange={(e) => onGraphSettingsChange(prev => ({
+                ...prev,
+                centralGravity: Number(e.target.value)
+              }))}
+              className="graph-radius-slider"
+            />
+            <span className="graph-radius-value">{graphSettings.centralGravity}</span>
+          </div>
         </div>
         <div className="visibility-option">
           <BooleanToggle
