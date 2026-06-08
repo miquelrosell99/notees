@@ -20,7 +20,7 @@ interface SortableFavoriteItemProps {
   isDragging: boolean;
   style: React.CSSProperties;
   onDragStart: (index: number, e: React.MouseEvent) => void;
-  onNavigate: (nodeId: number) => void;
+  onNavigate: (nodeId: number, e?: React.MouseEvent) => void;
   onRemove: (nodeId: number) => void;
   onContextMenu: (nodeId: number, e: React.MouseEvent) => void;
 }
@@ -51,7 +51,7 @@ const SortableFavoriteItem = memo(function SortableFavoriteItem({
     if ((e.target as HTMLElement).closest('.sidebar-drag-handle, .sidebar-favorite-remove')) {
       return;
     }
-    onNavigate(nodeId);
+    onNavigate(nodeId, e);
   }, [nodeId, onNavigate]);
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
@@ -138,6 +138,7 @@ export function SidebarFavorites({ onContextMenu }: SidebarFavoritesProps) {
     mainViewType,
     currentNodeId,
     openNode,
+    openNodeInNewTab,
     isSidebarCollapsed,
     toggleSidebar,
   } = useNavigationStore();
@@ -147,10 +148,14 @@ export function SidebarFavorites({ onContextMenu }: SidebarFavoritesProps) {
     if (isMobile && !isSidebarCollapsed) toggleSidebar();
   }, [isMobile, isSidebarCollapsed, toggleSidebar]);
 
-  const handleNavigate = useCallback((nodeId: number) => {
-    openNode(nodeId);
-    closeMobileDrawer();
-  }, [openNode, closeMobileDrawer]);
+  const handleNavigate = useCallback((nodeId: number, e?: React.MouseEvent) => {
+    if (e?.ctrlKey || e?.metaKey) {
+      openNodeInNewTab(nodeId);
+    } else {
+      openNode(nodeId);
+      closeMobileDrawer();
+    }
+  }, [openNode, openNodeInNewTab, closeMobileDrawer]);
 
   const handleRemove = useCallback((nodeId: number) => {
     useFavoritesStore.getState().removeFavorite(nodeId);

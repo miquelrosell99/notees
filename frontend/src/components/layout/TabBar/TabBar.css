@@ -1,0 +1,7 @@
+.tab-bar {
+  display: flex;
+  align-items: flex-end;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+}
