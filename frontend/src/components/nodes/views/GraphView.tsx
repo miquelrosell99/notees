@@ -34,7 +34,7 @@ import type {
   GraphColorGroup,
 } from './viewTypes';
 import { DEFAULT_VISIBILITY_FILTERS } from './graphTypes';
-import type { D3PhysicsConfig } from './graphD3Physics';
+import type { SGEPhysicsConfig } from './sge';
 import { applyCircleLayout } from './circleLayout';
 import { applyTreeLayout } from './treeLayout';
 import { Button } from '@/components/core/Button';
@@ -101,8 +101,8 @@ function getTagColor(tag: string): string {
   return TAG_COLOR_PALETTE[index];
 }
 
-/** Build d3-force physics config. */
-function buildD3PhysicsConfig(settings: GraphSettings): D3PhysicsConfig {
+/** Build SGE physics config. */
+function buildSGEPhysicsConfig(settings: GraphSettings): SGEPhysicsConfig {
   return {
     preset: settings.physicsPreset,
     centralGravity: settings.centralGravity,
@@ -278,7 +278,7 @@ export function GraphView({
   const [searchOpen, setSearchOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'normal' | 'circle' | 'tree'>('normal');
 
-  const d3PhysicsConfig = useMemo(() => buildD3PhysicsConfig(graphSettings), [graphSettings]);
+  const sgePhysicsConfig = useMemo(() => buildSGEPhysicsConfig(graphSettings), [graphSettings]);
   
   // Load graph settings from cached TanStack Query data
   useEffect(() => {
@@ -672,8 +672,8 @@ export function GraphView({
   // Forward live graph-settings changes to the physics worker
   useEffect(() => {
     if (!settingsLoadedRef.current) return;
-    rendererRef.current?.setConfig(d3PhysicsConfig);
-  }, [d3PhysicsConfig]);
+    rendererRef.current?.setConfig(sgePhysicsConfig);
+  }, [sgePhysicsConfig]);
 
   // Event handlers — SGEGraphView fires (nodeId: number) without event objects
   const handleNodeClick = useCallback((nodeId: number) => {
@@ -934,7 +934,7 @@ export function GraphView({
         ref={rendererRef}
         nodes={linksLoading ? EMPTY_NODES : nodes}
         edges={linksLoading ? EMPTY_EDGES : links}
-        config={d3PhysicsConfig}
+        config={sgePhysicsConfig}
         sizeByConnections={graphSettings.nodeSizeMode === 'connections'}
         baseNodeRadius={baseNodeRadius}
         onNodeClick={handleNodeClick}
