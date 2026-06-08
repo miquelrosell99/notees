@@ -173,9 +173,9 @@ void main() {
   float tgtW = a_width * 0.6;
   float halfWidth = mix(srcW, tgtW, a_local.y) * 0.5;
 
-  // Ensure edge is at least 1.0 screen-pixel wide to prevent
+  // Ensure edge is at least 1.5 screen-pixel wide to prevent
   // sub-pixel aliasing that makes lines appear dashed when zoomed out.
-  float minWorldWidth = 1.0 / u_zoom;
+  float minWorldWidth = 1.5 / u_zoom;
   halfWidth = max(halfWidth, minWorldWidth);
 
   vec2 world = center + perp * a_local.x * halfWidth;
@@ -524,14 +524,14 @@ function getCssEdgeColor(): [number, number, number, number] {
           parseFloat(m[4]),
         ];
       } else {
-        cssCache.edge = [0.55, 0.55, 0.55, 0.75];
+        cssCache.edge = [0.38, 0.38, 0.38, 1.0];
       }
     } else if (val && val.startsWith('#')) {
       cssCache.edge = hexToTuple(val, 0.45);
     } else {
       const fallback = getComputedStyle(document.documentElement)
         .getPropertyValue('--color-accent').trim();
-      cssCache.edge = fallback ? hexToTuple(fallback, 0.45) : [0.51, 0.51, 0.51, 0.45];
+      cssCache.edge = fallback ? hexToTuple(fallback, 1.0) : [0.38, 0.38, 0.38, 1.0];
     }
   }
   return cssCache.edge;
