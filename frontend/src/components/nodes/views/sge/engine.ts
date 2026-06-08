@@ -461,16 +461,26 @@ export class SGEEngine {
       (a, b) => (componentGroups.get(b)?.length ?? 0) - (componentGroups.get(a)?.length ?? 0),
     );
 
-    let componentAngle = 0;
+    let bigComponentAngle = 0;
+    let isolatedAngle = 0;
+    let bigCi = 0;
     for (let ci = 0; ci < componentIds.length; ci++) {
       const cId = componentIds[ci];
       const nodeIndices = componentGroups.get(cId)!;
       let compCX = 0, compCY = 0;
-      if (ci > 0) {
-        const r = cfg.componentSpacing * Math.sqrt(ci);
-        compCX = r * Math.cos(componentAngle);
-        compCY = r * Math.sin(componentAngle);
-        componentAngle += 2.399963;
+      if (nodeIndices.length === 1) {
+        // Isolated nodes: place in a tight ring near the origin so they
+        // don't explode into a huge sphere far from the connected core.
+        const r = cfg.idealDistance * 2.5;
+        compCX = r * Math.cos(isolatedAngle);
+        compCY = r * Math.sin(isolatedAngle);
+        isolatedAngle += 0.35;
+      } else if (ci > 0) {
+        bigCi++;
+        const r = cfg.componentSpacing * Math.sqrt(bigCi);
+        compCX = r * Math.cos(bigComponentAngle);
+        compCY = r * Math.sin(bigComponentAngle);
+        bigComponentAngle += 2.399963;
       }
 
       const clusterGroups = new Map<number, number[]>();
