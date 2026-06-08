@@ -389,54 +389,6 @@ export function GraphSettingsSidebar({
         <div className="visibility-option">
           <BooleanToggle
             size="sm"
-            label="Curved edges"
-            labelPosition="left"
-            checked={graphSettings.curvedEdges}
-            onChange={(e) => onGraphSettingsChange(prev => ({
-              ...prev,
-              curvedEdges: e.target.checked
-            }))}
-          />
-        </div>
-        <div className="visibility-option">
-          <BooleanToggle
-            size="sm"
-            label="Colored edges"
-            labelPosition="left"
-            checked={graphSettings.coloredEdges}
-            onChange={(e) => onGraphSettingsChange(prev => ({
-              ...prev,
-              coloredEdges: e.target.checked
-            }))}
-          />
-        </div>
-        <div className="visibility-option">
-          <BooleanToggle
-            size="sm"
-            label="Tapered edges"
-            labelPosition="left"
-            checked={graphSettings.taperedEdges}
-            onChange={(e) => onGraphSettingsChange(prev => ({
-              ...prev,
-              taperedEdges: e.target.checked
-            }))}
-          />
-        </div>
-        <div className="visibility-option">
-          <BooleanToggle
-            size="sm"
-            label="Link LOD"
-            labelPosition="left"
-            checked={graphSettings.enableLinkLOD}
-            onChange={(e) => onGraphSettingsChange(prev => ({
-              ...prev,
-              enableLinkLOD: e.target.checked
-            }))}
-          />
-        </div>
-        <div className="visibility-option">
-          <BooleanToggle
-            size="sm"
             label="Temporal links"
             labelPosition="left"
             checked={graphSettings.showTemporalLinks}
@@ -525,6 +477,54 @@ export function GraphSettingsSidebar({
             onChange={(e) => onGraphSettingsChange(prev => ({
               ...prev,
               highlightPaths: e.target.checked
+            }))}
+          />
+        </div>
+        <div className="visibility-option">
+          <BooleanToggle
+            size="sm"
+            label="Curved edges"
+            labelPosition="left"
+            checked={graphSettings.curvedEdges}
+            onChange={(e) => onGraphSettingsChange(prev => ({
+              ...prev,
+              curvedEdges: e.target.checked
+            }))}
+          />
+        </div>
+        <div className="visibility-option">
+          <BooleanToggle
+            size="sm"
+            label="Colored edges"
+            labelPosition="left"
+            checked={graphSettings.coloredEdges}
+            onChange={(e) => onGraphSettingsChange(prev => ({
+              ...prev,
+              coloredEdges: e.target.checked
+            }))}
+          />
+        </div>
+        <div className="visibility-option">
+          <BooleanToggle
+            size="sm"
+            label="Tapered edges"
+            labelPosition="left"
+            checked={graphSettings.taperedEdges}
+            onChange={(e) => onGraphSettingsChange(prev => ({
+              ...prev,
+              taperedEdges: e.target.checked
+            }))}
+          />
+        </div>
+        <div className="visibility-option">
+          <BooleanToggle
+            size="sm"
+            label="Link LOD"
+            labelPosition="left"
+            checked={graphSettings.enableLinkLOD}
+            onChange={(e) => onGraphSettingsChange(prev => ({
+              ...prev,
+              enableLinkLOD: e.target.checked
             }))}
           />
         </div>
