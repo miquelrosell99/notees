@@ -2,7 +2,7 @@
  * useGraphRenderer
  *
  * React hook that wires together:
- *   • The d3-force physics engine (graphD3Physics.ts)
+ *   • The SGE physics Web Worker (sgeWorker.ts)
  *   • The WebGL2 renderer (graphWebGLRenderer.ts)
  *   • Camera pan / zoom interaction
  *   • Node drag interaction
@@ -11,8 +11,7 @@
 
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { GraphWebGLRenderer, type NodeVisual } from './graphWebGLRenderer';
-import { D3GraphEngine } from './graphD3Physics';
-import type { D3PhysicsConfig } from './graphD3Physics';
+import type { SGEPhysicsConfig } from './sge';
 import type { GraphNode, GraphLink } from './viewTypes';
 import { LINK_TYPE_IDS, LINK_TYPE_CURVATURE } from './graphConstants';
 
@@ -132,7 +131,7 @@ export interface GraphRendererOptions {
   /** Graph edges. */
   edges: GraphLink[];
   /** Semantic physics preset + toggles. */
-  config?: D3PhysicsConfig;
+  config?: SGEPhysicsConfig;
   /** Scale node radius by connection count. Default: true */
   sizeByConnections?: boolean;
   /** Base node radius in world units. Default: 7 */
@@ -166,7 +165,7 @@ export interface GraphRendererHandle {
   hoveredEdge: { source: number; target: number; type: string; screenX: number; screenY: number } | null;
   pause: () => void;
   resume: () => void;
-  setConfig: (cfg: D3PhysicsConfig) => void;
+  setConfig: (cfg: SGEPhysicsConfig) => void;
   recenter: () => void;
   panBy: (dx: number, dy: number) => void;
   zoomBy: (factor: number) => void;
@@ -186,13 +185,16 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
   const canvasRef  = useRef<HTMLCanvasElement | null>(null);
   const labelCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const rendRef    = useRef<GraphWebGLRenderer | null>(null);
-  const engineRef  = useRef<D3GraphEngine | null>(null);
+  const workerRef  = useRef<Worker | null>(null);
   const rafRef     = useRef<number>(0);
   const optsRef    = useRef(opts);
 
-  // Reusable position buffer passed to the WebGL renderer each frame.
-  const posBufRef    = useRef<Float32Array>(new Float32Array(0));
-  const nodeIdBufRef = useRef<Int32Array>(new Int32Array(0));
+  // SharedArrayBuffer shared-memory path
+  const sabPosRef    = useRef<Float32Array  | null>(null);
+  const sabMetaI32   = useRef<Int32Array    | null>(null);
+  const sabMetaF32   = useRef<Float32Array  | null>(null);
+  const sabNodeIds   = useRef<Int32Array    | null>(null);
+  const sabSeq       = useRef<number>(0);
 
   const camRef = useRef({ x: 0, y: 0, zoom: 1 });
 
@@ -243,7 +245,12 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
 
   useEffect(() => { optsRef.current = opts; }, [opts]);
 
-  // ─── Renderer + physics init ────────────────────────────────────────────────
+  // ─── Post-to-worker helper ──────────────────────────────────────────────────
+  const post = useCallback((msg: Record<string, unknown>): void => {
+    workerRef.current?.postMessage(msg);
+  }, []);
+
+  // ─── Renderer + worker init ─────────────────────────────────────────────────
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -259,50 +266,88 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
     renderer.init(canvas);
     rendRef.current = renderer;
 
-    const loop = () => {
-      rafRef.current = requestAnimationFrame(loop);
+    const worker = new Worker(
+      new URL('./sgeWorker.ts', import.meta.url),
+      { type: 'module' },
+    );
+    workerRef.current = worker;
 
-      const rend = rendRef.current;
-      const engine = engineRef.current;
-      if (!rend || !engine) return;
+    const autoFit = (pos: Float32Array, nn: number): void => {
+      const c = canvasRef.current;
+      if (!c) return;
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (let i = 0; i < nn; i++) {
+        const x = pos[i * 2], y = pos[i * 2 + 1];
+        if (x < minX) minX = x; if (y < minY) minY = y;
+        if (x > maxX) maxX = x; if (y > maxY) maxY = y;
+      }
+      const pad = 60 * (window.devicePixelRatio || 1);
+      const worldW = (maxX - minX) + 32;
+      const worldH = (maxY - minY) + 32;
+      const cam = camRef.current;
+      cam.x = (minX + maxX) / 2;
+      cam.y = (minY + maxY) / 2;
+      cam.zoom = (worldW > 0 && worldH > 0)
+        ? Math.min((c.width - pad * 2) / worldW, (c.height - pad * 2) / worldH, 40)
+        : 1;
+    };
 
-      engine.tick();
-      const n = engine.nodeCount;
-      if (n > 0) {
-        const posBuf = posBufRef.current;
-        const idBuf = nodeIdBufRef.current;
-        if (posBuf.length >= n * 2) {
-          engine.packPositions(posBuf, idBuf);
-          rend.updatePositions(posBuf, idBuf);
-          statsAccRef.current.energy = engine.energy;
-          dirtyRef.current.positions = true;
-        }
+    worker.onmessage = (e: MessageEvent) => {
+      const msg = e.data;
+      if (!msg || typeof msg !== 'object') return;
+
+      if (msg.type === 'ready') {
+        statsAccRef.current.energy = 0;
+        statsAccRef.current.ticks = 0;
+        return;
       }
 
-      if (needsAutoFitRef.current && n > 0) {
-        needsAutoFitRef.current = false;
-        const c = canvasRef.current;
-        if (c) {
-          const pos = rend.nodePositions;
-          let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-          for (let i = 0; i < n; i++) {
-            const x = pos[i * 2], y = pos[i * 2 + 1];
-            if (x < minX) minX = x; if (y < minY) minY = y;
-            if (x > maxX) maxX = x; if (y > maxY) maxY = y;
+      if (msg.type === 'sharedBuffer') {
+        sabPosRef.current  = new Float32Array(msg.positions);
+        sabMetaI32.current = new Int32Array(msg.meta);
+        sabMetaF32.current = new Float32Array(msg.meta);
+        sabNodeIds.current = msg.nodeIds;
+        sabSeq.current     = Atomics.load(sabMetaI32.current, 0);
+        return;
+      }
+
+      if (msg.type === 'frame') {
+        renderer.updatePositions(msg.positions, msg.nodeIds);
+        statsAccRef.current.energy = msg.energy;
+        statsAccRef.current.ticks = msg.ticks;
+        dirtyRef.current.positions = true;
+        if (needsAutoFitRef.current && msg.nodeCount > 0) {
+          needsAutoFitRef.current = false;
+          autoFit(msg.positions, msg.nodeCount);
+        }
+      }
+    };
+
+    worker.onerror = (e) => console.error('[SGEWorker]', e);
+
+    const loop = () => {
+      rafRef.current = requestAnimationFrame(loop);
+      const rend = rendRef.current;
+      if (!rend) return;
+
+      // SAB poll
+      const metaI32 = sabMetaI32.current;
+      const metaF32 = sabMetaF32.current;
+      const sabPos = sabPosRef.current;
+      const sabNids = sabNodeIds.current;
+      if (metaI32 && metaF32 && sabPos && sabNids) {
+        const seq = Atomics.load(metaI32, 0);
+        if (seq !== sabSeq.current) {
+          sabSeq.current = seq;
+          const n = Atomics.load(metaI32, 1);
+          rend.updatePositions(sabPos.subarray(0, n * 2), sabNids.subarray(0, n));
+          statsAccRef.current.energy = metaF32[3];
+          statsAccRef.current.ticks = Atomics.load(metaI32, 2);
+          dirtyRef.current.positions = true;
+          if (needsAutoFitRef.current && n > 0) {
+            needsAutoFitRef.current = false;
+            autoFit(sabPos, n);
           }
-          const pad = 60 * (window.devicePixelRatio || 1);
-          const worldW = (maxX - minX) + 32;
-          const worldH = (maxY - minY) + 32;
-          const cam = camRef.current;
-          cam.x = (minX + maxX) / 2;
-          cam.y = (minY + maxY) / 2;
-          cam.zoom = (worldW > 0 && worldH > 0)
-            ? Math.min(
-                (c.width  - pad * 2) / worldW,
-                (c.height - pad * 2) / worldH,
-                40,
-              )
-            : 1;
         }
       }
 
@@ -330,7 +375,7 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
             visibleNodes: rStats.nodeInstCount,
             visibleEdges: rStats.edgeInstCount,
             energy: s.energy,
-            ticks:  0,
+            ticks:  s.ticks,
             fps,
           }));
           fr.frames = 0;
@@ -473,7 +518,7 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
           visibleNodes: rStats.nodeInstCount,
           visibleEdges: rStats.edgeInstCount,
           energy: s.energy,
-          ticks:  0,
+          ticks:  s.ticks,
           fps,
         }));
         fr.frames = 0;
@@ -484,8 +529,9 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
 
     return () => {
       cancelAnimationFrame(rafRef.current);
-      engineRef.current?.dispose();
-      engineRef.current = null;
+      worker.postMessage({ type: 'destroy' });
+      worker.terminate();
+      workerRef.current = null;
       renderer.destroy();
       rendRef.current = null;
     };
@@ -514,7 +560,6 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
   const topoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    const engine = engineRef.current;
     const renderer = rendRef.current;
     if (!renderer) return;
 
@@ -594,16 +639,8 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
         radii.set(n.id, sizeByConnections ? nodeRadius(n, maxConn, baseNodeRadius) : baseNodeRadius);
       }
 
-      // Resize position buffers
-      const n = nodes.length;
-      posBufRef.current = new Float32Array(n * 2);
-      nodeIdBufRef.current = idArr;
-
-      if (engine) {
-        engine.rebuild(nodes, edges);
-      } else {
-        engineRef.current = new D3GraphEngine(nodes, edges, config);
-      }
+      const physNodes = nodes.map(n => ({ id: n.id, x: n.x, y: n.y }));
+      workerRef.current?.postMessage({ type: 'init', nodes: physNodes, edges, config });
 
       if (nodes.length > 0) {
         needsAutoFitRef.current = true;
@@ -712,7 +749,7 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
       d.nodeId = hitNode;
       d.startWx = world.x;
       d.startWy = world.y;
-      engineRef.current?.startDrag(hitNode);
+      post({ type: 'dragStart', nodeId: hitNode });
     } else {
       d.mode      = 'camera';
       d.camStartX = camRef.current.x;
@@ -769,7 +806,7 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
     } else if (d.mode === 'node') {
       const world = rend?.screenToWorld(px, py);
       if (!world) return;
-      engineRef.current?.moveDrag(d.nodeId, world.x, world.y);
+      post({ type: 'dragMove', nodeId: d.nodeId, x: world.x, y: world.y });
       rend?.overridePosition(d.nodeId, world.x, world.y);
     }
   }, []);
@@ -778,7 +815,7 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
     const d = dragRef.current;
 
     if (d.mode === 'node') {
-      engineRef.current?.endDrag(d.nodeId);
+      post({ type: 'dragEnd', nodeId: d.nodeId });
       if (!d.moved) {
         const nodeId = d.nodeId;
         selectedRef.current = nodeId;
@@ -835,15 +872,15 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
 
   // ─── Public API ─────────────────────────────────────────────────────────────
   const pause = useCallback(() => {
-    engineRef.current?.pause();
+    workerRef.current?.postMessage({ type: 'pause' });
   }, []);
 
   const resume = useCallback(() => {
-    engineRef.current?.resume();
+    workerRef.current?.postMessage({ type: 'resume' });
   }, []);
 
-  const setConfig = useCallback((cfg: D3PhysicsConfig) => {
-    engineRef.current?.setConfig(cfg);
+  const setConfig = useCallback((cfg: SGEPhysicsConfig) => {
+    workerRef.current?.postMessage({ type: 'setConfig', config: cfg });
   }, []);
 
   const recenter = useCallback(() => {
