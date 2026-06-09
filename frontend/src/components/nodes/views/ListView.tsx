@@ -18,7 +18,7 @@ import { ListSortable } from '../../core/ListSortable';
 import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
 import { getPropertyGroupInfo } from './viewHelpers';
 import { queueContentSave } from '@/hooks/useBlockPersist';
-import { sortBySequence } from '@/utils/nodeSort';
+import { sortBySequence, compareDateFirstAlpha } from '@/utils/nodeSort';
 import { getNodeByUuid } from '@/api/nodes';
 import { NodeBreadcrumbs } from '../NodeBreadcrumbs';
 import './ListView.css';
@@ -268,6 +268,19 @@ export const ListView = memo(function ListView({
     return sortBySequence(result);
   }, [groupingResult, pagesOnly]);
 
+  // Sorted groups: when grouping by page, order groups by page name
+  // using the custom date-aware comparator (year → month → day → alpha)
+  const sortedGroups = useMemo(() => {
+    if (!groupingResult) return null;
+    if (groupBy !== 'page') return groupingResult.groups;
+    return [...groupingResult.groups].sort((a, b) => {
+      if (a.page && b.page) {
+        return compareDateFirstAlpha(a.page, b.page);
+      }
+      return 0;
+    });
+  }, [groupingResult, groupBy]);
+
   // Grouped view (by page or property)
   if (groupingResult) {
     return (
@@ -298,7 +311,7 @@ export const ListView = memo(function ListView({
             </div>
           </div>
         )}
-        {groupingResult.groups.map((group, groupIndex) => {
+        {sortedGroups?.map((group, groupIndex) => {
           // Collect all nodes in this group (including children)
           const groupAllNodes: Node[] = [];
           const collectGroupNodes = (n: Node) => {

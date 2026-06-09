@@ -114,6 +114,7 @@ export const NodeCollection = memo(function NodeCollection({
   ganttEndDateProperty: ganttEndDatePropertyProp,
   onGanttStartDatePropertyChange,
   onGanttEndDatePropertyChange,
+  defaultSort,
 }: NodeCollectionProps) {
   // Always use store for card layout to ensure reactivity
   // Components can still pass cardLayout to override if needed for specific cases
@@ -150,8 +151,8 @@ export const NodeCollection = memo(function NodeCollection({
   const [internalPropertyUuids, setInternalPropertyUuids] = useState<string[]>([]);
   const selectedPropertyUuids = selectedPropertyUuidsProp ?? internalPropertyUuids;
 
-  // Explicit sort columns (empty = fall back to default sort)
-  const [sortColumns, setSortColumns] = useState<SortEntry[]>([]);
+  // Explicit sort columns (empty = no sort; defaultSort seeds initial state)
+  const [sortColumns, setSortColumns] = useState<SortEntry[]>(defaultSort ?? []);
 
   // Available sort columns for the sort popup (all applicable fields)
   const availableSortColumns = useMemo(() => {
