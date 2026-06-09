@@ -17,7 +17,7 @@
   contain: layout style;
 }
 
-/* Thread line for indented blocks — visible vertical guide */
+/* Default thread line — hidden visually, used only for editing trail */
 .block-row[data-depth="1"]::before,
 .block-row[data-depth="2"]::before,
 .block-row[data-depth="3"]::before,
@@ -28,42 +28,44 @@
 .block-row[data-depth="8"]::before {
   content: '';
   position: absolute;
-  left: -12px;
+  left: -13px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--color-outline-variant);
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Clickable thread line — centered with parent bullet, spans row gaps */
+.block-thread-line {
+  position: absolute;
+  left: -13px;
+  top: -3px;
+  bottom: -3px;
+  width: 10px;
+  cursor: pointer;
+  z-index: 2;
+  background: transparent;
+}
+
+/* Visual thread line inside the click area */
+.block-thread-line::before {
+  content: '';
+  position: absolute;
+  left: calc(50% - 1px);
   top: 0;
   bottom: 0;
   width: 2px;
   background: var(--color-outline-variant);
   opacity: 0.7;
-  pointer-events: none;
   transition: opacity var(--motion-duration-short) var(--motion-easing-standard),
               background var(--motion-duration-short) var(--motion-easing-standard);
 }
 
-.block-row[data-depth="1"]:hover::before,
-.block-row[data-depth="2"]:hover::before,
-.block-row[data-depth="3"]:hover::before,
-.block-row[data-depth="4"]:hover::before,
-.block-row[data-depth="5"]:hover::before,
-.block-row[data-depth="6"]:hover::before,
-.block-row[data-depth="7"]:hover::before,
-.block-row[data-depth="8"]:hover::before {
+.block-thread-line:hover::before {
   opacity: 1;
   background: var(--color-outline);
-}
-
-/* Clickable thread line overlay */
-.block-thread-line {
-  position: absolute;
-  left: -18px;
-  top: 0;
-  bottom: 0;
-  width: 12px;
-  cursor: pointer;
-  z-index: 2;
-}
-
-.block-thread-line:hover {
-  background: color-mix(in srgb, var(--color-outline-variant) 15%, transparent);
 }
 
 /* ─── Bullet trails for edited blocks ───────────────────────────── */

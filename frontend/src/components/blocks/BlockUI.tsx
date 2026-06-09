@@ -10,7 +10,6 @@ import { Icon } from '@/components/core/icons';
 import type { Node } from '@/types/api';
 import type { JSX } from 'react';
 import type { PresenceUser } from '@/stores/livePresenceStore';
-import { useTaskActions } from '@/hooks/useTaskActions';
 import './BlockUI.css';
 
 interface BlockUIProps {
@@ -49,8 +48,6 @@ export function BlockUI({
   presenceUsers,
   typingUsers,
 }: BlockUIProps): JSX.Element {
-  const { isTask, taskStatus, toggleTask } = useTaskActions(node);
-
   const handleClick = () => {
     onNavigate?.(node.uuid);
   };
@@ -74,16 +71,6 @@ export function BlockUI({
         isHovered={isHovered}
         size="sm"
       />
-      {isTask && (
-        <input
-          type="checkbox"
-          className="block-ui__task-checkbox"
-          checked={taskStatus === 'Done'}
-          onChange={toggleTask}
-          onClick={(e) => e.stopPropagation()}
-          title={taskStatus ?? 'Task'}
-        />
-      )}
       {presenceUsers && presenceUsers.length > 0 && (
         <div className="block-ui__presence">
           {presenceUsers.map((u) => (
