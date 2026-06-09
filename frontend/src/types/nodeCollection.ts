@@ -321,6 +321,9 @@ export interface NodeCollectionViewBaseProps {
   
   /** Whether to auto-collapse nodes at configured depth (default: false) */
   autoCollapse?: boolean;
+
+  /** Force all nodes to be expanded, ignoring stored collapsed state. */
+  expandAll?: boolean;
 }
 
 /**
@@ -367,6 +370,9 @@ export interface NodeListViewProps extends NodeCollectionViewBaseProps {
 
   /** List view density size: 'sm' for compact, 'md' for normal (default: 'md') */
   size?: 'sm' | 'md';
+
+  /** Force all nodes to be expanded, ignoring stored collapsed state. */
+  expandAll?: boolean;
 }
 
 /**
@@ -522,3 +528,4 @@ export interface NodeCollectionContextValue {
   /** Maximum depth */
   maxDepth: number;
 }
+THIS_IS_A_TEST_SYNTAX_ERROR
