@@ -4,8 +4,10 @@
  * Uses NodeCollection directly with multiple view modes (list, document, card,
  * table, graph, timeline). List view shows the full pages tree hierarchy.
  */
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { usePages, useContentSave } from '@/hooks';
+import { nodeKeys } from '@/hooks/queryKeys';
 import { useNavigationStore, useModalStore } from '@/stores';
 import { NodeCollection } from '@/components/nodes/NodeCollection';
 import { NodeCollectionToolbar } from '@/components/nodes/NodeCollectionToolbar';
@@ -32,12 +34,20 @@ export function PagesView({ initialViewMode }: PagesViewProps) {
   const { openNode } = useNavigationStore();
   const { setCommandPaletteOpen } = useModalStore();
   const { handleContentChange: saveContent } = useContentSave();
+  const queryClient = useQueryClient();
 
   const [viewMode, setViewMode] = useState<NodeCollectionViewMode>(initialViewMode ?? 'list');
 
   const handleViewModeChange = useCallback((mode: NodeCollectionViewMode) => {
     setViewMode(mode);
   }, []);
+
+  // Force fresh fetch of the pages tree when this view mounts.
+  // The backend now returns has_children and nested children correctly,
+  // but old TanStack Query cache may hold stale flat data.
+  useEffect(() => {
+    queryClient.invalidateQueries({ queryKey: nodeKeys.pages({ includeChildren: true, rootOnly: true }) });
+  }, [queryClient]);
 
   const { data: pages, isLoading, isPlaceholderData } = usePages({
     includeChildren: true,
