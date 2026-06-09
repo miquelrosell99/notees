@@ -66,7 +66,7 @@ export const Icon: React.FC<IconProps> = ({
     return null;
   }
 
-  const style: React.CSSProperties = {};
+  const style: React.CSSProperties = { verticalAlign: 'middle' };
 
   const width = typeof size === 'number' ? `${size * 24}px` : size;
   const height = width;
