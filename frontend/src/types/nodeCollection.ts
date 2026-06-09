@@ -242,6 +242,9 @@ export interface NodeCollectionProps {
 
   /** List view density size: 'sm' for compact, 'md' for normal (default: 'md') */
   size?: 'sm' | 'md';
+
+  /** Default sort columns applied on initial render (user can clear/override) */
+  defaultSort?: SortEntry[];
 }
 
 // ==================== View-Specific Props ====================

@@ -35,6 +35,12 @@ export function AllPagesView({ className = '' }: AllPagesViewProps) {
         <div className="page-header-section__header">
           <div className="page-header all-pages-view__header">
             <h1 className="page-header__title">All Pages</h1>
+            <div className="all-pages-view__search">
+              <SearchBox
+                placeholder="Search pages..."
+                onSelect={handleSearchSelect}
+              />
+            </div>
             <Button
               variant="primary"
               size="sm"
@@ -46,14 +52,6 @@ export function AllPagesView({ className = '' }: AllPagesViewProps) {
             </Button>
           </div>
         </div>
-      </div>
-      
-      {/* Search */}
-      <div className="all-pages-view__search">
-        <SearchBox
-          placeholder="Search pages..."
-          onSelect={handleSearchSelect}
-        />
       </div>
       
       {/* Pages Section - use QuerySection with all_pages view type */}

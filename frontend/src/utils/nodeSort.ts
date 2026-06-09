@@ -46,15 +46,17 @@ export function compareBySequence(a: Node, b: Node): number {
  * 3. Among non-date nodes, sort alphabetically by name (case-insensitive).
  */
 export function compareDateFirstAlpha(a: Node, b: Node): number {
-  const aDate = isDateNode(a);
-  const bDate = isDateNode(b);
+  const aKey = dateNodeSortKey(a);
+  const bKey = dateNodeSortKey(b);
+  const aIsDate = aKey > 0;
+  const bIsDate = bKey > 0;
 
-  if (aDate && bDate) {
-    // Both dates → newest first (descending)
-    return dateNodeSortKey(b) - dateNodeSortKey(a);
+  if (aIsDate && bIsDate) {
+    // Both dates → chronological ascending (year → month → day)
+    return aKey - bKey;
   }
-  if (aDate) return -1; // date before non-date
-  if (bDate) return 1;
+  if (aIsDate) return -1; // date before non-date
+  if (bIsDate) return 1;
 
   // Both non-date → alphabetical
   const aName = (a.name ?? '').toLowerCase();
@@ -93,6 +95,14 @@ export function sortBySequence(nodes: Node[]): Node[] {
  */
 export function sortDateFirstAlpha(nodes: Node[]): Node[] {
   return [...nodes].sort(compareDateFirstAlpha);
+}
+
+/**
+ * Compare two nodes for the All Pages view.
+ * @deprecated Use compareDateFirstAlpha directly; kept for backwards compatibility.
+ */
+export function compareAllPagesSort(a: Node, b: Node): number {
+  return compareDateFirstAlpha(a, b);
 }
 
 /** Sort nodes by write_date descending. Returns a new array. */
@@ -146,17 +156,7 @@ export function compareBySortEntries(
 
     switch (entry.key) {
       case 'name': {
-        const aDate = isDateNode(a);
-        const bDate = isDateNode(b);
-        if (aDate && bDate) {
-          comparison = dateNodeSortKey(b) - dateNodeSortKey(a);
-        } else if (aDate) {
-          comparison = -1;
-        } else if (bDate) {
-          comparison = 1;
-        } else {
-          comparison = (a.name ?? '').localeCompare(b.name ?? '');
-        }
+        comparison = compareDateFirstAlpha(a, b);
         break;
       }
       case 'write_date': {

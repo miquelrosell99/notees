@@ -83,6 +83,15 @@ export function PagesView({ initialViewMode }: PagesViewProps) {
             <h1 className="page-header__title">
               Pages
             </h1>
+            {/* Search — hidden in immersive view modes (graph/timeline) */}
+            {viewMode !== 'graph' && viewMode !== 'timeline' && (
+              <div className="pages-view__search">
+                <SearchBox
+                  placeholder="Search pages..."
+                  onSelect={handleSearchSelect}
+                />
+              </div>
+            )}
             <div className="pages-view__header-actions">
               <NodeCollectionToolbar
                 viewMode={viewMode}
@@ -104,16 +113,6 @@ export function PagesView({ initialViewMode }: PagesViewProps) {
           </div>
         </div>
       </div>
-
-      {/* Search — hidden in immersive view modes (graph/timeline) */}
-      {viewMode !== 'graph' && viewMode !== 'timeline' && (
-        <div className="pages-view__search">
-          <SearchBox
-            placeholder="Search pages..."
-            onSelect={handleSearchSelect}
-          />
-        </div>
-      )}
 
       {/* Content */}
       <div className="pages-view__content">
@@ -138,6 +137,7 @@ export function PagesView({ initialViewMode }: PagesViewProps) {
             showEmpty={true}
             emptyMessage="No pages found"
             className="pages-view__node-collection"
+            defaultSort={[{ key: 'name', direction: 'asc' }]}
           />
         )}
       </div>

@@ -4,6 +4,8 @@
 
 .node-block-table-view {
   width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
   overflow-x: auto;
   padding: 4px 0;
 }
