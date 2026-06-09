@@ -13,6 +13,7 @@ import { useInputContext } from '@/stores/inputContext';
 import { copyRuntimeBlocksToClipboard, tryParseInternalFormat } from '@/utils/clipboardManager';
 import { useClipboardStore } from '@/stores/clipboardStore';
 import { pasteBlocksAfterBlock } from '@/editor/utils/pasteBlocks';
+import { generateUUID } from '@/utils/uuid';
 
 // ─── Types ────────────────────────────────────────────────────────
 
@@ -268,12 +269,10 @@ export function useBlockSelection({ containerRef, blockIds, readOnly }: UseBlock
 
     // ── Keyboard: Escape ───────────────────────────────────────
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.defaultPrevented) return;
+
       // Escape: clear selection, or if editor focused, select current block
       if (e.key === 'Escape') {
-        // If a per-block InlineEditorKeysPlugin already handled this Escape,
-        // skip the fallback logic so we don't double-handle.
-        if (e.defaultPrevented) return;
-
         if (selectedIds.size > 0) {
           e.preventDefault();
           clearSelection();
@@ -290,6 +289,31 @@ export function useBlockSelection({ containerRef, blockIds, readOnly }: UseBlock
           useEditorFocusStore.getState().blurBlock(activeBlockId);
           selectSingle(activeBlockId);
         }
+        return;
+      }
+
+      // Enter on selected block (editor not focused): create a child block as the first child
+      if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey && selectedIds.size > 0) {
+        const activeEl = document.activeElement;
+        if (activeEl && rootEl.contains(activeEl)) return;
+        if (activeEl?.closest('[role="dialog"]') || activeEl?.closest('[role="menu"]')) return;
+
+        e.preventDefault();
+        const runtime = getNodeGraphRuntime();
+        const anchor = anchorId || [...selectedIds][0];
+        if (!anchor) return;
+
+        const newBlockId = generateUUID();
+        runtime.applyIntent({
+          type: 'create_block',
+          parentId: anchor,
+          afterBlockId: null,
+          blockId: newBlockId,
+          contentAST: [{ type: 'paragraph', children: [{ type: 'text', text: '' }] }],
+        });
+        runtime.flushEvents();
+        clearSelection();
+        useEditorFocusStore.getState().setPendingFocus(newBlockId);
         return;
       }
 
