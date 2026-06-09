@@ -178,6 +178,9 @@ export function Bullet({
       
       {/* Bullet container */}
       <span className="bullet-container">
+        {/* Outer ring - shows only when collapsed with children */}
+        {hasChildren && collapsed && <span className="bullet-outer-ring" />}
+
         {/* Icon or dot */}
         {icon ? (
           <NodeIcon icon={icon} isPage={isPage} size="xs" className="bullet-icon" />

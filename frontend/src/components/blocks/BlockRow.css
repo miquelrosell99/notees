@@ -214,20 +214,11 @@
               box-shadow var(--motion-duration-medium) var(--motion-easing-standard);
 }
 
-/* Subtle bullet pulse when a block is being edited */
-.node-block--editing .bullet-wrapper::after {
-  content: '';
-  position: absolute;
-  inset: 1px;
-  border-radius: 50%;
-  border: 1px solid var(--color-primary, #3b82f6);
-  opacity: 0.5;
-  animation: bullet-pulse 1.5s ease-in-out infinite;
-}
-
-@keyframes bullet-pulse {
-  0%, 100% { opacity: 0.5; }
-  50% { opacity: 0.15; }
+/* Editing indicator — subtle bullet scale instead of breathing ring */
+.node-block--editing .bullet-dot {
+  transform: scale(1.2);
+  background-color: var(--color-primary);
+  opacity: 0.9;
 }
 
 /* Body — wraps content + after-content in a vertical stack */
