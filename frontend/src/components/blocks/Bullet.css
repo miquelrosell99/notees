@@ -64,38 +64,15 @@
 .bullet-interactive {
   cursor: pointer;
   border-radius: 50%;
-  transition: background-color 0.2s cubic-bezier(0.34, 1.56, 0.64, 1),
-              transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
   /* Prevent text cursor from showing */
   pointer-events: auto;
-}
-
-.bullet-interactive::after {
-  content: '';
-  position: absolute;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background-color: transparent;
-  transition: background-color 0.2s cubic-bezier(0.34, 1.56, 0.64, 1),
-              transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
-  pointer-events: none;
-}
-
-.bullet-interactive:hover {
-  transform: scale(1.05);
-}
-
-.bullet-interactive:hover::after {
-  background-color: color-mix(in srgb, var(--color-primary) 12%, transparent);
-  transform: scale(1.4);
 }
 
 .bullet-interactive:hover .bullet-dot {
   opacity: 1;
   background-color: var(--color-primary);
-  transform: scale(1.12);
-  box-shadow: 0 0 5px color-mix(in srgb, var(--color-primary) 40%, transparent);
+  transform: scale(1.25);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--color-primary) 50%, transparent);
 }
 
 .bullet-interactive[draggable="true"] {
@@ -134,11 +111,6 @@
 
 .bullet-hovered .bullet-dot {
   opacity: 0.85;
-}
-
-/* Hover: increase opacity */
-.bullet-interactive:hover .bullet-dot {
-  opacity: 1;
 }
 
 /* Press: tactile press-in */
