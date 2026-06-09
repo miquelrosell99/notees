@@ -9,9 +9,9 @@ import { Bullet } from './Bullet';
 import { Icon } from '@/components/core/icons';
 import type { Node } from '@/types/api';
 import type { JSX } from 'react';
-import './BlockUI.css';
 import type { PresenceUser } from '@/stores/livePresenceStore';
 import { useTaskActions } from '@/hooks/useTaskActions';
+import './BlockUI.css';
 
 interface BlockUIProps {
   node: Node;
@@ -19,6 +19,8 @@ interface BlockUIProps {
   icon?: string | null;
   /** Override hasChildren (e.g. query blocks without tree children). */
   hasChildren?: boolean;
+  /** Override collapsed state (e.g. when expandAll is active). */
+  collapsed?: boolean;
   onCollapseToggle?: () => void;
   onNavigate?: (blockId: string) => void;
   onOpenInSidebar?: (blockId: string) => void;
@@ -37,6 +39,7 @@ export function BlockUI({
   node,
   icon: iconOverride,
   hasChildren: hasChildrenOverride,
+  collapsed: collapsedProp,
   onCollapseToggle,
   onNavigate,
   onOpenInSidebar,
@@ -63,16 +66,24 @@ export function BlockUI({
         icon={iconOverride ?? node.icon}
         isPage={node.is_page}
         hasChildren={hasChildrenOverride ?? (node.has_children ?? false)}
-        collapsed={node.collapsed ?? false}
+        collapsed={collapsedProp ?? node.collapsed ?? false}
         onClick={handleClick}
         onShiftClick={handleShiftClick}
         onCollapseToggle={onCollapseToggle}
         onContextMenu={onContextMenu}
         isHovered={isHovered}
         size="sm"
-        taskStatus={isTask ? taskStatus : undefined}
-        onTaskToggle={toggleTask}
       />
+      {isTask && (
+        <input
+          type="checkbox"
+          className="block-ui__task-checkbox"
+          checked={taskStatus === 'Done'}
+          onChange={toggleTask}
+          onClick={(e) => e.stopPropagation()}
+          title={taskStatus ?? 'Task'}
+        />
+      )}
       {presenceUsers && presenceUsers.length > 0 && (
         <div className="block-ui__presence">
           {presenceUsers.map((u) => (

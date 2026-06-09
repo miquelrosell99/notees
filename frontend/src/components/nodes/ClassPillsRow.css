@@ -108,3 +108,48 @@
   color: var(--color-on-error-container);
   opacity: 1;
 }
+
+/* Add class button — visible on row hover */
+.class-pills-row__add {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-on-surface-variant);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--motion-duration-short) var(--motion-easing-standard),
+              background var(--motion-duration-short) var(--motion-easing-standard),
+              color var(--motion-duration-short) var(--motion-easing-standard);
+  flex-shrink: 0;
+}
+
+.class-pills-row:hover .class-pills-row__add,
+.block-row:hover .class-pills-row__add,
+.node-block:hover .class-pills-row__add {
+  opacity: 0.6;
+}
+
+.class-pills-row__add:hover {
+  opacity: 1 !important;
+  background: var(--color-surface-container-high);
+  color: var(--color-on-surface);
+}
+
+/* Clickable add-popup items */
+.class-pills-popup__item--button {
+  width: 100%;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+}
+
+.class-pills-popup__item--button:hover {
+  background: var(--color-surface-container);
+}

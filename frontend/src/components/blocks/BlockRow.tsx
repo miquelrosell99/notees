@@ -65,6 +65,8 @@ interface BlockRowProps {
   nodeUuid?: string;
   /** Whether to show class pills below the block content. */
   showClasses?: boolean;
+  /** Effective collapsed state (may differ from node.collapsed when expandAll is active). */
+  effectiveCollapsed?: boolean;
 }
 
 // ─── Component ────────────────────────────────────────────────────
@@ -94,6 +96,7 @@ export const BlockRow = memo(
       onEscape,
       nodeUuid,
       showClasses = false,
+      effectiveCollapsed,
     },
     ref,
   ): JSX.Element {
@@ -189,6 +192,29 @@ export const BlockRow = memo(
     const handleTab = useCallback((shift: boolean) => callbacksRef.current.onTab?.(node.uuid, shift), [node.uuid]);
     const handleEscape = useCallback(() => callbacksRef.current.onEscape?.(node.uuid), [node.uuid]);
     const handleCollapseToggleLocal = useCallback(() => callbacksRef.current.onCollapseToggle?.(node.uuid), [node.uuid]);
+
+    const handleThreadLineClick = useCallback((e?: React.MouseEvent | React.KeyboardEvent) => {
+      e?.stopPropagation();
+      const runtime = getNodeGraphRuntime();
+      const graphNode = runtime.getNode(node.uuid);
+      if (!graphNode?.parentId) return;
+
+      const siblings = runtime.getChildren(graphNode.parentId);
+      if (siblings.length === 0) return;
+
+      const anyExpanded = siblings.some((s) => !s.collapsed);
+      const targetCollapsed = anyExpanded;
+
+      runtime.applyIntent({
+        type: 'batch',
+        intents: siblings.map((s) => ({
+          type: 'set_collapsed',
+          blockId: s.blockId,
+          collapsed: targetCollapsed,
+        })),
+      });
+      runtime.flushEvents();
+    }, [node.uuid]);
 
     const handleBulletContextMenu = useCallback(
       (_nodeId: number, event: React.MouseEvent) => {
@@ -355,10 +381,21 @@ export const BlockRow = memo(
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       >
+        {depth > 0 && (
+          <div
+            className="block-thread-line"
+            onClick={handleThreadLineClick}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleThreadLineClick(e as unknown as React.MouseEvent); } }}
+            role="button"
+            tabIndex={0}
+            title="Collapse/expand all children"
+          />
+        )}
         <BlockUI
           node={node}
           icon={bulletIcon}
           hasChildren={hasQueryClass || (node.has_children ?? false)}
+          collapsed={effectiveCollapsed ?? node.collapsed ?? false}
           onCollapseToggle={handleCollapseToggleLocal}
           onNavigate={onNavigate}
           onOpenInSidebar={onOpenInSidebar}
@@ -401,7 +438,7 @@ export const BlockRow = memo(
                 )}
                 {editorElement}
               </div>
-              <ClassPillsRow classes={visibleClassDetails} nodeId={node.id} readOnly={readOnly} />
+              <ClassPillsRow classes={visibleClassDetails} nodeId={node.id} readOnly={readOnly} onAddClass={onAddClass} />
             </div>
           ) : (
             <div className="block-row__content">
