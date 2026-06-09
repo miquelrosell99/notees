@@ -33,7 +33,7 @@ export function ResultItem({
 
   // Resolve aliased node name if this node is an alias
   const aliasedNodeName = result.node?.aliased_id && allNodes
-    ? nodeNameToText(allNodes.find(n => n.id === result.node?.aliased_id)?.name) || 'Unknown'
+    ? nodeNameToText(allNodes.find(n => n.id === result.node?.aliased_id)?.name) || null
     : null;
 
   // Scroll into view when selected
