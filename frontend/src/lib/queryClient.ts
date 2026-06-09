@@ -94,7 +94,7 @@ export const asyncStoragePersister: Persister = {
 
       const serialized = JSON.stringify(toPersist);
       if (serialized.length > MAX_PERSIST_SIZE) {
-        console.warn('[queryClient] Cache too large to persist (>2 MB), skipping IndexedDB write.');
+        console.warn('[queryClient] Cache too large to persist (>5 MB), skipping IndexedDB write.');
         return;
       }
 
