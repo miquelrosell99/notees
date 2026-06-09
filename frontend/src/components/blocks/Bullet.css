@@ -27,9 +27,9 @@
 .bullet-has-children::before {
   content: '';
   position: absolute;
-  left: -18px;
+  left: -10px;
   top: 0;
-  width: 18px;
+  width: 12px;
   height: 100%;
 }
 
@@ -204,14 +204,14 @@
 
 .bullet-collapse-arrow {
   position: absolute;
-  left: -18px;
+  left: -10px;
   top: 50%;
   transform: translateY(-50%);
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   padding: 0;
   border: none;
   background: transparent;
@@ -230,7 +230,7 @@
 }
 
 .bullet-collapse-arrow__icon {
-  font-size: 14px;
+  font-size: 16px;
   line-height: 1;
   display: inline-block;
 }

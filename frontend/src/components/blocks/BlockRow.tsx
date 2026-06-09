@@ -289,7 +289,7 @@ export const BlockRow = memo(
       [classDetails, inlineClassUuids],
     );
 
-    const hasClasses = showClasses && visibleClassDetails.length > 0;
+    const hasClasses = showClasses && (visibleClassDetails.length > 0 || !!onAddClass);
 
     // Query class detection for collapse arrow
     const { data: allClasses } = useClasses();
