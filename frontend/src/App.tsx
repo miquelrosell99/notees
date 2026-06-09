@@ -364,6 +364,8 @@ function App() {
                   'batch-get',
                   'batch-properties',
                   'gantt-day-nodes',
+                  'pages',
+                  'list',
                 ]);
                 if (heavyNodeKeys.has(queryKey[1])) return false;
               }
