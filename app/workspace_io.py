@@ -547,6 +547,14 @@ async def _import_dump_core(
         if isinstance(classes_path, list):
             classes_path = _remap_int_list(classes_path, node_id_map)
 
+        # Prevent self-referencing aliases after ID remapping
+        if aliased_id is not None and aliased_id == new_id:
+            logger.warning(
+                f"Skipping self-referencing alias for node {new_id} "
+                f"(original id {old_id})"
+            )
+            aliased_id = None
+
         if parent_id or page_id or aliased_id or class_ids:
             update_records.append(
                 (

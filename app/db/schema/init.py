@@ -92,6 +92,9 @@ async def init_database(conn: asyncpg.Connection) -> None:
     # Add collaboration schema updates (pending invites, notifications, comment permissions, share passwords)
     await _migrate_collaboration_schema(conn)
 
+    # Clean up any self-referencing aliases that may have been created by old bugs
+    await _cleanup_self_referencing_aliases(conn)
+
     # Seed default system settings
     await _seed_system_settings(conn)
 
@@ -220,6 +223,26 @@ async def _repair_page_ids(conn: asyncpg.Connection) -> None:
 
         logger = get_logger(__name__)
         logger.info(f"Repaired page_id for {count} blocks")
+
+
+async def _cleanup_self_referencing_aliases(conn: asyncpg.Connection) -> None:
+    """Fix any nodes where aliased_id points to the node itself.
+
+    Self-referencing aliases break the alias UI (remove fails with
+    'Alias relationship not found') and can cause infinite loops in
+    alias resolution.  This runs at every startup so bad data is
+    repaired automatically even if it slips past validation.
+    """
+    from ...logging_config import get_logger
+
+    logger = get_logger(__name__)
+
+    result = await conn.execute(
+        "UPDATE node SET aliased_id = NULL WHERE aliased_id = id"
+    )
+    count = int(result.split()[-1]) if result else 0
+    if count > 0:
+        logger.warning(f"Cleaned up {count} self-referencing alias(es)")
 
 
 async def _ensure_task_recurrence_property(conn: asyncpg.Connection) -> None:
