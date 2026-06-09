@@ -134,11 +134,18 @@ function flattenNodesFromRuntime(
   };
   for (const n of nodes) collect(n);
 
-  // Group nodes by their runtime parent ID
+  // Group nodes by their parent ID.
+  // Prefer runtime parentId only when it points to a parent within the
+  // current node set (avoids stale parentIds from previous views).
+  // Otherwise fall back to the prop's parent_id so server tree data wins.
   const byParent = new Map<string, Node[]>();
   for (const [uuid, node] of nodeMap) {
     const graphNode = runtime.getNode(uuid);
-    const parentId = graphNode?.parentId || node.parent_id?.toString() || '__root__';
+    const propParentId = node.parent_id?.toString() || '__root__';
+    const runtimeParentId = graphNode?.parentId;
+    const parentId = (runtimeParentId && nodeMap.has(runtimeParentId))
+      ? runtimeParentId
+      : propParentId;
     if (!byParent.has(parentId)) byParent.set(parentId, []);
     byParent.get(parentId)!.push(node);
   }
@@ -185,7 +192,11 @@ function flattenNodesFromRuntime(
   const topLevel: string[] = [];
   for (const [uuid, node] of nodeMap) {
     const graphNode = runtime.getNode(uuid);
-    const parentId = graphNode?.parentId || node.parent_id?.toString() || '__root__';
+    const propParentId = node.parent_id?.toString() || '__root__';
+    const runtimeParentId = graphNode?.parentId;
+    const parentId = (runtimeParentId && nodeMap.has(runtimeParentId))
+      ? runtimeParentId
+      : propParentId;
     if (!nodeMap.has(parentId)) topLevel.push(uuid);
   }
 
@@ -276,7 +287,9 @@ export function BlockList({
 
     if (allNodes.length > 0) {
       const { graphNodes } = apiNodesToGraphNodes(allNodes, nodeId, nodeUuid);
-      runtime.upsertNodes(graphNodes);
+      // In collection views (no containing page), reset collapsed state from
+      // server so stale runtime state from previous views doesn't hide children.
+      runtime.upsertNodes(graphNodes, { preserveCollapsed: nodeUuid != null });
     }
 
     if (nodeId != null && nodeUuid) {
