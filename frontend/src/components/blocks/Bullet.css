@@ -133,41 +133,11 @@
   justify-content: center;
 }
 
-/* ==================== Outer Ring (Collapsed with Children or Hover) ==================== */
-
-.bullet-outer-ring {
-  position: absolute;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background-color: color-mix(in srgb, var(--color-primary) 12%, transparent);
-  opacity: 0;
-  transition: opacity var(--motion-duration-short) var(--motion-easing-standard),
-              transform var(--motion-duration-short) var(--motion-easing-tactile);
+/* Collapsed indicator — subtle scale on the bullet dot itself */
+.bullet-collapsed.bullet-has-children .bullet-dot {
+  transform: scale(1.3);
+  opacity: 0.85;
 }
-
-/* Show muted filled circle when collapsed with children */
-.bullet-collapsed .bullet-outer-ring {
-  opacity: 1;
-}
-
-.bullet-collapsed.bullet-hovered .bullet-outer-ring {
-  opacity: 1;
-  background-color: color-mix(in srgb, var(--color-primary) 20%, transparent);
-}
-
-/* Hover ring for interactive bullets - disabled for cleaner look */
-/*
-.bullet-interactive:hover .bullet-outer-ring {
-  opacity: 0.2;
-  transform: scale(1.08);
-}
-
-.bullet-interactive.bullet-collapsed:hover .bullet-outer-ring {
-  opacity: 0.5;
-  transform: scale(1.08);
-}
-*/
 
 /* ==================== Collapse Arrow ==================== */
 
