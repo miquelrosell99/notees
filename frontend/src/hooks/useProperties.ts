@@ -158,6 +158,11 @@ export function useAddPropertyToClass() {
     onSuccess: (_, { classId }) => {
       queryClient.invalidateQueries({ queryKey: propertyKeys.forClass(classId) });
       queryClient.invalidateQueries({ queryKey: propertyKeys.forClassInherited(classId) });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.details() });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.pageContents() });
+      queryClient.invalidateQueries({ queryKey: nodeViewKeys.queryResults() });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.byClass(classId) });
     },
   });
 }
@@ -167,13 +172,18 @@ export function useAddPropertyToClass() {
  */
 export function useRemovePropertyFromClass() {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
-    mutationFn: ({ classId, propertyId }: { classId: number; propertyId: number }) => 
+    mutationFn: ({ classId, propertyId }: { classId: number; propertyId: number }) =>
       propertiesApi.removeClassProperty(classId, propertyId),
     onSuccess: (_, { classId }) => {
       queryClient.invalidateQueries({ queryKey: propertyKeys.forClass(classId) });
       queryClient.invalidateQueries({ queryKey: propertyKeys.forClassInherited(classId) });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.details() });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.pageContents() });
+      queryClient.invalidateQueries({ queryKey: nodeViewKeys.queryResults() });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.byClass(classId) });
     },
   });
 }
@@ -190,6 +200,11 @@ export function useReorderClassProperties() {
     onSuccess: (_, { classId }) => {
       queryClient.invalidateQueries({ queryKey: propertyKeys.forClass(classId) });
       queryClient.invalidateQueries({ queryKey: propertyKeys.forClassInherited(classId) });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.details() });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.pageContents() });
+      queryClient.invalidateQueries({ queryKey: nodeViewKeys.queryResults() });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.byClass(classId) });
     },
   });
 }
@@ -213,6 +228,11 @@ export function useUpdateClassProperty() {
     onSuccess: (_, { classId }) => {
       queryClient.invalidateQueries({ queryKey: propertyKeys.forClass(classId) });
       queryClient.invalidateQueries({ queryKey: propertyKeys.forClassInherited(classId) });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.details() });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.pageContents() });
+      queryClient.invalidateQueries({ queryKey: nodeViewKeys.queryResults() });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.byClass(classId) });
     },
   });
 }
