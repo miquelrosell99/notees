@@ -171,20 +171,20 @@
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  border: 1.5px solid var(--color-on-surface-variant);
-  background-color: transparent;
+  background-color: color-mix(in srgb, var(--color-primary) 12%, transparent);
   opacity: 0;
   transition: opacity var(--motion-duration-short) var(--motion-easing-standard),
               transform var(--motion-duration-short) var(--motion-easing-tactile);
 }
 
-/* Show ring when collapsed with children — stroked circle, TE style */
+/* Show muted filled circle when collapsed with children */
 .bullet-collapsed .bullet-outer-ring {
-  opacity: 0.35;
+  opacity: 1;
 }
 
 .bullet-collapsed.bullet-hovered .bullet-outer-ring {
-  opacity: 0.55;
+  opacity: 1;
+  background-color: color-mix(in srgb, var(--color-primary) 20%, transparent);
 }
 
 /* Hover ring for interactive bullets - disabled for cleaner look */
@@ -230,7 +230,7 @@
 }
 
 .bullet-collapse-arrow__icon {
-  font-size: 10px;
+  font-size: 14px;
   line-height: 1;
   display: inline-block;
 }
@@ -266,31 +266,6 @@
   outline: 2px solid var(--color-primary);
   outline-offset: 2px;
   border-radius: 50%;
-}
-
-/* ==================== Task Checkbox ==================== */
-
-.bullet-checkbox {
-  width: 14px;
-  height: 14px;
-  margin: 0;
-  padding: 0;
-  cursor: pointer;
-  accent-color: var(--color-primary);
-  border: 1.5px solid var(--color-on-surface-variant);
-  border-radius: 3px;
-  background-color: var(--color-surface);
-  transition: border-color var(--motion-duration-short) var(--motion-easing-standard),
-              background-color var(--motion-duration-short) var(--motion-easing-standard);
-}
-
-.bullet-checkbox:hover {
-  border-color: var(--color-primary);
-}
-
-.bullet-checkbox:checked {
-  background-color: var(--color-primary);
-  border-color: var(--color-primary);
 }
 
 /* ─── Mobile: keep collapse arrow visible on deep nesting ─────── */

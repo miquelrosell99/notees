@@ -39,6 +39,7 @@ import './BlockList.css';
 interface FlatNode {
   node: Node;
   depth: number;
+  effectiveCollapsed: boolean;
 }
 
 interface BlockListProps {
@@ -104,11 +105,12 @@ function flattenNodes(
     if (pagesOnly && !node.is_page) continue;
     if (skipPages && node.is_page) continue;
 
-    result.push({ node, depth: currentDepth });
+    const effectiveCollapsed = expandAll ? false : node.collapsed;
+    result.push({ node, depth: currentDepth, effectiveCollapsed });
     if (
       node.children &&
       node.children.length > 0 &&
-      (expandAll || !node.collapsed) &&
+      !effectiveCollapsed &&
       (maxDepth < 0 || currentDepth < maxDepth)
     ) {
       result.push(...flattenNodes(node.children, maxDepth, pagesOnly, skipPages, currentDepth + 1, expandAll));
@@ -179,11 +181,11 @@ function flattenNodesFromRuntime(
       if (node.is_comment) continue;
       if (pagesOnly && !node.is_page) continue;
       if (skipPages && node.is_page) continue;
-      result.push({ node, depth });
-
       const graphNode = runtime.getNode(uuid);
-      const collapsed = expandAll ? false : (graphNode?.collapsed ?? node.collapsed);
-      if (!collapsed && (maxDepth < 0 || depth < maxDepth)) {
+      const effectiveCollapsed = expandAll ? false : (graphNode?.collapsed ?? node.collapsed);
+      result.push({ node, depth, effectiveCollapsed });
+
+      if (!effectiveCollapsed && (maxDepth < 0 || depth < maxDepth)) {
         // Children are indexed by their parent UUID, which is this node's UUID
         const children = byParent.get(uuid) || [];
         result.push(...flatten(children.map(c => c.uuid), depth + 1));
@@ -642,7 +644,7 @@ export function BlockList({
       {enableVirtualization ? (
         <div style={{ position: 'relative', height: `${totalSize}px` }}>
           {virtualItems.map((virtualRow) => {
-            const { node, depth } = flatNodes[virtualRow.index];
+            const { node, depth, effectiveCollapsed } = flatNodes[virtualRow.index];
             return (
               <div
                 key={node.uuid}
@@ -660,6 +662,7 @@ export function BlockList({
                   ref={(ref) => setRowRef(node.uuid, ref)}
                   node={node}
                   depth={depth}
+                  effectiveCollapsed={effectiveCollapsed}
                   readOnly={readOnly}
                   placeholder={placeholder}
                   onContentChange={onContentChange}
@@ -686,12 +689,13 @@ export function BlockList({
           })}
         </div>
       ) : (
-        flatNodes.map(({ node, depth }) => (
+        flatNodes.map(({ node, depth, effectiveCollapsed }) => (
           <BlockRow
             key={node.uuid}
             ref={(ref) => setRowRef(node.uuid, ref)}
             node={node}
             depth={depth}
+            effectiveCollapsed={effectiveCollapsed}
             readOnly={readOnly}
             placeholder={placeholder}
             onContentChange={onContentChange}

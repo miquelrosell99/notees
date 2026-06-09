@@ -79,3 +79,28 @@
   0%, 100% { opacity: 0.35; transform: scale(0.9); }
   50% { opacity: 1; transform: scale(1.1); }
 }
+
+/* Task checkbox — shown next to the bullet */
+.block-ui__task-checkbox {
+  width: 14px;
+  height: 14px;
+  margin: 0 0 0 2px;
+  padding: 0;
+  cursor: pointer;
+  accent-color: var(--color-primary);
+  border: 1.5px solid var(--color-on-surface-variant);
+  border-radius: 3px;
+  background-color: var(--color-surface);
+  flex-shrink: 0;
+  transition: border-color var(--motion-duration-short) var(--motion-easing-standard),
+              background-color var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.block-ui__task-checkbox:hover {
+  border-color: var(--color-primary);
+}
+
+.block-ui__task-checkbox:checked {
+  background-color: var(--color-primary);
+  border-color: var(--color-primary);
+}
