@@ -82,6 +82,8 @@ interface BlockListProps {
   nodeId?: number;
   /** Whether to show class pills below each block's content. */
   showClasses?: boolean;
+  /** Force all nodes to be expanded, ignoring stored collapsed state. */
+  expandAll?: boolean;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────
@@ -93,6 +95,7 @@ function flattenNodes(
   pagesOnly: boolean,
   skipPages: boolean,
   currentDepth = 0,
+  expandAll = false,
 ): FlatNode[] {
   const result: FlatNode[] = [];
   for (const node of nodes) {
@@ -105,10 +108,10 @@ function flattenNodes(
     if (
       node.children &&
       node.children.length > 0 &&
-      !node.collapsed &&
+      (expandAll || !node.collapsed) &&
       (maxDepth < 0 || currentDepth < maxDepth)
     ) {
-      result.push(...flattenNodes(node.children, maxDepth, pagesOnly, skipPages, currentDepth + 1));
+      result.push(...flattenNodes(node.children, maxDepth, pagesOnly, skipPages, currentDepth + 1, expandAll));
     }
   }
   return result;
@@ -125,6 +128,7 @@ function flattenNodesFromRuntime(
   pagesOnly: boolean,
   skipPages: boolean,
   runtime: ReturnType<typeof getNodeGraphRuntime>,
+  expandAll = false,
 ): FlatNode[] {
   // Build UUID → Node map from the prop
   const nodeMap = new Map<string, Node>();
@@ -178,7 +182,7 @@ function flattenNodesFromRuntime(
       result.push({ node, depth });
 
       const graphNode = runtime.getNode(uuid);
-      const collapsed = graphNode?.collapsed ?? node.collapsed;
+      const collapsed = expandAll ? false : (graphNode?.collapsed ?? node.collapsed);
       if (!collapsed && (maxDepth < 0 || depth < maxDepth)) {
         // Children are indexed by their parent UUID, which is this node's UUID
         const children = byParent.get(uuid) || [];
@@ -240,6 +244,7 @@ export function BlockList({
   nodeUuid,
   nodeId,
   showClasses = false,
+  expandAll = false,
 }: BlockListProps): JSX.Element {
   // Subscribe to runtime structural changes so the UI updates immediately
   // after drag-and-drop, indent, outdent, etc.
@@ -258,9 +263,9 @@ export function BlockList({
     const runtime = getNodeGraphRuntime();
     const hasRuntimeData = nodes.some((n) => runtime.getNode(n.uuid) != null);
     if (!hasRuntimeData) {
-      return flattenNodes(nodes, maxDepth, pagesOnly, skipPages);
+      return flattenNodes(nodes, maxDepth, pagesOnly, skipPages, 0, expandAll);
     }
-    return flattenNodesFromRuntime(nodes, maxDepth, pagesOnly, skipPages, runtime);
+    return flattenNodesFromRuntime(nodes, maxDepth, pagesOnly, skipPages, runtime, expandAll);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nodes, maxDepth, pagesOnly, skipPages, structureVersion]);
 
@@ -290,6 +295,13 @@ export function BlockList({
       // In collection views (no containing page), reset collapsed state from
       // server so stale runtime state from previous views doesn't hide children.
       runtime.upsertNodes(graphNodes, { preserveCollapsed: nodeUuid != null });
+      // Force-expand all nodes when expandAll is requested (e.g. All Pages view).
+      if (expandAll) {
+        for (const gn of graphNodes) {
+          runtime.applyIntent({ type: 'set_collapsed', blockId: gn.blockId, collapsed: false });
+        }
+        runtime.flushEvents();
+      }
     }
 
     if (nodeId != null && nodeUuid) {

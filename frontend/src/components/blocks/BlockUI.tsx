@@ -23,6 +23,8 @@ interface BlockUIProps {
   onNavigate?: (blockId: string) => void;
   onOpenInSidebar?: (blockId: string) => void;
   onContextMenu?: (nodeId: number, event: React.MouseEvent) => void;
+  /** Whether the block row is being hovered */
+  isHovered?: boolean;
   /** Remote users currently editing this block (for lock indicator). */
   lockedBy?: PresenceUser[];
   /** Remote users currently focused on this block (presence). */
@@ -39,6 +41,7 @@ export function BlockUI({
   onNavigate,
   onOpenInSidebar,
   onContextMenu,
+  isHovered,
   lockedBy,
   presenceUsers,
   typingUsers,
@@ -65,6 +68,7 @@ export function BlockUI({
         onShiftClick={handleShiftClick}
         onCollapseToggle={onCollapseToggle}
         onContextMenu={onContextMenu}
+        isHovered={isHovered}
         size="sm"
         taskStatus={isTask ? taskStatus : undefined}
         onTaskToggle={toggleTask}

@@ -11,7 +11,7 @@
  * - Shows outer ring when collapsed with children (like graph nodes)
  */
 import { useCallback, useRef, useState, useMemo } from 'react';
-import { NodeIcon, ChevronDownIcon, ChevronRightIcon } from '@/components/core/icons';
+import { NodeIcon } from '@/components/core/icons';
 import './Bullet.css';
 
 export type BulletSize = 'xs' | 'sm' | 'md';
@@ -178,7 +178,7 @@ export function Bullet({
           title={collapsed ? 'Expand' : 'Collapse'}
           aria-label={collapsed ? 'Expand' : 'Collapse'}
         >
-          {collapsed ? <ChevronRightIcon size="xs" /> : <ChevronDownIcon size="xs" />}
+          <span className="bullet-collapse-arrow__icon">{collapsed ? '\u25B8' : '\u25BE'}</span>
         </button>
       )}
       
