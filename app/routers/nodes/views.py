@@ -283,7 +283,10 @@ async def _include_children_for_results(
     # Assign children to each result
     for result in results:
         node_id = result.get("id")
-        result["children"] = children_by_parent.get(node_id, [])
+        children = children_by_parent.get(node_id, [])
+        result["children"] = children
+        if children:
+            result["has_children"] = True
 
     # Remove any top-level result that already appears as a child of another result.
     # This prevents duplicate display when a child node matches the query but is

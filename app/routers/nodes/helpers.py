@@ -178,6 +178,7 @@ def _build_children_response(
             parent = node_map[node.parent_id]
             if parent.children is not None:
                 parent.children.append(response)
+                parent.has_children = True
         else:
             root_children.append(response)
 
@@ -511,8 +512,10 @@ async def _build_children_tree(service, nodes: list[Any], class_ids_map: dict[in
                 node_response["children"] = [
                     c.model_dump() if hasattr(c, "model_dump") else c for c in children_response
                 ]
+                node_response["has_children"] = True
             else:
                 node_response.children = children_response
+                node_response.has_children = True
         else:
             if isinstance(node_response, dict):
                 node_response["children"] = []
