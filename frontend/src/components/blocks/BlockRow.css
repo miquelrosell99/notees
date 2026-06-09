@@ -28,7 +28,7 @@
 .block-row[data-depth="8"]::before {
   content: '';
   position: absolute;
-  left: -13px;
+  left: -14px;
   top: 0;
   bottom: 0;
   width: 2px;
@@ -40,7 +40,7 @@
 /* Clickable thread line — centered with parent bullet, spans row gaps */
 .block-thread-line {
   position: absolute;
-  left: -13px;
+  left: -18px;
   top: -3px;
   bottom: -3px;
   width: 10px;
@@ -66,6 +66,11 @@
 .block-thread-line:hover::before {
   opacity: 1;
   background: var(--color-outline);
+}
+
+/* Hide custom thread lines during editing (editing trail takes over) */
+.block-list:has(.node-block--editing) .block-thread-line::before {
+  opacity: 0;
 }
 
 /* ─── Bullet trails for edited blocks ───────────────────────────── */
