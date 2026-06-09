@@ -47,3 +47,4 @@ export * from './useCanvasViewport';
 export * from './useLivePageSync';
 export * from './useWorkspaceRole';
 export * from './useEffectiveNodePermissions';
+export * from './useDocumentTitle';

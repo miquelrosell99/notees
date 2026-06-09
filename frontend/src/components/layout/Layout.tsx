@@ -16,7 +16,7 @@ import React, { useEffect, useCallback, useRef, useState, Suspense } from 'react
 import { useNavigationStore, useModalStore, useSettingsStore, useFavoritesStore, usePresentationStore } from '@/stores';
 import { useCommand } from '@/hooks/useCommand';
 import { COMMAND_IDS } from '@/stores/commandRegistry';
-import { useTodayNote, RouterSync, useCreateNode, useNode, useIsMobile } from '@/hooks';
+import { useTodayNote, RouterSync, useCreateNode, useNode, useIsMobile, useDocumentTitle } from '@/hooks';
 import { useSettingsQuery } from '@/hooks/useSettings';
 import { markPageOpened, fixLinksForUuid } from '@/api/nodes';
 import type { BlockData } from '@/utils/clipboardManager';
@@ -45,6 +45,8 @@ import { PresentationModal } from '@/components/core/PresentationModal';
 import './Layout.css';
 
 export function Layout() {
+  useDocumentTitle();
+
   // Use granular selectors to avoid re-rendering on unrelated store changes
   const isSidebarCollapsed = useNavigationStore(s => s.isSidebarCollapsed);
   const rightSidebarOpen = useNavigationStore(s => s.rightSidebarOpen);

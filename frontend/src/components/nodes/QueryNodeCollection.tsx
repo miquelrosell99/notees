@@ -26,6 +26,7 @@ import {
 import { useCreateNode, usePageClass, useAddClass } from '@/hooks/useNodes';
 import { useClasses, useLinkedReferences } from '@/hooks/useNodeQueries';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
+
 import { useContentSave } from '@/hooks';
 import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
 import type { NodeView, NodeViewType } from '@/types/nodeView';
@@ -728,7 +729,10 @@ export function QueryNodeCollection({
     : (isPseudoNode ? (pseudoQueryResults ?? []) : (queryResults ?? []));
   const activeAST = isInlineMode ? inlineQueryAST
     : (isPseudoNode ? pseudoNodeAST : activeView?.query_ast);
-  const resultNodes = (activeAST && isEmptyQuery(activeAST)) ? [] : rawResults;
+  const resultNodes = useMemo(() => {
+    const nodes = (activeAST && isEmptyQuery(activeAST)) ? [] : rawResults;
+    return nodes;
+  }, [activeAST, rawResults]);
   const isQueryLoading = viewType === 'linked_references' 
     ? linkedReferencesLoading 
     : isInlineMode ? inlineQueryLoading
@@ -1141,6 +1145,7 @@ export function QueryNodeCollection({
             showEmpty={!showPagesSection}
             autoCollapse={true}
             containerCard={showPagesSection ? false : viewType !== 'all_pages'}
+            defaultSort={viewType === 'all_pages' ? [{ key: 'name', direction: 'asc' }] : undefined}
             activeNode={nodeName ? { id: nodeId, uuid: nodeUuid, name: nodeName } : undefined}
             onAddClass={handleAddClass}
             showBreadcrumbs={viewType !== 'all_pages' && viewType !== 'child_pages'}
