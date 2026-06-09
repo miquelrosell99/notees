@@ -194,6 +194,7 @@ export function InlineEditorKeysPlugin({
     return editor.registerCommand(
       KEY_TAB_COMMAND,
       (event) => {
+        event?.preventDefault();
         onTab(event?.shiftKey ?? false);
         return true;
       },

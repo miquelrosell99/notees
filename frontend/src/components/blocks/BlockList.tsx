@@ -405,7 +405,7 @@ export function BlockList({
         setPendingFocus(newBlockId);
       }
     },
-    [setPendingFocus],
+    [setPendingFocus, nodeUuid],
   );
 
   const handleBackspaceAtStart = useCallback(

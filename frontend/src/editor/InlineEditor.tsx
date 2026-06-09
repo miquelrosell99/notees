@@ -13,6 +13,7 @@ import {
   useMemo,
   useRef,
   useEffect,
+  useLayoutEffect,
   forwardRef,
   useImperativeHandle,
   memo,
@@ -198,6 +199,14 @@ export const InlineEditor = memo(
               position = 'empty';
               return;
             }
+
+            // If there's an active range selection (not just a collapsed cursor),
+            // treat it as middle so the block is split after deleting the selection.
+            if (!selection.isCollapsed()) {
+              position = 'middle';
+              return;
+            }
+
             const anchor = selection.anchor;
             const root = $getRoot();
             const paragraph = root.getFirstChild();
@@ -205,15 +214,22 @@ export const InlineEditor = memo(
               position = 'empty';
               return;
             }
-            const textContent = paragraph.getTextContent();
-
-            if (textContent === '' || textContent === '\u200B') {
-              position = 'empty';
-              return;
-            }
 
             // Cast to ElementNode for descendant/children methods
             const paragraphEl = paragraph as ElementNode;
+            const children = paragraphEl.getChildren();
+            const hasMeaningfulContent = children.some((child) => {
+              if ($isTextNode(child)) {
+                const text = child.getTextContent();
+                return text !== '' && text !== '\u200B';
+              }
+              return true;
+            });
+
+            if (!hasMeaningfulContent) {
+              position = 'empty';
+              return;
+            }
 
             // Check absolute start (anchor is at the very first position)
             const firstDescendant = paragraphEl.getFirstDescendant();
@@ -417,7 +433,7 @@ function InlineEditorInner({
   const [editor] = useLexicalComposerContext();
 
   // Expose editor instance to parent via ref
-  useEffect(() => {
+  useLayoutEffect(() => {
     editorRef.current = editor;
   }, [editor, editorRef]);
 
