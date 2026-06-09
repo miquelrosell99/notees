@@ -50,8 +50,9 @@
 }
 
 .inline-link-wrapper .inline-link-icon {
-  font-size: 0.9em;
-  vertical-align: baseline;
+  display: inline-flex;
+  align-items: center;
+  vertical-align: -0.125em;
   margin-right: 2px;
 }
 
