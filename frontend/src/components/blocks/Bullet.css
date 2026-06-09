@@ -87,8 +87,8 @@
 }
 
 .bullet-interactive:hover::after {
-  background-color: color-mix(in srgb, var(--color-primary) 25%, transparent);
-  transform: scale(2.2);
+  background-color: color-mix(in srgb, var(--color-primary) 12%, transparent);
+  transform: scale(1.4);
 }
 
 .bullet-interactive:hover .bullet-dot {
@@ -229,6 +229,12 @@
   -webkit-user-select: none;
 }
 
+.bullet-collapse-arrow__icon {
+  font-size: 10px;
+  line-height: 1;
+  display: inline-block;
+}
+
 .bullet-collapse-arrow:hover {
   opacity: 1;
   color: var(--color-on-surface);
@@ -238,9 +244,10 @@
   transform: translateY(-50%) scale(var(--tactile-press-scale));
 }
 
-/* Smooth rotation for collapse icon */
-.bullet-collapse-arrow .mdi {
-  transition: transform var(--motion-duration-long) var(--motion-easing-collapse);
+/* Show collapse arrow when hovering the bullet wrapper or the block row */
+.bullet-wrapper:hover .bullet-collapse-arrow,
+.node-block:hover .bullet-collapse-arrow {
+  opacity: 1;
 }
 
 /* ==================== Dragging State ==================== */

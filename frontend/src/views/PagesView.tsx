@@ -146,6 +146,7 @@ export function PagesView({ initialViewMode }: PagesViewProps) {
             showClasses={true}
             showEmpty={true}
             emptyMessage="No pages found"
+            expandAll={true}
             className="pages-view__node-collection"
             defaultSort={[{ key: 'name', direction: 'asc' }]}
           />

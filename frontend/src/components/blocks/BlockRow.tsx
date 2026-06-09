@@ -161,6 +161,7 @@ export const BlockRow = memo(
     const { cycleTaskStatus } = useTaskActions(node);
 
     const [contextMenuPos, setContextMenuPos] = useState<{ x: number; y: number } | null>(null);
+    const [isHovered, setIsHovered] = useState(false);
 
     // Stable callbacks: use refs so InlineEditor memo doesn't re-render when parent passes new refs
     const callbacksRef = useRef({
@@ -351,6 +352,8 @@ export const BlockRow = memo(
         data-block-id={node.uuid}
         data-depth={depth}
         style={{ '--block-depth': depth, ...colorStyle } as React.CSSProperties}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
       >
         <BlockUI
           node={node}
@@ -360,6 +363,7 @@ export const BlockRow = memo(
           onNavigate={onNavigate}
           onOpenInSidebar={onOpenInSidebar}
           onContextMenu={handleBulletContextMenu}
+          isHovered={isHovered}
           lockedBy={lockedBy}
           presenceUsers={presenceUsers}
           typingUsers={typingUsers}

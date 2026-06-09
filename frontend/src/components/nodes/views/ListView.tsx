@@ -80,6 +80,7 @@ export const ListView = memo(function ListView({
   size,
   maxDepth,
   showClasses = false,
+  expandAll = false,
 }: NodeListViewProps) {
   const sizeClass = size === 'sm' ? 'node-list-view--sm' : '';
 
@@ -307,6 +308,7 @@ export const ListView = memo(function ListView({
                 templateClassFilters={templateClassFilters}
                 showClasses={showClasses}
                 skipPages={false}
+                expandAll={expandAll}
               />
             </div>
           </div>
@@ -358,6 +360,7 @@ export const ListView = memo(function ListView({
               showBreadcrumbs={showBreadcrumbs}
               nodeUuid={_nodeUuid}
               nodeId={_pageId}
+              expandAll={expandAll}
             />
           );
         })}
@@ -381,6 +384,7 @@ export const ListView = memo(function ListView({
                 onTemplateInstantiate={onTemplateInstantiate}
                 templateClassFilters={templateClassFilters}
                 showClasses={showClasses}
+                expandAll={expandAll}
               />
             </div>
           </div>
@@ -466,6 +470,7 @@ export const ListView = memo(function ListView({
                 onTemplateInstantiate={onTemplateInstantiate}
                 templateClassFilters={templateClassFilters}
                 showClasses={showClasses}
+                expandAll={expandAll}
               />
             </div>
           );
@@ -494,6 +499,7 @@ export const ListView = memo(function ListView({
         pagesOnly={pagesOnly}
         skipPages={!pagesOnly}
         showClasses={showClasses}
+        expandAll={expandAll}
       />
     </div>
   );
@@ -531,6 +537,7 @@ function ListViewGroup({
   nodeUuid,
   nodeId,
   showClasses = false,
+  expandAll = false,
 }: {
   group: NodeGroup;
   sortedGroupNodes: Node[];
@@ -621,6 +628,7 @@ function ListViewGroup({
                     onTemplateInstantiate={onTemplateInstantiate}
                     templateClassFilters={templateClassFilters}
                     showClasses={showClasses}
+                    expandAll={expandAll}
                   />
                 </div>
               );
@@ -640,6 +648,7 @@ function ListViewGroup({
               showClasses={showClasses}
               nodeUuid={nodeUuid}
               nodeId={nodeId}
+              expandAll={expandAll}
             />
           )}
         </div>
