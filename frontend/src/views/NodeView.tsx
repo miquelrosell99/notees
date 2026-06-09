@@ -366,10 +366,13 @@ export function NodeView({
   const showFooter = hideFooter !== undefined ? !hideFooter : !sidebarMode;
   
   // Fetch the node — include properties/backlinks if we're showing properties or queries
+  // staleTime: 0 ensures we always get fresh metadata (classes, tags, aliases) when
+  // navigating, avoiding stale cache from placeholderData or previous incomplete loads.
   const { data: node, isLoading, error } = useNode(nodeId, { 
     include_children: true, 
     include_properties: showProperties || showQueries,
-    include_backlinks: showProperties || showQueries
+    include_backlinks: showProperties || showQueries,
+    staleTime: 0,
   });
   
   // Hooks (needed for page header sections)
@@ -504,18 +507,31 @@ export function NodeView({
   const removeAlias = useRemoveAlias();
   
   // Fetch alias nodes directly (allNodes excludes aliased pages)
-  const { data: pageAliasDetails = [] } = useQuery({
+  const { data: pageAliasDetailsRaw = [] } = useQuery({
     queryKey: nodeKeys.aliases(nodeId ?? 0),
     queryFn: () => nodesApi.getAliases(nodeId!),
-    enabled: !!nodeId && !!node?.aliases && node.aliases.length > 0,
+    // Always fetch for main pages — don't gate on node.aliases because it can
+    // be stale (default staleTime is 5 min) and miss recently-added aliases.
+    enabled: !!nodeId && node?.is_page === true && !node?.aliased_id,
   });
-  
+
+  // Defensive: filter out any self-referencing aliases that may have been
+  // created by old bugs or cache corruption.
+  const pageAliasDetails = useMemo(
+    () => pageAliasDetailsRaw.filter((a) => a.id !== nodeId),
+    [pageAliasDetailsRaw, nodeId]
+  );
+
   // Handle adding an alias via NodeSelector
   const handleAddAlias = useCallback((aliasNode: Node) => {
     if (!node) return;
+    if (aliasNode.id === node.id) {
+      console.warn('Cannot add a node as an alias of itself');
+      return;
+    }
     addAlias.mutate({ nodeId: node.id, aliasNodeId: aliasNode.id });
   }, [node, addAlias]);
-  
+
   // Handle removing an alias via NodeSelector
   const handleRemoveAlias = useCallback((aliasNode: Node) => {
     if (!node) return;

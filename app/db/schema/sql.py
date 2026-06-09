@@ -820,6 +820,23 @@ END $$;
 -- Ensure aliased_id index exists (safe to run even if column was just created)
 CREATE INDEX IF NOT EXISTS idx_node_aliased_id ON node(aliased_id) WHERE aliased_id IS NOT NULL;
 
+-- Migration: Clean up any self-referencing aliases and add CHECK constraint to prevent them
+DO $$
+BEGIN
+    -- Fix any existing self-references (shouldn't happen, but ensures constraint can be added)
+    UPDATE node SET aliased_id = NULL WHERE aliased_id = id;
+
+    -- Add CHECK constraint preventing a node from being an alias of itself
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'chk_node_no_self_alias'
+          AND conrelid = 'node'::regclass
+    ) THEN
+        ALTER TABLE node ADD CONSTRAINT chk_node_no_self_alias
+            CHECK (aliased_id IS NULL OR aliased_id != id);
+    END IF;
+END $$;
+
 -- Migration: Add sequence column to property_selection_line for manual ordering
 DO $$
 BEGIN

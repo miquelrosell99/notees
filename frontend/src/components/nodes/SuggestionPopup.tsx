@@ -226,7 +226,7 @@ export function SuggestionPopup({
   const getAliasedNodeName = useCallback((node: Node): string | null => {
     if (!node.aliased_id) return null;
     const aliasedNode = allSearchNodes.find(n => n.id === node.aliased_id) || allNodes.find(n => n.id === node.aliased_id);
-    return aliasedNode ? (nodeNameToText(aliasedNode.name) || 'Unknown') : null;
+    return aliasedNode ? (nodeNameToText(aliasedNode.name) || null) : null;
   }, [allSearchNodes, allNodes]);
   
   // Helper to build parent page path (e.g. "Root / Parent") for a page node
