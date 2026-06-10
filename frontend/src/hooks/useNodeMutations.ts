@@ -710,6 +710,16 @@ export function useUpdateNode() {
         queryClient.invalidateQueries({
           queryKey: nodeKeys.breadcrumbs(updatedNode.id),
         });
+
+        // Invalidate pages and search so command palette breadcrumbs update
+        queryClient.invalidateQueries({
+          queryKey: nodeKeys.pages(),
+          refetchType: 'none',
+        });
+        queryClient.invalidateQueries({
+          queryKey: [...nodeKeys.all, 'search'],
+          refetchType: 'none',
+        });
       }
       
       // If name/content was updated, invalidate link-related caches
@@ -1463,6 +1473,20 @@ export function useMoveNode() {
       });
       queryClient.invalidateQueries({ 
         queryKey: ['nodes', 'property-backlinks'],
+      });
+
+      // Invalidate pages, search, and breadcrumbs so command palette breadcrumbs update
+      queryClient.invalidateQueries({
+        queryKey: nodeKeys.pages(),
+        refetchType: 'none',
+      });
+      queryClient.invalidateQueries({
+        queryKey: [...nodeKeys.all, 'search'],
+        refetchType: 'none',
+      });
+      queryClient.invalidateQueries({
+        queryKey: [...nodeKeys.all, 'breadcrumbs'],
+        refetchType: 'none',
       });
     },
   });
