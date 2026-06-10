@@ -364,7 +364,7 @@ export function PageHeader({
         y: Math.min(rect.bottom + 4, window.innerHeight - 400),
       });
     }
-    setShowIconPicker(true);
+    setShowIconPicker((prev) => !prev);
   }, []);
 
   const handleIconSelect = useCallback((icon: string) => {
