@@ -110,7 +110,6 @@ export const ClassPillsRow = memo(function ClassPillsRow({
           <Button
             variant="ghost"
             size="xs"
-            iconOnly
             icon="mdi mdi-plus"
             className="class-pills-row__add"
             onClick={(e) => {
@@ -141,7 +140,6 @@ export const ClassPillsRow = memo(function ClassPillsRow({
               <Button
                 variant="ghost"
                 size="xs"
-                iconOnly
                 icon="mdi mdi-close"
                 className="class-pills-popup__close"
                 onClick={handleClosePopup}
@@ -158,7 +156,6 @@ export const ClassPillsRow = memo(function ClassPillsRow({
                       <Button
                         variant="ghost"
                         size="xs"
-                        iconOnly
                         icon="mdi mdi-close"
                         className="class-pills-popup__remove"
                         onClick={() => handleRemove(cls.id)}
@@ -191,7 +188,6 @@ export const ClassPillsRow = memo(function ClassPillsRow({
               <Button
                 variant="ghost"
                 size="xs"
-                iconOnly
                 icon="mdi mdi-close"
                 className="class-pills-popup__close"
                 onClick={() => setShowAddPopup(false)}

@@ -249,7 +249,6 @@ export function NodeCollectionToolbar({
               <Button
                 variant="ghost"
                 size="xs"
-                iconOnly
                 icon="mdi mdi-close"
                 className="node-collection-toolbar__group-by-badge-close"
                 onClick={() => onGroupByChange('none')}

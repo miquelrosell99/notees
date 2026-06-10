@@ -135,7 +135,6 @@ export function MobileLayout({ currentNodeId }: MobileLayoutProps) {
         <Button
           variant="primary"
           size="lg"
-          iconOnly
           icon="mdi mdi-plus"
           className="mobile-fab"
           onClick={() => setScratchpadOpen(true)}

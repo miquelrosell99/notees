@@ -1122,7 +1122,6 @@ export function NodeView({
             <Button
               variant="ghost"
               size="xs"
-              iconOnly
               icon="mdi mdi-chevron-down"
               className="node-view__banner-collapse-btn"
               onClick={handleToggleBannerCollapse}
@@ -1191,7 +1190,6 @@ export function NodeView({
               <Button
                 variant="ghost"
                 size="xs"
-                iconOnly
                 icon="mdi mdi-chevron-left"
                 className="node-view__cover-collapse-btn"
                 onClick={handleToggleCoverCollapse}
@@ -1226,7 +1224,6 @@ export function NodeView({
                   <Button
                     variant="ghost"
                     size="sm"
-                    iconOnly
                     icon="mdi mdi-image-outline"
                     className="node-view__cover-add-btn"
                     onClick={handleSelectCoverImage}

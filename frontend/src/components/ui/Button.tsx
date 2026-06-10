@@ -42,8 +42,6 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   fullWidth?: boolean;
   /** Whether the button is in an active/pressed state */
   active?: boolean;
-  /** Whether to show only the icon (hides children) */
-  iconOnly?: boolean;
   /** Children content */
   children?: ReactNode;
   /** Badges to display on the button */
@@ -66,7 +64,6 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
     size = 'md',
     fullWidth = false,
     active = false,
-    iconOnly = false,
     children,
     className = '',
     disabled,
@@ -84,7 +81,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
     onClick?.(e);
   }, [onClick]);
 
-  const hasText = children && !iconOnly;
+  const hasText = !!children;
   const isIconOnly = icon && !hasText;
   const hasIconAndText = icon && hasText;
 

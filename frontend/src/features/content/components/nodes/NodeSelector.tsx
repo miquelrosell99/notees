@@ -819,7 +819,6 @@ export function NodeSelector({
                     <Button
                       variant="ghost"
                       size="xs"
-                      iconOnly
                       icon="mdi mdi-close"
                       className="node-selector__filter-pill-remove"
                       onClick={() => handleRemoveFilter(fi)}
@@ -968,7 +967,6 @@ export function NodeSelector({
                     <Button
                       variant="ghost"
                       size="xs"
-                      iconOnly
                       icon="mdi mdi-close"
                       className="node-selector__filter-pill-remove"
                       onClick={() => handleRemoveFilter(fi)}
@@ -1135,7 +1133,6 @@ export function NodeSelector({
                 <Button
                   variant="ghost"
                   size="xs"
-                  iconOnly
                   icon="mdi mdi-close"
                   className="node-selector__filter-pill-remove"
                   onClick={() => handleRemoveFilter(fi)}
@@ -1290,7 +1287,6 @@ export function NodeSelector({
                 <Button
                   variant="ghost"
                   size="xs"
-                  iconOnly
                   icon="mdi mdi-close"
                   className="node-selector__filter-pill-remove"
                   onClick={() => handleRemoveFilter(fi)}
@@ -1456,7 +1452,6 @@ export function NodeSelector({
                       <Button
                         variant="ghost"
                         size="xs"
-                        iconOnly
                         icon="mdi mdi-close"
                         className="node-selector__filter-pill-remove"
                         onClick={() => handleRemoveFilter(fi)}

@@ -100,7 +100,6 @@ export function FileDropZone({
         <Button
           variant="ghost"
           size="xs"
-          iconOnly
           icon="mdi mdi-pencil"
           className="file-drop-zone__selected-action"
           onClick={openFilePicker}
@@ -110,7 +109,6 @@ export function FileDropZone({
         <Button
           variant="ghost"
           size="xs"
-          iconOnly
           icon="mdi mdi-close"
           className="file-drop-zone__selected-action file-drop-zone__selected-action--remove"
           onClick={onClear}

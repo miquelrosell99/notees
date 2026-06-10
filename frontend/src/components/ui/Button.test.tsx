@@ -23,7 +23,7 @@ describe('Button', () => {
   });
 
   it('renders with icon only', () => {
-    render(<Button icon={"mdi mdi-check"} aria-label="Check" iconOnly />);
+    render(<Button icon={"mdi mdi-check"} aria-label="Check" />);
     const button = screen.getByLabelText('Check');
     expect(button).toBeInTheDocument();
   });

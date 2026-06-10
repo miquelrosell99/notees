@@ -25,11 +25,7 @@ import { WorkspaceActionsMenu } from '@/features/workspace/components/WorkspaceA
 import { WorkspaceShareModal } from '@/features/workspace/components/WorkspaceShareModal';
 import { WorkspaceExportModal } from '@/features/workspace/components/WorkspaceExportModal';
 import { UserSettingsModal, SystemSettingsModal } from '@/features/layout/components/Modals';
-import { 
-  ArrowRightIcon,
-  CheckIcon, 
-  CloseIcon, 
-} from '@/components/ui/icons';
+
 
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -370,9 +366,8 @@ export function WorkspaceManagementView({
                         title="Open workspace"
                         className="workspace-management__access-btn"
                         disabled={switchMutation.isPending}
-                      >
-                        <ArrowRightIcon size="sm" />
-                      </Button>
+                        icon="mdi mdi-arrow-right"
+                      />
                       {deleteConfirm === workspace.uuid && (
                         <>
                           <Button
@@ -381,18 +376,16 @@ export function WorkspaceManagementView({
                             onClick={() => deleteMutation.mutate(workspace.uuid)}
                             title="Confirm delete"
                             disabled={deleteMutation.isPending}
-                          >
-                            <CheckIcon size="sm" />
-                          </Button>
+                            icon="mdi mdi-check"
+                          />
                           <Button
                             variant="ghost"
                             size="sm"
                             onClick={() => setDeleteConfirm(null)}
                             title="Cancel"
                             disabled={deleteMutation.isPending}
-                          >
-                            <CloseIcon size="sm" />
-                          </Button>
+                            icon="mdi mdi-close"
+                          />
                         </>
                       )}
                       {deleteConfirm !== workspace.uuid && (

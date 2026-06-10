@@ -84,7 +84,6 @@ export function PresentationModal() {
       <div className="presentation-modal-actions">
         <Button
           icon={"mdi mdi-fullscreen"}
-          iconOnly
           onClick={toggleFullscreen}
           size="md"
           variant="ghost"
@@ -92,7 +91,6 @@ export function PresentationModal() {
         />
         <Button
           icon={"mdi mdi-close"}
-          iconOnly
           onClick={closePresentation}
           size="md"
           variant="ghost"
@@ -106,7 +104,6 @@ export function PresentationModal() {
           <div className="presentation-modal-nav presentation-modal-nav--prev">
             <Button
               icon={"mdi mdi-chevron-left"}
-              iconOnly
               onClick={goToPrev}
               size="lg"
               variant="ghost"
@@ -117,7 +114,6 @@ export function PresentationModal() {
           <div className="presentation-modal-nav presentation-modal-nav--next">
             <Button
               icon={"mdi mdi-chevron-right"}
-              iconOnly
               onClick={goToNext}
               size="lg"
               variant="ghost"

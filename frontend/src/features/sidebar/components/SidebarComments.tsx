@@ -84,7 +84,6 @@ function QuickAddComment({ nodeId, onClose }: QuickAddCommentProps) {
           <Button
             variant="primary"
             size="xs"
-            iconOnly
             icon="mdi mdi-send"
             className="sidebar-quick-add-comment__send"
             onClick={handleSubmit}

@@ -141,7 +141,6 @@ export function SelectTrigger({
       {clearable && hasValue && onClear && (
         <Button
           icon={"mdi mdi-close"}
-          iconOnly
           variant="ghost"
           size="sm"
           onClick={handleClearClick}

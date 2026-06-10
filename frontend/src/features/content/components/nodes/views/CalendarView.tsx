@@ -367,9 +367,9 @@ export const CalendarView = memo(function CalendarView({
       <div className={`calendar-view calendar-view--empty ${className}`}>
         <div className="calendar-view__header">
           <div className="calendar-view__nav">
-            <Button variant="ghost" size="sm" iconOnly icon="mdi mdi-chevron-left" aria-label="Previous month" className="calendar-view__nav-btn" onClick={handlePrev} />
+            <Button variant="ghost" size="sm" icon="mdi mdi-chevron-left" aria-label="Previous month" className="calendar-view__nav-btn" onClick={handlePrev} />
             <span className="calendar-view__month-label">{periodLabel}</span>
-            <Button variant="ghost" size="sm" iconOnly icon="mdi mdi-chevron-right" aria-label="Next month" className="calendar-view__nav-btn" onClick={handleNext} />
+            <Button variant="ghost" size="sm" icon="mdi mdi-chevron-right" aria-label="Next month" className="calendar-view__nav-btn" onClick={handleNext} />
           </div>
           <button className="calendar-view__today-btn" onClick={handleToday} type="button">
             Today
@@ -438,9 +438,9 @@ export const CalendarView = memo(function CalendarView({
       {/* Header */}
       <div className="calendar-view__header">
         <div className="calendar-view__nav">
-          <Button variant="ghost" size="sm" iconOnly icon="mdi mdi-chevron-left" aria-label="Previous month" className="calendar-view__nav-btn" onClick={handlePrev} title="Previous" />
+          <Button variant="ghost" size="sm" icon="mdi mdi-chevron-left" aria-label="Previous month" className="calendar-view__nav-btn" onClick={handlePrev} title="Previous" />
           <span className="calendar-view__month-label">{periodLabel}</span>
-          <Button variant="ghost" size="sm" iconOnly icon="mdi mdi-chevron-right" aria-label="Next month" className="calendar-view__nav-btn" onClick={handleNext} title="Next" />
+          <Button variant="ghost" size="sm" icon="mdi mdi-chevron-right" aria-label="Next month" className="calendar-view__nav-btn" onClick={handleNext} title="Next" />
         </div>
         <div className="calendar-view__controls">
           {/* View mode toggle */}
