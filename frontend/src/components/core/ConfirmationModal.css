@@ -3,20 +3,20 @@
 .confirmation-modal__header {
   display: flex;
   align-items: flex-start;
-  gap: 12px;
-  margin-bottom: 16px;
+  gap: var(--spacing-3);
+  margin-bottom: var(--spacing-4);
 }
 
 .confirmation-modal__icon {
   flex-shrink: 0;
-  width: 20px;
-  height: 20px;
+  width: var(--icon-size-md);
+  height: var(--icon-size-md);
   color: var(--color-primary);
   margin-top: 2px;
 }
 
 .confirmation-modal__title {
-  font-size: 16px;
+  font-size: var(--font-size-md);
   font-weight: 600;
   color: var(--color-on-surface);
   margin: 0;
@@ -25,20 +25,20 @@
 .confirmation-modal__message {
   color: var(--color-on-surface-variant);
   line-height: 1.5;
-  margin-bottom: 24px;
+  margin-bottom: var(--spacing-6);
   white-space: pre-line;
 }
 
 .confirmation-modal__secondary-message {
   color: var(--color-outline);
-  font-size: 14px;
+  font-size: var(--font-size-base);
   line-height: 1.5;
-  margin-top: -16px;
-  margin-bottom: 24px;
+  margin-top: calc(var(--spacing-4) * -1);
+  margin-bottom: var(--spacing-6);
 }
 
 .confirmation-modal__actions {
   display: flex;
-  gap: 12px;
+  gap: var(--spacing-3);
   justify-content: flex-end;
 }

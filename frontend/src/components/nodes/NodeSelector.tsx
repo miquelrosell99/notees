@@ -16,12 +16,12 @@ import { useQueries } from '@tanstack/react-query';
 import { useKeyboardListNav } from '@/hooks/useKeyboardListNav';
 import { useViewportFlip } from '@/hooks/useViewportFlip';
 import { NodeRef } from './NodeRef';
+import { Button } from '@/components/core/Button';
 import { Icon, AddIcon, NodeIcon } from '@/components/core/icons';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
 import { Checkbox } from '@/components/core/Checkbox';
 import { SearchField } from '@/components/core/SearchField';
 import { NodeResultItem } from './NodeResultItem';
-import { Button } from '@/components/core/Button';
 import { Card } from '@/components/core/Card';
 import { SelectTrigger, type SelectTriggerSize } from '@/components/core/SelectTrigger';
 
@@ -816,13 +816,15 @@ export function NodeSelector({
                         <span>{filter.value ? 'true' : 'false'}</span>
                       </>
                     )}
-                    <button
+                    <Button
+                      variant="ghost"
+                      size="xs"
+                      iconOnly
+                      icon="mdi mdi-close"
                       className="node-selector__filter-pill-remove"
                       onClick={() => handleRemoveFilter(fi)}
                       aria-label="Remove filter"
-                    >
-                      ×
-                    </button>
+                    />
                   </span>
                 ))}
               </div>
@@ -963,13 +965,15 @@ export function NodeSelector({
                         <span>{filter.value ? 'true' : 'false'}</span>
                       </>
                     )}
-                    <button
+                    <Button
+                      variant="ghost"
+                      size="xs"
+                      iconOnly
+                      icon="mdi mdi-close"
                       className="node-selector__filter-pill-remove"
                       onClick={() => handleRemoveFilter(fi)}
                       aria-label="Remove filter"
-                    >
-                      ×
-                    </button>
+                    />
                   </span>
                 ))}
               </div>
@@ -1128,13 +1132,15 @@ export function NodeSelector({
                     <span>{filter.value ? 'true' : 'false'}</span>
                   </>
                 )}
-                <button
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  iconOnly
+                  icon="mdi mdi-close"
                   className="node-selector__filter-pill-remove"
                   onClick={() => handleRemoveFilter(fi)}
                   aria-label="Remove filter"
-                >
-                  ×
-                </button>
+                />
               </span>
             ))}
           </div>
@@ -1281,13 +1287,15 @@ export function NodeSelector({
                     <span>{filter.value ? 'true' : 'false'}</span>
                   </>
                 )}
-                <button
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  iconOnly
+                  icon="mdi mdi-close"
                   className="node-selector__filter-pill-remove"
                   onClick={() => handleRemoveFilter(fi)}
                   aria-label="Remove filter"
-                >
-                  ×
-                </button>
+                />
               </span>
             ))}
           </div>
@@ -1445,13 +1453,15 @@ export function NodeSelector({
                           <span>{filter.value ? 'true' : 'false'}</span>
                         </>
                       )}
-                      <button
+                      <Button
+                        variant="ghost"
+                        size="xs"
+                        iconOnly
+                        icon="mdi mdi-close"
                         className="node-selector__filter-pill-remove"
                         onClick={() => handleRemoveFilter(fi)}
                         aria-label="Remove filter"
-                      >
-                        ×
-                      </button>
+                      />
                     </span>
                   ))}
                 </div>

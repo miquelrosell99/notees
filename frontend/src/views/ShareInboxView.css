@@ -40,11 +40,12 @@
   border-radius: 0.5rem;
   padding: 1rem;
   background: var(--surface-color);
-  transition: box-shadow 0.15s ease;
+  transition: border-color 0.15s ease;
 }
 
 .share-inbox-view__item:hover {
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  box-shadow: none;
+  border-color: var(--color-outline);
 }
 
 .share-inbox-view__item-header {
@@ -66,7 +67,7 @@
   letter-spacing: 0.05em;
   font-weight: 600;
   padding: 0.15rem 0.5rem;
-  border-radius: 999px;
+  border-radius: var(--shape-full);
   border: 1px solid var(--border-color);
 }
 

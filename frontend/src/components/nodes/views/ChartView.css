@@ -6,7 +6,7 @@
   height: 100%;
   min-height: 400px;
   background: var(--surface);
-  border-radius: 8px;
+  border-radius: var(--shape-large);
   overflow: hidden;
 }
 
@@ -15,9 +15,9 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
+  padding: var(--spacing-3) var(--spacing-4);
   border-bottom: 1px solid var(--outline-variant);
-  gap: 12px;
+  gap: var(--spacing-3);
   flex-shrink: 0;
   flex-wrap: wrap;
 }
@@ -25,15 +25,15 @@
 .chart-view__type-toggle {
   display: flex;
   border: 1px solid var(--outline-variant);
-  border-radius: 6px;
+  border-radius: var(--shape-medium);
   overflow: hidden;
 }
 
 .chart-view__type-btn {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 6px 12px;
+  gap: var(--spacing-1);
+  padding: 6px var(--spacing-3);
   border: none;
   background: var(--surface-container);
   color: var(--on-surface-variant);
@@ -60,7 +60,7 @@
 .chart-view__property-select {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--spacing-2);
 }
 
 .chart-view__property-label {
@@ -71,7 +71,7 @@
 .chart-view__property-dropdown {
   padding: 6px 10px;
   border: 1px solid var(--outline-variant);
-  border-radius: 6px;
+  border-radius: var(--shape-medium);
   background: var(--surface-container);
   color: var(--on-surface);
   font-size: 0.85rem;
@@ -85,7 +85,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px;
+  padding: var(--spacing-5);
   overflow: auto;
 }
 
@@ -119,8 +119,8 @@
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 12px;
-  padding: 12px 16px;
+  gap: var(--spacing-3);
+  padding: var(--spacing-3) var(--spacing-4);
   border-top: 1px solid var(--outline-variant);
   flex-shrink: 0;
 }
@@ -135,7 +135,7 @@
 .chart-view__legend-color {
   width: 10px;
   height: 10px;
-  border-radius: 2px;
+  border-radius: var(--shape-extra-small);
 }
 
 .chart-view__legend-label {
@@ -156,5 +156,5 @@
   text-align: center;
   color: var(--on-surface-variant);
   font-size: 0.95rem;
-  padding: 40px;
+  padding: var(--spacing-10);
 }

@@ -135,7 +135,7 @@ export default defineConfig({
           if (id.includes('node_modules/react') || id.includes('node_modules/react-dom')) {
             return 'vendor-react'
           }
-          if (id.includes('node_modules/axios')) {
+          if (id.includes('node_modules/ky')) {
             return 'vendor-http'
           }
           if (id.includes('node_modules/zustand')) {

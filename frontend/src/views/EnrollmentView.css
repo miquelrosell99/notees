@@ -137,8 +137,8 @@
 }
 
 .enrollment__theme-preview {
-  width: 100px;
-  height: 64px;
+  width: var(--theme-preview-width);
+  height: var(--spacing-16);
   border-radius: var(--shape-small);
   display: flex;
   overflow: hidden;
@@ -150,16 +150,16 @@
 }
 
 .enrollment__theme-preview--light .enrollment__theme-sidebar {
-  width: 24px;
+  width: var(--icon-size-lg);
   background: var(--color-surface-container-high);
 }
 
 .enrollment__theme-preview--light .enrollment__theme-content {
   flex: 1;
-  padding: 8px;
+  padding: var(--spacing-2);
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--spacing-1);
 }
 
 .enrollment__theme-preview--light .enrollment__theme-line {
@@ -177,16 +177,16 @@
 }
 
 .enrollment__theme-preview--dark .enrollment__theme-sidebar {
-  width: 24px;
+  width: var(--icon-size-lg);
   background: var(--color-surface-container);
 }
 
 .enrollment__theme-preview--dark .enrollment__theme-content {
   flex: 1;
-  padding: 8px;
+  padding: var(--spacing-2);
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--spacing-1);
 }
 
 .enrollment__theme-preview--dark .enrollment__theme-line {
@@ -208,7 +208,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 4px;
+  padding: var(--spacing-1);
 }
 
 .enrollment__theme-half--light {

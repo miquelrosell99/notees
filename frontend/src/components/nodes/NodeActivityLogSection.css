@@ -7,8 +7,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
+  width: var(--bullet-wrapper-size);
+  height: var(--bullet-wrapper-size);
   border: none;
   background: none;
   border-radius: var(--shape-small);
@@ -28,17 +28,17 @@
 }
 
 .node-activity-empty {
-  padding: 16px;
+  padding: var(--spacing-4);
   text-align: center;
   color: var(--color-outline);
-  font-size: 12px;
+  font-size: var(--font-size-sm);
 }
 
 .node-activity-loading {
-  padding: 16px;
+  padding: var(--spacing-4);
   text-align: center;
   color: var(--color-outline);
-  font-size: 12px;
+  font-size: var(--font-size-sm);
 }
 
 .node-activity-item {
@@ -63,7 +63,7 @@
 
 /* Ensure BlockPreview inside activity items has proper styling */
 .node-activity-item .block-preview {
-  font-size: 13px;
+  font-size: var(--font-size-button);
 }
 
 .node-activity-item .block-preview .block-content {
@@ -72,7 +72,7 @@
 
 /* Activity message text */
 .node-activity-item .node-inline__text {
-  font-size: 13px;
+  font-size: var(--font-size-button);
   color: var(--color-on-surface-variant);
 }
 
@@ -82,7 +82,7 @@
   cursor: pointer;
   text-decoration: none;
   font-weight: 500;
-  border-radius: 2px;
+  border-radius: var(--shape-extra-small);
   transition: background-color var(--motion-duration-short) var(--motion-easing-standard), color var(--motion-duration-short) var(--motion-easing-standard);
 }
 
@@ -99,5 +99,5 @@
 /* Timestamp in activity messages */
 .activity-time {
   color: var(--color-outline);
-  font-size: 12px;
+  font-size: var(--font-size-sm);
 }

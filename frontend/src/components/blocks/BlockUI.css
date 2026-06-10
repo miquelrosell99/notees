@@ -4,6 +4,7 @@
  */
 
 .block-ui {
+  position: relative;
   display: flex;
   align-items: center;
   flex-shrink: 0;
@@ -12,6 +13,54 @@
   user-select: none;
   -webkit-user-select: none;
   -moz-user-select: none;
+}
+
+/* Collapse arrow — positioned between thread line and bullet */
+.block-collapse-arrow {
+  position: absolute;
+  left: var(--collapse-arrow-offset);
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--collapse-arrow-size);
+  height: var(--collapse-arrow-size);
+  padding: 0;
+  border: none;
+  background: transparent;
+  border-radius: 50%;
+  color: var(--color-on-surface-variant);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--motion-duration-short) var(--motion-easing-standard),
+              color var(--motion-duration-short) var(--motion-easing-standard),
+              background-color var(--motion-duration-short) var(--motion-easing-standard),
+              transform var(--motion-duration-short) var(--motion-easing-tactile);
+  z-index: 5;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.block-collapse-arrow__icon {
+  font-size: var(--collapse-arrow-font-size);
+  line-height: 1;
+  display: inline-block;
+  transform: translateY(-1px);
+}
+
+.block-collapse-arrow:hover {
+  opacity: 1;
+  color: var(--color-on-surface);
+}
+
+.block-collapse-arrow:active {
+  transform: translateY(-50%) scale(var(--tactile-press-scale));
+}
+
+/* Show collapse arrow when hovering the block row */
+.node-block:hover .block-collapse-arrow {
+  opacity: 1;
 }
 
 /* Block bullet specific: right margin for spacing from content */
@@ -34,17 +83,17 @@
   display: flex;
   align-items: center;
   gap: 2px;
-  margin-left: 4px;
+  margin-left: var(--spacing-1);
 }
 
 .block-ui__presence-avatar {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 16px;
-  height: 16px;
+  width: var(--icon-size-sm);
+  height: var(--icon-size-sm);
   border-radius: 50%;
-  font-size: 9px;
+  font-size: var(--presence-avatar-font-size);
   font-weight: 600;
   color: #fff;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
@@ -65,7 +114,7 @@
   display: flex;
   align-items: center;
   gap: 3px;
-  margin-left: 4px;
+  margin-left: var(--spacing-1);
 }
 
 .block-ui__typing-dot {

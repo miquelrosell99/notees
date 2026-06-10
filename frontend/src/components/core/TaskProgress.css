@@ -24,7 +24,7 @@
 .task-progress__text {
   display: flex;
   align-items: baseline;
-  gap: 8px;
+  gap: var(--spacing-2);
   font-size: var(--font-size-sm);
   font-weight: 600;
   color: var(--color-primary);
@@ -51,5 +51,5 @@
   gap: 6px;
   font-size: var(--font-size-sm);
   color: var(--color-error);
-  margin-top: 4px;
+  margin-top: var(--spacing-1);
 }

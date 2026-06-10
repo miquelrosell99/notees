@@ -47,20 +47,20 @@
 /* Override NodeIcon size in page header */
 .page-icon-btn .page-icon-large {
   min-width: 40px;
-  min-height: 40px;
+  min-height: var(--page-icon-placeholder-size);
 }
 
 .page-icon-btn .page-icon-large svg {
-  width: 40px !important;
-  height: 40px !important;
+  width: var(--icon-size-2xl) !important;
+  height: var(--icon-size-2xl) !important;
 }
 
 .page-icon-placeholder {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
+  width: var(--icon-size-2xl);
+  height: var(--page-icon-placeholder-size);
   border: var(--border-width-thick) dashed var(--color-outline-variant);
   border-radius: var(--shape-medium);
   color: var(--color-on-surface-variant);
@@ -130,12 +130,12 @@
 
   .page-icon-btn .page-icon-large {
     min-width: 32px;
-    min-height: 32px;
+    min-height: var(--height-md);
   }
 
   .page-icon-btn .page-icon-large svg {
-    width: 32px !important;
-    height: 32px !important;
+    width: var(--icon-size-xl) !important;
+    height: var(--height-md) !important;
   }
 
   .page-title-container {

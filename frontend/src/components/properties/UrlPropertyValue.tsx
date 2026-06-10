@@ -59,7 +59,7 @@ export function UrlPropertyValue({ value, readOnly, onChange, validationRules }:
           {strValue}
         </a>
         {!readOnly && (
-          <button type="button" className="property-link-edit hover-reveal" onClick={() => { setEditValue(strValue); setValidationError(null); setIsEditing(true); }} title="Edit URL">✎</button>
+          <Button variant="ghost" size="xs" iconOnly icon="mdi mdi-pencil" className="property-link-edit hover-reveal" onClick={() => { setEditValue(strValue); setValidationError(null); setIsEditing(true); }} title="Edit URL" />
         )}
       </span>
     );

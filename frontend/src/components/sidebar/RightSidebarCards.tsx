@@ -10,45 +10,31 @@
 import { useCallback, memo, useEffect, useRef } from 'react';
 import { useNavigationStore } from '@/stores';
 import type { SidebarCard } from '@/stores';
-import { SidebarCardLocalGraph, SidebarCardNode } from '.';
 import { SidebarContextSections } from './SidebarContextSections';
 import { Button } from '@/components/core/Button';
+import { getSidebarCardRenderer } from './sidebarCardRegistry';
+import './registerSidebarCards';
 import './RightSidebarCards.css';
 
 /**
  * Renders a single sidebar card based on its type
  */
-const SidebarCardRenderer = memo(function SidebarCardRenderer({ 
-  card, 
-  onClose 
-}: { 
-  card: SidebarCard; 
+const SidebarCardRenderer = memo(function SidebarCardRenderer({
+  card,
+  onClose
+}: {
+  card: SidebarCard;
   onClose: (cardId: number) => void;
 }) {
   const handleClose = useCallback(() => {
     onClose(card.id);
   }, [card.id, onClose]);
 
-  switch (card.cardType) {
-    case 'localGraph':
-      return (
-        <SidebarCardLocalGraph 
-          nodeId={card.nodeId} 
-          onClose={handleClose} 
-        />
-      );
-    case 'page':
-    case 'block':
-      return (
-        <SidebarCardNode 
-          nodeId={card.nodeId} 
-          cardType={card.cardType}
-          onClose={handleClose} 
-        />
-      );
-    default:
-      return null;
-  }
+  const renderer = getSidebarCardRenderer(card.cardType);
+  if (!renderer) return null;
+
+  const Component = renderer.component;
+  return <Component card={card} onClose={handleClose} />;
 });
 
 /**

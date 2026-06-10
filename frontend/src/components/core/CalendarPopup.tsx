@@ -227,9 +227,7 @@ export function CalendarPopup({ isOpen, onClose, anchorRef, goToTodaySignal }: C
       } : undefined}
     >
       <div className="calendar-header">
-        <Button variant="ghost" size="xs" className="calendar-nav-btn" onClick={goToPreviousMonth}>
-          ‹
-        </Button>
+        <Button variant="ghost" size="sm" iconOnly icon="mdi mdi-chevron-left" aria-label="Previous month" className="calendar-nav-btn" onClick={goToPreviousMonth} />
         <div className="calendar-title">
           <Button 
             variant="ghost"
@@ -250,9 +248,7 @@ export function CalendarPopup({ isOpen, onClose, anchorRef, goToTodaySignal }: C
             {currentYear}
           </Button>
         </div>
-        <Button variant="ghost" size="xs" className="calendar-nav-btn" onClick={goToNextMonth}>
-          ›
-        </Button>
+        <Button variant="ghost" size="sm" iconOnly icon="mdi mdi-chevron-right" aria-label="Next month" className="calendar-nav-btn" onClick={goToNextMonth} />
       </div>
       
       <div className="calendar-weekdays">

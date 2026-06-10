@@ -540,7 +540,7 @@ export function useBlockDragDrop({ containerRef, editorId, readOnly }: UseBlockD
       if (e.button !== 0) return;
       const target = e.target as HTMLElement;
       const bullet = target.closest('.bullet-wrapper') as HTMLElement | null;
-      if (!bullet || target.closest('.bullet-collapse-arrow')) return;
+      if (!bullet || target.closest('.block-collapse-arrow')) return;
       if (e.shiftKey) return;
 
       const blockEl = findBlockRow(bullet);
@@ -799,7 +799,7 @@ export function useBlockDragDrop({ containerRef, editorId, readOnly }: UseBlockD
     const handleTouchStart = (e: TouchEvent) => {
       const target = e.target as HTMLElement;
       const bullet = target.closest('.bullet-wrapper') as HTMLElement | null;
-      if (!bullet || target.closest('.bullet-collapse-arrow')) return;
+      if (!bullet || target.closest('.block-collapse-arrow')) return;
 
       const blockEl = findBlockRow(bullet);
       if (!blockEl) return;

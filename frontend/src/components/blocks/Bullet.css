@@ -23,16 +23,6 @@
   -ms-user-select: none;
 }
 
-/* Expand hover area to include collapse arrow position */
-.bullet-has-children::before {
-  content: '';
-  position: absolute;
-  left: -10px;
-  top: 0;
-  width: 12px;
-  height: 100%;
-}
-
 /* Cover indicator - small dot to the left */
 .bullet-cover-indicator {
   position: absolute;
@@ -46,18 +36,18 @@
 
 /* Size variants */
 .bullet-xs {
-  width: 18px;
-  height: 18px;
+  width: var(--height-xs);
+  height: var(--height-xs);
 }
 
 .bullet-sm {
-  width: 22px;
-  height: 22px;
+  width: var(--bullet-wrapper-size);
+  height: var(--bullet-wrapper-size);
 }
 
 .bullet-md {
-  width: 24px;
-  height: 24px;
+  width: var(--height-lg);
+  height: var(--height-lg);
 }
 
 /* Interactive bullet (clickable/draggable) */
@@ -98,15 +88,15 @@
 /* ==================== Bullet Dot ==================== */
 
 .bullet-dot {
-  width: var(--bullet-size-md);
-  height: var(--bullet-size-md);
+  width: var(--bullet-dot-size);
+  height: var(--bullet-dot-size);
   border-radius: 50%;
   background-color: var(--color-on-surface-variant);
   opacity: 0.55;
-  transition: opacity 0.2s cubic-bezier(0.34, 1.56, 0.64, 1),
-              background-color 0.2s cubic-bezier(0.34, 1.56, 0.64, 1),
-              transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1),
-              box-shadow 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: opacity var(--motion-duration-short) var(--motion-easing-tactile),
+              background-color var(--motion-duration-short) var(--motion-easing-tactile),
+              transform var(--motion-duration-short) var(--motion-easing-tactile),
+              box-shadow var(--motion-duration-short) var(--motion-easing-tactile);
 }
 
 .bullet-hovered .bullet-dot {
@@ -137,8 +127,8 @@
 
 .bullet-outer-ring {
   position: absolute;
-  width: 16px;
-  height: 16px;
+  width: var(--bullet-ring-size);
+  height: var(--bullet-ring-size);
   border-radius: 50%;
   background-color: color-mix(in srgb, var(--color-primary) 12%, transparent);
   opacity: 0;
@@ -169,56 +159,6 @@
 }
 */
 
-/* ==================== Collapse Arrow ==================== */
-
-.bullet-collapse-arrow {
-  position: absolute;
-  left: -10px;
-  top: 50%;
-  transform: translateY(-50%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 18px;
-  padding: 0;
-  border: none;
-  background: transparent;
-  border-radius: 50%;
-  color: var(--color-on-surface-variant);
-  cursor: pointer;
-  opacity: 0;
-  transition: opacity var(--motion-duration-short) var(--motion-easing-standard),
-              color var(--motion-duration-short) var(--motion-easing-standard),
-              background-color var(--motion-duration-short) var(--motion-easing-standard),
-              transform var(--motion-duration-short) var(--motion-easing-tactile);
-  z-index: 5;
-  /* Prevent text selection */
-  user-select: none;
-  -webkit-user-select: none;
-}
-
-.bullet-collapse-arrow__icon {
-  font-size: 16px;
-  line-height: 1;
-  display: inline-block;
-}
-
-.bullet-collapse-arrow:hover {
-  opacity: 1;
-  color: var(--color-on-surface);
-}
-
-.bullet-collapse-arrow:active {
-  transform: translateY(-50%) scale(var(--tactile-press-scale));
-}
-
-/* Show collapse arrow when hovering the bullet wrapper or the block row */
-.bullet-wrapper:hover .bullet-collapse-arrow,
-.node-block:hover .bullet-collapse-arrow {
-  opacity: 1;
-}
-
 /* ==================== Dragging State ==================== */
 
 .bullet-dragging {
@@ -237,23 +177,15 @@
   border-radius: 50%;
 }
 
-/* ─── Mobile: keep collapse arrow visible on deep nesting ─────── */
+/* ─── Mobile: slightly smaller bullet wrapper to save horizontal space ─────── */
 @media (max-width: 768px) {
-  .bullet-collapse-arrow {
-    /* Pull arrow closer to bullet so it doesn't get clipped */
-    left: -14px;
-    width: 18px;
-    height: 18px;
-  }
-
-  /* Slightly smaller bullet wrapper to save horizontal space */
   .bullet-sm {
-    width: 20px;
-    height: 20px;
+    width: var(--spacing-5);
+    height: var(--icon-size-md);
   }
 
   .bullet-md {
-    width: 22px;
-    height: 22px;
+    width: var(--bullet-wrapper-size);
+    height: var(--bullet-wrapper-size);
   }
 }

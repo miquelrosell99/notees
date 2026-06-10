@@ -248,8 +248,8 @@
   top: -30px;
   left: 50%;
   transform: translateX(-50%);
-  width: 24px;
-  height: 24px;
+  width: var(--icon-size-lg);
+  height: var(--height-xs);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -276,7 +276,7 @@
   content: '';
   position: absolute;
   top: 14px;
-  height: 16px;
+  height: var(--icon-size-sm);
   width: 1px;
   background: var(--color-primary);
 }
@@ -485,7 +485,7 @@
   align-items: center;
   justify-content: center;
   min-width: 44px;
-  height: 32px;
+  height: var(--height-md);
   padding: 0 var(--spacing-2);
   font: var(--font-label-medium);
   color: var(--color-on-surface-variant);
@@ -553,13 +553,13 @@
 
 /* Pen/shape properties panel — matches graph view panel style */
 .whiteboard-properties {
-  padding: 4px 0;
+  padding: var(--spacing-1) 0;
   display: flex;
   flex-direction: column;
 }
 
 .whiteboard-properties__section {
-  padding: 10px 12px;
+  padding: 10px var(--spacing-3);
   border-bottom: 1px solid var(--color-outline-variant);
   display: flex;
   flex-direction: column;
@@ -591,7 +591,7 @@
   position: absolute;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--spacing-1);
   padding: 6px;
   background: var(--color-surface);
   border: 1px solid var(--color-outline-variant);
@@ -603,15 +603,15 @@
 
 .wb-align-panel__row {
   display: flex;
-  gap: 4px;
+  gap: var(--spacing-1);
 }
 
 .wb-align-panel__btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: var(--icon-size-xl);
+  height: var(--height-sm);
   border: none;
   border-radius: var(--shape-small);
   background: transparent;
@@ -635,7 +635,7 @@
 .wb-search-bar {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--spacing-2);
   padding: 6px 10px;
   background: var(--color-surface);
   border: 1px solid var(--color-outline-variant);
@@ -650,7 +650,7 @@
   outline: none;
   background: transparent;
   color: var(--color-on-surface);
-  font-size: 14px;
+  font-size: var(--font-size-base);
 }
 
 .wb-search-bar__input::placeholder {
@@ -658,7 +658,7 @@
 }
 
 .wb-search-bar__count {
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   color: var(--color-on-surface-variant);
   white-space: nowrap;
 }

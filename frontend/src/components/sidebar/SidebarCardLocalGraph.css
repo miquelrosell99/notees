@@ -7,6 +7,6 @@
 }
 
 .sidebar-card-local-graph__content {
-  height: 250px;
-  min-height: 250px;
+  height: var(--graph-card-height);
+  min-height: var(--graph-card-height);
 }

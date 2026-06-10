@@ -14,7 +14,7 @@
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 24px 20px;
+  padding: var(--spacing-6) var(--spacing-5);
   border: 1px dashed var(--color-outline-variant, var(--color-outline));
   border-radius: var(--shape-extra-large);
   cursor: pointer;
@@ -85,8 +85,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: var(--icon-size-lg);
+  height: var(--height-xs);
   border: none;
   border-radius: var(--shape-small);
   background: transparent;

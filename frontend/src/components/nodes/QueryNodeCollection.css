@@ -31,7 +31,7 @@
   top: -4px;
   right: -4px;
   min-width: 14px;
-  height: 14px;
+  height: var(--icon-size-xs);
   padding: 0 3px;
   font-size: 10px;
   line-height: 14px;
@@ -84,7 +84,7 @@
 /* ==================== Query Edit Modal ==================== */
 
 .query-section__edit-modal {
-  width: 1200px !important;
+  width: var(--modal-width-xl) !important;
   max-width: 95vw !important;
   min-height: 70vh;
   max-height: 85vh;
@@ -125,7 +125,7 @@
 }
 
 .query-section__view-name-field {
-  width: 200px;
+  width: var(--panel-width-md);
   flex-shrink: 0;
 }
 
@@ -309,7 +309,7 @@
 /* ==================== Query Preview Modal ==================== */
 
 .query-preview-modal {
-  width: 1200px !important;
+  width: var(--modal-width-xl) !important;
   max-width: 95vw !important;
   max-height: none !important;
 }

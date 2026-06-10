@@ -105,7 +105,7 @@ export function useTouchIndent({ containerRef, onIndent, onOutdent, readOnly }: 
     function onStart(e: TouchEvent) {
       const target = e.target as HTMLElement;
       if (!target.closest('.bullet-wrapper')) return;
-      if (target.closest('.bullet-collapse-arrow')) return;
+      if (target.closest('.block-collapse-arrow')) return;
 
       // If a block drag is already active, don't start a swipe
       if (document.body.classList.contains('notees-dragging-block')) return;

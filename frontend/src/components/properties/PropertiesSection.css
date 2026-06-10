@@ -25,7 +25,7 @@
 }
 
 .properties-skeleton__row {
-  height: 20px;
+  height: var(--icon-size-md);
   border-radius: var(--shape-extra-small);
   background: linear-gradient(90deg, var(--color-surface-container) 25%, var(--color-surface-container-high) 50%, var(--color-surface-container) 75%);
   background-size: 200% 100%;
@@ -41,8 +41,8 @@
 
 /* Checkbox (boolean) */
 .property-value-checkbox {
-  width: 18px;
-  height: 18px;
+  width: var(--icon-size-md);
+  height: var(--icon-size-md);
   accent-color: var(--color-primary);
   cursor: pointer;
   margin: 0;
@@ -112,7 +112,7 @@
 }
 
 .property-validation-error {
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   color: var(--color-error);
   margin-top: 2px;
   padding: 0 var(--spacing-2);
@@ -405,7 +405,7 @@
 }
 
 .text-property-block__editor .node-list-view {
-  min-height: 24px;
+  min-height: var(--height-xs);
 }
 
 /* Remove default editor padding so blocks start tight to the container top */
@@ -571,8 +571,8 @@
 /* ==================== Property Nodes View Checkbox ==================== */
 
 .property-nodes-view__checkbox {
-  width: 16px;
-  height: 16px;
+  width: var(--icon-size-sm);
+  height: var(--icon-size-sm);
   accent-color: var(--color-primary);
   pointer-events: none;
 }

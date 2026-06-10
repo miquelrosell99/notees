@@ -190,7 +190,7 @@
 }
 
 .node-breadcrumb-popup-icon {
-  font-size: 14px;
+  font-size: var(--font-size-base);
   flex-shrink: 0;
 }
 
@@ -217,7 +217,7 @@
 
 .node-breadcrumb-item:hover .node-breadcrumb-edit-btn {
   opacity: 1;
-  width: 18px !important;
+  width: var(--icon-size-md) !important;
 }
 
 .node-breadcrumb-edit-btn:hover {
@@ -228,8 +228,8 @@
 
 .node-breadcrumb-spinner {
   display: inline-block;
-  width: 14px;
-  height: 14px;
+  width: var(--icon-size-xs);
+  height: var(--icon-size-xs);
   border: 2px solid var(--color-outline-variant);
   border-top-color: var(--color-on-surface-variant);
   border-radius: var(--shape-full);

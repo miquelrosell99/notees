@@ -1545,6 +1545,7 @@ export class GraphWebGLRenderer {
         this._packNodeInstances();     // O(N): positions + radii + colors + dim per node
         // Glow disabled — was creating muddy overlapping halos on dense graphs.
         // Re-enable here and in render() if a subtler effect is desired later.
+        // eslint-disable-next-line no-constant-condition
         if (false) this._packGlowInstances();
       }
     }
@@ -1558,6 +1559,7 @@ export class GraphWebGLRenderer {
     this._camBuf[1] = cy;
 
     // Glow pass disabled — see _packGlowInstances() comment above.
+    // eslint-disable-next-line no-constant-condition, no-constant-binary-expression
     if (false && this.glowInstCount > 0 && this.glowVAO && this.positions.length > 0) {
       gl!.useProgram(this.glowProg);
       gl!.bindVertexArray(this.glowVAO);

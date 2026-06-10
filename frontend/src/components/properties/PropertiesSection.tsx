@@ -23,6 +23,8 @@ import type { Property, Node, ClassProperty, PropertyCreate } from '@/types/api'
 import { SYSTEM_PROPERTY_UUIDS } from '@/constants';
 import { PropertiesIcon } from '@/components/core/icons';
 import { Button } from '@/components/core/Button';
+import { getPropertyValueRenderer } from './propertyValueRegistry';
+import './registerPropertyRenderers';
 import { addSelectionOption } from '@/api/properties';
 import { PropertySuggestionPopup } from './PropertySuggestionPopup';
 import { PropertyList, type PropertyEntry } from './PropertyList';
@@ -213,26 +215,12 @@ export function PropertiesSection({
     // Set a default value for the property based on its type
     // Note: null values cause the property to be removed, so we use empty strings
     // for text-like types to ensure the property is actually added
-    let defaultValue: unknown;
-    switch (property.type) {
-      case 'boolean':
-        defaultValue = false;
-        break;
-      case 'integer':
-      case 'float':
-        defaultValue = 0;
-        break;
-      case 'text':
-      case 'selection':
-        defaultValue = '';
-        break;
-      case 'node':
-      case 'date':
-      default:
-        // For node and date types, we still need a non-null placeholder
-        // Using empty string as a signal to create the property without a value
-        defaultValue = '';
-        break;
+    const renderer = getPropertyValueRenderer(property.type);
+    let defaultValue: unknown = renderer?.getDefaultValue() ?? '';
+    // For node and date types, we still need a non-null placeholder
+    // Using empty string as a signal to create the property without a value
+    if (defaultValue === null || defaultValue === undefined) {
+      defaultValue = '';
     }
     setPropertyMutation.mutate({ nodeId, propertyId: property.id, value: defaultValue });
     setShowPropertyPopup(false);

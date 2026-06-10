@@ -27,7 +27,7 @@
 }
 
 .workspace-share-modal__invite-role {
-  width: 120px;
+  width: var(--panel-width-sm);
 }
 
 /* You row */
@@ -108,7 +108,7 @@
 }
 
 .workspace-share-modal__role-dropdown {
-  width: 110px;
+  width: var(--panel-width-xs);
 }
 
 /* Empty / loading */

@@ -60,21 +60,21 @@
   overflow: hidden;
 }
 
-/* Elevation levels — zero visual noise by default */
+/* Elevation levels — zero visual noise (design system mandate) */
 .card--elevation-none {
   box-shadow: none;
 }
 
 .card--elevation-low {
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.05);
+  box-shadow: none;
 }
 
 .card--elevation-medium {
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.08), 0 2px 4px rgba(0, 0, 0, 0.06);
+  box-shadow: none;
 }
 
 .card--elevation-high {
-  box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1), 0 4px 6px rgba(0, 0, 0, 0.08);
+  box-shadow: none;
 }
 
 /* Padding options */

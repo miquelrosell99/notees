@@ -5,7 +5,7 @@
 .import-logseq__body {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--spacing-3);
 }
 
 /* ── Source tabs (EDN / SQLite) ─────────────────────────────── */
@@ -18,7 +18,7 @@
 
 .import-logseq__source-tab {
   flex: 1;
-  padding: 8px 16px;
+  padding: var(--spacing-2) var(--spacing-4);
   font-size: var(--font-size-sm);
   font-weight: 500;
   background: none;
@@ -50,7 +50,7 @@
   align-items: center;
   justify-content: center;
   min-height: 160px;
-  padding: 24px;
+  padding: var(--spacing-6);
   border: 2px dashed var(--color-outline-variant);
   border-radius: var(--shape-medium);
   background: var(--color-surface);
@@ -91,7 +91,7 @@
 .import-logseq__dropzone-text code {
   font-size: var(--font-size-xs);
   background: var(--color-surface-variant);
-  padding: 1px 4px;
+  padding: 1px var(--spacing-1);
   border-radius: 3px;
 }
 
@@ -104,9 +104,9 @@
 
 .import-logseq__textarea {
   width: 100%;
-  height: 260px;
+  height: var(--textarea-height-md);
   min-height: 180px;
-  padding: 12px;
+  padding: var(--spacing-3);
   font-family: var(--font-family-mono);
   font-size: var(--font-size-xs);
   line-height: 1.6;
@@ -152,7 +152,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 12px;
+  padding: var(--spacing-2) var(--spacing-3);
   background: color-mix(in srgb, var(--color-error) 10%, transparent);
   color: var(--color-error);
   border-radius: var(--shape-small);
@@ -161,13 +161,13 @@
 
 .import-logseq__preview {
   display: flex;
-  gap: 8px;
+  gap: var(--spacing-2);
   flex-wrap: wrap;
 }
 
 .import-logseq__preview-badge {
   display: inline-flex;
-  padding: 4px 10px;
+  padding: var(--spacing-1) 10px;
   background: var(--color-surface-container-low);
   color: var(--color-on-surface-variant);
   border-radius: var(--shape-full);
@@ -178,7 +178,7 @@
 .import-logseq__status {
   font-size: var(--font-size-sm);
   color: var(--color-primary);
-  padding: 4px 0;
+  padding: var(--spacing-1) 0;
   animation: logseq-pulse 1.5s ease-in-out infinite;
 }
 
@@ -187,8 +187,8 @@
 .import-logseq__warning {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-3);
   background: color-mix(in srgb, var(--color-warning, #f59e0b) 10%, transparent);
   color: var(--color-warning, #b45309);
   border-radius: var(--shape-small);
@@ -204,7 +204,7 @@
 }
 
 .import-logseq__uuid-overrides-summary {
-  padding: 8px 12px;
+  padding: var(--spacing-2) var(--spacing-3);
   font-size: var(--font-size-xs);
   font-weight: 600;
   color: var(--color-on-surface-variant);
@@ -215,7 +215,7 @@
   list-style: none;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--spacing-2);
 }
 
 .import-logseq__uuid-overrides-summary::-webkit-details-marker { display: none; }
@@ -234,8 +234,8 @@
 .import-logseq__uuid-overrides-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 8px 12px;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-3);
   border-top: 1px solid var(--color-outline-variant);
   max-height: 240px;
   overflow-y: auto;

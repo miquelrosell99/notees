@@ -322,13 +322,15 @@ export function ButtonWithPanel({
             <div className="btn-panel__header">
               <h4 className="btn-panel__title">{title}</h4>
               {showCloseButton && (
-                <button
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  iconOnly
+                  icon="mdi mdi-close"
                   className="btn-panel__close"
                   onClick={closePanel}
                   aria-label="Close panel"
-                >
-                  ×
-                </button>
+                />
               )}
             </div>
           )}

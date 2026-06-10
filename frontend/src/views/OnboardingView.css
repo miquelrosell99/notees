@@ -9,8 +9,8 @@
 
 .onboarding-container {
   background: var(--bg-surface, #ffffff);
-  border-radius: 12px;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+  border-radius: var(--shape-extra-large);
+  box-shadow: none;
   padding: 2.5rem;
   width: 100%;
   max-width: 420px;
@@ -19,7 +19,7 @@
 .onboarding-container h1 {
   margin: 0 0 0.5rem;
   font-size: 1.75rem;
-  font-weight: 700;
+  font-weight: 600;
   text-align: center;
   color: var(--text-primary, #1a1a1a);
 }
@@ -41,6 +41,6 @@
   padding: 0.75rem;
   background: var(--color-error-bg, #fde8e8);
   color: var(--color-error, #c53030);
-  border-radius: 6px;
+  border-radius: var(--shape-medium);
   font-size: 0.875rem;
 }

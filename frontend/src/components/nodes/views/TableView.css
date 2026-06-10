@@ -7,7 +7,7 @@
   max-width: 1200px;
   margin: 0 auto;
   overflow-x: auto;
-  padding: 4px 0;
+  padding: var(--spacing-1) 0;
 }
 
 .node-block-table {
@@ -18,7 +18,7 @@
 
 .node-block-table th {
   text-align: left;
-  padding: 6px 12px;
+  padding: 6px var(--spacing-3);
   border-bottom: 2px solid var(--color-outline-variant);
   font-weight: 600;
   font-size: 0.85em;
@@ -38,7 +38,7 @@
 }
 
 .node-block-table-cell {
-  padding: 2px 8px;
+  padding: 2px var(--spacing-2);
   vertical-align: top;
 }
 
@@ -49,7 +49,7 @@
 
 .node-block-table-property-stub {
   display: block;
-  min-height: 24px;
+  min-height: var(--height-xs);
 }
 
 /* Date cells with action buttons */

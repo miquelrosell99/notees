@@ -132,25 +132,21 @@ input:focus, textarea:focus, select:focus {
   }
 }
 
-/* Respect user motion preferences */
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
-  }
-}
-
 /* Utility: hidden by default, revealed on parent hover via component CSS */
 .hover-reveal {
   opacity: 0;
   transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 768px), (hover: none) {
+  .hover-reveal {
+    opacity: 1 !important;
+    pointer-events: auto !important;
+  }
+}
+
+/* Desktop touchscreens (e.g., Surface, touch monitors) */
+@media (hover: none) {
   .hover-reveal {
     opacity: 1 !important;
     pointer-events: auto !important;

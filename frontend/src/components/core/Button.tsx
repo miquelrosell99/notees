@@ -10,10 +10,9 @@
  * - Icon + Text: <Button icon="mdi mdi-cog">Settings</Button>
  * - With confirmation: <Button confirm confirmMessage="Are you sure?" onClick={...}>Delete</Button>
  */
-import { forwardRef, useState, useCallback, useRef, type ButtonHTMLAttributes, type ReactNode } from 'react';
+import { forwardRef, useCallback, type ButtonHTMLAttributes, type ReactNode } from 'react';
 
 import './Button.css';
-import { ConfirmationModal } from './ConfirmationModal';
 import { Icon } from '@/components/core/icons';
 
 export type ButtonVariant = 'default' | 'primary' | 'ghost' | 'danger';
@@ -47,10 +46,6 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   iconOnly?: boolean;
   /** Children content */
   children?: ReactNode;
-  /** Whether to show a confirmation dialog before firing onClick */
-  confirm?: boolean;
-  /** Custom confirmation message (defaults to "Are you sure?") */
-  confirmMessage?: string;
   /** Badges to display on the button */
   badges?: ButtonBadge[];
 }
@@ -75,43 +70,19 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
     children,
     className = '',
     disabled,
-    confirm: requiresConfirm = false,
-    confirmMessage,
     badges,
     onClick,
     ...props
   },
   ref
 ) {
-  const [confirmOpen, setConfirmOpen] = useState(false);
-
-  const pendingEventRef = useRef<React.MouseEvent<HTMLButtonElement> | null>(null);
-
   const handleClick = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
     // Tactile feedback on mobile
     if (typeof navigator !== 'undefined' && navigator.vibrate) {
       navigator.vibrate(10);
     }
-    if (requiresConfirm) {
-      e.preventDefault();
-      e.stopPropagation();
-      pendingEventRef.current = e;
-      setConfirmOpen(true);
-    } else {
-      onClick?.(e);
-    }
-  }, [requiresConfirm, onClick]);
-
-  const handleConfirm = useCallback(() => {
-    setConfirmOpen(false);
-    const e = pendingEventRef.current;
-    pendingEventRef.current = null;
-    if (e && onClick) onClick(e);
+    onClick?.(e);
   }, [onClick]);
-
-  const handleCancel = useCallback(() => {
-    setConfirmOpen(false);
-  }, []);
 
   const hasText = children && !iconOnly;
   const isIconOnly = icon && !hasText;
@@ -169,15 +140,6 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
         }
         return null;
       })}
-      {requiresConfirm && (
-        <ConfirmationModal
-          isOpen={confirmOpen}
-          title="Confirm action"
-          message={confirmMessage ?? 'Are you sure?'}
-          onConfirm={handleConfirm}
-          onCancel={handleCancel}
-        />
-      )}
     </button>
   );
 });

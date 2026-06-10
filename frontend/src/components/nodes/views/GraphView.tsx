@@ -21,7 +21,7 @@ import { useClasses, useGraphLinks } from '@/hooks';
 import { useSettingsQuery } from '@/hooks/useSettings';
 import { useNavigationStore } from '@/stores';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
-import { Icon, NodeIcon } from '@/components/core/icons';
+import { NodeIcon } from '@/components/core/icons';
 import { setSetting } from '@/api/workspaces';
 import type { GraphNode as ApiGraphNode } from '@/api/nodes';
 import { GraphRenderer, type GraphRendererRef } from './GraphRenderer';
@@ -844,14 +844,15 @@ export function GraphView({
       
       {/* Sidebar expand button (when collapsed) */}
       {showSettings && sidebarCollapsed && (
-        <button
+        <Button
+          variant="ghost"
+          size="sm"
+          iconOnly
+          icon="mdi mdi-cog-outline"
           className="graph-sidebar-expand"
           onClick={() => setSidebarCollapsed(false)}
-          type="button"
           title="Show sidebar"
-        >
-          <Icon path="mdi-cog-outline" />
-        </button>
+        />
       )}
 
       {/* Top Right: Search and selection */}

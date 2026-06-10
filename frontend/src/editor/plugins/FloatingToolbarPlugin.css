@@ -32,7 +32,7 @@
 
 .floating-toolbar__button {
   min-width: 28px;
-  height: 28px;
+  height: var(--height-sm);
   padding: var(--spacing-1);
 }
 
@@ -43,7 +43,7 @@
 /* Separator between action groups */
 .floating-toolbar__separator {
   width: 1px;
-  height: 20px;
+  height: var(--icon-size-md);
   background: var(--color-outline-variant);
   margin: 0 var(--spacing-1);
 }
@@ -59,10 +59,10 @@
 }
 
 .floating-toolbar__link-input input {
-  width: 160px;
-  height: 28px;
+  width: var(--toolbar-input-width);
+  height: var(--height-sm);
   padding: var(--spacing-1) var(--spacing-2);
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   border: 1px solid var(--color-outline-variant);
   background: var(--color-surface);
   color: var(--color-on-surface);
@@ -74,7 +74,7 @@
 }
 
 .floating-toolbar__link-input .btn {
-  height: 28px;
+  height: var(--height-sm);
   padding: var(--spacing-1) var(--spacing-2);
-  font-size: 12px;
+  font-size: var(--font-size-sm);
 }

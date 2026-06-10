@@ -39,14 +39,14 @@
 
 .toolbar-divider--vertical {
   width: 1px;
-  height: 24px;
+  height: var(--height-xs);
   align-self: center;
   margin: 0 var(--spacing-1);
 }
 
 .toolbar-divider--horizontal {
   height: 1px;
-  width: 24px;
+  width: var(--icon-size-lg);
   align-self: center;
   margin: var(--spacing-1) 0;
 }

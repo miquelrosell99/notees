@@ -14,6 +14,8 @@
 
 import type { Node } from '@/types';
 import type { Property } from '@/types/api';
+import { getPropertyValueRenderer } from '@/components/properties/propertyValueRegistry';
+import '@/components/properties/registerPropertyRenderers';
 import { dateFromUuid } from '@/types/api';
 
 // ==================== Constants ====================
@@ -127,28 +129,11 @@ function groupPropertyLabel(
   rawValue: unknown,
 ): { label: string; icon: string | null } {
   if (rawValue == null) return { label: '(No value)', icon: null };
-  switch (prop.type) {
-    case 'boolean':
-      return { label: rawValue ? 'Yes' : 'No', icon: null };
-    case 'integer':
-    case 'float':
-      return { label: String(rawValue), icon: null };
-    case 'selection': {
-      const getId = (v: unknown): number | null =>
-        typeof v === 'number' ? v
-          : (v && typeof v === 'object' && 'id' in v ? (v as { id: number }).id : null);
-      const ids = (Array.isArray(rawValue) ? rawValue : [rawValue])
-        .map(getId)
-        .filter((x): x is number => x !== null);
-      const opts = ids.map(id => prop.options?.find(o => o.id === id));
-      return {
-        label: opts.map(o => o?.name ?? '?').join(', ') || '(No value)',
-        icon: opts.length === 1 ? (opts[0]?.icon ?? null) : null,
-      };
-    }
-    default:
-      return { label: String(rawValue), icon: null };
+  const renderer = getPropertyValueRenderer(prop.type);
+  if (renderer) {
+    return renderer.getGroupInfo(prop, rawValue);
   }
+  return { label: String(rawValue), icon: null };
 }
 
 export function buildRows(

@@ -8,7 +8,7 @@
  * file is chosen it shows a compact selected-file row with a clear button.
  */
 import { useRef, useCallback, type ReactNode } from 'react';
-import { CloseIcon, EditIcon } from './icons';
+import { Button } from './Button';
 import './FileDropZone.css';
 
 interface FileDropZoneProps {
@@ -97,24 +97,26 @@ export function FileDropZone({
       <div className={`file-drop-zone__selected ${className}`}>
         {hiddenInput}
         <span className="file-drop-zone__selected-name">{file.name}</span>
-        <button
-          type="button"
+        <Button
+          variant="ghost"
+          size="xs"
+          iconOnly
+          icon="mdi mdi-pencil"
           className="file-drop-zone__selected-action"
           onClick={openFilePicker}
           disabled={disabled}
           title="Change file"
-        >
-          <EditIcon size="sm" />
-        </button>
-        <button
-          type="button"
+        />
+        <Button
+          variant="ghost"
+          size="xs"
+          iconOnly
+          icon="mdi mdi-close"
           className="file-drop-zone__selected-action file-drop-zone__selected-action--remove"
           onClick={onClear}
           disabled={disabled}
           title="Remove file"
-        >
-          <CloseIcon size="sm" />
-        </button>
+        />
       </div>
     );
   }

@@ -77,7 +77,7 @@ button.context-menu-item:hover:not(.disabled) {
 }
 
 .context-menu-icon-wrapper {
-  width: 18px;
+  width: var(--icon-size-md);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -113,7 +113,7 @@ button.context-menu-item:hover:not(.disabled) {
 }
 
 .context-menu-arrow {
-  font-size: 16px;
+  font-size: var(--font-size-md);
   color: var(--color-outline);
   margin-left: auto;
 }

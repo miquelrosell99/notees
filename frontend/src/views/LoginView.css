@@ -37,12 +37,6 @@
   gap: var(--spacing-4);
 }
 
-.login-form .form-group {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-1);
-}
-
 .login-form label {
   font-weight: 500;
   font-size: var(--font-size-base);
@@ -62,28 +56,6 @@
   outline: 2px solid var(--color-primary);
   outline-offset: 2px;
   border-color: var(--color-primary);
-}
-
-.login-form .btn-primary {
-  padding: var(--spacing-3);
-  background: var(--color-primary);
-  color: var(--color-on-primary);
-  border: none;
-  border-radius: var(--shape-large);
-  font-size: var(--font-size-md);
-  font-weight: 500;
-  cursor: pointer;
-  margin-top: var(--spacing-2);
-  transition: background var(--motion-duration-short) var(--motion-easing-standard);
-}
-
-.login-form .btn-primary:hover {
-  background: var(--color-primary-hover);
-}
-
-.login-form .btn-primary:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
 }
 
 .login-form .error-message {
@@ -113,8 +85,4 @@
   text-decoration: underline;
 }
 
-/* Login-specific loading indicator */
-.loading-spinner {
-  color: var(--color-on-surface-variant);
-  font-size: 1.125rem;
-}
+

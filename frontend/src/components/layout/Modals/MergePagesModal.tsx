@@ -8,6 +8,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { Modal } from '@/components/core/Modal';
 import { Button } from '@/components/core/Button';
+import { ConfirmationModal } from '@/components/core/ConfirmationModal';
 import { NodeSelector } from '@/components/nodes/NodeSelector';
 import { mergePages } from '@/api/nodes';
 import { useQueryClient } from '@tanstack/react-query';
@@ -33,6 +34,7 @@ export function MergePagesModal({ isOpen, onClose }: MergePagesModalProps) {
   const [targetNode, setTargetNode] = useState<Node | null>(null);
   const [isMerging, setIsMerging] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   // When the modal opens, pre-select the currently open page as source
   useEffect(() => {
@@ -46,6 +48,7 @@ export function MergePagesModal({ isOpen, onClose }: MergePagesModalProps) {
 
   const handleClose = useCallback(() => {
     setError(null);
+    setShowConfirm(false);
     onClose();
   }, [onClose]);
 
@@ -97,6 +100,10 @@ export function MergePagesModal({ isOpen, onClose }: MergePagesModalProps) {
     }
   }, [sourceNode, targetNode, queryClient, openNode, handleClose]);
 
+  const handleAskConfirm = useCallback(() => {
+    setShowConfirm(true);
+  }, []);
+
   const isSameNode =
     sourceNode !== null &&
     targetNode !== null &&
@@ -109,6 +116,7 @@ export function MergePagesModal({ isOpen, onClose }: MergePagesModalProps) {
     !isMerging;
 
   return (
+    <>
     <Modal
       isOpen={isOpen}
       onClose={handleClose}
@@ -122,14 +130,8 @@ export function MergePagesModal({ isOpen, onClose }: MergePagesModalProps) {
           <Button
             variant="primary"
             icon={"mdi mdi-merge"}
-            onClick={handleProceed}
+            onClick={handleAskConfirm}
             disabled={!canProceed}
-            confirm
-            confirmMessage={
-              sourceNode && targetNode
-                ? `This will move all blocks from "${nodeNameToText(sourceNode.name) || 'source'}" into "${nodeNameToText(targetNode.name) || 'target'}" and delete the source. This cannot be easily undone.`
-                : 'Are you sure you want to merge these pages?'
-            }
           >
             {isMerging ? 'Merging…' : 'Proceed'}
           </Button>
@@ -182,5 +184,19 @@ export function MergePagesModal({ isOpen, onClose }: MergePagesModalProps) {
         )}
       </div>
     </Modal>
+
+    <ConfirmationModal
+      isOpen={showConfirm}
+      title="Confirm Merge"
+      message={
+        sourceNode && targetNode
+          ? `This will move all blocks from "${nodeNameToText(sourceNode.name) || 'source'}" into "${nodeNameToText(targetNode.name) || 'target'}" and delete the source. This cannot be easily undone.`
+          : 'Are you sure you want to merge these pages?'
+      }
+      onConfirm={handleProceed}
+      onCancel={() => setShowConfirm(false)}
+      variant="danger"
+    />
+    </>
   );
 }

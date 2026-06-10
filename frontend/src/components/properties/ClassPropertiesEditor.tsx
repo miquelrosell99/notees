@@ -186,7 +186,11 @@ export function ClassPropertiesEditor({
             renderAction={(item) =>
               !readOnly ? (
                 <div className="class-property-actions">
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    iconOnly
+                    icon="mdi mdi-asterisk"
                     className={`class-property-required-btn ${item.required ? 'class-property-required-btn--active' : ''} hover-reveal`}
                     title={item.required ? 'Required (click to make optional)' : 'Optional (click to make required)'}
                     onClick={(e) => {
@@ -197,19 +201,19 @@ export function ClassPropertiesEditor({
                         data: { required: !item.required },
                       });
                     }}
-                  >
-                    <Icon path={"mdi mdi-asterisk"} size={0.55} />
-                  </button>
-                  <button
+                  />
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    iconOnly
+                    icon="mdi mdi-dots-vertical"
                     className="class-property-menu-btn hover-reveal"
                     title="Property options"
                     onClick={(e) => {
                       e.stopPropagation();
                       setContextMenu({ property: item.property, x: e.clientX, y: e.clientY });
                     }}
-                  >
-                    <Icon path={"mdi mdi-dots-vertical"} size={0.65} />
-                  </button>
+                  />
                 </div>
               ) : null
             }
