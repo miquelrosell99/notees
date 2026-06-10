@@ -117,7 +117,7 @@
 .mobile-drawer-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.45);
+  background: var(--color-scrim);
   z-index: var(--z-modal-backdrop);
   animation: mobile-backdrop-in var(--motion-duration-medium) var(--motion-easing-standard);
 }
