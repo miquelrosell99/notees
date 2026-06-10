@@ -15,7 +15,8 @@ class Settings(BaseSettings):
     # Security
     secret_key: str = ""  # Required - must be set via SECRET_KEY env var
     algorithm: str = "HS256"
-    access_token_expire_hours: int = 24  # 1 day
+    access_token_expire_hours: float = 0.25  # 15 minutes
+    refresh_token_expire_days: int = 7  # 7 days
     registration_enabled: bool = True  # Set to False to disable user self-registration
 
     @field_validator("secret_key", mode="after")

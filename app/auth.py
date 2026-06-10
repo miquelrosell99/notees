@@ -7,6 +7,7 @@ Uses PostgreSQL for user storage.
 import secrets
 import string
 import time
+import uuid
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -433,3 +434,138 @@ async def authenticate_api_key(key: str) -> dict | None:
                 return user
 
     return None
+
+# ─── Refresh Token Management ────────────────────────────────────
+
+_REF_TOKEN_ALPHABET = string.ascii_letters + string.digits + "-_"
+_REF_TOKEN_LENGTH = 43  # ~256 bits of entropy in base64
+
+
+def generate_refresh_token() -> str:
+    """Generate a cryptographically secure opaque refresh token."""
+    return "".join(secrets.choice(_REF_TOKEN_ALPHABET) for _ in range(_REF_TOKEN_LENGTH))
+
+
+def hash_refresh_token(token: str) -> str:
+    """Hash a refresh token using bcrypt."""
+    return pwd_context.hash(token)
+
+
+def verify_refresh_token(token: str, hashed: str) -> bool:
+    """Verify a refresh token against its hash."""
+    try:
+        return pwd_context.verify(token, hashed)
+    except Exception:
+        return False
+
+
+async def create_refresh_token_db(user_id: int, token: str, family_id: str | None = None) -> dict:
+    """Store a refresh token in the database. Returns the DB row dict."""
+    token_hash = hash_refresh_token(token)
+    expires_at = datetime.now(UTC) + timedelta(days=settings.refresh_token_expire_days)
+    family = family_id or str(uuid.uuid4())
+
+    async with get_connection() as conn:
+        row = await conn.fetchrow(
+            """
+            INSERT INTO refresh_token (user_id, token_hash, expires_at, family_id)
+            VALUES ($1, $2, $3, $4)
+            RETURNING id, user_id, family_id, expires_at, created_at
+            """,
+            user_id,
+            token_hash,
+            expires_at,
+            family,
+        )
+        return dict(row) if row else {}
+
+
+async def verify_refresh_token_db(token: str) -> dict | None:
+    """Verify a refresh token against the database.
+
+    Returns the token row dict if valid, None otherwise.
+    Does NOT rotate or revoke — just verifies.
+    """
+    async with get_connection() as conn:
+        # Fetch non-revoked, non-expired tokens for this user
+        rows = await conn.fetch(
+            """
+            SELECT id, user_id, token_hash, family_id, expires_at, revoked_at, replaced_by
+            FROM refresh_token
+            WHERE revoked_at IS NULL AND expires_at > NOW()
+            """
+        )
+        for row in rows:
+            if verify_refresh_token(token, row["token_hash"]):
+                return dict(row)
+    return None
+
+
+async def rotate_refresh_token(old_token_id: int, new_token: str) -> dict:
+    """Rotate a refresh token: revoke old, create new, link them.
+
+    Returns the new token row dict.
+    """
+    token_hash = hash_refresh_token(new_token)
+    expires_at = datetime.now(UTC) + timedelta(days=settings.refresh_token_expire_days)
+
+    async with get_connection() as conn, conn.transaction():
+            # Get old token's family_id and user_id
+            old_row = await conn.fetchrow(
+                "SELECT user_id, family_id FROM refresh_token WHERE id = $1",
+                old_token_id,
+            )
+            if not old_row:
+                raise ValueError("Old refresh token not found")
+
+            # Create new token
+            new_row = await conn.fetchrow(
+                """
+                INSERT INTO refresh_token (user_id, token_hash, expires_at, family_id)
+                VALUES ($1, $2, $3, $4)
+                RETURNING id, user_id, family_id, expires_at, created_at
+                """,
+                old_row["user_id"],
+                token_hash,
+                expires_at,
+                old_row["family_id"],
+            )
+
+            # Revoke old token and set replaced_by
+            await conn.execute(
+                """
+                UPDATE refresh_token
+                SET revoked_at = NOW(), replaced_by = $1
+                WHERE id = $2
+                """,
+                new_row["id"],
+                old_token_id,
+            )
+
+            return dict(new_row)
+
+
+async def revoke_refresh_token_family(family_id: str) -> None:
+    """Revoke all refresh tokens in a family (reuse detection)."""
+    async with get_connection() as conn:
+        await conn.execute(
+            """
+            UPDATE refresh_token
+            SET revoked_at = NOW()
+            WHERE family_id = $1 AND revoked_at IS NULL
+            """,
+            family_id,
+        )
+
+
+async def revoke_all_user_refresh_tokens(user_id: int) -> None:
+    """Revoke all refresh tokens for a user (e.g., password change)."""
+    async with get_connection() as conn:
+        await conn.execute(
+            """
+            UPDATE refresh_token
+            SET revoked_at = NOW()
+            WHERE user_id = $1 AND revoked_at IS NULL
+            """,
+            user_id,
+        )

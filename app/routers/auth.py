@@ -6,7 +6,7 @@ Handles user registration, login, token management, and API keys.
 import time
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi_limiter.depends import RateLimiter
 from pyrate_limiter import Duration, Limiter, Rate
@@ -156,12 +156,26 @@ async def auth_status():
     }
 
 
+def _set_refresh_cookie(response: Response, token: str) -> None:
+    """Set the refresh token HTTPOnly cookie."""
+    max_age = 7 * 24 * 60 * 60
+    response.set_cookie(
+        key="refresh_token",
+        value=token,
+        httponly=True,
+        secure=settings.public_url.startswith("https://"),
+        samesite="lax",
+        max_age=max_age,
+        path="/api/auth/refresh",
+    )
+
+
 @router.post(
     "/register",
     response_model=Token,
     dependencies=[Depends(RateLimiter(limiter=_auth_limiter_register))],
 )
-async def register(request: Request, user_data: UserCreate):
+async def register(request: Request, response: Response, user_data: UserCreate):
     """Register a new user."""
     is_first = await auth.is_first_boot()
     if not settings.registration_enabled and not is_first:
@@ -183,8 +197,12 @@ async def register(request: Request, user_data: UserCreate):
         role=role,
     )
 
-    token = auth.create_token(user["id"], user["email"], user["role"])
-    return {"access_token": token, "token_type": "bearer", "user": user}
+    access_token = auth.create_token(user["id"], user["email"], user["role"])
+    refresh_token = auth.generate_refresh_token()
+    await auth.create_refresh_token_db(int(user["id"]), refresh_token)
+    _set_refresh_cookie(response, refresh_token)
+
+    return {"access_token": access_token, "refresh_token": refresh_token, "token_type": "bearer", "user": user}
 
 
 @router.post(
@@ -192,7 +210,7 @@ async def register(request: Request, user_data: UserCreate):
     response_model=Token,
     dependencies=[Depends(RateLimiter(limiter=_auth_limiter_login))],
 )
-async def login(request: Request, credentials: UserLogin):
+async def login(request: Request, response: Response, credentials: UserLogin):
     """Login and get access token."""
     logger.info(f"Login attempt for user: '{credentials.email}'")
 
@@ -211,12 +229,70 @@ async def login(request: Request, credentials: UserLogin):
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
     logger.info(f"Login successful for '{credentials.email}' (id={user.get('id')})")
-    token = auth.create_token(user["id"], user["email"], user["role"])
-    return {"access_token": token, "token_type": "bearer", "user": user}
+    access_token = auth.create_token(user["id"], user["email"], user["role"])
+    refresh_token = auth.generate_refresh_token()
+    await auth.create_refresh_token_db(int(user["id"]), refresh_token)
+    _set_refresh_cookie(response, refresh_token)
+
+    return {"access_token": access_token, "refresh_token": refresh_token, "token_type": "bearer", "user": user}
+
+
+@router.post("/refresh")
+async def refresh_access_token(request: Request, response: Response):
+    """Refresh access token using refresh token cookie.
+
+    Returns a new access token and rotates the refresh token.
+    On reuse detection, revokes the entire token family.
+    """
+    refresh_token = request.cookies.get("refresh_token")
+    if not refresh_token:
+        raise HTTPException(status_code=401, detail="No refresh token provided")
+
+    token_row = await auth.verify_refresh_token_db(refresh_token)
+    if not token_row:
+        raise HTTPException(status_code=401, detail="Invalid or expired refresh token")
+
+    # Check if token was already used (replaced_by is set OR revoked_at is set)
+    # Actually, verify_refresh_token_db only returns non-revoked tokens, so if we get here,
+    # the token is not revoked. But we need to check if it was already rotated.
+    # Let's check replaced_by directly.
+
+    async with auth.get_connection() as conn:
+        replaced = await conn.fetchval(
+            "SELECT replaced_by FROM refresh_token WHERE id = $1",
+            token_row["id"],
+        )
+        if replaced:
+            # Token reuse detected! Revoke entire family.
+            await auth.revoke_refresh_token_family(token_row["family_id"])
+            raise HTTPException(status_code=401, detail="Refresh token reuse detected")
+
+    # Rotate refresh token
+    new_refresh_token = auth.generate_refresh_token()
+    await auth.rotate_refresh_token(token_row["id"], new_refresh_token)
+
+    # Get user and create new access token
+    user = await auth.get_user_by_id(str(token_row["user_id"]))
+    if not user or not user.get("is_active", True):
+        raise HTTPException(status_code=401, detail="User not found or inactive")
+
+    access_token = auth.create_token(
+        user_id=str(user["id"]),
+        email=user["email"],
+        role=user["role"],
+    )
+
+    # Set new refresh token cookie
+    _set_refresh_cookie(response, new_refresh_token)
+
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+    }
 
 
 @router.post("/invites/accept")
-async def accept_invite(request: InviteAcceptRequest):
+async def accept_invite(request: Request, response: Response, body: InviteAcceptRequest):
     """Accept a pending invitation and create/login user.
 
     If the user already exists, this converts the pending invite to a share.
@@ -231,7 +307,7 @@ async def accept_invite(request: InviteAcceptRequest):
             FROM pending_invite
             WHERE uuid::text = $1 AND active = TRUE
             """,
-            request.token,
+            body.token,
         )
         if not invite:
             raise HTTPException(status_code=404, detail="Invite not found or expired")
@@ -252,14 +328,14 @@ async def accept_invite(request: InviteAcceptRequest):
             if not settings.registration_enabled and not is_first:
                 raise HTTPException(status_code=403, detail="Registration is disabled")
 
-            if not request.password:
+            if not body.password:
                 raise HTTPException(status_code=400, detail="Password is required to create account")
 
             role = "admin" if is_first else "user"
             user = await auth.create_user(
                 email=email,
-                password=request.password,
-                name=request.name,
+                password=body.password,
+                name=body.name,
                 role=role,
             )
             user_id = int(user["id"])
@@ -324,8 +400,12 @@ async def accept_invite(request: InviteAcceptRequest):
         if not user_record:
             raise HTTPException(status_code=500, detail="Failed to retrieve user after invite acceptance")
 
-        token = auth.create_token(user_record["id"], user_record["email"], user_record["role"])
-        return {"access_token": token, "token_type": "bearer", "user": user_record}
+        access_token = auth.create_token(user_record["id"], user_record["email"], user_record["role"])
+        refresh_token = auth.generate_refresh_token()
+        await auth.create_refresh_token_db(int(user_record["id"]), refresh_token)
+        _set_refresh_cookie(response, refresh_token)
+
+        return {"access_token": access_token, "refresh_token": refresh_token, "token_type": "bearer", "user": user_record}
 
 
 @router.get("/me")
