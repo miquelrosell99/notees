@@ -6,9 +6,55 @@
  */
 import ky, { HTTPError, type Options } from 'ky';
 import { getLogger } from '../utils/logger';
-import { getAuthToken, clearAuthToken, getApiKey } from '../utils/auth';
+import { getAuthToken, clearAuthToken, setAuthToken, getApiKey } from '../utils/auth';
 
 const log = getLogger('api');
+
+let isRefreshing = false;
+let refreshPromise: Promise<string | null> | null = null;
+
+async function doRefresh(): Promise<string | null> {
+  try {
+    const resp = await fetch('/api/auth/refresh', {
+      method: 'POST',
+      credentials: 'same-origin',
+    });
+    if (!resp.ok) {
+      throw new Error(`Refresh failed: ${resp.status}`);
+    }
+    const data = await resp.json();
+    if (data.access_token) {
+      setAuthToken(data.access_token);
+      return data.access_token;
+    }
+    throw new Error('No access_token in refresh response');
+  } catch (err) {
+    log.error('Token refresh failed', err);
+    return null;
+  }
+}
+
+async function refreshAccessToken(): Promise<string | null> {
+  if (isRefreshing && refreshPromise) {
+    return refreshPromise;
+  }
+  isRefreshing = true;
+  refreshPromise = doRefresh().finally(() => {
+    isRefreshing = false;
+    refreshPromise = null;
+  });
+  return refreshPromise;
+}
+
+function handleAuthFailure() {
+  clearAuthToken();
+  localStorage.removeItem('auth-storage');
+  window.dispatchEvent(new CustomEvent('auth:unauthorized'));
+  if (window.location.pathname !== '/auth') {
+    log.info('Redirecting to auth page');
+    window.location.href = '/auth';
+  }
+}
 
 export class ApiError extends Error {
   response?: {
@@ -67,20 +113,9 @@ const kyClient = ky.create({
 
         if (response) {
           if (response.status === 401) {
-            log.warn(`Authentication failed: ${method} ${url}`);
-
-            // Token expired or invalid - clear auth data
-            clearAuthToken();
-            localStorage.removeItem('auth-storage'); // Clear persisted auth store
-
-            // Dispatch custom event to notify app of auth failure
-            window.dispatchEvent(new CustomEvent('auth:unauthorized'));
-
-            // Only redirect if not already on auth page
-            if (window.location.pathname !== '/auth') {
-              log.info('Redirecting to auth page');
-              window.location.href = '/auth';
-            }
+            // Don't clear auth here — the exec function will attempt refresh first.
+            // Only log so we can trace the initial 401.
+            log.warn(`Authentication challenge: ${method} ${url}`);
           } else if (response.status >= 500) {
             log.error(`Server error: ${response.status} ${method} ${url}`, error);
           } else if (response.status >= 400) {
@@ -116,7 +151,7 @@ const kyClient = ky.create({
   },
 });
 
-async function exec<T = any>(method: string, url: string, options?: RequestOptions): Promise<{ data: T; headers: Headers }> {
+async function exec<T = any>(method: string, url: string, options?: RequestOptions, isRetry = false): Promise<{ data: T; headers: Headers }> {
   // ky rejects inputs starting with '/' when prefixUrl is set; strip it
   const cleanUrl = url.startsWith('/') ? url.slice(1) : url;
   const kyOptions: Options = {};
@@ -174,6 +209,17 @@ async function exec<T = any>(method: string, url: string, options?: RequestOptio
 
     return { data: data as T, headers: resp.headers };
   } catch (err) {
+    if (err instanceof HTTPError && err.response.status === 401 && !isRetry && !url.includes('/auth/refresh')) {
+      // Attempt silent token refresh
+      const newToken = await refreshAccessToken();
+      if (newToken) {
+        // Retry the original request with the new token
+        return exec<T>(method, url, options, true);
+      }
+      // Refresh failed — handle auth failure
+      handleAuthFailure();
+    }
+
     if (err instanceof HTTPError) {
       let data: unknown;
       try {

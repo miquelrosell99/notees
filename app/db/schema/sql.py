@@ -1281,6 +1281,25 @@ CREATE INDEX IF NOT EXISTS idx_api_key_user_id ON api_key(user_id);
 CREATE INDEX IF NOT EXISTS idx_api_key_revoked ON api_key(revoked) WHERE revoked = FALSE;
 CREATE INDEX IF NOT EXISTS idx_api_key_expires_at ON api_key(expires_at) WHERE expires_at IS NOT NULL;
 
+-- ============================================================
+-- REFRESH TOKENS
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS refresh_token (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+    token_hash VARCHAR(255) NOT NULL,
+    expires_at TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    revoked_at TIMESTAMPTZ,
+    replaced_by INTEGER REFERENCES refresh_token(id) ON DELETE SET NULL,
+    family_id UUID NOT NULL DEFAULT uuid_generate_v4()
+);
+
+CREATE INDEX IF NOT EXISTS idx_refresh_token_user ON refresh_token(user_id);
+CREATE INDEX IF NOT EXISTS idx_refresh_token_hash ON refresh_token(token_hash);
+CREATE INDEX IF NOT EXISTS idx_refresh_token_family ON refresh_token(family_id);
+
 -- Migration: Change node.sequence from INTEGER to DOUBLE PRECISION for fractional ordering
 DO $$
 BEGIN
