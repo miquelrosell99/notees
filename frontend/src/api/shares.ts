@@ -2,6 +2,7 @@
  * Shares API functions
  */
 import api from './client';
+import type { PaginatedResponse } from '@/types/api';
 
 export interface Share {
   share_uuid: string;
@@ -205,8 +206,13 @@ export async function deleteUserShare(shareId: number): Promise<{ success: boole
 /**
  * Get share inbox (all nodes shared with current user)
  */
-export async function getShareInbox(): Promise<ShareInboxResponse> {
-  const response = await api.get<ShareInboxResponse>(`${SHARES_BASE}/inbox`);
+export async function getShareInbox(
+  page: number = 1,
+  page_size: number = 50,
+): Promise<PaginatedResponse<ShareInboxItem>> {
+  const response = await api.get<PaginatedResponse<ShareInboxItem>>(`${SHARES_BASE}/inbox`, {
+    params: { page, page_size },
+  });
   return response.data;
 }
 
@@ -230,9 +236,14 @@ export async function inviteWorkspaceMember(
 /**
  * List workspace members
  */
-export async function listWorkspaceMembers(workspaceUuid: string): Promise<WorkspaceMembersResponse> {
-  const response = await api.get<WorkspaceMembersResponse>(
-    `${WORKSPACES_BASE}/${workspaceUuid}/members`
+export async function listWorkspaceMembers(
+  workspaceUuid: string,
+  page: number = 1,
+  page_size: number = 50,
+): Promise<PaginatedResponse<WorkspaceMember>> {
+  const response = await api.get<PaginatedResponse<WorkspaceMember>>(
+    `${WORKSPACES_BASE}/${workspaceUuid}/members`,
+    { params: { page, page_size } },
   );
   return response.data;
 }

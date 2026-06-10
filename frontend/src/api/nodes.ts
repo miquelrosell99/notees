@@ -8,6 +8,7 @@ import type {
   NodeCreate,
   NodeUpdate,
   NodesResponse,
+  PaginatedResponse,
   Backlink,
   BacklinksResponse,
   LinkedReference,
@@ -139,9 +140,14 @@ export async function createPage(
 /**
  * List all existing daily pages
  */
-export async function listDailyPages(): Promise<Node[]> {
-  const response = await api.get<NodesResponse>(`${BASE}/daily/list`);
-  return response.data.nodes ?? [];
+export async function listDailyPages(
+  page: number = 1,
+  page_size: number = 50,
+): Promise<PaginatedResponse<Node>> {
+  const response = await api.get<PaginatedResponse<Node>>(`${BASE}/daily/list`, {
+    params: { page, page_size },
+  });
+  return response.data;
 }
 
 /**
@@ -269,17 +275,28 @@ export async function mergePages(
 /**
  * Get all archived pages
  */
-export async function getArchivedPages(): Promise<Node[]> {
-  const response = await api.get<{ pages: Node[] }>(`${BASE}/archived`);
-  return response.data.pages ?? [];
+export async function getArchivedPages(
+  page: number = 1,
+  page_size: number = 50,
+): Promise<PaginatedResponse<Node>> {
+  const response = await api.get<PaginatedResponse<Node>>(`${BASE}/archived`, {
+    params: { page, page_size },
+  });
+  return response.data;
 }
 
 /**
  * Get all nodes with a specific class
  */
-export async function getNodesWithClass(classId: number): Promise<Node[]> {
-  const response = await api.get<NodesResponse>(`${BASE}/classes/${classId}/nodes`);
-  return response.data.nodes ?? [];
+export async function getNodesWithClass(
+  classId: number,
+  page: number = 1,
+  page_size: number = 50,
+): Promise<PaginatedResponse<Node>> {
+  const response = await api.get<PaginatedResponse<Node>>(`${BASE}/classes/${classId}/nodes`, {
+    params: { page, page_size },
+  });
+  return response.data;
 }
 
 /**
@@ -435,11 +452,15 @@ export async function removeClass(nodeId: number, classNodeId: number): Promise<
 /**
  * List tasks
  */
-export async function listTasks(includeComplete = false): Promise<Node[]> {
-  const response = await api.get<NodesResponse>(`${BASE}/tasks`, {
-    params: { include_complete: includeComplete },
+export async function listTasks(
+  includeComplete = false,
+  page: number = 1,
+  page_size: number = 50,
+): Promise<PaginatedResponse<Node>> {
+  const response = await api.get<PaginatedResponse<Node>>(`${BASE}/tasks`, {
+    params: { include_complete: includeComplete, page, page_size },
   });
-  return response.data.nodes ?? [];
+  return response.data;
 }
 
 // ==================== Graph ====================
@@ -484,14 +505,24 @@ export interface GraphLink {
 export interface GraphData {
   nodes: GraphNode[];
   links: GraphLink[];
+  total?: number;
+  page?: number;
+  page_size?: number;
+  has_next?: boolean;
+  has_prev?: boolean;
 }
 
 /**
  * Get workspace data for visualization
  * @deprecated Use getGraphNodes + getLinksForNodes separately instead
  */
-export async function getWorkspaceData(): Promise<GraphData> {
-  const response = await api.get<GraphData>(`${BASE}/workspace`);
+export async function getWorkspaceData(
+  page?: number,
+  page_size?: number,
+): Promise<GraphData> {
+  const response = await api.get<GraphData>(`${BASE}/workspace`, {
+    params: { page, page_size },
+  });
   return response.data;
 }
 
@@ -499,9 +530,14 @@ export async function getWorkspaceData(): Promise<GraphData> {
  * Get workspace nodes for visualization (without links).
  * Lighter than getWorkspaceData — use when links are fetched separately.
  */
-export async function getGraphNodes(): Promise<GraphNode[]> {
-  const response = await api.get<{ nodes: GraphNode[] }>(`${BASE}/workspace/nodes`);
-  return response.data.nodes;
+export async function getGraphNodes(
+  page: number = 1,
+  page_size: number = 50,
+): Promise<PaginatedResponse<GraphNode>> {
+  const response = await api.get<PaginatedResponse<GraphNode>>(`${BASE}/workspace/nodes`, {
+    params: { page, page_size },
+  });
+  return response.data;
 }
 
 /**
@@ -580,8 +616,14 @@ export interface CommentsResponse {
 /**
  * Get all comments for a node
  */
-export async function getComments(nodeId: number): Promise<CommentsResponse> {
-  const response = await api.get<CommentsResponse>(`${BASE}/${nodeId}/comments`);
+export async function getComments(
+  nodeId: number,
+  page: number = 1,
+  page_size: number = 50,
+): Promise<PaginatedResponse<Node>> {
+  const response = await api.get<PaginatedResponse<Node>>(`${BASE}/${nodeId}/comments`, {
+    params: { page, page_size },
+  });
   return response.data;
 }
 
@@ -797,9 +839,14 @@ export async function restoreNodeVersion(nodeId: number, versionId: number): Pro
 /**
  * Get the list of favorite page IDs
  */
-export async function getFavorites(): Promise<number[]> {
-  const response = await api.get<{ favorites: number[] }>(`${BASE}/favorites`);
-  return response.data.favorites ?? [];
+export async function getFavorites(
+  page: number = 1,
+  page_size: number = 50,
+): Promise<PaginatedResponse<Node>> {
+  const response = await api.get<PaginatedResponse<Node>>(`${BASE}/favorites`, {
+    params: { page, page_size },
+  });
+  return response.data;
 }
 
 /**
@@ -840,9 +887,14 @@ export async function reorderFavorites(fromIndex: number, toIndex: number): Prom
 /**
  * Get all soft-deleted nodes (trash)
  */
-export async function getTrash(): Promise<Node[]> {
-  const response = await api.get<{ nodes: Node[]; total: number }>(`${BASE}/trash`);
-  return response.data.nodes ?? [];
+export async function getTrash(
+  page: number = 1,
+  page_size: number = 50,
+): Promise<PaginatedResponse<Node>> {
+  const response = await api.get<PaginatedResponse<Node>>(`${BASE}/trash`, {
+    params: { page, page_size },
+  });
+  return response.data;
 }
 
 /**
@@ -964,8 +1016,13 @@ export interface TemplateInstantiateResult {
   as_blocks: boolean;
 }
 
-export async function listTemplates(): Promise<{ templates: Node[]; total: number }> {
-  const response = await api.get<{ templates: Node[]; total: number }>(`${BASE}/templates`);
+export async function listTemplates(
+  page: number = 1,
+  page_size: number = 50,
+): Promise<PaginatedResponse<Node>> {
+  const response = await api.get<PaginatedResponse<Node>>(`${BASE}/templates`, {
+    params: { page, page_size },
+  });
   return response.data;
 }
 

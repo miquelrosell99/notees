@@ -90,8 +90,9 @@ export function SystemSettingsModal({ isOpen, onClose }: SystemSettingsModalProp
 
   const { data: usersData, isLoading: usersLoading } = useQuery({
     queryKey: ['admin', 'users'],
-    queryFn: listUsers,
+    queryFn: () => listUsers(),
     enabled: isOpen,
+    select: (data) => ({ users: data.items }),
   });
 
   const { data: metricsData } = useQuery({

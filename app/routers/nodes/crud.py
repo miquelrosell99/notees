@@ -2,7 +2,7 @@
 
 from datetime import UTC
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Request
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request
 from fastapi_limiter.depends import RateLimiter
 from pyrate_limiter import Duration, Limiter, Rate
 
@@ -11,7 +11,7 @@ from ...domain.entities import NodeCreateData, NodeUpdateData
 from ...domain.errors import DatePageDeletionError, DuplicateNodeError, SystemClassConstraintError
 from ...domain.stringify_ast import extract_node_links, parse_ast
 from ...logging_config import get_logger
-from ...models import User
+from ...models import PaginatedResponse, User
 from ...node_export import write_share_html
 from ...routers.notifications import create_notification
 from ..auth import get_current_user
@@ -484,43 +484,112 @@ async def get_node_suggestions(
 
 @router.get("/archived")
 async def get_archived_pages(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=500),
     user: User = Depends(get_current_user),
 ):
     """Get all archived pages."""
     service = await _get_node_service(user)
+    offset = (page - 1) * page_size
 
-    pages = await service.get_archived_pages()
+    async with acquire_connection(service.pool) as conn:
+        count_row = await conn.fetchrow(
+            """
+            SELECT COUNT(*) as total FROM node
+            WHERE is_page = true AND active = false
+                  AND (is_deleted = false OR is_deleted IS NULL)
+                  AND workspace_id = $1
+            """,
+            service.workspace_id,
+        )
+        total = count_row["total"] if count_row else 0
+
+        rows = await conn.fetch(
+            """
+            SELECT * FROM node
+            WHERE is_page = true AND active = false
+                  AND (is_deleted = false OR is_deleted IS NULL)
+                  AND workspace_id = $1
+            ORDER BY write_date DESC NULLS LAST
+            LIMIT $2 OFFSET $3
+            """,
+            service.workspace_id,
+            page_size,
+            offset,
+        )
 
     result = []
-    for page in pages:
-        if page.id is None:
+    for row in rows:
+        page_node = service.row_to_node(row)
+        if page_node.id is None:
             continue
-        types = await service.get_node_classes(page.id)
-        result.append(_node_to_response(page, classes=[t.id for t in types if t.id]))
+        types = await service.get_node_classes(page_node.id)
+        result.append(_node_to_response(page_node, classes=[t.id for t in types if t.id]))
 
-    return {"pages": result}
+    return PaginatedResponse[NodeResponse](
+        items=result,
+        total=total,
+        page=page,
+        page_size=page_size,
+        has_next=(page * page_size) < total,
+        has_prev=page > 1,
+    )
 
 
 @router.get("/templates", name="list_templates")
 async def list_templates(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=500),
     user: User = Depends(get_current_user),
 ):
     """List all template nodes in the current workspace."""
     service = await _get_node_service(user)
-    templates = await service.list_templates()
+    offset = (page - 1) * page_size
+
+    async with acquire_connection(service.pool) as conn:
+        count_row = await conn.fetchrow(
+            """
+            SELECT COUNT(*) as total FROM node
+            WHERE workspace_id = $1 AND is_template = TRUE AND active = TRUE
+                  AND (is_deleted = FALSE OR is_deleted IS NULL)
+            """,
+            service.workspace_id,
+        )
+        total = count_row["total"] if count_row else 0
+
+        rows = await conn.fetch(
+            """
+            SELECT * FROM node
+            WHERE workspace_id = $1 AND is_template = TRUE AND active = TRUE
+                  AND (is_deleted = FALSE OR is_deleted IS NULL)
+            ORDER BY name
+            LIMIT $2 OFFSET $3
+            """,
+            service.workspace_id,
+            page_size,
+            offset,
+        )
 
     pool = service.pool
     workspace_id = service.workspace_id or 0
 
     result = []
-    for t in templates:
+    for row in rows:
+        t = service.row_to_node(row)
         if t.id is None:
             continue
         class_ids = await _get_class_ids(service, t.id)
         tag_ids = await _get_tag_ids(pool, workspace_id, t.id)
         result.append(_node_to_response(t, classes=class_ids, tags=tag_ids))
 
-    return {"templates": result, "total": len(result)}
+    return PaginatedResponse[NodeResponse](
+        items=result,
+        total=total,
+        page=page,
+        page_size=page_size,
+        has_next=(page * page_size) < total,
+        has_prev=page > 1,
+    )
 
 
 
@@ -528,6 +597,8 @@ async def list_templates(
 @router.get("/tasks")
 async def list_tasks(
     include_complete: bool = False,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=500),
     user: User = Depends(get_current_user),
 ):
     """List all task nodes in the current workspace.
@@ -544,7 +615,9 @@ async def list_tasks(
     # Find the task class node ID
     task_class_node = await service.get_node_by_uuid(SYSTEM_CLASS_UUIDS["task"])
     if not task_class_node or task_class_node.id is None:
-        return {"nodes": []}
+        return PaginatedResponse[NodeResponse](
+            items=[], total=0, page=page, page_size=page_size, has_next=False, has_prev=False
+        )
 
     # Get all nodes with the task class
     nodes = await service.get_nodes_typed_with(task_class_node.id)
@@ -576,9 +649,13 @@ async def list_tasks(
                 filtered_nodes.append(n)
             nodes = filtered_nodes
 
+    total = len(nodes)
+    offset = (page - 1) * page_size
+    paginated_nodes = nodes[offset : offset + page_size]
+
     # Build response
     result = []
-    for n in nodes:
+    for n in paginated_nodes:
         if n.id is None:
             continue
         result.append(_node_to_response(
@@ -587,7 +664,14 @@ async def list_tasks(
             tags=tag_ids_map.get(n.id, []),
         ))
 
-    return {"nodes": result}
+    return PaginatedResponse[NodeResponse](
+        items=result,
+        total=total,
+        page=page,
+        page_size=page_size,
+        has_next=(page * page_size) < total,
+        has_prev=page > 1,
+    )
 
 @router.post("/scratchpad/clear")
 async def clear_scratchpad(

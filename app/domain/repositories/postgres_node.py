@@ -868,19 +868,39 @@ class PostgresNodeRepository(
 
             return [self._row_to_node(row) for row in rows]
 
-    async def get_nodes_with_classes(self, class_ids: list[int]) -> list[Node]:
+    async def get_nodes_with_classes(self, class_ids: list[int], limit: int | None = None, offset: int | None = None) -> list[Node]:
         """Get all nodes that have any of the given class IDs in their class_ids array."""
         async with acquire_connection(self._pool) as conn:
+            params: list = [class_ids, self._workspace_id]
+            limit_clause = ""
+            if limit is not None:
+                limit_clause = f" LIMIT ${len(params) + 1}"
+                params.append(limit)
+                if offset is not None:
+                    limit_clause += f" OFFSET ${len(params) + 1}"
+                    params.append(offset)
             rows = await conn.fetch(
                 f"""SELECT {_NODE_SELECT_COLUMNS} FROM node
                    WHERE class_ids && $1::integer[]
                      AND workspace_id = $2
                      AND active = TRUE
-                   ORDER BY write_date DESC""",
+                   ORDER BY write_date DESC{limit_clause}""",
+                *params,
+            )
+            return [self._row_to_node(row) for row in rows]
+
+    async def count_nodes_with_classes(self, class_ids: list[int]) -> int:
+        """Count nodes that have any of the given class IDs in their class_ids array."""
+        async with acquire_connection(self._pool) as conn:
+            row = await conn.fetchrow(
+                """SELECT COUNT(*) FROM node
+                   WHERE class_ids && $1::integer[]
+                     AND workspace_id = $2
+                     AND active = TRUE""",
                 class_ids,
                 self._workspace_id,
             )
-            return [self._row_to_node(row) for row in rows]
+            return row["count"] if row else 0
 
     async def get_node_sequence(self, node_id: int) -> float | None:
         """Get the sequence of a node."""

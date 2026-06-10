@@ -26,8 +26,12 @@ const PERMS_BY_ROLE: Record<WorkspaceRole, WorkspacePermissions> = {
 export function useWorkspaceRole() {
   const { data } = useQuery({
     queryKey: ['workspaces'],
-    queryFn: listWorkspaces,
+    queryFn: () => listWorkspaces(),
     staleTime: 30000,
+    select: (d) => ({
+      workspaces: d.items,
+      active: d.items.find((w) => w.is_active)?.uuid ?? null,
+    }),
   });
 
   const activeWorkspace = useMemo(() => {

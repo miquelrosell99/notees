@@ -51,9 +51,9 @@ class TestListTemplates:
         resp = await authenticated_client.get("/api/nodes/templates")
         assert resp.status_code == 200
         data = resp.json()
-        assert "templates" in data
+        assert "items" in data
         assert "total" in data
-        assert isinstance(data["templates"], list)
+        assert isinstance(data["items"], list)
         assert data["total"] == 0
 
     @pytest.mark.asyncio
@@ -64,7 +64,7 @@ class TestListTemplates:
         assert resp.status_code == 200
         data = resp.json()
         assert data["total"] == 1
-        assert data["templates"][0]["name"] is not None
+        assert data["items"][0]["name"] is not None
 
     @pytest.mark.asyncio
     async def test_non_template_pages_not_listed(self, authenticated_client: AsyncClient):

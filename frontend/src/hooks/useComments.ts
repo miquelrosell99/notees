@@ -17,6 +17,7 @@ export function useComments(nodeId: number | null) {
     queryKey: commentKeys.forNode(nodeId ?? 0),
     queryFn: () => nodesApi.getComments(nodeId!),
     enabled: !!nodeId,
+    select: (data) => ({ comments: data.items, comment_count: data.total }),
   });
 }
 
