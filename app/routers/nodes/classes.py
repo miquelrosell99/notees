@@ -1,8 +1,8 @@
 """Class-related endpoints for nodes."""
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 
-from ...models import User
+from ...models import PaginatedResponse, User
 from ..auth import get_current_user
 from .helpers import (
     _get_class_ids_batch,
@@ -11,7 +11,7 @@ from .helpers import (
     _get_undo_service,
     _node_to_response,
 )
-from .models import ClassRequest
+from .models import ClassRequest, NodeResponse
 
 router = APIRouter()
 
@@ -100,6 +100,8 @@ async def search_classes(
 @router.get("/classes/{class_id}/nodes")
 async def get_nodes_with_class(
     class_id: int,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=500),
     user: User = Depends(get_current_user),
 ):
     """Get all nodes that have a specific class.
@@ -109,12 +111,23 @@ async def get_nodes_with_class(
     Uses direct array queries with class_ids column for performance.
     """
     class_service = await _get_class_service(user)
-    nodes = await class_service.get_nodes_with_class(class_id)
+    offset = (page - 1) * page_size
+    nodes = await class_service.get_nodes_with_class(class_id, limit=page_size, offset=offset)
+    total = await class_service.count_nodes_with_class(class_id)
 
     node_ids = [n.id for n in nodes if n.id is not None]
     class_ids_map = await _get_class_ids_batch(class_service.pool, class_service.workspace_id or 0, node_ids)
 
-    return {"nodes": [_node_to_response(n, classes=class_ids_map.get(n.id, []) if n.id else []) for n in nodes]}
+    items = [_node_to_response(n, classes=class_ids_map.get(n.id, []) if n.id else []) for n in nodes]
+
+    return PaginatedResponse[NodeResponse](
+        items=items,
+        total=total,
+        page=page,
+        page_size=page_size,
+        has_next=(page * page_size) < total,
+        has_prev=page > 1,
+    )
 
 
 @router.post("/{node_id}/classes")

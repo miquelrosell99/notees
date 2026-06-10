@@ -11,7 +11,7 @@ import tempfile
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
@@ -22,7 +22,7 @@ from ..dependencies import invalidate_workspace_cache
 from ..domain import DuplicateWorkspaceError, WorkspaceNotFoundError
 from ..export_jobs import create_job, get_job, update_job
 from ..logging_config import get_logger
-from ..models import User, WorkspaceCreate
+from ..models import PaginatedResponse, User, WorkspaceCreate
 from ..utils.email import render_invite_email, send_email
 from ..workspace_io import (
     export_workspace_by_uuid,
@@ -51,11 +51,24 @@ def _workspace_error_to_http(error: Exception) -> HTTPException:
 
 @router.get("/")
 @router.get("")
-async def list_workspaces(user: User = Depends(get_current_user)):
+async def list_workspaces(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=500),
+    user: User = Depends(get_current_user),
+):
     """List all available workspaces for current user."""
     workspaces = await wm.list_workspaces(user.id)
-    active_uuid = wm.get_active_workspace_id(user.id)
-    return {"workspaces": workspaces, "active": active_uuid}
+    total = len(workspaces)
+    offset = (page - 1) * page_size
+    items = workspaces[offset : offset + page_size]
+    return PaginatedResponse[dict](
+        items=items,
+        total=total,
+        page=page,
+        page_size=page_size,
+        has_next=(page * page_size) < total,
+        has_prev=page > 1,
+    )
 
 
 @router.get("/check-name/{name}")
@@ -544,6 +557,8 @@ async def invite_member(
 @router.get("/{workspace_uuid}/members")
 async def list_members(
     workspace_uuid: str,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=500),
     user: User = Depends(get_current_user),  # noqa: B008
 ):
     """List members of a workspace."""
@@ -569,6 +584,20 @@ async def list_members(
             if not member:
                 raise HTTPException(status_code=403, detail="Not a member of this workspace")
 
+        owner_row = await conn.fetchrow(
+            'SELECT id, email, uuid as user_uuid FROM "user" WHERE id = $1',
+            ws_row["create_uid"],
+        )
+
+        offset = (page - 1) * page_size
+
+        if offset == 0:
+            share_limit = max(0, page_size - 1) if owner_row else page_size
+            share_offset = 0
+        else:
+            share_limit = page_size
+            share_offset = max(0, offset - 1) if owner_row else offset
+
         rows = await conn.fetch(
             """
             SELECT u.id, u.email, u.uuid as user_uuid,
@@ -578,28 +607,28 @@ async def list_members(
             JOIN "user" u ON u.id = gs.user_id
             WHERE gs.workspace_id = $1 AND gs.active = TRUE
             ORDER BY gs.create_date DESC
+            LIMIT $2 OFFSET $3
             """,
             ws_id,
+            share_limit,
+            share_offset,
         )
 
-        pending_rows = await conn.fetch(
-            """
-            SELECT email, role, created_at
-            FROM pending_invite
-            WHERE workspace_id = $1 AND node_id IS NULL AND active = TRUE
-              AND (expires_at IS NULL OR expires_at > NOW())
-            ORDER BY created_at DESC
-            """,
-            ws_id,
-        )
-
-        owner_row = await conn.fetchrow(
-            'SELECT id, email, uuid as user_uuid FROM "user" WHERE id = $1',
-            ws_row["create_uid"],
-        )
+        pending_rows = []
+        if offset == 0:
+            pending_rows = await conn.fetch(
+                """
+                SELECT email, role, created_at
+                FROM pending_invite
+                WHERE workspace_id = $1 AND node_id IS NULL AND active = TRUE
+                  AND (expires_at IS NULL OR expires_at > NOW())
+                ORDER BY created_at DESC
+                """,
+                ws_id,
+            )
 
     members = []
-    if owner_row:
+    if owner_row and offset == 0:
         members.append(
             {
                 "user_id": owner_row["id"],

@@ -1,11 +1,12 @@
 """Trash operations for nodes."""
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi_limiter.depends import RateLimiter
 from pyrate_limiter import Duration, Limiter, Rate
 
+from ...db.connection import acquire_connection
 from ...logging_config import get_logger
-from ...models import User
+from ...models import PaginatedResponse, User
 from ..auth import get_current_user
 from .helpers import (
     _get_node_service,
@@ -15,6 +16,7 @@ from .models import (
     BatchPermanentDeleteRequest,
     BatchPermanentDeleteResponse,
     BatchPermanentDeleteResultItem,
+    NodeResponse,
 )
 
 logger = get_logger(__name__)
@@ -25,6 +27,8 @@ router = APIRouter()
 
 @router.get("/trash", name="get_trash")
 async def get_trash(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=500),
     user: User = Depends(get_current_user),
 ):
     """Get all soft-deleted nodes (trash) for the current workspace.
@@ -33,15 +37,41 @@ async def get_trash(
     permanently removed from the database.
     """
     service = await _get_node_service(user)
-    deleted_nodes = await service.get_deleted_nodes()
+    offset = (page - 1) * page_size
 
-    # Convert to response format
+    async with acquire_connection(service.pool) as conn:
+        count_row = await conn.fetchrow(
+            "SELECT COUNT(*) as total FROM node WHERE workspace_id = $1 AND is_deleted = true",
+            service.workspace_id,
+        )
+        total = count_row["total"] if count_row else 0
+
+        rows = await conn.fetch(
+            """
+            SELECT * FROM node
+            WHERE workspace_id = $1 AND is_deleted = true
+            ORDER BY deleted_at DESC NULLS LAST
+            LIMIT $2 OFFSET $3
+            """,
+            service.workspace_id,
+            page_size,
+            offset,
+        )
+
     responses = []
-    for node in deleted_nodes:
+    for row in rows:
+        node = service.row_to_node(row)
         types = await service.get_node_classes(node.id) if node.id else []
         responses.append(_node_to_response(node, classes=[t.id for t in types if t.id]))
 
-    return {"nodes": responses, "total": len(responses)}
+    return PaginatedResponse[NodeResponse](
+        items=responses,
+        total=total,
+        page=page,
+        page_size=page_size,
+        has_next=(page * page_size) < total,
+        has_prev=page > 1,
+    )
 
 
 @router.post("/trash/empty", name="empty_trash")

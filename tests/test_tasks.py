@@ -82,9 +82,9 @@ class TestListTasks:
         resp = await authenticated_client.get("/api/nodes/tasks")
         assert resp.status_code == 200
         data = resp.json()
-        assert "nodes" in data
-        assert isinstance(data["nodes"], list)
-        assert data["nodes"] == []
+        assert "items" in data
+        assert isinstance(data["items"], list)
+        assert data["items"] == []
 
     @pytest.mark.asyncio
     async def test_returns_tasks_after_creation(self, authenticated_client: AsyncClient):
@@ -93,8 +93,8 @@ class TestListTasks:
         resp = await authenticated_client.get("/api/nodes/tasks")
         assert resp.status_code == 200
         data = resp.json()
-        assert len(data["nodes"]) == 1
-        assert data["nodes"][0]["id"] == task["id"]
+        assert len(data["items"]) == 1
+        assert data["items"][0]["id"] == task["id"]
 
     @pytest.mark.asyncio
     async def test_non_task_pages_not_listed(self, authenticated_client: AsyncClient):
@@ -124,8 +124,8 @@ class TestListTasks:
         resp = await authenticated_client.get("/api/nodes/tasks?include_complete=true")
         assert resp.status_code == 200
         data = resp.json()
-        assert len(data["nodes"]) == 1
-        assert data["nodes"][0]["id"] == task["id"]
+        assert len(data["items"]) == 1
+        assert data["items"][0]["id"] == task["id"]
 
     @pytest.mark.asyncio
     async def test_excludes_cancelled_tasks_by_default(self, authenticated_client: AsyncClient):
@@ -145,5 +145,5 @@ class TestListTasks:
         resp = await authenticated_client.get("/api/nodes/tasks")
         assert resp.status_code == 200
         data = resp.json()
-        assert len(data["nodes"]) == 1
-        assert data["nodes"][0]["id"] == task["id"]
+        assert len(data["items"]) == 1
+        assert data["items"][0]["id"] == task["id"]

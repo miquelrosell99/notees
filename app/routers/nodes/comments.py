@@ -3,14 +3,15 @@
 Comments are child nodes with is_comment=true, stored directly under the target node.
 """
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 
+from ...db.connection import acquire_connection
 from ...db.schema.constants import SYSTEM_CLASS_UUIDS
 from ...domain.entities import NodeCreateData
-from ...models import User
+from ...models import PaginatedResponse, User
 from ..auth import get_current_user
 from .helpers import _build_children_response, _get_class_ids_batch, _get_node_service, _node_to_response
-from .models import CommentCreateRequest
+from .models import CommentCreateRequest, NodeResponse
 
 router = APIRouter()
 
@@ -18,6 +19,8 @@ router = APIRouter()
 @router.get("/{node_id}/comments")
 async def get_comments(
     node_id: int,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=500),
     user: User = Depends(get_current_user),
 ):
     """Get all comments for a node.
@@ -36,23 +39,41 @@ async def get_comments(
     if not (perms.can_read or perms.can_comment):
         raise HTTPException(403, "Not allowed to view comments")
 
-    # Get comment child nodes for this node
+    # Get comment child nodes for this node (paginated top-level only)
     pool = service.pool
-    rows = await pool.fetch(
-        """
-        SELECT id FROM node
-        WHERE parent_id = $1 AND is_comment = TRUE AND active = TRUE
-              AND (is_deleted = FALSE OR is_deleted IS NULL)
-        ORDER BY sequence, create_date
-    """,
-        node_id,
-    )
+    offset = (page - 1) * page_size
+
+    async with acquire_connection(pool) as conn:
+        count_row = await conn.fetchrow(
+            """
+            SELECT COUNT(*) as total FROM node
+            WHERE parent_id = $1 AND is_comment = TRUE AND active = TRUE
+                  AND (is_deleted = FALSE OR is_deleted IS NULL)
+            """,
+            node_id,
+        )
+        total = count_row["total"] if count_row else 0
+
+        rows = await conn.fetch(
+            """
+            SELECT id FROM node
+            WHERE parent_id = $1 AND is_comment = TRUE AND active = TRUE
+                  AND (is_deleted = FALSE OR is_deleted IS NULL)
+            ORDER BY sequence, create_date
+            LIMIT $2 OFFSET $3
+            """,
+            node_id,
+            page_size,
+            offset,
+        )
 
     comment_ids = [row["id"] for row in rows]
     if not comment_ids:
-        return {"comments": [], "comment_count": 0}
+        return PaginatedResponse[NodeResponse](
+            items=[], total=total, page=page, page_size=page_size, has_next=False, has_prev=page > 1
+        )
 
-    # Fetch all comment nodes and their descendants
+    # Fetch comment nodes and their children for the paginated subset
     all_nodes = []
     for cid in comment_ids:
         comment_node = await service.get_node(cid)
@@ -77,7 +98,14 @@ async def get_comments(
             resp.children = _build_children_response(children, class_ids_map) if children else []
             comments.append(resp)
 
-    return {"comments": comments, "comment_count": len(comments)}
+    return PaginatedResponse[NodeResponse](
+        items=comments,
+        total=total,
+        page=page,
+        page_size=page_size,
+        has_next=(page * page_size) < total,
+        has_prev=page > 1,
+    )
 
 
 @router.post("/{node_id}/comments")

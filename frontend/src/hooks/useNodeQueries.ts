@@ -8,7 +8,7 @@ import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-quer
 import { isApiError } from '@/api/client';
 import * as nodesApi from '@/api/nodes';
 import { nodeKeys } from './queryKeys';
-import type { Node } from '@/types/api';
+import type { Node, PaginatedResponse } from '@/types/api';
 
 // ==================== Helper Functions ====================
 
@@ -215,6 +215,7 @@ export function useGraphNodes(options?: { enabled?: boolean }) {
     queryKey: nodeKeys.graphNodes(),
     queryFn: () => nodesApi.getGraphNodes(),
     enabled: options?.enabled ?? true,
+    select: (data) => data.items,
   });
 }
 
@@ -282,10 +283,10 @@ export function usePropertyBacklinks(nodeId: number | null) {
  * to avoid duplicate requests to GET /nodes/daily/list.
  */
 export function useExistingDailyPages() {
-  return useQuery({
+  return useQuery<PaginatedResponse<Node>, Error, Node[]>({
     queryKey: nodeKeys.dailyList(),
     queryFn: () => nodesApi.listDailyPages(),
-    placeholderData: [], // Use placeholderData instead of initialData to allow fetching
+    select: (data) => data.items,
   });
 }
 
@@ -476,10 +477,10 @@ export function useNodesByTag(tagId: number | null) {
  * Hook to fetch tasks
  */
 export function useTasks(includeComplete = false) {
-  return useQuery({
+  return useQuery<PaginatedResponse<Node>, Error, Node[]>({
     queryKey: nodeKeys.tasks(includeComplete),
     queryFn: () => nodesApi.listTasks(includeComplete),
-    placeholderData: [],
+    select: (data) => data.items,
   });
 }
 
@@ -487,10 +488,10 @@ export function useTasks(includeComplete = false) {
  * Hook to fetch archived pages
  */
 export function useArchivedPages() {
-  return useQuery({
+  return useQuery<PaginatedResponse<Node>, Error, Node[]>({
     queryKey: nodeKeys.archived(),
     queryFn: () => nodesApi.getArchivedPages(),
-    placeholderData: [],
+    select: (data) => data.items,
   });
 }
 
@@ -498,12 +499,11 @@ export function useArchivedPages() {
  * Hook to fetch nodes with a specific class
  */
 export function useNodesWithClass(classId: number | null) {
-  return useQuery({
+  return useQuery<PaginatedResponse<Node>, Error, Node[]>({
     queryKey: nodeKeys.byClass(classId ?? 0),
     queryFn: () => nodesApi.getNodesWithClass(classId!),
     enabled: !!classId,
-    placeholderData: [],
-    select: (nodes) => nodes,  // Returns Node[]
+    select: (data) => data.items,
   });
 }
 

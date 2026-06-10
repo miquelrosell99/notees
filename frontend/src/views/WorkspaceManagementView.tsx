@@ -83,8 +83,12 @@ export function WorkspaceManagementView({
   // Fetch workspaces
   const { data, isLoading } = useQuery({
     queryKey: ['workspaces'],
-    queryFn: listWorkspaces,
+    queryFn: () => listWorkspaces(),
     staleTime: 10000,
+    select: (d) => ({
+      workspaces: d.items,
+      active: d.items.find((w) => w.is_active)?.uuid ?? null,
+    }),
   });
 
   // Switch database mutation

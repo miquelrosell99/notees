@@ -3,13 +3,13 @@
 System-level admin endpoints for user management and metrics.
 """
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from .. import auth
 from ..auth import hash_password
 from ..db.connection import get_connection, get_data_dir
 from ..logging_config import get_logger
-from ..models import AdminUserCreate, AdminUserUpdate
+from ..models import AdminUserCreate, AdminUserUpdate, PaginatedResponse
 from ..system_settings import get_all_system_settings, get_system_setting, set_system_setting
 from .auth import require_admin
 
@@ -18,32 +18,47 @@ router = APIRouter(prefix="/admin", tags=["Admin"])
 
 
 @router.get("/users")
-async def list_users(admin_user=Depends(require_admin)):  # noqa: B008
+async def list_users(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=500),
+    admin_user=Depends(require_admin),  # noqa: B008
+):
     """List all users."""
     async with get_connection() as conn:
+        total = await conn.fetchval('SELECT COUNT(*) FROM "user"')
+        offset = (page - 1) * page_size
         rows = await conn.fetch(
             """
             SELECT id, uuid, email, name, surnames, profile_pic, role, active, create_date
             FROM "user"
             ORDER BY create_date DESC
-            """
+            LIMIT $1 OFFSET $2
+            """,
+            page_size,
+            offset,
         )
-    return {
-        "users": [
-            {
-                "id": str(r["id"]),
-                "uuid": str(r["uuid"]),
-                "email": r["email"],
-                "name": r["name"],
-                "surnames": r["surnames"],
-                "profile_pic": r["profile_pic"],
-                "role": r["role"],
-                "active": r["active"],
-                "created_at": r["create_date"].isoformat() if r["create_date"] else None,
-            }
-            for r in rows
-        ]
-    }
+    items = [
+        {
+            "id": str(r["id"]),
+            "uuid": str(r["uuid"]),
+            "email": r["email"],
+            "name": r["name"],
+            "surnames": r["surnames"],
+            "profile_pic": r["profile_pic"],
+            "role": r["role"],
+            "active": r["active"],
+            "created_at": r["create_date"].isoformat() if r["create_date"] else None,
+        }
+        for r in rows
+    ]
+    return PaginatedResponse[dict](
+        items=items,
+        total=total or 0,
+        page=page,
+        page_size=page_size,
+        has_next=(page * page_size) < (total or 0),
+        has_prev=page > 1,
+    )
 
 
 @router.post("/users")

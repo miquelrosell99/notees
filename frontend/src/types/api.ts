@@ -767,6 +767,15 @@ export interface ApiKeyWithSecret extends ApiKey {
 
 // ==================== API Response Types ====================
 
+export interface PaginatedResponse<T> {
+  items: T[];
+  total: number;
+  page: number;
+  page_size: number;
+  has_next: boolean;
+  has_prev: boolean;
+}
+
 export interface NodesResponse {
   nodes: Node[];
 }

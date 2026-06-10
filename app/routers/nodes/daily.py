@@ -12,7 +12,7 @@ from ...db.schema import (
     generate_year_uuid,
 )
 from ...domain.entities import NodeCreateData, NodeUpdateData
-from ...models import User
+from ...models import PaginatedResponse, User
 from ..auth import get_current_user
 from .helpers import (
     _format_date_with_pattern,
@@ -23,30 +23,43 @@ from .helpers import (
     _get_node_service,
     _node_to_response,
 )
-from .models import BatchNodeDailyRequest, BatchNodeDailyResponse, BatchNodeDailyResultItem
+from .models import BatchNodeDailyRequest, BatchNodeDailyResponse, BatchNodeDailyResultItem, NodeResponse
 
 router = APIRouter()
 
 
 @router.get("/daily/list")
 async def list_daily_pages(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=500),
     user: User = Depends(get_current_user),
 ):
     """List all existing daily pages ordered by date descending."""
     service = await _get_node_service(user)
+    offset = (page - 1) * page_size
 
-    # Query nodes with is_day=1, ordered by uuid (which is YYYYMMDD format)
-    # Exclude class pages (is_class=1) to filter out the "day" class page itself
-    # Also exclude soft-deleted nodes (is_deleted=true)
     async with acquire_connection(service.pool) as conn:
+        count_row = await conn.fetchrow(
+            """
+            SELECT COUNT(*) as total FROM node
+            WHERE is_day = TRUE AND active = TRUE AND is_class = FALSE AND workspace_id = $1
+              AND (is_deleted = FALSE OR is_deleted IS NULL)
+            """,
+            service.workspace_id,
+        )
+        total = count_row["total"] if count_row else 0
+
         rows = await conn.fetch(
             """
             SELECT * FROM node
             WHERE is_day = TRUE AND active = TRUE AND is_class = FALSE AND workspace_id = $1
               AND (is_deleted = FALSE OR is_deleted IS NULL)
             ORDER BY uuid DESC
-        """,
+            LIMIT $2 OFFSET $3
+            """,
             service.workspace_id,
+            page_size,
+            offset,
         )
 
     # Get node IDs for batch type lookup
@@ -61,7 +74,14 @@ async def list_daily_pages(
         class_ids = class_ids_map.get(node.id, []) if node.id else []
         result.append(_node_to_response(node, classes=class_ids))
 
-    return {"nodes": result}
+    return PaginatedResponse[NodeResponse](
+        items=result,
+        total=total,
+        page=page,
+        page_size=page_size,
+        has_next=(page * page_size) < total,
+        has_prev=page > 1,
+    )
 
 
 @router.post("/daily")

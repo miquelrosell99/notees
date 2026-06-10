@@ -108,9 +108,13 @@ function AppContent() {
   // Fetch workspaces when authenticated
   const { data: dbData, isLoading: isLoadingWorkspaces, refetch: refetchWorkspaces } = useQuery({
     queryKey: ['workspaces'],
-    queryFn: listWorkspaces,
+    queryFn: () => listWorkspaces(),
     enabled: isAuthenticated,
     staleTime: 10000,
+    select: (data) => ({
+      workspaces: data.items,
+      active: data.items.find((w) => w.is_active)?.uuid ?? null,
+    }),
   });
   
   // Check enrollment status from user settings (useQuery avoids setState-in-effect)

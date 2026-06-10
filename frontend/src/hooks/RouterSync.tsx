@@ -15,7 +15,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigationStore, type MainViewType } from '@/stores';
 import { useNavigationHistoryStore } from '@/stores/navigationHistoryStore';
 import { useFavoritesStore } from '@/stores/favoritesStore';
-import { listWorkspaces, switchWorkspace, type WorkspaceListResponse } from '@/api/workspaces';
+import { listWorkspaces, switchWorkspace } from '@/api/workspaces';
 import { getNodeByUuid, getNode } from '@/api/nodes';
 import { getPropertyByUuid } from '@/api/properties';
 import { parseUrl, pushUrl, replaceUrl, type ParsedRoute } from './useRouter';
@@ -57,10 +57,14 @@ export function RouterSync({ children }: RouterSyncProps) {
   const queryClient = useQueryClient();
   
   // Fetch workspaces
-  const { data: dbData, isLoading: isLoadingDbs } = useQuery<WorkspaceListResponse>({
+  const { data: dbData, isLoading: isLoadingDbs } = useQuery({
     queryKey: ['workspaces'],
-    queryFn: listWorkspaces,
+    queryFn: () => listWorkspaces(),
     staleTime: 30000,
+    select: (data) => ({
+      workspaces: data.items,
+      active: data.items.find((w) => w.is_active)?.uuid ?? null,
+    }),
   });
   
   /**
@@ -104,7 +108,7 @@ export function RouterSync({ children }: RouterSyncProps) {
     // Refetch workspaces so dbData.active is updated
     await queryClient.fetchQuery({
       queryKey: ['workspaces'],
-      queryFn: listWorkspaces,
+      queryFn: () => listWorkspaces(),
     });
     
     useFavoritesStore.getState().refresh();

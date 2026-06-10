@@ -2,6 +2,7 @@
  * Workspace API functions
  */
 import api from './client';
+import type { PaginatedResponse } from '@/types/api';
 
 export interface WorkspaceInfo {
   uuid: string;
@@ -30,8 +31,13 @@ export interface WorkspaceCheckResponse {
 /**
  * List all workspaces for the current user
  */
-export async function listWorkspaces(): Promise<WorkspaceListResponse> {
-  const response = await api.get('/workspaces/');
+export async function listWorkspaces(
+  page: number = 1,
+  page_size: number = 50,
+): Promise<PaginatedResponse<WorkspaceInfo>> {
+  const response = await api.get<PaginatedResponse<WorkspaceInfo>>('/workspaces/', {
+    params: { page, page_size },
+  });
   return response.data;
 }
 

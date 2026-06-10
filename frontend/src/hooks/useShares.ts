@@ -119,7 +119,8 @@ export function useDeleteUserShare() {
 export function useShareInbox() {
   return useQuery({
     queryKey: sharesKeys.inbox(),
-    queryFn: getShareInbox,
+    queryFn: () => getShareInbox(),
+    select: (data) => ({ items: data.items }),
   });
 }
 
@@ -130,6 +131,7 @@ export function useWorkspaceMembers(workspaceUuid: string | null) {
     queryKey: sharesKeys.workspaceMembers(workspaceUuid ?? ''),
     queryFn: () => listWorkspaceMembers(workspaceUuid!),
     enabled: workspaceUuid !== null && workspaceUuid.length > 0,
+    select: (data) => ({ members: data.items }),
   });
 }
 

@@ -317,10 +317,14 @@ export function useRouter() {
   } = useNavigationStore();
   
   // Fetch workspaces to validate workspace in URLs
-  const { data: dbData, isLoading: isLoadingDbs } = useQuery<WorkspaceListResponse>({
+  const { data: dbData, isLoading: isLoadingDbs } = useQuery({
     queryKey: ['workspaces'],
-    queryFn: listWorkspaces,
+    queryFn: () => listWorkspaces(),
     staleTime: 30000,
+    select: (data) => ({
+      workspaces: data.items,
+      active: data.items.find((w) => w.is_active)?.uuid ?? null,
+    }),
   });
   
   // Subscribe to store changes to update URL
@@ -496,7 +500,7 @@ export function useCurrentNodeUuid(): string | null {
   // Using useLayoutEffect to sync state before paint
   useLayoutEffect(() => {
     if (!currentNodeId) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- Clear UUID when node is cleared
+       
       setUuid(null);
       return;
     }

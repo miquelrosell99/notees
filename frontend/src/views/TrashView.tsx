@@ -39,7 +39,8 @@ export function TrashView({ className = '' }: TrashViewProps) {
   // Fetch trash directly from API
   const { data: nodes, isLoading, error, refetch } = useQuery({
     queryKey: ['trash'],
-    queryFn: getTrash,
+    queryFn: () => getTrash(),
+    select: (data) => data.items,
   });
   
   // Mutations for restore and delete

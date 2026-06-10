@@ -2,10 +2,15 @@
  * Admin API functions
  */
 import api from './client';
-import type { AdminUser, AdminMetrics, AdminUserCreate, AdminUserUpdate } from '@/types';
+import type { AdminUser, AdminMetrics, AdminUserCreate, AdminUserUpdate, PaginatedResponse } from '@/types';
 
-export async function listUsers(): Promise<{ users: AdminUser[] }> {
-  const response = await api.get<{ users: AdminUser[] }>('/admin/users');
+export async function listUsers(
+  page: number = 1,
+  page_size: number = 50,
+): Promise<PaginatedResponse<AdminUser>> {
+  const response = await api.get<PaginatedResponse<AdminUser>>('/admin/users', {
+    params: { page, page_size },
+  });
   return response.data;
 }
 
