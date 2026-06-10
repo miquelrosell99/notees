@@ -69,7 +69,7 @@ The project has three main parts:
 | Backend | Pydantic | 2.13.4 | Data validation |
 | Backend | pydantic-settings | 2.14.1 | `.env` configuration |
 | Backend | PyJWT | 2.13.0 | JWT tokens (HS256) |
-| Backend | passlib | 1.7.4 | Password hashing (pbkdf2_sha256) |
+| Backend | passlib | 1.7.4 | Password hashing (bcrypt primary, pbkdf2_sha256 legacy) |
 | Backend | asyncpg | 0.31.0 | Async PostgreSQL driver |
 | Backend | slowapi | 0.1.9 | Rate limiting |
 | Backend | WeasyPrint | 68.1 | PDF generation |
@@ -189,6 +189,8 @@ notees/
 ## Architecture
 
 ### Backend: Hexagonal (Ports & Adapters)
+
+> For the generic hexagonal architecture pattern, request-scoped connections, and background-task rules, see `fastapi-patterns`. The description below is Notees-specific.
 
 The backend follows a strict hexagonal architecture with three layers:
 
@@ -467,7 +469,7 @@ See `.env.example` for the full template.
 ## Security Considerations
 
 - **SECRET_KEY is mandatory** and validated at startup (min 32 chars). The app will refuse to start without it.
-- **Password hashing**: Uses `pbkdf2_sha256` via passlib (bcrypt was avoided to eliminate backend length limits and compatibility issues).
+- **Password hashing**: Uses `bcrypt` via passlib (with `pbkdf2_sha256` retained for backward compatibility with existing hashes).
 - **JWT tokens**: Signed with HS256. Token lifetime defaults to 24 hours (configurable via `ACCESS_TOKEN_EXPIRE_HOURS`).
 - **CORS**: Disabled by default (frontend and backend are same-origin). Only configure `CORS_ORIGINS` if you run them on separate domains.
 - **Rate limiting**: `fastapi_limiter` (0.2.0) + `pyrate_limiter` are configured in `app/main.py` and individual routers. See the Rate Limiting subsystem reference below for details.
@@ -569,6 +571,8 @@ Never call `pool.acquire()` directly in routers or services. Use:
 
 ### Frontend Conventions
 
+> **Generic React patterns** — See the `react-ui-patterns` skill for cross-project guidance on CSS co-location, import boundaries, data flow architecture, store boundaries, query key discipline, mutation cache invalidation, API layer purity, barrel files, hook decomposition, and TanStack Query v5 unmounting behavior. The items below are Notees-specific implementations and file paths.
+
 - **Strict TypeScript**: `strict: true`, `noUnusedLocals: true`, `noUnusedParameters: true`, `verbatimModuleSyntax: true`.
 - **Path Aliases**: Mandatory. Use `@/components`, `@/hooks`, `@/stores`, `@/api`, `@/editor`, `@/runtime`, `@/types`. Never use relative `../../../` paths.
 - **CSS Co-location**: Each component has a `.css` file with the same base name in the same directory.
@@ -620,6 +624,49 @@ The component's existing parent-hover rule (e.g., `.my-container:hover .my-actio
 - Always prefer `.hover-reveal` over scattering `@media (max-width: 768px)` opacity overrides across individual component CSS files.
 - If an element also collapses `width` or `transform` (not just opacity), keep the layout collapse in the component CSS and add a co-located mobile override for that property only (see `NodeBreadcrumbs.css` and `WhiteboardView.css` for examples).
 - Do not add `.hover-reveal` to elements that are already always visible; it is only for hover-only affordances.
+
+#### CSS & Design System Conventions
+
+- **Design Tokens First**: All spacing, layout, sizing, and positioning values must use tokens from `variables.css`. Never hardcode pixel values that describe spatial relationships between components.
+  - Block indentation: `--block-indent-step`
+  - Thread line position: `--thread-line-offset`
+  - Collapse arrow position: `--collapse-arrow-offset`
+  - Bullet sizes: `--bullet-wrapper-size`, `--bullet-dot-size`
+- **No Cross-Component Selectors**: A CSS file must never reach into another component's internals (e.g., `.node-block--editing .bullet-dot` is forbidden). If a child component needs to change appearance based on parent state, pass a prop or use a data attribute on the child.
+- **Component Co-location**: Each `.tsx` file has exactly one `.css` file in the same directory. CSS for a component lives only in its own file.
+- **Dead Code Hygiene**: Delete unused CSS classes immediately when the corresponding TSX structure changes. Do not leave orphaned rules "just in case."
+- **No Magic Numbers**: If a value appears in more than one CSS file, it must be a token. The `24px` indentation step appears in `BlockRow.css`, `Bullet.css`, and 14 editing-trail gradient declarations — this must be `var(--block-indent-step)`.
+- **Core Components First**: Never create a one-off `<button>` or `<input>` when a core component exists. The `Button`, `Icon`, `Input`, `Checkbox`, etc. components in `frontend/src/components/core/` enforce consistency (sizing, accessibility, focus states, hover styles). Always use them. If a design truly requires a custom element, extract a new core component rather than inlining raw HTML.
+  - Icon-only buttons: `<Button variant="ghost" size="xs" iconOnly icon="mdi mdi-close" />`
+  - Text + icon buttons: `<Button icon="mdi mdi-plus">Add</Button>`
+  - Never use raw `<button>` for icon actions — `Button` handles `aspect-ratio: 1`, `padding: 0`, and flex-centering automatically.
+
+#### Enforcement for Solo AI Developers
+
+Since there is no code review, the **codebase must enforce its own rules**. Three tools run automatically:
+
+1. **Pre-commit hook** (`.git/hooks/pre-commit`): Runs `lint-staged`, which only checks files you are currently editing. It runs:
+   - `eslint --fix` + `tsc --noEmit` on `.ts`/`.tsx` files
+   - `node scripts/validate-design-system.js --css-files` on `.css` files
+
+2. **Design System Validator** (`frontend/scripts/validate-design-system.js`): Catches hardcoded pixel values in spacing/layout properties. It uses a **baseline** (`scripts/.design-system-baseline.txt`) that grandfather's existing violations, so only *new* violations fail the build.
+
+   ```bash
+   cd frontend
+   node scripts/validate-design-system.js              # check for new violations
+   node scripts/validate-design-system.js --update-baseline  # after fixing a batch
+   ```
+
+3. **Dead code detector** (`knip`): Finds unused exports and files.
+   ```bash
+   cd frontend
+   npx knip
+   ```
+
+**Workflow:**
+- Edit CSS → commit → pre-commit hook blocks if you introduced a new hardcoded `px` value.
+- Fix the violation (use a token) or run `--update-baseline` if you intentionally fixed a batch.
+- The AI agent must run `npm run lint` and `npm run lint:css` before declaring a task complete.
 
 ### Frontend Data Flow Architecture
 
@@ -1169,6 +1216,15 @@ cd frontend && npm outdated
 - Update this AGENTS.md table after upgrades so it stays accurate.
 
 ---
+
+## Skill References
+
+- `react-ui-patterns` — Generic React conventions, data flow, state boundaries, query discipline, barrel files, hook decomposition.
+- `fastapi-patterns` — Hexagonal architecture, request-scoped connections, background tasks, code style.
+- `security-hardening` — Auth, HTTPS, secrets, input validation, rate limiting, dependency auditing.
+- `performance-optimizer` — Profiling, memoization, code splitting, list virtualization.
+- `accessibility-primer` — Screen readers, focus, contrast, touch targets, motion.
+- `design-system` — Fleet-wide design tokens, dark mode, motion, haptics.
 
 ## Documentation
 
