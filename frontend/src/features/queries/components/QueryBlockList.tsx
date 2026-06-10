@@ -371,7 +371,6 @@ export function QueryBlockList({
         <div className="query-block-list__inline-add">
           <Button
             icon={"mdi mdi-plus"}
-            iconOnly
             variant="ghost"
             size="sm"
             onClick={(e) => {
@@ -387,7 +386,6 @@ export function QueryBlockList({
         <div className="query-block-list__add">
           <Button
             icon={"mdi mdi-plus"}
-            iconOnly
             variant="ghost"
             size="sm"
             onClick={(e) => {

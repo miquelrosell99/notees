@@ -29,7 +29,6 @@ export function GraphMinimap({
       {onClose && (
         <Button 
           icon={"mdi mdi-close"}
-          iconOnly
           className="graph-minimap__close"
           onClick={onClose}
           title="Close minimap"

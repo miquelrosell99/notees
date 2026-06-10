@@ -199,7 +199,6 @@ function IconColorPickerRow({ currentIcon, currentColor, isFavorited, onFavorite
         <Button
           variant="ghost"
           size="sm"
-          iconOnly
           icon={isFavorited ? 'mdi mdi-star' : 'mdi mdi-star-outline'}
           className={`context-menu-favorite-btn ${isFavorited ? 'favorited' : ''}`}
           onClick={(e) => {

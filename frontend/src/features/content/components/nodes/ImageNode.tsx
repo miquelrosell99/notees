@@ -170,7 +170,6 @@ export function ImageNode({
       {onEdit && (
         <Button
           icon={"mdi mdi-pencil"}
-          iconOnly
           variant="ghost"
           size="sm"
           onClick={onEdit}
@@ -180,7 +179,6 @@ export function ImageNode({
       {onRemove && (
         <Button
           icon={"mdi mdi-close"}
-          iconOnly
           variant="ghost"
           size="sm"
           onClick={onRemove}

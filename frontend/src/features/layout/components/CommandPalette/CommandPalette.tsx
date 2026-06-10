@@ -106,7 +106,6 @@ export function CommandPalette(props: CommandPaletteProps) {
                     <Button
                       variant="ghost"
                       size="xs"
-                      iconOnly
                       icon="mdi mdi-close"
                       className="command-palette__filter-pill-remove"
                       onClick={() => handleRemoveFilter(idx)}
@@ -267,7 +266,6 @@ export function CommandPalette(props: CommandPaletteProps) {
                         <Button
                           variant="ghost"
                           size="xs"
-                          iconOnly
                           icon="mdi mdi-refresh"
                           className="command-palette__refresh-btn"
                           onClick={(e) => {

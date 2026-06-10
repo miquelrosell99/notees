@@ -60,7 +60,6 @@ export function TabBarNarrow({ tabs, activeTabId }: TabBarNarrowProps) {
                 key="pin"
                 variant="ghost"
                 size="xs"
-                iconOnly
                 icon={item.tab.pinned ? 'mdi mdi-pin-off' : 'mdi mdi-pin'}
                 className="tab-bar-narrow__action"
                 onClick={(e) => {
@@ -77,7 +76,6 @@ export function TabBarNarrow({ tabs, activeTabId }: TabBarNarrowProps) {
                 key="close"
                 variant="ghost"
                 size="xs"
-                iconOnly
                 icon="mdi mdi-close"
                 className="tab-bar-narrow__action"
                 onClick={(e) => {

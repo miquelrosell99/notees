@@ -289,7 +289,6 @@ export const ColorButton = forwardRef<HTMLButtonElement, ColorButtonProps>(funct
                 variant="ghost"
                 size="sm"
                 icon={"mdi mdi-trash-can-outline"}
-                iconOnly
                 title="Remove color"
                 onClick={(e) => {
                   e.stopPropagation();

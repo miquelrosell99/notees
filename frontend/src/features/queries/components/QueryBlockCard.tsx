@@ -78,7 +78,6 @@ export function QueryBlockCard({
           title="Remove"
           className="query-block-card__corner-button hover-reveal"
           icon={"mdi mdi-close"}
-          iconOnly
         />
       ) : null}
     </div>

@@ -110,7 +110,6 @@ export function WorkspaceSwitcher() {
           onClick={() => useModalStore.getState().setCommandPaletteOpen(true)}
           title="Search"
           icon={"mdi mdi-magnify"}
-          iconOnly
           size="sm"
           variant="ghost"
         />

@@ -440,7 +440,7 @@ const popupStyle: React.CSSProperties =
               onColorChange={onColorChange}
             />
           )}
-          <Button variant="ghost" size="sm" icon={"mdi mdi-trash-can-outline"} iconOnly title="Remove icon" onClick={handleRemove} />
+          <Button variant="ghost" size="sm" icon={"mdi mdi-trash-can-outline"} title="Remove icon" onClick={handleRemove} />
         </div>
       </div>
 

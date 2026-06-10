@@ -561,7 +561,6 @@ export function TriggerPopup({
           <Button
             variant="ghost"
             size="xs"
-            iconOnly
             icon="mdi mdi-close"
             className="trigger-popup__filter-pill-remove"
             onClick={() => removeFilter(filter.key)}

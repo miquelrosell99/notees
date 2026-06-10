@@ -847,7 +847,6 @@ export function GraphView({
         <Button
           variant="ghost"
           size="sm"
-          iconOnly
           icon="mdi mdi-cog-outline"
           className="graph-sidebar-expand"
           onClick={() => setSidebarCollapsed(false)}

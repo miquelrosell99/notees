@@ -69,7 +69,6 @@ export function NodeCollectionView({ title, queryAST, nodes }: NodeCollectionVie
         <Button
           variant="ghost"
           size="sm"
-          iconOnly
           icon="mdi mdi-close"
           onClick={closeNodeCollection}
           title="Close"

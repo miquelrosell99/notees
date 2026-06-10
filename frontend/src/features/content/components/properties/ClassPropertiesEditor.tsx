@@ -189,7 +189,6 @@ export function ClassPropertiesEditor({
                   <Button
                     variant="ghost"
                     size="xs"
-                    iconOnly
                     icon="mdi mdi-asterisk"
                     className={`class-property-required-btn ${item.required ? 'class-property-required-btn--active' : ''} hover-reveal`}
                     title={item.required ? 'Required (click to make optional)' : 'Optional (click to make required)'}
@@ -205,7 +204,6 @@ export function ClassPropertiesEditor({
                   <Button
                     variant="ghost"
                     size="xs"
-                    iconOnly
                     icon="mdi mdi-dots-vertical"
                     className="class-property-menu-btn hover-reveal"
                     title="Property options"

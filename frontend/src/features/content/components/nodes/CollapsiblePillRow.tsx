@@ -132,7 +132,6 @@ export function CollapsiblePillRow<T>({
                 <Button
                   variant="ghost"
                   size="xs"
-                  iconOnly
                   icon="mdi mdi-close"
                   className="collapsible-pill-row__popup-close"
                   onClick={handleClosePopup}

@@ -120,7 +120,6 @@ export function SidebarCard({
           <Button
             variant="ghost"
             size="xs"
-            iconOnly
             icon="mdi mdi-chevron-down"
             className="sidebar-card__collapse-btn"
             onClick={() => setIsCollapsed(!isCollapsed)}
@@ -138,7 +137,6 @@ export function SidebarCard({
           {onOpen && (
             <Button
               icon={"mdi mdi-open-in-new"}
-              iconOnly
               className="sidebar-card__open-btn"
               onClick={onOpen}
               title="Open in main view"
@@ -149,7 +147,6 @@ export function SidebarCard({
           {onClose && (
             <Button
               icon={"mdi mdi-close"}
-              iconOnly
               className="sidebar-card__close-btn"
               onClick={onClose}
               title="Close"

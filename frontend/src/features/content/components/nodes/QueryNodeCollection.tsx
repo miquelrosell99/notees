@@ -1070,7 +1070,6 @@ export function QueryNodeCollection({
           {!isPseudoNode && !isInlineMode && (
             <Button
               icon={"mdi mdi-plus-box"}
-              iconOnly
               variant="ghost"
               size="xs"
               onClick={handleAddView}
@@ -1082,7 +1081,6 @@ export function QueryNodeCollection({
             <div className="query-section__filter-btn-wrapper">
               <Button
                 icon={"mdi mdi-filter-outline"}
-                iconOnly
                 variant="ghost"
                 size="xs"
                 onClick={() => handleEditView(activeView)}
@@ -1227,7 +1225,6 @@ export function QueryNodeCollection({
         headerLeftElement={
           <Button
             icon={"mdi mdi-eye-outline"}
-            iconOnly
             variant="ghost"
             size="xs"
             onClick={() => setShowProseModal(true)}
@@ -1270,7 +1267,6 @@ export function QueryNodeCollection({
             
             <Button
               icon={"mdi mdi-restore"}
-              iconOnly
               variant="ghost"
               size="sm"
               title="Reset all views to defaults"

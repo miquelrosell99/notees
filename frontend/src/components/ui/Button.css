@@ -12,7 +12,7 @@
   justify-content: center;
   gap: var(--spacing-1);
   border: 1px solid var(--color-outline-variant);
-  border-radius: var(--shape-button-large);
+  border-radius: var(--shape-button-small);
   font-family: var(--font-family-base);
   font-weight: 500;
   cursor: pointer;
@@ -37,39 +37,40 @@
 
 /* ==================== Sizes ==================== */
 .btn--xs {
-  height: var(--height-sm);
-  padding: 0 var(--spacing-2);
+  height: var(--height-xs);
+  padding: 0 var(--spacing-1);
   font-size: var(--font-size-xs);
   gap: var(--spacing-1);
+  border-radius: var(--shape-button-compact);
 }
 
 .btn--sm {
-  height: var(--height-md);
-  padding: 0 var(--spacing-3);
+  height: var(--height-sm);
+  padding: 0 var(--spacing-2);
   font-size: var(--font-size-sm);
   gap: var(--spacing-1);
+  border-radius: var(--shape-button-compact);
 }
 
 .btn--md {
-  height: var(--height-lg);
-  padding: 0 var(--spacing-4);
+  height: var(--height-md);
+  padding: 0 var(--spacing-3);
   font-size: var(--font-size-button);
   gap: var(--spacing-2);
 }
 
 .btn--lg {
-  height: var(--height-xl);
-  padding: 0 var(--spacing-5);
+  height: var(--height-lg);
+  padding: 0 var(--spacing-4);
   font-size: var(--font-size-base);
   gap: var(--spacing-2);
+  border-radius: var(--shape-button-large);
 }
 
-/* Icon-only buttons */
+/* Icon-only: no text, so no horizontal padding — just a square */
 .btn--icon-only {
   padding: 0;
   aspect-ratio: 1;
-  min-width: 44px;
-  min-height: 44px;
 }
 
 /* Icon + Text buttons - use grid for proper centering */
@@ -98,22 +99,6 @@
 .btn--xs,
 .btn--sm {
   border-radius: var(--shape-button-small);
-}
-
-.btn--icon-only.btn--xs {
-  width: var(--height-sm);
-}
-
-.btn--icon-only.btn--sm {
-  width: var(--height-md);
-}
-
-.btn--icon-only.btn--md {
-  width: var(--height-lg);
-}
-
-.btn--icon-only.btn--lg {
-  width: var(--height-xl);
 }
 
 /* ==================== Variants ==================== */

@@ -97,7 +97,6 @@ export function TabItem({
           <Button
             variant="ghost"
             size="xs"
-            iconOnly
             icon="mdi mdi-close"
             className="tab-item__close"
             onClick={(e) => {
