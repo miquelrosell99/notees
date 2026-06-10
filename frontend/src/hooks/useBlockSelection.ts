@@ -12,7 +12,7 @@ import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
 import { useInputContext } from '@/stores/inputContext';
 import { copyRuntimeBlocksToClipboard, tryParseInternalFormat } from '@/utils/clipboardManager';
 import { useClipboardStore } from '@/stores/clipboardStore';
-import { pasteBlocksAfterBlock } from '@/editor/utils/pasteBlocks';
+import { pasteBlocksAfterBlock } from '@/features/content/editor/utils/pasteBlocks';
 import { generateUUID } from '@/utils/uuid';
 
 // ─── Types ────────────────────────────────────────────────────────

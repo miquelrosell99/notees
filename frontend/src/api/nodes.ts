@@ -1,7 +1,7 @@
 /**
  * Nodes API functions
  */
-import api from './client';
+import api from '@/api/client';
 import { nodeQueryWorkerClient } from '@/lib/nodeQueryWorkerClient';
 import type {
   Node,

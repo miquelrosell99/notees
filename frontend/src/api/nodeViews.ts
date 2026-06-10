@@ -3,7 +3,7 @@
  * 
  * API client for managing NodeViews - dynamic query tabs for nodes.
  */
-import api from './client';
+import api from '@/api/client';
 import { nodeQueryWorkerClient } from '@/lib/nodeQueryWorkerClient';
 import type { Node } from '@/types/api';
 import type { 

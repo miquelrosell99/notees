@@ -1,7 +1,7 @@
 /**
  * Admin API functions
  */
-import api from './client';
+import api from '@/api/client';
 import type { AdminUser, AdminMetrics, AdminUserCreate, AdminUserUpdate, PaginatedResponse } from '@/types';
 
 export async function listUsers(

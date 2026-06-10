@@ -1,0 +1,714 @@
+/**
+ * Table Component
+ * 
+ * A flexible table component with sorting, selection, and styling options.
+ * 
+ * Features:
+ * - Configurable columns with custom renderers
+ * - Row selection (single/multi)
+ * - Sorting (client-side or custom)
+ * - Expandable rows with nested children
+ * - Drag-and-drop row reordering
+ * - Depth-based row indentation
+ * - Automatic Node cell rendering with Block component and navigation buttons
+ */
+import { useState, useCallback, useRef, useEffect, useMemo, Fragment, type ReactNode, type CSSProperties } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
+import { Spinner } from '@/components/ui/Spinner';
+import type { Node } from '@/types';
+import { NodeInline } from '@/features/content/components/blocks/NodeInline';
+import { NodeNameContent } from '@/features/content/components/blocks/NodeNameContent';
+import { NodeCellEditable } from '@/features/content/components/nodes/NodeCellEditable';
+import { TableCellBreadcrumbs } from '@/features/content/components/nodes/TableCellBreadcrumbs';
+import { Icon, PageIcon } from '@/components/ui/icons';
+import { Checkbox } from './Checkbox';
+import { Button } from './Button';
+import './Table.css';
+
+export type TableSize = 'sm' | 'md' | 'lg';
+export type TableVariant = 'default' | 'striped' | 'bordered';
+export type SortDirection = 'asc' | 'desc';
+
+/**
+ * Helper to detect if a value is a Node object
+ */
+function isNode(value: unknown): value is { id: number; uuid: string; name: string; is_page?: boolean; parent_id?: number | null } {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'id' in value &&
+    'uuid' in value &&
+    'name' in value &&
+    typeof (value as any).id === 'number' &&
+    typeof (value as any).uuid === 'string'
+  );
+}
+
+/** Entry for multi-column sorting */
+export interface SortEntry {
+  key: string;
+  direction: SortDirection;
+}
+
+export interface TableColumn<T> {
+  /** Unique key for the column */
+  key: string;
+  /** Column header text */
+  header: string | ReactNode;
+  /** Optional Node object for rendering header with Block component (for icons) */
+  headerNode?: { id: number; uuid: string; name: string; icon: string | null };
+  /** Accessor function to get cell value */
+  accessor: (row: T) => ReactNode;
+  /** Column width (CSS value) */
+  width?: string;
+  /** Whether the column is sortable */
+  sortable?: boolean;
+  /** Custom sort function */
+  sortFn?: (a: T, b: T) => number;
+  /** Text alignment */
+  align?: 'left' | 'center' | 'right';
+  /** Whether to hide on mobile */
+  hideOnMobile?: boolean;
+  /** Whether to auto-render Node cells with Block component and navigation buttons (default: true) */
+  renderNodeCell?: boolean;
+}
+
+/** Configuration for expandable rows */
+export interface ExpandableConfig<T> {
+  /** Function to get children from a row */
+  getChildren: (row: T) => T[];
+  /** Whether a row can be expanded (default: has children) */
+  canExpand?: (row: T) => boolean;
+  /** Custom expand icon renderer */
+  renderExpandIcon?: (expanded: boolean) => ReactNode;
+  /** Maximum nesting depth (default: unlimited) */
+  maxDepth?: number;
+}
+
+/** Configuration for row reordering */
+export interface ReorderableConfig {
+  /** Callback when rows are reordered */
+  onReorder: (fromIndex: number, toIndex: number) => void;
+  /** Custom drag handle icon renderer */
+  renderDragHandle?: () => ReactNode;
+}
+
+export interface TableProps<T> {
+  /** Array of data items */
+  data: T[];
+  /** Column definitions */
+  columns: TableColumn<T>[];
+  /** Get unique key for each row */
+  getRowKey: (row: T) => string | number;
+  /** Table size */
+  size?: TableSize;
+  /** Table variant */
+  variant?: TableVariant;
+  /** Whether rows are selectable */
+  selectable?: boolean;
+  /** Currently selected row keys */
+  selectedKeys?: Set<string | number>;
+  /** Selection change handler */
+  onSelectionChange?: (keys: Set<string | number>) => void;
+  /** Row click handler */
+  onRowClick?: (row: T) => void;
+  /** Row shift+click handler */
+  onRowShiftClick?: (row: T) => void;
+  /** Row context menu handler */
+  onRowContextMenu?: (row: T, event: React.MouseEvent) => void;
+  /** Column header context menu handler */
+  onHeaderContextMenu?: (column: TableColumn<T>, event: React.MouseEvent) => void;
+  /** Header checkbox context menu handler */
+  onHeaderCheckboxContextMenu?: (event: React.MouseEvent) => void;
+  /** Whether the table is loading */
+  loading?: boolean;
+  /** Empty state content */
+  emptyContent?: ReactNode;
+  /** Table caption (for accessibility) */
+  caption?: string;
+  /** Whether to show the header */
+  showHeader?: boolean;
+  /** Whether rows should be hoverable */
+  hoverable?: boolean;
+  /** Additional className */
+  className?: string;
+  /** Expandable row configuration */
+  expandable?: ExpandableConfig<T>;
+  /** Reorderable row configuration */
+  reorderable?: ReorderableConfig;
+  /** Get custom className for a row */
+  getRowClassName?: (row: T, index: number, depth: number) => string;
+  /** Current rendering depth (for nested tables) */
+  depth?: number;
+  /** Controlled expanded keys */
+  expandedKeys?: Set<string | number>;
+  /** Callback when expanded keys change */
+  onExpandedChange?: (keys: Set<string | number>) => void;
+  /** Callback when a node should be opened (for Node cell auto-rendering) */
+  onNodeOpen?: (nodeId: number, type: 'page' | 'block') => void;
+  /** Callback when a node should be opened in sidebar (for Node cell auto-rendering) */
+  onNodeOpenInSidebar?: (nodeId: number, type: 'page' | 'block') => void;
+  /** Whether node name cells should be editable on click */
+  nodeEditable?: boolean;
+  /** Initial sort state — columns are sorted in this order on first render */
+  defaultSort?: SortEntry[];
+  /** Controlled sort state — overrides internal sort state when provided */
+  sort?: SortEntry[];
+  /** Called when sort changes (enables controlled sort mode) */
+  onSortChange?: (sort: SortEntry[]) => void;
+  /** Whether to virtualize row rendering (only works when expandable is disabled) */
+  virtualized?: boolean;
+  /** Estimated row height in pixels for virtualization (default: 48) */
+  virtualizedRowHeight?: number;
+}
+
+/** Default drag handle icon */
+const DefaultDragHandle = () => (
+  <svg viewBox="0 0 16 16" fill="currentColor" className="table-drag-icon">
+    <circle cx="5" cy="4" r="1.5" />
+    <circle cx="11" cy="4" r="1.5" />
+    <circle cx="5" cy="8" r="1.5" />
+    <circle cx="11" cy="8" r="1.5" />
+    <circle cx="5" cy="12" r="1.5" />
+    <circle cx="11" cy="12" r="1.5" />
+  </svg>
+);
+
+/**
+ * Table component for displaying tabular data.
+ * Supports sorting, selection, expandable rows, and drag-and-drop reordering.
+ */
+export function Table<T>({
+  data,
+  columns,
+  getRowKey,
+  size = 'md',
+  variant = 'default',
+  selectable = false,
+  selectedKeys,
+  onSelectionChange,
+  onRowClick,
+  onRowShiftClick,
+  onRowContextMenu,
+  onHeaderContextMenu,
+  onHeaderCheckboxContextMenu,
+  loading = false,
+  emptyContent = 'No data',
+  caption,
+  showHeader = true,
+  hoverable = true,
+  className = '',
+  expandable,
+  reorderable,
+  getRowClassName,
+  depth = 0,
+  expandedKeys: controlledExpandedKeys,
+  onExpandedChange: _onExpandedChange,
+  onNodeOpen,
+  onNodeOpenInSidebar,
+  nodeEditable,
+  defaultSort,
+  sort,
+  onSortChange,
+  virtualized = false,
+  virtualizedRowHeight = 48,
+}: TableProps<T>) {
+  // User-selected sort columns. Empty means fall back to defaultSort.
+  const [internalUserSortColumns, setInternalUserSortColumns] = useState<SortEntry[]>([]);
+  const isControlledSort = sort !== undefined;
+
+  // Reset internal user sorts when defaultSort changes (e.g., view/column changes)
+  useEffect(() => {
+    if (!isControlledSort) {
+      setInternalUserSortColumns([]);
+    }
+  }, [defaultSort, isControlledSort]);
+
+  // Effective sort: controlled prop takes precedence, then internal state, then default
+  const userSortColumns = isControlledSort ? sort : internalUserSortColumns;
+  const sortColumns = userSortColumns.length > 0 ? userSortColumns : (defaultSort ?? []);
+  
+  // Internal expanded state (when uncontrolled) - currently only controlled mode is supported
+  // since no internal toggle UI exists
+  const [internalExpandedKeys, _setInternalExpandedKeys] = useState<Set<string | number>>(new Set());
+  const expandedKeys = controlledExpandedKeys ?? internalExpandedKeys;
+  
+  // Suppress unused variable warnings for expansion control (kept for API compatibility)
+  void _onExpandedChange;
+  void _setInternalExpandedKeys;
+  
+  // Drag state for reorderable rows
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [dropTargetIndex, setDropTargetIndex] = useState<number | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const tbodyRef = useRef<HTMLTableSectionElement>(null);
+  const rowHeightRef = useRef(40);
+
+  const handleSort = useCallback((column: TableColumn<T>) => {
+    if (!column.sortable) return;
+
+    const computeNextSort = (prev: SortEntry[]): SortEntry[] => {
+      const existingIndex = prev.findIndex(s => s.key === column.key);
+      
+      if (existingIndex === -1) {
+        // Column not in sort list - add it with ascending
+        return [...prev, { key: column.key, direction: 'asc' as const }];
+      }
+      
+      const existing = prev[existingIndex];
+      
+      if (existing.direction === 'asc') {
+        // Currently ascending - toggle to descending
+        const updated = [...prev];
+        updated[existingIndex] = { key: column.key, direction: 'desc' as const };
+        return updated;
+      } else {
+        // Currently descending - remove from sort list
+        return prev.filter(s => s.key !== column.key);
+      }
+    };
+
+    if (isControlledSort) {
+      onSortChange?.(computeNextSort(userSortColumns));
+    } else {
+      setInternalUserSortColumns(computeNextSort);
+    }
+  }, [isControlledSort, onSortChange, userSortColumns]);
+
+  const handleToggleSelect = useCallback((key: string | number) => {
+    if (!selectable || !onSelectionChange) return;
+
+    const newSelection = new Set(selectedKeys);
+    if (newSelection.has(key)) {
+      newSelection.delete(key);
+    } else {
+      newSelection.add(key);
+    }
+    onSelectionChange(newSelection);
+  }, [selectable, selectedKeys, onSelectionChange]);
+
+  const handleSelectAll = useCallback(() => {
+    if (!selectable || !onSelectionChange) return;
+
+    // Collect all keys including nested children
+    const allKeys: (string | number)[] = [];
+    const collectKeys = (items: T[]) => {
+      items.forEach(item => {
+        allKeys.push(getRowKey(item));
+        if (expandable) {
+          const children = expandable.getChildren(item);
+          if (children.length > 0) {
+            collectKeys(children);
+          }
+        }
+      });
+    };
+    collectKeys(data);
+
+    // Check if all keys are selected
+    const allKeysSelected = allKeys.length > 0 && allKeys.every(key => selectedKeys?.has(key));
+    
+    if (allKeysSelected) {
+      onSelectionChange(new Set());
+    } else {
+      onSelectionChange(new Set(allKeys));
+    }
+  }, [selectable, selectedKeys, data, getRowKey, onSelectionChange, expandable]);
+
+  const handleRowClick = useCallback((row: T, e: React.MouseEvent) => {
+    if (e.shiftKey && onRowShiftClick) {
+      e.preventDefault();
+      onRowShiftClick(row);
+    } else {
+      onRowClick?.(row);
+    }
+  }, [onRowClick, onRowShiftClick]);
+
+  const handleRowContextMenu = useCallback((row: T, e: React.MouseEvent) => {
+    if (onRowContextMenu) {
+      e.preventDefault();
+      onRowContextMenu(row, e);
+    }
+  }, [onRowContextMenu]);
+
+  // Measure row height for drag calculation
+  useEffect(() => {
+    if (containerRef.current && reorderable) {
+      const firstRow = containerRef.current.querySelector('.table-row:not(.table-row--header)') as HTMLElement;
+      if (firstRow) {
+        rowHeightRef.current = firstRow.offsetHeight;
+      }
+    }
+  }, [data.length, reorderable]);
+
+  // Handle drag start
+  const handleDragStart = useCallback((index: number, e: React.MouseEvent) => {
+    if (!reorderable) return;
+    e.preventDefault();
+    setDragIndex(index);
+    setDropTargetIndex(index);
+  }, [reorderable]);
+
+  // Handle drag move and end
+  useEffect(() => {
+    if (dragIndex === null || !reorderable) return;
+
+    const container = containerRef.current;
+    if (!container) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const tbody = container.querySelector('.table-body');
+      if (!tbody) return;
+      
+      const tbodyRect = tbody.getBoundingClientRect();
+      const mouseY = e.clientY - tbodyRect.top;
+      const rowHeight = rowHeightRef.current;
+      const targetIndex = Math.max(0, Math.min(data.length - 1, Math.floor(mouseY / rowHeight)));
+      setDropTargetIndex(targetIndex);
+    };
+
+    const handleMouseUp = () => {
+      if (dragIndex !== null && dropTargetIndex !== null && dragIndex !== dropTargetIndex) {
+        reorderable.onReorder(dragIndex, dropTargetIndex);
+      }
+      setDragIndex(null);
+      setDropTargetIndex(null);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [dragIndex, dropTargetIndex, data.length, reorderable]);
+
+  // Sort data by multiple columns
+  const sortedData = useMemo(() => {
+    const result = [...data];
+    if (sortColumns.length > 0) {
+      result.sort((a, b) => {
+        for (const sortEntry of sortColumns) {
+          const column = columns.find(c => c.key === sortEntry.key);
+          if (!column) continue;
+          
+          let comparison: number;
+          if (column.sortFn) {
+            comparison = column.sortFn(a, b);
+          } else {
+            // Default string comparison
+            const aVal = String(column.accessor(a) ?? '');
+            const bVal = String(column.accessor(b) ?? '');
+            comparison = aVal.localeCompare(bVal);
+          }
+          
+          if (comparison !== 0) {
+            return sortEntry.direction === 'asc' ? comparison : -comparison;
+          }
+        }
+        return 0;
+      });
+    }
+    return result;
+  }, [data, sortColumns, columns]);
+
+  // Virtualization only works for flat tables (no expandable rows, no reordering)
+  const isVirtualized = virtualized && !expandable && !reorderable;
+  const virtualizer = useVirtualizer({
+    count: isVirtualized ? sortedData.length : 0,
+    getScrollElement: () => containerRef.current,
+    estimateSize: () => virtualizedRowHeight,
+    overscan: 10,
+  });
+
+  // Compute selection state including nested children
+  const computeAllKeys = (items: T[]): (string | number)[] => {
+    const keys: (string | number)[] = [];
+    items.forEach(item => {
+      keys.push(getRowKey(item));
+      if (expandable) {
+        const children = expandable.getChildren(item);
+        if (children.length > 0) {
+          keys.push(...computeAllKeys(children));
+        }
+      }
+    });
+    return keys;
+  };
+  
+  const allKeys = computeAllKeys(data);
+  const allSelected = allKeys.length > 0 && allKeys.every(key => selectedKeys?.has(key));
+  const someSelected = allKeys.some(key => selectedKeys?.has(key)) && !allSelected;
+
+  // Calculate colspan for loading/empty states
+  const extraColumns = 
+    (selectable ? 1 : 0) + 
+    (expandable ? 1 : 0);
+
+  const containerClasses = [
+    'table-container',
+    reorderable ? 'table-container--reorderable' : '',
+    expandable ? 'table-container--expandable' : '',
+    className,
+  ]
+    .filter(Boolean)
+    .join(' ');
+
+  const tableClasses = [
+    'table',
+    `table--${size}`,
+    `table--${variant}`,
+    hoverable ? 'table--hoverable' : '',
+    selectable && onRowClick ? 'table--selectable' : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+
+  // Recursive row renderer for expandable tables
+  const renderRow = (row: T, index: number, currentDepth: number, virtualStyle?: CSSProperties): ReactNode => {
+    const key = getRowKey(row);
+    const isSelected = selectedKeys?.has(key);
+    const isExpanded = expandedKeys.has(key);
+    const isDragging = dragIndex === index && currentDepth === depth;
+    const isDropTarget = dropTargetIndex === index && dragIndex !== null && dragIndex !== index && currentDepth === depth;
+    
+    // Check if row has children and can be expanded
+    const children = expandable?.getChildren(row) ?? [];
+    const maxDepth = expandable?.maxDepth ?? Infinity;
+    const shouldShowChildren = isExpanded && currentDepth < maxDepth && children.length > 0;
+
+    const customRowClass = getRowClassName?.(row, index, currentDepth) ?? '';
+    const rowClasses = [
+      'table-row',
+      `table-row--depth-${currentDepth}`,
+      isSelected ? 'table-row--selected' : '',
+      isDragging ? 'table-row--dragging' : '',
+      isDropTarget ? 'table-row--drop-target' : '',
+      customRowClass,
+    ].filter(Boolean).join(' ');
+
+    return (
+      <Fragment key={key}>
+        <tr
+          className={rowClasses}
+          style={virtualStyle}
+          onClick={(e) => handleRowClick(row, e)}
+          onContextMenu={(e) => handleRowContextMenu(row, e)}
+        >
+          {/* Drag handle - positioned element to the left of row */}
+          {reorderable && currentDepth === depth && (
+            <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }}
+              className="table-drag-handle hover-reveal"
+              onMouseDown={(e) => handleDragStart(index, e)}
+              onClick={(e) => e.stopPropagation()}
+              title="Drag to reorder"
+            >
+              {reorderable.renderDragHandle?.() ?? <DefaultDragHandle />}
+            </div>
+          )}
+          
+          {/* Checkbox column */}
+          {selectable && (
+            <td className="table-cell table-cell--checkbox" onClick={(e) => e.stopPropagation()}>
+              <Checkbox
+                size={size === 'lg' ? 'md' : 'sm'}
+                checked={isSelected}
+                onChange={() => handleToggleSelect(key)}
+              />
+            </td>
+          )}
+          
+          {/* Data columns */}
+          {columns.map((column) => {
+            const cellValue = column.accessor(row);
+            const shouldRenderNodeCell = column.renderNodeCell !== false && isNode(cellValue);
+            
+            return (
+              <td
+                key={column.key}
+                className={[
+                  'table-cell',
+                  column.align ? `table-cell--${column.align}` : '',
+                  column.hideOnMobile ? 'table-cell--hide-mobile' : '',
+                  shouldRenderNodeCell ? 'table-cell--node' : '',
+                ].filter(Boolean).join(' ')}
+                style={{ width: column.width }}
+              >
+                {shouldRenderNodeCell ? (
+                  <div className="table-node-cell">
+                    {nodeEditable ? (
+                      <NodeCellEditable node={cellValue as unknown as Node} />
+                    ) : (
+                      <span className="table-node-cell__name">
+                        <TableCellBreadcrumbs node={cellValue as unknown as Node} />
+                        {(cellValue as unknown as Node).is_page ? (
+                          <PageIcon size="sm" className="table-node-cell__type-icon table-node-cell__type-icon--page" title="Page" />
+                        ) : (
+                          <Icon path="mdi-circle-small" size={0.75} className="table-node-cell__type-icon table-node-cell__type-icon--block" title="Block" />
+                        )}
+                        <NodeNameContent name={(cellValue as unknown as Node).name} />
+                      </span>
+                    )}
+                    <div className="table-node-cell__actions hover-reveal">
+                      {onNodeOpenInSidebar && (
+                        <Button
+                          icon={"mdi mdi-dock-right"}
+                          variant="ghost"
+                          size="xs"
+                          title="Open in sidebar"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onNodeOpenInSidebar(cellValue.id, cellValue.is_page ? 'page' : 'block');
+                          }}
+                        />
+                      )}
+                      {onNodeOpen && (
+                        <Button
+                          icon={"mdi mdi-arrow-right"}
+                          variant="ghost"
+                          size="xs"
+                          title="Open node"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onNodeOpen(cellValue.id, cellValue.is_page ? 'page' : 'block');
+                          }}
+                        />
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  cellValue
+                )}
+              </td>
+            );
+          })}
+        </tr>
+        
+        {/* Render children if expanded */}
+        {shouldShowChildren && children.map((child, childIndex) => 
+          renderRow(child, childIndex, currentDepth + 1)
+        )}
+      </Fragment>
+    );
+  };
+
+  return (
+    <div className={containerClasses} ref={containerRef}>
+      <table className={tableClasses}>
+        {caption && <caption className="table-caption">{caption}</caption>}
+        
+        {showHeader && (
+          <thead className="table-header">
+            <tr className="table-row table-row--header">
+              {selectable && (
+                <th 
+                  className="table-cell table-cell--checkbox" 
+                  onClick={(e) => e.stopPropagation()}
+                  onContextMenu={onHeaderCheckboxContextMenu ? (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onHeaderCheckboxContextMenu(e);
+                  } : undefined}
+                >
+                  <Checkbox
+                    size={size === 'lg' ? 'md' : 'sm'}
+                    checked={allSelected}
+                    indeterminate={someSelected}
+                    onChange={handleSelectAll}
+                  />
+                </th>
+              )}
+              {columns.map(column => {
+                const sortEntry = sortColumns.find(s => s.key === column.key);
+                const sortIndex = sortColumns.findIndex(s => s.key === column.key);
+                const showSortIndex = sortColumns.length > 1 && sortIndex !== -1;
+                
+                return (
+                  <th
+                    key={column.key}
+                    className={[
+                      'table-cell',
+                      'table-cell--header',
+                      column.sortable ? 'table-cell--sortable' : '',
+                      sortEntry ? 'table-cell--sorted' : '',
+                      column.align ? `table-cell--${column.align}` : '',
+                      column.hideOnMobile ? 'table-cell--hide-mobile' : '',
+                    ].filter(Boolean).join(' ')}
+                    style={{ width: column.width }}
+                    onClick={() => handleSort(column)}
+                    onContextMenu={(e) => {
+                      if (onHeaderContextMenu) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onHeaderContextMenu(column, e);
+                      }
+                    }}
+                    aria-sort={
+                      sortEntry
+                        ? sortEntry.direction === 'asc' ? 'ascending' : 'descending'
+                        : undefined
+                    }
+                  >
+                    <div className="table-header-content">
+                      {column.headerNode ? (
+                        <NodeInline
+                          name={(column.headerNode as Node).name}
+                          icon={(column.headerNode as Node).icon}
+                          isPage={false}
+                          nodeId={(column.headerNode as Node).id}
+                          showBullet={!!(column.headerNode as Node).icon}
+                        />
+                      ) : (
+                        <span>{column.header}</span>
+                      )}
+                      {column.sortable && sortEntry && (
+                        <span className="table-sort-icon">
+                          {sortEntry.direction === 'asc' ? '↑' : '↓'}
+                          {showSortIndex && (
+                            <span className="table-sort-index">{sortIndex + 1}</span>
+                          )}
+                        </span>
+                      )}
+                    </div>
+                  </th>
+                );
+              })}
+            </tr>
+          </thead>
+        )}
+
+        <tbody
+          ref={tbodyRef}
+          className="table-body"
+          style={isVirtualized ? { height: `${virtualizer.getTotalSize()}px`, position: 'relative' } : undefined}
+        >
+          {loading ? (
+            <tr className="table-row table-row--loading">
+              <td colSpan={columns.length + extraColumns} className="table-cell table-cell--loading">
+                <Spinner size="sm" />
+              </td>
+            </tr>
+          ) : sortedData.length === 0 ? (
+            <tr className="table-row table-row--empty">
+              <td colSpan={columns.length + extraColumns} className="table-cell table-cell--empty">
+                {emptyContent}
+              </td>
+            </tr>
+          ) : isVirtualized ? (
+            virtualizer.getVirtualItems().map((virtualItem) =>
+              renderRow(sortedData[virtualItem.index], virtualItem.index, depth, {
+                position: 'absolute',
+                top: 0,
+                transform: `translateY(${virtualItem.start}px)`,
+                width: '100%',
+              })
+            )
+          ) : (
+            sortedData.map((row, index) => renderRow(row, index, depth))
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+}

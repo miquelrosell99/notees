@@ -49,7 +49,7 @@ import type { LogseqExport, LogseqBlock } from '@/utils/ednParser';
 import type { QueryClient } from '@tanstack/react-query';
 import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from '@/constants';
 import { generateUUID } from '@/utils/uuid';
-import type { TaskReportData, TaskPhaseResult } from '@/components/core/TaskReport';
+import type { TaskReportData, TaskPhaseResult } from '@/components/ui/TaskReport';
 
 // ── Public types ──────────────────────────────────────────────
 

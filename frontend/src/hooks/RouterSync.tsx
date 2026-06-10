@@ -15,7 +15,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigationStore, type MainViewType } from '@/stores';
 import { useNavigationHistoryStore } from '@/stores/navigationHistoryStore';
 import { useFavoritesStore } from '@/stores/favoritesStore';
-import { listWorkspaces, switchWorkspace } from '@/api/workspaces';
+import { listWorkspaces, switchWorkspace } from '@/features/workspace/api/workspaces';
 import { getNodeByUuid, getNode } from '@/api/nodes';
 import { getPropertyByUuid } from '@/api/properties';
 import { parseUrl, pushUrl, replaceUrl, type ParsedRoute } from './useRouter';
