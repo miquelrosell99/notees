@@ -4,7 +4,7 @@
  * Provides short-lived tokens for asset access instead of passing JWTs in URLs.
  * Tokens are cached and automatically refreshed when they expire.
  */
-import api from './client';
+import api from '@/api/client';
 import { getLogger } from '../utils/logger';
 
 const log = getLogger('asset-tokens');

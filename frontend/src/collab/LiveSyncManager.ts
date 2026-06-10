@@ -6,7 +6,7 @@
  * send focus/blur/block-update events without prop-drilling.
  */
 
-import { useAuthStore } from '@/stores/authStore';
+import { useAuthStore } from '@/features/auth/stores/authStore';
 
 export interface LiveSyncUser {
   id: number;

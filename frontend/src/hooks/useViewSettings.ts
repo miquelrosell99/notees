@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from 'react';
 import { useSettingsQuery } from './useSettings';
-import { setSetting } from '@/api/workspaces';
+import { setSetting } from '@/features/workspace/api/workspaces';
 
 export type SettingScope = 'server' | 'local' | 'session';
 

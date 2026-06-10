@@ -4,7 +4,7 @@
  */
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { listWorkspaces } from '@/api/workspaces';
+import { listWorkspaces } from '@/features/workspace/api/workspaces';
 
 export type WorkspaceRole = 'owner' | 'admin' | 'editor' | 'viewer';
 

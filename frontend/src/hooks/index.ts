@@ -41,7 +41,7 @@ export * from './useIsMobile';
 export * from './useAndroidBridge';
 export * from './useStringifyAST';
 export * from './useListDragSort';
-export * from './useShares';
+export * from '@/features/shares/hooks/useShares';
 export * from './useInView';
 export * from './useCanvasViewport';
 export * from './useLivePageSync';

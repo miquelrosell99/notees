@@ -21,7 +21,7 @@ import { useEffect, useLayoutEffect, useCallback, useRef, useState } from 'react
 import { useQuery } from '@tanstack/react-query';
 import { useNavigationStore, type MainViewType } from '@/stores';
 import { useNavigationHistoryStore } from '@/stores/navigationHistoryStore';
-import { listWorkspaces, type WorkspaceListResponse } from '@/api/workspaces';
+import { listWorkspaces, type WorkspaceListResponse } from '@/features/workspace/api/workspaces';
 import { getNodeByUuid, getNode } from '@/api/nodes';
 import { getLogger } from '@/utils/logger';
 
