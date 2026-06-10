@@ -234,8 +234,13 @@ class NodeSearchRepository(ABC):
         pass
 
     @abstractmethod
-    async def get_nodes_with_classes(self, class_ids: list[int]) -> list[Node]:
+    async def get_nodes_with_classes(self, class_ids: list[int], limit: int | None = None, offset: int | None = None) -> list[Node]:
         """Get all nodes that have any of the given class IDs in their class_ids array."""
+        pass
+
+    @abstractmethod
+    async def count_nodes_with_classes(self, class_ids: list[int]) -> int:
+        """Count nodes that have any of the given class IDs in their class_ids array."""
         pass
 
     @abstractmethod

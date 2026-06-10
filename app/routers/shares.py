@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from ..db.connection import acquire_connection, get_pool
 from ..dependencies import _get_workspace_context_cached
 from ..domain.repositories import PostgresNodeRepository, PostgresShareRepository
 from ..domain.services.share_service import ShareService
 from ..logging_config import get_logger
-from ..models import User
+from ..models import PaginatedResponse, User
 from ..node_export import delete_share_html
 from .auth import get_current_user
 from .nodes.helpers import _name_text, _resolve_referenced_display_names
@@ -90,6 +90,8 @@ async def delete_share(
 
 @router.get("/inbox")
 async def get_share_inbox(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=500),
     user: User = Depends(get_current_user),  # noqa: B008
 ):
     """Get all nodes shared with the current user (share inbox)."""
@@ -97,6 +99,16 @@ async def get_share_inbox(
     user_id = int(user.id)
 
     async with acquire_connection(pool) as conn:
+        total = await conn.fetchval(
+            """
+            SELECT COUNT(*) FROM node_share ns
+            JOIN node n ON n.id = ns.node_id
+            WHERE ns.user_id = $1 AND ns.active = TRUE
+              AND n.active = TRUE AND n.is_deleted = FALSE
+            """,
+            user_id,
+        )
+        offset = (page - 1) * page_size
         rows = await conn.fetch(
             """
             SELECT ns.id, ns.node_id, ns.can_read, ns.can_write,
@@ -111,8 +123,11 @@ async def get_share_inbox(
             WHERE ns.user_id = $1 AND ns.active = TRUE
               AND n.active = TRUE AND n.is_deleted = FALSE
             ORDER BY ns.create_date DESC
+            LIMIT $2 OFFSET $3
             """,
             user_id,
+            page_size,
+            offset,
         )
 
     # Resolve node names that contain inline links to plain text
@@ -127,27 +142,34 @@ async def get_share_inbox(
         ws_resolved = await _resolve_referenced_display_names(pool, ws_id, ws_rows)
         resolved.update(ws_resolved)
 
-    return {
-        "items": [
-            {
-                "share_id": r["id"],
-                "node_id": r["node_id"],
-                "node_uuid": str(r["node_uuid"]),
-                "node_name": resolved.get(str(r["node_uuid"])) or _name_text(r["node_name"]) or "Untitled",
-                "node_icon": r["node_icon"],
-                "is_page": r["is_page"],
-                "permission": "write" if r["can_write"] else "read",
-                "shared_at": r["shared_at"].isoformat() if r["shared_at"] else None,
-                "shared_by": {
-                    "user_id": r["shared_by_id"],
-                    "email": r["shared_by_email"],
-                },
-                "workspace": {
-                    "id": r["workspace_id"],
-                    "name": r["workspace_name"],
-                    "uuid": str(r["workspace_uuid"]),
-                },
-            }
-            for r in rows
-        ]
-    }
+    items = [
+        {
+            "share_id": r["id"],
+            "node_id": r["node_id"],
+            "node_uuid": str(r["node_uuid"]),
+            "node_name": resolved.get(str(r["node_uuid"])) or _name_text(r["node_name"]) or "Untitled",
+            "node_icon": r["node_icon"],
+            "is_page": r["is_page"],
+            "permission": "write" if r["can_write"] else "read",
+            "shared_at": r["shared_at"].isoformat() if r["shared_at"] else None,
+            "shared_by": {
+                "user_id": r["shared_by_id"],
+                "email": r["shared_by_email"],
+            },
+            "workspace": {
+                "id": r["workspace_id"],
+                "name": r["workspace_name"],
+                "uuid": str(r["workspace_uuid"]),
+            },
+        }
+        for r in rows
+    ]
+
+    return PaginatedResponse[dict](
+        items=items,
+        total=total or 0,
+        page=page,
+        page_size=page_size,
+        has_next=(page * page_size) < (total or 0),
+        has_prev=page > 1,
+    )

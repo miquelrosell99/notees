@@ -61,9 +61,9 @@ export const useFavoritesStore = create<FavoritesState>()((set, get) => ({
   loadFavorites: async () => {
     set({ isLoadingFavorites: true });
     try {
-      const favoriteIds = await nodesApi.getFavorites();
+      const response = await nodesApi.getFavorites();
       set({
-        favorites: favoriteIds.map(nodeId => ({ nodeId })),
+        favorites: response.items.map((node) => ({ nodeId: node.id })),
         isLoadingFavorites: false,
       });
     } catch (error) {

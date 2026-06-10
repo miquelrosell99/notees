@@ -470,6 +470,11 @@ class WorkspaceDataResponse(BaseModel):
 
     nodes: list[WorkspaceNodeResponse]
     links: list[WorkspaceLinkResponse]
+    total: int | None = None
+    page: int | None = None
+    page_size: int | None = None
+    has_next: bool | None = None
+    has_prev: bool | None = None
 
 
 class WorkspaceNodesResponse(BaseModel):

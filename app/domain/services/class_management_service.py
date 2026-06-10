@@ -128,7 +128,7 @@ class ClassManagementService:
         """Full-text + ILIKE search over class nodes."""
         return await self._node_repo.search_classes(q, limit)
 
-    async def get_nodes_with_class(self, class_id: int) -> list[Node]:
+    async def get_nodes_with_class(self, class_id: int, limit: int | None = None, offset: int | None = None) -> list[Node]:
         """Return all nodes that carry the given class (or any of its subclasses)."""
         from ..repositories import PostgresPropertyRepository
         from ..repositories.postgres_class_extend import PostgresClassExtendRepository
@@ -139,7 +139,20 @@ class ClassManagementService:
         extension_service = ClassExtensionService(self._pool, self._workspace_id, property_repo, class_extend_repo)
         subclass_ids = await extension_service.get_all_subclasses(class_id)
         all_class_ids = [class_id] + subclass_ids
-        return await self._node_repo.get_nodes_with_classes(all_class_ids)
+        return await self._node_repo.get_nodes_with_classes(all_class_ids, limit=limit, offset=offset)
+
+    async def count_nodes_with_class(self, class_id: int) -> int:
+        """Count nodes that carry the given class (or any of its subclasses)."""
+        from ..repositories import PostgresPropertyRepository
+        from ..repositories.postgres_class_extend import PostgresClassExtendRepository
+        from .class_extension_service import ClassExtensionService
+
+        property_repo = PostgresPropertyRepository(self._pool, self._workspace_id, 0)
+        class_extend_repo = PostgresClassExtendRepository(self._pool, self._workspace_id, 0)
+        extension_service = ClassExtensionService(self._pool, self._workspace_id, property_repo, class_extend_repo)
+        subclass_ids = await extension_service.get_all_subclasses(class_id)
+        all_class_ids = [class_id] + subclass_ids
+        return await self._node_repo.count_nodes_with_classes(all_class_ids)
 
     # ------------------------------------------------------------------
     # Node-level class queries

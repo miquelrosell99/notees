@@ -22,7 +22,6 @@ from .models import (
     WorkspaceDataResponse,
     WorkspaceLinkResponse,
     WorkspaceNodeResponse,
-    WorkspaceNodesResponse,
 )
 
 router = APIRouter()
@@ -30,6 +29,8 @@ router = APIRouter()
 
 @router.get("/workspace", response_model=WorkspaceDataResponse)
 async def get_workspace_data_endpoint(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(500, ge=1, le=5000),
     user: User = Depends(get_current_user),
 ):
     """Get workspace data for visualization with nodes and links.
@@ -46,17 +47,33 @@ async def get_workspace_data_endpoint(
             *SYSTEM_PAGE_UUIDS.values(),
         ]
 
-        # Get all active pages as nodes (excluding system types)
+        # Get total count of pages
+        total = await conn.fetchval(
+            """
+            SELECT COUNT(*) FROM node
+            WHERE workspace_id = $1 AND is_page = TRUE AND active = TRUE
+              AND uuid::text NOT IN (SELECT unnest($2::text[]))
+            """,
+            service.workspace_id,
+            excluded_uuids,
+        )
+
+        offset = (page - 1) * page_size
+
+        # Get paginated active pages as nodes (excluding system types)
         page_rows = await conn.fetch(
             """
-            SELECT id, uuid, name, icon, is_class, is_day, is_month, is_year
+            SELECT id, uuid, name, icon, is_class, is_day, is_month, is_year, aliased_id
             FROM node
             WHERE workspace_id = $1 AND is_page = TRUE AND active = TRUE
               AND uuid::text NOT IN (SELECT unnest($2::text[]))
             ORDER BY name
+            LIMIT $3 OFFSET $4
             """,
             service.workspace_id,
             excluded_uuids,
+            page_size,
+            offset,
         )
 
         # Get types for each page
@@ -255,11 +272,21 @@ async def get_workspace_data_endpoint(
                 seen.add(key)
                 unique_links.append(link)
 
-        return WorkspaceDataResponse(nodes=nodes, links=unique_links)
+        return WorkspaceDataResponse(
+            nodes=nodes,
+            links=unique_links,
+            total=total,
+            page=page,
+            page_size=page_size,
+            has_next=(page * page_size) < total,
+            has_prev=page > 1,
+        )
 
 
-@router.get("/workspace/nodes", response_model=WorkspaceNodesResponse)
+@router.get("/workspace/nodes")
 async def get_workspace_nodes_endpoint(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(500, ge=1, le=5000),
     user: User = Depends(get_current_user),
 ):
     """Get all workspace nodes for visualization (without links).
@@ -277,6 +304,18 @@ async def get_workspace_nodes_endpoint(
             *SYSTEM_PAGE_UUIDS.values(),
         ]
 
+        total = await conn.fetchval(
+            """
+            SELECT COUNT(*) FROM node
+            WHERE workspace_id = $1 AND is_page = TRUE AND active = TRUE
+              AND uuid::text NOT IN (SELECT unnest($2::text[]))
+            """,
+            service.workspace_id,
+            excluded_uuids,
+        )
+
+        offset = (page - 1) * page_size
+
         page_rows = await conn.fetch(
             """
             SELECT id, uuid, name, icon, is_class, is_day, is_month, is_year, aliased_id
@@ -284,9 +323,12 @@ async def get_workspace_nodes_endpoint(
             WHERE workspace_id = $1 AND is_page = TRUE AND active = TRUE
               AND uuid::text NOT IN (SELECT unnest($2::text[]))
             ORDER BY name
+            LIMIT $3 OFFSET $4
             """,
             service.workspace_id,
             excluded_uuids,
+            page_size,
+            offset,
         )
 
         page_ids = [row["id"] for row in page_rows]
@@ -326,7 +368,14 @@ async def get_workspace_nodes_endpoint(
                 )
             )
 
-        return WorkspaceNodesResponse(nodes=nodes)
+        return PaginatedResponse[WorkspaceNodeResponse](
+            items=nodes,
+            total=total,
+            page=page,
+            page_size=page_size,
+            has_next=(page * page_size) < total,
+            has_prev=page > 1,
+        )
 
 
 @router.post("/links", response_model=LinksResponse)
