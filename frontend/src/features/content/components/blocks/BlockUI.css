@@ -95,8 +95,8 @@
   border-radius: 50%;
   font-size: var(--presence-avatar-font-size);
   font-weight: 600;
-  color: #fff;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  color: var(--color-on-surface);
+  text-shadow: 0 1px 2px color-mix(in srgb, var(--color-scrim) 60%, transparent);
   line-height: 1;
 }
 

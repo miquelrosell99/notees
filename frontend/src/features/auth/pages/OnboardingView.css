@@ -3,12 +3,12 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--bg-primary, #f5f5f5);
+  background: var(--color-background);
   padding: 2rem;
 }
 
 .onboarding-container {
-  background: var(--bg-surface, #ffffff);
+  background: var(--color-surface);
   border-radius: var(--shape-extra-large);
   box-shadow: none;
   padding: 2.5rem;
@@ -21,13 +21,13 @@
   font-size: 1.75rem;
   font-weight: 600;
   text-align: center;
-  color: var(--text-primary, #1a1a1a);
+  color: var(--color-on-surface);
 }
 
 .onboarding-subtitle {
   margin: 0 0 1.5rem;
   text-align: center;
-  color: var(--text-secondary, #666666);
+  color: var(--color-on-surface-variant);
   font-size: 0.95rem;
 }
 
@@ -39,8 +39,8 @@
 
 .error-message {
   padding: 0.75rem;
-  background: var(--color-error-bg, #fde8e8);
-  color: var(--color-error, #c53030);
+  background: var(--color-error-container);
+  color: var(--color-on-error-container);
   border-radius: var(--shape-medium);
   font-size: 0.875rem;
 }

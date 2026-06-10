@@ -4,11 +4,11 @@
   justify-content: center;
   gap: var(--spacing-2);
   padding: 6px var(--spacing-4);
-  background-color: var(--color-warning-container, #fff3e0);
-  color: var(--color-on-warning-container, #e65100);
+  background-color: var(--color-warning-container);
+  color: var(--color-on-warning-container);
   font-size: var(--font-size-button);
   font-weight: 500;
-  border-bottom: 1px solid var(--color-warning, #ff9800);
+  border-bottom: 1px solid var(--color-warning);
   position: sticky;
   top: 0;
   z-index: var(--z-toast, 100);
@@ -28,21 +28,21 @@
 
 /* Warning state — WS disconnected while browser online */
 .offline-banner--warning {
-  background-color: var(--color-error-container, #ffebee);
-  color: var(--color-on-error-container, #c62828);
-  border-bottom-color: var(--color-error, #ef4444);
+  background-color: var(--color-error-container);
+  color: var(--color-on-error-container);
+  border-bottom-color: var(--color-error);
 }
 
 /* Syncing state */
 .offline-banner--syncing {
-  background-color: var(--color-primary-container, #e3f2fd);
-  color: var(--color-on-primary-container, #1565c0);
-  border-bottom-color: var(--color-primary, #2196f3);
+  background-color: var(--color-primary-container);
+  color: var(--color-on-primary-container);
+  border-bottom-color: var(--color-primary);
 }
 
 /* Synced state */
 .offline-banner--synced {
-  background-color: var(--color-success-container, #e8f5e9);
-  color: var(--color-on-success-container, #2e7d32);
-  border-bottom-color: var(--color-success, #4caf50);
+  background-color: var(--color-success-container);
+  color: var(--color-on-success-container);
+  border-bottom-color: var(--color-success);
 }

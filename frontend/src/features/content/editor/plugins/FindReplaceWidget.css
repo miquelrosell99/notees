@@ -64,7 +64,7 @@
 
 .find-replace-btn.active {
   background: var(--accent-color, var(--color-accent));
-  color: #fff;
+  color: var(--color-on-surface);
   border-color: var(--accent-color, var(--color-accent));
 }
 

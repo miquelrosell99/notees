@@ -37,34 +37,35 @@
 
 /* ==================== Sizes ==================== */
 .btn--xs {
-  height: var(--height-xs);
+  height: calc(var(--height-xs) + 2px);
   padding: 0 var(--spacing-1);
   font-size: var(--font-size-xs);
   gap: var(--spacing-1);
-  border-radius: var(--shape-button-compact);
+  border-radius: var(--shape-small);
 }
 
 .btn--sm {
-  height: var(--height-sm);
+  height: calc(var(--height-sm) + 2px);
   padding: 0 var(--spacing-2);
   font-size: var(--font-size-sm);
   gap: var(--spacing-1);
-  border-radius: var(--shape-button-compact);
+  border-radius: var(--shape-small);
 }
 
 .btn--md {
-  height: var(--height-md);
+  height: calc(var(--height-md) + 4px);
   padding: 0 var(--spacing-3);
   font-size: var(--font-size-button);
   gap: var(--spacing-2);
+  border-radius: var(--shape-medium);
 }
 
 .btn--lg {
-  height: var(--height-lg);
+  height: calc(var(--height-lg) + 6px);
   padding: 0 var(--spacing-4);
   font-size: var(--font-size-base);
   gap: var(--spacing-2);
-  border-radius: var(--shape-button-large);
+  border-radius: var(--shape-medium);
 }
 
 /* Icon-only: no text, so no horizontal padding — just a square */

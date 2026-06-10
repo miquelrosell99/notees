@@ -63,6 +63,30 @@ const ENFORCED_PROPERTIES = new Set([
   // NOTE: min/max-width/height are one-off layout decisions.
 ]);
 
+const COLOR_PROPERTIES = new Set([
+  'color', 'background', 'background-color', 'border-color',
+  'border-top-color', 'border-right-color', 'border-bottom-color', 'border-left-color',
+  'outline-color', 'caret-color', 'fill', 'stroke',
+  'box-shadow', 'text-shadow', 'border',
+]);
+
+const COLOR_EXCLUDED_VALUES = new Set([
+  'transparent', 'currentColor', 'inherit', 'none', 'initial', 'unset',
+  'auto',
+]);
+
+function containsHardcodedColor(value) {
+  if (value.includes('var(') || value.includes('color-mix(')) return false;
+  if (COLOR_EXCLUDED_VALUES.has(value)) return false;
+  // Hex colors
+  if (/#([0-9a-fA-F]{3}){1,2}\b/.test(value)) return true;
+  // Named colors (basic set)
+  if (/\b(white|black|red|green|blue|yellow|orange|gray|grey|pink|purple|brown|cyan|magenta|lime|navy|teal|olive|silver|maroon)\b/i.test(value)) return true;
+  // rgb/rgba with numeric literals (not var-based)
+  if (/rgba?\(\s*(\d+|#)/.test(value)) return true;
+  return false;
+}
+
 const TOKEN_ALIASES = {
   '4px':  'var(--spacing-1)',
   '8px':  'var(--spacing-2)',
@@ -126,26 +150,40 @@ function validateFile(filePath) {
   const violations = [];
 
   for (const decl of declarations) {
-    if (!ENFORCED_PROPERTIES.has(decl.property)) continue;
-
     const value = decl.value;
-    if (value.includes('calc(') || value.includes('var(') ||
-        value.includes('color-mix(') || value.includes('min(') ||
-        value.includes('max(') || value.includes('clamp(')) continue;
 
-    const pxMatches = [...value.matchAll(/(\d+(?:\.\d+)?px)/g)];
-    for (const pxMatch of pxMatches) {
-      const pxValue = pxMatch[1];
-      if (ALLOWED_LITERALS.has(pxValue)) continue;
+    // ── Size / spacing checks ──
+    if (ENFORCED_PROPERTIES.has(decl.property)) {
+      if (value.includes('calc(') || value.includes('var(') ||
+          value.includes('color-mix(') || value.includes('min(') ||
+          value.includes('max(') || value.includes('clamp(')) continue;
 
-      const suggestion = TOKEN_ALIASES[pxValue] || 'a CSS custom property';
+      const pxMatches = [...value.matchAll(/(\d+(?:\.\d+)?px)/g)];
+      for (const pxMatch of pxMatches) {
+        const pxValue = pxMatch[1];
+        if (ALLOWED_LITERALS.has(pxValue)) continue;
+
+        const suggestion = TOKEN_ALIASES[pxValue] || 'a CSS custom property';
+        violations.push({
+          key: violationKey(filePath, decl.property, pxValue, decl.selector),
+          message:
+            `${relative(projectRoot, filePath)}\n` +
+            `  Hardcoded \`${pxValue}\` in \`${decl.property}: ${value}\`\n` +
+            `  Selector: \`${decl.selector.split('\n')[0].trim()}\`\n` +
+            `  → Use ${suggestion}\n`,
+        });
+      }
+    }
+
+    // ── Color checks ──
+    if (COLOR_PROPERTIES.has(decl.property) && containsHardcodedColor(value)) {
       violations.push({
-        key: violationKey(filePath, decl.property, pxValue, decl.selector),
+        key: violationKey(filePath, decl.property, value, decl.selector),
         message:
           `${relative(projectRoot, filePath)}\n` +
-          `  Hardcoded \`${pxValue}\` in \`${decl.property}: ${value}\`\n` +
+          `  Hardcoded color in \`${decl.property}: ${value}\`\n` +
           `  Selector: \`${decl.selector.split('\n')[0].trim()}\`\n` +
-          `  → Use ${suggestion}\n`,
+          `  → Use a CSS custom property from variables.css\n`,
       });
     }
   }
