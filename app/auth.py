@@ -26,8 +26,9 @@ _user_cache: dict[str, tuple[dict, float]] = {}
 _USER_CACHE_TTL = 300  # 5 minutes
 
 # Password hashing context
-# Use pbkdf2_sha256 to avoid any bcrypt backend interaction and length limits
-pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
+# Primary: bcrypt (recommended by security-hardening skill).
+# pbkdf2_sha256 is kept for backward compatibility with existing hashes.
+pwd_context = CryptContext(schemes=["bcrypt", "pbkdf2_sha256"], deprecated="auto")
 
 
 def hash_password(password: str) -> str:
@@ -42,6 +43,11 @@ def verify_password(password: str, hashed: str) -> bool:
     except Exception as e:
         logger.error(f"Password verification failed for technical reasons: {e}")
         return False
+
+
+def password_needs_rehash(hashed: str) -> bool:
+    """Check if a hash needs to be upgraded to the current preferred scheme."""
+    return pwd_context.needs_update(hashed)
 
 
 def create_token(user_id: str, email: str, role: str) -> str:
@@ -237,6 +243,22 @@ async def authenticate_user(email: str, password: str) -> dict | None:
     if not user.get("is_active", True):
         logger.warning(f"Authentication failed for '{email}': account inactive")
         return None
+
+    # Re-hash with bcrypt if the old hash used pbkdf2_sha256
+    if password_needs_rehash(user.get("hashed_password", "")):
+        try:
+            new_hash = hash_password(password)
+            async with get_connection() as conn:
+                await conn.execute(
+                    'UPDATE "user" SET password_hash = $1, write_date = NOW() WHERE id = $2',
+                    new_hash,
+                    int(user["id"]),
+                )
+            user["hashed_password"] = new_hash
+            _user_cache.pop(user_id, None)
+            logger.info(f"Re-hashed password for user '{email}' to bcrypt")
+        except Exception as e:
+            logger.warning(f"Failed to re-hash password for '{email}': {e}")
 
     logger.info(f"Authentication successful for user '{email}' (id={user.get('id')})")
     return user
