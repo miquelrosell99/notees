@@ -9,7 +9,7 @@
 import { useState, type ReactNode } from 'react';
 
 import './SidebarCard.css';
-import { Icon, AlertIcon } from '@/components/core/icons';
+import { AlertIcon } from '@/components/core/icons';
 import { Button } from '@/components/core/Button';
 import { Card } from '@/components/core/Card';
 import { Spinner } from '@/components/core/Spinner';
@@ -117,15 +117,17 @@ export function SidebarCard({
           draggable={draggable}
           onDragStart={onHeaderDragStart}
         >
-          <button
+          <Button
+            variant="ghost"
+            size="xs"
+            iconOnly
+            icon="mdi mdi-chevron-down"
             className="sidebar-card__collapse-btn"
             onClick={() => setIsCollapsed(!isCollapsed)}
             title={isCollapsed ? "Expand" : "Collapse"}
             aria-label={isCollapsed ? "Expand card" : "Collapse card"}
             aria-expanded={!isCollapsed}
-          >
-            <Icon path={"mdi mdi-chevron-down"} size={0.6} rotate={isCollapsed ? -90 : 0} />
-          </button>
+          />
           <div className="sidebar-card__title-section">
             {icon && <span className="sidebar-card__icon">{icon}</span>}
             <div className="sidebar-card__titles">

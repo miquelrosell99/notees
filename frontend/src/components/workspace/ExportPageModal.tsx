@@ -22,6 +22,8 @@ import api from '@/api/client';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { downloadBlob } from '@/utils/download';
 import QRCode from 'qrcode';
+import { getExportFormat, formatHasHtmlOptions, getExportExtension, getRegisteredExportFormats } from './exportFormatRegistry';
+import './registerExportFormats';
 import './ExportPageModal.css';
 
 import type { ExportFormat, ExportLayout, ExportStyle, ExportProperties, ExportDensity, ExportNumbering, ExportMeasure, ExportDoctype, ExportLinkStyle, ExportThemeMode } from '@/stores/exportSettingsStore';
@@ -93,7 +95,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid, nodeUuids, nodeName
       setError(null);;
 
     const params: Record<string, unknown> = {
-      format: format === 'html' || format === 'pdf' ? 'html' : format,
+      format: formatHasHtmlOptions(format) ? 'html' : format,
       include_children: true,
       layout,
       formatting,
@@ -135,7 +137,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid, nodeUuids, nodeName
   // For HTML/PDF tab, show the raw HTML or inject CSS overrides.
   const displayContent = useMemo(() => {
     if (!previewContent) return '';
-    if (format === 'markdown' || format === 'text' || format === 'json') {
+    if (!formatHasHtmlOptions(format)) {
       return previewContent;
     }
     if (cssOverrides.trim()) {
@@ -178,7 +180,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid, nodeUuids, nodeName
         cover_page: coverPage,
       };
 
-      if (format === 'pdf') {
+      if (getExportFormat(format)?.format === 'pdf') {
         const htmlParams = { ...baseParams, format: 'html' };
         let html: string;
         if (isBatch) {
@@ -208,8 +210,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid, nodeUuids, nodeName
           response = await api.get(`/export/${effectiveNodeUuids[0]}`, { params: baseParams, responseType: 'blob' });
         }
         const disposition = response.headers.get('content-disposition') ?? undefined;
-        const extMap: Record<string, string> = { markdown: 'md', html: 'html', pdf: 'pdf', text: 'txt', json: 'json' };
-        let filename = `export.${extMap[format] || format}`;
+        let filename = `export.${getExportExtension(format)}`;
         if (disposition) {
           const match = disposition.match(/filename="?([^"]+)"?/);
           if (match) filename = match[1];
@@ -320,7 +321,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid, nodeUuids, nodeName
                 </div>
               </div>
 
-              {(format === 'html' || format === 'pdf') && (
+              {formatHasHtmlOptions(format) && (
                 <div className="visibility-option">
                   <SelectionButton
                     size="sm"
@@ -351,7 +352,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid, nodeUuids, nodeName
                   onChange={(v) => setLayout(v as ExportLayout)}
                 />
               </div>
-              {(format === 'html' || format === 'pdf') && (
+              {formatHasHtmlOptions(format) && (
                 <div className="visibility-option">
                   <SelectionButton
                     size="sm"
@@ -369,7 +370,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid, nodeUuids, nodeName
                   />
                 </div>
               )}
-              {(format === 'html' || format === 'pdf') && (
+              {formatHasHtmlOptions(format) && (
                 <div className="visibility-option">
                   <SelectionButton
                     size="sm"
@@ -385,7 +386,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid, nodeUuids, nodeName
                   />
                 </div>
               )}
-              {(format === 'html' || format === 'pdf') && (
+              {formatHasHtmlOptions(format) && (
                 <div className="visibility-option">
                   <SelectionButton
                     size="sm"
@@ -403,7 +404,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid, nodeUuids, nodeName
                   />
                 </div>
               )}
-              {(format === 'html' || format === 'pdf') && (
+              {formatHasHtmlOptions(format) && (
                 <div className="visibility-option">
                   <SelectionButton
                     size="sm"
@@ -421,7 +422,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid, nodeUuids, nodeName
                   />
                 </div>
               )}
-              {(format === 'html' || format === 'pdf') && (
+              {formatHasHtmlOptions(format) && (
                 <div className="visibility-option">
                   <SelectionButton
                     size="sm"
@@ -441,7 +442,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid, nodeUuids, nodeName
                   />
                 </div>
               )}
-              {(format === 'html' || format === 'pdf') && (
+              {formatHasHtmlOptions(format) && (
                 <div className="visibility-option">
                   <BooleanToggle
                     size="sm"
@@ -453,7 +454,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid, nodeUuids, nodeName
                   />
                 </div>
               )}
-              {(format === 'html' || format === 'pdf') && (
+              {formatHasHtmlOptions(format) && (
                 <div className="visibility-option">
                   <BooleanToggle
                     size="sm"
@@ -557,17 +558,17 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid, nodeUuids, nodeName
       <div className="export-modal__body">
         {/* Format tabs */}
         <div className="export-modal__tabs" role="tablist" aria-label="Export format">
-          {(['markdown', 'html', 'pdf', 'text', 'json'] as ExportFormat[]).map((f) => (
+          {getRegisteredExportFormats().map((def) => (
             <button
-              key={f}
+              key={def.format}
               role="tab"
-              aria-selected={format === f}
+              aria-selected={format === def.format}
               className={`export-modal__tab${
-                format === f ? ' export-modal__tab--active' : ''
+                format === def.format ? ' export-modal__tab--active' : ''
               }`}
-              onClick={() => handleFormatChange(f)}
+              onClick={() => handleFormatChange(def.format as ExportFormat)}
             >
-              {f === 'markdown' ? 'Markdown' : f === 'html' ? 'HTML' : f === 'pdf' ? 'PDF' : f === 'text' ? 'Text' : 'JSON'}
+              {def.label}
             </button>
           ))}
         </div>
@@ -578,7 +579,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid, nodeUuids, nodeName
             <div className="export-modal__error">{error}</div>
           )}
 
-          {format === 'markdown' || format === 'text' || format === 'json' ? (
+          {!formatHasHtmlOptions(format) ? (
             <textarea
               className={`export-modal__preview${loading ? ' export-modal__preview--loading' : ''}`}
               readOnly

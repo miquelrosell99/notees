@@ -8,6 +8,8 @@ import { Spinner } from '@/components/core/Spinner';
 import { Icon } from '@/components/core/Icon';
 import { getPublicSharedNode } from '@/api/shares';
 import { NodeInline } from '@/components/blocks/NodeInline';
+import { getPropertyValueRenderer } from '@/components/properties/propertyValueRegistry';
+import '@/components/properties/registerPropertyRenderers';
 import type { PublicSharedNode } from '@/api/shares';
 import './PublicShareView.css';
 
@@ -37,14 +39,14 @@ function PublicPropertyValue({
     );
   }
 
+  // Use registry formatter for simple types; keep custom logic for URL/email/text
+  const renderer = getPropertyValueRenderer(propertyDef.type);
+  if (renderer && propertyDef.type !== 'url' && propertyDef.type !== 'email' && propertyDef.type !== 'text') {
+    const formatted = renderer.formatValue(value);
+    if (formatted) return <span>{formatted}</span>;
+  }
+
   switch (propertyDef.type) {
-    case 'boolean':
-      return <span>{value ? 'Yes' : 'No'}</span>;
-
-    case 'integer':
-    case 'float':
-      return <span>{String(value)}</span>;
-
     case 'url':
       return (
         <a href={String(value)} target="_blank" rel="noopener noreferrer" className="public-share-view__prop-link">

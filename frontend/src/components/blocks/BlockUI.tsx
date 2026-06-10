@@ -5,6 +5,7 @@
  * This replaces the first half of BlockNode.createDOM.
  */
 
+import { useCallback } from 'react';
 import { Bullet } from './Bullet';
 import { Icon } from '@/components/core/icons';
 import type { Node } from '@/types/api';
@@ -56,17 +57,36 @@ export function BlockUI({
     onOpenInSidebar?.(node.uuid);
   };
 
+  const handleCollapseClick = useCallback((e: React.MouseEvent) => {
+    if (!onCollapseToggle) return;
+    e.preventDefault();
+    e.stopPropagation();
+    onCollapseToggle();
+  }, [onCollapseToggle]);
+
+  const hasChildren = hasChildrenOverride ?? (node.has_children ?? false);
+  const collapsed = collapsedProp ?? node.collapsed ?? false;
+
   return (
     <div className="block-ui">
+      {hasChildren && onCollapseToggle && (
+        <button
+          className="block-collapse-arrow"
+          onClick={handleCollapseClick}
+          title={collapsed ? 'Expand' : 'Collapse'}
+          aria-label={collapsed ? 'Expand' : 'Collapse'}
+        >
+          <span className="block-collapse-arrow__icon">{collapsed ? '\u25B8' : '\u25BE'}</span>
+        </button>
+      )}
       <Bullet
         nodeId={node.id}
         icon={iconOverride ?? node.icon}
         isPage={node.is_page}
-        hasChildren={hasChildrenOverride ?? (node.has_children ?? false)}
-        collapsed={collapsedProp ?? node.collapsed ?? false}
+        hasChildren={hasChildren}
+        collapsed={collapsed}
         onClick={handleClick}
         onShiftClick={handleShiftClick}
-        onCollapseToggle={onCollapseToggle}
         onContextMenu={onContextMenu}
         isHovered={isHovered}
         size="sm"

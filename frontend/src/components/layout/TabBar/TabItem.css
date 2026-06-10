@@ -1,8 +1,8 @@
 .tab-item {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  height: 36px;
+  gap: var(--spacing-2);
+  height: var(--icon-size-lg);
   padding: 0 14px;
   border-radius: var(--shape-card);
   font-size: 0.85rem;
@@ -55,13 +55,13 @@
 
 .tab-item--pinned {
   max-width: 48px;
-  padding: 0 12px;
+  padding: 0 var(--spacing-3);
 }
 
 .tab-item__color-indicator {
   width: 4px;
-  height: 18px;
-  border-radius: 2px;
+  height: var(--icon-size-md);
+  border-radius: var(--shape-extra-small);
   flex-shrink: 0;
 }
 
@@ -81,8 +81,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
+  width: var(--icon-size-md);
+  height: var(--icon-size-md);
   border-radius: 50%;
   border: none;
   background: transparent;

@@ -44,8 +44,8 @@
 }
 
 .account-menu__user-avatar {
-  width: 32px;
-  height: 32px;
+  width: var(--icon-size-xl);
+  height: var(--height-md);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -95,7 +95,7 @@
   font-size: 0.65rem;
   font-weight: 600;
   padding: 1px 5px;
-  border-radius: 999px;
+  border-radius: var(--shape-full);
   line-height: 1;
 }
 
@@ -123,6 +123,6 @@
 /* ==================== Notification Panel ==================== */
 .account-menu__notification-panel {
   z-index: var(--z-modal-backdrop);
-  width: 320px;
+  width: var(--modal-width-sm);
   max-height: 400px;
 }

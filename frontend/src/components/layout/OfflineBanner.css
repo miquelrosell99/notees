@@ -2,11 +2,11 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 6px 16px;
+  gap: var(--spacing-2);
+  padding: 6px var(--spacing-4);
   background-color: var(--color-warning-container, #fff3e0);
   color: var(--color-on-warning-container, #e65100);
-  font-size: 13px;
+  font-size: var(--font-size-button);
   font-weight: 500;
   border-bottom: 1px solid var(--color-warning, #ff9800);
   position: sticky;
@@ -16,7 +16,7 @@
 }
 
 .offline-banner__icon {
-  font-size: 16px;
+  font-size: var(--font-size-md);
   opacity: 0.8;
 }
 

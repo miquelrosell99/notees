@@ -56,8 +56,12 @@ export function TabBarNarrow({ tabs, activeTabId }: TabBarNarrowProps) {
               </span>
             )}
             renderActions={(item) => [
-              <button
+              <Button
                 key="pin"
+                variant="ghost"
+                size="xs"
+                iconOnly
+                icon={item.tab.pinned ? 'mdi mdi-pin-off' : 'mdi mdi-pin'}
                 className="tab-bar-narrow__action"
                 onClick={(e) => {
                   e.stopPropagation();
@@ -68,20 +72,20 @@ export function TabBarNarrow({ tabs, activeTabId }: TabBarNarrowProps) {
                   }
                 }}
                 title={item.tab.pinned ? 'Unpin' : 'Pin'}
-              >
-                <Icon path={item.tab.pinned ? 'mdi mdi-pin-off' : 'mdi mdi-pin'} size={0.65} />
-              </button>,
-              <button
+              />,
+              <Button
                 key="close"
+                variant="ghost"
+                size="xs"
+                iconOnly
+                icon="mdi mdi-close"
                 className="tab-bar-narrow__action"
                 onClick={(e) => {
                   e.stopPropagation();
                   closeTab(item.tab.id);
                 }}
                 title="Close"
-              >
-                <Icon path="mdi mdi-close" size={0.65} />
-              </button>,
+              />,
             ]}
             onItemClick={(item) => {
               activateTab(item.tab.id);

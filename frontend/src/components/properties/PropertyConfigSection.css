@@ -1,14 +1,14 @@
 .property-config-section {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: var(--spacing-5);
 }
 
 .property-config-section__scope {
-  padding: 12px 16px;
+  padding: var(--spacing-3) var(--spacing-4);
   background-color: var(--color-surface-variant);
   border-radius: var(--shape-large);
-  font-size: 14px;
+  font-size: var(--font-size-base);
   color: var(--color-on-surface-variant);
 }
 
@@ -27,22 +27,22 @@
 }
 
 .property-config-section__error {
-  padding: 12px 16px;
+  padding: var(--spacing-3) var(--spacing-4);
   background-color: var(--color-error-container);
   color: var(--color-error);
   border-radius: var(--shape-large);
-  font-size: 14px;
+  font-size: var(--font-size-base);
 }
 
 /* Validation rules */
 .property-config-section__validation-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--spacing-2);
 }
 
 .property-config-section__validation-inline-label {
-  font-size: 13px;
+  font-size: var(--font-size-button);
   color: var(--color-on-surface-variant);
   font-weight: 500;
   flex-shrink: 0;

@@ -100,41 +100,12 @@
   flex-shrink: 0;
   font-size: 1rem;
   line-height: 1;
-  width: 18px;
-  height: 18px;
+  width: var(--icon-size-md);
+  height: var(--icon-size-md);
 }
 
 .sidebar-item-icon svg {
   flex-shrink: 0;
-}
-
-/* Nav item with search button inline */
-.sidebar-nav-item-with-search {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-1);
-}
-
-.sidebar-search-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  border: none;
-  background: transparent;
-  border-radius: var(--shape-small);
-  cursor: pointer;
-  color: var(--color-on-surface-variant);
-  opacity: 0.7;
-  transition: all var(--motion-duration-short) var(--motion-easing-standard);
-}
-
-.sidebar-search-btn:hover {
-  background: var(--color-hover-overlay);
-  opacity: 1;
-  color: var(--color-on-surface);
 }
 
 /* ==================== Sidebar Sections ==================== */
@@ -153,7 +124,7 @@
   cursor: pointer;
   color: var(--color-on-surface-variant);
   transition: color var(--motion-duration-short) var(--motion-easing-standard);
-  min-height: 28px;
+  min-height: var(--height-sm);
 }
 
 .sidebar-section-header:hover {
@@ -162,8 +133,8 @@
 
 .sidebar-section-header svg {
   flex-shrink: 0;
-  width: 14px;
-  height: 14px;
+  width: var(--icon-size-xs);
+  height: var(--icon-size-xs);
   opacity: 0.7;
 }
 
@@ -225,7 +196,7 @@
 /* Drag handle for favorites */
 .sidebar-drag-handle {
   color: var(--color-on-surface-variant);
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   cursor: grab;
   padding: var(--spacing-1);
   line-height: 1;
@@ -284,7 +255,7 @@
 .sidebar-recent-item .block-row {
   padding: var(--spacing-3) var(--spacing-3);
   gap: var(--spacing-3);
-  min-height: 32px;
+  min-height: var(--height-md);
   align-items: center;
 }
 
@@ -353,7 +324,7 @@
 
 /* Loading skeleton for sidebar items */
 .sidebar-item-skeleton {
-  height: 28px;
+  height: var(--height-sm);
   border-radius: var(--shape-small);
   background: linear-gradient(90deg, var(--color-surface-container) 25%, var(--color-surface-container-high) 50%, var(--color-surface-container) 75%);
   background-size: 200% 100%;
@@ -537,8 +508,8 @@
 }
 
 .sidebar-icon-btn {
-  width: 36px;
-  height: 36px;
+  width: var(--icon-size-lg);
+  height: var(--icon-size-lg);
   display: flex;
   align-items: center;
   justify-content: center;

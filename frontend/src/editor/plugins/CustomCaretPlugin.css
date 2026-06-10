@@ -23,7 +23,7 @@
 
 /* Line caret (normal typing mode) */
 .notees-custom-caret--line {
-  border-radius: 2px;
+  border-radius: var(--shape-extra-small);
   animation: notees-line-breathe 0.85s ease-in-out infinite;
 }
 

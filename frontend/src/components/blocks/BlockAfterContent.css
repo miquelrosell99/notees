@@ -33,8 +33,8 @@
 .block-after-content__badges {
   display: flex;
   align-items: center;
-  gap: 4px;
-  margin-left: 4px;
+  gap: var(--spacing-1);
+  margin-left: var(--spacing-1);
   min-height: 1.6em;
 }
 
@@ -42,11 +42,11 @@
   display: inline-flex;
   align-items: center;
   padding: 0 6px;
-  border-radius: 4px;
+  border-radius: var(--shape-small);
   font-size: 10px;
   font-weight: 500;
   line-height: 16px;
-  height: 16px;
+  height: var(--icon-size-sm);
   text-transform: uppercase;
   letter-spacing: 0.3px;
   white-space: nowrap;
@@ -98,7 +98,7 @@
   border: 1px solid var(--color-outline-variant);
   overflow: hidden;
   font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', Monaco, Consolas, monospace;
-  font-size: 13px;
+  font-size: var(--font-size-button);
   line-height: 1.5;
   user-select: text;
   -webkit-user-select: text;
@@ -108,11 +108,11 @@
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  padding: 8px 10px 8px 12px;
+  padding: var(--spacing-2) 10px var(--spacing-2) var(--spacing-3);
   background-color: var(--color-surface-container);
   border-right: 1px solid var(--color-outline-variant);
   color: var(--color-on-surface-variant);
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   line-height: 1.5;
   min-width: 2em;
   flex-shrink: 0;
@@ -128,7 +128,7 @@
 .code-block-content {
   flex: 1;
   margin: 0;
-  padding: 8px 12px;
+  padding: var(--spacing-2) var(--spacing-3);
   overflow-x: auto;
   white-space: pre;
   word-wrap: normal;
@@ -153,7 +153,7 @@
   padding: 10px 14px;
   border-radius: var(--shape-small, 4px);
   border-left: 3px solid;
-  font-size: 14px;
+  font-size: var(--font-size-base);
   line-height: 1.5;
   user-select: text;
   -webkit-user-select: text;
@@ -163,11 +163,11 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
+  width: var(--icon-size-md);
+  height: var(--icon-size-md);
   flex-shrink: 0;
   margin-top: 1px;
-  font-size: 16px;
+  font-size: var(--font-size-md);
 }
 
 .callout-text {
@@ -201,19 +201,19 @@
 /* ==================== Backlink Preview ==================== */
 
 .block-after-content__backlinks {
-  margin-top: 4px;
+  margin-top: var(--spacing-1);
 }
 
 .backlink-badge {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--spacing-1);
   padding: 0 6px;
-  border-radius: 4px;
-  font-size: 11px;
+  border-radius: var(--shape-small);
+  font-size: var(--font-size-xs);
   font-weight: 500;
   line-height: 18px;
-  height: 18px;
+  height: var(--icon-size-md);
   color: var(--color-on-surface-variant);
   background: transparent;
   border: none;
@@ -231,26 +231,26 @@
 }
 
 .backlink-chevron {
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   opacity: 0.7;
 }
 
 .backlink-preview {
   margin-top: 6px;
-  padding: 4px 0;
+  padding: var(--spacing-1) 0;
 }
 
 /* ==================== Query Preview ==================== */
 
 .block-after-content__query {
   margin-top: 6px;
-  padding: 4px 0;
+  padding: var(--spacing-1) 0;
   user-select: text;
   -webkit-user-select: text;
 }
 
 .query-block-controls {
-  margin-bottom: 8px;
+  margin-bottom: var(--spacing-2);
 }
 
 .query-block-results {
@@ -292,7 +292,7 @@
 }
 
 .table-block-empty {
-  padding: 12px 16px;
+  padding: var(--spacing-3) var(--spacing-4);
   color: var(--color-on-surface-variant);
   font-style: italic;
   font-size: 0.9em;
@@ -302,7 +302,7 @@
 
 .embed-block-card {
   position: relative;
-  margin: 6px 0 4px;
+  margin: 6px 0 var(--spacing-1);
   border: 2px dashed var(--color-outline-variant);
   border-radius: var(--shape-medium);
   background: var(--color-surface-variant, rgba(0, 0, 0, 0.03));
@@ -315,7 +315,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 10px 4px;
+  padding: 6px 10px var(--spacing-1);
   border-bottom: 1px dashed var(--color-outline-variant);
   font-size: 0.75rem;
   letter-spacing: 0.03em;
@@ -328,7 +328,7 @@
   align-items: center;
   opacity: 0.65;
   flex-shrink: 0;
-  font-size: 14px;
+  font-size: var(--font-size-base);
 }
 
 .embed-block-header__label {
@@ -340,8 +340,8 @@
 }
 
 .embed-block-content {
-  padding: 8px 12px;
-  font-size: 14px;
+  padding: var(--spacing-2) var(--spacing-3);
+  font-size: var(--font-size-base);
   line-height: 1.5;
 }
 
@@ -356,6 +356,6 @@
 }
 
 .embed-block-empty {
-  padding: 8px 0;
+  padding: var(--spacing-2) 0;
   color: var(--color-on-surface-variant);
 }

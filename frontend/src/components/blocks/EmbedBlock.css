@@ -6,7 +6,7 @@
 
 .embed-block-card {
   position: relative;
-  margin: 4px 0;
+  margin: var(--spacing-1) 0;
   border: 2px dashed var(--color-outline-variant);
   border-radius: var(--shape-medium);
   background: var(--color-surface-variant, rgba(0,0,0,0.03));
@@ -31,7 +31,7 @@
   display: flex;
   align-items: center;
   gap: var(--spacing-2);
-  padding: 6px 10px 4px 10px;
+  padding: 6px 10px var(--spacing-1) 10px;
   border-bottom: 1px dashed var(--color-outline-variant);
   font: var(--font-label-small);
   color: var(--color-on-surface-variant);
@@ -70,7 +70,7 @@
 /* ─── Embed content area ───────────────────────────────────────── */
 
 .embed-block-content {
-  padding: 4px 0;
+  padding: var(--spacing-1) 0;
 }
 
 /* Inner editor adjustments inside embed */
@@ -87,7 +87,7 @@
 
 .embed-block-loading,
 .embed-block-error {
-  padding: 12px 16px;
+  padding: var(--spacing-3) var(--spacing-4);
   font: var(--font-body-small);
   color: var(--color-on-surface-variant);
   opacity: 0.6;
@@ -104,5 +104,5 @@
   font-size: 0.8em;
   border: 1px dashed var(--color-outline-variant);
   border-radius: var(--shape-extra-small);
-  padding: 0 4px;
+  padding: 0 var(--spacing-1);
 }

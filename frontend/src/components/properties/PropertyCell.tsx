@@ -22,6 +22,8 @@ import { UrlPropertyCell } from './UrlPropertyCell';
 import { EmailPropertyCell } from './EmailPropertyCell';
 import { DatePropertyCell } from './DatePropertyCell';
 import { ImageNode } from '@/components/nodes/ImageNode';
+import { getPropertyValueRenderer } from './propertyValueRegistry';
+import './registerPropertyRenderers';
 import './PropertyCell.css';
 
 interface PropertyCellProps {
@@ -58,31 +60,11 @@ export function PropertyCell({
   // Format value for display (used for non-node, non-selection types)
   const displayValue = useMemo(() => {
     if (value === null || value === undefined) return '';
-
-    switch (property.type) {
-      case 'boolean':
-        return value ? '✓' : '';
-      case 'integer':
-      case 'float':
-        return String(value);
-      case 'text':
-        // Text properties are block node IDs - handled separately with Block component
-        return '';
-      case 'selection':
-        // Handled separately with pills
-        return '';
-      case 'node':
-        // Handled separately with Block or pills
-        return '';
-      case 'image':
-        // Handled separately with ImageNode
-        return '';
-      case 'url':
-      case 'email':
-        return '';
-      default:
-        return String(value);
+    const renderer = getPropertyValueRenderer(property.type);
+    if (renderer) {
+      return renderer.formatValue(value);
     }
+    return String(value);
   }, [value, property.type]);
 
   // Start editing
@@ -104,20 +86,17 @@ export function PropertyCell({
 
     // Convert value based on property type
     let finalValue: unknown;
-    switch (property.type) {
-      case 'integer':
-        finalValue = parseInt(editValue, 10);
-        if (isNaN(finalValue as number)) return;
-        break;
-      case 'float':
-        finalValue = parseFloat(editValue);
-        if (isNaN(finalValue as number)) return;
-        break;
-      case 'boolean':
-        finalValue = editValue === 'true' || editValue === '✓' || editValue === '1';
-        break;
-      default:
-        finalValue = editValue;
+    const renderer = getPropertyValueRenderer(property.type);
+    if (renderer && property.type === 'integer') {
+      finalValue = parseInt(editValue, 10);
+      if (isNaN(finalValue as number)) return;
+    } else if (renderer && property.type === 'float') {
+      finalValue = parseFloat(editValue);
+      if (isNaN(finalValue as number)) return;
+    } else if (renderer && property.type === 'boolean') {
+      finalValue = editValue === 'true' || editValue === '✓' || editValue === '1';
+    } else {
+      finalValue = editValue;
     }
 
     // Validate against validation_rules

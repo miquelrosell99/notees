@@ -3,7 +3,7 @@
  */
 
 .suggestion-popup {
-  width: 280px;
+  width: var(--modal-width-xs);
   max-width: 90vw;
   background: var(--color-surface);
   border: 1px solid var(--color-outline-variant);
@@ -40,13 +40,13 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
+  width: var(--icon-size-md);
+  height: var(--icon-size-md);
   background: var(--color-surface-container-high);
   color: var(--color-on-surface);
   border-radius: var(--shape-extra-small);
   font-weight: 600;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
 }
 
 .suggestion-popup__filter-hint {
@@ -113,7 +113,7 @@
   text-overflow: ellipsis;
   direction: rtl;
   text-align: left;
-  padding-left: 26px;
+  padding-left: calc(var(--spacing-6) + 2px);
   margin-bottom: 1px;
 }
 
@@ -149,8 +149,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 18px;
-  height: 18px;
+  width: var(--icon-size-md);
+  height: var(--icon-size-md);
   color: var(--color-on-surface-variant);
   flex-shrink: 0;
 }
@@ -206,7 +206,7 @@
   align-items: center;
   gap: 3px;
   flex-shrink: 0;
-  margin-left: 4px;
+  margin-left: var(--spacing-1);
 }
 
 .suggestion-popup__item-class-pill {
@@ -267,7 +267,7 @@
 }
 
 .suggestion-popup__hint kbd {
-  padding: 1px 4px;
+  padding: 1px var(--spacing-1);
   background: var(--color-surface);
   border: 1px solid var(--color-outline-variant);
   border-radius: 3px;
@@ -279,7 +279,7 @@
 .inline-class,
 .inline-tag {
   display: inline;
-  padding: 1px 4px;
+  padding: 1px var(--spacing-1);
   border-radius: var(--shape-extra-small);
   font: var(--font-label-medium);
   cursor: pointer;
@@ -318,7 +318,7 @@
   display: inline-flex;
   align-items: center;
   gap: var(--spacing-1);
-  padding: 2px 8px;
+  padding: 2px var(--spacing-2);
   border-radius: var(--shape-full);
   font: var(--font-label-small);
   cursor: pointer;
@@ -349,8 +349,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 14px;
-  height: 14px;
+  width: var(--icon-size-xs);
+  height: var(--icon-size-xs);
   margin-left: 2px;
   border-radius: 50%;
   background: transparent;

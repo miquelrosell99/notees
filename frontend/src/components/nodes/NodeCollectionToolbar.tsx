@@ -246,14 +246,15 @@ export function NodeCollectionToolbar({
           {groupByLabel && onGroupByChange && (
             <span className="node-collection-toolbar__group-by-badge">
               <span className="node-collection-toolbar__group-by-badge-label">Group: {groupByLabel}</span>
-              <button
+              <Button
+                variant="ghost"
+                size="xs"
+                iconOnly
+                icon="mdi mdi-close"
                 className="node-collection-toolbar__group-by-badge-close"
                 onClick={() => onGroupByChange('none')}
                 title="Clear grouping"
-                type="button"
-              >
-                <Icon path={"mdi mdi-close"} size={0.6} />
-              </button>
+              />
             </span>
           )}
 

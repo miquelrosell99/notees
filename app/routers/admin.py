@@ -6,6 +6,7 @@ System-level admin endpoints for user management and metrics.
 from fastapi import APIRouter, Depends, HTTPException
 
 from .. import auth
+from ..auth import hash_password
 from ..db.connection import get_connection, get_data_dir
 from ..logging_config import get_logger
 from ..models import AdminUserCreate, AdminUserUpdate
@@ -93,6 +94,8 @@ async def update_user(
         updates: dict[str, object] = {}
         if data.email is not None:
             updates["email"] = data.email
+        if data.password is not None:
+            updates["hashed_password"] = hash_password(data.password)
         if data.name is not None:
             updates["name"] = data.name
         if data.surnames is not None:

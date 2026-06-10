@@ -54,6 +54,8 @@ import { NodeMetadataSection } from '../components/nodes/NodeMetadataSection';
 import { Modal } from '../components/core/Modal';
 import { TableIcon, PageIcon, LinkIcon, SearchIcon } from '../components/core/icons';
 import { Button } from '../components/core/Button';
+import { getPropertyValueRenderer } from '../components/properties/propertyValueRegistry';
+import '../components/properties/registerPropertyRenderers';
 import { BlockPresenceOverlay } from '../components/collab/BlockPresenceOverlay';
 
 import { NodeBreadcrumbs } from '../components/nodes/NodeBreadcrumbs';
@@ -570,24 +572,10 @@ export function NodeView({
     const targetNodeId = propertyTargetNodeId ?? node.id;
     
     // Set a default value based on property type
-    let defaultValue: unknown;
-    switch (property.type) {
-      case 'boolean':
-        defaultValue = false;
-        break;
-      case 'integer':
-      case 'float':
-        defaultValue = 0;
-        break;
-      case 'text':
-      case 'selection':
-        defaultValue = '';
-        break;
-      case 'node':
-      case 'date':
-      default:
-        defaultValue = '';
-        break;
+    const renderer = getPropertyValueRenderer(property.type);
+    let defaultValue: unknown = renderer?.getDefaultValue() ?? '';
+    if (defaultValue === null || defaultValue === undefined) {
+      defaultValue = '';
     }
     setPropertyMutation.mutate({ nodeId: targetNodeId, propertyId: property.id, value: defaultValue });
     setShowPropertyPopup(false);
@@ -1131,15 +1119,17 @@ export function NodeView({
               onMouseEnter={() => setIsBannerHovered(true)}
               onMouseLeave={() => setIsBannerHovered(false)}
             >
-            <button
+            <Button
+              variant="ghost"
+              size="xs"
+              iconOnly
+              icon="mdi mdi-chevron-down"
               className="node-view__banner-collapse-btn"
               onClick={handleToggleBannerCollapse}
               title={isBannerCollapsed ? "Expand banner image" : "Collapse banner"}
               aria-label={isBannerCollapsed ? "Expand banner image" : "Collapse banner image"}
               aria-expanded={!isBannerCollapsed}
-            >
-              <Icon path={"mdi mdi-chevron-down"} size={0.7} rotate={isBannerCollapsed ? 0 : 180} />
-            </button>
+            />
             
             <div 
               className={`node-view__banner-content ${isBannerCollapsed ? 'node-view__banner-content--collapsed' : 'node-view__banner-content--expanded'}`}
@@ -1198,15 +1188,17 @@ export function NodeView({
               onMouseEnter={() => setIsCoverHovered(true)}
               onMouseLeave={() => setIsCoverHovered(false)}
             >
-              <button
+              <Button
+                variant="ghost"
+                size="xs"
+                iconOnly
+                icon="mdi mdi-chevron-left"
                 className="node-view__cover-collapse-btn"
                 onClick={handleToggleCoverCollapse}
                 title={isCoverCollapsed ? "Expand cover image" : "Collapse cover"}
                 aria-label={isCoverCollapsed ? "Expand cover image" : "Collapse cover image"}
                 aria-expanded={!isCoverCollapsed}
-              >
-                <Icon path={"mdi mdi-chevron-left"} size={0.7} rotate={isCoverCollapsed ? 0 : 180} />
-              </button>
+              />
               
               <div 
                 className={`node-view__cover-content ${isCoverCollapsed ? 'node-view__cover-content--collapsed' : 'node-view__cover-content--expanded'}`}
@@ -1231,13 +1223,15 @@ export function NodeView({
                     showModalBullet={true}
                   />
                 ) : (
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    iconOnly
+                    icon="mdi mdi-image-outline"
                     className="node-view__cover-add-btn"
                     onClick={handleSelectCoverImage}
                     title="Add cover image"
-                  >
-                    <Icon path={"mdi mdi-image-outline"} size={0.8} />
-                  </button>
+                  />
                 )}
               </div>
             </div>

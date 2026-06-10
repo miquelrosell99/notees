@@ -391,6 +391,7 @@ export const BlockRow = memo(
             title="Collapse/expand all children"
           />
         )}
+        <div className="block-row__left">
         <BlockUI
           node={node}
           icon={bulletIcon}
@@ -418,7 +419,8 @@ export const BlockRow = memo(
             ))}
           </div>
         )}
-        <div className="block-row__body">
+      </div>
+      <div className="block-row__body">
           {hasClasses ? (
             <div className="block-row__content-line">
               <div className="block-row__content">

@@ -22,13 +22,13 @@
 }
 
 .export-modal__tab {
-  padding: 5px 16px;
+  padding: 5px var(--spacing-4);
   font-size: var(--font-size-sm);
   font-family: inherit;
   font-weight: 500;
   background: transparent;
   border: none;
-  border-radius: calc(var(--shape-medium) - 2px);
+  border-radius: calc(var(--shape-medium) - var(--shape-extra-small));
   color: var(--color-on-surface-variant);
   cursor: pointer;
   transition:
@@ -204,7 +204,7 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 4px;
+  gap: var(--spacing-1);
   flex: 1;
   padding: var(--spacing-2) var(--spacing-1);
   background: var(--color-surface-container-high);
@@ -246,8 +246,8 @@
 }
 
 .export-modal__qr-image {
-  width: 256px;
-  height: 256px;
+  width: var(--qr-size);
+  height: var(--qr-size);
   image-rendering: pixelated;
   border: 1px solid var(--color-outline-variant);
   border-radius: var(--shape-small);
@@ -296,13 +296,13 @@
 }
 
 .export-modal__view-btn {
-  padding: 4px 14px;
+  padding: var(--spacing-1) 14px;
   font-size: var(--font-size-sm);
   font-family: inherit;
   font-weight: 500;
   background: transparent;
   border: none;
-  border-radius: calc(var(--shape-medium) - 2px);
+  border-radius: calc(var(--shape-medium) - var(--shape-extra-small));
   color: var(--color-on-surface-variant);
   cursor: pointer;
   transition:

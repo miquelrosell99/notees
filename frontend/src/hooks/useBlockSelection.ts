@@ -171,7 +171,7 @@ export function useBlockSelection({ containerRef, blockIds, readOnly }: UseBlock
     const handleMouseDown = (e: MouseEvent) => {
       if (useInputContext.getState().isOverlayOpen) return;
       const target = e.target as HTMLElement;
-      if (target.closest('.bullet-wrapper') || target.closest('.bullet-collapse-arrow')) return;
+      if (target.closest('.bullet-wrapper') || target.closest('.block-collapse-arrow')) return;
       const blockEl = target.closest('[data-block-id]') as HTMLElement;
       if (!blockEl) return;
       const blockId = blockEl.getAttribute('data-block-id');

@@ -10,7 +10,7 @@
   background: var(--color-surface-container);
   border: 1px solid var(--color-outline-variant);
   border-radius: var(--shape-large);
-  padding: 4px;
+  padding: var(--spacing-1);
   gap: 2px;
 }
 
@@ -43,11 +43,13 @@
 /* Option buttons */
 .selection-button__option {
   position: relative;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   background: transparent;
   border: none;
+  padding: 0;
+  aspect-ratio: 1;
   border-radius: var(--shape-medium);
   color: var(--color-on-surface-variant);
   cursor: pointer;
@@ -68,14 +70,25 @@
   color: var(--color-on-primary);
 }
 
+/* Ensure SVG icons are perfectly centered inside flex button */
+.selection-button__option svg,
+.selection-button__overflow-toggle svg {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
 /* Overflow toggle button */
 .selection-button__overflow-toggle {
   position: relative;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   background: transparent;
   border: none;
+  padding: 0;
+  aspect-ratio: 1;
   border-radius: var(--shape-medium);
   color: var(--color-on-surface-variant);
   cursor: pointer;
@@ -108,7 +121,7 @@
   flex-direction: column;
   gap: 2px;
   min-width: 160px;
-  padding: 4px;
+  padding: var(--spacing-1);
   background: var(--color-surface);
   border: 1px solid var(--color-outline-variant);
   border-radius: var(--shape-medium);
@@ -147,18 +160,12 @@
 /* Size variants */
 .selection-button--sm .selection-button__option,
 .selection-button--sm .selection-button__overflow-toggle {
-  width: 28px;
-  height: 28px;
+  width: var(--selection-btn-size-sm);
+  height: var(--selection-btn-size-sm);
 }
 
-/* Mobile: slightly smaller view-mode switcher to save header space */
+/* Mobile: tighter padding to save header space */
 @media (max-width: 768px) {
-  .selection-button--sm .selection-button__option,
-  .selection-button--sm .selection-button__overflow-toggle {
-    width: 26px;
-    height: 26px;
-  }
-
   .selection-button--sm {
     padding: 2px;
   }
@@ -171,14 +178,14 @@
 
 .selection-button--md .selection-button__option,
 .selection-button--md .selection-button__overflow-toggle {
-  width: 34px;
-  height: 34px;
+  width: var(--selection-btn-size-md);
+  height: var(--selection-btn-size-md);
 }
 
 .selection-button--lg .selection-button__option,
 .selection-button--lg .selection-button__overflow-toggle {
-  width: 42px;
-  height: 42px;
+  width: var(--selection-btn-size-lg);
+  height: var(--selection-btn-size-lg);
 }
 
 /* Wrapper with label layout */

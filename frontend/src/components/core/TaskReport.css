@@ -3,14 +3,14 @@
 .task-report {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--spacing-4);
 }
 
 .task-report__summary {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 12px 16px;
+  padding: var(--spacing-3) var(--spacing-4);
   border-radius: var(--shape-medium);
   font-size: var(--font-size-sm);
 }
@@ -54,7 +54,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 8px 12px;
+  padding: var(--spacing-2) var(--spacing-3);
   background: var(--color-surface-container-low);
   font-size: var(--font-size-sm);
   user-select: none;
@@ -76,7 +76,7 @@
 .task-report__phase-counts {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--spacing-2);
   font-size: var(--font-size-xs);
 }
 
@@ -96,12 +96,12 @@
 
 .task-report__phase-errors {
   margin: 0;
-  padding: 8px 12px 8px 24px;
+  padding: var(--spacing-2) var(--spacing-3) var(--spacing-2) var(--spacing-6);
   background: color-mix(in srgb, var(--color-error) 5%, transparent);
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--spacing-1);
 }
 
 .task-report__phase-error {

@@ -12,7 +12,7 @@
  */
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { useCommandRegistry } from './commandRegistry';
+import { useCommandRegistry, type ShortcutContext } from './commandRegistry';
 
 /**
  * Modifier keys that can be combined with other keys
@@ -45,17 +45,6 @@ export interface ShortcutDefinition {
   /** Priority for conflict resolution (higher = handled first) */
   priority?: number;
 }
-
-/**
- * Contexts for shortcut activation
- */
-export type ShortcutContext =
-  | 'global'        // Always active
-  | 'editor'        // Active when editing a block
-  | 'selection'     // Active when blocks are selected
-  | 'modal'         // Active when a modal is open
-  | 'sidebar'       // Active when sidebar is focused
-  | 'search';       // Active when search is focused
 
 /**
  * Built-in shortcut IDs

@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import type { ShortcutContext } from '@/stores/keyboardStore';
+import type { ShortcutContext } from '@/stores/commandRegistry';
 import { useCommandRegistry, type Command } from '@/stores/commandRegistry';
 
 interface UseCommandOptions {

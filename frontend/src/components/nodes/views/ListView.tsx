@@ -556,6 +556,7 @@ function ListViewGroup({
   nodeUuid?: string;
   nodeId?: number;
   showClasses?: boolean;
+  expandAll?: boolean;
 }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   

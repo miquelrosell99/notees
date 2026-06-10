@@ -279,9 +279,7 @@ export function DatePickerPopup({
 
       {/* Month nav header (same as CalendarPopup) */}
       <div className="calendar-header">
-        <Button variant="ghost" size="xs" className="calendar-nav-btn" onClick={goToPreviousMonth}>
-          ‹
-        </Button>
+        <Button variant="ghost" size="sm" iconOnly icon="mdi mdi-chevron-left" aria-label="Previous month" className="calendar-nav-btn" onClick={goToPreviousMonth} />
         <div className="calendar-title">
           <span className="calendar-month-btn" style={{ cursor: 'default' }}>
             {MONTHS[currentMonth]}
@@ -290,9 +288,7 @@ export function DatePickerPopup({
             {currentYear}
           </span>
         </div>
-        <Button variant="ghost" size="xs" className="calendar-nav-btn" onClick={goToNextMonth}>
-          ›
-        </Button>
+        <Button variant="ghost" size="sm" iconOnly icon="mdi mdi-chevron-right" aria-label="Next month" className="calendar-nav-btn" onClick={goToNextMonth} />
       </div>
 
       {/* Weekday labels */}

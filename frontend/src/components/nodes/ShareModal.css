@@ -148,7 +148,7 @@
 }
 
 .share-modal__invite-permission {
-  width: 120px;
+  width: var(--panel-width-sm);
 }
 
 .share-modal__people-list {

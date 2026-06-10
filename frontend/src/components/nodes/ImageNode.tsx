@@ -152,6 +152,7 @@ export function ImageNode({
       key={imageUrl}
       src={imageUrl}
       alt={alt}
+      loading="lazy"
       className="image-node__img"
       onClick={handleImageClick}
       style={{

@@ -239,8 +239,8 @@
 }
 
 .workspace-management__spinner {
-  width: 32px;
-  height: 32px;
+  width: var(--icon-size-xl);
+  height: var(--height-md);
   border: 3px solid var(--color-outline-variant);
   border-top-color: var(--color-primary);
   border-radius: 50%;

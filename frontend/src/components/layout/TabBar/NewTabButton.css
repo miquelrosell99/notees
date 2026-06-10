@@ -6,9 +6,9 @@
 }
 
 .new-tab-button__btn {
-  width: 28px;
-  height: 28px;
-  border-radius: 6px;
+  width: var(--icon-size-xl);
+  height: var(--height-sm);
+  border-radius: var(--shape-medium);
   color: var(--color-text-muted);
 }
 

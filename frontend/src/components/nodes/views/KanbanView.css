@@ -99,7 +99,7 @@
   align-items: center;
   justify-content: center;
   min-width: 24px;
-  height: 24px;
+  height: var(--height-xs);
   padding: 0 var(--spacing-2);
   background: var(--color-surface-container-highest);
   border-radius: var(--shape-full);
@@ -156,7 +156,7 @@
 
 .node-kanban-view__kanban-column--collapsed {
   min-width: auto;
-  width: 48px;
+  width: var(--spacing-12);
   align-items: center;
 }
 
@@ -210,6 +210,6 @@
 
 .node-kanban-view__kanban-card--overlay {
   opacity: 1;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  box-shadow: none;
   transform: rotate(2deg);
 }

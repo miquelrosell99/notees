@@ -59,7 +59,7 @@ export function EmailPropertyValue({ value, readOnly, onChange, validationRules 
           {strValue}
         </a>
         {!readOnly && (
-          <button type="button" className="property-link-edit hover-reveal" onClick={() => { setEditValue(strValue); setValidationError(null); setIsEditing(true); }} title="Edit email">✎</button>
+          <Button variant="ghost" size="xs" iconOnly icon="mdi mdi-pencil" className="property-link-edit hover-reveal" onClick={() => { setEditValue(strValue); setValidationError(null); setIsEditing(true); }} title="Edit email" />
         )}
       </span>
     );

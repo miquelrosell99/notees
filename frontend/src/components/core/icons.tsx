@@ -56,10 +56,6 @@ export const AlertIcon = ({ size = 'md', className, color, title }: IconProps) =
   <Icon path="mdi-alert-outline" size={getSize(size)} className={className} color={color} title={title} />
 );
 
-export const WifiOffIcon = ({ size = 'md', className, color, title }: IconProps) => (
-  <Icon path="mdi-wifi-off" size={getSize(size)} className={className} color={color} title={title} />
-);
-
 export const SyncIcon = ({ size = 'md', className, color, title }: IconProps) => (
   <Icon path="mdi-sync" size={getSize(size)} className={className} color={color} title={title} />
 );
@@ -92,14 +88,6 @@ export const MapIcon = ({ size = 'md', className, color, title }: IconProps) => 
 
 export const ArchiveIcon = ({ size = 'md', className, color, title }: IconProps) => (
   <Icon path="mdi-archive-outline" size={getSize(size)} className={className} color={color} title={title} />
-);
-
-export const TaskIcon = ({ size = 'md', className, color, title }: IconProps) => (
-  <Icon path="mdi-checkbox-marked-circle-outline" size={getSize(size)} className={className} color={color} title={title} />
-);
-
-export const TemplateIcon = ({ size = 'md', className, color, title }: IconProps) => (
-  <Icon path="mdi-file-document-multiple-outline" size={getSize(size)} className={className} color={color} title={title} />
 );
 
 // Tag and property icons
@@ -152,10 +140,6 @@ export const TrashIcon = ({ size = 'md', className, color, title }: IconProps) =
   <Icon path="mdi-trash-can-outline" size={getSize(size)} className={className} color={color} title={title} />
 );
 
-export const RestoreIcon = ({ size = 'md', className, color, title }: IconProps) => (
-  <Icon path="mdi-restore" size={getSize(size)} className={className} color={color} title={title} />
-);
-
 export const CloseIcon = ({ size = 'md', className, color, title }: IconProps) => (
   <Icon path="mdi-close" size={getSize(size)} className={className} color={color} title={title} />
 );
@@ -164,16 +148,8 @@ export const CommentIcon = ({ size = 'md', className, color, title }: IconProps)
   <Icon path="mdi-comment-text-outline" size={getSize(size)} className={className} color={color} title={title} />
 );
 
-export const ReplyIcon = ({ size = 'md', className, color, title }: IconProps) => (
-  <Icon path="mdi-reply" size={getSize(size)} className={className} color={color} title={title} />
-);
-
 export const SendIcon = ({ size = 'md', className, color, title }: IconProps) => (
   <Icon path="mdi-send" size={getSize(size)} className={className} color={color} title={title} />
-);
-
-export const ResolveIcon = ({ size = 'md', className, color, title }: IconProps) => (
-  <Icon path="mdi-check-circle-outline" size={getSize(size)} className={className} color={color} title={title} />
 );
 
 export const ImageIcon = ({ size = 'md', className, color, title }: IconProps) => (
@@ -192,10 +168,6 @@ export const CopyIcon = ({ size = 'md', className, color, title }: IconProps) =>
   <Icon path="mdi-content-copy" size={getSize(size)} className={className} color={color} title={title} />
 );
 
-export const SettingsIcon = ({ size = 'md', className, color, title }: IconProps) => (
-  <Icon path="mdi-cog" size={getSize(size)} className={className} color={color} title={title} />
-);
-
 // Graph view icons
 export const ForceGraphIcon = ({ size = 'md', className, color, title }: IconProps) => (
   <Icon path="mdi-vector-polygon" size={getSize(size)} className={className} color={color} title={title} />
@@ -205,16 +177,8 @@ export const CircleLayoutIcon = ({ size = 'md', className, color, title }: IconP
   <Icon path="mdi-circle-outline" size={getSize(size)} className={className} color={color} title={title} />
 );
 
-export const TreeLayoutIcon = ({ size = 'md', className, color, title }: IconProps) => (
-  <Icon path="mdi-file-tree-outline" size={getSize(size)} className={className} color={color} title={title} />
-);
-
 export const FitToScreenIcon = ({ size = 'md', className, color, title }: IconProps) => (
   <Icon path="mdi-fit-to-screen" size={getSize(size)} className={className} color={color} title={title} />
-);
-
-export const RefreshIcon = ({ size = 'md', className, color, title }: IconProps) => (
-  <Icon path="mdi-refresh" size={getSize(size)} className={className} color={color} title={title} />
 );
 
 export const MoreIcon = ({ size = 'md', className, color, title }: IconProps) => (
@@ -263,10 +227,6 @@ export const StarIcon = ({ size = 'md', className, color, title }: IconProps) =>
   <Icon path="mdi-star" size={getSize(size)} className={className} color={color} title={title} />
 );
 
-export const StarOutlineIcon = ({ size = 'md', className, color, title }: IconProps) => (
-  <Icon path="mdi-star-outline" size={getSize(size)} className={className} color={color} title={title} />
-);
-
 export const ClockIcon = ({ size = 'md', className, color, title }: IconProps) => (
   <Icon path="mdi-clock-outline" size={getSize(size)} className={className} color={color} title={title} />
 );
@@ -277,10 +237,6 @@ export const TableIcon = ({ size = 'md', className, color, title }: IconProps) =
 
 export const CodeIcon = ({ size = 'md', className, color, title }: IconProps) => (
   <Icon path="mdi-code-tags" size={getSize(size)} className={className} color={color} title={title} />
-);
-
-export const PinIcon = ({ size = 'md', className, color, title }: IconProps) => (
-  <Icon path="mdi-pin-outline" size={getSize(size)} className={className} color={color} title={title} />
 );
 
 export const CheckboxCheckedIcon = ({ size = 'md', className, color, title }: IconProps) => (

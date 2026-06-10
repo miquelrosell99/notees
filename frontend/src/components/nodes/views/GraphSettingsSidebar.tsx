@@ -1,7 +1,6 @@
 import { Button } from '@/components/core/Button';
 import { SelectionButton } from '@/components/core/SelectionButton';
 import { BooleanToggle } from '@/components/core/BooleanToggle';
-import { Icon } from '@/components/core/Icon';
 import { ListSortable } from '@/components/core/ListSortable';
 import { ColorButton } from '@/components/core/ColorButton';
 import type { ColorEntry } from '@/components/core/ColorButton';
@@ -67,14 +66,15 @@ export function GraphSettingsSidebar({
     <div className="graph-sidebar">
       <div className="graph-sidebar-header">
         <span className="graph-sidebar-header__title">Graph</span>
-        <button
+        <Button
+          variant="ghost"
+          size="sm"
+          iconOnly
+          icon="mdi mdi-chevron-left"
           className="graph-sidebar-header__collapse"
           onClick={onCollapse}
-          type="button"
           title="Collapse sidebar"
-        >
-          <Icon path="mdi-chevron-left" />
-        </button>
+        />
       </div>
 
       {localGraphMode && (

@@ -7,7 +7,6 @@
  * Previously named "Panel" - renamed to "Card" for better semantic meaning.
  */
 import { forwardRef, type ReactNode, type HTMLAttributes } from 'react';
-import { Button } from './Button';
 import './Card.css';
 
 export type CardElevation = 'none' | 'low' | 'medium' | 'high';
@@ -78,14 +77,14 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(function Card(
   return (
     <div ref={ref} className={classes} {...rest}>
       {showCloseButton && (
-        <Button
-          icon={"mdi mdi-close"}
-          iconOnly
+        <button
+          type="button"
           className="card__close-btn"
           onClick={onClose}
-          size="sm"
-          variant="ghost"
-        />
+          aria-label="Close"
+        >
+          <span className="mdi mdi-close" />
+        </button>
       )}
       {children}
     </div>

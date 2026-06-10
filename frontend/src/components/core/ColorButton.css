@@ -42,8 +42,8 @@
 
 /* Size variants - match Button sizes */
 .color-btn--xs {
-  width: 28px;
-  height: 28px;
+  width: var(--icon-size-xl);
+  height: var(--height-sm);
   padding: 0;
   border-radius: var(--shape-medium);
 }
@@ -53,8 +53,8 @@
 }
 
 .color-btn--sm {
-  width: 32px;
-  height: 32px;
+  width: var(--icon-size-xl);
+  height: var(--height-md);
   padding: 0;
   border-radius: var(--shape-large);
 }
@@ -64,8 +64,8 @@
 }
 
 .color-btn--md {
-  width: 38px;
-  height: 38px;
+  width: var(--color-btn-size-md);
+  height: var(--height-lg);
   padding: 0;
   border-radius: var(--shape-large);
 }
@@ -75,8 +75,8 @@
 }
 
 .color-btn--lg {
-  width: 46px;
-  height: 46px;
+  width: var(--color-btn-size-lg);
+  height: var(--height-xl);
   padding: 0;
   border-radius: var(--shape-large);
 }
@@ -101,7 +101,7 @@
   background: var(--color-surface-container-high);
   border: 1px solid var(--color-outline-variant);
   border-radius: var(--shape-large);
-  padding: 8px;
+  padding: var(--spacing-2);
   min-width: 0;
 }
 
@@ -109,7 +109,7 @@
   display: grid;
   grid-template-columns: repeat(8, 1fr);
   gap: 2px;
-  margin-bottom: 8px;
+  margin-bottom: var(--spacing-2);
 }
 
 
@@ -119,7 +119,7 @@
   display: flex;
   gap: 6px;
   align-items: center;
-  padding-top: 8px;
+  padding-top: var(--spacing-2);
   border-top: 1px solid var(--color-outline-variant);
 }
 

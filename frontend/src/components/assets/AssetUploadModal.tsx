@@ -238,7 +238,7 @@ export function AssetUploadModal({
           ) : (
             <div className="asset-upload-modal__preview">
               {previewType === 'image' && preview && (
-                <img src={preview} alt="Preview" className="asset-upload-modal__preview-image" />
+                <img src={preview} alt="Preview" loading="lazy" className="asset-upload-modal__preview-image" />
               )}
               {previewType === 'audio' && preview && (
                 <div className="asset-upload-modal__preview-audio">

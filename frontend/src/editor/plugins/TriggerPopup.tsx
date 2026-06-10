@@ -21,8 +21,9 @@ import { SYSTEM_CLASS_UUIDS } from '@/constants';
 import { NodeResultItem } from '@/components/nodes/NodeResultItem';
 import { useCreateNode } from '@/hooks/useNodes';
 import { usePageClass, useClassClass } from '@/hooks/usePageClass';
+import { Button } from '@/components/core/Button';
 import { Spinner } from '@/components/core/Spinner';
-import { AddIcon, CloseIcon } from '@/components/core/icons';
+import { AddIcon } from '@/components/core/icons';
 import { Icon } from '@/components/core/Icon';
 import './TriggerPopup.css';
 
@@ -557,14 +558,15 @@ export function TriggerPopup({
             {filter.key}
             {filter.value && `: ${filter.value}`}
           </span>
-          <button
-            type="button"
+          <Button
+            variant="ghost"
+            size="xs"
+            iconOnly
+            icon="mdi mdi-close"
             className="trigger-popup__filter-pill-remove"
             onClick={() => removeFilter(filter.key)}
             title="Remove filter"
-          >
-            <CloseIcon size="xs" />
-          </button>
+          />
         </span>
       ))}
     </div>

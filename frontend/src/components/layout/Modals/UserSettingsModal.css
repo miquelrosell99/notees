@@ -32,8 +32,9 @@
 }
 
 .settings-accent-swatch {
-  width: 28px;
-  height: 28px;
+  width: var(--icon-size-xl);
+  height: var(--icon-size-xl);
+  aspect-ratio: 1;
   border-radius: 50%;
   border: 2px solid transparent;
   cursor: pointer;
@@ -76,7 +77,7 @@
 .settings-api-key-secret__value {
   display: block;
   font-family: 'JetBrains Mono', 'Fira Code', monospace;
-  font-size: 13px;
+  font-size: var(--font-size-button);
   word-break: break-all;
   background: var(--color-surface);
   padding: var(--spacing-2) var(--spacing-3);

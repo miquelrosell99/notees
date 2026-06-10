@@ -41,6 +41,7 @@ from pyrate_limiter.abstracts import BucketFactory, RateItem
 from pyrate_limiter.buckets import InMemoryBucket
 from pyrate_limiter.clocks import MonotonicClock
 from starlette.requests import Request
+from starlette.responses import RedirectResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from .backup import get_backup_scheduler
@@ -218,6 +219,63 @@ if settings.cors_origins:
         max_age=600,
     )
     logger.info(f"CORS enabled for origins: {settings.cors_origins}")
+
+
+# Security headers middleware
+@app.middleware("http")
+async def add_security_headers(request, call_next):
+    """Add security headers to all HTTP responses."""
+    response = await call_next(request)
+
+    # Prevent MIME type sniffing
+    response.headers["X-Content-Type-Options"] = "nosniff"
+
+    # Prevent clickjacking
+    response.headers["X-Frame-Options"] = "DENY"
+
+    # Control referrer information
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+
+    # Content Security Policy — permissive enough for the React SPA while blocking
+    # obvious injection vectors. Self-hosted apps may run on arbitrary origins so
+    # we do not hardcode a domain.
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline' blob:; "
+        "style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data: blob:; "
+        "font-src 'self' data:; "
+        "connect-src 'self' ws: wss:; "
+        "media-src 'self' blob:; "
+        "worker-src 'self' blob:; "
+        "frame-ancestors 'none';"
+    )
+
+    # HSTS — only in production (reload=False implies production)
+    if not settings.reload:
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+
+    return response
+
+
+# HTTPS redirect middleware (production only)
+@app.middleware("http")
+async def enforce_https(request, call_next):
+    """Redirect HTTP to HTTPS in production when not on localhost."""
+    if not settings.reload:
+        # Check if request is already HTTPS (direct or via reverse proxy)
+        forwarded_proto = request.headers.get("X-Forwarded-Proto")
+        is_https = (
+            request.url.scheme == "https"
+            or forwarded_proto == "https"
+        )
+        is_localhost = request.url.hostname in ("localhost", "127.0.0.1", "::1")
+
+        if not is_https and not is_localhost:
+            https_url = request.url.replace(scheme="https")
+            return RedirectResponse(str(https_url), status_code=307)
+
+    return await call_next(request)
 
 
 @app.get("/health")

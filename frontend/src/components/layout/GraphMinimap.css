@@ -6,8 +6,8 @@
   position: fixed;
   bottom: var(--spacing-4);
   right: var(--spacing-4);
-  width: 300px;
-  height: 220px;
+  width: var(--minimap-width);
+  height: var(--minimap-height);
   z-index: 1000;
   border-radius: var(--radius-lg);
   overflow: hidden;

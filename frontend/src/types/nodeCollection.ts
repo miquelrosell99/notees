@@ -245,6 +245,9 @@ export interface NodeCollectionProps {
 
   /** Default sort columns applied on initial render (user can clear/override) */
   defaultSort?: SortEntry[];
+
+  /** Force all nodes to be expanded, ignoring stored collapsed state. */
+  expandAll?: boolean;
 }
 
 // ==================== View-Specific Props ====================
@@ -528,4 +531,3 @@ export interface NodeCollectionContextValue {
   /** Maximum depth */
   maxDepth: number;
 }
-THIS_IS_A_TEST_SYNTAX_ERROR

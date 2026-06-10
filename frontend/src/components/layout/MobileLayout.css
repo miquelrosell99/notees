@@ -132,9 +132,9 @@
   position: fixed;
   bottom: calc(20px + env(safe-area-inset-bottom));
   right: 20px;
-  width: 56px;
-  height: 56px;
-  border-radius: 16px;
+  width: var(--height-2xl);
+  height: var(--height-2xl);
+  border-radius: var(--shape-button-large);
   border: none;
   background: var(--color-primary);
   color: var(--color-on-primary);

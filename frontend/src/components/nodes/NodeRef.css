@@ -73,7 +73,7 @@
   justify-content: center;
   padding: 0 var(--spacing-1);
   min-width: 14px;
-  height: 14px;
+  height: var(--icon-size-xs);
   font-size: 0.625rem;
   font-weight: 500;
   line-height: 1;
@@ -124,7 +124,7 @@
 .node-link-mount.inline-link--selected > .node-pill > .pill {
   outline: 2px solid var(--color-on-surface);
   outline-offset: 1px;
-  border-radius: 2px;
+  border-radius: var(--shape-extra-small);
 }
 
 /* Broken link indicator — shown when an inline node reference target is missing */

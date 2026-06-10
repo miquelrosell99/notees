@@ -47,13 +47,13 @@
 
 .notification-toast__icon {
   flex-shrink: 0;
-  width: 20px;
-  height: 20px;
+  width: var(--icon-size-md);
+  height: var(--icon-size-md);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
-  font-weight: bold;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
 }
 
 .notification-toast--success .notification-toast__icon {
@@ -95,8 +95,8 @@
 
 .notification-toast__dismiss {
   flex-shrink: 0;
-  width: 20px;
-  height: 20px;
+  width: var(--icon-size-md);
+  height: var(--icon-size-md);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -105,7 +105,7 @@
   color: var(--color-on-surface-variant);
   cursor: pointer;
   border-radius: var(--shape-small);
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   opacity: 0.6;
   transition: opacity var(--motion-duration-shorter) var(--motion-easing-standard);
 }

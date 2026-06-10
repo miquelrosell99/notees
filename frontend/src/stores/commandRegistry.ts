@@ -17,7 +17,20 @@
  */
 
 import { create } from 'zustand';
-import type { ShortcutContext } from './keyboardStore';
+
+/**
+ * Contexts for shortcut activation.
+ * Defined here (not in keyboardStore) to break a circular dependency:
+ * commandRegistry → keyboardStore (for ShortcutContext)
+ * keyboardStore → commandRegistry (for COMMAND_IDS)
+ */
+export type ShortcutContext =
+  | 'global'        // Always active
+  | 'editor'        // Active when editing a block
+  | 'selection'     // Active when blocks are selected
+  | 'modal'         // Active when a modal is open
+  | 'sidebar'       // Active when sidebar is focused
+  | 'search';       // Active when search is focused
 
 export interface Command {
   /** Unique identifier (e.g. 'commandPalette.open', 'page.find') */

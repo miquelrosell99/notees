@@ -55,8 +55,8 @@
 
 .radio-group__indicator {
   flex-shrink: 0;
-  width: 16px;
-  height: 16px;
+  width: var(--icon-size-sm);
+  height: var(--icon-size-sm);
   border-radius: 50%;
   border: 2px solid var(--color-outline);
   margin-top: 2px;
@@ -102,7 +102,7 @@
   font-size: 0.65rem;
   font-weight: 600;
   padding: 1px 6px;
-  border-radius: 100px;
+  border-radius: var(--shape-full);
   background: var(--color-surface-variant);
   color: var(--color-on-surface-variant);
   text-transform: uppercase;

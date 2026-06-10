@@ -62,23 +62,23 @@
   gap: var(--spacing-1);
   width: 100%;
   padding: 0 var(--spacing-3);
-  min-height: 32px;
+  min-height: var(--height-md);
 }
 
 /* Size variants */
 .select-trigger--sm .select-trigger__content {
   padding: 0 var(--spacing-3);
-  min-height: 32px;
+  min-height: var(--height-md);
 }
 
 .select-trigger--md .select-trigger__content {
   padding: 0 var(--spacing-4);
-  min-height: 38px;
+  min-height: var(--height-lg);
 }
 
 .select-trigger--lg .select-trigger__content {
   padding: 0 var(--spacing-5);
-  min-height: 46px;
+  min-height: var(--height-xl);
 }
 
 /* Value area (main content) */

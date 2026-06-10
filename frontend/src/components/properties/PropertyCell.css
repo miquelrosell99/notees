@@ -1,7 +1,7 @@
 .property-cell {
-  padding: 8px 12px;
-  min-height: 32px;
-  font-size: 13px;
+  padding: var(--spacing-2) var(--spacing-3);
+  min-height: var(--height-md);
+  font-size: var(--font-size-button);
   color: var(--color-on-surface);
   cursor: default;
   display: flex;
@@ -27,22 +27,22 @@
 .property-cell--node-multi {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
-  padding: 4px 8px;
+  gap: var(--spacing-1);
+  padding: var(--spacing-1) var(--spacing-2);
   position: relative;
 }
 
 .property-cell--loading {
-  padding: 8px 12px;
+  padding: var(--spacing-2) var(--spacing-3);
   color: var(--color-on-surface-variant);
-  font-size: 12px;
+  font-size: var(--font-size-sm);
 }
 
 .property-cell--selection {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
-  padding: 4px 8px;
+  gap: var(--spacing-1);
+  padding: var(--spacing-1) var(--spacing-2);
   position: relative;
 }
 
@@ -56,8 +56,8 @@
 .property-cell--image {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
-  padding: 4px;
+  gap: var(--spacing-1);
+  padding: var(--spacing-1);
 }
 
 .property-cell--image .image-node {
@@ -93,21 +93,21 @@
 
 .property-cell__checkbox {
   cursor: pointer;
-  width: 16px;
-  height: 16px;
+  width: var(--icon-size-sm);
+  height: var(--icon-size-sm);
 }
 
 .property-cell__input {
   width: 100%;
-  padding: 8px 12px;
+  padding: var(--spacing-2) var(--spacing-3);
   border: 2px solid var(--color-primary);
-  font-size: 13px;
+  font-size: var(--font-size-button);
   font-family: inherit;
   color: var(--color-on-surface);
   background: var(--color-surface);
   outline: none;
   resize: vertical;
-  min-height: 32px;
+  min-height: var(--height-md);
 }
 
 .property-cell__input:focus {
@@ -131,16 +131,16 @@ textarea.property-cell__input {
   max-height: 300px;
   overflow-y: auto;
   min-width: 200px;
-  margin-top: 4px;
+  margin-top: var(--spacing-1);
 }
 
 .property-cell__picker-option {
-  padding: 8px 12px;
+  padding: var(--spacing-2) var(--spacing-3);
   cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 13px;
+  gap: var(--spacing-2);
+  font-size: var(--font-size-button);
   color: var(--color-on-surface);
   transition: background var(--motion-duration-short) var(--motion-easing-standard);
 }
@@ -151,7 +151,7 @@ textarea.property-cell__input {
 
 .property-cell__add-button {
   min-width: 24px;
-  height: 24px;
+  height: var(--height-xs);
   padding: 0;
   display: flex;
   align-items: center;
@@ -177,7 +177,7 @@ textarea.property-cell__input {
 .property-cell__link {
   color: var(--color-primary);
   text-decoration: none;
-  font-size: 13px;
+  font-size: var(--font-size-button);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -193,6 +193,6 @@ textarea.property-cell__input {
 }
 
 .property-cell__date-name {
-  font-size: 13px;
+  font-size: var(--font-size-button);
   color: var(--color-on-surface);
 }

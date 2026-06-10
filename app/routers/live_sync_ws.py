@@ -176,16 +176,47 @@ async def _expire_lock(page_uuid: str, block_uuid: str, user_id: int) -> None:
         )
 
 
+async def _run_lock_timer(page_uuid: str, block_uuid: str, user_id: int) -> None:
+    """Module-level timer task for lock expiration.
+
+    Extracted from an inline closure to avoid capturing request-scoped
+    variables by reference (AGENTS.md / fastapi-patterns rule).
+    """
+    await asyncio.sleep(_LOCK_TIMEOUT_SECONDS)
+    await _expire_lock(page_uuid, block_uuid, user_id)
+
+
 def _schedule_lock_expiration(page_uuid: str, block_uuid: str, user_id: int) -> None:
     """Schedule a timer that will expire the lock after inactivity."""
     _cancel_lock_timer(page_uuid, block_uuid)
-
-    async def _timer() -> None:
-        await asyncio.sleep(_LOCK_TIMEOUT_SECONDS)
-        await _expire_lock(page_uuid, block_uuid, user_id)
-
     timers = _lock_timers.setdefault(page_uuid, {})
-    timers[block_uuid] = asyncio.create_task(_timer())
+    timers[block_uuid] = asyncio.create_task(
+        _run_lock_timer(page_uuid, block_uuid, user_id)
+    )
+
+
+async def _run_redis_loop(
+    page_uuid: str, user_id: int, connection: _LiveSyncConnection
+) -> None:
+    """Module-level Redis subscriber loop for cross-instance live sync.
+
+    Extracted from an inline closure to avoid capturing request-scoped
+    variables by reference (AGENTS.md / fastapi-patterns rule).
+    """
+    try:
+        async for raw in collab_pubsub.subscribe(f"live:{page_uuid}"):
+            try:
+                msg = json.loads(raw.decode())
+                # Skip echoes of our own messages
+                if msg.get("sender_id") == user_id:
+                    continue
+                # Remove internal sender_id before forwarding
+                msg.pop("sender_id", None)
+                await connection.send(msg)
+            except Exception:
+                pass
+    except Exception:
+        pass
 
 
 async def _send_users_list(conn: _LiveSyncConnection) -> None:
@@ -338,24 +369,9 @@ async def live_sync_websocket(
 
     # 5. Start Redis subscriber for cross-instance messages
     redis_task: asyncio.Task | None = None
-
-    async def _redis_loop() -> None:
-        try:
-            async for raw in collab_pubsub.subscribe(f"live:{page_uuid}"):
-                try:
-                    msg = json.loads(raw.decode())
-                    # Skip echoes of our own messages
-                    if msg.get("sender_id") == user_id:
-                        continue
-                    # Remove internal sender_id before forwarding
-                    msg.pop("sender_id", None)
-                    await connection.send(msg)
-                except Exception:
-                    pass
-        except Exception:
-            pass
-
-    redis_task = asyncio.create_task(_redis_loop())
+    redis_task = asyncio.create_task(
+        _run_redis_loop(page_uuid, user_id, connection)
+    )
 
     # 6. Main message loop
     try:

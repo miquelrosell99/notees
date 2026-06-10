@@ -2,6 +2,7 @@
  * TabItem — single tab in the tab bar.
  */
 import { useCallback, useRef, useState } from 'react';
+import { Button } from '@/components/core/Button';
 import { Icon } from '@/components/core/Icon';
 import type { Tab } from '@/stores/navigationStore';
 import { TabContextMenu } from './TabContextMenu';
@@ -93,16 +94,18 @@ export function TabItem({
           <span className="tab-item__label">{tab.label}</span>
         )}
         {canClose && (showClose || isActive) && !tab.pinned && (
-          <button
+          <Button
+            variant="ghost"
+            size="xs"
+            iconOnly
+            icon="mdi mdi-close"
             className="tab-item__close"
             onClick={(e) => {
               e.stopPropagation();
               onClose();
             }}
             title="Close tab"
-          >
-            <Icon path="mdi mdi-close" size={0.65} />
-          </button>
+          />
         )}
       </div>
       {contextMenu && (

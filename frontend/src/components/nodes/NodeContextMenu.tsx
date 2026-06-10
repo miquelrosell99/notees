@@ -29,6 +29,7 @@ import type { Node, NodeUpdate } from '@/types';
 import { EmojiPicker } from '@/components/core/EmojiPicker';
 import { getMdiClass } from '@/utils/iconDom';
 import { Icon } from '@/components/core/icons';
+import { Button } from '@/components/core/Button';
 import { ColorButton } from '@/components/core/ColorButton';
 import { getNodePickerPalette } from '@/components/nodes/views/viewTypes';
 import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
@@ -195,18 +196,19 @@ function IconColorPickerRow({ currentIcon, currentColor, isFavorited, onFavorite
         {renderTriggerValue()}
       </button>
       {onFavoriteToggle && (
-        <button
+        <Button
+          variant="ghost"
+          size="sm"
+          iconOnly
+          icon={isFavorited ? 'mdi mdi-star' : 'mdi mdi-star-outline'}
           className={`context-menu-favorite-btn ${isFavorited ? 'favorited' : ''}`}
           onClick={(e) => {
             e.stopPropagation();
             e.preventDefault();
             onFavoriteToggle();
           }}
-          type="button"
           title={isFavorited ? 'Remove from favorites' : 'Add to favorites'}
-        >
-          <Icon path={isFavorited ? 'mdi mdi-star' : 'mdi mdi-star-outline'} size={0.85} />
-        </button>
+        />
       )}
       <ColorButton
         color={currentColor || ''}

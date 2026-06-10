@@ -9,8 +9,8 @@
 }
 
 .group-by-selector__loading {
-  padding: 16px;
-  font-size: 13px;
+  padding: var(--spacing-4);
+  font-size: var(--font-size-button);
   color: var(--color-on-surface-variant);
 }
 
@@ -18,12 +18,12 @@
 .group-by-selector__header {
   display: flex;
   align-items: center;
-  padding: 12px 16px;
+  padding: var(--spacing-3) var(--spacing-4);
   border-bottom: 1px solid var(--color-outline-variant);
 }
 
 .group-by-selector__title {
-  font-size: 14px;
+  font-size: var(--font-size-base);
   font-weight: 600;
   margin: 0;
   color: var(--color-on-surface);
@@ -31,14 +31,14 @@
 
 /* Search */
 .group-by-selector__search {
-  padding: 10px 12px;
+  padding: 10px var(--spacing-3);
   border-bottom: 1px solid var(--color-outline-variant);
 }
 
 .group-by-selector__search-box {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--spacing-2);
   padding: 6px 10px;
   border: 1px solid var(--color-outline-variant);
   border-radius: var(--shape-medium);
@@ -55,7 +55,7 @@
   border: none;
   background: none;
   outline: none;
-  font-size: 13px;
+  font-size: var(--font-size-button);
   color: var(--color-on-surface);
 }
 
@@ -73,15 +73,15 @@
 .group-by-selector__divider {
   height: 1px;
   background: var(--color-outline-variant);
-  margin: 4px 0;
+  margin: var(--spacing-1) 0;
 }
 
 /* Item */
 .group-by-selector__item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 7px 14px;
+  gap: var(--spacing-2);
+  padding: 7px var(--spacing-3);
   cursor: pointer;
   border-radius: 0;
   transition: background var(--motion-duration-instant) var(--motion-easing-standard);
@@ -102,7 +102,7 @@
 
 /* Checkmark column */
 .group-by-selector__check {
-  width: 16px;
+  width: var(--icon-size-sm);
   color: var(--color-primary);
   flex-shrink: 0;
   display: flex;
@@ -116,19 +116,19 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: var(--spacing-2);
   min-width: 0;
 }
 
 .group-by-selector__item-name {
-  font-size: 13px;
+  font-size: var(--font-size-button);
   color: var(--color-on-surface);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--spacing-1);
 }
 
 .group-by-selector__item-type {
@@ -143,8 +143,8 @@
 
 /* Empty */
 .group-by-selector__empty {
-  padding: 12px 16px;
-  font-size: 13px;
+  padding: var(--spacing-3) var(--spacing-4);
+  font-size: var(--font-size-button);
   color: var(--color-on-surface-variant);
   text-align: center;
 }

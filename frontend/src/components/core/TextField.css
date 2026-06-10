@@ -114,7 +114,7 @@
 
 .text-field__divider {
   width: 1px;
-  height: 24px;
+  height: var(--height-xs);
   background: var(--color-outline-variant);
   margin: 0 var(--spacing-2);
 }

@@ -51,7 +51,7 @@
   appearance: none;
   width: 100%;
   height: 4px;
-  border-radius: 999px;
+  border-radius: var(--shape-full);
   background: transparent;
   cursor: pointer;
   outline: none;
@@ -69,7 +69,7 @@
   top: 50%;
   transform: translateY(-50%);
   height: 4px;
-  border-radius: 999px;
+  border-radius: var(--shape-full);
   background: var(--color-primary);
   pointer-events: none;
   z-index: 0;
@@ -82,7 +82,7 @@
   top: 50%;
   transform: translateY(-50%);
   height: 4px;
-  border-radius: 999px;
+  border-radius: var(--shape-full);
   background: var(--color-outline-variant);
   pointer-events: none;
   z-index: 0;
@@ -92,8 +92,8 @@
 .slider__input::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 14px;
-  height: 14px;
+  width: var(--icon-size-xs);
+  height: var(--icon-size-xs);
   border-radius: 50%;
   background: var(--color-primary);
   border: 2px solid var(--color-surface);
@@ -110,7 +110,7 @@
 /* Thumb — Firefox */
 .slider__input::-moz-range-thumb {
   width: 14px;
-  height: 14px;
+  height: var(--icon-size-xs);
   border-radius: 50%;
   background: var(--color-primary);
   border: 2px solid var(--color-surface);
@@ -131,13 +131,13 @@
 /* ─── Size variants ───────────────────────────────────────────────── */
 
 .slider--sm .slider__input::-webkit-slider-thumb {
-  width: 12px;
-  height: 12px;
+  width: var(--slider-thumb-size-sm);
+  height: var(--slider-thumb-size-sm);
 }
 
 .slider--sm .slider__input::-moz-range-thumb {
-  width: 12px;
-  height: 12px;
+  width: var(--slider-thumb-size-sm);
+  height: var(--slider-thumb-size-sm);
 }
 
 .slider--sm .slider__filled,

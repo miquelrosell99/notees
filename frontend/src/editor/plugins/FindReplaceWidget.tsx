@@ -12,6 +12,7 @@
 import { useCallback, useEffect, useRef, type JSX } from 'react';
 import type { LexicalEditor } from 'lexical';
 import { useFindReplaceStore } from '../../stores/findReplaceStore';
+import { Button } from '@/components/core/Button';
 import {
   executeSearch,
   selectMatch,
@@ -187,12 +188,8 @@ export function FindReplaceWidget({
         <span className="find-replace-count">
           {totalMatches > 0 ? `${matchIndex + 1}/${totalMatches}` : '0/0'}
         </span>
-        <button className="find-replace-btn" onClick={goPrev} disabled={totalMatches === 0}>
-          ↑
-        </button>
-        <button className="find-replace-btn" onClick={goNext} disabled={totalMatches === 0}>
-          ↓
-        </button>
+        <Button variant="ghost" size="xs" iconOnly icon="mdi mdi-chevron-up" aria-label="Previous match" className="find-replace-btn" onClick={goPrev} disabled={totalMatches === 0} />
+        <Button variant="ghost" size="xs" iconOnly icon="mdi mdi-chevron-down" aria-label="Next match" className="find-replace-btn" onClick={goNext} disabled={totalMatches === 0} />
         <button
           className={`find-replace-btn ${caseSensitive ? 'active' : ''}`}
           onClick={toggleCaseSensitive}
@@ -200,9 +197,7 @@ export function FindReplaceWidget({
         >
           Aa
         </button>
-        <button className="find-replace-btn find-replace-close" onClick={close}>
-          ✕
-        </button>
+        <Button variant="ghost" size="xs" iconOnly icon="mdi mdi-close" aria-label="Close find and replace" className="find-replace-btn find-replace-close" onClick={close} />
       </div>
       {replaceExpanded && (
         <div className="find-replace-row">

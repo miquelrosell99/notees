@@ -1,5 +1,5 @@
 .date-properties-panel {
-  padding: 8px;
+  padding: var(--spacing-2);
   min-width: 250px;
   max-height: 400px;
   overflow-y: auto;
@@ -9,15 +9,15 @@
 .date-properties-panel__list {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  margin-bottom: 12px;
+  gap: var(--spacing-1);
+  margin-bottom: var(--spacing-3);
 }
 
 .date-property-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 4px 8px;
+  gap: var(--spacing-2);
+  padding: var(--spacing-1) var(--spacing-2);
   border-radius: var(--shape-medium);
   transition: background-color 0.15s;
 }
@@ -27,8 +27,8 @@
 }
 
 .date-property-color {
-  width: 24px;
-  height: 24px;
+  width: var(--icon-size-lg);
+  height: var(--height-xs);
   border: none;
   border-radius: var(--shape-small);
   cursor: pointer;
@@ -36,23 +36,23 @@
 
 .date-property-label {
   flex: 1;
-  font-size: 13px;
+  font-size: var(--font-size-button);
   color: var(--color-on-surface);
 }
 
 .date-properties-panel__add {
   position: relative;
   border-top: 1px solid var(--color-outline-variant);
-  padding-top: 8px;
+  padding-top: var(--spacing-2);
 }
 
 .date-properties-panel__search {
   width: 100%;
-  padding: 6px 8px;
+  padding: 6px var(--spacing-2);
   background: var(--color-surface-variant);
   border: 1px solid var(--color-outline-variant);
   color: var(--color-on-surface);
-  font-size: 13px;
+  font-size: var(--font-size-button);
 }
 
 .date-properties-panel__search:focus {
@@ -65,7 +65,7 @@
   top: 100%;
   left: 0;
   right: 0;
-  margin-top: 4px;
+  margin-top: var(--spacing-1);
   background: var(--color-surface-container);
   border: 1px solid var(--color-outline-variant);
   border-radius: var(--shape-medium);
@@ -77,17 +77,17 @@
 .date-properties-panel__result {
   width: 100%;
   justify-content: flex-start;
-  gap: 8px;
-  padding: 8px 12px;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-3);
   border-radius: 0;
 }
 
 .date-properties-panel__result:first-child {
   border-top-left-radius: 6px;
-  border-top-right-radius: 6px;
+  border-top-right-radius: var(--shape-medium);
 }
 
 .date-properties-panel__result:last-child {
   border-bottom-left-radius: 6px;
-  border-bottom-right-radius: 6px;
+  border-bottom-right-radius: var(--shape-medium);
 }

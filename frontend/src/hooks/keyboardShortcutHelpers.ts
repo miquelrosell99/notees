@@ -5,9 +5,9 @@
  * Separated from hooks to enable Fast Refresh.
  */
 
-export { 
-  SHORTCUT_IDS, 
+export {
+  SHORTCUT_IDS,
   formatShortcutKey,
   processKeyboardEvent,
-  type ShortcutContext
 } from '@/stores/keyboardStore';
+export { type ShortcutContext } from '@/stores/commandRegistry';

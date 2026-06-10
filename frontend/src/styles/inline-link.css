@@ -44,7 +44,7 @@
   text-decoration-color: var(--color-primary);
   color: var(--color-primary);
   background: color-mix(in srgb, var(--color-primary) 8%, transparent);
-  border-radius: 2px;
+  border-radius: var(--shape-extra-small);
   padding: 0 2px;
   margin: 0 -2px;
 }

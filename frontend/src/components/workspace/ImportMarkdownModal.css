@@ -5,7 +5,7 @@
 .import-md__body {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--spacing-3);
 }
 
 .import-md__description {
@@ -25,7 +25,7 @@
 
 .import-md__row {
   display: flex;
-  gap: 12px;
+  gap: var(--spacing-3);
   align-items: center;
 }
 
@@ -38,7 +38,7 @@
 
 .import-md__select {
   flex: 1;
-  padding: 8px 12px;
+  padding: var(--spacing-2) var(--spacing-3);
   font-size: var(--font-size-sm);
   font-family: inherit;
   background: var(--color-surface);
@@ -65,7 +65,7 @@
 
 .import-md__file-input::file-selector-button {
   padding: 6px 14px;
-  margin-right: 12px;
+  margin-right: var(--spacing-3);
   font-size: var(--font-size-sm);
   font-family: inherit;
   background: var(--color-surface-container-low);
@@ -84,7 +84,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 12px;
+  padding: var(--spacing-2) var(--spacing-3);
   background: color-mix(in srgb, var(--color-error) 10%, transparent);
   color: var(--color-error);
   border-radius: var(--shape-small);
@@ -94,18 +94,18 @@
 .import-md__summary {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--spacing-2);
 }
 
 .import-md__badges {
   display: flex;
-  gap: 8px;
+  gap: var(--spacing-2);
   flex-wrap: wrap;
 }
 
 .import-md__badge {
   display: inline-flex;
-  padding: 4px 10px;
+  padding: var(--spacing-1) 10px;
   background: var(--color-surface-container-low);
   color: var(--color-on-surface-variant);
   border-radius: var(--shape-full);
@@ -127,7 +127,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 6px 12px;
+  padding: 6px var(--spacing-3);
   font-size: var(--font-size-sm);
   color: var(--color-on-surface);
   border-bottom: 1px solid var(--color-outline-variant);
@@ -150,7 +150,7 @@
 .import-md__status {
   font-size: var(--font-size-sm);
   color: var(--color-primary);
-  padding: 4px 0;
+  padding: var(--spacing-1) 0;
   animation: import-md-pulse 1.5s ease-in-out infinite;
 }
 

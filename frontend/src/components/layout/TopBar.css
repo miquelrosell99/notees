@@ -91,8 +91,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
+  width: var(--icon-size-2xl);
+  height: var(--icon-size-2xl);
   border: none;
   background: transparent;
   border-radius: var(--shape-small);
@@ -112,8 +112,8 @@
 }
 
 .local-graph-btn svg {
-  width: 18px;
-  height: 18px;
+  width: var(--icon-size-md);
+  height: var(--icon-size-md);
 }
 
 /* ==================== Quick Add Button ==================== */
@@ -121,8 +121,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
+  width: var(--icon-size-2xl);
+  height: var(--icon-size-2xl);
   background: transparent;
   border: none;
   border-radius: var(--shape-small);
@@ -150,7 +150,7 @@
 /* ==================== Toolbar Separator ==================== */
 .toolbar-separator {
   width: 1px;
-  height: 20px;
+  height: var(--icon-size-md);
   background: var(--color-outline-variant);
   margin: 0 var(--spacing-1);
 }
@@ -194,9 +194,9 @@
 
   /* Shrink the account avatar slightly */
   .account-avatar {
-    width: 28px;
-    height: 28px;
-    font-size: 12px;
+    width: var(--icon-size-xl);
+    height: var(--height-sm);
+    font-size: var(--font-size-sm);
   }
 }
 
@@ -213,8 +213,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: var(--icon-size-lg);
+  height: var(--height-xs);
 }
 
 .auto-export-indicator--spin {

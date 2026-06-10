@@ -10,7 +10,7 @@
  * - Handles drag, click, shift+click, right-click events
  * - Shows outer ring when collapsed with children (like graph nodes)
  */
-import { useCallback, useRef, useState, useMemo } from 'react';
+import { useCallback, useRef, useMemo } from 'react';
 import { NodeIcon } from '@/components/core/icons';
 import './Bullet.css';
 
@@ -32,16 +32,12 @@ export interface BulletProps {
   collapsed?: boolean;
   /** Whether the block/node is being hovered */
   isHovered?: boolean;
-  /** Whether to show the collapse arrow (can be controlled externally) */
-  showCollapseArrow?: boolean;
   /** Click handler (regular click - opens focused view) */
   onClick?: (e: React.MouseEvent) => void;
   /** Shift+click handler (opens in sidebar) */
   onShiftClick?: (nodeId: number) => void;
   /** Right-click/context menu handler */
   onContextMenu?: (nodeId: number, event: React.MouseEvent) => void;
-  /** Collapse toggle handler */
-  onCollapseToggle?: (e: React.MouseEvent) => void;
   /** @dnd-kit activator ref for drag handle */
   activatorRef?: (element: HTMLElement | null) => void;
   /** @dnd-kit activator listeners for drag handle */
@@ -64,11 +60,9 @@ export function Bullet({
   hasChildren = false,
   collapsed = false,
   isHovered = false,
-  showCollapseArrow: showCollapseArrowProp,
   onClick,
   onShiftClick,
   onContextMenu,
-  onCollapseToggle,
   activatorRef,
   activatorListeners,
   isDragging = false,
@@ -77,11 +71,7 @@ export function Bullet({
   size = 'sm',
 }: BulletProps) {
   const bulletRef = useRef<HTMLDivElement>(null);
-  const [showCollapseArrowInternal, setShowCollapseArrowInternal] = useState(false);
-  
-  // Use external prop if provided, otherwise use internal state
-  const showCollapseArrow = showCollapseArrowProp !== undefined ? showCollapseArrowProp : showCollapseArrowInternal;
-  
+
   // Handle click on bullet
   const handleClick = useCallback((e: React.MouseEvent) => {
     if (!interactive) return;
@@ -105,27 +95,17 @@ export function Bullet({
     onContextMenu(nodeId, e);
   }, [interactive, nodeId, onContextMenu]);
   
-  // Handle collapse toggle click
-  const handleCollapseClick = useCallback((e: React.MouseEvent) => {
-    if (!onCollapseToggle) return;
-    
-    e.preventDefault();
-    e.stopPropagation();
-    onCollapseToggle(e);
-  }, [onCollapseToggle]);
-  
   // Compute class names
   const classNames = useMemo(() => {
     const classes = ['bullet-wrapper', `bullet-${size}`];
     if (interactive) classes.push('bullet-interactive');
-    if (hasChildren) classes.push('bullet-has-children');
     if (collapsed) classes.push('bullet-collapsed');
     if (isDragging) classes.push('bullet-dragging');
     if (isHovered) classes.push('bullet-hovered');
     if (icon) classes.push('bullet-has-icon');
     if (className) classes.push(className);
     return classes.join(' ');
-  }, [size, interactive, hasChildren, collapsed, isDragging, isHovered, icon, className]);
+  }, [size, interactive, collapsed, isDragging, isHovered, icon, className]);
   
   // Compute title
   const computedTitle = useMemo(() => {
@@ -135,18 +115,7 @@ export function Bullet({
     return 'Click to focus, Shift+click to open in sidebar';
   }, [title, interactive, hasChildren, collapsed]);
   
-  // Show collapse arrow when hovering over bullet area if has children
-  const handleMouseEnter = useCallback(() => {
-    if (hasChildren && onCollapseToggle && showCollapseArrowProp === undefined) {
-      setShowCollapseArrowInternal(true);
-    }
-  }, [hasChildren, onCollapseToggle, showCollapseArrowProp]);
-  
-  const handleMouseLeave = useCallback(() => {
-    if (showCollapseArrowProp === undefined) {
-      setShowCollapseArrowInternal(false);
-    }
-  }, [showCollapseArrowProp]);
+
   
   return (
     <div onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }}
@@ -157,25 +126,12 @@ export function Bullet({
       className={classNames}
       onClick={interactive ? handleClick : undefined}
       onContextMenu={interactive ? handleContextMenu : undefined}
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
+
       {...(activatorListeners || {})}
       title={computedTitle}
       role={interactive ? 'button' : 'presentation'}
       tabIndex={interactive ? 0 : -1}
     >
-      {/* Collapse arrow - shown when hovered and has children */}
-      {hasChildren && onCollapseToggle && (showCollapseArrow || isHovered) && (
-        <button
-          className="bullet-collapse-arrow"
-          onClick={handleCollapseClick}
-          title={collapsed ? 'Expand' : 'Collapse'}
-          aria-label={collapsed ? 'Expand' : 'Collapse'}
-        >
-          <span className="bullet-collapse-arrow__icon">{collapsed ? '\u25B8' : '\u25BE'}</span>
-        </button>
-      )}
-      
       {/* Bullet container */}
       <span className="bullet-container">
         {/* Outer ring - shows only when collapsed with children */}

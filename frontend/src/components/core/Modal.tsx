@@ -123,6 +123,7 @@ export function Modal({
               <Button
                 icon={"mdi mdi-close"}
                 iconOnly
+                aria-label="Close modal"
                 className="modal__close"
                 onClick={onClose}
                 size="sm"

@@ -16,6 +16,7 @@ import { ResultItem } from './CommandPaletteResult';
 import { SuggestionPopup } from '@/components/nodes/SuggestionPopup';
 import { NodeRef } from '@/components/nodes/NodeRef';
 import { DuplicatePageModal } from '../Modals';
+import { Button } from '@/components/core/Button';
 import { Icon, AddIcon, CalendarIcon, ImportIcon, CheckIcon, ChevronRightIcon } from '@/components/core/icons';
 
 import type { CommandPaletteProps } from './CommandPalette.types';
@@ -102,11 +103,15 @@ export function CommandPalette(props: CommandPaletteProps) {
                 ) : (
                   <span key={`bool-${filter.prefix}`} className="command-palette__filter-pill">
                     <span className="command-palette__filter-pill-text">{filter.prefix}:{String(filter.value)}</span>
-                    <button
+                    <Button
+                      variant="ghost"
+                      size="xs"
+                      iconOnly
+                      icon="mdi mdi-close"
                       className="command-palette__filter-pill-remove"
                       onClick={() => handleRemoveFilter(idx)}
                       aria-label={`Remove ${filter.label} filter`}
-                    >×</button>
+                    />
                   </span>
                 )
               ))}
@@ -259,7 +264,11 @@ export function CommandPalette(props: CommandPaletteProps) {
                     <div className="command-palette__section">
                       <div className="command-palette__section-header command-palette__section-header--with-action">
                         <span>Random Pages</span>
-                        <button
+                        <Button
+                          variant="ghost"
+                          size="xs"
+                          iconOnly
+                          icon="mdi mdi-refresh"
                           className="command-palette__refresh-btn"
                           onClick={(e) => {
                             e.stopPropagation();
@@ -267,9 +276,7 @@ export function CommandPalette(props: CommandPaletteProps) {
                           }}
                           aria-label="Refresh random pages"
                           title="Refresh random pages"
-                        >
-                          <Icon path={"mdi mdi-refresh"} size={0.7} />
-                        </button>
+                        />
                       </div>
                       {browseRandom.map((item) => {
                         const globalIndex = indexMap.get(item)!;

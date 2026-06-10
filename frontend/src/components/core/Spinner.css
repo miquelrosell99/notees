@@ -26,20 +26,20 @@
 }
 
 .spinner--sm {
-  width: 16px;
-  height: 16px;
+  width: var(--icon-size-sm);
+  height: var(--icon-size-sm);
   border-width: 2px;
 }
 
 .spinner--md {
-  width: 24px;
-  height: 24px;
+  width: var(--icon-size-lg);
+  height: var(--icon-size-lg);
   border-width: 2px;
 }
 
 .spinner--lg {
-  width: 32px;
-  height: 32px;
+  width: var(--icon-size-xl);
+  height: var(--icon-size-xl);
   border-width: 3px;
 }
 
