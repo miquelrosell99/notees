@@ -95,7 +95,6 @@ export function ImageModal({
       <div className="image-modal-actions">
         <Button
           icon={"mdi mdi-download"}
-          iconOnly
           className="image-modal-download"
           onClick={handleDownload}
           size="md"
@@ -104,7 +103,6 @@ export function ImageModal({
         />
         <Button
           icon={"mdi mdi-close"}
-          iconOnly
           className="image-modal-close"
           onClick={onClose}
           size="md"

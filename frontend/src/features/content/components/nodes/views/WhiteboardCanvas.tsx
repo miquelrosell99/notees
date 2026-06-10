@@ -1841,7 +1841,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
           <div className="wb-shortcuts-modal__content" style={{ background: 'var(--color-surface)', borderRadius: 'var(--shape-large)', padding: 24, maxWidth: 480, width: '90%', boxShadow: 'var(--shadow-3)' }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <h3 style={{ margin: 0, fontSize: 18, fontWeight: 600 }}>Keyboard Shortcuts</h3>
-              <Button variant="ghost" size="xs" iconOnly icon="mdi mdi-close" aria-label="Close shortcuts panel" className="wb-align-panel__btn" onClick={() => setShowShortcuts(false)} />
+              <Button variant="ghost" size="xs" icon="mdi mdi-close" aria-label="Close shortcuts panel" className="wb-align-panel__btn" onClick={() => setShowShortcuts(false)} />
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 24px', fontSize: 14 }}>
               <ShortcutRow keys="V" action="Select tool" />
@@ -1979,19 +1979,19 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
           }}
         >
           <div className="wb-align-panel__row">
-            <Button variant="ghost" size="xs" iconOnly icon="mdi mdi-align-horizontal-left" aria-label="Align left" className="wb-align-panel__btn" title="Align left" onClick={() => wb.alignElements([...interaction.selectedIds], 'left')} />
-            <Button variant="ghost" size="xs" iconOnly icon="mdi mdi-align-horizontal-center" aria-label="Align center" className="wb-align-panel__btn" title="Align center" onClick={() => wb.alignElements([...interaction.selectedIds], 'center')} />
-            <Button variant="ghost" size="xs" iconOnly icon="mdi mdi-align-horizontal-right" aria-label="Align right" className="wb-align-panel__btn" title="Align right" onClick={() => wb.alignElements([...interaction.selectedIds], 'right')} />
+            <Button variant="ghost" size="xs" icon="mdi mdi-align-horizontal-left" aria-label="Align left" className="wb-align-panel__btn" title="Align left" onClick={() => wb.alignElements([...interaction.selectedIds], 'left')} />
+            <Button variant="ghost" size="xs" icon="mdi mdi-align-horizontal-center" aria-label="Align center" className="wb-align-panel__btn" title="Align center" onClick={() => wb.alignElements([...interaction.selectedIds], 'center')} />
+            <Button variant="ghost" size="xs" icon="mdi mdi-align-horizontal-right" aria-label="Align right" className="wb-align-panel__btn" title="Align right" onClick={() => wb.alignElements([...interaction.selectedIds], 'right')} />
           </div>
           <div className="wb-align-panel__row">
-            <Button variant="ghost" size="xs" iconOnly icon="mdi mdi-align-vertical-top" aria-label="Align top" className="wb-align-panel__btn" title="Align top" onClick={() => wb.alignElements([...interaction.selectedIds], 'top')} />
-            <Button variant="ghost" size="xs" iconOnly icon="mdi mdi-align-vertical-center" aria-label="Align middle" className="wb-align-panel__btn" title="Align middle" onClick={() => wb.alignElements([...interaction.selectedIds], 'middle')} />
-            <Button variant="ghost" size="xs" iconOnly icon="mdi mdi-align-vertical-bottom" aria-label="Align bottom" className="wb-align-panel__btn" title="Align bottom" onClick={() => wb.alignElements([...interaction.selectedIds], 'bottom')} />
+            <Button variant="ghost" size="xs" icon="mdi mdi-align-vertical-top" aria-label="Align top" className="wb-align-panel__btn" title="Align top" onClick={() => wb.alignElements([...interaction.selectedIds], 'top')} />
+            <Button variant="ghost" size="xs" icon="mdi mdi-align-vertical-center" aria-label="Align middle" className="wb-align-panel__btn" title="Align middle" onClick={() => wb.alignElements([...interaction.selectedIds], 'middle')} />
+            <Button variant="ghost" size="xs" icon="mdi mdi-align-vertical-bottom" aria-label="Align bottom" className="wb-align-panel__btn" title="Align bottom" onClick={() => wb.alignElements([...interaction.selectedIds], 'bottom')} />
           </div>
           <div className="wb-align-panel__divider" />
           <div className="wb-align-panel__row">
-            <Button variant="ghost" size="xs" iconOnly icon="mdi mdi-distribute-horizontal-center" aria-label="Distribute horizontal" className="wb-align-panel__btn" title="Distribute horizontal" onClick={() => wb.distributeElements([...interaction.selectedIds], 'horizontal')} />
-            <Button variant="ghost" size="xs" iconOnly icon="mdi mdi-distribute-vertical-center" aria-label="Distribute vertical" className="wb-align-panel__btn" title="Distribute vertical" onClick={() => wb.distributeElements([...interaction.selectedIds], 'vertical')} />
+            <Button variant="ghost" size="xs" icon="mdi mdi-distribute-horizontal-center" aria-label="Distribute horizontal" className="wb-align-panel__btn" title="Distribute horizontal" onClick={() => wb.distributeElements([...interaction.selectedIds], 'horizontal')} />
+            <Button variant="ghost" size="xs" icon="mdi mdi-distribute-vertical-center" aria-label="Distribute vertical" className="wb-align-panel__btn" title="Distribute vertical" onClick={() => wb.distributeElements([...interaction.selectedIds], 'vertical')} />
           </div>
         </div>
       )}

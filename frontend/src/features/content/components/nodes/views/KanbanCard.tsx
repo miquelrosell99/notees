@@ -570,7 +570,6 @@ export const NodeCard = memo(function NodeCard({
             <>
               <Button
                 icon={"mdi mdi-pencil"}
-                iconOnly
                 variant="ghost"
                 size="sm"
                 onClick={() => setIsAssetUploadOpen(true)}
@@ -578,7 +577,6 @@ export const NodeCard = memo(function NodeCard({
               />
               <Button
                 icon={"mdi mdi-close"}
-                iconOnly
                 variant="ghost"
                 size="sm"
                 onClick={handleRemoveCover}
@@ -644,7 +642,6 @@ export const NodeCard = memo(function NodeCard({
             <Button
               variant="ghost"
               size="xs"
-              iconOnly
               icon="mdi mdi-chevron-down"
               className={`node-card__collapse-btn${hasChildren ? ' node-card__collapse-btn--has-children' : ''}`}
               onClick={(e) => { e.stopPropagation(); setIsBodyCollapsed(v => !v); }}

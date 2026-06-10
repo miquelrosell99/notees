@@ -98,6 +98,7 @@ async def list_workspaces(user_id: str) -> list[dict[str, Any]]:
             """,
             numeric_user_id,
         )
+        active_uuid = _active_workspaces.get(user_id)
         result = []
         for row in rows:
             if row["is_owner"]:
@@ -116,6 +117,7 @@ async def list_workspaces(user_id: str) -> list[dict[str, Any]]:
                     "updated_at": row["write_date"].isoformat() if row["write_date"] else None,
                     "is_shared": row["is_shared"],
                     "role": role,
+                    "is_active": str(row["uuid"]) == active_uuid,
                 }
             )
         return result

@@ -325,7 +325,6 @@ export function ButtonWithPanel({
                 <Button
                   variant="ghost"
                   size="xs"
-                  iconOnly
                   icon="mdi mdi-close"
                   className="btn-panel__close"
                   onClick={closePanel}

@@ -69,7 +69,6 @@ export function GraphSettingsSidebar({
         <Button
           variant="ghost"
           size="sm"
-          iconOnly
           icon="mdi mdi-chevron-left"
           className="graph-sidebar-header__collapse"
           onClick={onCollapse}
