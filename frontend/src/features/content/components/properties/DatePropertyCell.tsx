@@ -70,7 +70,7 @@ export function DatePropertyCell({
             await handleSelect(isoToday);
             return;
           }
-          setIsPickerOpen(true);
+          setIsPickerOpen((prev) => !prev);
         }}
       >
         <span className="property-placeholder">Empty</span>
@@ -90,7 +90,7 @@ export function DatePropertyCell({
     <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }}
       ref={cellRef}
       className={`property-cell property-cell--date ${editable ? 'property-cell--editable' : ''}`}
-      onClick={() => editable && setIsPickerOpen(true)}
+      onClick={() => editable && setIsPickerOpen((prev) => !prev)}
       title={editable ? 'Click to change date' : undefined}
     >
       <span className="property-cell__date-name">{displayName || '...'}</span>

@@ -76,7 +76,7 @@ export function CollapsiblePillRow<T>({
   const handleOverflowClick = useCallback((e: React.MouseEvent) => {
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     setPopupPos({ x: rect.left, y: rect.bottom + 4 });
-    setShowPopup(true);
+    setShowPopup((prev) => !prev);
   }, []);
 
   const handleClosePopup = useCallback(() => {

@@ -158,7 +158,7 @@ function IconColorPickerRow({ currentIcon, currentColor, isFavorited, onFavorite
         y: Math.min(rect.bottom + 4, window.innerHeight - 450),
       });
     }
-    setShowPicker(true);
+    setShowPicker((prev) => !prev);
   }, []);
 
   const handleIconSelect = useCallback((value: string) => {

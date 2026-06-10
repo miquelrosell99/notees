@@ -84,7 +84,7 @@ export function SelectionPropertyCell({
       <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }}
         ref={cellRef}
         className={`property-cell ${editable ? 'property-cell--editable' : ''} property-cell--empty`}
-        onClick={() => editable && setIsPickerOpen(true)}
+        onClick={() => editable && setIsPickerOpen((prev) => !prev)}
         title={editable ? 'Click to select' : undefined}
       >
         <span className="property-placeholder">Empty</span>
@@ -130,7 +130,7 @@ export function SelectionPropertyCell({
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => setIsPickerOpen(true)}
+          onClick={() => setIsPickerOpen((prev) => !prev)}
           className="property-cell__add-button"
         >
           +

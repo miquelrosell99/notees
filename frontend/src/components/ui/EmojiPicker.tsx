@@ -577,7 +577,7 @@ export function EmojiPickerTrigger({
         y: Math.min(rect.bottom + 4, window.innerHeight - 450),
       });
     }
-    setIsOpen(true);
+    setIsOpen((prev) => !prev);
   }, []);
 
   const handleSelect = useCallback(

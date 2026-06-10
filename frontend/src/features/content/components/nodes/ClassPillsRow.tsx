@@ -66,7 +66,7 @@ export const ClassPillsRow = memo(function ClassPillsRow({
     (e: React.MouseEvent) => {
       const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
       setPopupPos({ x: rect.left, y: rect.bottom + 4 });
-      setShowPopup(true);
+      setShowPopup((prev) => !prev);
     },
     []
   );
@@ -115,7 +115,7 @@ export const ClassPillsRow = memo(function ClassPillsRow({
             onClick={(e) => {
               const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
               setPopupPos({ x: rect.left, y: rect.bottom + 4 });
-              setShowAddPopup(true);
+              setShowAddPopup((prev) => !prev);
             }}
             title="Add class"
             aria-label="Add class"

@@ -63,7 +63,7 @@ export function DatePropertyValue({
       await handleSelect(isoToday);
       return;
     }
-    setIsOpen(true);
+    setIsOpen((prev) => !prev);
   }, [readOnly, loading, value, handleSelect]);
 
   const displayName = dayNode ? nodeNameToText(dayNode.name) : null;
