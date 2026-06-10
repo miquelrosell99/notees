@@ -24,7 +24,7 @@ Key features:
 
 - **Architecture**: Backend uses strict hexagonal architecture. Domain services must only use repository interfaces, never FastAPI or asyncpg directly.
 - **DB Connections**: Never call `pool.acquire()` directly. Use `app.db.connection.get_connection()` or `get_transaction()`.
-- **Frontend Imports**: Always use path aliases (e.g., `@/components/core/Button`). Never use relative `../../../` paths. CSS is co-located with components.
+- **Frontend Imports**: Always use path aliases (e.g., `@/components/ui/Button`, `@/features/auth/api/auth`). Never use relative `../../../` paths. CSS is co-located with components.
 - **Secret Key**: `SECRET_KEY` is mandatory (>= 32 chars). The app will not start without it.
 - **Node Model**: Everything is a `node` (pages, blocks, tags, properties, journals). Differentiation is via boolean flags (`is_page`, `is_tag`, etc.).
 - **Dev vs. Prod**: Dev PostgreSQL settings (`fsync=off`, etc.) in `compose.yaml` must never be used in production.
@@ -636,7 +636,7 @@ The component's existing parent-hover rule (e.g., `.my-container:hover .my-actio
 - **Component Co-location**: Each `.tsx` file has exactly one `.css` file in the same directory. CSS for a component lives only in its own file.
 - **Dead Code Hygiene**: Delete unused CSS classes immediately when the corresponding TSX structure changes. Do not leave orphaned rules "just in case."
 - **No Magic Numbers**: If a value appears in more than one CSS file, it must be a token. The `24px` indentation step appears in `BlockRow.css`, `Bullet.css`, and 14 editing-trail gradient declarations — this must be `var(--block-indent-step)`.
-- **Core Components First**: Never create a one-off `<button>` or `<input>` when a core component exists. The `Button`, `Icon`, `Input`, `Checkbox`, etc. components in `frontend/src/components/core/` enforce consistency (sizing, accessibility, focus states, hover styles). Always use them. If a design truly requires a custom element, extract a new core component rather than inlining raw HTML.
+- **UI Components First**: Never create a one-off `<button>` or `<input>` when a shared UI component exists. The `Button`, `Icon`, `Input`, `Checkbox`, etc. components in `frontend/src/components/ui/` enforce consistency (sizing, accessibility, focus states, hover styles). Always use them. If a design truly requires a custom element, extract a new UI component rather than inlining raw HTML.
   - Icon-only buttons: `<Button variant="ghost" size="xs" iconOnly icon="mdi mdi-close" />`
   - Text + icon buttons: `<Button icon="mdi mdi-plus">Add</Button>`
   - Never use raw `<button>` for icon actions — `Button` handles `aspect-ratio: 1`, `padding: 0`, and flex-centering automatically.
@@ -730,7 +730,7 @@ The frontend uses a **two-level barrel file** pattern to keep import paths clean
 
 1. **Top-level barrels** (`frontend/src/*/index.ts`) are the public API for each module.
    - Example: `frontend/src/hooks/index.ts` re-exports everything consumers should import from `@/hooks`.
-   - Example: `frontend/src/components/core/index.ts` re-exports all core atoms.
+   - Example: `frontend/src/components/ui/index.ts` re-exports all UI atoms.
 
 2. **Domain-specific sub-barrels** aggregate related exports from deeper files.
    - Example: `frontend/src/hooks/useNodes.ts` is a sub-barrel that re-exports node queries, mutations, and activity hooks from `useNodeQueries.ts`, `useNodeMutations.ts`, etc.
@@ -741,7 +741,7 @@ The frontend uses a **two-level barrel file** pattern to keep import paths clean
 - Do **not** use sub-barrels to re-export unrelated utilities. If a utility (e.g., `nodeNameToText`) lives in `useStringifyAST.ts`, it should be re-exported directly from `hooks/index.ts`, not routed through `useNodes.ts`.
 - When adding a new hook or utility, update the appropriate `index.ts` so it is discoverable via path aliases.
 
-#### Frontend Widget Inventory (`frontend/src/components/core/`)
+#### Frontend Widget Inventory (`frontend/src/components/ui/`)
 
 Reusable UI atoms available for building features. Import via `@/components/core/<Name>`.
 
@@ -775,7 +775,7 @@ Reusable UI atoms available for building features. Import via `@/components/core
 | `FloatingButtonArray` | FAB with child action buttons | `buttons`, `direction` |
 | `FileDropZone` | Drag-and-drop file upload zone | `onFiles`, `accept` |
 
-**Query Builder widgets** (`frontend/src/components/queries/`):
+**Query Builder widgets** (`frontend/src/features/queries/components/`):
 - `ViewBuilder` — Full QueryAST editor (conditions, groups, NOT)
 - `QueryBlockBuilder` — Single query block renderer (used recursively by ViewBuilder)
 - `QueryBlockList` — List of query blocks with add/remove/reorder
@@ -784,11 +784,11 @@ Reusable UI atoms available for building features. Import via `@/components/core
 - `QuerySQLPreview` — Shows natural language, AST JSON, and SQL pseudocode
 
 #### Adding a New Frontend Component
-1. Place React components in the appropriate subdirectory under `frontend/src/components/`.
+1. Place React components in the appropriate feature under `frontend/src/features/`.
 2. Use path aliases (e.g., `@/components/core/Button`) for all imports.
 3. Co-locate CSS in a `.css` file with the same base name.
 4. Respect import boundaries: `core/` must not import domain components.
-5. Register new routes/views in `frontend/src/views/` and wire them into `MainContent` / `appStore`.
+5. Register new routes/views in the appropriate `frontend/src/features/{name}/pages/` and wire them into `MainContent` / `appStore`.
 
 #### Decomposing Complex Hooks
 When a hook exceeds ~400 lines, split it into focused sub-hooks:
