@@ -59,7 +59,7 @@ import { InlineEditor } from '@/editor/InlineEditor';
 import { parseAST } from '@/lib/astBuilder';
 import { PropertiesSection } from '@/components/properties/PropertiesSection';
 import { BlockList } from '@/components/blocks/BlockList';
-import { Icon } from '@/components/core/icons';
+
 
 interface CardTitleEditorProps {
   blockId: string;
@@ -641,15 +641,17 @@ export const NodeCard = memo(function NodeCard({
             </div>
           )}
           <div className="node-card__header-row">
-            <button
+            <Button
+              variant="ghost"
+              size="xs"
+              iconOnly
+              icon="mdi mdi-chevron-down"
               className={`node-card__collapse-btn${hasChildren ? ' node-card__collapse-btn--has-children' : ''}`}
               onClick={(e) => { e.stopPropagation(); setIsBodyCollapsed(v => !v); }}
               title={isBodyCollapsed ? 'Expand' : 'Collapse'}
               aria-label={isBodyCollapsed ? 'Expand' : 'Collapse'}
               aria-expanded={!isBodyCollapsed}
-            >
-              <Icon path={"mdi mdi-chevron-down"} size={0.6} rotate={isBodyCollapsed ? -90 : 0} />
-            </button>
+            />
             <div className="node-card__title-wrapper">
               <CardTitleEditor
                 blockId={String(node.uuid || node.id)}

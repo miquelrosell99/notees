@@ -38,7 +38,7 @@
 .property-view__type-badge {
   display: inline-flex;
   align-items: center;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   font-weight: 600;
   letter-spacing: 0.5px;
   color: var(--color-on-surface-variant);

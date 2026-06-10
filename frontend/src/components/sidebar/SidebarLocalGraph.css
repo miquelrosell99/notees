@@ -11,8 +11,8 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 8px 12px;
-  font-size: 12px;
+  padding: var(--spacing-2) var(--spacing-3);
+  font-size: var(--font-size-sm);
   border-bottom: 1px solid var(--color-outline-variant);
 }
 
@@ -27,7 +27,7 @@
 
 .graph-view-local__stats {
   color: var(--color-on-surface-variant);
-  font-size: 11px;
+  font-size: var(--font-size-xs);
 }
 
 .graph-view-local__content {
@@ -48,7 +48,7 @@
   height: 100%;
   min-height: 180px;
   color: var(--color-on-surface-variant);
-  font-size: 13px;
+  font-size: var(--font-size-button);
 }
 
 .graph-view-local.loading,

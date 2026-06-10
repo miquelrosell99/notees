@@ -12,7 +12,7 @@ import { getWorkspaceSettings, setWorkspaceSetting } from '@/api/workspaces';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { useNotifications } from '@/stores/notificationStore';
 import { DEFAULT_SHORTCUTS, formatShortcutKey } from '@/stores/keyboardStore';
-import type { ShortcutContext } from '@/stores/keyboardStore';
+import type { ShortcutContext } from '@/stores/commandRegistry';
 import { ConfirmationModal } from '@/components/core/ConfirmationModal';
 import { Modal } from '@/components/core/Modal';
 import { Spinner } from '@/components/core/Spinner';

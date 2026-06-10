@@ -6,6 +6,8 @@
  */
 import type { GraphNode, GraphLink, ClassColor, NodeSizeMode, LinkDirection } from './viewTypes';
 import type { Property } from '@/types/api';
+import { getPropertyValueRenderer } from '@/components/properties/propertyValueRegistry';
+import '@/components/properties/registerPropertyRenderers';
 
 // ==================== Visual Constants ====================
 
@@ -285,44 +287,10 @@ export function calculateMaxConnections(
 export function getPropertyGroupInfo(property: Property, rawValue: unknown): { label: string; icon: string | null } {
   if (rawValue === null || rawValue === undefined) return { label: '(No value)', icon: null };
 
-  switch (property.type) {
-    case 'boolean':
-      return { label: rawValue ? 'Yes' : 'No', icon: null };
-
-    case 'integer':
-    case 'float':
-      return { label: String(rawValue), icon: null };
-
-    case 'selection': {
-      const resolveId = (v: unknown): number | null => {
-        if (typeof v === 'number') return v;
-        if (typeof v === 'object' && v !== null && 'id' in v) return (v as { id: number }).id;
-        return null;
-      };
-      if (Array.isArray(rawValue)) {
-        const opts = rawValue
-          .map(resolveId)
-          .filter((id): id is number => id !== null)
-          .map(id => property.options?.find(o => o.id === id));
-        const names = opts.map(o => o?.name ?? '?').join(', ');
-        // Show icon only for single-value groups
-        const icon = opts.length === 1 ? (opts[0]?.icon ?? null) : null;
-        return { label: names || '(No value)', icon };
-      }
-      const optId = resolveId(rawValue);
-      if (optId === null) return { label: String(rawValue), icon: null };
-      const opt = property.options?.find(o => o.id === optId);
-      return { label: opt?.name ?? String(optId), icon: opt?.icon ?? null };
-    }
-
-    case 'node':
-    case 'date':
-      return {
-        label: Array.isArray(rawValue) ? rawValue.map(String).join(', ') : String(rawValue),
-        icon: null,
-      };
-
-    default:
-      return { label: String(rawValue), icon: null };
+  const renderer = getPropertyValueRenderer(property.type);
+  if (renderer) {
+    return renderer.getGroupInfo(property, rawValue);
   }
+
+  return { label: String(rawValue), icon: null };
 }

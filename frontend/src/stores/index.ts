@@ -77,9 +77,10 @@ export {
   formatShortcutKey,
   matchesShortcut,
   SHORTCUT_IDS,
-  type ShortcutContext,
   type ShortcutDefinition,
   type ModifierKeys,
-} from './keyboardStore';export { useWhiteboardStore } from './whiteboardStore';
+} from './keyboardStore';
+export { type ShortcutContext } from './commandRegistry';
+export { useWhiteboardStore } from './whiteboardStore';
 export { useUndoStore } from './undoStore';
 export { useClipboardStore, type ClipboardMode } from './clipboardStore';

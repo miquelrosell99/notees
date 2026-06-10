@@ -4,11 +4,11 @@
 .scratchpad {
   position: fixed;
   z-index: var(--z-node-overlay);
-  width: 360px;
+  width: var(--scratchpad-width);
   max-height: 500px;
   background: var(--color-surface);
   border: 1px solid var(--color-outline-variant);
-  border-radius: 12px;
+  border-radius: var(--shape-extra-large);
   display: flex;
   flex-direction: column;
   animation: scratchpadFadeIn var(--motion-duration-medium) var(--motion-easing-standard)-out;
@@ -37,8 +37,8 @@
 .scratchpad-header {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 8px 8px 8px 16px;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-2) var(--spacing-2) var(--spacing-4);
   border-bottom: 1px solid var(--color-outline-variant);
   cursor: grab;
   user-select: none;
@@ -50,22 +50,22 @@
 
 .scratchpad-title {
   font-weight: 600;
-  font-size: 14px;
+  font-size: var(--font-size-base);
 }
 
 .scratchpad-actions {
   display: flex;
-  gap: 4px;
+  gap: var(--spacing-1);
   margin-left: auto;
 }
 
 .scratchpad-content {
   flex: 1;
   overflow-y: auto;
-  min-height: 80px;
+  min-height: var(--scratchpad-empty-height);
   max-height: 340px;
-  padding: 4px 0;
-  font-size: 14px;
+  padding: var(--spacing-1) 0;
+  font-size: var(--font-size-base);
 }
 
 .scratchpad-content .node-collection {
@@ -130,9 +130,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 80px;
+  height: var(--scratchpad-empty-height);
   color: var(--color-outline);
-  font-size: 13px;
+  font-size: var(--font-size-button);
   text-align: center;
-  padding: 20px;
+  padding: var(--spacing-5);
 }

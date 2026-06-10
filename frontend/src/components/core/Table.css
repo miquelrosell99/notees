@@ -103,7 +103,7 @@
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   color: var(--color-on-surface-variant);
   margin-left: auto;
   flex-shrink: 0;
@@ -165,7 +165,7 @@
 
 /* Checkbox column */
 .table-cell--checkbox.table-cell {
-  width: 40px;
+  width: var(--icon-size-2xl);
   min-width: 40px;
   max-width: 40px;
   text-align: center;
@@ -193,7 +193,7 @@
 }
 
 .table-container--reorderable .table {
-  margin-left: 24px;
+  margin-left: var(--spacing-6);
 }
 
 .table-container--reorderable .table-row {
@@ -208,8 +208,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: var(--icon-size-lg);
+  height: var(--height-xs);
   padding: 0;
   border: none;
   background: transparent;
@@ -236,8 +236,8 @@
 }
 
 .table-drag-icon {
-  width: 16px;
-  height: 16px;
+  width: var(--icon-size-sm);
+  height: var(--icon-size-sm);
 }
 
 /* Reorderable state */
@@ -309,7 +309,7 @@
 
 .table-header-input {
   width: 100%;
-  padding: 4px 8px;
+  padding: var(--spacing-1) var(--spacing-2);
   font-size: inherit;
   font-weight: 600;
   border: 1px solid var(--color-primary);
@@ -324,10 +324,10 @@
   position: absolute;
   top: 4px;
   right: 4px;
-  width: 18px;
-  height: 18px;
+  width: var(--icon-size-md);
+  height: var(--icon-size-md);
   padding: 0;
-  font-size: 14px;
+  font-size: var(--font-size-base);
   line-height: 1;
   background: none;
   border: none;
@@ -349,7 +349,7 @@
 
 /* Add column cell */
 .table-add-col-cell {
-  width: 40px;
+  width: var(--icon-size-2xl);
   min-width: 40px;
   padding: 0;
   background: transparent;
@@ -360,7 +360,7 @@
   width: 100%;
   height: 100%;
   padding: var(--spacing-2);
-  font-size: 16px;
+  font-size: var(--font-size-md);
   background: none;
   border: none;
   color: var(--color-on-surface-variant);
@@ -383,7 +383,7 @@
 }
 
 .table-cell--editing {
-  padding: 4px;
+  padding: var(--spacing-1);
   background: var(--color-surface);
 }
 
@@ -394,7 +394,7 @@
 
 .table-cell-input {
   width: 100%;
-  padding: 4px 8px;
+  padding: var(--spacing-1) var(--spacing-2);
   font-size: inherit;
   border: 1px solid var(--color-primary);
   border-radius: var(--shape-small);
@@ -405,17 +405,17 @@
 
 /* Row actions column */
 .table-row-actions-cell {
-  width: 40px;
+  width: var(--icon-size-2xl);
   min-width: 40px;
   padding: 0;
   text-align: center;
 }
 
 .table-delete-row-btn {
-  width: 24px;
-  height: 24px;
+  width: var(--icon-size-lg);
+  height: var(--height-xs);
   padding: 0;
-  font-size: 14px;
+  font-size: var(--font-size-base);
   background: none;
   border: none;
   color: var(--color-on-surface-variant);
@@ -479,8 +479,8 @@
 
 .table-select-col input[type="checkbox"],
 .table-select-cell input[type="checkbox"] {
-  width: 16px;
-  height: 16px;
+  width: var(--icon-size-sm);
+  height: var(--icon-size-sm);
   cursor: pointer;
   accent-color: var(--color-primary);
 }

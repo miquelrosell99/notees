@@ -6,7 +6,7 @@
  * we assign the appropriate class which causes the flags to be computed by the backend.
  */
 import { useMemo } from 'react';
-import { useClasses } from './useNodes';
+import { useClasses } from './useNodeQueries';
 import { SYSTEM_CLASS_UUIDS } from '@/constants';
 
 /**

@@ -279,8 +279,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 18px;
-  height: 18px;
+  width: var(--icon-size-md);
+  height: var(--icon-size-md);
   flex-shrink: 0;
   border: none;
   background: none;

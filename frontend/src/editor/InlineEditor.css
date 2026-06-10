@@ -104,7 +104,7 @@
 .notees-text-code {
   background: var(--color-surface-container-high);
   border-radius: 3px;
-  padding: 1px 4px;
+  padding: 1px var(--spacing-1);
   font-family: var(--font-family-mono);
   font-size: 0.9em;
 }

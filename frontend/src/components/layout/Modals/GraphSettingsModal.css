@@ -247,8 +247,8 @@
 }
 
 .settings-user-avatar {
-  width: 72px;
-  height: 72px;
+  width: var(--avatar-size-lg);
+  height: var(--avatar-size-lg);
   display: flex;
   align-items: center;
   justify-content: center;

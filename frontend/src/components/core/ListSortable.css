@@ -49,7 +49,7 @@
 /* Drag handle */
 .list-sortable__drag-handle {
   color: var(--color-on-surface-variant);
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   cursor: grab;
   padding: var(--spacing-1);
   line-height: 1;

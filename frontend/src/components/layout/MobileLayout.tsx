@@ -20,6 +20,7 @@
 import { useEffect, useRef } from 'react';
 import { useNavigationStore, useModalStore } from '@/stores';
 import { reportDrawerStateToAndroid } from '@/hooks';
+import { Button } from '@/components/core/Button';
 import { Sidebar } from './Sidebar';
 import { MainContent } from './MainContent';
 import { TopBar } from './TopBar';
@@ -131,15 +132,15 @@ export function MobileLayout({ currentNodeId }: MobileLayoutProps) {
 
       {/* ── FAB: open Scratchpad ── */}
       {!drawerOpen && (
-        <button
+        <Button
+          variant="primary"
+          size="lg"
+          iconOnly
+          icon="mdi mdi-plus"
           className="mobile-fab"
           onClick={() => setScratchpadOpen(true)}
           aria-label="Open Scratchpad"
-        >
-          <svg viewBox="0 0 24 24" width="24" height="24">
-            <path fill="currentColor" d="M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z" />
-          </svg>
-        </button>
+        />
       )}
     </div>
   );

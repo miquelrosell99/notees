@@ -47,8 +47,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: var(--icon-size-xl);
+  height: var(--height-md);
   border: 1px solid var(--graph-btn-border);
   border-radius: var(--shape-medium);
   background: var(--graph-btn-bg);
@@ -78,7 +78,7 @@
   left: 10px;
   display: flex;
   flex-wrap: wrap;
-  gap: 6px 12px;
+  gap: 6px var(--spacing-3);
   padding: 5px 10px;
   border-radius: var(--shape-medium);
   background: var(--graph-stats-bg);
@@ -86,7 +86,7 @@
   -webkit-backdrop-filter: blur(4px);
   color: var(--graph-stats-color);
   font-family: ui-monospace, 'Cascadia Code', monospace;
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   line-height: 1.6;
   pointer-events: none;
   z-index: 10;
@@ -106,7 +106,7 @@
   border: 1px solid var(--graph-tooltip-border);
   /* Design system: zero visual noise — no elevation shadows */
   color: var(--graph-tooltip-color);
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   font-weight: 500;
   max-width: 220px;
   white-space: nowrap;
@@ -116,7 +116,7 @@
 }
 
 .sge-graph-tooltip--edge {
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   text-transform: capitalize;
   color: var(--graph-tooltip-edge-color);
 }
@@ -131,9 +131,9 @@
 
 .sge-graph-view__no-webgl-msg {
   max-width: 340px;
-  padding: 20px;
+  padding: var(--spacing-5);
   text-align: center;
   color: var(--graph-fallback-msg-color);
-  font-size: 14px;
+  font-size: var(--font-size-base);
   line-height: 1.5;
 }

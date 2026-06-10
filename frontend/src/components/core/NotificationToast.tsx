@@ -43,13 +43,15 @@ function ToastItem({ notification, onDismiss }: ToastItemProps) {
         )}
       </div>
       {notification.dismissible && (
-        <button
+        <Button
+          variant="ghost"
+          size="xs"
+          iconOnly
+          icon="mdi mdi-close"
           className="notification-toast__dismiss"
           onClick={() => onDismiss(notification.id)}
           aria-label="Dismiss"
-        >
-          ✕
-        </button>
+        />
       )}
     </div>
   );

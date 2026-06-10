@@ -3,7 +3,7 @@
  */
 
 .trigger-popup {
-  width: 320px;
+  width: var(--modal-width-sm);
   max-width: 90vw;
   background: var(--color-surface);
   border: 1px solid var(--color-outline-variant);
@@ -138,12 +138,12 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: var(--icon-size-lg);
+  height: var(--height-xs);
   border-radius: var(--shape-small);
   background: var(--color-primary-container);
   color: var(--color-on-primary-container);
-  font-size: 14px;
+  font-size: var(--font-size-base);
 }
 
 .trigger-popup__filter-suggestion-label {

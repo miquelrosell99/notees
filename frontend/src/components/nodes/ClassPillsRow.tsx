@@ -6,9 +6,10 @@
  */
 
 import { useState, useRef, useEffect, useCallback, memo } from 'react';
+import { Button } from '@/components/core/Button';
 import { NodeRef } from './NodeRef';
 import { Pill } from '@/components/core/Pill';
-import { CloseIcon, AddIcon } from '@/components/core/icons';
+
 import { useRemoveClass, useClasses } from '@/hooks';
 import { isNonRemovableClass } from '@/constants';
 import type { Node } from '@/types';
@@ -106,7 +107,11 @@ export const ClassPillsRow = memo(function ClassPillsRow({
           </span>
         )}
         {onAddClass && !readOnly && availableClasses.length > 0 && (
-          <button
+          <Button
+            variant="ghost"
+            size="xs"
+            iconOnly
+            icon="mdi mdi-plus"
             className="class-pills-row__add"
             onClick={(e) => {
               const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
@@ -115,9 +120,7 @@ export const ClassPillsRow = memo(function ClassPillsRow({
             }}
             title="Add class"
             aria-label="Add class"
-          >
-            <AddIcon size="xs" />
-          </button>
+          />
         )}
       </div>
 
@@ -135,13 +138,15 @@ export const ClassPillsRow = memo(function ClassPillsRow({
           >
             <div className="class-pills-popup__header">
               <span>Classes</span>
-              <button
+              <Button
+                variant="ghost"
+                size="xs"
+                iconOnly
+                icon="mdi mdi-close"
                 className="class-pills-popup__close"
                 onClick={handleClosePopup}
                 aria-label="Close"
-              >
-                <CloseIcon size="xs" />
-              </button>
+              />
             </div>
             <div className="class-pills-popup__list">
               {classes.map((cls) => {
@@ -150,14 +155,16 @@ export const ClassPillsRow = memo(function ClassPillsRow({
                   <div key={cls.id} className="class-pills-popup__item">
                     <NodeRef node={cls} readOnly={true} />
                     {canRemove && (
-                      <button
+                      <Button
+                        variant="ghost"
+                        size="xs"
+                        iconOnly
+                        icon="mdi mdi-close"
                         className="class-pills-popup__remove"
                         onClick={() => handleRemove(cls.id)}
                         aria-label={`Remove ${cls.name}`}
                         title="Remove"
-                      >
-                        <CloseIcon size="xs" />
-                      </button>
+                      />
                     )}
                   </div>
                 );
@@ -181,13 +188,15 @@ export const ClassPillsRow = memo(function ClassPillsRow({
           >
             <div className="class-pills-popup__header">
               <span>Add class</span>
-              <button
+              <Button
+                variant="ghost"
+                size="xs"
+                iconOnly
+                icon="mdi mdi-close"
                 className="class-pills-popup__close"
                 onClick={() => setShowAddPopup(false)}
                 aria-label="Close"
-              >
-                <CloseIcon size="xs" />
-              </button>
+              />
             </div>
             <div className="class-pills-popup__list">
               {availableClasses.map((cls) => (

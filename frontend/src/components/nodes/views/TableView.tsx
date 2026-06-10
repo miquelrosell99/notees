@@ -17,6 +17,8 @@
 import React, { useMemo, useCallback, useState, memo, type ReactNode } from 'react';
 import type { Node } from '@/types';
 import type { NodeTableViewProps } from '@/types/nodeCollection';
+import { getPropertyValueRenderer } from '@/components/properties/propertyValueRegistry';
+import '@/components/properties/registerPropertyRenderers';
 import { useNavigationStore, useSettingsStore } from '@/stores';
 import { formatDate as formatDateWithFormat } from '@/stores/settingsStore';
 import * as nodesApi from '@/api/nodes';
@@ -316,27 +318,11 @@ export const TableView = memo(function TableView({
             if (aVal == null) return 1;
             if (bVal == null) return -1;
             // Type-aware comparison
-            switch (property.type) {
-              case 'integer':
-              case 'float':
-                return (aVal as number) - (bVal as number);
-              case 'boolean':
-                return (aVal ? 1 : 0) - (bVal ? 1 : 0);
-              case 'selection': {
-                const getOptionName = (v: unknown): string => {
-                  if (typeof v === 'number') {
-                    return property.options?.find(o => o.id === v)?.name ?? String(v);
-                  }
-                  if (v && typeof v === 'object' && 'id' in v) {
-                    return property.options?.find(o => o.id === (v as { id: number }).id)?.name ?? String(v);
-                  }
-                  return String(v);
-                };
-                return getOptionName(aVal).localeCompare(getOptionName(bVal));
-              }
-              default:
-                return String(aVal).localeCompare(String(bVal));
+            const renderer = getPropertyValueRenderer(property.type);
+            if (renderer) {
+              return renderer.compareValues(aVal, bVal, property);
             }
+            return String(aVal).localeCompare(String(bVal));
           },
           render: (node: Node): ReactNode => {
             const value = node.properties?.[property.id];

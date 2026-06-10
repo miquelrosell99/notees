@@ -15,8 +15,8 @@
  *   />
  */
 import { useState, useRef, useEffect, useCallback, type ReactNode } from 'react';
+import { Button } from '@/components/core/Button';
 import { Pill } from '@/components/core/Pill';
-import { CloseIcon } from '@/components/core/icons';
 import './CollapsiblePillRow.css';
 
 interface CollapsiblePillRowProps<T> {
@@ -129,13 +129,15 @@ export function CollapsiblePillRow<T>({
             {popupTitle && (
               <div className="collapsible-pill-row__popup-header">
                 <span>{popupTitle}</span>
-                <button
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  iconOnly
+                  icon="mdi mdi-close"
                   className="collapsible-pill-row__popup-close"
                   onClick={handleClosePopup}
                   aria-label="Close"
-                >
-                  <CloseIcon size="xs" />
-                </button>
+                />
               </div>
             )}
             <div className="collapsible-pill-row__popup-list">

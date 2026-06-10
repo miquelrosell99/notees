@@ -5,7 +5,7 @@ import { Button } from '@/components/core/Button';
 import { Spinner } from '@/components/core/Spinner';
 import { TextField } from '@/components/core/TextField';
 import { NodeCollection } from '@/components/nodes/NodeCollection';
-import { CommentIcon, AddIcon, SendIcon } from '@/components/core/icons';
+import { CommentIcon, AddIcon } from '@/components/core/icons';
 import { useCreateComment } from '@/hooks';
 import type { Node } from '@/types/api';
 
@@ -81,14 +81,16 @@ function QuickAddComment({ nodeId, onClose }: QuickAddCommentProps) {
         autoFocus
         onBlur={() => { if (!text.trim()) onClose(); }}
         icon={
-          <button
+          <Button
+            variant="primary"
+            size="xs"
+            iconOnly
+            icon="mdi mdi-send"
             className="sidebar-quick-add-comment__send"
             onClick={handleSubmit}
             disabled={!text.trim()}
             title="Send comment"
-          >
-            <SendIcon size="xs" />
-          </button>
+          />
         }
       />
     </div>

@@ -25,14 +25,14 @@
 .table-size-selector__grid {
   display: grid;
   gap: 3px;
-  padding: 4px;
+  padding: var(--spacing-1);
   background: var(--color-surface-container-low);
   border-radius: var(--shape-small);
 }
 
 .table-size-selector__cell {
-  width: 20px;
-  height: 20px;
+  width: var(--icon-size-md);
+  height: var(--icon-size-md);
   padding: 0;
   background: var(--color-surface);
   border: 1.5px solid var(--color-outline);
