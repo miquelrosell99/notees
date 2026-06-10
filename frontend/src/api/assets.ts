@@ -3,7 +3,7 @@
  * 
  * Handles file uploads and downloads for images, audio, and other assets.
  */
-import api from './client';
+import api from '@/api/client';
 import { getLogger } from '../utils/logger';
 import { getAssetToken, getAssetUrlSync } from './assetTokens';
 

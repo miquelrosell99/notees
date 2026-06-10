@@ -1,7 +1,7 @@
 /**
  * Properties API functions
  */
-import api from './client';
+import api from '@/api/client';
 import type {
   Property,
   PropertyCreate,

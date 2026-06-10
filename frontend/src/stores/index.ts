@@ -12,7 +12,7 @@
  * Do NOT subscribe to node maps or collections directly.
  * Use selectors (e.g. useNavigationStore(s => s.openNode)) to avoid render cascades.
  */
-export { useAuthStore } from './authStore';
+export { useAuthStore } from '@/features/auth/stores/authStore';
 export { usePresentationStore } from './presentationStore';
 export { useModalStore } from './modalStore';
 export { useNavigationStore } from './navigationStore';
