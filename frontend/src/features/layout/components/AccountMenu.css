@@ -91,7 +91,7 @@
 .account-menu__badge {
   margin-left: auto;
   background: var(--color-error);
-  color: white;
+  color: var(--color-on-surface);
   font-size: 0.65rem;
   font-weight: 600;
   padding: 1px 5px;
