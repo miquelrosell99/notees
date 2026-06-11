@@ -7,6 +7,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { Spinner } from '@/components/ui/Spinner';
 import { useQuery } from '@tanstack/react-query';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useSearch } from '@/hooks';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { useKeyboardListNav } from '@/hooks/useKeyboardListNav';
@@ -68,31 +69,13 @@ export function SearchBox<T = Node>({
   sections,
 }: SearchBoxProps<T>) {
   const [query, setQuery] = useState(initialQuery);
-  const [debouncedQuery, setDebouncedQuery] = useState(initialQuery);
+  const debouncedQuery = useDebouncedValue(query, 300);
   const [isOpen, setIsOpen] = useState(false);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   
   const { openNode } = useNavigationStore();
-  
-  // Debounce the query to avoid flashing results
-  useEffect(() => {
-    if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current);
-    }
-    
-    debounceTimerRef.current = setTimeout(() => {
-      setDebouncedQuery(query);
-    }, 300);
-    
-    return () => {
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-      }
-    };
-  }, [query]);
   
   // Multi-section mode: run queries for each section
   const sectionQueries = (sections || []).map((section, index) => {

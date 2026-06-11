@@ -8,6 +8,7 @@
  * - Syntax highlighting-ready structure
  */
 import { useState, useCallback } from 'react';
+import { useCopiedState } from '@/hooks/useCopiedState';
 import { Dropdown } from '@/components/ui/Dropdown';
 import type { DropdownOption } from '@/components/ui/Dropdown';
 import { Button } from '@/components/ui/Button';
@@ -82,7 +83,7 @@ export function CodeBlock({
   onClick,
 }: CodeBlockProps) {
   const [isHovered, setIsHovered] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [copied, triggerCopy] = useCopiedState();
 
   const handleLanguageChange = (newLang: string | null) => {
     onLanguageChange?.(newLang);
@@ -96,9 +97,8 @@ export function CodeBlock({
   const handleCopy = useCallback(async () => {
     if (!content) return;
     await copyToClipboard(content);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  }, [content]);
+    triggerCopy();
+  }, [content, triggerCopy]);
 
   const displayLanguage = language || 'plaintext';
   const languageLabel = LANGUAGE_OPTIONS.find(opt => opt.value === displayLanguage)?.label ?? 'Plain Text';

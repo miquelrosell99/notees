@@ -23,23 +23,11 @@ import { useQuery } from '@tanstack/react-query';
 import { executeNodeViewQuery, executeQuery as executeAdHocQuery } from '@/api/nodeViews';
 import { autoFixSystemQuery } from '@/lib/systemQueryAutoFix';
 import { normalizeAST } from '@/lib/astNormalizer';
+import { useDebouncedValue } from './useDebouncedValue';
 import { nodeViewKeys } from './useNodeViews';
 import type { QueryAST } from '@/types/queryAST';
 import type { QueryExecuteResponse, QueryExecutionMetrics } from '@/types/nodeView';
 import type { Node } from '@/types/api';
-
-// ==================== Debounce Utility ====================
-
-function useDebouncedValue<T>(value: T, delayMs: number): T {
-  const [debounced, setDebounced] = useState(value);
-
-  useEffect(() => {
-    const handle = setTimeout(() => setDebounced(value), delayMs);
-    return () => clearTimeout(handle);
-  }, [value, delayMs]);
-
-  return debounced;
-}
 
 // ==================== Types ====================
 

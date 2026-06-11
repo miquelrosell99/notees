@@ -5,6 +5,7 @@
 import type { MainViewType } from '@/stores';
 import { useNavigationHistoryStore } from '@/stores/navigationHistoryStore';
 import type { WorkspaceListResponse } from '@/features/workspace/api/workspaces';
+import { queryClient } from '@/lib/queryClient';
 import { getLogger } from '@/utils/logger';
 
 const log = getLogger('Router');
@@ -219,18 +220,12 @@ export function buildUrl(params: {
  * Get the active workspace UUID from the workspaces query cache
  */
 function getActiveWorkspaceUuid(): string | null {
-  // Access the TanStack Query cache directly to get the active workspace
-  // This avoids needing to pass it through every call site
   try {
-    const queryClient = (window as any).__queryClient;
-    if (queryClient) {
-      const data = queryClient.getQueryData(['workspaces']) as WorkspaceListResponse | undefined;
-      return data?.active ?? null;
-    }
+    const data = queryClient.getQueryData(['workspaces']) as WorkspaceListResponse | undefined;
+    return data?.active ?? null;
   } catch {
-    // fallback
+    return null;
   }
-  return null;
 }
 
 /**
