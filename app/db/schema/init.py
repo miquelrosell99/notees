@@ -79,6 +79,8 @@ async def init_database(conn: asyncpg.Connection) -> None:
     await _run_migration("cleanup_self_referencing_aliases", conn, _cleanup_self_referencing_aliases)
     await _run_migration("seed_system_settings", conn, _seed_system_settings)
     await _run_migration("renumber_sequences", conn, _renumber_sequences)
+    from app.db.migrations.convert_raw_uuid_to_broken_link import run as _run_convert_raw_uuid
+    await _run_migration("convert_raw_uuid_to_broken_link", conn, _run_convert_raw_uuid)
 
 
 
