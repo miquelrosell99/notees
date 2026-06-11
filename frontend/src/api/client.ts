@@ -83,9 +83,6 @@ export interface RequestOptions {
 const kyClient = ky.create({
   prefixUrl: '/api',
   timeout: 30000,
-  headers: {
-    'Content-Type': 'application/json',
-  },
   hooks: {
     beforeRequest: [
       (request) => {
