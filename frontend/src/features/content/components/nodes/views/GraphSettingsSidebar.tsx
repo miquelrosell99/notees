@@ -31,6 +31,9 @@ export interface GraphSettingsSidebarProps {
   viewMode: 'normal' | 'circle' | 'tree';
   onCollapse: () => void;
   localGraphMode?: boolean;
+  currentNodeId?: number | null;
+  levels?: number;
+  onLevelsChange?: (levels: number) => void;
 }
 
 const GRAPH_COLOR_ENTRIES: ColorEntry[] = [
@@ -61,6 +64,9 @@ export function GraphSettingsSidebar({
   viewMode,
   onCollapse,
   localGraphMode = false,
+  currentNodeId,
+  levels,
+  onLevelsChange,
 }: GraphSettingsSidebarProps) {
   return (
     <div className="graph-sidebar">
@@ -89,6 +95,31 @@ export function GraphSettingsSidebar({
                 hideSelfNode: e.target.checked
               }))}
             />
+          </div>
+        </GraphSidebarSection>
+      )}
+
+      {currentNodeId != null && onLevelsChange && (
+        <GraphSidebarSection title="Neighborhood" icon="mdi mdi-layers-triple" defaultOpen={true}>
+          <div className="visibility-option visibility-option--slider">
+            <span className="visibility-option__label">Levels</span>
+            <div className="visibility-option__slider-row">
+              <input
+                type="range"
+                min={1}
+                max={5}
+                step={1}
+                value={levels ?? 1}
+                onChange={(e) => onLevelsChange(Number(e.target.value))}
+                className="graph-radius-slider"
+              />
+              <span className="graph-radius-value">{levels ?? 1}</span>
+            </div>
+            <p className="graph-sidebar-hint">
+              {levels === 1
+                ? 'Directly linked nodes only'
+                : `Nodes up to ${levels} hops away`}
+            </p>
           </div>
         </GraphSidebarSection>
       )}

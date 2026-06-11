@@ -111,6 +111,46 @@ function buildSGEPhysicsConfig(settings: GraphSettings): SGEPhysicsConfig {
   };
 }
 
+/**
+ * BFS to find all node IDs within maxDepth hops of startNodeId.
+ * Traverses links as an undirected graph.
+ */
+function getNeighborhoodNodeIds(
+  links: GraphLink[],
+  startNodeId: number,
+  maxDepth: number,
+): Set<number> {
+  if (maxDepth <= 0) return new Set([startNodeId]);
+
+  const adjacency = new Map<number, number[]>();
+  for (const link of links) {
+    if (!adjacency.has(link.source)) adjacency.set(link.source, []);
+    if (!adjacency.has(link.target)) adjacency.set(link.target, []);
+    adjacency.get(link.source)!.push(link.target);
+    adjacency.get(link.target)!.push(link.source);
+  }
+
+  const visited = new Set<number>([startNodeId]);
+  const distances = new Map<number, number>([[startNodeId, 0]]);
+  const queue: number[] = [startNodeId];
+
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    const dist = distances.get(current)!;
+    if (dist >= maxDepth) continue;
+
+    for (const neighbor of adjacency.get(current) || []) {
+      if (!visited.has(neighbor)) {
+        visited.add(neighbor);
+        distances.set(neighbor, dist + 1);
+        queue.push(neighbor);
+      }
+    }
+  }
+
+  return visited;
+}
+
 /** Compute shortest path highlights between consecutive selected nodes. */
 function computePathHighlights(
   selectedIds: number[],
@@ -278,6 +318,16 @@ export function GraphView({
   const [searchOpen, setSearchOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'normal' | 'circle' | 'tree'>('normal');
 
+  // Levels (depth) for neighborhood exploration around an active node
+  const [levels, setLevels] = useState(() => {
+    try {
+      const raw = localStorage.getItem(getStorageKey(viewId, 'levels'));
+      return raw ? Math.max(1, Math.min(5, Number(raw))) : 1;
+    } catch {
+      return 1;
+    }
+  });
+
   const sgePhysicsConfig = useMemo(() => buildSGEPhysicsConfig(graphSettings), [graphSettings]);
   
   // Load graph settings from cached TanStack Query data
@@ -406,6 +456,15 @@ export function GraphView({
     }
   }, [graphDataMode, viewId]);
 
+  // Persist levels to localStorage whenever it changes
+  useEffect(() => {
+    try {
+      localStorage.setItem(getStorageKey(viewId, 'levels'), String(levels));
+    } catch {
+      // ignore
+    }
+  }, [levels, viewId]);
+
   // Build class ID set
   const classIds = useMemo(() => {
     const set = new Set<number>();
@@ -418,8 +477,21 @@ export function GraphView({
   }, [classes]);
   
   // Data source: nodes from props, links from hook
-  const sourceNodes = apiNodes;
-  const sourceLinks = apiLinks;
+  // When centered on an active node, filter to the BFS neighborhood within `levels` hops
+  const neighborhoodNodeIds = useMemo(() => {
+    if (currentNodeId == null || levels < 1 || apiLinks.length === 0) return null;
+    return getNeighborhoodNodeIds(apiLinks, currentNodeId, levels);
+  }, [apiLinks, currentNodeId, levels]);
+
+  const sourceNodes = useMemo(() => {
+    if (neighborhoodNodeIds == null) return apiNodes;
+    return apiNodes.filter(n => neighborhoodNodeIds.has(n.id));
+  }, [apiNodes, neighborhoodNodeIds]);
+
+  const sourceLinks = useMemo(() => {
+    if (neighborhoodNodeIds == null) return apiLinks;
+    return apiLinks.filter(l => neighborhoodNodeIds.has(l.source) && neighborhoodNodeIds.has(l.target));
+  }, [apiLinks, neighborhoodNodeIds]);
   
   // Convert API data to renderer format, applying visibility filters and class colors
   const { nodes, links } = useMemo(() => {
@@ -839,6 +911,9 @@ export function GraphView({
           viewMode={viewMode}
           onCollapse={() => setSidebarCollapsed(true)}
           localGraphMode={localGraphMode}
+          currentNodeId={currentNodeId}
+          levels={levels}
+          onLevelsChange={setLevels}
         />
       )}
       
@@ -953,13 +1028,25 @@ export function GraphView({
       {!linksLoading && nodes.length === 0 && sourceNodes.length > 0 && (
         <div className="node-graph-view__loading-overlay">
           <div className="node-graph-view__empty">
-            <h3>All nodes hidden by filters</h3>
-            <p>Adjust visibility filters or reset them to see the graph.</p>
+            {currentNodeId != null ? (
+              <>
+                <h3>No connected nodes within {levels} {levels === 1 ? 'level' : 'levels'}</h3>
+                <p>Try increasing the levels to see more connections.</p>
+              </>
+            ) : (
+              <>
+                <h3>All nodes hidden by filters</h3>
+                <p>Adjust visibility filters or reset them to see the graph.</p>
+              </>
+            )}
             <Button
               variant="primary"
               size="sm"
               icon="mdi mdi-refresh"
-              onClick={() => setVisibilityFilters({ ...DEFAULT_VISIBILITY_FILTERS })}
+              onClick={() => {
+                setVisibilityFilters({ ...DEFAULT_VISIBILITY_FILTERS });
+                if (currentNodeId != null) setLevels(1);
+              }}
               style={{ marginTop: '12px' }}
             >
               Reset filters
