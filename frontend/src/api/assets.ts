@@ -77,11 +77,7 @@ export async function uploadAsset(
   
   log.info(`Uploading asset: ${file.name} (${file.type}, ${file.size} bytes)${existingNodeId ? ` (converting node ${existingNodeId})` : ''}`);
   
-  const response = await api.post<Asset>('/assets/upload', formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
-  });
+  const response = await api.post<Asset>('/assets/upload', formData);
   
   log.info(`Asset uploaded: ${response.data.uuid}`);
   return response.data;

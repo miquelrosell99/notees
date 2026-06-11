@@ -88,9 +88,7 @@ export async function importWorkspace(name: string, file: File): Promise<Workspa
   const formData = new FormData();
   formData.append('name', name);
   formData.append('file', file);
-  const response = await api.post('/workspaces/import', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  });
+  const response = await api.post('/workspaces/import', formData);
   return response.data;
 }
 
@@ -101,9 +99,7 @@ export async function importWorkspace(name: string, file: File): Promise<Workspa
 export async function restoreWorkspace(uuid: string, file: File): Promise<{ uuid: string; name: string; stats: Record<string, number> }> {
   const formData = new FormData();
   formData.append('file', file);
-  const response = await api.post(`/workspaces/${encodeURIComponent(uuid)}/restore`, formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  });
+  const response = await api.post(`/workspaces/${encodeURIComponent(uuid)}/restore`, formData);
   return response.data;
 }
 
