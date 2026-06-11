@@ -50,18 +50,13 @@ export function TabItem({
   onDrop,
   index,
 }: TabItemProps) {
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+  const [contextMenuOpen, setContextMenuOpen] = useState(false);
   const [showClose, setShowClose] = useState(false);
   const tabRef = useRef<HTMLDivElement>(null);
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
-    const rect = tabRef.current?.getBoundingClientRect();
-    if (rect) {
-      setContextMenu({ x: rect.left, y: rect.bottom });
-    } else {
-      setContextMenu({ x: e.clientX, y: e.clientY });
-    }
+    setContextMenuOpen(true);
   }, []);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
@@ -112,10 +107,10 @@ export function TabItem({
           />
         )}
       </div>
-      {contextMenu && (
+      {contextMenuOpen && (
         <TabContextMenu
-          position={contextMenu}
-          onClose={() => setContextMenu(null)}
+          anchorEl={tabRef.current}
+          onClose={() => setContextMenuOpen(false)}
           tabId={tab.id}
           isPinned={tab.pinned}
           isActive={isActive}
