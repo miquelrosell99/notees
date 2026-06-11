@@ -7,6 +7,7 @@
  */
 import { forwardRef, type HTMLAttributes } from 'react';
 import './ToggleSwitch.css';
+import { cn } from '@/utils/cn';
 
 export type ToggleSwitchSize = 'sm' | 'md' | 'lg';
 
@@ -41,15 +42,13 @@ export const ToggleSwitch = forwardRef<HTMLDivElement, ToggleSwitchProps>(functi
   },
   ref
 ) {
-  const containerClasses = [
+  const containerClasses = cn(
     'toggle-switch',
     `toggle-switch--${size}`,
     checked ? 'toggle-switch--checked' : '',
     disabled ? 'toggle-switch--disabled' : '',
     className,
-  ]
-    .filter(Boolean)
-    .join(' ');
+  );
 
   const handleClick = () => {
     if (!disabled) {
