@@ -88,6 +88,8 @@ interface SettingsState {
   firstDayOfWeek: FirstDayOfWeek;
   /** Whether the main content area spans the full width */
   wideMode: boolean;
+  /** Position of the tab bar: top (default) or left (vertical) */
+  tabPosition: 'top' | 'left';
   
   // Actions
   setTheme: (theme: ThemePreference) => void;
@@ -102,6 +104,7 @@ interface SettingsState {
   setShowDevOptions: (show: boolean) => void;
   setFirstDayOfWeek: (day: FirstDayOfWeek) => void;
   toggleWideMode: () => void;
+  setTabPosition: (position: 'top' | 'left') => void;
 }
 
 /**
@@ -231,6 +234,7 @@ export const useSettingsStore = create<SettingsState>()(
       showDevOptions: false,
       firstDayOfWeek: 0,
       wideMode: false,
+      tabPosition: 'top',
       
       // Actions
       setTheme: (theme) => {
@@ -278,6 +282,9 @@ export const useSettingsStore = create<SettingsState>()(
       },
       toggleWideMode: () => {
         set((state) => ({ wideMode: !state.wideMode }));
+      },
+      setTabPosition: (tabPosition) => {
+        set({ tabPosition });
       },
     }),
     {
