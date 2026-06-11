@@ -208,94 +208,94 @@ export function QueryBlockList({
   }, [blocks, onChange]);
 
   // State for context menu
-  const [menuPosition, setMenuPosition] = useState<{ x: number; y: number } | null>(null);
+  const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
 
   // Build context menu items
   const contextMenuItems: ContextMenuItem[] = [
     {
       id: 'content',
       label: 'CONTENT',
-      onClick: () => { handleAddContent(); setMenuPosition(null); },
+      onClick: () => { handleAddContent(); setMenuAnchor(null); },
     },
     {
       id: 'property',
       label: 'PROPERTY',
-      onClick: () => { handleAddProperty(); setMenuPosition(null); },
+      onClick: () => { handleAddProperty(); setMenuAnchor(null); },
     },
     { id: 'sep-1', label: '', separator: true },
     {
       id: 'class',
       label: 'CLASS',
-      onClick: () => { handleAddClass(); setMenuPosition(null); },
+      onClick: () => { handleAddClass(); setMenuAnchor(null); },
     },
     {
       id: 'class_path',
       label: 'CLASS PATH',
-      onClick: () => { handleAddClassPath(); setMenuPosition(null); },
+      onClick: () => { handleAddClassPath(); setMenuAnchor(null); },
     },
     { id: 'sep-2', label: '', separator: true },
     {
       id: 'reference',
       label: 'REFERENCE',
-      onClick: () => { handleAddReference(); setMenuPosition(null); },
+      onClick: () => { handleAddReference(); setMenuAnchor(null); },
     },
     {
       id: 'reference_path',
       label: 'REFERENCE PATH',
-      onClick: () => { handleAddReferencePath(); setMenuPosition(null); },
+      onClick: () => { handleAddReferencePath(); setMenuAnchor(null); },
     },
     { id: 'sep-3', label: '', separator: true },
     {
       id: 'parent',
       label: 'PARENT',
-      onClick: () => { handleAddParent(); setMenuPosition(null); },
+      onClick: () => { handleAddParent(); setMenuAnchor(null); },
     },
     {
       id: 'parent_path',
       label: 'PARENT PATH',
-      onClick: () => { handleAddParentPath(); setMenuPosition(null); },
+      onClick: () => { handleAddParentPath(); setMenuAnchor(null); },
     },
     {
       id: 'child',
       label: 'CHILD',
-      onClick: () => { handleAddChild(); setMenuPosition(null); },
+      onClick: () => { handleAddChild(); setMenuAnchor(null); },
     },
     {
       id: 'child_path',
       label: 'CHILD PATH',
-      onClick: () => { handleAddChildPath(); setMenuPosition(null); },
+      onClick: () => { handleAddChildPath(); setMenuAnchor(null); },
     },
     {
       id: 'page',
       label: 'PAGE',
-      onClick: () => { handleAddPage(); setMenuPosition(null); },
+      onClick: () => { handleAddPage(); setMenuAnchor(null); },
     },
     { id: 'sep-4', label: '', separator: true },
     {
       id: 'style-bold',
       label: 'BOLD',
-      onClick: () => { handleAddStyle('bold'); setMenuPosition(null); },
+      onClick: () => { handleAddStyle('bold'); setMenuAnchor(null); },
     },
     {
       id: 'style-italic',
       label: 'ITALIC',
-      onClick: () => { handleAddStyle('italic'); setMenuPosition(null); },
+      onClick: () => { handleAddStyle('italic'); setMenuAnchor(null); },
     },
     {
       id: 'style-underline',
       label: 'UNDERLINE',
-      onClick: () => { handleAddStyle('underline'); setMenuPosition(null); },
+      onClick: () => { handleAddStyle('underline'); setMenuAnchor(null); },
     },
     {
       id: 'style-strikethrough',
       label: 'STRIKETHROUGH',
-      onClick: () => { handleAddStyle('strikethrough'); setMenuPosition(null); },
+      onClick: () => { handleAddStyle('strikethrough'); setMenuAnchor(null); },
     },
     { id: 'sep-5', label: '', separator: true },
     {
       id: 'group',
       label: 'AND/OR/NOT',
-      onClick: () => { handleAddGroup(); setMenuPosition(null); },
+      onClick: () => { handleAddGroup(); setMenuAnchor(null); },
     },
   ];
 
@@ -374,8 +374,7 @@ export function QueryBlockList({
             variant="ghost"
             size="sm"
             onClick={(e) => {
-              const rect = e.currentTarget.getBoundingClientRect();
-              setMenuPosition({ x: rect.left, y: rect.bottom + 4 });
+              setMenuAnchor(e.currentTarget);
             }}
           />
         </div>
@@ -389,8 +388,7 @@ export function QueryBlockList({
             variant="ghost"
             size="sm"
             onClick={(e) => {
-              const rect = e.currentTarget.getBoundingClientRect();
-              setMenuPosition({ x: rect.left, y: rect.bottom + 4 });
+              setMenuAnchor(e.currentTarget);
             }}
           />
         </div>
@@ -404,8 +402,7 @@ export function QueryBlockList({
             variant="default"
             size="md"
             onClick={(e) => {
-              const rect = e.currentTarget.getBoundingClientRect();
-              setMenuPosition({ x: rect.left, y: rect.bottom + 4 });
+              setMenuAnchor(e.currentTarget);
             }}
           >
             Add condition
@@ -414,11 +411,11 @@ export function QueryBlockList({
       )}
 
       {/* Context menu for adding conditions */}
-      {menuPosition && (
+      {menuAnchor && (
         <ContextMenu
           items={contextMenuItems}
-          position={menuPosition}
-          onClose={() => setMenuPosition(null)}
+          anchorEl={menuAnchor}
+          onClose={() => setMenuAnchor(null)}
         />
       )}
     </div>

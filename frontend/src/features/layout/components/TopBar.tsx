@@ -278,38 +278,31 @@ export function TopBar() {
         />
 
         {/* Undo history dropdown */}
-        {undoMenuOpen && undoMenuItems.length > 0 && undoBtnRef.current && (() => {
-          const rect = undoBtnRef.current!.getBoundingClientRect();
-          return (
-            <ContextMenu
-              items={undoMenuItems}
-              position={{ x: rect.right, y: rect.bottom + 4 }}
-              onClose={() => setUndoMenuOpen(false)}
-              title="Undo history"
-              alignRight
-            />
-          );
-        })()}
+        {undoMenuOpen && undoMenuItems.length > 0 && undoBtnRef.current && (
+          <ContextMenu
+            items={undoMenuItems}
+            anchorEl={undoBtnRef.current}
+            onClose={() => setUndoMenuOpen(false)}
+            title="Undo history"
+            alignRight
+          />
+        )}
 
         {/* Redo history dropdown */}
-        {redoMenuOpen && redoMenuItems.length > 0 && redoBtnRef.current && (() => {
-          const rect = redoBtnRef.current!.getBoundingClientRect();
-          return (
-            <ContextMenu
-              items={redoMenuItems}
-              position={{ x: rect.right, y: rect.bottom + 4 }}
-              onClose={() => setRedoMenuOpen(false)}
-              title="Redo history"
-              alignRight
-            />
-          );
-        })()}
+        {redoMenuOpen && redoMenuItems.length > 0 && redoBtnRef.current && (
+          <ContextMenu
+            items={redoMenuItems}
+            anchorEl={redoBtnRef.current}
+            onClose={() => setRedoMenuOpen(false)}
+            title="Redo history"
+            alignRight
+          />
+        )}
 
         {/* Navigation history dropdown */}
         {navHistoryOpen && navHistoryBtnRef.current && (() => {
           const activeTab = tabs.find((t) => t.id === activeTabId);
           if (!activeTab || activeTab.history.length === 0) return null;
-          const rect = navHistoryBtnRef.current!.getBoundingClientRect();
           const navigateToHistoryEntry = useNavigationStore.getState().navigateToHistoryEntry;
           const items: ContextMenuItem[] = activeTab.history.map((entry, i) => ({
             id: `nav-${i}`,
@@ -323,7 +316,7 @@ export function TopBar() {
           return (
             <ContextMenu
               items={items}
-              position={{ x: rect.left, y: rect.bottom + 4 }}
+              anchorEl={navHistoryBtnRef.current}
               onClose={() => setNavHistoryOpen(false)}
               title="Tab history"
             />

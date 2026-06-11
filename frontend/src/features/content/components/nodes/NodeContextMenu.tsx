@@ -43,20 +43,36 @@ import './NodeContextMenu.css';
  * Uses a callback ref to directly modify DOM style on mount — no state,
  * no re-render, guaranteed to run before the first paint.
  */
-function adjustMenuPosition(el: HTMLElement | null, position: { x: number; y: number }) {
+function adjustMenuPosition(
+  el: HTMLElement | null,
+  position?: { x: number; y: number },
+  anchorEl?: HTMLElement | null,
+) {
   if (!el) return;
+  const padding = 8;
+  let x: number;
+  let y: number;
+
+  const anchorRect = anchorEl?.getBoundingClientRect();
+  if (anchorRect) {
+    x = anchorRect.left;
+    y = anchorRect.bottom;
+  } else if (position) {
+    x = position.x;
+    y = position.y;
+  } else {
+    return;
+  }
+
   // Place at requested position first so we can measure true dimensions
-  el.style.left = `${position.x}px`;
-  el.style.top = `${position.y}px`;
+  el.style.left = `${x}px`;
+  el.style.top = `${y}px`;
 
   const rect = el.getBoundingClientRect();
-  const padding = 8;
-  let x = position.x;
-  let y = position.y;
 
-  // If menu overflows bottom, open upward from click point
+  // If menu overflows bottom, open upward from anchor/click point
   if (y + rect.height > window.innerHeight) {
-    y = position.y - rect.height;
+    y = (anchorRect ? anchorRect.top : (position?.y ?? 0)) - rect.height;
   }
   // If menu overflows right
   if (x + rect.width > window.innerWidth) {
@@ -75,8 +91,10 @@ function adjustMenuPosition(el: HTMLElement | null, position: { x: number; y: nu
 interface BaseContextMenuProps {
   /** The node to show context menu for */
   node: Node;
-  /** Position for the menu */
-  position: { x: number; y: number };
+  /** Explicit screen position (used for right-click menus) */
+  position?: { x: number; y: number };
+  /** Anchor element — menu is positioned relative to this element's rect */
+  anchorEl?: HTMLElement | null;
   /** Callback to close the menu */
   onClose: () => void;
 }
@@ -319,7 +337,10 @@ function MoveToSubmenu({ node, onClose, onParentChange }: MoveToSubmenuProps) {
 
 interface BaseContextMenuProps {
   node: Node;
-  position: { x: number; y: number };
+  /** Explicit screen position (used for right-click menus) */
+  position?: { x: number; y: number };
+  /** Anchor element — menu is positioned relative to this element's rect */
+  anchorEl?: HTMLElement | null;
   onClose: () => void;
 }
 
@@ -342,6 +363,7 @@ export interface NodeContextMenuProps extends BaseContextMenuProps {
 export function NodeContextMenu({
   node,
   position,
+  anchorEl,
   onClose,
   actions = DEFAULT_ACTIONS,
   onParentChange,
@@ -701,8 +723,8 @@ export function NodeContextMenu({
   const menuVisible = !showDeleteModal && !showArchiveModal && !showASTModal && !showExportModal && !showShareModal;
   const menuCallbackRef = useCallback((el: HTMLDivElement | null) => {
     wrapperRef.current = el;
-    adjustMenuPosition(el, position);
-  }, [position]);
+    adjustMenuPosition(el, position, anchorEl);
+  }, [position, anchorEl]);
 
   return (
     <>

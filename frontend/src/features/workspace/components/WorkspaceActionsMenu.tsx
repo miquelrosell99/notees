@@ -28,19 +28,14 @@ export function WorkspaceActionsMenu({
   disabled,
 }: WorkspaceActionsMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
   const buttonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useClickOutside(menuRef, () => setIsOpen(false), isOpen);
 
   const handleToggle = useCallback(() => {
-    if (!isOpen && buttonRef.current) {
-      const rect = buttonRef.current.getBoundingClientRect();
-      setMenuPosition({ x: rect.right, y: rect.bottom + 4 });
-    }
     setIsOpen((prev) => !prev);
-  }, [isOpen]);
+  }, []);
 
   const handleClose = useCallback(() => {
     setIsOpen(false);
@@ -96,7 +91,7 @@ export function WorkspaceActionsMenu({
       {isOpen && createPortal(
         <ContextMenu
           items={items}
-          position={menuPosition}
+          anchorEl={buttonRef.current}
           onClose={handleClose}
           alignRight
           inline
