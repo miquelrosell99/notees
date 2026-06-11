@@ -30,7 +30,7 @@ import { useCommand } from './hooks/useCommand';
 import { COMMAND_IDS } from './stores/commandRegistry';
 import { DndProvider } from './providers/DndProvider';
 import { listWorkspaces } from './features/workspace/api/workspaces';
-import { useAuthStore, useModalStore, useFavoritesStore, useUndoStore } from './stores';
+import { useAuthStore, useModalStore, useFavoritesStore, useUndoStore, useNavigationStore } from './stores';
 import { useAndroidBridge } from './hooks';
 // SHORTCUT_IDS removed — commands now use COMMAND_IDS from commandRegistry
 import type { User } from './types/api';
@@ -169,6 +169,10 @@ function AppContent() {
   useCommand(COMMAND_IDS.GO_TODAY, () => {
     toggleCalendar();
   }, { enabled: isAuthenticated, label: 'Go to Today' });
+
+  useCommand(COMMAND_IDS.TOGGLE_FOCUS_MODE, () => {
+    useNavigationStore.getState().toggleFocusMode();
+  }, { enabled: isAuthenticated, label: 'Toggle Focus Mode', icon: 'mdi mdi-brain' });
   
   // Settings are already fetched above for enrollment check. Re-use that query
   // for the Layout gate instead of firing a duplicate GET /settings.
