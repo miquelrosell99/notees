@@ -31,9 +31,8 @@ const RecentItem = memo(function RecentItem({ nodeId, isActive, onClick, onNavig
           <NodeBreadcrumbs
             nodeId={node.id}
             nodeType="page"
-            editable={false}
+            compact
             onNavigate={onNavigate}
-            className="node-breadcrumbs--inline node-breadcrumbs--compact"
           />
         </div>
         <NodeInline

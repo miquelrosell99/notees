@@ -227,6 +227,8 @@ interface NodeBreadcrumbsProps {
   parentLocked?: boolean;
   /** Whether parent-chain editing (add/change/remove parent) is enabled. Only the node view top bar should set this to true. */
   editable?: boolean;
+  /** When true, renders a compact read-only inline variant (no editing, smaller gaps/padding). */
+  compact?: boolean;
 }
 
 /** How many items to keep visible at each end when collapsing */
@@ -243,7 +245,9 @@ export function NodeBreadcrumbs({
   className = '',
   parentLocked = false,
   editable = false,
+  compact = false,
 }: NodeBreadcrumbsProps) {
+  const isEditable = editable && !compact;
   const [isOverflowing, setIsOverflowing] = useState(false);
   const [popupOpen, setPopupOpen] = useState(false);
   const containerRef = useRef<HTMLElement>(null);
@@ -428,7 +432,7 @@ export function NodeBreadcrumbs({
     return <span className="node-breadcrumb-spinner" />;
   }
 
-  if (breadcrumbs.length === 0 && nodeType === 'page' && !parentLocked && editable) {
+  if (breadcrumbs.length === 0 && nodeType === 'page' && !parentLocked && isEditable) {
     return (
       <>
         <Button
@@ -467,7 +471,7 @@ export function NodeBreadcrumbs({
     <>
       <nav
         ref={containerRef}
-        className={`node-breadcrumbs ${className}`}
+        className={`node-breadcrumbs ${compact ? 'node-breadcrumbs--inline node-breadcrumbs--compact' : ''} ${className}`}
         aria-label={nodeType === 'page' ? 'Page hierarchy' : 'Block path'}
       >
         {/* Start items (always visible) */}
@@ -477,8 +481,8 @@ export function NodeBreadcrumbs({
             item={item}
             onClick={handleClick}
             showSeparator={needsCollapse || index < startItems.length - 1}
-            onEditParent={editable && nodeType === 'page' ? handleEditParent : undefined}
-            onContextMenu={editable && nodeType === 'page' ? handleBreadcrumbContextMenu : undefined}
+            onEditParent={isEditable && nodeType === 'page' ? handleEditParent : undefined}
+            onContextMenu={isEditable && nodeType === 'page' ? handleBreadcrumbContextMenu : undefined}
           />
         ))}
 
@@ -517,8 +521,8 @@ export function NodeBreadcrumbs({
               item={item}
               onClick={handleClick}
               showSeparator={index < endItems.length - 1}
-              onEditParent={editable && nodeType === 'page' ? handleEditParent : undefined}
-              onContextMenu={editable && nodeType === 'page' ? handleBreadcrumbContextMenu : undefined}
+              onEditParent={isEditable && nodeType === 'page' ? handleEditParent : undefined}
+              onContextMenu={isEditable && nodeType === 'page' ? handleBreadcrumbContextMenu : undefined}
             />
           ))}
       </nav>

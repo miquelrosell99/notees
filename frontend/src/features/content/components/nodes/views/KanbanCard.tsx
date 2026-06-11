@@ -638,9 +638,8 @@ export const NodeCard = memo(function NodeCard({
               <NodeBreadcrumbs
                 nodeId={node.id}
                 nodeType={node.is_page ? 'page' : 'block'}
-                editable={false}
+                compact
                 onNavigate={openNode}
-                className="node-breadcrumbs--inline node-breadcrumbs--compact"
               />
             </div>
           )}
