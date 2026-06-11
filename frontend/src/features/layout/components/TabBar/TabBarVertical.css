@@ -54,6 +54,18 @@
   padding: 0 var(--spacing-0-5);
 }
 
+/* Subtle horizontal divider between tabs */
+.tab-bar-vertical__slot::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 15%;
+  width: 70%;
+  height: 1px;
+  background: var(--color-outline-variant);
+  opacity: 0.4;
+}
+
 .tab-bar-vertical__slot .tab-item {
   justify-content: center;
   min-height: 34px;
@@ -86,6 +98,16 @@
   min-height: var(--height-sm);
   width: var(--height-sm);
   padding: 0 !important;
+}
+
+/* Divider between last tab and add button */
+.tab-bar-vertical__section-divider {
+  width: var(--height-xs);
+  height: 1px;
+  background: var(--color-outline-variant);
+  opacity: 0.4;
+  margin: var(--spacing-1) auto;
+  flex-shrink: 0;
 }
 
 .tab-bar-vertical__overflow {

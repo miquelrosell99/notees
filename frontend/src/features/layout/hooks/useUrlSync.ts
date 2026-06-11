@@ -15,6 +15,7 @@ export function useUrlSync(
     currentNodeId,
     currentPropertyId,
     tabs,
+    activeTabId,
     secondaryTabId,
     splitOrientation,
   } = useNavigationStore();
@@ -23,6 +24,7 @@ export function useUrlSync(
     mainViewType: typeof mainViewType;
     currentNodeId: number | null;
     currentPropertyId: number | null;
+    activeTabId: string | null;
     secondaryTabId: string | null;
     splitOrientation: string | null;
   } | null>(null);
@@ -36,6 +38,7 @@ export function useUrlSync(
       prevState.mainViewType !== mainViewType ||
       prevState.currentNodeId !== currentNodeId ||
       prevState.currentPropertyId !== currentPropertyId ||
+      prevState.activeTabId !== activeTabId ||
       prevState.secondaryTabId !== secondaryTabId ||
       prevState.splitOrientation !== (splitOrientation ?? null);
 
@@ -45,6 +48,7 @@ export function useUrlSync(
       mainViewType,
       currentNodeId,
       currentPropertyId,
+      activeTabId: activeTabId ?? null,
       secondaryTabId: secondaryTabId ?? null,
       splitOrientation: splitOrientation ?? null,
     };
@@ -121,5 +125,5 @@ export function useUrlSync(
     };
 
     updateUrlAsync();
-  }, [mainViewType, currentNodeId, currentPropertyId, tabs, secondaryTabId, splitOrientation]);
+  }, [mainViewType, currentNodeId, currentPropertyId, tabs, activeTabId, secondaryTabId, splitOrientation]);
 }

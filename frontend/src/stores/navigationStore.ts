@@ -224,8 +224,24 @@ export const useNavigationStore = create<NavigationState>()((set, get) => {
 
     openNode: (nodeId, propertyContext) => {
       const state = get();
+
+      // If this node is already open in a tab, activate that tab instead of
+      // replacing the current one (browser-like tab navigation)
+      const existingTab = state.tabs.find((t) => t.nodeId === nodeId && t.type === 'node');
+      if (existingTab) {
+        set({
+          activeTabId: existingTab.id,
+          currentNodeId: existingTab.nodeId ?? null,
+          mainViewType: existingTab.type,
+          currentPropertyId: existingTab.propertyId ?? null,
+          currentPropertyContext: propertyContext ?? null,
+        });
+        return;
+      }
+
       const activeTab = state.tabs.find((t) => t.id === state.activeTabId);
       const isNewNode = activeTab?.nodeId !== nodeId;
+      const newTabId = generateTabId();
       const newTabs = activeTab
         ? state.tabs.map((t) => {
             if (t.id !== state.activeTabId) return t;
@@ -240,9 +256,10 @@ export const useNavigationStore = create<NavigationState>()((set, get) => {
               color: isNewNode ? undefined : t.color,
             };
           })
-        : [...state.tabs, { id: generateTabId(), type: 'node' as MainViewType, nodeId, label: 'Node', pinned: false, history: [], historyIndex: -1 }];
+        : [...state.tabs, { id: newTabId, type: 'node' as MainViewType, nodeId, label: 'Node', pinned: false, history: [], historyIndex: -1 }];
       set({
         tabs: newTabs,
+        activeTabId: activeTab ? state.activeTabId : newTabId,
         currentNodeId: nodeId,
         currentPropertyContext: propertyContext ?? null,
         mainViewType: 'node',
