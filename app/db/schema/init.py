@@ -1275,8 +1275,6 @@ async def get_or_create_user_workspace(
 
 async def _seed_system_settings(conn: asyncpg.Connection) -> None:
     """Seed default system settings if they don't exist."""
-    import json as _json
-
     defaults = {
         "cleanup_interval_seconds": 86400,
         "cleanup_workspace_max_age_days": 30,
@@ -1290,5 +1288,5 @@ async def _seed_system_settings(conn: asyncpg.Connection) -> None:
             ON CONFLICT (key) DO NOTHING
             """,
             key,
-            _json.dumps(value),
+            value,
         )

@@ -180,7 +180,7 @@ class AssetService:
 
                 return asset_uuid, extension
 
-            except Exception:
+            except (OSError, shutil.Error):
                 # Clean up folder on failure
                 shutil.rmtree(folder, ignore_errors=True)
                 raise

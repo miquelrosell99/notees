@@ -314,7 +314,7 @@ async def batch_delete_nodes(
                 )
             )
 
-    logger.info(f"[BATCH_DELETE] {deleted} deleted, {failed} failed out of {len(body.uuids)}")
+    logger.info("Batch delete: %s deleted, %s failed out of %s", deleted, failed, len(body.uuids))
     return BatchNodeDeleteResponse(results=results, deleted=deleted, failed=failed)
 
 

@@ -710,20 +710,20 @@ class NodeService:
 
         # Get all backlinks to this node (from [[nodeId]] links)
         backlinks = await self._link_service.get_backlinks(node_id)
-        logger.info(f"[DELETE] Node {node_id} ({node.name}) has {len(backlinks)} backlinks")
+        logger.debug("[DELETE] Node %s has %s backlinks", node_id, len(backlinks))
 
         # Track nodes we've updated to avoid double-processing
         updated_nodes = set()
 
         # Update each source node to remove/replace the link
         for link in backlinks:
-            logger.info(f"[DELETE] Processing backlink from source_node_id={link.source_node_id}")
+            logger.debug("[DELETE] Processing backlink from source_node_id=%s", link.source_node_id)
             source_node = await self._node_repo.get_by_id(link.source_node_id)
             if not source_node or not source_node.name:
-                logger.warning(f"[DELETE] Source node {link.source_node_id} not found or has no name")
+                logger.debug("[DELETE] Source node %s not found or has no name", link.source_node_id)
                 continue
 
-            logger.info(f"[DELETE] Source node content: {source_node.name[:100]!r}")
+            logger.debug("[DELETE] Updated source node %s", link.source_node_id)
 
             # Replace the link in the source node's content
             updated_content = await self._remove_link_from_content(
@@ -732,15 +732,16 @@ class NodeService:
                 "page",  # link_type is no longer used but kept for signature compatibility
             )
 
-            logger.info(
-                f"[DELETE] Updated content: {updated_content[:100]!r} (changed={updated_content != source_node.name})"
+            logger.debug(
+                "[DELETE] Updated content for node %s (changed=%s)",
+                link.source_node_id,
+                updated_content != source_node.name,
             )
 
             if updated_content != source_node.name:
                 # Update without re-parsing links (to avoid infinite recursion)
                 await self._node_repo.update(link.source_node_id, NodeUpdateData(name=updated_content))
                 updated_nodes.add(link.source_node_id)
-                logger.info(f"[DELETE] Updated source node {link.source_node_id}")
 
         # Also handle inline class references ({{nodeId}})
         await self._replace_inline_class_references(node, updated_nodes)
@@ -759,7 +760,7 @@ class NodeService:
         all_node_ids = [node_id] + descendant_ids
 
         await self._node_repo.soft_delete_nodes(all_node_ids, now, uid)
-        logger.info(f"[DELETE] Soft-deleted node {node_id} and {len(descendant_ids)} descendants")
+        logger.info("Deleted node %s and %s descendants", node_id, len(descendant_ids))
 
         # Log activity
         await self._log_activity(node_id, "archived" if node.is_page else "deleted", f"{'Page' if node.is_page else 'Block'} deleted")
@@ -830,7 +831,7 @@ class NodeService:
 
         # Get all backlinks to this node (from [[nodeId]] links)
         backlinks = await self._link_service.get_backlinks(node_id)
-        logger.info(f"[PERM_DELETE] Node {node_id} ({node.name}) has {len(backlinks)} backlinks")
+        logger.debug("[PERM_DELETE] Node %s has %s backlinks", node_id, len(backlinks))
 
         updated_nodes = set()
 
@@ -849,7 +850,7 @@ class NodeService:
             if updated_content != source_node.name:
                 await self._node_repo.update(link.source_node_id, NodeUpdateData(name=updated_content))
                 updated_nodes.add(link.source_node_id)
-                logger.info(f"[PERM_DELETE] Updated source node {link.source_node_id}")
+                logger.debug("[PERM_DELETE] Updated source node %s", link.source_node_id)
 
         # Also handle inline class references ({{nodeId}})
         await self._replace_inline_class_references(node, updated_nodes)
@@ -868,7 +869,7 @@ class NodeService:
                 if workspace_uuid:
                     asset_service = AssetService(workspace_uuid)
                     asset_service.delete_asset(node.uuid)
-                    logger.info(f"[PERM_DELETE] Deleted asset folder for node {node_id} (uuid={node.uuid})")
+                    logger.info("Deleted asset folder for node %s", node_id)
             except Exception as e:
                 logger.error(f"[PERM_DELETE] Failed to delete asset folder for node {node_id}: {e}", exc_info=True)
 
@@ -985,7 +986,7 @@ class NodeService:
                     try:
                         target_name_ast = parse_ast(target_node.name)
                         target_text = stringify_ast(target_name_ast, StringifyOptions(mode=StringifyMode.TEXT_ONLY))
-                    except Exception:
+                    except (ValueError, TypeError):
                         target_text = ""
 
                 target_uuid = target_node.uuid or ""
@@ -1049,7 +1050,7 @@ class NodeService:
         """
         deleted_count = await self._property_repo.delete_relation_values_by_target(node_id)
         if deleted_count > 0:
-            logger.info(f"[DELETE] Removed node {node_id} from {deleted_count} property value relations")
+            logger.debug("Removed node %s from %s property value relations", node_id, deleted_count)
 
     async def _count_active_day_descendants(self, node_id: int) -> int:
         """Count active day pages that are descendants of this node.
@@ -1089,7 +1090,7 @@ class NodeService:
                     node_id,
                 )
         except Exception as e:
-            logger.warning(f"[DELETE] Failed to clean up favorites for node {node_id}: {e}")
+            logger.debug("Failed to clean up favorites for node %s: %s", node_id, e)
 
     async def list_templates(self) -> list[Node]:
         """List all template nodes in this workspace."""
@@ -1331,7 +1332,7 @@ class NodeService:
                     uid,
                     now,
                 )
-        except Exception:
+        except (ValueError, TypeError, LookupError):
             # Activity logging must never fail the user operation
             pass
 
@@ -1705,7 +1706,7 @@ class NodeService:
             except DatePageDeletionError as e:
                 results.append({"success": False, "error": e.message})
             except Exception as e:
-                logger.warning(f"[BATCH_DELETE] Failed to delete node {uuid}: {e}")
+                logger.debug("Failed to delete node %s: %s", uuid, e)
                 results.append({"success": False, "error": str(e)})
         return results
 

@@ -796,7 +796,7 @@ class LinkParsingService:
         """
         try:
             ancestor_ids = await self._node_repo.get_ancestors(node_id, include_self=True)
-        except Exception:
+        except LookupError:
             return []
 
         if not ancestor_ids:
@@ -824,7 +824,7 @@ class LinkParsingService:
         # Get ancestor IDs using closure table (ordered from root to parent)
         try:
             ancestor_ids = await self._node_repo.get_ancestors(node_id, include_self=False)
-        except Exception:
+        except LookupError:
             ancestor_ids = []
 
         # Collect classes from all ancestors
@@ -848,7 +848,7 @@ class LinkParsingService:
         # Get all descendant IDs using closure table (includes self)
         try:
             descendant_ids = await self._node_repo.get_descendants(node_id, include_self=True)
-        except Exception:
+        except LookupError:
             # Fallback to just updating the current node
             await self.update_classes_path(node_id)
             return

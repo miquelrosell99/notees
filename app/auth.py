@@ -311,7 +311,7 @@ def verify_api_key(key: str, hashed: str) -> bool:
     """Verify an API key against its hash."""
     try:
         return pwd_context.verify(key, hashed)
-    except Exception:
+    except (ValueError, TypeError):
         return False
 
 
@@ -455,7 +455,7 @@ def verify_refresh_token(token: str, hashed: str) -> bool:
     """Verify a refresh token against its hash."""
     try:
         return pwd_context.verify(token, hashed)
-    except Exception:
+    except (ValueError, TypeError):
         return False
 
 

@@ -482,7 +482,7 @@ async def _import_dump_core(
                 _to_bool(node_data.get("is_asset", False)),
                 _to_bool(node_data.get("is_template", False)),
                 _to_bool(node_data.get("is_comment", False)),
-                json.dumps(_ensure_list(node_data.get("classes_path", []))),
+                _ensure_list(node_data.get("classes_path", [])),
                 _parse_datetime(node_data.get("open_date")),
                 _parse_datetime(node_data.get("create_date")) or now,
                 _parse_datetime(node_data.get("write_date")) or now,
@@ -562,7 +562,7 @@ async def _import_dump_core(
                     page_id,
                     aliased_id,
                     class_ids if class_ids else [],
-                    json.dumps(_ensure_list(classes_path)),
+                    _ensure_list(classes_path),
                     new_id,
                 )
             )
@@ -1125,12 +1125,12 @@ async def _import_dump_core(
                 nv_uuid,
                 nv_node_id,
                 str(nv.get("name", "")),
-                json.dumps(query_json, default=str),
+                query_json,
                 str(nv.get("view_type", "")),
                 _to_int(nv.get("order_index", 0)),
                 _to_bool(nv.get("is_default", False)),
                 _to_bool(nv.get("active", True)),
-                json.dumps(shown_properties, default=str),
+                shown_properties,
                 group_by,
                 _parse_datetime(nv.get("create_date")) or now,
                 _parse_datetime(nv.get("write_date")) or now,
@@ -1185,7 +1185,7 @@ async def _import_dump_core(
             (
                 workspace_id,
                 str(setting["key"]),
-                json.dumps(setting_value, default=str) if setting_value is not None else None,
+                setting_value if setting_value is not None else None,
                 now,
                 user_id,
             )

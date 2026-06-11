@@ -434,7 +434,7 @@ async def _get_effective_class_ids_batch(
             extended = await extension_service.get_all_extended_classes(class_id)
             # Store only the parents (skip the first element which is class_id itself)
             extends_cache[class_id] = extended[1:] if len(extended) > 1 else []
-        except Exception:
+        except (ValueError, RecursionError):
             # If there's an error (e.g., circular reference), just skip inheritance for this class
             extends_cache[class_id] = []
 

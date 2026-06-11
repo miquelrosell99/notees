@@ -336,12 +336,11 @@ async def update_property(
             from ...db.connection import get_pool
 
             pool = await get_pool()
-            import json
 
             async with acquire_connection(pool) as conn:
                 await conn.execute(
                     "UPDATE property SET validation_rules = $1::jsonb, write_date = $2, write_uid = $3 WHERE id = $4",
-                    json.dumps(request.validation_rules),
+                    request.validation_rules,
                     utc_now(),
                     int(user.id),
                     property_id,

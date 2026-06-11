@@ -252,7 +252,7 @@ async def set_property(
         elif prop.type == PropertyType.SELECTION:
             vals = await service.property_repo.get_scalar_values(node_id, request.property_id)
             old_value = vals[0].value if vals else None
-    except Exception:
+    except LookupError:
         pass
 
     # Set value based on property type
@@ -285,7 +285,7 @@ async def set_property(
             },
             description=f"Set property {prop.name} on node {node_id}",
         )
-    except Exception:
+    except (ValueError, TypeError, LookupError):
         pass
 
     node = await service.get_node(node_id)
@@ -320,7 +320,7 @@ async def remove_property(
             elif prop.type == PropertyType.SELECTION:
                 vals = await service.property_repo.get_scalar_values(node_id, property_id)
                 old_value = vals[0].value if vals else None
-    except Exception:
+    except LookupError:
         pass
 
     await service.property_repo.remove_property_from_node(node_id, property_id)
@@ -345,7 +345,7 @@ async def remove_property(
             after_state={"property_id": property_id, "removed": True},
             description=f"Removed property {prop.name if prop else property_id} from node {node_id}",
         )
-    except Exception:
+    except (ValueError, TypeError, LookupError):
         pass
 
     node = await service.get_node(node_id)

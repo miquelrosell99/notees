@@ -224,7 +224,7 @@ class UndoService:
                     ast = parse_ast(desc, ParseMode.JSON)
                     if ast:
                         return stringify_ast(ast, StringifyOptions(mode=StringifyMode.TEXT_ONLY)) or desc
-                except Exception:
+                except (ValueError, TypeError):
                     pass
             return desc
 

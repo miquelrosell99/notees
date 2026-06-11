@@ -401,7 +401,7 @@ async def set_property_value(
                 request.property_id,
                 now,
             )
-    except Exception:
+    except (ValueError, TypeError, LookupError):
         pass  # Activity logging must never fail the user operation
 
     # Fetch and return the updated node with properties
