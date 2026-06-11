@@ -8,6 +8,7 @@
  */
 import { forwardRef, type ReactNode, type HTMLAttributes } from 'react';
 import './Card.css';
+import { cn } from '@/utils/cn';
 
 export type CardElevation = 'none' | 'low' | 'medium' | 'high';
 export type CardVariant = 'default' | 'outlined' | 'filled' | 'transparent' | 'dashed';
@@ -60,7 +61,7 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(function Card(
   },
   ref
 ) {
-  const classes = [
+  const classes = cn(
     'card',
     `card--elevation-${elevation}`,
     `card--variant-${variant}`,
@@ -70,9 +71,7 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(function Card(
     selected ? 'card--selected' : '',
     showCloseButton ? 'card--has-close' : '',
     className,
-  ]
-    .filter(Boolean)
-    .join(' ');
+  );
 
   return (
     <div ref={ref} className={classes} {...rest}>

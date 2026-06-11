@@ -8,7 +8,7 @@
  * overflow dropdown accessed via a "…" toggle. The inline buttons show
  * only icons; the dropdown shows icon + label.
  */
-import { forwardRef, useRef, useEffect, useState, useMemo, type HTMLAttributes } from 'react';
+import { forwardRef, useRef, useEffect, useState, useMemo, useCallback, type HTMLAttributes } from 'react';
 
 import './SelectionButton.css';
 import { Icon } from '@/components/ui/icons';
@@ -46,6 +46,8 @@ export interface SelectionButtonProps extends Omit<HTMLAttributes<HTMLDivElement
   labelPosition?: 'left' | 'right';
   /** Max options shown inline before overflow dropdown (undefined = show all) */
   maxVisibleOptions?: number;
+  /** Whether to allow changing the selected option via mouse wheel */
+  scrollToChange?: boolean;
 }
 
 const ICON_SIZES: Record<SelectionButtonSize, number> = {
@@ -66,6 +68,7 @@ export const SelectionButton = forwardRef<HTMLDivElement, SelectionButtonProps>(
     description,
     labelPosition = 'right',
     maxVisibleOptions,
+    scrollToChange = false,
     className = '',
     ...props
   },
@@ -147,6 +150,21 @@ export const SelectionButton = forwardRef<HTMLDivElement, SelectionButtonProps>(
     }
   };
 
+  const handleWheel = useCallback(
+    (e: React.WheelEvent) => {
+      if (!scrollToChange || disabled || options.length <= 1) return;
+      e.preventDefault();
+      const currentIndex = options.findIndex((opt) => opt.value === value);
+      if (currentIndex === -1) return;
+      const delta = e.deltaY > 0 ? 1 : -1;
+      const nextIndex = Math.max(0, Math.min(options.length - 1, currentIndex + delta));
+      if (nextIndex !== currentIndex) {
+        onChange(options[nextIndex].value);
+      }
+    },
+    [scrollToChange, disabled, options, value, onChange]
+  );
+
   const handleOverflowOptionClick = (optionValue: string) => {
     setOverflowOpen(false);
     handleOptionClick(optionValue);
@@ -175,6 +193,7 @@ export const SelectionButton = forwardRef<HTMLDivElement, SelectionButtonProps>(
       }}
       className={containerClasses}
       role="radiogroup"
+      onWheel={handleWheel}
     >
       {/* Animated selection indicator */}
       <span
