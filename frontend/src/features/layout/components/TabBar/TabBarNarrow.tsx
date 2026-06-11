@@ -12,7 +12,7 @@ import './TabBarNarrow.css';
 
 interface TabBarNarrowProps {
   tabs: Tab[];
-  activeTabId: string;
+  activeTabId: string | null;
 }
 
 export function TabBarNarrow({ tabs, activeTabId }: TabBarNarrowProps) {

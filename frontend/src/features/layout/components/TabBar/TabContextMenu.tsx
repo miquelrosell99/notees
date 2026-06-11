@@ -1,8 +1,11 @@
 /**
  * TabContextMenu — context menu for individual tabs.
  */
+import { useState } from 'react';
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/ContextMenu';
-import type { SplitOrientation } from '@/stores/navigationStore';
+import { useNavigationStore, type SplitOrientation, type TabHistoryEntry } from '@/stores/navigationStore';
+
+const HISTORY_PAGE_SIZE = 10;
 
 interface TabContextMenuProps {
   position: { x: number; y: number };
@@ -12,6 +15,8 @@ interface TabContextMenuProps {
   isActive: boolean;
   canClose: boolean;
   hasSplit: boolean;
+  history: TabHistoryEntry[];
+  historyIndex: number;
   onCloseTab: () => void;
   onCloseOthers: () => void;
   onCloseRight: () => void;
@@ -25,9 +30,12 @@ interface TabContextMenuProps {
 export function TabContextMenu({
   position,
   onClose,
+  tabId,
   isPinned,
   hasSplit,
   canClose,
+  history,
+  historyIndex,
   onCloseTab,
   onCloseOthers,
   onCloseRight,
@@ -37,6 +45,12 @@ export function TabContextMenu({
   onSplit,
   onUnsplit,
 }: TabContextMenuProps) {
+  const navigateToHistoryEntry = useNavigationStore((s) => s.navigateToHistoryEntry);
+  const [visibleHistoryCount, setVisibleHistoryCount] = useState(HISTORY_PAGE_SIZE);
+
+  const visibleHistory = history.slice(0, visibleHistoryCount);
+  const hasMoreHistory = history.length > visibleHistoryCount;
+
   const items: ContextMenuItem[] = [
     {
       id: 'close',
@@ -94,6 +108,32 @@ export function TabContextMenu({
       icon: 'mdi mdi-window-restore',
       onClick: onUnsplit,
     });
+  }
+
+  if (history.length > 0) {
+    items.push({ id: 'sep3', label: '', separator: true });
+    items.push({ id: 'history-label', label: `History (${history.length})`, disabled: true });
+    visibleHistory.forEach((entry, i) => {
+      items.push({
+        id: `history-${i}`,
+        label: entry.label,
+        icon: i === historyIndex ? 'mdi mdi-check' : undefined,
+        onClick: () => {
+          navigateToHistoryEntry(tabId, i);
+          onClose();
+        },
+      });
+    });
+    if (hasMoreHistory) {
+      const remaining = history.length - visibleHistoryCount;
+      items.push({
+        id: 'history-load-more',
+        label: `Load more (${remaining} remaining)`,
+        icon: 'mdi mdi-chevron-down',
+        keepOpen: true,
+        onClick: () => setVisibleHistoryCount((c) => c + HISTORY_PAGE_SIZE),
+      });
+    }
   }
 
   return <ContextMenu items={items} position={position} onClose={onClose} alignRight />;

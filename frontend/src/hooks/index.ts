@@ -5,14 +5,13 @@
  * - Data fetching: useNodes, useNodeViews, usePrefetch
  * - UI utilities: useNodeIcon, useNodeCollection, useVirtualizedNodes
  * - Keyboard/focus: useKeyboardShortcuts, useFocusTrap
- * - Routing: useRouter, RouterSync
+ * - Routing: useRouter
  */
 export * from './useNodes';
 export * from './useNodeViews';
 export * from './useBatchedNode';
 export * from './useVirtualizedQuery';
 export * from './useRouter';
-export { RouterSync } from './RouterSync';
 export * from './useKeyboardListNav';
 export * from './useViewportFlip';
 export * from './useNodeSearch';

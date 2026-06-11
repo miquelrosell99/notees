@@ -1,7 +1,6 @@
 .tab-bar {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   flex: 1;
   min-width: 0;
-  height: 100%;
 }

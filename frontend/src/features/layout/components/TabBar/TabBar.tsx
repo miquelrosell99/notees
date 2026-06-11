@@ -6,13 +6,16 @@
 import { useMemo, useEffect } from 'react';
 import { useNavigationStore } from '@/stores/navigationStore';
 import { useIsMobile } from '@/hooks';
+import { useSettingsStore } from '@/stores';
 import { TabBarNormal } from './TabBarNormal';
 import { TabBarNarrow } from './TabBarNarrow';
+import { TabBarVertical } from './TabBarVertical';
 import { useNodesDisplayData } from './useTabNodeData';
 import './TabBar.css';
 
 export function TabBar() {
   const isMobile = useIsMobile();
+  const tabPosition = useSettingsStore((s) => s.tabPosition);
   const tabs = useNavigationStore((s) => s.tabs);
   const activeTabId = useNavigationStore((s) => s.activeTabId);
   const secondaryTabId = useNavigationStore((s) => s.secondaryTabId);
@@ -40,6 +43,17 @@ export function TabBar() {
 
   if (isMobile) {
     return <TabBarNarrow tabs={tabs} activeTabId={activeTabId} />;
+  }
+
+  if (tabPosition === 'left') {
+    return (
+      <TabBarVertical
+        tabs={tabs}
+        activeTabId={activeTabId}
+        secondaryTabId={secondaryTabId}
+        splitOrientation={splitOrientation}
+      />
+    );
   }
 
   return (

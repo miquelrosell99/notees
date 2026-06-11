@@ -10,3 +10,4 @@ export * from './Sidebar';
 export * from './Scratchpad';
 export * from './TopBar';
 export * from './QuickAddModal';
+export * from './RouterSync';

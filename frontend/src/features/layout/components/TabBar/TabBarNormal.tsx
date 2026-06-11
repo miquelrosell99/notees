@@ -1,15 +1,23 @@
 /**
  * TabBarNormal — horizontal scrollable tab strip for desktop.
+ *
+ * Uses a SelectionButton-like container with a sliding indicator
+ * for the active tab. Supports drag-and-drop reordering, dropping
+ * nodes onto tabs, mouse-wheel tab switching, pinned tabs, and
+ * overflow dropdown.
  */
-import { useCallback, useRef, useState, useEffect } from 'react';
+import { useCallback, useRef, useState, useEffect, useMemo } from 'react';
 import { useNavigationStore, type Tab, type SplitOrientation } from '@/stores/navigationStore';
+import { Button } from '@/components/ui/Button';
+import { NodeSelector } from '@/features/content/components/nodes/NodeSelector';
+import { TabOverflowDropdown } from './TabOverflowDropdown';
+import type { Node } from '@/types';
 import { TabItem } from './TabItem';
-import { NewTabButton } from './NewTabButton';
 import './TabBarNormal.css';
 
 interface TabBarNormalProps {
   tabs: Tab[];
-  activeTabId: string;
+  activeTabId: string | null;
   secondaryTabId: string | null;
   splitOrientation: SplitOrientation | null;
 }
@@ -30,14 +38,114 @@ export function TabBarNormal({ tabs, activeTabId, secondaryTabId, splitOrientati
   } = useNavigationStore();
 
   const stripRef = useRef<HTMLDivElement>(null);
+  const addBtnRef = useRef<HTMLButtonElement>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const [indicatorStyle, setIndicatorStyle] = useState<React.CSSProperties>({});
+  const [showPicker, setShowPicker] = useState(false);
+  const [showOverflow, setShowOverflow] = useState(false);
+  const [overflowOpen, setOverflowOpen] = useState(false);
 
   const hasSplit = !!splitOrientation;
+  const tabsKey = tabs.map((t) => t.id).join(',');
 
-  // Update tab labels/icons/colors when nodes load
+  const pinnedTabs = useMemo(() => tabs.filter((t) => t.pinned), [tabs]);
+  const unpinnedTabs = useMemo(() => tabs.filter((t) => !t.pinned), [tabs]);
+
+  // Detect overflow
   useEffect(() => {
-    // This will be handled by the parent TabBar component via useNode queries
-  }, []);
+    const strip = stripRef.current;
+    if (!strip) return;
+    const check = () => {
+      setShowOverflow(strip.scrollWidth > strip.clientWidth + 1);
+    };
+    check();
+    const ro = new ResizeObserver(check);
+    ro.observe(strip);
+    return () => ro.disconnect();
+  }, [tabsKey]);
+
+  // Position the sliding indicator over the active tab
+  useEffect(() => {
+    const strip = stripRef.current;
+    if (!strip) return;
+
+    const updateIndicator = () => {
+      const activeTab = strip.querySelector('.tab-item--active') as HTMLElement | null;
+      if (!activeTab) {
+        setIndicatorStyle({});
+        return;
+      }
+      const stripRect = strip.getBoundingClientRect();
+      const label = activeTab.querySelector('.tab-item__label') as HTMLElement | null;
+
+      // Center indicator under the label text specifically (not the whole tab,
+      // so icons/color indicators on the left don't shift the visual center)
+      let offsetLeft: number;
+      let indicatorWidth: number;
+      if (label) {
+        const labelRect = label.getBoundingClientRect();
+        indicatorWidth = Math.min(Math.max(16, labelRect.width * 0.55), 36);
+        offsetLeft = labelRect.left - stripRect.left + (labelRect.width - indicatorWidth) / 2;
+      } else {
+        // Icon-only tab (e.g. pinned) — center under the whole tab
+        const tabRect = activeTab.getBoundingClientRect();
+        indicatorWidth = Math.min(Math.max(16, tabRect.width * 0.4), 32);
+        offsetLeft = tabRect.left - stripRect.left + (tabRect.width - indicatorWidth) / 2;
+      }
+      setIndicatorStyle({
+        width: indicatorWidth,
+        transform: `translateX(${offsetLeft}px)`,
+      });
+    };
+
+    updateIndicator();
+
+    const ro = new ResizeObserver(updateIndicator);
+    ro.observe(strip);
+    strip.querySelectorAll('.tab-item').forEach((tab) => ro.observe(tab));
+    strip.addEventListener('scroll', updateIndicator);
+
+    return () => {
+      ro.disconnect();
+      strip.removeEventListener('scroll', updateIndicator);
+    };
+  }, [activeTabId, tabsKey]);
+
+  // Auto-scroll to keep the active tab visible
+  useEffect(() => {
+    const strip = stripRef.current;
+    const activeTab = strip?.querySelector('.tab-item--active') as HTMLElement | null;
+    if (!strip || !activeTab) return;
+
+    const tabLeft = activeTab.offsetLeft;
+    const tabRight = tabLeft + activeTab.offsetWidth;
+    const scrollLeft = strip.scrollLeft;
+    const visibleWidth = strip.clientWidth;
+
+    if (tabLeft < scrollLeft) {
+      strip.scrollTo({ left: tabLeft, behavior: 'smooth' });
+    } else if (tabRight > scrollLeft + visibleWidth) {
+      strip.scrollTo({ left: tabRight - visibleWidth, behavior: 'smooth' });
+    }
+  }, [activeTabId]);
+
+  // Mouse wheel to switch tabs
+  const handleWheel = useCallback(
+    (e: React.WheelEvent) => {
+      if (tabs.length <= 1) return;
+      if (!activeTabId) return;
+      if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+      e.preventDefault();
+      const currentIndex = tabs.findIndex((t) => t.id === activeTabId);
+      if (currentIndex === -1) return;
+      const delta = e.deltaY > 0 ? 1 : -1;
+      const nextIndex = Math.max(0, Math.min(tabs.length - 1, currentIndex + delta));
+      if (nextIndex !== currentIndex) {
+        activateTab(tabs[nextIndex].id);
+      }
+    },
+    [tabs, activeTabId, activateTab]
+  );
 
   const handleDragStart = useCallback((e: React.DragEvent, tabId: string) => {
     e.dataTransfer.setData('application/x-notees-tab', tabId);
@@ -48,7 +156,6 @@ export function TabBarNormal({ tabs, activeTabId, secondaryTabId, splitOrientati
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
 
-    // Check if we're dragging a node from outside
     const hasNode = e.dataTransfer.types.includes('application/x-notees-node');
     const hasTab = e.dataTransfer.types.includes('application/x-notees-tab');
 
@@ -62,54 +169,56 @@ export function TabBarNormal({ tabs, activeTabId, secondaryTabId, splitOrientati
     }
   }, []);
 
+  const handleDrop = useCallback(
+    (e: React.DragEvent, tabId: string, index: number) => {
+      e.preventDefault();
+      setDragOverIndex(null);
 
+      const draggedTabId = e.dataTransfer.getData('application/x-notees-tab');
+      const nodeData = e.dataTransfer.getData('application/x-notees-node');
 
-  const handleDrop = useCallback((e: React.DragEvent, tabId: string, index: number) => {
-    e.preventDefault();
-    setDragOverIndex(null);
-
-    const draggedTabId = e.dataTransfer.getData('application/x-notees-tab');
-    const nodeData = e.dataTransfer.getData('application/x-notees-node');
-
-    if (draggedTabId) {
-      const fromIndex = tabs.findIndex((t) => t.id === draggedTabId);
-      if (fromIndex >= 0 && fromIndex !== index) {
-        reorderTabs(fromIndex, index);
+      if (draggedTabId) {
+        const fromIndex = tabs.findIndex((t) => t.id === draggedTabId);
+        if (fromIndex >= 0 && fromIndex !== index) {
+          reorderTabs(fromIndex, index);
+        }
+        return;
       }
-      return;
-    }
 
-    if (nodeData) {
+      if (nodeData) {
+        try {
+          const nodeInfo = JSON.parse(nodeData) as { nodeId?: number };
+          if (nodeInfo?.nodeId) {
+            replaceTabContent(tabId, nodeInfo.nodeId);
+          }
+        } catch {
+          // ignore
+        }
+        return;
+      }
+    },
+    [tabs, reorderTabs, replaceTabContent]
+  );
+
+  const handleStripDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      setDragOverIndex(null);
+
+      const nodeData = e.dataTransfer.getData('application/x-notees-node');
+      if (!nodeData) return;
+
       try {
         const nodeInfo = JSON.parse(nodeData) as { nodeId?: number };
         if (nodeInfo?.nodeId) {
-          // Drop ON a tab → replace that tab's content
-          replaceTabContent(tabId, nodeInfo.nodeId);
+          openNodeInNewTab(nodeInfo.nodeId);
         }
       } catch {
         // ignore
       }
-      return;
-    }
-  }, [tabs, reorderTabs, replaceTabContent]);
-
-  const handleStripDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setDragOverIndex(null);
-
-    const nodeData = e.dataTransfer.getData('application/x-notees-node');
-    if (!nodeData) return;
-
-    try {
-      const nodeInfo = JSON.parse(nodeData) as { nodeId?: number };
-      if (nodeInfo?.nodeId) {
-        // Drop BETWEEN tabs → add new tab at end
-        openNodeInNewTab(nodeInfo.nodeId);
-      }
-    } catch {
-      // ignore
-    }
-  }, [openNodeInNewTab]);
+    },
+    [openNodeInNewTab]
+  );
 
   const handleStripDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -118,49 +227,135 @@ export function TabBarNormal({ tabs, activeTabId, secondaryTabId, splitOrientati
     }
   }, []);
 
-  const handleDuplicate = useCallback((tab: Tab) => {
-    openNodeInNewTab(tab.nodeId ?? 0, {
-      label: tab.label,
-      icon: tab.icon,
-      color: tab.color,
-    });
-  }, [openNodeInNewTab]);
+  const handleDuplicate = useCallback(
+    (tab: Tab) => {
+      openNodeInNewTab(tab.nodeId ?? 0, {
+        label: tab.label,
+        icon: tab.icon,
+        color: tab.color,
+      });
+    },
+    [openNodeInNewTab]
+  );
+
+  const handleSelectNode = useCallback(
+    (node: Node) => {
+      openNodeInNewTab(node.id, { label: node.display_name || node.name });
+      setShowPicker(false);
+    },
+    [openNodeInNewTab]
+  );
+
+  const renderTabItem = useCallback(
+    (tab: Tab, index: number) => (
+      <div key={tab.id} className="tab-bar-normal__slot">
+        {dragOverIndex === index && <div className="tab-bar-normal__insert-indicator" />}
+        <TabItem
+          tab={tab}
+          isActive={tab.id === activeTabId}
+          isSecondary={tab.id === secondaryTabId}
+          canClose={tabs.length > 1 || (!tab.pinned && tabs.length > 0)}
+          hasSplit={hasSplit}
+          onActivate={() => activateTab(tab.id)}
+          onClose={() => closeTab(tab.id)}
+          onCloseOthers={() => closeOtherTabs(tab.id)}
+          onCloseRight={() => closeTabsToRight(tab.id)}
+          onPin={() => pinTab(tab.id)}
+          onUnpin={() => unpinTab(tab.id)}
+          onDuplicate={() => handleDuplicate(tab)}
+          onSplit={(orientation) => splitTab(tab.id, orientation)}
+          onUnsplit={unsplit}
+          onDragStart={handleDragStart}
+          onDragOver={handleDragOver}
+          onDrop={handleDrop}
+          index={index}
+        />
+      </div>
+    ),
+    [
+      dragOverIndex,
+      activeTabId,
+      secondaryTabId,
+      tabs.length,
+      hasSplit,
+      activateTab,
+      closeTab,
+      closeOtherTabs,
+      closeTabsToRight,
+      pinTab,
+      unpinTab,
+      handleDuplicate,
+      splitTab,
+      unsplit,
+      handleDragStart,
+      handleDragOver,
+      handleDrop,
+    ]
+  );
 
   return (
-    <div className="tab-bar-normal" ref={stripRef} onDrop={handleStripDrop} onDragOver={handleStripDragOver}>
-      <div className="tab-bar-normal__strip">
-        {tabs.map((tab, index) => (
-          <div key={tab.id} className="tab-bar-normal__slot">
-            {dragOverIndex === index && (
-              <div className="tab-bar-normal__insert-indicator" />
-            )}
-            <TabItem
-              tab={tab}
-              isActive={tab.id === activeTabId}
-              isSecondary={tab.id === secondaryTabId}
-              canClose={tabs.length > 1 || !tab.pinned}
-              hasSplit={hasSplit}
-              onActivate={() => activateTab(tab.id)}
-              onClose={() => closeTab(tab.id)}
-              onCloseOthers={() => closeOtherTabs(tab.id)}
-              onCloseRight={() => closeTabsToRight(tab.id)}
-              onPin={() => pinTab(tab.id)}
-              onUnpin={() => unpinTab(tab.id)}
-              onDuplicate={() => handleDuplicate(tab)}
-              onSplit={(orientation) => splitTab(tab.id, orientation)}
-              onUnsplit={unsplit}
-              onDragStart={handleDragStart}
-              onDragOver={handleDragOver}
-              onDrop={handleDrop}
-              index={index}
-            />
+    <div className="tab-bar-normal">
+      <div
+        className="tab-bar-normal__strip"
+        ref={stripRef}
+        onDrop={handleStripDrop}
+        onDragOver={handleStripDragOver}
+        onWheel={handleWheel}
+      >
+        <span className="tab-bar-normal__indicator" style={indicatorStyle} aria-hidden="true" />
+
+        {pinnedTabs.length > 0 && (
+          <div className="tab-bar-normal__pinned">
+            {pinnedTabs.map((tab, i) => renderTabItem(tab, i))}
           </div>
-        ))}
-        {dragOverIndex === tabs.length && (
-          <div className="tab-bar-normal__insert-indicator" />
         )}
+
+        {unpinnedTabs.map((tab, i) => renderTabItem(tab, pinnedTabs.length + i))}
+        {dragOverIndex === tabs.length && <div className="tab-bar-normal__insert-indicator" />}
+
+        {tabs.length > 0 && <div className="tab-bar-normal__section-divider" />}
+
+        <Button
+          ref={addBtnRef}
+          icon="mdi mdi-plus"
+          variant="ghost"
+          size="xs"
+          className="tab-bar-normal__add-btn"
+          onClick={() => setShowPicker((v) => !v)}
+          title="New tab"
+        />
+        {showPicker && addBtnRef.current && (
+          <NodeSelector
+            anchorEl={addBtnRef.current}
+            onClose={() => setShowPicker(false)}
+            onAdd={handleSelectNode}
+            searchPlaceholder="Search for a page to open..."
+          />
+        )}
+
+        <span className="tab-bar-normal__label">Tabs</span>
       </div>
-      <NewTabButton onSelectNode={(node) => openNodeInNewTab(node.id, { label: node.display_name || node.name })} />
+
+      {showOverflow && (
+        <div className="tab-bar-normal__overflow">
+          <Button
+            icon="mdi mdi-chevron-down"
+            variant="ghost"
+            size="sm"
+            className="tab-bar-normal__overflow-btn"
+            onClick={() => setOverflowOpen((v) => !v)}
+            title="All tabs"
+          />
+          {overflowOpen && (
+            <TabOverflowDropdown
+              tabs={tabs}
+              activeTabId={activeTabId}
+              onSelect={activateTab}
+              onClose={() => setOverflowOpen(false)}
+            />
+          )}
+        </div>
+      )}
     </div>
   );
 }

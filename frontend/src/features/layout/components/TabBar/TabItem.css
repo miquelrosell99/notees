@@ -1,73 +1,66 @@
+/* TabItem.css — flat tabs inside a contained pill bar */
+
 .tab-item {
   display: inline-flex;
   align-items: center;
-  gap: var(--spacing-2);
-  height: var(--icon-size-lg);
-  padding: 0 14px;
-  border-radius: var(--shape-card);
-  font-size: 0.85rem;
-  color: var(--color-text-secondary);
-  background: var(--color-surface-container-low);
-  border: 1px solid var(--color-outline-variant);
+  justify-content: center;
+  gap: var(--spacing-1);
+  height: var(--height-sm);
+  padding: 0 var(--spacing-3);
+  border-radius: var(--shape-small);
+  font-size: 0.8125rem;
+  font-weight: 400;
+  color: var(--color-on-surface-variant);
+  background: transparent;
+  border: none;
   cursor: pointer;
   user-select: none;
   white-space: nowrap;
-  transition:
-    background 0.15s ease,
-    color 0.15s ease,
-    border-color 0.15s ease,
-    box-shadow 0.15s ease,
-    transform 0.15s ease;
+  transition: color var(--motion-duration-short) var(--motion-easing-standard),
+              background var(--motion-duration-short) var(--motion-easing-standard);
   position: relative;
-  max-width: 200px;
-  min-width: 44px;
+  max-width: 12rem;
+  min-width: var(--height-sm);
   flex-shrink: 0;
-  box-shadow: var(--shadow-xs);
 }
 
 .tab-item:hover {
-  background: var(--color-surface-container);
-  color: var(--color-text-primary);
-  border-color: var(--color-outline);
-  box-shadow: var(--shadow-sm);
-  transform: translateY(-1px);
+  color: var(--color-on-surface);
 }
 
 .tab-item--active {
-  background: var(--color-primary-container);
-  color: var(--color-on-primary-container);
-  border-color: var(--color-primary);
-  box-shadow: 0 2px 6px color-mix(in srgb, var(--color-primary) 20%, transparent);
+  color: var(--color-on-surface);
   font-weight: 500;
-  transform: translateY(-1px);
 }
 
 .tab-item--active:hover {
-  background: var(--color-primary-container);
-  border-color: var(--color-primary);
-  box-shadow: 0 3px 8px color-mix(in srgb, var(--color-primary) 24%, transparent);
+  background: transparent;
 }
 
 .tab-item--secondary {
-  opacity: 0.7;
-  transform: translateY(0);
+  opacity: 0.55;
 }
 
 .tab-item--pinned {
-  max-width: 48px;
-  padding: 0 var(--spacing-3);
+  max-width: 2.5rem;
+  padding: 0;
+  justify-content: center;
 }
 
 .tab-item__color-indicator {
-  width: 4px;
-  height: var(--icon-size-md);
-  border-radius: var(--shape-extra-small);
+  width: 3px;
+  height: var(--icon-size-sm);
+  border-radius: var(--shape-small);
   flex-shrink: 0;
 }
 
 .tab-item__icon {
   flex-shrink: 0;
-  opacity: 0.9;
+  opacity: 0.7;
+}
+
+.tab-item--active .tab-item__icon {
+  opacity: 1;
 }
 
 .tab-item__label {
@@ -78,30 +71,33 @@
 }
 
 .tab-item__close {
+  position: absolute;
+  top: 2px;
+  right: 2px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: var(--icon-size-md);
-  height: var(--icon-size-md);
-  border-radius: 50%;
+  width: 14px;
+  height: 14px;
+  border-radius: var(--shape-full);
   border: none;
   background: transparent;
   color: currentColor;
   cursor: pointer;
   padding: 0;
-  flex-shrink: 0;
-  margin-left: 2px;
   opacity: 0;
-  transition: opacity 0.1s ease, background 0.15s ease, transform 0.1s ease;
+  transition: opacity var(--motion-duration-short) var(--motion-easing-standard),
+              background var(--motion-duration-short) var(--motion-easing-standard),
+              transform var(--motion-duration-short) var(--motion-easing-standard);
+  z-index: 2;
 }
 
-.tab-item:hover .tab-item__close,
-.tab-item--active .tab-item__close {
-  opacity: 0.7;
+.tab-item:hover .tab-item__close {
+  opacity: 0.6;
 }
 
 .tab-item__close:hover {
-  background: color-mix(in srgb, currentColor 12%, transparent);
+  background: color-mix(in srgb, currentColor 10%, transparent);
   opacity: 1;
 }
 
