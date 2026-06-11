@@ -19,6 +19,7 @@ class PublicShare:
     created_by: int = 0
     created_at: str = field(default_factory=utc_now_iso)
     expiry_date: str | None = None
+    password_hash: str | None = None
     active: bool = True
 
     def is_expired(self) -> bool:
