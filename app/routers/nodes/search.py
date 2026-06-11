@@ -286,7 +286,7 @@ async def get_workspace_data_endpoint(
 @router.get("/workspace/nodes")
 async def get_workspace_nodes_endpoint(
     page: int = Query(1, ge=1),
-    page_size: int = Query(500, ge=1, le=5000),
+    page_size: int | None = Query(None, ge=1),
     user: User = Depends(get_current_user),
 ):
     """Get all workspace nodes for visualization (without links).
@@ -294,6 +294,8 @@ async def get_workspace_nodes_endpoint(
     Returns the same nodes as /workspace but omits the links payload,
     making it significantly lighter for cases where the caller fetches
     links separately via POST /links.
+
+    When page_size is omitted, all nodes are returned (no pagination).
     """
     service = await _get_node_service(user)
 
@@ -314,22 +316,34 @@ async def get_workspace_nodes_endpoint(
             excluded_uuids,
         )
 
-        offset = (page - 1) * page_size
-
-        page_rows = await conn.fetch(
-            """
-            SELECT id, uuid, name, icon, is_class, is_day, is_month, is_year, aliased_id
-            FROM node
-            WHERE workspace_id = $1 AND is_page = TRUE AND active = TRUE
-              AND uuid::text NOT IN (SELECT unnest($2::text[]))
-            ORDER BY name
-            LIMIT $3 OFFSET $4
-            """,
-            service.workspace_id,
-            excluded_uuids,
-            page_size,
-            offset,
-        )
+        if page_size is None:
+            page_rows = await conn.fetch(
+                """
+                SELECT id, uuid, name, icon, is_class, is_day, is_month, is_year, aliased_id
+                FROM node
+                WHERE workspace_id = $1 AND is_page = TRUE AND active = TRUE
+                  AND uuid::text NOT IN (SELECT unnest($2::text[]))
+                ORDER BY name
+                """,
+                service.workspace_id,
+                excluded_uuids,
+            )
+        else:
+            offset = (page - 1) * page_size
+            page_rows = await conn.fetch(
+                """
+                SELECT id, uuid, name, icon, is_class, is_day, is_month, is_year, aliased_id
+                FROM node
+                WHERE workspace_id = $1 AND is_page = TRUE AND active = TRUE
+                  AND uuid::text NOT IN (SELECT unnest($2::text[]))
+                ORDER BY name
+                LIMIT $3 OFFSET $4
+                """,
+                service.workspace_id,
+                excluded_uuids,
+                page_size,
+                offset,
+            )
 
         page_ids = [row["id"] for row in page_rows]
         class_ids_map = (
@@ -366,6 +380,16 @@ async def get_workspace_nodes_endpoint(
                     class_ids=node_class_ids,
                     block_count=block_count_map.get(row["id"], 0),
                 )
+            )
+
+        if page_size is None:
+            return PaginatedResponse[WorkspaceNodeResponse](
+                items=nodes,
+                total=total,
+                page=1,
+                page_size=total,
+                has_next=False,
+                has_prev=False,
             )
 
         return PaginatedResponse[WorkspaceNodeResponse](

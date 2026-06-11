@@ -846,27 +846,55 @@ Detailed guides for complex subsystems that agents frequently need to understand
 
 ### Graph View
 
-The graph view (`frontend/src/components/nodes/views/GraphView.tsx`) is a force-directed visualization built on a custom WebGL2 instanced renderer with a modular physics engine (SGE v2) running in a Web Worker.
+**File paths (all under `frontend/src/features/content/components/nodes/views/`):**
+- `GraphView.tsx` — Main React component
+- `GraphRenderer.tsx` — Canvas wrapper (WebGL + labels overlay)
+- `GraphSettingsSidebar.tsx` — Collapsible left sidebar with controls
+- `graphWebGLRenderer.ts` — Custom WebGL2 instanced renderer
+- `useGraphRenderer.ts` — Hook wiring physics worker ↔ WebGL ↔ interaction
+- `graphTypes.ts` / `viewTypes.ts` — `GraphNode`, `GraphLink`, `GraphSettings`, `VisibilityFilters`
+- `evaluateQueryAST.ts` — Client-side QueryAST evaluator for color groups
+- `sge/` — SGE v2 physics engine (see below)
 
-**Architecture:**
+**Data flow:**
 ```
-GraphView (React)
-  ├── GraphRenderer (React wrapper)
-  │     ├── graphWebGLRenderer.ts (WebGL2 instanced drawing)
-  │     └── sgeWorker.ts (physics Web Worker)
-  │           └── sge/engine.ts (force-directed simulation)
-  ├── Inline Sidebar (220px accordion)
-  │     ├── Groups (QueryAST color rules)
-  │     ├── Physics (simulation toggles)
-  │     ├── Nodes (visibility filters)
-  │     ├── Links (link type filters)
-  │     ├── Style (node sizing, layout mode)
-  │     └── Header (Graph title + collapse)
-  ├── Search Panel (top-right)
-  └── Mode Switcher (bottom-center, hover-only)
+useGraphNodes()          useGraphLinks(nodeIds, { scope, cooccurrence, contextNodeId })
+      │                           │
+      ▼                           ▼
+apiNodes (prop)            apiLinks (from POST /nodes/links)
+      │                           │
+      └──► GraphView ◄────────────┘
+              │
+              ├──► BFS neighborhood filter (when currentNodeId + levels > 1)
+              ├──► Visibility filters (node types, link types, orphans)
+              ├──► Alias resolution & deduplication
+              ├──► Color resolution (explicit → QueryAST groups → tag hash)
+              └──► GraphRenderer (WebGL + physics worker)
 ```
 
-**SGE v2 Physics Engine (`frontend/src/components/nodes/views/sge/`)**
+**Backend endpoints:**
+- `GET /nodes/workspace/nodes` — Returns all workspace pages (no `page_size` limit for graph views)
+- `POST /nodes/links` — Returns links between a set of node IDs
+  - `scope: 'between'` — both endpoints in the set
+  - `scope: 'touching'` — at least one endpoint in the set
+  - Link types: `reference`, `parent`, `class`, `extends`, `property-reference`, `cooccurrence`
+
+**Two usage modes:**
+
+| Mode | Source | `currentNodeId` | `localGraphMode` | Link fetching |
+|------|--------|-----------------|------------------|---------------|
+| **Global graph** | `AllPagesGraphView` | `null` | `false` | All links between all nodes |
+| **Local / centered** | `SidebarLocalGraph`, `NodeCollection` graph mode | Set | `true` or `false` | All links between all nodes; BFS filter applied to show neighborhood |
+
+**Neighborhood / Levels filtering (BFS):**
+- When `currentNodeId` is set, a **Levels** slider (1–5) appears in `GraphSettingsSidebar`.
+- Level 1 = directly linked nodes only.
+- Level N = all nodes within N hops via any link type.
+- BFS is computed on the frontend from `apiLinks` using `getNeighborhoodNodeIds()` in `GraphView.tsx`.
+- Both `sourceNodes` and `sourceLinks` are filtered to the discovered neighborhood before the visibility-filter pipeline runs.
+- Persisted per view in `localStorage` under `graph_{viewId}_levels`.
+
+**SGE v2 Physics Engine (`frontend/src/features/content/components/nodes/views/sge/`)**
 
 Modular replacement for the original monolithic SemanticGraphEngine. Uses Structure-of-Arrays (SoA) typed arrays and a force-plugin API.
 
@@ -907,8 +935,9 @@ Modular replacement for the original monolithic SemanticGraphEngine. Uses Struct
 **Key Files:**
 | File | Purpose |
 |------|---------|
-| `GraphView.tsx` | Main component: state, sidebar, filters, color resolution |
+| `GraphView.tsx` | Main component: state, sidebar, filters, color resolution, BFS neighborhood |
 | `GraphRenderer.tsx` | Canvas wrapper: handles events, labels, keyboard shortcuts |
+| `GraphSettingsSidebar.tsx` | Sidebar UI: physics, visibility, style, levels slider, groups |
 | `graphWebGLRenderer.ts` | WebGL2 renderer: instanced nodes, glow, edges, picking |
 | `sgeWorker.ts` | Web Worker entry point: thin wrapper around SGEEngine |
 | `evaluateQueryAST.ts` | Client-side QueryAST evaluator for group coloring |
@@ -924,6 +953,13 @@ Modular replacement for the original monolithic SemanticGraphEngine. Uses Struct
 2. Add UI control in `GraphSettingsSidebar.tsx`
 3. Persist via `setSetting('graph_settings', ...)`
 4. If the setting affects physics, wire it through `buildSGEPhysicsConfig()` in `GraphView.tsx`
+
+**Adding a new graph filter or data-mode control:**
+1. If it needs backend data, extend `LinksRequest` / `LinksResponse` in `app/routers/nodes/models.py` and the endpoint in `search.py`
+2. Update `frontend/src/api/nodes.ts` and `frontend/src/hooks/useNodeGraphQueries.ts` to expose the new parameter
+3. Add state + persistence logic in `GraphView.tsx` (localStorage key pattern: `graph_{viewId}_{key}`)
+4. Apply the filter in the main `useMemo` that builds `nodes` and `links`
+5. Add UI control in `GraphSettingsSidebar.tsx` inside the appropriate section
 
 ---
 

@@ -532,10 +532,14 @@ export async function getWorkspaceData(
  */
 export async function getGraphNodes(
   page: number = 1,
-  page_size: number = 50,
+  page_size?: number,
 ): Promise<PaginatedResponse<GraphNode>> {
+  const params: Record<string, number> = { page };
+  if (page_size !== undefined) {
+    params.page_size = page_size;
+  }
   const response = await api.get<PaginatedResponse<GraphNode>>(`${BASE}/workspace/nodes`, {
-    params: { page, page_size },
+    params,
   });
   return response.data;
 }
