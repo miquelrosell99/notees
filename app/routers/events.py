@@ -51,9 +51,9 @@ async def _event_stream(
                     continue
                 msg.pop("sender_id", None)
                 yield f"data: {json.dumps(msg)}\n\n"
-            except Exception:
+            except (ConnectionError, RuntimeError):
                 logger.exception("Failed to process SSE message")
-    except Exception:
+    except (ConnectionError, RuntimeError):
         logger.exception("SSE stream error")
     finally:
         yield f"data: {json.dumps({'type': 'close'})}\n\n"

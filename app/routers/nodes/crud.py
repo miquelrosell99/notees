@@ -88,7 +88,7 @@ async def _notify_mentions(node, actor_user_id: int) -> None:
                     node_id=node.id,
                     message=f"mentioned you in '{label}'",
                 )
-    except Exception:
+    except (LookupError, ValueError):
         logger.exception("Failed to process mentions for node")
 
 
@@ -142,7 +142,7 @@ async def create_node(
             after_state=_node_snapshot(node),
             description=f"Created '{_name_text(node.name)}'",
         )
-    except Exception:
+    except (ValueError, TypeError, LookupError):
         pass  # Never fail the mutation because of undo logging
 
     # Notify mentions
@@ -1471,7 +1471,7 @@ async def update_node(
 
     logger = get_logger(__name__)
 
-    logger.info(f"[UPDATE_NODE] node_id={node_id}, body.color={body.color!r}, fields_set={body.model_fields_set}")
+    logger.debug("[UPDATE_NODE] node_id=%s, fields_set=%s", node_id, body.model_fields_set)
 
     service = await _get_node_service(user)
 
@@ -1489,7 +1489,7 @@ async def update_node(
         is_private=body.is_private,
     )
 
-    logger.info(f"[UPDATE_NODE] NodeUpdateData color={data.color!r}, clear_color={data.clear_color}")
+    logger.debug("[UPDATE_NODE] NodeUpdateData color=%s, clear_color=%s", data.color, data.clear_color)
 
     # Snapshot before state for undo
     old_node = await service.get_node(node_id)
@@ -1500,7 +1500,7 @@ async def update_node(
         if not node:
             raise HTTPException(404, "Node not found")
 
-        logger.info(f"[UPDATE_NODE] result node.color={node.color!r}")
+        logger.debug("[UPDATE_NODE] result node.color=%s", node.color)
 
         # Apply class reconciliation and property values if provided
         if body.classes is not None or body.properties:
@@ -1517,9 +1517,9 @@ async def update_node(
                 for share_row in share_rows:
                     try:
                         await write_share_html(str(share_row["uuid"]), node.workspace_id, node.uuid)
-                    except Exception:
+                    except (OSError, ValueError):
                         logger.exception(f"Failed to regenerate share HTML for {share_row['uuid']}")
-        except Exception:
+        except (OSError, ValueError):
             logger.exception("Failed to invalidate share HTML caches")
 
         # Record for undo
@@ -1543,7 +1543,7 @@ async def update_node(
                         after_state=after,
                         description=desc,
                     )
-            except Exception:
+            except (ValueError, TypeError, LookupError):
                 pass
 
         # Notify mentions
@@ -1605,7 +1605,7 @@ async def move_node(
                 after_state=after,
                 description=f"Moved '{name}'",
             )
-        except Exception:
+        except (ValueError, TypeError, LookupError):
             pass
 
     return _node_to_response(node)
@@ -1658,7 +1658,7 @@ async def delete_node(
                 **_node_snapshot(old_node),
                 "deleted_ids": [node_id] + desc_ids,
             }
-    except Exception:
+    except (ValueError, TypeError, LookupError):
         pass
 
     # Get the node including archived ones (for UUID and asset cleanup)
@@ -1712,7 +1712,7 @@ async def delete_node(
                 after_state=None,
                 description=f"Deleted '{name}'",
             )
-        except Exception:
+        except (ValueError, TypeError, LookupError):
             pass
 
     return {"status": "ok"}
@@ -1742,7 +1742,7 @@ async def archive_node(
             after_state={"active": False},
             description=f"Archived '{name}'",
         )
-    except Exception:
+    except (ValueError, TypeError, LookupError):
         pass
 
     types = await service.get_node_classes(node_id)
@@ -1792,7 +1792,7 @@ async def unarchive_node(
             after_state={"active": True},
             description=f"Unarchived '{name}'",
         )
-    except Exception:
+    except (ValueError, TypeError, LookupError):
         pass
 
     types = await service.get_node_classes(node_id)

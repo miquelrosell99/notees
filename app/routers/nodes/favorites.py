@@ -124,7 +124,6 @@ async def set_favorites(
 
     service = await _get_node_service(user)
     async with acquire_connection(service.pool) as conn:
-        favorites_json = json.dumps(favorites)
         await conn.execute(
             """
             INSERT INTO setting_user (user_id, key, value)
@@ -132,7 +131,7 @@ async def set_favorites(
             ON CONFLICT (user_id, key) DO UPDATE SET value = $2
         """,
             int(user.id),
-            favorites_json,
+            favorites,
         )
 
     return {"status": "ok", "favorites": favorites}
@@ -187,7 +186,7 @@ async def reorder_favorites(
             ON CONFLICT (user_id, key) DO UPDATE SET value = $2
         """,
             int(user.id),
-            json.dumps(favorites),
+            favorites,
         )
 
     return {"status": "ok", "favorites": favorites}
@@ -237,7 +236,7 @@ async def add_favorite(
                 ON CONFLICT (user_id, key) DO UPDATE SET value = $2
             """,
                 int(user.id),
-                json.dumps(favorites),
+                favorites,
             )
 
     return {"status": "ok", "favorites": favorites}
@@ -275,7 +274,7 @@ async def remove_favorite(
                 ON CONFLICT (user_id, key) DO UPDATE SET value = $2
             """,
                 int(user.id),
-                json.dumps(favorites),
+                favorites,
             )
 
     return {"status": "ok", "favorites": favorites}

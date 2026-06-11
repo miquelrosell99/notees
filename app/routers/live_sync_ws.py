@@ -128,7 +128,7 @@ async def _broadcast(
     try:
         redis_msg = {**message, "sender_id": sender_id}
         await collab_pubsub.publish(f"live:{page_uuid}", json.dumps(redis_msg).encode())
-    except Exception:
+    except (ConnectionError, OSError, RuntimeError):
         logger.exception(f"Failed to publish live sync message for {page_uuid}")
 
 
@@ -213,9 +213,9 @@ async def _run_redis_loop(
                 # Remove internal sender_id before forwarding
                 msg.pop("sender_id", None)
                 await connection.send(msg)
-            except Exception:
+            except ConnectionError:
                 pass
-    except Exception:
+    except ConnectionError:
         pass
 
 
@@ -338,7 +338,7 @@ async def live_sync_websocket(
                 "SELECT id, uuid::text FROM node WHERE uuid::text = $1 AND active = TRUE",
                 page_uuid,
             )
-    except Exception:
+    except (LookupError, ValueError):
         logger.exception(f"Failed to resolve page {page_uuid}")
         await websocket.close(code=4002, reason="Internal error")
         return
@@ -488,7 +488,7 @@ async def live_sync_websocket(
 
     except WebSocketDisconnect:
         pass
-    except Exception:
+    except (ConnectionError, OSError, RuntimeError):
         logger.exception(f"Live sync WebSocket error for page {page_uuid}")
     finally:
         if redis_task and not redis_task.done():

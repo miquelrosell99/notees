@@ -1246,7 +1246,7 @@ def _extract_plain_text(name: str | None) -> str:
         ast = parse_ast(name)
         opts = StringifyOptions(mode=StringifyMode.TEXT_ONLY)
         return stringify_ast(ast, opts) or "untitled"
-    except Exception:
+    except (ValueError, TypeError):
         return name.strip() or "untitled"
 
 
