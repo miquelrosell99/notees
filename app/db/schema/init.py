@@ -78,6 +78,7 @@ async def init_database(conn: asyncpg.Connection) -> None:
     await _run_migration("migrate_collaboration_schema", conn, _migrate_collaboration_schema)
     await _run_migration("cleanup_self_referencing_aliases", conn, _cleanup_self_referencing_aliases)
     await _run_migration("seed_system_settings", conn, _seed_system_settings)
+    await _run_migration("renumber_sequences", conn, _renumber_sequences)
 
 
 
@@ -1292,3 +1293,24 @@ async def _seed_system_settings(conn: asyncpg.Connection) -> None:
             key,
             json.dumps(value),
         )
+
+
+async def _renumber_sequences(conn: asyncpg.Connection) -> None:
+    """Renumber all node sequences as contiguous floats under each parent."""
+    await conn.execute(
+        """
+        WITH numbered AS (
+            SELECT id,
+                   ROW_NUMBER() OVER (PARTITION BY parent_id ORDER BY sequence, id) - 1 AS new_seq
+            FROM node
+            WHERE parent_id IS NOT NULL
+              AND active = TRUE
+              AND is_deleted = FALSE
+        )
+        UPDATE node
+        SET sequence = numbered.new_seq::float
+        FROM numbered
+        WHERE node.id = numbered.id
+          AND node.sequence != numbered.new_seq::float
+        """
+    )

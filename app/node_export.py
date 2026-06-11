@@ -561,7 +561,7 @@ async def export_nodes(
         filename = "export.json"
         mime_type = "application/json"
     elif format == ExportFormat.HTML or format == "html":
-        content = _export_to_html(
+        content = export_to_html(
             nodes_data,
             resolve_node_link,
             layout,
@@ -583,7 +583,7 @@ async def export_nodes(
         filename = "export.html"
         mime_type = "text/html"
     elif format == ExportFormat.PDF or format == "pdf":
-        html_content = _export_to_html(
+        html_content = export_to_html(
             nodes_data,
             resolve_node_link,
             layout,
@@ -644,7 +644,7 @@ def _collect_link_target_uuids(ast_nodes: list, out: set[str]) -> None:
             _collect_link_target_uuids(children, out)
 
 
-def _is_heading_node(node_data: dict) -> bool:
+def is_heading_node(node_data: dict) -> bool:
     """Return True if the node's first AST block has type 'heading'."""
     ast = node_data.get("_ast") or parse_ast(node_data.get("name", ""))
     return bool(ast and isinstance(ast, list) and ast[0].get("type") == "heading")
@@ -661,7 +661,7 @@ def _stringify_node(
     return stringify_ast(ast, opts)
 
 
-def _markdown_inline_to_html(md: str) -> str:
+def markdown_inline_to_html(md: str) -> str:
     """Convert PLAIN_MARKDOWN inline syntax to HTML with proper escaping.
 
     Tokenises the string produced by stringify_ast(PLAIN_MARKDOWN) so that:
@@ -759,7 +759,7 @@ def _get_export_css_single() -> str:
     return _export_css_cache
 
 
-def _build_body_class(
+def build_body_class(
     style: str | None,
     layout: str,
     density: str,
@@ -795,11 +795,11 @@ def _html_style_tag() -> str:
     return f"<style>\n{css}\n</style>" if css else ""
 
 
-def _build_toc_html(nodes: list[dict], title_fn, html_mod) -> str:
+def build_toc_html(nodes: list[dict], title_fn, html_mod) -> str:
     """Build a Table of Contents from page and heading nodes."""
     entries = []
     for node in nodes:
-        if node.get("is_page") or _is_heading_node(node):
+        if node.get("is_page") or is_heading_node(node):
             entries.append(
                 {
                     "uuid": node.get("uuid", ""),
@@ -829,11 +829,11 @@ def _build_toc_html(nodes: list[dict], title_fn, html_mod) -> str:
     return f'<nav class="toc"><h2>Table of Contents</h2>{"".join(parts)}</nav>'
 
 
-def _node_is_code(node: dict, code_class_id: int | None) -> bool:
+def node_is_code(node: dict, code_class_id: int | None) -> bool:
     return code_class_id is not None and code_class_id in (node.get("class_ids") or [])
 
 
-def _node_is_quote(node: dict, quote_class_id: int | None) -> bool:
+def node_is_quote(node: dict, quote_class_id: int | None) -> bool:
     return quote_class_id is not None and quote_class_id in (node.get("class_ids") or [])
 
 
@@ -845,7 +845,7 @@ def _node_callout_type(node: dict, callout_class_map: dict[int, str]) -> str | N
     return None
 
 
-def _export_to_markdown(
+def export_to_markdown(
     nodes: list[dict],
     resolver=None,
     layout: str = "outline",
@@ -866,8 +866,8 @@ def _export_to_markdown(
         text = _stringify_node(node, StringifyMode.PLAIN_MARKDOWN, resolver, strip_link_syntax=strip_link_syntax)
         depth = node.get("depth", 0)
         is_page = node.get("is_page", False)
-        is_code = _node_is_code(node, code_class_id)
-        is_quote = _node_is_quote(node, quote_class_id)
+        is_code = node_is_code(node, code_class_id)
+        is_quote = node_is_quote(node, quote_class_id)
         callout_type = _node_callout_type(node, callout_class_map or {})
 
         if formatting and node.get("color"):
@@ -913,7 +913,7 @@ def _export_to_markdown(
                 else:
                     lines.append(f"{p['name']}::")
         elif layout == "flat":
-            is_heading = _is_heading_node(node)
+            is_heading = is_heading_node(node)
             if is_heading:
                 hashes = "#" * min(depth + 1, 6)
                 lines.append(f"{hashes} {text}")
@@ -938,7 +938,7 @@ def _export_to_markdown(
                     lines.append(f"{p['name']}::")
         else:
             # outline
-            is_heading = _is_heading_node(node)
+            is_heading = is_heading_node(node)
             if is_heading:
                 hashes = "#" * min(depth + 1, 6)
                 lines.append(f"{hashes} {text}")
@@ -967,7 +967,7 @@ def _export_to_markdown(
     return "\n".join(lines)
 
 
-def _export_to_html(
+def export_to_html(
     nodes: list[dict],
     resolver=None,
     layout: str = "outline",
@@ -997,7 +997,7 @@ def _export_to_html(
 
     def _render(node: dict) -> str:
         if formatting:
-            return _markdown_inline_to_html(
+            return markdown_inline_to_html(
                 _stringify_node(
                     node,
                     StringifyMode.PLAIN_MARKDOWN,
@@ -1070,7 +1070,7 @@ def _export_to_html(
         cls = f' class="{classes}"' if classes else ""
         return f"<{tag}{_id_attr(node)}{_color_attr(node)}{cls}>{rendered}</{tag}>"
 
-    body_class = _build_body_class(
+    body_class = build_body_class(
         style, layout, density, numbering, measure, doctype, section_break, theme_mode, cover_page
     )
     style_tag = _html_style_tag()
@@ -1079,14 +1079,14 @@ def _export_to_html(
     if not nodes:
         return f'<!DOCTYPE html>\n<html><head><title>Notees Export</title>{head_extra}</head><body class="{body_class}"></body></html>'
 
-    toc_html = _build_toc_html(nodes, _title, html_mod)
+    toc_html = build_toc_html(nodes, _title, html_mod)
 
     def _render_flat_node(node: dict) -> str:
         rendered = _render(node)
         depth = node.get("depth", 0)
         is_page = node.get("is_page", False)
-        is_code = _node_is_code(node, code_class_id)
-        is_quote = _node_is_quote(node, quote_class_id)
+        is_code = node_is_code(node, code_class_id)
+        is_quote = node_is_quote(node, quote_class_id)
         callout_type = _node_callout_type(node, callout_class_map or {})
         props_html = _render_properties(node)
         if is_page:
@@ -1096,7 +1096,7 @@ def _export_to_html(
                 if props_html
                 else f"  <h{level}{_id_attr(node)}{_color_attr(node)}>{rendered}</h{level}>"
             )
-        if _is_heading_node(node):
+        if is_heading_node(node):
             level = min(depth + 1, 6)
             if props_html:
                 return f"  <h{level}{_id_attr(node)}{_color_attr(node)}>{rendered}{props_html}</h{level}>"
@@ -1136,8 +1136,8 @@ def _export_to_html(
         rendered = _render(node)
         depth = node.get("depth", 0)
         is_page = node.get("is_page", False)
-        is_code = _node_is_code(node, code_class_id)
-        is_quote = _node_is_quote(node, quote_class_id)
+        is_code = node_is_code(node, code_class_id)
+        is_quote = node_is_quote(node, quote_class_id)
         callout_type = _node_callout_type(node, callout_class_map or {})
 
         if is_page:
@@ -1154,7 +1154,7 @@ def _export_to_html(
                 lines.append(f"{indent}{props_html}")
             current_depth = depth
         else:
-            if _is_heading_node(node):
+            if is_heading_node(node):
                 while ul_open_count > 0:
                     indent = "  " * (ul_open_count - 1)
                     lines.append(f"{indent}</ul>")
