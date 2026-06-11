@@ -19,7 +19,7 @@ import type { Node } from '@/types';
 import { NodeInline } from '@/features/content/components/blocks/NodeInline';
 import { NodeNameContent } from '@/features/content/components/blocks/NodeNameContent';
 import { NodeCellEditable } from '@/features/content/components/nodes/NodeCellEditable';
-import { TableCellBreadcrumbs } from '@/features/content/components/nodes/TableCellBreadcrumbs';
+import { NodeBreadcrumbs } from '@/features/content/components/nodes/NodeBreadcrumbs';
 import { Icon, PageIcon } from '@/components/ui/icons';
 import { Checkbox } from './Checkbox';
 import { Button } from './Button';
@@ -540,15 +540,25 @@ export function Table<T>({
                     {nodeEditable ? (
                       <NodeCellEditable node={cellValue as unknown as Node} />
                     ) : (
-                      <span className="table-node-cell__name">
-                        <TableCellBreadcrumbs node={cellValue as unknown as Node} />
-                        {(cellValue as unknown as Node).is_page ? (
-                          <PageIcon size="sm" className="table-node-cell__type-icon table-node-cell__type-icon--page" title="Page" />
-                        ) : (
-                          <Icon path="mdi-circle-small" size={0.75} className="table-node-cell__type-icon table-node-cell__type-icon--block" title="Block" />
-                        )}
-                        <NodeNameContent name={(cellValue as unknown as Node).name} />
-                      </span>
+                      <div className="table-node-cell__name">
+                        <div onClick={(e) => e.stopPropagation()}>
+                          <NodeBreadcrumbs
+                            nodeId={(cellValue as unknown as Node).id}
+                            nodeType={(cellValue as unknown as Node).is_page ? 'page' : 'block'}
+                            editable={false}
+                            onNavigate={(id) => onNodeOpen?.(id, (cellValue as unknown as Node).is_page ? 'page' : 'block')}
+                            className="node-breadcrumbs--inline node-breadcrumbs--compact"
+                          />
+                        </div>
+                        <span>
+                          {(cellValue as unknown as Node).is_page ? (
+                            <PageIcon size="sm" className="table-node-cell__type-icon table-node-cell__type-icon--page" title="Page" />
+                          ) : (
+                            <Icon path="mdi-circle-small" size={0.75} className="table-node-cell__type-icon table-node-cell__type-icon--block" title="Block" />
+                          )}
+                          <NodeNameContent name={(cellValue as unknown as Node).name} />
+                        </span>
+                      </div>
                     )}
                     <div className="table-node-cell__actions hover-reveal">
                       {onNodeOpenInSidebar && (

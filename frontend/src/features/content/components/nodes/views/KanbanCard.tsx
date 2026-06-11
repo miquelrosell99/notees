@@ -41,7 +41,7 @@ import { ImageNode } from '@/features/content/components/nodes/ImageNode';
 import { AddCoverButton } from '@/components/ui/AddCoverButton';
 import { AssetUploadModal } from '@/features/assets/components/AssetUploadModal';
 import { PageContextMenu, BlockContextMenu } from '@/features/content/components/nodes/NodeContextMenu';
-import { CardBreadcrumbs } from '@/features/content/components/nodes/CardBreadcrumbs';
+import { NodeBreadcrumbs } from '@/features/content/components/nodes/NodeBreadcrumbs';
 import { SYSTEM_PROPERTY_UUIDS, SYSTEM_CLASS_UUIDS, isNonRemovableClass } from '@/constants';
 import { useQueryClient } from '@tanstack/react-query';
 import { nodeKeys } from '@/hooks/queryKeys';
@@ -634,8 +634,14 @@ export const NodeCard = memo(function NodeCard({
         {/* Row: Title */}
         <div className={`node-card__header${showBreadcrumbs ? ' node-card__header--with-breadcrumbs' : ''}`}>
           {showBreadcrumbs && (
-            <div className="node-card__breadcrumbs-row">
-              <CardBreadcrumbs node={node} />
+            <div className="node-card__breadcrumbs-row" onClick={(e) => e.stopPropagation()}>
+              <NodeBreadcrumbs
+                nodeId={node.id}
+                nodeType={node.is_page ? 'page' : 'block'}
+                editable={false}
+                onNavigate={openNode}
+                className="node-breadcrumbs--inline node-breadcrumbs--compact"
+              />
             </div>
           )}
           <div className="node-card__header-row">

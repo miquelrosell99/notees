@@ -3,6 +3,7 @@ import { useNavigationStore, useFavoritesStore } from '@/stores';
 import { useNode, useIsMobile } from '@/hooks';
 import { useNodeDisplay } from '@/hooks/useNodeDisplay';
 import { NodeInline } from '@/features/content/components/blocks/NodeInline';
+import { NodeBreadcrumbs } from '@/features/content/components/nodes/NodeBreadcrumbs';
 import {
   ClockIcon,
   ChevronDownIcon,
@@ -13,10 +14,11 @@ interface RecentItemProps {
   nodeId: number;
   isActive: boolean;
   onClick: (event: React.MouseEvent) => void;
+  onNavigate: (nodeId: number) => void;
   onContextMenu?: (event: React.MouseEvent) => void;
 }
 
-const RecentItem = memo(function RecentItem({ nodeId, isActive, onClick, onContextMenu }: RecentItemProps) {
+const RecentItem = memo(function RecentItem({ nodeId, isActive, onClick, onNavigate, onContextMenu }: RecentItemProps) {
   const { data: node } = useNode(nodeId);
   const { effectiveIcon } = useNodeDisplay(node);
 
@@ -25,6 +27,15 @@ const RecentItem = memo(function RecentItem({ nodeId, isActive, onClick, onConte
   return (
     <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }} onClick={onClick} onContextMenu={onContextMenu} className={`sidebar-recent-item ${isActive ? 'active' : ''}`}>
       <div className="sidebar-recent-block">
+        <div className="sidebar-item-breadcrumbs-wrapper" onClick={(e) => e.stopPropagation()}>
+          <NodeBreadcrumbs
+            nodeId={node.id}
+            nodeType="page"
+            editable={false}
+            onNavigate={onNavigate}
+            className="node-breadcrumbs--inline node-breadcrumbs--compact"
+          />
+        </div>
         <NodeInline
           name={node.name}
           icon={effectiveIcon}
@@ -70,6 +81,11 @@ export function SidebarRecents({ onContextMenu }: SidebarRecentsProps) {
     }
   }, [openNode, openNodeInNewTab, closeMobileDrawer]);
 
+  const handleBreadcrumbNavigate = useCallback((nodeId: number) => {
+    openNode(nodeId);
+    closeMobileDrawer();
+  }, [openNode, closeMobileDrawer]);
+
   return (
     <div className="sidebar-section">
       <button
@@ -93,6 +109,7 @@ export function SidebarRecents({ onContextMenu }: SidebarRecentsProps) {
                 nodeId={recent.nodeId}
                 isActive={currentNodeId === recent.nodeId && mainViewType === 'node'}
                 onClick={(e) => handleNavigate(recent.nodeId, e)}
+                onNavigate={handleBreadcrumbNavigate}
                 onContextMenu={(e) => onContextMenu(recent.nodeId, e)}
               />
             ))

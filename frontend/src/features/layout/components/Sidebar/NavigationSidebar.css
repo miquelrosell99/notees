@@ -243,6 +243,24 @@
   opacity: 1;
 }
 
+/* Breadcrumb wrapper — hidden by default, revealed on hover/focus */
+.sidebar-item-breadcrumbs-wrapper {
+  opacity: 0;
+  max-height: 0;
+  overflow: hidden;
+  transition:
+    opacity var(--motion-duration-short) var(--motion-easing-standard),
+    max-height var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.sidebar-favorite-item:hover .sidebar-item-breadcrumbs-wrapper,
+.sidebar-favorite-item:focus-within .sidebar-item-breadcrumbs-wrapper,
+.sidebar-recent-item:hover .sidebar-item-breadcrumbs-wrapper,
+.sidebar-recent-item:focus-within .sidebar-item-breadcrumbs-wrapper {
+  opacity: 1;
+  max-height: 2rem;
+}
+
 /* Block component styling within sidebar items */
 .sidebar-favorite-item .block,
 .sidebar-recent-item .block {

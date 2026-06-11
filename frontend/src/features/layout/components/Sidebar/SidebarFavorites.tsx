@@ -6,6 +6,7 @@ import { useNodeDisplay } from '@/hooks/useNodeDisplay';
 import { useListDragSort } from '@/hooks/useListDragSort';
 import { Button } from '@/components/ui/Button';
 import { NodeInline } from '@/features/content/components/blocks/NodeInline';
+import { NodeBreadcrumbs } from '@/features/content/components/nodes/NodeBreadcrumbs';
 import {
   StarIcon,
   ChevronDownIcon,
@@ -97,8 +98,17 @@ const SortableFavoriteItem = memo(function SortableFavoriteItem({
         <DragVerticalIcon size="xs" />
       </span>
 
-      {/* Node name in readonly mode */}
+      {/* Breadcrumbs + node name */}
       <div className="sidebar-favorite-block">
+        <div className="sidebar-item-breadcrumbs-wrapper" onClick={(e) => e.stopPropagation()}>
+          <NodeBreadcrumbs
+            nodeId={node.id}
+            nodeType="page"
+            editable={false}
+            onNavigate={onNavigate}
+            className="node-breadcrumbs--inline node-breadcrumbs--compact"
+          />
+        </div>
         <NodeInline
           name={node.name}
           icon={effectiveIcon}
