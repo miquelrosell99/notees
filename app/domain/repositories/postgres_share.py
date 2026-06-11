@@ -29,6 +29,7 @@ class PostgresShareRepository(BasePostgresRepository, ShareRepository):
             created_by=row["created_by"],
             created_at=row["created_at"].isoformat() if row["created_at"] else "",
             expiry_date=row["expiry_date"].isoformat() if row["expiry_date"] else None,
+            password_hash=row.get("password_hash"),
             active=row["active"],
         )
 
@@ -44,7 +45,7 @@ class PostgresShareRepository(BasePostgresRepository, ShareRepository):
                 """
                 INSERT INTO node_public_share (node_id, workspace_id, created_by, expiry_date)
                 VALUES ($1, $2, $3, $4)
-                RETURNING id, uuid, node_id, workspace_id, created_by, created_at, expiry_date, active
+                RETURNING id, uuid, node_id, workspace_id, created_by, created_at, expiry_date, password_hash, active
                 """,
                 node_id,
                 workspace_id,
@@ -58,7 +59,7 @@ class PostgresShareRepository(BasePostgresRepository, ShareRepository):
         async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow(
                 """
-                SELECT id, uuid, node_id, workspace_id, created_by, created_at, expiry_date, active
+                SELECT id, uuid, node_id, workspace_id, created_by, created_at, expiry_date, password_hash, active
                 FROM node_public_share
                 WHERE uuid = $1
                 """,
@@ -72,7 +73,7 @@ class PostgresShareRepository(BasePostgresRepository, ShareRepository):
         async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch(
                 """
-                SELECT id, uuid, node_id, workspace_id, created_by, created_at, expiry_date, active
+                SELECT id, uuid, node_id, workspace_id, created_by, created_at, expiry_date, password_hash, active
                 FROM node_public_share
                 WHERE node_id = $1 AND active = TRUE
                 ORDER BY created_at DESC
@@ -85,7 +86,7 @@ class PostgresShareRepository(BasePostgresRepository, ShareRepository):
         async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch(
                 """
-                SELECT s.id, s.uuid, s.node_id, s.workspace_id, s.created_by, s.created_at, s.expiry_date, s.active,
+                SELECT s.id, s.uuid, s.node_id, s.workspace_id, s.created_by, s.created_at, s.expiry_date, s.password_hash, s.active,
                        n.name as node_name, n.uuid as node_uuid
                 FROM node_public_share s
                 JOIN node n ON n.id = s.node_id

@@ -154,7 +154,7 @@ class TestPagePrivacy:
         assert update_resp.status_code == 200
 
         # Create a public share for the page
-        share_resp = await authenticated_client.post(f"/api/nodes/{page_id}/shares")
+        share_resp = await authenticated_client.post(f"/api/nodes/{page_id}/shares", json={})
         assert share_resp.status_code == 200
         share_data = share_resp.json()
         share_uuid = share_data["share_uuid"]
@@ -182,7 +182,7 @@ class TestPublicShareStaticHtml:
         page = create_resp.json()
         page_id = page["id"]
 
-        share_resp = await authenticated_client.post(f"/api/nodes/{page_id}/shares")
+        share_resp = await authenticated_client.post(f"/api/nodes/{page_id}/shares", json={})
         assert share_resp.status_code == 200
         share_uuid = share_resp.json()["share_uuid"]
 
@@ -201,7 +201,7 @@ class TestPublicShareStaticHtml:
         assert create_resp.status_code == 200
         page_id = create_resp.json()["id"]
 
-        share_resp = await authenticated_client.post(f"/api/nodes/{page_id}/shares")
+        share_resp = await authenticated_client.post(f"/api/nodes/{page_id}/shares", json={})
         assert share_resp.status_code == 200
         share_uuid = share_resp.json()["share_uuid"]
 
@@ -222,7 +222,7 @@ class TestPublicShareStaticHtml:
         page = create_resp.json()
         page_id = page["id"]
 
-        share_resp = await authenticated_client.post(f"/api/nodes/{page_id}/shares")
+        share_resp = await authenticated_client.post(f"/api/nodes/{page_id}/shares", json={})
         assert share_resp.status_code == 200
         share_uuid = share_resp.json()["share_uuid"]
 
@@ -252,7 +252,7 @@ class TestPublicShareStaticHtml:
         assert create_resp.status_code == 200
         page_id = create_resp.json()["id"]
 
-        share_resp = await authenticated_client.post(f"/api/nodes/{page_id}/shares")
+        share_resp = await authenticated_client.post(f"/api/nodes/{page_id}/shares", json={})
         assert share_resp.status_code == 200
         share_uuid = share_resp.json()["share_uuid"]
 
