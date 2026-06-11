@@ -3,7 +3,6 @@
 Provides endpoints for managing NodeViews - dynamic query tabs for nodes.
 """
 
-import json
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -364,16 +363,6 @@ async def _node_view_to_response(
     user: User | None = None,
 ) -> NodeViewResponse:
     """Convert NodeView entity to response model."""
-    # Defensive: shown_properties may occasionally be a JSON string rather than a list
-    shown_properties = view.shown_properties
-    if isinstance(shown_properties, str):
-        try:
-            shown_properties = json.loads(shown_properties)
-        except json.JSONDecodeError:
-            shown_properties = []
-    if shown_properties is None:
-        shown_properties = []
-
     response = NodeViewResponse(
         id=view.id,
         uuid=view.uuid,
@@ -383,7 +372,7 @@ async def _node_view_to_response(
         order_index=view.order_index,
         is_default=view.is_default,
         active=view.active,
-        shown_properties=shown_properties,
+        shown_properties=view.shown_properties or [],
         group_by=view.group_by,
         create_date=view.create_date,
         write_date=view.write_date,

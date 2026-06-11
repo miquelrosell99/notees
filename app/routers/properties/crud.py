@@ -158,13 +158,11 @@ async def create_property(
     except ValueError:
         raise HTTPException(400, f"Invalid property type: {request.type}") from None
 
-    # Resolve scope: explicit scope wins; fall back to is_local for backward compat
-    if request.scope and request.scope != "global":
+    # Resolve scope
+    try:
         scope = PropertyScope(request.scope)
-    elif request.is_local:
-        scope = PropertyScope.NODE
-    else:
-        scope = PropertyScope.GLOBAL
+    except ValueError:
+        raise HTTPException(400, f"Invalid property scope: {request.scope}") from None
 
     # Check for duplicate name for global properties
     if scope == PropertyScope.GLOBAL:

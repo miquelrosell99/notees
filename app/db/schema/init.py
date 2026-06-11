@@ -58,9 +58,6 @@ async def init_database(conn: asyncpg.Connection) -> None:
         await conn.execute("DROP FUNCTION IF EXISTS rebuild_node_path()")
         await conn.execute("DROP TABLE IF EXISTS node_path CASCADE")
 
-    # Repair any blocks with missing page_id using the closure table
-    await _repair_page_ids(conn)
-
     # Store schema version
     await conn.execute(
         """
@@ -71,98 +68,46 @@ async def init_database(conn: asyncpg.Connection) -> None:
         str(SCHEMA_VERSION),
     )
 
-    # Repair node_view JSON columns that were stored as strings instead of proper JSON
-    await _repair_node_view_json_columns(conn)
-
-    # Ensure task_recurrence property exists in all workspaces (migration for existing DBs)
-    await _ensure_task_recurrence_property(conn)
-
-    # Ensure Inbox pages use the fixed system UUID (migration for existing DBs)
-    await _ensure_inbox_system_uuid(conn)
-
-    # Migrate from visibility column to is_private boolean (migration for existing DBs)
-    await _migrate_visibility_to_is_private(conn)
-
-    # Strip mdi: prefix from property and selection line icons (migration for existing DBs)
-    await _migrate_mdi_prefix_icons(conn)
-
-    # Remove non-system task statuses and migrate nodes that have them
-    await _migrate_non_system_task_statuses(conn)
-
-    # Add collaboration schema updates (pending invites, notifications, comment permissions, share passwords)
-    await _migrate_collaboration_schema(conn)
-
-    # Clean up any self-referencing aliases that may have been created by old bugs
-    await _cleanup_self_referencing_aliases(conn)
-
-    # Seed default system settings
-    await _seed_system_settings(conn)
+    # Run idempotent data migrations once per database
+    await _run_migration("repair_page_ids", conn, _repair_page_ids)
+    await _run_migration("ensure_task_recurrence_property", conn, _ensure_task_recurrence_property)
+    await _run_migration("ensure_inbox_system_uuid", conn, _ensure_inbox_system_uuid)
+    await _run_migration("migrate_visibility_to_is_private", conn, _migrate_visibility_to_is_private)
+    await _run_migration("migrate_mdi_prefix_icons", conn, _migrate_mdi_prefix_icons)
+    await _run_migration("migrate_non_system_task_statuses", conn, _migrate_non_system_task_statuses)
+    await _run_migration("migrate_collaboration_schema", conn, _migrate_collaboration_schema)
+    await _run_migration("cleanup_self_referencing_aliases", conn, _cleanup_self_referencing_aliases)
+    await _run_migration("seed_system_settings", conn, _seed_system_settings)
 
 
-async def _repair_node_view_json_columns(conn: asyncpg.Connection) -> None:
-    """Fix node_view columns that were accidentally stored as JSON strings or old format.
 
-    Some imports or older code paths stored shown_properties or query_json
-    as JSON strings (e.g. '"[]"') instead of proper JSON values (e.g. []).
-    Additionally, query_json may be in the old 'AND_CONTAINER' format which
-    is no longer recognized by the frontend.
+async def _run_migration(
+    name: str,
+    conn: asyncpg.Connection,
+    callback: callable,
+) -> None:
+    """Run a named migration exactly once per database.
 
-    This uses PostgreSQL's jsonb_typeof to identify and repair them.
+    Tracks applied migrations in schema_meta so idempotent repairs
+    do not run on every startup.
     """
-    from ...logging_config import get_logger
+    already_applied = await conn.fetchval(
+        "SELECT 1 FROM schema_meta WHERE key = $1",
+        f"migration_{name}",
+    )
+    if already_applied:
+        return
 
-    logger = get_logger(__name__)
+    await callback(conn)
 
-    # Fix shown_properties that are JSON strings instead of arrays
-    result = await conn.execute("""
-        UPDATE node_view
-        SET shown_properties = '[]'::jsonb
-        WHERE jsonb_typeof(shown_properties) = 'string'
-    """)
-    sp_count = int(result.split()[-1]) if result else 0
-    if sp_count > 0:
-        logger.info(f"Repaired shown_properties for {sp_count} node_view rows")
-
-    # Fix default views that have old-format or string query_json.
-    # We restore the proper system query AST for each view_type.
-    result = await conn.execute("""
-        UPDATE node_view nv
-        SET query_json = CASE nv.view_type
-            WHEN 'child_pages' THEN
-                '{"type": "query", "version": "1.0", "scope": {"type": "scope", "scope_type": "pages"}, "root_group": {"type": "group", "logic": "AND", "children": [{"type": "condition", "condition_type": "parent", "parent_uuid": "{current_node_uuid}", "operator": "has_parent"}]}, "is_system": true}'::jsonb
-            WHEN 'classed_nodes' THEN
-                '{"type": "query", "version": "1.0", "scope": {"type": "scope", "scope_type": "entire_workspace"}, "root_group": {"type": "group", "logic": "AND", "children": [{"type": "condition", "condition_type": "class", "class_uuid": "{current_node_uuid}", "operator": "contains"}]}, "is_system": true}'::jsonb
-            WHEN 'extended_by' THEN
-                '{"type": "query", "version": "1.0", "scope": {"type": "scope", "scope_type": "entire_workspace"}, "root_group": {"type": "group", "logic": "AND", "children": [{"type": "condition", "condition_type": "extends", "extends_class_uuid": "{current_node_uuid}"}]}, "is_system": true}'::jsonb
-            WHEN 'linked_references' THEN
-                '{"type": "query", "version": "1.0", "scope": {"type": "scope", "scope_type": "entire_workspace"}, "root_group": {"type": "group", "logic": "AND", "children": [{"type": "condition", "condition_type": "reference", "target_uuid": "{current_node_uuid}"}, {"type": "condition", "condition_type": "page", "page_uuid": "{current_node_uuid}", "operator": "is_not_page"}]}, "is_system": true}'::jsonb
-            WHEN 'unlinked_references' THEN
-                '{"type": "query", "version": "1.0", "scope": {"type": "scope", "scope_type": "entire_workspace"}, "root_group": {"type": "group", "logic": "AND", "children": [{"type": "condition", "condition_type": "content", "operator": "contains", "value": "{current_node_name}"}, {"type": "condition", "condition_type": "property", "property_name": "uuid", "operator": "not_equals", "value": "{current_node_uuid}"}, {"type": "condition", "condition_type": "class", "class_uuid": "00000000-0000-0000-0001-000000000002", "operator": "does_not_contain"}]}, "is_system": true}'::jsonb
-            WHEN 'main_content' THEN
-                '{"type": "query", "version": "1.0", "scope": {"type": "scope", "scope_type": "entire_workspace"}, "root_group": {"type": "group", "logic": "AND", "children": []}, "is_system": true}'::jsonb
-            ELSE
-                '{"type": "query", "version": "1.0", "scope": {"type": "scope", "scope_type": "entire_workspace"}, "root_group": {"type": "group", "logic": "AND", "children": []}}'::jsonb
-        END
-        WHERE nv.is_default = TRUE
-          AND (jsonb_typeof(nv.query_json) = 'string'
-               OR (nv.query_json->>'type') = 'AND_CONTAINER')
-    """)
-    def_qj_count = int(result.split()[-1]) if result else 0
-    if def_qj_count > 0:
-        logger.info(f"Repaired query_json for {def_qj_count} default node_view rows")
-
-    # Fix non-default views that have old-format or string query_json.
-    # We can't restore their original intent, so we set them to the new empty AST format.
-    result = await conn.execute("""
-        UPDATE node_view
-        SET query_json = '{"type": "query", "version": "1.0", "scope": {"type": "scope", "scope_type": "entire_workspace"}, "root_group": {"type": "group", "logic": "AND", "children": []}}'::jsonb
-        WHERE is_default = FALSE
-          AND (jsonb_typeof(query_json) = 'string'
-               OR (query_json->>'type') = 'AND_CONTAINER')
-    """)
-    custom_qj_count = int(result.split()[-1]) if result else 0
-    if custom_qj_count > 0:
-        logger.info(f"Repaired query_json for {custom_qj_count} custom node_view rows")
+    await conn.execute(
+        """
+        INSERT INTO schema_meta (key, value, updated_at)
+        VALUES ($1, 'applied', NOW())
+        ON CONFLICT (key) DO UPDATE SET value = 'applied', updated_at = NOW()
+    """,
+        f"migration_{name}",
+    )
 
 
 async def _repair_page_ids(conn: asyncpg.Connection) -> None:
