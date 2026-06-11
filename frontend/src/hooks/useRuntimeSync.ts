@@ -140,36 +140,19 @@ export function apiNodesToGraphNodes(
     idToUuidMap.set(pageId, nodeUuid);
   }
 
-  // Build a serverId → existing runtime blockId map so we can reconcile
-  // API nodes with runtime blocks that were created optimistically (e.g. via
-  // Enter split_block or useCreateNode optimistic updates).  Without this,
-  // a refetch after persistence would introduce a duplicate block under the
-  // server-assigned UUID while the runtime still holds the original blockId,
-  // causing a flash (remove old + add new) and cursor loss.
-  const runtime = getNodeGraphRuntime();
-  const serverIdToRuntimeBlockId = new Map<number, string>();
+  // With the intent-aware upsertNodes, the runtime preserves locally-mutated
+  // fields for nodes with pending intents and accepts server state for all
+  // other fields. The old serverId→runtimeBlockId reconciliation hack is no
+  // longer needed because remapBlockId is called before cache invalidation
+  // in the bridge hooks, so the runtime and API data use the same UUID.
   for (const node of nodes) {
-    // Check if runtime already has a block with this serverId under a different blockId
-    const existing = runtime.getNodeByServerId(node.id);
-    if (existing && existing.blockId !== node.uuid) {
-      // Reuse the runtime's blockId so upsertNodes treats it as an update
-      serverIdToRuntimeBlockId.set(node.id, existing.blockId);
-      idToUuidMap.set(node.id, existing.blockId);
-    } else {
-      idToUuidMap.set(node.id, node.uuid);
-    }
+    idToUuidMap.set(node.id, node.uuid);
     nodeIdSet.add(node.id);
   }
 
-  const graphNodes = nodes.map(n => {
-    const gn = apiNodeToGraphNode(n, idToUuidMap, classIdToUuidMap, classIdToIconMap, allClasses ?? undefined);
-    // If this node was reconciled, rewrite its blockId to the runtime's blockId
-    const runtimeBlockId = serverIdToRuntimeBlockId.get(n.id);
-    if (runtimeBlockId) {
-      gn.blockId = runtimeBlockId;
-    }
-    return gn;
-  });
+  const graphNodes = nodes.map(n =>
+    apiNodeToGraphNode(n, idToUuidMap, classIdToUuidMap, classIdToIconMap, allClasses ?? undefined)
+  );
 
   console.log('[apiNodesToGraphNodes] output', {
     firstGraphNode: graphNodes[0]?.blockId,

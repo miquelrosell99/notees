@@ -4,7 +4,7 @@
 
 import { batchDeleteNodes as batchDeleteNodesApi, updateNode as updateNodeApi } from '@/api/nodes';
 import { queryClient as sharedQueryClient } from '@/lib/queryClient';
-import { offlineQueue } from '@/lib/offlineQueue';
+// offline queue removed — pending intents are the single offline queue
 import { nodeKeys } from './queryKeys';
 import type { ASTDocument } from '@/types/ast';
 import { parseAST, convertMarkdownInAST } from '@/lib/astBuilder';
@@ -69,16 +69,7 @@ export function scheduleDeleteFlush(): void {
       sharedQueryClient.invalidateQueries({ queryKey: ['nodes', 'property-backlinks'], refetchType: 'none' });
       sharedQueryClient.invalidateQueries({ queryKey: ['nodes', 'backlinks'], refetchType: 'none' });
     }).catch((error) => {
-      if (isRetryableError(error)) {
-        for (const uuid of uuids) {
-          offlineQueue.enqueue({
-            type: 'delete_block',
-            blockUuid: uuid,
-          }).catch(console.error);
-        }
-      } else {
-        console.error('[useBlockPersist] Failed to batch-delete blocks:', error);
-      }
+      console.error('[useBlockPersist] Failed to batch-delete blocks:', error);
     });
   });
 }

@@ -1,36 +1,21 @@
 /**
  * useStructureSync - Syncs runtime structural changes to the backend database
- * 
- * Listens to runtime 'structure_changed' events (triggered by indent, outdent, reorder operations)
- * and persists parent_id and sequence changes to the database via API.
- * 
- * IMPORTANT: Uses a custom mutation that skips query invalidation to prevent
- * infinite loops where server data overwrites local runtime state.
- * 
- * Features:
- * - Debounced saves (200ms default for responsive UX)
- * - Batches multiple changes together
- * - Extracts affected nodes from runtime and syncs to API
- * - Updates query cache optimistically so subsequent mutations see correct structure
- * - No query invalidation to preserve runtime state
- * - Singleton pattern - only one active sync per app
- * 
- * Usage:
- * ```tsx
- * function BlockEditor() {
- *   useStructureSync();
- *   // ... rest of editor
- * }
- * ```
+ *
+ * Uses the runtime's pending-intent system to discover what needs syncing,
+ * fires TanStack Query mutations with optimistic cache updates, and consumes
+ * intents on success. This makes TanStack Query the single persistent source
+ * of truth and the runtime a pure ephemeral overlay.
  */
+
 import { useEffect, useRef, useCallback } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { getNodeGraphRuntime } from '../runtime/NodeGraphRuntime';
 import { updateNode as updateNodeApi } from '@/api/nodes';
-import { updateNodeInTreeImmutable, findNodeInRootTree } from '@/utils/nodeTree';
 import { nodeKeys } from './queryKeys';
-import { offlineQueue } from '@/lib/offlineQueue';
-import type { Node, NodeUpdate } from '@/types/api';
+// offline queue removed — pending intents are the single offline queue
+import type { NodeUpdate } from '@/types/api';
+import type { PendingIntent } from '@/runtime/types';
+import { updateNodeInTreeCaches } from './cacheUtils';
 
 function isRetryableError(error: unknown): boolean {
   const axiosError = error as { response?: { status?: number }; message?: string };
@@ -39,7 +24,7 @@ function isRetryableError(error: unknown): boolean {
 }
 
 interface UseStructureSyncOptions {
-  /** When false, the hook becomes a no-op (no singleton claim, no subscriptions). Used by draft-mode editors. */
+  /** When false, the hook becomes a no-op. */
   enabled?: boolean;
   /** Debounce delay in ms (default: 200) */
   delay?: number;
@@ -51,248 +36,189 @@ interface UseStructureSyncOptions {
 
 // Global state to ensure only one instance is active
 let activeInstanceId: string | null = null;
-const pendingChanges = new Set<string>();
+const inFlightMutationKeys = new Set<string>();
 let debounceTimeout: ReturnType<typeof setTimeout> | null = null;
-// Track nodes that were recently synced to prevent loops
-const recentlySynced = new Map<number, number>(); // serverId -> timestamp
-const SYNC_COOLDOWN = 1000; // Don't sync same node within 1 second
 
 /**
  * Hook to sync runtime structural changes (parent_id, sequence) to database.
- * 
- * When the runtime emits 'structure_changed' events (from indent, outdent, reorder),
- * this hook extracts the affected nodes and persists their parent_id and sequence
- * to the backend API WITHOUT triggering query invalidation (to prevent loops).
- * 
- * Also updates the query cache optimistically to ensure subsequent mutations
- * (like delete) see the correct structure before the backend responds.
- * 
- * Uses a singleton pattern - only the first mounted instance is active.
  */
 export function useStructureSync(options: UseStructureSyncOptions = {}) {
   const { enabled = true, delay = 200, onSynced, onError } = options;
   const instanceIdRef = useRef<string>(Math.random().toString(36));
   const queryClient = useQueryClient();
-  
-  // Use a custom mutation that DOES NOT invalidate queries
+
   const updateNodeMutation = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: NodeUpdate }) => 
+    mutationFn: ({ id, data }: { id: number; data: NodeUpdate }) =>
       updateNodeApi(id, data),
   });
 
-  // Save the structural changes for affected nodes
-  const syncNodes = useCallback((blockIds: string[]) => {
+  // Snapshot previous cache state for rollback
+  const snapshotPrevious = useCallback((_serverId: number) => {
+    const queryCache = queryClient.getQueryCache();
+    const snapshots = new Map<string, unknown>();
+    for (const query of queryCache.findAll({ queryKey: nodeKeys.details() })) {
+      const data = query.state.data;
+      if (data) snapshots.set(JSON.stringify(query.queryKey), data);
+    }
+    for (const query of queryCache.findAll({ queryKey: nodeKeys.pageContents() })) {
+      const data = query.state.data;
+      if (data) snapshots.set(JSON.stringify(query.queryKey), data);
+    }
+    return snapshots;
+  }, [queryClient]);
+
+  // Restore snapshots on error
+  const restoreSnapshots = useCallback((snapshots: Map<string, unknown>) => {
+    for (const [keyStr, data] of snapshots) {
+      const key = JSON.parse(keyStr);
+      queryClient.setQueryData(key, data);
+    }
+  }, [queryClient]);
+
+  // Sync a single pending intent
+  const syncIntent = useCallback((pending: PendingIntent) => {
     const runtime = getNodeGraphRuntime();
-    const now = Date.now();
-    
-    // Track which nodes we've already queued to avoid duplicates
-    const syncedInBatch = new Set<number>();
-    
-    // Collect all cache updates to apply in a batch
-    const cacheUpdates: Array<{ serverId: number; parent_id: number | null; sequence: number }> = [];
-    
-    // Sync each affected node's parent_id and sequence
-    blockIds.forEach(blockId => {
-      const graphNode = runtime.getNode(blockId);
-      if (!graphNode || !graphNode.serverId) return;
-      
-      // Skip if already synced in this batch
-      if (syncedInBatch.has(graphNode.serverId)) return;
-      
-      // Skip if recently synced (within cooldown period)
-      const lastSyncTime = recentlySynced.get(graphNode.serverId);
-      if (lastSyncTime && (now - lastSyncTime) < SYNC_COOLDOWN) {
-        return;
-      }
-      
-      syncedInBatch.add(graphNode.serverId);
-      recentlySynced.set(graphNode.serverId, now);
+    const { intent, mutationKey } = pending;
 
-      // Convert parent blockId to serverId
-      // Use resolveParentServerId which checks both full GraphNodes AND the
-      // lightweight parentServerIds map (for pages that aren't full nodes
-      // in the runtime but are registered via registerParentServerId).
-      let parentServerId: number | null = null;
-      if (graphNode.parentId) {
-        parentServerId = runtime.resolveParentServerId(graphNode.parentId);
-      }
+    if (inFlightMutationKeys.has(mutationKey)) return;
+    inFlightMutationKeys.add(mutationKey);
 
-      // Collect cache update data
-      cacheUpdates.push({
-        serverId: graphNode.serverId,
-        parent_id: parentServerId,
-        sequence: graphNode.orderIndex,
-      });
+    const blockId = (intent as { blockId: string }).blockId;
+    const graphNode = runtime.getNode(blockId);
+    if (!graphNode?.serverId) {
+      inFlightMutationKeys.delete(mutationKey);
+      return;
+    }
+    const serverId = graphNode.serverId;
 
-      // Update via API (without query invalidation)
-      updateNodeMutation.mutate(
-        { 
-          id: graphNode.serverId, 
-          data: { 
-            parent_id: parentServerId,
-            sequence: graphNode.orderIndex,
-          } 
+    let parentServerId: number | null = null;
+    if (graphNode.parentId) {
+      parentServerId = runtime.resolveParentServerId(graphNode.parentId);
+    }
+
+    // Snapshot previous cache state for rollback
+    const previousSnapshots = snapshotPrevious(serverId);
+
+    // Optimistic cache update via unified helper
+    updateNodeInTreeCaches(queryClient, serverId, (node) => ({
+      ...node,
+      parent_id: parentServerId,
+      sequence: graphNode.orderIndex,
+    }));
+
+    updateNodeMutation.mutate(
+      {
+        id: serverId,
+        data: {
+          parent_id: parentServerId,
+          sequence: graphNode.orderIndex,
         },
-        {
-          onError: (error) => {
-            // Clear from recently synced on error so it can retry
-            recentlySynced.delete(graphNode.serverId!);
-            if (isRetryableError(error)) {
-              offlineQueue.enqueue({
-                type: 'move_block',
-                blockUuid: blockId,
-                parentBlockUuid: graphNode.parentId || null,
-                sequence: graphNode.orderIndex,
-              }).catch(console.error);
-            } else {
-              console.error('[useStructureSync] Error syncing node:', error);
-              onError?.(blockId, error as Error);
-            }
-          },
-        }
-      );
-    });
+      },
+      {
+        onSuccess: () => {
+          inFlightMutationKeys.delete(mutationKey);
+          runtime.consumePendingIntents(mutationKey);
 
-    // Update query cache optimistically for all affected nodes
-    // This ensures subsequent mutations (like delete) see the correct structure
-    if (cacheUpdates.length > 0) {
-      // Separate updates into in-place updates (sequence only or same parent)
-      // and cross-parent moves (parent_id changed).
-      // Cross-parent moves must REMOVE the node from its old tree position;
-      // just updating parent_id in-place leaves the node structurally in the
-      // old parent's children array, which causes the editor to re-sync stale
-      // data and overwrite the runtime's correct state.
-
-      const updateCache = (oldNode: Node | undefined) => {
-        if (!oldNode || !oldNode.children) return oldNode;
-
-        let updated = oldNode;
-        for (const update of cacheUpdates) {
-          // Check if this node exists in the tree
-          const existing = findNodeInRootTree(updated, update.serverId);
-          if (!existing) continue; // Not in this cache entry
-
-          // Always update in-place — for both same-parent and cross-parent moves.
-          // Removing the node from the cache tree for cross-parent moves causes
-          // BlockEditor's stale-cleanup to incorrectly remove it from the runtime
-          // (because the node vanishes from the cache-derived nodes[] prop while
-          // it still exists in the runtime). The next API refetch will correct
-          // the tree structure in the cache.
-          const newChildren = updateNodeInTreeImmutable(
-            updated.children || [],
-            update.serverId,
-            { parent_id: update.parent_id, sequence: update.sequence }
-          );
-          if (newChildren !== updated.children) {
-            updated = { ...updated, children: newChildren };
+          if (parentServerId != null) {
+            queryClient.invalidateQueries({
+              queryKey: nodeKeys.detailBase(parentServerId),
+            });
           }
-        }
+        },
+        onError: (error) => {
+          inFlightMutationKeys.delete(mutationKey);
+          runtime.unmarkMutationInFlight(mutationKey);
 
-        return updated;
-      };
+          // Rollback optimistic update
+          restoreSnapshots(previousSnapshots);
 
-      // Update all detail queries that might contain these nodes
-      queryClient.setQueriesData<Node>(
-        { queryKey: nodeKeys.details() },
-        updateCache,
-      );
-      
-      // Also update page-content queries
-      queryClient.setQueriesData<Node>(
-        { queryKey: nodeKeys.pageContents() },
-        updateCache,
-      );
+          if (!isRetryableError(error)) {
+            console.error('[useStructureSync] Error syncing node:', error);
+            onError?.(blockId, error as Error);
+          }
+        },
+      },
+    );
+  }, [updateNodeMutation, queryClient, onError, snapshotPrevious, restoreSnapshots]);
+
+  // Scan all pending intents and sync structural ones
+  const syncAllPending = useCallback(() => {
+    const runtime = getNodeGraphRuntime();
+    const allPending = runtime.getAllPendingIntents();
+
+    const structuralTypes = new Set([
+      'move_block',
+      'indent_block',
+      'outdent_block',
+      'move_up',
+      'move_down',
+      'reorder_blocks',
+    ]);
+
+    const syncedBlockIds: string[] = [];
+
+    for (const pending of allPending) {
+      if (!structuralTypes.has(pending.intent.type)) continue;
+      const blockId = (pending.intent as { blockId: string }).blockId;
+      syncIntent(pending);
+      syncedBlockIds.push(blockId);
     }
 
-    // Clean up old entries from recentlySynced (older than 2x cooldown)
-    for (const [serverId, timestamp] of recentlySynced.entries()) {
-      if (now - timestamp > SYNC_COOLDOWN * 2) {
-        recentlySynced.delete(serverId);
-      }
+    if (syncedBlockIds.length > 0) {
+      onSynced?.(syncedBlockIds);
     }
+  }, [syncIntent, onSynced]);
 
-    onSynced?.(blockIds);
-  }, [updateNodeMutation, queryClient, onSynced, onError]);
-
-  // Flush pending changes
+  // Flush any pending changes immediately
   const flush = useCallback(() => {
     if (debounceTimeout) {
       clearTimeout(debounceTimeout);
       debounceTimeout = null;
     }
-    
-    if (pendingChanges.size > 0) {
-      const blockIds = Array.from(pendingChanges);
-      pendingChanges.clear();
-      syncNodes(blockIds);
-    }
-  }, [syncNodes]);
+    syncAllPending();
+  }, [syncAllPending]);
 
-  // Subscribe to runtime structure changes (only if this is the active instance)
+  // Subscribe to runtime structure changes
   useEffect(() => {
     if (!enabled) return;
 
     const instanceId = instanceIdRef.current;
-    
-    // Register as active instance if none exists
+
     if (activeInstanceId === null) {
       activeInstanceId = instanceId;
     }
-    
-    // Only the active instance listens and syncs
+
     if (activeInstanceId !== instanceId) {
       return;
     }
-    
+
     const runtime = getNodeGraphRuntime();
-    
+
     const unsubscribe = runtime.subscribe((event) => {
-      // Only sync structural changes from user intents (indent, outdent, reorder, drag)
-      // NOT from cache/API sync (source: 'sync') to prevent infinite loops
       if (event.type === 'structure_changed' && event.source === 'intent') {
-        // Extract all affected block IDs
-        const affectedBlockIds: string[] = [];
-        
-        // Get children of changed parent(s) to sync their sequence numbers
-        event.parentIds.forEach(parentId => {
-          const children = runtime.getChildren(parentId);
-          children.forEach(child => {
-            // Only sync nodes that have server IDs (skip virtual nodes)
-            const node = runtime.getNode(child.blockId);
-            if (node && node.serverId) {
-              affectedBlockIds.push(child.blockId);
-            }
-          });
-        });
-        
-        if (affectedBlockIds.length > 0) {
-          // Add to pending changes
-          affectedBlockIds.forEach(id => pendingChanges.add(id));
-          
-          // Clear existing timeout
-          if (debounceTimeout) {
-            clearTimeout(debounceTimeout);
-          }
-          
-          // Schedule flush
-          debounceTimeout = setTimeout(() => {
-            flush();
-          }, delay);
+        if (debounceTimeout) {
+          clearTimeout(debounceTimeout);
         }
+        debounceTimeout = setTimeout(() => {
+          debounceTimeout = null;
+          syncAllPending();
+        }, delay);
       }
     });
 
+    syncAllPending();
+
     return () => {
-      // Flush any pending changes on unmount
-      flush();
+      if (debounceTimeout) {
+        clearTimeout(debounceTimeout);
+        debounceTimeout = null;
+      }
       unsubscribe();
-      
-      // Clear active instance if we were it
       if (activeInstanceId === instanceId) {
         activeInstanceId = null;
       }
     };
-  }, [enabled, delay, flush]);
+  }, [enabled, delay, syncAllPending]);
 
   return { flush };
 }
