@@ -545,9 +545,8 @@ export function Table<T>({
                           <NodeBreadcrumbs
                             nodeId={(cellValue as unknown as Node).id}
                             nodeType={(cellValue as unknown as Node).is_page ? 'page' : 'block'}
-                            editable={false}
+                            compact
                             onNavigate={(id) => onNodeOpen?.(id, (cellValue as unknown as Node).is_page ? 'page' : 'block')}
-                            className="node-breadcrumbs--inline node-breadcrumbs--compact"
                           />
                         </div>
                         <span>
