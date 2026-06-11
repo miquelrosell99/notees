@@ -1,0 +1,46 @@
+/**
+ * Property Mutation Hooks
+ */
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import * as propertiesApi from '@/api/properties';
+import type { PropertyCreate, PropertyIconVisibility } from '@/types/api';
+import { nodeKeys, propertyKeys } from './queryKeys';
+
+export function useCreateProperty() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (data: PropertyCreate) =>
+      propertiesApi.createProperty(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: propertyKeys.lists() });
+    },
+  });
+}
+
+export function useUpdateProperty() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, data }: { id: number; data: { name?: string; icon?: string; multi?: boolean; icon_visibility?: PropertyIconVisibility | null; validation_rules?: Record<string, unknown> | null } }) =>
+      propertiesApi.updateProperty(id, data),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(propertyKeys.detail(updated.id), updated);
+      queryClient.invalidateQueries({ queryKey: propertyKeys.lists() });
+    },
+  });
+}
+
+export function useDeleteProperty() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: number) =>
+      propertiesApi.deleteProperty(id),
+    onSuccess: (_, id) => {
+      queryClient.removeQueries({ queryKey: propertyKeys.detail(id) });
+      queryClient.invalidateQueries({ queryKey: propertyKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
+    },
+  });
+}
