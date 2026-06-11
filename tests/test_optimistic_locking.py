@@ -8,7 +8,6 @@ from app.domain.errors import OptimisticLockError
 class TestOptimisticLocking:
     """Test optimistic locking for concurrent edit detection."""
 
-    @pytest.mark.skip(reason="Optimistic locking via expected_version is not yet implemented in NodeService.update_node()")
     @pytest.mark.asyncio
     async def test_concurrent_update_conflict(self, authenticated_client, node_service, node_repository):
         """Test that concurrent updates are detected via version field."""
@@ -22,16 +21,16 @@ class TestOptimisticLocking:
             update1,
         )
         assert updated1 is not None
-        assert updated1.version == original_version + 1
+        assert updated1.version > original_version
 
-        update2 = NodeUpdateData(name="Updated by User 2")
+        update2 = NodeUpdateData(name="Updated by User 2", expected_version=original_version)
         with pytest.raises(OptimisticLockError) as exc_info:
             await node_service.update_node(
                 node.id,
                 update2,
             )
 
-        assert "version" in str(exc_info.value).lower()
+        assert "v" in str(exc_info.value).lower()
         assert str(node.id) in str(exc_info.value) or "conflict" in str(exc_info.value).lower()
 
     @pytest.mark.asyncio

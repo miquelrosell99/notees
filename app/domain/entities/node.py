@@ -164,3 +164,4 @@ class NodeUpdateData:
     is_private: bool | None = None
     classes: list[int] | None = None
     property_values: dict | None = None
+    expected_version: int | None = None

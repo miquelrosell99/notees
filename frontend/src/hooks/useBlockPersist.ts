@@ -14,7 +14,6 @@ import { nodeKeys } from './queryKeys';
 // offline queue removed — pending intents are the single offline queue
 import type { PendingIntent } from '@/runtime/types';
 import {
-  activeInstanceId,
   inFlightBlocks,
   pendingContentSaves,
   pendingDeleteUuids,
@@ -25,6 +24,7 @@ import {
   flushQueuedContent,
   isRetryableError,
   setActiveInstanceId,
+  getActiveInstanceId,
 } from './useBlockPersist.utils';
 import {
   removeNodeFromAllCaches,
@@ -165,11 +165,11 @@ export function useBlockPersist(options: UseBlockPersistOptions = {}) {
 
     const instanceId = instanceIdRef.current;
 
-    if (activeInstanceId === null) {
+    if (getActiveInstanceId() === null) {
       setActiveInstanceId(instanceId);
     }
 
-    if (activeInstanceId !== instanceId) return;
+    if (getActiveInstanceId() !== instanceId) return;
 
     const runtime = getNodeGraphRuntime();
 
@@ -198,7 +198,7 @@ export function useBlockPersist(options: UseBlockPersistOptions = {}) {
 
     return () => {
       unsubscribe();
-      if (activeInstanceId === instanceId) {
+      if (getActiveInstanceId() === instanceId) {
         setActiveInstanceId(null);
       }
     };

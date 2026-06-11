@@ -6,6 +6,7 @@ setting_system table. Falls back to app.config values for unset keys.
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from .db.connection import get_connection
@@ -45,7 +46,7 @@ async def set_system_setting(key: str, value: Any) -> None:
             ON CONFLICT (key) DO UPDATE SET value = $2, write_date = NOW()
             """,
             key,
-            value,
+            json.dumps(value),
         )
 
 

@@ -31,7 +31,6 @@ CREATE TABLE IF NOT EXISTS "user" (
     profile_pic TEXT,
     role VARCHAR(20) DEFAULT 'user',
     active BOOLEAN DEFAULT TRUE,
-    user_page_node_id INTEGER REFERENCES node(id) ON DELETE SET NULL,
     create_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     write_date TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -217,6 +216,9 @@ CREATE INDEX IF NOT EXISTS idx_node_comments ON node(workspace_id, parent_id) WH
 -- Note: idx_node_aliased_id is created by migration block below (aliased_id may not exist on older DBs)
 -- Note: Page name uniqueness per class is enforced at application level
 -- Database only enforces basic structure, complex class-based uniqueness in Python
+
+-- user_page_node_id is added after node table creation to avoid circular dependency
+ALTER TABLE "user" ADD COLUMN IF NOT EXISTS user_page_node_id INTEGER REFERENCES node(id) ON DELETE SET NULL;
 
 -- Node sharing with granular permissions
 CREATE TABLE IF NOT EXISTS node_share (
