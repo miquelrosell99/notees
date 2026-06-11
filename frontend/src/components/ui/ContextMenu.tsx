@@ -39,7 +39,10 @@ export interface ContextMenuAnchor {
 
 interface ContextMenuProps {
   items: ContextMenuItem[];
-  position: { x: number; y: number };
+  /** Explicit screen position (fallback when anchorEl is not provided) */
+  position?: { x: number; y: number };
+  /** Anchor element — menu is positioned relative to this element's rect */
+  anchorEl?: HTMLElement | null;
   onClose: () => void;
   /** Optional title for the menu */
   title?: string;
@@ -49,11 +52,11 @@ interface ContextMenuProps {
   containerRef?: React.RefObject<HTMLElement | null>;
   /** When true, render inline (no portal) — for use inside an already-portaled wrapper */
   inline?: boolean;
-  /** When true, position.x is the right edge — menu expands leftward */
+  /** When true, menu aligns to the right edge of the anchor/position */
   alignRight?: boolean;
 }
 
-export function ContextMenu({ items, position, onClose, title, activeItem, containerRef, inline = false, alignRight = false }: ContextMenuProps) {
+export function ContextMenu({ items, position, anchorEl, onClose, title, activeItem, containerRef, inline = false, alignRight = false }: ContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
   const [focusedIndex, setFocusedIndex] = useState(-1);
   const [activeSubmenu, setActiveSubmenu] = useState<string | null>(null);
@@ -138,13 +141,25 @@ export function ContextMenu({ items, position, onClose, title, activeItem, conta
     const menuRect = el.getBoundingClientRect();
     const padding = 8;
     let x: number;
-    let y = position.y;
+    let y: number;
 
-    if (alignRight) {
-      // position.x is the right edge — expand leftward
-      x = position.x - menuRect.width;
+    const anchorRect = anchorEl?.getBoundingClientRect();
+    const originY = anchorRect ? anchorRect.bottom : (position?.y ?? 0);
+
+    if (anchorRect) {
+      if (alignRight) {
+        x = anchorRect.right - menuRect.width;
+      } else {
+        x = anchorRect.left;
+      }
+      y = originY;
     } else {
-      x = position.x;
+      y = originY;
+      if (alignRight) {
+        x = (position?.x ?? 0) - menuRect.width;
+      } else {
+        x = position?.x ?? 0;
+      }
     }
 
     // Keep within viewport
@@ -152,13 +167,14 @@ export function ContextMenu({ items, position, onClose, title, activeItem, conta
       x = window.innerWidth - menuRect.width - padding;
     }
     if (y + menuRect.height > window.innerHeight) {
-      y = position.y - menuRect.height;
+      // Flip above anchor (or position for non-anchor)
+      y = (anchorRect ? anchorRect.top : (position?.y ?? 0)) - menuRect.height;
     }
     if (x < padding) x = padding;
     if (y < padding) y = padding;
     el.style.left = `${x}px`;
     el.style.top = `${y}px`;
-  }, [position, alignRight]);
+  }, [position, anchorEl, alignRight]);
 
   const handleItemClick = (item: ContextMenuItem, event?: React.MouseEvent) => {
     if (item.disabled || item.separator) return;

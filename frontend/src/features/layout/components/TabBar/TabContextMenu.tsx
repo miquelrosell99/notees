@@ -8,7 +8,7 @@ import { useNavigationStore, type SplitOrientation, type TabHistoryEntry } from 
 const HISTORY_PAGE_SIZE = 10;
 
 interface TabContextMenuProps {
-  position: { x: number; y: number };
+  anchorEl: HTMLElement | null;
   onClose: () => void;
   tabId: string;
   isPinned: boolean;
@@ -28,7 +28,7 @@ interface TabContextMenuProps {
 }
 
 export function TabContextMenu({
-  position,
+  anchorEl,
   onClose,
   tabId,
   isPinned,
@@ -136,5 +136,5 @@ export function TabContextMenu({
     }
   }
 
-  return <ContextMenu items={items} position={position} onClose={onClose} alignRight />;
+  return <ContextMenu items={items} anchorEl={anchorEl} onClose={onClose} />;
 }
