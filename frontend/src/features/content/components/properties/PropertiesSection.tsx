@@ -229,7 +229,7 @@ export function PropertiesSection({
   // Handler for creating a new property with full configuration
   const handleCreateNewProperty = useCallback((data: PropertyCreate & { selection_options?: { name: string; icon?: string }[] }) => {
     setShowPropertyPopup(false);
-    const scope = data.scope ?? (data.is_local ? 'node' : 'global');
+    const scope = data.scope ?? 'global';
     const node_id = scope === 'node' && !data.node_id ? nodeId : data.node_id;
     createPropertyMutation.mutate({ ...data, scope, node_id } as PropertyCreate, {
       onSuccess: async (newProperty) => {

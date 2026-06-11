@@ -170,7 +170,7 @@ async def export_workspace_full(
     # Properties
     properties = await conn.fetch(
         """
-        SELECT id, uuid, name, icon, type, is_multi, is_system, is_local,
+        SELECT id, uuid, name, icon, type, is_multi, is_system, scope,
                node_id, icon_visibility, active, create_date, write_date
         FROM property WHERE workspace_id = $1
     """,
@@ -596,6 +596,11 @@ async def _import_dump_core(
         if prop_data.get("node_id") is not None:
             prop_node_id = node_id_map.get(int(prop_data["node_id"]))
 
+        # Derive scope from dump. New dumps have 'scope'; old dumps have 'is_local'.
+        scope = prop_data.get("scope")
+        if scope is None:
+            scope = "node" if _to_bool(prop_data.get("is_local", False)) else "global"
+
         prop_uuid_to_old_id[prop_uuid.lower()] = old_id
         prop_records.append(
             (
@@ -606,7 +611,7 @@ async def _import_dump_core(
                 str(prop_data.get("type", "text")),
                 _to_bool(prop_data.get("is_multi", False)),
                 _to_bool(prop_data.get("is_system", False)),
-                _to_bool(prop_data.get("is_local", False)),
+                str(scope),
                 prop_node_id,
                 prop_data.get("icon_visibility", "hidden"),
                 _to_bool(prop_data.get("active", True)),
@@ -621,7 +626,7 @@ async def _import_dump_core(
             """
             INSERT INTO property (
                 uuid, workspace_id, name, icon, type, is_multi, is_system,
-                is_local, node_id, icon_visibility, active,
+                scope, node_id, icon_visibility, active,
                 create_date, write_date, create_uid, write_uid
             ) VALUES (
                 $1::uuid, $2, $3, $4, $5, $6, $7,

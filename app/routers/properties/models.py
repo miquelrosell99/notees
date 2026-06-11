@@ -17,7 +17,6 @@ class PropertyResponse(BaseModel):
     type: str
     multi: bool = False  # Aligned with frontend naming
     is_system: bool = False
-    is_local: bool = False  # Backward compat: True when scope != 'global'
     scope: str = "global"  # 'global' | 'class' | 'node'
     node_id: int | None = None  # For scoped properties
     icon_visibility: str = "hidden"  # 'hidden' | 'before_content' | 'after_bullet'
@@ -125,7 +124,6 @@ class PropertyCreateRequest(BaseModel):
     type: str = "text"  # integer, float, boolean, url, email (scalar) | node, text, image, date (relation) | selection
     is_multi: bool = False
     scope: str = "global"  # 'global' | 'class' | 'node'
-    is_local: bool = False  # Backward compat — overridden by scope if scope is set
     node_id: int | None = None  # For scoped properties (class or node)
     # For relation-type: which classes filter selectable nodes
     class_filters: list[int] = []

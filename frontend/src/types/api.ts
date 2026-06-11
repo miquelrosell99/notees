@@ -497,8 +497,6 @@ export interface Property {
   type: PropertyType;
   multi: boolean;
   is_system: boolean;
-  /** @deprecated use scope instead */
-  is_local: boolean;  // True when scope !== 'global'
   scope: PropertyScope;  // 'global' | 'class' | 'node'
   node_id: number | null;  // For scoped properties, the node this property is scoped to
   icon_visibility: PropertyIconVisibility;  // Where to show selection value icon at block level
@@ -604,8 +602,6 @@ export interface PropertyCreate {
   icon?: string | null;
   type?: PropertyType;
   multi?: boolean;
-  /** @deprecated use scope instead */
-  is_local?: boolean;  // Backward compat — use scope when possible
   scope?: PropertyScope;  // 'global' | 'class' | 'node'
   node_id?: number | null;  // Required when scope is 'class' or 'node'
   class_filters?: number[];

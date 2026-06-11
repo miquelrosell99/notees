@@ -19,7 +19,7 @@ Property types and storage:
 - Selection type (stored in property_value_selection): selection
 
 Text and Image are always single value (never multi).
-Local properties have is_local=True and are unique per node_id (must be page type).
+Local (node-scoped) properties have scope=NODE and are unique per node_id.
 """
 
 from __future__ import annotations

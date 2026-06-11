@@ -45,7 +45,6 @@ def _property_to_response(prop: Property) -> PropertyResponse:
         type=prop.type.value,
         multi=prop.is_multi,  # Aligned with frontend naming
         is_system=prop.is_system,
-        is_local=prop.is_local,
         scope=prop.scope.value,
         node_id=prop.node_id,
         icon_visibility=prop.icon_visibility,

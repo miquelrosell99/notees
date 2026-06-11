@@ -176,7 +176,6 @@ export function PropertyCreateModal({
       name: name.trim(),
       type: selectedType,
       scope,
-      is_local: scope !== 'global',  // backward compat
       icon: icon || undefined,
     };
     

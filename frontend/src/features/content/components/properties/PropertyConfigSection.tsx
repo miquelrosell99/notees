@@ -41,7 +41,7 @@ export function PropertyConfigSection({
   onUpdate,
 }: PropertyConfigSectionProps) {
   // Form state (name and icon removed - they're in PageHeader now)
-  const [isLocal] = useState(property.is_local || false);
+  const isLocal = property.scope !== 'global';
   const [isMultiValue, setIsMultiValue] = useState(property.multi || false);
   const [showMultiValueConfirm, setShowMultiValueConfirm] = useState(false);
   const defaultValue = ''; // default_value not yet supported by backend
@@ -264,7 +264,7 @@ export function PropertyConfigSection({
   return (
     <div className="property-config-section">
       {/* Scope Display (for local properties only) */}
-      {property.is_local && property.node_id && (
+      {isLocal && property.node_id && (
         <div className="property-config-section__scope">
           <span className="property-config-section__scope-label">Applies to </span>
           <a
