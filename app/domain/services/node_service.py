@@ -1042,7 +1042,8 @@ class NodeService:
         except (_json.JSONDecodeError, TypeError):
             pass
 
-        # ── Legacy plain-text / regex path ────────────────────────────────
+        # TODO(A5): Legacy [[numericId]] / {{numericId}} plain-text fallback.
+        # Remove once a migration converts remaining plain-text links to AST.
         result = content
         link_pattern = re.compile(r"\[\[" + str(target_node.id) + r"\]\]")
         result = link_pattern.sub(target_node.name or "", result)
@@ -1591,14 +1592,15 @@ class NodeService:
             f'"link_id":"{target_uuid}"',
         )
 
-        # Legacy [[nodeId]] format
+        # TODO(A5): Legacy [[numericId]] / {{numericId}} plain-text format.
+        # These paths handle content from a very early schema version before
+        # JSON AST links. A migration to convert them to node_link AST nodes
+        # is needed before this fallback can be removed.
         result = re.sub(
             r"\[\[" + str(source_id) + r"\]\]",
             f"[[{target_id}]]",
             result,
         )
-
-        # Legacy {{nodeId}} inline-class format
         result = re.sub(
             r"\{\{" + str(source_id) + r"\}\}",
             "{{" + str(target_id) + "}}",
