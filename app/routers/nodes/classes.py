@@ -176,7 +176,7 @@ async def add_node_class(
             after_state={"class_ids": after_class_ids},
             description=f"Added class to node {node_id}",
         )
-    except Exception:
+    except (ValueError, TypeError, LookupError):
         pass
 
     # Special handling for query class: create a main_content NodeView
@@ -260,7 +260,7 @@ async def remove_node_class_endpoint(
             after_state={"class_ids": after_class_ids},
             description=f"Removed class from node {node_id}",
         )
-    except Exception:
+    except (ValueError, TypeError, LookupError):
         pass
 
     classes = await service.get_node_classes(node_id)

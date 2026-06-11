@@ -138,7 +138,7 @@ class CollaborationPubSub:
                         else:
                             self._impl = MemoryPubSub()
                             logger.info("CollaborationPubSub using in-memory fallback (Redis unreachable)")
-                except Exception:
+                except (ConnectionError, OSError):
                     self._impl = MemoryPubSub()
                     logger.info("CollaborationPubSub using in-memory fallback")
         return self._impl

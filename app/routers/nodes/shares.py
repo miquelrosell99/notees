@@ -88,7 +88,7 @@ async def create_share(
         node = await service._node_repo.get_by_id(node_id)
         if node is not None:
             await write_share_html(share.uuid, share.workspace_id, node.uuid)
-    except Exception:
+    except (OSError, ValueError):
         logger.exception(f"Failed to generate static HTML for share {share.uuid}")
 
     return _share_to_response(share, request)

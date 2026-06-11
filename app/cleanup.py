@@ -81,7 +81,7 @@ class CleanupScheduler:
             try:
                 interval = await get_system_setting("cleanup_interval_seconds", self.interval)
                 self.interval = max(60, int(interval))
-            except Exception:
+            except (ValueError, TypeError):
                 pass
 
             await asyncio.sleep(self.interval)
