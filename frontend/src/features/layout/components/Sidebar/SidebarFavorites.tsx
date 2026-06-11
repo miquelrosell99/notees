@@ -104,9 +104,8 @@ const SortableFavoriteItem = memo(function SortableFavoriteItem({
           <NodeBreadcrumbs
             nodeId={node.id}
             nodeType="page"
-            editable={false}
+            compact
             onNavigate={onNavigate}
-            className="node-breadcrumbs--inline node-breadcrumbs--compact"
           />
         </div>
         <NodeInline
