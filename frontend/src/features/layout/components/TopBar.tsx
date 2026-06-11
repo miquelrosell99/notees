@@ -64,6 +64,8 @@ export function TopBar() {
     openNode,
     toggleRightSidebar,
     rightSidebarOpen,
+    toggleFocusMode,
+    viewMode,
   } = useNavigationStore();
   const {
     isCalendarOpen, 
@@ -337,6 +339,7 @@ export function TopBar() {
           variant="ghost"
           size="sm"
           active={isScratchpadOpen}
+          activeGlow="static"
           onClick={toggleScratchpad}
           aria-label="Open scratchpad"
           title="Scratchpad"
@@ -378,12 +381,26 @@ export function TopBar() {
         {/* Auto-export sync indicator */}
         <AutoExportIndicator />
 
+        {/* Focus mode toggle button */}
+        <Button
+          icon={"mdi mdi-brain"}
+          variant="ghost"
+          size="sm"
+          active={viewMode === 'focus'}
+          activeGlow="breathe"
+          onClick={toggleFocusMode}
+          aria-label="Toggle focus mode"
+          title="Toggle focus mode (Ctrl+Shift+F)"
+          className="toolbar-btn"
+        />
+
         {/* Right sidebar toggle button */}
         <Button
           icon={"mdi mdi-dock-right"}
           variant="ghost"
           size="sm"
           active={rightSidebarOpen}
+          activeGlow="static"
           onClick={toggleRightSidebar}
           aria-label="Toggle right sidebar"
           title="Toggle right sidebar"

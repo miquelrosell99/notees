@@ -63,6 +63,7 @@ export const SHORTCUT_IDS = {
   REDO: 'global.redo',
   REDO_ALT: 'global.redoAlt',
   IMPORT_DATA: 'global.importData',
+  TOGGLE_FOCUS_MODE: 'global.toggleFocusMode',
 
   // Editor
   BOLD: 'editor.bold',
@@ -111,6 +112,7 @@ export const DEFAULT_SHORTCUTS: ShortcutDefinition[] = [
   { id: SHORTCUT_IDS.UNDO, description: 'Undo', key: 'z', modifiers: { ctrl: true }, context: 'global', commandId: COMMAND_IDS.UNDO, priority: -1 },
   { id: SHORTCUT_IDS.REDO, description: 'Redo', key: 'y', modifiers: { ctrl: true }, context: 'global', commandId: COMMAND_IDS.REDO, priority: -1 },
   { id: SHORTCUT_IDS.REDO_ALT, description: 'Redo', key: 'z', modifiers: { ctrl: true, shift: true }, context: 'global', commandId: COMMAND_IDS.REDO_ALT, priority: -1 },
+  { id: SHORTCUT_IDS.TOGGLE_FOCUS_MODE, description: 'Toggle Focus Mode', key: 'f', modifiers: { ctrl: true, shift: true }, context: 'global', commandId: COMMAND_IDS.TOGGLE_FOCUS_MODE, configurable: true },
 
   // Editor shortcuts
   { id: SHORTCUT_IDS.BOLD, description: 'Bold', key: 'b', modifiers: { ctrl: true }, context: 'editor', commandId: COMMAND_IDS.BOLD, priority: 10, configurable: true },
