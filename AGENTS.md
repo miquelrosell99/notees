@@ -232,6 +232,36 @@ The backend follows a strict hexagonal architecture with three layers:
 - **Canvas Renderers**: `GanttView` and `TimelineView` use extracted imperative canvas renderers (`GanttRenderer.ts`, `TimelineRenderer.ts`) to keep React components focused on state while pure functions/classes handle 2D drawing.
 - **PWA**: Service worker auto-updates; precaches JS/CSS/HTML/ICO/PNG/SVG/WOFF2; network-first API caching; CacheFirst WASM caching; Web Share Target support.
 
+#### Frontend Data Flow Architecture (Deviation from `react-ui-patterns`)
+
+We follow the `react-ui-patterns` three-layer model with one intentional deviation:
+
+```
+Backend API ←→ TanStack Query (server state) ←→ NodeGraphRuntime (ephemeral overlay + sync queue) ←→ React UI
+```
+
+**Deviation from skill:** The skill states: *"Client Runtime: Owns in-memory graph of domain objects, structural intents, undo stack. No API calls or auth."*
+
+We deviate by **allowing the runtime to orchestrate API calls** (via TanStack Query mutations, never direct `fetch()`). The runtime maintains a `pendingIntents` queue that bridge hooks consume to fire mutations. This is necessary because Notees is an **offline-first collaborative block editor** where:
+
+1. **Ordered intent queueing**: Structural operations (indent → move → create) have causal ordering that must be preserved across server roundtrips.
+2. **Offline operation**: When disconnected, intents queue in the runtime and flush when connectivity returns.
+3. **Undo across acknowledgments**: The undo stack must distinguish between client-side-only operations and operations that have been (or are being) persisted.
+
+**What we preserve from the skill:**
+
+- **TanStack Query is the single persistent source of truth** for all node data.
+- **The runtime stores ONLY ephemeral state**: pending intents, undo stack, focus requests, collapse state, selection.
+- **Zustand stores hold ONLY UI state**: navigation, modals, display preferences.
+- **No direct `fetch()` in the runtime** — all API calls go through TanStack Query `useMutation` hooks.
+
+**Consequences of this deviation:**
+
+- Bridge hooks (`useStructureSync`, `useBlockPersist`) are more complex than in a typical CRUD app.
+- Mutation cache invalidation must be coordinated with the runtime's `pendingIntents` queue.
+- New contributors must understand that `NodeGraphRuntime.getNode()` returns an **ephemeral projection**, not persistent state.
+- The runtime's `upsertNodes()` is **intent-aware**: it accepts server state as truth for fields with no pending intents, and preserves locally-mutated fields only when they have active pending intents.
+
 ### Mobile
 
 The `mobile/` directory contains a minimal Android Kotlin app (API 26–36, minSdk 26) that wraps the frontend in a WebView. It provides:
