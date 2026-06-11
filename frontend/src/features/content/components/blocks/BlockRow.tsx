@@ -5,7 +5,7 @@
  * One BlockRow per block. React owns the tree; Lexical owns only inline text.
  */
 
-import { useRef, useMemo, useEffect, useLayoutEffect, forwardRef, useImperativeHandle, useState, useCallback, memo } from 'react';
+import { useRef, useMemo, useEffect, useLayoutEffect, forwardRef, useImperativeHandle, useState, useCallback, memo, startTransition } from 'react';
 import { InlineEditor, type InlineEditorHandle } from '@/features/content/editor/InlineEditor';
 import { BlockUI } from './BlockUI';
 import { BlockAfterContent } from './BlockAfterContent';
@@ -26,6 +26,7 @@ import { ClassPillsRow } from '@/features/content/components/nodes/ClassPillsRow
 import { PropertyIconButton } from '@/features/content/components/properties/PropertyIconButton';
 import { getNodeColorStylesAuto } from '@/utils/color';
 import { SYSTEM_CLASS_UUIDS } from '@/constants';
+import { Button } from '@/components/ui/Button';
 import './BlockRow.css';
 import type { Node, Property } from '@/types/api';
 import type { JSX } from 'react';
@@ -165,6 +166,10 @@ export const BlockRow = memo(
 
     const [contextMenuPos, setContextMenuPos] = useState<{ x: number; y: number } | null>(null);
     const [isHovered, setIsHovered] = useState(false);
+    const [backlinkExpanded, setBacklinkExpanded] = useState(false);
+    const toggleBacklinks = useCallback(() => {
+      startTransition(() => setBacklinkExpanded((v) => !v));
+    }, []);
 
     // Stable callbacks: use refs so InlineEditor memo doesn't re-render when parent passes new refs
     const callbacksRef = useRef({
@@ -290,6 +295,7 @@ export const BlockRow = memo(
     );
 
     const hasClasses = showClasses && (visibleClassDetails.length > 0 || !!onAddClass);
+    const hasBacklinks = (node.backlink_count ?? 0) > 0;
 
     // Query class detection for collapse arrow
     const { data: allClasses } = useClasses();
@@ -421,7 +427,7 @@ export const BlockRow = memo(
         )}
       </div>
       <div className="block-row__body">
-          {hasClasses ? (
+          {hasClasses || hasBacklinks ? (
             <div className="block-row__content-line">
               <div className="block-row__content">
                 {/* Property value icons - before content position */}
@@ -440,7 +446,21 @@ export const BlockRow = memo(
                 )}
                 {editorElement}
               </div>
-              <ClassPillsRow classes={visibleClassDetails} nodeId={node.id} readOnly={readOnly} onAddClass={onAddClass} />
+              {hasBacklinks && (
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  active={backlinkExpanded}
+                  onClick={toggleBacklinks}
+                  onMouseDown={(e: React.MouseEvent) => e.stopPropagation()}
+                  onPointerDown={(e: React.PointerEvent) => e.stopPropagation()}
+                >
+                  {node.backlink_count}
+                </Button>
+              )}
+              {hasClasses && (
+                <ClassPillsRow classes={visibleClassDetails} nodeId={node.id} readOnly={readOnly} onAddClass={onAddClass} />
+              )}
             </div>
           ) : (
             <div className="block-row__content">
@@ -461,7 +481,7 @@ export const BlockRow = memo(
               {editorElement}
             </div>
           )}
-          <BlockAfterContent node={node} />
+          <BlockAfterContent node={node} backlinkExpanded={backlinkExpanded} />
         </div>
       </div>
       {contextMenuPos && (

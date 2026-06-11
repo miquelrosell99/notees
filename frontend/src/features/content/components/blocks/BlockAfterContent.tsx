@@ -17,7 +17,7 @@
  * - Embed blocks      → Embedded node preview card
  */
 
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
 import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
 import { SYSTEM_CLASS_UUIDS } from '@/constants/systemProperties';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
@@ -25,6 +25,7 @@ import { ImageNode } from '@/features/content/components/nodes/ImageNode';
 import { QuerySection } from '@/features/content/components/nodes/QuerySection';
 import { QueryNodeCollection } from '@/features/content/components/nodes/QueryNodeCollection';
 import { useQueryBlock } from '@/hooks/useQueryBlock';
+import { Card } from '@/components/ui/Card';
 import { useNavigationStore } from '@/stores';
 import { useNode, useNodeByUuid } from '@/hooks';
 import type { Node } from '@/types/api';
@@ -37,6 +38,7 @@ import './BlockAfterContent.css';
 
 interface BlockAfterContentProps {
   node: Node;
+  backlinkExpanded?: boolean;
 }
 
 // ─── Callout Configuration ───────────────────────────────────────
@@ -227,47 +229,75 @@ function CalloutPreview({ node, type }: { node: Node; type: string }): JSX.Eleme
 
 // ─── Backlink Preview ────────────────────────────────────────────
 
-function BacklinkPreview({ node }: { node: Node }): JSX.Element | null {
-  const [expanded, setExpanded] = useState(false);
+function BacklinkPreview({ node, expanded }: { node: Node; expanded?: boolean }): JSX.Element | null {
   const openNode = useNavigationStore((s) => s.openNode);
   const addSidebarCard = useNavigationStore((s) => s.addSidebarCard);
-  const toggle = useCallback(() => setExpanded((v) => !v), []);
+  const [isExiting, setIsExiting] = useState(false);
+  const [showQuery, setShowQuery] = useState(false);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const rafRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!expanded) {
+      setIsExiting(true);
+      setShowQuery(false);
+      timeoutRef.current = setTimeout(() => {
+        setIsExiting(false);
+        timeoutRef.current = null;
+      }, 350);
+    } else {
+      // Defer heavy QuerySection mount to next frame so the click & animation
+      // feel instant — the card opens first, then the query loads in.
+      rafRef.current = requestAnimationFrame(() => {
+        setShowQuery(true);
+        rafRef.current = null;
+      });
+    }
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+    };
+  }, [expanded]);
 
   const count = node.backlink_count ?? 0;
   if (count === 0) return null;
+  if (!expanded && !isExiting) return null;
+
+  const isVisible = expanded || isExiting;
 
   return (
     <div className="block-after-content__backlinks">
-      <button
-        type="button"
-        className={`backlink-badge ${expanded ? 'backlink-badge--expanded' : ''}`}
-        onClick={toggle}
+      <div
+        className={`backlink-preview ${isVisible ? 'backlink-preview--expanded' : ''}`}
         onMouseDown={(e) => e.stopPropagation()}
         onPointerDown={(e) => e.stopPropagation()}
       >
-        <Icon path="mdi-link-variant" />
-        <span>{count} linked reference{count !== 1 ? 's' : ''}</span>
-        <Icon path={expanded ? 'mdi-chevron-up' : 'mdi-chevron-down'} className="backlink-chevron" />
-      </button>
-      {expanded && (
-        <div
-          className="backlink-preview"
-          onMouseDown={(e) => e.stopPropagation()}
-          onPointerDown={(e) => e.stopPropagation()}
-        >
-          <QuerySection
-            nodeId={node.id}
-            nodeUuid={node.uuid}
-            viewType="linked_references"
-            title="Linked References"
-            defaultExpanded
-            hideWhenEmpty
-            onNodeClick={(id) => openNode(id)}
-            onBlockCreated={(id) => addSidebarCard(id, 'block')}
-            hideViewManagement
-          />
+        <div className="backlink-preview__inner">
+          <Card variant="filled" radius="sm" paddingSize="sm">
+            {showQuery ? (
+              <QuerySection
+                nodeId={node.id}
+                nodeUuid={node.uuid}
+                viewType="linked_references"
+                title="Linked References"
+                defaultExpanded
+                hideWhenEmpty
+                onNodeClick={(id) => openNode(id)}
+                onBlockCreated={(id) => addSidebarCard(id, 'block')}
+                hideViewManagement
+              />
+            ) : (
+              <div className="backlink-loading" />
+            )}
+          </Card>
         </div>
-      )}
+      </div>
     </div>
   );
 }
@@ -429,7 +459,7 @@ function EmbedPreview({ node }: { node: Node }): JSX.Element | null {
 
 // ─── Main Component ──────────────────────────────────────────────
 
-export function BlockAfterContent({ node }: BlockAfterContentProps): JSX.Element {
+export function BlockAfterContent({ node, backlinkExpanded }: BlockAfterContentProps): JSX.Element {
   const runtime = getNodeGraphRuntime();
   const graphNode = runtime.getNode(node.uuid);
   const classIds = graphNode?.classIds ?? [];
@@ -458,7 +488,7 @@ export function BlockAfterContent({ node }: BlockAfterContentProps): JSX.Element
       {isAsset && <AssetPreview node={node} />}
       {isCode && <CodePreview node={node} />}
       {calloutType && <CalloutPreview node={node} type={calloutType} />}
-      {hasBacklinks && <BacklinkPreview node={node} />}
+      {hasBacklinks && <BacklinkPreview node={node} expanded={backlinkExpanded} />}
       {isQuery && !isCollapsed && <QueryPreview node={node} />}
       {isTable && <TablePreview node={node} />}
       {hasEmbed && <EmbedPreview node={node} />}
