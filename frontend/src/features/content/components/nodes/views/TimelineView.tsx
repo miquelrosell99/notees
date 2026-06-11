@@ -86,14 +86,8 @@ export const TimelineView = memo(function TimelineView({
     if (!serverSettings) return;
     const saved = serverSettings['timeline_date_properties'];
     if (saved) {
-      try {
-        // Handle both formats: raw object (new) or JSON string (legacy)
-        const parsed = typeof saved === 'string' ? JSON.parse(saved) : saved;
-        if (Array.isArray(parsed)) {
-          setDateProperties(parsed);
-        }
-      } catch (e) {
-        console.error('Failed to parse timeline_date_properties:', e);
+      if (Array.isArray(saved)) {
+        setDateProperties(saved);
       }
     }
   }, [serverSettings]);

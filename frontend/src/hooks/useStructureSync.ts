@@ -12,7 +12,6 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { getNodeGraphRuntime } from '../runtime/NodeGraphRuntime';
 import { updateNode as updateNodeApi } from '@/api/nodes';
 import { nodeKeys } from './queryKeys';
-// offline queue removed — pending intents are the single offline queue
 import type { NodeUpdate } from '@/types/api';
 import type { PendingIntent } from '@/runtime/types';
 import { updateNodeInTreeCaches } from './cacheUtils';
@@ -34,10 +33,27 @@ interface UseStructureSyncOptions {
   onError?: (blockId: string, error: Error) => void;
 }
 
-// Global state to ensure only one instance is active
-let activeInstanceId: string | null = null;
-const inFlightMutationKeys = new Set<string>();
-let debounceTimeout: ReturnType<typeof setTimeout> | null = null;
+// ─── Singleton coordinator ────────────────────────────────────────
+
+class StructureSyncCoordinator {
+  activeInstanceId: string | null = null;
+  inFlightMutationKeys = new Set<string>();
+  debounceTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  reset(): void {
+    if (this.debounceTimeout) {
+      clearTimeout(this.debounceTimeout);
+      this.debounceTimeout = null;
+    }
+    this.activeInstanceId = null;
+    this.inFlightMutationKeys.clear();
+  }
+}
+
+const coordinator = new StructureSyncCoordinator();
+
+// Re-export for any consumers that need to inspect state
+export { coordinator };
 
 /**
  * Hook to sync runtime structural changes (parent_id, sequence) to database.
@@ -80,13 +96,13 @@ export function useStructureSync(options: UseStructureSyncOptions = {}) {
     const runtime = getNodeGraphRuntime();
     const { intent, mutationKey } = pending;
 
-    if (inFlightMutationKeys.has(mutationKey)) return;
-    inFlightMutationKeys.add(mutationKey);
+    if (coordinator.inFlightMutationKeys.has(mutationKey)) return;
+    coordinator.inFlightMutationKeys.add(mutationKey);
 
     const blockId = (intent as { blockId: string }).blockId;
     const graphNode = runtime.getNode(blockId);
     if (!graphNode?.serverId) {
-      inFlightMutationKeys.delete(mutationKey);
+      coordinator.inFlightMutationKeys.delete(mutationKey);
       return;
     }
     const serverId = graphNode.serverId;
@@ -116,7 +132,7 @@ export function useStructureSync(options: UseStructureSyncOptions = {}) {
       },
       {
         onSuccess: () => {
-          inFlightMutationKeys.delete(mutationKey);
+          coordinator.inFlightMutationKeys.delete(mutationKey);
           runtime.consumePendingIntents(mutationKey);
 
           if (parentServerId != null) {
@@ -126,7 +142,7 @@ export function useStructureSync(options: UseStructureSyncOptions = {}) {
           }
         },
         onError: (error) => {
-          inFlightMutationKeys.delete(mutationKey);
+          coordinator.inFlightMutationKeys.delete(mutationKey);
           runtime.unmarkMutationInFlight(mutationKey);
 
           // Rollback optimistic update
@@ -171,9 +187,9 @@ export function useStructureSync(options: UseStructureSyncOptions = {}) {
 
   // Flush any pending changes immediately
   const flush = useCallback(() => {
-    if (debounceTimeout) {
-      clearTimeout(debounceTimeout);
-      debounceTimeout = null;
+    if (coordinator.debounceTimeout) {
+      clearTimeout(coordinator.debounceTimeout);
+      coordinator.debounceTimeout = null;
     }
     syncAllPending();
   }, [syncAllPending]);
@@ -184,11 +200,11 @@ export function useStructureSync(options: UseStructureSyncOptions = {}) {
 
     const instanceId = instanceIdRef.current;
 
-    if (activeInstanceId === null) {
-      activeInstanceId = instanceId;
+    if (coordinator.activeInstanceId === null) {
+      coordinator.activeInstanceId = instanceId;
     }
 
-    if (activeInstanceId !== instanceId) {
+    if (coordinator.activeInstanceId !== instanceId) {
       return;
     }
 
@@ -196,11 +212,11 @@ export function useStructureSync(options: UseStructureSyncOptions = {}) {
 
     const unsubscribe = runtime.subscribe((event) => {
       if (event.type === 'structure_changed' && event.source === 'intent') {
-        if (debounceTimeout) {
-          clearTimeout(debounceTimeout);
+        if (coordinator.debounceTimeout) {
+          clearTimeout(coordinator.debounceTimeout);
         }
-        debounceTimeout = setTimeout(() => {
-          debounceTimeout = null;
+        coordinator.debounceTimeout = setTimeout(() => {
+          coordinator.debounceTimeout = null;
           syncAllPending();
         }, delay);
       }
@@ -209,13 +225,13 @@ export function useStructureSync(options: UseStructureSyncOptions = {}) {
     syncAllPending();
 
     return () => {
-      if (debounceTimeout) {
-        clearTimeout(debounceTimeout);
-        debounceTimeout = null;
+      if (coordinator.debounceTimeout) {
+        clearTimeout(coordinator.debounceTimeout);
+        coordinator.debounceTimeout = null;
       }
       unsubscribe();
-      if (activeInstanceId === instanceId) {
-        activeInstanceId = null;
+      if (coordinator.activeInstanceId === instanceId) {
+        coordinator.activeInstanceId = null;
       }
     };
   }, [enabled, delay, syncAllPending]);

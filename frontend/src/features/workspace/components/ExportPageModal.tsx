@@ -9,6 +9,7 @@
  * - Dark mode toggle
  */
 import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useCopiedState } from '@/hooks/useCopiedState';
 import { useExportSettingsStore } from '@/stores';
 import { Modal } from '@/components/ui/Modal';
 import { copyToClipboard } from '@/utils/clipboardManager';
@@ -64,7 +65,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid, nodeUuids, nodeName
   const [previewContent, setPreviewContent] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [copied, triggerCopy] = useCopiedState();
   const [downloading, setDownloading] = useState(false);
   const [qrModalOpen, setQrModalOpen] = useState(false);
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
@@ -153,10 +154,9 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid, nodeUuids, nodeName
     const text = displayContent || previewContent;
     if (!text) return;
     copyToClipboard(text).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      triggerCopy();
     });
-  }, [displayContent, previewContent]);
+  }, [displayContent, previewContent, triggerCopy]);
 
   const handleDownload = useCallback(async () => {
     setDownloading(true);

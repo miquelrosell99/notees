@@ -338,10 +338,9 @@ export function GraphView({
       const saved = serverSettings['graph_color_groups'];
       if (saved) {
         try {
-          const parsed = typeof saved === 'string' ? JSON.parse(saved) : saved;
-          if (Array.isArray(parsed)) {
+          if (Array.isArray(saved)) {
             skipColorGroupsSaveRef.current++;
-            setColorGroups(parsed as GraphColorGroup[]);
+            setColorGroups(saved as GraphColorGroup[]);
           }
         } catch (e) {
           console.error('Failed to parse graph_color_groups:', e);
@@ -354,12 +353,9 @@ export function GraphView({
       const savedSettings = serverSettings['graph_settings'];
       if (savedSettings) {
         try {
-          // Value is stored as JSONB — it arrives as the parsed object already.
-          // Handle both formats: raw object (new) or JSON string (legacy).
-          const parsed = typeof savedSettings === 'string' ? JSON.parse(savedSettings) : savedSettings;
-          if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+          if (savedSettings && typeof savedSettings === 'object' && !Array.isArray(savedSettings)) {
             skipGraphSettingsSaveRef.current++;  // skip the save-back on next render
-            setGraphSettings(prev => ({ ...prev, ...parsed }));
+            setGraphSettings(prev => ({ ...prev, ...savedSettings }));
           }
         } catch (e) {
           console.error('Failed to parse graph_settings:', e);

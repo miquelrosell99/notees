@@ -151,6 +151,8 @@ class NodeUpdateRequest(BaseModel):
     classes: list[int] | None = None
     # Optional: when provided, apply each property_id -> value pair
     properties: dict[int, Any] | None = None
+    # Optional: when provided, update fails if node's version doesn't match (optimistic locking)
+    expected_version: int | None = None
 
 
 class ClassRequest(BaseModel):

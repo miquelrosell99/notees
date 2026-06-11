@@ -124,4 +124,4 @@ export const asyncStoragePersister: Persister = {
   },
 };
 
-(window as unknown as Record<string, unknown>).__queryClient = queryClient;
+

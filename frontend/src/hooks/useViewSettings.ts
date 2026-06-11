@@ -49,11 +49,7 @@ export function useViewSettings(
       if (meta.scope === 'server') {
         const val = serverSettings?.[key];
         if (val !== undefined) {
-          try {
-            return typeof val === 'string' ? (JSON.parse(val) as T) : (val as T);
-          } catch {
-            return val as T;
-          }
+          return val as T;
         }
         return defaultValue;
       }

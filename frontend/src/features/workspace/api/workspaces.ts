@@ -191,7 +191,7 @@ export async function downloadExportJob(jobId: string): Promise<Blob> {
 /**
  * Get all settings for the current workspace
  */
-export async function getSettings(): Promise<Record<string, string>> {
+export async function getSettings(): Promise<Record<string, unknown>> {
   const response = await api.get('/settings');
   return response.data;
 }
@@ -199,7 +199,7 @@ export async function getSettings(): Promise<Record<string, string>> {
 /**
  * Get a specific setting
  */
-export async function getSetting(key: string): Promise<string | null> {
+export async function getSetting(key: string): Promise<unknown | null> {
   const settings = await getSettings();
   return settings[key] ?? null;
 }

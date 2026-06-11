@@ -8,7 +8,7 @@ from pyrate_limiter import Duration, Limiter, Rate
 
 from ...db.connection import acquire_connection, get_pool, get_workspace_assets_dir, get_workspace_uuid
 from ...domain.entities import NodeCreateData, NodeUpdateData
-from ...domain.errors import DatePageDeletionError, DuplicateNodeError, SystemClassConstraintError
+from ...domain.errors import DatePageDeletionError, DuplicateNodeError, OptimisticLockError, SystemClassConstraintError
 from ...domain.stringify_ast import extract_node_links, parse_ast
 from ...logging_config import get_logger
 from ...models import PaginatedResponse, User
@@ -1487,6 +1487,7 @@ async def update_node(
         sequence=body.sequence,
         collapsed=body.collapsed,
         is_private=body.is_private,
+        expected_version=body.expected_version,
     )
 
     logger.debug("[UPDATE_NODE] NodeUpdateData color=%s, clear_color=%s", data.color, data.clear_color)
@@ -1550,6 +1551,11 @@ async def update_node(
         await _notify_mentions(node, int(user.id))
 
         return _node_to_response(node)
+    except OptimisticLockError as e:
+        raise HTTPException(
+            status_code=409,
+            detail={"message": str(e), "code": "OPTIMISTIC_LOCK_CONFLICT"},
+        ) from e
     except SystemClassConstraintError as e:
         raise HTTPException(422, str(e)) from e
     except ValueError as e:

@@ -21,8 +21,9 @@ from .postgres_node_search import PostgresNodeSearchMixin
 
 _NODE_SELECT_COLUMNS = (
     "id, uuid, workspace_id, name, icon, color, parent_id, page_id, sequence, collapsed, active, "
-    "is_page, is_class, is_day, is_month, is_year, is_asset, is_template, is_comment, "
-    "parent_locked, is_private, class_ids, classes_path, create_date, write_date, open_date, aliased_id"
+    "is_shared, is_page, is_class, is_day, is_month, is_year, is_asset, is_template, is_comment, "
+    "parent_locked, is_private, is_deleted, deleted_at, class_ids, classes_path, "
+    "create_date, write_date, open_date, create_uid, write_uid, version, aliased_id"
 )
 
 

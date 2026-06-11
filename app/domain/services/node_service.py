@@ -633,6 +633,15 @@ class NodeService:
 
         old_parent_id = old_node.parent_id
 
+        # Optimistic locking: check expected_version before proceeding
+        if data.expected_version is not None and old_node.version != data.expected_version:
+            from ..errors import OptimisticLockError
+            raise OptimisticLockError(
+                node_id=str(node_id),
+                expected_version=data.expected_version,
+                actual_version=old_node.version,
+            )
+
         # Prevent changing parent of parent-locked nodes
         if (data.parent_id is not None or data.clear_parent) and old_node.parent_locked:
             raise ValueError("Cannot change the parent of a parent-locked node")
