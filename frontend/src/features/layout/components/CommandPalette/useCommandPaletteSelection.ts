@@ -17,6 +17,7 @@ import {
 } from '@/api/nodes';
 import { resetNodeViews } from '@/api/nodeViews';
 import { useNavigationStore, useModalStore, useSettingsStore, usePresentationStore } from '@/stores';
+import { useCommandRegistry } from '@/stores/commandRegistry';
 import { useNotifications } from '@/stores/notificationStore';
 import { useCreateNode, useUpdateNode } from '@/hooks';
 import { nodeKeys } from '@/hooks/queryKeys';
@@ -216,7 +217,7 @@ export function useCommandPaletteSelection(params: UseCommandPaletteSelectionPar
             onClose();
             return;
           } else if (item.commandId === 'toggle-focus-mode') {
-            useNavigationStore.getState().toggleFocusMode();
+            useCommandRegistry.getState().executeCommand('ui.focusMode');
           } else if (item.commandId === 'create-page-with-uuid') {
             useModalStore.getState().setCreateWithUuidModalOpen(true);
             onClose();

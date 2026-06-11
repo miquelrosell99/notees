@@ -389,6 +389,7 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
             variant="ghost"
             size="sm"
             active={gridVisible}
+            activeGlow="static"
             onClick={wb.toggleGrid}
             title="Toggle Grid (G)"
           />
@@ -397,6 +398,7 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
             variant="ghost"
             size="sm"
             active={gridSnap}
+            activeGlow="static"
             onClick={wb.toggleSnap}
             title="Snap to Grid"
           />
@@ -406,6 +408,7 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
             variant="ghost"
             size="sm"
             active={minimapVisible}
+            activeGlow="static"
             onClick={toggleMinimap}
             title="Toggle Minimap"
           />

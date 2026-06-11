@@ -144,6 +144,7 @@ export function FloatingToolbarPlugin({
             size="sm"
             title="Bold (Ctrl+B)"
             active={activeFormats.has('bold')}
+            activeGlow="static"
             onClick={() => handleFormat('bold')}
             className="floating-toolbar__button"
           />
@@ -153,6 +154,7 @@ export function FloatingToolbarPlugin({
             size="sm"
             title="Italic (Ctrl+I)"
             active={activeFormats.has('italic')}
+            activeGlow="static"
             onClick={() => handleFormat('italic')}
             className="floating-toolbar__button"
           />
@@ -162,6 +164,7 @@ export function FloatingToolbarPlugin({
             size="sm"
             title="Underline (Ctrl+U)"
             active={activeFormats.has('underline')}
+            activeGlow="static"
             onClick={() => handleFormat('underline')}
             className="floating-toolbar__button"
           />
@@ -171,6 +174,7 @@ export function FloatingToolbarPlugin({
             size="sm"
             title="Strikethrough (Ctrl+Shift+D)"
             active={activeFormats.has('strikethrough')}
+            activeGlow="static"
             onClick={() => handleFormat('strikethrough')}
             className="floating-toolbar__button"
           />
@@ -180,6 +184,7 @@ export function FloatingToolbarPlugin({
             size="sm"
             title="Inline code (Ctrl+E)"
             active={activeFormats.has('code')}
+            activeGlow="static"
             onClick={() => handleFormat('code')}
             className="floating-toolbar__button"
           />

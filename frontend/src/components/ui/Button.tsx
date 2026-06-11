@@ -43,6 +43,8 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   fullWidth?: boolean;
   /** Whether the button is in an active/pressed state */
   active?: boolean;
+  /** Active-state glow style: none (default), static ring, or breathing halo */
+  activeGlow?: 'none' | 'static' | 'breathe';
   /** Children content */
   children?: ReactNode;
   /** Badges to display on the button */
@@ -65,6 +67,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
     size = 'md',
     fullWidth = false,
     active = false,
+    activeGlow = 'none',
     children,
     className = '',
     disabled,
@@ -96,6 +99,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
     hasIconAndText && 'btn--icon-text',
     fullWidth && 'btn--full-width',
     active && 'btn--active',
+    activeGlow !== 'none' && `btn--glow-${activeGlow}`,
     disabled && 'btn--disabled',
     hasBadges && 'btn--has-badge',
     className,
