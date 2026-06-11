@@ -201,43 +201,53 @@
 /* ==================== Backlink Preview ==================== */
 
 .block-after-content__backlinks {
+  display: flex;
+  align-items: center;
   margin-top: var(--spacing-1);
 }
 
-.backlink-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--spacing-1);
-  padding: 0 6px;
-  border-radius: var(--shape-small);
-  font-size: var(--font-size-xs);
-  font-weight: 500;
-  line-height: 18px;
-  height: var(--icon-size-md);
-  color: var(--color-on-surface-variant);
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  transition: background-color 0.15s ease;
-}
-
-.backlink-badge:hover {
-  background-color: var(--color-hover, rgba(255, 255, 255, 0.05));
-  color: var(--color-on-surface);
-}
-
-.backlink-badge--expanded {
-  background-color: var(--color-surface-container);
-}
-
-.backlink-chevron {
-  font-size: var(--font-size-sm);
-  opacity: 0.7;
-}
-
 .backlink-preview {
-  margin-top: 6px;
-  padding: var(--spacing-1) 0;
+  display: grid;
+  grid-template-rows: 0fr;
+  width: 100%;
+  max-width: 100%;
+  opacity: 0;
+  transition: grid-template-rows 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+              opacity 0.25s ease;
+}
+
+.backlink-preview--expanded {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+.backlink-preview__inner {
+  overflow: hidden;
+  min-height: 0;
+}
+
+.backlink-preview .card {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+/* Lightweight placeholder while the query section is deferred by one frame */
+.backlink-loading {
+  min-height: 2.5rem;
+}
+
+/* Remove extra left padding inside backlink previews — the container is already
+   indented within the block body, so the nested section padding causes overflow. */
+.backlink-preview .node-view-section__content {
+  padding-left: 0;
+}
+
+/* Remove top border from node-view-section when nested inside a backlink card
+   — the card itself provides the visual container. */
+.backlink-preview .node-view-section {
+  margin-top: 0;
+  border-top: none;
+  padding-top: 0;
 }
 
 /* ==================== Query Preview ==================== */
