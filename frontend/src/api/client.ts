@@ -1,10 +1,9 @@
 /**
  * API client configuration and base functions.
  *
- * Uses ky (a tiny fetch wrapper) for HTTP requests with automatic auth token handling.
- * Provides an axios-compatible response interface so existing API modules don't need changes.
+ * Uses axios for HTTP requests with automatic auth token handling.
  */
-import ky, { HTTPError, type Options } from 'ky';
+import axios, { type AxiosError, type AxiosRequestConfig } from 'axios';
 import { getLogger } from '../utils/logger';
 import { getAuthToken, clearAuthToken, setAuthToken, getApiKey } from '../utils/auth';
 
@@ -60,7 +59,7 @@ export class ApiError extends Error {
   response?: {
     status: number;
     data: unknown;
-    headers: Headers;
+    headers: Record<string, string>;
   };
   config?: {
     url: string;
@@ -80,133 +79,98 @@ export interface RequestOptions {
   timeout?: number | false;
 }
 
-const kyClient = ky.create({
-  prefixUrl: '/api',
+const axiosClient = axios.create({
+  baseURL: '/api',
   timeout: 30000,
-  hooks: {
-    beforeRequest: [
-      (request) => {
-        const token = getAuthToken();
-        if (token) {
-          request.headers.set('Authorization', `Bearer ${token}`);
-        }
-
-        const apiKey = getApiKey();
-        if (apiKey) {
-          request.headers.set('X-API-Key', apiKey);
-        }
-
-        // Log outgoing requests
-        log.debug(`→ ${request.method} ${request.url}`, {
-          hasBody: !!request.body,
-        });
-      },
-    ],
-    beforeError: [
-      async (error) => {
-        const { response } = error;
-        const url = error.request?.url ?? '';
-        const method = error.request?.method?.toUpperCase() ?? '';
-
-        if (response) {
-          if (response.status === 401) {
-            // Don't clear auth here — the exec function will attempt refresh first.
-            // Only log so we can trace the initial 401.
-            log.warn(`Authentication challenge: ${method} ${url}`);
-          } else if (response.status >= 500) {
-            log.error(`Server error: ${response.status} ${method} ${url}`, error);
-          } else if (response.status >= 400) {
-            // 404s are often expected fallback behavior (e.g. RouterSync UUID resolution)
-            if (response.status === 404) {
-              log.debug(`Client error: ${response.status} ${method} ${url}`, {
-                message: error.message,
-              });
-            } else {
-              let data: unknown;
-              try {
-                data = await response.clone().json();
-              } catch {
-                try {
-                  data = await response.clone().text();
-                } catch {
-                  data = undefined;
-                }
-              }
-              log.warn(`Client error: ${response.status} ${method} ${url}`, {
-                message: error.message,
-                data,
-              });
-            }
-          }
-        } else {
-          log.error(`Network error: ${method} ${url}`, error);
-        }
-
-        return error;
-      },
-    ],
-  },
 });
 
-async function exec<T = any>(method: string, url: string, options?: RequestOptions, isRetry = false): Promise<{ data: T; headers: Headers }> {
-  // ky rejects inputs starting with '/' when prefixUrl is set; strip it
-  const cleanUrl = url.startsWith('/') ? url.slice(1) : url;
-  const kyOptions: Options = {};
-
-  if (options?.params) {
-    kyOptions.searchParams = options.params as Record<string, string | number | boolean>;
+axiosClient.interceptors.request.use((config) => {
+  const token = getAuthToken();
+  if (token) {
+    config.headers.set('Authorization', `Bearer ${token}`);
   }
 
-  if (options?.headers) {
-    kyOptions.headers = options.headers;
+  const apiKey = getApiKey();
+  if (apiKey) {
+    config.headers.set('X-API-Key', apiKey);
   }
+
+  // Log outgoing requests
+  log.debug(`→ ${config.method?.toUpperCase()} ${config.url}`, {
+    hasBody: !!config.data,
+  });
+
+  return config;
+});
+
+axiosClient.interceptors.response.use(
+  (response) => response,
+  async (error: AxiosError) => {
+    const { response } = error;
+    const url = error.config?.url ?? '';
+    const method = error.config?.method?.toUpperCase() ?? '';
+
+    if (response) {
+      if (response.status === 401) {
+        // Don't clear auth here — the exec function will attempt refresh first.
+        // Only log so we can trace the initial 401.
+        log.warn(`Authentication challenge: ${method} ${url}`);
+      } else if (response.status >= 500) {
+        log.error(`Server error: ${response.status} ${method} ${url}`, error);
+      } else if (response.status >= 400) {
+        // 404s are often expected fallback behavior (e.g. RouterSync UUID resolution)
+        if (response.status === 404) {
+          log.debug(`Client error: ${response.status} ${method} ${url}`, {
+            message: error.message,
+          });
+        } else {
+          log.warn(`Client error: ${response.status} ${method} ${url}`, {
+            message: error.message,
+            data: response.data,
+          });
+        }
+      }
+    } else {
+      log.error(`Network error: ${method} ${url}`, error);
+    }
+
+    return Promise.reject(error);
+  }
+);
+
+async function exec<T = any>(
+  method: string,
+  url: string,
+  options?: RequestOptions,
+  isRetry = false
+): Promise<{ data: T; headers: Record<string, string> }> {
+  const axiosOptions: AxiosRequestConfig = {
+    method,
+    url,
+    params: options?.params,
+    headers: options?.headers,
+    responseType: options?.responseType ?? 'json',
+  };
 
   if (options?.timeout !== undefined) {
-    kyOptions.timeout = options.timeout === false ? false : options.timeout;
+    axiosOptions.timeout = options.timeout === false ? 0 : options.timeout;
   }
 
   if (options?.data !== undefined && options.data !== null) {
-    if (options.data instanceof FormData || options.data instanceof Blob) {
-      kyOptions.body = options.data;
-    } else {
-      kyOptions.json = options.data;
-    }
+    axiosOptions.data = options.data;
   }
 
   try {
-    let resp: Response;
-    switch (method) {
-      case 'GET':
-        resp = await kyClient.get(cleanUrl, kyOptions);
-        break;
-      case 'POST':
-        resp = await kyClient.post(cleanUrl, kyOptions);
-        break;
-      case 'PUT':
-        resp = await kyClient.put(cleanUrl, kyOptions);
-        break;
-      case 'DELETE':
-        resp = await kyClient.delete(cleanUrl, kyOptions);
-        break;
-      case 'PATCH':
-        resp = await kyClient.patch(cleanUrl, kyOptions);
-        break;
-      default:
-        throw new Error(`Unsupported method: ${method}`);
-    }
+    const resp = await axiosClient.request<T>(axiosOptions);
 
-    let data: unknown;
-    if (options?.responseType === 'blob') {
-      data = await resp.blob();
-    } else if (options?.responseType === 'text') {
-      data = await resp.text();
-    } else {
-      data = await resp.json();
-    }
-
-    return { data: data as T, headers: resp.headers };
+    return { data: resp.data, headers: resp.headers as Record<string, string> };
   } catch (err) {
-    if (err instanceof HTTPError && err.response.status === 401 && !isRetry && !url.includes('/auth/refresh')) {
+    if (
+      axios.isAxiosError(err) &&
+      err.response?.status === 401 &&
+      !isRetry &&
+      !url.includes('/auth/refresh')
+    ) {
       // Attempt silent token refresh
       const newToken = await refreshAccessToken();
       if (newToken) {
@@ -217,25 +181,17 @@ async function exec<T = any>(method: string, url: string, options?: RequestOptio
       handleAuthFailure();
     }
 
-    if (err instanceof HTTPError) {
-      let data: unknown;
-      try {
-        data = await err.response.clone().json();
-      } catch {
-        try {
-          data = await err.response.clone().text();
-        } catch {
-          data = undefined;
-        }
-      }
-
+    if (axios.isAxiosError(err) && err.response) {
       const apiErr = new ApiError(err.message);
       apiErr.response = {
         status: err.response.status,
-        data,
-        headers: err.response.headers,
+        data: err.response.data,
+        headers: err.response.headers as Record<string, string>,
       };
-      apiErr.config = { url, method };
+      apiErr.config = {
+        url: err.config?.url ?? url,
+        method: err.config?.method?.toUpperCase() ?? method,
+      };
       throw apiErr;
     }
     throw err;

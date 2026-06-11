@@ -209,7 +209,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid, nodeUuids, nodeName
         } else {
           response = await api.get(`/export/${effectiveNodeUuids[0]}`, { params: baseParams, responseType: 'blob' });
         }
-        const disposition = response.headers.get('content-disposition') ?? undefined;
+        const disposition = response.headers['content-disposition'] ?? undefined;
         let filename = `export.${getExportExtension(format)}`;
         if (disposition) {
           const match = disposition.match(/filename="?([^"]+)"?/);
