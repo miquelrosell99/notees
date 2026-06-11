@@ -14,6 +14,7 @@ import { forwardRef, useCallback, type ButtonHTMLAttributes, type ReactNode } fr
 
 import './Button.css';
 import { Icon } from '@/components/ui/icons';
+import { cn } from '@/utils/cn';
 
 export type ButtonVariant = 'default' | 'primary' | 'ghost' | 'danger';
 export type ButtonSize = 'xs' | 'sm' | 'md' | 'lg';
@@ -87,7 +88,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
 
   const hasBadges = badges && badges.length > 0;
 
-  const classNames = [
+  const classNames = cn(
     'btn',
     `btn--${variant}`,
     `btn--${size}`,
@@ -98,9 +99,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
     disabled && 'btn--disabled',
     hasBadges && 'btn--has-badge',
     className,
-  ]
-    .filter(Boolean)
-    .join(' ');
+  );
 
   const resolvedIconSize = iconSize ?? ICON_SIZES[size];
 

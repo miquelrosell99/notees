@@ -5,6 +5,7 @@
  */
 import { forwardRef, useId, type InputHTMLAttributes } from 'react';
 import './Checkbox.css';
+import { cn } from '@/utils/cn';
 
 export type CheckboxSize = 'sm' | 'md' | 'lg';
 export type CheckboxVariant = 'check' | 'dot';
@@ -47,15 +48,13 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(function Che
   const generatedId = useId();
   const checkboxId = id || `checkbox-${generatedId}`;
   
-  const containerClasses = [
+  const containerClasses = cn(
     'checkbox-container',
     `checkbox-container--${size}`,
     error ? 'checkbox-container--error' : '',
     disabled ? 'checkbox-container--disabled' : '',
     className,
-  ]
-    .filter(Boolean)
-    .join(' ');
+  );
 
   // Render the appropriate icon based on state
   const renderIcon = () => {

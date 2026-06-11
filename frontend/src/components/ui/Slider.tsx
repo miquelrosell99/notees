@@ -40,6 +40,8 @@ export interface SliderProps extends Omit<InputHTMLAttributes<HTMLInputElement>,
   size?: SliderSize;
   /** Disabled state */
   disabled?: boolean;
+  /** Whether to allow changing the value via mouse wheel over the slider */
+  scrollToChange?: boolean;
   /** Extra class on the root element */
   className?: string;
 }
@@ -55,6 +57,7 @@ export function Slider({
   formatValue,
   size = 'md',
   disabled = false,
+  scrollToChange = false,
   className = '',
   style,
   ...rest
@@ -66,6 +69,17 @@ export function Slider({
       onChange(parseFloat(e.target.value));
     },
     [onChange],
+  );
+
+  const handleWheel = useCallback(
+    (e: React.WheelEvent) => {
+      if (!scrollToChange || disabled) return;
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? -step : step;
+      const newValue = Math.max(min, Math.min(max, parseFloat((value + delta).toFixed(10))));
+      onChange(newValue);
+    },
+    [scrollToChange, disabled, step, value, min, max, onChange]
   );
 
   /** Fraction of the current value within the [min, max] range (0–1) */
@@ -84,7 +98,7 @@ export function Slider({
     .join(' ');
 
   return (
-    <div className={rootClass} style={style}>
+    <div className={rootClass} style={style} onWheel={handleWheel}>
       {(label || showValue) && (
         <div className="slider__header">
           {label && (
