@@ -289,6 +289,8 @@ export function TabBarVertical({ tabs, activeTabId, secondaryTabId, splitOrienta
         {unpinnedTabs.map((tab, i) => renderTabItem(tab, pinnedTabs.length + i))}
         {dragOverIndex === tabs.length && <div className="tab-bar-vertical__insert-indicator" />}
 
+        {tabs.length > 0 && <div className="tab-bar-vertical__section-divider" />}
+
         <Button
           ref={addBtnRef}
           icon="mdi mdi-plus"

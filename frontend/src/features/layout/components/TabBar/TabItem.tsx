@@ -56,7 +56,12 @@ export function TabItem({
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
-    setContextMenu({ x: e.clientX, y: e.clientY });
+    const rect = tabRef.current?.getBoundingClientRect();
+    if (rect) {
+      setContextMenu({ x: rect.left, y: rect.bottom });
+    } else {
+      setContextMenu({ x: e.clientX, y: e.clientY });
+    }
   }, []);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
