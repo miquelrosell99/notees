@@ -19,10 +19,10 @@ import { useBlockPersist } from '@/hooks/useBlockPersist';
 import { useLazyChildren } from '@/hooks/useLazyChildren';
 import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
 import type { Node } from '@/types';
+// GraphNode type no longer needed here — projection moved to useBlockTree
 import type { NodeCollectionViewMode } from '@/types/nodeCollection';
 import { NodeCollection } from './NodeCollection';
 import { AssetUploadModal } from '@/features/assets/components/AssetUploadModal';
-import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { NodeSelector } from './NodeSelector';
 import { type Asset, type AssetCategory, uploadAsset } from '@/api/assets';
@@ -73,6 +73,13 @@ export function NodeContent({
   // Debounced content save - batches rapid edits to reduce API calls
   // saveImmediate bypasses debounce for operations like asset uploads
   const { handleContentChange: handleBlockChange, saveImmediate } = useContentSave();
+
+  // Runtime event subscription is no longer needed here.
+  // BlockList's useBlockTree hook handles projection and re-rendering.
+
+  // NodeContent no longer merges prop children with runtime pending intents.
+  // BlockList's useBlockTree hook handles the projection, so we pass the raw
+  // prop children to NodeCollection and let the renderer layer handle overlays.
 
   // Add/remove class mutations
   const addClass = useAddClass();
@@ -385,18 +392,19 @@ export function NodeContent({
 
     // Find the last child's blockId to insert after it
     // The API orders children by sequence, so the last array element is the rightmost block.
-    const lastChild = children.length > 0 ? children[children.length - 1] : null;
+    const runtimeChildren = runtime.getChildren(node.uuid);
+    const lastChildUuid = runtimeChildren.length > 0 ? runtimeChildren[runtimeChildren.length - 1].blockId : null;
 
     runtime.requestFocus(newBlockId);
     runtime.applyIntent({
       type: 'create_block',
       parentId: node.uuid,
-      afterBlockId: lastChild?.uuid ?? null,
+      afterBlockId: lastChildUuid,
       blockId: newBlockId,
       contentAST: [{ type: 'paragraph', children: [{ type: 'text', text: '' }] }],
     });
     runtime.flushEvents();
-  }, [node.uuid, children]);
+  }, [node.uuid, node.id]);
 
   // Handle successful asset upload
   // Strategy:
@@ -450,51 +458,70 @@ export function NodeContent({
 
   const viewMode = toViewMode(displayMode);
 
+  const runtimeChildrenCount = getNodeGraphRuntime().getChildren(node.uuid).length;
+  const showPlaceholder = canCreate && children.length === 0 && runtimeChildrenCount === 0;
+  const showTrailingPlaceholder = canCreate && (children.length > 0 || runtimeChildrenCount > 0);
+
   return (
     <div className={`node-content ${displayMode}`} ref={contentRef}>
-      {/* Render children using NodeCollection with callbacks */}
-      {children.length > 0 && (
-        <section className={`node-content-children blocks-container ${displayMode === 'document' ? 'document-mode' : ''}`}>
-          <NodeCollection
-            nodes={children}
-            viewMode={viewMode}
-            availableViewModes={[viewMode]}
-            editable={editable}
-            onNodeClick={handleNodeClick}
-            onNodeShiftClick={handleNodeShiftClick}
-            onContentChange={handleBlockChange}
-            showEmpty={false}
-            showClasses={true}
-            pageId={node.id}
-            nodeUuid={node.uuid}
-            onAddClass={handleAddClass}
-            onSlashCommand={handleSlashCommand}
-            onTemplateInstantiate={handleTemplateInstantiate}
-            templateClassFilters={systemClassMap?.template != null ? [systemClassMap.template] : undefined}
-            onPasteImage={handlePasteImage}
-          />
-        </section>
-      )}
+      {/* Always render NodeCollection so BlockList is mounted and can pick up
+          runtime-created blocks immediately. showEmpty=false hides the "No items" msg. */}
+      <section className={`node-content-children blocks-container ${displayMode === 'document' ? 'document-mode' : ''}`}>
+        <NodeCollection
+          nodes={children}
+          viewMode={viewMode}
+          availableViewModes={[viewMode]}
+          editable={editable}
+          onNodeClick={handleNodeClick}
+          onNodeShiftClick={handleNodeShiftClick}
+          onContentChange={handleBlockChange}
+          showEmpty={false}
+          showClasses={true}
+          pageId={node.id}
+          nodeUuid={node.uuid}
+          onAddClass={handleAddClass}
+          onSlashCommand={handleSlashCommand}
+          onTemplateInstantiate={handleTemplateInstantiate}
+          templateClassFilters={systemClassMap?.template != null ? [systemClassMap.template] : undefined}
+          onPasteImage={handlePasteImage}
+        />
+      </section>
       
-      {/* Empty state */}
-      {children.length === 0 && (
+      {/* Empty state — full-width clickable placeholder row */}
+      {showPlaceholder && (
         <div className="node-content-empty">
-          {canCreate && (
-            <Button icon={"mdi mdi-plus"} onClick={handleAddBlock} className="add-block-btn" title="Add block" size="sm" variant="ghost">
-              Add block
-            </Button>
-          )}
+          <div
+            className="node-content-placeholder"
+            onClick={handleAddBlock}
+            role="button"
+            tabIndex={0}
+            title="Click to add a block"
+            aria-label="Add block"
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleAddBlock(); } }}
+          >
+            <span className="node-content-placeholder__bullet-wrapper" aria-hidden="true">
+              <span className="node-content-placeholder__bullet" />
+            </span>
+          </div>
         </div>
       )}
       
-      {/* Add block button when there are children */}
-      {children.length > 0 && (
+      {/* Trailing placeholder — appears below existing blocks */}
+      {showTrailingPlaceholder && (
         <div className="node-content-add hover-reveal">
-          {canCreate && (
-            <Button icon={"mdi mdi-plus"} onClick={handleAddBlock} className="add-block-btn" title="Add block" size="sm" variant="ghost">
-              Add block
-            </Button>
-          )}
+          <div
+            className="node-content-placeholder"
+            onClick={handleAddBlock}
+            role="button"
+            tabIndex={0}
+            title="Click to add a block"
+            aria-label="Add block"
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleAddBlock(); } }}
+          >
+            <span className="node-content-placeholder__bullet-wrapper" aria-hidden="true">
+              <span className="node-content-placeholder__bullet" />
+            </span>
+          </div>
         </div>
       )}
       

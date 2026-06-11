@@ -23,6 +23,7 @@ import type {
   ProjectedNode,
   ProjectionQuery,
   SliceProjectionQuery,
+  PendingIntent,
 } from './types';
 
 // ─── Runtime class ────────────────────────────────────────────────
@@ -73,6 +74,16 @@ export class NodeGraphRuntime {
    */
   private tableOutlineBlockIds = new Set<string>();
 
+  /**
+   * Pending intents that have been applied locally but not yet acked by
+   * the server. Keyed by blockId. These form the ephemeral overlay that
+   * shields local mutations from being overwritten by concurrent refetches.
+   */
+  private pendingIntents = new Map<string, PendingIntent[]>();
+
+  /** Mutation keys currently in-flight to prevent duplicate API calls. */
+  private inFlightMutations = new Set<string>();
+
   // ─── Initialization ───────────────────────────────────────────
 
   /**
@@ -115,54 +126,61 @@ export class NodeGraphRuntime {
         changedBlockIds.push(node.blockId);
         this.nodes.set(node.blockId, node);
       } else {
-        // Existing node — update metadata fields but PRESERVE:
+        // Existing node — merge with intent-aware field preservation.
         //
-        // parentId / orderIndex: the runtime is the source of truth
-        // for structure during editing.  Indent, outdent, drag and
-        // reorder update these fields optimistically; a concurrent
-        // refetch may return pre-change values that would revert the
-        // user's action until the next server round-trip.
-        //
-        // collapsed: managed client-side via applyIntent.  During
-        // in-view API syncs (e.g. after a color change) we preserve
-        // it, but on initial view load we use the API value so a
-        // previous view's state doesn't leak.
-        //
-        // contentAST: the runtime is the source of truth during active
-        // editing.  However, when the server has a newer write_date
-        // (e.g. after a bulk fix like fix-raw-uuid-links), we accept
-        // the server's content so the UI reflects the update without
-        // requiring a page reload.
+        // TanStack Query is the single persistent source of truth. The
+        // runtime only shields fields that have ACTIVE pending intents
+        // (local mutations not yet acked by the server). Once an intent
+        // is consumed (mutation succeeded), the next upsertNodes accepts
+        // the confirmed server state for all fields.
+        const pending = this.pendingIntents.get(node.blockId);
+        const touchedFields = pending ? this.getFieldsTouchedByIntents(pending) : new Set<string>();
+
         const serverTime = new Date(node.updatedAt).getTime();
         const localTime = new Date(existing.updatedAt).getTime();
         const serverIsNewer = serverTime > localTime;
 
         const oldParentId = existing.parentId;
-        const newParentId = existing.parentId ?? node.parentId;
 
-        const merged: GraphNode = {
-          ...node,
-          contentAST: serverIsNewer ? node.contentAST : existing.contentAST,
-          parentId: newParentId,
-          orderIndex: existing.orderIndex,
-          collapsed: preserveCollapsed ? existing.collapsed : node.collapsed,
-        };
+        // Build merged node: start with server state, overlay preserved fields
+        const merged: GraphNode = { ...node };
 
-        // Detect parentId change — both old and new parents need index rebuild
-        if (oldParentId !== newParentId) {
-          if (oldParentId) changedParents.add(oldParentId);
-          if (newParentId) changedParents.add(newParentId);
+        if (touchedFields.has('contentAST') && !serverIsNewer) {
+          // Preserve local content if we're still editing it AND server
+          // doesn't have a newer bulk update.
+          merged.contentAST = existing.contentAST;
+        }
+        if (touchedFields.has('parentId')) {
+          merged.parentId = existing.parentId;
+        }
+        if (touchedFields.has('orderIndex')) {
+          merged.orderIndex = existing.orderIndex;
+        }
+        if (touchedFields.has('collapsed') || preserveCollapsed) {
+          merged.collapsed = existing.collapsed;
+        }
+        if (touchedFields.has('nodeType')) {
+          merged.nodeType = existing.nodeType;
         }
 
-        // Detect metadata-only changes (parentId / orderIndex are
-        // preserved so they never trigger structure_changed here).
+        // Detect parentId change — both old and new parents need index rebuild
+        if (oldParentId !== merged.parentId) {
+          if (oldParentId) changedParents.add(oldParentId);
+          if (merged.parentId) changedParents.add(merged.parentId);
+        }
+
+        // Detect any material change after merge
         if (
           existing.name !== merged.name ||
           existing.icon !== merged.icon ||
           existing.color !== merged.color ||
           existing.isDeleted !== merged.isDeleted ||
           existing.classIds.join(',') !== merged.classIds.join(',') ||
-          serverIsNewer
+          existing.parentId !== merged.parentId ||
+          existing.orderIndex !== merged.orderIndex ||
+          existing.contentAST !== merged.contentAST ||
+          existing.collapsed !== merged.collapsed ||
+          existing.nodeType !== merged.nodeType
         ) {
           changedBlockIds.push(node.blockId);
         }
@@ -398,17 +416,52 @@ export class NodeGraphRuntime {
     const reverse = this.computeReverse(intent);
     this.executeIntent(intent);
 
+    // Record pending intents for operations that need server sync.
+    // update_content is NOT tracked here because useContentSave handles
+    // content persistence independently via TanStack Query.
+    const syncableTypes = new Set<MutationIntent['type']>([
+      'create_block',
+      'delete_block',
+      'move_block',
+      'indent_block',
+      'outdent_block',
+      'move_up',
+      'move_down',
+      'reorder_blocks',
+      'set_node_type',
+      'split_block',
+      'merge_blocks',
+      'update_content',
+    ]);
+
+    const recordIntent = (singleIntent: MutationIntent) => {
+      if (syncableTypes.has(singleIntent.type)) {
+        const mutationKey = this.generateMutationKey(singleIntent);
+        this.recordPendingIntent(singleIntent, mutationKey);
+      }
+    };
+
+    if (intent.type === 'batch') {
+      for (const sub of intent.intents) {
+        recordIntent(sub);
+      }
+    } else {
+      recordIntent(intent);
+    }
+
     if (pushUndo && reverse) {
       const entry: UndoEntry = {
         forward: intent,
         reverse,
         timestamp: Date.now(),
+        label: this._intentLabel(intent),
       };
       this.undoStack.push(entry);
       if (this.undoStack.length > this.maxUndoEntries) {
         this.undoStack.shift();
       }
       this.redoStack = []; // Clear redo on new action
+      this.emit({ type: 'undo_stack_changed' });
       return entry;
     }
     return null;
@@ -918,6 +971,7 @@ export class NodeGraphRuntime {
     this.executeIntent(entry.reverse);
     this.redoStack.push(entry);
     this.emit({ type: 'undo', entry });
+    this.emit({ type: 'undo_stack_changed' });
     return entry;
   }
 
@@ -927,6 +981,7 @@ export class NodeGraphRuntime {
     this.executeIntent(entry.forward);
     this.undoStack.push(entry);
     this.emit({ type: 'redo', entry });
+    this.emit({ type: 'undo_stack_changed' });
     return entry;
   }
 
@@ -936,6 +991,45 @@ export class NodeGraphRuntime {
 
   canRedo(): boolean {
     return this.redoStack.length > 0;
+  }
+
+  getUndoStack(): UndoEntry[] {
+    return [...this.undoStack];
+  }
+
+  getRedoStack(): UndoEntry[] {
+    return [...this.redoStack];
+  }
+
+  clearUndoRedo(): void {
+    this.undoStack = [];
+    this.redoStack = [];
+    this.emit({ type: 'undo_stack_changed' });
+  }
+
+  private _intentLabel(intent: MutationIntent): string {
+    switch (intent.type) {
+      case 'create_block': return 'Create block';
+      case 'delete_block': return 'Delete block';
+      case 'move_block': return 'Move block';
+      case 'indent_block': return 'Indent block';
+      case 'outdent_block': return 'Outdent block';
+      case 'move_up': return 'Move block up';
+      case 'move_down': return 'Move block down';
+      case 'reorder_blocks': return 'Reorder blocks';
+      case 'set_node_type': return 'Change block type';
+      case 'split_block': return 'Split block';
+      case 'merge_blocks': return 'Merge blocks';
+      case 'update_content': return 'Edit content';
+      case 'batch': {
+        const first = intent.intents[0];
+        if (!first) return 'Batch edit';
+        const sub = this._intentLabel(first);
+        const rest = intent.intents.length - 1;
+        return rest > 0 ? `${sub} (+${rest})` : sub;
+      }
+      default: return 'Edit';
+    }
   }
 
   // ─── Projection ───────────────────────────────────────────────
@@ -1278,6 +1372,250 @@ export class NodeGraphRuntime {
       nodeCount: this.nodes.size,
     });
   }
+
+  // ─── Pending intent helpers ───────────────────────────────────
+
+  /**
+   * Compute which fields are touched by a list of pending intents.
+   * Used by upsertNodes to decide which local fields to preserve
+   * when server data arrives.
+   */
+  private getFieldsTouchedByIntents(intents: PendingIntent[]): Set<string> {
+    const fields = new Set<string>();
+
+    for (const { intent } of intents) {
+      this.collectTouchedFields(intent, fields);
+    }
+
+    return fields;
+  }
+
+  private collectTouchedFields(intent: MutationIntent, fields: Set<string>): void {
+    switch (intent.type) {
+      case 'update_content':
+        fields.add('contentAST');
+        fields.add('updatedAt');
+        break;
+      case 'split_block':
+        fields.add('contentAST');
+        fields.add('updatedAt');
+        break;
+      case 'merge_blocks':
+        fields.add('contentAST');
+        fields.add('updatedAt');
+        break;
+      case 'create_block':
+        fields.add('parentId');
+        fields.add('orderIndex');
+        break;
+      case 'delete_block':
+        fields.add('isDeleted');
+        break;
+      case 'move_block':
+        fields.add('parentId');
+        fields.add('orderIndex');
+        fields.add('updatedAt');
+        break;
+      case 'indent_block':
+        fields.add('parentId');
+        fields.add('orderIndex');
+        fields.add('updatedAt');
+        break;
+      case 'outdent_block':
+        fields.add('parentId');
+        fields.add('orderIndex');
+        fields.add('updatedAt');
+        break;
+      case 'move_up':
+        fields.add('orderIndex');
+        fields.add('updatedAt');
+        break;
+      case 'move_down':
+        fields.add('orderIndex');
+        fields.add('updatedAt');
+        break;
+      case 'toggle_collapsed':
+        fields.add('collapsed');
+        break;
+      case 'set_collapsed':
+        fields.add('collapsed');
+        break;
+      case 'reorder_blocks':
+        fields.add('orderIndex');
+        break;
+      case 'set_node_type':
+        fields.add('nodeType');
+        fields.add('updatedAt');
+        break;
+      case 'batch':
+        for (const sub of intent.intents) {
+          this.collectTouchedFields(sub, fields);
+        }
+        break;
+    }
+  }
+
+  private generateMutationKey(intent: MutationIntent): string {
+    let identifier: string;
+    if (intent.type === 'merge_blocks') {
+      identifier = `${intent.sourceBlockId}_${intent.targetBlockId}`;
+    } else if (intent.type === 'reorder_blocks') {
+      identifier = intent.parentId;
+    } else if (intent.type === 'batch') {
+      identifier = 'batch';
+    } else if ('blockId' in intent) {
+      identifier = intent.blockId;
+    } else {
+      identifier = 'unknown';
+    }
+    return `${intent.type}_${identifier}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  }
+
+  // ─── Public pending intent API ──────────────────────────────────
+
+  /**
+   * Record a pending intent for a block. Called by applyIntent for
+   * structural and create operations that need server sync.
+   */
+  private recordPendingIntent(intent: MutationIntent, mutationKey: string): void {
+    const blockIds = this.getAffectedBlockIds(intent);
+    for (const blockId of blockIds) {
+      let list = this.pendingIntents.get(blockId) || [];
+      // Deduplicate: for update_content, replace any existing intent for the same block
+      if (intent.type === 'update_content') {
+        list = list.filter(p => p.intent.type !== 'update_content');
+      }
+      list.push({ intent, timestamp: Date.now(), mutationKey });
+      this.pendingIntents.set(blockId, list);
+    }
+  }
+
+  private getAffectedBlockIds(intent: MutationIntent): string[] {
+    switch (intent.type) {
+      case 'update_content':
+      case 'split_block':
+      case 'delete_block':
+      case 'indent_block':
+      case 'outdent_block':
+      case 'move_up':
+      case 'move_down':
+      case 'toggle_collapsed':
+      case 'set_collapsed':
+      case 'set_node_type':
+        return [intent.blockId];
+      case 'merge_blocks':
+        return [intent.sourceBlockId, intent.targetBlockId];
+      case 'create_block':
+        return [intent.blockId];
+      case 'move_block':
+        return [intent.blockId];
+      case 'reorder_blocks':
+        return intent.orderedBlockIds;
+      case 'batch': {
+        const ids = new Set<string>();
+        for (const sub of intent.intents) {
+          for (const id of this.getAffectedBlockIds(sub)) {
+            ids.add(id);
+          }
+        }
+        return [...ids];
+      }
+      default:
+        return [];
+    }
+  }
+
+  /**
+   * Consume (remove) pending intents matching a mutation key.
+   * Called by bridge hooks when a mutation succeeds.
+   */
+  consumePendingIntents(mutationKey: string): PendingIntent[] {
+    const consumed: PendingIntent[] = [];
+    for (const [blockId, list] of this.pendingIntents.entries()) {
+      const remaining = list.filter(p => {
+        if (p.mutationKey === mutationKey) {
+          consumed.push(p);
+          return false;
+        }
+        return true;
+      });
+      if (remaining.length === 0) {
+        this.pendingIntents.delete(blockId);
+      } else {
+        this.pendingIntents.set(blockId, remaining);
+      }
+    }
+    this.inFlightMutations.delete(mutationKey);
+    return consumed;
+  }
+
+  /**
+   * Get all pending intents for a specific block.
+   */
+  getPendingIntentsForBlock(blockId: string): PendingIntent[] {
+    return this.pendingIntents.get(blockId) || [];
+  }
+
+  /**
+   * Check if a block has any pending intents.
+   */
+  hasPendingIntents(blockId: string): boolean {
+    const list = this.pendingIntents.get(blockId);
+    return list !== undefined && list.length > 0;
+  }
+
+  /**
+   * Get all pending intents across all blocks.
+   */
+  getAllPendingIntents(): PendingIntent[] {
+    const result: PendingIntent[] = [];
+    for (const list of this.pendingIntents.values()) {
+      result.push(...list);
+    }
+    return result;
+  }
+
+  /**
+   * Restore a pending intent that was loaded from persistent storage.
+   * Used by pendingIntentStorage on app startup.
+   */
+  restorePendingIntent(intent: MutationIntent, timestamp: number, mutationKey: string): void {
+    const blockIds = this.getAffectedBlockIds(intent);
+    for (const blockId of blockIds) {
+      let list = this.pendingIntents.get(blockId) || [];
+      if (intent.type === 'update_content') {
+        list = list.filter(p => p.intent.type !== 'update_content');
+      }
+      list.push({ intent, timestamp, mutationKey });
+      this.pendingIntents.set(blockId, list);
+    }
+  }
+
+  /**
+   * Mark a mutation key as in-flight to prevent duplicate API calls.
+   */
+  markMutationInFlight(mutationKey: string): boolean {
+    if (this.inFlightMutations.has(mutationKey)) return false;
+    this.inFlightMutations.add(mutationKey);
+    return true;
+  }
+
+  /**
+   * Check if a mutation key is currently in-flight.
+   */
+  isMutationInFlight(mutationKey: string): boolean {
+    return this.inFlightMutations.has(mutationKey);
+  }
+
+  /**
+   * Unmark a mutation key so it can be retried.
+   * Call this when a mutation fails.
+   */
+  unmarkMutationInFlight(mutationKey: string): void {
+    this.inFlightMutations.delete(mutationKey);
+  }
+
+  // ─── Undo / Redo ──────────────────────────────────────────────
 
   private computeReverse(intent: MutationIntent): MutationIntent | null {
     switch (intent.type) {

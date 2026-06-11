@@ -153,7 +153,8 @@ export type RuntimeEvent =
   | { type: 'projection_invalidated'; projectionId: string }
   | { type: 'expand_children_needed'; blockId: string; serverId?: number }
   | { type: 'undo'; entry: UndoEntry }
-  | { type: 'redo'; entry: UndoEntry };
+  | { type: 'redo'; entry: UndoEntry }
+  | { type: 'undo_stack_changed' };
 
 export type RuntimeEventHandler = (event: RuntimeEvent) => void;
 
@@ -213,6 +214,24 @@ export interface SliceProjectionQuery {
   recursiveLevel: number;
   /** Whether to render parent nodes as locked projection roots */
   showParent: boolean;
+}
+
+// ─── Pending intents ──────────────────────────────────────────────
+
+/**
+ * A pending intent tracks a mutation that has been applied locally but not
+ * yet acknowledged by the server. The runtime uses this to:
+ * 1. Preserve locally-mutated fields when server data arrives (upsertNodes)
+ * 2. Allow bridge hooks to discover what needs to be synced
+ * 3. Support undo across server roundtrips
+ */
+export interface PendingIntent {
+  /** The mutation intent that was applied */
+  intent: MutationIntent;
+  /** When the intent was applied */
+  timestamp: number;
+  /** Unique key for deduplication and ack matching */
+  mutationKey: string;
 }
 
 // ─── View modes ───────────────────────────────────────────────────

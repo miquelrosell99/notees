@@ -11,6 +11,7 @@
 import { useRef, useState, useMemo, useCallback, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigationStore, useModalStore, useUndoStore, useSettingsStore } from '@/stores';
+import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
 import { useAutoExportStore } from '@/stores/autoExportStore';
 import { useCommentCount, useDailyNote } from '@/hooks';
 import { Icon } from '@/components/ui/Icon';
@@ -110,8 +111,18 @@ export function TopBar() {
   const [undoMenuOpen, setUndoMenuOpen] = useState(false);
   const [redoMenuOpen, setRedoMenuOpen] = useState(false);
   
-  // Refresh undo stack on mount
-  useEffect(() => { refreshStack(); }, [refreshStack]);
+  // Refresh undo stack on mount and subscribe to runtime changes
+  const syncRuntimeState = useUndoStore(s => s.syncRuntimeState);
+  useEffect(() => {
+    refreshStack();
+    const runtime = getNodeGraphRuntime();
+    const unsubscribe = runtime.subscribe((event) => {
+      if (event.type === 'undo_stack_changed') {
+        syncRuntimeState();
+      }
+    });
+    return unsubscribe;
+  }, [refreshStack, syncRuntimeState]);
 
   // Build tooltip with description of next action
   const undoTitle = canUndo && undoEntries.length > 0

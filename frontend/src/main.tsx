@@ -16,6 +16,7 @@ import './styles/data-colors.css'
 import './index.css'
 import { App } from './App.tsx'
 import { useSettingsStore, applyTheme } from './stores'
+import { restorePendingIntents, savePendingIntents } from './lib/pendingIntentStorage'
 
 // Apply saved theme on startup — wrapped in try/catch so a corrupt store
 // never prevents the app from mounting at all.
@@ -25,6 +26,16 @@ try {
 } catch (e) {
   console.error('[main] Failed to apply saved theme, falling back to default:', e);
 }
+
+// Restore pending intents from previous session (offline support)
+restorePendingIntents().catch((e) => {
+  console.error('[main] Failed to restore pending intents:', e);
+});
+
+// Save pending intents before page unload
+window.addEventListener('beforeunload', () => {
+  savePendingIntents().catch(() => {});
+});
 
 // Catch errors that escape React's error boundary (async callbacks, event
 // handlers, etc.) and log them so they surface in the browser console /

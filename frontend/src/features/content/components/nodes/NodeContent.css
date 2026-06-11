@@ -13,20 +13,38 @@
 
 /* Separator line for content sections (bullet, document, card modes) */
 .node-content-children,
-.node-content-cards {
-  margin-top: var(--spacing-4);
+.node-content-cards,
+.node-content-empty {
   padding-top: var(--spacing-4);
   border-top: var(--border-width-default) solid var(--color-outline-variant);
 }
 
+/* Children/cards keep top margin for spacing from properties; empty state
+   relies on the preceding element's margin-bottom so the placeholder is
+   centered between the two divider lines. */
+.node-content-children,
+.node-content-cards {
+  margin-top: var(--spacing-4);
+}
+
+.node-content-empty {
+  margin-top: 0;
+}
+
 @media (max-width: 768px) {
   .node-content-children,
-  .node-content-cards {
-    margin-top: var(--spacing-2);
+  .node-content-cards,
+  .node-content-empty {
     padding-top: var(--spacing-2);
   }
 
+  .node-content-children,
+  .node-content-cards {
+    margin-top: var(--spacing-2);
+  }
+
   .node-content-empty {
+    margin-top: 0;
     padding: var(--spacing-2) 0;
   }
 }
@@ -66,6 +84,43 @@
 
 .node-content-empty {
   padding: var(--spacing-4) 0;
+  background: transparent;
+}
+
+/* Logseq-style placeholder block — hidden by default, revealed on hover */
+.node-content-placeholder {
+  display: flex;
+  align-items: flex-start;
+  margin: 3px 0;
+  min-height: 1.6em;
+  line-height: 1.6;
+  cursor: text;
+  background: transparent;
+  opacity: 0;
+  transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.node-content:hover .node-content-placeholder {
+  opacity: 1;
+}
+
+/* Placeholder bullet wrapper — matches real .bullet-wrapper.bullet-sm */
+.node-content-placeholder__bullet-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: var(--bullet-wrapper-size);
+  height: var(--bullet-wrapper-size);
+}
+
+/* Placeholder bullet — faint dot */
+.node-content-placeholder__bullet {
+  width: var(--bullet-dot-size);
+  height: var(--bullet-dot-size);
+  border-radius: 50%;
+  background-color: var(--color-outline);
+  opacity: 0.4;
 }
 
 .node-content-add {
