@@ -94,6 +94,28 @@
 }
 
 /* ================================================================
+   TAB BAR — dim / reveal on hover
+   ================================================================ */
+
+/* Horizontal tab bar (inside top bar center area) */
+.focus-mode .tab-bar-normal {
+  opacity: 0;
+  transition: opacity var(--motion-duration-medium) var(--motion-easing-standard);
+}
+.focus-mode .tab-bar-normal:hover {
+  opacity: 1;
+}
+
+/* Vertical tab bar (left side) */
+.focus-mode .tab-bar-vertical {
+  opacity: 0.05;
+  transition: opacity var(--motion-duration-medium) var(--motion-easing-standard);
+}
+.focus-mode .tab-bar-vertical:hover {
+  opacity: 1;
+}
+
+/* ================================================================
    ELEMENT BULLETS — hidden, revealed on block hover
    ================================================================ */
 
