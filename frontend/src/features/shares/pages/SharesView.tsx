@@ -3,6 +3,7 @@
  */
 import { useCallback } from 'react';
 import { Spinner } from '@/components/ui/Spinner';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { useWorkspaceShares, useDeleteShare } from '@/features/shares/hooks/useShares';
 import { useNavigationStore } from '@/stores';
 import { Button } from '@/components/ui/Button';
@@ -11,7 +12,7 @@ import { copyToClipboard } from '@/utils/clipboardManager';
 import './SharesView.css';
 
 export function SharesView() {
-  const { data, isLoading } = useWorkspaceShares();
+  const { data, isLoading, error, refetch } = useWorkspaceShares();
   const deleteShare = useDeleteShare();
   const openNode = useNavigationStore((s) => s.openNode);
 
@@ -31,6 +32,15 @@ export function SharesView() {
 
       {isLoading ? (
         <div className="shares-view__loading"><Spinner size="md" centered /></div>
+      ) : error ? (
+        <div className="shares-view__error">
+          <EmptyState
+            title="Failed to load shares"
+            description="There was a problem fetching your shared links."
+            actionLabel="Try again"
+            onAction={() => refetch()}
+          />
+        </div>
       ) : shares.length === 0 ? (
         <div className="shares-view__empty">
           <p>No shared links yet.</p>

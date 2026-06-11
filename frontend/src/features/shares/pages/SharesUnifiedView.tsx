@@ -3,6 +3,7 @@
  */
 import { useState, useCallback } from 'react';
 import { Spinner } from '@/components/ui/Spinner';
+import { EmptyState } from '@/components/ui/EmptyState';
 import { useNavigationStore } from '@/stores';
 import { useWorkspaceShares, useDeleteShare, useShareInbox } from '@/features/shares/hooks/useShares';
 import { switchWorkspace } from '@/features/workspace/api/workspaces';
@@ -23,12 +24,12 @@ export function SharesUnifiedView({ initialTab = 'shared-out' }: SharesUnifiedVi
   const openNode = useNavigationStore((s) => s.openNode);
 
   // Shared Out data
-  const { data: sharesData, isLoading: sharesLoading } = useWorkspaceShares();
+  const { data: sharesData, isLoading: sharesLoading, error: sharesError, refetch: refetchShares } = useWorkspaceShares();
   const deleteShare = useDeleteShare();
   const shares = sharesData?.shares ?? [];
 
   // Inbox data
-  const { data: inboxData, isLoading: inboxLoading } = useShareInbox();
+  const { data: inboxData, isLoading: inboxLoading, error: inboxError, refetch: refetchInbox } = useShareInbox();
   const items = inboxData?.items ?? [];
 
   const handleCopy = useCallback((url: string) => {
@@ -69,6 +70,15 @@ export function SharesUnifiedView({ initialTab = 'shared-out' }: SharesUnifiedVi
         <div className="shares-unified-view__panel">
           {sharesLoading ? (
             <div className="shares-unified-view__loading"><Spinner size="md" centered /></div>
+          ) : sharesError ? (
+            <div className="shares-unified-view__error">
+              <EmptyState
+                title="Failed to load shared links"
+                description="There was a problem fetching your shared links."
+                actionLabel="Try again"
+                onAction={() => refetchShares()}
+              />
+            </div>
           ) : shares.length === 0 ? (
             <div className="shares-unified-view__empty">
               <p>No shared links yet.</p>
@@ -125,6 +135,15 @@ export function SharesUnifiedView({ initialTab = 'shared-out' }: SharesUnifiedVi
         <div className="shares-unified-view__panel">
           {inboxLoading ? (
             <div className="shares-unified-view__loading"><Spinner size="md" centered /></div>
+          ) : inboxError ? (
+            <div className="shares-unified-view__error">
+              <EmptyState
+                title="Failed to load inbox"
+                description="There was a problem fetching your shared items."
+                actionLabel="Try again"
+                onAction={() => refetchInbox()}
+              />
+            </div>
           ) : items.length === 0 ? (
             <div className="shares-unified-view__empty">
               <p>Nothing shared with you yet.</p>

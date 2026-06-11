@@ -116,6 +116,8 @@ export function TabItem({
           isActive={isActive}
           canClose={canClose}
           hasSplit={hasSplit}
+          history={tab.history}
+          historyIndex={tab.historyIndex}
           onCloseTab={onClose}
           onCloseOthers={onCloseOthers}
           onCloseRight={onCloseRight}

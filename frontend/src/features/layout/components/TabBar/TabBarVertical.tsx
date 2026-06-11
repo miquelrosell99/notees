@@ -1,10 +1,5 @@
 /**
- * TabBarNormal — horizontal scrollable tab strip for desktop.
- *
- * Uses a SelectionButton-like container with a sliding indicator
- * for the active tab. Supports drag-and-drop reordering, dropping
- * nodes onto tabs, mouse-wheel tab switching, pinned tabs, and
- * overflow dropdown.
+ * TabBarVertical — vertical tab strip for left-side placement (VS Code style).
  */
 import { useCallback, useRef, useState, useEffect, useMemo } from 'react';
 import { useNavigationStore, type Tab, type SplitOrientation } from '@/stores/navigationStore';
@@ -13,16 +8,16 @@ import { NodeSelector } from '@/features/content/components/nodes/NodeSelector';
 import { TabOverflowDropdown } from './TabOverflowDropdown';
 import type { Node } from '@/types';
 import { TabItem } from './TabItem';
-import './TabBarNormal.css';
+import './TabBarVertical.css';
 
-interface TabBarNormalProps {
+interface TabBarVerticalProps {
   tabs: Tab[];
   activeTabId: string | null;
   secondaryTabId: string | null;
   splitOrientation: SplitOrientation | null;
 }
 
-export function TabBarNormal({ tabs, activeTabId, secondaryTabId, splitOrientation }: TabBarNormalProps) {
+export function TabBarVertical({ tabs, activeTabId, secondaryTabId, splitOrientation }: TabBarVerticalProps) {
   const {
     activateTab,
     closeTab,
@@ -51,12 +46,11 @@ export function TabBarNormal({ tabs, activeTabId, secondaryTabId, splitOrientati
   const pinnedTabs = useMemo(() => tabs.filter((t) => t.pinned), [tabs]);
   const unpinnedTabs = useMemo(() => tabs.filter((t) => !t.pinned), [tabs]);
 
-  // Detect overflow
   useEffect(() => {
     const strip = stripRef.current;
     if (!strip) return;
     const check = () => {
-      setShowOverflow(strip.scrollWidth > strip.clientWidth + 1);
+      setShowOverflow(strip.scrollHeight > strip.clientHeight + 1);
     };
     check();
     const ro = new ResizeObserver(check);
@@ -64,7 +58,6 @@ export function TabBarNormal({ tabs, activeTabId, secondaryTabId, splitOrientati
     return () => ro.disconnect();
   }, [tabsKey]);
 
-  // Position the sliding indicator over the active tab
   useEffect(() => {
     const strip = stripRef.current;
     if (!strip) return;
@@ -75,26 +68,12 @@ export function TabBarNormal({ tabs, activeTabId, secondaryTabId, splitOrientati
         setIndicatorStyle({});
         return;
       }
+      const tabRect = activeTab.getBoundingClientRect();
       const stripRect = strip.getBoundingClientRect();
-      const label = activeTab.querySelector('.tab-item__label') as HTMLElement | null;
-
-      // Center indicator under the label text specifically (not the whole tab,
-      // so icons/color indicators on the left don't shift the visual center)
-      let offsetLeft: number;
-      let indicatorWidth: number;
-      if (label) {
-        const labelRect = label.getBoundingClientRect();
-        indicatorWidth = Math.min(Math.max(16, labelRect.width * 0.55), 36);
-        offsetLeft = labelRect.left - stripRect.left + (labelRect.width - indicatorWidth) / 2;
-      } else {
-        // Icon-only tab (e.g. pinned) — center under the whole tab
-        const tabRect = activeTab.getBoundingClientRect();
-        indicatorWidth = Math.min(Math.max(16, tabRect.width * 0.4), 32);
-        offsetLeft = tabRect.left - stripRect.left + (tabRect.width - indicatorWidth) / 2;
-      }
       setIndicatorStyle({
-        width: indicatorWidth,
-        transform: `translateX(${offsetLeft}px)`,
+        width: activeTab.offsetWidth,
+        height: activeTab.offsetHeight,
+        transform: `translateY(${tabRect.top - stripRect.top}px)`,
       });
     };
 
@@ -111,29 +90,26 @@ export function TabBarNormal({ tabs, activeTabId, secondaryTabId, splitOrientati
     };
   }, [activeTabId, tabsKey]);
 
-  // Auto-scroll to keep the active tab visible
   useEffect(() => {
     const strip = stripRef.current;
     const activeTab = strip?.querySelector('.tab-item--active') as HTMLElement | null;
     if (!strip || !activeTab) return;
 
-    const tabLeft = activeTab.offsetLeft;
-    const tabRight = tabLeft + activeTab.offsetWidth;
-    const scrollLeft = strip.scrollLeft;
-    const visibleWidth = strip.clientWidth;
+    const tabTop = activeTab.offsetTop;
+    const tabBottom = tabTop + activeTab.offsetHeight;
+    const scrollTop = strip.scrollTop;
+    const visibleHeight = strip.clientHeight;
 
-    if (tabLeft < scrollLeft) {
-      strip.scrollTo({ left: tabLeft, behavior: 'smooth' });
-    } else if (tabRight > scrollLeft + visibleWidth) {
-      strip.scrollTo({ left: tabRight - visibleWidth, behavior: 'smooth' });
+    if (tabTop < scrollTop) {
+      strip.scrollTo({ top: tabTop, behavior: 'smooth' });
+    } else if (tabBottom > scrollTop + visibleHeight) {
+      strip.scrollTo({ top: tabBottom - visibleHeight, behavior: 'smooth' });
     }
   }, [activeTabId]);
 
-  // Mouse wheel to switch tabs
   const handleWheel = useCallback(
     (e: React.WheelEvent) => {
       if (tabs.length <= 1) return;
-      if (!activeTabId) return;
       if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
       e.preventDefault();
       const currentIndex = tabs.findIndex((t) => t.id === activeTabId);
@@ -248,13 +224,13 @@ export function TabBarNormal({ tabs, activeTabId, secondaryTabId, splitOrientati
 
   const renderTabItem = useCallback(
     (tab: Tab, index: number) => (
-      <div key={tab.id} className="tab-bar-normal__slot">
-        {dragOverIndex === index && <div className="tab-bar-normal__insert-indicator" />}
+      <div key={tab.id} className="tab-bar-vertical__slot">
+        {dragOverIndex === index && <div className="tab-bar-vertical__insert-indicator" />}
         <TabItem
           tab={tab}
           isActive={tab.id === activeTabId}
           isSecondary={tab.id === secondaryTabId}
-          canClose={tabs.length > 1 || (!tab.pinned && tabs.length > 0)}
+          canClose={tabs.length > 1 || !tab.pinned}
           hasSplit={hasSplit}
           onActivate={() => activateTab(tab.id)}
           onClose={() => closeTab(tab.id)}
@@ -294,33 +270,31 @@ export function TabBarNormal({ tabs, activeTabId, secondaryTabId, splitOrientati
   );
 
   return (
-    <div className="tab-bar-normal">
+    <div className="tab-bar-vertical">
       <div
-        className="tab-bar-normal__strip"
+        className="tab-bar-vertical__strip"
         ref={stripRef}
         onDrop={handleStripDrop}
         onDragOver={handleStripDragOver}
         onWheel={handleWheel}
       >
-        <span className="tab-bar-normal__indicator" style={indicatorStyle} aria-hidden="true" />
+        <span className="tab-bar-vertical__indicator" style={indicatorStyle} aria-hidden="true" />
 
         {pinnedTabs.length > 0 && (
-          <div className="tab-bar-normal__pinned">
+          <div className="tab-bar-vertical__pinned">
             {pinnedTabs.map((tab, i) => renderTabItem(tab, i))}
           </div>
         )}
 
         {unpinnedTabs.map((tab, i) => renderTabItem(tab, pinnedTabs.length + i))}
-        {dragOverIndex === tabs.length && <div className="tab-bar-normal__insert-indicator" />}
-
-        {tabs.length > 0 && <div className="tab-bar-normal__section-divider" />}
+        {dragOverIndex === tabs.length && <div className="tab-bar-vertical__insert-indicator" />}
 
         <Button
           ref={addBtnRef}
           icon="mdi mdi-plus"
           variant="ghost"
-          size="xs"
-          className="tab-bar-normal__add-btn"
+          size="sm"
+          className="tab-bar-vertical__add-btn"
           onClick={() => setShowPicker((v) => !v)}
           title="New tab"
         />
@@ -332,17 +306,15 @@ export function TabBarNormal({ tabs, activeTabId, secondaryTabId, splitOrientati
             searchPlaceholder="Search for a page to open..."
           />
         )}
-
-        <span className="tab-bar-normal__label">Tabs</span>
       </div>
 
       {showOverflow && (
-        <div className="tab-bar-normal__overflow">
+        <div className="tab-bar-vertical__overflow">
           <Button
             icon="mdi mdi-chevron-down"
             variant="ghost"
             size="sm"
-            className="tab-bar-normal__overflow-btn"
+            className="tab-bar-vertical__overflow-btn"
             onClick={() => setOverflowOpen((v) => !v)}
             title="All tabs"
           />

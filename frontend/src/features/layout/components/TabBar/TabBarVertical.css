@@ -1,0 +1,108 @@
+/* TabBarVertical.css */
+
+.tab-bar-vertical {
+  --tab-bar-vertical-width: 42px;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background-color: var(--color-surface);
+  border-right: 1px solid var(--color-border);
+  width: var(--tab-bar-vertical-width);
+  overflow: hidden;
+}
+
+.tab-bar-vertical__strip {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: var(--spacing-1) 0;
+  position: relative;
+  scrollbar-width: none;
+}
+
+.tab-bar-vertical__strip::-webkit-scrollbar {
+  display: none;
+}
+
+.tab-bar-vertical__indicator {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 2px;
+  background-color: var(--color-primary);
+  border-radius: 0 2px 2px 0;
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+    height 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 2;
+  pointer-events: none;
+}
+
+.tab-bar-vertical__pinned {
+  display: flex;
+  flex-direction: column;
+  padding-bottom: var(--spacing-1);
+  margin-bottom: var(--spacing-1);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.tab-bar-vertical__slot {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  padding: 0 var(--spacing-0-5);
+}
+
+.tab-bar-vertical__slot .tab-item {
+  justify-content: center;
+  min-height: 34px;
+  max-width: none;
+}
+
+.tab-bar-vertical__slot .tab-item .tab-item__label {
+  display: none;
+}
+
+.tab-bar-vertical__slot .tab-item .tab-item__close {
+  position: absolute;
+  right: 2px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.tab-bar-vertical__insert-indicator {
+  height: 2px;
+  background-color: var(--color-primary);
+  border-radius: 1px;
+  margin: 1px 0;
+  flex-shrink: 0;
+}
+
+.tab-bar-vertical__add-btn {
+  flex-shrink: 0;
+  align-self: center;
+  margin-top: var(--spacing-1);
+  min-height: var(--height-sm);
+  width: var(--height-sm);
+  padding: 0 !important;
+}
+
+.tab-bar-vertical__overflow {
+  display: flex;
+  justify-content: center;
+  padding: var(--spacing-1);
+  border-top: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.tab-bar-vertical__overflow-btn {
+  min-height: var(--height-sm);
+  width: var(--height-sm);
+  padding: 0 !important;
+}
+
+/* Drop zone highlight in vertical strip */
+.tab-bar-vertical__strip.tab-bar-vertical__strip--dragover {
+  background-color: var(--color-surface-elevated);
+}

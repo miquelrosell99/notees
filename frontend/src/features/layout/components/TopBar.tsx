@@ -10,7 +10,7 @@
  */
 import { useRef, useState, useMemo, useCallback, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useNavigationStore, useModalStore, useNavigationHistoryStore, useUndoStore } from '@/stores';
+import { useNavigationStore, useModalStore, useUndoStore, useSettingsStore } from '@/stores';
 import { useAutoExportStore } from '@/stores/autoExportStore';
 import { useCommentCount, useDailyNote } from '@/hooks';
 import { Icon } from '@/components/ui/Icon';
@@ -82,11 +82,16 @@ export function TopBar() {
   const [scratchpadEntryCount, setScratchpadEntryCount] = useState(0);
   const [goToTodaySignal] = useState(0);
 
-  // Navigation history for back/forward buttons
-  const canGoBack = useNavigationHistoryStore(s => s.canGoBack);
-  const canGoForward = useNavigationHistoryStore(s => s.canGoForward);
-  const goBack = useNavigationHistoryStore(s => s.goBack);
-  const goForward = useNavigationHistoryStore(s => s.goForward);
+  // Per-tab navigation history for back/forward buttons
+  const canGoBack = useNavigationStore(s => s.canGoBack());
+  const canGoForward = useNavigationStore(s => s.canGoForward());
+  const goBack = useNavigationStore(s => s.goBack);
+  const goForward = useNavigationStore(s => s.goForward);
+  const activeTabId = useNavigationStore(s => s.activeTabId);
+  const tabs = useNavigationStore(s => s.tabs);
+  const [navHistoryOpen, setNavHistoryOpen] = useState(false);
+  const navHistoryBtnRef = useRef<HTMLButtonElement>(null);
+  const tabPosition = useSettingsStore(s => s.tabPosition);
 
   // Global undo/redo
   const queryClient = useQueryClient();
@@ -193,18 +198,24 @@ export function TopBar() {
         </div>
       
         <div className="top-bar-center">
-          <TabBar />
+          {tabPosition !== 'left' && <TabBar />}
         </div>
       
         <div className="top-bar-right">
         {/* Back / Forward navigation */}
         <div className="nav-arrows">
           <Button
+            ref={navHistoryBtnRef}
             icon={"mdi mdi-arrow-left"}
             variant="ghost"
             size="sm"
             onClick={goBack}
             disabled={!canGoBack}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              const activeTab = tabs.find((t) => t.id === activeTabId);
+              if (activeTab && activeTab.history.length > 0) setNavHistoryOpen(true);
+            }}
             aria-label="Go back"
             title="Go back"
             className="toolbar-btn"
@@ -215,6 +226,11 @@ export function TopBar() {
             size="sm"
             onClick={goForward}
             disabled={!canGoForward}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              const activeTab = tabs.find((t) => t.id === activeTabId);
+              if (activeTab && activeTab.history.length > 0) setNavHistoryOpen(true);
+            }}
             aria-label="Go forward"
             title="Go forward"
             className="toolbar-btn"
@@ -283,6 +299,31 @@ export function TopBar() {
               onClose={() => setRedoMenuOpen(false)}
               title="Redo history"
               alignRight
+            />
+          );
+        })()}
+
+        {/* Navigation history dropdown */}
+        {navHistoryOpen && navHistoryBtnRef.current && (() => {
+          const activeTab = tabs.find((t) => t.id === activeTabId);
+          if (!activeTab || activeTab.history.length === 0) return null;
+          const rect = navHistoryBtnRef.current!.getBoundingClientRect();
+          const navigateToHistoryEntry = useNavigationStore.getState().navigateToHistoryEntry;
+          const items: ContextMenuItem[] = activeTab.history.map((entry, i) => ({
+            id: `nav-${i}`,
+            label: entry.label,
+            icon: i === activeTab.historyIndex ? 'mdi mdi-checkbox-marked-circle-outline' : undefined,
+            onClick: () => {
+              navigateToHistoryEntry(activeTab.id, i);
+              setNavHistoryOpen(false);
+            },
+          }));
+          return (
+            <ContextMenu
+              items={items}
+              position={{ x: rect.left, y: rect.bottom + 4 }}
+              onClose={() => setNavHistoryOpen(false)}
+              title="Tab history"
             />
           );
         })()}

@@ -1,3 +1,5 @@
+/* TabBarNormal.css — contained pill tab bar with centered underline indicator */
+
 .tab-bar-normal {
   display: flex;
   align-items: center;
@@ -5,37 +7,146 @@
   flex: 1;
   min-width: 0;
   overflow: hidden;
-  padding: 0 6px;
-  height: 100%;
+  padding: 0 var(--spacing-2);
+}
+
+.tab-bar-normal__label {
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-on-surface-variant);
+  opacity: 0.45;
+  user-select: none;
+  white-space: nowrap;
+  flex-shrink: 0;
+  margin-left: auto;
+  padding-right: var(--spacing-2);
+  position: sticky;
+  right: 0;
+  background: inherit;
 }
 
 .tab-bar-normal__strip {
-  display: flex;
+  position: relative;
+  display: inline-flex;
   align-items: center;
-  gap: var(--spacing-2);
   flex: 1;
   min-width: 0;
   overflow-x: auto;
   scrollbar-width: none;
   -ms-overflow-style: none;
-  padding: var(--spacing-1) 0;
+  gap: 0;
+  padding: 1px var(--spacing-1);
+  background: var(--color-surface-container);
+  border: 1px solid color-mix(in srgb, var(--color-outline-variant) 35%, transparent);
+  border-radius: var(--shape-large);
 }
 
 .tab-bar-normal__strip::-webkit-scrollbar {
   display: none;
 }
 
-.tab-bar-normal__slot {
-  display: flex;
-  align-items: center;
-  position: relative;
-}
-
-.tab-bar-normal__insert-indicator {
-  width: 2px;
-  height: var(--height-xs);
+/* Short centered underline indicator for active tab */
+.tab-bar-normal__indicator {
+  position: absolute;
+  bottom: 1px;
+  left: 0;
+  height: 2px;
   background: var(--color-primary);
   border-radius: 1px;
+  transition: transform var(--motion-duration-medium) var(--motion-easing-standard),
+              width var(--motion-duration-short) var(--motion-easing-standard);
+  z-index: 2;
+  pointer-events: none;
+}
+
+/* Pinned tabs - sticky left */
+.tab-bar-normal__pinned {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: inherit;
+  border-radius: inherit;
+  flex-shrink: 0;
+}
+
+/* Subtle divider after pinned tabs */
+.tab-bar-normal__pinned::after {
+  content: '';
+  width: 1px;
+  height: var(--height-xs);
+  background: var(--color-outline-variant);
+  opacity: 0.35;
+  margin: 0 var(--spacing-1);
+  flex-shrink: 0;
+}
+
+.tab-bar-normal__slot {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+/* Subtle vertical divider between tabs */
+.tab-bar-normal__slot::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 25%;
+  height: 50%;
+  width: 1px;
+  background: var(--color-outline-variant);
+  opacity: 0.25;
+}
+
+/* Section divider between tabs and the add button */
+
+
+.tab-bar-normal__insert-indicator {
+  width: var(--border-width-thick);
+  align-self: stretch;
+  background: var(--color-primary);
+  border-radius: var(--shape-full);
   margin: 0 1px;
   flex-shrink: 0;
+  opacity: 0.5;
+}
+
+.tab-bar-normal__section-divider {
+  width: 1px;
+  height: var(--height-xs);
+  background: var(--color-outline-variant);
+  opacity: 0.25;
+  margin: 0 var(--spacing-1);
+  flex-shrink: 0;
+}
+
+.tab-bar-normal__add-btn {
+  flex-shrink: 0;
+  margin-left: var(--spacing-1);
+}
+
+/* Overflow button */
+.tab-bar-normal__overflow {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.tab-bar-normal__overflow-btn {
+  width: var(--height-sm);
+  height: var(--height-sm);
+  border-radius: var(--shape-small);
+  color: var(--color-on-surface-variant);
+}
+
+.tab-bar-normal__overflow-btn:hover {
+  color: var(--color-on-surface);
+  background: var(--color-hover-overlay);
 }

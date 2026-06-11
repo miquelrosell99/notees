@@ -16,13 +16,15 @@ import React, { useEffect, useCallback, useRef, useState, Suspense } from 'react
 import { useNavigationStore, useModalStore, useSettingsStore, useFavoritesStore, usePresentationStore } from '@/stores';
 import { useCommand } from '@/hooks/useCommand';
 import { COMMAND_IDS } from '@/stores/commandRegistry';
-import { useTodayNote, RouterSync, useCreateNode, useNode, useIsMobile, useDocumentTitle } from '@/hooks';
+import { useTodayNote, useCreateNode, useNode, useIsMobile, useDocumentTitle } from '@/hooks';
+import { RouterSync } from './RouterSync';
 import { useSettingsQuery } from '@/hooks/useSettings';
 import { markPageOpened, fixLinksForUuid } from '@/api/nodes';
 import type { BlockData } from '@/utils/clipboardManager';
 import { Sidebar } from './Sidebar';
 import { MainContent } from './MainContent';
 import { TopBar } from './TopBar';
+import { TabBar } from './TabBar/TabBar';
 import { OfflineBanner } from './OfflineBanner';
 import { MobileLayout } from './MobileLayout';
 import { RightSidebarCards } from '@/features/sidebar/components/RightSidebarCards';
@@ -83,6 +85,7 @@ export function Layout() {
   const setMinimapOpen = useModalStore(s => s.setMinimapOpen);
   const setMainViewType = useNavigationStore(s => s.setMainViewType);
   const openNode = useNavigationStore(s => s.openNode);
+  const splitTab = useNavigationStore(s => s.splitTab);
   const workspaceRef = useRef<HTMLDivElement>(null);
 
   // Callback provided to all BlockEditors via context — opens the create-with-UUID modal
@@ -91,7 +94,7 @@ export function Layout() {
     setCreateWithUuidModalOpen(true, uuid);
   }, [setCreateWithUuidModalOpen]);
   
-  const { defaultView, wideMode } = useSettingsStore();
+  const { defaultView, wideMode, tabPosition } = useSettingsStore();
   const createNodeMutation = useCreateNode();
   const hasAppliedDefaultView = useRef(false);
   const { data: currentNode } = useNode(currentNodeId);
@@ -187,8 +190,32 @@ export function Layout() {
     };
 
     const handleDrop = (e: DragEvent) => {
-      if (!e.dataTransfer?.types.includes('application/x-notees-node')) return;
       if (e.altKey) return;
+
+      // Handle tab drag-to-split
+      const tabData = e.dataTransfer?.getData('application/x-notees-tab');
+      if (tabData && workspaceRef.current) {
+        const rect = workspaceRef.current.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        const xPct = x / rect.width;
+        const yPct = y / rect.height;
+        const EDGE_THRESHOLD = 0.15;
+
+        if (xPct < EDGE_THRESHOLD || xPct > 1 - EDGE_THRESHOLD) {
+          splitTab(tabData, 'horizontal');
+          e.preventDefault();
+          return;
+        }
+        if (yPct < EDGE_THRESHOLD || yPct > 1 - EDGE_THRESHOLD) {
+          splitTab(tabData, 'vertical');
+          e.preventDefault();
+          return;
+        }
+      }
+
+      // Handle node drop
+      if (!e.dataTransfer?.types.includes('application/x-notees-node')) return;
 
       const data = e.dataTransfer.getData('application/x-notees-node');
       if (!data) return;
@@ -290,6 +317,7 @@ export function Layout() {
                   />
                 )}
               </div>
+              {tabPosition === 'left' && <TabBar />}
               <Card className="main-container" padding={false} elevation="medium">
                 <MainContent />
               </Card>
