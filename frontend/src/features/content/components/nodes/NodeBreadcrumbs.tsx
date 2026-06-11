@@ -28,7 +28,6 @@ import { useQueryClient } from '@tanstack/react-query';
 import { nodeKeys } from '@/hooks/queryKeys';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { useClickOutside } from '@/hooks/useClickOutside';
-import type { Node } from '@/types';
 import { ChevronRightIcon, NodeIcon } from '@/components/ui/icons';
 import { Button } from '@/components/ui/Button';
 import { NodeInline } from '@/features/content/components/blocks/NodeInline';
@@ -550,76 +549,4 @@ export function NodeBreadcrumbs({
   );
 }
 
-// ─── InlineNodeBreadcrumbs (for list items) ───────────────────────────────────
-
-export interface InlineNodeBreadcrumbsProps {
-  /** The node to show breadcrumbs for */
-  node: Node;
-  /** Parent page (if known) */
-  page?: Node | null;
-  /** Context string (e.g., "via property_name") */
-  context?: string;
-  /** Callback when clicking a breadcrumb item */
-  onNavigate?: (nodeId: number) => void;
-  /** Additional CSS class */
-  className?: string;
-  /** Whether to show as compact inline */
-  compact?: boolean;
-}
-
-export function InlineNodeBreadcrumbs({
-  node,
-  page,
-  context,
-  onNavigate,
-  className = '',
-  compact = true,
-}: InlineNodeBreadcrumbsProps) {
-  const breadcrumbs = useMemo((): BreadcrumbItem[] => {
-    const items: BreadcrumbItem[] = [];
-
-    if (!node.is_page) {
-      if (page) {
-        items.push({
-          id: page.id,
-          name: nodeNameToText(page.name) || 'Untitled',
-          icon: page.icon,
-          isPage: true,
-        });
-      } else if (node.page_id && node.page_name) {
-        items.push({
-          id: node.page_id,
-          name: node.page_name,
-          icon: null,
-          isPage: true,
-        });
-      }
-    }
-
-    return items;
-  }, [node, page]);
-
-  if (breadcrumbs.length === 0 && !context) return null;
-
-  return (
-    <nav
-      className={`node-breadcrumbs node-breadcrumbs--inline ${compact ? 'node-breadcrumbs--compact' : ''} ${className}`}
-      aria-label="Node path"
-    >
-      {breadcrumbs.map((item, index) => (
-        <NodeBreadcrumbsElement
-          key={item.id}
-          item={item}
-          onClick={() => onNavigate?.(item.id)}
-          showSeparator={index < breadcrumbs.length - 1 || !!context}
-        />
-      ))}
-      {context && (
-        <span className="node-breadcrumb-item node-breadcrumb-context">
-          <span className="node-breadcrumb-context-text">{context}</span>
-        </span>
-      )}
-    </nav>
-  );
-}
 
