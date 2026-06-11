@@ -685,7 +685,6 @@ export function NodeView({
 
   // Top-bar 3-dot menu state
   const [showTopBarMenu, setShowTopBarMenu] = useState(false);
-  const [topBarMenuPos, setTopBarMenuPos] = useState({ x: 0, y: 0 });
   const topBarMenuBtnRef = useRef<HTMLButtonElement>(null);
   const topBarMenuClosedAtRef = useRef(0);
   
@@ -927,10 +926,6 @@ export function NodeView({
     // If the menu was just closed by the outside-click handler (triggered by clicking
     // this same button), don't reopen it — this gives the correct toggle behaviour.
     if (Date.now() - topBarMenuClosedAtRef.current < 200) return;
-    if (topBarMenuBtnRef.current) {
-      const rect = topBarMenuBtnRef.current.getBoundingClientRect();
-      setTopBarMenuPos({ x: rect.left, y: rect.bottom + 4 });
-    }
     setShowTopBarMenu(true);
   }, []);
 
@@ -1086,13 +1081,13 @@ export function NodeView({
     resolvedType === 'page' ? (
       <PageContextMenu
         node={node}
-        position={topBarMenuPos}
+        anchorEl={topBarMenuBtnRef.current}
         onClose={handleCloseTopBarMenu}
       />
     ) : (
       <BlockContextMenu
         node={node}
-        position={topBarMenuPos}
+        anchorEl={topBarMenuBtnRef.current}
         onClose={handleCloseTopBarMenu}
       />
     )
