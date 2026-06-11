@@ -81,7 +81,7 @@ export function ClassPropertiesEditor({
   // Handle creating a new property and immediately linking it to the class
   const handleCreateProperty = useCallback(
     (data: PropertyCreate & { selection_options?: { name: string; icon?: string }[] }) => {
-      const scope = data.scope ?? (data.is_local ? 'node' : 'global');
+      const scope = data.scope ?? 'global';
       const node_id = scope === 'class' ? classNodeId : data.node_id;
       createPropertyMutation.mutate(
         { ...data, scope, node_id } as PropertyCreate,

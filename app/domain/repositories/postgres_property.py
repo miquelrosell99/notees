@@ -247,8 +247,8 @@ class PostgresPropertyRepository(BasePostgresRepository, PropertyRepository):
             row = await conn.fetchrow(
                 """
                 INSERT INTO property (uuid, workspace_id, name, icon, type, is_multi, is_system,
-                                      is_local, scope, node_id, create_date, write_date, create_uid, write_uid)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11, $12, $12)
+                                      scope, node_id, create_date, write_date, create_uid, write_uid)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10, $11, $11)
                 RETURNING id
             """,
                 uuid,
@@ -258,7 +258,6 @@ class PostgresPropertyRepository(BasePostgresRepository, PropertyRepository):
                 property.type.value,
                 is_multi,
                 property.is_system,
-                property.scope != PropertyScope.GLOBAL,  # is_local for backward compat
                 property.scope.value,
                 property.node_id,
                 now,
@@ -1058,7 +1057,7 @@ class PostgresPropertyRepository(BasePostgresRepository, PropertyRepository):
                 """
                 SELECT np.*, p.uuid as p_uuid, p.name as p_name, p.icon as p_icon,
                        p.type as p_type, p.is_multi as p_is_multi, p.is_system as p_is_system,
-                       p.is_local as p_is_local, p.node_id as p_node_id,
+                       p.scope as p_scope, p.node_id as p_node_id,
                        p.create_date as p_create_date, p.write_date as p_write_date
                 FROM node_property np
                 JOIN property p ON np.property_id = p.id
@@ -1087,7 +1086,7 @@ class PostgresPropertyRepository(BasePostgresRepository, PropertyRepository):
                     type=PropertyType(np_row["p_type"]),
                     is_multi=np_row["p_is_multi"],
                     is_system=np_row["p_is_system"],
-                    scope=PropertyScope(np_row.get("p_scope", "node" if np_row.get("p_is_local") else "global")),
+                    scope=PropertyScope(np_row["p_scope"]),
                     node_id=np_row["p_node_id"],
                     create_date=p_create_date,
                     write_date=p_write_date,
@@ -1164,7 +1163,7 @@ class PostgresPropertyRepository(BasePostgresRepository, PropertyRepository):
                 """
                 SELECT np.*, p.uuid as p_uuid, p.name as p_name, p.icon as p_icon,
                        p.type as p_type, p.is_multi as p_is_multi, p.is_system as p_is_system,
-                       p.is_local as p_is_local, p.node_id as p_node_id,
+                       p.scope as p_scope, p.node_id as p_node_id,
                        p.create_date as p_create_date, p.write_date as p_write_date
                 FROM node_property np
                 JOIN property p ON np.property_id = p.id
@@ -1196,7 +1195,7 @@ class PostgresPropertyRepository(BasePostgresRepository, PropertyRepository):
                     type=PropertyType(np_row["p_type"]),
                     is_multi=np_row["p_is_multi"],
                     is_system=np_row["p_is_system"],
-                    scope=PropertyScope(np_row.get("p_scope", "node" if np_row.get("p_is_local") else "global")),
+                    scope=PropertyScope(np_row["p_scope"]),
                     node_id=np_row["p_node_id"],
                     create_date=p_create_date,
                     write_date=p_write_date,

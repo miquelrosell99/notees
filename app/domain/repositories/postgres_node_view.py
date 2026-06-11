@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
@@ -52,26 +51,12 @@ class PostgresNodeViewRepository:
 
         # Parse query_json from JSONB
         query_json = row.get("query_json")
-        if query_json is None:
+        if query_json is None or not isinstance(query_json, dict):
             query_json = DEFAULT_QUERY_AST.copy()
-        elif isinstance(query_json, str):
-            try:
-                parsed = json.loads(query_json)
-                query_json = parsed if isinstance(parsed, dict) else DEFAULT_QUERY_AST.copy()
-            except json.JSONDecodeError:
-                query_json = DEFAULT_QUERY_AST.copy()
 
         # Parse shown_properties from JSONB
         shown_properties = row.get("shown_properties")
-        if shown_properties is None:
-            shown_properties = []
-        elif isinstance(shown_properties, str):
-            try:
-                parsed = json.loads(shown_properties)
-                shown_properties = parsed if isinstance(parsed, list) else []
-            except json.JSONDecodeError:
-                shown_properties = []
-        elif not isinstance(shown_properties, list):
+        if shown_properties is None or not isinstance(shown_properties, list):
             shown_properties = []
 
         return NodeView(
@@ -151,7 +136,7 @@ class PostgresNodeViewRepository:
                     uuid,
                     node_id,
                     name,
-                    json.dumps(query_json),
+                    query_json,
                     view_type,
                     order_index,
                     is_default,
@@ -172,7 +157,7 @@ class PostgresNodeViewRepository:
                     uuid,
                     node_id,
                     name,
-                    json.dumps(query_json),
+                    query_json,
                     view_type,
                     order_index,
                     is_default,
@@ -414,7 +399,7 @@ class PostgresNodeViewRepository:
         if shown_properties is not None:
             param_idx += 1
             updates.append(f"shown_properties = ${param_idx}::jsonb")
-            params.append(json.dumps(shown_properties))
+            params.append(shown_properties)
 
         if group_by is not None:
             param_idx += 1
@@ -492,7 +477,7 @@ class PostgresNodeViewRepository:
             """,
                 view_id,
                 self._workspace_id,
-                json.dumps(query_json),
+                query_json,
                 self._user_id,
             )
 
