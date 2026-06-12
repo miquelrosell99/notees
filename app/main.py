@@ -37,13 +37,10 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi_limiter.depends import RateLimiter
 from pyrate_limiter import Duration, Limiter, Rate
-from pyrate_limiter.abstracts import BucketFactory, RateItem
-from pyrate_limiter.buckets import InMemoryBucket
-from pyrate_limiter.clocks import MonotonicClock
-from starlette.requests import Request
 from starlette.responses import RedirectResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
+from . import auth as auth_module
 from .backup import get_backup_scheduler
 from .cleanup import get_cleanup_scheduler
 from .config import ensure_directories, settings
@@ -57,6 +54,7 @@ from .domain.errors import (
 )
 from .logging_config import get_logger, setup_logging
 from .node_export import get_static_share_path
+from .rate_limit import PerKeyBucketFactory, ip_only_identifier
 from .routers import (
     assets_router,
     auth_router,
@@ -101,15 +99,30 @@ async def lifespan(app: FastAPI):
             await init_database(conn)  # type: ignore[arg-type]
         logger.info("Database schema initialized")
 
-        # Warn if no admin exists so the instance owner knows how to fix it
+        # Ensure an admin exists. If ADMIN_PASSWORD is set and no admin exists,
+        # create the initial admin automatically. Otherwise warn so the operator
+        # knows to run the promotion script.
         async with acquire_connection(pool) as conn:
             admin_count = await conn.fetchval(
                 "SELECT COUNT(*) FROM \"user\" WHERE role = 'admin' AND active = TRUE"
             )
             if admin_count == 0:
-                logger.warning(
-                    "No admin user found. To create an admin, run: python scripts/promote_user_to_admin.py <email>"
-                )
+                admin_password = os.environ.get("ADMIN_PASSWORD", "").strip()
+                if admin_password:
+                    try:
+                        await auth_module.create_user(
+                            email="admin@notees.local",
+                            password=admin_password,
+                            name="Admin",
+                            role="admin",
+                        )
+                        logger.info("Created initial admin user from ADMIN_PASSWORD")
+                    except Exception as e:
+                        logger.error(f"Failed to create initial admin user: {e}")
+                else:
+                    logger.warning(
+                        "No admin user found. To create an admin, run: python scripts/promote_user_to_admin.py <email>"
+                    )
     else:
         logger.info("Skipping schema initialization under pytest (handled by db_pool fixture)")
 
@@ -222,10 +235,11 @@ def _is_production() -> bool:
 
 
 # Configure CORS if origins are specified
-if settings.cors_origins:
+cors_origins = [origin for origin in settings.cors_origins if origin and origin.strip()]
+if cors_origins:
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.cors_origins,
+        allow_origins=cors_origins,
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
         allow_headers=[
@@ -239,7 +253,7 @@ if settings.cors_origins:
         expose_headers=["X-Request-ID", "X-RateLimit-Remaining", "X-RateLimit-Limit", "X-RateLimit-Reset"],
         max_age=600,
     )
-    logger.info(f"CORS enabled for origins: {settings.cors_origins}")
+    logger.info(f"CORS enabled for origins: {cors_origins}")
 
 
 # Security headers middleware
@@ -315,10 +329,29 @@ def _error_response(code: str, message: str, status: int) -> JSONResponse:
     )
 
 
+def _sanitize_validation_errors(errors: list[dict]) -> list[dict]:
+    """Return validation error details safe for logging.
+
+    Pydantic v2 error dicts include an ``input`` field containing the raw value
+    that failed validation. For registration/password endpoints this can leak
+    plaintext credentials into application logs. This helper keeps only location,
+    type, and message information.
+    """
+    sanitized = []
+    for error in errors:
+        sanitized.append({
+            "loc": error.get("loc"),
+            "type": error.get("type"),
+            "msg": error.get("msg"),
+        })
+    return sanitized
+
+
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request, exc):
-    """Log validation errors for debugging."""
-    logger.error(f"Validation error on {request.method} {request.url.path}: {exc.errors()}")
+    """Log validation errors for debugging without leaking raw input."""
+    safe_errors = _sanitize_validation_errors(exc.errors())
+    logger.error(f"Validation error on {request.method} {request.url.path}: {safe_errors}")
     return _error_response(
         code="VALIDATION_ERROR",
         message="Request validation failed",
@@ -450,56 +483,7 @@ if dist_path.exists():
 # Mount all routers under both /api and /api/v1 for versioning.
 # /api is the legacy path; /api/v1 is the versioned path.
 
-class PerKeyBucketFactory(BucketFactory):
-    """Bucket factory that creates a separate InMemoryBucket per rate-limit key.
 
-    The default pyrate_limiter ``SingleBucketFactory`` uses one shared bucket for
-    *all* keys, which means every API endpoint and every user draws from the same
-    global quota. For a React SPA that fires many parallel requests during normal
-    browsing, a global 200 req/min limit is exhausted almost immediately.
-
-    This factory isolates each key so that rate limits apply per-client (or per
-    client+endpoint combination), preventing one user's navigation from blocking
-    another and giving each key its own independent budget.
-    """
-
-    def __init__(self, rates: list[Rate]) -> None:
-        super().__init__()
-        self._rates = rates
-        self._buckets: dict[str, InMemoryBucket] = {}
-        self._clock = MonotonicClock()
-
-    def wrap_item(self, name: str, weight: int = 1) -> RateItem:
-        return RateItem(name, self._clock.now(), weight=weight)
-
-    def get(self, item: RateItem) -> InMemoryBucket:
-        key = item.name
-        if key not in self._buckets:
-            bucket = InMemoryBucket(self._rates)
-            self._buckets[key] = bucket
-            self.schedule_leak(bucket)
-        return self._buckets[key]
-
-
-async def _ip_only_identifier(request: Request) -> str:
-    """Return the client IP without the request path.
-
-    The default ``fastapi_limiter`` identifier includes ``request.scope["path"]``,
-    which creates a new bucket for every unique URL (e.g. ``/api/nodes/123`` vs
-    ``/api/nodes/456``). In a note-taking app with many node-specific endpoints,
-    that causes bucket proliferation and makes per-key limits hard to reason about.
-
-    Using the IP alone keeps the bucket count bounded to the number of active
-    clients while still isolating users from one another.
-    """
-    forwarded = request.headers.get("X-Forwarded-For")
-    if forwarded:
-        ip = forwarded.split(",")[0]
-    elif request.client:
-        ip = request.client.host
-    else:
-        ip = "127.0.0.1"
-    return ip
 
 
 # Global default rate limit: 5000 requests per minute per IP.
@@ -510,11 +494,11 @@ _default_api_limiter = Limiter(PerKeyBucketFactory([Rate(5000, Duration.MINUTE)]
 
 api_router = APIRouter(
     prefix="/api",
-    dependencies=[Depends(RateLimiter(limiter=_default_api_limiter, identifier=_ip_only_identifier))],
+    dependencies=[Depends(RateLimiter(limiter=_default_api_limiter, identifier=ip_only_identifier))],
 )
 v1_router = APIRouter(
     prefix="/api/v1",
-    dependencies=[Depends(RateLimiter(limiter=_default_api_limiter, identifier=_ip_only_identifier))],
+    dependencies=[Depends(RateLimiter(limiter=_default_api_limiter, identifier=ip_only_identifier))],
 )
 
 routers = [

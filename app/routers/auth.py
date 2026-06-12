@@ -9,7 +9,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi_limiter.depends import RateLimiter
-from pyrate_limiter import Duration, Limiter, Rate
+from pyrate_limiter import Duration
 
 from .. import auth
 from ..config import settings
@@ -25,14 +25,18 @@ from ..models import (
     UserLogin,
     UserUpdate,
 )
+from ..rate_limit import ip_only_identifier, per_ip_limiter
 
 logger = get_logger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 security = HTTPBearer(auto_error=False)
 
-_auth_limiter_register = Limiter(Rate(3, Duration.MINUTE))
-_auth_limiter_login = Limiter(Rate(5, Duration.MINUTE))
+_auth_limiter_register = per_ip_limiter(3, Duration.MINUTE)
+_auth_limiter_login = per_ip_limiter(5, Duration.MINUTE)
+_auth_limiter_refresh = per_ip_limiter(10, Duration.MINUTE)
+_auth_limiter_invite = per_ip_limiter(5, Duration.MINUTE)
+_auth_limiter_api_key = per_ip_limiter(10, Duration.MINUTE)
 
 
 async def _resolve_user_from_auth(
@@ -158,13 +162,16 @@ async def auth_status():
 
 def _set_refresh_cookie(response: Response, token: str) -> None:
     """Set the refresh token HTTPOnly cookie."""
-    max_age = 7 * 24 * 60 * 60
+    max_age = settings.refresh_token_expire_days * 24 * 60 * 60
+    # In production, require HTTPS for the refresh token cookie regardless of
+    # PUBLIC_URL configuration, and use Strict SameSite to prevent CSRF.
+    is_production = settings.environment.lower() == "production"
     response.set_cookie(
         key="refresh_token",
         value=token,
         httponly=True,
-        secure=settings.public_url.startswith("https://"),
-        samesite="lax",
+        secure=is_production or settings.public_url.startswith("https://"),
+        samesite="strict",
         max_age=max_age,
         path="/api/auth/refresh",
     )
@@ -237,7 +244,10 @@ async def login(request: Request, response: Response, credentials: UserLogin):
     return {"access_token": access_token, "refresh_token": refresh_token, "token_type": "bearer", "user": user}
 
 
-@router.post("/refresh")
+@router.post(
+    "/refresh",
+    dependencies=[Depends(RateLimiter(limiter=_auth_limiter_refresh, identifier=ip_only_identifier))],
+)
 async def refresh_access_token(request: Request, response: Response):
     """Refresh access token using refresh token cookie.
 
@@ -252,20 +262,11 @@ async def refresh_access_token(request: Request, response: Response):
     if not token_row:
         raise HTTPException(status_code=401, detail="Invalid or expired refresh token")
 
-    # Check if token was already used (replaced_by is set OR revoked_at is set)
-    # Actually, verify_refresh_token_db only returns non-revoked tokens, so if we get here,
-    # the token is not revoked. But we need to check if it was already rotated.
-    # Let's check replaced_by directly.
-
-    async with auth.get_connection() as conn:
-        replaced = await conn.fetchval(
-            "SELECT replaced_by FROM refresh_token WHERE id = $1",
-            token_row["id"],
-        )
-        if replaced:
-            # Token reuse detected! Revoke entire family.
-            await auth.revoke_refresh_token_family(token_row["family_id"])
-            raise HTTPException(status_code=401, detail="Refresh token reuse detected")
+    # Check if token was already used (rotated). Reuse detection is delegated to
+    # the auth module so the router does not execute SQL directly.
+    if await auth.is_refresh_token_reused(token_row["id"]):
+        await auth.revoke_refresh_token_family(token_row["family_id"])
+        raise HTTPException(status_code=401, detail="Refresh token reuse detected")
 
     # Rotate refresh token
     new_refresh_token = auth.generate_refresh_token()
@@ -291,7 +292,10 @@ async def refresh_access_token(request: Request, response: Response):
     }
 
 
-@router.post("/invites/accept")
+@router.post(
+    "/invites/accept",
+    dependencies=[Depends(RateLimiter(limiter=_auth_limiter_invite, identifier=ip_only_identifier))],
+)
 async def accept_invite(request: Request, response: Response, body: InviteAcceptRequest):
     """Accept a pending invitation and create/login user.
 
@@ -450,7 +454,11 @@ class ApiKeyCreateWithOptions(ApiKeyCreate):
     expires_at: datetime | None = None
 
 
-@router.post("/api-keys", response_model=ApiKeyCreateResponse)
+@router.post(
+    "/api-keys",
+    response_model=ApiKeyCreateResponse,
+    dependencies=[Depends(RateLimiter(limiter=_auth_limiter_api_key, identifier=ip_only_identifier))],
+)
 async def create_api_key_endpoint(
     data: ApiKeyCreateWithOptions,
     user: User = Depends(get_current_user),  # noqa: B008
