@@ -9,6 +9,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi_limiter.depends import RateLimiter
+from pydantic import BaseModel
 from pyrate_limiter import Duration
 
 from .. import auth
@@ -27,6 +28,14 @@ from ..models import (
     UserUpdate,
 )
 from ..rate_limit import ip_only_identifier, per_ip_limiter
+
+
+class AuthStatusResponse(BaseModel):
+    """Authentication system status."""
+
+    needs_onboarding: bool
+    authenticated: bool
+    registration_enabled: bool
 
 logger = get_logger(__name__)
 
@@ -150,7 +159,7 @@ async def require_admin(user: User = Depends(get_current_user)) -> User:  # noqa
     return user
 
 
-@router.get("/status")
+@router.get("/status", response_model=AuthStatusResponse)
 async def auth_status():
     """Get authentication system status (for onboarding gate)."""
     needs_onboarding = await auth.is_first_boot()

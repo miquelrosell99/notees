@@ -21,6 +21,7 @@ from .helpers import (
 from .models import (
     AliasRequest,
     BacklinkResponse,
+    BatchTextLinksRequest,
     BreadcrumbSegment,
     InlineClassResponse,
     LinkedReferenceResponse,
@@ -73,7 +74,7 @@ async def get_text_links(
 
 @router.post("/batch-text-links")
 async def get_batch_text_links(
-    body: dict,
+    body: BatchTextLinksRequest,
     user: User = Depends(get_current_user),
 ):
     """Get text links for multiple nodes in a single request.
@@ -83,8 +84,8 @@ async def get_batch_text_links(
 
     Used for efficiently resolving node names in table views.
     """
-    node_ids = body.get("node_ids", [])
-    if not node_ids or not isinstance(node_ids, list):
+    node_ids = body.node_ids
+    if not node_ids:
         return {"links_by_node": {}}
 
     # Limit to prevent abuse

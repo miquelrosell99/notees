@@ -3,7 +3,10 @@
 System-level admin endpoints for user management and metrics.
 """
 
+from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 
 from .. import auth
 from ..auth import hash_password
@@ -15,6 +18,12 @@ from .auth import require_admin
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/admin", tags=["Admin"])
+
+
+class SystemSettingUpdate(BaseModel):
+    """Request body for updating a system setting."""
+
+    value: Any
 
 
 @router.get("/users")
@@ -255,11 +264,11 @@ async def get_system_setting_endpoint(
 @router.put("/settings/{key}")
 async def update_system_setting(
     key: str,
-    data: dict,
+    data: SystemSettingUpdate,
     admin_user=Depends(require_admin),  # noqa: B008
 ):
     """Update a system setting."""
-    value = data.get("value")
+    value = data.value
     if value is None:
         raise HTTPException(status_code=400, detail="Missing 'value' field")
     await set_system_setting(key, value)

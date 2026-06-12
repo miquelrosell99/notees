@@ -7,7 +7,12 @@ from ...db.connection import get_pool
 from ...models import User
 from ..auth import get_current_user
 from .helpers import _get_property_repo
-from .models import ClassPropertyRequest, ClassPropertyResponse, ClassPropertyUpdateRequest
+from .models import (
+    ClassExtendsRequest,
+    ClassPropertyRequest,
+    ClassPropertyResponse,
+    ClassPropertyUpdateRequest,
+)
 
 router = APIRouter()
 
@@ -15,7 +20,7 @@ router = APIRouter()
 async def _get_extension_service(user: User):
     """Get ClassExtensionService for user's workspace (respects active workspace)."""
     from ...dependencies import _get_workspace_context_cached
-    from ...domain.repositories.postgres_class_extend import PostgresClassExtendRepository
+    from ...domain.repositories import PostgresClassExtendRepository, PostgresNodeRepository
     from ...domain.services.class_extension_service import ClassExtensionService
 
     pool = await get_pool()
@@ -23,7 +28,8 @@ async def _get_extension_service(user: User):
     workspace_id, _ = await _get_workspace_context_cached(pool, user_id)
     repo = await _get_property_repo(user)
     class_extend_repo = PostgresClassExtendRepository(pool, workspace_id, user_id)
-    return ClassExtensionService(pool, workspace_id, repo, class_extend_repo)
+    node_repo = PostgresNodeRepository(pool, workspace_id, 0, user_id)
+    return ClassExtensionService(workspace_id, repo, class_extend_repo, node_repo)
 
 
 # ============== Batch Class Properties ==============
@@ -293,7 +299,7 @@ async def get_class_extends(
 @router.post("/classes/{class_node_id}/extends")
 async def add_class_extends(
     class_node_id: int,
-    request: dict,
+    request: ClassExtendsRequest,
     user: User = Depends(get_current_user),
 ):
     """Add a class extension (inheritance) relationship.
@@ -304,11 +310,8 @@ async def add_class_extends(
     """
     from ...domain.services.class_extension_service import CircularInheritanceError
 
-    extends_class_id = request.get("extends_class_node_id")
-    if not extends_class_id:
-        raise HTTPException(400, "extends_class_node_id is required")
-
-    sequence = request.get("sequence", 0)
+    extends_class_id = request.extends_class_node_id
+    sequence = request.sequence
 
     extension_service = await _get_extension_service(user)
 
