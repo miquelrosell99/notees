@@ -104,7 +104,7 @@ class TestListTasks:
         resp = await authenticated_client.get("/api/nodes/tasks")
         assert resp.status_code == 200
         data = resp.json()
-        assert len(data["nodes"]) == 1
+        assert len(data["items"]) == 1
 
     @pytest.mark.asyncio
     async def test_excludes_completed_tasks_by_default(self, authenticated_client: AsyncClient):
@@ -114,7 +114,7 @@ class TestListTasks:
         resp = await authenticated_client.get("/api/nodes/tasks")
         assert resp.status_code == 200
         data = resp.json()
-        assert len(data["nodes"]) == 0
+        assert len(data["items"]) == 0
 
     @pytest.mark.asyncio
     async def test_includes_completed_tasks_when_requested(self, authenticated_client: AsyncClient):
@@ -135,7 +135,7 @@ class TestListTasks:
         resp = await authenticated_client.get("/api/nodes/tasks")
         assert resp.status_code == 200
         data = resp.json()
-        assert len(data["nodes"]) == 0
+        assert len(data["items"]) == 0
 
     @pytest.mark.asyncio
     async def test_pending_tasks_are_included(self, authenticated_client: AsyncClient):

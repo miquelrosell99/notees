@@ -980,10 +980,8 @@ class NodeService:
         plain-text name. When preserve_as_broken is True, replaces with a
         broken_link node instead so the original UUID is not lost.
 
-        For legacy plain-text content: uses regex replacement.
         """
         import json as _json
-        import re
 
         # ── AST JSON path (modern content) ────────────────────────────────
         try:
@@ -1042,14 +1040,7 @@ class NodeService:
         except (_json.JSONDecodeError, TypeError):
             pass
 
-        # TODO(A5): Legacy [[numericId]] / {{numericId}} plain-text fallback.
-        # Remove once a migration converts remaining plain-text links to AST.
-        result = content
-        link_pattern = re.compile(r"\[\[" + str(target_node.id) + r"\]\]")
-        result = link_pattern.sub(target_node.name or "", result)
-        class_pattern = re.compile(r"\{\{" + str(target_node.id) + r"\}\}")
-        result = class_pattern.sub(target_node.name or "", result)
-        return result
+        return content
 
     async def _remove_node_from_class_tag_properties(self, node_id: int) -> None:
         """Remove a node from any class/tag property values where it's referenced.
@@ -1573,13 +1564,7 @@ class NodeService:
         target_id: int,
         target_uuid: str,
     ) -> str:
-        """Replace references to source node with target node in content.
-
-        Handles both the new JSON AST format (link_id field) and the legacy
-        [[nodeId]] / {{nodeId}} text formats.
-        """
-        import re
-
+        """Replace references to source node with target node in content."""
         result = content
 
         # JSON AST format: "link_id":"<sourceUuid>:<linkUuid>" or "link_id":"<sourceUuid>"
@@ -1590,21 +1575,6 @@ class NodeService:
         result = result.replace(
             f'"link_id":"{source_uuid}"',
             f'"link_id":"{target_uuid}"',
-        )
-
-        # TODO(A5): Legacy [[numericId]] / {{numericId}} plain-text format.
-        # These paths handle content from a very early schema version before
-        # JSON AST links. A migration to convert them to node_link AST nodes
-        # is needed before this fallback can be removed.
-        result = re.sub(
-            r"\[\[" + str(source_id) + r"\]\]",
-            f"[[{target_id}]]",
-            result,
-        )
-        result = re.sub(
-            r"\{\{" + str(source_id) + r"\}\}",
-            "{{" + str(target_id) + "}}",
-            result,
         )
 
         return result

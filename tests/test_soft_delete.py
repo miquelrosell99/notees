@@ -150,7 +150,7 @@ async def test_permanent_delete_replaces_links_in_content(node_service):
         "type": "paragraph",
         "children": [
             {"type": "text", "text": "Source with "},
-            {"type": "node_link", "link_id": str(target.id), "ref_type": "node"}
+            {"type": "node_link", "link_id": target.uuid, "ref_type": "node"}
         ]
     }])
     source_block = await node_service.create_block(source_ast, parent_id=source_page.id, sequence=0)
@@ -168,7 +168,7 @@ async def test_permanent_delete_replaces_links_in_content(node_service):
     assert '"type": "node_link"' not in updated_source.name
     assert '"type": "broken_link"' in updated_source.name
     # The original link_id should be preserved for recovery
-    assert str(target.id) in updated_source.name
+    assert target.uuid in updated_source.name
 
 
 @pytest.mark.asyncio

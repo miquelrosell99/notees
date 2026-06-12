@@ -54,7 +54,7 @@ def _parse_links_from_ast(content: str) -> list[tuple[str, int, str | None, str 
     Returns None if content is not valid AST JSON, otherwise returns
     list of (target_node_uuid, position, link_uuid, label) tuples.
 
-    The link_id format is "nodeUuid:linkUuid" (or legacy "nodeId:linkUuid").
+    The link_id format is "nodeUuid:linkUuid".
     Label is the custom display text from the 'label' field in the AST node.
     """
     try:
@@ -81,11 +81,11 @@ def _parse_links_from_ast(content: str) -> list[tuple[str, int, str | None, str 
                 continue
             if node.get("type") == "node_link" and node.get("ref_type", "node") == "node":
                 link_id = str(node.get("link_id", ""))
-                # link_id format: "nodeUuid:linkUuid" (or legacy "nodeId:linkUuid")
+                # link_id format: "nodeUuid:linkUuid"
                 parts = link_id.split(":", 1)
                 if not parts[0]:
                     continue
-                node_identifier = parts[0]  # UUID string (or legacy numeric ID)
+                node_identifier = parts[0]  # UUID string
                 link_uuid = parts[1] if len(parts) > 1 else None
                 # Extract custom label if present
                 label = node.get("label")
@@ -105,7 +105,7 @@ def _parse_inline_classes_from_ast(content: str) -> list[tuple[str, int, str | N
     Returns None if content is not valid AST JSON, otherwise returns
     list of (node_identifier, position, link_uuid) tuples.
 
-    The link_id format is "nodeUuid:linkUuid" (or legacy numeric "classId").
+    The link_id format is "nodeUuid:linkUuid".
     """
     try:
         ast = json.loads(content)
@@ -130,11 +130,11 @@ def _parse_inline_classes_from_ast(content: str) -> list[tuple[str, int, str | N
                 continue
             if node.get("type") == "node_link" and node.get("ref_type") == "class":
                 link_id = str(node.get("link_id", ""))
-                # link_id format: "nodeUuid:linkUuid" (or legacy "classId")
+                # link_id format: "nodeUuid:linkUuid"
                 parts = link_id.split(":", 1)
                 if not parts[0]:
                     continue
-                node_identifier = parts[0]  # UUID string (or legacy numeric ID)
+                node_identifier = parts[0]  # UUID string
                 link_uuid = parts[1] if len(parts) > 1 else None
                 classes.append((node_identifier, position, link_uuid))
                 position += 1
@@ -200,7 +200,7 @@ class LinkParsingService:
 
         Returns list of tuples: (target_node_uuid, position, link_uuid, label)
         Extracts node_link entries with ref_type='node' from AST JSON content.
-        The first element is the node UUID (or legacy numeric ID string).
+        The first element is the node UUID.
         Label is the custom display text if present.
         """
         return _parse_links_from_ast(content) or []
@@ -332,16 +332,7 @@ class LinkParsingService:
         seen_target_ids: set[int] = set()
 
         for node_identifier, position, link_uuid, _label in parsed:
-            # Resolve the target node — try UUID first, fall back to numeric ID
-            target_node = None
-            try:
-                # Legacy format: numeric ID
-                target_id = int(node_identifier)
-                target_node = await self._node_repo.get_by_id(target_id)
-            except (ValueError, TypeError):
-                # New format: UUID string
-                target_node = await self._node_repo.get_by_uuid(node_identifier)
-
+            target_node = await self._node_repo.get_by_uuid(node_identifier)
             if not target_node:
                 continue
 
@@ -453,15 +444,7 @@ class LinkParsingService:
         new_inline_class_ids = []
 
         for node_identifier, position, link_uuid in parsed:
-            # Resolve identifier: try as UUID first, fall back to numeric ID
-            class_node = None
-            try:
-                numeric_id = int(node_identifier)
-                class_node = await self._node_repo.get_by_id(numeric_id)
-            except (ValueError, TypeError):
-                # Not numeric — treat as UUID
-                class_node = await self._node_repo.get_by_uuid(node_identifier)
-
+            class_node = await self._node_repo.get_by_uuid(node_identifier)
             if not class_node:
                 continue
 
