@@ -70,18 +70,21 @@ class PostgresActivityRepository(BasePostgresRepository, ActivityRepository):
         details: str | None,
         target_node_id: int | None,
         now: Any,
+        user_id: int | None = None,
     ) -> int:
+        uid = user_id if user_id is not None else self._user_id
         async with acquire_connection(self._pool) as conn:
             activity_id = await conn.fetchval(
                 """
-                INSERT INTO node_activity (node_id, action, details, target_node_id, create_date)
-                VALUES ($1, $2, $3, $4, $5)
+                INSERT INTO node_activity (node_id, action, details, target_node_id, user_id, create_uid, create_date)
+                VALUES ($1, $2, $3, $4, $5, $5, $6)
                 RETURNING id
                 """,
                 node_id,
                 action,
                 details,
                 target_node_id,
+                uid,
                 now,
             )
         return activity_id

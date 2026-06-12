@@ -1,25 +1,17 @@
 """Infrastructure layer package.
 
-This package contains implementations of domain interfaces
-that interact with external systems (databases, APIs, etc.).
+Repository implementations live under ``app/domain/repositories/`` alongside
+their interfaces (the current project convention). This package contains
+other infrastructure adapters such as pub/sub.
 
-Structure:
-- repositories/: Repository implementations (PostgreSQL)
-
-The infrastructure layer depends on the domain layer,
-but the domain layer should NEVER depend on infrastructure.
+The infrastructure layer depends on the domain layer, but the domain layer
+should NEVER depend on infrastructure.
 """
 
-from .repositories import (
-    NodeRepository,
-    PostgresNodeRepository,
-    PostgresUserRepository,
-    UserRepository,
-)
+from .redis_pubsub import CollabPubSub, InMemoryPubSub, RedisPubSub
 
 __all__ = [
-    "NodeRepository",
-    "UserRepository",
-    "PostgresNodeRepository",
-    "PostgresUserRepository",
+    "CollabPubSub",
+    "InMemoryPubSub",
+    "RedisPubSub",
 ]
