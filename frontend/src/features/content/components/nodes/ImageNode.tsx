@@ -16,6 +16,7 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { ImageModal } from '@/components/ui/ImageModal';
 import { FloatingButtonArray } from '@/components/ui/FloatingButtonArray';
+import { Bullet } from '@/features/content/components/blocks/Bullet';
 import './ImageNode.css';
 
 interface ImageNodeProps {
@@ -223,9 +224,20 @@ export function ImageNode({
           onClose={() => setIsModalOpen(false)}
           src={imageUrl}
           alt={alt}
-          assetNode={showModalBullet ? assetNode : undefined}
-          onBulletClick={showModalBullet ? handleBulletClick : undefined}
-          onBulletShiftClick={showModalBullet ? handleBulletShiftClick : undefined}
+          bullet={
+            showModalBullet && assetNode ? (
+              <Bullet
+                nodeId={assetNode.id}
+                icon={assetNode.icon}
+                isPage={assetNode.is_page}
+                interactive={true}
+                onClick={handleBulletClick}
+                onShiftClick={handleBulletShiftClick}
+                size="md"
+                title="Click to open, Shift+click for sidebar"
+              />
+            ) : undefined
+          }
         />
       )}
     </>

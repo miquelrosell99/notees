@@ -16,7 +16,7 @@ import { useState, useCallback, useMemo, useRef, memo, createContext, useContext
 import { Pill } from '@/components/ui/Pill';
 import { NodeIcon, CloseIcon } from '@/components/ui/icons';
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/ContextMenu';
-import { ColorPickerRow } from './NodeContextMenu';
+import { ColorPickerRow } from './ColorPickerRow';
 import { useBatchedNode } from '@/hooks';
 import { useNodeDisplay } from '@/hooks/useNodeDisplay';
 import { useReferencedNode } from '@/contexts/useReferencedNode';

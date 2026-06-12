@@ -1,12 +1,12 @@
 import { useEffect, useCallback, type MutableRefObject } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigationStore } from '@/stores';
-import { useFavoritesStore } from '@/stores/favoritesStore';
 import { useNavigationHistoryStore } from '@/stores/navigationHistoryStore';
 import { listWorkspaces, switchWorkspace } from '@/features/workspace/api/workspaces';
 import { getNodeByUuid } from '@/api/nodes';
 import { getPropertyByUuid } from '@/api/properties';
 import { parseUrl, replaceUrl, type ParsedRoute } from '@/hooks/useRouter';
+import { favoriteKeys, recentKeys } from '@/hooks/queryKeys';
 import { getLogger } from '@/utils/logger';
 import { isDayUuid, isMonthUuid, isYearUuid } from '@/utils/dateUuid';
 
@@ -50,14 +50,14 @@ export function useRouterSync(
 
     useNavigationStore.setState({
       currentNodeId: null,
-      activeNode: null,
       activeNodeId: null,
       sidebarNode: null,
       localGraphNodeId: null,
       mainViewType: 'node',
     });
 
-    useFavoritesStore.getState().clear();
+    queryClient.removeQueries({ queryKey: favoriteKeys.all });
+    queryClient.removeQueries({ queryKey: recentKeys.all });
     queryClient.clear();
 
     await queryClient.fetchQuery({
@@ -65,7 +65,8 @@ export function useRouterSync(
       queryFn: () => listWorkspaces(),
     });
 
-    useFavoritesStore.getState().refresh();
+    queryClient.invalidateQueries({ queryKey: favoriteKeys.all });
+    queryClient.invalidateQueries({ queryKey: recentKeys.all });
     return true;
   }, [dbData, queryClient]);
 

@@ -1,6 +1,7 @@
 import { useState, useCallback, memo } from 'react';
-import { useNavigationStore, useFavoritesStore } from '@/stores';
+import { useNavigationStore } from '@/stores';
 import { useNode, useIsMobile } from '@/hooks';
+import { useRecents } from '@/hooks/useRecents';
 import { useNodeDisplay } from '@/hooks/useNodeDisplay';
 import { NodeInline } from '@/features/content/components/blocks/NodeInline';
 import { NodeBreadcrumbs } from '@/features/content/components/nodes/NodeBreadcrumbs';
@@ -56,7 +57,8 @@ interface SidebarRecentsProps {
 
 export function SidebarRecents({ onContextMenu }: SidebarRecentsProps) {
   const [expanded, setExpanded] = useState(true);
-  const recents = useFavoritesStore((state) => state.recents);
+  const { data: recentsData } = useRecents();
+  const recents = recentsData ?? [];
   const {
     mainViewType,
     currentNodeId,

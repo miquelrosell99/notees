@@ -82,7 +82,7 @@ export function useCommandPalette({ isOpen, onClose, onSelect }: CommandPaletteP
         e.stopPropagation();
         openNodeCollectionFromNodes(
           state.searchTerm.trim() ? `Search: "${state.searchTerm}"` : 'Search results',
-          state.searchResults as Node[],
+          (state.searchResults as Node[]).map((n) => n.id),
         );
         onClose();
         return;

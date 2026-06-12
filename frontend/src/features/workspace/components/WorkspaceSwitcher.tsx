@@ -8,7 +8,8 @@ import { useCallback, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { listWorkspaces, switchWorkspace } from '@/features/workspace/api/workspaces';
-import { useNavigationStore, useModalStore, useFavoritesStore } from '@/stores';
+import { useNavigationStore, useModalStore } from '@/stores';
+import { favoriteKeys, recentKeys } from '@/hooks/queryKeys';
 import { Button } from '@/components/ui/Button';
 import { Dropdown, type DropdownOption } from '@/components/ui/Dropdown';
 import './WorkspaceSwitcher.css';
@@ -31,14 +32,13 @@ export function WorkspaceSwitcher() {
   const clearCacheOnSwitch = useCallback((switchedUuid: string) => {
     useNavigationStore.setState({
       currentNodeId: null,
-      activeNode: null,
       activeNodeId: null,
       sidebarNode: null,
       localGraphNodeId: null,
       mainViewType: 'node',
     });
-    useFavoritesStore.getState().clear();
-    useFavoritesStore.getState().refresh();
+    queryClient.removeQueries({ queryKey: favoriteKeys.all });
+    queryClient.removeQueries({ queryKey: recentKeys.all });
     
     // Navigate to new workspace home
     window.history.replaceState(null, '', `/${switchedUuid}`);

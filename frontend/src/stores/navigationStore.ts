@@ -8,7 +8,6 @@
  * and re-exported through stores/index.ts — import them from '@/stores'.
  */
 import { create } from 'zustand';
-import type { Node } from '@/types';
 import type {
   ViewMode,
   MainViewType,
@@ -76,8 +75,7 @@ function makeTabLabel(type: MainViewType, label?: string): string {
 }
 
 interface NavigationState {
-  // Active / current node (legacy, synced from active tab)
-  activeNode: Node | null;
+  // Active / current node IDs only (full Node objects live in TanStack Query cache)
   activeNodeId: number | null;
   currentNodeId: number | null;
   currentPropertyContext: { propertyId: number; propertyName: string } | null;
@@ -102,10 +100,10 @@ interface NavigationState {
   mainViewType: MainViewType;
   currentPropertyId: number | null;
 
-  // Temporary node collection view
+  // Temporary node collection view (IDs only; full nodes fetched on demand)
   nodeCollectionTitle: string | null;
   nodeCollectionQueryAST: QueryAST | null;
-  nodeCollectionNodes: Node[] | null;
+  nodeCollectionNodeIds: number[] | null;
 
   // ── Tabs ────────────────────────────────────────────────────────────────
   tabs: Tab[];
@@ -114,7 +112,6 @@ interface NavigationState {
   splitOrientation: SplitOrientation | null;
 
   // Actions
-  setActiveNode: (node: Node | null) => void;
   setActiveNodeId: (id: number | null) => void;
   openNode: (nodeId: number, propertyContext?: { propertyId: number; propertyName: string }) => void;
   openNodeInNewTab: (nodeId: number, opts?: { label?: string; icon?: string; color?: string }) => void;
@@ -126,7 +123,7 @@ interface NavigationState {
   setMainViewType: (viewType: MainViewType) => void;
   openPropertyView: (propertyId: number) => void;
   openNodeCollection: (title: string, queryAST: QueryAST) => void;
-  openNodeCollectionFromNodes: (title: string, nodes: Node[]) => void;
+  openNodeCollectionFromNodes: (title: string, nodeIds: number[]) => void;
   closeNodeCollection: () => void;
   setSidebarTab: (tab: SidebarTab) => void;
   openNodeInSidebar: (nodeId: number, nodeType: SidebarNodeType) => void;
@@ -192,7 +189,6 @@ export const useNavigationStore = create<NavigationState>()((set, get) => {
   };
 
   return {
-    activeNode: null,
     activeNodeId: null,
     currentNodeId: null,
     currentPropertyContext: null,
@@ -211,7 +207,7 @@ export const useNavigationStore = create<NavigationState>()((set, get) => {
     currentPropertyId: null,
     nodeCollectionTitle: null,
     nodeCollectionQueryAST: null,
-    nodeCollectionNodes: null,
+    nodeCollectionNodeIds: null,
 
     // Tabs
     tabs: [],
@@ -219,7 +215,6 @@ export const useNavigationStore = create<NavigationState>()((set, get) => {
     secondaryTabId: null,
     splitOrientation: null,
 
-    setActiveNode: (node) => set({ activeNode: node, activeNodeId: node?.id ?? null }),
     setActiveNodeId: (id) => set({ activeNodeId: id }),
 
     openNode: (nodeId, propertyContext) => {
@@ -372,9 +367,9 @@ export const useNavigationStore = create<NavigationState>()((set, get) => {
             return { ...updated, type: 'node-collection' as MainViewType, nodeId: undefined, propertyId: undefined, icon: undefined, color: undefined, label: title };
           })
         : [...state.tabs, { id: generateTabId(), type: 'node-collection' as MainViewType, label: title, pinned: false, history: [], historyIndex: -1 }];
-      set({ tabs: newTabs, mainViewType: 'node-collection', nodeCollectionTitle: title, nodeCollectionQueryAST: queryAST, nodeCollectionNodes: null, currentNodeId: null, currentPropertyId: null });
+      set({ tabs: newTabs, mainViewType: 'node-collection', nodeCollectionTitle: title, nodeCollectionQueryAST: queryAST, nodeCollectionNodeIds: null, currentNodeId: null, currentPropertyId: null });
     },
-    openNodeCollectionFromNodes: (title, nodes) => {
+    openNodeCollectionFromNodes: (title, nodeIds) => {
       const state = get();
       const activeTab = state.tabs.find((t) => t.id === state.activeTabId);
       const newTabs = activeTab
@@ -384,10 +379,10 @@ export const useNavigationStore = create<NavigationState>()((set, get) => {
             return { ...updated, type: 'node-collection' as MainViewType, nodeId: undefined, propertyId: undefined, icon: undefined, color: undefined, label: title };
           })
         : [...state.tabs, { id: generateTabId(), type: 'node-collection' as MainViewType, label: title, pinned: false, history: [], historyIndex: -1 }];
-      set({ tabs: newTabs, mainViewType: 'node-collection', nodeCollectionTitle: title, nodeCollectionQueryAST: null, nodeCollectionNodes: nodes, currentNodeId: null, currentPropertyId: null });
+      set({ tabs: newTabs, mainViewType: 'node-collection', nodeCollectionTitle: title, nodeCollectionQueryAST: null, nodeCollectionNodeIds: nodeIds, currentNodeId: null, currentPropertyId: null });
     },
     closeNodeCollection: () =>
-      set({ mainViewType: 'node', nodeCollectionTitle: null, nodeCollectionQueryAST: null, nodeCollectionNodes: null }),
+      set({ mainViewType: 'node', nodeCollectionTitle: null, nodeCollectionQueryAST: null, nodeCollectionNodeIds: null }),
     setSidebarTab: (tab) => set({ sidebarTab: tab }),
     openNodeInSidebar: (nodeId, nodeType) =>
       set({ rightSidebarOpen: true, rightSidebarContent: 'node', sidebarNode: { id: nodeId, type: nodeType } }),

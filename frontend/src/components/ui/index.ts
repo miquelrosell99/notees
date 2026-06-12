@@ -25,7 +25,6 @@ export * from './LoadingScreen';
 export * from './LoadingSkeleton';
 export * from './Modal';
 
-export * from './PresentationModal';
 export * from './NotificationToast';
 export * from './Pill';
 export * from './SearchBox';

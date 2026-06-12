@@ -47,3 +47,5 @@ export * from './useLivePageSync';
 export * from './useWorkspaceRole';
 export * from './useEffectiveNodePermissions';
 export * from './useDocumentTitle';
+export * from './useFavorites';
+export * from './useRecents';

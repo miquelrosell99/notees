@@ -16,9 +16,10 @@ import { useSettingsStore } from '@/stores';
 import { usePresentationStore } from '@/stores/presentationStore';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { BlockList } from '@/features/content/components/blocks/BlockList';
-import { Button } from './Button';
+import { Button } from '@/components/ui/Button';
 import type { Node } from '@/types';
 import './PresentationModal.css';
+
 
 function getSlideTitle(node: Node): string {
   return nodeNameToText(node.name) || 'Untitled';

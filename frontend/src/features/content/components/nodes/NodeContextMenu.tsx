@@ -16,7 +16,8 @@ import { useClipboardStore } from '@/stores/clipboardStore';
 import { createPortal } from 'react-dom';
 import { useArchiveNode, useUnarchiveNode, useDeleteNode, useUpdateNode, useLinkedReferencesCount } from '@/hooks';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
-import { useNavigationStore, useFavoritesStore, useSettingsStore, usePresentationStore } from '@/stores';
+import { useNavigationStore, useSettingsStore, usePresentationStore } from '@/stores';
+import { useFavorites, useAddFavoriteMutation, useRemoveFavoriteMutation } from '@/hooks/useFavorites';
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/ContextMenu';
 import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
 
@@ -31,7 +32,6 @@ import { getMdiClass } from '@/utils/iconDom';
 import { Icon } from '@/components/ui/icons';
 import { Button } from '@/components/ui/Button';
 import { ColorButton } from '@/components/ui/ColorButton';
-import { getNodePickerPalette } from '@/features/content/components/nodes/views/viewTypes';
 import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
 import type { ContentAST } from '@/runtime/types';
 import './NodeContextMenu.css';
@@ -97,53 +97,6 @@ interface BaseContextMenuProps {
   anchorEl?: HTMLElement | null;
   /** Callback to close the menu */
   onClose: () => void;
-}
-
-/**
- * Inline color picker row for context menu
- */
-interface ColorPickerRowProps {
-  currentColor: string | null;
-  onColorChange: (color: string | null) => void;
-}
-
-export function ColorPickerRow({ currentColor, onColorChange }: ColorPickerRowProps) {
-  const nodeColors = useMemo(() => getNodePickerPalette(), []);
-  // Stop propagation to prevent ContextMenu's outside click handler from closing the menu
-  const handleMouseDown = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    e.preventDefault();
-  };
-
-  const handleColorClick = (e: React.MouseEvent, color: string | null) => {
-    e.stopPropagation();
-    e.preventDefault();
-    onColorChange(color);
-  };
-
-  return (
-    <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }} 
-      className="context-menu-color-row" 
-      onMouseDown={handleMouseDown}
-      onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}
-    >
-      <span className="context-menu-color-label">Color</span>
-      <div className="context-menu-color-swatches">
-        {nodeColors.map((color) => (
-          <button
-            key={color || 'none'}
-            className={`context-menu-color-swatch ${currentColor === color ? 'selected' : ''} ${!color ? 'no-color' : ''}`}
-            style={color ? { backgroundColor: color } : undefined}
-            onClick={(e) => handleColorClick(e, color)}
-            onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); }}
-            title={color || 'No color'}
-          >
-            {!color && <span className="context-menu-color-swatch-line" />}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
 }
 
 /**
@@ -384,8 +337,11 @@ export function NodeContextMenu({
   const updateNode = useUpdateNode();
   const { addSidebarCard, openLocalGraph, openNode, currentNodeId, sidebarCards, flashSidebarCard } = useNavigationStore();
   const { showDevOptions } = useSettingsStore();
-  const favorites = useFavoritesStore((state) => state.favorites);
-  const isPageFavorited = favorites.some(f => f.nodeId === node.id);
+  const { data: favoriteIds } = useFavorites();
+  const favorites = favoriteIds ?? [];
+  const isPageFavorited = favorites.some((id) => id === node.id);
+  const addFavoriteMutation = useAddFavoriteMutation();
+  const removeFavoriteMutation = useRemoveFavoriteMutation();
   const { count: linkedRefsCount } = useLinkedReferencesCount(node.id);
   const clipboardMode = useClipboardStore((state) => state.mode);
 
@@ -436,9 +392,8 @@ export function NodeContextMenu({
             label: isPageFavorited ? 'Remove from Favorites' : 'Add to Favorites',
             icon: isPageFavorited ? "mdi mdi-star-outline" : "mdi mdi-star",
             onClick: () => {
-              const store = useFavoritesStore.getState();
-              if (isPageFavorited) store.removeFavorite(node.id);
-              else store.addFavorite(node.id);
+              if (isPageFavorited) removeFavoriteMutation.mutate(node.id);
+              else addFavoriteMutation.mutate(node.id);
               onClose();
             },
           });
@@ -703,6 +658,7 @@ export function NodeContextMenu({
     onConvertToPage, onCopyBlocks, onPasteBlocks, onClose,
     addSidebarCard, openLocalGraph, openNode, updateNode, unarchiveNode,
     showDevOptions, handleDeleteClick, handleArchiveClick, setShowShareModal,
+    addFavoriteMutation, removeFavoriteMutation,
   ]);
 
   const handleColorChange = useCallback((color: string | null) => {
@@ -714,11 +670,10 @@ export function NodeContextMenu({
   }, [node.id, updateNode]);
 
   const handleFavoriteToggle = useCallback(() => {
-    const store = useFavoritesStore.getState();
-    if (isPageFavorited) store.removeFavorite(node.id);
-    else store.addFavorite(node.id);
+    if (isPageFavorited) removeFavoriteMutation.mutate(node.id);
+    else addFavoriteMutation.mutate(node.id);
     onClose();
-  }, [node.id, isPageFavorited, onClose]);
+  }, [node.id, isPageFavorited, onClose, addFavoriteMutation, removeFavoriteMutation]);
 
   const menuVisible = !showDeleteModal && !showArchiveModal && !showASTModal && !showExportModal && !showShareModal;
   const menuCallbackRef = useCallback((el: HTMLDivElement | null) => {

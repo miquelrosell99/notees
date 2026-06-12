@@ -8,7 +8,7 @@ import { useState, useMemo, useCallback } from 'react';
 import { useExistingDailyPages, useNode, useDailyNote } from '@/hooks';
 import './JournalsView.css';
 import { useNavigationStore } from '@/stores';
-import { NodeViewContent } from '@/features/content/pages/NodeView';
+import { NodeViewContent } from '@/features/content';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton';

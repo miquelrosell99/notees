@@ -10,13 +10,15 @@ import { useNode, useClasses } from '@/hooks';
 import { useSystemClasses } from '@/hooks/usePageClass';
 import { useNavigationStore } from '@/stores';
 import { getEffectiveColor } from '@/utils/nodeIcon';
-import { NodeViewWrapper, NodeViewContent } from '@/features/content/pages/NodeView';
-import { PagesView } from '@/features/content/pages/PagesView';
-import { ArchivedPagesView } from '@/features/content/pages/ArchivedPagesView';
-import { TrashView } from '@/features/content/pages/TrashView';
+import {
+  NodeViewWrapper,
+  NodeViewContent,
+  PagesView,
+  ArchivedPagesView,
+  TrashView,
+  WhiteboardsView,
+} from '@/features/content';
 import { JournalsView } from '@/features/journals/pages/JournalsView';
-
-import { WhiteboardsView } from '@/features/content/pages/WhiteboardsView';
 import { TasksView } from '@/features/tasks/pages/TasksView';
 import type { Tab } from '@/stores/navigationStore';
 
