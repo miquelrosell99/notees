@@ -17,7 +17,19 @@ class Settings(BaseSettings):
     algorithm: str = "HS256"
     access_token_expire_hours: float = 0.25  # 15 minutes
     refresh_token_expire_days: int = 7  # 7 days
-    registration_enabled: bool = True  # Set to False to disable user self-registration
+    registration_enabled: bool = False  # Disabled by default; set REGISTRATION_ENABLED=true to allow open registration
+
+    @field_validator("algorithm", mode="after")
+    @classmethod
+    def validate_algorithm(cls, v):
+        """Reject insecure or unsupported JWT algorithms."""
+        allowed = {"HS256", "HS384", "HS512"}
+        normalized = v.upper()
+        if normalized == "NONE":
+            raise ValueError('JWT algorithm "none" is not allowed')
+        if normalized not in allowed:
+            raise ValueError(f"JWT algorithm must be one of {allowed}, got {v}")
+        return normalized
 
     @field_validator("secret_key", mode="after")
     @classmethod
@@ -72,19 +84,28 @@ class Settings(BaseSettings):
     @field_validator("cors_origins", mode="before")
     @classmethod
     def parse_cors_origins(cls, v):
-        """Parse CORS origins from string or list."""
+        """Parse CORS origins from string or list; drop empty entries."""
         if isinstance(v, str):
             # Handle comma-separated values or single value
             if "," in v:
-                return [origin.strip() for origin in v.split(",")]
-            return [v.strip()]
+                return [origin.strip() for origin in v.split(",") if origin.strip()]
+            stripped = v.strip()
+            return [stripped] if stripped else []
+        if isinstance(v, list):
+            return [origin.strip() for origin in v if origin and origin.strip()]
         return v
 
     @field_validator("cors_origins", mode="after")
     @classmethod
-    def warn_cors_wildcard(cls, v):
-        """Warn if using wildcard CORS in production."""
+    def reject_insecure_cors_wildcard(cls, v, info):
+        """Reject wildcard CORS when credentials are enabled in production."""
         if "*" in v:
+            env = (info.data.get("environment") or "").lower()
+            if env == "production":
+                raise ValueError(
+                    "CORS_ORIGINS='*' is not allowed in production when allow_credentials=True. "
+                    "Set CORS_ORIGINS to specific allowed origins."
+                )
             import warnings
 
             warnings.warn(
