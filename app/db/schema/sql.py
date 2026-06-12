@@ -1252,6 +1252,7 @@ CREATE TABLE IF NOT EXISTS api_key (
     name VARCHAR(255) NOT NULL,
     key_hash TEXT NOT NULL,
     scopes JSONB DEFAULT '["read", "write"]',
+    key_prefix VARCHAR(8),
     last_4 VARCHAR(4),
     last_used_at TIMESTAMPTZ,
     expires_at TIMESTAMPTZ,
@@ -1260,7 +1261,7 @@ CREATE TABLE IF NOT EXISTS api_key (
     write_date TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Migration: add expires_at and last_4 if they don't exist
+-- Migration: add expires_at, last_4, and key_prefix if they don't exist
 DO $$
 BEGIN
     IF NOT EXISTS (
@@ -1276,11 +1277,19 @@ BEGIN
     ) THEN
         ALTER TABLE api_key ADD COLUMN last_4 VARCHAR(4);
     END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'api_key' AND column_name = 'key_prefix'
+    ) THEN
+        ALTER TABLE api_key ADD COLUMN key_prefix VARCHAR(8);
+    END IF;
 END $$;
 
 CREATE INDEX IF NOT EXISTS idx_api_key_user_id ON api_key(user_id);
 CREATE INDEX IF NOT EXISTS idx_api_key_revoked ON api_key(revoked) WHERE revoked = FALSE;
 CREATE INDEX IF NOT EXISTS idx_api_key_expires_at ON api_key(expires_at) WHERE expires_at IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_api_key_prefix_last4 ON api_key(key_prefix, last_4);
 
 -- ============================================================
 -- REFRESH TOKENS

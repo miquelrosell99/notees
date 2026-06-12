@@ -17,7 +17,7 @@ If you discover a security vulnerability in Notees, please report it privately s
 
 ### How to report
 
-1. Email the maintainers at **security@rosellramos.com** with:
+1. Email the maintainers at the address listed in the repository's contact information with:
    - A clear description of the vulnerability.
    - Steps to reproduce (minimal examples or configuration details).
    - The impact you believe the issue has (data exposure, privilege escalation, DoS, etc.).

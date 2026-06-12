@@ -179,7 +179,6 @@ async def create_user(
             "surnames": row["surnames"],
             "profile_pic": row["profile_pic"],
             "role": row["role"],
-            "hashed_password": hashed,
             "is_active": row["active"],
             "created_at": row["created_at"].isoformat() if row["created_at"] else None,
         }
@@ -324,20 +323,24 @@ async def create_api_key(user_id: int, name: str, scopes: list[str] | None = Non
     """
     key = generate_api_key()
     key_hash = hash_api_key(key)
+    # Store a prefix + last-4 lookup key so authentication can hit an index
+    # instead of scanning/bcrypt-verifying every active key.
+    key_prefix = key[len(_API_KEY_PREFIX):len(_API_KEY_PREFIX) + 8]
     last_4 = key[-4:]
     scopes_json = scopes if scopes is not None else ["read", "write"]
 
     async with get_connection() as conn:
         row = await conn.fetchrow(
             """
-            INSERT INTO api_key (user_id, name, key_hash, scopes, last_4, expires_at)
-            VALUES ($1, $2, $3, $4::jsonb, $5, $6)
-            RETURNING id, uuid, name, scopes, last_4, revoked, create_date, expires_at
+            INSERT INTO api_key (user_id, name, key_hash, scopes, key_prefix, last_4, expires_at)
+            VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7)
+            RETURNING id, uuid, name, scopes, key_prefix, last_4, revoked, create_date, expires_at
             """,
             user_id,
             name,
             key_hash,
             scopes_json,
+            key_prefix,
             last_4,
             expires_at,
         )
@@ -411,22 +414,25 @@ async def authenticate_api_key(key: str) -> dict | None:
     Candidate rows are filtered by ``last_4`` before bcrypt verification to
     avoid a full table scan + CPU-heavy comparison against every active key.
     """
-    if not key.startswith(_API_KEY_PREFIX) or len(key) < 4:
+    if not key.startswith(_API_KEY_PREFIX) or len(key) < len(_API_KEY_PREFIX) + 8:
         return None
 
+    key_prefix = key[len(_API_KEY_PREFIX):len(_API_KEY_PREFIX) + 8]
     last_4 = key[-4:]
 
     async with get_connection() as conn:
-        # Fetch only keys whose last 4 characters match. With 62^4 possible
-        # combinations, collisions are rare even for workspaces with many keys.
+        # Fetch only keys matching the indexed (prefix, last_4) pair. This avoids
+        # a full table scan and keeps the bcrypt verification set tiny.
         rows = await conn.fetch(
             """
             SELECT id, user_id, key_hash, expires_at, scopes
             FROM api_key
             WHERE revoked = FALSE
               AND (expires_at IS NULL OR expires_at > NOW())
-              AND last_4 = $1
+              AND key_prefix = $1
+              AND last_4 = $2
             """,
+            key_prefix,
             last_4,
         )
 
