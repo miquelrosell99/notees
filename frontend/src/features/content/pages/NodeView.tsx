@@ -55,7 +55,7 @@ import { Modal } from '@/components/ui/Modal';
 import { TableIcon, PageIcon, LinkIcon, SearchIcon } from '@/components/ui/icons';
 import { Button } from '@/components/ui/Button';
 import { getPropertyValueRenderer } from '@/features/content/components/properties/propertyValueRegistry';
-import '../components/properties/registerPropertyRenderers';
+import '@/features/content/components/properties/registerPropertyRenderers';
 import { BlockPresenceOverlay } from '@/features/collab/components/BlockPresenceOverlay';
 
 import { NodeBreadcrumbs } from '@/features/content/components/nodes/NodeBreadcrumbs';
