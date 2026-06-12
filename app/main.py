@@ -420,8 +420,13 @@ async def log_requests(request, call_next):
         logger.debug(f"→ {request.method} {path}")
 
     try:
-        # Wrap API requests in a per-request connection to avoid pool contention
-        if path.startswith("/api/") or path.startswith("/api/v1/"):
+        # Wrap HTTP API requests in a per-request connection to avoid pool contention.
+        # WebSocket scopes must not hold a pooled connection for their lifetime.
+        is_api_http = (
+            request.scope.get("type") == "http"
+            and (path.startswith("/api/") or path.startswith("/api/v1/"))
+        )
+        if is_api_http:
             async with request_connection():
                 response = await call_next(request)
         else:

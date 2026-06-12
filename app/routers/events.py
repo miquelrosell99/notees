@@ -85,7 +85,7 @@ async def workspace_events(
         raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="No active workspace")
 
     # Verify read permission
-    checker = PermissionChecker(pool, user_id)
+    checker = PermissionChecker(user_id)
     # Workspace-level permission check (any node in workspace)
     can_read = await checker.can_read_workspace(workspace_id)
     if not can_read:

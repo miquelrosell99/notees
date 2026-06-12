@@ -17,9 +17,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-import asyncpg
-
-from ..db.connection import acquire_connection
+from ..db.connection import get_connection
 from ..domain.errors import PermissionDeniedError
 
 if TYPE_CHECKING:
@@ -81,14 +79,12 @@ class PermissionChecker:
     3. Check node_share for node-level permissions (can override workspace)
     """
 
-    def __init__(self, pool: asyncpg.Pool, user_id: int):
-        """Initialize with connection pool and current user.
+    def __init__(self, user_id: int):
+        """Initialize with current user.
 
         Args:
-            pool: asyncpg connection pool
             user_id: Current authenticated user ID
         """
-        self._pool = pool
         self._user_id = user_id
         # Cache for workspace permissions
         self._workspace_cache: dict[int, Permissions] = {}
@@ -109,7 +105,7 @@ class PermissionChecker:
         if workspace_id in self._workspace_cache:
             return self._workspace_cache[workspace_id]
 
-        async with acquire_connection(self._pool) as conn:
+        async with get_connection() as conn:
             # Check if user is owner
             row = await conn.fetchrow(
                 """
@@ -175,7 +171,7 @@ class PermissionChecker:
         if active_only and node_id in self._node_cache:
             return self._node_cache[node_id]
 
-        async with acquire_connection(self._pool) as conn:
+        async with get_connection() as conn:
             # Get node info including workspace_id and create_uid
             if active_only:
                 row = await conn.fetchrow(
@@ -341,7 +337,7 @@ class PermissionChecker:
 
         Returns workspaces owned by the user plus workspaces shared with them.
         """
-        async with acquire_connection(self._pool) as conn:
+        async with get_connection() as conn:
             rows = await conn.fetch(
                 """
                 SELECT DISTINCT id FROM (
@@ -400,14 +396,13 @@ class PermissionChecker:
             raise PermissionDeniedError(f"User {self._user_id} cannot delete node {node_id}")
 
 
-async def get_permission_checker(pool: asyncpg.Pool, user_id: int) -> PermissionChecker:
+async def get_permission_checker(user_id: int) -> PermissionChecker:
     """Factory function to create a permission checker.
 
     Args:
-        pool: asyncpg connection pool
         user_id: Current authenticated user ID
 
     Returns:
         PermissionChecker instance
     """
-    return PermissionChecker(pool, user_id)
+    return PermissionChecker(user_id)

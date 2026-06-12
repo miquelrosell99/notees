@@ -24,6 +24,7 @@ from PIL import Image
 from app.db.connection import get_workspace_assets_dir
 from app.domain.errors import PermissionDeniedError
 from app.logging_config import get_logger
+from app.utils.assets import ALLOWED_CONTENT_TYPES, get_asset_category, get_extension_from_content_type
 
 logger = get_logger(__name__)
 
@@ -145,8 +146,6 @@ class AssetService:
 
         if not extension:
             # Fallback: try to infer from content_type
-            from app.routers.assets import get_extension_from_content_type
-
             extension = get_extension_from_content_type(content_type)
             if not extension:
                 raise AssetError(f"Cannot determine file extension for {original_filename}")
@@ -227,8 +226,6 @@ class AssetService:
             new_extension = self.extract_extension(new_path)
 
             if not new_extension:
-                from app.routers.assets import get_extension_from_content_type
-
                 new_extension = get_extension_from_content_type(content_type)
                 if not new_extension:
                     raise AssetError(f"Cannot determine file extension for {new_filename}")
@@ -350,8 +347,6 @@ class AssetService:
 
     def _mime_category_changed(self, old_ext: str, new_ext: str) -> bool:
         """Check if MIME category changed between extensions."""
-        from app.routers.assets import ALLOWED_CONTENT_TYPES, get_asset_category
-
         # Find content types for extensions
         old_ct = None
         new_ct = None

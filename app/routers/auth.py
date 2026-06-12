@@ -15,6 +15,7 @@ from .. import auth
 from ..config import settings
 from ..logging_config import get_logger
 from ..models import (
+    AccessTokenResponse,
     ApiKeyCreate,
     ApiKeyCreateResponse,
     ApiKeyResponse,
@@ -246,6 +247,7 @@ async def login(request: Request, response: Response, credentials: UserLogin):
 
 @router.post(
     "/refresh",
+    response_model=AccessTokenResponse,
     dependencies=[Depends(RateLimiter(limiter=_auth_limiter_refresh, identifier=ip_only_identifier))],
 )
 async def refresh_access_token(request: Request, response: Response):
@@ -286,14 +288,12 @@ async def refresh_access_token(request: Request, response: Response):
     # Set new refresh token cookie
     _set_refresh_cookie(response, new_refresh_token)
 
-    return {
-        "access_token": access_token,
-        "token_type": "bearer",
-    }
+    return {"access_token": access_token, "token_type": "bearer"}
 
 
 @router.post(
     "/invites/accept",
+    response_model=Token,
     dependencies=[Depends(RateLimiter(limiter=_auth_limiter_invite, identifier=ip_only_identifier))],
 )
 async def accept_invite(request: Request, response: Response, body: InviteAcceptRequest):
@@ -412,7 +412,7 @@ async def accept_invite(request: Request, response: Response, body: InviteAccept
         return {"access_token": access_token, "refresh_token": refresh_token, "token_type": "bearer", "user": user_record}
 
 
-@router.get("/me")
+@router.get("/me", response_model=User)
 async def get_me(user: User = Depends(get_current_user)):  # noqa: B008
     """Get current user info."""
     return {
@@ -424,10 +424,11 @@ async def get_me(user: User = Depends(get_current_user)):  # noqa: B008
         "profile_pic": user.profile_pic,
         "role": user.role,
         "created_at": user.created_at,
+        "is_active": user.is_active,
     }
 
 
-@router.put("/me")
+@router.put("/me", response_model=User)
 async def update_me(
     data: UserUpdate,
     user: User = Depends(get_current_user),  # noqa: B008
