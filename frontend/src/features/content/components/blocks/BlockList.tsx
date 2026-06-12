@@ -355,7 +355,7 @@ export function BlockList({
 
   // ─── Virtualization ─────────────────────────────────────────────
 
-  const enableVirtualization = flatNodes.length > 50;
+  const enableVirtualization = flatNodes.length > 30;
 
   const scrollElementRef = useRef<HTMLElement | null>(null);
   useLayoutEffect(() => {

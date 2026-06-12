@@ -633,8 +633,12 @@ async def delete_asset(asset_uuid: str, current_user: User = Depends(get_current
 
 
 @router.get("/", response_model=AssetListResponse)
-async def list_assets(page: int = 1, page_size: int = 50, current_user: User = Depends(get_current_user)):
-    """List all assets in the current workspace."""
+async def list_assets(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=200),
+    current_user: User = Depends(get_current_user),
+):
+    """List assets in the current workspace (paginated, max 200 per page)."""
     user_id = int(current_user.id)
     pool = await get_pool()
 
@@ -647,12 +651,11 @@ async def list_assets(page: int = 1, page_size: int = 50, current_user: User = D
     # Get nodes that have the 'asset' type
     if asset_type_id is None:
         return AssetListResponse(assets=[], total=0)
-    nodes = await node_repo.get_typed_with(asset_type_id)
 
-    # Apply pagination
-    start = (page - 1) * page_size
-    end = start + page_size
-    paged_nodes = nodes[start:end]
+    offset = (page - 1) * page_size
+    nodes = await node_repo.get_typed_with(asset_type_id, limit=page_size, offset=offset)
+    total = await node_repo.count_nodes_with_classes([asset_type_id])
+    paged_nodes = nodes
 
     # Get workspace UUID for asset storage
     workspace_uuid = await get_workspace_uuid(workspace_id)
@@ -689,4 +692,4 @@ async def list_assets(page: int = 1, page_size: int = 50, current_user: User = D
                         )
                     break
 
-    return AssetListResponse(assets=assets, total=len(nodes))
+    return AssetListResponse(assets=assets, total=total)
