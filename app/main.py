@@ -86,28 +86,37 @@ async def lifespan(app: FastAPI):
     """Initialize database and services on startup."""
     logger.info("Starting Notees application...")
 
+    # Detect test environment early so the lifespan can avoid work that the
+    # test fixtures (db_pool) already perform. This prevents redundant schema
+    # initialization from racing with fixture-managed DDL on the same pool.
+    _in_test = "pytest" in sys.modules or os.environ.get("PYTEST_CURRENT_TEST") is not None
+
     # Initialize PostgreSQL connection pool
     pool = await init_pool()
     logger.info("PostgreSQL connection pool initialized")
 
-    # Initialize database schema
-    async with pool.acquire() as conn:
-        await init_database(conn)  # type: ignore[arg-type]
-    logger.info("Database schema initialized")
+    if not _in_test:
+        # Initialize database schema
+        async with pool.acquire() as conn:
+            await init_database(conn)  # type: ignore[arg-type]
+        logger.info("Database schema initialized")
 
-    # Warn if no admin exists so the instance owner knows how to fix it
-    async with pool.acquire() as conn:
-        admin_count = await conn.fetchval("SELECT COUNT(*) FROM \"user\" WHERE role = 'admin' AND active = TRUE")
-        if admin_count == 0:
-            logger.warning(
-                "No admin user found. To create an admin, run: python scripts/promote_user_to_admin.py <email>"
+        # Warn if no admin exists so the instance owner knows how to fix it
+        async with pool.acquire() as conn:
+            admin_count = await conn.fetchval(
+                "SELECT COUNT(*) FROM \"user\" WHERE role = 'admin' AND active = TRUE"
             )
+            if admin_count == 0:
+                logger.warning(
+                    "No admin user found. To create an admin, run: python scripts/promote_user_to_admin.py <email>"
+                )
+    else:
+        logger.info("Skipping schema initialization under pytest (handled by db_pool fixture)")
 
     # Ensure required directories exist
     ensure_directories()
 
     # Skip background schedulers during tests (lifespan may be triggered by ASGI transports)
-    _in_test = "pytest" in sys.modules or os.environ.get("PYTEST_CURRENT_TEST") is not None
     if not _in_test:
         # Start backup scheduler
         await get_backup_scheduler().start()

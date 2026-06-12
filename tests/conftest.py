@@ -135,10 +135,14 @@ async def db_pool(database_url: str, temp_data_dir: Path):
     # Initialize the connection pool
     pool = await connection.init_pool()
     
-    # Clean database before each test - drop all tables
-    async with pool.acquire() as conn:
+    # Clean database before each test and re-initialize schema on a dedicated,
+    # non-pooled connection. Keeping DDL out of the pool guarantees all locks
+    # are released and the transaction is fully closed before test code acquires
+    # any pool connections.
+    setup_conn = await asyncpg.connect(database_url)
+    try:
         # Drop all tables in public schema
-        await conn.execute("""
+        await setup_conn.execute("""
             DO $$ DECLARE
                 r RECORD;
             BEGIN
@@ -149,10 +153,12 @@ async def db_pool(database_url: str, temp_data_dir: Path):
         """)
         
         # Drop extensions and recreate
-        await conn.execute("DROP EXTENSION IF EXISTS pg_trgm CASCADE")
-    
-    # Initialize fresh schema
-    await schema.init_database(pool)
+        await setup_conn.execute("DROP EXTENSION IF EXISTS pg_trgm CASCADE")
+        
+        # Initialize fresh schema on the same connection
+        await schema.init_database(setup_conn)
+    finally:
+        await setup_conn.close()
     
     # Clear in-memory auth cache so tests don't see stale user data
     from app import auth
