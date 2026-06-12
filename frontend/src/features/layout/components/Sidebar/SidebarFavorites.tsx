@@ -121,7 +121,7 @@ const SortableFavoriteItem = memo(function SortableFavoriteItem({
       </div>
 
       {/* Remove button */}
-      <Button
+      <Button aria-label="Remove from favorites"
         icon={"mdi mdi-close"}
         size="xs"
         variant="ghost"

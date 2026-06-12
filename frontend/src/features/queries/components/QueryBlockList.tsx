@@ -373,6 +373,7 @@ export function QueryBlockList({
             icon={"mdi mdi-plus"}
             variant="ghost"
             size="sm"
+            aria-label="Add condition"
             onClick={(e) => {
               setMenuAnchor(e.currentTarget);
             }}
@@ -387,6 +388,7 @@ export function QueryBlockList({
             icon={"mdi mdi-plus"}
             variant="ghost"
             size="sm"
+            aria-label="Add condition"
             onClick={(e) => {
               setMenuAnchor(e.currentTarget);
             }}

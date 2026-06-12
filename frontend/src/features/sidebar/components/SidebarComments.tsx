@@ -81,7 +81,7 @@ function QuickAddComment({ nodeId, onClose }: QuickAddCommentProps) {
         autoFocus
         onBlur={() => { if (!text.trim()) onClose(); }}
         icon={
-          <Button
+          <Button aria-label="Send comment"
             variant="primary"
             size="xs"
             icon="mdi mdi-send"

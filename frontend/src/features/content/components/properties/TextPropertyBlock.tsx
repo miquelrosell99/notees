@@ -102,7 +102,7 @@ function SingleTextBlock({
     <div className="text-property-block__editor">
       <div className="text-property-block__nav-actions hover-reveal">
         {onOpenInSidebar && (
-          <Button
+          <Button aria-label="Open in sidebar"
             icon={"mdi mdi-dock-right"}
             variant="ghost"
             size="xs"
@@ -114,7 +114,7 @@ function SingleTextBlock({
           />
         )}
         {onOpenNode && (
-          <Button
+          <Button aria-label="Open"
             icon={"mdi mdi-arrow-right"}
             variant="ghost"
             size="xs"

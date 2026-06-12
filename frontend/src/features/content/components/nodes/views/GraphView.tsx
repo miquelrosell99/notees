@@ -915,7 +915,7 @@ export function GraphView({
       
       {/* Sidebar expand button (when collapsed) */}
       {showSettings && sidebarCollapsed && (
-        <Button
+        <Button aria-label="Show sidebar"
           variant="ghost"
           size="sm"
           icon="mdi mdi-cog-outline"
@@ -964,6 +964,7 @@ export function GraphView({
                   icon={"mdi mdi-trash-can-outline"}
                   size="sm"
                   variant="ghost"
+                  aria-label="Clear selection"
                   onClick={() => setSelectedNodes([])}
                 />
               </div>
@@ -979,6 +980,7 @@ export function GraphView({
                     icon={"mdi mdi-close"}
                     size="xs"
                     variant="ghost"
+                    aria-label="Remove from selection"
                     onClick={(e) => {
                       e.stopPropagation();
                       removeFromSelection(item.id);
@@ -1069,7 +1071,7 @@ export function GraphView({
 
       {/* Bottom Right: Recenter */}
       <div className="node-graph-view__bottom-right">
-        <Button
+        <Button aria-label="Fit graph to view (R)"
           icon={"mdi mdi-crosshairs-gps"}
           size="sm"
           onClick={() => rendererRef.current?.recenter()}

@@ -135,7 +135,7 @@ export function SidebarCard({
             </div>
           </div>
           {onOpen && (
-            <Button
+            <Button aria-label="Open in main view"
               icon={"mdi mdi-open-in-new"}
               className="sidebar-card__open-btn"
               onClick={onOpen}
@@ -145,7 +145,7 @@ export function SidebarCard({
             />
           )}
           {onClose && (
-            <Button
+            <Button aria-label="Close"
               icon={"mdi mdi-close"}
               className="sidebar-card__close-btn"
               onClick={onClose}

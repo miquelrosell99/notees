@@ -136,14 +136,14 @@ export function ShareModal({ nodeId, isOpen, onClose }: ShareModalProps) {
                     </div>
                   </div>
                   <div className="share-modal__item-actions">
-                    <Button
+                    <Button aria-label="Copy link"
                       variant="ghost"
                       size="sm"
                       icon="mdi mdi-content-copy"
                       title="Copy link"
                       onClick={() => handleCopy(share.url)}
                     />
-                    <Button
+                    <Button aria-label="Revoke link"
                       variant="ghost"
                       size="sm"
                       icon="mdi mdi-delete-outline"
@@ -218,7 +218,7 @@ export function ShareModal({ nodeId, isOpen, onClose }: ShareModalProps) {
                         >
                           {share.permission === 'write' ? 'Can edit' : share.permission === 'comment' ? 'Can comment' : 'Read only'}
                         </Badge>
-                        <Button
+                        <Button aria-label="Remove access"
                           variant="ghost"
                           size="sm"
                           icon="mdi mdi-delete-outline"

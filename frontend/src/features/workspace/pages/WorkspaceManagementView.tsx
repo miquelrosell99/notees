@@ -270,7 +270,7 @@ export function WorkspaceManagementView({
           </div>
           <div className="workspace-management__user-info">
             <span className="workspace-management__username">{user?.email}</span>
-            <Button
+            <Button aria-label="User Settings"
               className="workspace-management__user-settings"
               variant="ghost"
               size="sm"
@@ -279,7 +279,7 @@ export function WorkspaceManagementView({
               title="User Settings"
             />
             {user?.role === 'admin' && (
-              <Button
+              <Button aria-label="System Settings"
                 className="workspace-management__system-settings"
                 variant="ghost"
                 size="sm"
@@ -359,7 +359,7 @@ export function WorkspaceManagementView({
                       </div>
                     </div>
                     <div className="workspace-management__card-actions">
-                      <Button
+                      <Button aria-label="Open workspace"
                         variant="ghost"
                         size="sm"
                         onClick={() => handleSelectWorkspace(workspace)}
@@ -370,7 +370,7 @@ export function WorkspaceManagementView({
                       />
                       {deleteConfirm === workspace.uuid && (
                         <>
-                          <Button
+                          <Button aria-label="Confirm delete"
                             variant="danger"
                             size="sm"
                             onClick={() => deleteMutation.mutate(workspace.uuid)}
@@ -378,7 +378,7 @@ export function WorkspaceManagementView({
                             disabled={deleteMutation.isPending}
                             icon="mdi mdi-check"
                           />
-                          <Button
+                          <Button aria-label="Cancel"
                             variant="ghost"
                             size="sm"
                             onClick={() => setDeleteConfirm(null)}

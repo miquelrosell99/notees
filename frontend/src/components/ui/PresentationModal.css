@@ -45,24 +45,22 @@
   padding: var(--spacing-8);
   background: var(--color-surface);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-xl);
+  box-shadow: none;
   overflow: hidden;
 }
 
 .presentation-modal-slide-title {
-  font-size: 2rem;
-  font-weight: 600;
-  color: var(--color-text-primary);
-  line-height: 1.3;
+  font: var(--font-headline-large);
+  color: var(--color-on-surface);
   word-break: break-word;
 }
 
 .presentation-modal-slide-content {
   flex: 1;
   overflow-y: auto;
-  font-size: 1.125rem;
+  font: var(--font-body-large);
   line-height: 1.6;
-  color: var(--color-text-primary);
+  color: var(--color-on-surface);
 }
 
 .presentation-modal-slide-content .block-editor {
@@ -71,8 +69,8 @@
 
 .presentation-modal-empty {
   text-align: center;
-  color: var(--color-text-tertiary);
-  font-size: 1.125rem;
+  color: var(--color-outline);
+  font: var(--font-body-large);
   padding: var(--spacing-8);
 }
 
@@ -81,13 +79,13 @@
   bottom: var(--spacing-4);
   left: 50%;
   transform: translateX(-50%);
-  color: var(--color-text-tertiary);
-  font-size: 0.875rem;
+  color: var(--color-outline);
+  font: var(--font-body-medium);
   z-index: var(--z-modal);
 }
 
 .presentation-modal-no-children {
-  color: var(--color-text-tertiary);
+  color: var(--color-outline);
   font-style: italic;
   padding: var(--spacing-4) 0;
 }

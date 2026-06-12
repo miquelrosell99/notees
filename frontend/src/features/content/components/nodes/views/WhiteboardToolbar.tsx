@@ -369,14 +369,14 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
       {/* Top left — undo/redo + grid */}
       <div className="whiteboard-toolbar whiteboard-toolbar--top-left">
         <FloatingButtonArray direction="horizontal" size="sm">
-          <Button
+          <Button aria-label="Undo (Ctrl+Z)"
             icon={"mdi mdi-undo"}
             variant="ghost"
             size="sm"
             onClick={wb.undo}
             title="Undo (Ctrl+Z)"
           />
-          <Button
+          <Button aria-label="Redo (Ctrl+Shift+Z)"
             icon={"mdi mdi-redo"}
             variant="ghost"
             size="sm"
@@ -384,7 +384,7 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
             title="Redo (Ctrl+Shift+Z)"
           />
           <ToolbarDivider />
-          <Button
+          <Button aria-label="Toggle Grid (G)"
             icon={"mdi mdi-grid"}
             variant="ghost"
             size="sm"
@@ -393,7 +393,7 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
             onClick={wb.toggleGrid}
             title="Toggle Grid (G)"
           />
-          <Button
+          <Button aria-label="Snap to Grid"
             icon={"mdi mdi-magnet"}
             variant="ghost"
             size="sm"
@@ -403,7 +403,7 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
             title="Snap to Grid"
           />
           <ToolbarDivider />
-          <Button
+          <Button aria-label="Toggle Minimap"
             icon={"mdi mdi-map-outline"}
             variant="ghost"
             size="sm"
@@ -418,7 +418,7 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
       {/* Bottom right — zoom controls */}
       <div className="whiteboard-toolbar whiteboard-toolbar--bottom-right">
         <FloatingButtonArray direction="horizontal" size="sm">
-          <Button
+          <Button aria-label="Zoom Out"
             icon={"mdi mdi-minus"}
             variant="ghost"
             size="sm"
@@ -432,7 +432,7 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
           >
             {Math.round(data.viewport.zoom * 100)}%
           </div>
-          <Button
+          <Button aria-label="Zoom In"
             icon={"mdi mdi-plus"}
             variant="ghost"
             size="sm"
@@ -440,7 +440,7 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
             title="Zoom In"
           />
           <ToolbarDivider />
-          <Button
+          <Button aria-label="Zoom to Fit (Ctrl+1)"
             icon={"mdi mdi-fit-to-screen"}
             variant="ghost"
             size="sm"
@@ -471,7 +471,7 @@ interface ToolButtonProps {
 }
 
 const ToolButton: React.FC<ToolButtonProps> = ({ icon, label, shortcut, active, onClick }) => (
-  <Button
+  <Button aria-label="`${label"
     icon={icon}
     variant="ghost"
     size="sm"
@@ -656,14 +656,14 @@ const SelectionActionsPanel: React.FC<{ wb: UseWhiteboardReturn }> = ({ wb }) =>
 
   return (
     <FloatingButtonArray direction="horizontal" size="sm">
-      <Button
+      <Button aria-label="Duplicate (Ctrl+D)"
         icon={"mdi mdi-content-duplicate"}
         variant="ghost"
         size="sm"
         onClick={() => wb.duplicateElements(selectedIds)}
         title="Duplicate (Ctrl+D)"
       />
-      <Button
+      <Button aria-label="anyLocked ? 'Unlock' : 'Lock"
         icon={anyLocked ? "mdi mdi-lock-open-outline" : "mdi mdi-lock-outline"}
         variant="ghost"
         size="sm"
@@ -674,14 +674,14 @@ const SelectionActionsPanel: React.FC<{ wb: UseWhiteboardReturn }> = ({ wb }) =>
         }}
         title={anyLocked ? 'Unlock' : 'Lock'}
       />
-      <Button
+      <Button aria-label="Bring to Front (])"
         icon={"mdi mdi-arrange-bring-to-front"}
         variant="ghost"
         size="sm"
         onClick={() => wb.bringToFront(selectedIds)}
         title="Bring to Front (])"
       />
-      <Button
+      <Button aria-label="Send to Back ([)"
         icon={"mdi mdi-arrange-send-to-back"}
         variant="ghost"
         size="sm"
@@ -708,7 +708,7 @@ const SelectionActionsPanel: React.FC<{ wb: UseWhiteboardReturn }> = ({ wb }) =>
       {canGroup && (
         <>
           <ToolbarDivider />
-          <Button
+          <Button aria-label="isGrouped ? 'Ungroup (Ctrl+G)' : 'Group (Ctrl+G)"
             icon={isGrouped ? "mdi mdi-ungroup" : "mdi mdi-group"}
             variant="ghost"
             size="sm"
@@ -724,7 +724,7 @@ const SelectionActionsPanel: React.FC<{ wb: UseWhiteboardReturn }> = ({ wb }) =>
         </>
       )}
       <ToolbarDivider />
-      <Button
+      <Button aria-label="Delete (Delete)"
         icon={"mdi mdi-delete-outline"}
         variant="danger"
         size="sm"
