@@ -20,7 +20,7 @@ from .class_management_service import ClassManagementService
 if TYPE_CHECKING:
     import asyncpg
 
-    from ..repositories import NodeRepository, PropertyRepository
+    from ..repositories import NodeRepository, PropertyRepository, SettingsRepository
     from .link_service import LinkParsingService
 
 logger = get_logger(__name__)
@@ -28,6 +28,9 @@ logger = get_logger(__name__)
 
 # Maximum allowed hierarchy depth to prevent pathological trees
 MAX_HIERARCHY_DEPTH = 100
+
+# Maximum descendants to load in a single read operation to prevent unbounded reads
+MAX_DESCENDANTS_LOAD = 5000
 
 
 def _format_node_name(raw_name: str | None) -> str:
@@ -60,6 +63,7 @@ class NodeService:
         pool: asyncpg.Pool | None = None,
         workspace_id: int | None = None,
         user_id: int | None = None,
+        settings_repo: SettingsRepository | None = None,
     ):
         self._node_repo = node_repository
         self._property_repo = property_repository
@@ -68,6 +72,7 @@ class NodeService:
         self._pool = pool
         self._workspace_id = workspace_id
         self._user_id = user_id
+        self._settings_repo = settings_repo
         self._class_service = ClassManagementService(pool, workspace_id, node_repository, property_repository)
 
     # ── Public properties ──────────────────────────────────────────────────
@@ -107,11 +112,19 @@ class NodeService:
         return await self._node_repo.get_children(node_id)
 
     async def get_node_descendants(self, node_id: int) -> list[Node]:
-        """Get all descendants of a node (flat list, ordered by depth then sequence)."""
+        """Get descendants of a node, bounded to prevent unbounded reads."""
         descendant_ids = await self._node_repo.get_descendants(node_id, include_self=False)
-        if descendant_ids:
-            return await self._node_repo.get_by_ids(descendant_ids)
-        return []
+        if not descendant_ids:
+            return []
+        if len(descendant_ids) > MAX_DESCENDANTS_LOAD:
+            logger.warning(
+                "Node %s has %s descendants; clamping load to %s",
+                node_id,
+                len(descendant_ids),
+                MAX_DESCENDANTS_LOAD,
+            )
+            descendant_ids = descendant_ids[:MAX_DESCENDANTS_LOAD]
+        return await self._node_repo.get_by_ids(descendant_ids)
 
     async def get_node_descendants_batch(
         self, node_ids: list[int]
@@ -1072,24 +1085,10 @@ class NodeService:
         Favorites are stored as JSON arrays in setting_user(key='favorites').
         This removes the node ID from every user's favorites list.
         """
-        if not self._pool:
+        if not self._settings_repo:
             return
         try:
-            async with self._pool.acquire() as conn:
-                await conn.execute(
-                    """
-                    UPDATE setting_user
-                    SET value = COALESCE(
-                        (SELECT jsonb_agg(elem)
-                         FROM jsonb_array_elements(value) AS elem
-                         WHERE (elem)::text::int != $1),
-                        '[]'::jsonb
-                    ),
-                    write_date = NOW()
-                    WHERE key = 'favorites' AND value @> to_jsonb($1::int)
-                """,
-                    node_id,
-                )
+            await self._settings_repo.remove_node_from_favorites(node_id)
         except Exception as e:
             logger.debug("Failed to clean up favorites for node %s: %s", node_id, e)
 

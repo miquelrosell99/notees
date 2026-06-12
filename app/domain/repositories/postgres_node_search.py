@@ -258,3 +258,57 @@ class PostgresNodeSearchMixin(_PostgresNodeBase):
                 self._workspace_id,
             )
             return [self._row_to_node(row) for row in rows]
+
+    async def get_recent_pages(self, limit: int = 10) -> list[object]:
+        """Get recently opened pages ordered by open_date DESC."""
+        async with acquire_connection(self._pool) as conn:
+            rows = await conn.fetch(
+                """
+                SELECT * FROM node
+                WHERE is_page = true AND active = true
+                      AND (is_deleted = false OR is_deleted IS NULL)
+                      AND open_date IS NOT NULL
+                      AND workspace_id = $1
+                ORDER BY open_date DESC
+                LIMIT $2
+            """,
+                self._workspace_id,
+                limit,
+            )
+            return [self._row_to_node(row) for row in rows]
+
+    async def get_random_pages(self, limit: int = 5) -> list[object]:
+        """Get random non-deleted, non-system pages."""
+        async with acquire_connection(self._pool) as conn:
+            rows = await conn.fetch(
+                """
+                SELECT * FROM node
+                WHERE is_page = true AND active = true
+                      AND (is_deleted = false OR is_deleted IS NULL)
+                      AND is_class = false AND is_day = false
+                      AND is_month = false AND is_year = false
+                      AND workspace_id = $1
+                ORDER BY RANDOM()
+                LIMIT $2
+            """,
+                self._workspace_id,
+                limit,
+            )
+            return [self._row_to_node(row) for row in rows]
+
+    async def get_recently_created_pages(self, limit: int = 5) -> list[object]:
+        """Get recently created pages ordered by create_date DESC."""
+        async with acquire_connection(self._pool) as conn:
+            rows = await conn.fetch(
+                """
+                SELECT * FROM node
+                WHERE is_page = true AND active = true
+                      AND (is_deleted = false OR is_deleted IS NULL)
+                      AND workspace_id = $1
+                ORDER BY create_date DESC
+                LIMIT $2
+            """,
+                self._workspace_id,
+                limit,
+            )
+            return [self._row_to_node(row) for row in rows]

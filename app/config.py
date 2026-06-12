@@ -35,7 +35,17 @@ class Settings(BaseSettings):
     # Server
     host: str = "0.0.0.0"
     port: int = 8000
+    environment: str = "development"
     reload: bool = True
+
+    @field_validator("reload", mode="before")
+    @classmethod
+    def derive_reload_from_environment(cls, v, info):
+        """Default reload to False in production when not explicitly set."""
+        if v is not None:
+            return v
+        env = (info.data.get("environment") or "").lower()
+        return env != "production"
 
     # Database
     database_dir: Path = Path("data")

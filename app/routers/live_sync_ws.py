@@ -38,7 +38,7 @@ from typing import Any
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from ..auth import authenticate_api_key, decode_token, get_user_by_id
-from ..db.connection import clear_request_conn, get_pool
+from ..db.connection import acquire_connection, clear_request_conn, get_pool
 from ..domain.permissions import PermissionChecker
 from ..infrastructure.redis_pubsub import collab_pubsub
 from ..logging_config import get_logger
@@ -333,7 +333,7 @@ async def live_sync_websocket(
     checker = PermissionChecker(pool, user_id)
 
     try:
-        async with pool.acquire() as conn:
+        async with acquire_connection(pool) as conn:
             row = await conn.fetchrow(
                 "SELECT id, uuid::text FROM node WHERE uuid::text = $1 AND active = TRUE",
                 page_uuid,

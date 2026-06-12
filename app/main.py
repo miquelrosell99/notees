@@ -47,7 +47,7 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 from .backup import get_backup_scheduler
 from .cleanup import get_cleanup_scheduler
 from .config import ensure_directories, settings
-from .db.connection import close_pool, init_pool, request_connection
+from .db.connection import acquire_connection, close_pool, init_pool, request_connection
 from .db.schema import init_database
 from .domain.errors import (
     DomainError,
@@ -97,12 +97,12 @@ async def lifespan(app: FastAPI):
 
     if not _in_test:
         # Initialize database schema
-        async with pool.acquire() as conn:
+        async with acquire_connection(pool) as conn:
             await init_database(conn)  # type: ignore[arg-type]
         logger.info("Database schema initialized")
 
         # Warn if no admin exists so the instance owner knows how to fix it
-        async with pool.acquire() as conn:
+        async with acquire_connection(pool) as conn:
             admin_count = await conn.fetchval(
                 "SELECT COUNT(*) FROM \"user\" WHERE role = 'admin' AND active = TRUE"
             )
@@ -216,14 +216,26 @@ class LimitUploadSizeMiddleware:
 
 app.add_middleware(LimitUploadSizeMiddleware, max_size=MAX_REQUEST_BODY_SIZE)
 
+def _is_production() -> bool:
+    """Return True when running in a production environment."""
+    return settings.environment.lower() == "production" or not settings.reload
+
+
 # Configure CORS if origins are specified
 if settings.cors_origins:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
         allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+        allow_headers=[
+            "Authorization",
+            "Content-Type",
+            "X-Requested-With",
+            "Accept",
+            "Origin",
+            "X-Request-ID",
+        ],
         expose_headers=["X-Request-ID", "X-RateLimit-Remaining", "X-RateLimit-Limit", "X-RateLimit-Reset"],
         max_age=600,
     )
@@ -260,8 +272,8 @@ async def add_security_headers(request, call_next):
         "frame-ancestors 'none';"
     )
 
-    # HSTS — only in production (reload=False implies production)
-    if not settings.reload:
+    # HSTS — only in production
+    if _is_production():
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
 
     return response
@@ -271,7 +283,7 @@ async def add_security_headers(request, call_next):
 @app.middleware("http")
 async def enforce_https(request, call_next):
     """Redirect HTTP to HTTPS in production when not on localhost."""
-    if not settings.reload:
+    if _is_production():
         # Check if request is already HTTPS (direct or via reverse proxy)
         forwarded_proto = request.headers.get("X-Forwarded-Proto")
         is_https = (

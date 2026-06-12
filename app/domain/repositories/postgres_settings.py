@@ -72,3 +72,20 @@ class PostgresSettingsRepository(SettingsRepository):
                 now,
                 user_id,
             )
+
+    async def remove_node_from_favorites(self, node_id: int) -> None:
+        async with acquire_connection(self._pool) as conn:
+            await conn.execute(
+                """
+                UPDATE setting_user
+                SET value = COALESCE(
+                    (SELECT jsonb_agg(elem)
+                     FROM jsonb_array_elements(value) AS elem
+                     WHERE (elem)::text::int != $1),
+                    '[]'::jsonb
+                ),
+                write_date = NOW()
+                WHERE key = 'favorites' AND value @> to_jsonb($1::int)
+                """,
+                node_id,
+            )

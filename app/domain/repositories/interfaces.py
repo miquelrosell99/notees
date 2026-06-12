@@ -253,6 +253,21 @@ class NodeSearchRepository(ABC):
         """Find a node ID by UUID in this workspace."""
         pass
 
+    @abstractmethod
+    async def get_recent_pages(self, limit: int = 10) -> list[Node]:
+        """Get recently opened pages ordered by open_date DESC."""
+        pass
+
+    @abstractmethod
+    async def get_random_pages(self, limit: int = 5) -> list[Node]:
+        """Get random non-deleted, non-system pages."""
+        pass
+
+    @abstractmethod
+    async def get_recently_created_pages(self, limit: int = 5) -> list[Node]:
+        """Get recently created pages ordered by create_date DESC."""
+        pass
+
 
 class NodeTrashRepository(ABC):
     """Repository interface for Node trash and archive operations."""
@@ -1026,4 +1041,9 @@ class SettingsRepository(ABC):
     @abstractmethod
     async def set_workspace_setting(self, workspace_id: int, key: str, json_value: str, now: Any, user_id: int) -> None:
         """Upsert a single workspace setting (json_value is a serialised JSON string)."""
+        pass
+
+    @abstractmethod
+    async def remove_node_from_favorites(self, node_id: int) -> None:
+        """Remove a node ID from all users' favorites lists."""
         pass
