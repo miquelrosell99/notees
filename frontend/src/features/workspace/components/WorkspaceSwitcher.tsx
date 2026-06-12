@@ -105,7 +105,7 @@ export function WorkspaceSwitcher() {
           }
           className="workspace-switcher__dropdown"
         />
-        <Button
+        <Button aria-label="Search"
           className="workspace-switcher__search-btn"
           onClick={() => useModalStore.getState().setCommandPaletteOpen(true)}
           title="Search"

@@ -276,6 +276,7 @@ export function Dropdown<T = string>({
                             onClick={() => handleSelect(option)}
                             className={`dropdown-option ${selected ? 'dropdown-option--selected' : ''} ${option.disabled ? 'dropdown-option--disabled' : ''}`}
                             role="option"
+                            tabIndex={option.disabled ? -1 : 0}
                             aria-selected={selected}
                           >
                             {renderOption(option, selected)}

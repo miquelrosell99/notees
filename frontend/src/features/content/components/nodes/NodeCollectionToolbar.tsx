@@ -220,7 +220,7 @@ export function NodeCollectionToolbar({
 
           {/* Add Button */}
           {showAdd && (
-            <Button
+            <Button aria-label="Add"
               icon={"mdi mdi-plus"}
               variant="ghost"
               size="sm"
@@ -246,7 +246,7 @@ export function NodeCollectionToolbar({
           {groupByLabel && onGroupByChange && (
             <span className="node-collection-toolbar__group-by-badge">
               <span className="node-collection-toolbar__group-by-badge-label">Group: {groupByLabel}</span>
-              <Button
+              <Button aria-label="Clear grouping"
                 variant="ghost"
                 size="xs"
                 icon="mdi mdi-close"

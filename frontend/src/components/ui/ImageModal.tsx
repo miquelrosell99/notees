@@ -93,7 +93,7 @@ export function ImageModal({
     <div className="image-modal-backdrop" onClick={handleBackdropClick}>
       {/* Action buttons - top right corner of screen */}
       <div className="image-modal-actions">
-        <Button
+        <Button aria-label="Download image"
           icon={"mdi mdi-download"}
           className="image-modal-download"
           onClick={handleDownload}
@@ -101,7 +101,7 @@ export function ImageModal({
           variant="ghost"
           title="Download image"
         />
-        <Button
+        <Button aria-label="Close (Esc)"
           icon={"mdi mdi-close"}
           className="image-modal-close"
           onClick={onClose}

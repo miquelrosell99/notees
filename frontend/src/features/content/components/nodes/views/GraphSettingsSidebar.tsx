@@ -72,7 +72,7 @@ export function GraphSettingsSidebar({
     <div className="graph-sidebar">
       <div className="graph-sidebar-header">
         <span className="graph-sidebar-header__title">Graph</span>
-        <Button
+        <Button aria-label="Collapse sidebar"
           variant="ghost"
           size="sm"
           icon="mdi mdi-chevron-left"
@@ -167,6 +167,7 @@ export function GraphSettingsSidebar({
                 icon="mdi mdi-trash-can-outline"
                 size="xs"
                 variant="ghost"
+                aria-label="Delete group"
                 onClick={(e) => {
                   e.stopPropagation();
                   onColorGroupsChange(prev => prev.filter(g => g.id !== group.id));

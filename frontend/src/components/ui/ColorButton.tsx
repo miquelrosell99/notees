@@ -285,7 +285,7 @@ export const ColorButton = forwardRef<HTMLButtonElement, ColorButtonProps>(funct
               }}
             />
             {showNoneOption && (
-              <Button
+              <Button aria-label="Remove color"
                 variant="ghost"
                 size="sm"
                 icon={"mdi mdi-trash-can-outline"}

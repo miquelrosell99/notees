@@ -1808,6 +1808,8 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
     <div
       ref={containerRef}
       className={`whiteboard-view__canvas ${cursorClass}`}
+      role="application"
+      aria-label="Whiteboard canvas"
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
@@ -1815,6 +1817,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
       onDoubleClick={handleDoubleClick}
       onContextMenu={handleContextMenu}
       onPointerLeave={() => { if (eraserCursorRef.current) eraserCursorRef.current.setAttribute('r', '0'); }}
+      // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- Canvas must be focusable for keyboard shortcuts.
       tabIndex={0}
     >
       {/* Search bar */}

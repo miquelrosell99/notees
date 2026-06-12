@@ -138,7 +138,7 @@ export function FloatingToolbarPlugin({
         className="floating-toolbar__card"
       >
         <div className="floating-toolbar__actions">
-          <Button
+          <Button aria-label="Bold (Ctrl+B)"
             icon={"mdi mdi-format-bold"}
             variant="ghost"
             size="sm"
@@ -148,7 +148,7 @@ export function FloatingToolbarPlugin({
             onClick={() => handleFormat('bold')}
             className="floating-toolbar__button"
           />
-          <Button
+          <Button aria-label="Italic (Ctrl+I)"
             icon={"mdi mdi-format-italic"}
             variant="ghost"
             size="sm"
@@ -158,7 +158,7 @@ export function FloatingToolbarPlugin({
             onClick={() => handleFormat('italic')}
             className="floating-toolbar__button"
           />
-          <Button
+          <Button aria-label="Underline (Ctrl+U)"
             icon={"mdi mdi-format-underline"}
             variant="ghost"
             size="sm"
@@ -168,7 +168,7 @@ export function FloatingToolbarPlugin({
             onClick={() => handleFormat('underline')}
             className="floating-toolbar__button"
           />
-          <Button
+          <Button aria-label="Strikethrough (Ctrl+Shift+D)"
             icon={"mdi mdi-format-strikethrough"}
             variant="ghost"
             size="sm"
@@ -178,7 +178,7 @@ export function FloatingToolbarPlugin({
             onClick={() => handleFormat('strikethrough')}
             className="floating-toolbar__button"
           />
-          <Button
+          <Button aria-label="Inline code (Ctrl+E)"
             icon={"mdi mdi-code-tags"}
             variant="ghost"
             size="sm"

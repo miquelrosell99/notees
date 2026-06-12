@@ -148,6 +148,8 @@ export function ImageNode({
 
   // Render image content
   const imageContent = (
+    // TODO: Refactor clickable images to use a real <button> wrapper instead of role="button".
+    // eslint-disable-next-line jsx-a11y/no-noninteractive-element-to-interactive-role
     <img role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }}
       key={imageUrl}
       src={imageUrl}
@@ -168,7 +170,7 @@ export function ImageNode({
   const defaultActions = (onEdit || onRemove) ? (
     <>
       {onEdit && (
-        <Button
+        <Button aria-label="Change image"
           icon={"mdi mdi-pencil"}
           variant="ghost"
           size="sm"
@@ -177,7 +179,7 @@ export function ImageNode({
         />
       )}
       {onRemove && (
-        <Button
+        <Button aria-label="Remove image"
           icon={"mdi mdi-close"}
           variant="ghost"
           size="sm"

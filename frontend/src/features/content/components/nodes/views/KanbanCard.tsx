@@ -568,14 +568,14 @@ export const NodeCard = memo(function NodeCard({
           showActions={editable && isCoverHovered}
           actions={
             <>
-              <Button
+              <Button aria-label="Change image"
                 icon={"mdi mdi-pencil"}
                 variant="ghost"
                 size="sm"
                 onClick={() => setIsAssetUploadOpen(true)}
                 title="Change image"
               />
-              <Button
+              <Button aria-label="Remove image"
                 icon={"mdi mdi-close"}
                 variant="ghost"
                 size="sm"

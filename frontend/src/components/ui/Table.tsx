@@ -561,7 +561,7 @@ export function Table<T>({
                     )}
                     <div className="table-node-cell__actions hover-reveal">
                       {onNodeOpenInSidebar && (
-                        <Button
+                        <Button aria-label="Open in sidebar"
                           icon={"mdi mdi-dock-right"}
                           variant="ghost"
                           size="xs"
@@ -573,7 +573,7 @@ export function Table<T>({
                         />
                       )}
                       {onNodeOpen && (
-                        <Button
+                        <Button aria-label="Open node"
                           icon={"mdi mdi-arrow-right"}
                           variant="ghost"
                           size="xs"

@@ -5,7 +5,7 @@
  * Provides consistent styling across the application.
  * 
  * Usage:
- * - Icon only: <Button icon="mdi mdi-cog" />
+ * - Icon only: <Button icon="mdi mdi-cog" aria-label="Settings" />
  * - Text only: <Button>Click me</Button>
  * - Icon + Text: <Button icon="mdi mdi-cog">Settings</Button>
  * - With confirmation: <Button confirm confirmMessage="Are you sure?" onClick={...}>Delete</Button>
@@ -28,7 +28,7 @@ export interface ButtonBadge {
   position?: 'top-right' | 'bottom-right';
 }
 
-export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+type ButtonBaseProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'aria-label' | 'children'> & {
   /** MDI CSS class string (e.g. "mdi mdi-plus") */
   icon?: string;
   /** Explicit icon size multiplier (overrides the default for the button size) */
@@ -45,11 +45,14 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   active?: boolean;
   /** Active-state glow style: none (default), static ring, or breathing halo */
   activeGlow?: 'none' | 'static' | 'breathe';
-  /** Children content */
-  children?: ReactNode;
   /** Badges to display on the button */
   badges?: ButtonBadge[];
-}
+};
+
+export type ButtonProps = ButtonBaseProps & (
+  | { icon?: string; children: ReactNode; 'aria-label'?: string }
+  | { icon: string; children?: never; 'aria-label': string }
+);
 
 const ICON_SIZES: Record<ButtonSize, number> = {
   xs: 0.6,

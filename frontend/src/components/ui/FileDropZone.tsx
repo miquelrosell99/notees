@@ -97,7 +97,7 @@ export function FileDropZone({
       <div className={`file-drop-zone__selected ${className}`}>
         {hiddenInput}
         <span className="file-drop-zone__selected-name">{file.name}</span>
-        <Button
+        <Button aria-label="Change file"
           variant="ghost"
           size="xs"
           icon="mdi mdi-pencil"
@@ -106,7 +106,7 @@ export function FileDropZone({
           disabled={disabled}
           title="Change file"
         />
-        <Button
+        <Button aria-label="Remove file"
           variant="ghost"
           size="xs"
           icon="mdi mdi-close"

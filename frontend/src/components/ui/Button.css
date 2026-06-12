@@ -22,6 +22,7 @@
   text-decoration: none;
   background: var(--color-surface-container);
   color: var(--color-on-surface-variant);
+  min-height: 44px;
 }
 
 .btn:hover:not(:disabled) {
@@ -72,6 +73,7 @@
 .btn--icon-only {
   padding: 0;
   aspect-ratio: 1;
+  min-width: 44px;
 }
 
 /* Icon + Text buttons - use grid for proper centering */

@@ -320,7 +320,7 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
       <div className="scratchpad-header" onMouseDown={handleMouseDown}>
         <span className="scratchpad-title">Scratchpad{meaningfulCount > 0 ? ` (${meaningfulCount})` : ''}</span>
         <div className="scratchpad-actions">
-          <Button
+          <Button aria-label="Clear all"
             className="scratchpad-btn"
             icon="mdi mdi-delete-sweep"
             variant="ghost"
@@ -328,7 +328,7 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
             onClick={handleClearAll}
             title="Clear all"
           />
-          <Button
+          <Button aria-label="isPinned ? 'Unpin' : 'Pin"
             className="scratchpad-btn"
             icon={isPinned ? "mdi mdi-pin" : "mdi mdi-pin-off"}
             variant="ghost"
@@ -383,7 +383,7 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
             >
               → {destinationLabel}
             </button>
-            <Button
+            <Button aria-label="Send all"
               icon={"mdi mdi-send"}
               variant="primary"
               size="sm"

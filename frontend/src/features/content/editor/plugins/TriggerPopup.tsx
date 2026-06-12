@@ -558,7 +558,7 @@ export function TriggerPopup({
             {filter.key}
             {filter.value && `: ${filter.value}`}
           </span>
-          <Button
+          <Button aria-label="Remove filter"
             variant="ghost"
             size="xs"
             icon="mdi mdi-close"

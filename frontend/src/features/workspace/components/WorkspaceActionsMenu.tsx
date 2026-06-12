@@ -78,7 +78,7 @@ export function WorkspaceActionsMenu({
 
   return (
     <div className="workspace-actions-menu" ref={menuRef}>
-      <Button
+      <Button aria-label="Workspace actions"
         ref={buttonRef}
         variant="ghost"
         size="sm"

@@ -15,17 +15,19 @@ export default defineConfig([
       tseslint.configs.recommended,
       reactHooks.configs.flat.recommended,
       reactRefresh.configs.vite,
+      jsxA11y.flatConfigs.recommended,
     ],
     languageOptions: {
       ecmaVersion: 2020,
       globals: globals.browser,
     },
-    plugins: {
-      'jsx-a11y': jsxA11y,
-    },
     rules: {
+      // jsx-a11y/recommended is enabled via extends. Project-specific overrides:
+      // Downgraded to warnings — these require focused refactors and are tracked in the migration backlog.
       'jsx-a11y/click-events-have-key-events': 'warn',
-      'jsx-a11y/no-noninteractive-element-interactions': 'warn',
+      'jsx-a11y/no-static-element-interactions': 'warn',
+      'jsx-a11y/no-autofocus': 'warn',
+      'jsx-a11y/label-has-associated-control': 'warn',
       'jsx-a11y/anchor-is-valid': 'warn',
       '@typescript-eslint/consistent-type-imports': ['error', { prefer: 'type-imports', fixStyle: 'inline-type-imports' }],
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' }],

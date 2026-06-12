@@ -116,8 +116,8 @@ export function SelectTrigger({
         aria-haspopup="listbox"
         aria-expanded={isOpen}
         aria-label={ariaLabel}
-        aria-invalid={ariaInvalid}
         aria-describedby={ariaDescribedby}
+        data-invalid={ariaInvalid || undefined}
         onKeyDown={handleKeyDown}
       >
         <div className="select-trigger__content">

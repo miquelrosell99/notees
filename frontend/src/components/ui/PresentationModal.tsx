@@ -82,14 +82,14 @@ export function PresentationModal() {
     <div ref={containerRef} className="presentation-modal-backdrop">
       {/* Top-right actions */}
       <div className="presentation-modal-actions">
-        <Button
+        <Button aria-label="Toggle fullscreen"
           icon={"mdi mdi-fullscreen"}
           onClick={toggleFullscreen}
           size="md"
           variant="ghost"
           title="Toggle fullscreen"
         />
-        <Button
+        <Button aria-label="Close (Esc)"
           icon={"mdi mdi-close"}
           onClick={closePresentation}
           size="md"
@@ -102,7 +102,7 @@ export function PresentationModal() {
       {slides.length > 1 && (
         <>
           <div className="presentation-modal-nav presentation-modal-nav--prev">
-            <Button
+            <Button aria-label="Previous slide"
               icon={"mdi mdi-chevron-left"}
               onClick={goToPrev}
               size="lg"
@@ -112,7 +112,7 @@ export function PresentationModal() {
             />
           </div>
           <div className="presentation-modal-nav presentation-modal-nav--next">
-            <Button
+            <Button aria-label="Next slide"
               icon={"mdi mdi-chevron-right"}
               onClick={goToNext}
               size="lg"

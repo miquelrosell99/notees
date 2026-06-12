@@ -94,7 +94,7 @@ export function TabItem({
           <span className="tab-item__label">{tab.label}</span>
         )}
         {canClose && (showClose || isActive) && !tab.pinned && (
-          <Button
+          <Button aria-label="Close tab"
             variant="ghost"
             size="xs"
             icon="mdi mdi-close"

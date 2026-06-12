@@ -56,7 +56,7 @@ export function TabBarNarrow({ tabs, activeTabId }: TabBarNarrowProps) {
               </span>
             )}
             renderActions={(item) => [
-              <Button
+              <Button aria-label="item.tab.pinned ? 'Unpin' : 'Pin"
                 key="pin"
                 variant="ghost"
                 size="xs"
@@ -72,7 +72,7 @@ export function TabBarNarrow({ tabs, activeTabId }: TabBarNarrowProps) {
                 }}
                 title={item.tab.pinned ? 'Unpin' : 'Pin'}
               />,
-              <Button
+              <Button aria-label="Close"
                 key="close"
                 variant="ghost"
                 size="xs"

@@ -1068,7 +1068,7 @@ export function QueryNodeCollection({
           
           {/* Hide add view button for pseudo-nodes and inline mode (query blocks manage AST directly) */}
           {!isPseudoNode && !isInlineMode && (
-            <Button
+            <Button aria-label="Add view"
               icon={"mdi mdi-plus-box"}
               variant="ghost"
               size="xs"
@@ -1079,7 +1079,7 @@ export function QueryNodeCollection({
 
           {activeView && (
             <div className="query-section__filter-btn-wrapper">
-              <Button
+              <Button aria-label="Edit view"
                 icon={"mdi mdi-filter-outline"}
                 variant="ghost"
                 size="xs"
@@ -1223,7 +1223,7 @@ export function QueryNodeCollection({
         }}
         title="Query"
         headerLeftElement={
-          <Button
+          <Button aria-label="Show query as prose"
             icon={"mdi mdi-eye-outline"}
             variant="ghost"
             size="xs"
@@ -1265,7 +1265,7 @@ export function QueryNodeCollection({
             
             <div className="query-section__footer-spacer" />
             
-            <Button
+            <Button aria-label="Reset all views to defaults"
               icon={"mdi mdi-restore"}
               variant="ghost"
               size="sm"

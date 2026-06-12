@@ -71,7 +71,7 @@ export function QueryBlockCard({
           <Icon path={"mdi mdi-lock"} size={0.55} />
         </div>
       ) : canRemove && !readOnly && onRemove ? (
-        <Button
+        <Button aria-label="Remove"
           variant="ghost"
           size="xs"
           onClick={onRemove}
