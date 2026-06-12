@@ -11,7 +11,7 @@ import React, { useEffect, useRef, useState, Suspense } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { queryClient, asyncStoragePersister } from './lib/queryClient';
-import { settingsKeys } from './hooks/queryKeys';
+import { settingsKeys, favoriteKeys, recentKeys } from './hooks/queryKeys';
 import { getSettings } from './features/workspace/api/workspaces';
 const Layout = React.lazy(() => import('./features/layout/components/Layout').then(m => ({ default: m.Layout })));
 const LoginView = React.lazy(() => import('./features/auth/pages/LoginView').then(m => ({ default: m.LoginView })));
@@ -30,7 +30,7 @@ import { useCommand } from './hooks/useCommand';
 import { COMMAND_IDS } from './stores/commandRegistry';
 import { DndProvider } from './providers/DndProvider';
 import { listWorkspaces } from './features/workspace/api/workspaces';
-import { useAuthStore, useModalStore, useFavoritesStore, useUndoStore, useNavigationStore } from './stores';
+import { useAuthStore, useModalStore, useUndoStore, useNavigationStore } from './stores';
 import { useAndroidBridge } from './hooks';
 // SHORTCUT_IDS removed — commands now use COMMAND_IDS from commandRegistry
 import type { User } from './types/api';
@@ -185,9 +185,22 @@ function AppContent() {
   useEffect(() => {
     if (!settingsLoaded) return;
     const timer = setTimeout(() => {
-      const store = useFavoritesStore.getState();
-      store.loadFavorites();
-      store.loadRecents();
+      queryClient.fetchQuery({
+        queryKey: favoriteKeys.list(),
+        queryFn: () =>
+          import('./api/nodes').then((mod) =>
+            mod.getFavorites(1, 50).then((response) => response.items.map((node) => node.id))
+          ),
+      });
+      queryClient.fetchQuery({
+        queryKey: recentKeys.list(10),
+        queryFn: () =>
+          import('./api/nodes').then((mod) =>
+            mod.getRecentPages(10).then((pages) =>
+              pages.map((page) => ({ nodeId: page.id, openDate: page.open_date }))
+            )
+          ),
+      });
       clearScratchpad().catch(() => {/* ignore — scratchpad may not exist yet */});
     }, 1500);
     return () => clearTimeout(timer);

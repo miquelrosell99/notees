@@ -8,7 +8,7 @@
 import { useState, useCallback, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Icon } from '@/components/ui/Icon';
-import { NodeCollection } from '@/features/content/components/nodes/NodeCollection';
+import { NodeCollection } from '@/features/content';
 import { Button } from '@/components/ui/Button';
 import { Spinner } from '@/components/ui/Spinner';
 import { useNavigationStore } from '@/stores';

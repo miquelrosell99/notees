@@ -11,7 +11,6 @@
 import { useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Button } from './Button';
-import { Bullet } from '@/features/content/components/blocks/Bullet';
 import './ImageModal.css';
 
 export interface ImageModalProps {
@@ -25,18 +24,8 @@ export interface ImageModalProps {
   alt?: string;
   /** Optional filename for download */
   filename?: string;
-  /** Optional asset node for bullet navigation */
-  assetNode?: {
-    id: number;
-    icon: string | null;
-    is_page: boolean;
-  } | null;
-  /** Callback when bullet is clicked */
-  onBulletClick?: (e: React.MouseEvent) => void;
-  /** Callback when bullet is shift-clicked */
-  onBulletShiftClick?: () => void;
-  /** Callback for bullet context menu */
-  onBulletContextMenu?: (nodeId: number, event: React.MouseEvent) => void;
+  /** Optional bullet element rendered in the top-left corner. */
+  bullet?: React.ReactNode;
 }
 
 /**
@@ -48,10 +37,7 @@ export function ImageModal({
   src,
   alt = 'Image',
   filename,
-  assetNode,
-  onBulletClick,
-  onBulletShiftClick,
-  onBulletContextMenu,
+  bullet,
 }: ImageModalProps) {
   // Handle escape key
   useEffect(() => {
@@ -112,21 +98,7 @@ export function ImageModal({
       </div>
       
       {/* Bullet - top left corner of screen */}
-      {assetNode && (
-        <div className="image-modal-bullet">
-          <Bullet
-            nodeId={assetNode.id}
-            icon={assetNode.icon}
-            isPage={assetNode.is_page}
-            interactive={true}
-            onClick={onBulletClick}
-            onShiftClick={onBulletShiftClick}
-            onContextMenu={onBulletContextMenu}
-            size="md"
-            title="Click to open, Shift+click for sidebar"
-          />
-        </div>
-      )}
+      {bullet && <div className="image-modal-bullet">{bullet}</div>}
       
       {/* Image - centered, fullscreen */}
       <img

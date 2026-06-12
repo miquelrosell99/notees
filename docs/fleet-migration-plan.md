@@ -19,14 +19,14 @@ Target: Fleet-wide standards (`react-ui-patterns`, `fastapi-patterns`, `design-s
 
 Goal: Eliminate all P0 security blockers.
 
-- [ ] Sanitize `RequestValidationError` logging in `app/main.py` (drop `input` field).
-- [ ] Convert auth rate limiters to `PerKeyBucketFactory` + IP identifier.
-- [ ] Add JWT algorithm allow-list in `app/config.py`.
-- [ ] Add indexed API-key prefix lookup in `app/auth.py`.
-- [ ] Remove password hashes from in-memory user cache.
-- [ ] Align admin creation with `ADMIN_PASSWORD` docs (update docs if behavior stays).
-- [ ] Tighten CORS wildcard handling.
-- [ ] Add `SECURITY.md` real contact and dependency audit workflow.
+- [x] Sanitize `RequestValidationError` logging in `app/main.py` (drop `input` field).
+- [x] Convert auth rate limiters to `PerKeyBucketFactory` + IP identifier.
+- [x] Add JWT algorithm allow-list in `app/config.py`.
+- [x] Add indexed API-key prefix lookup in `app/auth.py`.
+- [x] Remove password hashes from in-memory user cache.
+- [x] Align admin creation with `ADMIN_PASSWORD` docs (update docs if behavior stays).
+- [x] Tighten CORS wildcard handling.
+- [x] Add `SECURITY.md` real contact and dependency audit workflow.
 
 ---
 
@@ -34,15 +34,15 @@ Goal: Eliminate all P0 security blockers.
 
 Goal: Enforce hexagonal architecture and FastAPI patterns.
 
-- [ ] Stop domain → router imports; extract asset utilities.
+- [x] Stop domain → router imports; extract asset utilities.
 - [ ] Move raw SQL out of domain services (`undo_service.py`, `permissions.py`, `node_service._log_activity`).
 - [ ] Move router raw SQL into repositories/services.
 - [ ] Remove `.pool` access from routers.
 - [ ] Routers depend on repository interfaces, not concrete Postgres classes.
-- [ ] Resolve redundant `app/infrastructure/repositories/`.
+- [x] Resolve redundant `app/infrastructure/repositories/`.
 - [ ] Add explicit `response_model` to endpoints; replace raw `dict` bodies with Pydantic models.
-- [ ] Centralize DB connection settings in `app/config.py`.
-- [ ] Exclude WebSocket from request-scoped connection middleware.
+- [x] Centralize DB connection settings in `app/config.py`.
+- [x] Exclude WebSocket from request-scoped connection middleware.
 
 ---
 
@@ -50,14 +50,14 @@ Goal: Enforce hexagonal architecture and FastAPI patterns.
 
 Goal: Clean component/state boundaries.
 
-- [ ] Break circular dependencies (`NodeRef`, SGE engine, `QueryBlockBuilder`).
-- [ ] Move domain-aware components out of `components/ui/`.
-- [ ] Create `features/content/index.ts` public barrel.
-- [ ] Replace `favoritesStore` server state with TanStack Query hooks.
-- [ ] Store only IDs in `navigationStore`.
-- [ ] Fix `SearchBox` rules-of-hooks violation.
-- [ ] Introduce query-key factories.
-- [ ] Convert relative `../` imports to path aliases.
+- [x] Break circular dependencies (`NodeRef` → `NodeContextMenu` → `NodeSelector` → `NodeRef` via `ColorPickerRow` extraction).
+- [x] Move domain-aware components out of `components/ui/` (`PresentationModal` → `features/content/components/`).
+- [x] Create `features/content/index.ts` public barrel.
+- [x] Replace `favoritesStore` server state with TanStack Query hooks.
+- [x] Store only IDs in `navigationStore` (removed `activeNode`; `nodeCollectionNodes` → `nodeCollectionNodeIds`).
+- [x] Fix `SearchBox` rules-of-hooks violation.
+- [x] Introduce query-key factories (`favoriteKeys`, `recentKeys`).
+- [ ] Convert relative `../` imports to path aliases (deferred to Phase E/F; 40+ sibling-relative imports remain).
 
 ---
 

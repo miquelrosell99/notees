@@ -3,7 +3,7 @@
  * 
  * Store Categories:
  * - Auth: useAuthStore
- * - UI State: useAppStore (display prefs), useNavigationStore, useModalStore, useSettingsStore, useFavoritesStore
+ * - UI State: useAppStore (display prefs), useNavigationStore, useModalStore, useSettingsStore
  * - Notifications: useNotificationStore
  * - Feature Flags: useFeatureFlagStore
  * - Keyboard: useKeyboardStore
@@ -38,11 +38,7 @@ export {
   type FirstDayOfWeekOption,
   type AccentColor,
 } from './settingsStore';
-export {
-  useFavoritesStore,
-  type FavoriteItem,
-  type RecentItem,
-} from './favoritesStore';
+
 export {
   useNotificationStore,
   useNotifications,
