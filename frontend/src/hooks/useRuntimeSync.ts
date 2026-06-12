@@ -6,9 +6,9 @@
  */
 
 import { useEffect } from 'react';
-import { getNodeGraphRuntime } from '../runtime/NodeGraphRuntime';
-import type { GraphNode, GraphNodeType, ContentAST } from '../runtime/types';
-import type { Node } from '../types/api';
+import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
+import type { GraphNode, GraphNodeType, ContentAST } from '@/runtime/types';
+import type { Node } from '@/types/api';
 import { parseAST } from '@/lib/astBuilder';
 import { stringifyAST, StringifyMode } from '@/lib/stringifyAST';
 import { queryClient } from '@/lib/queryClient';

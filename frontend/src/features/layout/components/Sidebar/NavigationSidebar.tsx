@@ -19,7 +19,7 @@ import { emptyTrash } from '@/api/nodes';
 import { getWorkspaceSettings } from '@/features/workspace/api/workspaces';
 import { WorkspaceSwitcher } from '@/features/workspace/components/WorkspaceSwitcher';
 import { WorkspaceModal } from '@/features/workspace/components/WorkspaceModal';
-import { GraphSettingsModal } from '../Modals';
+import { GraphSettingsModal } from '@/features/layout/components/Modals';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { PageContextMenu } from '@/features/content/components/nodes/NodeContextMenu';

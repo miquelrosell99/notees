@@ -11,13 +11,13 @@
 import { useState, useCallback, useMemo } from 'react';
 import { Dropdown } from '@/components/ui/Dropdown';
 import { NodeSelector } from '@/features/content/components/nodes/NodeSelector';
-import { TextPropertyBlock } from '../TextPropertyBlock';
-import { DatePropertyValue } from '../DatePropertyValue';
-import { UrlPropertyValue } from '../UrlPropertyValue';
-import { EmailPropertyValue } from '../EmailPropertyValue';
+import { TextPropertyBlock } from '@/features/content/components/properties/TextPropertyBlock';
+import { DatePropertyValue } from '@/features/content/components/properties/DatePropertyValue';
+import { UrlPropertyValue } from '@/features/content/components/properties/UrlPropertyValue';
+import { EmailPropertyValue } from '@/features/content/components/properties/EmailPropertyValue';
 import { NodeIcon } from '@/components/ui/icons';
 import { parseIconField } from '@/utils/iconDom';
-import type { PropertyValueProps } from '../propertyValueRegistry';
+import type { PropertyValueProps } from '@/features/content/components/properties/propertyValueRegistry';
 import type { Property } from '@/types/api';
 
 // ==================== Boolean ====================

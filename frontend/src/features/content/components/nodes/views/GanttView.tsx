@@ -24,7 +24,7 @@ import { nodeKeys } from '@/hooks/queryKeys';
 import { nodeViewKeys } from '@/hooks/useNodeViews';
 import { NodeInline } from '@/features/content/components/blocks/NodeInline';
 import { NodeIcon } from '@/components/ui/icons';
-import { PageContextMenu, BlockContextMenu } from '../NodeContextMenu';
+import { PageContextMenu, BlockContextMenu } from '@/features/content/components/nodes/NodeContextMenu';
 import { useGanttData } from './useGanttData';
 import {
   ROW_HEIGHT,

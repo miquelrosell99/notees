@@ -46,7 +46,7 @@ import { NodeContent } from '@/features/content/components/nodes/NodeContent';
 import { NodeCollection } from '@/features/content/components/nodes/NodeCollection';
 
 import { PageContextMenu, BlockContextMenu } from '@/features/content/components/nodes/NodeContextMenu';
-import { QuerySection, NodeActivityLogSection } from '../components/nodes';
+import { QuerySection, NodeActivityLogSection } from '@/features/content/components/nodes';
 import { PropertiesSection } from '@/features/content/components/properties/PropertiesSection';
 import { PropertySuggestionPopup } from '@/features/content/components/properties/PropertySuggestionPopup';
 import { ClassPropertiesEditor } from '@/features/content/components/properties/ClassPropertiesEditor';

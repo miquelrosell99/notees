@@ -3,7 +3,7 @@
  * 
  * Maps scale values to zoom level granularity.
  */
-import type { ZoomLevel } from '../timelineTypes';
+import type { ZoomLevel } from '@/features/content/components/nodes/views/timelineTypes';
 
 export function getZoomLevelFromScale(scale: number): ZoomLevel {
   if (scale >= 8.0) return 'hour';

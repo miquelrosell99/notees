@@ -1,6 +1,6 @@
 import { useRef } from 'react';
-import { useRouterSync } from '../hooks/useRouterSync';
-import { useUrlSync } from '../hooks/useUrlSync';
+import { useRouterSync } from '@/features/layout/hooks/useRouterSync';
+import { useUrlSync } from '@/features/layout/hooks/useUrlSync';
 
 interface RouterSyncProps {
   children: React.ReactNode;

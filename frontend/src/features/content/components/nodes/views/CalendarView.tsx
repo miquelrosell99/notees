@@ -13,7 +13,7 @@ import { getNode, setProperty, getOrCreateDaily } from '@/api/nodes';
 import { nodeKeys } from '@/hooks/queryKeys';
 import { nodeViewKeys } from '@/hooks/useNodeViews';
 import { dateFromUuid } from '@/types/api';
-import { PageContextMenu, BlockContextMenu } from '../NodeContextMenu';
+import { PageContextMenu, BlockContextMenu } from '@/features/content/components/nodes/NodeContextMenu';
 import { Button } from '@/components/ui/Button';
 import { Icon } from '@/components/ui/icons';
 import { registerView } from './registry';

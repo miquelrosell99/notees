@@ -6,8 +6,8 @@
  */
 
 import type { ForcePlugin } from './interface';
-import type { SGEEngine } from '../engine';
-import { BHQuadTree, directClusterRepulsion } from '../barnesHut';
+import type { SGEEngine } from '@/features/content/components/nodes/views/sge/engine';
+import { BHQuadTree, directClusterRepulsion } from '@/features/content/components/nodes/views/sge/barnesHut';
 
 const BH_THRESHOLD = 32;
 

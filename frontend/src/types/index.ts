@@ -5,7 +5,7 @@
 export * from './api';
 export * from './ast';
 export * from './nodeCollection';
-export * from '../constants/viewModes';
+export * from '@/constants/viewModes';
 
 // Export QueryAST types (primary)
 export type {

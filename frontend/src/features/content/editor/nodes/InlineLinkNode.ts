@@ -18,7 +18,7 @@ import {
   type DOMConversionMap,
 } from 'lexical';
 import { createElement, type JSX } from 'react';
-import { InlineLink } from '../components/InlineLink';
+import { InlineLink } from '@/features/content/editor/components/InlineLink';
 
 // ─── Types ────────────────────────────────────────────────────────
 

@@ -5,7 +5,7 @@
  * The engine composes forces in an array and calls them each tick.
  */
 
-import type { SGEEngine } from '../engine';
+import type { SGEEngine } from '@/features/content/components/nodes/views/sge/engine';
 
 export interface ForcePlugin {
   /** Called once when the engine topology changes. */

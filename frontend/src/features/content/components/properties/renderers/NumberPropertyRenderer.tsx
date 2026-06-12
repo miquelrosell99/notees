@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import type { PropertyValueProps } from '../propertyValueRegistry';
+import type { PropertyValueProps } from '@/features/content/components/properties/propertyValueRegistry';
 
 /**
  * Number property value renderer (integer / float).

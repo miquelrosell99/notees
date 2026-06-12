@@ -1,5 +1,5 @@
 import { Checkbox } from '@/components/ui/Checkbox';
-import type { PropertyValueProps } from '../propertyValueRegistry';
+import type { PropertyValueProps } from '@/features/content/components/properties/propertyValueRegistry';
 
 /**
  * Boolean property value renderer.

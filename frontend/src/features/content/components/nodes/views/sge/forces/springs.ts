@@ -5,7 +5,7 @@
  */
 
 import type { ForcePlugin } from './interface';
-import type { SGEEngine } from '../engine';
+import type { SGEEngine } from '@/features/content/components/nodes/views/sge/engine';
 
 export class SpringForce implements ForcePlugin {
   private engine!: SGEEngine;

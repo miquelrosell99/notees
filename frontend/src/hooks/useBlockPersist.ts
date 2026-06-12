@@ -7,7 +7,7 @@
 
 import { useEffect, useRef, useCallback } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { getNodeGraphRuntime } from '../runtime/NodeGraphRuntime';
+import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
 import { createNode as createNodeApi } from '@/api/nodes';
 import type { NodeCreate } from '@/types/api';
 import { nodeKeys } from './queryKeys';
