@@ -423,7 +423,7 @@ export const TableView = memo(function TableView({
           defaultSort={defaultSort}
           sort={sort}
           onSortChange={onSortChange}
-          virtualized={nodes.length > 200}
+          virtualized={nodes.length > 100}
         />
       )}
 

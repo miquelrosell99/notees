@@ -4,6 +4,8 @@ Handles exporting nodes to various formats.
 Uses domain types where applicable.
 """
 
+import asyncio
+
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
 from pydantic import BaseModel
@@ -147,7 +149,12 @@ async def render_pdf(request: RenderPdfRequest, user: User = Depends(get_current
     try:
         from weasyprint import HTML as WEASYPRINT_HTML
 
-        pdf_bytes = WEASYPRINT_HTML(string=request.html).write_pdf()
+        # WeasyPrint is CPU-bound and can block the async event loop for large
+        # documents. Run it in the default thread pool.
+        loop = asyncio.get_event_loop()
+        pdf_bytes = await loop.run_in_executor(
+            None, lambda: WEASYPRINT_HTML(string=request.html).write_pdf()
+        )
         return Response(
             content=pdf_bytes,
             media_type="application/pdf",

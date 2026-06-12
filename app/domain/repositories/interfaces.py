@@ -66,7 +66,7 @@ class NodeCrudRepository(ABC):
         pass
 
     @abstractmethod
-    async def get_children(self, parent_id: int) -> list[Node]:
+    async def get_children(self, parent_id: int, limit: int = 5000) -> list[Node]:
         """Get direct children of a node."""
         pass
 
@@ -76,7 +76,7 @@ class NodeCrudRepository(ABC):
         pass
 
     @abstractmethod
-    async def get_page_content(self, page_id: int) -> list[Node]:
+    async def get_page_content(self, page_id: int, limit: int = 5000) -> list[Node]:
         """Get all nodes belonging to a page (recursive children)."""
         pass
 
@@ -219,8 +219,10 @@ class NodeSearchRepository(ABC):
         pass
 
     @abstractmethod
-    async def get_typed_with(self, type_node_id: int) -> list[Node]:
-        """Get all nodes with a specific type."""
+    async def get_typed_with(
+        self, type_node_id: int, limit: int = 1000, offset: int = 0
+    ) -> list[Node]:
+        """Get nodes with a specific type, paginated."""
         pass
 
     @abstractmethod

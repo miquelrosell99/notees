@@ -286,17 +286,20 @@ async def get_workspace_data_endpoint(
 @router.get("/workspace/nodes")
 async def get_workspace_nodes_endpoint(
     page: int = Query(1, ge=1),
-    page_size: int | None = Query(None, ge=1),
+    page_size: int | None = Query(None, ge=1, le=1000),
     user: User = Depends(get_current_user),
 ):
-    """Get all workspace nodes for visualization (without links).
+    """Get workspace nodes for visualization (without links).
 
     Returns the same nodes as /workspace but omits the links payload,
     making it significantly lighter for cases where the caller fetches
     links separately via POST /links.
 
-    When page_size is omitted, all nodes are returned (no pagination).
+    Pagination is capped at 1000 items per page. If page_size is omitted, a
+    default of 100 is used.
     """
+    if page_size is None:
+        page_size = 100
     service = await _get_node_service(user)
 
     async with acquire_connection(service.pool) as conn:
