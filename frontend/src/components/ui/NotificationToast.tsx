@@ -1,14 +1,30 @@
 /**
- * NotificationToast - Toast notification display component
- * 
- * Renders notifications from the notification store as toasts.
- * Positioned fixed at bottom-right of viewport.
+ * NotificationToast - Presentational toast notification display component
+ *
+ * Receives notifications and a dismiss callback via props. The store connection
+ * lives in a feature-level wrapper so UI atoms stay domain-agnostic.
  */
-import { useNotificationStore, type Notification } from '@/stores/notificationStore';
 import { Button } from './Button';
 import './NotificationToast.css';
 
-const ICONS: Record<Notification['type'], string> = {
+export interface ToastNotification {
+  id: string;
+  type: 'success' | 'error' | 'warning' | 'info';
+  title: string;
+  message?: string;
+  dismissible?: boolean;
+  action?: {
+    label: string;
+    onClick: () => void;
+  };
+}
+
+interface NotificationToastProps {
+  notifications: ToastNotification[];
+  onDismiss: (id: string) => void;
+}
+
+const ICONS: Record<ToastNotification['type'], string> = {
   success: '✓',
   error: '✕',
   warning: '⚠',
@@ -16,7 +32,7 @@ const ICONS: Record<Notification['type'], string> = {
 };
 
 interface ToastItemProps {
-  notification: Notification;
+  notification: ToastNotification;
   onDismiss: (id: string) => void;
 }
 
@@ -56,24 +72,20 @@ function ToastItem({ notification, onDismiss }: ToastItemProps) {
   );
 }
 
-export function NotificationToast() {
-  const notifications = useNotificationStore((state) => state.notifications);
-  const removeNotification = useNotificationStore((state) => state.removeNotification);
-  
+export function NotificationToast({ notifications, onDismiss }: NotificationToastProps) {
   if (notifications.length === 0) {
     return null;
   }
-  
+
   return (
     <div className="notification-toast-container">
       {notifications.map((notification) => (
         <ToastItem
           key={notification.id}
           notification={notification}
-          onDismiss={removeNotification}
+          onDismiss={onDismiss}
         />
       ))}
     </div>
   );
 }
-

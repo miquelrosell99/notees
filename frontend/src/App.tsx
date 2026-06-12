@@ -12,7 +12,8 @@ import { useEffect } from 'react';
 import { BrowserRouter } from 'react-router-dom';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { queryClient, asyncStoragePersister } from './lib/queryClient';
-import { NotificationToast } from './components/ui/NotificationToast';
+import { NotificationToast, type ToastNotification } from './components/ui/NotificationToast';
+import { useNotificationStore, type Notification } from './stores/notificationStore';
 import { ErrorBoundary } from './components/ui/ErrorBoundary';
 import { KeyboardShortcutsProvider } from './hooks/KeyboardShortcutsProvider';
 import { useGlobalKeyboardListener } from './hooks/useGlobalKeyboardListener';
@@ -62,6 +63,28 @@ function AppContent() {
   // the native shell can call window.noteesBridge even while the app is loading.
   useAndroidBridge();
   return <AppRoutes />;
+}
+
+function toToastNotification(n: Notification): ToastNotification {
+  return {
+    id: n.id,
+    type: n.type,
+    title: n.title,
+    message: n.message,
+    dismissible: n.dismissible,
+    action: n.action,
+  };
+}
+
+function ConnectedNotificationToast() {
+  const notifications = useNotificationStore((state) => state.notifications);
+  const removeNotification = useNotificationStore((state) => state.removeNotification);
+  return (
+    <NotificationToast
+      notifications={notifications.map(toToastNotification)}
+      onDismiss={removeNotification}
+    />
+  );
 }
 
 // Module-level guard to prevent double-initialization under React StrictMode
@@ -148,7 +171,7 @@ function App() {
                 <AppContent />
               </ErrorBoundary>
             </BrowserRouter>
-            <NotificationToast />
+            <ConnectedNotificationToast />
           </DndProvider>
         </KeyboardShortcutsProvider>
       </PersistQueryClientProvider>
