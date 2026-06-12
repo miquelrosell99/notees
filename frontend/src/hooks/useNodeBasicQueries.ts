@@ -4,6 +4,7 @@
 
 import { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useNavigate, useParams } from 'react-router-dom';
 import { isApiError } from '@/api/client';
 import * as nodesApi from '@/api/nodes';
 import { nodeKeys } from './queryKeys';
@@ -24,7 +25,7 @@ export function useNodes(filters?: { pages_only?: boolean; parent_id?: number; t
  */
 
 export function useNode(
-  id: number | null, 
+  id: number | null,
   options?: {
     include_children?: boolean;
     include_backlinks?: boolean;
@@ -34,6 +35,8 @@ export function useNode(
   }
 ) {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const { workspaceId } = useParams<{ workspaceId?: string }>();
   const { meta, staleTime, ...apiOptions } = options || {};
   const result = useQuery({
     queryKey: nodeKeys.detail(id ?? 0, apiOptions),
@@ -79,13 +82,12 @@ export function useNode(
             currentNodeId: null,
             mainViewType: 'node'
           });
-          // Navigate to workspace home (extract workspace UUID from current path)
-          const wsMatch = window.location.pathname.match(/^\/([0-9a-f-]{36})/);
-          window.history.replaceState(null, '', wsMatch ? `/${wsMatch[1]}` : '/');
+          // Navigate to workspace home
+          navigate(workspaceId ? `/${workspaceId}` : '/', { replace: true });
         }
       });
     }
-  }, [result.error, id]);
+  }, [result.error, id, navigate, workspaceId]);
 
   return result;
 }

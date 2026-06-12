@@ -5,6 +5,7 @@
  * or accessed through settings. Allows creating, importing, and managing workspaces.
  */
 import { useState, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Spinner } from '@/components/ui/Spinner';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { 
@@ -74,6 +75,7 @@ export function WorkspaceManagementView({
   const restoreInputRef = useRef<HTMLInputElement>(null);
   const restoreTargetRef = useRef<string | null>(null);
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const { logout, user } = useAuthStore();
   const { isImportLogseqModalOpen, setImportLogseqModalOpen } = useModalStore();
 
@@ -106,7 +108,7 @@ export function WorkspaceManagementView({
       queryClient.removeQueries({ queryKey: recentKeys.all });
       
       // Navigate to new workspace home
-      window.history.replaceState(null, '', `/${switchedUuid}`);
+      navigate(`/${switchedUuid}`, { replace: true });
       
       // Clear ALL cached data to prevent any stale data from previous workspace
       queryClient.clear();

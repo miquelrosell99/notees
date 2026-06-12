@@ -5,6 +5,7 @@
  * Has a plus button to the right for graph creation.
  */
 import { useCallback, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { listWorkspaces, switchWorkspace } from '@/features/workspace/api/workspaces';
@@ -17,6 +18,7 @@ import { Icon } from '@/components/ui/icons';
 
 export function WorkspaceSwitcher() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const { setShowWorkspaceManager } = useModalStore();
 
   const { data } = useQuery({
@@ -41,11 +43,11 @@ export function WorkspaceSwitcher() {
     queryClient.removeQueries({ queryKey: recentKeys.all });
     
     // Navigate to new workspace home
-    window.history.replaceState(null, '', `/${switchedUuid}`);
+    navigate(`/${switchedUuid}`, { replace: true });
     
     // Clear ALL cached data to prevent any stale data from previous workspace
     queryClient.clear();
-  }, [queryClient]);
+  }, [queryClient, navigate]);
 
   const switchMutation = useMutation({
     mutationFn: switchWorkspace,
