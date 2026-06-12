@@ -28,7 +28,6 @@ import {
   type WorkspaceInfo,
 } from '@/features/workspace/api/workspaces';
 import { useNavigationStore, useModalStore } from '@/stores';
-import { useFavoritesStore } from '@/stores';
 import type { LogseqExport } from '@/utils/ednParser';
 import { parseEdnInWorker, parseSqliteInWorker } from '@/utils/logseqParserClient';
 import { useLogseqImporter, countBlocks } from '@/hooks/useLogseqImporter';
@@ -47,6 +46,7 @@ import {
   type LogseqFolderResult,
 } from '@/utils/logseqMdParser';
 import { useLogseqFolderImporter } from '@/hooks/useLogseqFolderImporter';
+import { favoriteKeys, recentKeys } from '@/hooks/queryKeys';
 import './ImportOptionsModal.css';
 import './ImportLogseqFolderModal.css';
 
@@ -219,13 +219,13 @@ export function ImportOptionsModal({
       await switchWorkspace(workspace!.uuid);
       useNavigationStore.setState({
         currentNodeId: null,
-        activeNode: null,
         activeNodeId: null,
         sidebarNode: null,
         localGraphNodeId: null,
         mainViewType: 'node',
       });
-      useFavoritesStore.getState().clear();
+      queryClient.removeQueries({ queryKey: favoriteKeys.all });
+      queryClient.removeQueries({ queryKey: recentKeys.all });
       queryClient.clear();
       window.history.replaceState(null, '', `/${workspace!.uuid}`);
       if (!cancelled) setPhase('importing');

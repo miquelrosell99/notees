@@ -13,12 +13,14 @@
  * - Drag the left edge of right sidebar to resize
  */
 import React, { useEffect, useCallback, useRef, useState, Suspense } from 'react';
-import { useNavigationStore, useModalStore, useSettingsStore, useFavoritesStore, usePresentationStore } from '@/stores';
+import { useQueryClient } from '@tanstack/react-query';
+import { useNavigationStore, useModalStore, useSettingsStore, usePresentationStore } from '@/stores';
 import { useCommand } from '@/hooks/useCommand';
 import { COMMAND_IDS } from '@/stores/commandRegistry';
 import { useTodayNote, useCreateNode, useNode, useIsMobile, useDocumentTitle } from '@/hooks';
 import { RouterSync } from './RouterSync';
 import { useSettingsQuery } from '@/hooks/useSettings';
+import { recentKeys } from '@/hooks/queryKeys';
 import { markPageOpened, fixLinksForUuid } from '@/api/nodes';
 import type { BlockData } from '@/utils/clipboardManager';
 import { Sidebar } from './Sidebar';
@@ -43,7 +45,7 @@ const MergePagesModal = React.lazy(() => import('./Modals').then(m => ({ default
 const CreatePageWithUuidModal = React.lazy(() => import('@/features/layout/components/Modals').then(m => ({ default: m.CreatePageWithUuidModal })));
 const AutoExportProgressModal = React.lazy(() => import('@/features/workspace/components/AutoExportProgressModal').then(m => ({ default: m.AutoExportProgressModal })));
 import { Card } from '@/components/ui/Card';
-import { PresentationModal } from '@/components/ui/PresentationModal';
+import { PresentationModal } from '@/features/content/components/PresentationModal';
 import './Layout.css';
 
 export function Layout() {
@@ -116,22 +118,24 @@ export function Layout() {
   // Fetch today's note for default view
   const { data: todayNote } = useTodayNote();
   
+  const queryClient = useQueryClient();
+
   // NOTE: loadFavorites() and loadRecents() are called in App.tsx when dbData?.active changes.
   // Do NOT duplicate them here — it causes 3x duplicate requests competing for browser connections.
-  
+
   // Track page opens by calling the API and refreshing recents.
   // Only call for actual pages; blocks return 400.
   useEffect(() => {
     if (currentNodeId && mainViewType === 'node' && currentNode?.is_page) {
       markPageOpened(currentNodeId)
         .then(() => {
-          useFavoritesStore.getState().loadRecents();
+          queryClient.invalidateQueries({ queryKey: recentKeys.all });
         })
         .catch((error) => {
           console.error('Failed to mark page as opened:', error);
         });
     }
-  }, [currentNodeId, mainViewType, currentNode?.is_page]);
+  }, [currentNodeId, mainViewType, currentNode?.is_page, queryClient]);
   
   // Apply default view ONLY on initial load when URL is "/" (home)
   // This ensures URL-based navigation takes precedence

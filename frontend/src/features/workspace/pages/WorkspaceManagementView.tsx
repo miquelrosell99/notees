@@ -15,7 +15,7 @@ import {
   restoreWorkspace,
   type WorkspaceInfo,
 } from '@/features/workspace/api/workspaces';
-import { useAuthStore, useNavigationStore, useModalStore, useFavoritesStore } from '@/stores';
+import { useAuthStore, useNavigationStore, useModalStore } from '@/stores';
 import { WorkspaceModal } from '@/features/workspace/components/WorkspaceModal';
 import { ImportOptionsModal, type ImportResult } from '@/features/workspace/components/ImportOptionsModal';
 import { ImportLogseqModal } from '@/features/workspace/components/ImportLogseqModal';
@@ -30,6 +30,7 @@ import { UserSettingsModal, SystemSettingsModal } from '@/features/layout/compon
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { formatDate, formatRelativeTime } from '@/utils/dateFormat';
+import { favoriteKeys, recentKeys } from '@/hooks/queryKeys';
 import './WorkspaceManagementView.css';
 
 interface WorkspaceManagementViewProps {
@@ -94,16 +95,15 @@ export function WorkspaceManagementView({
       // Reset node state to prevent showing stale data from previous database
       useNavigationStore.setState({
         currentNodeId: null,
-        activeNode: null,
         activeNodeId: null,
         sidebarNode: null,
         localGraphNodeId: null,
         mainViewType: 'node',
       });
       
-      // Clear favorites/recents immediately, then refresh to get new database data
-      useFavoritesStore.getState().clear();
-      useFavoritesStore.getState().refresh();
+      // Clear favorites/recents so stale data from the previous workspace is not shown
+      queryClient.removeQueries({ queryKey: favoriteKeys.all });
+      queryClient.removeQueries({ queryKey: recentKeys.all });
       
       // Navigate to new workspace home
       window.history.replaceState(null, '', `/${switchedUuid}`);

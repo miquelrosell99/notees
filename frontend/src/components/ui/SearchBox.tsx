@@ -6,7 +6,7 @@
  */
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { Spinner } from '@/components/ui/Spinner';
-import { useQuery } from '@tanstack/react-query';
+import { useQueries, useQuery } from '@tanstack/react-query';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useSearch } from '@/hooks';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
@@ -77,15 +77,14 @@ export function SearchBox<T = Node>({
   
   const { openNode } = useNavigationStore();
   
-  // Multi-section mode: run queries for each section
-  const sectionQueries = (sections || []).map((section, index) => {
-    const sectionSearchFn = section.searchFn;
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    return useQuery({
+  // Multi-section mode: run queries for each section. useQueries is used
+  // because the number of sections is dynamic and hook calls must be stable.
+  const sectionQueries = useQueries({
+    queries: (sections || []).map((section, index) => ({
       queryKey: ['section-search', index, debouncedQuery],
-      queryFn: () => sectionSearchFn!(debouncedQuery),
-      enabled: !!sectionSearchFn && debouncedQuery.length > 0,
-    });
+      queryFn: () => section.searchFn!(debouncedQuery),
+      enabled: !!section.searchFn && debouncedQuery.length > 0,
+    })),
   });
   
   // Single-section mode: use custom search function or default to node search

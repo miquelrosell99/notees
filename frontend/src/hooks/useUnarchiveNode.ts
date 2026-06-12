@@ -3,7 +3,8 @@ import * as nodesApi from '@/api/nodes';
 import type { Node } from '@/types/api';
 import { nodeKeys } from './queryKeys';
 import { nodeViewKeys } from './useNodeViews';
-import { useFavoritesStore } from '@/stores/favoritesStore';
+import { isFavorite, removeFavorite } from './useFavorites';
+import { removeRecent } from './useRecents';
 
 /**
  * Hook to unarchive a node
@@ -16,11 +17,10 @@ export function useUnarchiveNode() {
     onMutate: (nodeId) => {
       // Remove from favorites and recents immediately so the sidebar updates
       // even if the triggering component unmounts before onSuccess fires.
-      const favoritesStore = useFavoritesStore.getState();
-      if (favoritesStore.isFavorite(nodeId)) {
-        favoritesStore.removeFavorite(nodeId);
+      if (isFavorite(nodeId)) {
+        removeFavorite(nodeId).catch(() => {});
       }
-      favoritesStore.removeRecent(nodeId);
+      removeRecent(nodeId);
     },
     onSuccess: (node) => {
       queryClient.setQueriesData<Node>(

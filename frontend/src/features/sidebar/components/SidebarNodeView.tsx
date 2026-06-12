@@ -12,7 +12,7 @@ import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { useNavigationStore } from '@/stores';
 import { Spinner } from '@/components/ui/Spinner';
 import type { SidebarNodeType } from '@/stores';
-import { NodeViewContent } from '@/features/content/pages/NodeView';
+import { NodeViewContent } from '@/features/content';
 import { NodeIcon, BulletIcon } from '@/components/ui/icons';
 import { Button } from '@/components/ui/Button';
 import './SidebarNodeView.css';

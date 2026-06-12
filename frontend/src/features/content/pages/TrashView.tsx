@@ -10,9 +10,11 @@ import { NodeCollectionToolbar } from '@/features/content/components/nodes/NodeC
 import { TrashIcon } from '@/components/ui/icons';
 import { TrashNodeContextMenu } from '@/features/content/components/nodes/TrashNodeContextMenu';
 import { useNavigationStore } from '@/stores';
-import { useFavoritesStore } from '@/stores/favoritesStore';
 import { getTrash, restoreNode, permanentlyDeleteNode, emptyTrash, batchPermanentlyDeleteNodes } from '@/api/nodes';
 import { nodeKeys } from '@/hooks/useNodes';
+import { favoriteKeys, recentKeys } from '@/hooks/queryKeys';
+import { isFavorite, removeFavorite } from '@/hooks/useFavorites';
+import { removeRecent } from '@/hooks/useRecents';
 import type { Node } from '@/types';
 import { copyToClipboard } from '@/utils/clipboardManager';
 import type { NodeCollectionViewMode } from '@/types/nodeCollection';
@@ -63,11 +65,10 @@ export function TrashView({ className = '' }: TrashViewProps) {
       queryClient.invalidateQueries({ queryKey: ['nodes', 'linked-refs'], refetchType: 'active' });
       queryClient.invalidateQueries({ queryKey: ['nodes', 'property-backlinks'], refetchType: 'active' });
       queryClient.invalidateQueries({ queryKey: ['nodes', 'backlinks'], refetchType: 'active' });
-      const favoritesStore = useFavoritesStore.getState();
-      if (favoritesStore.isFavorite(nodeId)) {
-        favoritesStore.removeFavorite(nodeId);
+      if (isFavorite(nodeId)) {
+        removeFavorite(nodeId).catch(() => {});
       }
-      favoritesStore.removeRecent(nodeId);
+      removeRecent(nodeId);
     },
   });
 
@@ -80,7 +81,8 @@ export function TrashView({ className = '' }: TrashViewProps) {
       queryClient.invalidateQueries({ queryKey: ['nodes', 'property-backlinks'], refetchType: 'active' });
       queryClient.invalidateQueries({ queryKey: ['nodes', 'backlinks'], refetchType: 'active' });
       setShowEmptyConfirm(false);
-      useFavoritesStore.getState().refresh();
+      queryClient.invalidateQueries({ queryKey: favoriteKeys.all });
+      queryClient.invalidateQueries({ queryKey: recentKeys.all });
     },
   });
 
@@ -94,12 +96,11 @@ export function TrashView({ className = '' }: TrashViewProps) {
       queryClient.invalidateQueries({ queryKey: ['nodes', 'backlinks'], refetchType: 'active' });
       setSelectedIds(new Set());
       setShowDeleteSelectedConfirm(false);
-      const favoritesStore = useFavoritesStore.getState();
       for (const nodeId of ids) {
-        if (favoritesStore.isFavorite(nodeId)) {
-          favoritesStore.removeFavorite(nodeId);
+        if (isFavorite(nodeId)) {
+          removeFavorite(nodeId).catch(() => {});
         }
-        favoritesStore.removeRecent(nodeId);
+        removeRecent(nodeId);
       }
     },
   });

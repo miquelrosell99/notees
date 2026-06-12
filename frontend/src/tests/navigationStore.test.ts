@@ -3,7 +3,6 @@ import { useNavigationStore } from '@/stores/navigationStore';
 
 const resetState = () =>
   useNavigationStore.setState({
-    activeNode: null,
     activeNodeId: null,
     currentNodeId: null,
     currentPropertyContext: null,

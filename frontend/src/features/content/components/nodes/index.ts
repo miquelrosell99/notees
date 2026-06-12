@@ -12,7 +12,8 @@ export type { BreadcrumbItem } from './NodeBreadcrumbs';
 
 export { NodeContent } from './NodeContent';
 
-export { NodeContextMenu, PageContextMenu, BlockContextMenu, ColorPickerRow } from './NodeContextMenu';
+export { NodeContextMenu, PageContextMenu, BlockContextMenu } from './NodeContextMenu';
+export { ColorPickerRow } from './ColorPickerRow';
 
 export { NodeViewSection } from './NodeViewSection';
 export type { NodeViewSectionProps } from './NodeViewSection';

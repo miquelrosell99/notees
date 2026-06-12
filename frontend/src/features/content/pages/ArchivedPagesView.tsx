@@ -10,8 +10,9 @@ import { NodeCollectionToolbar } from '@/features/content/components/nodes/NodeC
 import { ArchivedNodeContextMenu } from '@/features/content/components/nodes/ArchivedNodeContextMenu';
 import { ArchiveIcon } from '@/components/ui/icons';
 import { useNavigationStore } from '@/stores';
-import { useFavoritesStore } from '@/stores/favoritesStore';
 import api from '@/api/client';
+import { isFavorite, removeFavorite } from '@/hooks/useFavorites';
+import { removeRecent } from '@/hooks/useRecents';
 import { unarchiveNode, deleteNode, batchDeleteNodes } from '@/api/nodes';
 import type { Node } from '@/types/api';
 import type { NodeCollectionViewMode } from '@/types/nodeCollection';
@@ -52,11 +53,10 @@ export function ArchivedPagesView({ className = '' }: ArchivedPagesViewProps) {
       queryClient.invalidateQueries({ queryKey: ['nodes', 'linked-refs'], refetchType: 'active' });
       queryClient.invalidateQueries({ queryKey: ['nodes', 'property-backlinks'], refetchType: 'active' });
       queryClient.invalidateQueries({ queryKey: ['nodes', 'backlinks'], refetchType: 'active' });
-      const favoritesStore = useFavoritesStore.getState();
-      if (favoritesStore.isFavorite(nodeId)) {
-        favoritesStore.removeFavorite(nodeId);
+      if (isFavorite(nodeId)) {
+        removeFavorite(nodeId).catch(() => {});
       }
-      favoritesStore.removeRecent(nodeId);
+      removeRecent(nodeId);
     },
   });
 
@@ -72,12 +72,11 @@ export function ArchivedPagesView({ className = '' }: ArchivedPagesViewProps) {
       queryClient.invalidateQueries({ queryKey: ['nodes', 'property-backlinks'], refetchType: 'active' });
       queryClient.invalidateQueries({ queryKey: ['nodes', 'backlinks'], refetchType: 'active' });
       setShowDeleteAllConfirm(false);
-      const favoritesStore = useFavoritesStore.getState();
       for (const node of nodes ?? []) {
-        if (favoritesStore.isFavorite(node.id)) {
-          favoritesStore.removeFavorite(node.id);
+        if (isFavorite(node.id)) {
+          removeFavorite(node.id).catch(() => {});
         }
-        favoritesStore.removeRecent(node.id);
+        removeRecent(node.id);
       }
     },
   });

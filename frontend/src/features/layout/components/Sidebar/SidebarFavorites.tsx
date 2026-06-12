@@ -1,6 +1,12 @@
 import { useState, useCallback, memo, useEffect } from 'react';
-import { useNavigationStore, useFavoritesStore } from '@/stores';
+import { useNavigationStore } from '@/stores';
 import { useNode, useIsMobile } from '@/hooks';
+import {
+  useFavorites,
+  useRemoveFavoriteMutation,
+  useReorderFavoritesMutation,
+  removeFavorite,
+} from '@/hooks/useFavorites';
 import { isApiError } from '@/api/client';
 import { useNodeDisplay } from '@/hooks/useNodeDisplay';
 import { useListDragSort } from '@/hooks/useListDragSort';
@@ -43,7 +49,7 @@ const SortableFavoriteItem = memo(function SortableFavoriteItem({
   // Auto-remove stale favorites for deleted nodes
   useEffect(() => {
     if (error && isApiError(error) && error.response?.status === 404) {
-      useFavoritesStore.getState().removeFavorite(nodeId);
+      removeFavorite(nodeId).catch(() => {});
     }
   }, [error, nodeId]);
 
@@ -142,7 +148,8 @@ interface SidebarFavoritesProps {
 
 export function SidebarFavorites({ onContextMenu }: SidebarFavoritesProps) {
   const [expanded, setExpanded] = useState(true);
-  const favorites = useFavoritesStore((state) => state.favorites);
+  const { data: favoritesData } = useFavorites();
+  const favorites = favoritesData ?? [];
   const {
     mainViewType,
     currentNodeId,
@@ -166,9 +173,12 @@ export function SidebarFavorites({ onContextMenu }: SidebarFavoritesProps) {
     }
   }, [openNode, openNodeInNewTab, closeMobileDrawer]);
 
+  const removeFavoriteMutation = useRemoveFavoriteMutation();
+  const reorderFavoritesMutation = useReorderFavoritesMutation();
+
   const handleRemove = useCallback((nodeId: number) => {
-    useFavoritesStore.getState().removeFavorite(nodeId);
-  }, []);
+    removeFavoriteMutation.mutate(nodeId);
+  }, [removeFavoriteMutation]);
 
   const {
     containerRef,
@@ -180,7 +190,7 @@ export function SidebarFavorites({ onContextMenu }: SidebarFavoritesProps) {
     itemCount: favorites.length,
     itemSelector: '.sidebar-favorite-item',
     onReorder: (fromIndex, toIndex) => {
-      useFavoritesStore.getState().reorderFavorites(fromIndex, toIndex);
+      reorderFavoritesMutation.mutate({ fromIndex, toIndex });
     },
   });
 
@@ -206,10 +216,10 @@ export function SidebarFavorites({ onContextMenu }: SidebarFavoritesProps) {
           ) : (
             favorites.map((fav, index) => (
               <SortableFavoriteItem
-                key={fav.nodeId}
-                nodeId={fav.nodeId}
+                key={fav}
+                nodeId={fav}
                 index={index}
-                isActive={currentNodeId === fav.nodeId && mainViewType === 'node'}
+                isActive={currentNodeId === fav && mainViewType === 'node'}
                 isDragging={dragState?.dragIndex === index}
                 style={getItemStyle(index)}
                 onDragStart={handleDragStart}

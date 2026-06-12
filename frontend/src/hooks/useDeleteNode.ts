@@ -8,7 +8,8 @@ import type { Node } from '@/types/api';
 import { nodeKeys } from './queryKeys';
 import { nodeViewKeys } from './useNodeViews';
 import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
-import { useFavoritesStore } from '@/stores/favoritesStore';
+import { removeFavorite, isFavorite } from './useFavorites';
+import { removeRecent } from './useRecents';
 import { useNavigationStore } from '@/stores/navigationStore';
 import { invalidateNodeCaches, findNodeInCache, hasTableClass } from './useNodeMutations.utils';
 import {
@@ -57,11 +58,10 @@ export function useDeleteNode() {
     },
     onMutate: async (deletedId) => {
       // Immediately remove from favorites and recents
-      const favoritesStore = useFavoritesStore.getState();
-      if (favoritesStore.isFavorite(deletedId)) {
-        favoritesStore.removeFavorite(deletedId);
+      if (isFavorite(deletedId)) {
+        removeFavorite(deletedId).catch(() => {});
       }
-      favoritesStore.removeRecent(deletedId);
+      removeRecent(deletedId);
 
       // Navigate away if viewing the deleted node
       const currentNodeId = useNavigationStore.getState().currentNodeId;
@@ -133,12 +133,10 @@ export function useDeleteNode() {
         refetchType: 'none',
       });
 
-      const { useFavoritesStore } = await import('@/stores');
-      const favoritesStore = useFavoritesStore.getState();
-      if (favoritesStore.isFavorite(deletedId)) {
-        favoritesStore.removeFavorite(deletedId);
+      if (isFavorite(deletedId)) {
+        removeFavorite(deletedId).catch(() => {});
       }
-      favoritesStore.removeRecent(deletedId);
+      removeRecent(deletedId);
 
       queryClient.invalidateQueries({
         queryKey: nodeKeys.lists(),
