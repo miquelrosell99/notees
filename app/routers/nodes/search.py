@@ -857,7 +857,8 @@ async def list_nodes(
     elif pages_only:
         nodes = await service.get_all_pages()
     else:
-        nodes = await service.search("", limit=10000)  # Get all for filtering
+        # Clamp to the endpoint's own maximum to prevent unbounded reads.
+        nodes = await service.search("", limit=min(5000, page_size or 5000))
 
     # Parse class filters if provided
     filter_class_ids: set | None = None

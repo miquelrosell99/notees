@@ -121,9 +121,9 @@ def temp_data_dir(tmp_path: Path) -> Generator[Path, None, None]:
 @pytest_asyncio.fixture(scope="function")
 async def db_pool(database_url: str, temp_data_dir: Path):
     """Initialize the PostgreSQL connection pool and schema for each test.
-    
+
     This creates a fresh schema for each test by:
-    1. Dropping all tables
+    1. Dropping and recreating the public schema
     2. Re-running schema initialization
     """
     import asyncpg
@@ -141,20 +141,16 @@ async def db_pool(database_url: str, temp_data_dir: Path):
     # any pool connections.
     setup_conn = await asyncpg.connect(database_url)
     try:
-        # Drop all tables in public schema
-        await setup_conn.execute("""
-            DO $$ DECLARE
-                r RECORD;
-            BEGIN
-                FOR r IN (SELECT tablename FROM pg_tables WHERE schemaname = 'public') LOOP
-                    EXECUTE 'DROP TABLE IF EXISTS ' || quote_ident(r.tablename) || ' CASCADE';
-                END LOOP;
-            END $$;
-        """)
-        
-        # Drop extensions and recreate
-        await setup_conn.execute("DROP EXTENSION IF EXISTS pg_trgm CASCADE")
-        
+        # Drop the public schema entirely so an aborted or partially-applied
+        # schema init cannot leave behind tables, types, or migrations that
+        # would collide with the fresh initialization below.
+        await setup_conn.execute("DROP SCHEMA IF EXISTS public CASCADE")
+        await setup_conn.execute("CREATE SCHEMA public")
+        await setup_conn.execute("GRANT ALL ON SCHEMA public TO public")
+
+        # Re-create required extensions in the fresh public schema
+        await setup_conn.execute("CREATE EXTENSION IF NOT EXISTS pg_trgm")
+
         # Initialize fresh schema on the same connection
         await schema.init_database(setup_conn)
     finally:

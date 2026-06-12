@@ -98,13 +98,9 @@ class UserUpdate(BaseModel):
     profile_pic: str | None = None
 
 
-class AdminUserCreate(UserBase):
-    """Admin user creation model."""
+class AdminUserCreate(UserCreate):
+    """Admin user creation model. Reuses email/password validators from UserCreate."""
 
-    password: str
-    name: str | None = None
-    surnames: str | None = None
-    profile_pic: str | None = None
     role: str = "user"
     active: bool = True
 
