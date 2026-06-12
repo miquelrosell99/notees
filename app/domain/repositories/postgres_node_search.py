@@ -208,17 +208,22 @@ class PostgresNodeSearchMixin(_PostgresNodeBase):
 
             return [self._row_to_node(row) for row in rows]
 
-    async def get_typed_with(self, type_node_id: int) -> list[object]:
-        """Get all nodes with a specific type."""
+    async def get_typed_with(
+        self, type_node_id: int, limit: int = 1000, offset: int = 0
+    ) -> list[object]:
+        """Get nodes with a specific type, paginated."""
         async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch(
                 """
                 SELECT n.* FROM node n
                 WHERE $1 = ANY(n.class_ids)
                   AND n.workspace_id = $2 AND n.active = TRUE AND n.is_deleted = FALSE
+                LIMIT $3 OFFSET $4
             """,
                 type_node_id,
                 self._workspace_id,
+                limit,
+                offset,
             )
             return [self._row_to_node(row) for row in rows]
 

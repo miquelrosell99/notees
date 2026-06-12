@@ -451,18 +451,27 @@ class PostgresNodeRepository(
             logger.info(f"[HARD_DELETE] Delete result: {result}")
             return True
 
-    async def get_children(self, parent_id: int) -> list[Node]:
-        """Get direct children of a node (excludes comments)."""
+    async def get_children(self, parent_id: int, limit: int = 5000) -> list[Node]:
+        """Get direct children of a node (excludes comments).
+
+        A default LIMIT prevents unbounded responses for nodes with huge numbers
+        of children. Callers that legitimately need more should paginate.
+        """
         async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch(
-                f"SELECT {_NODE_SELECT_COLUMNS} FROM node WHERE parent_id = $1 AND workspace_id = $2 AND active = TRUE AND is_deleted = FALSE AND is_comment = FALSE ORDER BY sequence",
+                f"SELECT {_NODE_SELECT_COLUMNS} FROM node WHERE parent_id = $1 AND workspace_id = $2 AND active = TRUE AND is_deleted = FALSE AND is_comment = FALSE ORDER BY sequence LIMIT $3",
                 parent_id,
                 self._workspace_id,
+                limit,
             )
             return [self._row_to_node(row) for row in rows]
 
-    async def get_page_content(self, page_id: int) -> list[Node]:
-        """Get all nodes belonging to a page (recursive children), excluding comments."""
+    async def get_page_content(self, page_id: int, limit: int = 5000) -> list[Node]:
+        """Get nodes belonging to a page (recursive children), excluding comments.
+
+        Capped to avoid OOM for pages with tens of thousands of blocks.
+        Callers should load large pages in chunks if they hit the cap.
+        """
         async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch(
                 """
@@ -476,9 +485,11 @@ class PostgresNodeRepository(
                 FROM node
                 WHERE page_id = $1 AND workspace_id = $2 AND active = TRUE AND is_deleted = FALSE AND is_comment = FALSE
                 ORDER BY sequence
+                LIMIT $3
             """,
                 page_id,
                 self._workspace_id,
+                limit,
             )
             return [self._row_to_node(row) for row in rows]
 
