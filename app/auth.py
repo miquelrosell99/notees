@@ -100,7 +100,8 @@ async def get_user_by_id(user_id: str) -> dict | None:
                 "surnames": row["surnames"],
                 "profile_pic": row["profile_pic"],
                 "role": row["role"],
-                "hashed_password": row["hashed_password"],
+                # Deliberately omit hashed_password from the cached dict. Auth code
+                # that needs the hash fetches it explicitly via get_user_by_email.
                 "is_active": row["active"],
                 "created_at": row["created_at"].isoformat() if row["created_at"] else None,
             }
@@ -406,19 +407,27 @@ async def authenticate_api_key(key: str) -> dict | None:
     updates last_used_at, and returns the associated user dict.
     Rejects expired keys.
     Includes the key's scopes in the returned dict under '_api_key_scopes'.
+
+    Candidate rows are filtered by ``last_4`` before bcrypt verification to
+    avoid a full table scan + CPU-heavy comparison against every active key.
     """
-    if not key.startswith(_API_KEY_PREFIX):
+    if not key.startswith(_API_KEY_PREFIX) or len(key) < 4:
         return None
 
+    last_4 = key[-4:]
+
     async with get_connection() as conn:
-        # Fetch all non-revoked, non-expired keys.
+        # Fetch only keys whose last 4 characters match. With 62^4 possible
+        # combinations, collisions are rare even for workspaces with many keys.
         rows = await conn.fetch(
             """
             SELECT id, user_id, key_hash, expires_at, scopes
             FROM api_key
             WHERE revoked = FALSE
               AND (expires_at IS NULL OR expires_at > NOW())
-            """
+              AND last_4 = $1
+            """,
+            last_4,
         )
 
         for row in rows:
@@ -499,6 +508,16 @@ async def verify_refresh_token_db(token: str) -> dict | None:
             if verify_refresh_token(token, row["token_hash"]):
                 return dict(row)
     return None
+
+
+async def is_refresh_token_reused(token_id: int) -> bool:
+    """Return True if the refresh token has already been rotated (reused)."""
+    async with get_connection() as conn:
+        replaced = await conn.fetchval(
+            "SELECT replaced_by FROM refresh_token WHERE id = $1",
+            token_id,
+        )
+        return replaced is not None
 
 
 async def rotate_refresh_token(old_token_id: int, new_token: str) -> dict:
