@@ -6,7 +6,7 @@ This file contains project-specific context for AI coding agents. If you are rea
 
 ## Project Overview
 
-**Notees** is a self-hosted, privacy-first note-taking application with bidirectional linking, block-based editing, and offline support. The goal is to provide a powerful, user-owned alternative on par with tools like **Logseq, Obsidian, Notion, Roam Research, and Anytype**. It was developed with AI assistance and is licensed under AGPL-3.0.
+**Notees** is a self-hosted, privacy-first note-taking application with bidirectional linking, block-based editing, and offline support. It was developed with AI assistance and is licensed under AGPL-3.0.
 
 Key features:
 - **Bidirectional Linking**: Wiki-style `[[Page Name]]` links with automatic backlink tracking.
@@ -14,7 +14,7 @@ Key features:
 - **Daily Journals**: Built-in daily, monthly, and yearly journal pages.
 - **Types & Properties**: Custom properties and classes for powerful filtering and organization.
 - **Query-Driven Collections**: A QueryAST system compiles structured queries into PostgreSQL SQL at runtime.
-- **Offline-First**: PWA with service worker caching; works without internet.
+- **Offline-First**: PWA with service worker caching.
 - **Multi-Database / Workspaces**: Separate knowledge bases per project or context.
 - **Export**: Markdown, HTML, and PDF export.
 
@@ -30,14 +30,16 @@ Key features:
 - **Dev vs. Prod**: Dev PostgreSQL settings (`fsync=off`, etc.) in `compose.yaml` must never be used in production.
 - **Technical Excellence**: Always take the technically best path, not the simpler path. Proper extraction, clean interfaces, and type safety take precedence over minimal diff size.
 - **Root Causes Over Hacks**: Always fix root causes instead of adding defensive workarounds. If a symptom points to a deeper architectural issue (stale state, lifecycle mismatches, incorrect boundaries), refactor the underlying cause rather than patching around it.
-- **Fix Bad Data at the Source**: If a bug is caused by incorrect data in the database or schema (e.g., wrong icon format, malformed enum values), fix the data and add a migration — never add frontend/backend "backward compatibility" code to tolerate bad data. Clean data is cheaper than defensive code.
+- **Fix Bad Data at the Source**: If a bug is caused by incorrect data in the database or schema, fix the data and add a migration — never add frontend/backend "backward compatibility" code to tolerate bad data.
 - **Docker-first**: Development and production are both Docker-based. Local venv setup is possible but not the supported path.
+
+> Generic engineering principles (code style, import grouping, testing discipline, accessibility, performance, security patterns) are covered by the skills listed under [Skill References](#skill-references).
 
 ---
 
 ## Debugging Conventions
 
-- **Race condition triage**: If a bug involves "local change disappears after a network mutation" (e.g., typed text reappears, inline pill vanishes after adding a class/tag), check the **debounced save / query invalidation boundary FIRST** before tracing DOM or editor logic. The frontend debounces content saves (`useContentSave`) while mutations like `addClass` invalidate queries immediately. A refetch can return stale server-side content and overwrite the editor's local state. In the old monolithic editor this happened via `BlockPlugin.syncProjection`; in the new per-block editor it can happen via `InlineEditor` re-renders when parent props change. Always verify whether `flushAllContentSaves()` or an equivalent flush is needed before firing the mutation.
+- **Race condition triage**: If a bug involves "local change disappears after a network mutation" (e.g., typed text reappears, inline pill vanishes after adding a class/tag), check the **debounced save / query invalidation boundary FIRST** before tracing DOM or editor logic. The frontend debounces content saves (`useContentSave`) while mutations like `addClass` invalidate queries immediately. A refetch can return stale server-side content and overwrite the editor's local state. Always verify whether `flushAllContentSaves()` or an equivalent flush is needed before firing the mutation.
 - **Root causes over local fixes**: When symptoms look like a local editor bug (popup not closing, text not removed, selection wrong), step back and check cross-layer interactions — especially between Lexical editor state, `NodeGraphRuntime` projections, TanStack Query cache updates, and debounced persistence.
 
 ---
@@ -46,24 +48,17 @@ Key features:
 
 - **Multi-file changes**: If a task touches more than 2–3 files, spans both frontend and backend, or changes interfaces/schemas, use **plan mode** (`EnterPlanMode`) and get user approval before writing code.
 - **Always verify**: After code changes, run the relevant linter/test suite before finishing.
-  - Backend: `ruff check app/`; run tests inside the backend Docker container (see Testing Strategy)
-  - Frontend: `cd frontend && npm run lint` and `npx tsc -b --noEmit`
+  - Backend: `ruff check app/`; run tests inside the backend Docker container (see [Testing Strategy](#testing-strategy)).
+  - Frontend: `cd frontend && npm run lint` and `npx tsc -b --noEmit`.
 - **Fix all test failures**: If tests fail after your changes — even failures that appear unrelated to your task — you must fix them before finishing. Do not leave the test suite broken.
 - **Prefer minimal changes**: Do not refactor unrelated code. Follow the existing file's style, even if it differs slightly from the general guidelines.
-
----
-
-The project has three main parts:
-1. **Backend** (`app/`): FastAPI (Python 3.13+)
-2. **Frontend** (`frontend/`): React 19 + TypeScript + Vite SPA
-3. **Mobile** (`mobile/`): Android Kotlin wrapper app (WebView-based)
 
 ---
 
 ## Technology Stack
 
 | Layer | Technology | Version | Purpose |
-|-------|-----------|---------|---------|
+|---|---|---|---|
 | Backend | FastAPI | 0.136.3 | REST API framework |
 | Backend | Uvicorn | 0.48.0 | ASGI server |
 | Backend | Pydantic | 2.13.4 | Data validation |
@@ -71,7 +66,7 @@ The project has three main parts:
 | Backend | PyJWT | 2.13.0 | JWT tokens (HS256) |
 | Backend | passlib | 1.7.4 | Password hashing (bcrypt primary, pbkdf2_sha256 legacy) |
 | Backend | asyncpg | 0.31.0 | Async PostgreSQL driver |
-| Backend | slowapi | 0.1.9 | Rate limiting |
+| Backend | fastapi-limiter | 0.2.0 | Rate limiting (with `pyrate_limiter`) |
 | Backend | WeasyPrint | 68.1 | PDF generation |
 | Backend | Pillow | 12.2.0 | Image processing |
 | Database | PostgreSQL | 17 | Primary persistent storage |
@@ -95,7 +90,7 @@ The project has three main parts:
 notees/
 ├── app/                          # Backend (FastAPI)
 │   ├── main.py                   # FastAPI app factory, lifespan, middleware, routers
-│   ├── config.py                 # Pydantic-settings configuration (.env support)
+│   ├── config.py                 # Pydantic-settings configuration
 │   ├── auth.py                   # JWT auth, password hashing, user management
 │   ├── models.py                 # Pydantic request/response schemas
 │   ├── backup.py                 # Automatic backup scheduler (pg_dump)
@@ -107,49 +102,28 @@ notees/
 │   ├── db/                       # Database layer
 │   │   ├── connection.py         # asyncpg pool + request-scoped connections
 │   │   └── schema/               # Schema initialization, migrations, constants
-│   │       ├── sql.py            # Raw DDL (~1250 lines)
-│   │       ├── init.py           # Seeding + migration orchestration
-│   │       └── constants.py      # System UUIDs, class definitions
 │   ├── domain/                   # Hexagonal architecture: domain layer
-│   │   ├── entities/             # Pure data models (Node, Link, Property, User, QueryAST)
-│   │   ├── services/             # Business logic (NodeService, LinkService, QueryService, etc.)
+│   │   ├── entities/             # Pure data models (Node, User, Property, QueryAST)
+│   │   ├── services/             # Business logic orchestrators
 │   │   ├── repositories/         # Repository interfaces + PostgreSQL implementations
-│   │   ├── errors.py             # Domain exceptions
-│   │   └── stringify_ast.py      # AST parser/serializer for block content
+│   │   └── errors.py             # Domain exceptions
 │   ├── routers/                  # FastAPI API endpoints
-│   │   ├── auth.py
-│   │   ├── workspaces.py
-│   │   ├── assets.py
-│   │   ├── export.py
-│   │   ├── sync.py
-│   │   ├── activity.py
-│   │   ├── undo/
-│   │   ├── nodes/                # Node CRUD, search, daily, links, comments, favorites, views
-│   │   └── properties/           # Property CRUD, values, classes, selection lines
-│   ├── infrastructure/           # Additional infra adapters (e.g., user repository)
+│   ├── infrastructure/           # Additional infra adapters
 │   ├── static/                   # Static assets + built frontend output (dist/)
-│   └── utils/                    # Small utilities (datetime helpers)
+│   └── utils/                    # Small utilities
 │
 ├── frontend/                     # React SPA
 │   ├── src/
 │   │   ├── api/                  # Axios client + endpoint functions
-│   │   ├── components/           # React components
-│   │   │   ├── core/             # Domain-agnostic atoms (Button, Card, Modal, etc.)
-│   │   │   ├── blocks/           # Block display components
-│   │   │   ├── nodes/            # Node-level components (NodeCollection, PageHeader, etc.)
-│   │   │   ├── properties/       # Property editors
-│   │   │   ├── queries/          # Query builder UI
-│   │   │   ├── layout/           # App shell (Layout, Sidebar/, CommandPalette/, Modals/, TopBar)
-│   │   │   ├── sidebar/          # Right sidebar cards
-│   │   │   └── workspace/        # Workspace management modals
-│   │   ├── editor/               # Lexical editor (BlockEditor, plugins, custom nodes)
-│   │   ├── hooks/                # React hooks (data fetching, mutations, keyboard)
-│   │   ├── stores/               # Zustand stores (auth, app, settings, undo, etc.)
+│   │   ├── components/ui/        # Reusable UI atoms (Button, Card, Modal, etc.)
+│   │   ├── features/             # Feature-first modules (auth, content, queries, ...)
+│   │   ├── hooks/                # Custom React hooks
+│   │   ├── stores/               # Zustand stores
 │   │   ├── types/                # TypeScript type definitions
-│   │   ├── utils/                # Utility functions (tree ops, date parsing, colors)
-│   │   ├── views/                # Top-level view components (NodeView, JournalsView, etc.)
-│   │   ├── workers/              # Web Workers (query, parser, command palette)
-│   │   ├── runtime/              # Runtime systems (NodeGraphRuntime, ProjectionReconciler)
+│   │   ├── utils/                # Utility functions
+│   │   ├── views/                # Top-level view components
+│   │   ├── workers/              # Web Workers
+│   │   ├── runtime/              # NodeGraphRuntime
 │   │   └── lib/                  # Core libraries (AST builder, query client, stringifyAST)
 │   ├── package.json
 │   ├── vite.config.ts            # Vite config with PWA plugin, proxy, path aliases
@@ -158,24 +132,16 @@ notees/
 │   └── vitest.config.ts          # Vitest test runner config
 │
 ├── mobile/                       # Android Kotlin app
-│   ├── app/build.gradle.kts      # Android app module config
-│   ├── app/src/main/java/...     # MainActivity, SetupActivity, ShareActivity, AndroidBridge
-│   ├── build-apk.sh              # APK build script
-│   └── Dockerfile                # Multi-stage Docker build for APK
+│   ├── app/                      # App module (Activities, Bridge, preferences, widget)
+│   ├── build-apk.sh              # Docker-based APK build script
+│   └── Dockerfile
 │
 ├── tests/                        # Backend test suite
-│   ├── conftest.py               # Shared pytest fixtures (DB pool, test user, HTTP client)
-│   └── test_*.py                 # Test modules (16 files)
-│
-├── docs/                         # Architecture documentation (01-13)
+├── docs/                         # Architecture documentation
 ├── scripts/                      # Utility scripts
-│   ├── generate_secret_key.py    # Cryptographically secure SECRET_KEY generator
-│   ├── check_extends.py          # Inspect class extension relationships
-│   ├── run_migration.py          # Apply undo_log migration
-│   └── reset_system_views.py     # Reset system views to default QueryAST
 ├── data/                         # User data, assets, backups (gitignored)
 ├── logs/                         # Application logs (gitignored)
-├── compose.yaml                  # Docker Compose (development: backend + frontend + postgres)
+├── compose.yaml                  # Docker Compose (development)
 ├── Dockerfile                    # Production multi-stage build
 ├── Dockerfile.dev                # Development backend with hot-reload
 ├── requirements.txt              # Python dependencies
@@ -202,7 +168,7 @@ The backend follows a strict hexagonal architecture with three layers:
 
 2. **Infrastructure Layer** (`app/domain/repositories/`)
    - Concrete PostgreSQL implementations: `postgres_node.py`, `postgres_link.py`, `postgres_property.py`, `postgres_user.py`, etc.
-   - These are the **only** files that execute SQL against asyncpg.
+   - These are the **only** files that should execute SQL against asyncpg.
 
 3. **API Layer** (`app/routers/`)
    - FastAPI routers that depend on domain services.
@@ -222,10 +188,12 @@ The backend follows a strict hexagonal architecture with three layers:
 
 ### Frontend: React SPA
 
+> Generic React/TypeScript/Vite patterns (strict TS, path aliases, co-located CSS, data flow, store boundaries, query key discipline, mutation cache invalidation, barrel files, hook decomposition, TanStack Query v5 unmounting behavior) are covered by `react-ui-patterns`. The items below are Notees-specific implementations and deviations.
+
 - **Build tool**: Vite with PWA plugin (`vite-plugin-pwa`). The build outputs to `app/static/dist`.
 - **State**: Zustand for client state (navigation, UI, auth, settings, undo); TanStack Query for server state and caching.
 - **Editor**: Lexical with 28+ custom plugins for block editing, slash commands, drag-and-drop, tables, code blocks, etc.
-- **Routing**: Client-side routing within the SPA. FastAPI serves `index.html` for all non-API routes (`spa_fallback`).
+- **Routing**: Client-side routing within the SPA via a custom router (`src/hooks/useRouter.hook.ts`). FastAPI serves `index.html` for all non-API routes (`spa_fallback`).
 - **Path aliases**: `@/components`, `@/hooks`, `@/stores`, `@/api`, `@/editor`, `@/runtime`, `@/types`.
 - **Optimistic UI**: Mutations update TanStack Query cache immediately and roll back on failure.
 - **View modes**: `NodeCollection` dispatches to `ListView`, `DocumentView`, `CardView`, `TableView`, `GanttView`, `GraphView`, `TimelineView`, and `WhiteboardView`.
@@ -271,6 +239,8 @@ The `mobile/` directory contains a minimal Android Kotlin app (API 26–36, minS
 - Encrypted server URL storage via `EncryptedSharedPreferences`.
 - Deep link support: `notees://note/42`.
 - File chooser for uploads, custom User-Agent, back button handling.
+
+For build instructions and full mobile details, see `mobile/README.md`. For agent context when modifying the mobile app, see `mobile/AGENTS.md`.
 
 ---
 
@@ -325,20 +295,6 @@ npm run preview
 npm run lint
 ```
 
-### Full Stack (Docker Compose — Recommended for Development)
-
-```bash
-# Copy and configure environment
-cp .env.example .env
-# Edit .env and set SECRET_KEY and Postgres credentials
-
-# Start backend, frontend, and PostgreSQL
-docker compose up
-
-# The frontend dev server runs on http://localhost:5173
-# The backend API runs on http://localhost:8000
-```
-
 ### Production Docker Build
 
 ```bash
@@ -364,6 +320,8 @@ The debug keystore is checked into the repo intentionally (it is not a secret).
 
 ## Testing Strategy
 
+> Generic testing discipline is covered by `fastapi-patterns` and `react-ui-patterns`. The commands and project-specific setup below are Notees-specific.
+
 ### Backend Tests
 
 Tests are in `tests/` and use **pytest** with async support. Because the backend depends on `y-py` and other native extensions, tests **must be run inside the backend Docker container** against the existing PostgreSQL service.
@@ -387,7 +345,7 @@ docker exec -e TEST_DATABASE_URL=postgresql://notees:change_me_dev_password@post
 
 **Test configuration (`pytest.ini`):**
 - `asyncio_mode = auto`
-- Coverage target: `--cov-fail-under=50`
+- Coverage target: `--cov-fail-under=30` (current baseline; raise only after coverage consistently exceeds a new threshold)
 - Coverage reports to `htmlcov/`
 - Markers: `slow`, `integration`
 
@@ -422,41 +380,19 @@ Tests use Vitest with `jsdom`, `@testing-library/react`, and `@testing-library/j
 
 ---
 
-## Code Style Guidelines
+## Code Style & Linting
 
-### Python
+> Generic Python and TypeScript/React style rules are covered by `fastapi-patterns` and `react-ui-patterns`. Project-specific enforcement tools are listed below.
 
-- Follow **PEP 8**.
-- Use **type hints** extensively; import `from __future__ import annotations` where needed.
-- Use **async/await** for all I/O (asyncpg, FastAPI).
-- Domain services use repository **interfaces**, never concrete DB drivers directly.
-- Loggers are obtained via `app.logging_config.get_logger(__name__)`.
-- String literals: double quotes for docstrings and user-facing strings; consistent style within files.
-- Imports are grouped: stdlib, third-party, local (with relative imports inside `app/`).
-- **Linting**: Ruff is configured in `pyproject.toml` (target py312, line-length 120, Google docstyle convention, select E/W/F/I/N/UP/B/C4/SIM).
-- **Type checking**: mypy is configured in `pyproject.toml` (`disallow_untyped_defs = true`, `ignore_missing_imports = true`).
-
-### TypeScript / React
-
-- **Strict TypeScript** enabled (`tsconfig.app.json`):
-  - `strict: true`
-  - `noUnusedLocals: true`
-  - `noUnusedParameters: true`
-  - `verbatimModuleSyntax: true`
-- Path aliases are mandatory; never use relative `../../../` paths.
-- Component files use `.tsx`; utility files use `.ts`.
-- CSS files are co-located with components (`.css`).
-- Custom hooks live in `frontend/src/hooks/`.
-- Zustand stores live in `frontend/src/stores/`.
-- API calls are centralized in `frontend/src/api/`.
-
-### Linting
-
-- **Frontend**: ESLint (flat config) with `@eslint/js`, `typescript-eslint`, `react-hooks`, `react-refresh`, and `jsx-a11y`.
+- **Backend**: Ruff is configured in `pyproject.toml` (target py312, line-length 120, Google docstyle convention, select E/W/F/I/N/UP/B/C4/SIM). Run `ruff check app/`.
+- **Frontend**: ESLint (flat config) with `@eslint/js`, `typescript-eslint`, `react-hooks`, `react-refresh`, and `jsx-a11y`. Run `cd frontend && npm run lint`.
+- **Design System Validator**: `frontend/scripts/validate-design-system.js` catches hardcoded pixel values in spacing/layout properties. It uses a baseline (`scripts/.design-system-baseline.txt`) that grandfathers existing violations, so only *new* violations fail the build.
   ```bash
-  cd frontend && npm run lint
+  cd frontend
+  node scripts/validate-design-system.js              # check for new violations
+  node scripts/validate-design-system.js --update-baseline  # after fixing a batch
   ```
-- **Backend**: Ruff (configured in `pyproject.toml`).
+- **Dead code detector**: `cd frontend && npx knip` finds unused exports and files.
 
 ---
 
@@ -498,11 +434,13 @@ See `.env.example` for the full template.
 
 ## Security Considerations
 
+> Generic security practices (auth, HTTPS, secrets, input validation, rate limiting, dependency auditing) are covered by `security-hardening`. The Notees-specific defaults and headers are listed below.
+
 - **SECRET_KEY is mandatory** and validated at startup (min 32 chars). The app will refuse to start without it.
 - **Password hashing**: Uses `bcrypt` via passlib (with `pbkdf2_sha256` retained for backward compatibility with existing hashes).
 - **JWT tokens**: Signed with HS256. Token lifetime defaults to 24 hours (configurable via `ACCESS_TOKEN_EXPIRE_HOURS`).
 - **CORS**: Disabled by default (frontend and backend are same-origin). Only configure `CORS_ORIGINS` if you run them on separate domains.
-- **Rate limiting**: `fastapi_limiter` (0.2.0) + `pyrate_limiter` are configured in `app/main.py` and individual routers. See the Rate Limiting subsystem reference below for details.
+- **Rate limiting**: `fastapi_limiter` (0.2.0) + `pyrate_limiter` are configured in `app/main.py` and individual routers. See the [Rate Limiting](#rate-limiting) subsystem reference for details.
 - **Request body size limit**: 55 MB maximum (to support the 50 MB asset upload cap plus multipart overhead).
 - **User cache**: In-memory user cache with 5-minute TTL to avoid DB pool acquisition on every request.
 - **Static asset caching**: Hashed JS/CSS chunks get long-term cache headers; everything else is `no-store`.
@@ -514,6 +452,8 @@ See `.env.example` for the full template.
 ---
 
 ## Deployment
+
+> Generic self-hosting patterns (Docker Compose, multi-stage Dockerfile, env files, health checks, update workflow) are covered by `selfhost-release`. Notees-specific commands and warnings are below.
 
 **Notees is deployed via Docker** for both development and production environments. There is no bare-metal or native deployment path; all runtime dependencies (Python, Node.js, PostgreSQL) are containerized.
 
@@ -601,21 +541,21 @@ Never call `pool.acquire()` directly in routers or services. Use:
 
 ### Frontend Conventions
 
-> **Generic React patterns** — See the `react-ui-patterns` skill for cross-project guidance on CSS co-location, import boundaries, data flow architecture, store boundaries, query key discipline, mutation cache invalidation, API layer purity, barrel files, hook decomposition, and TanStack Query v5 unmounting behavior. The items below are Notees-specific implementations and file paths.
+> Generic React patterns — See the `react-ui-patterns` skill for cross-project guidance on strict TypeScript, path aliases, CSS co-location, import boundaries, data flow architecture, store boundaries, query key discipline, mutation cache invalidation, API layer purity, barrel files, hook decomposition, and TanStack Query v5 unmounting behavior. The items below are Notees-specific implementations and file paths.
 
 - **Strict TypeScript**: `strict: true`, `noUnusedLocals: true`, `noUnusedParameters: true`, `verbatimModuleSyntax: true`.
 - **Path Aliases**: Mandatory. Use `@/components`, `@/hooks`, `@/stores`, `@/api`, `@/editor`, `@/runtime`, `@/types`. Never use relative `../../../` paths.
 - **CSS Co-location**: Each component has a `.css` file with the same base name in the same directory.
 - **Component File Extensions**: `.tsx` for React components, `.ts` for utilities.
 - **Import Boundaries**:
-  - `core/` components are domain-agnostic atoms (Button, Card, Modal). They **must never** import domain components.
-  - Domain-specific components (`blocks/`, `nodes/`, `properties/`, `queries/`) may import from `core/`, `api/`, `hooks/`, and `stores/`.
+  - `components/ui/` components are domain-agnostic atoms (Button, Card, Modal). They **must never** import domain components or stores.
+  - Domain-specific components (`features/content/components/blocks/`, `features/content/components/nodes/`, `features/properties/`, `features/queries/`) may import from `components/ui/`, `api/`, `hooks/`, and `stores/`.
 - **Custom Hooks**: Live in `frontend/src/hooks/`.
 - **State**: Zustand for client state; TanStack Query for server state. Avoid direct fetch/XMLHttpRequest inside UI components.
 
 #### Icons
 
-The app uses **SVG-only icon rendering** via a shared sprite sheet (`frontend/public/mdi-sprite.svg`). This is the industry standard used by Obsidian, Logseq, Blueprint, and others.
+The app uses **SVG-only icon rendering** via a shared sprite sheet (`frontend/public/mdi-sprite.svg`).
 
 - **Sprite sheet**: All 7,000+ Material Design Icons are stored as `<symbol>` elements in a single static file generated from `@mdi/svg`.
 - **Rendering**: `Icon.tsx` and `iconDom.ts` render icons with `<svg><use href="/mdi-sprite.svg#mdi-{name}" /></svg>`.
@@ -657,6 +597,8 @@ The component's existing parent-hover rule (e.g., `.my-container:hover .my-actio
 
 #### CSS & Design System Conventions
 
+> Generic design system guidance is covered by `design-system`. The Notees-specific token names and rules are below.
+
 - **Design Tokens First**: All spacing, layout, sizing, and positioning values must use tokens from `variables.css`. Never hardcode pixel values that describe spatial relationships between components.
   - Block indentation: `--block-indent-step`
   - Thread line position: `--thread-line-offset`
@@ -665,169 +607,18 @@ The component's existing parent-hover rule (e.g., `.my-container:hover .my-actio
 - **No Cross-Component Selectors**: A CSS file must never reach into another component's internals (e.g., `.node-block--editing .bullet-dot` is forbidden). If a child component needs to change appearance based on parent state, pass a prop or use a data attribute on the child.
 - **Component Co-location**: Each `.tsx` file has exactly one `.css` file in the same directory. CSS for a component lives only in its own file.
 - **Dead Code Hygiene**: Delete unused CSS classes immediately when the corresponding TSX structure changes. Do not leave orphaned rules "just in case."
-- **No Magic Numbers**: If a value appears in more than one CSS file, it must be a token. The `24px` indentation step appears in `BlockRow.css`, `Bullet.css`, and 14 editing-trail gradient declarations — this must be `var(--block-indent-step)`.
+- **No Magic Numbers**: If a value appears in more than one CSS file, it must be a token.
 - **UI Components First**: Never create a one-off `<button>` or `<input>` when a shared UI component exists. The `Button`, `Icon`, `Input`, `Checkbox`, etc. components in `frontend/src/components/ui/` enforce consistency (sizing, accessibility, focus states, hover styles). Always use them. If a design truly requires a custom element, extract a new UI component rather than inlining raw HTML.
   - Icon-only buttons: `<Button variant="ghost" size="xs" iconOnly icon="mdi mdi-close" />`
   - Text + icon buttons: `<Button icon="mdi mdi-plus">Add</Button>`
   - Never use raw `<button>` for icon actions — `Button` handles `aspect-ratio: 1`, `padding: 0`, and flex-centering automatically.
 
-#### Enforcement for Solo AI Developers
-
-Since there is no code review, the **codebase must enforce its own rules**. Three tools run automatically:
-
-1. **Pre-commit hook** (`.git/hooks/pre-commit`): Runs `lint-staged`, which only checks files you are currently editing. It runs:
-   - `eslint --fix` + `tsc --noEmit` on `.ts`/`.tsx` files
-   - `node scripts/validate-design-system.js --css-files` on `.css` files
-
-2. **Design System Validator** (`frontend/scripts/validate-design-system.js`): Catches hardcoded pixel values in spacing/layout properties. It uses a **baseline** (`scripts/.design-system-baseline.txt`) that grandfather's existing violations, so only *new* violations fail the build.
-
-   ```bash
-   cd frontend
-   node scripts/validate-design-system.js              # check for new violations
-   node scripts/validate-design-system.js --update-baseline  # after fixing a batch
-   ```
-
-3. **Dead code detector** (`knip`): Finds unused exports and files.
-   ```bash
-   cd frontend
-   npx knip
-   ```
-
-**Workflow:**
-- Edit CSS → commit → pre-commit hook blocks if you introduced a new hardcoded `px` value.
-- Fix the violation (use a token) or run `--update-baseline` if you intentionally fixed a batch.
-- The AI agent must run `npm run lint` and `npm run lint:css` before declaring a task complete.
-
-### Frontend Data Flow Architecture
-
-The frontend uses a **three-layer data model** with clear ownership:
-
-```
-Backend API ←→ TanStack Query (server state cache) ←→ NodeGraphRuntime (client graph) ←→ Lexical editors / UI
-```
-
-| Layer | Technology | Owns | Do NOT put here |
-|-------|-----------|------|-----------------|
-| **Server State** | TanStack Query | API responses, normalized entity cache, query keys | UI flags, ephemeral selection state, full Node objects that bypass the cache |
-| **Client Runtime** | `NodeGraphRuntime` | In-memory graph of blocks, structural intents, undo stack, projections | API calls, authentication, navigation |
-| **UI State** | Zustand stores | Navigation, modals, display preferences, keyboard shortcuts, clipboard | Server responses, query caches, full entity trees |
-
-#### Store Boundaries (Zustand)
-
-- **Zustand stores must hold only client/UI state.** Server data belongs in TanStack Query.
-- Stores that currently violate this (migrate when touched):
-  - `favoritesStore` — fetches favorites/recents manually instead of using `useQuery`.
-  - `undoStore` — accepts `QueryClient` as a parameter, coupling store layer to TanStack Query internals.
-  - `navigationStore` — `activeNode` stores a full `Node` object but is unused; components read `useNode(activeNodeId)` instead.
-- Use selectors to subscribe to only the slice you need: `useNavigationStore(s => s.openNode)` not `useNavigationStore()`.
-- Avoid imperative `useXStore.getState().action()` inside render paths; prefer the React hook subscription or use it only in event handlers.
-
-#### Query Key Discipline
-
-- **Always use factory functions** from `frontend/src/hooks/queryKeys.ts`. Never hardcode raw arrays like `['nodes', 'page-content']`.
-- Prefix factories exist for cache-wide invalidation:
-  ```ts
-  // Invalidates ALL page-content queries regardless of node ID
-  queryClient.invalidateQueries({ queryKey: nodeKeys.pageContents() });
-  ```
-- When adding a new query, add its key factory to `queryKeys.ts` first, then use it in the hook AND in every mutation that invalidates it.
-
-#### Mutation Cache Invalidation
-
-- Use the shared `invalidateNodeCaches()` helper from `useNodeMutations.ts` for common cases (lists, pages, search, graph, etc.).
-- For tree mutations (create, update, delete, move), prefer **explicit cache iteration** over `setQueriesData` with partial key matching. The latter is unreliable for deeply nested block structures.
-- Optimistic updates must provide `onError` rollback. Snapshot the previous cache value in `onMutate` before mutating.
-
-#### API Layer Purity
-
-- `frontend/src/api/` functions must be **thin transport wrappers** only: build the URL, call axios, return `response.data`.
-- Do NOT put in the API layer:
-  - DOM manipulation (creating anchor tags for downloads)
-  - Data grouping/sorting/presentation logic
-  - Auth state helpers (localStorage access belongs in `utils/auth.ts` or the auth store)
-  - `Promise.all` orchestration of multiple unrelated endpoints (belongs in a mutation hook)
-- File downloads should use a dedicated `utils/download.ts` helper that accepts a `Blob` and triggers the browser save.
-
-#### Axios Client Configuration
-
-- `frontend/src/api/client.ts` configures a single axios instance.
-- It must have an explicit `timeout` (default 30s) to prevent hung requests.
-- Global 401 handling, request/response logging, and auth token injection live in interceptors.
-
-#### Barrel Files (Re-exports)
-
-The frontend uses a **two-level barrel file** pattern to keep import paths clean:
-
-1. **Top-level barrels** (`frontend/src/*/index.ts`) are the public API for each module.
-   - Example: `frontend/src/hooks/index.ts` re-exports everything consumers should import from `@/hooks`.
-   - Example: `frontend/src/components/ui/index.ts` re-exports all UI atoms.
-
-2. **Domain-specific sub-barrels** aggregate related exports from deeper files.
-   - Example: `frontend/src/hooks/useNodes.ts` is a sub-barrel that re-exports node queries, mutations, and activity hooks from `useNodeQueries.ts`, `useNodeMutations.ts`, etc.
-   - `frontend/src/hooks/index.ts` then re-exports from `useNodes.ts` (and other sub-barrels) so consumers only need `@/hooks`.
-
-**Rules:**
-- Import from the **shallowest public barrel** that exposes the symbol. `@/hooks` is preferred over `@/hooks/useStringifyAST` unless you are inside the `hooks/` module itself.
-- Do **not** use sub-barrels to re-export unrelated utilities. If a utility (e.g., `nodeNameToText`) lives in `useStringifyAST.ts`, it should be re-exported directly from `hooks/index.ts`, not routed through `useNodes.ts`.
-- When adding a new hook or utility, update the appropriate `index.ts` so it is discoverable via path aliases.
-
-#### Frontend Widget Inventory (`frontend/src/components/ui/`)
-
-Reusable UI atoms available for building features. Import via `@/components/core/<Name>`.
-
-| Widget | Purpose | Key Props |
-|--------|---------|-----------|
-| `Button` | Primary action button (filled, ghost, icon-only) | `variant`, `size`, `icon`, `onClick` |
-| `BooleanToggle` | Switch toggle with label + description | `checked`, `label`, `description`, `labelPosition` |
-| `SelectionButton` | Icon-button row for choosing from options | `options`, `value`, `size`, `labelPosition` |
-| `ColorButton` | Circular color swatch with optional picker | `color`, `size`, `showPicker`, `onColorChange` |
-| `TextField` | Labelled text input | `label`, `placeholder`, `value`, `onChange` |
-| `SearchBox` | Node search with filter + dropdown results | `filterFn`, `onSelect`, `placeholder` |
-| `Modal` | Dialog with header/content/footer slots | `isOpen`, `onClose`, `title`, `size`, `footer` |
-| `Card` | Surface container with elevation | `variant`, `padding`, `children` |
-| `Dropdown` | Menu dropdown triggered by button | `trigger`, `items`, `onSelect` |
-| `ContextMenu` | Right-click context menu | `items`, `onSelect` |
-| `Badge` | Small status/count label | `variant`, `size`, `children` |
-| `Pill` | Rounded tag/chip | `variant`, `onRemove` |
-| `ListSortable` | Drag-reorderable list | `items`, `renderText`, `renderAction`, `onReorder` |
-| `useListDragSort` | Shared DnD hook (used by ListSortable & Sidebar favorites) | `itemCount`, `itemSelector`, `onReorder` |
-| `Slider` | Range input | `min`, `max`, `value`, `onChange` |
-| `Checkbox` | Checkbox with label | `checked`, `label`, `onChange` |
-| `DatePickerPopup` | Calendar date picker popup | `value`, `onChange` |
-| `LoadingSkeleton` | Placeholder loading UI | `variant`, `count` |
-| `EmptyState` | Empty content placeholder | `icon`, `title`, `description` |
-| `NotificationToast` | Temporary notification banner | `message`, `type`, `duration` |
-| `ImageModal` | Image preview modal | `src`, `isOpen`, `onClose` |
-| `Table` | Data table with sorting | `columns`, `data`, `keyExtractor` |
-| `InlineConfirmButton` | Button that turns into confirm/cancel | `onConfirm`, `label` |
-| `ButtonWithPanel` | Button that opens a pop-over panel | `icon`, `panel`, `title` |
-| `SelectTrigger` | Trigger for custom select dropdowns | `value`, `placeholder`, `onClick` |
-| `FloatingButtonArray` | FAB with child action buttons | `buttons`, `direction` |
-| `FileDropZone` | Drag-and-drop file upload zone | `onFiles`, `accept` |
-
-**Query Builder widgets** (`frontend/src/features/queries/components/`):
-- `ViewBuilder` — Full QueryAST editor (conditions, groups, NOT)
-- `QueryBlockBuilder` — Single query block renderer (used recursively by ViewBuilder)
-- `QueryBlockList` — List of query blocks with add/remove/reorder
-- `ProseConditionBuilder` — Prose-style condition editor
-- `ProseScopeSelector` — Scope picker (pages, workspace, current page)
-- `QuerySQLPreview` — Shows natural language, AST JSON, and SQL pseudocode
-
 #### Adding a New Frontend Component
 1. Place React components in the appropriate feature under `frontend/src/features/`.
-2. Use path aliases (e.g., `@/components/core/Button`) for all imports.
+2. Use path aliases (e.g., `@/components/ui/Button`) for all imports.
 3. Co-locate CSS in a `.css` file with the same base name.
-4. Respect import boundaries: `core/` must not import domain components.
+4. Respect import boundaries: `components/ui/` must not import domain components or stores.
 5. Register new routes/views in the appropriate `frontend/src/features/{name}/pages/` and wire them into `MainContent` / `appStore`.
-
-#### Decomposing Complex Hooks
-When a hook exceeds ~400 lines, split it into focused sub-hooks:
-- **State hook** (`useXState`) — owns `useState`, `useRef`, `useEffect`, `useMemo`, `useCallback` for local UI state and derived values.
-- **Items hook** (`useXItems`) — builds the aggregated data array from state.
-- **Selection hook** (`useXSelection`) — handles action dispatch when an item is selected.
-- **Main hook** (`useX`) — thin orchestrator that wires sub-hooks and returns the combined public API.
-
-Example: `useCommandPalette` → `useCommandPaletteState` + `useCommandPaletteItems` + `useCommandPaletteSelection`.
 
 ---
 
@@ -840,31 +631,6 @@ Example: `useCommandPalette` → `useCommandPaletteState` + `useCommandPaletteIt
 - When building the Docker image, the frontend build stage outputs to `./dist` inside the container and is copied to `app/static/dist` in the final stage.
 - The frontend build uses `Cross-Origin-Opener-Policy` / `Cross-Origin-Embedder-Policy` headers to enable `SharedArrayBuffer` (required for sql.js/WebAssembly features).
 - The `README.md` is kept up to date with the current stack. For the canonical version list, check `pyproject.toml`, `package.json`, and the AGENTS.md Technology Stack table.
-
-### TanStack Query v5: `onSuccess` / `onError` and Component Unmounting
-
-In **TanStack Query v5**, `onSuccess`, `onError`, and `onSettled` callbacks defined on `useMutation` (or passed to `.mutate()`) are **only executed while the component that owns the hook is mounted**. If the component unmounts before the mutation finishes, those callbacks are silently dropped.
-
-This is a breaking change from v4 and has caused multiple bugs where:
-- Cache invalidation never runs after a delete/archive/unarchive
-- Navigation away from a deleted page doesn't happen
-- Zustand store updates (favorites, recents) are lost
-- Modal/menu close callbacks are missed
-
-**Most at-risk patterns:**
-- Context menus that call `mutate()` then `onClose()` (e.g., `NodeContextMenu`, `TrashNodeContextMenu`, `ArchivedNodeContextMenu`)
-- Confirmation modals that close immediately after `mutate()`
-- Popovers or quick-add inputs that disappear on submit
-
-**Safe patterns:**
-1. **Move critical side effects into `onMutate`** — it runs synchronously when `mutate()` is called, before the component can unmount. Good for: optimistic Zustand updates, navigation, cache invalidation that doesn't need the server response.
-2. **Use `mutateAsync()` + `await` in the event handler** — keeps the component mounted until the mutation completes. Only use this if the UX is acceptable (the menu/modal stays open during the API call).
-3. **Global `MutationCache` callbacks** — register observers on the `QueryClient`'s `mutationCache` for side effects that must always run regardless of which component triggered the mutation.
-
-**When adding or reviewing mutations, ask:**
-- Is this mutation triggered from a modal, menu, or popover that will unmount?
-- Does `onSuccess` do anything essential (navigation, store updates, cache invalidation)?
-- If yes, move that work to `onMutate` or use a global observer.
 
 ---
 
@@ -1244,56 +1010,39 @@ The fix is `PerKeyBucketFactory` (defined in `app/main.py`). It creates a separa
 
 ---
 
-### Dependency Updates
+## Skill References
 
-Keep dependencies reasonably current to avoid security issues and benefit from bug fixes. Check for outdated packages periodically:
-
-```bash
-# Backend
-pip list --outdated
-
-# Frontend
-cd frontend && npm outdated
-```
-
-**Current versions vs. latest (as of 2026-05-25):**
-
-| Package | Current | Latest | Notes |
-|---------|---------|--------|-------|
-| FastAPI | 0.136.3 | 0.136.3 | ✅ Up to date |
-| Uvicorn | 0.48.0 | 0.48.0 | ✅ Up to date |
-| Pydantic | 2.13.4 | 2.13.4 | ✅ Up to date |
-| asyncpg | 0.31.0 | 0.31.0 | ✅ Up to date |
-| WeasyPrint | 68.1 | 68.1 | ✅ Up to date |
-| React | 19.2.6 | 19.2.6 | ✅ Up to date |
-| TypeScript | ~6.0.3 | ~6.0.3 | ✅ Up to date |
-| Vite | 8.0.14 | 8.0.14 | ✅ Up to date |
-| TanStack Query | 5.100.14 | 5.100.14 | ✅ Up to date |
-| Lexical | 0.44.0 | 0.44.0 | ✅ Up to date |
-| Axios | 1.16.1 | 1.16.1 | ✅ Up to date |
-| Zustand | 5.0.13 | 5.0.13 | ✅ Up to date |
-
-**Upgrade rules:**
-- **Patch versions** (e.g., 5.100.14 → 5.100.20): generally safe; run tests and lint.
-- **Minor versions** (e.g., 0.109.0 → 0.110.0): review changelog for deprecations; run full test suite.
-- **Major versions** (e.g., Vite 7 → 8, TypeScript 5 → 6): plan carefully; check all plugin/config compatibility; run both frontend and backend tests.
-- **Never upgrade multiple major versions at once** — upgrade one dependency at a time and verify.
-- After any upgrade, run: `pytest tests/ -v`, `ruff check app/`, `cd frontend && npm run lint && npm run build`.
-- Update this AGENTS.md table after upgrades so it stays accurate.
+- `fastapi-patterns` — Hexagonal architecture, request-scoped connections, background tasks, backend code style.
+- `react-ui-patterns` — React/TypeScript/Vite conventions, data flow, state boundaries, query discipline, mutation cache invalidation, barrel files, hook decomposition, TanStack Query v5 behavior.
+- `security-hardening` — Auth, HTTPS, secrets, input validation, rate limiting, dependency auditing.
+- `performance-optimizer` — Profiling, memoization, code splitting, list virtualization, pool tuning.
+- `accessibility-primer` — Screen readers, focus, contrast, touch targets, motion, hover-reveal fallbacks.
+- `design-system` — Fleet-wide design tokens, dark mode, motion, haptics.
+- `frontend-design` — Distinctive web UI aesthetic guidance.
+- `selfhost-release` — Docker Compose, multi-stage Dockerfile, env files, health checks, update workflow.
+- `codebase-organizer` — Feature-first structure, import boundaries, modular architecture.
 
 ---
 
-## Skill References
+## Fleet Alignment Scorecard
 
-- `react-ui-patterns` — Generic React conventions, data flow, state boundaries, query discipline, barrel files, hook decomposition.
-- `fastapi-patterns` — Hexagonal architecture, request-scoped connections, background tasks, code style.
-- `security-hardening` — Auth, HTTPS, secrets, input validation, rate limiting, dependency auditing.
-- `performance-optimizer` — Profiling, memoization, code splitting, list virtualization.
-- `accessibility-primer` — Screen readers, focus, contrast, touch targets, motion.
-- `design-system` — Fleet-wide design tokens, dark mode, motion, haptics.
+Audit performed against the fleet skill library. Scores are rough percentages of alignment; gaps are the migration backlog.
+
+| Skill | Scope | Alignment | Key Strengths | Key Gaps |
+|---|---|---|---|---|
+| `fastapi-patterns` | Backend | **85%** | Hexagonal layers, request-scoped connections, Pydantic models, lifespan, background jobs. | Some routers execute raw SQL; a few direct `pool.acquire()` calls remain outside `app/db/connection.py`. |
+| `security-hardening` | Backend/Infra | **75%** | bcrypt + correct pin, JWT + refresh rotation, rate limits, security headers, upload validation. | HSTS/HTTPS gated by `reload=True` default; CORS too permissive when enabled; no MFA; no `SECURITY.md`; no dependency audit automation. |
+| `performance-optimizer` | Backend | **80%** | Asyncpg pool tuning, request-scoped connections, pagination, in-memory caches, background exports, gzip. | Some unbounded queries (10k node search, all descendants); no Redis query-result caching. |
+| `react-ui-patterns` | Frontend | **75%** | Feature-first structure, path aliases, co-located CSS, TanStack Query + Zustand, lazy loading, barrel files. | No Tailwind; custom router instead of `react-router-dom`; some `ui/` components import domain stores/features. |
+| `design-system` | Frontend | **75%** | Comprehensive `variables.css` tokens, monochrome base, accent palette, dark/OLED modes, validator script, zero elevation. | `PresentationModal.css` uses undefined/legacy tokens; `Button` xs size below 44 px touch target. |
+| `frontend-design` | Frontend | **70%** | Cohesive minimal aesthetic, functional accents, motion tokens. | Visual language is safe/productivity-app rather than bold signature; token drift in grandfathered files. |
+| `accessibility-primer` | Frontend | **65%** | Focus trap, skip link, visible focus rings, ARIA patterns, reduced-motion reset. | Icon-only buttons not guaranteed `aria-label`; many unlabeled `role="button"` divs; `jsx-a11y/recommended` not enabled; touch targets ad-hoc. |
+| `performance-optimizer` | Frontend | **75%** | Virtualization in Table/BlockList/query, React.memo on heavy views, code splitting, manualChunks, observers, useTransition, offline cache cap. | Not all lists virtualized; render-path object allocations; some very large hooks. |
+| `codebase-organizer` | Cross-stack | **80%** | Feature-first frontend, clear backend layers, reusable UI kit, barrel files. | Some UI kit boundary violations; backend auth module mixes concerns. |
+| `selfhost-release` | Deployment | **85%** | Docker Compose dev, multi-stage production Dockerfile, non-root user, healthcheck, env files. | Dev Postgres settings documented as non-production; mobile build instructions live only in README. |
+
+---
 
 ## Documentation
 
-Architecture documentation lives in `AGENTS.md` and inline code documentation.
-
-Refer to these when working on specific subsystems.
+Architecture documentation lives in `AGENTS.md` and inline code documentation. See `mobile/README.md` for mobile-specific build details and `mobile/AGENTS.md` for agent context when modifying the mobile app.
