@@ -1,9 +1,9 @@
 /**
  * Navigation History Store — tracks browser history position for back/forward buttons.
  *
- * Works alongside the browser's History API. Each pushUrl() call increments
- * the internal index and stores it in the pushState state object. On popstate,
- * the index is read back to determine canGoBack / canGoForward.
+ * Works alongside the browser's History API. Each navigation push increments
+ * the internal index. On popstate, the index is read back to determine
+ * canGoBack / canGoForward.
  */
 import { create } from 'zustand';
 
@@ -21,6 +21,8 @@ interface NavigationHistoryState {
   goBack: () => void;
   /** Navigate forward. */
   goForward: () => void;
+  /** Reset history bookkeeping (e.g. after a full route reload). */
+  reset: () => void;
 }
 
 export const useNavigationHistoryStore = create<NavigationHistoryState>()(
@@ -60,6 +62,10 @@ export const useNavigationHistoryStore = create<NavigationHistoryState>()(
       if (get().canGoForward) {
         window.history.forward();
       }
+    },
+
+    reset: () => {
+      set({ currentIndex: 0, maxIndex: 0, canGoBack: false, canGoForward: false });
     },
   }),
 );

@@ -1,5 +1,8 @@
 /**
  * Router hooks — Barrel File
+ *
+ * Re-exports the lightweight URL parsing/building utilities. Direct history
+ * mutation has been removed in favour of react-router-dom.
  */
 export {
   SPECIAL_VIEWS,
@@ -7,8 +10,5 @@ export {
   VIEW_TO_PATH,
   parseUrl,
   buildUrl,
-  pushUrl,
-  replaceUrl,
   type ParsedRoute,
 } from './useRouter.utils';
-export { useRouter, useCurrentNodeUuid } from './useRouter.hook';

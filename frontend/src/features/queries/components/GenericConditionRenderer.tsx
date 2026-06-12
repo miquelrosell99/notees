@@ -13,7 +13,7 @@ import { NodeSelector } from '@/features/content/components/nodes/NodeSelector';
 
 import { useNode, useProperties } from '@/hooks';
 import { useNodeByUuid } from '@/hooks/useNodeQueries';
-import { useCurrentNodeUuid } from '@/hooks/useRouter';
+import { useCurrentNodeUuid } from '@/hooks/useCurrentNodeUuid';
 import type { ConditionNode, StyleType } from '@/types/queryAST';
 import { 
   getConditionConfig, 

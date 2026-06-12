@@ -3,19 +3,22 @@
  * When ?shared=true is in the URL, creates a block in the Scratchpad and opens it.
  */
 import { useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { createNode } from '@/api/nodes';
 import { useModalStore } from '@/stores';
 import { useNodeByUuid } from '@/hooks/useNodes';
 import { SYSTEM_PAGE_UUIDS } from '@/constants/systemProperties';
 
 export function useShareReceiver() {
+  const navigate = useNavigate();
+  const location = useLocation();
   const { data: scratchpadPage } = useNodeByUuid(
     SYSTEM_PAGE_UUIDS.scratchpad,
     { include_children: true }
   );
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
+    const params = new URLSearchParams(location.search);
     if (params.get('shared') !== 'true') return;
     if (!scratchpadPage) return;
 
@@ -38,7 +41,6 @@ export function useShareReceiver() {
     }
 
     // Clean up the URL without reloading
-    const cleanUrl = window.location.pathname;
-    window.history.replaceState({}, '', cleanUrl);
-  }, [scratchpadPage]);
+    navigate(location.pathname, { replace: true });
+  }, [scratchpadPage, location, navigate]);
 }

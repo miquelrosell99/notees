@@ -3,6 +3,7 @@
  */
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useNavigate, useParams } from 'react-router-dom';
 import * as nodesApi from '@/api/nodes';
 import type { Node } from '@/types/api';
 import { nodeKeys } from './queryKeys';
@@ -20,6 +21,8 @@ import {
 
 export function useDeleteNode() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const { workspaceId } = useParams<{ workspaceId?: string }>();
 
   return useMutation({
     mutationFn: async (id: number): Promise<{ deletedNode: Node | undefined; tableCellInfo: { parentId: number; sequence: number } | null }> => {
@@ -70,8 +73,7 @@ export function useDeleteNode() {
           currentNodeId: null,
           mainViewType: 'node',
         });
-        const wsMatch = window.location.pathname.match(/^\/[0-9a-f-]{36}/);
-        window.history.replaceState(null, '', wsMatch ? wsMatch[0] : '/');
+        navigate(workspaceId ? `/${workspaceId}` : '/', { replace: true });
       }
 
       // Cancel outgoing refetches
@@ -106,8 +108,7 @@ export function useDeleteNode() {
           currentNodeId: null,
           mainViewType: 'node',
         });
-        const wsMatch = window.location.pathname.match(/^\/[0-9a-f-]{36}/);
-        window.history.replaceState(null, '', wsMatch ? wsMatch[0] : '/');
+        navigate(workspaceId ? `/${workspaceId}` : '/', { replace: true });
       }
 
       // Remove the deleted node's queries (all variations)
