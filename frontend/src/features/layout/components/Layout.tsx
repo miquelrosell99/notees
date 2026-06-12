@@ -18,7 +18,8 @@ import { useNavigationStore, useModalStore, useSettingsStore, usePresentationSto
 import { useCommand } from '@/hooks/useCommand';
 import { COMMAND_IDS } from '@/stores/commandRegistry';
 import { useTodayNote, useCreateNode, useNode, useIsMobile, useDocumentTitle } from '@/hooks';
-import { RouterSync } from './RouterSync';
+import { RouteAdapter } from './RouteAdapter';
+import { NavigationUrlSync } from './NavigationUrlSync';
 import { useSettingsQuery } from '@/hooks/useSettings';
 import { recentKeys } from '@/hooks/queryKeys';
 import { markPageOpened, fixLinksForUuid } from '@/api/nodes';
@@ -49,6 +50,9 @@ import { PresentationModal } from '@/features/content/components/PresentationMod
 import './Layout.css';
 
 export function Layout() {
+  const hasInitialized = useRef(false);
+  const isProcessingUrl = useRef(false);
+
   useDocumentTitle();
 
   // Use granular selectors to avoid re-rendering on unrelated store changes
@@ -302,7 +306,9 @@ export function Layout() {
   } as React.CSSProperties : undefined;
 
   return (
-    <RouterSync>
+    <>
+      <RouteAdapter hasInitialized={hasInitialized} isProcessingUrl={isProcessingUrl} />
+      <NavigationUrlSync hasInitialized={hasInitialized} isProcessingUrl={isProcessingUrl} />
       <BrokenLinkFixContext.Provider value={handleFixBrokenLink}>
         <OfflineBanner />
         {/* ── Chrome: MobileLayout or desktop three-column ── */}
@@ -490,6 +496,6 @@ export function Layout() {
           />
         </Suspense>
       </BrokenLinkFixContext.Provider>
-    </RouterSync>
+    </>
   );
 }

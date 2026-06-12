@@ -1,43 +1,28 @@
 /**
  * Main application component
- * 
+ *
  * Architecture:
+ * - BrowserRouter / Routes: react-router-dom routing
  * - QueryClientProvider: TanStack Query for server state
  * - KeyboardShortcutsProvider: Centralized keyboard shortcut handling
  * - ErrorBoundary: Graceful error recovery
  * - NotificationToast: Global notification display
  */
-import React, { useEffect, useRef, useState, Suspense } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useEffect } from 'react';
+import { BrowserRouter } from 'react-router-dom';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { queryClient, asyncStoragePersister } from './lib/queryClient';
-import { settingsKeys, favoriteKeys, recentKeys } from './hooks/queryKeys';
-import { getSettings } from './features/workspace/api/workspaces';
-const Layout = React.lazy(() => import('./features/layout/components/Layout').then(m => ({ default: m.Layout })));
-const LoginView = React.lazy(() => import('./features/auth/pages/LoginView').then(m => ({ default: m.LoginView })));
-const WorkspaceManagementView = React.lazy(() => import('./features/workspace/pages/WorkspaceManagementView').then(m => ({ default: m.WorkspaceManagementView })));
-const EnrollmentView = React.lazy(() => import('./features/auth/pages/EnrollmentView').then(m => ({ default: m.EnrollmentView })));
-const InviteAcceptView = React.lazy(() => import('./features/auth/pages/InviteAcceptView').then(m => ({ default: m.InviteAcceptView })));
-const PublicShareView = React.lazy(() => import('./features/shares/pages/PublicShareView').then(m => ({ default: m.PublicShareView })));
-const OnboardingView = React.lazy(() => import('./features/auth/pages/OnboardingView').then(m => ({ default: m.OnboardingView })));
 import { NotificationToast } from './components/ui/NotificationToast';
-import { LoadingScreen } from './components/ui/LoadingScreen';
-import { QuickAddModal } from './features/layout/components/QuickAddModal';
 import { ErrorBoundary } from './components/ui/ErrorBoundary';
 import { KeyboardShortcutsProvider } from './hooks/KeyboardShortcutsProvider';
 import { useGlobalKeyboardListener } from './hooks/useGlobalKeyboardListener';
 import { useCommand } from './hooks/useCommand';
 import { COMMAND_IDS } from './stores/commandRegistry';
 import { DndProvider } from './providers/DndProvider';
-import { listWorkspaces } from './features/workspace/api/workspaces';
-import { useAuthStore, useModalStore, useUndoStore, useNavigationStore } from './stores';
+import { useUndoStore } from './stores';
 import { useAndroidBridge } from './hooks';
-// SHORTCUT_IDS removed — commands now use COMMAND_IDS from commandRegistry
-import type { User } from './types/api';
+import { AppRoutes } from './features/layout/components/AppRoutes';
 import { getLogger } from './utils/logger';
-import { getAuthToken, clearAuthToken, getUserData } from './utils/auth';
-import { getAuthStatus } from './features/auth/api/auth';
-import { clearScratchpad } from './api/nodes';
 import './App.css';
 import './focus-mode.css';
 
@@ -76,257 +61,7 @@ function AppContent() {
   // Register the Android bridge as early as possible — before auth gates — so
   // the native shell can call window.noteesBridge even while the app is loading.
   useAndroidBridge();
-
-  const { isAuthenticated, isLoading, logout } = useAuthStore();
-  const { toggleCalendar, showWorkspaceManager, setShowWorkspaceManager } = useModalStore();
-  const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
-
-  // First-boot / onboarding check
-  const [bootChecked, setBootChecked] = useState(false);
-  const [needsOnboarding, setNeedsOnboarding] = useState(false);
-  const [registrationEnabled, setRegistrationEnabled] = useState(true);
-
-  useEffect(() => {
-    let cancelled = false;
-    getAuthStatus()
-      .then((status) => {
-        if (!cancelled) {
-          setNeedsOnboarding(status.needs_onboarding);
-          setRegistrationEnabled(status.registration_enabled);
-          setBootChecked(true);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setNeedsOnboarding(false);
-          setBootChecked(true);
-        }
-      });
-    return () => { cancelled = true; };
-  }, []);
-
-  // Fetch workspaces when authenticated
-  const { data: dbData, isLoading: isLoadingWorkspaces, refetch: refetchWorkspaces } = useQuery({
-    queryKey: ['workspaces'],
-    queryFn: () => listWorkspaces(),
-    enabled: isAuthenticated,
-    staleTime: 10000,
-    select: (data) => ({
-      workspaces: data.items,
-      active: data.items.find((w) => w.is_active)?.uuid ?? null,
-    }),
-  });
-  
-  // Check enrollment status from user settings (useQuery avoids setState-in-effect)
-  const { isLoading: isCheckingEnrollment, data: enrollmentSettings } = useQuery({
-    queryKey: settingsKeys.all,
-    queryFn: getSettings,
-    enabled: isAuthenticated,
-    staleTime: Infinity,
-  });
-  const needsEnrollment = enrollmentSettings
-    ? String(enrollmentSettings['enrollment_completed']) !== 'true'
-    : false;
-  
-  // Listen for unauthorized events and logout
-  useEffect(() => {
-    const handleUnauthorized = () => {
-      log.warn('Received unauthorized event, logging out');
-      logout();
-    };
-    
-    window.addEventListener('auth:unauthorized', handleUnauthorized);
-    return () => window.removeEventListener('auth:unauthorized', handleUnauthorized);
-  }, [logout]);
-  
-  // Check auth on mount (module-level guard prevents double-run in StrictMode)
-  const authRestoredRef = useRef(false);
-  useEffect(() => {
-    if (authRestoredRef.current) return;
-    authRestoredRef.current = true;
-    log.info('Checking authentication state...');
-    const token = getAuthToken();
-    const user = getUserData();
-    
-    if (token && user) {
-      const typedUser = user as User;
-      log.debug('Found stored auth, restoring session', { email: typedUser.email });
-      useAuthStore.getState().setUser(typedUser);
-    } else {
-      log.debug('No valid stored auth found');
-      // Clear any partial auth data
-      if (token || user) {
-        clearAuthToken();
-      }
-    }
-  }, []);
-  
-  // Register keyboard commands when authenticated
-  useCommand(COMMAND_IDS.QUICK_ADD, () => {
-    setIsQuickAddOpen((prev) => !prev);
-  }, { enabled: isAuthenticated, label: 'Open Quick Add' });
-
-  useCommand(COMMAND_IDS.GO_TODAY, () => {
-    toggleCalendar();
-  }, { enabled: isAuthenticated, label: 'Go to Today' });
-
-  useCommand(COMMAND_IDS.TOGGLE_FOCUS_MODE, () => {
-    useNavigationStore.getState().toggleFocusMode();
-  }, { enabled: isAuthenticated, label: 'Toggle Focus Mode', icon: 'mdi mdi-brain' });
-  
-  // Settings are already fetched above for enrollment check. Re-use that query
-  // for the Layout gate instead of firing a duplicate GET /settings.
-  const settingsLoaded = !!enrollmentSettings;
-  const isLoadingSettings = isCheckingEnrollment;
-
-  // Load favorites and recents AFTER critical requests complete.
-  // Defer by 1.5s so the browser's 6-connection pool is free for
-  // daily-node, workspace, and page-list requests first.
-  useEffect(() => {
-    if (!settingsLoaded) return;
-    const timer = setTimeout(() => {
-      queryClient.fetchQuery({
-        queryKey: favoriteKeys.list(),
-        queryFn: () =>
-          import('./api/nodes').then((mod) =>
-            mod.getFavorites(1, 50).then((response) => response.items.map((node) => node.id))
-          ),
-      });
-      queryClient.fetchQuery({
-        queryKey: recentKeys.list(10),
-        queryFn: () =>
-          import('./api/nodes').then((mod) =>
-            mod.getRecentPages(10).then((pages) =>
-              pages.map((page) => ({ nodeId: page.id, openDate: page.open_date }))
-            )
-          ),
-      });
-      clearScratchpad().catch(() => {/* ignore — scratchpad may not exist yet */});
-    }, 1500);
-    return () => clearTimeout(timer);
-  }, [settingsLoaded]);
-  
-  useEffect(() => {
-    log.debug('Auth state changed', { isAuthenticated, isLoading });
-  }, [isAuthenticated, isLoading]);
-  
-  if (isLoading || !bootChecked) {
-    log.debug('Showing loading screen');
-    return <LoadingScreen label="Loading…" />;
-  }
-
-  // Public share links work without authentication
-  const isPublicSharePath = window.location.pathname.startsWith('/s/');
-  const isInvitePath = window.location.pathname === '/enroll';
-
-  if (!isAuthenticated && isPublicSharePath) {
-    return (
-      <Suspense fallback={<LoadingScreen label="Loading…" />}>
-        <PublicShareView />
-      </Suspense>
-    );
-  }
-
-  if (isInvitePath) {
-    return (
-      <Suspense fallback={<LoadingScreen label="Loading…" />}>
-        <InviteAcceptView />
-      </Suspense>
-    );
-  }
-
-  // First-boot onboarding: create admin account before any login
-  if (needsOnboarding) {
-    return (
-      <Suspense fallback={<LoadingScreen label="Loading…" />}>
-        <OnboardingView onComplete={() => setNeedsOnboarding(false)} />
-      </Suspense>
-    );
-  }
-
-  if (!isAuthenticated) {
-    log.debug('User not authenticated, showing login page');
-    // Store the current URL to restore after login (if not already on /auth)
-    if (window.location.pathname !== '/auth') {
-      const intendedUrl = window.location.pathname;
-      if (intendedUrl !== '/') {
-        sessionStorage.setItem('intendedUrl', intendedUrl);
-      }
-      window.history.replaceState(null, '', '/auth');
-    }
-    return (
-      <Suspense fallback={<LoadingScreen label="Loading…" />}>
-        <LoginView registrationEnabled={registrationEnabled} />
-      </Suspense>
-    );
-  }
-  
-  // Redirect away from /auth when authenticated
-  if (window.location.pathname === '/auth') {
-    // Restore the intended URL if we have one
-    const intendedUrl = sessionStorage.getItem('intendedUrl');
-    sessionStorage.removeItem('intendedUrl');
-    window.history.replaceState(null, '', intendedUrl || '/');
-  }
-  
-  // Show enrollment for first-time users
-  if (isCheckingEnrollment) {
-    return <LoadingScreen label="Loading…" />;
-  }
-  
-  if (needsEnrollment) {
-    return (
-      <Suspense fallback={<LoadingScreen label="Loading…" />}>
-        <EnrollmentView onComplete={() => queryClient.invalidateQueries({ queryKey: ['enrollment-check'] })} />
-      </Suspense>
-    );
-  }
-  
-  // Show loading while checking workspaces — but NOT when the workspace manager
-  // is explicitly pinned (e.g. during a Logseq import).  queryClient.clear() wipes
-  // the workspaces cache temporarily; skipping the spinner keeps WMV mounted so
-  // ImportOptionsModal state (progress UI) survives the cache rebuild.
-  if (isLoadingWorkspaces && !showWorkspaceManager) {
-    log.debug('Loading workspaces...');
-    return <LoadingScreen label="Loading workspace…" />;
-  }
-  
-  // Show workspace management if no workspaces exist or no active workspace
-  const hasNoWorkspaces = !dbData?.workspaces || dbData.workspaces.length === 0;
-  const hasNoActiveWorkspace = !dbData?.active;
-  
-  if (hasNoWorkspaces || hasNoActiveWorkspace || showWorkspaceManager) {
-    log.debug('Showing workspace management view', { hasNoWorkspaces, hasNoActiveWorkspace, showWorkspaceManager });
-    return (
-      <Suspense fallback={<LoadingScreen label="Loading…" />}>
-        <WorkspaceManagementView 
-          onWorkspaceSelected={() => {
-            setShowWorkspaceManager(false);
-            refetchWorkspaces();
-          }}
-          showClose={!hasNoWorkspaces && !hasNoActiveWorkspace}
-          onClose={() => setShowWorkspaceManager(false)}
-        />
-      </Suspense>
-    );
-  }
-  
-  // Show loading while settings are loading (prevents request flood)
-  if (isLoadingSettings) {
-    return <LoadingScreen label="Loading…" />;
-  }
-  
-  log.debug('User authenticated, showing main layout');
-  return (
-    <>
-      <Suspense fallback={<LoadingScreen label="Loading…" />}>
-        <ErrorBoundary>
-          <Layout />
-        </ErrorBoundary>
-      </Suspense>
-      <QuickAddModal isOpen={isQuickAddOpen} onClose={() => setIsQuickAddOpen(false)} />
-    </>
-  );
+  return <AppRoutes />;
 }
 
 // Module-level guard to prevent double-initialization under React StrictMode
@@ -341,7 +76,7 @@ function App() {
       mode: import.meta.env.MODE,
     });
   }, []);
-  
+
   return (
     <>
       <a href="#main-content" className="skip-link">
@@ -399,7 +134,7 @@ function App() {
               return true;
             },
             // Never persist mutations. Pending mutations contain Promise objects
-            // that cannot be safely JSON-serialised; restoring them causes
+            // that cannot be safely serialised; restoring them causes
             // "promise.then is not a function" errors during hydration.
             shouldDehydrateMutation: () => false,
           },
@@ -408,9 +143,11 @@ function App() {
         <KeyboardShortcutsProvider>
           <DndProvider>
             <GlobalKeyboardHandler />
-            <ErrorBoundary context="App">
-              <AppContent />
-            </ErrorBoundary>
+            <BrowserRouter>
+              <ErrorBoundary context="App">
+                <AppContent />
+              </ErrorBoundary>
+            </BrowserRouter>
             <NotificationToast />
           </DndProvider>
         </KeyboardShortcutsProvider>

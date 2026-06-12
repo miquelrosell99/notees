@@ -18,6 +18,7 @@
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 
 import {
   checkWorkspaceName,
@@ -113,6 +114,7 @@ export function ImportOptionsModal({
   onSuccess,
   onFinish,
 }: ImportOptionsModalProps) {
+  const navigate = useNavigate();
   const [name, setName] = useState('');
   const [selectedType, setSelectedType] = useState<ImportType>('json');
   const [jsonFile, setJsonFile] = useState<File | null>(null);
@@ -227,12 +229,12 @@ export function ImportOptionsModal({
       queryClient.removeQueries({ queryKey: favoriteKeys.all });
       queryClient.removeQueries({ queryKey: recentKeys.all });
       queryClient.clear();
-      window.history.replaceState(null, '', `/${workspace!.uuid}`);
+      navigate(`/${workspace!.uuid}`, { replace: true });
       if (!cancelled) setPhase('importing');
     }
     prepare().catch(() => { if (!cancelled) setPhase('form'); });
     return () => { cancelled = true; };
-  }, [phase, queryClient]);
+  }, [phase, queryClient, navigate]);
 
   // -- Start import once workspace is ready and pageClassId available ------
   useEffect(() => {

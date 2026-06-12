@@ -3,9 +3,6 @@
  */
 
 import type { MainViewType } from '@/stores';
-import { useNavigationHistoryStore } from '@/stores/navigationHistoryStore';
-import type { WorkspaceListResponse } from '@/features/workspace/api/workspaces';
-import { queryClient } from '@/lib/queryClient';
 import { getLogger } from '@/utils/logger';
 
 const log = getLogger('Router');
@@ -216,58 +213,3 @@ export function buildUrl(params: {
   return path;
 }
 
-/**
- * Get the active workspace UUID from the workspaces query cache
- */
-function getActiveWorkspaceUuid(): string | null {
-  try {
-    const data = queryClient.getQueryData(['workspaces']) as WorkspaceListResponse | undefined;
-    return data?.active ?? null;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Update browser URL to match current state (adds to history)
- */
-export function pushUrl(params: {
-  viewType: MainViewType;
-  nodeUuid?: string | null;
-  propertyUuid?: string | null;
-  workspaceUuid?: string | null;
-  splitUuid?: string | null;
-  splitOrientation?: 'horizontal' | 'vertical' | null;
-}) {
-  const wsUuid = params.workspaceUuid ?? getActiveWorkspaceUuid();
-  const url = buildUrl({ ...params, workspaceUuid: wsUuid });
-  const currentUrl = window.location.pathname + window.location.search;
-  
-  if (url !== currentUrl) {
-    log.debug('Pushing URL', { from: currentUrl, to: url });
-    const newIndex = useNavigationHistoryStore.getState().push();
-    window.history.pushState({ navIndex: newIndex }, '', url);
-  }
-}
-
-/**
- * Replace browser URL (doesn't add to history)
- */
-export function replaceUrl(params: {
-  viewType: MainViewType;
-  nodeUuid?: string | null;
-  propertyUuid?: string | null;
-  workspaceUuid?: string | null;
-  splitUuid?: string | null;
-  splitOrientation?: 'horizontal' | 'vertical' | null;
-}) {
-  const wsUuid = params.workspaceUuid ?? getActiveWorkspaceUuid();
-  const url = buildUrl({ ...params, workspaceUuid: wsUuid });
-  const currentUrl = window.location.pathname + window.location.search;
-  
-  if (url !== currentUrl) {
-    log.debug('Replacing URL', { from: currentUrl, to: url });
-    const currentIndex = useNavigationHistoryStore.getState().currentIndex;
-    window.history.replaceState({ navIndex: currentIndex }, '', url);
-  }
-}
