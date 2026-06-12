@@ -1011,7 +1011,7 @@ export function NodeView({
           {/* Card layout selector - only visible in card mode */}
           {contentDisplayMode === 'kanban' && (
             <div className="card-layout-selector">
-              <Button 
+              <Button aria-label="No cover" 
                 variant="ghost"
                 size="sm"
                 icon={"mdi mdi-card-outline"}
@@ -1019,7 +1019,7 @@ export function NodeView({
                 onClick={() => useAppStore.getState().setCardLayout('no-cover')}
                 title="No cover"
               />
-              <Button 
+              <Button aria-label="Cover left" 
                 variant="ghost"
                 size="sm"
                 icon={"mdi mdi-dock-left"}
@@ -1027,7 +1027,7 @@ export function NodeView({
                 onClick={() => useAppStore.getState().setCardLayout('cover-left')}
                 title="Cover left"
               />
-              <Button 
+              <Button aria-label="Cover right" 
                 variant="ghost"
                 size="sm"
                 icon={"mdi mdi-dock-right"}
@@ -1035,7 +1035,7 @@ export function NodeView({
                 onClick={() => useAppStore.getState().setCardLayout('cover-right')}
                 title="Cover right"
               />
-              <Button 
+              <Button aria-label="Cover top" 
                 variant="ghost"
                 size="sm"
                 icon={"mdi mdi-dock-top"}
@@ -1062,7 +1062,7 @@ export function NodeView({
           />
 
           {/* 3-dot context menu button */}
-          <Button
+          <Button aria-label="More actions"
             ref={topBarMenuBtnRef}
             variant="ghost"
             size="sm"
@@ -1216,7 +1216,7 @@ export function NodeView({
                     showModalBullet={true}
                   />
                 ) : (
-                  <Button
+                  <Button aria-label="Add cover image"
                     variant="ghost"
                     size="sm"
                     icon="mdi mdi-image-outline"

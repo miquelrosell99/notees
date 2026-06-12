@@ -245,6 +245,7 @@ function MemberRow({
               size="sm"
               icon="mdi mdi-delete-outline"
               title={isPending ? "Cancel invite" : "Remove member"}
+              aria-label={isPending ? "Cancel invite" : "Remove member"}
               onClick={() => isPending ? onRemovePending(member.email) : onRemove(member.user_id!)}
               disabled={isRemoving || isRemovingPending}
             />

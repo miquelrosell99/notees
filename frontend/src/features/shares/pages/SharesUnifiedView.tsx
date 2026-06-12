@@ -109,14 +109,14 @@ export function SharesUnifiedView({ initialTab = 'shared-out' }: SharesUnifiedVi
                     )}
                   </div>
                   <div className="shares-unified-view__item-actions">
-                    <Button
+                    <Button aria-label="Copy link"
                       variant="ghost"
                       size="sm"
                       icon="mdi mdi-content-copy"
                       title="Copy link"
                       onClick={() => handleCopy(share.url)}
                     />
-                    <Button
+                    <Button aria-label="Revoke share"
                       variant="ghost"
                       size="sm"
                       icon="mdi mdi-delete-outline"

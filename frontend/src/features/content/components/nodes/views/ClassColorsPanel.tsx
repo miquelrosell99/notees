@@ -111,7 +111,7 @@ export function ClassColorsPanel({
                 onColorChange={(color) => color && updateClassColor(item.id as number, color)}
                 title="Change color"
               />,
-              <Button
+              <Button aria-label="Remove class"
                 key="remove"
                 icon={"mdi mdi-close"}
                 size="xs"

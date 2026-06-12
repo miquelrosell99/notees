@@ -291,7 +291,7 @@ export function TabBarVertical({ tabs, activeTabId, secondaryTabId, splitOrienta
 
         {tabs.length > 0 && <div className="tab-bar-vertical__section-divider" />}
 
-        <Button
+        <Button aria-label="New tab"
           ref={addBtnRef}
           icon="mdi mdi-plus"
           variant="ghost"
@@ -312,7 +312,7 @@ export function TabBarVertical({ tabs, activeTabId, secondaryTabId, splitOrienta
 
       {showOverflow && (
         <div className="tab-bar-vertical__overflow">
-          <Button
+          <Button aria-label="All tabs"
             icon="mdi mdi-chevron-down"
             variant="ghost"
             size="sm"

@@ -315,7 +315,7 @@ export function TabBarNormal({ tabs, activeTabId, secondaryTabId, splitOrientati
 
         {tabs.length > 0 && <div className="tab-bar-normal__section-divider" />}
 
-        <Button
+        <Button aria-label="New tab"
           ref={addBtnRef}
           icon="mdi mdi-plus"
           variant="ghost"
@@ -338,7 +338,7 @@ export function TabBarNormal({ tabs, activeTabId, secondaryTabId, splitOrientati
 
       {showOverflow && (
         <div className="tab-bar-normal__overflow">
-          <Button
+          <Button aria-label="All tabs"
             icon="mdi mdi-chevron-down"
             variant="ghost"
             size="sm"

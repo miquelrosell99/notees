@@ -111,6 +111,7 @@ export function TableSizeSelector({
           className="table-size-selector__grid"
           onMouseLeave={handleGridMouseLeave}
           role="grid"
+          tabIndex={0}
           aria-label="Table size selector"
           style={{
             gridTemplateColumns: `repeat(${maxColumns}, 1fr)`,

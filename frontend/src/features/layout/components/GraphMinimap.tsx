@@ -27,7 +27,7 @@ export function GraphMinimap({
   return (
     <div className={`graph-minimap ${className}`}>
       {onClose && (
-        <Button 
+        <Button aria-label="Close minimap" 
           icon={"mdi mdi-close"}
           className="graph-minimap__close"
           onClick={onClose}

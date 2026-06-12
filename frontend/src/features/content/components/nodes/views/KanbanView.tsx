@@ -203,6 +203,7 @@ function KanbanColumn({
           icon={collapsed ? 'mdi mdi-chevron-right' : 'mdi mdi-chevron-down'}
           variant="ghost"
           size="xs"
+          aria-label={collapsed ? 'Expand column' : 'Collapse column'}
           className="node-kanban-view__kanban-collapse-btn hover-reveal"
           onClick={(e) => { e.stopPropagation(); onToggleCollapse(); }}
         />

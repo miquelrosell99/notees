@@ -66,7 +66,7 @@ export function NodeCollectionView({ title, queryAST, nodes }: NodeCollectionVie
             <span className="node-collection-view__count"> ({resultCount})</span>
           )}
         </h1>
-        <Button
+        <Button aria-label="Close"
           variant="ghost"
           size="sm"
           icon="mdi mdi-close"

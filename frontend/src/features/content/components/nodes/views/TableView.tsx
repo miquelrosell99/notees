@@ -186,7 +186,7 @@ export const TableView = memo(function TableView({
           {formattedDate}
         </span>
         <div className="node-table__actions">
-          <Button
+          <Button aria-label="Open day in sidebar"
             icon={"mdi mdi-dock-right"}
             variant="ghost"
             size="xs"
@@ -196,7 +196,7 @@ export const TableView = memo(function TableView({
               openDailyPage(dateStr, true);
             }}
           />
-          <Button
+          <Button aria-label="Open day"
             icon={"mdi mdi-arrow-right"}
             variant="ghost"
             size="xs"

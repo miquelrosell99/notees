@@ -243,6 +243,7 @@ export function AssetUploadModal({
               {previewType === 'audio' && preview && (
                 <div className="asset-upload-modal__preview-audio">
                   <AudioIconLarge />
+                  {/* eslint-disable-next-line jsx-a11y/media-has-caption -- User-uploaded audio preview; captions are not available. */}
                   <audio ref={audioRef} src={preview} controls />
                 </div>
               )}

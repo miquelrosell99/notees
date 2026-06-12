@@ -57,7 +57,7 @@ function RowActionsMenu({
 
   return (
     <div className="system-settings__actions-menu-wrapper">
-      <Button
+      <Button aria-label="Actions"
         ref={buttonRef}
         variant="ghost"
         size="xs"
