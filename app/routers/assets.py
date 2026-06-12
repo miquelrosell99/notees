@@ -36,92 +36,20 @@ from ..domain.services.asset_service import (
 from ..domain.stringify_ast import ParseMode, parse_ast, serialize_ast
 from ..logging_config import get_logger
 from ..models import User
+from ..utils.assets import (
+    ALLOWED_CONTENT_TYPES,
+    MAX_FILE_SIZE,
+    check_magic_bytes,
+    get_asset_category,
+    get_extension_from_content_type,
+)
 from .auth import get_current_user, get_current_user_optional
 
 router = APIRouter(prefix="/assets", tags=["Assets"])
 logger = get_logger(__name__)
 
-# Allowed file types and their extensions
-ALLOWED_CONTENT_TYPES = {
-    # Images
-    "image/jpeg": ".jpg",
-    "image/png": ".png",
-    "image/webp": ".webp",
-    # Audio
-    "audio/mpeg": ".mp3",
-    "audio/mp3": ".mp3",
-    "audio/wav": ".wav",
-    "audio/wave": ".wav",
-    "audio/x-wav": ".wav",
-    "audio/ogg": ".ogg",
-    "audio/opus": ".opus",
-    "audio/webm": ".webm",
-}
-
-# Asset categories for frontend rendering
-ASSET_CATEGORIES = {
-    "image": ["image/jpeg", "image/png", "image/webp"],
-    "audio": [
-        "audio/mpeg",
-        "audio/mp3",
-        "audio/wav",
-        "audio/wave",
-        "audio/x-wav",
-        "audio/ogg",
-        "audio/opus",
-        "audio/webm",
-    ],
-}
-
-# Max file size: 50MB (for audio files)
-MAX_FILE_SIZE = 50 * 1024 * 1024
-
-# Magic byte signatures: map expected MIME types → list of (offset, bytes) signatures.
-# We check the file header rather than trusting the client-supplied Content-Type.
-_MAGIC_SIGNATURES: dict[str, list[tuple[int, bytes]]] = {
-    "image/jpeg": [(0, b"\xff\xd8\xff")],
-    "image/png": [(0, b"\x89PNG\r\n\x1a\n")],
-    "image/webp": [(0, b"RIFF"), (8, b"WEBP")],
-    "audio/mpeg": [(0, b"ID3"), (0, b"\xff\xfb"), (0, b"\xff\xf3"), (0, b"\xff\xf2")],
-    "audio/mp3": [(0, b"ID3"), (0, b"\xff\xfb"), (0, b"\xff\xf3"), (0, b"\xff\xf2")],
-    "audio/wav": [(0, b"RIFF"), (8, b"WAVE")],
-    "audio/wave": [(0, b"RIFF"), (8, b"WAVE")],
-    "audio/x-wav": [(0, b"RIFF"), (8, b"WAVE")],
-    "audio/ogg": [(0, b"OggS")],
-    "audio/opus": [(0, b"OggS")],
-    "audio/webm": [(0, b"\x1aE\xdf\xa3")],
-}
 
 
-def _check_magic_bytes(content: bytes, content_type: str) -> bool:
-    """Verify that file content begins with the expected magic bytes.
-
-    Returns True when the signature matches or when no signature is defined for
-    the given MIME type (fail-open to avoid blocking legitimate edge cases).
-    """
-    sigs = _MAGIC_SIGNATURES.get(content_type)
-    if not sigs:
-        return True  # No signature registered → accept
-
-    # For multi-signature types (e.g. WAV / WebP) ALL non-zero-offset checks
-    # that share a group must pass together.  We model this by pairing sigs
-    # that belong to the same "group" — here we treat them sequentially and
-    # require at least one full group to pass.
-    # For simplicity: group consecutive sigs; a single-element list is its own group.
-    for sig_offset, sig_bytes in sigs:
-        chunk = content[sig_offset : sig_offset + len(sig_bytes)]
-        if chunk == sig_bytes:
-            return True  # At least one matching signature found
-
-    return False
-
-
-def get_asset_category(content_type: str) -> str:
-    """Get the asset category (image, audio, etc.) from content type."""
-    for category, types in ASSET_CATEGORIES.items():
-        if content_type in types:
-            return category
-    return "file"
 
 
 class AssetResponse(BaseModel):
@@ -195,22 +123,6 @@ async def get_user_from_asset_token(asset_token: str, asset_uuid: str) -> User |
         return None
 
     return User(**user_data)
-
-
-def get_asset_path(workspace_uuid: str, asset_uuid: str, extension: str) -> Path:
-    """Get the file path for an asset in per-asset folder structure.
-
-    Structure: workspaces/{workspace_uuid}/assets/{asset_uuid}/{asset_uuid}.{extension}
-    """
-    assets_dir = get_workspace_assets_dir(workspace_uuid)
-    asset_folder = assets_dir / asset_uuid
-    asset_folder.mkdir(parents=True, exist_ok=True)
-    return asset_folder / f"{asset_uuid}{extension}"
-
-
-def get_extension_from_content_type(content_type: str) -> str:
-    """Get file extension from content type."""
-    return ALLOWED_CONTENT_TYPES.get(content_type, "")
 
 
 async def _get_system_ids(pool, workspace_id: int, user_id: int):
@@ -307,7 +219,7 @@ async def upload_asset(
 
     # Validate actual file content matches the declared MIME type to prevent
     # attackers from uploading arbitrary files with a spoofed Content-Type.
-    if not _check_magic_bytes(file_content, content_type):
+    if not check_magic_bytes(file_content, content_type):
         raise HTTPException(
             status_code=400,
             detail=f"File content does not match declared type '{content_type}'. "

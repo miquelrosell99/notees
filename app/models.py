@@ -148,6 +148,13 @@ class Token(BaseModel):
     user: User
 
 
+class AccessTokenResponse(BaseModel):
+    """JWT access-token-only response (refresh rotation)."""
+
+    access_token: str
+    token_type: str = "bearer"
+
+
 class TokenData(BaseModel):
     """Token payload data."""
 

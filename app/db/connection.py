@@ -10,7 +10,6 @@ of each method independently acquiring and releasing from the pool.
 from __future__ import annotations
 
 import asyncio
-import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
@@ -19,6 +18,7 @@ from typing import cast
 
 import asyncpg
 
+from ..config import settings
 from ..logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -96,8 +96,8 @@ async def acquire_connection(pool: asyncpg.Pool) -> AsyncIterator[asyncpg.Connec
 
 
 def get_database_url() -> str:
-    """Get PostgreSQL connection URL from environment."""
-    return os.getenv("DATABASE_URL", "postgresql://notees:change_me_dev_password@localhost:5432/notees")
+    """Get PostgreSQL connection URL from settings."""
+    return settings.database_url
 
 
 async def init_pool() -> asyncpg.Pool:
@@ -124,10 +124,10 @@ async def init_pool() -> asyncpg.Pool:
 
         _pool = await asyncpg.create_pool(
             dsn=database_url,
-            min_size=int(os.getenv("POSTGRES_POOL_MIN", 5)),
-            max_size=int(os.getenv("POSTGRES_POOL_MAX", 50)),
-            max_inactive_connection_lifetime=float(os.getenv("POSTGRES_POOL_MAX_INACTIVE_TIME", 300)),
-            statement_cache_size=int(os.getenv("POSTGRES_STATEMENT_CACHE_SIZE", 100)),
+            min_size=settings.postgres_pool_min,
+            max_size=settings.postgres_pool_max,
+            max_inactive_connection_lifetime=settings.postgres_pool_max_inactive_time,
+            statement_cache_size=settings.postgres_statement_cache_size,
             command_timeout=60,
         )
 

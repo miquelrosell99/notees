@@ -57,7 +57,7 @@ class _PostgresNodeBase(BasePostgresRepository):
     @property
     def permissions(self) -> PermissionChecker:
         if self._permissions is None and self._user_id is not None:
-            self._permissions = PermissionChecker(self._pool, self._user_id)
+            self._permissions = PermissionChecker(self._user_id)
         elif self._permissions is None:
             raise RuntimeError("User ID required for permission checks")
         return self._permissions

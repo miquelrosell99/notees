@@ -69,7 +69,7 @@ async def sync(request: SyncRequest, user: User = Depends(get_current_user)):
         else:
             workspace_id, _ = await _get_workspace_context_cached(pool, user_id)
 
-        perm_checker = PermissionChecker(pool, user_id)
+        perm_checker = PermissionChecker(user_id)
 
         # Build set of client-modified node UUIDs for quick lookup
         client_by_uuid: dict[str, ClientNodeState] = {}

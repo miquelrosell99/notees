@@ -220,7 +220,7 @@ async def update_user(user_id: str, **fields) -> dict | None:
                 "profile_pic": row["profile_pic"],
                 "role": row["role"],
                 "is_active": row["active"],
-                "created_at": row["created_at"].isoformat() if row["created_at"] else None,
+                "created_at": row["created_at"],
             }
     return None
 

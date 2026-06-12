@@ -61,6 +61,11 @@ class Settings(BaseSettings):
 
     # Database
     database_dir: Path = Path("data")
+    database_url: str = "postgresql://notees:change_me_dev_password@localhost:5432/notees"
+    postgres_pool_min: int = 5
+    postgres_pool_max: int = 50
+    postgres_pool_max_inactive_time: float = 300
+    postgres_statement_cache_size: int = 100
 
     # Backup
     backup_interval_seconds: int = 3600  # 1 hour
