@@ -5,8 +5,8 @@
  * responsive (workspace name input, etc.) while potentially large files are
  * being processed.
  */
-import { parseLogseqEdn } from '../utils/ednParser';
-import { parseLogseqSqlite } from '../utils/logseqSqliteParser';
+import { parseLogseqEdn } from '@/utils/ednParser';
+import { parseLogseqSqlite } from '@/utils/logseqSqliteParser';
 
 export type WorkerRequest =
   | { type: 'parse-edn'; id: string; content: string }

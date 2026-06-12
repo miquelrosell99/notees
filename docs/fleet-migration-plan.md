@@ -57,7 +57,7 @@ Goal: Clean component/state boundaries.
 - [x] Store only IDs in `navigationStore` (removed `activeNode`; `nodeCollectionNodes` → `nodeCollectionNodeIds`).
 - [x] Fix `SearchBox` rules-of-hooks violation.
 - [x] Introduce query-key factories (`favoriteKeys`, `recentKeys`).
-- [ ] Convert relative `../` imports to path aliases (deferred to Phase E/F; 40+ sibling-relative imports remain).
+- [x] Convert relative `../` imports to path aliases.
 
 ---
 

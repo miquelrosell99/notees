@@ -15,7 +15,7 @@ import { useCommandPalette } from './useCommandPalette';
 import { ResultItem } from './CommandPaletteResult';
 import { SuggestionPopup } from '@/features/content/components/nodes/SuggestionPopup';
 import { NodeRef } from '@/features/content/components/nodes/NodeRef';
-import { DuplicatePageModal } from '../Modals';
+import { DuplicatePageModal } from '@/features/layout/components/Modals';
 import { Button } from '@/components/ui/Button';
 import { Icon, AddIcon, CalendarIcon, ImportIcon, CheckIcon, ChevronRightIcon } from '@/components/ui/icons';
 

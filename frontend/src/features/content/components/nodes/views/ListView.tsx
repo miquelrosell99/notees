@@ -20,7 +20,7 @@ import { getPropertyGroupInfo } from './viewHelpers';
 import { queueContentSave } from '@/hooks/useBlockPersist';
 import { sortBySequence, compareDateFirstAlpha } from '@/utils/nodeSort';
 import { getNodeByUuid } from '@/api/nodes';
-import { NodeBreadcrumbs } from '../NodeBreadcrumbs';
+import { NodeBreadcrumbs } from '@/features/content/components/nodes/NodeBreadcrumbs';
 import './ListView.css';
 import { registerView } from './registry';
 // ── Group type ───────────────────────────────────────────────────────────────

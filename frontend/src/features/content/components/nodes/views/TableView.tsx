@@ -27,9 +27,9 @@ import type { TableColumn, ExpandableConfig, ReorderableConfig, SortEntry } from
 import { Table } from '@/components/ui/Table';
 import { DragHandleIcon } from '@/components/ui/icons';
 import { PropertyCell } from '@/features/content/components/properties/PropertyCell';
-import { NodeSelector } from '../NodeSelector';
-import { NodeRef } from '../NodeRef';
-import { CollapsiblePillRow } from '../CollapsiblePillRow';
+import { NodeSelector } from '@/features/content/components/nodes/NodeSelector';
+import { NodeRef } from '@/features/content/components/nodes/NodeRef';
+import { CollapsiblePillRow } from '@/features/content/components/nodes/CollapsiblePillRow';
 import { Button } from '@/components/ui/Button';
 import { isNonRemovableClass, SYSTEM_CLASS_UUIDS } from '@/constants';
 import { compareBySequence, compareByWriteDateDesc, compareByCreateDateDesc, compareDateFirstAlpha } from '@/utils/nodeSort';

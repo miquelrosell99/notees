@@ -16,7 +16,7 @@ import {
   type DOMConversionMap,
 } from 'lexical';
 import { createElement, type JSX } from 'react';
-import { Math } from '../components/Math';
+import { Math } from '@/features/content/editor/components/Math';
 
 // ─── Types ────────────────────────────────────────────────────────
 

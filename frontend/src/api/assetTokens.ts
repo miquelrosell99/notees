@@ -5,7 +5,7 @@
  * Tokens are cached and automatically refreshed when they expire.
  */
 import api from '@/api/client';
-import { getLogger } from '../utils/logger';
+import { getLogger } from '@/utils/logger';
 
 const log = getLogger('asset-tokens');
 
