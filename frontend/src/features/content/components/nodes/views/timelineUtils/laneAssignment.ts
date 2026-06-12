@@ -10,7 +10,7 @@
 
 // Commented out to avoid TypeScript errors - keeping for reference
 /*
-import type { TimelineNode } from '../timelineTypes';
+import type { TimelineNode } from '@/features/content/components/nodes/views/timelineTypes';
 
 const VERTICAL_LANES = 6;
 const LANE_SPACING = 45;

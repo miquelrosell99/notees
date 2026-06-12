@@ -11,7 +11,7 @@ import type {
   NotNode as ASTNotNode,
   ValidationResult,
   ValidationIssue,
-} from '../types/queryAST';
+} from '@/types/queryAST';
 
 // ==================== Validation Functions ====================
 

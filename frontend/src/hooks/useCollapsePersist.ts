@@ -12,7 +12,7 @@
  */
 import { useEffect, useRef } from 'react';
 import { updateNode as updateNodeApi } from '@/api/nodes';
-import { getNodeGraphRuntime } from '../runtime/NodeGraphRuntime';
+import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
 
 // ─── Singleton state ──────────────────────────────────────────────
 

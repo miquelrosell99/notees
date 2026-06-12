@@ -4,8 +4,8 @@
  * Uses axios for HTTP requests with automatic auth token handling.
  */
 import axios, { type AxiosError, type AxiosRequestConfig } from 'axios';
-import { getLogger } from '../utils/logger';
-import { getAuthToken, clearAuthToken, setAuthToken, getApiKey } from '../utils/auth';
+import { getLogger } from '@/utils/logger';
+import { getAuthToken, clearAuthToken, setAuthToken, getApiKey } from '@/utils/auth';
 
 const log = getLogger('api');
 

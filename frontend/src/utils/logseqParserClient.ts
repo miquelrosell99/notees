@@ -6,7 +6,7 @@
  * Stale requests (superseded by a newer call) are ignored via a monotonic ID.
  */
 import type { LogseqExport } from './ednParser';
-import type { WorkerRequest, WorkerResponse } from '../workers/logseqParserWorker';
+import type { WorkerRequest, WorkerResponse } from '@/workers/logseqParserWorker';
 
 type PendingEntry = {
   resolve: (value: LogseqExport) => void;
