@@ -100,9 +100,9 @@ class NodeService:
     @property
     def permissions(self) -> PermissionChecker:
         if self._permissions is None:
-            if self._pool is None or self._user_id is None:
-                raise RuntimeError("Pool and user ID required for permission checks")
-            self._permissions = PermissionChecker(self._pool, self._user_id)
+            if self._user_id is None:
+                raise RuntimeError("User ID required for permission checks")
+            self._permissions = PermissionChecker(self._user_id)
         return self._permissions
 
     # ── Public delegation methods ──────────────────────────────────────────

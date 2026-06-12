@@ -330,7 +330,7 @@ async def live_sync_websocket(
 
     # 2. Resolve page node ID and check permissions
     pool = await get_pool()
-    checker = PermissionChecker(pool, user_id)
+    checker = PermissionChecker(user_id)
 
     try:
         async with acquire_connection(pool) as conn:
