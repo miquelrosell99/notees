@@ -48,8 +48,8 @@ async def _ensure_user_page(conn, user_id: int, workspace_id: int) -> int | None
 
     node_row = await conn.fetchrow(
         """
-        INSERT INTO node (workspace_id, name, is_page, is_system, active, create_uid, write_uid)
-        VALUES ($1, $2, TRUE, TRUE, TRUE, $3, $3)
+        INSERT INTO node (workspace_id, name, is_page, active, create_uid, write_uid)
+        VALUES ($1, $2, TRUE, TRUE, $3, $3)
         RETURNING id
         """,
         workspace_id,
