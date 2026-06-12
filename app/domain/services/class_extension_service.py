@@ -20,9 +20,7 @@ from ...logging_config import get_logger
 from ..entities import ClassExtend
 
 if TYPE_CHECKING:
-    import asyncpg
-
-    from ..repositories import ClassExtendRepository, PropertyRepository
+    from ..repositories import ClassExtendRepository, NodeRepository, PropertyRepository
 
 logger = get_logger(__name__)
 
@@ -55,15 +53,15 @@ class ClassExtensionService:
 
     def __init__(
         self,
-        pool: asyncpg.Pool,
         workspace_id: int,
         property_repository: PropertyRepository,
         class_extend_repository: ClassExtendRepository,
+        node_repository: NodeRepository,
     ):
-        self._pool = pool
         self._workspace_id = workspace_id
         self._property_repo = property_repository
         self._class_extend_repo = class_extend_repository
+        self._node_repo = node_repository
 
     async def get_extended_classes(self, class_node_id: int) -> list[int]:
         """Get the list of class IDs that this class extends (direct only).
@@ -146,10 +144,6 @@ class ClassExtensionService:
         Properties from more derived classes take precedence.
         Returns properties with is_overridden flag set if they exist as dedicated properties.
         """
-        from ..repositories import PostgresNodeRepository
-
-        node_repo = PostgresNodeRepository(self._pool, self._workspace_id, 0)
-
         try:
             # Get the inheritance chain
             extended_classes = await self.get_all_extended_classes(class_node_id)
@@ -175,7 +169,7 @@ class ClassExtensionService:
             class_props = await self._property_repo.get_class_properties(extended_class_id)
 
             # Get class name
-            class_node = await node_repo.get_by_id(extended_class_id)
+            class_node = await self._node_repo.get_by_id(extended_class_id)
             class_name = class_node.name if class_node else f"Class {extended_class_id}"
 
             for cp in class_props:

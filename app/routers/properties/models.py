@@ -7,6 +7,13 @@ from pydantic import BaseModel
 # ============== Response Models ==============
 
 
+class ClassExtendsRequest(BaseModel):
+    """Request body for adding a class extension (inheritance) relationship."""
+
+    extends_class_node_id: int
+    sequence: int = 0
+
+
 class PropertyResponse(BaseModel):
     """Property response model."""
 
@@ -207,8 +214,3 @@ class ClassPropertyUpdateRequest(BaseModel):
     default_value: Any | None = None
 
 
-class ClassExtendsRequest(BaseModel):
-    """Request to add a class extension (inheritance)."""
-
-    extends_class_node_id: int
-    sequence: int = 0

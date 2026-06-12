@@ -8,7 +8,7 @@ across NodeService, the classes router, and the postgres_node repository.
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from ...db.schema.constants import SYSTEM_CLASS_UUIDS
 from ...logging_config import get_logger
@@ -17,9 +17,7 @@ from ..errors import SystemClassConstraintError
 from ..stringify_ast import ParseMode, parse_ast, serialize_ast
 
 if TYPE_CHECKING:
-    import asyncpg
-
-    from ..repositories import NodeRepository, PropertyRepository
+    from ..repositories import ClassExtendRepository, NodeRepository, PropertyRepository
 
 logger = get_logger(__name__)
 
@@ -73,19 +71,17 @@ class ClassManagementService:
 
     def __init__(
         self,
-        pool: asyncpg.Pool,
         workspace_id: int,
         node_repo: NodeRepository,
         property_repo: PropertyRepository,
+        class_extend_repo: ClassExtendRepository,
+        pool: Any = None,
     ) -> None:
-        self._pool = pool
         self._workspace_id = workspace_id
         self._node_repo = node_repo
         self._property_repo = property_repo
-
-    @property
-    def pool(self):
-        return self._pool
+        self._class_extend_repo = class_extend_repo
+        self._pool = pool
 
     @property
     def workspace_id(self) -> int | None:
@@ -130,26 +126,22 @@ class ClassManagementService:
 
     async def get_nodes_with_class(self, class_id: int, limit: int | None = None, offset: int | None = None) -> list[Node]:
         """Return all nodes that carry the given class (or any of its subclasses)."""
-        from ..repositories import PostgresPropertyRepository
-        from ..repositories.postgres_class_extend import PostgresClassExtendRepository
         from .class_extension_service import ClassExtensionService
 
-        property_repo = PostgresPropertyRepository(self._pool, self._workspace_id, 0)
-        class_extend_repo = PostgresClassExtendRepository(self._pool, self._workspace_id, 0)
-        extension_service = ClassExtensionService(self._pool, self._workspace_id, property_repo, class_extend_repo)
+        extension_service = ClassExtensionService(
+            self._workspace_id, self._property_repo, self._class_extend_repo, self._node_repo
+        )
         subclass_ids = await extension_service.get_all_subclasses(class_id)
         all_class_ids = [class_id] + subclass_ids
         return await self._node_repo.get_nodes_with_classes(all_class_ids, limit=limit, offset=offset)
 
     async def count_nodes_with_class(self, class_id: int) -> int:
         """Count nodes that carry the given class (or any of its subclasses)."""
-        from ..repositories import PostgresPropertyRepository
-        from ..repositories.postgres_class_extend import PostgresClassExtendRepository
         from .class_extension_service import ClassExtensionService
 
-        property_repo = PostgresPropertyRepository(self._pool, self._workspace_id, 0)
-        class_extend_repo = PostgresClassExtendRepository(self._pool, self._workspace_id, 0)
-        extension_service = ClassExtensionService(self._pool, self._workspace_id, property_repo, class_extend_repo)
+        extension_service = ClassExtensionService(
+            self._workspace_id, self._property_repo, self._class_extend_repo, self._node_repo
+        )
         subclass_ids = await extension_service.get_all_subclasses(class_id)
         all_class_ids = [class_id] + subclass_ids
         return await self._node_repo.count_nodes_with_classes(all_class_ids)

@@ -932,7 +932,13 @@ class ActivityRepository(ABC):
 
     @abstractmethod
     async def create_node_activity(
-        self, node_id: int, action: str, details: str | None, target_node_id: int | None, now: Any
+        self,
+        node_id: int,
+        action: str,
+        details: str | None,
+        target_node_id: int | None,
+        now: Any,
+        user_id: int | None = None,
     ) -> int:
         """Insert activity record and return its new id."""
         pass

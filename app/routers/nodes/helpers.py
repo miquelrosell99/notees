@@ -7,6 +7,8 @@ from ...db.connection import acquire_connection, get_pool
 from ...domain.entities import Node
 from ...domain.permissions import PermissionChecker
 from ...domain.repositories import (
+    PostgresActivityRepository,
+    PostgresClassExtendRepository,
     PostgresLinkRepository,
     PostgresNodeRepository,
     PostgresPropertyRepository,
@@ -403,7 +405,11 @@ async def _get_effective_class_ids_batch(
 
     Returns a dict mapping node_id -> list of class_ids (explicit + inherited).
     """
-    from ...domain.repositories import PostgresPropertyRepository
+    from ...domain.repositories import (
+        PostgresClassExtendRepository,
+        PostgresNodeRepository,
+        PostgresPropertyRepository,
+    )
     from ...domain.services.class_extension_service import ClassExtensionService
 
     # First get explicit classes
@@ -421,10 +427,11 @@ async def _get_effective_class_ids_batch(
         return explicit_classes
 
     property_repo = PostgresPropertyRepository(pool, workspace_id, user_id)
-    from ...domain.repositories.postgres_class_extend import PostgresClassExtendRepository
-
     class_extend_repo = PostgresClassExtendRepository(pool, workspace_id, user_id)
-    extension_service = ClassExtensionService(pool, workspace_id, property_repo, class_extend_repo)
+    node_repo = PostgresNodeRepository(pool, workspace_id, 0, user_id)
+    extension_service = ClassExtensionService(
+        workspace_id, property_repo, class_extend_repo, node_repo
+    )
 
     # Cache for class -> extended classes
     extends_cache: dict[int, list[int]] = {}
@@ -561,6 +568,8 @@ async def _get_node_service(user: User) -> NodeService:
     property_repo = PostgresPropertyRepository(pool, workspace_id, user_id)
     link_repo = PostgresLinkRepository(pool, workspace_id, user_id)
     settings_repo = PostgresSettingsRepository(pool)
+    activity_repo = PostgresActivityRepository(pool, workspace_id, user_id)
+    class_extend_repo = PostgresClassExtendRepository(pool, workspace_id, user_id)
 
     # Create services
     link_service = LinkParsingService(node_repo, link_repo)
@@ -573,6 +582,8 @@ async def _get_node_service(user: User) -> NodeService:
         workspace_id=workspace_id,
         user_id=user_id,
         settings_repo=settings_repo,
+        activity_repo=activity_repo,
+        class_extend_repo=class_extend_repo,
     )
 
     return node_service

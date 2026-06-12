@@ -18,9 +18,13 @@ from ..validation import validate_node_create, validate_node_update
 from .class_management_service import ClassManagementService
 
 if TYPE_CHECKING:
-    import asyncpg
-
-    from ..repositories import NodeRepository, PropertyRepository, SettingsRepository
+    from ..repositories import (
+        ActivityRepository,
+        ClassExtendRepository,
+        NodeRepository,
+        PropertyRepository,
+        SettingsRepository,
+    )
     from .link_service import LinkParsingService
 
 logger = get_logger(__name__)
@@ -60,10 +64,12 @@ class NodeService:
         property_repository: PropertyRepository,
         link_service: LinkParsingService,
         page_class_id: int,
-        pool: asyncpg.Pool | None = None,
+        pool: Any = None,
         workspace_id: int | None = None,
         user_id: int | None = None,
         settings_repo: SettingsRepository | None = None,
+        activity_repo: ActivityRepository | None = None,
+        class_extend_repo: ClassExtendRepository | None = None,
     ):
         self._node_repo = node_repository
         self._property_repo = property_repository
@@ -73,7 +79,10 @@ class NodeService:
         self._workspace_id = workspace_id
         self._user_id = user_id
         self._settings_repo = settings_repo
-        self._class_service = ClassManagementService(pool, workspace_id, node_repository, property_repository)
+        self._activity_repo = activity_repo
+        self._class_service = ClassManagementService(
+            workspace_id, node_repository, property_repository, class_extend_repo, pool=pool
+        )
 
     # ── Public properties ──────────────────────────────────────────────────
 
@@ -1306,32 +1315,19 @@ class NodeService:
     ) -> None:
         """Log an activity entry for a node.
 
-        Uses the pool directly to avoid repository injection churn.
-        Silently ignores errors so activity logging never breaks user operations.
+        Delegates to the injected activity repository so the domain service
+        never executes SQL directly. Silently ignores errors so activity
+        logging never breaks user operations.
         """
-        if self._pool is None or self._workspace_id is None:
+        if self._activity_repo is None or self._workspace_id is None or self._user_id is None:
             return
         try:
             from datetime import UTC, datetime
 
-            from ...db.connection import acquire_connection
-
             now = datetime.now(UTC)
-            uid = self._user_id
-            async with acquire_connection(self._pool) as conn:
-                await conn.execute(
-                    """
-                    INSERT INTO node_activity (node_id, action, details, target_node_id, user_id, create_uid, create_date)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7)
-                    """,
-                    node_id,
-                    action,
-                    details,
-                    target_node_id,
-                    uid,
-                    uid,
-                    now,
-                )
+            await self._activity_repo.create_node_activity(
+                node_id, action, details, target_node_id, now, self._user_id
+            )
         except (ValueError, TypeError, LookupError):
             # Activity logging must never fail the user operation
             pass

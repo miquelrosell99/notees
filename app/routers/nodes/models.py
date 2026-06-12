@@ -5,6 +5,12 @@ from typing import Any
 from pydantic import BaseModel
 
 
+class BatchTextLinksRequest(BaseModel):
+    """Request body for batch text-link resolution."""
+
+    node_ids: list[int]
+
+
 class NodeResponse(BaseModel):
     """Node response model."""
 
