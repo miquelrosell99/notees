@@ -10,7 +10,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Icon } from '@/components/ui/Icon';
 import { NodeCollection } from '@/features/content';
 import { Button } from '@/components/ui/Button';
-import { Spinner } from '@/components/ui/Spinner';
+import { DataStateView } from '@/components/ui/DataStateView';
 import { useNavigationStore } from '@/stores';
 import { useSystemClasses } from '@/hooks/usePageClass';
 import { useCreateNode } from '@/hooks/useNodes';
@@ -66,7 +66,7 @@ export function TasksView() {
   const {
     data: tasks = [],
     isLoading: tasksLoading,
-    isError,
+    error,
   } = useQuery_(queryRequest, {
     enabled: !classesLoading,
     queryKey: ['tasks-view', activeTab],
@@ -156,15 +156,14 @@ export function TasksView() {
 
       {/* Content */}
       <div className="tasks-view__content">
-        {isLoading ? (
-          <div className="tasks-view__loading">
-            <Spinner size="lg" centered />
-          </div>
-        ) : isError ? (
-          <div className="tasks-view__empty">
-            <p>Failed to load tasks.</p>
-          </div>
-        ) : (
+        <DataStateView
+          isLoading={isLoading}
+          error={error}
+          isEmpty={tasks.length === 0}
+          errorTitle="Failed to load tasks."
+          emptyTitle={emptyMessage}
+          skeletonRows={4}
+        >
           <NodeCollection
             nodes={tasks}
             viewMode={viewMode}
@@ -179,7 +178,7 @@ export function TasksView() {
             can_create={!!taskClassId}
             emptyMessage={emptyMessage}
           />
-        )}
+        </DataStateView>
       </div>
     </article>
   );

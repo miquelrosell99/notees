@@ -11,7 +11,6 @@ export * from './useNodes';
 export * from './useNodeViews';
 export * from './useBatchedNode';
 export * from './useVirtualizedQuery';
-export * from './useRouter';
 export { useCurrentNodeUuid } from './useCurrentNodeUuid';
 export * from './useKeyboardListNav';
 export * from './useViewportFlip';

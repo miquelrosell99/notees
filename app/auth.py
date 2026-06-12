@@ -26,18 +26,31 @@ logger = get_logger(__name__)
 _user_cache: dict[str, tuple[dict, float]] = {}
 _USER_CACHE_TTL = 300  # 5 minutes
 
-# Password hashing context
-# Primary: bcrypt (recommended by security-hardening skill).
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+def clear_user_cache(user_id: str) -> None:
+    """Invalidate the in-memory user cache for a single user."""
+    _user_cache.pop(user_id, None)
+
+# Password hashing context.
+# Primary: bcrypt (recommended by the security-hardening skill).
+# pbkdf2_sha256 is retained only for legacy-hash verification; new hashes
+# always use bcrypt. Legacy users are transparently re-hashed on next login.
+pwd_context = CryptContext(
+    schemes=["bcrypt", "pbkdf2_sha256"],
+    deprecated="auto",
+)
 
 
 def hash_password(password: str) -> str:
-    """Hash a password."""
+    """Hash a password with the primary scheme (bcrypt)."""
     return pwd_context.hash(password)
 
 
 def verify_password(password: str, hashed: str) -> bool:
-    """Verify a password against its hash."""
+    """Verify a password against its hash.
+
+    Supports both bcrypt (current) and legacy pbkdf2_sha256 hashes.
+    """
     try:
         return pwd_context.verify(password, hashed)
     except Exception as e:
@@ -45,6 +58,27 @@ def verify_password(password: str, hashed: str) -> bool:
         return False
 
 
+def password_needs_rehash(hashed: str) -> bool:
+    """Return True if the stored hash uses a deprecated/legacy scheme."""
+    try:
+        return pwd_context.identify(hashed, required=False) != "bcrypt"
+    except Exception:
+        return True
+
+
+async def rehash_password(user_id: str | int, password: str) -> None:
+    """Re-hash a user's password with the current primary scheme (bcrypt).
+
+    Call this after a successful login when password_needs_rehash() is True.
+    """
+    new_hash = hash_password(password)
+    async with get_connection() as conn:
+        await conn.execute(
+            'UPDATE "user" SET password_hash = $1 WHERE id = $2',
+            new_hash,
+            int(user_id),
+        )
+    clear_user_cache(str(user_id))
 
 
 def create_token(user_id: str, email: str, role: str) -> str:
@@ -224,6 +258,37 @@ async def update_user(user_id: str, **fields) -> dict | None:
     return None
 
 
+async def update_password(user_id: str, password: str) -> dict | None:
+    """Update a user's password hash and invalidate the cached user record."""
+    hashed = hash_password(password)
+
+    async with get_connection() as conn:
+        row = await conn.fetchrow(
+            """
+            UPDATE "user"
+            SET password_hash = $2, write_date = NOW()
+            WHERE id::text = $1 OR uuid::text = $1
+            RETURNING id, uuid, email, name, surnames, profile_pic, role, active, create_date as created_at
+            """,
+            user_id,
+            hashed,
+        )
+        if row:
+            _user_cache.pop(user_id, None)
+            return {
+                "id": str(row["id"]),
+                "uuid": str(row["uuid"]),
+                "email": row["email"],
+                "name": row["name"],
+                "surnames": row["surnames"],
+                "profile_pic": row["profile_pic"],
+                "role": row["role"],
+                "is_active": row["active"],
+                "created_at": row["created_at"].isoformat() if row["created_at"] else None,
+            }
+    return None
+
+
 async def authenticate_user(email: str, password: str) -> dict | None:
     """Authenticate a user and return user data if valid."""
     user = await get_user_by_email(email)
@@ -386,6 +451,19 @@ async def list_api_keys(user_id: int) -> list[dict]:
             }
             for row in rows
         ]
+
+
+async def revoke_all_user_api_keys(user_id: int) -> None:
+    """Revoke all API keys for a user (e.g., password change)."""
+    async with get_connection() as conn:
+        await conn.execute(
+            """
+            UPDATE api_key
+            SET revoked = TRUE, write_date = NOW()
+            WHERE user_id = $1 AND revoked = FALSE
+            """,
+            user_id,
+        )
 
 
 async def revoke_api_key(user_id: int, key_id: str) -> bool:

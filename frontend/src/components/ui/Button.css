@@ -11,7 +11,7 @@
   align-items: center;
   justify-content: center;
   gap: var(--spacing-1);
-  border: 1px solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
   border-radius: var(--shape-button-small);
   font-family: var(--font-family-base);
   font-weight: 500;
@@ -22,7 +22,7 @@
   text-decoration: none;
   background: var(--color-surface-container);
   color: var(--color-on-surface-variant);
-  min-height: 44px;
+  min-height: var(--button-min-height);
 }
 
 .btn:hover:not(:disabled) {
@@ -32,13 +32,13 @@
 }
 
 .btn:focus-visible {
-  outline: 2px solid var(--color-primary);
-  outline-offset: 2px;
+  outline: var(--border-width-thick) solid var(--color-primary);
+  outline-offset: var(--focus-outline-offset);
 }
 
 /* ==================== Sizes ==================== */
 .btn--xs {
-  height: calc(var(--height-xs) + 2px);
+  height: var(--height-button-xs);
   padding: 0 var(--spacing-1);
   font-size: var(--font-size-xs);
   gap: var(--spacing-1);
@@ -46,7 +46,7 @@
 }
 
 .btn--sm {
-  height: calc(var(--height-sm) + 2px);
+  height: var(--height-button-sm);
   padding: 0 var(--spacing-2);
   font-size: var(--font-size-sm);
   gap: var(--spacing-1);
@@ -54,7 +54,7 @@
 }
 
 .btn--md {
-  height: calc(var(--height-md) + 4px);
+  height: var(--height-button-md);
   padding: 0 var(--spacing-3);
   font-size: var(--font-size-button);
   gap: var(--spacing-2);
@@ -62,7 +62,7 @@
 }
 
 .btn--lg {
-  height: calc(var(--height-lg) + 6px);
+  height: var(--height-button-lg);
   padding: 0 var(--spacing-4);
   font-size: var(--font-size-base);
   gap: var(--spacing-2);
@@ -73,7 +73,31 @@
 .btn--icon-only {
   padding: 0;
   aspect-ratio: 1;
-  min-width: 44px;
+  min-width: unset;
+}
+
+.btn--icon-only.btn--xs {
+  height: var(--button-icon-only-xs);
+  min-width: var(--button-icon-only-xs);
+  border-radius: var(--shape-small);
+}
+
+.btn--icon-only.btn--sm {
+  height: var(--button-icon-only-sm);
+  min-width: var(--button-icon-only-sm);
+  border-radius: calc(var(--shape-small) + var(--spacing-1));
+}
+
+.btn--icon-only.btn--md {
+  height: var(--button-icon-only-md);
+  min-width: var(--button-icon-only-md);
+  border-radius: var(--shape-button-small);
+}
+
+.btn--icon-only.btn--lg {
+  height: var(--button-icon-only-lg);
+  min-width: var(--button-icon-only-lg);
+  border-radius: var(--shape-button-small);
 }
 
 /* Icon + Text buttons - use grid for proper centering */
@@ -131,29 +155,29 @@
   color: var(--color-on-surface);
 }
 
-/* Primary variant */
+/* Primary variant — functional accent */
 .btn--primary {
-  background: var(--color-on-surface);
-  border-color: var(--color-on-surface-variant);
-  color: var(--color-on-primary);
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: var(--color-on-accent);
 }
 
 .btn--primary:hover:not(:disabled) {
-  background: var(--color-primary);
-  border-color: var(--color-primary);
-  color: var(--color-on-primary);
+  background: color-mix(in srgb, var(--color-accent) 90%, black);
+  border-color: color-mix(in srgb, var(--color-accent) 90%, black);
+  color: var(--color-on-accent);
 }
 
 .btn--primary.btn--active {
-  background: var(--color-primary);
-  border-color: var(--color-primary);
-  color: var(--color-on-primary);
+  background: color-mix(in srgb, var(--color-accent) 80%, black);
+  border-color: color-mix(in srgb, var(--color-accent) 80%, black);
+  color: var(--color-on-accent);
 }
 
 .btn--primary:active:not(:disabled) {
-  background: var(--color-primary);
-  border-color: var(--color-primary);
-  color: var(--color-on-primary);
+  background: color-mix(in srgb, var(--color-accent) 80%, black);
+  border-color: color-mix(in srgb, var(--color-accent) 80%, black);
+  color: var(--color-on-accent);
 }
 
 /* Ghost variant - transparent background with border on hover */
@@ -277,13 +301,13 @@
 }
 
 .btn__badge--top-right {
-  top: -4px;
-  right: -4px;
+  top: calc(var(--spacing-1) * -1);
+  right: calc(var(--spacing-1) * -1);
 }
 
 .btn__badge--bottom-right {
-  bottom: -3px;
-  right: -3px;
+  bottom: calc(var(--spacing-1) * -1);
+  right: calc(var(--spacing-1) * -1);
 }
 
 /* Icon badge — small circular background with icon */
@@ -298,13 +322,13 @@
 
 /* Count badge — pill with number */
 .btn__badge--count {
-  min-width: 16px;
+  min-width: var(--spacing-4);
   height: var(--icon-size-sm);
   padding: 0 var(--spacing-1);
   border-radius: var(--shape-full, 999px);
   background: color-mix(in srgb, var(--color-primary) 50%, transparent);
   color: var(--color-on-primary);
-  font-size: 10px;
+  font-size: var(--font-size-xs);
   font-weight: 600;
   line-height: var(--spacing-4);
   opacity: 0.7;

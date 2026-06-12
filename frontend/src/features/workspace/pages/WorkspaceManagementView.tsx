@@ -7,6 +7,7 @@
 import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Spinner } from '@/components/ui/Spinner';
+import { DataStateView } from '@/components/ui/DataStateView';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { 
   listWorkspaces, 
@@ -80,7 +81,7 @@ export function WorkspaceManagementView({
   const { isImportLogseqModalOpen, setImportLogseqModalOpen } = useModalStore();
 
   // Fetch workspaces
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['workspaces'],
     queryFn: () => listWorkspaces(),
     staleTime: 10000,
@@ -334,113 +335,116 @@ export function WorkspaceManagementView({
           </div>
 
           {/* Database list */}
-          {isLoading ? (
-            <div className="workspace-management__loading">
-              <Spinner size="lg" label="Loading workspaces..." centered />
-            </div>
-          ) : workspaces.length > 0 ? (
-            <div className="workspace-management__grid">
-              {workspaces.map((workspace) => (
-                <Card 
-                  key={workspace.uuid} 
-                  className={`workspace-management__card ${workspace.uuid === data?.active ? 'workspace-management__card--active' : ''} ${deleteConfirm === workspace.uuid ? 'workspace-management__card--delete-confirm' : ''}`}
-                  elevation="low"
-                  padding={false}
-                  selected={workspace.uuid === data?.active}
-                >
-                  <div className="workspace-management__card-header">
-                    <div className="workspace-management__card-title">
-                      <span className="workspace-management__card-name">{workspace.name}</span>
-                      <div className="workspace-management__card-badges">
-                        {workspace.uuid === data?.active && (
-                          <span className="workspace-management__card-badge">Active</span>
-                        )}
-                        {workspace.is_shared && (
-                          <span className="workspace-management__card-badge workspace-management__card-badge--shared">Shared</span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="workspace-management__card-actions">
-                      <Button aria-label="Open workspace"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleSelectWorkspace(workspace)}
-                        title="Open workspace"
-                        className="workspace-management__access-btn"
-                        disabled={switchMutation.isPending}
-                        icon="mdi mdi-arrow-right"
-                      />
-                      {deleteConfirm === workspace.uuid && (
-                        <>
-                          <Button aria-label="Confirm delete"
-                            variant="danger"
-                            size="sm"
-                            onClick={() => deleteMutation.mutate(workspace.uuid)}
-                            title="Confirm delete"
-                            disabled={deleteMutation.isPending}
-                            icon="mdi mdi-check"
-                          />
-                          <Button aria-label="Cancel"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setDeleteConfirm(null)}
-                            title="Cancel"
-                            disabled={deleteMutation.isPending}
-                            icon="mdi mdi-close"
-                          />
-                        </>
-                      )}
-                      {deleteConfirm !== workspace.uuid && (
-                        <WorkspaceActionsMenu
-                          workspace={workspace}
-                          onRename={(w) => handleOpenRename(w.name)}
-                          onExport={handleExport}
-                          onRestore={handleRestoreClick}
-                          onShare={(w) => setShareModalState({ isOpen: true, workspaceUuid: w.uuid })}
-                          onDelete={(uuid) => setDeleteConfirm(uuid)}
-                          disabled={restoreMutation.isPending}
-                        />
-                      )}
-                    </div>
-                  </div>
-                  <div className="workspace-management__card-content">
-                    {restoreState.confirming === workspace.uuid && (
-                      <div className="workspace-management__restore-confirm">
-                        <span className="workspace-management__restore-warn">
-                          Restore from <strong>{restoreState.file?.name}</strong>? This will replace ALL data in this workspace.
-                        </span>
-                        {restoreError && (
-                          <span className="workspace-management__restore-error">{restoreError}</span>
-                        )}
-                        <div className="workspace-management__restore-actions">
-                          <Button
-                            variant="danger"
-                            size="sm"
-                            onClick={handleRestoreConfirm}
-                            disabled={restoreMutation.isPending}
-                          >
-                            {restoreMutation.isPending ? 'Restoring...' : 'Confirm Restore'}
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={handleRestoreCancel}
-                            disabled={restoreMutation.isPending}
-                          >
-                            Cancel
-                          </Button>
+          <DataStateView
+            isLoading={isLoading}
+            error={error}
+            onRetry={refetch}
+            skeletonRows={4}
+          >
+            {workspaces.length > 0 && (
+              <div className="workspace-management__grid">
+                {workspaces.map((workspace) => (
+                  <Card 
+                    key={workspace.uuid} 
+                    className={`workspace-management__card ${workspace.uuid === data?.active ? 'workspace-management__card--active' : ''} ${deleteConfirm === workspace.uuid ? 'workspace-management__card--delete-confirm' : ''}`}
+                    elevation="low"
+                    padding={false}
+                    selected={workspace.uuid === data?.active}
+                  >
+                    <div className="workspace-management__card-header">
+                      <div className="workspace-management__card-title">
+                        <span className="workspace-management__card-name">{workspace.name}</span>
+                        <div className="workspace-management__card-badges">
+                          {workspace.uuid === data?.active && (
+                            <span className="workspace-management__card-badge">Active</span>
+                          )}
+                          {workspace.is_shared && (
+                            <span className="workspace-management__card-badge workspace-management__card-badge--shared">Shared</span>
+                          )}
                         </div>
                       </div>
-                    )}
-                    <div className="workspace-management__card-meta">
-                      <span>Created {formatDate(workspace.created_at)}</span>
-                      <span>Modified {formatRelativeTime(workspace.updated_at)}</span>
+                      <div className="workspace-management__card-actions">
+                        <Button aria-label="Open workspace"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleSelectWorkspace(workspace)}
+                          title="Open workspace"
+                          className="workspace-management__access-btn"
+                          disabled={switchMutation.isPending}
+                          icon="mdi mdi-arrow-right"
+                        />
+                        {deleteConfirm === workspace.uuid && (
+                          <>
+                            <Button aria-label="Confirm delete"
+                              variant="danger"
+                              size="sm"
+                              onClick={() => deleteMutation.mutate(workspace.uuid)}
+                              title="Confirm delete"
+                              disabled={deleteMutation.isPending}
+                              icon="mdi mdi-check"
+                            />
+                            <Button aria-label="Cancel"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setDeleteConfirm(null)}
+                              title="Cancel"
+                              disabled={deleteMutation.isPending}
+                              icon="mdi mdi-close"
+                            />
+                          </>
+                        )}
+                        {deleteConfirm !== workspace.uuid && (
+                          <WorkspaceActionsMenu
+                            workspace={workspace}
+                            onRename={(w) => handleOpenRename(w.name)}
+                            onExport={handleExport}
+                            onRestore={handleRestoreClick}
+                            onShare={(w) => setShareModalState({ isOpen: true, workspaceUuid: w.uuid })}
+                            onDelete={(uuid) => setDeleteConfirm(uuid)}
+                            disabled={restoreMutation.isPending}
+                          />
+                        )}
+                      </div>
                     </div>
-                  </div>
-                </Card>
-              ))}
-            </div>
-          ) : null}
+                    <div className="workspace-management__card-content">
+                      {restoreState.confirming === workspace.uuid && (
+                        <div className="workspace-management__restore-confirm">
+                          <span className="workspace-management__restore-warn">
+                            Restore from <strong>{restoreState.file?.name}</strong>? This will replace ALL data in this workspace.
+                          </span>
+                          {restoreError && (
+                            <span className="workspace-management__restore-error">{restoreError}</span>
+                          )}
+                          <div className="workspace-management__restore-actions">
+                            <Button
+                              variant="danger"
+                              size="sm"
+                              onClick={handleRestoreConfirm}
+                              disabled={restoreMutation.isPending}
+                            >
+                              {restoreMutation.isPending ? 'Restoring...' : 'Confirm Restore'}
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={handleRestoreCancel}
+                              disabled={restoreMutation.isPending}
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                      <div className="workspace-management__card-meta">
+                        <span>Created {formatDate(workspace.created_at)}</span>
+                        <span>Modified {formatRelativeTime(workspace.updated_at)}</span>
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </DataStateView>
         </main>
 
         {/* Footer */}

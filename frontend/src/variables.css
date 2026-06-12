@@ -51,26 +51,27 @@
   --color-on-success-container: #14532d;
 
   /* ==================== Background & Surface ==================== */
-  --color-background: #fafafa;
-  --color-on-background: #111111;
+  /* Warm paper workspace — identity foundation for Notees */
+  --color-background: #f5f3ef;
+  --color-on-background: #1a1a1a;
   --color-surface: #ffffff;
-  --color-on-surface: #111111;
-  --color-surface-variant: #f2f2f2;
-  --color-on-surface-variant: #555555;
-  --color-surface-dim: #e5e5e5;
+  --color-on-surface: #1a1a1a;
+  --color-surface-variant: #f0ede8;
+  --color-on-surface-variant: #5c5c5c;
+  --color-surface-dim: #e5e1d9;
   --color-surface-bright: #ffffff;
-  --color-surface-container: #fafafa;
-  --color-surface-container-low: #f5f5f5;
-  --color-surface-container-high: #e5e5e5;
-  --color-surface-container-highest: #d4d4d4;
+  --color-surface-container: #faf8f4;
+  --color-surface-container-low: #f5f3ef;
+  --color-surface-container-high: #eae6df;
+  --color-surface-container-highest: #dad6cf;
   --color-surface-container-lowest: #ffffff;
-  --color-inverse-surface: #111111;
-  --color-inverse-on-surface: #fafafa;
-  --color-inverse-primary: #a3a3a3;
+  --color-inverse-surface: #1a1a1a;
+  --color-inverse-on-surface: #f5f3ef;
+  --color-inverse-primary: #a8a29e;
 
   /* ==================== Outline & Utility ==================== */
-  --color-outline: #a3a3a3;
-  --color-outline-variant: #e5e5e5;
+  --color-outline: #c4bfb6;
+  --color-outline-variant: #e3ded6;
   --color-shadow: rgba(0, 0, 0, 0.08);
   --color-scrim: rgba(0, 0, 0, 0.5);
 
@@ -122,11 +123,25 @@
   --height-xl: 46px;
   --height-2xl: 56px;
 
+  /* Button text heights (slightly taller than the base scale for comfortable vertical padding) */
+  --height-button-xs: 26px;
+  --height-button-sm: 30px;
+  --height-button-md: 36px;
+  --height-button-lg: 44px;
+
+  /* Icon-only button targets — tight squares so the icon dominates, not the padding */
+  --button-icon-only-xs: 20px;
+  --button-icon-only-sm: 24px;
+  --button-icon-only-md: 28px;
+  --button-icon-only-lg: 32px;
+
   /* ==================== Border Width ==================== */
   --border-width-default: 1px;
   --border-width-thick: 2px;
+  --focus-outline-offset: 2px;
 
   /* ==================== Component Sizes ==================== */
+  --button-min-height: 44px;
   --bullet-size-xs: 4px;
   --bullet-size-md: 6px;
   --bullet-ring-size: 16px;
@@ -143,17 +158,18 @@
 
   /* ==================== Typography ==================== */
   --font-family-base: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-family-display: Georgia, 'Times New Roman', serif;
   --font-family-mono: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
 
-  /* Display */
-  --font-display-large: 400 3.5rem/1.1 var(--font-family-base);
-  --font-display-medium: 400 2.75rem/1.15 var(--font-family-base);
-  --font-display-small: 400 2.25rem/1.2 var(--font-family-base);
+  /* Display — editorial serif for hero moments */
+  --font-display-large: 400 3.5rem/1.1 var(--font-family-display);
+  --font-display-medium: 400 2.75rem/1.15 var(--font-family-display);
+  --font-display-small: 400 2.25rem/1.2 var(--font-family-display);
 
-  /* Headline */
-  --font-headline-large: 600 2rem/1.25 var(--font-family-base);
-  --font-headline-medium: 600 1.75rem/1.3 var(--font-family-base);
-  --font-headline-small: 600 1.5rem/1.35 var(--font-family-base);
+  /* Headline — editorial serif for section/page titles */
+  --font-headline-large: 400 2rem/1.25 var(--font-family-display);
+  --font-headline-medium: 400 1.75rem/1.3 var(--font-family-display);
+  --font-headline-small: 400 1.5rem/1.35 var(--font-family-display);
 
   /* Title */
   --font-title-large: 600 1.25rem/1.4 var(--font-family-base);
@@ -424,27 +440,27 @@
   --color-success-container: #14532d;
   --color-on-success-container: #d1fae5;
 
-  /* Background & Surface */
-  --color-background: #121212;
-  --color-on-background: #e0e0e0;
-  --color-surface: #171717;
-  --color-on-surface: #e5e5e5;
-  --color-surface-variant: #262626;
-  --color-on-surface-variant: #a3a3a3;
-  --color-surface-dim: #0a0a0a;
-  --color-surface-bright: #262626;
-  --color-surface-container: #171717;
-  --color-surface-container-low: #0a0a0a;
-  --color-surface-container-high: #262626;
-  --color-surface-container-highest: #404040;
-  --color-surface-container-lowest: #121212;
-  --color-inverse-surface: #e5e5e5;
-  --color-inverse-on-surface: #111111;
-  --color-inverse-primary: #525252;
+  /* Background & Surface — warm dark workspace */
+  --color-background: #121211;
+  --color-on-background: #e8e6e1;
+  --color-surface: #1a1a18;
+  --color-on-surface: #e8e6e1;
+  --color-surface-variant: #262623;
+  --color-on-surface-variant: #a8a29e;
+  --color-surface-dim: #0a0a09;
+  --color-surface-bright: #262623;
+  --color-surface-container: #1a1a18;
+  --color-surface-container-low: #121211;
+  --color-surface-container-high: #262623;
+  --color-surface-container-highest: #3d3d39;
+  --color-surface-container-lowest: #121211;
+  --color-inverse-surface: #e8e6e1;
+  --color-inverse-on-surface: #121211;
+  --color-inverse-primary: #52504a;
 
   /* Outline & Utility */
-  --color-outline: #525252;
-  --color-outline-variant: #262626;
+  --color-outline: #52504a;
+  --color-outline-variant: #2a2926;
   --color-shadow: rgba(0, 0, 0, 0.5);
   --color-scrim: rgba(0, 0, 0, 0.7);
 
@@ -458,6 +474,7 @@
   /* Accent */
   --color-accent: #d4d4d4;
   --color-accent-subtle: #737373;
+  --color-on-accent: #121211;
 
   /* Graph view tokens */
   --graph-node-default: #b8b8b8;
@@ -510,26 +527,31 @@
 [data-accent="monochrome"] {
   --color-accent: #404040;
   --color-accent-subtle: #737373;
+  --color-on-accent: #ffffff;
 }
 
 [data-accent="sage"] {
   --color-accent: #5B7D5B;
   --color-accent-subtle: #8BA88B;
+  --color-on-accent: #ffffff;
 }
 
 [data-accent="teal"] {
   --color-accent: #2D6B5B;
   --color-accent-subtle: #5A9A8A;
+  --color-on-accent: #ffffff;
 }
 
 [data-accent="rose"] {
   --color-accent: #8B5B5B;
   --color-accent-subtle: #B88B8B;
+  --color-on-accent: #ffffff;
 }
 
 [data-accent="navy"] {
   --color-accent: #1E3A5F;
   --color-accent-subtle: #4E6A8F;
+  --color-on-accent: #ffffff;
 }
 
 /* ==================== Responsive Breakpoints ==================== */

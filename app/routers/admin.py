@@ -119,7 +119,7 @@ async def update_user(
         if data.email is not None:
             updates["email"] = data.email
         if data.password is not None:
-            updates["hashed_password"] = hash_password(data.password)
+            updates["password_hash"] = hash_password(data.password)
         if data.name is not None:
             updates["name"] = data.name
         if data.surnames is not None:
@@ -155,6 +155,12 @@ async def update_user(
 
         if not row:
             raise HTTPException(status_code=404, detail="User not found")
+
+        if data.password is not None:
+            user_id_int = int(user_id)
+            await auth.revoke_all_user_refresh_tokens(user_id_int)
+            await auth.revoke_all_user_api_keys(user_id_int)
+            auth.clear_user_cache(user_id)
 
     return {
         "id": str(row["id"]),

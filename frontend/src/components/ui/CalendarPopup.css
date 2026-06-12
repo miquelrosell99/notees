@@ -25,8 +25,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: var(--icon-size-xl);
-  height: var(--icon-size-xl);
+  width: var(--button-icon-only-sm);
+  height: var(--button-icon-only-sm);
   aspect-ratio: 1;
   background: none;
   border: none;

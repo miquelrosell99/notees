@@ -87,6 +87,11 @@ class ClassManagementService:
     def workspace_id(self) -> int | None:
         return self._workspace_id
 
+    @property
+    def pool(self) -> Any:
+        """Connection pool for direct query access."""
+        return self._pool
+
     # ------------------------------------------------------------------
     # Flag computation
     # ------------------------------------------------------------------
