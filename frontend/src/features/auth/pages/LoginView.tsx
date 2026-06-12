@@ -1,7 +1,7 @@
 /**
  * Login view component
  */
-import { useState, useMemo } from 'react';
+import { useId, useMemo, useState } from 'react';
 import { Spinner } from '@/components/ui/Spinner';
 import './LoginView.css';
 import { useAuthStore } from '@/stores';
@@ -65,6 +65,7 @@ export function LoginView({ registrationEnabled = true }: LoginViewProps) {
   };
 
   const displayError = localError || error;
+  const formErrorId = useId();
 
   return (
     <div className="login-page">
@@ -97,6 +98,9 @@ export function LoginView({ registrationEnabled = true }: LoginViewProps) {
             placeholder="Enter password"
             required
             autoComplete={isRegister ? 'new-password' : 'current-password'}
+            error={!!passwordError}
+            errorMessage={passwordError ?? undefined}
+            aria-describedby={displayError ? formErrorId : undefined}
           />
 
           {isRegister && (
@@ -110,14 +114,16 @@ export function LoginView({ registrationEnabled = true }: LoginViewProps) {
               placeholder="Re-enter password"
               required
               autoComplete="new-password"
+              error={displayError === 'Passwords do not match'}
+              errorMessage={displayError === 'Passwords do not match' ? displayError : undefined}
             />
           )}
 
           {isRegister && passwordError && (
-            <div className="error-message">{passwordError}</div>
+            <div className="error-message" role="alert">{passwordError}</div>
           )}
 
-          {displayError && <div className="error-message">{displayError}</div>}
+          {displayError && <div id={formErrorId} className="error-message" role="alert">{displayError}</div>}
 
           <Button type="submit" variant="primary" fullWidth disabled={isLoading || (isRegister && !!passwordError)}>
             {isLoading ? <Spinner size="sm" label={isRegister ? 'Registering...' : 'Signing in...'} /> : isRegister ? 'Register' : 'Sign In'}

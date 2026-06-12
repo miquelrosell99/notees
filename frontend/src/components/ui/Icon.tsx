@@ -91,7 +91,9 @@ export const Icon: React.FC<IconProps> = ({
       fill="currentColor"
       className={className}
       style={style}
-      aria-hidden="true"
+      aria-hidden={!title}
+      role={title ? 'img' : undefined}
+      aria-label={title || undefined}
     >
       {title && <title>{title}</title>}
       <use href={`/mdi-sprite.svg#mdi-${name}`} />

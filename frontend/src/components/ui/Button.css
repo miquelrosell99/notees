@@ -217,7 +217,7 @@
 
 /* Static persistent glow ring */
 .btn--glow-static.btn--active {
-  box-shadow: 0 0 6px 2px color-mix(in srgb, var(--color-primary) 35%, transparent);
+  box-shadow: var(--glow-primary-soft);
 }
 
 /* Animated breathing halo */
@@ -227,10 +227,10 @@
 
 @keyframes btn-breathe-halo {
   0%, 100% {
-    box-shadow: 0 0 4px 1px color-mix(in srgb, var(--color-primary) 22%, transparent);
+    box-shadow: var(--glow-primary-breathe-0);
   }
   50% {
-    box-shadow: 0 0 10px 3px color-mix(in srgb, var(--color-primary) 45%, transparent);
+    box-shadow: var(--glow-primary-breathe-50);
   }
 }
 

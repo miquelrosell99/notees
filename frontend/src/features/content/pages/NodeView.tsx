@@ -1460,8 +1460,8 @@ export function NodeView({
       {showFooter && (
         <footer className="node-view-footer">
           <div className="node-view-metadata">
-            <span>Created: <a role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }} className="node-view-metadata-date" onClick={() => navigateToDay(node.create_date)}>{formatDate(new Date(node.create_date), useSettingsStore.getState().dateFormat)}</a></span>
-            <span>Updated: <a role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }} className="node-view-metadata-date" onClick={() => navigateToDay(node.write_date)}>{formatDate(new Date(node.write_date), useSettingsStore.getState().dateFormat)}</a></span>
+            <span>Created: <button type="button" className="node-view-metadata-date" onClick={() => navigateToDay(node.create_date)}>{formatDate(new Date(node.create_date), useSettingsStore.getState().dateFormat)}</button></span>
+            <span>Updated: <button type="button" className="node-view-metadata-date" onClick={() => navigateToDay(node.write_date)}>{formatDate(new Date(node.write_date), useSettingsStore.getState().dateFormat)}</button></span>
             {liveSyncStatus !== 'connected' && liveSyncStatus !== 'idle' && node?.is_page && (
               <span className={`live-sync-status live-sync-status--${liveSyncStatus}`} title={`Live sync ${liveSyncStatus}`}>
                 {liveSyncStatus === 'connecting' ? 'Connecting…' : liveSyncStatus === 'error' ? 'Sync error' : 'Offline'}

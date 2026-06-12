@@ -328,7 +328,7 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
             onClick={handleClearAll}
             title="Clear all"
           />
-          <Button aria-label="isPinned ? 'Unpin' : 'Pin"
+          <Button aria-label={isPinned ? 'Unpin' : 'Pin'}
             className="scratchpad-btn"
             icon={isPinned ? "mdi mdi-pin" : "mdi mdi-pin-off"}
             variant="ghost"
