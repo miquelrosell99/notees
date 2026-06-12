@@ -10,6 +10,7 @@ from ...domain.repositories import (
     PostgresLinkRepository,
     PostgresNodeRepository,
     PostgresPropertyRepository,
+    PostgresSettingsRepository,
 )
 from ...domain.services import LinkParsingService, NodeService
 from ...logging_config import get_logger
@@ -559,6 +560,7 @@ async def _get_node_service(user: User) -> NodeService:
     node_repo = PostgresNodeRepository(pool, workspace_id, page_class_id, user_id)
     property_repo = PostgresPropertyRepository(pool, workspace_id, user_id)
     link_repo = PostgresLinkRepository(pool, workspace_id, user_id)
+    settings_repo = PostgresSettingsRepository(pool)
 
     # Create services
     link_service = LinkParsingService(node_repo, link_repo)
@@ -570,6 +572,7 @@ async def _get_node_service(user: User) -> NodeService:
         pool=pool,
         workspace_id=workspace_id,
         user_id=user_id,
+        settings_repo=settings_repo,
     )
 
     return node_service

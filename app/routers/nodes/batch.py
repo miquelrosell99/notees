@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, Request, Response
 from fastapi_limiter.depends import RateLimiter as _RateLimiter
 from pyrate_limiter import Duration, Limiter, Rate
 
+from ...db.connection import acquire_connection
 from ...domain.entities import NodeCreateData, NodeUpdateData
 from ...logging_config import get_logger
 from ...models import User
@@ -351,7 +352,7 @@ async def batch_get_nodes(
     # Batch-fetch backlink counts
     backlink_counts: dict[int, int] = {}
     if node_ids:
-        async with pool.acquire() as conn:
+        async with acquire_connection(pool) as conn:
             rows = await conn.fetch(
                 """
                 SELECT target_id, COUNT(*) as count

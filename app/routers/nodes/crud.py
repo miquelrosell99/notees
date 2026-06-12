@@ -177,52 +177,15 @@ async def get_recent_pages(
     Returns pages that have been opened (have a non-null open_date).
     """
     service = await _get_node_service(user)
-
-    async with acquire_connection(service.pool) as conn:
-        rows = await conn.fetch(
-            """
-            SELECT id, uuid, name, icon, color, parent_id, page_id,
-                   is_page, is_class, is_day, is_month, is_year,
-                   create_date, write_date, open_date, class_ids, aliased_id
-            FROM node
-            WHERE is_page = true AND active = true AND (is_deleted = false OR is_deleted IS NULL)
-                  AND open_date IS NOT NULL AND workspace_id = $1
-            ORDER BY open_date DESC
-            LIMIT $2
-        """,
-            service.workspace_id,
-            limit,
-        )
-
-    node_ids = [row["id"] for row in rows]
+    nodes = await service._node_repo.get_recent_pages(limit)
+    node_ids = [node.id for node in nodes if node.id is not None]
     alias_ids_map = await _get_related_ids_batch(service.pool, service.workspace_id or 0, node_ids, "aliases")
-
-    nodes = []
-    for row in rows:
-        nodes.append(
-            {
-                "id": row["id"],
-                "uuid": str(row["uuid"]),
-                "name": row["name"],
-                "icon": row["icon"],
-                "color": row["color"],
-                "parent_id": row["parent_id"],
-                "page_id": row["page_id"],
-                "is_page": row["is_page"],
-                "is_class": row["is_class"],
-                "is_daily": row["is_day"],
-                "is_monthly": row["is_month"],
-                "is_yearly": row["is_year"],
-                "create_date": row["create_date"].isoformat() if row["create_date"] else None,
-                "write_date": row["write_date"].isoformat() if row["write_date"] else None,
-                "open_date": row["open_date"].isoformat() if row["open_date"] else None,
-                "classes": list(row["class_ids"] or []),
-                "aliased_id": row["aliased_id"],
-                "aliases": alias_ids_map.get(row["id"], []),
-            }
-        )
-
-    return {"nodes": nodes}
+    return {
+        "nodes": [
+            _node_to_response(node, aliases=alias_ids_map.get(node.id or 0, []))
+            for node in nodes
+        ]
+    }
 
 
 @router.get("/random")
@@ -235,52 +198,15 @@ async def get_random_pages(
     Returns random non-deleted, non-system pages.
     """
     service = await _get_node_service(user)
-
-    async with acquire_connection(service.pool) as conn:
-        rows = await conn.fetch(
-            """
-            SELECT id, uuid, name, icon, color, parent_id, page_id,
-                   is_page, is_class, is_day, is_month, is_year,
-                   create_date, write_date, class_ids, aliased_id
-            FROM node
-            WHERE is_page = true AND active = true AND (is_deleted = false OR is_deleted IS NULL)
-                  AND is_class = false AND is_day = false AND is_month = false AND is_year = false
-                  AND workspace_id = $1
-            ORDER BY RANDOM()
-            LIMIT $2
-        """,
-            service.workspace_id,
-            limit,
-        )
-
-    node_ids = [row["id"] for row in rows]
+    nodes = await service._node_repo.get_random_pages(limit)
+    node_ids = [node.id for node in nodes if node.id is not None]
     alias_ids_map = await _get_related_ids_batch(service.pool, service.workspace_id or 0, node_ids, "aliases")
-
-    nodes = []
-    for row in rows:
-        nodes.append(
-            {
-                "id": row["id"],
-                "uuid": str(row["uuid"]),
-                "name": row["name"],
-                "icon": row["icon"],
-                "color": row["color"],
-                "parent_id": row["parent_id"],
-                "page_id": row["page_id"],
-                "is_page": row["is_page"],
-                "is_class": row["is_class"],
-                "is_daily": row["is_day"],
-                "is_monthly": row["is_month"],
-                "is_yearly": row["is_year"],
-                "create_date": row["create_date"].isoformat() if row["create_date"] else None,
-                "write_date": row["write_date"].isoformat() if row["write_date"] else None,
-                "classes": list(row["class_ids"] or []),
-                "aliased_id": row["aliased_id"],
-                "aliases": alias_ids_map.get(row["id"], []),
-            }
-        )
-
-    return {"nodes": nodes}
+    return {
+        "nodes": [
+            _node_to_response(node, aliases=alias_ids_map.get(node.id or 0, []))
+            for node in nodes
+        ]
+    }
 
 
 @router.get("/recently-created")
@@ -290,51 +216,15 @@ async def get_recently_created_pages(
 ):
     """Get recently created pages, ordered by create_date DESC."""
     service = await _get_node_service(user)
-
-    async with acquire_connection(service.pool) as conn:
-        rows = await conn.fetch(
-            """
-            SELECT id, uuid, name, icon, color, parent_id, page_id,
-                   is_page, is_class, is_day, is_month, is_year,
-                   create_date, write_date, class_ids, aliased_id
-            FROM node
-            WHERE is_page = true AND active = true AND (is_deleted = false OR is_deleted IS NULL)
-                  AND workspace_id = $1
-            ORDER BY create_date DESC
-            LIMIT $2
-        """,
-            service.workspace_id,
-            limit,
-        )
-
-    node_ids = [row["id"] for row in rows]
+    nodes = await service._node_repo.get_recently_created_pages(limit)
+    node_ids = [node.id for node in nodes if node.id is not None]
     alias_ids_map = await _get_related_ids_batch(service.pool, service.workspace_id or 0, node_ids, "aliases")
-
-    nodes = []
-    for row in rows:
-        nodes.append(
-            {
-                "id": row["id"],
-                "uuid": str(row["uuid"]),
-                "name": row["name"],
-                "icon": row["icon"],
-                "color": row["color"],
-                "parent_id": row["parent_id"],
-                "page_id": row["page_id"],
-                "is_page": row["is_page"],
-                "is_class": row["is_class"],
-                "is_daily": row["is_day"],
-                "is_monthly": row["is_month"],
-                "is_yearly": row["is_year"],
-                "create_date": row["create_date"].isoformat() if row["create_date"] else None,
-                "write_date": row["write_date"].isoformat() if row["write_date"] else None,
-                "classes": list(row["class_ids"] or []),
-                "aliased_id": row["aliased_id"],
-                "aliases": alias_ids_map.get(row["id"], []),
-            }
-        )
-
-    return {"nodes": nodes}
+    return {
+        "nodes": [
+            _node_to_response(node, aliases=alias_ids_map.get(node.id or 0, []))
+            for node in nodes
+        ]
+    }
 
 
 @router.get("/suggestions")
