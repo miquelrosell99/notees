@@ -186,7 +186,7 @@ export function ClassPropertiesEditor({
             renderAction={(item) =>
               !readOnly ? (
                 <div className="class-property-actions">
-                  <Button aria-label="item.required ? 'Required (click to make optional)' : 'Optional (click to make required)"
+                  <Button aria-label={item.required ? 'Required (click to make optional)' : 'Optional (click to make required)'}
                     variant="ghost"
                     size="xs"
                     icon="mdi mdi-asterisk"

@@ -167,7 +167,7 @@ function IconColorPickerRow({ currentIcon, currentColor, isFavorited, onFavorite
         {renderTriggerValue()}
       </button>
       {onFavoriteToggle && (
-        <Button aria-label="isFavorited ? 'Remove from favorites' : 'Add to favorites"
+        <Button aria-label={isFavorited ? 'Remove from favorites' : 'Add to favorites'}
           variant="ghost"
           size="sm"
           icon={isFavorited ? 'mdi mdi-star' : 'mdi mdi-star-outline'}

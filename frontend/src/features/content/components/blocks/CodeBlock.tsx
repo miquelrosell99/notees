@@ -128,7 +128,7 @@ export function CodeBlock({
             className="code-block-language-selector"
           />
         )}
-        <Button aria-label="copied ? 'Copied!' : 'Copy code"
+        <Button aria-label={copied ? 'Copied!' : 'Copy code'}
           variant="ghost"
           size="xs"
           icon={copied ? 'mdi mdi-check' : 'mdi mdi-content-copy'}

@@ -41,11 +41,19 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function T
     disabled,
     icon,
     containerClassName = '',
+    'aria-describedby': ariaDescribedBy,
     ...props
   },
   ref
 ) {
   const errorId = useId();
+
+  const describedByIds = [
+    error && errorMessage ? errorId : undefined,
+    ariaDescribedBy,
+  ]
+    .filter(Boolean)
+    .join(' ') || undefined;
 
   const inputClasses = [
     'text-field',
@@ -81,7 +89,7 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function T
         className={inputClasses}
         disabled={disabled}
         aria-invalid={error || undefined}
-        aria-describedby={error && errorMessage ? errorId : undefined}
+        aria-describedby={describedByIds}
         {...props}
       />
       {icon && (
@@ -97,7 +105,7 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function T
       className={inputClasses}
       disabled={disabled}
       aria-invalid={error || undefined}
-      aria-describedby={error && errorMessage ? errorId : undefined}
+      aria-describedby={describedByIds}
       {...props}
     />
   );
