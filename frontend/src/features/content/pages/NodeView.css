@@ -102,6 +102,7 @@
   cursor: pointer;
   text-decoration: none;
   color: inherit;
+  font: inherit;
 }
 
 .node-view-metadata-date:hover {

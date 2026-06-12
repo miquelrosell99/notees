@@ -663,7 +663,7 @@ const SelectionActionsPanel: React.FC<{ wb: UseWhiteboardReturn }> = ({ wb }) =>
         onClick={() => wb.duplicateElements(selectedIds)}
         title="Duplicate (Ctrl+D)"
       />
-      <Button aria-label="anyLocked ? 'Unlock' : 'Lock"
+      <Button aria-label={anyLocked ? 'Unlock' : 'Lock'}
         icon={anyLocked ? "mdi mdi-lock-open-outline" : "mdi mdi-lock-outline"}
         variant="ghost"
         size="sm"
@@ -708,7 +708,7 @@ const SelectionActionsPanel: React.FC<{ wb: UseWhiteboardReturn }> = ({ wb }) =>
       {canGroup && (
         <>
           <ToolbarDivider />
-          <Button aria-label="isGrouped ? 'Ungroup (Ctrl+G)' : 'Group (Ctrl+G)"
+          <Button aria-label={isGrouped ? 'Ungroup (Ctrl+G)' : 'Group (Ctrl+G)'}
             icon={isGrouped ? "mdi mdi-ungroup" : "mdi mdi-group"}
             variant="ghost"
             size="sm"

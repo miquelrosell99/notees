@@ -62,7 +62,7 @@
   opacity: 1;
   background-color: var(--color-primary);
   transform: scale(1.25);
-  box-shadow: 0 0 6px color-mix(in srgb, var(--color-primary) 50%, transparent);
+  box-shadow: var(--glow-primary-hover);
 }
 
 .bullet-interactive[draggable="true"] {
