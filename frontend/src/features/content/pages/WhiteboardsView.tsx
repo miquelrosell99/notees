@@ -8,7 +8,7 @@ import { useState, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { NodeCollection } from '@/features/content/components/nodes/NodeCollection';
 import { Button } from '@/components/ui/Button';
-import { Spinner } from '@/components/ui/Spinner';
+import { DataStateView } from '@/components/ui/DataStateView';
 import { useNavigationStore } from '@/stores';
 import { useSystemClasses } from '@/hooks/usePageClass';
 import { useNodesWithClass, useCreateNode } from '@/hooks/useNodes';
@@ -31,7 +31,7 @@ export function WhiteboardsView({ className = '' }: WhiteboardsViewProps) {
   const {
     data: whiteboards = [],
     isLoading: whiteboardsLoading,
-    isError,
+    error,
   } = useNodesWithClass(whiteboardClassId);
 
   const createNode = useCreateNode();
@@ -98,15 +98,14 @@ export function WhiteboardsView({ className = '' }: WhiteboardsViewProps) {
 
       {/* Content */}
       <div className="whiteboards-view__content">
-        {isLoading ? (
-          <div className="whiteboards-view__loading">
-            <Spinner size="lg" centered />
-          </div>
-        ) : isError ? (
-          <div className="whiteboards-view__empty">
-            <p>Failed to load whiteboards.</p>
-          </div>
-        ) : (
+        <DataStateView
+          isLoading={isLoading}
+          error={error}
+          isEmpty={whiteboards.length === 0}
+          errorTitle="Failed to load whiteboards."
+          emptyTitle="No whiteboards yet. Create your first whiteboard!"
+          skeletonRows={4}
+        >
           <NodeCollection
             nodes={whiteboards}
             viewMode={viewMode}
@@ -121,7 +120,7 @@ export function WhiteboardsView({ className = '' }: WhiteboardsViewProps) {
             can_create={!!whiteboardClassId}
             emptyMessage="No whiteboards yet. Create your first whiteboard!"
           />
-        )}
+        </DataStateView>
       </div>
     </article>
   );

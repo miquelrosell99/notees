@@ -613,6 +613,39 @@ The component's existing parent-hover rule (e.g., `.my-container:hover .my-actio
   - Text + icon buttons: `<Button icon="mdi mdi-plus">Add</Button>`
   - Never use raw `<button>` for icon actions — `Button` handles `aspect-ratio: 1`, `padding: 0`, and flex-centering automatically.
 
+#### Aesthetic Recipe
+
+The full design language is documented in `docs/design-language.md`. The summary below is the single source of truth for implementation decisions.
+
+Notees is a calm, writing-first knowledge workspace. Its visual identity is defined by a deliberate recipe:
+
+- **55% monastic-productivity** — generous whitespace, minimal chrome, content as the hero.
+- **30% editorial-software** — typographic hierarchy, structured pages, long-form reading feel.
+- **15% playful-computational-design** — tactile block-editor interactions and purposeful micro-motion.
+
+**Palette**: a warm paper base (`--color-background: #f5f3ef` in light mode; warm charcoal in dark mode) with pure-white page surfaces. The default functional accent is **sage** (`--color-accent: #5B7D5B`). Accent is reserved for links, active filters, selected states, and primary actions.
+
+**Typography**: Inter remains the UI and body face. Page titles and major headlines use the system serif display stack (`--font-family-display: Georgia, 'Times New Roman', serif`) for an editorial feel. Use the type-scale tokens (`--font-body-*`, `--font-title-*`, `--font-headline-*`, `--font-label-*`, `--font-display-*`) rather than raw sizes.
+
+**Signature elements**:
+- **Editorial page header**: warm surface container, accent left border, large serif title.
+- **Square block bullet**: small, sharp bullet indicator (`border-radius: calc(var(--shape-small) / 2)`) that turns accent on hover/selection.
+- **Receding chrome**: top bar and sidebars use transparent or surface-container backgrounds so the page surface dominates.
+
+**Elevation**: Zero decorative shadows. `--elevation-*` tokens are all `none`. Depth is conveyed with surface color shifts and thin outlines (`--color-outline-variant`).
+
+**Shape**: Keep the existing minimal radius scale. Identity comes from color and type, not from corner roundness.
+
+**Spacing**: Use the 4px-based scale (`--spacing-1` = 0.25rem). Avoid arbitrary margins/paddings; if a value is repeated, make it a token.
+
+**Motion**: Short and tactile. Default transitions use `--motion-duration-short` (100ms) or `--motion-duration-medium` (250ms). Respect `prefers-reduced-motion` — the global reset in `index.css` already disables animations for users who request it.
+
+**Icons**: Decorative icons are `aria-hidden`. If an icon conveys meaning on its own, pass a `title` to the `Icon` component so it exposes `role="img"` and `aria-label`.
+
+**CSS implementation**: The app currently uses co-located custom CSS driven by `variables.css`. A phased migration to Tailwind CSS is planned; when it happens, the tokens above must be mapped to `tailwind.config.js` rather than replaced with default Tailwind utilities.
+
+**Registration**: Open registration is **disabled by default** (`REGISTRATION_ENABLED=false`). Frontend fallbacks also default to `false` so the UI does not expose a registration form when the status endpoint is unreachable.
+
 #### Adding a New Frontend Component
 1. Place React components in the appropriate feature under `frontend/src/features/`.
 2. Use path aliases (e.g., `@/components/ui/Button`) for all imports.

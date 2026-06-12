@@ -20,7 +20,11 @@ async def _get_class_service(user: User):
     """Return a :class:`ClassManagementService` wired to the user's workspace."""
     from ...db.connection import get_pool
     from ...dependencies import _get_workspace_context_cached
-    from ...domain.repositories import PostgresNodeRepository, PostgresPropertyRepository
+    from ...domain.repositories import (
+        PostgresClassExtendRepository,
+        PostgresNodeRepository,
+        PostgresPropertyRepository,
+    )
     from ...domain.services.class_management_service import ClassManagementService
 
     pool = await get_pool()
@@ -29,7 +33,10 @@ async def _get_class_service(user: User):
 
     node_repo = PostgresNodeRepository(pool, workspace_id, page_class_id, user_id)
     property_repo = PostgresPropertyRepository(pool, workspace_id, user_id)
-    return ClassManagementService(pool, workspace_id, node_repo, property_repo)
+    class_extend_repo = PostgresClassExtendRepository(pool, workspace_id, user_id)
+    return ClassManagementService(
+        workspace_id, node_repo, property_repo, class_extend_repo, pool=pool
+    )
 
 
 @router.get("/classes")

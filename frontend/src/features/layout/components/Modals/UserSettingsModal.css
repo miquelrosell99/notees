@@ -179,3 +179,19 @@
   font: var(--font-body-small);
   margin-bottom: var(--spacing-3);
 }
+
+.settings-success {
+  padding: var(--spacing-2) var(--spacing-3);
+  background: var(--color-success-container);
+  color: var(--color-on-success-container);
+  border-radius: var(--shape-medium);
+  font: var(--font-body-small);
+  margin-bottom: var(--spacing-3);
+}
+
+.settings-form-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+  margin-bottom: var(--spacing-3);
+}

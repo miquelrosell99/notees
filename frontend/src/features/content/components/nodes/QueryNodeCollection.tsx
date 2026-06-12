@@ -8,10 +8,10 @@
  * - Query blocks (inline mode with headless=true)
  * - Page sections (wrapped in NodeViewSection)
  */
+import type React from 'react';
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Spinner } from '@/components/ui/Spinner';
-import { copyToClipboard } from '@/utils/clipboardManager';
 import { 
   useNodeViews, 
   useNodeViewQuery,
@@ -35,171 +35,18 @@ import { createEmptyQueryAST, countConditions, isEmptyQuery } from '@/types/quer
 import { NodeCollection } from './NodeCollection';
 import type { Node } from '@/types';
 import { Button } from '@/components/ui/Button';
-import { Modal } from '@/components/ui/Modal';
 import { Badge } from '@/components/ui/Badge';
 import { SelectionButton } from '@/components/ui/SelectionButton';
-import { InlineConfirmButton } from '@/components/ui/InlineConfirmButton';
-import { TextField } from '@/components/ui/TextField';
-import { ViewBuilder } from '@/features/queries/components';
-import { QuerySQLPreview } from '@/features/queries/components/QuerySQLPreview';
-import { ProseScopeSelector } from '@/features/queries/components/ProseScopeSelector';
-import { DeleteIcon } from '@/components/ui/icons';
-import { validateQueryAST, canSaveQuery } from '@/lib/queryValidation';
+import { validateQueryAST } from '@/lib/queryValidation';
 import { autoFixSystemQuery } from '@/lib/systemQueryAutoFix';
 import { normalizeAST } from '@/lib/astNormalizer';
-import { getQueryIntent } from '@/lib/astProseRenderer';
+import { QueryEditModal } from './QueryNodeCollection/QueryEditModal';
+import { QueryPreviewModal } from './QueryNodeCollection/QueryPreviewModal';
 import type { NodeCollectionViewMode, NodeCollectionGroupBy } from '@/types/nodeCollection';
 import { useNavigationStore, useAppStore, useSettingsStore } from '@/stores';
 import './QueryNodeCollection.css';
 
-// ==================== Helper Functions ====================
-
-/**
- * Apply collapse level to node children recursively
- * Used to automatically collapse children based on their depth level
- * 
- * @param node - The node to process
- * @param collapseLevel - Level at which to collapse (0 = disabled, 1 = collapse at level 1, etc.)
- * @param currentDepth - Current depth in the tree (starts at 0 for the root node being processed)
- * @returns Node with collapsed state applied to children
- */
-function applyCollapseLevelToChildren(node: Node, collapseLevel: number, currentDepth: number = 0): Node {
-  if (!node.children || node.children.length === 0 || collapseLevel === 0) {
-    return node;
-  }
-
-  const processedChildren = node.children.map(child => {
-    const childDepth = currentDepth + 1;
-    const hasChildren = !!(child.children && child.children.length > 0);
-    
-    // Recursively process this child's children
-    const autoCollapse = hasChildren && childDepth >= collapseLevel;
-    const processedChild = applyCollapseLevelToChildren(
-      {
-        ...child,
-        // Auto-collapse forces true; otherwise preserve DB/manual state
-        collapsed: autoCollapse || child.collapsed,
-      },
-      collapseLevel,
-      childDepth
-    );
-    
-    return processedChild;
-  });
-
-  return {
-    ...node,
-    children: processedChildren,
-  };
-}
-
-/**
- * Extract all node UUIDs referenced in a QueryAST (for prose rendering lookups).
- */
-function extractUuidsFromAST(ast: QueryAST | undefined | null): Set<string> {
-  const uuids = new Set<string>();
-  if (!ast) return uuids;
-
-  function walkGroup(group: { children: Array<{ type: string } & Record<string, unknown>> }) {
-    for (const child of group.children || []) {
-      if (child.type === 'group') {
-        walkGroup(child as unknown as { children: Array<{ type: string } & Record<string, unknown>> });
-      } else if (child.type === 'not') {
-        const notChild = (child as unknown as { child: { type: string } & Record<string, unknown> }).child;
-        if (notChild.type === 'group') {
-          walkGroup(notChild as unknown as { children: Array<{ type: string } & Record<string, unknown>> });
-        } else {
-          extractFromCondition(notChild);
-        }
-      } else {
-        extractFromCondition(child);
-      }
-    }
-  }
-
-  function extractFromCondition(cond: Record<string, unknown>) {
-    const type = cond.condition_type as string;
-    if (type === 'class' && cond.class_uuid) uuids.add(cond.class_uuid as string);
-    if (type === 'extends' && cond.extends_class_uuid) uuids.add(cond.extends_class_uuid as string);
-    if (type === 'reference' && cond.target_uuid) uuids.add(cond.target_uuid as string);
-    if (type === 'parent' && cond.parent_uuid) uuids.add(cond.parent_uuid as string);
-    if (type === 'page' && cond.page_uuid) uuids.add(cond.page_uuid as string);
-    if (type === 'property' && typeof cond.value === 'string' && cond.value.includes('-')) {
-      // Property values can be UUID references
-      uuids.add(cond.value as string);
-    }
-    if (type === 'reference_path' && Array.isArray(cond.target_uuids)) {
-      (cond.target_uuids as string[]).forEach(u => uuids.add(u));
-    }
-    if (type === 'parent_path' && Array.isArray(cond.ancestor_uuids)) {
-      (cond.ancestor_uuids as string[]).forEach(u => uuids.add(u));
-    }
-    if (type === 'child_path' && Array.isArray(cond.descendant_uuids)) {
-      (cond.descendant_uuids as string[]).forEach(u => uuids.add(u));
-    }
-    if (type === 'class_path' && Array.isArray(cond.class_uuids)) {
-      (cond.class_uuids as string[]).forEach(u => uuids.add(u));
-    }
-  }
-
-  walkGroup(ast.root_group as unknown as { children: Array<{ type: string } & Record<string, unknown>> });
-  return uuids;
-}
-
-/**
- * Render prose text with clickable markdown links
- */
-function renderProseWithLinks(text: string, onLinkClick: (uuid: string) => void): React.ReactNode {
-  // Match markdown links: [text](uuid)
-  const linkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
-  const parts: React.ReactNode[] = [];
-  let lastIndex = 0;
-  let match;
-
-  while ((match = linkRegex.exec(text)) !== null) {
-    // Add text before the link
-    if (match.index > lastIndex) {
-      parts.push(text.substring(lastIndex, match.index));
-    }
-
-    // Add the link
-    const linkText = match[1];
-    const uuid = match[2];
-    parts.push(
-      <a
-        key={match.index}
-        href="#"
-        onClick={(e) => {
-          e.preventDefault();
-          onLinkClick(uuid);
-        }}
-        style={{
-          color: 'var(--color-primary)',
-          textDecoration: 'none',
-          cursor: 'pointer',
-          borderBottom: '1px solid var(--color-primary)',
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.textDecoration = 'underline';
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.textDecoration = 'none';
-        }}
-      >
-        {linkText}
-      </a>
-    );
-
-    lastIndex = match.index + match[0].length;
-  }
-
-  // Add remaining text
-  if (lastIndex < text.length) {
-    parts.push(text.substring(lastIndex));
-  }
-
-  return parts.length > 0 ? parts : text;
-}
+import { applyCollapseLevelToChildren, extractUuidsFromAST } from './QueryNodeCollection/helpers';
 
 // ==================== Types ====================
 
@@ -311,15 +158,6 @@ export function QueryNodeCollection({
   const [editAST, setEditAST] = useState<QueryAST | null>(null);
   const [validation, setValidation] = useState<ValidationResult | null>(null);
   const [showProseModal, setShowProseModal] = useState(false);
-  const [showSQL, setShowSQL] = useState(false);
-
-  // Handle copying AST to clipboard
-  const handleCopyAST = useCallback(() => {
-    if (editAST) {
-      const astJson = JSON.stringify(editAST, null, 2);
-      copyToClipboard(astJson);
-    }
-  }, [editAST]);
 
   // Handle AST changes during editing
   const handleASTChange = useCallback((newAST: QueryAST) => {
@@ -953,6 +791,17 @@ export function QueryNodeCollection({
     }
   }, [editingView, activeViewId, deleteViewMutation]);
 
+  const handleResetViews = useCallback(async () => {
+    try {
+      await resetNodeViewsMutation.mutateAsync(nodeId);
+      setEditingView(null);
+      setEditAST(null);
+      setEditViewName('');
+    } catch (error) {
+      console.error('Failed to reset views:', error);
+    }
+  }, [nodeId, resetNodeViewsMutation]);
+
   const handlePropertyColumnsChange = useCallback((propertyUuids: string[]) => {
     setSelectedPropertyUuids(propertyUuids);
   }, []);
@@ -1213,260 +1062,34 @@ export function QueryNodeCollection({
         </>
       )}
 
-      {/* Edit Modal */}
-      <Modal
-        isOpen={!!editingView}
+      <QueryEditModal
+        editingView={editingView}
+        editAST={editAST}
+        editViewName={editViewName}
+        validation={validation}
+        viewType={viewType}
+        previewResults={previewResults}
+        previewLoading={previewLoading}
         onClose={() => {
           setEditingView(null);
           setEditAST(null);
           setEditViewName('');
         }}
-        title="Query"
-        headerLeftElement={
-          <Button aria-label="Show query as prose"
-            icon={"mdi mdi-eye-outline"}
-            variant="ghost"
-            size="xs"
-            onClick={() => setShowProseModal(true)}
-            title="Show query as prose"
-          />
-        }
-        size="xl"
-        className="query-section__edit-modal"
-        footer={editingView && (
-          <div className="query-section__modal-footer">
-            <div className="view-builder__footer-left">
-              <ProseScopeSelector
-                scope={editAST?.scope || { type: 'scope', scope_type: 'current_page' }}
-                onChange={(newScope) => {
-                  if (editAST) {
-                    setEditAST({
-                      ...editAST,
-                      scope: newScope,
-                    });
-                  }
-                }}
-                readOnly={['linked_references', 'child_pages', 'classed_nodes', 'extended_by'].includes(viewType)}
-              />
-            </div>
-            
-            {previewResults && (
-              <div className="view-builder__result-preview">
-                {previewLoading ? (
-                  <span className="view-builder__result-loading"><Spinner size="sm" label="Calculating…" /></span>
-                ) : (
-                  <span className="view-builder__result-count">
-                    <span className="view-builder__result-dot">●</span>
-                    {previewResults.length} node{previewResults.length !== 1 ? 's' : ''} found
-                  </span>
-                )}
-              </div>
-            )}
-            
-            <div className="query-section__footer-spacer" />
-            
-            <Button aria-label="Reset all views to defaults"
-              icon={"mdi mdi-restore"}
-              variant="ghost"
-              size="sm"
-              title="Reset all views to defaults"
-              onClick={async () => {
-                try {
-                  await resetNodeViewsMutation.mutateAsync(nodeId);
-                  setEditingView(null);
-                  setEditAST(null);
-                  setEditViewName('');
-                } catch (error) {
-                  console.error('Failed to reset views:', error);
-                }
-              }}
-            />
-            
-            <TextField
-              value={editViewName}
-              onChange={(e) => setEditViewName(e.target.value)}
-              placeholder="View name"
-              size="sm"
-              className="query-section__view-name-field"
-            />
-            
-            {!editingView?.is_default && (
-              <InlineConfirmButton
-                variant="ghost"
-                size="sm"
-                title="Delete view"
-                onConfirm={handleDeleteView}
-              >
-                <DeleteIcon size="sm" />
-              </InlineConfirmButton>
-            )}
-            
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={handleSaveEdit}
-              disabled={validation ? !canSaveQuery(validation) : false}
-            >
-              Save
-            </Button>
-          </div>
-        )}
-      >
-        {editingView && editAST && (
-          <div className="query-section__edit-content">
-            <ViewBuilder
-              ast={editAST}
-              onChange={handleASTChange}
-              resultCount={previewResults?.length ?? 0}
-              isLoading={previewLoading}
-            />
-          </div>
-        )}
-      </Modal>
+        onSave={handleSaveEdit}
+        onDelete={handleDeleteView}
+        onASTChange={handleASTChange}
+        onViewNameChange={setEditViewName}
+        onResetViews={handleResetViews}
+        onShowProse={() => setShowProseModal(true)}
+      />
 
-      {/* Prose query preview modal */}
-      <Modal
+      <QueryPreviewModal
         isOpen={showProseModal}
-        onClose={() => {
-          setShowProseModal(false);
-          setShowSQL(false);
-        }}
-        title="Query Preview"
-        size="xl"
-        className="query-preview-modal"
-      >
-        {editAST && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-            {/* Prose description */}
-            <div>
-              <h4 style={{
-                fontSize: '13px',
-                fontWeight: 600,
-                color: 'var(--text-secondary)',
-                marginBottom: '12px',
-                textTransform: 'uppercase',
-                letterSpacing: '0.5px'
-              }}>
-                Natural Language
-              </h4>
-              <div style={{
-                padding: '16px',
-                fontSize: '15px',
-                lineHeight: '1.6',
-                color: 'var(--text-primary)',
-                backgroundColor: 'var(--bg-secondary)',
-                borderRadius: '4px'
-              }}>
-                {renderProseWithLinks(getQueryIntent(editAST, nodesMap), handleNodeLinkClick)}
-              </div>
-            </div>
-
-            {/* AST Section */}
-            <div>
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                marginBottom: '12px'
-              }}>
-                <h4 style={{
-                  fontSize: '13px',
-                  fontWeight: 600,
-                  color: 'var(--text-secondary)',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.5px'
-                }}>
-                  Query Structure
-                </h4>
-                <Button
-                  icon={"mdi mdi-content-copy"}
-                  onClick={handleCopyAST}
-                  variant="ghost"
-                  size="xs"
-                >
-                  Copy
-                </Button>
-              </div>
-              <pre style={{
-                padding: '16px',
-                fontSize: '13px',
-                lineHeight: '1.5',
-                backgroundColor: 'var(--bg-tertiary)',
-                borderRadius: '4px',
-                overflow: 'auto',
-                maxHeight: '300px',
-                color: 'var(--text-primary)'
-              }}>
-                {JSON.stringify(editAST, null, 2)}
-              </pre>
-            </div>
-
-            {/* SQL Section */}
-            <div>
-              {!showSQL ? (
-                <button
-                  type="button"
-                  onClick={() => setShowSQL(true)}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    padding: '8px 0',
-                    fontSize: '13px',
-                    color: 'var(--text-tertiary)',
-                    cursor: 'pointer',
-                    textDecoration: 'underline'
-                  }}
-                >
-                  Show SQL preview
-                </button>
-              ) : (
-                <>
-                  <div style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '4px',
-                    marginBottom: '12px'
-                  }}>
-                    <h4 style={{
-                      fontSize: '13px',
-                      fontWeight: 600,
-                      color: 'var(--text-secondary)',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.5px'
-                    }}>
-                      Execution Preview
-                    </h4>
-                    <span style={{
-                      fontSize: '12px',
-                      color: 'var(--text-tertiary)',
-                      fontStyle: 'italic'
-                    }}>
-                      (informational only)
-                    </span>
-                  </div>
-                  <QuerySQLPreview ast={editAST} />
-                  <button
-                    type="button"
-                    onClick={() => setShowSQL(false)}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      padding: '8px 0',
-                      marginTop: '8px',
-                      fontSize: '13px',
-                      color: 'var(--text-tertiary)',
-                      cursor: 'pointer',
-                      textDecoration: 'underline'
-                    }}
-                  >
-                    Hide
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
-        )}
-      </Modal>
+        editAST={editAST}
+        nodesMap={nodesMap}
+        onClose={() => setShowProseModal(false)}
+        onNodeLinkClick={handleNodeLinkClick}
+      />
     </>
   );
 

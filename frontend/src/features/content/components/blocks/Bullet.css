@@ -60,9 +60,9 @@
 
 .bullet-interactive:hover .bullet-dot {
   opacity: 1;
-  background-color: var(--color-primary);
-  transform: scale(1.25);
-  box-shadow: var(--glow-primary-hover);
+  background-color: var(--color-accent);
+  transform: scale(1.2);
+  box-shadow: none;
 }
 
 .bullet-interactive[draggable="true"] {
@@ -90,7 +90,7 @@
 .bullet-dot {
   width: var(--bullet-dot-size);
   height: var(--bullet-dot-size);
-  border-radius: 50%;
+  border-radius: calc(var(--shape-small) / 2);
   background-color: var(--color-on-surface-variant);
   opacity: 0.55;
   transition: opacity var(--motion-duration-short) var(--motion-easing-tactile),

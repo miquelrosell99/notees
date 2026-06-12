@@ -21,6 +21,7 @@ from ..models import (
     ApiKeyCreateResponse,
     ApiKeyResponse,
     InviteAcceptRequest,
+    PasswordChangeRequest,
     Token,
     User,
     UserCreate,
@@ -245,6 +246,10 @@ async def login(request: Request, response: Response, credentials: UserLogin):
         logger.warning(f"Login failed for '{credentials.email}': account inactive")
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
+    # Transparently migrate legacy pbkdf2_sha256 hashes to bcrypt on login.
+    if auth.password_needs_rehash(stored_hash):
+        await auth.rehash_password(user["id"], credentials.password)
+
     logger.info(f"Login successful for '{credentials.email}' (id={user.get('id')})")
     access_token = auth.create_token(user["id"], user["email"], user["role"])
     refresh_token = auth.generate_refresh_token()
@@ -452,6 +457,41 @@ async def update_me(
     if not updated:
         raise HTTPException(status_code=404, detail="User not found")
     return updated
+
+
+_auth_limiter_change_password = per_ip_limiter(5, Duration.MINUTE)
+
+
+@router.post(
+    "/change-password",
+    dependencies=[Depends(RateLimiter(limiter=_auth_limiter_change_password, identifier=ip_only_identifier))],
+)
+async def change_password(
+    data: PasswordChangeRequest,
+    user: User = Depends(get_current_user),  # noqa: B008
+):
+    """Change the current user's password.
+
+    Invalidates all refresh tokens and API keys so that other sessions and
+    devices must re-authenticate with the new password.
+    """
+    # Fetch the full user record including the password hash
+    user_record = await auth.get_user_by_email(user.email)
+    if not user_record:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if not auth.verify_password(data.current_password, user_record.get("hashed_password", "")):
+        raise HTTPException(status_code=401, detail="Current password is incorrect")
+
+    updated = await auth.update_password(user.id, data.new_password)
+    if not updated:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    user_id = int(user.id)
+    await auth.revoke_all_user_refresh_tokens(user_id)
+    await auth.revoke_all_user_api_keys(user_id)
+
+    return {"success": True}
 
 
 # ─── API Key Management ──────────────────────────────────────────

@@ -134,7 +134,12 @@
 }
 
 .add-block-btn {
-  padding: var(--spacing-2) var(--spacing-3);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--button-icon-only-sm);
+  height: var(--button-icon-only-sm);
+  padding: 0;
   border: none;
   background: transparent;
   color: var(--color-on-surface-variant);

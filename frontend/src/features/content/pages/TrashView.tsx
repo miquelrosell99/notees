@@ -22,8 +22,7 @@ import type { ContextMenuItem } from '@/components/ui/ContextMenu';
 import { useState, useCallback, useMemo } from 'react';
 import { Button } from '@/components/ui/Button';
 import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
-import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton';
-import { EmptyState } from '@/components/ui/EmptyState';
+import { DataStateView } from '@/components/ui/DataStateView';
 import './TrashView.css';
 
 interface TrashViewProps {
@@ -236,25 +235,17 @@ export function TrashView({ className = '' }: TrashViewProps) {
           />
         </div>
         
-        {isLoading && (
-          <LoadingSkeleton rows={4} className="trash-view__loading" />
-        )}
-        {error && (
-          <EmptyState
-            title="Failed to load trash"
-            description="There was a problem fetching deleted pages."
-            actionLabel="Try again"
-            onAction={() => refetch()}
-          />
-        )}
-        {!isLoading && !error && nodes?.length === 0 && (
-          <EmptyState
-            icon={<TrashIcon size="lg" />}
-            title="Trash is empty"
-            description="Deleted pages and blocks appear here. You can restore them or delete permanently."
-          />
-        )}
-        {!isLoading && !error && !!nodes?.length && (
+        <DataStateView
+          isLoading={isLoading}
+          error={error}
+          isEmpty={nodes?.length === 0}
+          onRetry={refetch}
+          errorTitle="Failed to load trash"
+          emptyTitle="Trash is empty"
+          emptyDescription="Deleted pages and blocks appear here. You can restore them or delete permanently."
+          emptyIcon={<TrashIcon size="lg" />}
+          skeletonRows={4}
+        >
           <NodeCollection
             nodes={nodes ?? []}
             viewMode={viewMode}
@@ -266,7 +257,7 @@ export function TrashView({ className = '' }: TrashViewProps) {
             onNodeClick={(node) => openNode(node.id)}
             onNodeShiftClick={handleNodeShiftClick}
           />
-        )}
+        </DataStateView>
       </div>
       
       {/* Empty Trash Confirmation Modal */}

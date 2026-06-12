@@ -10,6 +10,7 @@ from .interfaces import (
     UserRepository,
 )
 from .postgres_activity import PostgresActivityRepository
+from .postgres_class_extend import PostgresClassExtendRepository
 from .postgres_link import PostgresLinkRepository
 from .postgres_node import PostgresNodeRepository
 from .postgres_node_view import PostgresNodeViewRepository
@@ -33,6 +34,7 @@ __all__ = [
     "PostgresLinkRepository",
     "PostgresUserRepository",
     "PostgresNodeViewRepository",
+    "PostgresClassExtendRepository",
     "PostgresActivityRepository",
     "PostgresSettingsRepository",
     "PostgresShareRepository",

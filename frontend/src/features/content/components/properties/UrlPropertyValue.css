@@ -62,11 +62,18 @@
 }
 
 .property-link-edit {
-  all: unset;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--button-icon-only-xs);
+  height: var(--button-icon-only-xs);
+  padding: 0;
+  border: none;
+  border-radius: var(--shape-small);
+  background: transparent;
+  color: var(--color-on-surface-variant);
   cursor: pointer;
   opacity: 0;
-  color: var(--color-on-surface-variant);
-  font-size: 0.75rem;
   transition: opacity 0.1s;
 }
 
