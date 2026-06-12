@@ -3,7 +3,7 @@
  */
 import api from '@/api/client';
 import { getAuthToken, setAuthToken, clearAuthToken, isAuthenticated as checkAuth, setUserData, getUserData } from '@/utils/auth';
-import type { Token, UserCreate, UserLogin, User, AuthStatus, UserUpdate, ApiKey, ApiKeyCreate, ApiKeyWithSecret } from '@/types';
+import type { Token, UserCreate, UserLogin, User, AuthStatus, UserUpdate, PasswordChangeRequest, ApiKey, ApiKeyCreate, ApiKeyWithSecret } from '@/types';
 
 /**
  * Register a new user
@@ -42,6 +42,17 @@ export async function getAuthStatus(): Promise<AuthStatus> {
  */
 export async function updateMe(data: UserUpdate): Promise<User> {
   const response = await api.put<User>('/auth/me', data);
+  return response.data;
+}
+
+/**
+ * Change the current user's password.
+ *
+ * This invalidates all refresh tokens and API keys on the backend; the caller
+ * should log the user out locally after a successful response.
+ */
+export async function changePassword(data: PasswordChangeRequest): Promise<{ success: boolean }> {
+  const response = await api.post<{ success: boolean }>('/auth/change-password', data);
   return response.data;
 }
 

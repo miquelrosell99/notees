@@ -5,6 +5,7 @@
  * they can log in and the invite is auto-accepted. If not, they register.
  */
 import { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { acceptInvite, getAuthStatus, register, login } from '@/features/auth/api/auth';
 import { TextField } from '@/components/ui/TextField';
 import { Button } from '@/components/ui/Button';
@@ -13,11 +14,13 @@ import { setAuthToken } from '@/utils/auth';
 import './EnrollmentView.css';
 
 export function InviteAcceptView() {
-  const token = new URLSearchParams(window.location.search).get('token') || '';
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const token = searchParams.get('token') || '';
 
   const [step, setStep] = useState<'loading' | 'register' | 'login' | 'accepting' | 'done' | 'error'>('loading');
   const [error, setError] = useState<string | null>(null);
-  const [registrationEnabled, setRegistrationEnabled] = useState(true);
+  const [registrationEnabled, setRegistrationEnabled] = useState(false);
 
   const [name, setName] = useState('');
   const [password, setPassword] = useState('');
@@ -106,7 +109,7 @@ export function InviteAcceptView() {
         <div className="enrollment-view__content">
           <h1>Welcome!</h1>
           <p>Your invitation has been accepted. You now have access to the shared workspace.</p>
-          <Button variant="primary" onClick={() => window.location.href = '/'}>
+          <Button variant="primary" onClick={() => navigate('/')}>
             Go to Notees
           </Button>
         </div>
@@ -120,7 +123,7 @@ export function InviteAcceptView() {
         <div className="enrollment-view__content">
           <h1>Something went wrong</h1>
           <p>{error}</p>
-          <Button variant="primary" onClick={() => window.location.href = '/'}>
+          <Button variant="primary" onClick={() => navigate('/')}>
             Go to Notees
           </Button>
         </div>

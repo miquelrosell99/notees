@@ -2,8 +2,7 @@
  * SharesView — Centralized list of all public share links in the workspace.
  */
 import { useCallback } from 'react';
-import { Spinner } from '@/components/ui/Spinner';
-import { EmptyState } from '@/components/ui/EmptyState';
+import { DataStateView } from '@/components/ui/DataStateView';
 import { useWorkspaceShares, useDeleteShare } from '@/features/shares/hooks/useShares';
 import { useNavigationStore } from '@/stores';
 import { Button } from '@/components/ui/Button';
@@ -30,25 +29,16 @@ export function SharesView() {
         </h1>
       </div>
 
-      {isLoading ? (
-        <div className="shares-view__loading"><Spinner size="md" centered /></div>
-      ) : error ? (
-        <div className="shares-view__error">
-          <EmptyState
-            title="Failed to load shares"
-            description="There was a problem fetching your shared links."
-            actionLabel="Try again"
-            onAction={() => refetch()}
-          />
-        </div>
-      ) : shares.length === 0 ? (
-        <div className="shares-view__empty">
-          <p>No shared links yet.</p>
-          <p className="shares-view__empty-hint">
-            Open any page and click the share button to create a public link.
-          </p>
-        </div>
-      ) : (
+      <DataStateView
+        isLoading={isLoading}
+        error={error}
+        isEmpty={shares.length === 0}
+        onRetry={refetch}
+        errorTitle="Failed to load shares"
+        emptyTitle="No shared links yet."
+        emptyDescription="Open any page and click the share button to create a public link."
+        skeletonRows={4}
+      >
         <div className="shares-view__list">
           {shares.map((share) => (
             <div key={share.share_uuid} className="shares-view__item">
@@ -89,7 +79,7 @@ export function SharesView() {
             </div>
           ))}
         </div>
-      )}
+      </DataStateView>
     </div>
   );
 }

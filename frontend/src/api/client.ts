@@ -49,6 +49,8 @@ function handleAuthFailure() {
   clearAuthToken();
   localStorage.removeItem('auth-storage');
   window.dispatchEvent(new CustomEvent('auth:unauthorized'));
+  // This module is not a React component, so we fall back to a full-page
+  // redirect. React-router-aware components should prefer useNavigate().
   if (window.location.pathname !== '/auth') {
     log.info('Redirecting to auth page');
     window.location.href = '/auth';

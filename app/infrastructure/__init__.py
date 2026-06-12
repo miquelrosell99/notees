@@ -8,10 +8,11 @@ The infrastructure layer depends on the domain layer, but the domain layer
 should NEVER depend on infrastructure.
 """
 
-from .redis_pubsub import CollabPubSub, InMemoryPubSub, RedisPubSub
+from .redis_pubsub import CollaborationPubSub, MemoryPubSub, RedisPubSub, collab_pubsub
 
 __all__ = [
-    "CollabPubSub",
-    "InMemoryPubSub",
+    "CollaborationPubSub",
+    "MemoryPubSub",
     "RedisPubSub",
+    "collab_pubsub",
 ]

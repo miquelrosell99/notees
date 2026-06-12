@@ -20,8 +20,7 @@ import type { ContextMenuItem } from '@/components/ui/ContextMenu';
 import { useState, useCallback } from 'react';
 import { Button } from '@/components/ui/Button';
 import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
-import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton';
-import { EmptyState } from '@/components/ui/EmptyState';
+import { DataStateView } from '@/components/ui/DataStateView';
 import './ArchivedPagesView.css';
 
 interface ArchivedPagesViewProps {
@@ -156,25 +155,17 @@ export function ArchivedPagesView({ className = '' }: ArchivedPagesViewProps) {
           />
         </div>
         
-        {isLoading && (
-          <LoadingSkeleton rows={4} className="archived-pages-view__loading" />
-        )}
-        {error && (
-          <EmptyState
-            title="Failed to load archived pages"
-            description="There was a problem fetching your archived pages."
-            actionLabel="Try again"
-            onAction={() => refetch()}
-          />
-        )}
-        {!isLoading && !error && nodes?.length === 0 && (
-          <EmptyState
-            icon={<ArchiveIcon size="lg" />}
-            title="No archived pages"
-            description="Archived pages are hidden from your workspace but kept safe here. Right-click any page and select Archive to move it here."
-          />
-        )}
-        {!isLoading && !error && !!nodes?.length && (
+        <DataStateView
+          isLoading={isLoading}
+          error={error}
+          isEmpty={nodes?.length === 0}
+          onRetry={refetch}
+          errorTitle="Failed to load archived pages"
+          emptyTitle="No archived pages"
+          emptyDescription="Archived pages are hidden from your workspace but kept safe here. Right-click any page and select Archive to move it here."
+          emptyIcon={<ArchiveIcon size="lg" />}
+          skeletonRows={4}
+        >
           <NodeCollection
             nodes={nodes ?? []}
             viewMode={viewMode}
@@ -185,7 +176,7 @@ export function ArchivedPagesView({ className = '' }: ArchivedPagesViewProps) {
             customContextMenuItems={generateContextMenuItems}
             onNodeClick={(node) => openNode(node.id)}
           />
-        )}
+        </DataStateView>
       </div>
       
       {/* Delete All Confirmation Modal */}

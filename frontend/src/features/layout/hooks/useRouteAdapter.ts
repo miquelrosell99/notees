@@ -14,7 +14,8 @@ import { useNavigationHistoryStore } from '@/stores/navigationHistoryStore';
 import { listWorkspaces, switchWorkspace } from '@/features/workspace/api/workspaces';
 import { getNodeByUuid } from '@/api/nodes';
 import { getPropertyByUuid } from '@/api/properties';
-import { SPECIAL_VIEWS, isUuid } from '@/hooks/useRouter';
+import { SPECIAL_VIEWS, parseSplitParams } from './url';
+import { isUuid } from '@/utils/uuid';
 import { favoriteKeys, recentKeys } from '@/hooks/queryKeys';
 import { getLogger } from '@/utils/logger';
 import { isDayUuid, isMonthUuid, isYearUuid } from '@/utils/dateUuid';
@@ -167,10 +168,7 @@ export function useRouteAdapter({ hasInitialized, isProcessingUrl }: RouteAdapte
   useEffect(() => {
     if (!hasInitialized.current || !dbData) return;
 
-    const h = searchParams.get('h');
-    const v = searchParams.get('v');
-    const splitUuid = (h && isUuid(h)) ? h : (v && isUuid(v)) ? v : null;
-    const splitOrientation = h ? 'horizontal' : v ? 'vertical' : null;
+    const { splitUuid, splitOrientation } = parseSplitParams(searchParams.toString());
 
     if (!splitUuid || !splitOrientation) {
       useNavigationStore.setState({ secondaryTabId: null, splitOrientation: null });

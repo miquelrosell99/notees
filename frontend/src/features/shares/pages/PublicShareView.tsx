@@ -4,6 +4,7 @@
  * Works without authentication. Fetches node data via public API.
  */
 import { useState, useEffect, useMemo } from 'react';
+import { useParams } from 'react-router-dom';
 import { Spinner } from '@/components/ui/Spinner';
 import { Icon } from '@/components/ui/Icon';
 import { getPublicSharedNode } from '@/features/shares/api/shares';
@@ -154,15 +155,15 @@ export function PublicShareView() {
   const [data, setData] = useState<PublicSharedNode | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const { shareUuid } = useParams<{ shareUuid: string }>();
   const [needsPassword, setNeedsPassword] = useState(false);
   const [password, setPassword] = useState('');
-  const [shareUuid, setShareUuid] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
 
     async function load() {
-      const uuid = window.location.pathname.split('/').pop();
+      const uuid = shareUuid;
       if (!uuid) {
         if (!cancelled) {
           setError('Invalid share link');
@@ -170,7 +171,6 @@ export function PublicShareView() {
         }
         return;
       }
-      setShareUuid(uuid);
       try {
         const res = await getPublicSharedNode(uuid);
         if (!cancelled) {
@@ -196,7 +196,7 @@ export function PublicShareView() {
 
     load();
     return () => { cancelled = true; };
-  }, []);
+  }, [shareUuid]);
 
   const handleSubmitPassword = async () => {
     if (!shareUuid || !password) return;

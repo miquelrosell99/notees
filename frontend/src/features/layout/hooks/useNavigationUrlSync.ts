@@ -8,7 +8,7 @@ import { useEffect, useRef, type MutableRefObject } from 'react';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { useNavigationStore, type MainViewType } from '@/stores';
 import { useNavigationHistoryStore } from '@/stores/navigationHistoryStore';
-import { buildUrl } from '@/hooks/useRouter';
+import { buildUrl } from './url';
 import { getNode } from '@/api/nodes';
 import { getLogger } from '@/utils/logger';
 

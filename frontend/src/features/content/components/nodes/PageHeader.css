@@ -6,7 +6,11 @@
  */
 
 .page-header {
-  margin-bottom: var(--spacing-2);
+  margin-bottom: var(--spacing-6);
+  padding: var(--spacing-6);
+  background: var(--color-surface-container);
+  border-radius: var(--shape-medium);
+  border-left: var(--border-width-thick) solid var(--color-accent);
 }
 
 /* Title row: Icon + Title horizontally */
@@ -37,7 +41,7 @@
 }
 
 .page-icon-large {
-  font-size: var(--font-size, 3rem);
+  font-size: var(--font-display-small);
   line-height: 1;
   display: flex;
   align-items: center;
@@ -46,7 +50,7 @@
 
 /* Override NodeIcon size in page header */
 .page-icon-btn .page-icon-large {
-  min-width: 40px;
+  min-width: var(--spacing-10);
   min-height: var(--page-icon-placeholder-size);
 }
 
@@ -84,17 +88,14 @@
   align-items: flex-start;
   gap: var(--spacing-2);
   flex-wrap: wrap;
-  min-width: 200px;
 }
 
 .page-title-input {
   flex: 1;
-  min-width: 150px;
+  min-width: 12ch;
   max-width: 100%;
   width: 100%;
-  font-size: var(--page-title-size, 2rem);
-  font-weight: 600;
-  line-height: 1.2;
+  font: var(--font-headline-large);
   border: none;
   background: none;
   padding: 0;
@@ -105,8 +106,15 @@
   overflow-wrap: break-word;
   resize: none;
   overflow: hidden;
-  font-family: var(--font-family-base);
   field-sizing: content;
+}
+
+.page-title-input--medium {
+  font: var(--font-headline-medium);
+}
+
+.page-title-input--compact {
+  font: var(--font-headline-small);
 }
 
 .page-title-child-preview {

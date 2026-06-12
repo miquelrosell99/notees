@@ -86,12 +86,12 @@ export function PageHeader({
     setInputValue(nodeNameToText(page.name) || '');
   }, [page.name]);
   
-  // Adaptive font size based on title length
-  const titleFontSize = useMemo(() => {
+  // Adaptive title scale based on title length
+  const titleSizeClass = useMemo(() => {
     const len = inputValue.length;
-    if (len > 60) return '1.25rem';
-    if (len > 40) return '1.5rem';
-    return '2rem';
+    if (len > 60) return 'page-title-input--compact';
+    if (len > 40) return 'page-title-input--medium';
+    return '';
   }, [inputValue]);
 
   // Auto-resize textarea to fit content
@@ -101,7 +101,7 @@ export function PageHeader({
       textarea.style.height = 'auto';
       textarea.style.height = `${textarea.scrollHeight}px`;
     }
-  }, [inputValue, titleFontSize]);
+  }, [inputValue, titleSizeClass]);
   
   // Get all classes (for effective icon calculation)
   const { data: allClasses } = useClasses();
@@ -447,10 +447,10 @@ export function PageHeader({
             )}
           </button>
           
-          <div className="page-title-container" style={{ '--page-title-size': titleFontSize } as React.CSSProperties}>
+          <div className="page-title-container">
             <textarea
               ref={titleRef}
-              className={`page-title-input${!isNameEditable ? ' readonly' : ''}`}
+              className={`page-title-input${titleSizeClass ? ` ${titleSizeClass}` : ''}${!isNameEditable ? ' readonly' : ''}`}
               value={inputValue}
               onChange={(e) => handleInputChange(e.target.value)}
               onFocus={() => {

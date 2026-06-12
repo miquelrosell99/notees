@@ -13,6 +13,7 @@
  * - Drag the left edge of right sidebar to resize
  */
 import React, { useEffect, useCallback, useRef, useState, Suspense } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigationStore, useModalStore, useSettingsStore, usePresentationStore } from '@/stores';
 import { useCommand } from '@/hooks/useCommand';
@@ -52,6 +53,7 @@ import './Layout.css';
 export function Layout() {
   const hasInitialized = useRef(false);
   const isProcessingUrl = useRef(false);
+  const location = useLocation();
 
   useDocumentTitle();
 
@@ -147,7 +149,7 @@ export function Layout() {
     if (hasAppliedDefaultView.current) return;
     
     // Only apply default view if we're at the root URL with no specific view/node
-    const isAtRoot = window.location.pathname === '/' || window.location.pathname === '';
+    const isAtRoot = location.pathname === '/' || location.pathname === '';
     const hasNoCurrentNode = currentNodeId === null;
     const isDefaultNodeView = mainViewType === 'node';
     
@@ -175,7 +177,7 @@ export function Layout() {
     } else {
       hasAppliedDefaultView.current = true;
     }
-  }, [defaultView, todayNote, setMainViewType, openNode, currentNodeId, mainViewType]);
+  }, [defaultView, todayNote, setMainViewType, openNode, currentNodeId, mainViewType, location.pathname]);
 
   // Register commands in the Command Registry
   useCommand(COMMAND_IDS.COMMAND_PALETTE, () => {

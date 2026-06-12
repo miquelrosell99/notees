@@ -63,7 +63,7 @@ function LoginRoute() {
 
   return (
     <Suspense fallback={<LoadingScreen label="Loading…" />}>
-      <LoginView registrationEnabled={authStatus?.registration_enabled ?? true} />
+      <LoginView registrationEnabled={authStatus?.registration_enabled ?? false} />
     </Suspense>
   );
 }

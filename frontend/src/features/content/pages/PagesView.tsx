@@ -13,7 +13,7 @@ import { NodeCollection } from '@/features/content/components/nodes/NodeCollecti
 import { NodeCollectionToolbar } from '@/features/content/components/nodes/NodeCollectionToolbar';
 import { SearchBox } from '@/components/ui/SearchBox';
 import { Button } from '@/components/ui/Button';
-import { Spinner } from '@/components/ui/Spinner';
+import { DataStateView } from '@/components/ui/DataStateView';
 import type { NodeCollectionViewMode } from '@/types/nodeCollection';
 import type { Node } from '@/types';
 import './PagesView.css';
@@ -49,7 +49,7 @@ export function PagesView({ initialViewMode }: PagesViewProps) {
     queryClient.invalidateQueries({ queryKey: nodeKeys.pages({ includeChildren: true, rootOnly: true }) });
   }, [queryClient]);
 
-  const { data: pages, isLoading, isPlaceholderData } = usePages({
+  const { data: pages, isLoading, isPlaceholderData, error, refetch } = usePages({
     includeChildren: true,
     rootOnly: true,
   });
@@ -126,11 +126,14 @@ export function PagesView({ initialViewMode }: PagesViewProps) {
 
       {/* Content */}
       <div className="pages-view__content">
-        {isLoading || isPlaceholderData ? (
-          <div className="pages-view__loading">
-            <Spinner size="lg" centered />
-          </div>
-        ) : (
+        <DataStateView
+          isLoading={isLoading || isPlaceholderData}
+          error={error}
+          isEmpty={displayNodes.length === 0}
+          onRetry={refetch}
+          emptyTitle="No pages found"
+          skeletonRows={4}
+        >
           <NodeCollection
             nodes={displayNodes}
             viewMode={viewMode}
@@ -150,7 +153,7 @@ export function PagesView({ initialViewMode }: PagesViewProps) {
             className="pages-view__node-collection"
             defaultSort={[{ key: 'name', direction: 'asc' }]}
           />
-        )}
+        </DataStateView>
       </div>
     </article>
   );

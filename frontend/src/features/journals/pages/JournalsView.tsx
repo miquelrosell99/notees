@@ -11,8 +11,7 @@ import { useNavigationStore } from '@/stores';
 import { NodeViewContent } from '@/features/content';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
-import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton';
-import { EmptyState } from '@/components/ui/EmptyState';
+import { DataStateView } from '@/components/ui/DataStateView';
 import { JournalIcon } from '@/components/ui/icons';
 
 interface JournalEntryProps {
@@ -90,28 +89,6 @@ export function JournalsView({ className = '' }: JournalsViewProps) {
     setVisibleCount(prev => Math.min(prev + 10, sortedPages.length));
   };
   
-  if (isLoading) {
-    return (
-      <div className={`journals-view ${className}`}>
-        <LoadingSkeleton rows={5} showHeading className="journals-loading" />
-      </div>
-    );
-  }
-  
-  if (error) {
-    return (
-      <div className={`journals-view ${className}`}>
-        <EmptyState
-          title="Failed to load journal entries"
-          description="There was a problem fetching your journal pages."
-          actionLabel="Try again"
-          onAction={() => refetch()}
-          className="journals-error"
-        />
-      </div>
-    );
-  }
-  
   return (
     <div className={`journals-view ${className}`}>
       {/* Page Header */}
@@ -132,28 +109,30 @@ export function JournalsView({ className = '' }: JournalsViewProps) {
       </div>
 
       <div className="journals-list">
-        {visiblePages && visiblePages.length > 0 ? (
-          <>
-            {visiblePages.map((page) => (
-              <JournalEntry key={page.id} dailyPageId={page.id} />
-            ))}
-            {hasMore && (
-              <div className="journals-load-more">
-                <Button onClick={handleLoadMore} variant="ghost" size="sm">
-                  Load more ({sortedPages.length - visibleCount} remaining)
-                </Button>
-              </div>
-            )}
-          </>
-        ) : (
-          <EmptyState
-            icon={<JournalIcon size="lg" />}
-            title="No journal entries yet"
-            description="Daily journal pages are created automatically when you open today's note."
-            actionLabel="Open today's note"
-            onAction={handleOpenToday}
-          />
-        )}
+        <DataStateView
+          isLoading={isLoading}
+          error={error}
+          isEmpty={visiblePages.length === 0}
+          onRetry={refetch}
+          errorTitle="Failed to load journal entries"
+          emptyTitle="No journal entries yet"
+          emptyDescription="Daily journal pages are created automatically when you open today's note."
+          emptyIcon={<JournalIcon size="lg" />}
+          emptyAction={{ label: "Open today's note", onClick: handleOpenToday }}
+          skeletonRows={5}
+          skeletonShowHeading
+        >
+          {visiblePages.map((page) => (
+            <JournalEntry key={page.id} dailyPageId={page.id} />
+          ))}
+          {hasMore && (
+            <div className="journals-load-more">
+              <Button onClick={handleLoadMore} variant="ghost" size="sm">
+                Load more ({sortedPages.length - visibleCount} remaining)
+              </Button>
+            </div>
+          )}
+        </DataStateView>
       </div>
     </div>
   );

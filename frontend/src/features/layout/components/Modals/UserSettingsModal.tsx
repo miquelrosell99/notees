@@ -5,10 +5,12 @@
  * Separate from graph/workspace settings.
  */
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuthStore, useSettingsStore, applyTheme, DATE_FORMAT_OPTIONS, FIRST_DAY_OF_WEEK_OPTIONS, ACCENT_COLOR_OPTIONS } from '@/stores';
 import type { ThemePreference, DateFormat, HashtagPasteMode, DefaultView, QuickAddDestination, FirstDayOfWeek, AccentColor } from '@/stores';
 import { setSetting } from '@/features/workspace/api/workspaces';
 import { updateMe, createApiKey, listApiKeys, revokeApiKey } from '@/features/auth/api/auth';
+import { TextField } from '@/components/ui/TextField';
 import type { ApiKey } from '@/types';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
@@ -26,7 +28,7 @@ type UserSettingsTab = 'appearance' | 'editor' | 'general' | 'account' | 'about'
 
 export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
   const [activeTab, setActiveTab] = useState<UserSettingsTab>('appearance');
-  const { user, logout, setUser } = useAuthStore();
+  const { user, logout, setUser, changePassword } = useAuthStore();
   const [editName, setEditName] = useState(user?.name ?? '');
   const [editSurnames, setEditSurnames] = useState(user?.surnames ?? '');
   const [isSavingProfile, setIsSavingProfile] = useState(false);
@@ -36,6 +38,13 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
   const [newKeyName, setNewKeyName] = useState('');
   const [newKeySecret, setNewKeySecret] = useState<string | null>(null);
   const [apiKeyError, setApiKeyError] = useState<string | null>(null);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [passwordSuccess, setPasswordSuccess] = useState(false);
+  const navigate = useNavigate();
   const { theme, oledMode, accentColor, dateFormat, hashtagPasteMode, defaultView, quickAddDestination, linkedRefsCollapseLevel, showDevOptions, firstDayOfWeek, setTheme, setOledMode, setAccentColor, setDateFormat, setHashtagPasteMode, setDefaultView, setQuickAddDestination, setLinkedRefsCollapseLevel, setShowDevOptions, setFirstDayOfWeek } = useSettingsStore();
 
   const loadApiKeys = async () => {
@@ -101,6 +110,37 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
       setProfileError(err instanceof Error ? err.message : 'Failed to update profile');
     } finally {
       setIsSavingProfile(false);
+    }
+  };
+
+  const handleChangePassword = async () => {
+    setPasswordError(null);
+    setPasswordSuccess(false);
+    if (!currentPassword || !newPassword) {
+      setPasswordError('Please fill in all fields');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordError('New passwords do not match');
+      return;
+    }
+    setIsChangingPassword(true);
+    try {
+      await changePassword(currentPassword, newPassword);
+      setPasswordSuccess(true);
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      // The backend revoked all refresh tokens and API keys; log out locally
+      // and force re-authentication with the new password.
+      setTimeout(() => {
+        logout();
+        navigate('/auth');
+      }, 1500);
+    } catch (err) {
+      setPasswordError(err instanceof Error ? err.message : 'Failed to change password');
+    } finally {
+      setIsChangingPassword(false);
     }
   };
 
@@ -455,6 +495,56 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
                   disabled={isSavingProfile}
                 >
                   {isSavingProfile ? 'Saving...' : 'Save Profile'}
+                </Button>
+              </div>
+
+              <Separator orientation="horizontal" size="lg" spacing="lg" />
+
+              <div className="settings-section">
+                <h4 className="settings-section__title">Change Password</h4>
+                <p className="settings-section__description">
+                  Changing your password will sign you out everywhere and revoke all API keys.
+                </p>
+
+                <div className="settings-form-stack">
+                  <TextField
+                    id="current-password"
+                    type="password"
+                    label="Current password"
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    autoComplete="current-password"
+                  />
+                  <TextField
+                    id="new-password"
+                    type="password"
+                    label="New password"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    autoComplete="new-password"
+                  />
+                  <TextField
+                    id="confirm-password"
+                    type="password"
+                    label="Confirm new password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    autoComplete="new-password"
+                  />
+                </div>
+
+                {passwordError && <div className="settings-error">{passwordError}</div>}
+                {passwordSuccess && (
+                  <div className="settings-success">Password changed. Signing you out…</div>
+                )}
+
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={handleChangePassword}
+                  disabled={isChangingPassword || !currentPassword || !newPassword || !confirmPassword}
+                >
+                  {isChangingPassword ? 'Changing…' : 'Change Password'}
                 </Button>
               </div>
 

@@ -23,7 +23,7 @@ function validatePassword(value: string): string | null {
   return null;
 }
 
-export function LoginView({ registrationEnabled = true }: LoginViewProps) {
+export function LoginView({ registrationEnabled = false }: LoginViewProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');

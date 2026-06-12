@@ -665,6 +665,14 @@ export interface UserUpdate {
 }
 
 /**
+ * Self-service password change request
+ */
+export interface PasswordChangeRequest {
+  current_password: string;
+  new_password: string;
+}
+
+/**
  * Auth status response
  */
 export interface AuthStatus {

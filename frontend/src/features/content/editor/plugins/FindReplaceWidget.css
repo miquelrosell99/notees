@@ -68,6 +68,15 @@
   border-color: var(--accent-color, var(--color-accent));
 }
 
+.find-replace-btn.btn--icon-only {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--button-icon-only-xs);
+  height: var(--button-icon-only-xs);
+  padding: 0;
+}
+
 .find-replace-close {
   font-weight: 600;
 }
