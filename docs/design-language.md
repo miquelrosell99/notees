@@ -51,7 +51,9 @@ Result: a warm, paper-like workspace with an editorial headline treatment and a 
 Default accent is **sage**, already implemented via `data-accent="sage"`:
 
 - Light: `#5B7D5B`
-- Dark: `#7FB285` (TBD — to be added to the sage dark override if needed)
+- Dark: `#7FB285`
+
+Users can also choose an arbitrary custom accent from Settings → Appearance. When `data-accent="custom"` is active, `--color-accent` is set to the user-provided hex value and `--color-on-accent` is computed as black or white based on the color's luminance. This keeps primary buttons readable in light, dark, and OLED modes.
 
 ### Typography
 
@@ -74,7 +76,7 @@ Keep the existing minimal radius scale; identity comes from color and type, not 
    - A thin accent line or left border that marks the page as the current focus.
 
 3. **The tactile block bullet**
-   - A small, sharp square indicator instead of a soft circle.
+   - A small, solid circular indicator.
    - Hover reveals the block handle; selection shows the accent color.
 
 4. **The warm workspace**
@@ -93,7 +95,7 @@ Keep the existing minimal radius scale; identity comes from color and type, not 
 - `PageHeader`: serif title, warm header background, accent left border.
 - `Button`: primary variant uses accent; icon-only active states use accent.
 - `TopBar`: reduce visual weight, recede into the workspace background.
-- `BlockRow` / `Bullet`: square bullet, accent selection state.
+- `BlockRow` / `Bullet`: circular bullet, accent selection state.
 - Verify each change against the design-system validator.
 
 ### Phase 3 — Migration notes
