@@ -159,6 +159,16 @@ export function NodeCollectionToolbar({
   const { data: properties } = useProperties();
   const groupByLabel = useMemo(() => {
     if (!groupBy || groupBy === 'none') return null;
+    if (Array.isArray(groupBy)) {
+      if (groupBy.length === 0) return null;
+      const names = groupBy.map((g) => {
+        if (g === 'page') return 'Page';
+        const prop = properties?.find((p) => p.uuid === g);
+        return prop?.name ?? 'Property';
+      });
+      if (names.length === 1) return names[0];
+      return `${names[0]} + ${names.length - 1} ${names.length === 2 ? 'property' : 'properties'}`;
+    }
     if (groupBy === 'page') return 'Page';
     const prop = properties?.find((p) => p.uuid === groupBy);
     return prop?.name ?? 'Property';
@@ -336,6 +346,7 @@ export function NodeCollectionToolbar({
                       onChange={onGroupByChange}
                       onClose={closePanel}
                       hidePageOption={viewMode === 'kanban'}
+                      multi={viewMode === 'list'}
                     />
                   )}
                 </div>

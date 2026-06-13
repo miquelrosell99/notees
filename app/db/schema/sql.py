@@ -162,6 +162,7 @@ CREATE TABLE IF NOT EXISTS node (
     aliased_id INTEGER REFERENCES node(id) ON DELETE SET NULL,
     -- Full-text search
     search_vector tsvector,
+    search_text TEXT,
     search_language VARCHAR(50) DEFAULT 'english',
     -- Audit
     create_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -200,6 +201,7 @@ CREATE INDEX IF NOT EXISTS idx_node_class_ids ON node USING GIN (class_ids);
 CREATE INDEX IF NOT EXISTS idx_node_tag_ids ON node USING GIN (tag_ids);
 CREATE INDEX IF NOT EXISTS idx_node_classes_path ON node USING GIN (classes_path);
 CREATE INDEX IF NOT EXISTS idx_node_search ON node USING GIN (search_vector);
+CREATE INDEX IF NOT EXISTS idx_node_search_text ON node USING GIN (to_tsvector('english', COALESCE(search_text, '')));
 CREATE INDEX IF NOT EXISTS idx_node_create_uid ON node(create_uid);
 CREATE INDEX IF NOT EXISTS idx_node_write_uid ON node(write_uid);
 -- Index for ordering children by sequence within a parent
@@ -1210,6 +1212,137 @@ CREATE TRIGGER node_search_update
     BEFORE INSERT OR UPDATE ON node
     FOR EACH ROW
     EXECUTE FUNCTION update_node_search_vector();
+
+-- ============================================================
+-- MATERIALIZED search_text COLUMN
+-- ============================================================
+
+-- Extract plain text from a node name (handles AST JSON or raw text).
+CREATE OR REPLACE FUNCTION node_plain_text(p_name TEXT)
+RETURNS TEXT AS $$
+DECLARE
+    v_result TEXT;
+BEGIN
+    IF p_name IS NOT NULL AND p_name LIKE '[%' THEN
+        BEGIN
+            SELECT COALESCE(string_agg(t #>> '{}', ''), '') INTO v_result
+            FROM jsonb_path_query(p_name::jsonb, '$.**.text') AS t;
+        EXCEPTION WHEN OTHERS THEN
+            v_result := COALESCE(p_name, '');
+        END;
+    ELSE
+        v_result := COALESCE(p_name, '');
+    END IF;
+    RETURN v_result;
+END;
+$$ LANGUAGE plpgsql IMMUTABLE;
+
+-- Compute search_text for a node: own plain text plus recursively resolved
+-- outgoing link target names and custom link labels.  Recursion is capped at
+-- depth 5 to avoid runaway cycles.
+CREATE OR REPLACE FUNCTION compute_node_search_text(p_node_id INTEGER)
+RETURNS TEXT AS $$
+DECLARE
+    v_own TEXT;
+    v_links TEXT;
+BEGIN
+    SELECT node_plain_text(name) INTO v_own
+    FROM node WHERE id = p_node_id;
+
+    WITH RECURSIVE link_path(source_id, target_id, link_name, depth) AS (
+        SELECT nl.source_id, nl.target_id, nl.name, 1
+        FROM node_link nl
+        WHERE nl.source_id = p_node_id AND nl.is_inline_class = FALSE
+        UNION ALL
+        SELECT lp.source_id, nl.target_id, nl.name, lp.depth + 1
+        FROM link_path lp
+        JOIN node_link nl ON nl.source_id = lp.target_id
+        WHERE nl.is_inline_class = FALSE AND lp.depth < 5
+    )
+    SELECT COALESCE(string_agg(part, ' '), '') INTO v_links
+    FROM (
+        SELECT DISTINCT node_plain_text(n.name) AS part
+        FROM link_path lp
+        JOIN node n ON n.id = lp.target_id
+        WHERE n.name IS NOT NULL
+        UNION
+        SELECT DISTINCT lp.link_name AS part
+        FROM link_path lp
+        WHERE lp.link_name IS NOT NULL
+    ) t;
+
+    RETURN COALESCE(v_own, '') || ' ' || v_links;
+END;
+$$ LANGUAGE plpgsql STABLE;
+
+-- For newly inserted rows the row does not exist during BEFORE INSERT, so
+-- compute and store the value after the insert.
+CREATE OR REPLACE FUNCTION node_search_text_after_insert()
+RETURNS TRIGGER AS $$
+BEGIN
+    UPDATE node SET search_text = compute_node_search_text(NEW.id) WHERE id = NEW.id;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS node_search_text_insert_trigger ON node;
+CREATE TRIGGER node_search_text_insert_trigger
+    AFTER INSERT ON node
+    FOR EACH ROW
+    EXECUTE FUNCTION node_search_text_after_insert();
+
+-- After a node's name is updated, recompute its own search_text and the
+-- search_text of all nodes that directly link to it.
+CREATE OR REPLACE FUNCTION node_search_text_after_update()
+RETURNS TRIGGER AS $$
+BEGIN
+    UPDATE node SET search_text = compute_node_search_text(NEW.id) WHERE id = NEW.id;
+    UPDATE node n
+    SET search_text = compute_node_search_text(n.id)
+    WHERE n.id IN (
+        SELECT source_id FROM node_link
+        WHERE target_id = NEW.id AND is_inline_class = FALSE
+    );
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS node_search_text_after_update_trigger ON node;
+CREATE TRIGGER node_search_text_after_update_trigger
+    AFTER UPDATE OF name ON node
+    FOR EACH ROW
+    EXECUTE FUNCTION node_search_text_after_update();
+
+-- Maintain search_text when outgoing links change.
+CREATE OR REPLACE FUNCTION node_link_search_text_change()
+RETURNS TRIGGER AS $$
+DECLARE
+    v_source_id INTEGER;
+    v_old_source_id INTEGER;
+BEGIN
+    IF TG_OP = 'DELETE' THEN
+        v_source_id := OLD.source_id;
+        v_old_source_id := NULL;
+    ELSE
+        v_source_id := NEW.source_id;
+        v_old_source_id := OLD.source_id;
+    END IF;
+
+    UPDATE node SET search_text = compute_node_search_text(v_source_id) WHERE id = v_source_id;
+
+    IF TG_OP = 'UPDATE' AND v_old_source_id IS DISTINCT FROM v_source_id THEN
+        UPDATE node SET search_text = compute_node_search_text(v_old_source_id) WHERE id = v_old_source_id;
+    END IF;
+
+    RETURN COALESCE(NEW, OLD);
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS node_link_search_text_trigger ON node_link;
+CREATE TRIGGER node_link_search_text_trigger
+    AFTER INSERT OR UPDATE OR DELETE ON node_link
+    FOR EACH ROW
+    EXECUTE FUNCTION node_link_search_text_change();
 
 -- Auto-update write_date trigger
 CREATE OR REPLACE FUNCTION update_write_date()

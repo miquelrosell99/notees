@@ -44,6 +44,20 @@ import './NodeCollection.css';
 
 import { NodeCollectionContext } from './NodeCollectionContext';
 
+// ==================== Group-by helpers ====================
+
+/** Normalize a group-by value into an ordered list of level keys. */
+function normalizeGroupBy(value: NodeCollectionGroupBy): string[] {
+  if (!value || value === 'none') return [];
+  if (Array.isArray(value)) return value;
+  return [value];
+}
+
+/** Whether any grouping level is active. */
+function isGroupByActive(value: NodeCollectionGroupBy): boolean {
+  return normalizeGroupBy(value).length > 0;
+}
+
 // ==================== Component ====================
 
 /**
@@ -140,12 +154,19 @@ export const NodeCollection = memo(function NodeCollection({
     }
   };
 
-  // Resolve groupByProperty when groupBy is a property UUID
+  // Resolve groupBy properties for single and multi-level grouping
   const { data: allProperties = [] } = useProperties();
+  const normalizedGroupBy = useMemo(() => normalizeGroupBy(groupBy), [groupBy]);
   const groupByProperty = useMemo(() => {
-    if (!groupBy || groupBy === 'none' || groupBy === 'page') return undefined;
-    return allProperties.find((p) => p.uuid === groupBy);
-  }, [groupBy, allProperties]);
+    const first = normalizedGroupBy.find((g) => g !== 'page' && g !== 'none');
+    return first ? allProperties.find((p) => p.uuid === first) : undefined;
+  }, [normalizedGroupBy, allProperties]);
+  const groupByProperties = useMemo(() => {
+    return normalizedGroupBy
+      .filter((g) => g !== 'page' && g !== 'none')
+      .map((uuid) => allProperties.find((p) => p.uuid === uuid))
+      .filter((p): p is Property => p != null);
+  }, [normalizedGroupBy, allProperties]);
 
   // Property column selection state (for table view)
   // Use controlled props if provided, otherwise manage internally
@@ -272,8 +293,8 @@ export const NodeCollection = memo(function NodeCollection({
   // Whether to show the internal toolbar (show if we have leftElement OR toolbar controls)
   const showInternalToolbar = !hideToolbar && (leftElement || showGroupByInToolbar || showViewSwitcher || effectiveShowAdd || capabilities.ganttConfig);
 
-  // Enable grouping for list view when groupBy is not 'none'
-  const enableGrouping = showGroupByProp && viewMode === 'list' && groupBy !== 'none';
+  // Enable grouping for list view when any group-by level is active
+  const enableGrouping = showGroupByProp && viewMode === 'list' && isGroupByActive(groupBy);
 
   // Create context value
   const contextValue = useMemo<NodeCollectionContextValue>(() => ({
@@ -336,6 +357,7 @@ export const NodeCollection = memo(function NodeCollection({
           className: '',
           groupBy,
           groupByProperty,
+          groupByProperties,
           expandAll,
           enableGrouping,
           showBreadcrumbs,
@@ -454,6 +476,14 @@ export const NodeCollection = memo(function NodeCollection({
           ...commonViewProps,
           nodes,
           groupByProperty,
+          queryAst,
+          viewId,
+        };
+
+      case 'pivot':
+        return {
+          ...commonViewProps,
+          nodes,
           queryAst,
           viewId,
         };
