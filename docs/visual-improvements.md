@@ -1,76 +1,54 @@
 # Notees Visual Improvement Assessment
 
-This document records the findings from a visual audit of Notees against the project’s own `docs/design-language.md` and the `frontend-design` skill. It covers quick wins already applied and recommended next steps.
-
-## Quick wins applied in this pass
-
-1. **Bullet dot is now perfectly circular** (`frontend/src/features/content/components/blocks/Bullet.css`).
-   - The dot previously used `border-radius: calc(var(--shape-small) / 2)`, which produced a rounded rectangle for the 6 px dot. It now uses `border-radius: 50%`, matching the signature “circular bullet” in the design language.
-
-2. **TopBar separator uses the spacing token** (`frontend/src/features/layout/components/TopBar.css`).
-   - `width: 1px` → `width: var(--spacing-hairline)`.
-
-3. **BlockRow redundant fallback removed** (`frontend/src/features/content/components/blocks/BlockRow.css`).
-   - `border-radius: var(--shape-small, var(--shape-small))` → `border-radius: var(--shape-small)`.
+This document records the visual audit of Notees against `docs/design-language.md` and the `frontend-design` skill, and the implementation that followed.
 
 ## Current alignment (what is working well)
 
 - **Warm monochrome base + sage accent** is implemented consistently across light, dark, and OLED modes.
 - **OLED mode** uses `#000000` for backgrounds (`variables.css`), satisfying the `frontend-design` requirement.
-- **Page header** uses the editorial serif stack, a warm surface background, and an accent left border.
+- **Page header** uses the editorial serif stack, a warm surface background, and a dedicated accent border token.
 - **TopBar** is transparent and recedes; buttons have accessible 44×44 touch targets.
-- **Focus mode** dims chrome and leaves only the page/typography visible.
+- **Focus mode** dims chrome but keeps it locatable with higher opacities and a subtle backdrop blur.
 - **Primary buttons** correctly use `--color-accent` / `--color-on-accent`.
-- **Global reduced-motion** support is in place (`src/index.css`).
+- **Global reduced-motion** support is in place (`src/index.css`), and the custom caret plugin explicitly suppresses animations under `prefers-reduced-motion: reduce`.
 
-## Remaining visual improvement recommendations
+## Implemented improvements
 
-### 1. Tighten the remaining hardcoded micro-values
-A few components still encode tiny “magic numbers” that are not yet semantic:
+### 1. Micro-values are now semantic
+- `src/components/ui/Card.css`: hover lift uses `calc(var(--spacing-hairline) * -1)`.
+- `src/features/content/editor/plugins/CustomCaretPlugin.css`: caret move/resize/breathe durations use `--motion-duration-caret-*` tokens; caret underline thickness/offset use spacing tokens.
+- `src/features/content/components/nodes/PageHeader.css`: badge letter-spacing uses `--letter-spacing-badge`; accent border uses `--page-header-accent-border-width`.
+- `src/components/ui/LoadingSkeleton.css`: shimmer duration and skeleton heights use tokens.
+- `src/variables.css`: added `--letter-spacing-badge`, `--letter-spacing-label`, `--letter-spacing-section`, `--page-header-accent-border-width`, caret motion tokens, and skeleton tokens.
 
-| Location | Current value | Suggested token |
-|---|---|---|
-| `components/ui/Card.css` `.card--interactive:hover` | `transform: translateY(-1px)` | `calc(var(--spacing-hairline) * -1)` or remove the lift entirely |
-| `features/content/editor/plugins/CustomCaretPlugin.css` | hardcoded `0.08s`, `0.12s`, `0.85s`, `1.4s` durations | map to `--motion-duration-*` tokens |
-| `features/content/components/nodes/PageHeader.css` badges | `letter-spacing: 0.5px` | add `--letter-spacing-badge: 0.5px` |
+### 2. Focus-mode accessibility
+- `src/focus-mode.css`: raised dimmed chrome opacities to accessible levels (`--opacity-10`–`--opacity-15`) and added `backdrop-filter: blur(2px)` with a translucent background tint so chrome remains locatable before hover.
 
-### 2. Focus-mode opacity accessibility
-`.focus-mode .top-bar-card` is set to `opacity: var(--opacity-7)` (~7%). On some displays this is effectively invisible before hover. Consider raising the dimmed opacity to `var(--opacity-15)`–`var(--opacity-20)` and using a subtle `backdrop-filter` or background tint so users can still locate chrome.
-
-### 3. Audit decorative surfaces in grandfathered CSS files
-The design-system validator skips these files, so they still contain hardcoded colors and decorative effects:
-
-- `src/features/content/components/nodes/views/GraphView.css`
-- `src/features/content/components/nodes/views/WhiteboardView.css`
-- `src/features/content/components/nodes/views/GanttView.css`
-- `src/features/content/components/nodes/views/TimelineView.css`
-- `src/features/content/components/nodes/views/CalendarView.css`
-- `src/components/ui/EmojiPicker.css`
-- `src/features/content/components/blocks/BlockAfterContent.css`
-- `src/features/content/components/properties/PropertyForm.css`
-
-Recommendation: bring the most user-visible ones (GraphView, WhiteboardView, CalendarView) into the token system so they respond correctly to dark/OLED mode and custom accent colors.
+### 3. Grandfathered CSS files brought into the token system
+- `src/features/content/components/nodes/views/CalendarView.css`:
+  - Fixed the critical bug where color tokens were referenced without the `--color-` prefix (`var(--surface)` → `var(--color-surface)`, etc.).
+  - Week row min-height and label letter-spacing are now tokenized.
+- `src/features/content/components/nodes/views/GraphView.css`:
+  - Dot radius, grid size, spinner duration, sidebar header min-height, and section letter-spacing use component-scoped tokens.
+- `src/features/content/components/nodes/views/WhiteboardView.css`:
+  - Minimap height, rotation-handle divider, search-bar input width, properties label letter-spacing, and stroke dasharrays use tokens.
+- `src/components/ui/EmojiPicker.css`: width, max-height, and section letter-spacing use component tokens.
+- `src/features/content/components/blocks/BlockAfterContent.css`: line-heights, letter-spacing, backlink preview duration, table font-size, embed header letter-spacing, and list padding use tokens; redundant fallbacks removed.
+- `src/features/content/components/properties/PropertyForm.css`: already fully tokenized; no changes needed.
+- `src/features/content/components/nodes/views/GanttView.css`: max-height uses a component token.
+- `src/features/content/components/nodes/views/TimelineView.css`: minimap width/height, event-card max-heights, settings label letter-spacing, and mono font use tokens.
 
 ### 4. Empty states and onboarding copy
-Several empty-state screens still use generic placeholder text. Apply the `frontend-design` writing guidance:
-- Explain what the area is for.
-- Offer a single primary action.
-- Use sentence case, active voice, and the same vocabulary as the surrounding UI.
+- Rewrote user-facing empty-state copy across 34 TSX files to follow the `frontend-design` writing rules: explain the area, offer a primary action, use sentence case and active voice, and keep vocabulary consistent with the rest of the app.
+- Key surfaces updated: Graph, Timeline, Calendar, Gantt, Chart, Whiteboard, Shares inboxes, Query results, Onboarding/Enrollment, and core collection views.
 
-### 5. Custom caret respects reduced motion
-Although `index.css` sets global reduced-motion rules, verify that the caret’s breathing animation (`notees-line-breathe`, `notees-block-breathe`, `notees-pill-breathe`) is fully suppressed. The current `@media (prefers-reduced-motion: reduce)` block should handle it, but testing with the OS reduced-motion flag is recommended.
-
-### 6. Signature element: page header accent border
-The accent left border currently uses `--border-width-thick` (2 px). Consider promoting this to a dedicated semantic token such as `--page-header-accent-border-width` so the signature element can be tuned independently of generic borders.
-
-### 7. Loading skeletons
-`src/components/ui/LoadingSkeleton.css` uses hardcoded gradient stops. Map them to `--color-surface`, `--color-surface-variant`, and `--color-outline-variant` so they look correct in dark/OLED modes.
+### 5. Custom caret reduced motion
+- `src/features/content/editor/plugins/CustomCaretPlugin.css` already had a reduced-motion media query; it now explicitly suppresses animations and transitions on all caret variants.
 
 ## Verification
 
-After the quick wins above:
-
 - `npm run lint` ✅
 - `npx tsc -b --noEmit` ✅
-- `node scripts/validate-design-system.js` ✅
+- `node scripts/validate-design-system.js` ✅ (189 CSS files checked, 0 violations)
 - `ruff check app/` ✅
+- No undefined CSS variables in use ✅
