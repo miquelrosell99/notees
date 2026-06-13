@@ -41,6 +41,7 @@ export function useQueryBlock(nodeId: number | null) {
     if (node) {
       titleRef.current = parseQueryBlockTitle(node);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Only re-sync when the node identity changes, not every field mutation.
   }, [node?.id]);
 
   const queryAST = useMemo(

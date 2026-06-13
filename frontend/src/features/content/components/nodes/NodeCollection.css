@@ -4,6 +4,12 @@
  * Styles for the universal NodeCollection component
  */
 
+
+:root {
+  --features-content-components-nodes-node-collection-min-height-60: 60px;
+  --features-content-components-nodes-node-collection-min-height-200: 200px;
+}
+
 .node-collection {
   width: 100%;
   display: flex;
@@ -14,7 +20,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 60px;
+  min-height: var(--features-content-components-nodes-node-collection-min-height-60);
   color: var(--color-on-surface-variant);
   font-size: 0.875rem;
 }
@@ -103,7 +109,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 200px;
+  min-height: var(--features-content-components-nodes-node-collection-min-height-200);
   color: var(--color-on-surface-variant);
   font-size: 0.875rem;
 }

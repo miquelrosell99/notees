@@ -12,6 +12,10 @@
   overflow: hidden;
 }
 
+button.node-inline {
+  text-align: left;
+}
+
 .node-inline--clickable {
   cursor: pointer;
   border-radius: var(--shape-small);

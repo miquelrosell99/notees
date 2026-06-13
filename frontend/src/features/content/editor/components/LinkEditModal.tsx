@@ -8,7 +8,7 @@
  * Both modes share a custom display-label field.
  */
 
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { SelectionButton } from '@/components/ui/SelectionButton';
@@ -99,7 +99,14 @@ export function LinkEditModal({
   const [selectedNode, setSelectedNode] = useState<Node | null>(null);
   const [url, setUrl] = useState(currentUrl ?? '');
   const [label, setLabel] = useState(currentLabel ?? '');
-  
+  const urlInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isOpen && linkMode === 'url') {
+      urlInputRef.current?.focus();
+    }
+  }, [isOpen, linkMode]);
+
   // Check if the target node (current or selected) is a class
   const isTargetNodeClass = useMemo(() => {
     const targetNode = selectedNode || currentNode;
@@ -253,13 +260,13 @@ export function LinkEditModal({
             />
           ) : (
             <input
+              ref={urlInputRef}
               type="text"
               className="link-edit-modal__input"
               placeholder="https://..."
               value={url}
               onChange={e => setUrl(e.target.value)}
               autoComplete="off"
-              autoFocus
             />
           )}
         </div>

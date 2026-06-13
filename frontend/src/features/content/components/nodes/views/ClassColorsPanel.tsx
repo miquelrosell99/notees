@@ -16,7 +16,7 @@ import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { Button } from '@/components/ui/Button';
 import { ColorButton } from '@/components/ui/ColorButton';
 import { ListSortable } from '@/components/ui/ListSortable';
-import { SearchBox } from '@/components/ui/SearchBox';
+import { NodeSearchBox } from '@/features/content/components/nodes/NodeSearchBox';
 import './ClassColorsPanel.css';
 
 import { getClassColorPalette } from '@/features/content/components/nodes/views/viewTypes';
@@ -83,10 +83,10 @@ export function ClassColorsPanel({
       </p>
       
       <div className="class-colors-search">
-        <SearchBox
+        <NodeSearchBox
           placeholder="Search classes to add..."
-          filterFn={(node) => 
-            node.is_class === true && 
+          filterFn={(node) =>
+            node.is_class === true &&
             !classColors.some(cc => cc.classId === node.id)
           }
           onSelect={addClassColor}

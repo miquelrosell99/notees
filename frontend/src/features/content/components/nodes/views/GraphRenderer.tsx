@@ -235,6 +235,8 @@ export const GraphRenderer = memo(forwardRef<GraphRendererRef, GraphRendererProp
       <canvas
         ref={canvasRef}
         className="sge-graph-view__canvas"
+        aria-label="Graph view of your pages and links"
+        role="img"
         onPointerDown={_pointerDown}
         onPointerMove={_pointerMove}
         onPointerUp={_pointerUp}
@@ -247,6 +249,7 @@ export const GraphRenderer = memo(forwardRef<GraphRendererRef, GraphRendererProp
       <canvas
         ref={labelCanvasRef}
         className="sge-graph-view__label-canvas"
+        aria-hidden="true"
         style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}
       />
 

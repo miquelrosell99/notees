@@ -507,7 +507,7 @@ export const NodeCard = memo(function NodeCard({
     }
     setIsTableModalOpen(false);
     setTableTargetBlockId(null);
-  }, [tableTargetBlockId, _propsAllClasses, addClass]);
+  }, [tableTargetBlockId, _propsAllClasses, addClass, createNode]);
 
   // Handle table creation — adapt existing children
   const handleTableAdaptExisting = useCallback(() => {
@@ -550,7 +550,8 @@ export const NodeCard = memo(function NodeCard({
 
   const coverElement = layout !== 'no-cover' && (
     coverImageId ? (
-      <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }}
+      // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- cover wrapper only stops event bubbling
+      <div
         className={`node-card__cover${isCoverDragging ? ' node-card__cover--drag-over' : ''}`}
         onClick={(e) => e.stopPropagation()}
         onMouseEnter={() => setIsCoverHovered(true)}
@@ -561,7 +562,7 @@ export const NodeCard = memo(function NodeCard({
       >
         <ImageNode
           assetNodeId={coverImageId}
-          alt="Cover"
+          alt={`Cover image for ${nodeNameToText(node.name) || 'Untitled'}`}
           className="node-card__cover-image"
           showCard={false}
           clickable={true}
@@ -590,14 +591,15 @@ export const NodeCard = memo(function NodeCard({
       </div>
     ) : (
       editable ? (
-        <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }}
+        // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- cover wrapper only stops event bubbling
+        <div
           className={`node-card__cover${isCoverDragging ? ' node-card__cover--drag-over' : ''}`}
           onClick={(e) => e.stopPropagation()}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
         >
-          <AddCoverButton onClick={() => setIsAssetUploadOpen(true)} onDrop={handleCoverDropped} size="sm" />
+          <AddCoverButton onClick={() => setIsAssetUploadOpen(true)} onDrop={handleCoverDropped} processDrop={extractImageFromDragEvent} size="sm" />
         </div>
       ) : null
     )
@@ -618,7 +620,8 @@ export const NodeCard = memo(function NodeCard({
       >
         {/* Selection checkbox — shown on hover */}
         {onSelectionChange && (
-          <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }} className="node-card__checkbox hover-reveal" onClick={handleCheckboxClick}>
+          // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- wrapper only stops event bubbling
+          <div className="node-card__checkbox hover-reveal" onClick={handleCheckboxClick}>
             <Checkbox
               size="sm"
               checked={isSelected}
@@ -634,6 +637,7 @@ export const NodeCard = memo(function NodeCard({
         {/* Row: Title */}
         <div className={`node-card__header${showBreadcrumbs ? ' node-card__header--with-breadcrumbs' : ''}`}>
           {showBreadcrumbs && (
+            // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- wrapper only stops event bubbling
             <div className="node-card__breadcrumbs-row" onClick={(e) => e.stopPropagation()}>
               <NodeBreadcrumbs
                 nodeId={node.id}

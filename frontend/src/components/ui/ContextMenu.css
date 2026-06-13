@@ -4,11 +4,18 @@
  * Uses Card component for base styling.
  * These styles are for context menu-specific content.
  */
+
+:root {
+  --components-ui-context-menu-min-width-180: 180px;
+  --components-ui-context-menu-max-width-280: 280px;
+  --components-ui-context-menu-padding-6: 6px;
+}
+
 .context-menu {
   position: fixed;
   z-index: var(--z-floating);
-  min-width: 180px;
-  max-width: 280px;
+  min-width: var(--components-ui-context-menu-min-width-180);
+  max-width: var(--components-ui-context-menu-max-width-280);
   padding: var(--spacing-1);
   animation: panelFadeIn var(--motion-duration-short) var(--motion-easing-standard);
 }
@@ -98,7 +105,7 @@ button.context-menu-item:hover:not(.disabled) {
   color: var(--color-on-surface-variant);
   background: var(--color-surface-container);
   border: 1px solid var(--color-outline-variant);
-  padding: 1px 6px;
+  padding: 1px var(--components-ui-context-menu-padding-6);
   border-radius: var(--shape-extra-large);
   white-space: nowrap;
   margin-left: auto;

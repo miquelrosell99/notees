@@ -1,3 +1,8 @@
+:root {
+  --features-content-components-nodes-share-modal-max-height-240: 240px;
+  --features-content-components-nodes-share-modal-max-width-560: 560px;
+}
+
 .share-modal {
   display: flex;
   flex-direction: column;
@@ -72,7 +77,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--spacing-2);
-  max-height: 240px;
+  max-height: var(--features-content-components-nodes-share-modal-max-height-240);
   overflow-y: auto;
 }
 
@@ -127,7 +132,7 @@
 
 /* Wider dialog */
 .card.modal.share-modal__dialog {
-  max-width: 560px;
+  max-width: var(--features-content-components-nodes-share-modal-max-width-560);
 }
 
 /* User shares — Notion-style */

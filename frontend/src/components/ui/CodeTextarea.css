@@ -2,9 +2,14 @@
  * CodeTextarea - Monospace multiline text area for pasting structured/code content.
  */
 
+
+:root {
+  --components-ui-code-textarea-min-height-200: 200px;
+}
+
 .code-textarea {
   width: 100%;
-  min-height: 200px;
+  min-height: var(--components-ui-code-textarea-min-height-200);
   padding: var(--spacing-3);
   font-family: var(--font-family-mono);
   font-size: var(--font-size-xs);

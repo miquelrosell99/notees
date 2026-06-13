@@ -1,6 +1,7 @@
 import { useState, useCallback, memo } from 'react';
 import { useNavigationStore } from '@/stores';
 import { useNode, useIsMobile } from '@/hooks';
+import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { useRecents } from '@/hooks/useRecents';
 import { useNodeDisplay } from '@/hooks/useNodeDisplay';
 import { NodeInline } from '@/features/content/components/blocks/NodeInline';
@@ -23,12 +24,36 @@ const RecentItem = memo(function RecentItem({ nodeId, isActive, onClick, onNavig
   const { data: node } = useNode(nodeId);
   const { effectiveIcon } = useNodeDisplay(node);
 
+  const handleClick = useCallback((e: React.MouseEvent | { target?: never }) => {
+    // Don't navigate if clicking breadcrumbs
+    const target = (e as React.MouseEvent).target as HTMLElement | undefined;
+    if (target?.closest('.sidebar-item-breadcrumbs-wrapper')) {
+      return;
+    }
+    onClick(e as React.MouseEvent);
+  }, [onClick]);
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      handleClick({} as React.MouseEvent);
+    }
+  }, [handleClick]);
+
   if (!node) return <div className="sidebar-item-skeleton" />;
 
   return (
-    <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }} onClick={onClick} onContextMenu={onContextMenu} className={`sidebar-recent-item ${isActive ? 'active' : ''}`}>
+    <div
+      role="button"
+      tabIndex={0}
+      aria-label={node ? nodeNameToText(node.name) || 'Untitled' : 'Loading recent'}
+      onClick={handleClick}
+      onContextMenu={onContextMenu}
+      onKeyDown={handleKeyDown}
+      className={`sidebar-recent-item ${isActive ? 'active' : ''}`}
+    >
       <div className="sidebar-recent-block">
-        <div className="sidebar-item-breadcrumbs-wrapper" onClick={(e) => e.stopPropagation()}>
+        <div className="sidebar-item-breadcrumbs-wrapper">
           <NodeBreadcrumbs
             nodeId={node.id}
             nodeType="page"

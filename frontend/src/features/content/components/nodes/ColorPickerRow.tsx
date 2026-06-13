@@ -29,17 +29,11 @@ export function ColorPickerRow({ currentColor, onColorChange }: ColorPickerRowPr
 
   return (
     <div
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          e.currentTarget.click();
-        }
-      }}
+      role="group"
+      aria-label="Color options"
       className="context-menu-color-row"
-      onMouseDown={handleMouseDown}
-      onClick={(e) => {
+      onMouseDownCapture={handleMouseDown}
+      onClickCapture={(e) => {
         e.stopPropagation();
         e.preventDefault();
       }}

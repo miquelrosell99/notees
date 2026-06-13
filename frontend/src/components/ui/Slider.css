@@ -5,6 +5,11 @@
  * Uses design tokens from variables.css.
  */
 
+
+:root {
+  --components-ui-slider-width-14: 14px;
+}
+
 .slider {
   display: flex;
   flex-direction: column;
@@ -109,7 +114,7 @@
 
 /* Thumb — Firefox */
 .slider__input::-moz-range-thumb {
-  width: 14px;
+  width: var(--components-ui-slider-width-14);
   height: var(--icon-size-xs);
   border-radius: 50%;
   background: var(--color-primary);

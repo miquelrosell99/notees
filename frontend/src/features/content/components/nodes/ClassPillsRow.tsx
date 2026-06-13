@@ -99,12 +99,17 @@ export const ClassPillsRow = memo(function ClassPillsRow({
           />
         ))}
         {overflowCount > 0 && (
-          <span role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }} className="class-pills-row__overflow-wrapper" onClick={handleOverflowClick}>
+          <button
+            type="button"
+            className="class-pills-row__overflow-wrapper"
+            onClick={handleOverflowClick}
+            aria-label={`Show ${overflowCount} more classes`}
+          >
             <Pill
               text={`+${overflowCount}`}
               className="class-pills-row__overflow"
             />
-          </span>
+          </button>
         )}
         {onAddClass && !readOnly && availableClasses.length > 0 && (
           <Button
@@ -125,7 +130,19 @@ export const ClassPillsRow = memo(function ClassPillsRow({
 
       {showPopup && (
         <>
-          <div className="class-pills-popup-backdrop" onClick={handleClosePopup} />
+          <div
+            role="button"
+            tabIndex={-1}
+            aria-label="Close classes popup"
+            className="class-pills-popup-backdrop"
+            onClick={handleClosePopup}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                handleClosePopup();
+              }
+            }}
+          />
           <div
             className="class-pills-popup"
             style={{
@@ -173,7 +190,19 @@ export const ClassPillsRow = memo(function ClassPillsRow({
 
       {showAddPopup && (
         <>
-          <div className="class-pills-popup-backdrop" onClick={() => setShowAddPopup(false)} />
+          <div
+            role="button"
+            tabIndex={-1}
+            aria-label="Close add class popup"
+            className="class-pills-popup-backdrop"
+            onClick={() => setShowAddPopup(false)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                setShowAddPopup(false);
+              }
+            }}
+          />
           <div
             className="class-pills-popup"
             style={{

@@ -2,6 +2,12 @@
  * DataStateView Component Styles
  */
 
+
+:root {
+  --components-ui-data-state-view-max-width-400: 400px;
+  --components-ui-data-state-view-min-height-200: 200px;
+}
+
 .data-state-view--loading {
   padding: var(--spacing-4);
 }
@@ -32,7 +38,7 @@
   font: var(--font-body-medium);
   color: var(--color-error);
   margin: 0;
-  max-width: 400px;
+  max-width: var(--components-ui-data-state-view-max-width-400);
 }
 
 .data-state-view--empty {
@@ -40,5 +46,5 @@
   align-items: center;
   justify-content: center;
   padding: var(--spacing-8) var(--spacing-4);
-  min-height: 200px;
+  min-height: var(--components-ui-data-state-view-min-height-200);
 }

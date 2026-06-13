@@ -1,3 +1,10 @@
+:root {
+  --features-content-components-properties-url-property-value-min-width-40: 40px;
+  --features-content-components-properties-url-property-value-min-width-80: 80px;
+  --features-content-components-properties-url-property-value-max-width-200: 200px;
+  --features-content-components-properties-url-property-value-max-width-260: 260px;
+}
+
 .property-value-display {
   padding: var(--spacing-1) var(--spacing-2);
   border: none;
@@ -7,7 +14,7 @@
   cursor: pointer;
   border-radius: var(--shape-small);
   text-align: left;
-  min-width: 40px;
+  min-width: var(--features-content-components-properties-url-property-value-min-width-40);
   transition: background var(--motion-duration-short) var(--motion-easing-standard);
 }
 
@@ -21,8 +28,8 @@
   background: var(--color-surface);
   font: var(--font-body-medium);
   color: var(--color-on-surface);
-  min-width: 80px;
-  max-width: 200px;
+  min-width: var(--features-content-components-properties-url-property-value-min-width-80);
+  max-width: var(--features-content-components-properties-url-property-value-max-width-200);
 }
 
 .property-value-input:focus {
@@ -54,7 +61,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 260px;
+  max-width: var(--features-content-components-properties-url-property-value-max-width-260);
 }
 
 .property-link:hover {

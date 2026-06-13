@@ -70,7 +70,7 @@ export function Bullet({
   title,
   size = 'sm',
 }: BulletProps) {
-  const bulletRef = useRef<HTMLDivElement>(null);
+  const bulletRef = useRef<HTMLElement>(null);
 
   // Handle click on bullet
   const handleClick = useCallback((e: React.MouseEvent) => {
@@ -117,20 +117,22 @@ export function Bullet({
   
 
   
+  const Tag = interactive ? 'button' : 'div' as const;
+  const buttonProps = interactive ? { type: 'button' as const } : {};
+
   return (
-    <div onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }}
-      ref={(el) => {
+    <Tag
+      ref={(el: HTMLElement | null) => {
         bulletRef.current = el;
-        if (activatorRef) activatorRef(el);
+        if (activatorRef) activatorRef(el as HTMLElement);
       }}
       className={classNames}
       onClick={interactive ? handleClick : undefined}
       onContextMenu={interactive ? handleContextMenu : undefined}
-
       {...(activatorListeners || {})}
       title={computedTitle}
-      role={interactive ? 'button' : 'presentation'}
       tabIndex={interactive ? 0 : -1}
+      {...buttonProps}
     >
       {/* Bullet container */}
       <span className="bullet-container">
@@ -144,7 +146,7 @@ export function Bullet({
           <span className="bullet-dot" />
         )}
       </span>
-    </div>
+    </Tag>
   );
 }
 

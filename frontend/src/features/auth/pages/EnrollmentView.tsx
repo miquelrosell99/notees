@@ -9,6 +9,7 @@ import { useSettingsStore, applyTheme, DATE_FORMAT_OPTIONS } from '@/stores';
 import type { ThemePreference, DateFormat } from '@/stores';
 import { setSetting } from '@/features/workspace/api/workspaces';
 import { useNotifications } from '@/stores/notificationStore';
+import { useReducedMotion } from '@/hooks';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import './EnrollmentView.css';
@@ -28,15 +29,20 @@ export function EnrollmentView({ onComplete }: EnrollmentViewProps) {
   const [selectedDateFormat, setSelectedDateFormat] = useState<DateFormat>(dateFormat);
   const [isSaving, setIsSaving] = useState(false);
   const { error: notifyError } = useNotifications();
+  const reducedMotion = useReducedMotion();
 
   // Trigger entering animation on mount and when step changes
   useEffect(() => {
+    if (reducedMotion) {
+      setAnimationPhase('active');
+      return;
+    }
     setAnimationPhase('entering');
     const timer = setTimeout(() => {
       setAnimationPhase('active');
     }, 50); // Small delay to trigger CSS animation
     return () => clearTimeout(timer);
-  }, [step]);
+  }, [step, reducedMotion]);
 
   const handleThemeSelect = (newTheme: ThemePreference) => {
     setSelectedTheme(newTheme);
@@ -44,6 +50,11 @@ export function EnrollmentView({ onComplete }: EnrollmentViewProps) {
   };
 
   const transitionToStep = (nextStep: Step) => {
+    if (reducedMotion) {
+      setStep(nextStep);
+      setAnimationPhase('active');
+      return;
+    }
     setAnimationPhase('exiting');
     setTimeout(() => {
       setStep(nextStep);

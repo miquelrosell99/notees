@@ -133,7 +133,6 @@ export interface GraphRendererStats {
   visibleNodes: number;
   visibleEdges: number;
   arrowInstCount: number;
-  glowInstCount: number;
   energy: number;
   ticks: number;
   fps: number;
@@ -239,7 +238,7 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
 
   const [stats, setStats] = useState<GraphRendererStats>({
     nodeCount: 0, edgeCount: 0, visibleNodes: 0, visibleEdges: 0,
-    arrowInstCount: 0, glowInstCount: 0,
+    arrowInstCount: 0,
     energy: 0, ticks: 0, fps: 0,
   });
 
@@ -786,7 +785,7 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
       d.camStartX = camRef.current.x;
       d.camStartY = camRef.current.y;
     }
-  }, []);
+  }, [post]);
 
   const onPointerMove = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
     const d      = dragRef.current;
@@ -841,7 +840,7 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
       rend?.overridePosition(d.nodeId, world.x, world.y);
       dirtyRef.current.positions = true;
     }
-  }, []);
+  }, [post]);
 
   const onPointerUp = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
     const d = dragRef.current;
@@ -869,7 +868,7 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
     d.nodeId = -1;
     d.moved  = false;
     e.currentTarget.releasePointerCapture(e.pointerId);
-  }, []);
+  }, [post]);
 
   const onDblClick = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;

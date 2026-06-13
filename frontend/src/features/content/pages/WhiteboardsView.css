@@ -2,6 +2,11 @@
  * Whiteboards View styles
  */
 
+
+:root {
+  --features-content-pages-whiteboards-view-min-height-200: 200px;
+}
+
 .whiteboards-view {
   max-width: none;
   padding: 0;
@@ -34,7 +39,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 200px;
+  min-height: var(--features-content-pages-whiteboards-view-min-height-200);
 }
 
 .whiteboards-view__empty {

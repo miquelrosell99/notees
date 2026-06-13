@@ -5,6 +5,11 @@
  * Single-column layout with clear visual hierarchy.
  */
 
+
+:root {
+  --features-queries-components-view-builder-min-height-80: 80px;
+}
+
 .view-builder {
   display: flex;
   flex-direction: column;
@@ -54,7 +59,7 @@
 
 .view-builder__filters-section {
   padding: var(--spacing-3) 0;
-  min-height: 80px;
+  min-height: var(--features-queries-components-view-builder-min-height-80);
 }
 
 /* ==================== Footer ==================== */

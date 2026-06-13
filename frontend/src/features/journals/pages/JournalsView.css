@@ -2,6 +2,11 @@
  * Journals View styles
  */
 
+
+:root {
+  --features-journals-pages-journals-view-min-height-100: 100px;
+}
+
 .journals-view {
   max-width: none;
   padding: 0;
@@ -93,7 +98,7 @@
 
 .journal-entry.loading {
   opacity: 0.5;
-  min-height: 100px;
+  min-height: var(--features-journals-pages-journals-view-min-height-100);
   display: flex;
   align-items: center;
   justify-content: center;

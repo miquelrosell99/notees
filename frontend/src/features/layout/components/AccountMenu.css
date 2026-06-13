@@ -2,6 +2,12 @@
  * AccountMenu Component Styles
  */
 
+
+:root {
+  --features-layout-components-account-menu-min-width-200: 200px;
+  --features-layout-components-account-menu-max-height-400: 400px;
+}
+
 /* ==================== Container ==================== */
 .account-menu {
   position: relative;
@@ -28,7 +34,7 @@
 
 /* ==================== Dropdown Menu ==================== */
 .account-menu__dropdown {
-  min-width: 200px;
+  min-width: var(--features-layout-components-account-menu-min-width-200);
   z-index: var(--z-modal-backdrop);
   border: 1px solid var(--color-outline-variant);
   border-radius: var(--shape-medium);
@@ -124,5 +130,5 @@
 .account-menu__notification-panel {
   z-index: var(--z-modal-backdrop);
   width: var(--modal-width-sm);
-  max-height: 400px;
+  max-height: var(--features-layout-components-account-menu-max-height-400);
 }

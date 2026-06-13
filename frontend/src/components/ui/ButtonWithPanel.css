@@ -5,10 +5,36 @@
  * Uses Panel component for base styling.
  */
 
+
+:root {
+  --components-ui-button-with-panel-width-6: 6px;
+}
+
 /* ==================== Container ==================== */
 .btn-panel-container {
   position: relative;
   display: inline-flex;
+}
+
+/* Custom trigger rendered as a real button */
+.btn-panel-custom-trigger {
+  border: none;
+  background: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.btn-panel-custom-trigger:focus-visible {
+  outline: var(--border-width-thick) solid var(--color-accent);
+  outline-offset: var(--focus-outline-offset);
+}
+
+.btn-panel-custom-trigger:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 
 /* ==================== Panel Base ==================== */
@@ -125,7 +151,7 @@
   font-size: 18px;
   line-height: 1;
   cursor: pointer;
-  transition: all var(--motion-duration-short) var(--motion-easing-standard);
+  transition: background-color var(--motion-duration-short) var(--motion-easing-standard), color var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 .btn-panel__close:hover {
@@ -142,7 +168,7 @@
 
 /* Scrollbar styling */
 .btn-panel__content::-webkit-scrollbar {
-  width: 6px;
+  width: var(--components-ui-button-with-panel-width-6);
 }
 
 .btn-panel__content::-webkit-scrollbar-track {

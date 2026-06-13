@@ -15,7 +15,7 @@
  * 
  * NOTE: The bullet for the main text block is rendered by PropertiesSection, not here.
  */
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { Spinner } from '@/components/ui/Spinner';
 import { 
   useNode, 
@@ -161,8 +161,11 @@ export function TextPropertyBlock({
   const containerRef = useRef<HTMLDivElement>(null);
   
   const isMulti = property.multi;
-  const ids = isMulti ? (blockNodeIds ?? []) : (blockNodeId != null ? [blockNodeId] : []);
-  
+  const ids = useMemo(
+    () => (isMulti ? (blockNodeIds ?? []) : (blockNodeId != null ? [blockNodeId] : [])),
+    [isMulti, blockNodeIds, blockNodeId]
+  );
+
   // For single mode, still fetch the node for legacy compatibility
   const { data: singleBlockNode, isLoading: blockLoading, error: singleBlockError } = useNode(
     !isMulti ? blockNodeId : null, 

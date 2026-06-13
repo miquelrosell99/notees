@@ -23,8 +23,8 @@ import { useNavigationStore, useSettingsStore } from '@/stores';
 import { formatDate as formatDateWithFormat } from '@/stores/settingsStore';
 import * as nodesApi from '@/api/nodes';
 import { useProperties, useClasses, useAddClass, useRemoveClass } from '@/hooks';
-import type { TableColumn, ExpandableConfig, ReorderableConfig, SortEntry } from '@/components/ui/Table';
-import { Table } from '@/components/ui/Table';
+import type { TableColumn, ExpandableConfig, ReorderableConfig, SortEntry } from './NodeTable';
+import { NodeTable } from './NodeTable';
 import { DragHandleIcon } from '@/components/ui/icons';
 import { PropertyCell } from '@/features/content/components/properties/PropertyCell';
 import { NodeSelector } from '@/features/content/components/nodes/NodeSelector';
@@ -215,9 +215,13 @@ export const TableView = memo(function TableView({
   const { data: allProperties = [] } = useProperties();
 
   // If no columns are explicitly configured, default to useful virtual columns
-  const effectivePropertyUuids = propertyUuids.length > 0
-    ? propertyUuids
-    : [VIRTUAL_FIELD_IDS.classes, VIRTUAL_FIELD_IDS.created, VIRTUAL_FIELD_IDS.modified];
+  const effectivePropertyUuids = useMemo(
+    () =>
+      propertyUuids.length > 0
+        ? propertyUuids
+        : [VIRTUAL_FIELD_IDS.classes, VIRTUAL_FIELD_IDS.created, VIRTUAL_FIELD_IDS.modified],
+    [propertyUuids]
+  );
 
   // Generate property columns from propertyUuids
   const propertyColumns = useMemo<NodeTableColumn[]>(() => {
@@ -402,7 +406,7 @@ export const TableView = memo(function TableView({
   return (
     <>
       {nodes.length > 0 && (
-        <Table<Node>
+        <NodeTable<Node>
           data={nodes}
           columns={tableColumns}
           getRowKey={(node) => node.id}

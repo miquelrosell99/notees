@@ -2,6 +2,11 @@
  * Login Page styles
  */
 
+
+:root {
+  --features-auth-pages-login-view-max-width-400: 400px;
+}
+
 .login-page {
   display: flex;
   align-items: center;
@@ -16,7 +21,7 @@
   padding: var(--spacing-8);
   border-radius: var(--shape-large);
   width: 100%;
-  max-width: 400px;
+  max-width: var(--features-auth-pages-login-view-max-width-400);
 }
 
 .login-container h1 {

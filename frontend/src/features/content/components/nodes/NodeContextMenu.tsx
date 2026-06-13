@@ -409,10 +409,11 @@ export function NodeContextMenu({
     return items;
   }, [
     actions, nodeScope, node, isPageFavorited, isHeader, clipboardMode,
-    onConvertToPage, onCopyBlocks, onPasteBlocks, onClose,
+    onConvertToPage, onCopyBlocks, onPasteBlocks, onClose, onParentChange,
     addSidebarCard, openLocalGraph, openNode, updateNode, unarchiveNode,
     showDevOptions, handleDeleteClick, handleArchiveClick, setShowShareModal,
-    addFavoriteMutation, removeFavoriteMutation,
+    addFavoriteMutation, removeFavoriteMutation, currentNodeId, sidebarCards,
+    flashSidebarCard,
   ]);
 
   const handleColorChange = useCallback((color: string | null) => {

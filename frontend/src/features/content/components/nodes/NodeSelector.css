@@ -1,3 +1,12 @@
+:root {
+  --features-content-components-nodes-node-selector-padding-6: 6px;
+  --features-content-components-nodes-node-selector-min-width-200: 200px;
+  --features-content-components-nodes-node-selector-max-width-280: 280px;
+  --features-content-components-nodes-node-selector-max-height-200: 200px;
+  --features-content-components-nodes-node-selector-font-size-10: 10px;
+  --features-content-components-nodes-node-selector-max-height-240: 240px;
+}
+
 .node-selector {
   display: flex;
   flex-direction: row;
@@ -134,7 +143,7 @@
   font: var(--font-label-small);
   color: var(--color-on-surface-variant);
   background: var(--color-surface-container);
-  padding: 1px 6px;
+  padding: 1px var(--features-content-components-nodes-node-selector-padding-6);
   border-radius: var(--shape-extra-large);
   white-space: nowrap;
 }
@@ -283,8 +292,8 @@
 .node-selector__picker {
   position: fixed;
   z-index: 10002;
-  min-width: 200px;
-  max-width: 280px;
+  min-width: var(--features-content-components-nodes-node-selector-min-width-200);
+  max-width: var(--features-content-components-nodes-node-selector-max-width-280);
   background: var(--color-surface);
   border: 1px solid var(--color-outline-variant);
   border-radius: var(--shape-medium);
@@ -309,7 +318,7 @@
 }
 
 .node-selector__options {
-  max-height: 200px;
+  max-height: var(--features-content-components-nodes-node-selector-max-height-200);
   overflow-y: auto;
 }
 
@@ -380,7 +389,7 @@
   display: inline-flex;
   align-items: center;
   padding: 1px 5px;
-  font-size: 10px;
+  font-size: var(--features-content-components-nodes-node-selector-font-size-10);
   font-weight: 500;
   line-height: 1.4;
   color: var(--color-on-surface-variant);
@@ -413,7 +422,7 @@
 }
 
 .node-selector--inline .node-selector__options {
-  max-height: 240px;
+  max-height: var(--features-content-components-nodes-node-selector-max-height-240);
   overflow-y: auto;
   padding: var(--spacing-1) 0;
 }
@@ -442,7 +451,7 @@
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  padding: 1px 6px;
+  padding: 1px var(--features-content-components-nodes-node-selector-padding-6);
   background: var(--color-primary-container);
   color: var(--color-on-primary-container);
   border-radius: var(--shape-full);

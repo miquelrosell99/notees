@@ -264,7 +264,7 @@ function NodeRefInteractive({
   const [colorPickerPos, setColorPickerPos] = useState({ x: 0, y: 0 });
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   
-  const pillRef = useRef<HTMLDivElement>(null);
+  const pillRef = useRef<HTMLButtonElement | HTMLDivElement>(null);
   const contextMenuWrapperRef = useRef<HTMLDivElement>(null);
   
   // Use selectors to avoid subscribing to full store — actions are stable refs
@@ -460,27 +460,47 @@ function NodeRefInteractive({
 
   return (
     <>
-      <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }} 
-        ref={pillRef}
-        className={pillClass}
-        onClick={handleClick}
-        onContextMenu={handleContextMenu}
-        title={title}
-      >
-        <Pill
-          text={displayText}
-          leftIcon={effectiveIcon ? <NodeIcon icon={effectiveIcon} isPage={isPage} size="xs" /> : undefined}
-          rightIcon={
-            (!readOnly && onRemove && !isLink) 
-              ? <CloseIcon size="xs" /> 
-              : undefined
-          }
-          onRightIconClick={(!readOnly && onRemove && !isLink) ? onRemove : undefined}
-          color={effectiveColor}
-        />
-        {clickCount > 0 && <span className="node-pill__badge">{clickCount}</span>}
-      </div>
-      
+      {isLink ? (
+        <button
+          type="button"
+          ref={pillRef as React.RefObject<HTMLButtonElement>}
+          className={pillClass}
+          onClick={handleClick}
+          onContextMenu={handleContextMenu}
+          title={title}
+        >
+          <Pill
+            text={displayText}
+            leftIcon={effectiveIcon ? <NodeIcon icon={effectiveIcon} isPage={isPage} size="xs" /> : undefined}
+            color={effectiveColor}
+          />
+          {clickCount > 0 && <span className="node-pill__badge">{clickCount}</span>}
+        </button>
+      ) : (
+        <button
+          type="button"
+          ref={pillRef as React.RefObject<HTMLButtonElement>}
+          className={pillClass}
+          onClick={handleClick}
+          onContextMenu={handleContextMenu}
+          title={title}
+          aria-label={title}
+        >
+          <Pill
+            text={displayText}
+            leftIcon={effectiveIcon ? <NodeIcon icon={effectiveIcon} isPage={isPage} size="xs" /> : undefined}
+            rightIcon={
+              (!readOnly && onRemove)
+                ? <CloseIcon size="xs" />
+                : undefined
+            }
+            onRightIconClick={(!readOnly && onRemove) ? onRemove : undefined}
+            color={effectiveColor}
+          />
+          {clickCount > 0 && <span className="node-pill__badge">{clickCount}</span>}
+        </button>
+      )}
+
       {/* Color Picker Popup (for class/tag pills) */}
       {showColorPicker && (
         <PillColorPicker
@@ -490,14 +510,17 @@ function NodeRefInteractive({
           onClose={handleColorPickerClose}
         />
       )}
-      
+
       {/* Context menu (for link variant) */}
       {contextMenu && (
         <>
           {onColorChange && !readOnly && (
             <>
               {/* Backdrop to catch clicks outside */}
-              <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }} 
+              <div
+                role="button"
+                tabIndex={-1}
+                aria-label="Close context menu"
                 className="node-pill-context-menu-backdrop"
                 style={{
                   position: 'fixed',
@@ -508,8 +531,14 @@ function NodeRefInteractive({
                   zIndex: 9998,
                 }}
                 onClick={handleCloseContextMenu}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    handleCloseContextMenu();
+                  }
+                }}
               />
-              <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }} 
+              <div
                 ref={contextMenuWrapperRef}
                 className="node-pill-context-menu-wrapper"
                 style={{
@@ -520,8 +549,8 @@ function NodeRefInteractive({
                   display: 'flex',
                   flexDirection: 'column',
                 }}
-                onClick={(e) => e.stopPropagation()}
-                onMouseDown={(e) => e.stopPropagation()}
+                onClickCapture={(e) => e.stopPropagation()}
+                onMouseDownCapture={(e) => e.stopPropagation()}
               >
                 <ColorPickerRow
                   currentColor={node?.color ?? null}
@@ -545,8 +574,6 @@ function NodeRefInteractive({
           )}
         </>
       )}
-      
-
     </>
   );
 }
@@ -576,23 +603,32 @@ function PillColorPicker({ position, currentColor, onColorChange, onClose }: Pil
   }, []);
 
   return (
-    <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }} 
+    <div
+      role="button"
+      tabIndex={-1}
+      aria-label="Close color picker"
       className="pill-color-picker-overlay"
       onClick={handleClickOutside}
       onContextMenu={(e) => e.preventDefault()}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onClose();
+        }
+      }}
     >
-      <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }} 
+      <div
         className="pill-color-picker"
-        style={{ 
+        style={{
           position: 'fixed',
           left: position.x,
           top: position.y,
         }}
-        onClick={handleContentClick}
+        onClickCapture={handleContentClick}
       >
-        <ColorPickerRow 
-          currentColor={currentColor} 
-          onColorChange={onColorChange} 
+        <ColorPickerRow
+          currentColor={currentColor}
+          onColorChange={onColorChange}
         />
       </div>
     </div>

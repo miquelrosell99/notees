@@ -4,8 +4,15 @@
  * Styling for the property detail view page.
  */
 
+
+:root {
+  --features-content-pages-property-view-max-width-800: 800px;
+  --features-content-pages-property-view-min-height-200: 200px;
+  --features-content-pages-property-view-max-width-300: 300px;
+}
+
 .property-view {
-  max-width: 800px;
+  max-width: var(--features-content-pages-property-view-max-width-800);
   margin: 0 auto;
   padding: 0 var(--spacing-4) var(--spacing-6);
 }
@@ -15,7 +22,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 200px;
+  min-height: var(--features-content-pages-property-view-min-height-200);
   color: var(--color-on-surface-variant);
 }
 
@@ -191,5 +198,5 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 300px;
+  max-width: var(--features-content-pages-property-view-max-width-300);
 }

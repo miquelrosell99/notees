@@ -1,3 +1,7 @@
+:root {
+  --features-layout-components-modals-system-settings-modal-min-width-140: 140px;
+}
+
 .system-settings {
   display: flex;
   flex-direction: column;
@@ -107,7 +111,7 @@
   top: calc(100% + 4px);
   right: 0;
   z-index: 100;
-  min-width: 140px;
+  min-width: var(--features-layout-components-modals-system-settings-modal-min-width-140);
   background: var(--color-surface-container-high);
   border: 1px solid var(--color-outline-variant);
   border-radius: var(--shape-medium);

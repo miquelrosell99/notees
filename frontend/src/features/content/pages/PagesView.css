@@ -2,6 +2,11 @@
  * PagesView Styles
  */
 
+
+:root {
+  --features-content-pages-pages-view-max-width-400: 400px;
+}
+
 .pages-view {
   display: flex;
   flex-direction: column;
@@ -72,7 +77,7 @@
 
 .pages-view__search {
   flex: 1;
-  max-width: 400px;
+  max-width: var(--features-content-pages-pages-view-max-width-400);
   margin: 0 auto;
 }
 

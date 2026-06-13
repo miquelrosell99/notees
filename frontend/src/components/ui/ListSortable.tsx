@@ -107,22 +107,32 @@ export function ListSortable<T extends ListSortableItem>({
         const style = getItemStyle(index);
 
         return (
-          <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }}
+          <div
             key={item.id}
+            role="button"
+            tabIndex={0}
             className={`list-sortable__item ${itemClassName} ${isDragging ? 'list-sortable__item--dragging' : ''} ${isSettling ? 'list-sortable__item--settling' : ''}`}
             style={style}
             onClick={() => handleItemClick(item, index)}
             onContextMenu={(e) => handleItemContextMenu(item, e)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                handleItemClick(item, index);
+              }
+            }}
           >
             {/* Drag handle */}
             {showDragHandle && (
-              <span role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }}
+              <button
+                type="button"
+                aria-label="Drag to reorder"
                 className="list-sortable__drag-handle"
                 onMouseDown={(e) => handleDragHandleMouseDown(index, e)}
                 onClick={(e) => e.stopPropagation()}
               >
                 {dragHandleContent || '⋮⋮'}
-              </span>
+              </button>
             )}
 
             {/* Icon (optional, left) */}

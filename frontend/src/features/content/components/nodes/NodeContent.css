@@ -2,13 +2,18 @@
  * NodeContent styles
  */
 
+
+:root {
+  --features-content-components-nodes-node-content-min-height-200: 200px;
+}
+
 .node-content {
   position: relative;
 }
 
 /* Only apply min-height in document mode where we want more vertical space */
 .node-content.document {
-  min-height: 200px;
+  min-height: var(--features-content-components-nodes-node-content-min-height-200);
 }
 
 /* Separator line for content sections (bullet, document, card modes) */

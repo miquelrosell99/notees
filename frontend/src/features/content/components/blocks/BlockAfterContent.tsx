@@ -274,9 +274,11 @@ function BacklinkPreview({ node, expanded }: { node: Node; expanded?: boolean })
   return (
     <div className="block-after-content__backlinks">
       <div
+        role="region"
+        aria-label="Linked references"
         className={`backlink-preview ${isVisible ? 'backlink-preview--expanded' : ''}`}
-        onMouseDown={(e) => e.stopPropagation()}
-        onPointerDown={(e) => e.stopPropagation()}
+        onMouseDownCapture={(e) => e.stopPropagation()}
+        onPointerDownCapture={(e) => e.stopPropagation()}
       >
         <div className="backlink-preview__inner">
           <Card variant="filled" radius="sm" paddingSize="sm">

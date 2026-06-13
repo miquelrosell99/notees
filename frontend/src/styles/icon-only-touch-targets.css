@@ -1,0 +1,144 @@
+/**
+ * Icon-only / compact affordance touch-target overrides
+ *
+ * Many UI surfaces intentionally render small icon buttons for density.
+ * To keep them accessible, every interactive icon-only control gets an
+ * invisible 44×44 px hit area centered on the visible element.
+ */
+
+/*
+ * Add the helper class to any new icon-only control and it will pick up the
+ * 44×44 px target automatically.
+ */
+.icon-only-touch-target,
+
+/* ─── Pills / chips / badges ─────────────────────────────────────────────── */
+.class-pills-row__add,
+.class-pills-popup__close,
+.class-pills-popup__remove,
+.collapsible-pill-row__popup-close,
+.node-collection-toolbar__group-by-badge-close,
+.node-type-chip .remove-btn,
+.node-tag-chip .remove-btn,
+.command-palette__filter-pill-remove,
+.node-selector__filter-pill-remove,
+
+/* ─── Block chrome ───────────────────────────────────────────────────────── */
+.block-collapse-arrow,
+
+/* ─── View headers / sidebars ────────────────────────────────────────────── */
+.node-view-section__toggle,
+.sidebar-card__collapse-btn,
+.sidebar-card__open-btn,
+.sidebar-card__close-btn,
+.sidebar-icon-btn,
+.graph-sidebar-header__collapse,
+.node-view__cover-collapse-btn,
+.node-card__collapse-btn,
+.node-list-view__group-collapse,
+.node-list-group__collapse-arrow,
+
+/* ─── Tables ─────────────────────────────────────────────────────────────── */
+.table-delete-col-btn,
+.table-delete-row-btn,
+.table-drag-handle,
+.table-size-selector__cell,
+
+/* ─── Toolbar / top-bar / notification ───────────────────────────────────── */
+.local-graph-btn,
+.quick-add-btn,
+.notification-bell__trigger,
+.notification-toast__dismiss,
+.tab-bar-narrow__action,
+.file-drop-zone__selected-action,
+.btn-panel__close,
+
+/* ─── Properties / selectors ─────────────────────────────────────────────── */
+.property-cell__add-button,
+.property-column-selector__drag-handle,
+.date-property-color,
+.sort-configurator__direction,
+.sort-configurator__remove,
+
+/* ─── Menus / popups ─────────────────────────────────────────────────────── */
+.context-menu-icon-btn,
+.context-menu-favorite-btn,
+.calendar-view__day-add,
+.ep-color-swatch,
+.ep-trigger {
+  position: relative;
+}
+
+.icon-only-touch-target::after,
+.class-pills-row__add::after,
+.class-pills-popup__close::after,
+.class-pills-popup__remove::after,
+.collapsible-pill-row__popup-close::after,
+.node-collection-toolbar__group-by-badge-close::after,
+.node-type-chip .remove-btn::after,
+.node-tag-chip .remove-btn::after,
+.command-palette__filter-pill-remove::after,
+.node-selector__filter-pill-remove::after,
+.block-collapse-arrow::after,
+.node-view-section__toggle::after,
+.sidebar-card__collapse-btn::after,
+.sidebar-card__open-btn::after,
+.sidebar-card__close-btn::after,
+.sidebar-icon-btn::after,
+.graph-sidebar-header__collapse::after,
+.node-view__cover-collapse-btn::after,
+.node-card__collapse-btn::after,
+.node-list-view__group-collapse::after,
+.node-list-group__collapse-arrow::after,
+.table-delete-col-btn::after,
+.table-delete-row-btn::after,
+.table-drag-handle::after,
+.table-size-selector__cell::after,
+.local-graph-btn::after,
+.quick-add-btn::after,
+.notification-bell__trigger::after,
+.notification-toast__dismiss::after,
+.tab-bar-narrow__action::after,
+.file-drop-zone__selected-action::after,
+.btn-panel__close::after,
+.property-cell__add-button::after,
+.property-column-selector__drag-handle::after,
+.date-property-color::after,
+.sort-configurator__direction::after,
+.sort-configurator__remove::after,
+.context-menu-icon-btn::after,
+.context-menu-favorite-btn::after,
+.calendar-view__day-add::after,
+.ep-color-swatch::after,
+.ep-trigger::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: var(--button-icon-only-xs);
+  height: var(--button-icon-only-xs);
+  pointer-events: auto;
+}
+
+/*
+ * The breadcrumb edit affordance is intentionally zero-width until hover.
+ * Expand it to the full 44×44 target on hover so the pseudo-element is not
+ * clipped by overflow:hidden.
+ */
+.node-breadcrumb-edit-btn {
+  position: relative;
+}
+
+.node-breadcrumb-item:hover .node-breadcrumb-edit-btn,
+.node-breadcrumb-edit-btn:hover,
+.node-breadcrumb-edit-btn:focus-visible {
+  width: var(--button-icon-only-xs) !important;
+  min-width: var(--button-icon-only-xs) !important;
+}
+
+@media (max-width: 768px) {
+  .node-breadcrumb-edit-btn {
+    width: var(--button-icon-only-xs) !important;
+  }
+}

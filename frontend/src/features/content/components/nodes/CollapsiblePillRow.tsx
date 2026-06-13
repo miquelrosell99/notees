@@ -96,20 +96,14 @@ export function CollapsiblePillRow<T>({
           </div>
         ))}
         {hasOverflow && (
-          <span
-            role="button"
-            tabIndex={0}
+          <button
+            type="button"
             className="collapsible-pill-row__overflow-wrapper"
             onClick={handleOverflowClick}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                handleOverflowClick(e as unknown as React.MouseEvent);
-              }
-            }}
+            aria-label={`Show ${overflowCount} more`}
           >
             <Pill text={`+${overflowCount}`} className="collapsible-pill-row__overflow" />
-          </span>
+          </button>
         )}
         {renderAddButton?.()}
       </div>

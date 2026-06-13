@@ -6,7 +6,7 @@
  */
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuthStore, useSettingsStore, applyTheme, DATE_FORMAT_OPTIONS, FIRST_DAY_OF_WEEK_OPTIONS, ACCENT_COLOR_OPTIONS } from '@/stores';
+import { useAuthStore, useSettingsStore, applyTheme, DATE_FORMAT_OPTIONS, FIRST_DAY_OF_WEEK_OPTIONS, ACCENT_COLOR_OPTIONS, isValidHexColor, getContrastColor } from '@/stores';
 import type { ThemePreference, DateFormat, HashtagPasteMode, DefaultView, QuickAddDestination, FirstDayOfWeek, AccentColor } from '@/stores';
 import { setSetting } from '@/features/workspace/api/workspaces';
 import { updateMe, createApiKey, listApiKeys, revokeApiKey } from '@/features/auth/api/auth';
@@ -45,7 +45,13 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [passwordSuccess, setPasswordSuccess] = useState(false);
   const navigate = useNavigate();
-  const { theme, oledMode, accentColor, dateFormat, hashtagPasteMode, defaultView, quickAddDestination, linkedRefsCollapseLevel, showDevOptions, firstDayOfWeek, setTheme, setOledMode, setAccentColor, setDateFormat, setHashtagPasteMode, setDefaultView, setQuickAddDestination, setLinkedRefsCollapseLevel, setShowDevOptions, setFirstDayOfWeek } = useSettingsStore();
+  const { theme, oledMode, accentColor, customAccentHex, dateFormat, hashtagPasteMode, defaultView, quickAddDestination, linkedRefsCollapseLevel, showDevOptions, firstDayOfWeek, setTheme, setOledMode, setAccentColor, setCustomAccentHex, setDateFormat, setHashtagPasteMode, setDefaultView, setQuickAddDestination, setLinkedRefsCollapseLevel, setShowDevOptions, setFirstDayOfWeek } = useSettingsStore();
+  const [customHexInput, setCustomHexInput] = useState(customAccentHex);
+
+  // Keep the custom hex text input in sync with the persisted value.
+  useEffect(() => {
+    setCustomHexInput(customAccentHex);
+  }, [customAccentHex]);
 
   const loadApiKeys = async () => {
     setApiKeysLoading(true);
@@ -160,6 +166,25 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
   const handleAccentColorChange = (color: AccentColor) => {
     setAccentColor(color);
     setSetting('accent_color', color).catch(console.error);
+    if (color === 'custom') {
+      setSetting('custom_accent_hex', customAccentHex).catch(console.error);
+    }
+  };
+
+  const handleCustomAccentChange = (value: string) => {
+    const hex = value.startsWith('#') ? value : `#${value}`;
+    setCustomHexInput(hex);
+    if (!isValidHexColor(hex)) return;
+    setCustomAccentHex(hex);
+    if (accentColor === 'custom') {
+      setSetting('custom_accent_hex', hex).catch(console.error);
+    }
+  };
+
+  const handleCustomHexBlur = () => {
+    if (!isValidHexColor(customHexInput)) {
+      setCustomHexInput(customAccentHex);
+    }
   };
 
   const handleDateFormatChange = (newFormat: DateFormat) => {
@@ -236,12 +261,13 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
             <div className="settings-section">
               <div className="settings-item">
                 <div className="settings-item__info">
-                  <label className="settings-item__label">Theme</label>
+                  <label htmlFor="user-theme" className="settings-item__label">Theme</label>
                   <p className="settings-item__description">
                     Choose your preferred color theme
                   </p>
                 </div>
                 <SelectionButton
+                  id="user-theme"
                   options={[
                     { value: 'light', icon: "mdi mdi-weather-sunny", label: 'Light theme' },
                     { value: 'dark', icon: "mdi mdi-weather-night", label: 'Dark theme' },
@@ -255,7 +281,7 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
 
               <div className="settings-item">
                 <div className="settings-item__info">
-                  <label className="settings-item__label">
+                  <label htmlFor="user-oled-mode" className="settings-item__label">
                     Pure Black
                     {!isDark && (
                       <span className="settings-badge">Dark only</span>
@@ -266,6 +292,7 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
                   </p>
                 </div>
                 <BooleanToggle
+                  id="user-oled-mode"
                   checked={oledMode}
                   onChange={() => handleOledModeChange(!oledMode)}
                   disabled={!isDark}
@@ -275,12 +302,12 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
 
               <div className="settings-item">
                 <div className="settings-item__info">
-                  <label className="settings-item__label">Accent Color</label>
+                  <label htmlFor="user-accent-color" className="settings-item__label">Accent Color</label>
                   <p className="settings-item__description">
                     Functional accent for tags, badges, and active states
                   </p>
                 </div>
-                <div className="settings-accent-options">
+                <div id="user-accent-color" className="settings-accent-options" role="group" aria-label="Accent Color">
                   {ACCENT_COLOR_OPTIONS.map((option) => (
                     <button
                       key={option.value}
@@ -292,8 +319,54 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
                       title={option.label}
                     />
                   ))}
+                  <button
+                    type="button"
+                    className={`settings-accent-swatch settings-accent-swatch--custom ${accentColor === 'custom' ? 'settings-accent-swatch--active' : ''}`}
+                    style={{ backgroundColor: customAccentHex }}
+                    onClick={() => handleAccentColorChange('custom')}
+                    aria-label="Custom accent color"
+                    title="Custom accent color"
+                  >
+                    <span
+                      className="settings-accent-swatch__icon mdi mdi-palette"
+                      style={{ color: getContrastColor(customAccentHex) }}
+                    />
+                  </button>
                 </div>
               </div>
+
+              {accentColor === 'custom' && (
+                <div className="settings-item settings-item--indented">
+                  <div className="settings-item__info">
+                    <label className="settings-item__label" htmlFor="custom-accent-hex">
+                      Custom Hex Color
+                    </label>
+                    <p className="settings-item__description">
+                      Enter any #RRGGBB color
+                    </p>
+                  </div>
+                  <div className="settings-accent-custom-input">
+                    <input
+                      id="custom-accent-hex"
+                      type="color"
+                      className="settings-accent-color-picker"
+                      value={customAccentHex}
+                      onChange={(e) => handleCustomAccentChange(e.target.value)}
+                      aria-label="Custom accent color picker"
+                    />
+                    <input
+                      type="text"
+                      className="settings-form-input settings-accent-hex-input"
+                      value={customHexInput}
+                      onChange={(e) => handleCustomAccentChange(e.target.value)}
+                      onBlur={handleCustomHexBlur}
+                      placeholder="#5B7D5B"
+                      maxLength={7}
+                      aria-label="Custom accent hex value"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -301,12 +374,13 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
             <div className="settings-section">
               <div className="settings-item">
                 <div className="settings-item__info">
-                  <label className="settings-item__label">Linked refs collapse level</label>
+                  <label htmlFor="user-linked-refs-collapse" className="settings-item__label">Linked refs collapse level</label>
                   <p className="settings-item__description">
                     Auto-collapse nodes at this depth in linked references (0 = disabled)
                   </p>
                 </div>
                 <SelectionButton
+                  id="user-linked-refs-collapse"
                   options={[
                     { value: '0', icon: "mdi mdi-close-circle-outline", label: 'Disabled' },
                     { value: '1', icon: "mdi mdi-numeric-1", label: 'Level 1' },
@@ -321,12 +395,13 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
 
               <div className="settings-item">
                 <div className="settings-item__info">
-                  <label className="settings-item__label">Hashtag paste behavior</label>
+                  <label htmlFor="user-hashtag-paste" className="settings-item__label">Hashtag paste behavior</label>
                   <p className="settings-item__description">
                     How #hashtag patterns in pasted text should be interpreted
                   </p>
                 </div>
                 <SelectionButton
+                  id="user-hashtag-paste"
                   options={[
                     { value: 'inline-tag', icon: "mdi mdi-tag", label: 'Inline tag (node link with is_tag)' },
                     { value: 'inline-class', icon: "mdi mdi-shape-outline", label: 'Inline class (class reference)' },
@@ -343,12 +418,13 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
             <div className="settings-section">
               <div className="settings-item">
                 <div className="settings-item__info">
-                  <label className="settings-item__label">First day of week</label>
+                  <label htmlFor="user-first-day" className="settings-item__label">First day of week</label>
                   <p className="settings-item__description">
                     Choose which day starts the week in calendars
                   </p>
                 </div>
                 <select
+                  id="user-first-day"
                   className="settings-item__select"
                   value={firstDayOfWeek}
                   onChange={(e) => handleFirstDayOfWeekChange(parseInt(e.target.value, 10) as FirstDayOfWeek)}
@@ -363,12 +439,13 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
 
               <div className="settings-item">
                 <div className="settings-item__info">
-                  <label className="settings-item__label">Default date format</label>
+                  <label htmlFor="user-date-format" className="settings-item__label">Default date format</label>
                   <p className="settings-item__description">
                     Default format for new graphs. Each graph can override this.
                   </p>
                 </div>
                 <select
+                  id="user-date-format"
                   className="settings-item__select"
                   value={dateFormat}
                   onChange={(e) => handleDateFormatChange(e.target.value as DateFormat)}
@@ -383,12 +460,13 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
 
               <div className="settings-item">
                 <div className="settings-item__info">
-                  <label className="settings-item__label">Default view</label>
+                  <label htmlFor="user-default-view" className="settings-item__label">Default view</label>
                   <p className="settings-item__description">
                     Choose what to show when opening a graph
                   </p>
                 </div>
                 <select
+                  id="user-default-view"
                   className="settings-item__select"
                   value={defaultView}
                   onChange={(e) => handleDefaultViewChange(e.target.value as DefaultView)}
@@ -402,12 +480,13 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
 
               <div className="settings-item">
                 <div className="settings-item__info">
-                  <label className="settings-item__label">Quick add destination</label>
+                  <label htmlFor="user-quick-add" className="settings-item__label">Quick add destination</label>
                   <p className="settings-item__description">
                     Where to send quick add notes
                   </p>
                 </div>
                 <SelectionButton
+                  id="user-quick-add"
                   options={[
                     { value: 'today', icon: "mdi mdi-calendar-today", label: "Today's Page" },
                     { value: 'inbox', icon: "mdi mdi-inbox", label: 'Inbox' },
@@ -420,12 +499,13 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
 
               <div className="settings-item">
                 <div className="settings-item__info">
-                  <label className="settings-item__label">Developer options</label>
+                  <label htmlFor="user-dev-options" className="settings-item__label">Developer options</label>
                   <p className="settings-item__description">
                     Show dev tools in command palette and other places.
                   </p>
                 </div>
                 <BooleanToggle
+                  id="user-dev-options"
                   checked={showDevOptions}
                   onChange={(e) => handleShowDevOptionsChange(e.target.checked)}
                   size="sm"
@@ -648,9 +728,9 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
               <Separator orientation="horizontal" size="lg" spacing="md" />
 
               <div className="settings-links">
-                <a href="#" className="settings-link">Documentation</a>
-                <a href="#" className="settings-link">Report a bug</a>
-                <a href="#" className="settings-link">Feature request</a>
+                <button type="button" className="settings-link">Documentation</button>
+                <button type="button" className="settings-link">Report a bug</button>
+                <button type="button" className="settings-link">Feature request</button>
               </div>
             </div>
           )}

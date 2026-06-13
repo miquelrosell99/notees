@@ -9,6 +9,24 @@
   position: relative;
 }
 
+/* Reset native <button> defaults when a cell is made interactive. */
+button.property-cell,
+[role="button"].property-cell {
+  appearance: none;
+  border: none;
+  background: none;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  width: auto;
+}
+
+.property-cell:focus-visible {
+  outline: var(--border-width-thick) solid var(--color-accent);
+  outline-offset: -2px;
+}
+
 .property-cell--editable {
   cursor: pointer;
   transition: background var(--motion-duration-short) var(--motion-easing-standard);
@@ -140,7 +158,11 @@ textarea.property-cell__input {
   display: flex;
   align-items: center;
   gap: var(--spacing-2);
-  font-size: var(--font-size-button);
+  width: 100%;
+  border: none;
+  background: none;
+  text-align: left;
+  font: inherit;
   color: var(--color-on-surface);
   transition: background var(--motion-duration-short) var(--motion-easing-standard);
 }

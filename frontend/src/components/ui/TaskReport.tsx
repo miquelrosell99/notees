@@ -80,39 +80,47 @@ function PhaseRow({ phase }: { phase: TaskPhaseResult }) {
 
   if (total === 0) return null;
 
+  const headerClass = `task-report__phase-header ${
+    hasErrors ? 'task-report__phase-header--error' : ''
+  }`;
+
+  const headerContent = (
+    <>
+      <span className="task-report__phase-label">{phase.label}</span>
+      <span className="task-report__phase-counts">
+        <span className="task-report__phase-ok">
+          {phase.succeeded}{' '}
+          <Icon path={"mdi mdi-check-circle-outline"} size={0.6} />
+        </span>
+        {hasErrors && (
+          <>
+            <span className="task-report__phase-fail">
+              {phase.failed} failed
+            </span>
+            <Icon
+              path={expanded ? "mdi mdi-chevron-up" : "mdi mdi-chevron-down"}
+              size={0.7}
+            />
+          </>
+        )}
+      </span>
+    </>
+  );
+
   return (
     <div className="task-report__phase">
-      <div
-        className={`task-report__phase-header ${
-          hasErrors ? 'task-report__phase-header--error' : ''
-        }`}
-        onClick={() => hasErrors && setExpanded(!expanded)}
-        role={hasErrors ? 'button' : undefined}
-        tabIndex={hasErrors ? 0 : undefined}
-        onKeyDown={(e) => {
-          if (hasErrors && (e.key === 'Enter' || e.key === ' '))
-            setExpanded(!expanded);
-        }}
-      >
-        <span className="task-report__phase-label">{phase.label}</span>
-        <span className="task-report__phase-counts">
-          <span className="task-report__phase-ok">
-            {phase.succeeded}{' '}
-            <Icon path={"mdi mdi-check-circle-outline"} size={0.6} />
-          </span>
-          {hasErrors && (
-            <>
-              <span className="task-report__phase-fail">
-                {phase.failed} failed
-              </span>
-              <Icon
-                path={expanded ? "mdi mdi-chevron-up" : "mdi mdi-chevron-down"}
-                size={0.7}
-              />
-            </>
-          )}
-        </span>
-      </div>
+      {hasErrors ? (
+        <button
+          type="button"
+          className={headerClass}
+          onClick={() => setExpanded(!expanded)}
+          aria-expanded={expanded}
+        >
+          {headerContent}
+        </button>
+      ) : (
+        <div className={headerClass}>{headerContent}</div>
+      )}
       {expanded && phase.errors.length > 0 && (
         <ul className="task-report__phase-errors">
           {phase.errors.map((err, i) => (
