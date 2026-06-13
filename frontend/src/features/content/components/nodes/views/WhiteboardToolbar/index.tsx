@@ -136,14 +136,14 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
             }}
           >
             {(closePanel) => (
-              <div style={{ padding: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ padding: 'var(--spacing-2)', display: 'flex', flexDirection: 'column', gap: 'var(--spacing-2)' }}>
                 <SelectionButton
                   options={SHAPE_TOOL_OPTIONS}
                   value={isShapeTool(activeTool) ? activeTool : lastShapeTool}
                   onChange={(v) => { handleShapeSelect(v as WhiteboardTool); closePanel(); }}
                   size="sm"
                 />
-                <div style={{ height: 1, background: 'var(--color-outline-variant)', margin: '0 4px' }} />
+                <div style={{ height: 'var(--spacing-hairline)', background: 'var(--color-outline-variant)', margin: '0 var(--spacing-1)' }} />
                 <ShapeSettingsPanel
                   settings={settings.shape}
                   onChange={(s) => wb.setSettings(prev => ({ ...prev, shape: s }))}
@@ -283,7 +283,7 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
             usePortal
           >
             {(closePanel) => (
-              <div style={{ padding: 8, display: 'flex', flexDirection: 'column', gap: 4, minWidth: 180 }}>
+              <div style={{ padding: 'var(--spacing-2)', display: 'flex', flexDirection: 'column', gap: 'var(--spacing-1)', minWidth: 'var(--whiteboard-toolbar-min-width)' }}>
                 <ToolButton
                   icon={"mdi mdi-card-plus-outline"}
                   label="New Block"

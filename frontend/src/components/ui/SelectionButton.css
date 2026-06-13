@@ -5,20 +5,16 @@
  */
 
 
-:root {
-  --components-ui-selection-button-min-width-160: 160px;
-  --components-ui-selection-button-padding-6: 6px;
-  --components-ui-selection-button-padding-10: 10px;
-}
+
 
 .selection-button {
   position: relative;
   display: inline-flex;
   background: var(--color-surface-container);
-  border: 1px solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
   border-radius: var(--shape-large);
   padding: var(--spacing-1);
-  gap: 2px;
+  gap: var(--spacing-micro);
 }
 
 .selection-button--vertical {
@@ -30,20 +26,20 @@
 }
 
 .selection-button--disabled .selection-button__option:not(.selection-button__option--selected) {
-  opacity: 0.4;
+  opacity: var(--opacity-40);
 }
 
 /* Animated selection indicator */
 .selection-button__indicator {
   position: absolute;
-  top: 4px; /* Match container padding */
-  left: 4px; /* Match container padding */
+  top: var(--spacing-1); /* Match container padding */
+  left: var(--spacing-1); /* Match container padding */
   background: var(--color-primary);
   border-radius: var(--shape-medium);
   transition: transform var(--motion-duration-medium) var(--motion-easing-collapse),
-              width 150ms var(--motion-easing-collapse),
-              height 150ms var(--motion-easing-collapse);
-  z-index: 0;
+              width var(--motion-duration-shorter) var(--motion-easing-collapse),
+              height var(--motion-duration-shorter) var(--motion-easing-collapse);
+  z-index: var(--z-0);
   pointer-events: none;
 }
 
@@ -61,7 +57,7 @@
   color: var(--color-on-surface-variant);
   cursor: pointer;
   transition: color var(--motion-duration-short) var(--motion-easing-standard);
-  z-index: 1;
+  z-index: var(--z-1);
 }
 
 .selection-button__option:hover:not(:disabled):not(.selection-button__option--selected) {
@@ -69,8 +65,8 @@
 }
 
 .selection-button__option:focus-visible {
-  outline: 2px solid var(--color-primary);
-  outline-offset: -2px;
+  outline: var(--border-width-thick) solid var(--color-primary);
+  outline-offset: calc(var(--spacing-micro) * -1);
 }
 
 .selection-button__option--selected {
@@ -101,7 +97,7 @@
   cursor: pointer;
   transition: color var(--motion-duration-short) var(--motion-easing-standard),
               background var(--motion-duration-short) var(--motion-easing-standard);
-  z-index: 1;
+  z-index: var(--z-1);
 }
 
 .selection-button__overflow-toggle:hover:not(:disabled) {
@@ -109,8 +105,8 @@
 }
 
 .selection-button__overflow-toggle:focus-visible {
-  outline: 2px solid var(--color-primary);
-  outline-offset: -2px;
+  outline: var(--border-width-thick) solid var(--color-primary);
+  outline-offset: calc(var(--spacing-micro) * -1);
 }
 
 .selection-button__overflow-toggle--open {
@@ -121,16 +117,16 @@
 /* Overflow dropdown */
 .selection-button__overflow-dropdown {
   position: absolute;
-  top: calc(100% + 4px);
+  top: calc(100% + var(--spacing-1));
   right: 0;
-  z-index: 100;
+  z-index: var(--z-100);
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  min-width: var(--components-ui-selection-button-min-width-160);
+  gap: var(--spacing-micro);
+  min-width: var(--layout-size-xl);
   padding: var(--spacing-1);
   background: var(--color-surface);
-  border: 1px solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
   border-radius: var(--shape-medium);
   box-shadow: var(--elevation-2);
 }
@@ -140,7 +136,7 @@
   align-items: center;
   gap: var(--spacing-2);
   width: 100%;
-  padding: var(--components-ui-selection-button-padding-6) var(--components-ui-selection-button-padding-10);
+  padding: var(--spacing-1-5) var(--spacing-2-5);
   border: none;
   border-radius: var(--shape-small);
   background: transparent;
@@ -156,8 +152,8 @@
 }
 
 .selection-button__overflow-item:focus-visible {
-  outline: 2px solid var(--color-primary);
-  outline-offset: -2px;
+  outline: var(--border-width-thick) solid var(--color-primary);
+  outline-offset: calc(var(--spacing-micro) * -1);
 }
 
 .selection-button__overflow-item--active {
@@ -174,12 +170,12 @@
 /* Mobile: tighter padding to save header space */
 @media (max-width: 768px) {
   .selection-button--sm {
-    padding: 2px;
+    padding: var(--spacing-micro);
   }
 
   .selection-button--sm .selection-button__indicator {
-    top: 2px;
-    left: 2px;
+    top: var(--spacing-micro);
+    left: var(--spacing-micro);
   }
 }
 
@@ -212,7 +208,7 @@
 }
 
 .selection-button__wrapper--disabled {
-  opacity: 0.5;
+  opacity: var(--opacity-50);
   cursor: not-allowed;
 }
 
@@ -220,7 +216,7 @@
 .selection-button__label-wrapper {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--spacing-micro);
   min-width: 0;
 }
 

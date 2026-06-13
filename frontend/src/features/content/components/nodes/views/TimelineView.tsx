@@ -706,7 +706,7 @@ export const TimelineView = memo(function TimelineView({
             left: cardPosition.showOnLeft ? undefined : cardPosition.x + 15,
             right: cardPosition.showOnLeft ? window.innerWidth - cardPosition.x + 15 : undefined,
             top: cardPosition.y - 20,
-            zIndex: 1000,
+            zIndex: 'var(--z-1000)',
           }}
         >
           <div className="timeline-event-card__header">

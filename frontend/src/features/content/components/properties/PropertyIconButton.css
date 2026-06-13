@@ -1,13 +1,7 @@
 /* PropertyIconButton styles */
 
 
-:root {
-  --features-content-components-properties-property-icon-button-min-width-20: 20px;
-  --features-content-components-properties-property-icon-button-min-height-20: 20px;
-  --features-content-components-properties-property-icon-button-min-width-160: 160px;
-  --features-content-components-properties-property-icon-button-max-width-240: 240px;
-  --features-content-components-properties-property-icon-button-max-height-240: 240px;
-}
+
 
 .property-icon-button-wrapper {
   position: relative;
@@ -27,7 +21,7 @@
   cursor: default;
   font-size: 0.9em;
   line-height: 1;
-  transition: background-color 0.15s ease;
+  transition: background-color var(--motion-duration-shorter) var(--motion-easing-ease);
   min-width: var(--button-icon-only-xs);
   min-height: var(--button-icon-only-xs);
 }
@@ -45,13 +39,13 @@
   position: absolute;
   top: 100%;
   left: 0;
-  z-index: 1000;
-  min-width: var(--features-content-components-properties-property-icon-button-min-width-160);
-  max-width: var(--features-content-components-properties-property-icon-button-max-width-240);
-  max-height: var(--features-content-components-properties-property-icon-button-max-height-240);
+  z-index: var(--z-1000);
+  min-width: var(--layout-size-xl);
+  max-width: var(--layout-size-4xl);
+  max-height: var(--layout-size-4xl);
   overflow-y: auto;
   background: var(--color-surface-container);
-  border: 1px solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
   border-radius: var(--shape-medium);
   box-shadow: var(--elevation-2);
   padding: var(--spacing-1) 0;
@@ -70,7 +64,7 @@
   font-size: var(--font-size-sm);
   color: var(--color-on-surface);
   text-align: left;
-  transition: background-color 0.1s ease;
+  transition: background-color var(--motion-duration-short) var(--motion-easing-ease);
 }
 
 .property-icon-picker__option:hover {
@@ -105,7 +99,7 @@
 .block-property-icons {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: var(--spacing-micro);
   flex-shrink: 0;
 }
 
@@ -113,7 +107,7 @@
 .block-property-icons--before-content {
   display: inline-flex;
   align-items: center;
-  gap: 2px;
+  gap: var(--spacing-micro);
   margin-right: var(--spacing-1);
   flex-shrink: 0;
 }

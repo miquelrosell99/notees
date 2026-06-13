@@ -1,15 +1,9 @@
-:root {
-  --features-content-components-nodes-views-date-properties-panel-min-width-250: 250px;
-  --features-content-components-nodes-views-date-properties-panel-max-height-400: 400px;
-  --features-content-components-nodes-views-date-properties-panel-max-height-200: 200px;
-  --features-content-components-nodes-views-date-properties-panel-border-top-left-radius-6: 6px;
-  --features-content-components-nodes-views-date-properties-panel-border-bottom-left-radius-6: 6px;
-}
+
 
 .date-properties-panel {
   padding: var(--spacing-2);
-  min-width: var(--features-content-components-nodes-views-date-properties-panel-min-width-250);
-  max-height: var(--features-content-components-nodes-views-date-properties-panel-max-height-400);
+  min-width: 15.625rem;
+  max-height: var(--layout-size-9xl);
   overflow-y: auto;
   overflow-x: visible;
 }
@@ -27,7 +21,7 @@
   gap: var(--spacing-2);
   padding: var(--spacing-1) var(--spacing-2);
   border-radius: var(--shape-medium);
-  transition: background-color 0.15s;
+  transition: background-color var(--motion-duration-shorter);
 }
 
 .date-property-item:hover {
@@ -50,15 +44,15 @@
 
 .date-properties-panel__add {
   position: relative;
-  border-top: 1px solid var(--color-outline-variant);
+  border-top: var(--border-width-default) solid var(--color-outline-variant);
   padding-top: var(--spacing-2);
 }
 
 .date-properties-panel__search {
   width: 100%;
-  padding: 6px var(--spacing-2);
+  padding: var(--spacing-1-5) var(--spacing-2);
   background: var(--color-surface-variant);
-  border: 1px solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
   color: var(--color-on-surface);
   font-size: var(--font-size-button);
 }
@@ -75,10 +69,10 @@
   right: 0;
   margin-top: var(--spacing-1);
   background: var(--color-surface-container);
-  border: 1px solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
   border-radius: var(--shape-medium);
-  z-index: 100;
-  max-height: var(--features-content-components-nodes-views-date-properties-panel-max-height-200);
+  z-index: var(--z-100);
+  max-height: var(--layout-size-2xl);
   overflow-y: auto;
 }
 
@@ -91,11 +85,11 @@
 }
 
 .date-properties-panel__result:first-child {
-  border-top-left-radius: var(--features-content-components-nodes-views-date-properties-panel-border-top-left-radius-6);
+  border-top-left-radius: var(--shape-medium);
   border-top-right-radius: var(--shape-medium);
 }
 
 .date-properties-panel__result:last-child {
-  border-bottom-left-radius: var(--features-content-components-nodes-views-date-properties-panel-border-bottom-left-radius-6);
+  border-bottom-left-radius: var(--shape-medium);
   border-bottom-right-radius: var(--shape-medium);
 }

@@ -19,7 +19,7 @@
   display: inline-flex;
   align-items: center;
   gap: var(--spacing-2);
-  font-size: 0.875rem;
+  font-size: var(--font-size-base);
   color: var(--color-on-surface-variant);
   cursor: pointer;
 }
@@ -29,7 +29,7 @@
 }
 
 .prose-scope-selector__count {
-  font-size: 0.875rem;
+  font-size: var(--font-size-base);
   color: var(--color-on-surface-variant);
   font-style: italic;
 }

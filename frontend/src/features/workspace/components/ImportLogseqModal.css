@@ -3,13 +3,7 @@
  */
 
 
-:root {
-  --features-workspace-components-import-logseq-modal-min-height-160: 160px;
-  --features-workspace-components-import-logseq-modal-min-height-180: 180px;
-  --features-workspace-components-import-logseq-modal-gap-6: 6px;
-  --features-workspace-components-import-logseq-modal-max-height-240: 240px;
-  --features-workspace-components-import-logseq-modal-gap-10: 10px;
-}
+
 
 .import-logseq__body {
   display: flex;
@@ -22,7 +16,7 @@
 .import-logseq__source-tabs {
   display: flex;
   gap: 0;
-  border-bottom: 1px solid var(--color-outline-variant);
+  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
 }
 
 .import-logseq__source-tab {
@@ -32,7 +26,7 @@
   font-weight: 500;
   background: none;
   border: none;
-  border-bottom: 2px solid transparent;
+  border-bottom: var(--border-width-thick) solid transparent;
   color: var(--color-on-surface-variant);
   cursor: pointer;
   transition: color var(--motion-duration-shorter) var(--motion-easing-standard), border-color var(--motion-duration-shorter) var(--motion-easing-standard);
@@ -48,7 +42,7 @@
 }
 
 .import-logseq__source-tab:disabled {
-  opacity: 0.5;
+  opacity: var(--opacity-50);
   cursor: not-allowed;
 }
 
@@ -58,9 +52,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: var(--features-workspace-components-import-logseq-modal-min-height-160);
+  min-height: 10rem;
   padding: var(--spacing-6);
-  border: 2px dashed var(--color-outline-variant);
+  border: var(--border-width-thick) dashed var(--color-outline-variant);
   border-radius: var(--shape-medium);
   background: var(--color-surface);
   cursor: pointer;
@@ -76,7 +70,7 @@ button.import-logseq__dropzone {
 
 button.import-logseq__dropzone:focus-visible {
   outline: var(--border-width-thick) solid var(--color-accent);
-  outline-offset: -2px;
+  outline-offset: calc(var(--spacing-micro) * -1);
 }
 
 .import-logseq__dropzone:hover {
@@ -94,7 +88,7 @@ button.import-logseq__dropzone:focus-visible {
 }
 
 .import-logseq__dropzone--loading {
-  opacity: 0.7;
+  opacity: var(--opacity-70);
   cursor: wait;
 }
 
@@ -111,8 +105,8 @@ button.import-logseq__dropzone:focus-visible {
 .import-logseq__dropzone-text code {
   font-size: var(--font-size-xs);
   background: var(--color-surface-variant);
-  padding: 1px var(--spacing-1);
-  border-radius: 3px;
+  padding: var(--spacing-hairline) var(--spacing-1);
+  border-radius: var(--shape-tiny);
 }
 
 .import-logseq__description {
@@ -125,13 +119,13 @@ button.import-logseq__dropzone:focus-visible {
 .import-logseq__textarea {
   width: 100%;
   height: var(--textarea-height-md);
-  min-height: var(--features-workspace-components-import-logseq-modal-min-height-180);
+  min-height: 11.25rem;
   padding: var(--spacing-3);
   font-family: var(--font-family-mono);
   font-size: var(--font-size-xs);
   line-height: 1.6;
   background: var(--color-surface);
-  border: 1px solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
   color: var(--color-on-surface);
   resize: vertical;
   box-sizing: border-box;
@@ -151,7 +145,7 @@ button.import-logseq__dropzone:focus-visible {
 
 .import-logseq__textarea--error:focus {
   border-color: var(--color-error);
-  box-shadow: 0 0 0 1px var(--color-error);
+  box-shadow: var(--shadow-error-ring-thin);
 }
 
 .import-logseq__textarea--valid {
@@ -164,14 +158,14 @@ button.import-logseq__dropzone:focus-visible {
 
 .import-logseq__textarea::placeholder {
   color: var(--color-on-surface-variant);
-  opacity: 0.5;
+  opacity: var(--opacity-50);
   font-family: var(--font-family-mono);
 }
 
 .import-logseq__error {
   display: flex;
   align-items: center;
-  gap: var(--features-workspace-components-import-logseq-modal-gap-6);
+  gap: var(--spacing-1-5);
   padding: var(--spacing-2) var(--spacing-3);
   background: color-mix(in srgb, var(--color-error) 10%, transparent);
   color: var(--color-error);
@@ -187,7 +181,7 @@ button.import-logseq__dropzone:focus-visible {
 
 .import-logseq__preview-badge {
   display: inline-flex;
-  padding: var(--spacing-1) 10px;
+  padding: var(--spacing-1) var(--spacing-2-5);
   background: var(--color-surface-container-low);
   color: var(--color-on-surface-variant);
   border-radius: var(--shape-full);
@@ -199,7 +193,7 @@ button.import-logseq__dropzone:focus-visible {
   font-size: var(--font-size-sm);
   color: var(--color-primary);
   padding: var(--spacing-1) 0;
-  animation: logseq-pulse 1.5s ease-in-out infinite;
+  animation: logseq-pulse 1.5s var(--motion-easing-ease-in-out) infinite;
 }
 
 /* ── Warning banner ─────────────────────────────────────────── */
@@ -218,7 +212,7 @@ button.import-logseq__dropzone:focus-visible {
 /* ── UUID overrides ─────────────────────────────────────────── */
 
 .import-logseq__uuid-overrides {
-  border: 1px solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
   border-radius: var(--shape-medium);
   overflow: hidden;
 }
@@ -242,7 +236,7 @@ button.import-logseq__dropzone:focus-visible {
 
 .import-logseq__uuid-overrides-summary::before {
   content: '▶';
-  font-size: 0.55rem;
+  font-size: var(--font-size-3xs);
   color: var(--color-on-surface-variant);
   transition: transform var(--motion-duration-short) var(--motion-easing-standard);
 }
@@ -256,15 +250,15 @@ button.import-logseq__dropzone:focus-visible {
   flex-direction: column;
   gap: var(--spacing-2);
   padding: var(--spacing-2) var(--spacing-3);
-  border-top: 1px solid var(--color-outline-variant);
-  max-height: var(--features-workspace-components-import-logseq-modal-max-height-240);
+  border-top: var(--border-width-default) solid var(--color-outline-variant);
+  max-height: 15rem;
   overflow-y: auto;
 }
 
 .import-logseq__uuid-override-row {
   display: flex;
   align-items: center;
-  gap: var(--features-workspace-components-import-logseq-modal-gap-10);
+  gap: var(--spacing-tight);
 }
 
 .import-logseq__uuid-override-title {
@@ -287,7 +281,7 @@ button.import-logseq__dropzone:focus-visible {
 .import-logseq__mode-selector {
   display: flex;
   align-items: center;
-  gap: var(--features-workspace-components-import-logseq-modal-gap-10);
+  gap: var(--spacing-tight);
   flex-wrap: wrap;
 }
 
@@ -298,5 +292,5 @@ button.import-logseq__dropzone:focus-visible {
 .import-logseq__mode-hint {
   font-size: var(--font-size-xs);
   color: var(--color-on-surface-variant);
-  opacity: 0.7;
+  opacity: var(--opacity-70);
 }

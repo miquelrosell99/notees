@@ -3,9 +3,7 @@
  */
 
 
-:root {
-  --features-auth-pages-login-view-max-width-400: 400px;
-}
+
 
 .login-page {
   display: flex;
@@ -21,7 +19,7 @@
   padding: var(--spacing-8);
   border-radius: var(--shape-large);
   width: 100%;
-  max-width: var(--features-auth-pages-login-view-max-width-400);
+  max-width: var(--layout-size-9xl);
 }
 
 .login-container h1 {
@@ -58,8 +56,8 @@
 }
 
 .login-form input:focus {
-  outline: 2px solid var(--color-primary);
-  outline-offset: 2px;
+  outline: var(--border-width-thick) solid var(--color-primary);
+  outline-offset: var(--spacing-micro);
   border-color: var(--color-primary);
 }
 

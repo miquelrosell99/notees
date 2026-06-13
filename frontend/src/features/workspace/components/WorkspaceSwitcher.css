@@ -5,10 +5,7 @@
  */
 
 
-:root {
-  --features-workspace-components-workspace-switcher-max-height-300: 300px;
-  --features-workspace-components-workspace-switcher-max-height-240: 240px;
-}
+
 
 /* ==================== Container ==================== */
 .workspace-switcher {
@@ -52,10 +49,10 @@
   left: 0;
   right: 0;
   z-index: var(--z-node-overlay);
-  border: 1px solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
   border-radius: var(--shape-medium);
   overflow: hidden;
-  max-height: var(--features-workspace-components-workspace-switcher-max-height-300);
+  max-height: 18.75rem;
   display: flex;
   flex-direction: column;
 }
@@ -63,13 +60,13 @@
 /* ==================== Search ==================== */
 .workspace-switcher__search {
   padding: var(--spacing-2);
-  border-bottom: 1px solid var(--color-outline-variant);
+  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
 }
 
 .workspace-switcher__search-input {
   width: 100%;
   padding: var(--spacing-2) var(--spacing-3);
-  border: 1px solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
   background: var(--color-surface);
   font: var(--font-body-medium);
   color: var(--color-on-surface);
@@ -88,7 +85,7 @@
 /* ==================== List ==================== */
 .workspace-switcher__list {
   overflow-y: auto;
-  max-height: var(--features-workspace-components-workspace-switcher-max-height-240);
+  max-height: 15rem;
   padding: var(--spacing-1);
 }
 
@@ -148,7 +145,7 @@
   font: var(--font-label-small);
   color: var(--color-primary);
   background: var(--color-primary-container);
-  padding: 1px var(--spacing-2);
+  padding: var(--spacing-hairline) var(--spacing-2);
   border-radius: var(--shape-full);
   flex-shrink: 0;
 }

@@ -3,19 +3,17 @@
  */
 
 
-:root {
-  --components-ui-calendar-popup-min-width-280: 280px;
-}
+
 
 /* ==================== Calendar Popup Container ==================== */
 .calendar-popup {
   position: fixed;
   background: var(--color-surface);
-  border: 1px solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
   border-radius: var(--shape-medium);
   padding: var(--spacing-3);
   z-index: var(--z-popover);
-  min-width: var(--components-ui-calendar-popup-min-width-280);
+  min-width: var(--layout-size-6xl);
 }
 
 /* ==================== Calendar Header ==================== */
@@ -35,7 +33,7 @@
   aspect-ratio: 1;
   background: none;
   border: none;
-  font-size: 1.25rem;
+  font-size: var(--font-size-lg);
   cursor: pointer;
   border-radius: var(--shape-small);
   color: var(--color-on-surface);
@@ -87,7 +85,7 @@
 .calendar-weekdays {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 2px;
+  gap: var(--spacing-micro);
   margin-bottom: var(--spacing-1);
 }
 
@@ -103,7 +101,7 @@
 .calendar-days {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 2px;
+  gap: var(--spacing-micro);
 }
 
 .calendar-day-cell {
@@ -158,7 +156,7 @@
 
 /* Accent pulse when navigating to today */
 .calendar-day.btn.today.accent-pulse {
-  animation: today-accent-pulse 1.2s ease-out;
+  animation: today-accent-pulse 1.2s var(--motion-easing-ease-out);
 }
 
 @keyframes today-accent-pulse {
@@ -177,7 +175,7 @@
 .calendar-footer {
   margin-top: var(--spacing-3);
   padding-top: var(--spacing-2);
-  border-top: 1px solid var(--color-outline-variant);
+  border-top: var(--border-width-default) solid var(--color-outline-variant);
   text-align: center;
 }
 
@@ -212,7 +210,7 @@
 .calendar-tag-filter-btn {
   padding: var(--spacing-1) var(--spacing-2);
   background: var(--color-surface);
-  border: 1px solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
   border-radius: var(--shape-full);
   font: var(--font-label-small);
   color: var(--color-on-surface);

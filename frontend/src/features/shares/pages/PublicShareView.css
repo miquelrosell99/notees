@@ -1,7 +1,4 @@
-:root {
-  --features-shares-pages-public-share-view-max-width-400: 400px;
-  --features-shares-pages-public-share-view-max-width-720: 720px;
-}
+
 
 .public-share-view {
   min-height: 100vh;
@@ -24,7 +21,7 @@
 
 .public-share-view__error {
   text-align: center;
-  max-width: var(--features-shares-pages-public-share-view-max-width-400);
+  max-width: var(--layout-size-9xl);
 }
 
 .public-share-view__error h1 {
@@ -39,17 +36,17 @@
 }
 
 .public-share-view__header {
-  max-width: var(--features-shares-pages-public-share-view-max-width-720);
+  max-width: var(--layout-size-12xl);
   margin: 0 auto var(--spacing-4);
   padding-bottom: var(--spacing-4);
-  border-bottom: 1px solid var(--color-outline-variant);
+  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
 }
 
 .public-share-view__badge {
   display: inline-flex;
   align-items: center;
   gap: var(--spacing-1);
-  padding: 2px var(--spacing-2);
+  padding: var(--spacing-micro) var(--spacing-2);
   background: var(--color-primary-container);
   color: var(--color-on-primary-container);
   font: var(--font-label-small);
@@ -59,12 +56,12 @@
 
 /* Properties Section */
 .public-share-view__properties {
-  max-width: var(--features-shares-pages-public-share-view-max-width-720);
+  max-width: var(--layout-size-12xl);
   margin: 0 auto var(--spacing-4);
   padding: var(--spacing-3);
   background: var(--color-surface-container-low);
   border-radius: var(--shape-medium);
-  border: 1px solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
 }
 
 .public-share-view__properties-title {
@@ -87,7 +84,7 @@
   align-items: flex-start;
   gap: var(--spacing-3);
   padding: var(--spacing-2) 0;
-  border-bottom: 1px solid var(--color-outline-variant);
+  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
 }
 
 .public-share-view__property-row:last-child {
@@ -104,7 +101,7 @@
 }
 
 .public-share-view__property-icon {
-  font-size: 1rem;
+  font-size: var(--font-size-md);
   color: var(--color-primary);
 }
 
@@ -130,7 +127,7 @@
 .public-share-view__prop-value--tag {
   display: inline-flex;
   align-items: center;
-  padding: 2px var(--spacing-2);
+  padding: var(--spacing-micro) var(--spacing-2);
   background: var(--color-surface-container-high);
   border-radius: var(--shape-small);
   font: var(--font-label-medium);
@@ -143,8 +140,8 @@
 }
 
 .public-share-view__prop-dot {
-  width: 8px;
-  height: 8px;
+  width: var(--shape-large);
+  height: var(--shape-large);
   border-radius: 50%;
   display: inline-block;
 }
@@ -159,7 +156,7 @@
 }
 
 .public-share-view__content {
-  max-width: var(--features-shares-pages-public-share-view-max-width-720);
+  max-width: var(--layout-size-12xl);
   margin: 0 auto;
 }
 

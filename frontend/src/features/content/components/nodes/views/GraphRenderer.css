@@ -1,17 +1,7 @@
 /* SGEGraphView.css */
 
 
-:root {
-  --features-content-components-nodes-views-graph-renderer-top-10: 10px;
-  --features-content-components-nodes-views-graph-renderer-right-10: 10px;
-  --features-content-components-nodes-views-graph-renderer-gap-6: 6px;
-  --features-content-components-nodes-views-graph-renderer-bottom-10: 10px;
-  --features-content-components-nodes-views-graph-renderer-left-10: 10px;
-  --features-content-components-nodes-views-graph-renderer-padding-10: 10px;
-  --features-content-components-nodes-views-graph-renderer-padding-6: 6px;
-  --features-content-components-nodes-views-graph-renderer-max-width-220: 220px;
-  --features-content-components-nodes-views-graph-renderer-max-width-340: 340px;
-}
+
 
 /* ── Container ────────────────────────────────────────────────────────────── */
 
@@ -48,12 +38,12 @@
 
 .sge-graph-view__toolbar {
   position: absolute;
-  top: var(--features-content-components-nodes-views-graph-renderer-top-10);
-  right: var(--features-content-components-nodes-views-graph-renderer-right-10);
+  top: var(--spacing-tight);
+  right: var(--spacing-tight);
   display: flex;
   flex-direction: column;
-  gap: var(--features-content-components-nodes-views-graph-renderer-gap-6);
-  z-index: 10;
+  gap: var(--spacing-1-5);
+  z-index: var(--z-10);
 }
 
 .sge-graph-view__btn {
@@ -62,16 +52,16 @@
   justify-content: center;
   width: var(--icon-size-xl);
   height: var(--height-md);
-  border: 1px solid var(--graph-btn-border);
+  border: var(--border-width-default) solid var(--graph-btn-border);
   border-radius: var(--shape-medium);
   background: var(--graph-btn-bg);
   color: var(--graph-btn-color);
-  font-size: 18px;
+  font-size: var(--font-size-lead);
   line-height: 1;
   cursor: pointer;
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
-  transition: background 0.15s, color 0.15s;
+  transition: background var(--motion-duration-shorter), color var(--motion-duration-shorter);
 }
 
 .sge-graph-view__btn:hover {
@@ -87,12 +77,12 @@
 
 .sge-stats {
   position: absolute;
-  bottom: var(--features-content-components-nodes-views-graph-renderer-bottom-10);
-  left: var(--features-content-components-nodes-views-graph-renderer-left-10);
+  bottom: var(--spacing-tight);
+  left: var(--spacing-tight);
   display: flex;
   flex-wrap: wrap;
-  gap: 6px var(--spacing-3);
-  padding: 5px var(--features-content-components-nodes-views-graph-renderer-padding-10);
+  gap: var(--spacing-1-5) var(--spacing-3);
+  padding: var(--spacing-xxs) var(--spacing-tight);
   border-radius: var(--shape-medium);
   background: var(--graph-stats-bg);
   backdrop-filter: blur(4px);
@@ -102,30 +92,30 @@
   font-size: var(--font-size-xs);
   line-height: 1.6;
   pointer-events: none;
-  z-index: 10;
+  z-index: var(--z-10);
 }
 
 /* ── Hover tooltip ────────────────────────────────────────────────────────── */
 
 .sge-graph-tooltip {
   position: absolute;
-  z-index: 20;
+  z-index: var(--z-20);
   pointer-events: none;
-  padding: var(--features-content-components-nodes-views-graph-renderer-padding-6) var(--features-content-components-nodes-views-graph-renderer-padding-10);
+  padding: var(--spacing-1-5) var(--spacing-2-5);
   border-radius: var(--shape-medium);
   background: var(--graph-tooltip-bg);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
-  border: 1px solid var(--graph-tooltip-border);
+  border: var(--border-width-default) solid var(--graph-tooltip-border);
   /* Design system: zero visual noise — no elevation shadows */
   color: var(--graph-tooltip-color);
   font-size: var(--font-size-sm);
   font-weight: 500;
-  max-width: var(--features-content-components-nodes-views-graph-renderer-max-width-220);
+  max-width: var(--layout-size-3xl);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  transition: opacity 0.08s ease;
+  transition: opacity 0.08s var(--motion-easing-ease);
 }
 
 .sge-graph-tooltip--edge {
@@ -143,7 +133,7 @@
 }
 
 .sge-graph-view__no-webgl-msg {
-  max-width: var(--features-content-components-nodes-views-graph-renderer-max-width-340);
+  max-width: 21.25rem;
   padding: var(--spacing-5);
   text-align: center;
   color: var(--graph-fallback-msg-color);

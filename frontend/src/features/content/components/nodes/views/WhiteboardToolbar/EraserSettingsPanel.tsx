@@ -9,7 +9,7 @@ export interface EraserSettingsPanelProps {
 }
 
 export const EraserSettingsPanel: React.FC<EraserSettingsPanelProps> = ({ settings, onChange }) => (
-  <div className="whiteboard-properties" style={{ padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+  <div className="whiteboard-properties" style={{ padding: 'var(--spacing-2-5) var(--spacing-3)', display: 'flex', flexDirection: 'column', gap: 'var(--spacing-2-5)' }}>
     <div className="whiteboard-properties__section">
       <SelectionButton
         label="Size"

@@ -522,7 +522,7 @@ export function ImportOptionsModal({
           </Button>
         }
       >
-        <div style={{ padding: '8px 0' }}>
+        <div style={{ padding: 'var(--spacing-2) 0' }}>
           <TaskProgress
             progress={isFolderType ? folderProgress : importProgress}
             statusText={isFolderType ? folderStatusText : importStatus}
@@ -569,8 +569,8 @@ export function ImportOptionsModal({
             </Button>
           }
         >
-          <div style={{ padding: '16px 0', textAlign: 'center' }}>
-            <p style={{ fontSize: '1.1em', color: 'var(--color-success)' }}>
+          <div style={{ padding: 'var(--spacing-4) 0', textAlign: 'center' }}>
+            <p style={{ fontSize: 'var(--font-size-body-xl)', color: 'var(--color-success)' }}>
               Import completed successfully
             </p>
           </div>

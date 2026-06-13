@@ -4,32 +4,18 @@
  */
 
 
-:root {
-  --features-content-components-blocks-block-row-left-36: -36px;
-  --features-content-components-blocks-block-row-left-60: -60px;
-  --features-content-components-blocks-block-row-left-84: -84px;
-  --features-content-components-blocks-block-row-left-108: -108px;
-  --features-content-components-blocks-block-row-left-132: -132px;
-  --features-content-components-blocks-block-row-left-156: -156px;
-  --features-content-components-blocks-block-row-left-180: -180px;
-  --features-content-components-blocks-block-row-gap-6: 6px;
-  --features-content-components-blocks-block-row-padding-6: 6px;
-  --features-content-components-blocks-block-row-padding-10: 10px;
-  --features-content-components-blocks-block-row-max-width-300: 300px;
-  --features-content-components-blocks-block-row-width-6: 6px;
-  --features-content-components-blocks-block-row-height-6: 6px;
-}
+
 
 .block-row {
   position: relative;
   display: flex;
   align-items: flex-start;
   padding: 0;
-  margin: 3px 0;
+  margin: var(--spacing-tiny) 0;
   margin-left: calc(min(var(--block-depth, 0), 8) * var(--block-indent-step));
   min-height: 1.5em;
   font: var(--font-body-medium);
-  border-radius: var(--shape-small, 4px);
+  border-radius: var(--shape-small);
   cursor: default;
   contain: layout style;
 }
@@ -54,9 +40,9 @@
   left: var(--editing-trail-offset);
   top: 0;
   bottom: 0;
-  width: 2px;
+  width: var(--shape-extra-small);
   background: var(--color-outline-variant);
-  opacity: 0;
+  opacity: var(--opacity-0);
   pointer-events: none;
 }
 
@@ -64,11 +50,11 @@
 .block-thread-line {
   position: absolute;
   left: var(--thread-line-offset);
-  top: -3px;
-  bottom: -3px;
+  top: calc(var(--spacing-tiny) * -1);
+  bottom: calc(var(--spacing-tiny) * -1);
   width: var(--thread-line-width);
   cursor: pointer;
-  z-index: 2;
+  z-index: var(--z-2);
   background: transparent;
   border: none;
   padding: 0;
@@ -83,19 +69,19 @@
   bottom: 0;
   width: var(--thread-line-visual-width);
   background: var(--color-outline-variant);
-  opacity: 0.7;
+  opacity: var(--opacity-70);
   transition: opacity var(--motion-duration-short) var(--motion-easing-standard),
               background var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 .block-thread-line:hover::before {
-  opacity: 1;
+  opacity: var(--opacity-100);
   background: var(--color-outline);
 }
 
 /* Hide custom thread lines during editing (editing trail takes over) */
 .block-list:has(.node-block--editing) .block-thread-line::before {
-  opacity: 0;
+  opacity: var(--opacity-0);
 }
 
 /* ─── Bullet trails for edited blocks ───────────────────────────── */
@@ -109,122 +95,122 @@
 .block-list:has(.node-block--editing) .block-row[data-depth="6"]::before,
 .block-list:has(.node-block--editing) .block-row[data-depth="7"]::before,
 .block-list:has(.node-block--editing) .block-row[data-depth="8"]::before {
-  opacity: 0.15;
+  opacity: var(--opacity-15);
   transition: background var(--motion-duration-medium) var(--motion-easing-standard),
               opacity var(--motion-duration-medium) var(--motion-easing-standard);
 }
 
 /* Expand recursive guide lines for depth 2+ when editing */
 .block-list:has(.node-block--editing) .block-row[data-depth="2"]::before {
-  left: var(--features-content-components-blocks-block-row-left-36);
-  width: calc(var(--block-indent-step) + 1px);
-  background: repeating-linear-gradient(to right, var(--color-outline-variant) 0px, var(--color-outline-variant) 1px, transparent 1px, transparent var(--block-indent-step));
+  left: calc(var(--block-indent-step) * 1.5 * -1);
+  width: calc(var(--block-indent-step) + var(--spacing-hairline));
+  background: repeating-linear-gradient(to right, var(--color-outline-variant) 0px, var(--color-outline-variant) var(--spacing-hairline), transparent var(--spacing-hairline), transparent var(--block-indent-step));
 }
 
 .block-list:has(.node-block--editing) .block-row[data-depth="3"]::before {
-  left: var(--features-content-components-blocks-block-row-left-60);
-  width: calc(var(--block-indent-step) * 2 + 1px);
-  background: repeating-linear-gradient(to right, var(--color-outline-variant) 0px, var(--color-outline-variant) 1px, transparent 1px, transparent var(--block-indent-step));
+  left: calc(var(--block-indent-step) * 2.5 * -1);
+  width: calc(var(--block-indent-step) * 2 + var(--spacing-hairline));
+  background: repeating-linear-gradient(to right, var(--color-outline-variant) 0px, var(--color-outline-variant) var(--spacing-hairline), transparent var(--spacing-hairline), transparent var(--block-indent-step));
 }
 
 .block-list:has(.node-block--editing) .block-row[data-depth="4"]::before {
-  left: var(--features-content-components-blocks-block-row-left-84);
-  width: calc(var(--block-indent-step) * 3 + 1px);
-  background: repeating-linear-gradient(to right, var(--color-outline-variant) 0px, var(--color-outline-variant) 1px, transparent 1px, transparent var(--block-indent-step));
+  left: calc(var(--block-indent-step) * 3.5 * -1);
+  width: calc(var(--block-indent-step) * 3 + var(--spacing-hairline));
+  background: repeating-linear-gradient(to right, var(--color-outline-variant) 0px, var(--color-outline-variant) var(--spacing-hairline), transparent var(--spacing-hairline), transparent var(--block-indent-step));
 }
 
 .block-list:has(.node-block--editing) .block-row[data-depth="5"]::before {
-  left: var(--features-content-components-blocks-block-row-left-108);
-  width: calc(var(--block-indent-step) * 4 + 1px);
-  background: repeating-linear-gradient(to right, var(--color-outline-variant) 0px, var(--color-outline-variant) 1px, transparent 1px, transparent var(--block-indent-step));
+  left: calc(var(--block-indent-step) * 4.5 * -1);
+  width: calc(var(--block-indent-step) * 4 + var(--spacing-hairline));
+  background: repeating-linear-gradient(to right, var(--color-outline-variant) 0px, var(--color-outline-variant) var(--spacing-hairline), transparent var(--spacing-hairline), transparent var(--block-indent-step));
 }
 
 .block-list:has(.node-block--editing) .block-row[data-depth="6"]::before {
-  left: var(--features-content-components-blocks-block-row-left-132);
-  width: calc(var(--block-indent-step) * 5 + 1px);
-  background: repeating-linear-gradient(to right, var(--color-outline-variant) 0px, var(--color-outline-variant) 1px, transparent 1px, transparent var(--block-indent-step));
+  left: calc(var(--block-indent-step) * 5.5 * -1);
+  width: calc(var(--block-indent-step) * 5 + var(--spacing-hairline));
+  background: repeating-linear-gradient(to right, var(--color-outline-variant) 0px, var(--color-outline-variant) var(--spacing-hairline), transparent var(--spacing-hairline), transparent var(--block-indent-step));
 }
 
 .block-list:has(.node-block--editing) .block-row[data-depth="7"]::before {
-  left: var(--features-content-components-blocks-block-row-left-156);
-  width: calc(var(--block-indent-step) * 6 + 1px);
-  background: repeating-linear-gradient(to right, var(--color-outline-variant) 0px, var(--color-outline-variant) 1px, transparent 1px, transparent var(--block-indent-step));
+  left: calc(var(--block-indent-step) * 6.5 * -1);
+  width: calc(var(--block-indent-step) * 6 + var(--spacing-hairline));
+  background: repeating-linear-gradient(to right, var(--color-outline-variant) 0px, var(--color-outline-variant) var(--spacing-hairline), transparent var(--spacing-hairline), transparent var(--block-indent-step));
 }
 
 .block-list:has(.node-block--editing) .block-row[data-depth="8"]::before {
-  left: var(--features-content-components-blocks-block-row-left-180);
-  width: calc(var(--block-indent-step) * 7 + 1px);
-  background: repeating-linear-gradient(to right, var(--color-outline-variant) 0px, var(--color-outline-variant) 1px, transparent 1px, transparent var(--block-indent-step));
+  left: calc(var(--block-indent-step) * 7.5 * -1);
+  width: calc(var(--block-indent-step) * 7 + var(--spacing-hairline));
+  background: repeating-linear-gradient(to right, var(--color-outline-variant) 0px, var(--color-outline-variant) var(--spacing-hairline), transparent var(--spacing-hairline), transparent var(--block-indent-step));
 }
 
 /* Trail highlight — ancestors and edited block get primary-colored lines */
 .block-list:has(.node-block--editing) .node-block--editing-trail[data-depth="1"]::before,
 .block-list:has(.node-block--editing) .node-block--editing[data-depth="1"]::before {
   background: var(--color-primary);
-  opacity: 0.5;
+  opacity: var(--opacity-50);
 }
 
 .block-list:has(.node-block--editing) .node-block--editing-trail[data-depth="2"]::before,
 .block-list:has(.node-block--editing) .node-block--editing[data-depth="2"]::before {
-  left: var(--features-content-components-blocks-block-row-left-36);
-  width: calc(var(--block-indent-step) + 1px);
-  background: repeating-linear-gradient(to right, var(--color-primary) 0px, var(--color-primary) 1px, transparent 1px, transparent var(--block-indent-step));
-  opacity: 0.5;
+  left: calc(var(--block-indent-step) * 1.5 * -1);
+  width: calc(var(--block-indent-step) + var(--spacing-hairline));
+  background: repeating-linear-gradient(to right, var(--color-primary) 0px, var(--color-primary) var(--spacing-hairline), transparent var(--spacing-hairline), transparent var(--block-indent-step));
+  opacity: var(--opacity-50);
 }
 
 .block-list:has(.node-block--editing) .node-block--editing-trail[data-depth="3"]::before,
 .block-list:has(.node-block--editing) .node-block--editing[data-depth="3"]::before {
-  left: var(--features-content-components-blocks-block-row-left-60);
-  width: calc(var(--block-indent-step) * 2 + 1px);
-  background: repeating-linear-gradient(to right, var(--color-primary) 0px, var(--color-primary) 1px, transparent 1px, transparent var(--block-indent-step));
-  opacity: 0.5;
+  left: calc(var(--block-indent-step) * 2.5 * -1);
+  width: calc(var(--block-indent-step) * 2 + var(--spacing-hairline));
+  background: repeating-linear-gradient(to right, var(--color-primary) 0px, var(--color-primary) var(--spacing-hairline), transparent var(--spacing-hairline), transparent var(--block-indent-step));
+  opacity: var(--opacity-50);
 }
 
 .block-list:has(.node-block--editing) .node-block--editing-trail[data-depth="4"]::before,
 .block-list:has(.node-block--editing) .node-block--editing[data-depth="4"]::before {
-  left: var(--features-content-components-blocks-block-row-left-84);
-  width: calc(var(--block-indent-step) * 3 + 1px);
-  background: repeating-linear-gradient(to right, var(--color-primary) 0px, var(--color-primary) 1px, transparent 1px, transparent var(--block-indent-step));
-  opacity: 0.5;
+  left: calc(var(--block-indent-step) * 3.5 * -1);
+  width: calc(var(--block-indent-step) * 3 + var(--spacing-hairline));
+  background: repeating-linear-gradient(to right, var(--color-primary) 0px, var(--color-primary) var(--spacing-hairline), transparent var(--spacing-hairline), transparent var(--block-indent-step));
+  opacity: var(--opacity-50);
 }
 
 .block-list:has(.node-block--editing) .node-block--editing-trail[data-depth="5"]::before,
 .block-list:has(.node-block--editing) .node-block--editing[data-depth="5"]::before {
-  left: var(--features-content-components-blocks-block-row-left-108);
-  width: calc(var(--block-indent-step) * 4 + 1px);
-  background: repeating-linear-gradient(to right, var(--color-primary) 0px, var(--color-primary) 1px, transparent 1px, transparent var(--block-indent-step));
-  opacity: 0.5;
+  left: calc(var(--block-indent-step) * 4.5 * -1);
+  width: calc(var(--block-indent-step) * 4 + var(--spacing-hairline));
+  background: repeating-linear-gradient(to right, var(--color-primary) 0px, var(--color-primary) var(--spacing-hairline), transparent var(--spacing-hairline), transparent var(--block-indent-step));
+  opacity: var(--opacity-50);
 }
 
 .block-list:has(.node-block--editing) .node-block--editing-trail[data-depth="6"]::before,
 .block-list:has(.node-block--editing) .node-block--editing[data-depth="6"]::before {
-  left: var(--features-content-components-blocks-block-row-left-132);
-  width: calc(var(--block-indent-step) * 5 + 1px);
-  background: repeating-linear-gradient(to right, var(--color-primary) 0px, var(--color-primary) 1px, transparent 1px, transparent var(--block-indent-step));
-  opacity: 0.5;
+  left: calc(var(--block-indent-step) * 5.5 * -1);
+  width: calc(var(--block-indent-step) * 5 + var(--spacing-hairline));
+  background: repeating-linear-gradient(to right, var(--color-primary) 0px, var(--color-primary) var(--spacing-hairline), transparent var(--spacing-hairline), transparent var(--block-indent-step));
+  opacity: var(--opacity-50);
 }
 
 .block-list:has(.node-block--editing) .node-block--editing-trail[data-depth="7"]::before,
 .block-list:has(.node-block--editing) .node-block--editing[data-depth="7"]::before {
-  left: var(--features-content-components-blocks-block-row-left-156);
-  width: calc(var(--block-indent-step) * 6 + 1px);
-  background: repeating-linear-gradient(to right, var(--color-primary) 0px, var(--color-primary) 1px, transparent 1px, transparent var(--block-indent-step));
-  opacity: 0.5;
+  left: calc(var(--block-indent-step) * 6.5 * -1);
+  width: calc(var(--block-indent-step) * 6 + var(--spacing-hairline));
+  background: repeating-linear-gradient(to right, var(--color-primary) 0px, var(--color-primary) var(--spacing-hairline), transparent var(--spacing-hairline), transparent var(--block-indent-step));
+  opacity: var(--opacity-50);
 }
 
 .block-list:has(.node-block--editing) .node-block--editing-trail[data-depth="8"]::before,
 .block-list:has(.node-block--editing) .node-block--editing[data-depth="8"]::before {
-  left: var(--features-content-components-blocks-block-row-left-180);
-  width: calc(var(--block-indent-step) * 7 + 1px);
-  background: repeating-linear-gradient(to right, var(--color-primary) 0px, var(--color-primary) 1px, transparent 1px, transparent var(--block-indent-step));
-  opacity: 0.5;
+  left: calc(var(--block-indent-step) * 7.5 * -1);
+  width: calc(var(--block-indent-step) * 7 + var(--spacing-hairline));
+  background: repeating-linear-gradient(to right, var(--color-primary) 0px, var(--color-primary) var(--spacing-hairline), transparent var(--spacing-hairline), transparent var(--block-indent-step));
+  opacity: var(--opacity-50);
 }
 
 /* Highlight the bullet dot on the editing trail */
 .block-list:has(.node-block--editing) .node-block--editing-trail .bullet-dot,
 .block-list:has(.node-block--editing) .node-block--editing .bullet-dot {
   background-color: var(--color-primary);
-  opacity: 0.7;
+  opacity: var(--opacity-70);
   transition: background-color var(--motion-duration-medium) var(--motion-easing-standard),
               opacity var(--motion-duration-medium) var(--motion-easing-standard);
 }
@@ -233,7 +219,7 @@
 .node-block--editing .bullet-dot {
   transform: scale(1.2);
   background-color: var(--color-primary);
-  opacity: 0.9;
+  opacity: var(--opacity-90);
 }
 
 /* Body — wraps content + after-content in a vertical stack */
@@ -270,7 +256,7 @@
 .block-row__content-fallback {
   min-height: 1.5em;
   width: 100%;
-  padding: 2px 0;
+  padding: var(--spacing-micro) 0;
   line-height: 1.5;
   color: var(--color-on-surface);
   cursor: text;
@@ -286,12 +272,12 @@
 
 .node-block--selected .bullet-wrapper,
 .node-block--selected-child .bullet-wrapper {
-  opacity: 1;
+  opacity: var(--opacity-100);
 }
 
 .node-block--selected .bullet-dot,
 .node-block--selected-child .bullet-dot {
-  opacity: 0.9;
+  opacity: var(--opacity-90);
   background-color: var(--color-accent);
 }
 
@@ -299,10 +285,10 @@
 .block-selection-card {
   position: absolute;
   background-color: var(--color-focus-overlay);
-  border: 2px solid var(--color-outline);
+  border: var(--border-width-thick) solid var(--color-outline);
   border-radius: var(--shape-medium);
   pointer-events: none;
-  z-index: 2;
+  z-index: var(--z-2);
 }
 
 /* ─── Drag & Drop ──────────────────────────────────────────────── */
@@ -314,7 +300,7 @@
   pointer-events: none;
   display: none;
   align-items: center;
-  gap: var(--features-content-components-blocks-block-row-gap-6);
+  gap: var(--spacing-1-5);
   height: var(--height-sm);
   padding: 0 var(--spacing-2);
   border-radius: var(--shape-small);
@@ -328,46 +314,46 @@
 .block-drag-ghost--multi {
   flex-direction: column;
   align-items: stretch;
-  gap: 2px;
+  gap: var(--spacing-micro);
   height: auto;
   line-height: var(--block-drag-ghost-multi-line-height);
-  padding: var(--features-content-components-blocks-block-row-padding-6) var(--features-content-components-blocks-block-row-padding-10);
+  padding: var(--spacing-1-5) var(--spacing-2-5);
 }
 
 .block-drag-ghost__row {
   display: flex;
   align-items: center;
-  gap: var(--features-content-components-blocks-block-row-gap-6);
+  gap: var(--spacing-1-5);
   height: var(--block-drag-ghost-row-height);
   overflow: hidden;
 }
 
 .block-drag-ghost__row--more {
-  opacity: 0.55;
+  opacity: var(--opacity-55);
   font: var(--font-body-small);
   padding-left: var(--spacing-3);
 }
 
 .block-drag-ghost--floating {
-  opacity: 0.85;
+  opacity: var(--opacity-85);
   background: var(--color-surface-container);
-  border: 1px solid var(--color-outline-variant);
-  max-width: var(--features-content-components-blocks-block-row-max-width-300);
+  border: var(--border-width-default) solid var(--color-outline-variant);
+  max-width: var(--layout-size-7xl);
   white-space: nowrap;
 }
 
 .block-drag-ghost--snapped {
-  opacity: 0.5;
+  opacity: var(--opacity-50);
   background: color-mix(in srgb, var(--color-primary) 12%, transparent);
-  border: 1px dashed var(--color-primary);
+  border: var(--border-width-default) dashed var(--color-primary);
 }
 
 .block-drag-ghost__bullet {
-  width: var(--features-content-components-blocks-block-row-width-6);
-  height: var(--features-content-components-blocks-block-row-height-6);
+  width: var(--shape-medium);
+  height: var(--shape-medium);
   border-radius: 50%;
   background: currentColor;
-  opacity: 0.5;
+  opacity: var(--opacity-50);
   flex-shrink: 0;
 }
 
@@ -381,7 +367,7 @@
 
 /* Drag source block: dim while dragging */
 .node-block--drag-source {
-  opacity: 0.35;
+  opacity: var(--opacity-35);
 }
 
 /* Drop spacing: gap created by the drop target itself */
@@ -397,8 +383,8 @@
 body.notees-dragging-block .node-block {
   transition:
     margin-left var(--motion-duration-medium) var(--motion-easing-standard),
-    margin-top 0.15s var(--motion-easing-collapse),
-    margin-bottom 0.15s var(--motion-easing-collapse);
+    margin-top var(--motion-duration-shorter) var(--motion-easing-collapse),
+    margin-bottom var(--motion-duration-shorter) var(--motion-easing-collapse);
 }
 
 /* Suppress transition on a block that just received new spacing */
@@ -418,7 +404,7 @@ body.notees-dragging-block .bullet-interactive:hover::after {
 }
 
 body.notees-dragging-block .bullet-interactive:hover .bullet-dot {
-  opacity: 0.55;
+  opacity: var(--opacity-55);
   background-color: var(--color-on-surface-variant);
   transform: none;
   box-shadow: none;
@@ -429,7 +415,7 @@ body.notees-dragging-block .node-block:hover {
 }
 
 body.notees-dragging-block .node-block--has-children:hover .block-collapse-arrow {
-  opacity: 0;
+  opacity: var(--opacity-0);
 }
 
 /* ─── Page blocks ──────────────────────────────────────────────── */
@@ -441,14 +427,14 @@ body.notees-dragging-block .node-block--has-children:hover .block-collapse-arrow
 /* ─── Colored block backgrounds ────────────────────────────────── */
 
 .block-row.node-block[style*="--node-color"] .inline-editor__content {
-  background-color: rgba(var(--node-color-rgb, 128, 128, 128), 0.08);
-  padding: 2px var(--spacing-2);
+  background-color: rgba(var(--node-color-rgb, var(--color-node-default-rgb)), 0.08);
+  padding: var(--spacing-micro) var(--spacing-2);
   border-radius: var(--shape-small);
 }
 
 @media (max-width: 768px) {
   .block-row.node-block[style*="--node-color"] .inline-editor__content {
-    padding: 2px 4px;
+    padding: var(--spacing-micro) var(--spacing-1);
   }
 }
 
@@ -462,17 +448,17 @@ body.notees-dragging-block .node-block--has-children:hover .block-collapse-arrow
 
 /* Shift the bullet horizontally with rubber-band feel */
 .node-block--swipe-indent .block-ui > .bullet-wrapper {
-  transform: translateX(calc(var(--swipe-progress, 0) * 12px));
+  transform: translateX(calc(var(--swipe-progress, 0) * var(--spacing-3)));
 }
 
 .node-block--swipe-outdent .block-ui > .bullet-wrapper {
-  transform: translateX(calc(var(--swipe-progress, 0) * -12px));
+  transform: translateX(calc(var(--swipe-progress, 0) * -1 * var(--spacing-3)));
 }
 
 /* Brighten and scale the bullet dot as the gesture confirms */
 .node-block--swipe-indent .bullet-dot,
 .node-block--swipe-outdent .bullet-dot {
-  opacity: calc(0.55 + var(--swipe-progress, 0) * 0.45);
+  opacity: var(--opacity-100);
   transform: scale(calc(1 + var(--swipe-progress, 0) * 0.3));
   transition: none;
 }

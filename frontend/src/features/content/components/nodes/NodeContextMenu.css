@@ -12,7 +12,7 @@
   align-items: center;
   gap: var(--spacing-2);
   padding: var(--spacing-3) var(--spacing-4);
-  border-bottom: 1px solid var(--color-outline-variant);
+  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
   font-size: var(--font-size-button);
 }
 
@@ -42,12 +42,12 @@
 /* Move-to quick action (Send to Today/Inbox) */
 .move-to-quick-action {
   padding: var(--spacing-2) var(--spacing-4);
-  border-bottom: 1px solid var(--color-outline-variant);
+  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
 }
 
 .move-to-quick-btn {
   background: none;
-  border: 1px solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
   cursor: pointer;
   font-size: var(--font-size-button);
   color: var(--color-primary);
@@ -97,7 +97,7 @@
   gap: var(--spacing-3);
   padding: var(--spacing-2) var(--spacing-3);
   background: var(--color-surface);
-  border: 1px solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
   border-bottom: none;
   border-radius: var(--shape-large) var(--shape-large) 0 0;
 }
@@ -105,7 +105,7 @@
 .context-menu-icon-btn {
   width: var(--icon-size-xl);
   height: var(--height-md);
-  border: 1px solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
   border-radius: var(--shape-large);
   background: var(--color-surface-container);
   color: var(--color-on-surface-variant);
@@ -123,19 +123,19 @@
 }
 
 .context-menu-icon-placeholder {
-  font-size: 18px;
+  font-size: var(--font-size-lead);
   line-height: 1;
 }
 
 .context-menu-icon-emoji {
-  font-size: 18px;
+  font-size: var(--font-size-lead);
   line-height: 1;
 }
 
 .context-menu-favorite-btn {
   width: var(--icon-size-xl);
   height: var(--height-md);
-  border: 1px solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
   border-radius: var(--shape-large);
   background: var(--color-surface-container);
   color: var(--color-on-surface-variant);
