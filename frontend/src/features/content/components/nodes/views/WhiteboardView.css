@@ -5,6 +5,11 @@
 
 .whiteboard-view {
   --grid-dot-radius: var(--border-width-medium);
+  --wb-minimap-height: 170px;
+  --wb-stroke-dashed: 8 4;
+  --wb-stroke-dotted: 2 4;
+  --wb-search-bar-input-width: 11.25rem;
+  --letter-spacing-label: 0.05em;
   --wb-z-canvas: 0;
   --wb-z-strokes: var(--z-10);
   --wb-z-elements: var(--z-20);
@@ -288,7 +293,7 @@
   position: absolute;
   top: var(--icon-size-xs);
   height: var(--icon-size-sm);
-  width: 1px;
+  width: var(--spacing-hairline);
   background: var(--color-primary);
 }
 
@@ -424,7 +429,7 @@
   bottom: var(--spacing-4);
   right: var(--spacing-4);
   width: var(--layout-size-5xl);
-  height: 170px;
+  height: var(--wb-minimap-height);
   background: color-mix(in srgb, var(--color-background) 90%, transparent);
   border: var(--border-width-default) solid var(--color-outline-variant);
   border-radius: var(--shape-extra-large);
@@ -587,7 +592,7 @@
   font: var(--font-label-small);
   color: var(--color-on-surface-variant);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: var(--letter-spacing-label);
 }
 
 @keyframes wb-pop-in {
@@ -596,8 +601,8 @@
 }
 
 /* ─── Stroke style utility classes (applied via className on SVG elements) ─── */
-.wb-ss-dashed { stroke-dasharray: 8 4; }
-.wb-ss-dotted { stroke-dasharray: 2 4; }
+.wb-ss-dashed { stroke-dasharray: var(--wb-stroke-dashed); }
+.wb-ss-dotted { stroke-dasharray: var(--wb-stroke-dotted); }
 
 /* ─── Align / Distribute floating panel ─── */
 .wb-align-panel {
@@ -640,7 +645,7 @@
 }
 
 .wb-align-panel__divider {
-  height: 1px;
+  height: var(--spacing-hairline);
   background: var(--color-outline-variant);
   margin: var(--spacing-micro) 0;
 }
@@ -659,7 +664,7 @@
 }
 
 .wb-search-bar__input {
-  width: 11.25rem;
+  width: var(--wb-search-bar-input-width);
   border: none;
   outline: none;
   background: transparent;
