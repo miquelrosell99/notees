@@ -146,6 +146,51 @@ def _parse_inline_classes_from_ast(content: str) -> list[tuple[str, int, str | N
     return classes
 
 
+def _parse_embeds_from_ast(content: str) -> list[tuple[str, int, str | None]] | None:
+    """Try to parse content as AST JSON and extract embed refs (ref_type='embed').
+
+    Returns None if content is not valid AST JSON, otherwise returns
+    list of (node_identifier, position, link_uuid) tuples.
+
+    The link_id format is "nodeUuid:linkUuid".
+    """
+    try:
+        ast = json.loads(content)
+    except (json.JSONDecodeError, TypeError):
+        return None
+
+    if not isinstance(ast, list):
+        return None
+
+    if ast and (not isinstance(ast[0], dict) or "type" not in ast[0]):
+        return None
+
+    embeds: list[tuple[str, int, str | None]] = []
+    position = 0
+
+    def walk(nodes: Any) -> None:
+        nonlocal position
+        if not isinstance(nodes, list):
+            return
+        for node in nodes:
+            if not isinstance(node, dict):
+                continue
+            if node.get("type") == "node_link" and node.get("ref_type") == "embed":
+                link_id = str(node.get("link_id", ""))
+                parts = link_id.split(":", 1)
+                if not parts[0]:
+                    continue
+                node_identifier = parts[0]
+                link_uuid = parts[1] if len(parts) > 1 else None
+                embeds.append((node_identifier, position, link_uuid))
+                position += 1
+            if "children" in node:
+                walk(node["children"])
+
+    walk(ast)
+    return embeds
+
+
 def sanitize_content(raw_content: str) -> str:
     """Strip editor artifacts and normalize to canonical format.
 
@@ -315,11 +360,8 @@ class LinkParsingService:
         if source_node and source_node.is_page:
             source_page_id = source_node.id
 
-        # Get existing tag links to preserve them (they're managed via add_tag_link API)
-        existing_tag_targets = await self._get_existing_tag_link_targets(node_id)
-
-        # Remove existing non-tag text links from this source (property_id IS NULL, is_tag=0)
-        await self._delete_non_tag_text_links(node_id)
+        # Remove existing non-inline-class text links from this source (property_id IS NULL)
+        await self._delete_non_inline_class_text_links(node_id)
 
         # Page nodes may not contain inline node links — enforce the constraint
         # and return early (existing links were already cleaned up above).
@@ -344,94 +386,50 @@ class LinkParsingService:
                 continue
             seen_target_ids.add(target_id)
 
-            # Check if this was previously a tag link - if so, preserve that
-            is_tag = target_id in existing_tag_targets
-
             link = NodeLink(
                 source_id=node_id,
                 target_id=target_id,
                 uuid=link_uuid,
-                is_tag=is_tag,
                 position=position,
                 name=None,  # Label lives in the AST, not in the DB
             )
             created_link = await self._link_repo.create(link)
             created_links.append(created_link)
 
-            # Log activity for NEW page links only (not for tag links)
-            if target_id not in existing_target_ids and target_node.is_page and not is_tag:
+            # Log activity for NEW page links only
+            if target_id not in existing_target_ids and target_node.is_page:
                 await self._log_link_activity(node_id, target_id, source_page_id, target_node)
+
+        # Parse and persist embed references (ref_type='embed') as node_link rows.
+        # They are tracked separately from regular links via the is_embed flag.
+        parsed_embeds = _parse_embeds_from_ast(content) or []
+        seen_embed_target_ids: set[int] = set()
+        for node_identifier, position, link_uuid in parsed_embeds:
+            target_node = await self._node_repo.get_by_uuid(node_identifier)
+            if not target_node:
+                continue
+
+            target_id = target_node.id
+            if target_id in seen_embed_target_ids:
+                continue
+            seen_embed_target_ids.add(target_id)
+
+            embed_link = NodeLink(
+                source_id=node_id,
+                target_id=target_id,
+                uuid=link_uuid,
+                position=position,
+                is_embed=True,
+                name=None,
+            )
+            created_embed = await self._link_repo.create(embed_link)
+            created_links.append(created_embed)
 
         return created_links
 
-    async def _get_existing_tag_link_targets(self, source_node_id: int) -> set[int]:
-        """Get set of target node IDs for existing tag links from a source node."""
-        targets = await self._link_repo.get_tag_link_targets(source_node_id)
-        return set(targets)
-
-    async def _delete_non_tag_text_links(self, source_node_id: int) -> None:
-        """Delete all non-tag, non-inline-class text links from a source node."""
-        await self._link_repo.delete_non_tag_text_links(source_node_id)
-
-    async def add_tag_link(self, source_node_id: int, target_node_id: int) -> NodeLink:
-        """Add a tag link from source to target.
-
-        Creates or updates a link to mark it as a tag.
-        Tags are displayed with # instead of page/block icon.
-
-        Args:
-            source_node_id: The block containing the [[id]] reference
-            target_node_id: The page being referenced as a tag
-
-        Raises:
-            NodeNotFoundError: If source or target does not exist.
-            NodeValidationError: If target is not eligible to be tagged.
-
-        Returns:
-            The created/updated NodeLink.
-        """
-        source_node = await self._node_repo.get_by_id(source_node_id)
-        if not source_node:
-            raise NodeNotFoundError(str(source_node_id))
-
-        target_node = await self._node_repo.get_by_id(target_node_id)
-        if not target_node:
-            raise NodeNotFoundError(str(target_node_id))
-        if not target_node.is_page and target_node.parent_id is not None:
-            raise NodeValidationError("Tags can only point to pages")
-
-        upgraded = await self._link_repo.ensure_tag_link(source_node_id, target_node_id)
-        if upgraded:
-            # Fetch the upgraded link to return full details
-            links = await self._link_repo.get_text_links(source_node_id)
-            for link in links:
-                if link.target_id == target_node_id:
-                    return link
-            return NodeLink(
-                source_id=source_node_id,
-                target_id=target_node_id,
-                is_tag=True,
-            )
-
-        # Create new tag link
-        link = NodeLink(
-            source_id=source_node_id,
-            target_id=target_node_id,
-            is_tag=True,
-        )
-        return await self._link_repo.create(link)
-
-    async def remove_tag_link(self, source_node_id: int, target_node_id: int) -> bool:
-        """Remove a tag link (convert back to regular link or delete).
-
-        Args:
-            source_node_id: The block containing the reference
-            target_node_id: The page being referenced
-
-        Returns:
-            True if a tag was removed
-        """
-        return await self._link_repo.clear_tag_link(source_node_id, target_node_id)
+    async def _delete_non_inline_class_text_links(self, source_node_id: int) -> None:
+        """Delete all non-inline-class text links from a source node."""
+        await self._link_repo.delete_non_inline_class_text_links(source_node_id)
 
     async def update_inline_classes(self, node_id: int, content: str) -> list[NodeLink]:
         """Parse content and update inline class links for a node.
@@ -586,6 +584,8 @@ class LinkParsingService:
                 source_id=row["source_id"],
                 target_id=row["target_id"],
                 position=row["position"] or 0,
+                is_inline_class=bool(row.get("is_inline_class", False)),
+                is_embed=bool(row.get("is_embed", False)),
             )
 
             backlink_source_ids.add(row["source_id"])
@@ -1004,7 +1004,7 @@ class LinkParsingService:
 
         logger = get_logger(__name__)
 
-        deleted = await self._link_repo.delete_non_tag_text_links_for_workspace()
+        deleted = await self._link_repo.delete_text_links_for_workspace()
         logger.info(f"[REBUILD_LINKS] Deleted {deleted} existing text links and inline classes")
 
         nodes = await self._node_repo.get_active_nodes()

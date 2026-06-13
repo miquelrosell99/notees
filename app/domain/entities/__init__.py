@@ -6,6 +6,7 @@ from .class_extend import (
 from .link import (
     BacklinkInfo,
     NodeLink,
+    NodeMention,
 )
 from .node import (
     Node,
@@ -34,7 +35,6 @@ from .query import (
     ChildBlock,
     ChildPathBlock,
     ClassBlock,
-    ClassPathBlock,
     ContainerBlock,
     ContentBlock,
     ContentOperator,
@@ -82,6 +82,7 @@ __all__ = [
     # Link
     "BacklinkInfo",
     "NodeLink",
+    "NodeMention",
     # ClassExtend
     "ClassExtend",
     # User
@@ -105,7 +106,6 @@ __all__ = [
     "ParentPathBlock",
     "ChildBlock",
     "ChildPathBlock",
-    "ClassPathBlock",
     "UuidBlock",
     "QueryAST",
     "NodeView",

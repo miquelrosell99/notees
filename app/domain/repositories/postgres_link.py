@@ -1,8 +1,9 @@
 """PostgreSQL implementation of Link repository.
 
 Updated for workspace-based schema:
-- node_link table: source_id, target_id, is_tag, is_inline_class
+- node_link table: source_id, target_id, is_inline_class
 - Inline class references are now stored in node_link with is_inline_class=TRUE
+- Tags are stored in node.tag_ids, not in node_link
 - All timestamps use create_date
 - User tracking via create_uid
 """
@@ -45,8 +46,8 @@ class PostgresLinkRepository(BasePostgresRepository, LinkRepository):
             source_id=row["source_id"],
             target_id=row["target_id"],
             uuid=str(row["uuid"]) if row.get("uuid") else None,
-            is_tag=row.get("is_tag", False),
             is_inline_class=row.get("is_inline_class", False),
+            is_embed=row.get("is_embed", False),
             name=row.get("name"),
             create_date=create_date,
             create_uid=row.get("create_uid"),
@@ -58,15 +59,15 @@ class PostgresLinkRepository(BasePostgresRepository, LinkRepository):
             if link.uuid:
                 row = await conn.fetchrow(
                     """
-                    INSERT INTO node_link (uuid, source_id, target_id, is_tag, is_inline_class, name, create_date, create_uid, workspace_id)
+                    INSERT INTO node_link (uuid, source_id, target_id, is_inline_class, is_embed, name, create_date, create_uid, workspace_id)
                     VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9)
                     RETURNING id, uuid
                 """,
                     link.uuid,
                     link.source_id,
                     link.target_id,
-                    link.is_tag,
                     link.is_inline_class,
+                    link.is_embed,
                     link.name,
                     link.create_date,
                     link.create_uid or self._user_id,
@@ -75,14 +76,14 @@ class PostgresLinkRepository(BasePostgresRepository, LinkRepository):
             else:
                 row = await conn.fetchrow(
                     """
-                    INSERT INTO node_link (source_id, target_id, is_tag, is_inline_class, name, create_date, create_uid, workspace_id)
+                    INSERT INTO node_link (source_id, target_id, is_inline_class, is_embed, name, create_date, create_uid, workspace_id)
                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
                     RETURNING id, uuid
                 """,
                     link.source_id,
                     link.target_id,
-                    link.is_tag,
                     link.is_inline_class,
+                    link.is_embed,
                     link.name,
                     link.create_date,
                     link.create_uid or self._user_id,
@@ -159,8 +160,8 @@ class PostgresLinkRepository(BasePostgresRepository, LinkRepository):
                 (
                     link.source_id,
                     link.target_id,
-                    link.is_tag,
                     link.is_inline_class,
+                    link.is_embed,
                     link.create_date,
                     link.create_uid or self._user_id,
                 )
@@ -169,7 +170,7 @@ class PostgresLinkRepository(BasePostgresRepository, LinkRepository):
             await conn.copy_records_to_table(
                 "node_link",
                 records=records,
-                columns=["source_id", "target_id", "is_tag", "is_inline_class", "create_date", "create_uid"],
+                columns=["source_id", "target_id", "is_inline_class", "is_embed", "create_date", "create_uid"],
             )
 
         return links
@@ -177,19 +178,13 @@ class PostgresLinkRepository(BasePostgresRepository, LinkRepository):
     async def delete_text_links(self, source_node_id: int) -> int:
         """Delete all text links from a source node.
 
-        Deletes non-tag, non-inline-class links from the source.
+        Deletes non-inline-class links from the source.
         """
         async with acquire_connection(self._pool) as conn:
             result = await conn.execute(
-                "DELETE FROM node_link WHERE source_id = $1 AND is_tag = FALSE AND is_inline_class = FALSE",
+                "DELETE FROM node_link WHERE source_id = $1 AND is_inline_class = FALSE",
                 source_node_id,
             )
-            return int(result.split()[-1]) if result else 0
-
-    async def delete_tag_links(self, source_node_id: int) -> int:
-        """Delete all tag links from a source node."""
-        async with acquire_connection(self._pool) as conn:
-            result = await conn.execute("DELETE FROM node_link WHERE source_id = $1 AND is_tag = TRUE", source_node_id)
             return int(result.split()[-1]) if result else 0
 
     async def get_backlinks_for_workspace(self, target_node_id: int) -> list[NodeLink]:
@@ -264,50 +259,15 @@ class PostgresLinkRepository(BasePostgresRepository, LinkRepository):
             )
             return [row["target_id"] for row in rows]
 
-    async def get_tag_link_targets(self, source_node_id: int) -> list[int]:
-        """Get target IDs of tag links from a source node."""
-        async with acquire_connection(self._pool) as conn:
-            rows = await conn.fetch(
-                "SELECT target_id FROM node_link WHERE source_id = $1 AND property_id IS NULL AND is_tag = TRUE AND workspace_id = $2",
-                source_node_id,
-                self._workspace_id,
-            )
-            return [row["target_id"] for row in rows]
-
-    async def delete_non_tag_text_links(self, source_node_id: int) -> int:
-        """Delete all non-tag, non-inline-class text links from a source node."""
+    async def delete_non_inline_class_text_links(self, source_node_id: int) -> int:
+        """Delete all non-inline-class text links from a source node."""
         async with acquire_connection(self._pool) as conn:
             result = await conn.execute(
-                "DELETE FROM node_link WHERE source_id = $1 AND property_id IS NULL AND is_tag = FALSE AND is_inline_class = FALSE AND workspace_id = $2",
+                "DELETE FROM node_link WHERE source_id = $1 AND property_id IS NULL AND is_inline_class = FALSE AND workspace_id = $2",
                 source_node_id,
                 self._workspace_id,
             )
             return int(result.split()[-1]) if result else 0
-
-    async def ensure_tag_link(self, source_node_id: int, target_id: int) -> bool:
-        """Ensure a tag link exists between source and target."""
-        async with acquire_connection(self._pool) as conn:
-            row = await conn.fetchrow(
-                "SELECT id FROM node_link WHERE source_id = $1 AND target_id = $2 AND property_id IS NULL AND workspace_id = $3",
-                source_node_id,
-                target_id,
-                self._workspace_id,
-            )
-            if row:
-                await conn.execute("UPDATE node_link SET is_tag = TRUE WHERE id = $1 AND workspace_id = $2", row["id"], self._workspace_id)
-                return True
-            return False
-
-    async def clear_tag_link(self, source_node_id: int, target_id: int) -> bool:
-        """Remove the tag flag from a link between source and target."""
-        async with acquire_connection(self._pool) as conn:
-            result = await conn.execute(
-                "UPDATE node_link SET is_tag = FALSE WHERE source_id = $1 AND target_id = $2 AND property_id IS NULL AND is_tag = TRUE AND workspace_id = $3",
-                source_node_id,
-                target_id,
-                self._workspace_id,
-            )
-            return int(result.split()[-1]) > 0 if result else False
 
     async def delete_property_links(self, source_node_id: int, property_id: int) -> int:
         """Delete all links for a specific property from a source node."""
@@ -351,25 +311,6 @@ class PostgresLinkRepository(BasePostgresRepository, LinkRepository):
                 result.setdefault(row["aliased_id"], []).append(row["id"])
             return result
 
-    async def get_tag_link_targets_batch(self, source_ids: list[int]) -> dict[int, list[int]]:
-        """Get tag link target IDs for multiple source nodes."""
-        if not source_ids:
-            return {}
-        async with acquire_connection(self._pool) as conn:
-            rows = await conn.fetch(
-                """
-                SELECT source_id, target_id
-                FROM node_link
-                WHERE source_id = ANY($1) AND is_tag = TRUE AND property_id IS NULL
-                ORDER BY source_id, position
-            """,
-                source_ids,
-            )
-            result: dict[int, list[int]] = {}
-            for row in rows:
-                result.setdefault(row["source_id"], []).append(row["target_id"])
-            return result
-
     async def get_backlinks_batch(self, target_ids: list[int]) -> list[asyncpg.Record]:
         """Get all node_link backlinks for multiple target IDs at once."""
         if not target_ids:
@@ -377,7 +318,7 @@ class PostgresLinkRepository(BasePostgresRepository, LinkRepository):
         async with acquire_connection(self._pool) as conn:
             return await conn.fetch(
                 """
-                SELECT nl.id, nl.source_id, nl.target_id, nl.position, nl.property_id, nl.create_date,
+                SELECT nl.id, nl.source_id, nl.target_id, nl.position, nl.property_id, nl.is_embed, nl.create_date,
                        n.name as source_name, n.uuid as source_uuid, n.is_page as source_is_page,
                        n.page_id as source_page_id, p.name as property_name,
                        page.name as page_name, page.uuid as page_uuid
@@ -464,7 +405,6 @@ class PostgresLinkRepository(BasePostgresRepository, LinkRepository):
                 FROM node_link nl
                 WHERE nl.source_id = ANY($1)
                   AND nl.workspace_id = $2
-                  AND nl.is_tag = FALSE
                   AND nl.is_inline_class = FALSE
                   AND nl.property_id IS NULL
             """,
@@ -571,7 +511,7 @@ class PostgresLinkRepository(BasePostgresRepository, LinkRepository):
         async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch(
                 """
-                SELECT id, uuid, source_id, target_id, is_tag, position, name
+                SELECT id, uuid, source_id, target_id, position, name
                 FROM node_link
                 WHERE source_id = $1 AND property_id IS NULL AND workspace_id = $2
                 ORDER BY position
@@ -588,7 +528,7 @@ class PostgresLinkRepository(BasePostgresRepository, LinkRepository):
         async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch(
                 """
-                SELECT id, uuid, source_id, target_id, is_tag, position, name
+                SELECT id, uuid, source_id, target_id, position, name
                 FROM node_link
                 WHERE source_id = ANY($1) AND property_id IS NULL AND workspace_id = $2
                 ORDER BY source_id, position
@@ -927,15 +867,14 @@ class PostgresLinkRepository(BasePostgresRepository, LinkRepository):
 
         return unique_links
 
-    async def delete_non_tag_text_links_for_workspace(self) -> int:
-        """Delete all non-tag text links (property_id IS NULL, is_tag=FALSE) in the workspace."""
+    async def delete_text_links_for_workspace(self) -> int:
+        """Delete all text links (property_id IS NULL) in the workspace."""
         async with acquire_connection(self._pool) as conn:
             result = await conn.execute(
                 """
                 DELETE FROM node_link
                 WHERE workspace_id = $1
                   AND property_id IS NULL
-                  AND is_tag = FALSE
             """,
                 self._workspace_id,
             )

@@ -794,6 +794,26 @@ export interface LinkedReferencesResponse {
   total_count: number;
 }
 
+/**
+ * Unlinked mention candidate for a target node.
+ */
+export interface Mention {
+  id: number;
+  uuid: string;
+  source_node_id: number;
+  source_node_uuid: string;
+  source_node_name: string;
+  source_is_page: boolean;
+  target_id: number;
+  match_text: string;
+  position: number;
+  is_ignored: boolean;
+}
+
+export interface MentionsResponse {
+  mentions: Mention[];
+}
+
 export interface PropertiesResponse {
   properties: Property[];
 }

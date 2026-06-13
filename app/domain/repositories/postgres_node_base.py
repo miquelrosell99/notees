@@ -81,6 +81,10 @@ class _PostgresNodeBase(BasePostgresRepository):
         if class_ids is None:
             class_ids = []
 
+        tag_ids = row.get("tag_ids", [])
+        if tag_ids is None:
+            tag_ids = []
+
         create_date = normalize_timestamp(row.get("create_date", ""))
         write_date = normalize_timestamp(row.get("write_date", ""))
         open_date = normalize_timestamp(row.get("open_date")) or None
@@ -117,6 +121,7 @@ class _PostgresNodeBase(BasePostgresRepository):
             create_uid=row.get("create_uid"),
             write_uid=row.get("write_uid"),
             class_ids=class_ids,
+            tag_ids=tag_ids,
             classes_path=classes_path,
             version=row.get("version", 1),
             aliased_id=row.get("aliased_id"),

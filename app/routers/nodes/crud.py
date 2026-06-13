@@ -107,6 +107,7 @@ async def create_node(
         parent_id=body.parent_id,
         sequence=body.sequence,
         classes=list(body.classes),
+        tags=list(body.tags),
         property_values=body.properties,
         uuid=body.uuid,
     )
@@ -538,7 +539,7 @@ async def get_node(
     # Get types for the node
     class_ids = await _get_class_ids(service, node_id)
 
-    # Get tags for the node (from node_link with is_tag=1)
+    # Get tags for the node (from node.tag_ids column)
     tag_ids = await _get_tag_ids(service, node_id)
 
     # Get aliases for the node (nodes that have aliased_id pointing to this node)
@@ -737,7 +738,7 @@ async def get_page_content(
     all_node_ids = [page_id] + block_ids
     node_class_map = await _get_class_ids_batch(service, all_node_ids)
 
-    # Get tags for all nodes in one batch (from node_link with is_tag=1)
+    # Get tags for all nodes in one batch (from node.tag_ids column)
     node_tag_map = await _get_related_ids_batch(service, all_node_ids, "tags")
 
     # Build tree structure from flat list

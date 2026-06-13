@@ -218,14 +218,13 @@ class PostgresExportRepository(ExportRepository):
 
             tag_rows = await conn.fetch(
                 """
-                SELECT nl.source_id, n.uuid::text as source_uuid, t.name as tag_name
-                FROM node_link nl
-                JOIN node n ON n.id = nl.source_id
-                JOIN node t ON t.id = nl.target_id
-                WHERE nl.source_id = ANY($1)
-                  AND nl.is_tag = TRUE
-                  AND nl.workspace_id = $2
-                ORDER BY nl.source_id, t.name
+                SELECT n.id as source_id, n.uuid::text as source_uuid, t.name as tag_name
+                FROM node n
+                JOIN node t ON t.id = ANY(n.tag_ids)
+                WHERE n.id = ANY($1)
+                  AND n.workspace_id = $2
+                  AND array_length(n.tag_ids, 1) > 0
+                ORDER BY n.id, t.name
                 """,
                 page_node_ids,
                 workspace_id,
@@ -291,7 +290,7 @@ class PostgresExportRepository(ExportRepository):
             node_row = await conn.fetchrow(
                 """
                 SELECT id, uuid::text as uuid, name, is_page, is_day, is_month, is_year,
-                       color, icon, class_ids, parent_id, create_date, write_date
+                       color, icon, class_ids, tag_ids, parent_id, create_date, write_date
                 FROM node
                 WHERE workspace_id = $1 AND uuid::text = $2
                 """,
@@ -340,12 +339,11 @@ class PostgresExportRepository(ExportRepository):
             tag_rows = await conn.fetch(
                 """
                 SELECT n.uuid::text as uuid, n.name
-                FROM node_link nl
-                JOIN node n ON n.id = nl.target_id
-                WHERE nl.source_id = $1 AND nl.is_tag = TRUE AND nl.property_id IS NULL
-                ORDER BY nl.position
+                FROM node n
+                WHERE n.id = ANY($1) AND n.active = TRUE
+                ORDER BY n.name
                 """,
-                node_row["id"],
+                list(node_row["tag_ids"] or []),
             )
             if tag_rows:
                 metadata["tags"] = [
@@ -447,7 +445,7 @@ class PostgresExportRepository(ExportRepository):
             node_row = await conn.fetchrow(
                 """
                 SELECT id, uuid::text as uuid, name, is_page, is_day, is_month, is_year,
-                       is_class, is_asset, is_template, is_comment, color, icon, class_ids,
+                       is_class, is_asset, is_template, is_comment, color, icon, class_ids, tag_ids,
                        parent_id, create_date, write_date
                 FROM node
                 WHERE workspace_id = $1 AND uuid::text = $2
@@ -508,14 +506,11 @@ class PostgresExportRepository(ExportRepository):
             tag_rows = await conn.fetch(
                 """
                 SELECT n.uuid::text as uuid, n.name
-                FROM node_link nl
-                JOIN node n ON n.id = nl.target_id
-                WHERE nl.source_id = $1
-                  AND nl.is_tag = TRUE
-                  AND nl.property_id IS NULL
-                ORDER BY nl.position
+                FROM node n
+                WHERE n.id = ANY($1) AND n.active = TRUE
+                ORDER BY n.name
                 """,
-                node_row["id"],
+                list(node_row["tag_ids"] or []),
             )
             if tag_rows:
                 metadata["tags"] = [

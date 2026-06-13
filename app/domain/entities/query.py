@@ -32,7 +32,6 @@ class QueryBlockType(StrEnum):
     PARENT_PATH = "PARENT_PATH"
     CHILD = "CHILD"
     CHILD_PATH = "CHILD_PATH"
-    CLASS_PATH = "CLASS_PATH"
     UUID = "UUID"
 
 
@@ -82,7 +81,13 @@ class QueryBlock:
     @staticmethod
     def from_dict(data: dict[str, Any]) -> QueryBlock:
         """Create a QueryBlock from dictionary."""
-        block_type = QueryBlockType(data.get("type", "AND_CONTAINER"))
+        type_value = data.get("type", "AND_CONTAINER")
+
+        # Legacy CLASS_PATH is now handled by the inheritance-aware CLASS block
+        if type_value == "CLASS_PATH":
+            return ClassBlock.from_dict(data)
+
+        block_type = QueryBlockType(type_value)
 
         if block_type in (QueryBlockType.AND_CONTAINER, QueryBlockType.OR_CONTAINER):
             return ContainerBlock.from_dict(data)
@@ -106,8 +111,6 @@ class QueryBlock:
             return ChildBlock.from_dict(data)
         elif block_type == QueryBlockType.CHILD_PATH:
             return ChildPathBlock.from_dict(data)
-        elif block_type == QueryBlockType.CLASS_PATH:
-            return ClassPathBlock.from_dict(data)
         elif block_type == QueryBlockType.UUID:
             return UuidBlock.from_dict(data)
         else:
@@ -407,30 +410,6 @@ class UuidBlock(QueryBlock):
     @staticmethod
     def from_dict(data: dict[str, Any]) -> UuidBlock:
         return UuidBlock(value=data.get("value", ""))
-
-
-@dataclass
-class ClassPathBlock(QueryBlock):
-    """Filter nodes by inherited classes from ancestors.
-
-    This finds nodes that have a specific class assigned to them
-    or inherited from any ancestor in their hierarchy (via classes_path).
-    For example: Find all nodes that have the "Meeting" class,
-    either directly or inherited from a parent page.
-    """
-
-    type: QueryBlockType = field(default=QueryBlockType.CLASS_PATH)
-    value: str = ""  # UUID of the class node
-
-    def to_dict(self) -> dict[str, Any]:
-        return {
-            "type": self.type.value,
-            "value": self.value,
-        }
-
-    @staticmethod
-    def from_dict(data: dict[str, Any]) -> ClassPathBlock:
-        return ClassPathBlock(value=data.get("value", ""))
 
 
 @dataclass

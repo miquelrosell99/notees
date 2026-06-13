@@ -35,6 +35,7 @@ from .domain.repositories import (
     PostgresExportRepository,
     PostgresInviteRepository,
     PostgresLinkRepository,
+    PostgresMentionRepository,
     PostgresNodeRepository,
     PostgresNodeViewRepository,
     PostgresNotificationRepository,
@@ -52,6 +53,7 @@ from .domain.repositories.interfaces import (
     ExportRepository,
     InviteRepository,
     LinkRepository,
+    MentionRepository,
     NodeRepository,
     NodeViewRepository,
     NotificationRepository,
@@ -65,6 +67,7 @@ from .domain.repositories.interfaces import (
 from .domain.services import (
     ClassManagementService,
     LinkParsingService,
+    MentionService,
     NodeService,
 )
 from .domain.services.asset_service import AssetService
@@ -226,6 +229,14 @@ def _make_link_repository(
     return PostgresLinkRepository(pool, workspace_id, user_id)
 
 
+def _make_mention_repository(
+    pool: asyncpg.Pool,
+    workspace_id: int,
+    user_id: int,
+) -> PostgresMentionRepository:
+    return PostgresMentionRepository(pool, workspace_id, user_id)
+
+
 def _make_class_extend_repository(
     pool: asyncpg.Pool,
     workspace_id: int,
@@ -347,6 +358,16 @@ async def get_link_repository(user: User = Depends(get_current_user)) -> AsyncGe
     user_id = int(user.id)
     workspace_id, _ = await _get_workspace_context_cached(pool, user_id)
     yield _make_link_repository(pool, workspace_id, user_id)
+
+
+async def get_mention_repository(
+    user: User = Depends(get_current_user),
+) -> AsyncGenerator[MentionRepository, None]:
+    """Get a MentionRepository for the current user's workspace."""
+    pool = await get_pool()
+    user_id = int(user.id)
+    workspace_id, _ = await _get_workspace_context_cached(pool, user_id)
+    yield _make_mention_repository(pool, workspace_id, user_id)
 
 
 async def get_user_repository() -> AsyncGenerator[UserRepository, None]:
@@ -544,6 +565,8 @@ async def _get_node_service_for_workspace(
 
     user_repo = _make_user_repository(pool)
     link_service = LinkParsingService(node_repo, link_repo)
+    mention_repo = _make_mention_repository(pool, workspace_id, user_id)
+    mention_service = MentionService(node_repo, mention_repo, link_repo, user_id=user_id)
     return NodeService(
         node_repo,
         property_repo,
@@ -555,6 +578,7 @@ async def _get_node_service_for_workspace(
         activity_repo=activity_repo,
         class_extend_repo=class_extend_repo,
         user_repository=user_repo,
+        mention_service=mention_service,
     )
 
 

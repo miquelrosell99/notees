@@ -79,9 +79,6 @@ export function extractUuidsFromAST(ast: QueryAST | undefined | null): Set<strin
     if (type === 'child_path' && Array.isArray(cond.descendant_uuids)) {
       (cond.descendant_uuids as string[]).forEach((u) => uuids.add(u));
     }
-    if (type === 'class_path' && Array.isArray(cond.class_uuids)) {
-      (cond.class_uuids as string[]).forEach((u) => uuids.add(u));
-    }
   }
 
   walkGroup(ast.root_group as unknown as { children: Array<{ type: string } & Record<string, unknown>> });

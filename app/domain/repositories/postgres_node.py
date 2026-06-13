@@ -24,7 +24,7 @@ from .postgres_node_search import PostgresNodeSearchMixin
 _NODE_SELECT_COLUMNS = (
     "id, uuid, workspace_id, name, icon, color, parent_id, page_id, sequence, collapsed, active, "
     "is_shared, is_page, is_class, is_day, is_month, is_year, is_asset, is_template, is_comment, "
-    "parent_locked, is_private, is_deleted, deleted_at, class_ids, classes_path, "
+    "parent_locked, is_private, is_deleted, deleted_at, class_ids, tag_ids, classes_path, "
     "create_date, write_date, open_date, create_uid, write_uid, version, aliased_id"
 )
 
@@ -117,10 +117,10 @@ class PostgresNodeRepository(
                     sequence, collapsed,
                     is_class, is_page, is_day, is_month, is_year,
                     is_asset, is_template, is_comment,
-                    class_ids,
+                    class_ids, tag_ids,
                     create_date, write_date, create_uid, write_uid
                 )
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $19, $20, $20)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $20, $21, $21)
                 RETURNING id
                 """,
                 uuid,
@@ -141,6 +141,7 @@ class PostgresNodeRepository(
                 is_template,
                 is_comment,
                 data.classes if data.classes else [],
+                data.tags if data.tags else [],
                 now,
                 uid,
             )
@@ -168,6 +169,7 @@ class PostgresNodeRepository(
             is_year=is_year,
             is_asset=is_asset,
             class_ids=data.classes if data.classes else [],
+            tag_ids=data.tags if data.tags else [],
             is_template=is_template,
             is_comment=is_comment,
             create_date=now.isoformat(),
@@ -1410,6 +1412,75 @@ class PostgresNodeRepository(
                 class_ids,
                 node_id,
             )
+
+    async def get_node_tag_ids(self, node_id: int) -> list[int]:
+        """Get the tag_ids array for a node."""
+        async with acquire_connection(self._pool) as conn:
+            row = await conn.fetchrow("SELECT tag_ids FROM node WHERE id = $1 AND workspace_id = $2", node_id, self._workspace_id)
+            return row["tag_ids"] if row and row["tag_ids"] else []
+
+    async def update_node_tag_ids(self, node_id: int, tag_ids: list[int]) -> None:
+        """Update tag_ids for a node."""
+        async with acquire_connection(self._pool) as conn:
+            await conn.execute(
+                "UPDATE node SET tag_ids = $1, write_date = NOW(), version = version + 1 WHERE id = $2",
+                tag_ids,
+                node_id,
+            )
+
+    async def get_tag_ids_batch(self, node_ids: list[int]) -> dict[int, list[int]]:
+        """Get tag_ids arrays for multiple nodes in a single query."""
+        if not node_ids:
+            return {}
+        async with acquire_connection(self._pool) as conn:
+            rows = await conn.fetch(
+                """
+                SELECT id, tag_ids
+                FROM node
+                WHERE id = ANY($1) AND workspace_id = $2
+            """,
+                node_ids,
+                self._workspace_id,
+            )
+            return {row["id"]: list(row["tag_ids"] or []) for row in rows}
+
+    async def remove_tag_id_from_all_nodes(self, tag_id: int) -> int:
+        """Remove a tag ID from all node.tag_ids arrays in the workspace."""
+        async with acquire_connection(self._pool) as conn:
+            result = await conn.execute(
+                """
+                UPDATE node
+                SET tag_ids = array_remove(tag_ids, $1),
+                    write_date = NOW(),
+                    version = version + 1
+                WHERE workspace_id = $2
+                  AND tag_ids @> ARRAY[$1]::INTEGER[]
+            """,
+                tag_id,
+                self._workspace_id,
+            )
+            return int(result.split()[-1]) if result and result.split()[-1].isdigit() else 0
+
+    async def redirect_tag_ids(self, old_tag_id: int, new_tag_id: int) -> int:
+        """Replace old_tag_id with new_tag_id in all node.tag_ids arrays."""
+        async with acquire_connection(self._pool) as conn:
+            result = await conn.execute(
+                """
+                UPDATE node
+                SET tag_ids = ARRAY(
+                    SELECT CASE WHEN x = $1 THEN $2 ELSE x END
+                    FROM unnest(tag_ids) AS x
+                ),
+                    write_date = NOW(),
+                    version = version + 1
+                WHERE workspace_id = $3
+                  AND tag_ids @> ARRAY[$1]::INTEGER[]
+            """,
+                old_tag_id,
+                new_tag_id,
+                self._workspace_id,
+            )
+            return int(result.split()[-1]) if result and result.split()[-1].isdigit() else 0
 
     async def redirect_property_relation_targets(self, old_target_id: int, new_target_id: int) -> int:
         """Update all property_value_relation records to point from old_target to new_target.

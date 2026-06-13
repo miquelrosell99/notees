@@ -6,6 +6,7 @@ from .interfaces import (
     ExportRepository,
     InviteRepository,
     LinkRepository,
+    MentionRepository,
     NodeRepository,
     NodeViewRepository,
     NotificationRepository,
@@ -24,6 +25,7 @@ from .postgres_class_extend import PostgresClassExtendRepository
 from .postgres_export import PostgresExportRepository
 from .postgres_invite import PostgresInviteRepository
 from .postgres_link import PostgresLinkRepository
+from .postgres_mention import PostgresMentionRepository
 from .postgres_node import PostgresNodeRepository
 from .postgres_node_view import PostgresNodeViewRepository
 from .postgres_notification import PostgresNotificationRepository
@@ -41,6 +43,7 @@ __all__ = [
     "NodeRepository",
     "PropertyRepository",
     "LinkRepository",
+    "MentionRepository",
     "UserRepository",
     "ActivityRepository",
     "AssetRepository",
@@ -58,6 +61,7 @@ __all__ = [
     "PostgresNodeRepository",
     "PostgresPropertyRepository",
     "PostgresLinkRepository",
+    "PostgresMentionRepository",
     "PostgresUserRepository",
     "PostgresNodeViewRepository",
     "PostgresClassExtendRepository",

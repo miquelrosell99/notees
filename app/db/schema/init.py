@@ -98,6 +98,11 @@ async def init_database(conn: asyncpg.Connection) -> None:
     await _run_migration("renumber_sequences", conn, _renumber_sequences)
     from app.db.migrations.convert_raw_uuid_to_broken_link import run as _run_convert_raw_uuid
     await _run_migration("convert_raw_uuid_to_broken_link", conn, _run_convert_raw_uuid)
+    from app.db.migrations.consolidate_class_path import run as _run_consolidate_class_path
+    await _run_migration("consolidate_class_path", conn, _run_consolidate_class_path)
+    from app.db.migrations.add_node_mention import run as _run_add_node_mention
+    await _run_migration("add_node_mention", conn, _run_add_node_mention)
+    await _run_migration("remove_tags_system_property", conn, _remove_tags_system_property)
 
 
 
@@ -1333,3 +1338,40 @@ async def _renumber_sequences(conn: asyncpg.Connection) -> None:
           AND node.sequence != numbered.new_seq::float
         """
     )
+
+
+async def _remove_tags_system_property(conn: asyncpg.Connection) -> None:
+    """Remove the legacy 'Tags' system property now that tags live in node.tag_ids."""
+    tag_property_uuid = SYSTEM_PROPERTY_UUIDS["tags"]
+    rows = await conn.fetch(
+        "SELECT id FROM property WHERE uuid = $1",
+        tag_property_uuid,
+    )
+    for row in rows:
+        property_id = row["id"]
+        # Delete property values tied to this property
+        await conn.execute(
+            "DELETE FROM property_value_relation WHERE property_id = $1",
+            property_id,
+        )
+        await conn.execute(
+            "DELETE FROM property_value_scalar WHERE property_id = $1",
+            property_id,
+        )
+        await conn.execute(
+            "DELETE FROM property_value_selection WHERE property_id = $1",
+            property_id,
+        )
+        await conn.execute(
+            "DELETE FROM node_property WHERE property_id = $1",
+            property_id,
+        )
+        await conn.execute(
+            "DELETE FROM property_class_filter WHERE property_id = $1",
+            property_id,
+        )
+        # Delete the property itself
+        await conn.execute(
+            "DELETE FROM property WHERE id = $1",
+            property_id,
+        )
