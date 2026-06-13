@@ -1,14 +1,14 @@
 """Workspace management router.
 
-Handles workspace creation, switching, import/export, and restore.
-Uses domain types where applicable.
+Handles workspace creation, switching, import/export, and member management.
+Routers are thin: validation, auth, and response formatting only.  Persistence
+and orchestration live in domain services and repositories.
 """
 
 import asyncio
 import json
 import shutil
 import tempfile
-import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
@@ -16,14 +16,15 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from .. import workspace_manager as wm
-from ..config import settings
-from ..db.connection import acquire_connection, clear_request_conn, get_pool
-from ..dependencies import invalidate_workspace_cache
-from ..domain import DuplicateWorkspaceError, WorkspaceNotFoundError
+from ..dependencies import (
+    get_current_user,
+    get_workspace_service,
+    invalidate_workspace_cache,
+)
+from ..domain.services.workspace_service import WorkspaceService
 from ..export_jobs import create_job, get_job, update_job
 from ..logging_config import get_logger
 from ..models import PaginatedResponse, User, WorkspaceCreate
-from ..utils.email import render_invite_email, send_email
 from ..workspace_io import (
     export_workspace_by_uuid,
     export_workspace_formatted_zip,
@@ -33,7 +34,6 @@ from ..workspace_io import (
     import_workspace_from_zip,
     restore_workspace_from_dump,
 )
-from .auth import get_current_user
 
 router = APIRouter(prefix="/workspaces", tags=["Workspaces"])
 logger = get_logger(__name__)
@@ -41,12 +41,11 @@ logger = get_logger(__name__)
 
 def _workspace_error_to_http(error: Exception) -> HTTPException:
     """Convert domain errors to HTTP exceptions."""
-    if isinstance(error, WorkspaceNotFoundError):
-        return HTTPException(status_code=404, detail=error.message)
-    elif isinstance(error, DuplicateWorkspaceError):
-        return HTTPException(status_code=409, detail=error.message)
-    else:
-        return HTTPException(status_code=500, detail=str(error))
+    if isinstance(error, ValueError):
+        return HTTPException(status_code=400, detail=str(error))
+    if isinstance(error, PermissionError):
+        return HTTPException(status_code=403, detail=str(error))
+    return HTTPException(status_code=500, detail=str(error))
 
 
 @router.get("/")
@@ -128,6 +127,7 @@ async def export_workspace(
     name: str,
     format: str = "dump",
     include_assets: bool = False,
+    workspace_service: WorkspaceService = Depends(get_workspace_service),
     user: User = Depends(get_current_user),
 ):
     """Export a workspace.
@@ -150,26 +150,13 @@ async def export_workspace(
         if format not in ("markdown", "text", "json"):
             raise HTTPException(status_code=400, detail=f"Invalid format: {format}")
 
-        # Resolve workspace UUID from name for formatted export
-        from ..workspace_manager import _get_numeric_user_id
-
-        numeric_user_id = await _get_numeric_user_id(user.id)
-        async with acquire_connection() as conn:
-            ws = await conn.fetchrow(
-                """
-                SELECT g.uuid::text as uuid
-                FROM workspace g
-                LEFT JOIN workspace_share gs ON g.id = gs.workspace_id
-                WHERE g.name = $2 AND g.active = TRUE
-                  AND (g.create_uid = $1 OR gs.user_id = $1)
-                """,
-                numeric_user_id,
-                name,
-            )
-        if not ws:
+        ws_uuid = await workspace_service.get_workspace_uuid_by_name(name, int(user.id))
+        if not ws_uuid:
             raise ValueError(f"Workspace '{name}' not found")
 
-        zip_path = await export_workspace_formatted_zip(user.id, ws["uuid"], format, include_assets=include_assets)
+        zip_path = await export_workspace_formatted_zip(
+            user.id, ws_uuid, format, include_assets=include_assets
+        )
         return FileResponse(
             zip_path,
             filename=zip_path.name,
@@ -186,14 +173,7 @@ async def export_workspace_by_id(
     include_assets: bool = False,
     user: User = Depends(get_current_user),
 ):
-    """Export a workspace by UUID.
-
-    Formats:
-        - dump:     Comprehensive JSON dump (default)
-        - markdown: ZIP of all pages as .md files with YAML frontmatter
-        - text:     ZIP of all pages as .txt plain text files
-        - json:     ZIP of all pages as .json AST files
-    """
+    """Export a workspace by UUID."""
     try:
         if format == "dump":
             export_path = await export_workspace_by_uuid(user.id, workspace_id)
@@ -206,7 +186,9 @@ async def export_workspace_by_id(
         if format not in ("markdown", "text", "json"):
             raise HTTPException(status_code=400, detail=f"Invalid format: {format}")
 
-        zip_path = await export_workspace_formatted_zip(user.id, workspace_id, format, include_assets=include_assets)
+        zip_path = await export_workspace_formatted_zip(
+            user.id, workspace_id, format, include_assets=include_assets
+        )
         return FileResponse(
             zip_path,
             filename=zip_path.name,
@@ -218,13 +200,7 @@ async def export_workspace_by_id(
 
 @router.get("/{workspace_id}/export-zip")
 async def export_workspace_zip_endpoint(workspace_id: str, user: User = Depends(get_current_user)):
-    """Export a workspace as a ZIP containing the JSON dump and all asset files.
-
-    The ZIP includes:
-    - dump.json: Full workspace data dump
-    - assets/{uuid}/main.{ext}: All asset source files
-    - assets/{uuid}/thumbnail.webp: Asset thumbnails
-    """
+    """Export a workspace as a ZIP containing the JSON dump and all asset files."""
     try:
         zip_path = await export_workspace_zip(user.id, workspace_id)
         return FileResponse(zip_path, filename=zip_path.name, media_type="application/zip")
@@ -240,9 +216,8 @@ async def _run_export_job(
     include_assets: bool,
 ) -> None:
     """Background task that performs the actual export."""
-    # Background tasks inherit the parent request's context variables,
-    # including the request-scoped DB connection. Clear it so we don't
-    # race with the middleware releasing the connection back to the pool.
+    from ..db.connection import clear_request_conn
+
     clear_request_conn()
 
     try:
@@ -280,14 +255,13 @@ async def create_workspace_export_job(
     include_assets: bool = False,
     user: User = Depends(get_current_user),
 ):
-    """Start an async workspace export job.
-
-    Returns a job ID immediately. Poll GET /export-jobs/{job_id} for progress.
-    When status is "completed", download from GET /export-jobs/{job_id}/download.
-    """
+    """Start an async workspace export job."""
     try:
         job = create_job()
-        logger.info(f"Created export job {job.id} for workspace {workspace_id} (format={format}, assets={include_assets})")
+        logger.info(
+            f"Created export job {job.id} for workspace {workspace_id} "
+            f"(format={format}, assets={include_assets})"
+        )
         asyncio.create_task(
             _run_export_job(job.id, user.id, workspace_id, format, include_assets)
         )
@@ -347,18 +321,12 @@ async def download_workspace_export_job(job_id: str, user: User = Depends(get_cu
 
 
 @router.post("/import")
-async def import_workspace(file: UploadFile = File(...), name: str = Form(...), user: User = Depends(get_current_user)):
-    """Import a workspace from a dump file (JSON) or full export (ZIP).
-
-    Creates a brand new workspace with the specified name.
-    - JSON import: UUIDs are remapped to new unique values (safe for same-instance copies)
-    - ZIP import: Original UUIDs are preserved (for cross-instance migration)
-
-    Accepts either:
-    - A JSON dump file produced by the JSON export endpoint
-    - A ZIP file produced by the full export endpoint (includes assets)
-    """
-    # Determine file type by extension or content type
+async def import_workspace(
+    file: UploadFile = File(...),
+    name: str = Form(...),
+    user: User = Depends(get_current_user),
+):
+    """Import a workspace from a dump file (JSON) or full export (ZIP)."""
     filename = file.filename or ""
     is_zip = filename.lower().endswith(".zip") or file.content_type == "application/zip"
 
@@ -383,7 +351,6 @@ async def import_workspace(file: UploadFile = File(...), name: str = Form(...), 
                 dump_data=dump_data,
                 workspace_name=name,
             )
-            # Remove uuid_map from response (internal detail)
             result.pop("uuid_map", None)
 
         invalidate_workspace_cache(int(user.id))
@@ -402,13 +369,7 @@ async def restore_workspace(
     file: UploadFile = File(...),
     user: User = Depends(get_current_user),
 ):
-    """Restore an existing workspace to a previous state from a dump file.
-
-    WARNING: This replaces ALL data in the workspace with the dump contents.
-    Original UUIDs from the dump are preserved (no remapping).
-
-    The dump file should be a JSON file produced by the export endpoint.
-    """
+    """Restore an existing workspace to a previous state from a dump file."""
     with tempfile.NamedTemporaryFile(delete=False, suffix=".json") as tmp:
         shutil.copyfileobj(file.file, tmp)
         tmp_path = Path(tmp.name)
@@ -441,117 +402,27 @@ class MemberUpdateRequest(BaseModel):
     role: str
 
 
-ROLE_PERMS = {
-    "viewer": {"can_read": True, "can_write": False, "can_create": False, "can_delete": False, "can_comment": False},
-    "commenter": {"can_read": True, "can_write": False, "can_create": False, "can_delete": False, "can_comment": True},
-    "editor": {"can_read": True, "can_write": True, "can_create": True, "can_delete": False, "can_comment": True},
-    "admin": {"can_read": True, "can_write": True, "can_create": True, "can_delete": True, "can_comment": True},
-}
-
-
 @router.post("/{workspace_uuid}/members")
 async def invite_member(
     workspace_uuid: str,
     body: MemberInviteRequest,
-    user: User = Depends(get_current_user),  # noqa: B008
+    workspace_service: WorkspaceService = Depends(get_workspace_service),
+    user: User = Depends(get_current_user),
 ):
     """Invite a user to a workspace by email."""
-    pool = await get_pool()
-    async with acquire_connection(pool) as conn:
-        ws_row = await conn.fetchrow(
-            "SELECT id, create_uid FROM workspace WHERE uuid::text = $1 AND active = TRUE",
-            workspace_uuid,
-        )
-        if not ws_row:
-            raise HTTPException(status_code=404, detail="Workspace not found")
-        if ws_row["create_uid"] != int(user.id):
-            raise HTTPException(status_code=403, detail="Only workspace owners can invite members")
-
-        target = await conn.fetchrow(
-            'SELECT id FROM "user" WHERE email = $1 AND active = TRUE',
-            body.email,
-        )
-        if target:
-            target_id = target["id"]
-            if target_id == int(user.id):
-                raise HTTPException(status_code=400, detail="Cannot invite yourself")
-
-            perms = ROLE_PERMS.get(body.role, ROLE_PERMS["viewer"])
-
-            await conn.execute(
-                """
-                INSERT INTO workspace_share (
-                    workspace_id, user_id, can_read, can_write, can_create, can_delete, can_comment,
-                    active, create_uid, write_uid
-                )
-                VALUES ($1, $2, $3, $4, $5, $6, $7, TRUE, $8, $8)
-                ON CONFLICT (workspace_id, user_id)
-                DO UPDATE SET
-                    can_read = EXCLUDED.can_read,
-                    can_write = EXCLUDED.can_write,
-                    can_create = EXCLUDED.can_create,
-                    can_delete = EXCLUDED.can_delete,
-                    can_comment = EXCLUDED.can_comment,
-                    active = TRUE,
-                    write_uid = EXCLUDED.write_uid,
-                    write_date = NOW()
-                """,
-                ws_row["id"],
-                target_id,
-                perms["can_read"],
-                perms["can_write"],
-                perms["can_create"],
-                perms["can_delete"],
-                perms["can_comment"],
-                int(user.id),
-            )
-
-            await conn.execute(
-                "UPDATE workspace SET is_shared = TRUE WHERE id = $1",
-                ws_row["id"],
-            )
-
-            return {"status": "ok", "email": body.email, "role": body.role}
-
-        # Target user does not exist — create a pending invite
-        from datetime import UTC, datetime, timedelta
-
-        invite_uuid = str(uuid.uuid4())
-        expires_at = datetime.now(UTC) + timedelta(days=7)
-        await conn.execute(
-            """
-            INSERT INTO pending_invite (uuid, email, workspace_id, role, invited_by, expires_at, active)
-            VALUES ($1, $2, $3, $4, $5, $6, TRUE)
-            ON CONFLICT (email, workspace_id, node_id)
-            DO UPDATE SET
-                role = EXCLUDED.role,
-                invited_by = EXCLUDED.invited_by,
-                expires_at = EXCLUDED.expires_at,
-                active = TRUE,
-                created_at = NOW()
-            """,
-            invite_uuid,
-            body.email,
-            ws_row["id"],
-            body.role,
-            int(user.id),
-            expires_at,
-        )
-
-        invite_link = f"{settings.public_url}/enroll?token={invite_uuid}"
-        html, plain = render_invite_email(
+    try:
+        result = await workspace_service.invite_member(
+            workspace_uuid=workspace_uuid,
+            owner_id=int(user.id),
+            email=body.email,
+            role=body.role,
             inviter_name=user.name or user.email,
-            workspace_name=workspace_uuid,
-            invite_link=invite_link,
         )
-        sent = await send_email(body.email, "Invitation to collaborate on Notees", html, plain)
-
-        return {
-            "status": "pending",
-            "email": body.email,
-            "role": body.role,
-            "invite_link": None if sent else invite_link,
-        }
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e)) from e
 
 
 @router.get("/{workspace_uuid}/members")
@@ -559,114 +430,21 @@ async def list_members(
     workspace_uuid: str,
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=500),
-    user: User = Depends(get_current_user),  # noqa: B008
+    workspace_service: WorkspaceService = Depends(get_workspace_service),
+    user: User = Depends(get_current_user),
 ):
     """List members of a workspace."""
-    pool = await get_pool()
-    async with acquire_connection(pool) as conn:
-        ws_row = await conn.fetchrow(
-            "SELECT id, create_uid FROM workspace WHERE uuid::text = $1 AND active = TRUE",
-            workspace_uuid,
+    try:
+        return await workspace_service.list_members(
+            workspace_uuid=workspace_uuid,
+            user_id=int(user.id),
+            page=page,
+            page_size=page_size,
         )
-        if not ws_row:
-            raise HTTPException(status_code=404, detail="Workspace not found")
-
-        ws_id = ws_row["id"]
-        user_id = int(user.id)
-        is_owner = ws_row["create_uid"] == user_id
-
-        if not is_owner:
-            member = await conn.fetchrow(
-                "SELECT 1 FROM workspace_share WHERE workspace_id = $1 AND user_id = $2 AND active = TRUE",
-                ws_id,
-                user_id,
-            )
-            if not member:
-                raise HTTPException(status_code=403, detail="Not a member of this workspace")
-
-        owner_row = await conn.fetchrow(
-            'SELECT id, email, uuid as user_uuid FROM "user" WHERE id = $1',
-            ws_row["create_uid"],
-        )
-
-        offset = (page - 1) * page_size
-
-        if offset == 0:
-            share_limit = max(0, page_size - 1) if owner_row else page_size
-            share_offset = 0
-        else:
-            share_limit = page_size
-            share_offset = max(0, offset - 1) if owner_row else offset
-
-        rows = await conn.fetch(
-            """
-            SELECT u.id, u.email, u.uuid as user_uuid,
-                   gs.can_read, gs.can_write, gs.can_create, gs.can_delete, gs.can_comment,
-                   gs.create_date
-            FROM workspace_share gs
-            JOIN "user" u ON u.id = gs.user_id
-            WHERE gs.workspace_id = $1 AND gs.active = TRUE
-            ORDER BY gs.create_date DESC
-            LIMIT $2 OFFSET $3
-            """,
-            ws_id,
-            share_limit,
-            share_offset,
-        )
-
-        pending_rows = []
-        if offset == 0:
-            pending_rows = await conn.fetch(
-                """
-                SELECT email, role, created_at
-                FROM pending_invite
-                WHERE workspace_id = $1 AND node_id IS NULL AND active = TRUE
-                  AND (expires_at IS NULL OR expires_at > NOW())
-                ORDER BY created_at DESC
-                """,
-                ws_id,
-            )
-
-    members = []
-    if owner_row and offset == 0:
-        members.append(
-            {
-                "user_id": owner_row["id"],
-                "email": owner_row["email"],
-                "user_uuid": str(owner_row["user_uuid"]),
-                "role": "owner",
-                "joined_at": None,
-            }
-        )
-    for r in rows:
-        role = "viewer"
-        if r["can_delete"]:
-            role = "admin"
-        elif r["can_write"]:
-            role = "editor"
-        elif r["can_comment"]:
-            role = "commenter"
-        members.append(
-            {
-                "user_id": r["id"],
-                "email": r["email"],
-                "user_uuid": str(r["user_uuid"]),
-                "role": role,
-                "joined_at": r["create_date"].isoformat() if r["create_date"] else None,
-            }
-        )
-    for p in pending_rows:
-        members.append(
-            {
-                "user_id": None,
-                "email": p["email"],
-                "user_uuid": None,
-                "role": p["role"],
-                "joined_at": None,
-                "status": "pending",
-            }
-        )
-    return {"members": members}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e)) from e
 
 
 @router.put("/{workspace_uuid}/members/{member_user_id}")
@@ -674,94 +452,62 @@ async def update_member(
     workspace_uuid: str,
     member_user_id: int,
     body: MemberUpdateRequest,
-    user: User = Depends(get_current_user),  # noqa: B008
+    workspace_service: WorkspaceService = Depends(get_workspace_service),
+    user: User = Depends(get_current_user),
 ):
     """Update a member's role in a workspace."""
-    pool = await get_pool()
-    async with acquire_connection(pool) as conn:
-        ws_row = await conn.fetchrow(
-            "SELECT id, create_uid FROM workspace WHERE uuid::text = $1 AND active = TRUE",
-            workspace_uuid,
+    try:
+        await workspace_service.update_member(
+            workspace_uuid=workspace_uuid,
+            owner_id=int(user.id),
+            member_user_id=member_user_id,
+            role=body.role,
         )
-        if not ws_row:
-            raise HTTPException(status_code=404, detail="Workspace not found")
-        if ws_row["create_uid"] != int(user.id):
-            raise HTTPException(status_code=403, detail="Only workspace owners can update members")
-        if member_user_id == ws_row["create_uid"]:
-            raise HTTPException(status_code=400, detail="Cannot change owner's role")
-
-        perms = ROLE_PERMS.get(body.role, ROLE_PERMS["viewer"])
-        result = await conn.execute(
-            """
-            UPDATE workspace_share
-            SET can_read = $1, can_write = $2, can_create = $3, can_delete = $4, can_comment = $5,
-                write_uid = $6, write_date = NOW()
-            WHERE workspace_id = $7 AND user_id = $8 AND active = TRUE
-            """,
-            perms["can_read"],
-            perms["can_write"],
-            perms["can_create"],
-            perms["can_delete"],
-            perms["can_comment"],
-            int(user.id),
-            ws_row["id"],
-            member_user_id,
-        )
-        if result.split()[-1] == "0":
-            raise HTTPException(status_code=404, detail="Member not found")
-    return {"status": "ok", "role": body.role}
+        return {"status": "ok", "role": body.role}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e)) from e
 
 
 @router.delete("/{workspace_uuid}/members/{member_user_id}")
 async def remove_member(
     workspace_uuid: str,
     member_user_id: int,
-    user: User = Depends(get_current_user),  # noqa: B008
+    workspace_service: WorkspaceService = Depends(get_workspace_service),
+    user: User = Depends(get_current_user),
 ):
     """Remove a member from a workspace."""
-    pool = await get_pool()
-    async with acquire_connection(pool) as conn:
-        ws_row = await conn.fetchrow(
-            "SELECT id, create_uid FROM workspace WHERE uuid::text = $1 AND active = TRUE",
-            workspace_uuid,
+    try:
+        await workspace_service.remove_member(
+            workspace_uuid=workspace_uuid,
+            owner_id=int(user.id),
+            member_user_id=member_user_id,
         )
-        if not ws_row:
-            raise HTTPException(status_code=404, detail="Workspace not found")
-        if ws_row["create_uid"] != int(user.id):
-            raise HTTPException(status_code=403, detail="Only workspace owners can remove members")
-        if member_user_id == ws_row["create_uid"]:
-            raise HTTPException(status_code=400, detail="Cannot remove owner")
-
-        await conn.execute(
-            "UPDATE workspace_share SET active = FALSE WHERE workspace_id = $1 AND user_id = $2",
-            ws_row["id"],
-            member_user_id,
-        )
-    invalidate_workspace_cache(member_user_id)
-    return {"status": "ok"}
+        invalidate_workspace_cache(member_user_id)
+        return {"status": "ok"}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e)) from e
 
 
 @router.delete("/{workspace_uuid}/pending-invites/{email}")
 async def remove_pending_invite(
     workspace_uuid: str,
     email: str,
-    user: User = Depends(get_current_user),  # noqa: B008
+    workspace_service: WorkspaceService = Depends(get_workspace_service),
+    user: User = Depends(get_current_user),
 ):
     """Cancel a pending invite by email."""
-    pool = await get_pool()
-    async with acquire_connection(pool) as conn:
-        ws_row = await conn.fetchrow(
-            "SELECT id, create_uid FROM workspace WHERE uuid::text = $1 AND active = TRUE",
-            workspace_uuid,
+    try:
+        await workspace_service.remove_pending_invite(
+            workspace_uuid=workspace_uuid,
+            owner_id=int(user.id),
+            email=email,
         )
-        if not ws_row:
-            raise HTTPException(status_code=404, detail="Workspace not found")
-        if ws_row["create_uid"] != int(user.id):
-            raise HTTPException(status_code=403, detail="Only workspace owners can remove invites")
-
-        await conn.execute(
-            "UPDATE pending_invite SET active = FALSE WHERE workspace_id = $1 AND email = $2 AND node_id IS NULL",
-            ws_row["id"],
-            email,
-        )
-    return {"status": "ok"}
+        return {"status": "ok"}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e)) from e

@@ -2,9 +2,9 @@
 
 from fastapi import APIRouter, Depends, HTTPException, Path
 
+from ...dependencies import get_current_user
 from ...logging_config import get_logger
 from ...models import User
-from ..auth import get_current_user
 from .helpers import (
     _get_node_service,
 )

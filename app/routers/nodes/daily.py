@@ -4,16 +4,16 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from ...db.connection import acquire_connection
 from ...db.schema import (
     SYSTEM_CLASS_UUIDS,
     generate_day_uuid,
     generate_month_uuid,
     generate_year_uuid,
 )
+from ...dependencies import get_current_user, get_settings_repository
 from ...domain.entities import NodeCreateData, NodeUpdateData
+from ...domain.repositories.interfaces import SettingsRepository
 from ...models import PaginatedResponse, User
-from ..auth import get_current_user
 from .helpers import (
     _format_date_with_pattern,
     _format_month_with_pattern,
@@ -28,6 +28,25 @@ from .models import BatchNodeDailyRequest, BatchNodeDailyResponse, BatchNodeDail
 router = APIRouter()
 
 
+async def _get_user_date_format(
+    user_id: int, settings_repo: SettingsRepository
+) -> str:
+    """Fetch the user's date format preference."""
+    value = await settings_repo.get_user_setting(user_id, "date_format")
+    if isinstance(value, str):
+        return value
+    if value is not None:
+        import json
+
+        try:
+            parsed = json.loads(value)
+            if isinstance(parsed, str):
+                return parsed
+        except (json.JSONDecodeError, TypeError):
+            pass
+    return "YYYY/MM/DD"
+
+
 @router.get("/daily/list")
 async def list_daily_pages(
     page: int = Query(1, ge=1),
@@ -36,38 +55,14 @@ async def list_daily_pages(
 ):
     """List all existing daily pages ordered by date descending."""
     service = await _get_node_service(user)
-    offset = (page - 1) * page_size
-
-    async with acquire_connection(service.pool) as conn:
-        count_row = await conn.fetchrow(
-            """
-            SELECT COUNT(*) as total FROM node
-            WHERE is_day = TRUE AND active = TRUE AND is_class = FALSE AND workspace_id = $1
-              AND (is_deleted = FALSE OR is_deleted IS NULL)
-            """,
-            service.workspace_id,
-        )
-        total = count_row["total"] if count_row else 0
-
-        rows = await conn.fetch(
-            """
-            SELECT * FROM node
-            WHERE is_day = TRUE AND active = TRUE AND is_class = FALSE AND workspace_id = $1
-              AND (is_deleted = FALSE OR is_deleted IS NULL)
-            ORDER BY uuid DESC
-            LIMIT $2 OFFSET $3
-            """,
-            service.workspace_id,
-            page_size,
-            offset,
-        )
+    total, rows = await service._node_repo.list_daily_pages_paginated(page, page_size)
 
     # Get node IDs for batch type lookup
     nodes = [service.row_to_node(row) for row in rows]
     node_ids = [n.id for n in nodes if n.id is not None]
 
     # Batch fetch types for all nodes
-    class_ids_map = await _get_class_ids_batch(service.pool, service.workspace_id or 0, node_ids)
+    class_ids_map = await _get_class_ids_batch(service, node_ids)
 
     result = []
     for node in nodes:
@@ -88,6 +83,7 @@ async def list_daily_pages(
 async def get_or_create_daily(
     date: str = Query(..., description="Date in YYYY-MM-DD format"),
     user: User = Depends(get_current_user),
+    settings_repo: SettingsRepository = Depends(get_settings_repository),
 ):
     """Get or create a daily note.
 
@@ -146,11 +142,7 @@ async def get_or_create_daily(
             raise HTTPException(500, "Year type has no ID")
 
         # Get user's date format preference
-        async with acquire_connection(service.pool) as conn:
-            row = await conn.fetchrow(
-                "SELECT value FROM setting_user WHERE key = $1 AND user_id = $2", "date_format", int(user.id)
-            )
-        date_format = row["value"] if row else "YYYY/MM/DD"
+        date_format = await _get_user_date_format(int(user.id), settings_repo)
 
         # 1. Ensure year page exists (always, even for existing day pages)
         year_uuid = generate_year_uuid(d.year)
@@ -251,6 +243,7 @@ async def get_or_create_monthly(
     year: int,
     month: int,
     user: User = Depends(get_current_user),
+    settings_repo: SettingsRepository = Depends(get_settings_repository),
 ):
     """Get or create a monthly note.
 
@@ -301,11 +294,7 @@ async def get_or_create_monthly(
 
     # 2. Create month page with year as parent
     # Get user's date format preference
-    async with acquire_connection(service.pool) as conn:
-        row = await conn.fetchrow(
-            "SELECT value FROM setting_user WHERE key = $1 AND user_id = $2", "date_format", int(user.id)
-        )
-    date_format = row["value"] if row else "YYYY/MM/DD"
+    date_format = await _get_user_date_format(int(user.id), settings_repo)
 
     data = NodeCreateData(
         name=_format_month_with_pattern(year, month, date_format),

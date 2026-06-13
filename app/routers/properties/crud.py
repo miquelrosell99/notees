@@ -2,13 +2,10 @@
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from ...db.connection import acquire_connection
-from ...db.schema.constants import SYSTEM_CLASS_UUIDS
-from ...domain.entities import RELATION_TYPES, SCALAR_TYPES, Property, PropertyScope, PropertyType
+from ...dependencies import get_current_user
+from ...domain.entities import RELATION_TYPES, Property, PropertyScope, PropertyType
 from ...logging_config import get_logger
 from ...models import User
-from ...utils.datetime_utils import utc_now
-from ..auth import get_current_user
 from .helpers import _get_property_repo, _property_to_response
 from .models import (
     PropertyCreateRequest,
@@ -74,23 +71,9 @@ async def get_property_stats(
     user: User = Depends(get_current_user),
 ):
     """Return usage counts per property across all nodes in this workspace."""
-    from ...db.connection import get_pool
-
-    pool = await get_pool()
     repo = await _get_property_repo(user)
-    async with acquire_connection(pool) as conn:
-        rows = await conn.fetch(
-            """
-            SELECT np.property_id,
-                   COUNT(DISTINCT np.node_id) AS usage_count
-            FROM node_property np
-            JOIN property p ON np.property_id = p.id
-            WHERE p.workspace_id = $1 OR p.workspace_id IS NULL
-            GROUP BY np.property_id
-        """,
-            repo._workspace_id,
-        )
-    return {"stats": [{"property_id": r["property_id"], "usage_count": r["usage_count"]} for r in rows]}
+    rows = await repo.get_property_stats()
+    return {"stats": rows}
 
 
 @router.get("/suggestions")
@@ -100,47 +83,7 @@ async def get_property_suggestions(
 ):
     """Return property suggestions for a node, ranked by usage frequency."""
     repo = await _get_property_repo(user)
-    from ...db.connection import get_pool
-
-    pool = await get_pool()
-    async with acquire_connection(pool) as conn:
-        # Properties already on the node
-        assigned_ids: set[int] = set()
-        if node_id:
-            rows = await conn.fetch(
-                "SELECT property_id FROM node_property WHERE node_id = $1",
-                node_id,
-            )
-            assigned_ids = {r["property_id"] for r in rows}
-
-        # Rank global properties by usage
-        rows = await conn.fetch(
-            """
-            SELECT p.id, p.name, p.icon, p.type,
-                   COUNT(DISTINCT np.node_id) AS usage_count
-            FROM property p
-            LEFT JOIN node_property np ON np.property_id = p.id
-            WHERE (p.workspace_id = $1 OR p.workspace_id IS NULL)
-              AND p.active = TRUE
-              AND p.scope = 'global'
-            GROUP BY p.id, p.name, p.icon, p.type
-            ORDER BY usage_count DESC, p.name
-            LIMIT 20
-        """,
-            repo._workspace_id,
-        )
-
-    suggestions = [
-        {
-            "property_id": r["id"],
-            "name": r["name"],
-            "icon": r["icon"],
-            "type": r["type"],
-            "usage_count": r["usage_count"],
-            "already_assigned": r["id"] in assigned_ids,
-        }
-        for r in rows
-    ]
+    suggestions = await repo.get_property_suggestions(node_id)
     return {"suggestions": suggestions}
 
 
@@ -191,18 +134,9 @@ async def create_property(
         # For node-type properties, default to page class if no filters specified
         class_filters = request.class_filters
         if prop_type == PropertyType.NODE and not class_filters:
-            # Get the 'page' class ID
-            from ...db.connection import acquire_connection, get_pool
-
-            pool = await get_pool()
-            async with acquire_connection(pool) as conn:
-                page_class_row = await conn.fetchrow(
-                    "SELECT id FROM node WHERE uuid = $1 AND workspace_id = $2",
-                    SYSTEM_CLASS_UUIDS["page"],
-                    repo._workspace_id,
-                )
-                if page_class_row:
-                    class_filters = [page_class_row["id"]]
+            page_class_id = await repo.get_page_class_id()
+            if page_class_id:
+                class_filters = [page_class_id]
 
         for class_id in class_filters:
             await repo.add_class_filter(created.id, class_id)
@@ -264,63 +198,23 @@ async def update_property(
         if not prop:
             raise HTTPException(404, "Property not found")
 
-        from ...db.connection import get_pool
+        # If changing from multi to single, delete extra values
+        if prop.is_multi and not request.multi:
+            await repo.delete_excess_property_values(property_id, prop.type)
 
-        pool = await get_pool()
-        async with acquire_connection(pool) as conn:
-            # If changing from multi to single, delete extra values
-            if prop.is_multi and not request.multi:
-                # Delete all values except the first one for each node
-                # For scalar values
-                if prop.type in SCALAR_TYPES:
-                    await conn.execute(
-                        """
-                        DELETE FROM property_value_scalar
-                        WHERE id NOT IN (
-                            SELECT MIN(id) FROM property_value_scalar
-                            WHERE property_id = $1
-                            GROUP BY node_id
-                        ) AND property_id = $1
-                    """,
-                        property_id,
-                    )
-
-                # For relation values
-                elif prop.type in RELATION_TYPES:
-                    await conn.execute(
-                        """
-                        DELETE FROM property_value_relation
-                        WHERE id NOT IN (
-                            SELECT MIN(id) FROM property_value_relation
-                            WHERE property_id = $1
-                            GROUP BY node_id
-                        ) AND property_id = $1
-                    """,
-                        property_id,
-                    )
-
-                # For selection values
-                elif prop.type == PropertyType.SELECTION:
-                    await conn.execute(
-                        """
-                        DELETE FROM property_value_selection
-                        WHERE id NOT IN (
-                            SELECT MIN(id) FROM property_value_selection
-                            WHERE property_id = $1
-                            GROUP BY node_id
-                        ) AND property_id = $1
-                    """,
-                        property_id,
-                    )
-
-            # Update the property's is_multi flag (for both single->multi and multi->single)
-            await conn.execute(
-                "UPDATE property SET is_multi = $1, write_date = $2, write_uid = $3 WHERE id = $4",
-                request.multi,
-                utc_now(),
-                int(user.id),
-                property_id,
-            )
+        await repo.update_property_multi_and_rules(
+            property_id,
+            is_multi=request.multi,
+            validation_rules=request.validation_rules,
+            user_id=int(user.id),
+        )
+    elif request.validation_rules is not None:
+        await repo.update_property_multi_and_rules(
+            property_id,
+            is_multi=None,
+            validation_rules=request.validation_rules,
+            user_id=int(user.id),
+        )
 
     # Only call repo.update() if there are name/icon/icon_visibility changes.
     # This avoids the "Cannot modify system properties" error when only
@@ -329,41 +223,20 @@ async def update_property(
         request.name is not None
         or request.icon is not None
         or request.icon_visibility is not None
-        or request.validation_rules is not None
     ):
-        if request.validation_rules is not None:
-            # Update validation_rules directly since repo.update() doesn't support it yet
-            from ...db.connection import get_pool
-
-            pool = await get_pool()
-
-            async with acquire_connection(pool) as conn:
-                await conn.execute(
-                    "UPDATE property SET validation_rules = $1::jsonb, write_date = $2, write_uid = $3 WHERE id = $4",
-                    request.validation_rules,
-                    utc_now(),
-                    int(user.id),
-                    property_id,
-                )
-        if request.name is not None or request.icon is not None or request.icon_visibility is not None:
-            try:
-                prop = await repo.update(
-                    property_id, name=request.name, icon=request.icon, icon_visibility=request.icon_visibility
-                )
-            except ValueError as e:
-                raise HTTPException(400, str(e)) from e
-            if not prop:
-                raise HTTPException(404, "Property not found")
-        prop = await repo.get_by_id(property_id)
+        try:
+            prop = await repo.update(
+                property_id, name=request.name, icon=request.icon, icon_visibility=request.icon_visibility
+            )
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
         if not prop:
             raise HTTPException(404, "Property not found")
-        return _property_to_response(prop)
-    else:
-        # Only multi changed (or nothing) — reload and return
-        prop = await repo.get_by_id(property_id)
-        if not prop:
-            raise HTTPException(404, "Property not found")
-        return _property_to_response(prop)
+
+    prop = await repo.get_by_id(property_id)
+    if not prop:
+        raise HTTPException(404, "Property not found")
+    return _property_to_response(prop)
 
 
 @router.post("/{property_id}/change-type")
@@ -484,67 +357,37 @@ async def get_nodes_with_property(
     user: User = Depends(get_current_user),
 ):
     """Get all nodes that have this property assigned."""
-    from ...db.connection import get_pool
-    from ...dependencies import _get_workspace_context_cached
-    from ...domain.repositories import PostgresPropertyRepository
     from ..nodes.helpers import extract_properties_dict
 
-    pool = await get_pool()
-    user_id = int(user.id)
-    workspace_id, _ = await _get_workspace_context_cached(pool, user_id)
-    repo = PostgresPropertyRepository(pool, workspace_id, user_id)
+    repo = await _get_property_repo(user)
 
     # Check property exists
     prop = await repo.get_by_id(property_id)
     if not prop:
         raise HTTPException(404, "Property not found")
 
-    # Get node IDs with this property
-    node_ids = await repo.get_node_ids_with_property(property_id)
+    detailed = await repo.get_nodes_with_property_detailed(property_id)
 
-    # Get class_ids for all nodes in one batch
-    from ..nodes.helpers import _get_class_ids_batch
-
-    node_class_map = await _get_class_ids_batch(pool, workspace_id, node_ids)
-
-    # Build response with node details and property values
     result = []
-    async with acquire_connection(pool) as conn:
-        for node_id in node_ids:
-            # Get node details
-            node_row = await conn.fetchrow(
-                """SELECT id, uuid, name, icon, color, parent_id, page_id, is_page, is_class,
-                   create_date, write_date FROM node
-                   WHERE id = $1 AND workspace_id = $2 AND active = TRUE""",
-                node_id,
-                workspace_id,
-            )
-            if not node_row:
-                continue
+    for node_row, class_ids, all_prop_values in detailed:
+        properties_dict = extract_properties_dict(all_prop_values)
 
-            # Get all property values for this node
-            all_prop_values = await repo.get_all_property_values(node_id)
-            properties_dict = extract_properties_dict(all_prop_values)
-
-            # Get class_ids for this node
-            class_ids = node_class_map.get(node_id, [])
-
-            result.append(
-                {
-                    "node_id": node_row["id"],
-                    "node_uuid": node_row["uuid"],
-                    "node_name": node_row["name"],
-                    "node_icon": node_row["icon"],
-                    "node_color": node_row["color"],
-                    "parent_id": node_row["parent_id"],
-                    "page_id": node_row["page_id"],
-                    "is_page": bool(node_row["is_page"]),
-                    "is_class": bool(node_row["is_class"]),
-                    "create_date": node_row["create_date"].isoformat() if node_row["create_date"] else None,
-                    "write_date": node_row["write_date"].isoformat() if node_row["write_date"] else None,
-                    "properties": properties_dict,
-                    "class_ids": class_ids,
-                }
-            )
+        result.append(
+            {
+                "node_id": node_row["id"],
+                "node_uuid": node_row["uuid"],
+                "node_name": node_row["name"],
+                "node_icon": node_row["icon"],
+                "node_color": node_row["color"],
+                "parent_id": node_row["parent_id"],
+                "page_id": node_row["page_id"],
+                "is_page": bool(node_row["is_page"]),
+                "is_class": bool(node_row["is_class"]),
+                "create_date": node_row["create_date"].isoformat() if node_row["create_date"] else None,
+                "write_date": node_row["write_date"].isoformat() if node_row["write_date"] else None,
+                "properties": properties_dict,
+                "class_ids": class_ids,
+            }
+        )
 
     return {"nodes": result, "property": _property_to_response(prop)}

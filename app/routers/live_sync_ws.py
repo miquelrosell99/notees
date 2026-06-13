@@ -38,10 +38,12 @@ from typing import Any
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from ..auth import authenticate_api_key, decode_token, get_user_by_id
-from ..db.connection import acquire_connection, clear_request_conn, get_pool
+from ..db.connection import clear_request_conn
+from ..dependencies import _get_node_service
 from ..domain.permissions import PermissionChecker
 from ..infrastructure.redis_pubsub import collab_pubsub
 from ..logging_config import get_logger
+from ..models import User
 
 logger = get_logger(__name__)
 
@@ -329,25 +331,19 @@ async def live_sync_websocket(
     user_id = int(user["id"])
 
     # 2. Resolve page node ID and check permissions
-    pool = await get_pool()
+    service = await _get_node_service(User(**user))
     checker = PermissionChecker(user_id)
 
     try:
-        async with acquire_connection(pool) as conn:
-            row = await conn.fetchrow(
-                "SELECT id, uuid::text FROM node WHERE uuid::text = $1 AND active = TRUE",
-                page_uuid,
-            )
+        node_id = await service._node_repo.get_page_id_by_uuid(page_uuid)
     except (LookupError, ValueError):
         logger.exception(f"Failed to resolve page {page_uuid}")
         await websocket.close(code=4002, reason="Internal error")
         return
 
-    if not row or row["uuid"] != page_uuid:
+    if not node_id:
         await websocket.close(code=4004, reason="Page not found")
         return
-
-    node_id = row["id"]
 
     # 3. Authorize
     can_read = await checker.can_read_node(node_id)

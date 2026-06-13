@@ -6,13 +6,12 @@ Handles logging and retrieving node activity (edits, link additions, etc.)
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from ..dependencies import get_activity_repository
-from ..domain.repositories import ActivityRepository
+from ..dependencies import get_activity_repository, get_current_user
+from ..domain.repositories.interfaces import ActivityRepository
 from ..domain.stringify_ast import ParseMode, StringifyMode, StringifyOptions, parse_ast, stringify_ast
 from ..logging_config import get_logger
 from ..models import User
 from ..utils import utc_now
-from .auth import get_current_user
 
 router = APIRouter(prefix="/activity", tags=["Activity"])
 logger = get_logger(__name__)
