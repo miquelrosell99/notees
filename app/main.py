@@ -103,9 +103,9 @@ async def lifespan(app: FastAPI):
         # create the initial admin automatically. Otherwise warn so the operator
         # knows to run the promotion script.
         admin_password = os.environ.get("ADMIN_PASSWORD", "").strip()
+        user_repo = PostgresUserRepository(pool)
         if admin_password:
             try:
-                user_repo = PostgresUserRepository(pool)
                 created = await user_repo.ensure_initial_admin(
                     "admin@notees.local", admin_password
                 )
@@ -114,14 +114,11 @@ async def lifespan(app: FastAPI):
             except Exception as e:
                 logger.error(f"Failed to create initial admin user: {e}")
         else:
-            async with acquire_connection(pool) as conn:
-                admin_count = await conn.fetchval(
-                    'SELECT COUNT(*) FROM "user" WHERE role = \'admin\' AND active = TRUE'
+            admin_count = await user_repo.count_active_admins()
+            if admin_count == 0:
+                logger.warning(
+                    "No admin user found. To create an admin, run: python scripts/promote_user_to_admin.py <email>"
                 )
-                if admin_count == 0:
-                    logger.warning(
-                        "No admin user found. To create an admin, run: python scripts/promote_user_to_admin.py <email>"
-                    )
     else:
         logger.info("Skipping schema initialization under pytest (handled by db_pool fixture)")
 
