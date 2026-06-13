@@ -3,12 +3,14 @@
  *
  * Passes nodes directly to BlockList for rendering.
  *
- * Supports groupBy='page' to organize nodes under page headers.
- * Supports groupBy=<property-uuid> to group by a node property value.
+ * Supports single- and multi-level grouping:
+ *  - 'page' groups blocks by their containing page (pages group by own id)
+ *  - property UUIDs group by that property value
+ *  - multiple levels build a recursive group tree
  */
 import { useState, useCallback, useMemo, memo } from 'react';
-import type { Node } from '@/types';
-import type { NodeListViewProps } from '@/types/nodeCollection';
+import type { Node, Property } from '@/types';
+import type { NodeListViewProps, NodeCollectionGroupBy } from '@/types/nodeCollection';
 import { Bullet } from '@/features/content/components/blocks/Bullet';
 import { NodeInline } from '@/features/content/components/blocks/NodeInline';
 import { NodeIcon, ChevronRightIcon, ChevronDownIcon } from '@/components/ui/icons';
@@ -23,37 +25,142 @@ import { getNodeByUuid } from '@/api/nodes';
 import { NodeBreadcrumbs } from '@/features/content/components/nodes/NodeBreadcrumbs';
 import './ListView.css';
 import { registerView } from './registry';
-// ── Group type ───────────────────────────────────────────────────────────────
 
-/** A group of nodes with either a page header or a property-value header */
-interface NodeGroup {
-  /** For page grouping: the page node */
-  page?: Node | null;
-  /** Label to display when there is no page (property grouping or unknown) */
-  label?: string;
-  /** Icon for the group header (selection/node property option icon) */
-  headerIcon?: string | null;
+// ── Group types ───────────────────────────────────────────────────────────────
+
+type GroupLevel = { kind: 'page' } | { kind: 'property'; property: Property };
+
+interface GroupTreeNode {
+  key: string;
+  label: string;
+  icon: string | null;
+  page?: Node;
+  children: GroupTreeNode[];
   nodes: Node[];
 }
 
-/** Result of grouping: named groups + pages + ungrouped remainder */
 interface GroupingResult {
-  groups: NodeGroup[];
   pages: Node[];
-  ungrouped: Node[];
+  tree: GroupTreeNode[];
 }
 
-// ── Property grouping helpers ─────────────────────────────────────────────────
+// ── Grouping helpers ──────────────────────────────────────────────────────────
 
-/**
- * Get a stable group key, display label, and optional icon for a raw property value.
- */
-/**
- * ListView - List/outline view using BlockList
- *
- * Simply passes nodes to BlockList - no manual runtime sync needed.
- * The readOnly prop on BlockList controls edit vs preview mode.
- */
+function normalizeGroupByValue(value: NodeCollectionGroupBy): string[] {
+  if (!value || value === 'none') return [];
+  if (Array.isArray(value)) return value;
+  return [value];
+}
+
+function getPageGroupInfo(node: Node): { key: string; label: string; icon: string | null; page: Node; missing: false } | { missing: true } {
+  if (node.is_page) {
+    return {
+      missing: false,
+      key: `page-${node.id}`,
+      label: node.name || 'Untitled',
+      icon: node.icon ?? null,
+      page: node,
+    };
+  }
+
+  const pageId = (node as { page_id?: number }).page_id;
+  if (!pageId) return { missing: true };
+
+  const pageName = (node as { page_name?: string }).page_name || 'Untitled';
+  const pageUuid = (node as { page_uuid?: string }).page_uuid || '';
+  const pageIcon = (node as { page_icon?: string | null }).page_icon ?? null;
+
+  return {
+    missing: false,
+    key: `page-${pageId}`,
+    label: pageName,
+    icon: pageIcon,
+    page: {
+      id: pageId,
+      name: pageName,
+      uuid: pageUuid,
+      is_page: true,
+      icon: pageIcon,
+    } as Node,
+  };
+}
+
+function getLevelGroupInfo(
+  node: Node,
+  level: GroupLevel
+): { key: string; label: string; icon: string | null; page?: Node; missing: false } | { missing: true } {
+  if (level.kind === 'page') {
+    return getPageGroupInfo(node);
+  }
+
+  const rawValue = (node.properties as Record<string, unknown> | undefined)?.[String(level.property.id)] ?? null;
+  if (rawValue === null || rawValue === undefined) return { missing: true };
+
+  const { label, icon } = getPropertyGroupInfo(level.property, rawValue);
+  return { missing: false, key: `prop-${label}`, label, icon };
+}
+
+function sortGroups(groups: GroupTreeNode[], level: GroupLevel): GroupTreeNode[] {
+  const sorted = [...groups];
+  if (level.kind === 'page') {
+    sorted.sort((a, b) => {
+      if (a.page && b.page) return compareDateFirstAlpha(a.page, b.page);
+      return 0;
+    });
+  } else {
+    sorted.sort((a, b) => a.label.localeCompare(b.label));
+  }
+  return sorted;
+}
+
+function buildGroupTree(topNodes: Node[], levels: GroupLevel[], parentKey = ''): GroupTreeNode[] {
+  if (levels.length === 0) {
+    return [{ key: `${parentKey}/leaf`, label: '', icon: null, children: [], nodes: topNodes }];
+  }
+
+  const [level, ...rest] = levels;
+  const groups = new Map<string, GroupTreeNode>();
+  const noValue: Node[] = [];
+
+  for (const node of topNodes) {
+    const info = getLevelGroupInfo(node, level);
+    if (info.missing) {
+      noValue.push(node);
+      continue;
+    }
+
+    const { key, label, icon, page } = info;
+    const fullKey = `${parentKey}/${key}`;
+    if (!groups.has(fullKey)) {
+      groups.set(fullKey, { key: fullKey, label, icon, page, children: [], nodes: [] });
+    }
+    groups.get(fullKey)!.nodes.push(node);
+  }
+
+  const result: GroupTreeNode[] = [];
+  for (const group of sortGroups(Array.from(groups.values()), level)) {
+    group.children = buildGroupTree(group.nodes, rest, group.key);
+    group.nodes = [];
+    result.push(group);
+  }
+
+  if (noValue.length > 0) {
+    const noValueKey = `${parentKey}/no-value`;
+    const noValueLabel = level.kind === 'page' ? 'No page' : 'No value';
+    result.push({
+      key: noValueKey,
+      label: noValueLabel,
+      icon: null,
+      children: buildGroupTree(noValue, rest, noValueKey),
+      nodes: [],
+    });
+  }
+
+  return result;
+}
+
+// ── Component ─────────────────────────────────────────────────────────────────
+
 export const ListView = memo(function ListView({
   nodes,
   editable,
@@ -75,6 +182,7 @@ export const ListView = memo(function ListView({
   className = '',
   groupBy = 'none',
   groupByProperty,
+  groupByProperties,
   enableGrouping = false,
   showBreadcrumbs = false,
   size,
@@ -119,7 +227,7 @@ export const ListView = memo(function ListView({
     // Get runtime to resolve blockId to serverId
     const runtime = getNodeGraphRuntime();
     const graphNode = runtime.getNode(blockId);
-    
+
     if (graphNode?.serverId) {
       const targetNode = allNodes.find(n => n.id === graphNode.serverId);
       if (targetNode) {
@@ -174,70 +282,39 @@ export const ListView = memo(function ListView({
     }
   }, [onContentChange]);
 
-  // Group nodes by page or property value when enableGrouping is true.
-  // Nodes that don't belong to any group (pages when grouping by page,
-  // or nodes missing the property) are collected in `ungrouped`.
+  // Resolve grouping levels from groupBy and resolved property objects
+  const levels = useMemo<GroupLevel[]>(() => {
+    const normalized = normalizeGroupByValue(groupBy);
+    const result: GroupLevel[] = [];
+    for (const g of normalized) {
+      if (g === 'page') {
+        result.push({ kind: 'page' });
+      } else {
+        const prop = groupByProperties?.find(p => p.uuid === g) ??
+          (groupByProperty?.uuid === g ? groupByProperty : undefined);
+        if (prop) result.push({ kind: 'property', property: prop });
+      }
+    }
+    return result;
+  }, [groupBy, groupByProperties, groupByProperty]);
+
+  // Build recursive group tree when grouping is enabled.
+  // If the first level is 'page', pages are extracted to a dedicated Pages
+  // section and the tree is built from the remaining non-page nodes.
   const groupingResult = useMemo((): GroupingResult | null => {
-    if (!enableGrouping || groupBy === 'none') {
-      return null; // No grouping
-    }
+    if (!enableGrouping || levels.length === 0) return null;
 
-    if (groupBy === 'page') {
-      // Group blocks by their containing page.
-      // Pages themselves always go into the separate `pages` section.
-      const groups = new Map<string, NodeGroup>();
-      const pages: Node[] = [];
-      const ungrouped: Node[] = [];
-      
-      for (const node of nodes) {
-        if (node.is_page) {
-          pages.push(node);
-        } else if ((node as any).page_id) {
-          const pageKey = `page-${(node as any).page_id}`;
-          if (!groups.has(pageKey)) {
-            const pageNode = {
-              id: (node as any).page_id,
-              name: (node as any).page_name || 'Untitled',
-              uuid: (node as any).page_uuid || '',
-              is_page: true,
-            } as Node;
-            groups.set(pageKey, { page: pageNode, nodes: [] });
-          }
-          groups.get(pageKey)!.nodes.push(node);
-        } else {
-          // Blocks without a page_id → ungrouped
-          ungrouped.push(node);
-        }
+    const pages: Node[] = [];
+    let treeNodes = nodes;
+    if (levels[0].kind === 'page') {
+      for (const n of nodes) {
+        if (n.is_page) pages.push(n);
       }
-      
-      return { groups: Array.from(groups.values()), pages, ungrouped };
+      treeNodes = nodes.filter(n => !n.is_page);
     }
 
-    // Property-based grouping
-    if (groupByProperty) {
-      const propId = String(groupByProperty.id);
-      const groups = new Map<string, NodeGroup>();
-      const ungrouped: Node[] = [];
-      
-      for (const node of nodes) {
-        const rawValue = (node.properties as Record<string, unknown> | undefined)?.[propId] ?? null;
-        if (rawValue === null || rawValue === undefined) {
-          ungrouped.push(node);
-          continue;
-        }
-        const { label, icon } = getPropertyGroupInfo(groupByProperty, rawValue);
-        
-        if (!groups.has(label)) {
-          groups.set(label, { label, headerIcon: icon, nodes: [] });
-        }
-        groups.get(label)!.nodes.push(node);
-      }
-      
-      return { groups: Array.from(groups.values()), pages: [], ungrouped };
-    }
-
-    return null;
-  }, [nodes, groupBy, groupByProperty, enableGrouping]);
+    return { pages, tree: buildGroupTree(treeNodes, levels) };
+  }, [nodes, levels, enableGrouping]);
 
   // Collect and sort nodes for pages section
   const pagesAllNodes = useMemo(() => {
@@ -254,35 +331,7 @@ export const ListView = memo(function ListView({
     return sortBySequence(result);
   }, [groupingResult, pagesOnly]);
 
-  // Collect and sort nodes for ungrouped section
-  const ungroupedAllNodes = useMemo(() => {
-    if (!groupingResult || groupingResult.ungrouped.length === 0) return [];
-    const result: Node[] = [];
-    const collect = (n: Node) => {
-      if (pagesOnly && !n.is_page) return;
-      result.push(n);
-      if (n.children) {
-        for (const child of n.children) collect(child);
-      }
-    };
-    for (const n of groupingResult.ungrouped) collect(n);
-    return sortBySequence(result);
-  }, [groupingResult, pagesOnly]);
-
-  // Sorted groups: when grouping by page, order groups by page name
-  // using the custom date-aware comparator (year → month → day → alpha)
-  const sortedGroups = useMemo(() => {
-    if (!groupingResult) return null;
-    if (groupBy !== 'page') return groupingResult.groups;
-    return [...groupingResult.groups].sort((a, b) => {
-      if (a.page && b.page) {
-        return compareDateFirstAlpha(a.page, b.page);
-      }
-      return 0;
-    });
-  }, [groupingResult, groupBy]);
-
-  // Grouped view (by page or property)
+  // Grouped view (by page and/or property, recursively)
   if (groupingResult) {
     return (
       <div className={`node-list-view node-list-view--grouped ${sizeClass} ${className}`}>
@@ -313,82 +362,30 @@ export const ListView = memo(function ListView({
             </div>
           </div>
         )}
-        {sortedGroups?.map((group, groupIndex) => {
-          // Collect all nodes in this group (including children)
-          const groupAllNodes: Node[] = [];
-          const collectGroupNodes = (n: Node) => {
-            if (pagesOnly && !n.is_page) return;
-            groupAllNodes.push(n);
-            if (n.children) {
-              for (const child of n.children) {
-                collectGroupNodes(child);
-              }
-            }
-          };
-          
-          for (const n of group.nodes) {
-            collectGroupNodes(n);
-          }
-          
-          const sortedGroupNodes = sortBySequence(groupAllNodes);
-          
-          if (sortedGroupNodes.length === 0) return null;
-          
-          const groupKey = group.page?.id 
-            ? `page-${group.page.id}` 
-            : group.label
-              ? `prop-${group.label}`
-              : `group-${groupIndex}`;
-          
-          return (
-            <ListViewGroup
-              key={groupKey}
-              group={group}
-              sortedGroupNodes={sortedGroupNodes}
-              editable={editable}
-              handleNavigateToNode={handleNavigateToNode}
-              handleOpenInSidebar={handleOpenInSidebar}
-              handleContentChangeBridge={handleContentChangeBridge}
-              onAddClass={onAddClass}
-              onSlashCommand={onSlashCommand}
-              onPasteImage={onPasteImage}
-              onTemplateInstantiate={onTemplateInstantiate}
-              templateClassFilters={templateClassFilters}
-              showClasses={showClasses}
-              onNodeClick={onNodeClick}
-              onNodeShiftClick={onNodeShiftClick}
-              showBreadcrumbs={showBreadcrumbs}
-              nodeUuid={_nodeUuid}
-              nodeId={_pageId}
-              expandAll={expandAll}
-            />
-          );
-        })}
-        {ungroupedAllNodes.length > 0 && (
-          <div className="node-list-view__ungrouped">
-            <div className="node-list-view__ungrouped-header">
-              <span className="node-list-view__group-label">No {groupBy === 'page' ? 'page' : groupByProperty?.name ?? 'value'}</span>
-            </div>
-            <div className="node-list-view__ungrouped-content">
-              <BlockList
-                nodes={ungroupedAllNodes}
-                readOnly={!editable}
-                onNavigateToNode={handleNavigateToNode}
-                onOpenInSidebar={handleOpenInSidebar}
-                onContentChange={handleContentChangeBridge}
-                nodeUuid={_nodeUuid}
-                nodeId={_pageId}
-                onAddClass={onAddClass}
-                onSlashCommand={onSlashCommand}
-                onPasteImage={onPasteImage}
-                onTemplateInstantiate={onTemplateInstantiate}
-                templateClassFilters={templateClassFilters}
-                showClasses={showClasses}
-                expandAll={expandAll}
-              />
-            </div>
-          </div>
-        )}
+
+        {groupingResult.tree.map(group => (
+          <ListViewGroup
+            key={group.key}
+            group={group}
+            editable={editable}
+            pagesOnly={pagesOnly}
+            handleNavigateToNode={handleNavigateToNode}
+            handleOpenInSidebar={handleOpenInSidebar}
+            handleContentChangeBridge={handleContentChangeBridge}
+            onAddClass={onAddClass}
+            onSlashCommand={onSlashCommand}
+            onPasteImage={onPasteImage}
+            onTemplateInstantiate={onTemplateInstantiate}
+            templateClassFilters={templateClassFilters}
+            onNodeClick={onNodeClick}
+            onNodeShiftClick={onNodeShiftClick}
+            showBreadcrumbs={showBreadcrumbs}
+            nodeUuid={_nodeUuid}
+            nodeId={_pageId}
+            showClasses={showClasses}
+            expandAll={expandAll}
+          />
+        ))}
       </div>
     );
   }
@@ -517,12 +514,13 @@ registerView({
 
 /**
  * A collapsible group within the grouped ListView.
- * Shows a page header with collapse arrow and dotted underline node-link style.
+ * Renders either nested child groups (intermediate levels) or a BlockList
+ * of leaf nodes. Each group manages its own collapsed state.
  */
 function ListViewGroup({
   group,
-  sortedGroupNodes,
   editable,
+  pagesOnly = false,
   handleNavigateToNode,
   handleOpenInSidebar,
   handleContentChangeBridge,
@@ -539,9 +537,9 @@ function ListViewGroup({
   showClasses = false,
   expandAll = false,
 }: {
-  group: NodeGroup;
-  sortedGroupNodes: Node[];
+  group: GroupTreeNode;
   editable: boolean;
+  pagesOnly?: boolean;
   handleNavigateToNode: (blockId: string) => Promise<void>;
   handleOpenInSidebar: (blockId: string) => void;
   handleContentChangeBridge: (blockId: string, content: string) => void;
@@ -559,98 +557,137 @@ function ListViewGroup({
   expandAll?: boolean;
 }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
-  
+  const isLeaf = group.children.length === 0;
+
+  const leafNodes = useMemo(() => {
+    const result: Node[] = [];
+    const collect = (n: Node) => {
+      if (pagesOnly && !n.is_page) return;
+      result.push(n);
+      if (n.children) {
+        for (const child of n.children) collect(child);
+      }
+    };
+    for (const n of group.nodes) collect(n);
+    return sortBySequence(result);
+  }, [group.nodes, pagesOnly]);
+
   return (
     <div className={`node-list-view__group ${isCollapsed ? 'node-list-view__group--collapsed' : ''}`}>
-      {(group.page || group.label !== undefined) && (
-        <div className="node-list-view__group-header">
-          <button
-            type="button"
-            className="node-list-view__group-collapse"
-            onClick={() => setIsCollapsed(prev => !prev)}
-            aria-expanded={!isCollapsed}
-            aria-label={isCollapsed ? 'Expand group' : 'Collapse group'}
-          >
-            {isCollapsed ? <ChevronRightIcon size="xs" /> : <ChevronDownIcon size="xs" />}
-          </button>
-          {group.page ? (
-            <span className="node-list-view__group-page">
-              <NodeInline
-                name={group.page.name}
-                icon={group.page.icon}
-                isPage={group.page.is_page}
-                nodeId={group.page.id}
-                showBullet={false}
-                onClick={() => onNodeClick?.(group.page!)}
-                onShiftClick={() => onNodeShiftClick?.(group.page!)}
-                className="node-list-view__group-link"
-              />
-            </span>
-          ) : (
-            <span className="node-list-view__group-label">
-              {group.headerIcon && <NodeIcon icon={group.headerIcon} size="xs" />}
-              {group.label}
-            </span>
-          )}
-        </div>
-      )}
+      <div className="node-list-view__group-header">
+        <button
+          type="button"
+          className="node-list-view__group-collapse"
+          onClick={() => setIsCollapsed(prev => !prev)}
+          aria-expanded={!isCollapsed}
+          aria-label={isCollapsed ? 'Expand group' : 'Collapse group'}
+        >
+          {isCollapsed ? <ChevronRightIcon size="xs" /> : <ChevronDownIcon size="xs" />}
+        </button>
+        {group.page ? (
+          <span className="node-list-view__group-page">
+            <NodeInline
+              name={group.page.name}
+              icon={group.page.icon}
+              isPage={group.page.is_page}
+              nodeId={group.page.id}
+              showBullet={false}
+              onClick={() => onNodeClick?.(group.page!)}
+              onShiftClick={() => onNodeShiftClick?.(group.page!)}
+              className="node-list-view__group-link"
+            />
+          </span>
+        ) : (
+          <span className="node-list-view__group-label">
+            {group.icon && <NodeIcon icon={group.icon} size="xs" />}
+            {group.label}
+          </span>
+        )}
+      </div>
       {!isCollapsed && (
         <div className="node-list-view__group-content">
-          {showBreadcrumbs ? (
-            group.nodes.map((node) => {
-              const nodeFlat: Node[] = [];
-              const collect = (n: Node) => {
-                nodeFlat.push(n);
-                if (n.children) for (const child of n.children) collect(child);
-              };
-              collect(node);
-              const sorted = sortBySequence(nodeFlat);
-              if (sorted.length === 0) return null;
-              return (
-                <div key={node.id} className="node-list-view__breadcrumb-group">
-                  <NodeBreadcrumbs
-                    nodeId={node.id}
-                    nodeType={node.is_page ? 'page' : 'block'}
-                    onNavigate={(id) => onNodeClick?.({ id, is_page: true } as Node)}
-                    stopAtPageLevel
-                    className="node-list-view__block-breadcrumbs"
-                  />
-                  <BlockList
-                    nodes={sorted}
-                    readOnly={!editable}
-                    onNavigateToNode={handleNavigateToNode}
-                    onOpenInSidebar={handleOpenInSidebar}
-                    onContentChange={handleContentChangeBridge}
-                    nodeUuid={nodeUuid}
-                    nodeId={nodeId}
-                    onAddClass={onAddClass}
-                    onSlashCommand={onSlashCommand}
-                    onPasteImage={onPasteImage}
-                    onTemplateInstantiate={onTemplateInstantiate}
-                    templateClassFilters={templateClassFilters}
-                    showClasses={showClasses}
-                    expandAll={expandAll}
-                  />
-                </div>
-              );
-            })
+          {isLeaf ? (
+            showBreadcrumbs ? (
+              group.nodes.map((node) => {
+                const nodeFlat: Node[] = [];
+                const collect = (n: Node) => {
+                  if (pagesOnly && !n.is_page) return;
+                  nodeFlat.push(n);
+                  if (n.children) for (const child of n.children) collect(child);
+                };
+                collect(node);
+                const sorted = sortBySequence(nodeFlat);
+                if (sorted.length === 0) return null;
+                return (
+                  <div key={node.id} className="node-list-view__breadcrumb-group">
+                    <NodeBreadcrumbs
+                      nodeId={node.id}
+                      nodeType={node.is_page ? 'page' : 'block'}
+                      onNavigate={(id) => onNodeClick?.({ id, is_page: true } as Node)}
+                      stopAtPageLevel
+                      className="node-list-view__block-breadcrumbs"
+                    />
+                    <BlockList
+                      nodes={sorted}
+                      readOnly={!editable}
+                      onNavigateToNode={handleNavigateToNode}
+                      onOpenInSidebar={handleOpenInSidebar}
+                      onContentChange={handleContentChangeBridge}
+                      nodeUuid={nodeUuid}
+                      nodeId={nodeId}
+                      onAddClass={onAddClass}
+                      onSlashCommand={onSlashCommand}
+                      onPasteImage={onPasteImage}
+                      onTemplateInstantiate={onTemplateInstantiate}
+                      templateClassFilters={templateClassFilters}
+                      showClasses={showClasses}
+                      expandAll={expandAll}
+                    />
+                  </div>
+                );
+              })
+            ) : (
+              <BlockList
+                nodes={leafNodes}
+                readOnly={!editable}
+                onNavigateToNode={handleNavigateToNode}
+                onOpenInSidebar={handleOpenInSidebar}
+                onContentChange={handleContentChangeBridge}
+                onAddClass={onAddClass}
+                onSlashCommand={onSlashCommand}
+                onPasteImage={onPasteImage}
+                onTemplateInstantiate={onTemplateInstantiate}
+                templateClassFilters={templateClassFilters}
+                showClasses={showClasses}
+                nodeUuid={nodeUuid}
+                nodeId={nodeId}
+                expandAll={expandAll}
+              />
+            )
           ) : (
-            <BlockList
-              nodes={sortedGroupNodes}
-              readOnly={!editable}
-              onNavigateToNode={handleNavigateToNode}
-              onOpenInSidebar={handleOpenInSidebar}
-              onContentChange={handleContentChangeBridge}
-              onAddClass={onAddClass}
-              onSlashCommand={onSlashCommand}
-              onPasteImage={onPasteImage}
-              onTemplateInstantiate={onTemplateInstantiate}
-              templateClassFilters={templateClassFilters}
-              showClasses={showClasses}
-              nodeUuid={nodeUuid}
-              nodeId={nodeId}
-              expandAll={expandAll}
-            />
+            group.children.map(child => (
+              <ListViewGroup
+                key={child.key}
+                group={child}
+                editable={editable}
+                pagesOnly={pagesOnly}
+                handleNavigateToNode={handleNavigateToNode}
+                handleOpenInSidebar={handleOpenInSidebar}
+                handleContentChangeBridge={handleContentChangeBridge}
+                onAddClass={onAddClass}
+                onSlashCommand={onSlashCommand}
+                onPasteImage={onPasteImage}
+                onTemplateInstantiate={onTemplateInstantiate}
+                templateClassFilters={templateClassFilters}
+                onNodeClick={onNodeClick}
+                onNodeShiftClick={onNodeShiftClick}
+                showBreadcrumbs={showBreadcrumbs}
+                nodeUuid={nodeUuid}
+                nodeId={nodeId}
+                showClasses={showClasses}
+                expandAll={expandAll}
+              />
+            ))
           )}
         </div>
       )}

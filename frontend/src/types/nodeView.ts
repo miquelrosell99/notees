@@ -98,8 +98,8 @@ export interface QueryExecuteRequest {
  * Single group returned by a backend aggregation query
  */
 export interface QueryGroupResult {
-  group_key: string | number | null;
-  count: number;
+  value: number;
+  [key: string]: string | number | null | undefined;
 }
 
 /**

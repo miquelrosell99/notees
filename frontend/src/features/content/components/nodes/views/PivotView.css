@@ -1,0 +1,213 @@
+.pivot-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.pivot-view__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-3);
+  padding: var(--spacing-3);
+  border-bottom: 1px solid var(--color-outline-variant);
+  background: var(--color-surface-container);
+  align-items: flex-start;
+}
+
+.pivot-view__control-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  min-width: 10rem;
+}
+
+.pivot-view__control {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+.pivot-view__control-label {
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  color: var(--color-on-surface-variant);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-label);
+}
+
+.pivot-view__control-select {
+  padding: var(--spacing-1) var(--spacing-2);
+  border: 1px solid var(--color-outline);
+  border-radius: var(--shape-medium);
+  background: var(--color-surface);
+  color: var(--color-on-surface);
+  font-size: var(--font-size-sm);
+}
+
+.pivot-view__dimension-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-1);
+  min-height: 1.5rem;
+}
+
+.pivot-view__dimension-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  padding: var(--spacing-micro) var(--spacing-2);
+  background: var(--color-primary-container);
+  color: var(--color-on-primary-container);
+  border-radius: var(--shape-full);
+  font-size: var(--font-size-xs);
+}
+
+.pivot-view__dimension-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--icon-size-xs);
+  height: var(--icon-size-xs);
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  border-radius: var(--shape-full);
+}
+
+.pivot-view__dimension-remove:hover,
+.pivot-view__dimension-remove:focus-visible {
+  background: var(--color-focus-overlay);
+}
+
+.pivot-view__table-wrap {
+  flex: 1 1 auto;
+  overflow: auto;
+  min-height: 0;
+  padding: var(--spacing-3);
+}
+
+.pivot-view__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-sm);
+  background: var(--color-surface);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--shape-large);
+  overflow: hidden;
+}
+
+.pivot-view__table th,
+.pivot-view__table td {
+  border: 1px solid var(--color-outline-variant);
+  padding: var(--spacing-2) var(--spacing-3);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.pivot-view__table th {
+  background: var(--color-surface-container);
+  font-weight: 600;
+  color: var(--color-on-surface);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.pivot-view__corner {
+  min-width: 8rem;
+}
+
+.pivot-view__col-header {
+  white-space: nowrap;
+  min-width: 4rem;
+}
+
+.pivot-view__col-header-part {
+  display: block;
+}
+
+.pivot-view__col-header-part + .pivot-view__col-header-part::before {
+  content: '› ';
+  color: var(--color-on-surface-variant);
+}
+
+.pivot-view__row-header {
+  background: var(--color-surface-container);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.pivot-view__row-header--leaf {
+  background: transparent;
+  font-weight: 400;
+}
+
+.pivot-view__indent-cell {
+  background: var(--color-surface-container);
+  width: var(--spacing-6);
+  padding: 0;
+}
+
+.pivot-view__collapse-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--icon-size-sm);
+  height: var(--icon-size-sm);
+  margin-right: var(--spacing-1);
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--color-on-surface-variant);
+  cursor: pointer;
+  border-radius: var(--shape-small);
+}
+
+.pivot-view__collapse-btn:hover,
+.pivot-view__collapse-btn:focus-visible {
+  background: var(--color-hover-overlay);
+  color: var(--color-on-surface);
+}
+
+.pivot-view__cell {
+  text-align: right;
+  cursor: pointer;
+  transition: background-color var(--motion-duration-instant) ease;
+}
+
+.pivot-view__cell:hover,
+.pivot-view__cell:focus-visible {
+  background: var(--color-surface-container-active);
+}
+
+.pivot-view__total-cell {
+  font-weight: 600;
+  background: var(--color-surface-container);
+}
+
+.pivot-view__empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--color-on-surface-variant);
+  font-size: var(--font-size-sm);
+  text-align: center;
+  padding: var(--spacing-8);
+}
+
+.pivot-view__drilldown {
+  min-height: 12rem;
+  max-height: 60vh;
+  overflow: auto;
+}
+
+.pivot-view--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-4);
+}

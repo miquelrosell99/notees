@@ -8,6 +8,8 @@ from typing import Any
 
 from app.domain.entities.query_ast import (
     AggregateFunction,
+    AggregationDimension,
+    AggregationMeasure,
     AggregationNode,
     ChildCondition,
     ChildPathCondition,
@@ -125,8 +127,8 @@ class QueryASTToSQL:
         """Generate an aggregate SQL query from AST.
 
         The filtered node set is computed using the normal query logic, then
-        grouped according to ast.aggregation. Returns SQL that selects group_key
-        and the aggregate value (e.g. count).
+        grouped according to ast.aggregation. Returns SQL that selects one
+        column per dimension (dim_0, dim_1, ...) plus the aggregated value.
         """
         if not ast.aggregation:
             raise DomainError("Aggregation requested but AST has no aggregation node")
@@ -146,83 +148,137 @@ class QueryASTToSQL:
         return sql, params
 
     def _generate_group_by_sql(self, aggregation: AggregationNode) -> tuple[str, dict[str, Any]]:
-        """Generate the GROUP BY portion of an aggregate query."""
-        function = aggregation.function
-        group_by = aggregation.group_by
+        """Generate the GROUP BY portion of an aggregate query.
 
-        aggregate_expr = {
-            AggregateFunction.COUNT: "COUNT(*)",
-            AggregateFunction.SUM: "SUM(%s)",
-            AggregateFunction.AVG: "AVG(%s)",
-            AggregateFunction.MIN: "MIN(%s)",
-            AggregateFunction.MAX: "MAX(%s)",
-        }.get(function, "COUNT(*)")
+        Supports N grouping dimensions and a configurable measure (count or
+        numeric aggregate on a property/builtin column).
+        """
+        dimensions = aggregation.dimensions or []
+        if not dimensions and aggregation.group_by:
+            # Legacy normalization fallback.
+            dimensions = [AggregationDimension(field=aggregation.group_by, property_type=aggregation.group_by_property_type)]
+        if not dimensions:
+            raise DomainError("Aggregation has no dimensions")
 
-        # Built-in node fields
-        builtin_groups = {
-            "is_page": "fn.is_page",
-            "create_date": "fn.create_date::date",
-            "write_date": "fn.write_date::date",
-            "open_date": "fn.open_date::date",
-            "page": "fn.page_id",
-            "class": "COALESCE(fn.class_ids::text, '[]')",
+        measure = aggregation.measure or AggregationMeasure()
+
+        allowed_builtin_dimensions = {
+            "is_page",
+            "create_date",
+            "write_date",
+            "open_date",
+            "page",
+            "class",
+        }
+        allowed_builtin_measures = {
+            "sequence",
+            "id",
         }
 
-        if group_by in builtin_groups:
-            key_expr = builtin_groups[group_by]
-            sql = f"""SELECT
-    {key_expr} AS group_key,
-    {aggregate_expr} AS count
-FROM filtered_nodes fn
-GROUP BY {key_expr}
-ORDER BY {aggregate_expr} DESC"""
-            return sql, {}
+        # Build dimension key expressions and joins.
+        select_cols: list[str] = []
+        group_exprs: list[str] = []
+        params: dict[str, Any] = {}
+        join_clauses: list[str] = []
 
-        # Property-based grouping
-        if not aggregation.group_by_property_type:
-            raise DomainError(f"Property grouping requires group_by_property_type for {group_by}")
+        for idx, dim in enumerate(dimensions):
+            alias = f"dim_{idx}"
+            field = dim.field
 
-        prop_uuid_param = self._add_param(group_by)
-        prop_type = aggregation.group_by_property_type
+            if field in allowed_builtin_dimensions:
+                builtin_exprs = {
+                    "is_page": "fn.is_page",
+                    "create_date": "fn.create_date::date",
+                    "write_date": "fn.write_date::date",
+                    "open_date": "fn.open_date::date",
+                    "page": "fn.page_id",
+                    "class": "COALESCE(fn.class_ids::text, '[]')",
+                }
+                expr = builtin_exprs[field]
+                select_cols.append(f"    {expr} AS {alias}")
+                group_exprs.append(expr)
+                continue
 
+            # Property-based dimension.
+            if not dim.property_type:
+                raise DomainError(f"Property dimension requires property_type for {field}")
+            prop_param = self._add_param(f"dim_{idx}_uuid")
+            params[prop_param] = field
+            prop_type = dim.property_type
 
-        if prop_type == PropertyType.SELECTION.value:
-            sql = f"""SELECT
-    COALESCE(psl.name, '(No value)') AS group_key,
-    COUNT(*) AS count
-FROM filtered_nodes fn
-LEFT JOIN node_property np ON np.node_id = fn.id
-LEFT JOIN property p ON p.uuid = %({prop_uuid_param})s::uuid AND p.workspace_id = %(workspace_id)s
-LEFT JOIN property_value_selection pvs ON pvs.node_property_id = np.id
-LEFT JOIN property_selection_line psl ON psl.id = pvs.selection_line_id
-GROUP BY psl.name
-ORDER BY count DESC"""
-            return sql, {prop_uuid_param: group_by}
+            np_alias = f"np_{idx}"
+            p_alias = f"p_{idx}"
 
-        if prop_type in (PropertyType.NODE.value, PropertyType.DATE.value):
-            sql = f"""SELECT
-    COALESCE(target.uuid::text, '(No value)') AS group_key,
-    COUNT(*) AS count
-FROM filtered_nodes fn
-LEFT JOIN node_property np ON np.node_id = fn.id
-LEFT JOIN property p ON p.uuid = %({prop_uuid_param})s::uuid AND p.workspace_id = %(workspace_id)s
-LEFT JOIN property_value_relation pvr ON pvr.node_property_id = np.id
-LEFT JOIN node target ON target.id = pvr.target_id
-GROUP BY target.uuid
-ORDER BY count DESC"""
-            return sql, {prop_uuid_param: group_by}
+            join_clauses.append(
+                f"LEFT JOIN node_property {np_alias} ON {np_alias}.node_id = fn.id\n"
+                f"LEFT JOIN property {p_alias} ON {p_alias}.uuid = %({prop_param})s::uuid "
+                f"AND {p_alias}.workspace_id = %(workspace_id)s "
+                f"AND {np_alias}.property_id = {p_alias}.id"
+            )
 
-        # Scalar / text / number properties
+            if prop_type == PropertyType.SELECTION.value:
+                pvs_alias = f"pvs_{idx}"
+                psl_alias = f"psl_{idx}"
+                join_clauses.append(
+                    f"LEFT JOIN property_value_selection {pvs_alias} ON {pvs_alias}.node_property_id = {np_alias}.id\n"
+                    f"LEFT JOIN property_selection_line {psl_alias} ON {psl_alias}.id = {pvs_alias}.selection_line_id"
+                )
+                expr = f"COALESCE({psl_alias}.name, '(No value)')"
+            elif prop_type in (PropertyType.NODE.value, PropertyType.DATE.value):
+                pvr_alias = f"pvr_{idx}"
+                target_alias = f"target_{idx}"
+                join_clauses.append(
+                    f"LEFT JOIN property_value_relation {pvr_alias} ON {pvr_alias}.node_property_id = {np_alias}.id\n"
+                    f"LEFT JOIN node {target_alias} ON {target_alias}.id = {pvr_alias}.target_id"
+                )
+                expr = f"COALESCE({target_alias}.uuid::text, '(No value)')"
+            else:
+                pvs_alias = f"pvs_{idx}"
+                join_clauses.append(
+                    f"LEFT JOIN property_value_scalar {pvs_alias} ON {pvs_alias}.node_property_id = {np_alias}.id"
+                )
+                expr = f"COALESCE({pvs_alias}.value_text, '(No value)')"
+
+            select_cols.append(f"    {expr} AS {alias}")
+            group_exprs.append(expr)
+
+        # Build measure expression.
+        if measure.function == AggregateFunction.COUNT or not measure.field:
+            measure_expr = "COUNT(*)"
+        elif measure.field in allowed_builtin_measures:
+            measure_expr = f"{measure.function.upper()}(fn.{measure.field})"
+        else:
+            if not measure.property_type:
+                raise DomainError(f"Property measure requires property_type for {measure.field}")
+            measure_prop_param = self._add_param("measure_uuid")
+            params[measure_prop_param] = measure.field
+            measure_expr = (
+                f"{measure.function.upper()}("
+                f"COALESCE(m_pvs.value_float, m_pvs.value_integer::float8)"
+                f")"
+            )
+            join_clauses.append(
+                f"LEFT JOIN node_property m_np ON m_np.node_id = fn.id\n"
+                f"LEFT JOIN property m_p ON m_p.uuid = %({measure_prop_param})s::uuid "
+                f"AND m_p.workspace_id = %(workspace_id)s AND m_np.property_id = m_p.id\n"
+                f"LEFT JOIN property_value_scalar m_pvs ON m_pvs.node_property_id = m_np.id"
+            )
+
+        select_cols.append(f"    {measure_expr} AS value")
+
+        group_by_sql = ", ".join(group_exprs)
+        order_by_sql = f"{group_exprs[0]} ASC, value DESC"
+
+        joins_sql = "\n".join(join_clauses)
+        select_sql = ",\n".join(select_cols)
+
         sql = f"""SELECT
-    COALESCE(pvs.value_text, '(No value)') AS group_key,
-    COUNT(*) AS count
+{select_sql}
 FROM filtered_nodes fn
-LEFT JOIN node_property np ON np.node_id = fn.id
-LEFT JOIN property p ON p.uuid = %({prop_uuid_param})s::uuid AND p.workspace_id = %(workspace_id)s
-LEFT JOIN property_value_scalar pvs ON pvs.node_property_id = np.id
-GROUP BY pvs.value_text
-ORDER BY count DESC"""
-        return sql, {prop_uuid_param: group_by}
+{joins_sql}
+GROUP BY {group_by_sql}
+ORDER BY {order_by_sql}"""
+        return sql, params
 
     def _generate_scope_sql(self, scope: ScopeNode) -> str | None:
         """Generate SQL for scope filtering."""

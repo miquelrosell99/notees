@@ -141,6 +141,10 @@
   padding-left: var(--spacing-2);
 }
 
+.node-list-view__group-content > .node-list-view__group {
+  margin-left: var(--spacing-2);
+}
+
 /* Ungrouped section — nodes that don't belong to any group */
 .node-list-view__ungrouped {
   display: flex;

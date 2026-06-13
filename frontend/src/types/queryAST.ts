@@ -401,12 +401,33 @@ export interface NotNode {
 export type AggregateFunction = 'count' | 'sum' | 'avg' | 'min' | 'max';
 
 /**
+ * A single grouping dimension (builtin field or property UUID)
+ */
+export interface AggregationDimension {
+  type: 'dimension';
+  field: string; // builtin ('is_page', 'create_date', ...) or property UUID
+  property_type?: QueryPropertyType; // required when field is a property UUID
+}
+
+/**
+ * Aggregation measure (count or numeric aggregate of a field/property)
+ */
+export interface AggregationMeasure {
+  type: 'measure';
+  function: AggregateFunction;
+  field?: string; // omitted/empty means count nodes; otherwise builtin or property UUID
+  property_type?: QueryPropertyType; // required when field is a property UUID
+}
+
+/**
  * Aggregation definition for a query
  */
 export interface AggregationNode {
   type: 'aggregation';
-  function: AggregateFunction;
-  group_by: string; // builtin field or property UUID
+  dimensions: AggregationDimension[];
+  measure: AggregationMeasure;
+  // Legacy single-dimension fields (kept for backward compatibility)
+  group_by?: string;
   group_by_property_type?: QueryPropertyType;
 }
 

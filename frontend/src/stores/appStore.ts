@@ -12,6 +12,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { SYSTEM_PROPERTY_UUIDS } from '@/constants/systemProperties';
+import type { NodeCollectionGroupBy } from '@/types/nodeCollection';
 
 // ── Shared type aliases (used by navigationStore + external consumers) ──────────
 export type ViewMode = 'default' | 'focus' | 'zen';
@@ -52,7 +53,7 @@ export type CardLayoutMode = 'no-cover' | 'cover-top' | 'cover-left' | 'cover-ri
 interface DisplayPrefsState {
   contentDisplayMode: ContentDisplayMode;
   cardLayout: CardLayoutMode;
-  nodeGroupBy: Record<string, string>;
+  nodeGroupBy: Record<string, NodeCollectionGroupBy>;
   ganttStartDatePropertyUuid: string;
   ganttEndDatePropertyUuid: string;
   ganttTimeScale: 'day' | 'week' | 'month';
@@ -60,8 +61,8 @@ interface DisplayPrefsState {
   toggleContentDisplayMode: () => void;
   setContentDisplayMode: (mode: ContentDisplayMode) => void;
   setCardLayout: (layout: CardLayoutMode) => void;
-  setNodeGroupBy: (nodeId: number, viewType: string, groupBy: string) => void;
-  getNodeGroupBy: (nodeId: number, viewType: string) => string | undefined;
+  setNodeGroupBy: (nodeId: number, viewType: string, groupBy: NodeCollectionGroupBy) => void;
+  getNodeGroupBy: (nodeId: number, viewType: string) => NodeCollectionGroupBy | undefined;
   setGanttStartDatePropertyUuid: (uuid: string) => void;
   setGanttEndDatePropertyUuid: (uuid: string) => void;
   setGanttTimeScale: (scale: 'day' | 'week' | 'month') => void;

@@ -34,28 +34,21 @@ class PostgresNodeSearchMixin(_PostgresNodeBase):
         sort_by: str = "write_date",
         order: str = "desc",
     ) -> list[object]:
-        """Additive multi-token search across own text, link targets, and labels.
+        """Additive multi-token search using the materialized search_text column.
 
-        Splits the query into tokens.  For each candidate node, a combined
-        searchable text is built from:
+        search_text is maintained by database triggers and contains:
           - the node's own plain-text content
-          - plain-text names of all outgoing link targets (via node_link)
+          - recursively resolved plain-text names of outgoing link targets
           - custom labels stored on outgoing links (node_link.name)
 
-        ALL tokens must appear somewhere in that combined text.
-
-        To keep it fast the search is two-phase:
-          1. *Candidates* — nodes matching ANY single token in any source
-             (own name, link target name, or link label).  Uses FTS index
-             and node_link indexes.
-          2. *Full-text filter* — for candidates only, build the combined
-             text via an indexed LATERAL join and verify ALL tokens match.
+        The query is split into tokens; ALL tokens must appear somewhere in
+        search_text.  A full-text search fallback on search_vector is used for
+        whole-phrase matches when the query is at least 3 characters long.
 
         Additional filters (class_ids, boolean flags) and sorting are applied
         in the final SELECT so PostgreSQL can limit the result set directly.
         """
         pt_n = self._plain_text_expr("n")
-        pt_tn = self._plain_text_expr("tn")
 
         order_dir = "DESC" if order == "desc" else "ASC"
         if sort_by == "name":
@@ -121,52 +114,13 @@ class PostgresNodeSearchMixin(_PostgresNodeBase):
                 # Filter params come after token params
                 fp = tp + nt
 
-                any_own = " OR ".join(f"{pt_n}  ILIKE ${tp + i}" for i in range(nt))
-                any_tgt = " OR ".join(f"{pt_tn} ILIKE ${tp + i}" for i in range(nt))
-                any_label = " OR ".join(f"nl.name ILIKE ${tp + i}" for i in range(nt))
-                all_full = " AND ".join(f"nft.full_text ILIKE ${tp + i}" for i in range(nt))
-
+                all_text = " AND ".join(
+                    f"COALESCE(n.search_text, '') ILIKE ${tp + i}" for i in range(nt)
+                )
                 fts_cond = "OR n.search_vector @@ plainto_tsquery('english', $3)" if len(query) >= 3 else ""
 
                 sql = f"""
-                    WITH candidates AS (
-                        -- Nodes whose own text matches ANY token (+ FTS)
-                        SELECT n.id FROM node n
-                        WHERE n.workspace_id = $1 AND n.active = TRUE AND n.is_deleted = FALSE
-                          AND ({any_own} {fts_cond})
-                        UNION
-                        -- Source nodes of links whose TARGET name matches ANY token
-                        SELECT nl.source_id AS id FROM node_link nl
-                        JOIN node tn ON tn.id = nl.target_id
-                            AND tn.active = TRUE AND tn.is_deleted = FALSE
-                        WHERE nl.workspace_id = $1 AND ({any_tgt})
-                        UNION
-                        -- Source nodes of links whose custom label matches ANY token
-                        SELECT nl.source_id AS id FROM node_link nl
-                        WHERE nl.workspace_id = $1 AND nl.name IS NOT NULL
-                          AND ({any_label})
-                    ),
-                    node_full_text AS (
-                        SELECT
-                            c.id,
-                            {pt_n}
-                            || ' ' || COALESCE(la.combined, '')
-                            AS full_text
-                        FROM candidates c
-                        JOIN node n ON n.id = c.id
-                            AND n.active = TRUE AND n.is_deleted = FALSE
-                        LEFT JOIN LATERAL (
-                            SELECT string_agg(
-                                COALESCE(nl.name, '') || ' ' || {pt_tn},
-                                ' '
-                            ) AS combined
-                            FROM node_link nl
-                            JOIN node tn ON tn.id = nl.target_id
-                                AND tn.active = TRUE AND tn.is_deleted = FALSE
-                            WHERE nl.source_id = c.id AND nl.workspace_id = $1
-                        ) la ON TRUE
-                    ),
-                    link_stats AS (
+                    WITH link_stats AS (
                         SELECT
                             nl.target_id AS node_id,
                             COUNT(*) AS backlink_count,
@@ -179,9 +133,9 @@ class PostgresNodeSearchMixin(_PostgresNodeBase):
                     SELECT n.*,
                            ts_rank(n.search_vector, plainto_tsquery('english', $3)) AS rank
                     FROM node n
-                    JOIN node_full_text nft ON nft.id = n.id
                     LEFT JOIN link_stats ls ON ls.node_id = n.id
-                    WHERE {all_full}
+                    WHERE n.workspace_id = $1 AND n.active = TRUE AND n.is_deleted = FALSE
+                      AND ({all_text} {fts_cond})
                       AND (${fp}::int[] IS NULL OR EXISTS (
                           WITH RECURSIVE filter_hierarchy AS (
                               SELECT id FROM node WHERE id = ANY(${fp}::int[]) AND workspace_id = $1

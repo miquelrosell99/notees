@@ -439,7 +439,7 @@ class NotNode:
         return NotNode(child=child)
 
 
-# ==================== Aggregation Node ====================
+# ==================== Aggregation Dimension / Measure ====================
 
 
 class AggregateFunction(StrEnum):
@@ -453,33 +453,118 @@ class AggregateFunction(StrEnum):
 
 
 @dataclass
+class AggregationDimension:
+    """A single grouping dimension (builtin field or property UUID)."""
+
+    type: Literal["dimension"] = "dimension"
+    field: str = ""  # builtin ('is_page', 'create_date', ...) or property UUID
+    property_type: str | None = None  # required when field is a property UUID
+
+    def to_dict(self) -> dict[str, Any]:
+        result: dict[str, Any] = {"type": self.type, "field": self.field}
+        if self.property_type:
+            result["property_type"] = self.property_type
+        return result
+
+    @staticmethod
+    def from_dict(data: dict[str, Any]) -> AggregationDimension:
+        return AggregationDimension(
+            field=data.get("field", ""),
+            property_type=data.get("property_type"),
+        )
+
+
+@dataclass
+class AggregationMeasure:
+    """Aggregation measure (count or numeric aggregate of a field/property)."""
+
+    type: Literal["measure"] = "measure"
+    function: AggregateFunction = AggregateFunction.COUNT
+    field: str | None = None  # None/empty means count nodes; otherwise builtin or property UUID
+    property_type: str | None = None  # required when field is a property UUID
+
+    def to_dict(self) -> dict[str, Any]:
+        result: dict[str, Any] = {
+            "type": self.type,
+            "function": self.function.value,
+        }
+        if self.field:
+            result["field"] = self.field
+        if self.property_type:
+            result["property_type"] = self.property_type
+        return result
+
+    @staticmethod
+    def from_dict(data: dict[str, Any]) -> AggregationMeasure:
+        return AggregationMeasure(
+            function=AggregateFunction(data.get("function", "count")),
+            field=data.get("field"),
+            property_type=data.get("property_type"),
+        )
+
+
+# ==================== Aggregation Node ====================
+
+
+@dataclass
 class AggregationNode:
     """Aggregation definition for QueryAST.
 
     When present, the query returns aggregated groups instead of individual nodes.
+    Supports N dimensions and a configurable measure for OLAP-style views.
     """
 
     type: Literal["aggregation"] = "aggregation"
-    function: AggregateFunction = AggregateFunction.COUNT
-    group_by: str = ""  # Reserved builtin: 'is_page', 'create_date', 'page', 'class', or a property UUID
-    group_by_property_type: str | None = None  # Required when group_by is a property UUID
+    dimensions: list[AggregationDimension] = field(default_factory=list)
+    measure: AggregationMeasure = field(default_factory=AggregationMeasure)
+
+    # Legacy single-dimension fields (kept for backward compatibility)
+    group_by: str = ""
+    group_by_property_type: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for JSON serialization."""
         result: dict[str, Any] = {
             "type": self.type,
-            "function": self.function.value,
-            "group_by": self.group_by,
+            "dimensions": [d.to_dict() for d in self.dimensions],
+            "measure": self.measure.to_dict(),
         }
+        if self.group_by:
+            result["group_by"] = self.group_by
         if self.group_by_property_type:
             result["group_by_property_type"] = self.group_by_property_type
         return result
 
     @staticmethod
     def from_dict(data: dict[str, Any]) -> AggregationNode:
-        """Create from dictionary."""
+        """Create from dictionary, normalizing legacy single-dimension shapes."""
+        dimensions_data = data.get("dimensions")
+        measure_data = data.get("measure")
+
+        if dimensions_data:
+            dimensions = [AggregationDimension.from_dict(d) for d in dimensions_data]
+        else:
+            # Backward compatibility: legacy group_by becomes the single dimension.
+            group_by = data.get("group_by", "")
+            dimensions = []
+            if group_by:
+                dimensions.append(
+                    AggregationDimension(
+                        field=group_by,
+                        property_type=data.get("group_by_property_type"),
+                    )
+                )
+
+        if measure_data:
+            measure = AggregationMeasure.from_dict(measure_data)
+        else:
+            # Legacy: function applies to count; no numeric field.
+            function = AggregateFunction(data.get("function", "count"))
+            measure = AggregationMeasure(function=function)
+
         return AggregationNode(
-            function=AggregateFunction(data.get("function", "count")),
+            dimensions=dimensions,
+            measure=measure,
             group_by=data.get("group_by", ""),
             group_by_property_type=data.get("group_by_property_type"),
         )

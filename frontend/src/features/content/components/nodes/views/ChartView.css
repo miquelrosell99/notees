@@ -82,6 +82,29 @@
   min-width: var(--layout-size-xl);
 }
 
+.chart-view__control {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+}
+
+.chart-view__control-label {
+  font-size: var(--font-size-button);
+  color: var(--on-surface-variant);
+  white-space: nowrap;
+}
+
+.chart-view__control-select {
+  padding: var(--spacing-1-5) var(--spacing-2-5);
+  border: var(--border-width-default) solid var(--outline-variant);
+  border-radius: var(--shape-medium);
+  background: var(--surface-container);
+  color: var(--on-surface);
+  font-size: var(--font-size-button);
+  cursor: pointer;
+  min-width: var(--layout-size-xl);
+}
+
 /* Chart canvas */
 .chart-view__canvas {
   flex: 1;
