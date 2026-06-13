@@ -185,6 +185,13 @@ class PostgresUserRepository(UserRepository):
         async with acquire_connection(self._pool) as conn:
             return await conn.fetchval('SELECT COUNT(*) FROM "user"') or 0
 
+    async def count_active_admins(self) -> int:
+        """Return the number of active admin users."""
+        async with acquire_connection(self._pool) as conn:
+            return await conn.fetchval(
+                'SELECT COUNT(*) FROM "user" WHERE role = \'admin\' AND active = TRUE'
+            ) or 0
+
     async def ensure_initial_admin(self, admin_email: str, admin_password: str) -> bool:
         """Create an initial admin user if no active admin exists.
 

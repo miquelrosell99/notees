@@ -7,8 +7,10 @@ from .interfaces import (
     InviteRepository,
     LinkRepository,
     NodeRepository,
+    NodeViewRepository,
     NotificationRepository,
     PropertyRepository,
+    QueryRepository,
     SettingsRepository,
     ShareRepository,
     SyncRepository,
@@ -26,6 +28,7 @@ from .postgres_node import PostgresNodeRepository
 from .postgres_node_view import PostgresNodeViewRepository
 from .postgres_notification import PostgresNotificationRepository
 from .postgres_property import PostgresPropertyRepository
+from .postgres_query import PostgresQueryRepository
 from .postgres_settings import PostgresSettingsRepository
 from .postgres_share import PostgresShareRepository
 from .postgres_sync import PostgresSyncRepository
@@ -47,8 +50,10 @@ __all__ = [
     "UndoRepository",
     "WorkspaceRepository",
     "ExportRepository",
+    "NodeViewRepository",
     "NotificationRepository",
     "InviteRepository",
+    "QueryRepository",
     # PostgreSQL implementations
     "PostgresNodeRepository",
     "PostgresPropertyRepository",
@@ -66,4 +71,5 @@ __all__ = [
     "PostgresExportRepository",
     "PostgresNotificationRepository",
     "PostgresInviteRepository",
+    "PostgresQueryRepository",
 ]

@@ -53,6 +53,7 @@ from .domain.repositories.interfaces import (
     InviteRepository,
     LinkRepository,
     NodeRepository,
+    NodeViewRepository,
     NotificationRepository,
     PropertyRepository,
     SettingsRepository,
@@ -430,7 +431,7 @@ async def get_workspace_repository() -> AsyncGenerator[WorkspaceRepository, None
 
 async def get_node_view_repository(
     user: User = Depends(get_current_user),
-) -> AsyncGenerator[PostgresNodeViewRepository, None]:
+) -> AsyncGenerator[NodeViewRepository, None]:
     """Get a NodeViewRepository for the current user's workspace."""
     yield await _get_node_view_repo(user)
 
@@ -520,10 +521,19 @@ async def get_workspace_service(
 
 
 async def _get_node_service(user: User) -> NodeService:
-    """Return a NodeService wired to the user's workspace."""
+    """Return a NodeService wired to the user's active workspace."""
     pool = await get_pool()
     user_id = int(user.id)
     workspace_id, page_class_id = await _get_workspace_context_cached(pool, user_id)
+    return await _get_node_service_for_workspace(user, workspace_id, page_class_id)
+
+
+async def _get_node_service_for_workspace(
+    user: User, workspace_id: int, page_class_id: int = 0
+) -> NodeService:
+    """Return a NodeService wired to the given workspace."""
+    pool = await get_pool()
+    user_id = int(user.id)
 
     node_repo = _make_node_repository(pool, workspace_id, page_class_id, user_id)
     property_repo = _make_property_repository(pool, workspace_id, user_id)
