@@ -304,12 +304,12 @@ export function WorkspaceManagementView({
             <h2>
               {hasNoWorkspaces 
                 ? 'Welcome! Create your first workspace'
-                : 'Your Workspaces'
+                : 'Your workspaces'
               }
             </h2>
             <p className="workspace-management__subtitle">
               {hasNoWorkspaces
-                ? 'A workspace stores all your notes and pages. Get started by creating one.'
+                ? 'A workspace holds all your notes and pages. Create one to get started.'
                 : 'Select a workspace to open, or create a new one.'
               }
             </p>

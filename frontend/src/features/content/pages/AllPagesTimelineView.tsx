@@ -24,8 +24,8 @@ export function AllPagesTimelineView({ className = '' }: AllPagesTimelineViewPro
         error={error}
         isEmpty={!pages || pages.length === 0}
         skeletonRows={6}
-        emptyTitle="No pages found"
-        emptyDescription="Create some pages to see them in the timeline."
+        emptyTitle="No pages yet"
+        emptyDescription="Add pages to see them on the timeline."
         onRetry={refetch}
       >
         <ErrorBoundary context="Timeline View" showRetry>

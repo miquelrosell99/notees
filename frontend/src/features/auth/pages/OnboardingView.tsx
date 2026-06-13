@@ -76,7 +76,7 @@ export function OnboardingView({ onComplete }: OnboardingViewProps) {
       <div className="onboarding-container">
         <h1>Welcome to Notees</h1>
         <p className="onboarding-subtitle">
-          Create your admin account to get started.
+          Create your admin account to start using Notees.
         </p>
 
         <form onSubmit={handleSubmit} className="onboarding-form">

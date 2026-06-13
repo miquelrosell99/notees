@@ -137,7 +137,7 @@ export function MainContentPane({ tab, onNavigateToNode }: MainContentPaneProps)
       <main className="main-content">
         <div className="empty-state">
           <h2>Collection</h2>
-          <p>This view is not available in tab mode.</p>
+          <p>This collection view isn&apos;t available in tabs.</p>
         </div>
       </main>
     );
@@ -149,7 +149,7 @@ export function MainContentPane({ tab, onNavigateToNode }: MainContentPaneProps)
       <main className="main-content">
         <div className="empty-state">
           <h2>Welcome to Notees</h2>
-          <p>Select a page from the sidebar or create a new one.</p>
+          <p>Select a page from the sidebar, or press Ctrl+K to create one.</p>
         </div>
       </main>
     );

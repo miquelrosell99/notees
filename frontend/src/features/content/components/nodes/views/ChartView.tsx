@@ -246,7 +246,7 @@ export const ChartView = memo(function ChartView({
     return (
       <div className={`chart-view chart-view--empty ${className}`}>
         <div className="chart-view__empty-msg">
-          Select a property to group and chart.
+          Choose a property to group and chart.
         </div>
       </div>
     );
@@ -276,7 +276,7 @@ export const ChartView = memo(function ChartView({
           </div>
         </div>
         <div className="chart-view__empty-msg">
-          No data to chart for <em>{activeProperty.name}</em>.
+          No items have a value for <em>{activeProperty.name}</em>.
         </div>
       </div>
     );

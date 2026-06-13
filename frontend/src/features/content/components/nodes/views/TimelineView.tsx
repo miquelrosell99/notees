@@ -633,9 +633,9 @@ export const TimelineView = memo(function TimelineView({
       <div className={`node-timeline-renderer node-timeline-renderer--empty ${className}`}>
         <div className="node-timeline-renderer__empty-state">
           <CalendarIcon size="lg" color="var(--color-on-surface-variant)" />
-          <div className="node-timeline-renderer__empty-title">No timeline events</div>
+          <div className="node-timeline-renderer__empty-title">No timeline events yet</div>
           <div className="node-timeline-renderer__empty-subtitle">
-            Add date properties to nodes to see them on the timeline.
+            Add a date property to items to see them on the timeline.
           </div>
         </div>
       </div>

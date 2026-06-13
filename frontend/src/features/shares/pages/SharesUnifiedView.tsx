@@ -81,9 +81,9 @@ export function SharesUnifiedView({ initialTab = 'shared-out' }: SharesUnifiedVi
             </div>
           ) : shares.length === 0 ? (
             <div className="shares-unified-view__empty">
-              <p>No shared links yet.</p>
+              <p>No shared links yet</p>
               <p className="shares-unified-view__empty-hint">
-                Open any page and click the share button to create a public link.
+                Open a page and select Share to create a public link.
               </p>
             </div>
           ) : (
@@ -146,9 +146,9 @@ export function SharesUnifiedView({ initialTab = 'shared-out' }: SharesUnifiedVi
             </div>
           ) : items.length === 0 ? (
             <div className="shares-unified-view__empty">
-              <p>Nothing shared with you yet.</p>
+              <p>Nothing shared with you yet</p>
               <p className="shares-unified-view__empty-hint">
-                When someone shares a node with you, it will appear here.
+                Pages and blocks shared with you appear here.
               </p>
             </div>
           ) : (
