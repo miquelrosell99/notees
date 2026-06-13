@@ -14,24 +14,24 @@
   display: none;
   will-change: transform, width, height;
   contain: layout style;
-  transition: transform 0.08s var(--motion-easing-standard),
-              width 0.12s var(--motion-easing-standard),
-              height 0.08s var(--motion-easing-standard),
-              border-radius 0.12s var(--motion-easing-standard),
-              opacity 0.08s var(--motion-easing-standard);
+  transition: transform var(--motion-duration-caret-move) var(--motion-easing-standard),
+              width var(--motion-duration-caret-resize) var(--motion-easing-standard),
+              height var(--motion-duration-caret-move) var(--motion-easing-standard),
+              border-radius var(--motion-duration-caret-resize) var(--motion-easing-standard),
+              opacity var(--motion-duration-caret-move) var(--motion-easing-standard);
 }
 
 /* Line caret (normal typing mode) */
 .notees-custom-caret--line {
   border-radius: var(--shape-extra-small);
-  animation: notees-line-breathe 0.85s var(--motion-easing-ease-in-out) infinite;
+  animation: notees-line-breathe var(--motion-duration-caret-breathe) var(--motion-easing-ease-in-out) infinite;
 }
 
 /* Block caret (overwrite mode) */
 .notees-custom-caret--block {
   border-radius: var(--shape-hairline);
   mix-blend-mode: difference;
-  animation: notees-block-breathe 0.85s var(--motion-easing-ease-in-out) infinite;
+  animation: notees-block-breathe var(--motion-duration-caret-breathe) var(--motion-easing-ease-in-out) infinite;
 }
 
 /* Pill surround mode */
@@ -39,7 +39,7 @@
   border-radius: var(--shape-medium);
   background: transparent;
   border: var(--border-width-thick) solid var(--color-on-surface);
-  animation: notees-pill-breathe 1.4s var(--motion-easing-ease-in-out) infinite;
+  animation: notees-pill-breathe var(--motion-duration-caret-breathe-slow) var(--motion-easing-ease-in-out) infinite;
 }
 
 /* Selection mode — transparent container, per-line children provide highlight */
@@ -82,13 +82,20 @@
   text-decoration-line: underline !important;
   text-decoration-style: dotted !important;
   text-decoration-color: var(--color-on-surface) !important;
-  text-decoration-thickness: 1px !important;
-  text-underline-offset: 2px !important;
+  text-decoration-thickness: var(--spacing-hairline) !important;
+  text-underline-offset: var(--spacing-micro) !important;
 }
 
 /* Respect reduced-motion */
 @media (prefers-reduced-motion: reduce) {
   .notees-custom-caret {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .notees-custom-caret--line,
+  .notees-custom-caret--block,
+  .notees-custom-caret--pill {
     animation: none !important;
     transition: none !important;
   }
