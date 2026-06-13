@@ -458,3 +458,40 @@ async def test_linked_references_dedup_child_of_source(auth_client, link_service
     children = linked_refs[0]["source_node"].get("children", [])
     child_ids = [c["id"] for c in children]
     assert child_block.id in child_ids, f'Child block should be nested under parent, got children: {child_ids}'
+
+
+
+@pytest.mark.asyncio
+async def test_embed_link_creates_backlink(link_service_fixtures):
+    """Test that embed references (ref_type='embed') are persisted and surfaced as backlinks."""
+    from app.domain.entities import NodeCreateData
+
+    node_repo = link_service_fixtures['node_repo']
+    link_service = link_service_fixtures['link_service']
+
+    # Create target page X
+    page_x = await node_repo.create(NodeCreateData(name='Embed Target'))
+    assert page_x.id is not None
+
+    # Create source page with a block T that embeds X
+    page_source = await node_repo.create(NodeCreateData(name='Source Page'))
+    assert page_source.id is not None
+
+    block_t = await node_repo.create(NodeCreateData(
+        name=json.dumps([{"type": "paragraph", "children": [
+            {"type": "node_link", "ref_type": "embed", "link_id": page_x.uuid}
+        ]}]),
+        parent_id=page_source.id
+    ))
+    assert block_t.id is not None
+
+    # Update links for block T
+    await link_service.update_node_links(block_t.id, block_t.name)
+
+    # Get backlinks to page X
+    backlinks = await link_service.get_backlinks(page_x.id)
+    embed_backlinks = [b for b in backlinks if b.link.is_embed]
+
+    assert len(embed_backlinks) == 1, f'Expected 1 embed backlink, got {len(embed_backlinks)}'
+    assert embed_backlinks[0].source_node_id == block_t.id
+    assert embed_backlinks[0].property_id is None

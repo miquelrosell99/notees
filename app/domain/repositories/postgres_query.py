@@ -7,12 +7,12 @@ Handles parameter substitution, SQL execution, and result formatting.
 from __future__ import annotations
 
 import time
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from typing import Any
 
 from ...db.connection import acquire_connection
 from ...logging_config import get_logger
-from ..entities.query_ast import QueryAST
+from ..entities.query_ast import ConditionType, GroupNode, NotNode, PropertyCondition, PropertyType, QueryAST
 from ..services.query_ast_optimizer import compute_ast_complexity, optimize_ast
 from ..services.query_ast_sql import QueryASTToSQL
 from ..services.query_sql_cache import get_sql_cache
@@ -113,31 +113,125 @@ class PostgresQueryRepository(BasePostgresRepository, QueryRepository):
                 if child.nested_group:
                     self._substitute_in_group(child.nested_group, runtime_params)
 
-    def _resolve_placeholder(self, value: str, runtime_params: dict[str, Any]) -> str:
-        """Resolve a single placeholder value."""
+    async def _resolve_property_names(self, query_ast: QueryAST) -> None:
+        """Resolve bare property names to property UUIDs and types.
+
+        Property conditions produced by the text query language often only have
+        a property_name. This method looks up matching properties in the
+        workspace and populates property_uuid and property_type accordingly.
+        """
+        builtin_columns = {
+            "uuid",
+            "name",
+            "id",
+            "parent_id",
+            "is_page",
+            "is_favorite",
+            "page_uuid",
+            "create_date",
+            "write_date",
+            "open_date",
+        }
+        names_to_resolve: set[str] = set()
+
+        def collect(group: GroupNode) -> None:
+            for child in group.children:
+                if isinstance(child, GroupNode):
+                    collect(child)
+                elif isinstance(child, NotNode):
+                    if isinstance(child.child, GroupNode):
+                        collect(child.child)
+                    elif isinstance(child.child, PropertyCondition):
+                        maybe_add(child.child)
+                elif isinstance(child, PropertyCondition):
+                    maybe_add(child)
+
+        def maybe_add(condition: PropertyCondition) -> None:
+            if (
+                condition.condition_type == ConditionType.PROPERTY
+                and condition.property_name not in builtin_columns
+                and not condition.property_uuid
+            ):
+                names_to_resolve.add(condition.property_name)
+
+        collect(query_ast.root_group)
+        if not names_to_resolve:
+            return
+
+        async with acquire_connection(self._pool) as conn:
+            rows = await conn.fetch(
+                "SELECT name, uuid, type FROM property WHERE workspace_id = $1 AND name = ANY($2)",
+                self._workspace_id,
+                list(names_to_resolve),
+            )
+
+        mapping = {row["name"]: {"uuid": str(row["uuid"]), "type": row["type"]} for row in rows}
+
+        def apply(group: GroupNode) -> None:
+            for child in group.children:
+                if isinstance(child, GroupNode):
+                    apply(child)
+                elif isinstance(child, NotNode):
+                    if isinstance(child.child, GroupNode):
+                        apply(child.child)
+                    elif isinstance(child.child, PropertyCondition):
+                        apply_cond(child.child)
+                elif isinstance(child, PropertyCondition):
+                    apply_cond(child)
+
+        def apply_cond(condition: PropertyCondition) -> None:
+            info = mapping.get(condition.property_name)
+            if not info:
+                return
+            condition.property_uuid = info["uuid"]
+            condition.property_type = PropertyType(info["type"])
+
+        apply(query_ast.root_group)
+
+    def _resolve_placeholder(self, value: Any, runtime_params: dict[str, Any]) -> Any:
+        """Resolve a single placeholder value to a typed runtime value.
+
+        String placeholders such as {current_node_uuid} are resolved from the
+        supplied runtime_params. Date placeholders ({today}, {this_week}, ...)
+        are resolved server-side to datetime.date values so they can be sent to
+        PostgreSQL as real date parameters.
+        """
         if not isinstance(value, str) or not value.startswith("{"):
             return value
 
-        if "{current_node_name}" in value:
+        if value == "{current_node_name}":
             name_value = runtime_params.get("current_node_name", "")
             if not name_value:
                 logger.warning("Placeholder {current_node_name} used but no runtime value provided")
-            return value.replace("{current_node_name}", name_value)
-        elif "{current_node_uuid}" in value:
+            return name_value
+        elif value == "{current_node_uuid}":
             uuid_value = runtime_params.get("current_node_uuid", "")
             if not uuid_value:
                 logger.warning("Placeholder {current_node_uuid} used but no runtime value provided")
-            return value.replace("{current_node_uuid}", uuid_value)
-        elif "{current_node_id}" in value:
-            id_value = runtime_params.get("current_node_id", "")
-            if not id_value:
+            return uuid_value
+        elif value == "{current_node_id}":
+            id_value = runtime_params.get("current_node_id")
+            if id_value is None:
                 logger.warning("Placeholder {current_node_id} used but no runtime value provided")
-            return value.replace("{current_node_id}", str(id_value))
-        elif "{current_user_id}" in value:
-            user_value = self._user_id or runtime_params.get("current_user_id", "")
-            if not user_value:
+                return None
+            return int(id_value)
+        elif value == "{current_user_id}":
+            user_value = self._user_id or runtime_params.get("current_user_id")
+            if user_value is None:
                 logger.warning("Placeholder {current_user_id} used but no runtime value provided")
-            return value.replace("{current_user_id}", str(user_value))
+                return None
+            return int(user_value)
+        elif value == "{today}":
+            return date.today()
+        elif value == "{this_week}":
+            today = date.today()
+            return today - timedelta(days=today.weekday())
+        elif value == "{this_month}":
+            today = date.today()
+            return today.replace(day=1)
+        elif value == "{this_year}":
+            today = date.today()
+            return date(today.year, 1, 1)
 
         return value
 
@@ -162,6 +256,7 @@ class PostgresQueryRepository(BasePostgresRepository, QueryRepository):
 
         query_ast = QueryAST.from_dict(query) if isinstance(query, dict) else query
 
+        await self._resolve_property_names(query_ast)
         query_ast = self._substitute_params(query_ast, runtime_params or {})
 
         ast_metrics = compute_ast_complexity(query_ast)
@@ -195,7 +290,7 @@ class PostgresQueryRepository(BasePostgresRepository, QueryRepository):
             rows = await conn.fetch(sql, *params_list)
 
             total_count = None
-            if limit is not None or offset is not None:
+            if not query_ast.aggregation and (limit is not None or offset is not None):
                 count_sql = f"SELECT COUNT(*) as count FROM ({base_sql}) subq"
                 count_params = list(params.values())
                 count_row = await conn.fetchrow(count_sql, *count_params)
@@ -203,7 +298,16 @@ class PostgresQueryRepository(BasePostgresRepository, QueryRepository):
 
         t_sql_end = time.monotonic()
 
-        results = self._rows_to_dicts(rows)
+        if query_ast.aggregation:
+            groups: list[dict[str, Any]] = []
+            for row in rows:
+                group_dict = dict(row)
+                if isinstance(group_dict.get("group_key"), date):
+                    group_dict["group_key"] = group_dict["group_key"].isoformat()
+                groups.append(group_dict)
+            results: list[dict[str, Any]] = groups
+        else:
+            results = self._rows_to_dicts(rows)
 
         t_end = time.monotonic()
 
@@ -235,7 +339,9 @@ class PostgresQueryRepository(BasePostgresRepository, QueryRepository):
             "nodes": results,
             "metrics": metrics,
         }
-        if total_count is not None:
+        if query_ast.aggregation:
+            response = {"groups": results, "metrics": metrics}
+        elif total_count is not None:
             response["total_count"] = total_count
 
         return response
@@ -265,7 +371,10 @@ class PostgresQueryRepository(BasePostgresRepository, QueryRepository):
     ) -> tuple:
         """Generate SQL, using cache for repeated AST structures."""
         generator = QueryASTToSQL(self._workspace_id, current_node_uuid)
-        sql, params = generator.generate(query_ast)
+        if query_ast.aggregation:
+            sql, params = generator.generate_aggregate(query_ast)
+        else:
+            sql, params = generator.generate(query_ast)
         return sql, params, False
 
     def _rows_to_dicts(self, rows) -> list[dict[str, Any]]:
@@ -291,6 +400,7 @@ class PostgresQueryRepository(BasePostgresRepository, QueryRepository):
         """Count results for a query without fetching all data."""
         query_ast = QueryAST.from_dict(query) if isinstance(query, dict) else query
 
+        await self._resolve_property_names(query_ast)
         query_ast = self._substitute_params(query_ast, runtime_params or {})
         query_ast = optimize_ast(query_ast)
 

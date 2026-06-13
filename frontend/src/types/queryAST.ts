@@ -182,7 +182,6 @@ export type ConditionType =
   | 'parent_path'
   | 'child'
   | 'child_path'
-  | 'class_path'
   | 'page';
 
 /**
@@ -333,18 +332,6 @@ export interface ChildPathCondition extends BaseConditionNode {
 }
 
 /**
- * Class path condition - filter by inherited classes from ancestors
- */
-export interface ClassPathCondition extends BaseConditionNode {
-  condition_type: 'class_path';
-  // Static mode: specific class(es) to find in ancestor chain
-  class_uuids?: string[];
-  class_ids?: number[];
-  // Dynamic mode: classes matching criteria
-  nested_group?: GroupNode;
-}
-
-/**
  * Page condition - filter by containing page (via page_id)
  */
 export interface PageCondition extends BaseConditionNode {
@@ -374,7 +361,6 @@ export type ConditionNode =
   | ParentPathCondition
   | ChildCondition
   | ChildPathCondition
-  | ClassPathCondition
   | PageCondition;
 
 // ==================== Group Node ====================
@@ -407,6 +393,23 @@ export interface NotNode {
   capabilities?: NodeCapabilities;
 }
 
+// ==================== Aggregation Node ====================
+
+/**
+ * Supported aggregate functions
+ */
+export type AggregateFunction = 'count' | 'sum' | 'avg' | 'min' | 'max';
+
+/**
+ * Aggregation definition for a query
+ */
+export interface AggregationNode {
+  type: 'aggregation';
+  function: AggregateFunction;
+  group_by: string; // builtin field or property UUID
+  group_by_property_type?: QueryPropertyType;
+}
+
 // ==================== Query Root ====================
 
 /**
@@ -422,6 +425,9 @@ export interface QueryAST {
   
   // The root group contains all conditions and logic
   root_group: GroupNode;
+  
+  // Optional aggregation (returns groups instead of nodes)
+  aggregation?: AggregationNode;
   
   // Metadata
   created_at?: string;

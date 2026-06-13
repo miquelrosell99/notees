@@ -103,6 +103,9 @@ class Node:
     # Direct class assignments (replaces property-based storage)
     class_ids: list[int] = field(default_factory=list)
 
+    # Direct tag assignments (replaces node_link.is_tag storage)
+    tag_ids: list[int] = field(default_factory=list)
+
     # Optimistic locking
     version: int = 1
 
@@ -143,6 +146,7 @@ class NodeCreateData:
     sequence: float = 0.0
     collapsed: bool = False
     classes: list[int] = field(default_factory=list)  # Class node IDs to apply
+    tags: list[int] = field(default_factory=list)  # Tag node IDs to apply
     property_values: dict = field(default_factory=dict)  # property_id -> value
     uuid: str | None = None  # Optional: override auto-generated UUID (for assets)
 

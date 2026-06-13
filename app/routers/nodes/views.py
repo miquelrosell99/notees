@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 from ...dependencies import _get_node_view_repo, get_current_user, get_query_executor
 from ...domain.entities.query_ast import QueryAST, create_default_query_ast
 from ...domain.services.query_ast_validation import can_save_query, validate_query_ast
+from ...domain.services.query_language import QueryLanguageError, parse_query_language
 from ...domain.services.query_service import QueryExecutor
 from ...logging_config import get_logger
 from ...models import User
@@ -77,6 +78,16 @@ class QueryExecuteRequest(BaseModel):
     include_properties: bool | None = False
     # Enrichment control — only fetch what the view actually needs
     enrich: dict[str, bool] | None = None
+    # Backend aggregation (count + group_by)
+    aggregation: dict[str, Any] | None = None
+    # Compact text query language alternative to query_ast
+    query_language: str | None = None
+
+
+class QueryParseRequest(BaseModel):
+    """Request to parse a text query into QueryAST."""
+
+    query_language: str
 
 
 class QueryASTUpdateRequest(BaseModel):
@@ -691,6 +702,11 @@ async def execute_node_view_query(
 
     # Use request query_ast if provided, otherwise use view's query_json
     effective_query = request.query_ast if request.query_ast else view.query_json
+    if request.query_language:
+        try:
+            effective_query = parse_query_language(request.query_language).to_dict()
+        except QueryLanguageError as e:
+            raise HTTPException(status_code=400, detail=f"Query language error: {e}") from e
     if not effective_query:
         effective_query = {
             "type": "query",
@@ -698,6 +714,9 @@ async def execute_node_view_query(
             "scope": {"type": "scope", "scope_type": "entire_workspace"},
             "root_group": {"type": "group", "logic": "AND", "children": []},
         }
+
+    if request.aggregation:
+        effective_query["aggregation"] = request.aggregation
 
     logger.debug(
         "[execute_node_view_query] effective_query scope_type=%s root_group_children=%s",
@@ -713,6 +732,14 @@ async def execute_node_view_query(
         offset=request.offset,
         order_by=request.order_by,
     )
+
+    # Aggregation queries return groups, not nodes. Skip enrichment for them.
+    if request.aggregation:
+        response: dict[str, Any] = {
+            "groups": exec_result.get("groups", []),
+            "metrics": exec_result.get("metrics"),
+        }
+        return response
 
     results = exec_result["nodes"]
 
@@ -766,9 +793,14 @@ async def execute_query(
         request: Query execution request with query_ast and optional params
 
     Returns:
-        Dict with 'nodes', optional 'total_count' and 'metrics'
+        Dict with 'nodes'/'groups', optional 'total_count' and 'metrics'
     """
     effective_query = request.query_ast
+    if request.query_language:
+        try:
+            effective_query = parse_query_language(request.query_language).to_dict()
+        except QueryLanguageError as e:
+            raise HTTPException(status_code=400, detail=f"Query language error: {e}") from e
     if not effective_query:
         effective_query = {
             "type": "query",
@@ -777,6 +809,9 @@ async def execute_query(
             "root_group": {"type": "group", "logic": "AND", "children": []},
         }
 
+    if request.aggregation:
+        effective_query["aggregation"] = request.aggregation
+
     exec_result = await executor.execute_query(
         query=effective_query,
         runtime_params=request.runtime_params,
@@ -784,6 +819,13 @@ async def execute_query(
         offset=request.offset,
         order_by=request.order_by,
     )
+
+    # Aggregation queries return groups, not nodes. Skip enrichment for them.
+    if request.aggregation:
+        return {
+            "groups": exec_result.get("groups", []),
+            "metrics": exec_result.get("metrics"),
+        }
 
     results = exec_result["nodes"]
 
@@ -811,6 +853,19 @@ async def execute_query(
         response["metrics"] = exec_result["metrics"]
 
     return response
+
+
+@router.post("/parse")
+async def parse_query_language_endpoint(
+    request: QueryParseRequest,
+    user: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Parse a compact text query into a QueryAST without executing it."""
+    try:
+        ast = parse_query_language(request.query_language)
+        return {"query_ast": ast.to_dict()}
+    except QueryLanguageError as e:
+        raise HTTPException(status_code=400, detail=f"Query language error: {e}") from e
 
 
 @router.post("/count")

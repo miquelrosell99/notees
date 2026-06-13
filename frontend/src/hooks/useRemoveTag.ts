@@ -1,10 +1,14 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import * as nodesApi from '@/api/nodes';
+import type { Node } from '@/types/api';
 import { nodeKeys } from './queryKeys';
+import { nodeViewKeys } from './useNodeViews';
 import { awaitAllContentSaves } from './contentSaveTracker';
+import { findNodeInCache } from './useNodeMutations.utils';
+import { updateNodeInTreeCaches, updateNodeInFlatCaches } from './cacheUtils';
 
 /**
- * Hook to remove a tag from a node (tags are stored as links with is_tag=true)
+ * Hook to remove a tag from a node (tags are stored in node.tag_ids)
  */
 export function useRemoveTag() {
   const queryClient = useQueryClient();
@@ -14,9 +18,47 @@ export function useRemoveTag() {
       await awaitAllContentSaves();
       return nodesApi.removeTagLink(nodeId, tagId);
     },
-    onSuccess: (_, { nodeId }) => {
+    onMutate: async ({ nodeId, tagId }) => {
+      await queryClient.cancelQueries({ queryKey: nodeKeys.detailBase(nodeId) });
+
+      let oldNode = queryClient.getQueryData<Node>(nodeKeys.detailBase(nodeId));
+      if (!oldNode) {
+        oldNode = findNodeInCache(queryClient, nodeId) ?? undefined;
+      }
+
+      const newTags = oldNode?.tags?.filter((id: number) => id !== tagId) ?? [];
+      const updates = { tags: newTags };
+
+      queryClient.setQueriesData<Node>(
+        { queryKey: nodeKeys.detailBase(nodeId), exact: false },
+        (old) => old ? { ...old, ...updates } : old
+      );
+
+      updateNodeInTreeCaches(queryClient, nodeId, (node) => ({ ...node, ...updates }));
+      updateNodeInFlatCaches(queryClient, nodeId, (node) => ({ ...node, ...updates }));
+
+      return { oldNode };
+    },
+    onError: (_err, { nodeId }, context) => {
+      if (context?.oldNode) {
+        const rollback = { tags: context.oldNode.tags };
+        queryClient.setQueriesData<Node>(
+          { queryKey: nodeKeys.detailBase(nodeId), exact: false },
+          (old) => old ? { ...old, ...rollback } : old
+        );
+        updateNodeInTreeCaches(queryClient, nodeId, (node) => ({ ...node, ...rollback }));
+        updateNodeInFlatCaches(queryClient, nodeId, (node) => ({ ...node, ...rollback }));
+      }
+    },
+    onSuccess: (_data, { nodeId, tagId }) => {
       queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(nodeId) });
       queryClient.invalidateQueries({ queryKey: nodeKeys.pageContent(nodeId) });
+      queryClient.invalidateQueries({ queryKey: [...nodeKeys.all, 'search'] });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.graph() });
+      queryClient.invalidateQueries({ queryKey: nodeViewKeys.list(nodeId) });
+      queryClient.invalidateQueries({ queryKey: nodeViewKeys.byType(nodeId) });
+      queryClient.invalidateQueries({ queryKey: nodeViewKeys.queryResults() });
+      queryClient.invalidateQueries({ queryKey: ['nodes', 'by-tag', tagId] });
     },
   });
 }

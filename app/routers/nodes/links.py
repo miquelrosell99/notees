@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from ...dependencies import get_current_user
 from ...domain.entities import BacklinkInfo
 from ...domain.errors import NodeNotFoundError, NodeValidationError
+from ...domain.services.link_service import LinkParsingService
 from ...models import User
 from .helpers import (
     _build_children_response,
@@ -20,6 +21,7 @@ from .models import (
     BreadcrumbSegment,
     InlineClassResponse,
     LinkedReferenceResponse,
+    MentionResponse,
     NodeLinkResponse,
     PropertyBacklinkResponse,
     PropertyRequest,
@@ -34,10 +36,9 @@ async def get_text_links(
     node_id: int,
     user: User = Depends(get_current_user),
 ):
-    """Get all text links from a node with is_tag info.
+    """Get all text links from a node.
 
-    Returns list of links parsed from [[id]] or [[id:uuid]] patterns in the node's content,
-    including whether each link is a tag (displayed with #) or a regular link.
+    Returns list of links parsed from [[id]] or [[id:uuid]] patterns in the node's content.
     """
     service = await _get_node_service(user)
     links = await service.get_text_links(node_id)
@@ -49,7 +50,6 @@ async def get_text_links(
                 uuid=str(link.uuid) if link.uuid else "",
                 source_node_id=link.source_id,
                 target_node_id=link.target_id,
-                is_tag=link.is_tag,
                 position=link.position or 0,
                 name=link.name,
             )
@@ -89,7 +89,6 @@ async def get_batch_text_links(
                 uuid=str(link.uuid) if link.uuid else "",
                 source_node_id=link.source_id,
                 target_node_id=link.target_id,
-                is_tag=link.is_tag,
                 position=link.position or 0,
                 name=link.name,
             )
@@ -105,28 +104,19 @@ async def add_tag_link(
     request: TagLinkRequest,
     user: User = Depends(get_current_user),
 ):
-    """Add a tag link from a node to a target page.
+    """Add a tag to a node.
 
-    This marks a [[id]] link in the content as a tag, which will be
-    displayed with a # instead of a page/block icon.
+    Stores the target page ID in the node's tag_ids array.
     """
     service = await _get_node_service(user)
     try:
-        link = await service.add_tag_link(node_id, request.target_node_id)
+        await service.add_tag_link(node_id, request.target_node_id)
     except NodeNotFoundError as e:
         raise HTTPException(404, str(e)) from e
     except NodeValidationError as e:
         raise HTTPException(400, str(e)) from e
 
-    return NodeLinkResponse(
-        id=link.id,
-        uuid=str(link.uuid) if link.uuid else "",
-        source_node_id=link.source_id,
-        target_node_id=link.target_id,
-        is_tag=link.is_tag,
-        position=link.position or 0,
-        name=link.name,
-    )
+    return {"success": True}
 
 
 @router.delete("/{node_id}/tag-links/{target_id}")
@@ -135,7 +125,7 @@ async def remove_tag_link(
     target_id: int,
     user: User = Depends(get_current_user),
 ):
-    """Remove a tag from a link (converts back to regular link)."""
+    """Remove a tag from a node."""
     service = await _get_node_service(user)
     removed = await service.remove_tag_link(node_id, target_id)
     return {"removed": removed}
@@ -296,6 +286,7 @@ async def get_backlinks(
         source = source_nodes.get(link.source_node_id)
         source_page = page_nodes.get(source.page_id) if source and source.page_id else None
 
+        link_type = "property" if link.property_id else ("embed" if link.link and link.link.is_embed else "text")
         result.append(
             BacklinkResponse(
                 source_node_id=link.source_node_id,
@@ -303,7 +294,7 @@ async def get_backlinks(
                 source_node_name=source.name if source else "",
                 source_page_id=source.page_id if source else None,
                 source_page_name=source_page.name if source_page else None,
-                link_type="property" if link.property_id else "text",
+                link_type=link_type,
                 position=link.link.position if link.link else 0,
             )
         )
@@ -416,11 +407,12 @@ async def get_linked_references(
         if source.id and source.id in node_properties_map:
             source_response.properties = node_properties_map[source.id]
 
+        link_type = "property" if link.property_id else ("embed" if link.link and link.link.is_embed else "text")
         result.append(
             LinkedReferenceResponse(
                 source_node=source_response,
                 source_page=_node_to_response(source_page) if source_page else None,
-                link_type="property" if link.property_id else "text",
+                link_type=link_type,
                 context=context,
                 breadcrumb_path=breadcrumb_segments,
                 property_id=link.property_id,
@@ -654,3 +646,86 @@ async def fix_links_for_uuid(
         logger = get_logger(__name__)
         logger.error(f"[FIX_LINKS_FOR_UUID] Fatal error: {e}", exc_info=True)
         raise HTTPException(500, f"Failed to fix links for UUID: {str(e)}") from e
+
+
+# ==================== UNLINKED MENTIONS ENDPOINTS ====================
+
+
+@router.get("/{node_id}/mentions")
+async def get_unlinked_mentions(
+    node_id: int,
+    user: User = Depends(get_current_user),
+):
+    """Get unlinked mention candidates for a node."""
+    service = await _get_node_service(user)
+    mention_service = service._mention_service
+    if mention_service is None:
+        return {"mentions": []}
+
+    rows = await mention_service.list_unlinked_mentions(node_id)
+    return {
+        "mentions": [
+            MentionResponse(
+                id=row["id"],
+                uuid=str(row["uuid"]),
+                source_node_id=row["source_id"],
+                source_node_uuid=str(row["source_uuid"]),
+                source_node_name=LinkParsingService._node_name_to_text(row["source_name"]),
+                source_is_page=bool(row["source_is_page"]),
+                target_id=row["target_id"],
+                match_text=row["match_text"],
+                position=row["position"] or 0,
+                is_ignored=bool(row["is_ignored"]),
+            )
+            for row in rows
+        ]
+    }
+
+
+@router.post("/{node_id}/mentions/{mention_id}/promote")
+async def promote_mention(
+    node_id: int,
+    mention_id: int,
+    user: User = Depends(get_current_user),
+):
+    """Promote an unlinked mention to a real [[node link]]."""
+    service = await _get_node_service(user)
+    try:
+        updated = await service.promote_mention(mention_id)
+    except NodeNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except NodeValidationError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+    if not updated:
+        raise HTTPException(status_code=404, detail="Mention not found")
+
+    return {"success": True, "source_node_id": updated.id}
+
+
+@router.post("/{node_id}/mentions/{mention_id}/ignore")
+async def ignore_mention(
+    node_id: int,
+    mention_id: int,
+    user: User = Depends(get_current_user),
+):
+    """Ignore an unlinked mention candidate."""
+    service = await _get_node_service(user)
+    result = await service.ignore_mention(mention_id)
+    if not result:
+        raise HTTPException(status_code=404, detail="Mention not found")
+    return {"success": True, "is_ignored": True}
+
+
+@router.post("/{node_id}/mentions/{mention_id}/unignore")
+async def unignore_mention(
+    node_id: int,
+    mention_id: int,
+    user: User = Depends(get_current_user),
+):
+    """Restore a previously ignored mention candidate."""
+    service = await _get_node_service(user)
+    result = await service.unignore_mention(mention_id)
+    if not result:
+        raise HTTPException(status_code=404, detail="Mention not found")
+    return {"success": True, "is_ignored": False}

@@ -46,13 +46,13 @@ import { NodeContent } from '@/features/content/components/nodes/NodeContent';
 import { NodeCollection } from '@/features/content/components/nodes/NodeCollection';
 
 import { PageContextMenu, BlockContextMenu } from '@/features/content/components/nodes/NodeContextMenu';
-import { QuerySection, NodeActivityLogSection } from '@/features/content/components/nodes';
+import { QuerySection, NodeActivityLogSection, UnlinkedMentionsSection } from '@/features/content/components/nodes';
 import { PropertiesSection } from '@/features/content/components/properties/PropertiesSection';
 import { PropertySuggestionPopup } from '@/features/content/components/properties/PropertySuggestionPopup';
 import { ClassPropertiesEditor } from '@/features/content/components/properties/ClassPropertiesEditor';
 import { NodeMetadataSection } from '@/features/content/components/nodes/NodeMetadataSection';
 import { Modal } from '@/components/ui/Modal';
-import { TableIcon, PageIcon, LinkIcon, SearchIcon } from '@/components/ui/icons';
+import { TableIcon, PageIcon, LinkIcon } from '@/components/ui/icons';
 import { Button } from '@/components/ui/Button';
 import { getPropertyValueRenderer } from '@/features/content/components/properties/propertyValueRegistry';
 import '@/features/content/components/properties/registerPropertyRenderers';
@@ -1432,19 +1432,12 @@ export function NodeView({
             onBlockCreated={(targetNodeId) => addSidebarCard(targetNodeId, 'block')}
           />
           
-          {/* Unlinked References - content search for the current node's name (pages only) */}
+          {/* Unlinked Mentions - occurrences of this page's name that are not yet links */}
           {resolvedType === 'page' && (
-            <QuerySection
+            <UnlinkedMentionsSection
               nodeId={node.id}
-              nodeUuid={node.uuid}
-              nodeName={node.name}
-              viewType="unlinked_references"
-              title="Unlinked References"
-              icon={<SearchIcon size="sm" />}
               defaultExpanded={false}
-              hideWhenEmpty={true}
               onNodeClick={(targetNodeId) => openNode(targetNodeId)}
-              onBlockCreated={(targetNodeId) => addSidebarCard(targetNodeId, 'block')}
             />
           )}
           

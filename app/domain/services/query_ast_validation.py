@@ -6,6 +6,8 @@ Validates QueryAST structures for correctness and provides helpful error message
 from dataclasses import dataclass
 
 from app.domain.entities.query_ast import (
+    AggregateFunction,
+    AggregationNode,
     ChildCondition,
     ClassCondition,
     ConditionNode,
@@ -77,6 +79,11 @@ def validate_query_ast(ast: QueryAST, allow_system_modification: bool = False) -
     scope_issues = validate_scope(ast.scope, "scope")
     issues.extend(scope_issues)
 
+    # Validate aggregation
+    if ast.aggregation:
+        agg_issues = validate_aggregation(ast.aggregation, "aggregation")
+        issues.extend(agg_issues)
+
     # Validate root group
     group_issues = validate_group(ast.root_group, "root_group")
     issues.extend(group_issues)
@@ -107,6 +114,34 @@ def validate_scope(scope: ScopeNode, path: str) -> list[ValidationIssue]:
                 message="Specific pages scope requires at least one page",
                 path=f"{path}.page_uuids",
                 suggestion="Add pages to search within or change scope type",
+            )
+        )
+
+    return issues
+
+
+def validate_aggregation(aggregation: AggregationNode, path: str) -> list[ValidationIssue]:
+    """Validate an aggregation node."""
+    issues: list[ValidationIssue] = []
+
+    allowed_functions = {f.value for f in AggregateFunction}
+    if aggregation.function.value not in allowed_functions:
+        issues.append(
+            ValidationIssue(
+                severity="error",
+                message=f"Unknown aggregate function: {aggregation.function.value!r}",
+                path=f"{path}.function",
+                suggestion=f"Allowed functions: {', '.join(sorted(allowed_functions))}",
+            )
+        )
+
+    if not aggregation.group_by:
+        issues.append(
+            ValidationIssue(
+                severity="error",
+                message="Aggregation requires a group_by field",
+                path=f"{path}.group_by",
+                suggestion="Use a builtin field (is_page, create_date, page, class) or a property UUID",
             )
         )
 

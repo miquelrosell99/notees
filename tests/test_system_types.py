@@ -40,7 +40,7 @@ async def node_service(db_pool, test_user):
     link_service = LinkParsingService(node_repo, link_repo)
     service = NodeService(
         node_repo, property_repo, link_service, page_type_id,
-        pool=db_pool, workspace_id=workspace_id
+        workspace_id=workspace_id
     )
     
     return service
