@@ -29,7 +29,7 @@
 
 .property-references-section__divider {
   border: none;
-  border-top: 1px solid var(--color-border-subtle, var(--color-border));
+  border-top: var(--border-width-default) solid var(--color-border-subtle, var(--color-border));
   margin: var(--spacing-3) 0;
-  opacity: 0.5;
+  opacity: var(--opacity-50);
 }

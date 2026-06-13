@@ -9,7 +9,7 @@
   top: 0;
   left: 0;
   pointer-events: none;
-  z-index: 10;
+  z-index: var(--z-10);
   background: var(--color-on-surface);
   display: none;
   will-change: transform, width, height;
@@ -24,29 +24,29 @@
 /* Line caret (normal typing mode) */
 .notees-custom-caret--line {
   border-radius: var(--shape-extra-small);
-  animation: notees-line-breathe 0.85s ease-in-out infinite;
+  animation: notees-line-breathe 0.85s var(--motion-easing-ease-in-out) infinite;
 }
 
 /* Block caret (overwrite mode) */
 .notees-custom-caret--block {
-  border-radius: 1px;
+  border-radius: var(--shape-hairline);
   mix-blend-mode: difference;
-  animation: notees-block-breathe 0.85s ease-in-out infinite;
+  animation: notees-block-breathe 0.85s var(--motion-easing-ease-in-out) infinite;
 }
 
 /* Pill surround mode */
 .notees-custom-caret--pill {
   border-radius: var(--shape-medium);
   background: transparent;
-  border: 2px solid var(--color-on-surface);
-  animation: notees-pill-breathe 1.4s ease-in-out infinite;
+  border: var(--border-width-thick) solid var(--color-on-surface);
+  animation: notees-pill-breathe 1.4s var(--motion-easing-ease-in-out) infinite;
 }
 
 /* Selection mode — transparent container, per-line children provide highlight */
 .notees-custom-caret--selection {
   background: transparent !important;
   animation: none !important;
-  opacity: 1 !important;
+  opacity: var(--opacity-100) !important;
   border-radius: 0;
 }
 
@@ -54,26 +54,26 @@
 .notees-caret-selection-line {
   position: absolute;
   background: var(--color-on-surface);
-  opacity: 0.15;
-  border-radius: 3px;
+  opacity: var(--opacity-15);
+  border-radius: var(--shape-tiny);
   pointer-events: none;
 }
 
 /* ─── Breathing animations ─────────────────────────────────────── */
 
 @keyframes notees-line-breathe {
-  0%, 100% { opacity: 0.55; }
-  50%      { opacity: 0.06; }
+  0%, 100% { opacity: var(--opacity-55); }
+  50%      { opacity: var(--opacity-6); }
 }
 
 @keyframes notees-block-breathe {
-  0%, 100% { opacity: 0.45; }
-  50%      { opacity: 0.06; }
+  0%, 100% { opacity: var(--opacity-45); }
+  50%      { opacity: var(--opacity-6); }
 }
 
 @keyframes notees-pill-breathe {
-  0%, 100% { opacity: 0.48; }
-  50%      { opacity: 0.1; }
+  0%, 100% { opacity: var(--opacity-48); }
+  50%      { opacity: var(--opacity-10); }
 }
 
 /* Styled-span underline indicator — subtle dotted underline on the text span

@@ -784,7 +784,7 @@ export function NodeSelector({
               position: 'absolute',
               top: `${multiMenuPos.top}px`,
               left: `${multiMenuPos.left}px`,
-              width: '280px',
+              width: '17.5rem',
               maxHeight: `${multiMenuPos.maxHeight}px`,
             }}
           >

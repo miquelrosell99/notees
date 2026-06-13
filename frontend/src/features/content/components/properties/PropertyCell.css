@@ -24,7 +24,7 @@ button.property-cell,
 
 .property-cell:focus-visible {
   outline: var(--border-width-thick) solid var(--color-accent);
-  outline-offset: -2px;
+  outline-offset: calc(var(--spacing-micro) * -1);
 }
 
 .property-cell--editable {
@@ -79,20 +79,20 @@ button.property-cell,
 }
 
 .property-cell--image .image-node {
-  height: 48px;
-  max-width: 160px;
+  height: var(--spacing-12);
+  max-width: var(--layout-size-xl);
 }
 
 .property-cell--image .image-node img {
-  height: 48px;
-  max-width: 160px;
+  height: var(--spacing-12);
+  max-width: var(--layout-size-xl);
   object-fit: cover;
   border-radius: var(--shape-small);
 }
 
 .property-cell__image {
-  max-width: 120px;
-  max-height: 80px;
+  max-width: var(--layout-size-sm);
+  max-height: var(--layout-size-2xs);
   width: auto;
   height: auto;
   object-fit: contain;
@@ -118,7 +118,7 @@ button.property-cell,
 .property-cell__input {
   width: 100%;
   padding: var(--spacing-2) var(--spacing-3);
-  border: 2px solid var(--color-primary);
+  border: var(--border-width-thick) solid var(--color-primary);
   font-size: var(--font-size-button);
   font-family: inherit;
   color: var(--color-on-surface);
@@ -133,8 +133,8 @@ button.property-cell,
 }
 
 textarea.property-cell__input {
-  min-height: 60px;
-  max-height: 200px;
+  min-height: 3.75rem;
+  max-height: var(--layout-size-2xl);
 }
 
 /* Selection picker dropdown */
@@ -144,11 +144,11 @@ textarea.property-cell__input {
   left: 0;
   z-index: var(--z-floating);
   background: var(--color-surface);
-  border: 1px solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
   border-radius: var(--shape-medium);
-  max-height: 300px;
+  max-height: var(--layout-size-7xl);
   overflow-y: auto;
-  min-width: 200px;
+  min-width: var(--layout-size-2xl);
   margin-top: var(--spacing-1);
 }
 
@@ -172,7 +172,7 @@ textarea.property-cell__input {
 }
 
 .property-cell__add-button {
-  min-width: 24px;
+  min-width: var(--spacing-6);
   height: var(--height-xs);
   padding: 0;
   display: flex;
@@ -183,8 +183,8 @@ textarea.property-cell__input {
 /* Colored dot for selection options */
 .selection-color-dot {
   display: inline-block;
-  width: 10px;
-  height: 10px;
+  width: var(--spacing-tight);
+  height: var(--spacing-tight);
   border-radius: 50%;
   flex-shrink: 0;
 }

@@ -3,9 +3,7 @@
  */
 
 
-:root {
-  --features-content-pages-pages-view-max-width-400: 400px;
-}
+
 
 .pages-view {
   display: flex;
@@ -77,7 +75,7 @@
 
 .pages-view__search {
   flex: 1;
-  max-width: var(--features-content-pages-pages-view-max-width-400);
+  max-width: var(--layout-size-9xl);
   margin: 0 auto;
 }
 

@@ -6,13 +6,13 @@
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--spacing-micro);
   padding: var(--spacing-2) 0;
   outline: none;
 }
 
 .block-list.drag-over {
-  outline: 2px dashed var(--color-primary);
-  outline-offset: -2px;
+  outline: var(--border-width-thick) dashed var(--color-primary);
+  outline-offset: calc(var(--spacing-micro) * -1);
   background: var(--color-primary-container);
 }

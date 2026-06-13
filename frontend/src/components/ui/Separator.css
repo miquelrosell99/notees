@@ -25,11 +25,11 @@
 }
 
 .separator--horizontal.separator--size-md {
-  height: 2px;
+  height: var(--shape-extra-small);
 }
 
 .separator--vertical.separator--size-md {
-  width: 2px;
+  width: var(--shape-extra-small);
 }
 
 .separator--horizontal.separator--size-lg {

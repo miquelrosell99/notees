@@ -124,7 +124,7 @@ export function FloatingToolbarPlugin({
         position: 'absolute',
         top: position.top,
         left: position.left,
-        zIndex: 1000,
+        zIndex: 'var(--z-1000)',
         pointerEvents: 'auto',
       }}
       onMouseDown={handleMouseDown}

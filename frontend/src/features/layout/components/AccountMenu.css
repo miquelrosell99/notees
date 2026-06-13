@@ -3,10 +3,7 @@
  */
 
 
-:root {
-  --features-layout-components-account-menu-min-width-200: 200px;
-  --features-layout-components-account-menu-max-height-400: 400px;
-}
+
 
 /* ==================== Container ==================== */
 .account-menu {
@@ -23,20 +20,20 @@
 
 .account-menu__notification-dot {
   position: absolute;
-  top: -2px;
-  right: -2px;
-  width: 8px;
-  height: 8px;
+  top: calc(var(--spacing-micro) * -1);
+  right: calc(var(--spacing-micro) * -1);
+  width: var(--shape-large);
+  height: var(--shape-large);
   background: var(--color-error);
   border-radius: 50%;
-  border: 2px solid var(--color-surface);
+  border: var(--border-width-thick) solid var(--color-surface);
 }
 
 /* ==================== Dropdown Menu ==================== */
 .account-menu__dropdown {
-  min-width: var(--features-layout-components-account-menu-min-width-200);
+  min-width: var(--layout-size-2xl);
   z-index: var(--z-modal-backdrop);
-  border: 1px solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
   border-radius: var(--shape-medium);
   overflow: hidden;
 }
@@ -98,9 +95,9 @@
   margin-left: auto;
   background: var(--color-error);
   color: var(--color-on-surface);
-  font-size: 0.65rem;
+  font-size: var(--font-size-2xs);
   font-weight: 600;
-  padding: 1px 5px;
+  padding: var(--spacing-hairline) var(--spacing-xxs);
   border-radius: var(--shape-full);
   line-height: 1;
 }
@@ -130,5 +127,5 @@
 .account-menu__notification-panel {
   z-index: var(--z-modal-backdrop);
   width: var(--modal-width-sm);
-  max-height: var(--features-layout-components-account-menu-max-height-400);
+  max-height: var(--layout-size-9xl);
 }

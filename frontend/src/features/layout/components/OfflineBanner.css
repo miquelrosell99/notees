@@ -3,21 +3,21 @@
   align-items: center;
   justify-content: center;
   gap: var(--spacing-2);
-  padding: 6px var(--spacing-4);
+  padding: var(--spacing-1-5) var(--spacing-4);
   background-color: var(--color-warning-container);
   color: var(--color-on-warning-container);
   font-size: var(--font-size-button);
   font-weight: 500;
-  border-bottom: 1px solid var(--color-warning);
+  border-bottom: var(--border-width-default) solid var(--color-warning);
   position: sticky;
   top: 0;
-  z-index: var(--z-toast, 100);
+  z-index: var(--z-toast, var(--z-100));
   transition: background-color var(--motion-duration-short) var(--motion-easing-standard), color var(--motion-duration-short) var(--motion-easing-standard), border-color var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 .offline-banner__icon {
   font-size: var(--font-size-md);
-  opacity: 0.8;
+  opacity: var(--opacity-80);
 }
 
 .offline-banner__text {

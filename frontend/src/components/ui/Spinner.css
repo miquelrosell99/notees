@@ -21,26 +21,26 @@
   border-style: solid;
   border-color: var(--color-outline-variant);
   border-top-color: var(--color-on-surface-variant);
-  animation: spin 0.8s linear infinite;
+  animation: spin 0.8s var(--motion-easing-linear) infinite;
   flex-shrink: 0;
 }
 
 .spinner--sm {
   width: var(--icon-size-sm);
   height: var(--icon-size-sm);
-  border-width: 2px;
+  border-width: var(--border-width-thick);
 }
 
 .spinner--md {
   width: var(--icon-size-lg);
   height: var(--icon-size-lg);
-  border-width: 2px;
+  border-width: var(--border-width-thick);
 }
 
 .spinner--lg {
   width: var(--icon-size-xl);
   height: var(--icon-size-xl);
-  border-width: 3px;
+  border-width: var(--border-width-extra-thick);
 }
 
 .spinner-label {

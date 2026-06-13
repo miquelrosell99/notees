@@ -40,7 +40,7 @@
 }
 
 .inline-link-wrapper:active .inline-link-inner {
-  opacity: 0.7;
+  opacity: var(--opacity-70);
 }
 
 /* Selected state (when inline link has keyboard/node selection) */
@@ -50,15 +50,15 @@
   color: var(--color-primary);
   background: color-mix(in srgb, var(--color-primary) 8%, transparent);
   border-radius: var(--shape-extra-small);
-  padding: 0 2px;
-  margin: 0 -2px;
+  padding: 0 var(--spacing-micro);
+  margin: 0 calc(var(--spacing-micro) * -1);
 }
 
 .inline-link-wrapper .inline-link-icon {
   display: inline-flex;
   align-items: center;
   vertical-align: -0.125em;
-  margin-right: 2px;
+  margin-right: var(--spacing-micro);
 }
 
 /* User mention pills — distinct color, no underline */

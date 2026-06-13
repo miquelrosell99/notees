@@ -3,10 +3,7 @@
  */
 
 
-:root {
-  --features-layout-components-top-bar-min-width-44: 44px;
-  --features-layout-components-top-bar-min-height-44: 44px;
-}
+
 
 /* ==================== Top Bar Card Container ==================== */
 .top-bar-card {
@@ -154,7 +151,7 @@
 
 /* ==================== Toolbar Separator ==================== */
 .toolbar-separator {
-  width: 1px;
+  width: var(--spacing-hairline);
   height: var(--icon-size-md);
   background: var(--color-outline-variant);
   margin: 0 var(--spacing-1);
@@ -192,8 +189,8 @@
   .top-bar .calendar-btn,
   .top-bar .local-graph-btn,
   .top-bar .quick-add-btn {
-    min-width: var(--features-layout-components-top-bar-min-width-44);
-    min-height: var(--features-layout-components-top-bar-min-height-44);
+    min-width: var(--button-min-height);
+    min-height: var(--button-min-height);
     padding: var(--spacing-1);
   }
 
@@ -223,7 +220,7 @@
 }
 
 .auto-export-indicator--spin {
-  animation: spin 1s linear infinite;
+  animation: spin 1s var(--motion-easing-linear) infinite;
 }
 
 @media (max-width: 768px) {

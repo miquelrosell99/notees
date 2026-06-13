@@ -1,21 +1,13 @@
 /* ChartView.css */
 
 
-:root {
-  --features-content-components-nodes-views-chart-view-min-height-400: 400px;
-  --features-content-components-nodes-views-chart-view-padding-6: 6px;
-  --features-content-components-nodes-views-chart-view-padding-10: 10px;
-  --features-content-components-nodes-views-chart-view-min-width-160: 160px;
-  --features-content-components-nodes-views-chart-view-gap-6: 6px;
-  --features-content-components-nodes-views-chart-view-width-10: 10px;
-  --features-content-components-nodes-views-chart-view-height-10: 10px;
-}
+
 
 .chart-view {
   display: flex;
   flex-direction: column;
   height: 100%;
-  min-height: var(--features-content-components-nodes-views-chart-view-min-height-400);
+  min-height: var(--layout-size-9xl);
   background: var(--surface);
   border-radius: var(--shape-large);
   overflow: hidden;
@@ -27,7 +19,7 @@
   align-items: center;
   justify-content: space-between;
   padding: var(--spacing-3) var(--spacing-4);
-  border-bottom: 1px solid var(--outline-variant);
+  border-bottom: var(--border-width-default) solid var(--outline-variant);
   gap: var(--spacing-3);
   flex-shrink: 0;
   flex-wrap: wrap;
@@ -35,7 +27,7 @@
 
 .chart-view__type-toggle {
   display: flex;
-  border: 1px solid var(--outline-variant);
+  border: var(--border-width-default) solid var(--outline-variant);
   border-radius: var(--shape-medium);
   overflow: hidden;
 }
@@ -44,18 +36,18 @@
   display: flex;
   align-items: center;
   gap: var(--spacing-1);
-  padding: 6px var(--spacing-3);
+  padding: var(--spacing-1-5) var(--spacing-3);
   border: none;
   background: var(--surface-container);
   color: var(--on-surface-variant);
-  font-size: 0.8rem;
+  font-size: var(--font-size-sm);
   font-weight: 500;
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition: background var(--motion-duration-shorter) var(--motion-easing-ease), color var(--motion-duration-shorter) var(--motion-easing-ease);
 }
 
 .chart-view__type-btn:not(:last-child) {
-  border-right: 1px solid var(--outline-variant);
+  border-right: var(--border-width-default) solid var(--outline-variant);
 }
 
 .chart-view__type-btn:hover {
@@ -75,19 +67,19 @@
 }
 
 .chart-view__property-label {
-  font-size: 0.85rem;
+  font-size: var(--font-size-button);
   color: var(--on-surface-variant);
 }
 
 .chart-view__property-dropdown {
-  padding: var(--features-content-components-nodes-views-chart-view-padding-6) var(--features-content-components-nodes-views-chart-view-padding-10);
-  border: 1px solid var(--outline-variant);
+  padding: var(--spacing-1-5) var(--spacing-2-5);
+  border: var(--border-width-default) solid var(--outline-variant);
   border-radius: var(--shape-medium);
   background: var(--surface-container);
   color: var(--on-surface);
-  font-size: 0.85rem;
+  font-size: var(--font-size-button);
   cursor: pointer;
-  min-width: var(--features-content-components-nodes-views-chart-view-min-width-160);
+  min-width: var(--layout-size-xl);
 }
 
 /* Chart canvas */
@@ -108,21 +100,21 @@
 /* Bar interactions */
 .chart-view__bar {
   cursor: pointer;
-  transition: opacity 0.15s ease;
+  transition: opacity var(--motion-duration-shorter) var(--motion-easing-ease);
 }
 
 .chart-view__bar:hover {
-  opacity: 0.85;
+  opacity: var(--opacity-85);
 }
 
 /* Pie slice interactions */
 .chart-view__slice {
   cursor: pointer;
-  transition: opacity 0.15s ease;
+  transition: opacity var(--motion-duration-shorter) var(--motion-easing-ease);
 }
 
 .chart-view__slice:hover {
-  opacity: 0.85;
+  opacity: var(--opacity-85);
 }
 
 /* Legend */
@@ -132,20 +124,20 @@
   justify-content: center;
   gap: var(--spacing-3);
   padding: var(--spacing-3) var(--spacing-4);
-  border-top: 1px solid var(--outline-variant);
+  border-top: var(--border-width-default) solid var(--outline-variant);
   flex-shrink: 0;
 }
 
 .chart-view__legend-item {
   display: flex;
   align-items: center;
-  gap: var(--features-content-components-nodes-views-chart-view-gap-6);
-  font-size: 0.8rem;
+  gap: var(--spacing-1-5);
+  font-size: var(--font-size-sm);
 }
 
 .chart-view__legend-color {
-  width: var(--features-content-components-nodes-views-chart-view-width-10);
-  height: var(--features-content-components-nodes-views-chart-view-height-10);
+  width: var(--spacing-tight);
+  height: var(--spacing-tight);
   border-radius: var(--shape-extra-small);
 }
 
@@ -166,6 +158,6 @@
 .chart-view__empty-msg {
   text-align: center;
   color: var(--on-surface-variant);
-  font-size: 0.95rem;
+  font-size: var(--font-size-body-xl);
   padding: var(--spacing-10);
 }

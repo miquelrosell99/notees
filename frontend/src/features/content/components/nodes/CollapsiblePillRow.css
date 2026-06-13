@@ -1,8 +1,4 @@
-:root {
-  --features-content-components-nodes-collapsible-pill-row-min-width-160: 160px;
-  --features-content-components-nodes-collapsible-pill-row-max-width-280: 280px;
-  --features-content-components-nodes-collapsible-pill-row-max-height-320: 320px;
-}
+
 
 .collapsible-pill-row {
   display: flex;
@@ -35,18 +31,18 @@
 .collapsible-pill-row__backdrop {
   position: fixed;
   inset: 0;
-  z-index: 9999;
+  z-index: var(--z-9999);
 }
 
 .collapsible-pill-row__popup {
   background: var(--color-surface);
-  border: 1px solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
   border-radius: var(--shape-medium);
   box-shadow: var(--elevation-2);
   padding: var(--spacing-2);
-  min-width: var(--features-content-components-nodes-collapsible-pill-row-min-width-160);
-  max-width: var(--features-content-components-nodes-collapsible-pill-row-max-width-280);
-  max-height: var(--features-content-components-nodes-collapsible-pill-row-max-height-320);
+  min-width: var(--layout-size-xl);
+  max-width: var(--layout-size-6xl);
+  max-height: var(--layout-size-8xl);
   overflow-y: auto;
 }
 
@@ -58,7 +54,7 @@
   margin-bottom: var(--spacing-2);
   font: var(--font-label-medium);
   color: var(--color-on-surface-variant);
-  border-bottom: 1px solid var(--color-outline-variant);
+  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
 }
 
 .collapsible-pill-row__popup-close {
@@ -104,5 +100,5 @@
 .collapsible-pill-row__popup-footer {
   margin-top: var(--spacing-2);
   padding-top: var(--spacing-2);
-  border-top: 1px solid var(--color-outline-variant);
+  border-top: var(--border-width-default) solid var(--color-outline-variant);
 }

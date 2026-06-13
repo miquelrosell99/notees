@@ -1,15 +1,12 @@
 /* GanttPropertySelector styles */
 
 
-:root {
-  --features-content-components-properties-gantt-property-selector-min-width-220: 220px;
-  --features-content-components-properties-gantt-property-selector-max-height-420: 420px;
-}
+
 
 .gantt-property-selector {
   padding: var(--spacing-2);
-  min-width: var(--features-content-components-properties-gantt-property-selector-min-width-220);
-  max-height: var(--features-content-components-properties-gantt-property-selector-max-height-420);
+  min-width: var(--layout-size-3xl);
+  max-height: 26.25rem;
   overflow-y: auto;
 }
 
@@ -91,7 +88,7 @@
   flex: 1;
   padding: var(--spacing-1) var(--spacing-2);
   background: none;
-  border: 1px solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
   border-radius: var(--shape-medium);
   cursor: pointer;
   font: var(--font-label-small);

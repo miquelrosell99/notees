@@ -149,7 +149,7 @@ export const ClassPillsRow = memo(function ClassPillsRow({
               position: 'fixed',
               left: popupPos.x,
               top: popupPos.y,
-              zIndex: 10000,
+              zIndex: 'var(--z-10000)',
             }}
           >
             <div className="class-pills-popup__header">
@@ -209,7 +209,7 @@ export const ClassPillsRow = memo(function ClassPillsRow({
               position: 'fixed',
               left: popupPos.x,
               top: popupPos.y,
-              zIndex: 10000,
+              zIndex: 'var(--z-10000)',
             }}
           >
             <div className="class-pills-popup__header">

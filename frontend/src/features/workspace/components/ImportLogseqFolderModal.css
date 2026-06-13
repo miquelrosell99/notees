@@ -3,11 +3,7 @@
  */
 
 
-:root {
-  --features-workspace-components-import-logseq-folder-modal-min-height-80: 80px;
-  --features-workspace-components-import-logseq-folder-modal-gap-6: 6px;
-  --features-workspace-components-import-logseq-folder-modal-max-height-220: 220px;
-}
+
 
 .import-folder__body {
   display: flex;
@@ -25,7 +21,7 @@
 .import-folder__description code {
   font-family: var(--font-family-mono);
   font-size: var(--font-size-xs);
-  padding: 1px 5px;
+  padding: var(--spacing-hairline) var(--spacing-xxs);
   background: var(--color-surface-container-low);
   border-radius: var(--shape-extra-small);
 }
@@ -34,9 +30,9 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: var(--features-workspace-components-import-logseq-folder-modal-min-height-80);
+  min-height: 5rem;
   padding: var(--spacing-4);
-  border: 2px dashed var(--color-outline-variant);
+  border: var(--border-width-thick) dashed var(--color-outline-variant);
   border-radius: var(--shape-medium);
   cursor: pointer;
   transition: border-color var(--motion-duration-shorter) var(--motion-easing-standard), background-color var(--motion-duration-shorter) var(--motion-easing-standard);
@@ -52,7 +48,7 @@ button.import-folder__dropzone {
 
 button.import-folder__dropzone:focus-visible {
   outline: var(--border-width-thick) solid var(--color-accent);
-  outline-offset: -2px;
+  outline-offset: calc(var(--spacing-micro) * -1);
 }
 
 .import-folder__dropzone:hover {
@@ -82,7 +78,7 @@ button.import-folder__dropzone:focus-visible {
 .import-folder__error {
   display: flex;
   align-items: center;
-  gap: var(--features-workspace-components-import-logseq-folder-modal-gap-6);
+  gap: var(--spacing-1-5);
   padding: var(--spacing-2) var(--spacing-3);
   background: color-mix(in srgb, var(--color-error) 10%, transparent);
   color: var(--color-error);
@@ -93,12 +89,12 @@ button.import-folder__dropzone:focus-visible {
 .import-folder__parsing {
   display: inline-flex;
   align-items: center;
-  gap: var(--features-workspace-components-import-logseq-folder-modal-gap-6);
+  gap: var(--spacing-1-5);
   color: var(--color-on-surface-variant);
 }
 
 .import-folder__parsing-spin {
-  animation: import-folder-spin 1s linear infinite;
+  animation: import-folder-spin 1s var(--motion-easing-linear) infinite;
 }
 
 @keyframes import-folder-spin {
@@ -121,7 +117,7 @@ button.import-folder__dropzone:focus-visible {
 .import-folder__badge {
   display: inline-flex;
   align-items: center;
-  padding: var(--spacing-1) 10px;
+  padding: var(--spacing-1) var(--spacing-2-5);
   font-size: var(--font-size-xs);
   font-weight: 500;
   background: var(--color-surface-container-low);
@@ -133,7 +129,7 @@ button.import-folder__dropzone:focus-visible {
   list-style: none;
   margin: 0;
   padding: 0;
-  max-height: var(--features-workspace-components-import-logseq-folder-modal-max-height-220);
+  max-height: 13.75rem;
   overflow-y: auto;
 }
 
@@ -144,7 +140,7 @@ button.import-folder__dropzone:focus-visible {
   padding: var(--spacing-1) var(--spacing-2);
   font-size: var(--font-size-sm);
   color: var(--color-on-surface);
-  border-bottom: 1px solid var(--color-outline-variant);
+  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
 }
 
 .import-folder__page-item:last-child {

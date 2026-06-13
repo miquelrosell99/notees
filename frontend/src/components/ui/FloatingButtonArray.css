@@ -20,8 +20,8 @@
 
 /* Size variants */
 .floating-button-array--sm .floating-button-array__inner {
-  gap: 2px;
-  padding: 2px;
+  gap: var(--spacing-micro);
+  padding: var(--spacing-micro);
 }
 
 .floating-button-array--md .floating-button-array__inner {
@@ -34,7 +34,7 @@
 .toolbar-divider {
   flex-shrink: 0;
   background: var(--color-outline);
-  border-radius: 1px;
+  border-radius: var(--shape-hairline);
 }
 
 .toolbar-divider--vertical {
