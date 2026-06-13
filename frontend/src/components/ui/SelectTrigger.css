@@ -41,6 +41,11 @@
   border-color: color-mix(in srgb, var(--color-primary) 35%, var(--color-outline-variant));
 }
 
+.select-trigger:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--color-accent);
+}
+
 .select-trigger--open {
   border-color: var(--color-primary);
 }

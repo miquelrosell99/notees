@@ -137,16 +137,14 @@ export function NodeMetadataSection({
         {node.is_page && isAlias && aliasedNode && (
           <div className="node-metadata-row">
             <div className="section-label">Alias of:</div>
-            <span
+            <button
+              type="button"
               className="alias-of-link"
-              role="button"
-              tabIndex={0}
               onClick={() => onNavigateToNode(aliasedNode.id)}
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onNavigateToNode(aliasedNode.id); } }}
               title={nodeNameToText(aliasedNode.name) || 'Untitled'}
             >
               {nodeNameToText(aliasedNode.name) || 'Untitled'}
-            </span>
+            </button>
           </div>
         )}
 

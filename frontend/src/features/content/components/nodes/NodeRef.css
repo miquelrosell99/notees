@@ -3,9 +3,31 @@
  * Rounded rectangle, tactile hover/press, grayscale only.
  */
 
+
+:root {
+  --features-content-components-nodes-node-ref-min-width-14: 14px;
+}
+
 .node-pill {
   cursor: pointer;
   display: inline;
+}
+
+button.node-pill {
+  border: none;
+  background: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+}
+
+button.node-pill:focus-visible,
+div.node-pill:focus-visible {
+  outline: var(--border-width-thick) solid var(--color-accent);
+  outline-offset: 1px;
+  border-radius: var(--shape-extra-small);
 }
 
 /* Link variant - inline text style with subtle underline + micro-tint */
@@ -72,7 +94,7 @@
   align-items: center;
   justify-content: center;
   padding: 0 var(--spacing-1);
-  min-width: 14px;
+  min-width: var(--features-content-components-nodes-node-ref-min-width-14);
   height: var(--icon-size-xs);
   font-size: 0.625rem;
   font-weight: 500;
@@ -92,6 +114,11 @@
   right: 0;
   bottom: 0;
   z-index: var(--z-node-overlay);
+}
+
+.pill-color-picker-overlay:focus-visible,
+.node-pill-context-menu-backdrop:focus-visible {
+  outline: none;
 }
 
 .pill-color-picker {

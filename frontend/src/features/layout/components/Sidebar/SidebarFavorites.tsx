@@ -1,6 +1,7 @@
 import { useState, useCallback, memo, useEffect } from 'react';
 import { useNavigationStore } from '@/stores';
 import { useNode, useIsMobile } from '@/hooks';
+import { nodeNameToText } from '@/hooks/useStringifyAST';
 import {
   useFavorites,
   useRemoveFavoriteMutation,
@@ -53,12 +54,13 @@ const SortableFavoriteItem = memo(function SortableFavoriteItem({
     }
   }, [error, nodeId]);
 
-  const handleClick = useCallback((e: React.MouseEvent) => {
-    // Don't navigate if clicking drag handle or remove button
-    if ((e.target as HTMLElement).closest('.sidebar-drag-handle, .sidebar-favorite-remove')) {
+  const handleClick = useCallback((e: React.MouseEvent | { target?: never }) => {
+    // Don't navigate if clicking drag handle, remove button, or breadcrumbs
+    const target = (e as React.MouseEvent).target as HTMLElement | undefined;
+    if (target?.closest('.sidebar-drag-handle, .sidebar-favorite-remove, .sidebar-item-breadcrumbs-wrapper')) {
       return;
     }
-    onNavigate(nodeId, e);
+    onNavigate(nodeId, e as React.MouseEvent);
   }, [nodeId, onNavigate]);
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
@@ -77,6 +79,13 @@ const SortableFavoriteItem = memo(function SortableFavoriteItem({
     onDragStart(index, e);
   }, [index, onDragStart]);
 
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      handleClick({} as React.MouseEvent);
+    }
+  }, [handleClick]);
+
   // Deleted node — render nothing so it auto-removes from the list
   if (error && isApiError(error) && error.response?.status === 404) {
     return null;
@@ -89,24 +98,30 @@ const SortableFavoriteItem = memo(function SortableFavoriteItem({
   );
 
   return (
-    <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }}
+    <div
+      role="button"
+      tabIndex={0}
+      aria-label={node ? nodeNameToText(node.name) || 'Untitled' : 'Loading favorite'}
       className={`sidebar-favorite-item ${isActive ? 'active' : ''} ${isDragging ? 'dragging' : ''}`}
       style={style}
       onClick={handleClick}
       onContextMenu={handleContextMenu}
+      onKeyDown={handleKeyDown}
     >
       {/* Drag handle */}
-      <span role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }}
+      <button
+        type="button"
+        aria-label="Drag to reorder"
         className="sidebar-drag-handle"
         onMouseDown={handleDragHandleMouseDown}
         onClick={(e) => e.stopPropagation()}
       >
         <DragVerticalIcon size="xs" />
-      </span>
+      </button>
 
       {/* Breadcrumbs + node name */}
       <div className="sidebar-favorite-block">
-        <div className="sidebar-item-breadcrumbs-wrapper" onClick={(e) => e.stopPropagation()}>
+        <div className="sidebar-item-breadcrumbs-wrapper">
           <NodeBreadcrumbs
             nodeId={node.id}
             nodeType="page"

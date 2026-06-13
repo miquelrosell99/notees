@@ -4,12 +4,37 @@
  * Note: Trigger styles now in SelectTrigger.css
  */
 
+
+:root {
+  --components-ui-dropdown-min-width-200: 200px;
+  --components-ui-dropdown-max-width-400: 400px;
+  --components-ui-dropdown-max-height-300: 300px;
+}
+
 /* Container for dropdown + clear button */
 .dropdown-container {
   display: inline-flex;
   align-items: center;
   gap: var(--spacing-2);
   width: 100%;
+}
+
+/* Custom trigger rendered as a real button */
+.dropdown-custom-trigger {
+  width: 100%;
+  border: none;
+  background: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.dropdown-custom-trigger:focus-visible {
+  outline: var(--border-width-thick) solid var(--color-accent);
+  outline-offset: var(--focus-outline-offset);
 }
 
 .dropdown {
@@ -43,10 +68,10 @@
 /* Menu */
 .dropdown-menu {
   z-index: var(--z-modal);
-  min-width: 200px;
+  min-width: var(--components-ui-dropdown-min-width-200);
   width: max-content;
-  max-width: 400px;
-  max-height: 300px;
+  max-width: var(--components-ui-dropdown-max-width-400);
+  max-height: var(--components-ui-dropdown-max-height-300);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -100,6 +125,11 @@
 .dropdown-search-input:focus {
   outline: none;
   border-color: var(--color-outline);
+}
+
+.dropdown-search-input:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--color-accent);
 }
 
 .dropdown-search-input::placeholder {

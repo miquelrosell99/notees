@@ -260,7 +260,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
   // Eraser cursor circle — updated imperatively, lives in live SVG so opacity dimming never affects it
   const eraserCursorRef = useRef<SVGCircleElement>(null);
   const rafRef = useRef<number>(0);
-  const liveStrokeStyleRef = useRef({ color: 'black', strokeWidth: 2, opacity: 1, strokeStyle: 'solid' as StrokeStyle });
+  const liveStrokeStyleRef = useRef({ color: 'var(--color-on-surface)', strokeWidth: 2, opacity: 1, strokeStyle: 'solid' as StrokeStyle });
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
   const [isEmptyPanning, setIsEmptyPanning] = useState(false);
   // Tracks shift key during shape creation drag for preview re-renders
@@ -275,6 +275,13 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
       setTimeout(() => searchInputRef.current?.focus(), 50);
     }
   }, [isSearchOpen]);
+
+  // Focus the textarea when a whiteboard text element enters edit mode
+  useEffect(() => {
+    if (!editingTextId) return;
+    const textarea = containerRef.current?.querySelector('.whiteboard-text--editing textarea') as HTMLTextAreaElement | null;
+    textarea?.focus();
+  }, [editingTextId]);
 
   // Keyboard shortcuts modal
   const [showShortcuts, setShowShortcuts] = useState(false);
@@ -1017,7 +1024,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
         liveConnectorRef.current.setAttribute('y2', String(ey));
       }
     }
-  }, [screenToCanvas, hitTest, interaction, viewport, data, wb, setInteraction]);
+  }, [screenToCanvas, hitTest, interaction, viewport, data, wb, setInteraction, gridSnap]);
 
   const handlePointerUp = useCallback((e: React.PointerEvent) => {
     const state = pointerState.current;
@@ -1191,7 +1198,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
       state.startRotation = 0;
       return;
     }
-  }, [screenToCanvas, hitTest, hitTestRotationHandle, interaction, data.elements, wb, setInteraction]);
+  }, [screenToCanvas, hitTest, interaction, wb, setInteraction]);
 
   // ─── Wheel zoom ───────────────────────────────────────────────────
 
@@ -1604,7 +1611,6 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
           >
             {editingTextId === el.id ? (
               <textarea
-                autoFocus
                 value={(el as WhiteboardTextElement).text}
                 onChange={(e) => wb.updateElement(el.id, { text: e.target.value } as Partial<WhiteboardTextElement>)}
                 onBlur={() => setEditingTextId(null)}
@@ -1641,7 +1647,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
         )}
       </div>
     );
-  }, [interaction, viewport, editingTextId, wb, onDoubleClick]);
+  }, [interaction, viewport, editingTextId, wb, onDoubleClick, searchMatchIds]);
 
   // ─── Render strokes SVG ───────────────────────────────────────────
 
@@ -1693,7 +1699,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
         </g>
       </svg>
     );
-  }, [data.elements, viewport, interaction, wb.settings]);
+  }, [data.elements, viewport, interaction]);
 
   // ─── Render connectors SVG ────────────────────────────────────────
 
@@ -1800,7 +1806,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
         </g>
       </svg>
     );
-  }, [data.elements, viewport, interaction, wb, screenToCanvas]);
+  }, [data.elements, viewport, interaction, wb]);
 
   // ─── Render ───────────────────────────────────────────────────────
 
@@ -1830,7 +1836,6 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
             onChange={e => setSearchQuery(e.target.value)}
             placeholder="Search canvas..."
             className="wb-search-bar__input"
-            autoFocus
           />
           <span className="wb-search-bar__count">
             {searchMatchIds.size} match{searchMatchIds.size !== 1 ? 'es' : ''}
@@ -1840,8 +1845,10 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
 
       {/* Keyboard shortcuts modal */}
       {showShortcuts && (
-        <div className="wb-shortcuts-modal" style={{ position: 'absolute', inset: 0, zIndex: 'var(--wb-z-overlay)', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.3)' }} onClick={() => setShowShortcuts(false)}>
-          <div className="wb-shortcuts-modal__content" style={{ background: 'var(--color-surface)', borderRadius: 'var(--shape-large)', padding: 24, maxWidth: 480, width: '90%', boxShadow: 'var(--shadow-3)' }} onClick={e => e.stopPropagation()}>
+        // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- modal backdrop closes on click
+        <div className="wb-shortcuts-modal" style={{ position: 'absolute', inset: 0, zIndex: 'var(--wb-z-overlay)', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--color-scrim)' }} onClick={() => setShowShortcuts(false)}>
+          {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- modal content stops click propagation */}
+          <div className="wb-shortcuts-modal__content" style={{ background: 'var(--color-surface)', borderRadius: 'var(--shape-large)', padding: 24, maxWidth: 480, width: '90%' }} onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <h3 style={{ margin: 0, fontSize: 18, fontWeight: 600 }}>Keyboard Shortcuts</h3>
               <Button variant="ghost" size="xs" icon="mdi mdi-close" aria-label="Close shortcuts panel" className="wb-align-panel__btn" onClick={() => setShowShortcuts(false)} />

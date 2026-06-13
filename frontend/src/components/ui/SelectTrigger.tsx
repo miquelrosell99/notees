@@ -14,7 +14,6 @@
  */
 import { type ReactNode, type KeyboardEvent, type MouseEvent } from 'react';
 
-import { Card } from './Card';
 import { Button } from './Button';
 import './SelectTrigger.css';
 import { Icon } from '@/components/ui/icons';
@@ -71,7 +70,7 @@ export function SelectTrigger({
   'aria-invalid': ariaInvalid,
   'aria-describedby': ariaDescribedby,
 }: SelectTriggerProps) {
-  const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+  const handleKeyDown = (e: KeyboardEvent<HTMLButtonElement>) => {
     if (disabled) return;
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
@@ -104,14 +103,11 @@ export function SelectTrigger({
 
   return (
     <div className={containerClasses}>
-      <Card
+      <button
+        type="button"
         className={triggerClasses}
         onClick={disabled ? undefined : onClick}
-        variant="default"
-        padding={false}
-        elevation="none"
-        interactive={!disabled}
-        role="button"
+        disabled={disabled}
         tabIndex={disabled ? -1 : tabIndex}
         aria-haspopup="listbox"
         aria-expanded={isOpen}
@@ -135,7 +131,7 @@ export function SelectTrigger({
             />
           </div>
         </div>
-      </Card>
+      </button>
 
       {/* Clear button - outside the trigger */}
       {clearable && hasValue && onClear && (

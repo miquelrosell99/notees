@@ -2,6 +2,14 @@
  * QueryBlockList Component Styles
  */
 
+
+:root {
+  --features-queries-components-query-block-list-min-height-48: 48px;
+  --features-queries-components-query-block-list-top-12: 12px;
+  --features-queries-components-query-block-list-right-12: 12px;
+  --features-queries-components-query-block-list-min-width-150: 150px;
+}
+
 .query-block-list {
   display: flex;
   flex-direction: column;
@@ -50,7 +58,7 @@
 .query-block-list__content {
   flex: 1;
   padding: 0.75rem;
-  min-height: 48px;
+  min-height: var(--features-queries-components-query-block-list-min-height-48);
   display: flex;
   align-items: center;
 }
@@ -58,8 +66,8 @@
 /* Delete button (top right, hover only) */
 .query-block-list__delete {
   position: absolute;
-  top: 12px;
-  right: 12px;
+  top: var(--features-queries-components-query-block-list-top-12);
+  right: var(--features-queries-components-query-block-list-right-12);
   opacity: 0;
   transition: opacity var(--motion-duration-medium);
   flex-shrink: 0;
@@ -133,7 +141,7 @@
 }
 
 .query-block-list__add-menu-dropdown {
-  min-width: 150px;
+  min-width: var(--features-queries-components-query-block-list-min-width-150);
   padding: 0.25rem;
   z-index: var(--z-floating);
 }

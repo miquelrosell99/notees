@@ -3,6 +3,23 @@
  * Mirrors the old .node-block layout from BlockEditor.css.
  */
 
+
+:root {
+  --features-content-components-blocks-block-row-left-36: -36px;
+  --features-content-components-blocks-block-row-left-60: -60px;
+  --features-content-components-blocks-block-row-left-84: -84px;
+  --features-content-components-blocks-block-row-left-108: -108px;
+  --features-content-components-blocks-block-row-left-132: -132px;
+  --features-content-components-blocks-block-row-left-156: -156px;
+  --features-content-components-blocks-block-row-left-180: -180px;
+  --features-content-components-blocks-block-row-gap-6: 6px;
+  --features-content-components-blocks-block-row-padding-6: 6px;
+  --features-content-components-blocks-block-row-padding-10: 10px;
+  --features-content-components-blocks-block-row-max-width-300: 300px;
+  --features-content-components-blocks-block-row-width-6: 6px;
+  --features-content-components-blocks-block-row-height-6: 6px;
+}
+
 .block-row {
   position: relative;
   display: flex;
@@ -10,8 +27,8 @@
   padding: 0;
   margin: 3px 0;
   margin-left: calc(min(var(--block-depth, 0), 8) * var(--block-indent-step));
-  min-height: 1.6em;
-  line-height: 1.6;
+  min-height: 1.5em;
+  font: var(--font-body-medium);
   border-radius: var(--shape-small, 4px);
   cursor: default;
   contain: layout style;
@@ -53,6 +70,8 @@
   cursor: pointer;
   z-index: 2;
   background: transparent;
+  border: none;
+  padding: 0;
 }
 
 /* Visual thread line inside the click area */
@@ -97,43 +116,43 @@
 
 /* Expand recursive guide lines for depth 2+ when editing */
 .block-list:has(.node-block--editing) .block-row[data-depth="2"]::before {
-  left: -36px;
+  left: var(--features-content-components-blocks-block-row-left-36);
   width: calc(var(--block-indent-step) + 1px);
   background: repeating-linear-gradient(to right, var(--color-outline-variant) 0px, var(--color-outline-variant) 1px, transparent 1px, transparent var(--block-indent-step));
 }
 
 .block-list:has(.node-block--editing) .block-row[data-depth="3"]::before {
-  left: -60px;
+  left: var(--features-content-components-blocks-block-row-left-60);
   width: calc(var(--block-indent-step) * 2 + 1px);
   background: repeating-linear-gradient(to right, var(--color-outline-variant) 0px, var(--color-outline-variant) 1px, transparent 1px, transparent var(--block-indent-step));
 }
 
 .block-list:has(.node-block--editing) .block-row[data-depth="4"]::before {
-  left: -84px;
+  left: var(--features-content-components-blocks-block-row-left-84);
   width: calc(var(--block-indent-step) * 3 + 1px);
   background: repeating-linear-gradient(to right, var(--color-outline-variant) 0px, var(--color-outline-variant) 1px, transparent 1px, transparent var(--block-indent-step));
 }
 
 .block-list:has(.node-block--editing) .block-row[data-depth="5"]::before {
-  left: -108px;
+  left: var(--features-content-components-blocks-block-row-left-108);
   width: calc(var(--block-indent-step) * 4 + 1px);
   background: repeating-linear-gradient(to right, var(--color-outline-variant) 0px, var(--color-outline-variant) 1px, transparent 1px, transparent var(--block-indent-step));
 }
 
 .block-list:has(.node-block--editing) .block-row[data-depth="6"]::before {
-  left: -132px;
+  left: var(--features-content-components-blocks-block-row-left-132);
   width: calc(var(--block-indent-step) * 5 + 1px);
   background: repeating-linear-gradient(to right, var(--color-outline-variant) 0px, var(--color-outline-variant) 1px, transparent 1px, transparent var(--block-indent-step));
 }
 
 .block-list:has(.node-block--editing) .block-row[data-depth="7"]::before {
-  left: -156px;
+  left: var(--features-content-components-blocks-block-row-left-156);
   width: calc(var(--block-indent-step) * 6 + 1px);
   background: repeating-linear-gradient(to right, var(--color-outline-variant) 0px, var(--color-outline-variant) 1px, transparent 1px, transparent var(--block-indent-step));
 }
 
 .block-list:has(.node-block--editing) .block-row[data-depth="8"]::before {
-  left: -180px;
+  left: var(--features-content-components-blocks-block-row-left-180);
   width: calc(var(--block-indent-step) * 7 + 1px);
   background: repeating-linear-gradient(to right, var(--color-outline-variant) 0px, var(--color-outline-variant) 1px, transparent 1px, transparent var(--block-indent-step));
 }
@@ -143,81 +162,71 @@
 .block-list:has(.node-block--editing) .node-block--editing[data-depth="1"]::before {
   background: var(--color-primary);
   opacity: 0.5;
-  box-shadow: var(--glow-primary-medium);
 }
 
 .block-list:has(.node-block--editing) .node-block--editing-trail[data-depth="2"]::before,
 .block-list:has(.node-block--editing) .node-block--editing[data-depth="2"]::before {
-  left: -36px;
+  left: var(--features-content-components-blocks-block-row-left-36);
   width: calc(var(--block-indent-step) + 1px);
   background: repeating-linear-gradient(to right, var(--color-primary) 0px, var(--color-primary) 1px, transparent 1px, transparent var(--block-indent-step));
   opacity: 0.5;
-  box-shadow: var(--glow-primary-medium);
 }
 
 .block-list:has(.node-block--editing) .node-block--editing-trail[data-depth="3"]::before,
 .block-list:has(.node-block--editing) .node-block--editing[data-depth="3"]::before {
-  left: -60px;
+  left: var(--features-content-components-blocks-block-row-left-60);
   width: calc(var(--block-indent-step) * 2 + 1px);
   background: repeating-linear-gradient(to right, var(--color-primary) 0px, var(--color-primary) 1px, transparent 1px, transparent var(--block-indent-step));
   opacity: 0.5;
-  box-shadow: var(--glow-primary-medium);
 }
 
 .block-list:has(.node-block--editing) .node-block--editing-trail[data-depth="4"]::before,
 .block-list:has(.node-block--editing) .node-block--editing[data-depth="4"]::before {
-  left: -84px;
+  left: var(--features-content-components-blocks-block-row-left-84);
   width: calc(var(--block-indent-step) * 3 + 1px);
   background: repeating-linear-gradient(to right, var(--color-primary) 0px, var(--color-primary) 1px, transparent 1px, transparent var(--block-indent-step));
   opacity: 0.5;
-  box-shadow: var(--glow-primary-medium);
 }
 
 .block-list:has(.node-block--editing) .node-block--editing-trail[data-depth="5"]::before,
 .block-list:has(.node-block--editing) .node-block--editing[data-depth="5"]::before {
-  left: -108px;
+  left: var(--features-content-components-blocks-block-row-left-108);
   width: calc(var(--block-indent-step) * 4 + 1px);
   background: repeating-linear-gradient(to right, var(--color-primary) 0px, var(--color-primary) 1px, transparent 1px, transparent var(--block-indent-step));
   opacity: 0.5;
-  box-shadow: var(--glow-primary-medium);
 }
 
 .block-list:has(.node-block--editing) .node-block--editing-trail[data-depth="6"]::before,
 .block-list:has(.node-block--editing) .node-block--editing[data-depth="6"]::before {
-  left: -132px;
+  left: var(--features-content-components-blocks-block-row-left-132);
   width: calc(var(--block-indent-step) * 5 + 1px);
   background: repeating-linear-gradient(to right, var(--color-primary) 0px, var(--color-primary) 1px, transparent 1px, transparent var(--block-indent-step));
   opacity: 0.5;
-  box-shadow: var(--glow-primary-medium);
 }
 
 .block-list:has(.node-block--editing) .node-block--editing-trail[data-depth="7"]::before,
 .block-list:has(.node-block--editing) .node-block--editing[data-depth="7"]::before {
-  left: -156px;
+  left: var(--features-content-components-blocks-block-row-left-156);
   width: calc(var(--block-indent-step) * 6 + 1px);
   background: repeating-linear-gradient(to right, var(--color-primary) 0px, var(--color-primary) 1px, transparent 1px, transparent var(--block-indent-step));
   opacity: 0.5;
-  box-shadow: var(--glow-primary-medium);
 }
 
 .block-list:has(.node-block--editing) .node-block--editing-trail[data-depth="8"]::before,
 .block-list:has(.node-block--editing) .node-block--editing[data-depth="8"]::before {
-  left: -180px;
+  left: var(--features-content-components-blocks-block-row-left-180);
   width: calc(var(--block-indent-step) * 7 + 1px);
   background: repeating-linear-gradient(to right, var(--color-primary) 0px, var(--color-primary) 1px, transparent 1px, transparent var(--block-indent-step));
   opacity: 0.5;
-  box-shadow: var(--glow-primary-medium);
 }
 
-/* Glow the bullet dot on the editing trail */
+/* Highlight the bullet dot on the editing trail */
 .block-list:has(.node-block--editing) .node-block--editing-trail .bullet-dot,
 .block-list:has(.node-block--editing) .node-block--editing .bullet-dot {
   background-color: var(--color-primary);
   opacity: 0.7;
-  box-shadow: var(--glow-primary-strong);
   transition: background-color var(--motion-duration-medium) var(--motion-easing-standard),
-              opacity var(--motion-duration-medium) var(--motion-easing-standard),
-              box-shadow var(--motion-duration-medium) var(--motion-easing-standard);
+              opacity var(--motion-duration-medium) var(--motion-easing-standard);
 }
 
 /* Editing indicator — subtle bullet scale instead of breathing ring */
@@ -233,16 +242,15 @@
   display: flex;
   flex-direction: column;
   min-width: 2em;
-  min-height: 1.6em;
-  line-height: 1.6;
+  min-height: 1.5em;
 }
 
 /* Content area — inline editor sits here */
 .block-row__content {
-  min-height: 1.6em;
+  min-height: 1.5em;
   outline: none;
   margin: 0;
-  line-height: 1.6;
+  line-height: 1.5;
 }
 
 /* Inline content + class pills row */
@@ -250,7 +258,7 @@
   display: flex;
   align-items: center;
   gap: var(--spacing-2);
-  min-height: 1.6em;
+  min-height: 1.5em;
 }
 
 .block-row__content-line > .block-row__content {
@@ -260,13 +268,18 @@
 
 /* Lightweight plain-text fallback when InlineEditor is lazy-mounted */
 .block-row__content-fallback {
-  min-height: 1.6em;
+  min-height: 1.5em;
+  width: 100%;
   padding: 2px 0;
-  line-height: 1.6;
-  color: var(--color-on-surface, #e2e2e2);
+  line-height: 1.5;
+  color: var(--color-on-surface);
   cursor: text;
   white-space: pre-wrap;
   word-break: break-word;
+  background: none;
+  border: none;
+  text-align: left;
+  font: inherit;
 }
 
 /* ─── Selected state (block selection via Escape / keyboard / drag) ─ */
@@ -301,11 +314,11 @@
   pointer-events: none;
   display: none;
   align-items: center;
-  gap: 6px;
+  gap: var(--features-content-components-blocks-block-row-gap-6);
   height: var(--height-sm);
   padding: 0 var(--spacing-2);
   border-radius: var(--shape-small);
-  font-size: var(--font-size-base);
+  font: var(--font-body-medium);
   line-height: var(--block-drag-ghost-line-height);
   color: var(--color-on-surface);
   overflow: hidden;
@@ -318,20 +331,20 @@
   gap: 2px;
   height: auto;
   line-height: var(--block-drag-ghost-multi-line-height);
-  padding: 6px 10px;
+  padding: var(--features-content-components-blocks-block-row-padding-6) var(--features-content-components-blocks-block-row-padding-10);
 }
 
 .block-drag-ghost__row {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--features-content-components-blocks-block-row-gap-6);
   height: var(--block-drag-ghost-row-height);
   overflow: hidden;
 }
 
 .block-drag-ghost__row--more {
   opacity: 0.55;
-  font-size: var(--font-size-sm);
+  font: var(--font-body-small);
   padding-left: var(--spacing-3);
 }
 
@@ -339,7 +352,7 @@
   opacity: 0.85;
   background: var(--color-surface-container);
   border: 1px solid var(--color-outline-variant);
-  max-width: 300px;
+  max-width: var(--features-content-components-blocks-block-row-max-width-300);
   white-space: nowrap;
 }
 
@@ -350,8 +363,8 @@
 }
 
 .block-drag-ghost__bullet {
-  width: 6px;
-  height: 6px;
+  width: var(--features-content-components-blocks-block-row-width-6);
+  height: var(--features-content-components-blocks-block-row-height-6);
   border-radius: 50%;
   background: currentColor;
   opacity: 0.5;
@@ -422,7 +435,7 @@ body.notees-dragging-block .node-block--has-children:hover .block-collapse-arrow
 /* ─── Page blocks ──────────────────────────────────────────────── */
 
 .node-block--page .inline-editor__content {
-  font-weight: 500;
+  font: var(--font-label-large);
 }
 
 /* ─── Colored block backgrounds ────────────────────────────────── */

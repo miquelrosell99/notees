@@ -2,8 +2,14 @@
  * All Pages View styles
  */
 
+
+:root {
+  --features-content-pages-all-pages-view-max-width-800: 800px;
+  --features-content-pages-all-pages-view-max-width-400: 400px;
+}
+
 .all-pages-view {
-  max-width: 800px;
+  max-width: var(--features-content-pages-all-pages-view-max-width-800);
   margin: 0 auto;
   padding: var(--spacing-12) var(--spacing-4) var(--spacing-4);
 }
@@ -37,6 +43,6 @@
 
 .all-pages-view__search {
   flex: 1;
-  max-width: 400px;
+  max-width: var(--features-content-pages-all-pages-view-max-width-400);
   margin: 0 auto;
 }

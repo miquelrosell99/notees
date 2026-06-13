@@ -1,3 +1,7 @@
+:root {
+  --features-workspace-components-workspace-share-modal-max-width-560: 560px;
+}
+
 .workspace-share-modal {
   display: flex;
   flex-direction: column;
@@ -6,7 +10,7 @@
 
 /* Wider dialog */
 .card.modal.workspace-share-modal__dialog {
-  max-width: 560px;
+  max-width: var(--features-workspace-components-workspace-share-modal-max-width-560);
 }
 
 /* Invite bar */

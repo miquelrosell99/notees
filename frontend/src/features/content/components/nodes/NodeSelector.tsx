@@ -93,6 +93,8 @@ interface NodeSelectorProps {
   anchorEl?: HTMLElement | null;
   /** Called when the anchored panel should close (Escape / click-outside) */
   onClose?: () => void;
+  /** ID for the root element, used for label association */
+  id?: string;
 }
 
 export function NodeSelector({
@@ -123,6 +125,7 @@ export function NodeSelector({
   className = '',
   anchorEl,
   onClose,
+  id,
 }: NodeSelectorProps) {
   const isAnchored = anchorEl != null;
   const [isPickerOpen, setIsPickerOpen] = useState(isAnchored);
@@ -680,7 +683,7 @@ export function NodeSelector({
     // Read-only view
     if (readOnly) {
       return (
-        <div className={`node-selector node-selector--select node-selector--readonly ${className}`}>
+        <div id={id} className={`node-selector node-selector--select node-selector--readonly ${className}`}>
           {hasValue ? (
             <div className="node-selector__selected-list">
               {nodes.map(node => (
@@ -702,7 +705,7 @@ export function NodeSelector({
     }
     
     return (
-      <div className={`node-selector node-selector--select ${multi ? 'node-selector--select-multi' : ''} ${className}`} ref={containerRef}>
+      <div id={id} className={`node-selector node-selector--select ${multi ? 'node-selector--select-multi' : ''} ${className}`} ref={containerRef}>
         {multi ? (
           // Multi-select: flat layout with pills + separate arrow button
           <div className="node-selector__multi-trigger">
@@ -911,7 +914,7 @@ export function NodeSelector({
   // 'inline' mode: always-expanded search + results (used for embedded pickers)
   if (trigger === 'inline') {
     return (
-      <div className={`node-selector node-selector--inline ${className}`}>
+      <div id={id} className={`node-selector node-selector--inline ${className}`}>
         <input
           ref={searchInputRef}
           type="text"
@@ -920,7 +923,6 @@ export function NodeSelector({
           value={searchQuery}
           onChange={(e) => handleSearchChange(e.target.value)}
           onKeyDown={handleKeyDown}
-          autoFocus
         />
         <FilterPills filters={appliedFilters} onRemove={handleRemoveFilter} />
         <div className="node-selector__options">
@@ -974,7 +976,6 @@ export function NodeSelector({
           value={searchQuery}
           onChange={(e) => handleSearchChange(e.target.value)}
           onKeyDown={handleKeyDown}
-          autoFocus
         />
         <FilterPills filters={appliedFilters} onRemove={handleRemoveFilter} />
         <div className="node-selector__options">
@@ -1008,7 +1009,7 @@ export function NodeSelector({
   }
 
   return (
-    <div className={`node-selector ${className}`}>
+    <div id={id} className={`node-selector ${className}`}>
       {nodes.map((node) => {
         const isRemovable = onRemove && (!canRemove || canRemove(node));
         return (

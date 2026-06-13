@@ -190,11 +190,16 @@ function KanbanColumn({
       data-column-id={column.id}
     >
       <div
-        className="node-kanban-view__kanban-header"
-        onClick={onToggleCollapse}
-        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggleCollapse(); } }}
         role="button"
         tabIndex={0}
+        className="node-kanban-view__kanban-header"
+        onClick={onToggleCollapse}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onToggleCollapse();
+          }
+        }}
       >
         {column.icon && <NodeIcon icon={column.icon} size="xs" className="node-kanban-view__kanban-icon" />}
         <span className="node-kanban-view__kanban-title">{column.label}</span>

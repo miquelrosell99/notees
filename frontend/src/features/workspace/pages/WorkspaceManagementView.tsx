@@ -31,6 +31,7 @@ import { UserSettingsModal, SystemSettingsModal } from '@/features/layout/compon
 
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
+import { Pill } from '@/components/ui/Pill';
 import { formatDate, formatRelativeTime } from '@/utils/dateFormat';
 import { favoriteKeys, recentKeys } from '@/hooks/queryKeys';
 import './WorkspaceManagementView.css';
@@ -257,7 +258,7 @@ export function WorkspaceManagementView({
   const hasNoWorkspaces = !isLoading && workspaces.length === 0;
 
   return (
-    <div className="db-management">
+    <div className="workspace-management">
       <div className="workspace-management__container">
         {/* Header */}
         <header className="workspace-management__header">
@@ -356,10 +357,10 @@ export function WorkspaceManagementView({
                         <span className="workspace-management__card-name">{workspace.name}</span>
                         <div className="workspace-management__card-badges">
                           {workspace.uuid === data?.active && (
-                            <span className="workspace-management__card-badge">Active</span>
+                            <Pill text="Active" className="workspace-management__pill--active" />
                           )}
                           {workspace.is_shared && (
-                            <span className="workspace-management__card-badge workspace-management__card-badge--shared">Shared</span>
+                            <Pill text="Shared" className="workspace-management__pill--shared" />
                           )}
                         </div>
                       </div>
@@ -378,6 +379,7 @@ export function WorkspaceManagementView({
                             <Button aria-label="Confirm delete"
                               variant="danger"
                               size="sm"
+                              hapticIntensity="medium"
                               onClick={() => deleteMutation.mutate(workspace.uuid)}
                               title="Confirm delete"
                               disabled={deleteMutation.isPending}
@@ -419,6 +421,7 @@ export function WorkspaceManagementView({
                             <Button
                               variant="danger"
                               size="sm"
+                              hapticIntensity="medium"
                               onClick={handleRestoreConfirm}
                               disabled={restoreMutation.isPending}
                             >

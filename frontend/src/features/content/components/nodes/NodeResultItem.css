@@ -5,6 +5,11 @@
  * component that renders a searchable list of nodes.
  */
 
+
+:root {
+  --features-content-components-nodes-node-result-item-padding-6: 6px;
+}
+
 .node-result-item {
   display: flex;
   flex-direction: column;
@@ -85,7 +90,7 @@
   font: var(--font-label-small);
   color: var(--color-on-surface-variant);
   background: var(--color-surface-container);
-  padding: 1px 6px;
+  padding: 1px var(--features-content-components-nodes-node-result-item-padding-6);
   border-radius: var(--shape-button-compact);
   white-space: nowrap;
 }

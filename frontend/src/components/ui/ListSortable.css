@@ -34,6 +34,11 @@
   background: var(--color-hover-overlay);
 }
 
+.list-sortable__item:focus-visible {
+  outline: var(--border-width-thick) solid var(--color-accent);
+  outline-offset: -2px;
+}
+
 .list-sortable__item--dragging {
   background: var(--color-surface-container-high);
   border-radius: var(--shape-small);
@@ -48,13 +53,26 @@
 
 /* Drag handle */
 .list-sortable__drag-handle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   color: var(--color-on-surface-variant);
+  font: inherit;
   font-size: var(--font-size-sm);
   cursor: grab;
   padding: var(--spacing-1);
   line-height: 1;
   user-select: none;
   flex-shrink: 0;
+  border: none;
+  background: none;
+  min-width: var(--button-icon-only-xs);
+  min-height: var(--button-icon-only-xs);
+}
+
+.list-sortable__drag-handle:focus-visible {
+  outline: var(--border-width-thick) solid var(--color-accent);
+  outline-offset: -2px;
 }
 
 .list-sortable__drag-handle:hover {

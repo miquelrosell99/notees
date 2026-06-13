@@ -8,12 +8,3 @@
     transform: scale(1);
   }
 }
-
-@keyframes presence-dot-pulse {
-  0%, 100% {
-    box-shadow: 0 0 0 0 var(--color-shadow);
-  }
-  50% {
-    box-shadow: 0 0 0 4px var(--color-shadow);
-  }
-}

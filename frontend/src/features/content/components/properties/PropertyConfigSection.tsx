@@ -11,7 +11,7 @@
  * - Selection options management
  * - Delete property action
  */
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useCallback, useMemo, useEffect, useId } from 'react';
 import type { Property, Node, PropertyIconVisibility } from '@/types/api';
 import { ICON_VISIBILITY_PROPERTY_TYPES } from '@/types/api';
 import { addSelectionOption, deleteSelectionOption, updateSelectionOption, reorderSelectionOptions, addClassFilter, removeClassFilter } from '@/api/properties';
@@ -267,24 +267,26 @@ export function PropertyConfigSection({
       {isLocal && property.node_id && (
         <div className="property-config-section__scope">
           <span className="property-config-section__scope-label">Applies to </span>
-          <a
-            href="#"
+          <button
+            type="button"
             className="property-config-section__scope-link"
-            onClick={(e) => {
-              e.preventDefault();
+            onClick={() => {
               if (property.node_id) openNode(property.node_id);
             }}
           >
             Page #{property.node_id}
-          </a>
+          </button>
         </div>
       )}
       
       {/* Icon visibility setting - only for selection properties */}
       {ICON_VISIBILITY_PROPERTY_TYPES.includes(property.type) && (
         <div className="property-form__field">
-          <label className="property-form__label">Value icon display</label>
+          <label htmlFor="property-icon-visibility" className="property-form__label">
+            Value icon display
+          </label>
           <SelectionButton
+            id="property-icon-visibility"
             options={[
               { value: 'hidden' as PropertyIconVisibility, icon: "mdi mdi-eye-off", label: 'Hidden' },
               { value: 'after_bullet' as PropertyIconVisibility, icon: "mdi mdi-circle-small", label: 'After bullet' },
@@ -404,6 +406,10 @@ function ValidationRulesSection({
 }) {
   const updatePropertyMutation = useUpdateProperty();
   const rules = property.validation_rules ?? {};
+  const baseId = useId();
+  const minId = `${baseId}-min`;
+  const maxId = `${baseId}-max`;
+  const patternId = `${baseId}-pattern`;
 
   const save = useCallback(async (newRules: Record<string, unknown>) => {
     const cleaned = Object.fromEntries(
@@ -424,10 +430,11 @@ function ValidationRulesSection({
   if (property.type === 'integer' || property.type === 'float') {
     return (
       <div className="property-form__field">
-        <label className="property-form__label">Validation</label>
+        <span className="property-form__label">Validation</span>
         <div className="property-config-section__validation-row">
-          <label className="property-config-section__validation-inline-label">Min</label>
+          <label htmlFor={minId} className="property-config-section__validation-inline-label">Min</label>
           <TextField
+            id={minId}
             type="number"
             value={rules.min != null ? String(rules.min) : ''}
             step={property.type === 'float' ? 'any' : 1}
@@ -438,8 +445,9 @@ function ValidationRulesSection({
             placeholder="No min"
             size="sm"
           />
-          <label className="property-config-section__validation-inline-label">Max</label>
+          <label htmlFor={maxId} className="property-config-section__validation-inline-label">Max</label>
           <TextField
+            id={maxId}
             type="number"
             value={rules.max != null ? String(rules.max) : ''}
             step={property.type === 'float' ? 'any' : 1}
@@ -458,8 +466,9 @@ function ValidationRulesSection({
   // text, url, email — regex pattern
   return (
     <div className="property-form__field">
-      <label className="property-form__label">Validation pattern</label>
+      <label htmlFor={patternId} className="property-form__label">Validation pattern</label>
       <TextField
+        id={patternId}
         type="text"
         value={typeof rules.pattern === 'string' ? rules.pattern : ''}
         onChange={(e) => save({ ...rules, pattern: e.target.value || null })}

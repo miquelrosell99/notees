@@ -42,11 +42,14 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function T
     icon,
     containerClassName = '',
     'aria-describedby': ariaDescribedBy,
+    id: idProp,
     ...props
   },
   ref
 ) {
   const errorId = useId();
+  const generatedId = useId();
+  const id = idProp ?? generatedId;
 
   const describedByIds = [
     error && errorMessage ? errorId : undefined,
@@ -86,6 +89,7 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function T
     <div className={containerClasses}>
       <input
         ref={ref}
+        id={id}
         className={inputClasses}
         disabled={disabled}
         aria-invalid={error || undefined}
@@ -102,6 +106,7 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function T
   ) : (
     <input
       ref={ref}
+      id={id}
       className={inputClasses}
       disabled={disabled}
       aria-invalid={error || undefined}
@@ -113,7 +118,7 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function T
   if (label) {
     return (
       <div className={wrapperClasses}>
-        <label htmlFor={props.id} className="text-field__label">{label}</label>
+        <label htmlFor={id} className="text-field__label">{label}</label>
         {inputElement}
         {error && errorMessage && (
           <span id={errorId} className="text-field__error" role="alert">{errorMessage}</span>

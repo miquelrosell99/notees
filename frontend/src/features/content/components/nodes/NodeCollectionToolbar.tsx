@@ -27,7 +27,7 @@ import type { Property } from '@/types/api';
 import { useProperties } from '@/hooks/useProperties';
 import './NodeCollectionToolbar.css';
 import { Icon, DragVerticalIcon } from '@/components/ui/icons';
-import type { SortEntry } from '@/components/ui/Table';
+import type { SortEntry } from '@/features/content/components/nodes/views/NodeTable';
 
 // Card layout mode icon mappings
 const CARD_LAYOUT_ICONS: Record<string, string> = {

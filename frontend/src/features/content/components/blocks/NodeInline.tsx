@@ -87,15 +87,16 @@ export function NodeInline({
     }
   }, [nodeUuid, nodeId, providedDisplayText, displayText]);
 
+  const Tag = onClick ? 'button' : 'span' as const;
+
   return (
-    <span onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }}
+    <Tag
       className={`node-inline ${onClick ? 'node-inline--clickable' : ''} ${className}`}
-      onClick={handleClick}
-      role={onClick ? 'button' : undefined}
-      tabIndex={onClick ? 0 : undefined}
+      onClick={onClick ? handleClick : undefined}
       draggable={draggable}
       onDragStart={handleDragStart}
       title={title ?? displayText}
+      type={onClick ? 'button' : undefined}
     >
       {showBullet && (
         <Bullet
@@ -110,7 +111,7 @@ export function NodeInline({
         <NodeIcon icon={icon} isPage={isPage} size="sm" />
       )}
       <span className="node-inline__text">{displayText}</span>
-    </span>
+    </Tag>
   );
 }
 

@@ -31,6 +31,12 @@
   background: var(--color-surface-container);
 }
 
+.node-view-section__header:focus-visible,
+.node-view-section__header-content:focus-visible {
+  outline: var(--border-width-thick) solid var(--color-accent);
+  outline-offset: -2px;
+}
+
 .node-view-section__toggle {
   display: flex;
   align-items: center;

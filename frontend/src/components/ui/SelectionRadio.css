@@ -2,6 +2,11 @@
  * RadioGroup - Card-style radio button group.
  */
 
+
+:root {
+  --components-ui-selection-radio-padding-6: 6px;
+}
+
 .radio-group {
   display: flex;
   gap: var(--spacing-2);
@@ -101,7 +106,7 @@
 .radio-group__badge {
   font-size: 0.65rem;
   font-weight: 600;
-  padding: 1px 6px;
+  padding: 1px var(--components-ui-selection-radio-padding-6);
   border-radius: var(--shape-full);
   background: var(--color-surface-variant);
   color: var(--color-on-surface-variant);

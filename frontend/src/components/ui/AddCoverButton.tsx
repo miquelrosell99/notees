@@ -7,26 +7,28 @@
  */
 import { useState } from 'react';
 
-import { extractImageFromDragEvent } from '@/hooks/useDragDropImage';
 import './AddCoverButton.css';
 import { Icon } from '@/components/ui/icons';
 
 export interface AddCoverButtonProps {
   /** Callback when the button is clicked */
   onClick: () => void;
-  /** Callback when a file is dropped (can be File object or URL string) */
+  /** Callback when a file is dropped (receives a File object or URL string) */
   onDrop?: (file: File | string) => void;
+  /** Optional drop processor that extracts a file/URL from the raw drag event */
+  processDrop?: (e: React.DragEvent) => Promise<{ file: File | string } | null | undefined>;
   /** Optional CSS class */
   className?: string;
   /** Size variant */
   size?: 'sm' | 'md' | 'lg';
 }
 
-export function AddCoverButton({ 
-  onClick, 
+export function AddCoverButton({
+  onClick,
   onDrop,
-  className = '', 
-  size = 'md' 
+  processDrop,
+  className = '',
+  size = 'md'
 }: AddCoverButtonProps) {
   const [isDragging, setIsDragging] = useState(false);
   
@@ -46,13 +48,15 @@ export function AddCoverButton({
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
-    
+
     if (!onDrop) return;
-    
+
     try {
-      const result = await extractImageFromDragEvent(e);
-      if (result) {
-        onDrop(result.file);
+      if (processDrop) {
+        const result = await processDrop(e);
+        if (result) {
+          onDrop(result.file);
+        }
       }
     } catch (error) {
       console.error('Failed to process dropped image:', error);

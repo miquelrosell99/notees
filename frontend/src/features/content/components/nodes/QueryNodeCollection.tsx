@@ -272,7 +272,7 @@ export function QueryNodeCollection({
     viewType, 
     enabled: !isInlineMode && nodeId > 0 && hasInitialized,
   });
-  const views = viewsRaw ?? [];
+  const views = useMemo(() => viewsRaw ?? [], [viewsRaw]);
 
   // Mutations
   const createViewMutation = useCreateNodeView();
@@ -561,10 +561,14 @@ export function QueryNodeCollection({
     }
   );
 
-  const rawResults = viewType === 'linked_references' 
-    ? [...linkedReferencesBlocks, ...linkedReferencesPages]
-    : isInlineMode ? (inlineQueryResults ?? [])
-    : (isPseudoNode ? (pseudoQueryResults ?? []) : (queryResults ?? []));
+  const rawResults = useMemo(() => {
+    if (viewType === 'linked_references') {
+      return [...linkedReferencesBlocks, ...linkedReferencesPages];
+    }
+    if (isInlineMode) return inlineQueryResults ?? [];
+    if (isPseudoNode) return pseudoQueryResults ?? [];
+    return queryResults ?? [];
+  }, [viewType, linkedReferencesBlocks, linkedReferencesPages, isInlineMode, inlineQueryResults, isPseudoNode, pseudoQueryResults, queryResults]);
   const activeAST = isInlineMode ? inlineQueryAST
     : (isPseudoNode ? pseudoNodeAST : activeView?.query_ast);
   const resultNodes = useMemo(() => {

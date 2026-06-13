@@ -2,8 +2,13 @@
  * SidebarCardLocalGraph styles
  */
 
+
+:root {
+  --features-sidebar-components-sidebar-card-local-graph-min-height-280: 280px;
+}
+
 .sidebar-card-local-graph {
-  min-height: 280px;
+  min-height: var(--features-sidebar-components-sidebar-card-local-graph-min-height-280);
 }
 
 .sidebar-card-local-graph__content {

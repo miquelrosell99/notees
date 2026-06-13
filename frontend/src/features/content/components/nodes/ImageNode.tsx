@@ -148,23 +148,32 @@ export function ImageNode({
   }
 
   // Render image content
-  const imageContent = (
-    // TODO: Refactor clickable images to use a real <button> wrapper instead of role="button".
-    // eslint-disable-next-line jsx-a11y/no-noninteractive-element-to-interactive-role
-    <img role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }}
+  const imageElement = (
+    <img
       key={imageUrl}
       src={imageUrl}
       alt={alt}
       loading="lazy"
       className="image-node__img"
-      onClick={handleImageClick}
       style={{
-        cursor: clickable ? 'pointer' : 'default',
         pointerEvents: isDragging ? 'none' : 'auto'
       }}
       title={clickable ? 'Click to view full size' : undefined}
       draggable="false"
     />
+  );
+
+  const imageContent = clickable ? (
+    <button
+      type="button"
+      className="image-node__button"
+      onClick={handleImageClick}
+      title="Click to view full size"
+    >
+      {imageElement}
+    </button>
+  ) : (
+    imageElement
   );
 
   // Render default action buttons if onEdit/onRemove provided

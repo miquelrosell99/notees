@@ -5,6 +5,11 @@
  * Component-specific styles have been moved to individual CSS files
  */
 
+
+:root {
+  --app-top-40: -40px;
+}
+
 /* Inline SVG icons — ensure proper alignment */
 svg[class*="icon"],
 [class*="-icon"] > svg {
@@ -17,7 +22,7 @@ svg[class*="icon"],
 /* ==================== Skip Navigation ==================== */
 .skip-link {
   position: absolute;
-  top: -40px;
+  top: var(--app-top-40);
   left: 0;
   background: var(--color-primary);
   color: var(--color-on-primary);

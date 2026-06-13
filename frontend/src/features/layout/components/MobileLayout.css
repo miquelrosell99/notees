@@ -8,6 +8,11 @@
  *  - Safe-area insets honoured for notch / home-bar devices
  */
 
+
+:root {
+  --features-layout-components-mobile-layout-right: var(--spacing-5);
+}
+
 /* ── Canvas ──────────────────────────────────────────────────── */
 .mobile-canvas {
   display: flex;
@@ -52,6 +57,11 @@
   padding-bottom: 0;
 }
 
+.android-app .mobile-drawer {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
 /* Cards inside the content area: full-bleed, no border-radius */
 .mobile-content .card {
   border-radius: 0 !important;
@@ -70,8 +80,8 @@
   /* Slide off-screen by default */
   transform: translateX(-100%);
   transition: transform var(--motion-duration-medium) var(--motion-easing-standard);
-  /* Safe area on the left for devices with a curved left edge */
-  padding-left: env(safe-area-inset-left);
+  /* Safe area for devices with curved edges / notches / home bars */
+  padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom) env(safe-area-inset-left);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -102,7 +112,7 @@
   transition: none;
   /* Provide a background so it isn't transparent */
   background: var(--color-surface);
-  border-radius: 0 var(--shape-large) var(--shape-large) 0;
+  border-radius: 0 var(--shape-sheet) var(--shape-sheet) 0;
 }
 
 /* Override desktop collapse styles that use visibility/opacity/transform */
@@ -130,8 +140,8 @@
 /* ── Floating action button ──────────────────────────────────── */
 .mobile-fab {
   position: fixed;
-  bottom: calc(20px + env(safe-area-inset-bottom));
-  right: 20px;
+  bottom: calc(var(--spacing-5) + env(safe-area-inset-bottom));
+  right: var(--features-layout-components-mobile-layout-right);
   width: var(--height-2xl);
   height: var(--height-2xl);
   border-radius: var(--shape-button-large);
@@ -143,8 +153,7 @@
   align-items: center;
   justify-content: center;
   z-index: var(--z-popover);
-  transition: transform var(--motion-duration-short) var(--motion-easing-standard),
-              box-shadow var(--motion-duration-short) var(--motion-easing-standard);
+  transition: transform var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 .mobile-fab:active {

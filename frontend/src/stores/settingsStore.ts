@@ -7,7 +7,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
 export type ThemePreference = 'light' | 'dark' | 'system';
-export type AccentColor = 'monochrome' | 'sage' | 'teal' | 'rose' | 'navy';
+export type AccentColor = 'monochrome' | 'sage' | 'teal' | 'rose' | 'navy' | 'custom';
 
 export type DateFormat = 
   | 'YYYY/MM/DD'
@@ -70,6 +70,8 @@ interface SettingsState {
   theme: ThemePreference;
   oledMode: boolean;
   accentColor: AccentColor;
+  /** User-defined hex color when accentColor is 'custom' */
+  customAccentHex: string;
   
   // Date format
   dateFormat: DateFormat;
@@ -95,6 +97,7 @@ interface SettingsState {
   setTheme: (theme: ThemePreference) => void;
   setOledMode: (enabled: boolean) => void;
   setAccentColor: (color: AccentColor) => void;
+  setCustomAccentHex: (hex: string) => void;
   setDateFormat: (format: DateFormat) => void;
   setDefaultView: (view: DefaultView) => void;
   setShowDailyNotes: (show: boolean) => void;
@@ -132,8 +135,49 @@ export function applyTheme(theme: ThemePreference, oledMode = false): void {
   }
 }
 
-export function applyAccentColor(accentColor: AccentColor): void {
+const HEX_COLOR_REGEX = /^#([0-9A-Fa-f]{6})$/;
+
+/**
+ * Validate a hex color string. Returns true for #RRGGBB only.
+ */
+export function isValidHexColor(hex: string): boolean {
+  return HEX_COLOR_REGEX.test(hex);
+}
+
+/**
+ * Compute a black or white foreground color for a hex background
+ * based on relative luminance (WCAG 2.1 simplified).
+ */
+export function getContrastColor(hex: string): '#000000' | '#ffffff' {
+  const normalized = hex.trim().toLowerCase();
+  if (!isValidHexColor(normalized)) return '#ffffff';
+
+  const rgb = parseInt(normalized.slice(1), 16);
+  const r = (rgb >> 16) & 0xff;
+  const g = (rgb >> 8) & 0xff;
+  const b = rgb & 0xff;
+
+  // ITU-R BT.709 luma
+  const luma = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+  return luma > 0.5 ? '#000000' : '#ffffff';
+}
+
+/**
+ * Apply accent color to the document.
+ * For preset accents this sets data-accent. For custom accents it also sets
+ * --color-accent-custom and --color-on-accent-custom CSS variables.
+ */
+export function applyAccentColor(accentColor: AccentColor, customHex?: string): void {
   document.documentElement.setAttribute('data-accent', accentColor);
+
+  if (accentColor === 'custom') {
+    const hex = customHex && isValidHexColor(customHex) ? customHex : '#5B7D5B';
+    document.documentElement.style.setProperty('--color-accent-custom', hex);
+    document.documentElement.style.setProperty('--color-on-accent-custom', getContrastColor(hex));
+  } else {
+    document.documentElement.style.removeProperty('--color-accent-custom');
+    document.documentElement.style.removeProperty('--color-on-accent-custom');
+  }
 }
 
 /**
@@ -225,6 +269,7 @@ export const useSettingsStore = create<SettingsState>()(
       theme: 'system',
       oledMode: false,
       accentColor: 'sage',
+      customAccentHex: '#5B7D5B',
       dateFormat: 'YYYY/MM/DD',
       defaultView: 'journal',
       showDailyNotes: true,
@@ -248,8 +293,18 @@ export const useSettingsStore = create<SettingsState>()(
         applyTheme(theme, oledMode);
       },
       setAccentColor: (accentColor) => {
+        const { customAccentHex } = useSettingsStore.getState();
         set({ accentColor });
-        applyAccentColor(accentColor);
+        applyAccentColor(accentColor, customAccentHex);
+      },
+
+      setCustomAccentHex: (customAccentHex) => {
+        const { accentColor } = useSettingsStore.getState();
+        const validHex = isValidHexColor(customAccentHex) ? customAccentHex : '#5B7D5B';
+        set({ customAccentHex: validHex });
+        if (accentColor === 'custom') {
+          applyAccentColor('custom', validHex);
+        }
       },
       
       setDateFormat: (dateFormat) => {
@@ -293,7 +348,7 @@ export const useSettingsStore = create<SettingsState>()(
       onRehydrateStorage: () => (state) => {
         if (state) {
           applyTheme(state.theme, state.oledMode ?? false);
-          applyAccentColor(state.accentColor ?? 'monochrome');
+          applyAccentColor(state.accentColor ?? 'sage', state.customAccentHex);
         }
       },
     }

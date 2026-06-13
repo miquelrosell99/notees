@@ -174,8 +174,9 @@ export function CreatePageWithUuidModal({
       <div className="create-uuid-modal">
         {/* Page / Block toggle */}
         <div className="create-uuid-modal__field">
-          <label className="create-uuid-modal__label">Type</label>
+          <label htmlFor="cup-type" className="create-uuid-modal__label">Type</label>
           <ToggleSwitch
+            id="cup-type"
             leftLabel="Page"
             rightLabel="Block"
             checked={!isPage}
@@ -207,11 +208,12 @@ export function CreatePageWithUuidModal({
         {/* Parent page picker — shown only for blocks */}
         {!isPage && (
           <div className="create-uuid-modal__field">
-            <label className="create-uuid-modal__label">
+            <label htmlFor="cup-parent" className="create-uuid-modal__label">
               Parent page
               <span className="create-uuid-modal__required"> *</span>
             </label>
             <NodeSelector
+              id="cup-parent"
               trigger="select"
               searchMode="pages"
               multi={false}

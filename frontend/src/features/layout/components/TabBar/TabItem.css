@@ -1,5 +1,13 @@
 /* TabItem.css — flat tabs inside a contained pill bar */
 
+
+
+.tab-item-wrapper {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
 .tab-item {
   display: inline-flex;
   align-items: center;
@@ -8,6 +16,7 @@
   height: var(--height-sm);
   padding: 0 var(--spacing-3);
   border-radius: var(--shape-small);
+  font: inherit;
   font-size: 0.8125rem;
   font-weight: 400;
   color: var(--color-on-surface-variant);
@@ -18,10 +27,13 @@
   white-space: nowrap;
   transition: color var(--motion-duration-short) var(--motion-easing-standard),
               background var(--motion-duration-short) var(--motion-easing-standard);
-  position: relative;
   max-width: 12rem;
   min-width: var(--height-sm);
-  flex-shrink: 0;
+}
+
+.tab-item:focus-visible {
+  outline: var(--border-width-thick) solid var(--color-accent);
+  outline-offset: -2px;
 }
 
 .tab-item:hover {
@@ -72,13 +84,16 @@
 
 .tab-item__close {
   position: absolute;
-  top: 2px;
+  top: 50%;
   right: 2px;
+  transform: translateY(-50%);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 14px;
-  height: 14px;
+  width: var(--button-icon-only-xs);
+  height: var(--button-icon-only-xs);
+  min-width: var(--button-min-height);
+  min-height: var(--button-min-height);
   border-radius: var(--shape-full);
   border: none;
   background: transparent;
@@ -92,15 +107,18 @@
   z-index: 2;
 }
 
-.tab-item:hover .tab-item__close {
+.tab-item-wrapper:hover .tab-item__close,
+.tab-item-wrapper:focus-within .tab-item__close,
+.tab-item__close:focus-visible {
   opacity: 0.6;
 }
 
-.tab-item__close:hover {
+.tab-item__close:hover,
+.tab-item__close:focus-visible {
   background: color-mix(in srgb, currentColor 10%, transparent);
   opacity: 1;
 }
 
 .tab-item__close:active {
-  transform: scale(0.92);
+  transform: translateY(-50%) scale(0.92);
 }

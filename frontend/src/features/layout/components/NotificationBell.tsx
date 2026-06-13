@@ -42,8 +42,10 @@ export function NotificationPanel({ filterType, title, onClose }: NotificationPa
           <div className="notification-bell__empty">No new notifications</div>
         ) : (
           notifications.map((n) => (
-            <div
+            <button
               key={n.id}
+              type="button"
+              aria-label={`Notification from ${n.actor_name || 'Someone'}: ${n.message || 'notified you'}`}
               className={`notification-bell__item ${n.is_read ? 'notification-bell__item--read' : ''}`}
               onClick={() => {
                 if (!n.is_read) markRead.mutate(Number(n.id));
@@ -60,7 +62,7 @@ export function NotificationPanel({ filterType, title, onClose }: NotificationPa
               <span className="notification-bell__item-time">
                 {new Date(n.create_date).toLocaleString()}
               </span>
-            </div>
+            </button>
           ))
         )}
       </div>

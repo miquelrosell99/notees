@@ -1,19 +1,35 @@
 /**
- * Calendar popup component for navigating to daily pages
+ * Calendar popup component (controlled)
+ *
+ * Renders a month grid for navigating daily pages. This base component is
+ * domain-agnostic: it accepts `firstDayOfWeek`, `dailyPages`, and selection
+ * callbacks as props. Feature code should use the wrapper in
+ * `features/content/components/CalendarPopup.tsx` to wire stores/hooks.
  */
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { useDailyNote, useMonthlyNote, useYearlyNote, useExistingDailyPages } from '@/hooks';
 import { useViewportFlip } from '@/hooks/useViewportFlip';
-import { useNavigationStore, useSettingsStore } from '@/stores';
 import { Button } from './Button';
 import './CalendarPopup.css';
 
-interface CalendarPopupProps {
+export interface CalendarPopupProps {
+  /** Whether the popup is visible */
   isOpen: boolean;
+  /** Called when the popup should close */
   onClose: () => void;
-  anchorRef?: React.RefObject<HTMLElement>;
+  /** Ref to the anchor element used for positioning */
+  anchorRef?: React.RefObject<HTMLElement | null>;
   /** When incremented, navigates the calendar to today's month with accent pulse */
   goToTodaySignal?: number;
+  /** Index of the first day of the week (0 = Sunday, 1 = Monday, ...) */
+  firstDayOfWeek: number;
+  /** Existing daily pages used to mark days that already have notes */
+  dailyPages: Array<{ uuid: string }>;
+  /** Called when the user selects a day */
+  onSelectDay: (date: Date) => void;
+  /** Called when the user clicks the month header */
+  onSelectMonth: (year: number, month: number) => void;
+  /** Called when the user clicks the year header */
+  onSelectYear: (year: number) => void;
 }
 
 const ALL_WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -30,39 +46,38 @@ function getFirstDayOfMonth(year: number, month: number): number {
   return new Date(year, month, 1).getDay();
 }
 
-export function CalendarPopup({ isOpen, onClose, anchorRef, goToTodaySignal }: CalendarPopupProps) {
+export function CalendarPopup({
+  isOpen,
+  onClose,
+  anchorRef,
+  goToTodaySignal,
+  firstDayOfWeek,
+  dailyPages,
+  onSelectDay,
+  onSelectMonth,
+  onSelectYear,
+}: CalendarPopupProps) {
   const today = new Date();
   const [currentMonth, setCurrentMonth] = useState(today.getMonth());
   const [currentYear, setCurrentYear] = useState(today.getFullYear());
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-  const [navigateToMonth, setNavigateToMonth] = useState<{ year: number; month: number } | null>(null);
-  const [navigateToYear, setNavigateToYear] = useState<number | null>(null);
   const [todayAccent, setTodayAccent] = useState(false);
   const popupRef = useRef<HTMLDivElement>(null);
-  
+
   // Position popup with viewport flip
   const position = useViewportFlip(
     anchorRef as React.RefObject<HTMLElement>,
     isOpen,
     { popupWidth: 280, popupHeight: 350, fixed: true },
   );
-  
-  const { openNode } = useNavigationStore();
-  const { firstDayOfWeek } = useSettingsStore();
 
   // Rotate weekday labels so the configured first day appears first
   const WEEKDAYS = [
     ...ALL_WEEKDAYS.slice(firstDayOfWeek),
     ...ALL_WEEKDAYS.slice(0, firstDayOfWeek),
   ];
-  
-  // Fetch list of existing daily pages
-  const { data: dailyPages } = useExistingDailyPages();
-  
+
   // Create a set of dates that have daily pages for the current month
   const existingDates = useMemo(() => {
-    if (!dailyPages) return new Set<string>();
-    
     const dates = new Set<string>();
     for (const page of dailyPages) {
       // UUID format is: 00000000-0000-0000-00dd-YYYYMMDD0000
@@ -73,7 +88,7 @@ export function CalendarPopup({ isOpen, onClose, anchorRef, goToTodaySignal }: C
           const year = parseInt(match[1]);
           const month = parseInt(match[2]) - 1; // 0-indexed
           const day = parseInt(match[3]);
-          
+
           // Only include dates from the currently displayed month
           if (year === currentYear && month === currentMonth) {
             dates.add(`${year}-${month}-${day}`);
@@ -83,56 +98,14 @@ export function CalendarPopup({ isOpen, onClose, anchorRef, goToTodaySignal }: C
     }
     return dates;
   }, [dailyPages, currentYear, currentMonth]);
-  
-  // Fetch daily note when a date is selected
-  const { data: dailyNote } = useDailyNote(selectedDate ?? undefined);
-  
-  // Fetch monthly note when month is clicked
-  const { data: monthlyNote } = useMonthlyNote(
-    navigateToMonth?.year ?? 0,
-    navigateToMonth ? navigateToMonth.month + 1 : 0 // API expects 1-12
-  );
-  
-  // Fetch yearly note when year is clicked
-  const { data: yearlyNote } = useYearlyNote(navigateToYear ?? 0);
-  
-  // Navigate to monthly page when loaded
-  useEffect(() => {
-    if (monthlyNote && navigateToMonth) {
-      openNode(monthlyNote.id);
-      onClose();
-       
-      setNavigateToMonth(null);
-    }
-  }, [monthlyNote, navigateToMonth, openNode, onClose]);
-  
-  // Navigate to yearly page when loaded
-  useEffect(() => {
-    if (yearlyNote && navigateToYear) {
-      openNode(yearlyNote.id);
-      onClose();
-       
-      setNavigateToYear(null);
-    }
-  }, [yearlyNote, navigateToYear, openNode, onClose]);
-  
-  // Navigate to daily page when loaded
-  useEffect(() => {
-    if (dailyNote && selectedDate) {
-      openNode(dailyNote.id);
-      onClose();
-       
-      setSelectedDate(null);
-    }
-  }, [dailyNote, selectedDate, openNode, onClose]);
-  
+
   // Close on click outside
   useEffect(() => {
     if (!isOpen) return;
-    
+
     function handleClickOutside(e: MouseEvent) {
       if (
-        popupRef.current && 
+        popupRef.current &&
         !popupRef.current.contains(e.target as Node) &&
         anchorRef?.current &&
         !anchorRef.current.contains(e.target as Node)
@@ -140,29 +113,29 @@ export function CalendarPopup({ isOpen, onClose, anchorRef, goToTodaySignal }: C
         onClose();
       }
     }
-    
+
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isOpen, onClose, anchorRef]);
-  
+
   // Navigate to today when signal changes (shift+click from parent)
   useEffect(() => {
     if (goToTodaySignal && goToTodaySignal > 0) {
       setCurrentMonth(today.getMonth());
-        setCurrentYear(today.getFullYear());
-        setTodayAccent(true);;
+      setCurrentYear(today.getFullYear());
+      setTodayAccent(true);
       setTimeout(() => setTodayAccent(false), 1200);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [goToTodaySignal]);
-  
+
   if (!isOpen) return null;
-  
+
   const daysInMonth = getDaysInMonth(currentYear, currentMonth);
   const rawFirstDay = getFirstDayOfMonth(currentYear, currentMonth);
   // Shift offset so it's relative to the configured first day of week
   const firstDayOfMonth = (rawFirstDay - firstDayOfWeek + 7) % 7;
-  
+
   const days: (number | null)[] = [];
   // Add empty slots for days before the first day of the month
   for (let i = 0; i < firstDayOfMonth; i++) {
@@ -172,7 +145,7 @@ export function CalendarPopup({ isOpen, onClose, anchorRef, goToTodaySignal }: C
   for (let i = 1; i <= daysInMonth; i++) {
     days.push(i);
   }
-  
+
   const goToPreviousMonth = () => {
     if (currentMonth === 0) {
       setCurrentMonth(11);
@@ -181,7 +154,7 @@ export function CalendarPopup({ isOpen, onClose, anchorRef, goToTodaySignal }: C
       setCurrentMonth(currentMonth - 1);
     }
   };
-  
+
   const goToNextMonth = () => {
     if (currentMonth === 11) {
       setCurrentMonth(0);
@@ -190,12 +163,11 @@ export function CalendarPopup({ isOpen, onClose, anchorRef, goToTodaySignal }: C
       setCurrentMonth(currentMonth + 1);
     }
   };
-  
+
   const handleDayClick = (day: number) => {
-    const selected = new Date(currentYear, currentMonth, day);
-    setSelectedDate(selected);
+    onSelectDay(new Date(currentYear, currentMonth, day));
   };
-  
+
   const isToday = (day: number) => {
     return (
       day === today.getDate() &&
@@ -203,24 +175,24 @@ export function CalendarPopup({ isOpen, onClose, anchorRef, goToTodaySignal }: C
       currentYear === today.getFullYear()
     );
   };
-  
+
   const hasNote = (day: number) => {
     return existingDates.has(`${currentYear}-${currentMonth}-${day}`);
   };
-  
+
   const handleMonthClick = () => {
-    setNavigateToMonth({ year: currentYear, month: currentMonth });
+    onSelectMonth(currentYear, currentMonth);
   };
-  
+
   const handleYearClick = () => {
-    setNavigateToYear(currentYear);
+    onSelectYear(currentYear);
   };
-  
+
   return (
-    <div 
-      className="calendar-popup" 
+    <div
+      className="calendar-popup"
       ref={popupRef}
-      style={position ? { 
+      style={position ? {
         position: 'fixed',
         top: position.top,
         left: position.left,
@@ -229,19 +201,19 @@ export function CalendarPopup({ isOpen, onClose, anchorRef, goToTodaySignal }: C
       <div className="calendar-header">
         <Button variant="ghost" size="sm" icon="mdi mdi-chevron-left" aria-label="Previous month" className="calendar-nav-btn" onClick={goToPreviousMonth} />
         <div className="calendar-title">
-          <Button 
+          <Button
             variant="ghost"
             size="xs"
-            className="calendar-month-btn" 
+            className="calendar-month-btn"
             onClick={handleMonthClick}
             title={`Go to ${MONTHS[currentMonth]} ${currentYear} page`}
           >
             {MONTHS[currentMonth]}
           </Button>
-          <Button 
+          <Button
             variant="ghost"
             size="xs"
-            className="calendar-year-btn" 
+            className="calendar-year-btn"
             onClick={handleYearClick}
             title={`Go to ${currentYear} page`}
           >
@@ -250,7 +222,7 @@ export function CalendarPopup({ isOpen, onClose, anchorRef, goToTodaySignal }: C
         </div>
         <Button variant="ghost" size="sm" icon="mdi mdi-chevron-right" aria-label="Next month" className="calendar-nav-btn" onClick={goToNextMonth} />
       </div>
-      
+
       <div className="calendar-weekdays">
         {WEEKDAYS.map((day) => (
           <div key={day} className="calendar-weekday">
@@ -258,7 +230,7 @@ export function CalendarPopup({ isOpen, onClose, anchorRef, goToTodaySignal }: C
           </div>
         ))}
       </div>
-      
+
       <div className="calendar-days">
         {days.map((day, index) => (
           <div key={day !== null ? `day-${currentYear}-${currentMonth}-${day}` : `empty-${currentYear}-${currentMonth}-${index}`} className="calendar-day-cell">
@@ -278,4 +250,3 @@ export function CalendarPopup({ isOpen, onClose, anchorRef, goToTodaySignal }: C
     </div>
   );
 }
-

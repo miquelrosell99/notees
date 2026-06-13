@@ -161,24 +161,17 @@ const EventCard = memo(function EventCard({
   const isMultiDay = ev.endDate && !isSameDay(ev.startDate, ev.endDate);
 
   return (
-    <div
+    <button
+      type="button"
       className={`calendar-view__event ${isMultiDay ? 'calendar-view__event--multi' : ''} ${
         isFirstDay ? 'calendar-view__event--first' : ''
       } ${isLastDay ? 'calendar-view__event--last' : ''}`}
       draggable
-      role="button"
-      tabIndex={0}
       onDragStart={() => onDragStart(ev)}
       onClick={(e) => {
         e.stopPropagation();
         if (e.shiftKey) onNodeShiftClick?.(ev.node);
         else onNodeClick?.(ev.node);
-      }}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          onNodeClick?.(ev.node);
-        }
       }}
       onContextMenu={(e) => {
         e.preventDefault();
@@ -190,7 +183,7 @@ const EventCard = memo(function EventCard({
       <span className="calendar-view__event-name">
         {isFirstDay || !isMultiDay ? ev.node.name || 'Untitled' : '\u00A0'}
       </span>
-    </div>
+    </button>
   );
 });
 

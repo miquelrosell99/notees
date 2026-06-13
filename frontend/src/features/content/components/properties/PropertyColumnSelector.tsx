@@ -262,10 +262,21 @@ export function PropertyColumnSelector({
             {filteredProperties
               .filter(prop => !selectedPropertyUuids.includes(prop.uuid))
               .map(property => (
-                <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }}
+                <div
                   key={property.uuid}
+                  role="button"
+                  tabIndex={0}
                   className="property-column-selector__item"
-                  onClick={() => handleToggle(property.uuid)}
+                  onClick={(e) => {
+                    if ((e.target as HTMLElement).closest('input, label')) return;
+                    handleToggle(property.uuid);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      handleToggle(property.uuid);
+                    }
+                  }}
                 >
                   <Checkbox
                     checked={false}

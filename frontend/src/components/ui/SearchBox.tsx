@@ -1,142 +1,77 @@
 /**
- * Search box component with live search
- * 
- * Generic search component that can search different data types (nodes, properties, etc.)
- * by accepting custom search functions and renderers.
+ * Search box component (controlled)
+ *
+ * A generic, domain-agnostic search input with a dropdown result list and
+ * keyboard navigation. The caller provides the query, result list, loading
+ * state, and renderers. Feature code should use the wrapper in
+ * `features/content/components/nodes/NodeSearchBox.tsx` to wire Notees search
+ * hooks and default node rendering.
  */
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, type ReactNode } from 'react';
 import { Spinner } from '@/components/ui/Spinner';
-import { useQueries, useQuery } from '@tanstack/react-query';
-import { useDebouncedValue } from '@/hooks/useDebouncedValue';
-import { useSearch } from '@/hooks';
-import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { useKeyboardListNav } from '@/hooks/useKeyboardListNav';
-import { useNavigationStore } from '@/stores';
-import type { Node } from '@/types';
-import { NodeIcon, SearchIcon } from './icons';
 import { SearchField } from './SearchField';
 import './SearchBox.css';
 
-interface SearchSection<T = Node> {
-  /** Section title/header */
-  title?: string;
-  /** Custom search function for this section */
-  searchFn?: (query: string) => Promise<T[]> | T[];
-  /** Filter function to apply to results in this section */
-  filterFn?: (item: T) => boolean;
-  /** Custom renderer for items in this section */
-  renderItem?: (item: T) => React.ReactNode;
-  /** Custom key extractor for items in this section */
-  getKey?: (item: T) => string | number;
-}
-
-interface SearchBoxProps<T = Node> {
+export interface SearchBoxProps<T> {
+  /** Current query value */
+  query: string;
+  /** Called when the query changes */
+  onQueryChange: (query: string) => void;
+  /** Items to display in the dropdown */
+  results: T[];
+  /** Whether results are loading */
+  isLoading?: boolean;
+  /** Render a single result item */
+  renderItem: (item: T) => ReactNode;
+  /** Extract a stable key for a result item */
+  getKey: (item: T) => string | number;
+  /** Called when the user selects an item */
+  onSelect: (item: T) => void;
+  /** Placeholder text for the input */
   placeholder?: string;
+  /** Additional CSS class */
   className?: string;
-  onSelect?: (item: T) => void;
-  /** Custom search function that returns items matching the query */
-  searchFn?: (query: string) => Promise<T[]> | T[];
-  /** Custom key extractor for list items */
-  getKey?: (item: T) => string | number;
-  /** Custom renderer for each result item */
-  renderItem?: (item: T) => React.ReactNode;
-  /** Filter function to apply to results */
-  filterFn?: (item: T) => boolean;
-  /** Initial query value */
-  initialQuery?: string;
-  /** Auto-focus the input on mount */
-  autoFocus?: boolean;
-  /** Show create option for new items (Node search only) */
+  /** Focus the input on mount */
+  focusOnMount?: boolean;
+  /** Show a "Create ..." option when the query is non-empty */
   showCreate?: boolean;
-  /** Callback when create is selected (passes the query string) */
-  onCreate?: (query: string) => void | Promise<void>;
-  /** Multiple sections with separate queries/filters */
-  sections?: SearchSection<T>[];
+  /** Called when the create option is selected (receives the current query) */
+  onCreate?: (query: string) => void;
+  /** Called when the dropdown is dismissed */
+  onClose?: () => void;
 }
 
-export function SearchBox<T = Node>({
+export function SearchBox<T>({
+  query,
+  onQueryChange,
+  results,
+  isLoading = false,
+  renderItem,
+  getKey,
+  onSelect,
   placeholder = 'Search...',
   className = '',
-  onSelect,
-  searchFn,
-  getKey,
-  renderItem,
-  filterFn,
-  initialQuery = '',
-  autoFocus = false,
+  focusOnMount = false,
   showCreate = false,
   onCreate,
-  sections,
+  onClose,
 }: SearchBoxProps<T>) {
-  const [query, setQuery] = useState(initialQuery);
-  const debouncedQuery = useDebouncedValue(query, 300);
   const [isOpen, setIsOpen] = useState(false);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  
-  const { openNode } = useNavigationStore();
-  
-  // Multi-section mode: run queries for each section. useQueries is used
-  // because the number of sections is dynamic and hook calls must be stable.
-  const sectionQueries = useQueries({
-    queries: (sections || []).map((section, index) => ({
-      queryKey: ['section-search', index, debouncedQuery],
-      queryFn: () => section.searchFn!(debouncedQuery),
-      enabled: !!section.searchFn && debouncedQuery.length > 0,
-    })),
-  });
-  
-  // Single-section mode: use custom search function or default to node search
-  const defaultSearch = useSearch(debouncedQuery);
-  const customSearch = useQuery({
-    queryKey: ['custom-search', debouncedQuery],
-    queryFn: () => searchFn!(debouncedQuery),
-    enabled: !!searchFn && debouncedQuery.length > 0,
-  });
-  
-  const searchResults = searchFn ? customSearch : defaultSearch;
-  const { data: rawResults, isLoading: singleLoading } = searchResults;
-  
-  // Compute results based on mode (single vs multi-section)
-  const isMultiSection = sections && sections.length > 0;
-  
-  let allSections: Array<{ title?: string; items: T[] }> = [];
-  let isLoading = false;
-  let totalItems = 0;
-  
-  if (isMultiSection) {
-    // Multi-section mode
-    isLoading = sectionQueries.some(q => q.isLoading);
-    allSections = sections!.map((section, index) => {
-      const query = sectionQueries[index];
-      const rawItems = query.data || [];
-      const items = section.filterFn ? (rawItems as T[]).filter(section.filterFn) : (rawItems as T[]);
-      return { title: section.title, items };
-    });
-    totalItems = allSections.reduce((sum, s) => sum + s.items.length, 0);
-  } else {
-    // Single-section mode
-    isLoading = singleLoading;
-    const filteredResults = (filterFn && rawResults) ? (rawResults as T[]).filter(filterFn) : rawResults;
-    const results = (filteredResults || []) as T[];
-    allSections = [{ items: results }];
-    totalItems = results.length;
-  }
-  
-  // Add create option if enabled and query exists
+
   const showCreateOption = showCreate && query.trim().length > 0 && !isLoading;
-  if (showCreateOption) {
-    totalItems += 1;
-  }
+  const totalItems = results.length + (showCreateOption ? 1 : 0);
 
   // Auto-focus if requested
   useEffect(() => {
-    if (autoFocus && inputRef.current) {
+    if (focusOnMount && inputRef.current) {
       inputRef.current.focus();
     }
-  }, [autoFocus]);
-  
+  }, [focusOnMount]);
+
   // Update dropdown position when opening
   const updateDropdownPosition = useCallback(() => {
     if (containerRef.current) {
@@ -144,7 +79,7 @@ export function SearchBox<T = Node>({
       setDropdownPosition({
         top: rect.bottom + 4,
         left: rect.left,
-        width: rect.width
+        width: rect.width,
       });
     }
   }, []);
@@ -156,13 +91,13 @@ export function SearchBox<T = Node>({
         setIsOpen(false);
       }
     };
-    
+
     const handleScroll = () => {
       if (isOpen) {
         updateDropdownPosition();
       }
     };
-    
+
     document.addEventListener('mousedown', handleClickOutside);
     window.addEventListener('scroll', handleScroll, true);
     return () => {
@@ -173,84 +108,40 @@ export function SearchBox<T = Node>({
 
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
-    setQuery(value);
+    onQueryChange(value);
     if (value.length > 0) {
       updateDropdownPosition();
       setIsOpen(true);
     } else {
       setIsOpen(false);
     }
-  }, [updateDropdownPosition]);
+  }, [onQueryChange, updateDropdownPosition]);
 
   const handleSelect = useCallback((item: T | 'create') => {
-    setQuery('');
+    onQueryChange('');
     setIsOpen(false);
-    
+
     if (item === 'create') {
-      if (onCreate) {
-        onCreate(query);
-      }
+      onCreate?.(query);
       return;
     }
-    
-    if (onSelect) {
-      onSelect(item);
-    } else {
-      // Default behavior for Node type - navigate to the node
-      const node = item as unknown as Node;
-      if ('id' in node && 'is_page' in node) {
-        openNode(node.id);
-      }
-    }
-  }, [onSelect, openNode, onCreate, query]);
-  
-  // Default key extractor
-  const defaultGetKey = (item: T): string | number => {
-    if (typeof item === 'object' && item !== null) {
-      if ('id' in item) return (item as any).id;
-      if ('name' in item) return (item as any).name;
-      if ('uuid' in item) return (item as any).uuid;
-    }
-    return String(item);
-  };
-  
-  // Default renderer for Node type
-  const defaultRenderItem = (item: T): React.ReactNode => {
-    const node = item as unknown as Node;
-    if ('name' in node) {
-      return (
-        <>
-          <span className="result-icon">
-            <NodeIcon icon={node.icon} isPage={true} />
-          </span>
-          <span className="result-title">
-            {nodeNameToText(node.name) || 'Untitled'}
-          </span>
-        </>
-      );
-    }
-    return <span>{String(item)}</span>;
-  };
-  
-  // Helper: get item by flat index (accounting for create option and sections)
+
+    onSelect(item);
+  }, [onQueryChange, onCreate, onSelect, query]);
+
+  // Helper: get item by flat index (accounting for create option)
   const getItemByIndex = useCallback((flatIndex: number): T | 'create' | null => {
     if (showCreateOption && flatIndex === 0) {
       return 'create';
     }
-    
-    let adjustedIndex = showCreateOption ? flatIndex - 1 : flatIndex;
-    
-    for (const section of allSections) {
-      if (adjustedIndex < section.items.length) {
-        return section.items[adjustedIndex];
-      }
-      adjustedIndex -= section.items.length;
+    const adjustedIndex = showCreateOption ? flatIndex - 1 : flatIndex;
+    if (adjustedIndex >= 0 && adjustedIndex < results.length) {
+      return results[adjustedIndex];
     }
-    
     return null;
-  }, [showCreateOption, allSections]);
+  }, [showCreateOption, results]);
 
-  // Keyboard list navigation (hook replaces manual ArrowUp/Down/Enter/Escape + index reset)
+  // Keyboard list navigation
   const handleSelectByIndex = useCallback((index: number) => {
     if (totalItems > 0) {
       const item = getItemByIndex(index);
@@ -259,10 +150,11 @@ export function SearchBox<T = Node>({
   }, [totalItems, getItemByIndex, handleSelect]);
 
   const handleCloseList = useCallback(() => {
-    setQuery('');
+    onQueryChange('');
     setIsOpen(false);
     inputRef.current?.blur();
-  }, []);
+    onClose?.();
+  }, [onQueryChange, onClose]);
 
   const { selectedIndex, setSelectedIndex, handleKeyDown } = useKeyboardListNav({
     totalItems,
@@ -292,76 +184,54 @@ export function SearchBox<T = Node>({
         }}
         onKeyDown={handleKeyDown}
         placeholder={placeholder}
-        icon={<SearchIcon size="sm" />}
       />
-      
+
       {isOpen && (
-        <div 
+        <div
           className="search-dropdown search-dropdown--fixed"
           style={{
             position: 'fixed',
             top: `${dropdownPosition.top}px`,
             left: `${dropdownPosition.left}px`,
-            width: `${dropdownPosition.width}px`
+            width: `${dropdownPosition.width}px`,
           }}
         >
           {isLoading && (
             <div className="search-loading"><Spinner size="sm" label="Searching..." /></div>
           )}
-          
+
           {!isLoading && totalItems === 0 && (
             <div className="search-empty">No results found</div>
           )}
-          
+
           {!isLoading && totalItems > 0 && (
             <ul className="search-results">
               {showCreateOption && (
                 <li key="create">
                   <button
+                    type="button"
                     className={`search-result-item search-result-item--create ${selectedIndex === 0 ? 'search-result-item--selected' : ''}`}
                     onClick={() => handleResultClick(0)}
                     onMouseEnter={() => setSelectedIndex(0)}
                   >
                     <span className="result-icon">+</span>
-                    <span className="result-title">Create "{query}"</span>
+                    <span className="result-title">Create &quot;{query}&quot;</span>
                   </button>
                 </li>
               )}
-              {allSections.map((section, sectionIndex) => {
-                if (section.items.length === 0) return null;
-                
-                // Calculate flat index offset for this section
-                let flatIndexOffset = showCreateOption ? 1 : 0;
-                for (let i = 0; i < sectionIndex; i++) {
-                  flatIndexOffset += allSections[i].items.length;
-                }
-                
-                const sectionConfig = isMultiSection ? sections![sectionIndex] : undefined;
-                const sectionGetKey = sectionConfig?.getKey || getKey || defaultGetKey;
-                const sectionRenderItem = sectionConfig?.renderItem || renderItem || defaultRenderItem;
-                
+              {results.map((item, itemIndex) => {
+                const flatIndex = (showCreateOption ? 1 : 0) + itemIndex;
                 return (
-                  <div key={`section-${sectionIndex}`}>
-                    {section.title && (
-                      <li className="search-section-header">
-                        {section.title}
-                      </li>
-                    )}
-                    {section.items.map((item, itemIndex) => {
-                      const flatIndex = flatIndexOffset + itemIndex;
-                      return (
-                        <li key={sectionGetKey(item)}>
-                          <button
-                            className={`search-result-item ${selectedIndex === flatIndex ? 'search-result-item--selected' : ''}`}
-                            onClick={() => handleResultClick(flatIndex)}
-                            onMouseEnter={() => setSelectedIndex(flatIndex)}
-                          >
-                            {sectionRenderItem(item)}
-                          </button>
-                        </li>
-                      );
-                    })}
-                  </div>
+                  <li key={getKey(item)}>
+                    <button
+                      type="button"
+                      className={`search-result-item ${selectedIndex === flatIndex ? 'search-result-item--selected' : ''}`}
+                      onClick={() => handleResultClick(flatIndex)}
+                      onMouseEnter={() => setSelectedIndex(flatIndex)}
+                    >
+                      {renderItem(item)}
+                    </button>
+                  </li>
                 );
               })}
             </ul>

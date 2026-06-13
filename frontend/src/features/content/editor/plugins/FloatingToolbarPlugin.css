@@ -2,6 +2,11 @@
  * FloatingToolbar styles
  */
 
+
+:root {
+  --features-content-editor-plugins-floating-toolbar-plugin-min-width-28: 28px;
+}
+
 .floating-toolbar {
   pointer-events: auto;
   animation: floating-toolbar-fade-in var(--motion-duration-short) var(--motion-easing-standard)-out;
@@ -31,7 +36,7 @@
 }
 
 .floating-toolbar__button {
-  min-width: 28px;
+  min-width: var(--features-content-editor-plugins-floating-toolbar-plugin-min-width-28);
   height: var(--height-sm);
   padding: var(--spacing-1);
 }

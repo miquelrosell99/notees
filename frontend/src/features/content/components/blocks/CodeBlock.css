@@ -2,6 +2,11 @@
  * CodeBlock Component Styles
  */
 
+
+:root {
+  --features-content-components-blocks-code-block-min-width-120: 120px;
+}
+
 .code-block {
   position: relative;
   overflow: hidden;
@@ -31,7 +36,7 @@
 .code-block-language-selector {
   background: var(--color-surface);
   border-radius: var(--shape-small);
-  min-width: 120px;
+  min-width: var(--features-content-components-blocks-code-block-min-width-120);
 }
 
 .code-block-copy-btn {

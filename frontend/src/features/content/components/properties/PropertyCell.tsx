@@ -262,14 +262,25 @@ export function PropertyCell({
   // Handle boolean toggle
   if (property.type === 'boolean' && !isEditing) {
     return (
-      <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }}
+      <div
+        role="button"
+        tabIndex={editable ? 0 : -1}
+        aria-pressed={Boolean(value)}
         className="property-cell property-cell--boolean"
         onClick={handleClick}
+        onKeyDown={(e) => {
+          if (!editable) return;
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            handleClick();
+          }
+        }}
       >
         <input
           type="checkbox"
           checked={Boolean(value)}
-          readOnly={!editable}
+          readOnly
+          tabIndex={-1}
           className="property-cell__checkbox"
         />
       </div>
@@ -300,12 +311,13 @@ export function PropertyCell({
 
   // Display mode for scalar types (text, integer, float, date)
   return (
-    <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }}
+    <button
+      type="button"
       className={`property-cell ${editable ? 'property-cell--editable' : ''} ${!displayValue ? 'property-cell--empty' : ''}`}
       onClick={handleClick}
       title={editable ? 'Click to edit' : undefined}
     >
       {displayValue || <span className="property-placeholder">Empty</span>}
-    </div>
+    </button>
   );
 }

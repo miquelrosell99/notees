@@ -3,6 +3,11 @@
  * Reuses calendar-* classes from CalendarPopup where possible
  */
 
+
+:root {
+  --components-ui-date-picker-popup-min-width-280: 280px;
+}
+
 /* ==================== Container ==================== */
 .date-picker-popup {
   position: fixed;
@@ -12,7 +17,7 @@
   /* Design system: zero visual noise — no elevation shadows */
   padding: var(--spacing-3);
   z-index: var(--z-popover);
-  min-width: 280px;
+  min-width: var(--components-ui-date-picker-popup-min-width-280);
 }
 
 /* ==================== Text Input ==================== */

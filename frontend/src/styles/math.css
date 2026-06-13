@@ -21,7 +21,7 @@
 }
 
 .katex-error {
-  color: var(--color-error, #d32f2f);
+  color: var(--color-error);
   font-family: var(--font-family-mono, monospace);
   font-size: 0.875em;
 }

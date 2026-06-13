@@ -113,9 +113,9 @@ export function CodeBlock({
       onClick={onClick}
     >
       {/* Header with language selector + copy button (visible on hover) */}
-      <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }}
+      <div
         className={`code-block-header${isHovered ? ' code-block-header--visible' : ''}`}
-        onClick={handleDropdownClick}
+        onClickCapture={handleDropdownClick}
       >
         {editable && (
           <Dropdown

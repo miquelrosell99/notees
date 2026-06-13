@@ -1,3 +1,7 @@
+:root {
+  --features-auth-pages-onboarding-view-max-width-420: 420px;
+}
+
 .onboarding-page {
   min-height: 100vh;
   display: flex;
@@ -13,7 +17,7 @@
   box-shadow: none;
   padding: 2.5rem;
   width: 100%;
-  max-width: 420px;
+  max-width: var(--features-auth-pages-onboarding-view-max-width-420);
 }
 
 .onboarding-container h1 {

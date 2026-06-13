@@ -40,13 +40,13 @@ const ALLOWED_LITERALS = new Set([
   '0.25rem', '0.5rem', '0.75rem', '1rem',
   '1.25rem', '1.5rem', '2rem', '2.5rem', '3rem', '4rem',
   // Small gaps/paddings that have no token but are common
-  '3px', '5px', '6px', '10px', '14px',
+  '3px', '5px',
   // Tiny icon/indicator sizes
   '4px', '8px',
   // border-radius values not in the shape scale
   '3px', '999px',
   // Font sizes not in the type scale
-  '10px', '18px',
+  '18px',
 ]);
 
 const ENFORCED_PROPERTIES = new Set([
@@ -54,13 +54,12 @@ const ENFORCED_PROPERTIES = new Set([
   'padding', 'padding-top', 'padding-right', 'padding-bottom', 'padding-left',
   'gap', 'row-gap', 'column-gap',
   'width', 'height',
+  'min-width', 'max-width', 'min-height', 'max-height',
+  'top', 'right', 'bottom', 'left',
   'flex-basis',
   'border-radius', 'border-top-left-radius', 'border-top-right-radius',
   'border-bottom-left-radius', 'border-bottom-right-radius',
   'font-size', 'line-height',
-  // NOTE: Positioning values (left/right/top/bottom) are layout concerns
-  // that depend on specific component geometry and rarely benefit from tokens.
-  // NOTE: min/max-width/height are one-off layout decisions.
 ]);
 
 const COLOR_PROPERTIES = new Set([
@@ -76,9 +75,8 @@ const COLOR_EXCLUDED_VALUES = new Set([
 ]);
 
 function containsHardcodedColor(value) {
-  if (value.includes('var(') || value.includes('color-mix(')) return false;
   if (COLOR_EXCLUDED_VALUES.has(value)) return false;
-  // Hex colors
+  // Hex colors (including inside color-mix(), rgb/rgba() fallbacks, etc.)
   if (/#([0-9a-fA-F]{3}){1,2}\b/.test(value)) return true;
   // Named colors (basic set)
   if (/\b(white|black|red|green|blue|yellow|orange|gray|grey|pink|purple|brown|cyan|magenta|lime|navy|teal|olive|silver|maroon)\b/i.test(value)) return true;
@@ -88,6 +86,7 @@ function containsHardcodedColor(value) {
 }
 
 const TOKEN_ALIASES = {
+  '2px':  'var(--spacing-micro)',
   '4px':  'var(--spacing-1)',
   '8px':  'var(--spacing-2)',
   '12px': 'var(--spacing-3)',
@@ -99,6 +98,8 @@ const TOKEN_ALIASES = {
   '48px': 'var(--spacing-12)',
   '64px': 'var(--spacing-16)',
   '6px':  'var(--shape-medium) or var(--bullet-dot-size)',
+  '10px': 'var(--thread-line-width)',
+  '14px': 'var(--icon-size-xs)',
   '18px': 'var(--height-xs) or var(--collapse-arrow-size)',
   '22px': 'var(--bullet-wrapper-size)',
 };

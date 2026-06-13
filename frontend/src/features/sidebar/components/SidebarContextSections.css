@@ -5,6 +5,11 @@
  * Visually lighter than cards, with capped height and internal scrolling.
  */
 
+
+:root {
+  --features-sidebar-components-sidebar-context-sections-max-height-200: 200px;
+}
+
 .sidebar-context-sections {
   /* Anchor to bottom of sidebar, after cards */
   margin-top: auto;
@@ -32,7 +37,7 @@
 
 /* Content area with capped height and internal scrolling */
 .sidebar-context-section.node-view-section .node-view-section__content {
-  max-height: 200px;
+  max-height: var(--features-sidebar-components-sidebar-context-sections-max-height-200);
   overflow-y: auto;
   padding: 0 var(--spacing-2) 0 var(--spacing-4) !important;
 }
@@ -186,6 +191,10 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  background: none;
+  border: none;
+  padding: 0;
+  text-align: left;
 }
 .sidebar-context-section--activity .node-activity-log {
   padding: 0;
