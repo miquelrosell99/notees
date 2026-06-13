@@ -7,9 +7,10 @@ properties, tags, classes, and text property subtrees.
 from pathlib import Path
 from typing import Any
 
-from .db.connection import get_connection, get_data_dir
+from .db.connection import get_connection, get_data_dir, get_pool
 from .db.schema.init import get_or_create_user_workspace
 from .domain.converters import JsonAstConverter, MarkdownConverter, PlainTextConverter
+from .domain.repositories import PostgresExportRepository
 from .domain.services.export_service import ExportService
 from .domain.stringify_ast import (
     NodeLinkResolution,
@@ -89,7 +90,9 @@ async def export_nodes(
         async with get_connection() as conn:
             workspace_id = await get_or_create_user_workspace(conn, numeric_user_id, workspace_uuid=active_uuid)
 
-    export_service = await ExportService.for_workspace(workspace_id)
+    pool = await get_pool()
+    export_repo = PostgresExportRepository(pool, workspace_id)
+    export_service = ExportService(export_repo)
 
     nodes_data: list[dict[str, Any]] = []
     seen_uuids: set[str] = set()

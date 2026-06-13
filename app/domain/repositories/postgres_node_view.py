@@ -12,6 +12,7 @@ from ...db.schema.constants import DEFAULT_QUERY_AST
 from ...logging_config import get_logger
 from ...utils import utc_now
 from ..entities import NodeView, generate_uuid
+from .interfaces import NodeViewRepository
 
 if TYPE_CHECKING:
     pass
@@ -19,7 +20,20 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
-class PostgresNodeViewRepository:
+def _format_param(value: Any, max_length: int = 64) -> Any:
+    """Return a log-safe representation of a bound parameter.
+
+    String values are truncated to ``max_length`` to avoid logging potentially
+    sensitive user content (node names, search terms, property values, etc.).
+    """
+    if isinstance(value, str) and len(value) > max_length:
+        return value[:max_length] + "..."
+    if isinstance(value, (bytes, bytearray)) and len(value) > max_length:
+        return f"<bytes:{len(value)}>"
+    return value
+
+
+class PostgresNodeViewRepository(NodeViewRepository):
     """PostgreSQL implementation for NodeView CRUD operations.
 
     NodeViews store references to query nodes that define dynamic collections.
@@ -245,8 +259,9 @@ class PostgresNodeViewRepository:
                 ORDER BY nv.view_type, nv.order_index, nv.create_date
             """
 
-            logger.info(f"[list_by_node] SQL: {sql}")
-            logger.info(f"[list_by_node] Params: {params}")
+            safe_params = [_format_param(p) for p in params]
+            logger.debug(f"[list_by_node] SQL: {sql}")
+            logger.debug(f"[list_by_node] Params: {safe_params}")
 
             rows = await conn.fetch(sql, *params)
 

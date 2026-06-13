@@ -172,7 +172,7 @@ async def create_user(
     existing = await repo.get_by_email(email)
     if existing:
         logger.warning("Attempted to create duplicate user")
-        raise ValueError(f"Email '{email}' already exists")
+        raise ValueError("Email already exists")
 
     hashed = hash_password(password)
     data = UserCreateData(

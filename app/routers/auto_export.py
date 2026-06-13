@@ -21,11 +21,10 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from ..db.connection import clear_request_conn, get_connection, get_workspace_dir, get_workspace_uuid
-from ..db.schema.init import get_or_create_user_workspace
-from ..dependencies import get_current_user, get_export_repository, get_pool
+from ..db.connection import clear_request_conn, get_pool, get_workspace_dir, get_workspace_uuid
+from ..dependencies import get_current_user, get_export_repository, get_workspace_id
+from ..domain.repositories import PostgresExportRepository
 from ..domain.repositories.interfaces import ExportRepository
-from ..domain.repositories.postgres_export import PostgresExportRepository
 from ..domain.stringify_ast import StringifyMode, StringifyOptions, parse_ast, stringify_ast
 from ..logging_config import get_logger
 from ..models import User
@@ -252,6 +251,7 @@ async def auto_export_batch(
     _request: BatchExportRequest,
     user: User = Depends(get_current_user),
     export_repo: ExportRepository = Depends(get_export_repository),
+    workspace_id: int = Depends(get_workspace_id),
 ):
     """Force re-export of all pages in the workspace to markdown.
 
@@ -263,9 +263,6 @@ async def auto_export_batch(
         raise HTTPException(status_code=404, detail="User not found")
 
     active_uuid = _active_workspaces.get(user.id)
-
-    async with get_connection() as conn:
-        workspace_id = await get_or_create_user_workspace(conn, numeric_user_id, workspace_uuid=active_uuid)
 
     workspace_uuid = await get_workspace_uuid(workspace_id)
     if not workspace_uuid:
@@ -284,15 +281,15 @@ async def auto_export_batch(
 
         _batch_status[status_key] = BatchExportStatus(running=True, total=0, completed=0, current_page=None, error=None)
 
-    # Start the batch export in the background
-    asyncio.create_task(_run_batch_export(user.id, numeric_user_id, workspace_id, workspace_uuid, status_key))
+    # Start the batch export in the background. The export repository is
+    # reconstructed inside the task after clearing the request connection.
+    asyncio.create_task(_run_batch_export(user.id, workspace_id, workspace_uuid, status_key))
 
     return {"status": "started"}
 
 
 async def _run_batch_export(
     user_id: str,
-    numeric_user_id: int,
     workspace_id: int,
     workspace_uuid: str,
     status_key: str,
@@ -351,6 +348,7 @@ async def auto_export_page(
     node_uuid: str,
     user: User = Depends(get_current_user),
     export_repo: ExportRepository = Depends(get_export_repository),
+    workspace_id: int = Depends(get_workspace_id),
 ):
     """Export a single page to the workspace markdown-export directory."""
     numeric_user_id = await _get_numeric_user_id(user.id)
@@ -358,9 +356,6 @@ async def auto_export_page(
         raise HTTPException(status_code=404, detail="User not found")
 
     active_uuid = _active_workspaces.get(user.id)
-
-    async with get_connection() as conn:
-        workspace_id = await get_or_create_user_workspace(conn, numeric_user_id, workspace_uuid=active_uuid)
 
     workspace_uuid = await get_workspace_uuid(workspace_id)
     if not workspace_uuid:
@@ -401,17 +396,9 @@ async def auto_export_status(
 @router.get("/download")
 async def auto_export_download(
     user: User = Depends(get_current_user),
+    workspace_id: int = Depends(get_workspace_id),
 ):
     """Download all exported markdown files as a ZIP archive."""
-    numeric_user_id = await _get_numeric_user_id(user.id)
-    if not numeric_user_id:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    active_uuid = _active_workspaces.get(user.id)
-
-    async with get_connection() as conn:
-        workspace_id = await get_or_create_user_workspace(conn, numeric_user_id, workspace_uuid=active_uuid)
-
     workspace_uuid = await get_workspace_uuid(workspace_id)
     if not workspace_uuid:
         raise HTTPException(status_code=404, detail="Workspace not found")

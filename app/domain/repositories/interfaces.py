@@ -15,6 +15,7 @@ if TYPE_CHECKING:
         NodeLink,
         NodeProperty,
         NodeUpdateData,
+        NodeView,
         Property,
         PropertyClassFilter,
         PropertySelectionLine,
@@ -1264,6 +1265,11 @@ class UserRepository(ABC):
         pass
 
     @abstractmethod
+    async def count_active_admins(self) -> int:
+        """Return the number of active admin users in the system."""
+        pass
+
+    @abstractmethod
     async def ensure_initial_admin(self, admin_email: str, admin_password: str) -> bool:
         """Create an initial admin user if no active admin exists.
 
@@ -1610,6 +1616,117 @@ class UndoRepository(ABC):
     @abstractmethod
     async def clear_for_node(self, node_id: int) -> None:
         """Delete all undo/redo entries affecting the given node."""
+        pass
+
+
+class NodeViewRepository(ABC):
+    """Repository interface for NodeView CRUD operations."""
+
+    @abstractmethod
+    async def create(
+        self,
+        node_id: int,
+        name: str,
+        view_type: str,
+        query_json: dict[str, Any] | None = None,
+        order_index: int = 0,
+        is_default: bool = False,
+    ) -> NodeView:
+        """Create a new NodeView."""
+        pass
+
+    @abstractmethod
+    async def get_by_id(self, view_id: int) -> NodeView | None:
+        """Get a NodeView by ID."""
+        pass
+
+    @abstractmethod
+    async def get_by_uuid(self, uuid: str) -> NodeView | None:
+        """Get a NodeView by UUID."""
+        pass
+
+    @abstractmethod
+    async def list_by_node(
+        self,
+        node_id: int,
+        view_type: str | None = None,
+        include_inactive: bool = False,
+    ) -> list[NodeView]:
+        """List NodeViews for a node."""
+        pass
+
+    @abstractmethod
+    async def list_by_view_type(
+        self,
+        node_id: int,
+        view_type: str,
+    ) -> list[NodeView]:
+        """List NodeViews for a specific view_type."""
+        pass
+
+    @abstractmethod
+    async def count_by_view_type(
+        self,
+        node_id: int,
+        view_type: str,
+    ) -> int:
+        """Count active NodeViews for a specific view_type."""
+        pass
+
+    @abstractmethod
+    async def get_default_view(
+        self,
+        node_id: int,
+        view_type: str,
+    ) -> NodeView | None:
+        """Get the default NodeView for a view_type."""
+        pass
+
+    @abstractmethod
+    async def update(
+        self,
+        view_id: int,
+        name: str | None = None,
+        order_index: int | None = None,
+        is_default: bool | None = None,
+        shown_properties: list[dict[str, Any]] | None = None,
+        group_by: str | None = None,
+    ) -> NodeView | None:
+        """Update a NodeView."""
+        pass
+
+    @abstractmethod
+    async def update_query_json(
+        self,
+        view_id: int,
+        query_json: dict[str, Any],
+    ) -> NodeView | None:
+        """Update a NodeView's query JSON."""
+        pass
+
+    @abstractmethod
+    async def delete(self, view_id: int) -> bool:
+        """Soft delete a NodeView."""
+        pass
+
+    @abstractmethod
+    async def hard_delete(self, view_id: int) -> bool:
+        """Permanently delete a NodeView."""
+        pass
+
+    @abstractmethod
+    async def reorder(
+        self,
+        node_id: int,
+        view_type: str,
+        view_ids: list[int],
+    ) -> list[NodeView]:
+        """Reorder NodeViews within a view_type."""
+        pass
+
+    @abstractmethod
+    async def count_by_node(self, node_id: int) -> int:
+        """Count active NodeViews for a node."""
         pass
 
 

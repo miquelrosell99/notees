@@ -8,21 +8,14 @@ from __future__ import annotations
 
 from typing import Any
 
-from ...db.connection import get_pool
-from ...domain.repositories import PostgresExportRepository
+from ...domain.repositories.interfaces import ExportRepository
 
 
 class ExportService:
     """Service facade for node export operations."""
 
-    def __init__(self, export_repo: PostgresExportRepository):
+    def __init__(self, export_repo: ExportRepository):
         self._export_repo = export_repo
-
-    @classmethod
-    async def for_workspace(cls, workspace_id: int) -> ExportService:
-        """Build an ExportService for the given workspace."""
-        pool = await get_pool()
-        return cls(PostgresExportRepository(pool, workspace_id))
 
     async def get_export_node_tree(
         self, workspace_id: int, node_uuid: str, include_children: bool

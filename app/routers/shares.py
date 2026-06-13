@@ -4,8 +4,14 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from ..dependencies import _get_share_service, get_current_user, get_node_repository, get_share_repository
-from ..domain.repositories.interfaces import NodeRepository, ShareRepository
+from ..dependencies import (
+    _get_node_service,
+    _get_node_service_for_workspace,
+    _get_share_service,
+    get_current_user,
+    get_share_repository,
+)
+from ..domain.repositories.interfaces import ShareRepository
 from ..logging_config import get_logger
 from ..models import PaginatedResponse, User
 from ..node_export import delete_share_html
@@ -37,7 +43,6 @@ def _share_to_response(share, resolved_names: dict | None = None) -> dict:
 async def list_workspace_shares(
     user: User = Depends(get_current_user),  # noqa: B008
     share_repo: ShareRepository = Depends(get_share_repository),
-    node_repo: NodeRepository = Depends(get_node_repository),
 ):
     """List all active shares in the current workspace."""
     service = await _get_share_service(user)
@@ -51,9 +56,8 @@ async def list_workspace_shares(
     ]
     resolved = {}
     if share_rows:
-        pool = node_repo.get_connection()
-        workspace_id = node_repo.workspace_id
-        resolved = await _resolve_referenced_display_names(pool, workspace_id, share_rows)
+        node_service = await _get_node_service(user)
+        resolved = await _resolve_referenced_display_names(node_service, share_rows)
 
     return {"shares": [_share_to_response(s, resolved) for s in shares]}
 
@@ -84,7 +88,6 @@ async def get_share_inbox(
     page_size: int = Query(50, ge=1, le=500),
     user: User = Depends(get_current_user),  # noqa: B008
     share_repo: ShareRepository = Depends(get_share_repository),
-    node_repo: NodeRepository = Depends(get_node_repository),
 ):
     """Get all nodes shared with the current user (share inbox)."""
     total, rows = await share_repo.list_share_inbox(int(user.id), page, page_size)
@@ -96,10 +99,10 @@ async def get_share_inbox(
     for r in rows:
         workspace_rows[r["workspace_id"]].append({"name": r["node_name"], "uuid": r["node_uuid"]})
 
-    pool = node_repo.get_connection()
     resolved: dict[str, str] = {}
     for ws_id, ws_rows in workspace_rows.items():
-        ws_resolved = await _resolve_referenced_display_names(pool, ws_id, ws_rows)
+        node_service = await _get_node_service_for_workspace(user, ws_id)
+        ws_resolved = await _resolve_referenced_display_names(node_service, ws_rows)
         resolved.update(ws_resolved)
 
     items = [
