@@ -9,7 +9,7 @@ from ...dependencies import (
     get_current_user,
     get_node_view_repository,
 )
-from ...domain.repositories import PostgresNodeViewRepository
+from ...domain.repositories.interfaces import NodeViewRepository
 from ...models import PaginatedResponse, User
 from .helpers import (
     _get_class_ids_batch,
@@ -124,7 +124,7 @@ async def add_node_class(
     node_id: int,
     request: ClassRequest,
     user: User = Depends(get_current_user),
-    view_repo: PostgresNodeViewRepository = Depends(get_node_view_repository),
+    view_repo: NodeViewRepository = Depends(get_node_view_repository),
 ):
     """Add a class to a node."""
     from ...db.schema.constants import SYSTEM_CLASS_UUIDS
@@ -185,7 +185,7 @@ async def remove_node_class_endpoint(
     node_id: int,
     class_id: int,
     user: User = Depends(get_current_user),
-    view_repo: PostgresNodeViewRepository = Depends(get_node_view_repository),
+    view_repo: NodeViewRepository = Depends(get_node_view_repository),
 ):
     """Remove a class from a node."""
     from ...db.schema.constants import SYSTEM_CLASS_UUIDS
