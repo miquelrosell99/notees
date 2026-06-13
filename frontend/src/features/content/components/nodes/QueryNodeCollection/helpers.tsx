@@ -105,18 +105,19 @@ export function renderProseWithLinks(text: string, onLinkClick: (uuid: string) =
     const linkText = match[1];
     const uuid = match[2];
     parts.push(
-      <a
+      <button
         key={match.index}
-        href="#"
-        onClick={(e) => {
-          e.preventDefault();
-          onLinkClick(uuid);
-        }}
+        type="button"
+        onClick={() => onLinkClick(uuid)}
         style={{
           color: 'var(--color-primary)',
           textDecoration: 'none',
           cursor: 'pointer',
           borderBottom: '1px solid var(--color-primary)',
+          background: 'none',
+          border: 'none',
+          padding: 0,
+          font: 'inherit',
         }}
         onMouseEnter={(e) => {
           e.currentTarget.style.textDecoration = 'underline';
@@ -126,7 +127,7 @@ export function renderProseWithLinks(text: string, onLinkClick: (uuid: string) =
         }}
       >
         {linkText}
-      </a>,
+      </button>,
     );
 
     lastIndex = match.index + match[0].length;

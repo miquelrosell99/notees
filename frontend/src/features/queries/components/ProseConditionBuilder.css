@@ -5,6 +5,15 @@
  * Card layout is now handled by QueryBlockCard.css
  */
 
+
+:root {
+  --features-queries-components-prose-condition-builder-max-width-200: 200px;
+  --features-queries-components-prose-condition-builder-min-width-200: 200px;
+  --features-queries-components-prose-condition-builder-top-6: 6px;
+  --features-queries-components-prose-condition-builder-bottom-6: 6px;
+  --features-queries-components-prose-condition-builder-right-6: 6px;
+}
+
 /* ==================== Inline Condition Layout ==================== */
 
 .prose-condition__inline {
@@ -28,12 +37,12 @@
 
 .prose-condition__operator {
   flex-shrink: 0;
-  max-width: 200px;
+  max-width: var(--features-queries-components-prose-condition-builder-max-width-200);
 }
 
 .prose-condition__input {
   flex: 1;
-  min-width: 200px;
+  min-width: var(--features-queries-components-prose-condition-builder-min-width-200);
 }
 
 .prose-condition__input--error {
@@ -56,9 +65,9 @@
 
 .prose-condition__selection-button {
   position: absolute;
-  top: 6px;
-  bottom: 6px;
-  right: 6px;
+  top: var(--features-queries-components-prose-condition-builder-top-6);
+  bottom: var(--features-queries-components-prose-condition-builder-bottom-6);
+  right: var(--features-queries-components-prose-condition-builder-right-6);
   margin: auto 0;
   height: fit-content;
   z-index: 1;

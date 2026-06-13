@@ -48,6 +48,8 @@ export interface SelectionButtonProps extends Omit<HTMLAttributes<HTMLDivElement
   maxVisibleOptions?: number;
   /** Whether to allow changing the selected option via mouse wheel */
   scrollToChange?: boolean;
+  /** ID for the radiogroup, used for label association */
+  id?: string;
 }
 
 const ICON_SIZES: Record<SelectionButtonSize, number> = {
@@ -69,6 +71,7 @@ export const SelectionButton = forwardRef<HTMLDivElement, SelectionButtonProps>(
     labelPosition = 'right',
     maxVisibleOptions,
     scrollToChange = false,
+    id,
     className = '',
     ...props
   },
@@ -191,6 +194,7 @@ export const SelectionButton = forwardRef<HTMLDivElement, SelectionButtonProps>(
         }
         (containerRef as React.MutableRefObject<HTMLDivElement | null>).current = node;
       }}
+      id={id}
       className={containerClasses}
       role="radiogroup"
       onWheel={handleWheel}

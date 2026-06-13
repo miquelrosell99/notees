@@ -11,6 +11,12 @@
   background: var(--color-scrim);
   z-index: var(--z-modal-backdrop);
   animation: backdropFadeIn var(--motion-duration-short) var(--motion-easing-standard);
+  /* Prevent content from disappearing under notches/home bars on sheet variants. */
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+
+.modal-backdrop:focus-visible {
+  outline: none;
 }
 
 @keyframes backdropFadeIn {
@@ -28,6 +34,21 @@
   max-height: 90vh;
   min-height: min-content;
   animation: modalSlideIn var(--motion-duration-medium) var(--motion-easing-decelerate);
+}
+
+/* Sheet variant: anchored to the bottom of the viewport. Use higher
+   specificity so this overrides the Card's all-corner radius. */
+.card.modal--sheet,
+.modal.modal--sheet {
+  margin-top: auto;
+  margin-bottom: 0;
+  max-height: calc(90vh - env(safe-area-inset-bottom));
+  border-radius: var(--shape-sheet) var(--shape-sheet) 0 0;
+}
+
+.card.modal--sheet .modal__header,
+.modal.modal--sheet .modal__header {
+  border-radius: var(--shape-sheet) var(--shape-sheet) 0 0;
 }
 
 @keyframes modalSlideIn {
@@ -56,25 +77,26 @@
   overflow-y: auto;
 }
 
-/* Modal sizes */
+/* Modal sizes — use layout tokens where available, otherwise clamp to keep
+   dialogs usable on tiny screens without magic pixel widths. */
 .modal--sm {
   width: 100%;
-  max-width: 360px;
+  max-width: min(var(--modal-width-sm, 320px), calc(100vw - 2 * var(--spacing-4)));
 }
 
 .modal--md {
   width: 100%;
-  max-width: 480px;
+  max-width: min(var(--modal-width-lg, 560px), calc(100vw - 2 * var(--spacing-4)));
 }
 
 .modal--lg {
   width: 95%;
-  max-width: 1200px;
+  max-width: min(var(--modal-width-xl, 1200px), calc(100vw - 2 * var(--spacing-4)));
 }
 
 .modal--xl {
   width: 100%;
-  max-width: 1000px;
+  max-width: min(1000px, calc(100vw - 2 * var(--spacing-4)));
 }
 
 /* Header */
@@ -104,6 +126,17 @@
 .modal__close {
   flex-shrink: 0;
   margin-left: var(--spacing-2);
+}
+
+/* Drag handle for bottom-sheet modals / drawers.
+   Centered 32×4 px, 2 px radius, muted color at 35 % opacity. */
+.modal__drag-handle {
+  width: var(--drag-handle-width, 32px);
+  height: var(--drag-handle-height, 4px);
+  border-radius: var(--drag-handle-radius, 2px);
+  background: color-mix(in srgb, var(--color-on-surface-variant) 35%, transparent);
+  margin: var(--spacing-3) auto;
+  flex-shrink: 0;
 }
 
 /* Content */

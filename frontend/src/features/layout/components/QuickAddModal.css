@@ -1,6 +1,11 @@
 /**
  * QuickAddModal Styles
  */
+
+:root {
+  --features-layout-components-quick-add-modal-min-height-44: 44px;
+}
+
 .quick-add-content {
   display: flex;
   flex-direction: column;
@@ -19,7 +24,7 @@
   font-size: var(--font-size-base);
   line-height: 1.5;
   resize: vertical;
-  min-height: 44px;
+  min-height: var(--features-layout-components-quick-add-modal-min-height-44);
   margin-bottom: var(--spacing-2);
   font-family: inherit;
 }

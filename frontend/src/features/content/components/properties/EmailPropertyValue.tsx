@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/Button';
 import './UrlPropertyValue.css';
 
@@ -14,7 +14,14 @@ export function EmailPropertyValue({ value, readOnly, onChange, validationRules 
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState('');
   const [validationError, setValidationError] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const strValue = typeof value === 'string' ? value : '';
+
+  useEffect(() => {
+    if (isEditing) {
+      inputRef.current?.focus();
+    }
+  }, [isEditing]);
 
   const handleSave = useCallback(() => {
     const trimmed = editValue.trim();
@@ -43,7 +50,7 @@ export function EmailPropertyValue({ value, readOnly, onChange, validationRules 
             if (e.key === 'Enter') handleSave();
             if (e.key === 'Escape') setIsEditing(false);
           }}
-          autoFocus
+          ref={inputRef}
           className={`property-value-input ${validationError ? 'property-value-input--error' : ''}`}
           placeholder="user@example.com"
         />

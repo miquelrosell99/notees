@@ -310,7 +310,18 @@ function PropertyRow({
   return (
     <>
       <div ref={rowRef} className={`property-row${hideLabel ? ' property-row--continuation' : ''}`} onContextMenu={handleContextMenu}>
-        <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }} className="property-row__label" onClick={handleNameClick}>
+        <div
+          role="button"
+          tabIndex={0}
+          className="property-row__label"
+          onClick={handleNameClick}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              handleNameClick(e as unknown as React.MouseEvent);
+            }
+          }}
+        >
           {!hideLabel && (
             <>
               <NodeInline

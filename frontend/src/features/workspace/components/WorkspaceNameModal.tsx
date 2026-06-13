@@ -4,7 +4,7 @@
  * Reusable modal for entering a workspace name. Used for both creating
  * new workspaces and naming imported workspaces.
  */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { checkWorkspaceName } from '@/features/workspace/api/workspaces';
 import { Icon, AlertIcon, SyncIcon } from '@/components/ui/icons';
@@ -34,6 +34,13 @@ export function WorkspaceNameModal({
 }: WorkspaceNameModalProps) {
   const [name, setName] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      inputRef.current?.focus();
+    }
+  }, [isOpen]);
 
   // Reset state when modal opens/closes
   useEffect(() => {
@@ -110,12 +117,13 @@ export function WorkspaceNameModal({
     >
       <form onSubmit={handleSubmit}>
         <TextField
+          id="workspace-name"
           label="Workspace Name"
           type="text"
+          ref={inputRef}
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="my-notes"
-          autoFocus
           error={name.length >= 2 && nameCheck?.available === false}
           errorMessage={name.length >= 2 && nameCheck?.available === false ? 'This name is already taken' : undefined}
           containerClassName={name.length >= 2 && nameCheck?.available && !isCheckingName ? 'text-field__container--valid' : ''}

@@ -7,6 +7,16 @@
  * - Query preview modal
  */
 
+
+:root {
+  --features-content-components-nodes-query-node-collection-min-width-14: 14px;
+  --features-content-components-nodes-query-node-collection-font-size-10: 10px;
+  --features-content-components-nodes-query-node-collection-line-height-14: 14px;
+  --features-content-components-nodes-query-node-collection-min-height-300: 300px;
+  --features-content-components-nodes-query-node-collection-min-height-200: 200px;
+  --features-content-components-nodes-query-node-collection-max-height-300: 300px;
+}
+
 /* ==================== Query Section ==================== */
 
 .query-node-collection {
@@ -30,11 +40,11 @@
   position: absolute;
   top: -4px;
   right: -4px;
-  min-width: 14px;
+  min-width: var(--features-content-components-nodes-query-node-collection-min-width-14);
   height: var(--icon-size-xs);
   padding: 0 3px;
-  font-size: 10px;
-  line-height: 14px;
+  font-size: var(--features-content-components-nodes-query-node-collection-font-size-10);
+  line-height: var(--features-content-components-nodes-query-node-collection-line-height-14);
   pointer-events: none;
 }
 
@@ -100,7 +110,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--spacing-4);
-  min-height: 300px;
+  min-height: var(--features-content-components-nodes-query-node-collection-min-height-300);
 }
 
 /* Subtitle below modal title */
@@ -220,7 +230,7 @@
 
 .query-section__sql-textarea {
   flex: 1;
-  min-height: 200px;
+  min-height: var(--features-content-components-nodes-query-node-collection-min-height-200);
   padding: 0.75rem;
   font-family: var(--font-family-mono);
   font-size: 0.8125rem;
@@ -354,7 +364,7 @@
   border: 1px solid var(--color-outline-variant);
   border-radius: var(--shape-medium);
   overflow: auto;
-  max-height: 300px;
+  max-height: var(--features-content-components-nodes-query-node-collection-max-height-300);
 }
 
 .query-preview__sql-header {

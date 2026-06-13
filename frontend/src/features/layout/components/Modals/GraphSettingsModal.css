@@ -38,7 +38,7 @@
   color: var(--color-on-surface-variant);
   cursor: pointer;
   text-align: left;
-  transition: all var(--motion-duration-short) var(--motion-easing-standard);
+  transition: background-color var(--motion-duration-short) var(--motion-easing-standard), border-color var(--motion-duration-short) var(--motion-easing-standard), color var(--motion-duration-short) var(--motion-easing-standard);
   position: relative;
 }
 
@@ -164,7 +164,7 @@
   font: var(--font-label-medium);
   color: var(--color-on-surface);
   cursor: pointer;
-  transition: all var(--motion-duration-short) var(--motion-easing-standard);
+  transition: background-color var(--motion-duration-short) var(--motion-easing-standard), border-color var(--motion-duration-short) var(--motion-easing-standard), color var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 .settings-theme-btn:hover {
@@ -339,7 +339,7 @@
   border-radius: var(--shape-small);
   font: var(--font-label-large);
   cursor: pointer;
-  transition: all var(--motion-duration-short) var(--motion-easing-standard);
+  transition: background-color var(--motion-duration-short) var(--motion-easing-standard), border-color var(--motion-duration-short) var(--motion-easing-standard), color var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 /* ==================== About Section ==================== */
@@ -387,6 +387,10 @@
   font: var(--font-label-large);
   color: var(--color-primary);
   text-decoration: none;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
   transition: background var(--motion-duration-short) var(--motion-easing-standard);
 }
 
@@ -432,7 +436,7 @@
   font: var(--font-label-medium);
   color: var(--color-on-surface);
   cursor: pointer;
-  transition: all var(--motion-duration-short) var(--motion-easing-standard);
+  transition: background-color var(--motion-duration-short) var(--motion-easing-standard), border-color var(--motion-duration-short) var(--motion-easing-standard), color var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 .tag-color-action-btn:hover {

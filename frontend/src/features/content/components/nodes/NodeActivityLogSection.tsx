@@ -118,16 +118,14 @@ function ActivityMessage({ activity }: { activity: NodeActivity }) {
       <span className="node-inline__text">
         {segments.map((seg, i) =>
           seg.type === 'link' ? (
-            <span
+            <button
               key={i}
+              type="button"
               className="activity-node-link"
-              role="button"
-              tabIndex={0}
               onClick={() => handleLinkClick(seg.uuid)}
-              onKeyDown={(e) => { if (e.key === 'Enter') handleLinkClick(seg.uuid); }}
             >
               {seg.label}
-            </span>
+            </button>
           ) : (
             <span key={i}>{seg.text}</span>
           )

@@ -50,7 +50,7 @@ const WhiteboardNodeCard: React.FC<{ nodeId: number; element: WhiteboardCardElem
   // Must be declared before any early returns to satisfy the Rules of Hooks.
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
     const target = e.target as HTMLElement;
-    if (target.closest('button, input, select, textarea, a, [role="button"], [data-interactive]')) {
+    if (target.closest('button, input, select, textarea, a, [data-interactive]')) {
       e.stopPropagation();
     }
   }, []);

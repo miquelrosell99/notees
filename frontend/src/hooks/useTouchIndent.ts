@@ -88,6 +88,7 @@ export function useTouchIndent({ containerRef, onIndent, onOutdent, readOnly }: 
 
       if (absDx >= THRESHOLD) {
         committed = true;
+        // Deliberate swipe gesture — medium (25ms) haptic
         navigator.vibrate?.(25);
         if (dx > 0) {
           onIndent?.(activeBlockId);

@@ -44,7 +44,7 @@ export const BooleanToggle = forwardRef<HTMLInputElement, BooleanToggleProps>(fu
   const toggleId = id || generatedId;
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    // Tactile feedback on mobile
+    // Tactile feedback on mobile — switches use the light (10ms) haptic
     if (typeof navigator !== 'undefined' && navigator.vibrate) {
       navigator.vibrate(10);
     }

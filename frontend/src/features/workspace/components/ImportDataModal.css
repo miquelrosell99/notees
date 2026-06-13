@@ -2,6 +2,12 @@
  * ImportDataModal styles
  */
 
+
+:root {
+  --features-workspace-components-import-data-modal-min-height-150: 150px;
+  --features-workspace-components-import-data-modal-max-height-150: 150px;
+}
+
 .import-data-modal {
   width: var(--modal-width-lg);
   max-width: 90vw;
@@ -40,7 +46,7 @@
 .import-data-modal__textarea {
   width: 100%;
   height: var(--textarea-height-sm);
-  min-height: 150px;
+  min-height: var(--features-workspace-components-import-data-modal-min-height-150);
   padding: var(--spacing-3);
   font-family: var(--font-family-mono);
   font-size: var(--font-size-sm);
@@ -120,7 +126,7 @@
 
 .import-data-modal__preview-blocks {
   padding: var(--spacing-2) var(--spacing-3);
-  max-height: 150px;
+  max-height: var(--features-workspace-components-import-data-modal-max-height-150);
   overflow-y: auto;
 }
 

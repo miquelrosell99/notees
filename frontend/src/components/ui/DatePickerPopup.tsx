@@ -1,17 +1,16 @@
 /**
- * DatePickerPopup — Calendar grid + text input for picking dates.
+ * DatePickerPopup — controlled calendar grid + text input for picking dates.
  *
- * Renders the same month-grid UI as CalendarPopup (daily page navigation)
- * plus a text field that accepts typed dates and natural-language literals
- * (today, tomorrow, next week, next month, Feb 14, 2026-02-14, etc.)
+ * Renders the same month-grid UI as CalendarPopup plus a text field that
+ * accepts typed dates and natural-language literals (today, tomorrow, next
+ * week, next month, Feb 14, 2026-02-14, etc.).
  *
- * Unlike CalendarPopup this component does NOT navigate — it reports the
- * selected ISO date (YYYY-MM-DD) back to the caller via `onSelect`.
+ * This base component is domain-agnostic: it accepts `firstDayOfWeek` and
+ * `dailyPages` as props. Feature code should use the wrapper in
+ * `features/content/components/DatePickerPopup.tsx` to wire stores/hooks.
  */
 import { useState, useRef, useEffect, useLayoutEffect, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { useExistingDailyPages } from '@/hooks';
-import { useSettingsStore } from '@/stores';
 import { parseDate } from '@/utils/dateParser';
 import { Button } from './Button';
 import './CalendarPopup.css';   // reuse grid styles from CalendarPopup
@@ -54,6 +53,10 @@ export interface DatePickerPopupProps {
   onClose: () => void;
   /** Ref to the anchor element for positioning */
   anchorRef?: React.RefObject<HTMLElement | null>;
+  /** Index of the first day of the week (0 = Sunday, 1 = Monday, ...) */
+  firstDayOfWeek: number;
+  /** Existing daily pages used to mark days that already have notes */
+  dailyPages: Array<{ uuid: string }>;
 }
 
 // ── component ────────────────────────────────────────────
@@ -63,6 +66,8 @@ export function DatePickerPopup({
   onSelect,
   onClose,
   anchorRef,
+  firstDayOfWeek,
+  dailyPages,
 }: DatePickerPopupProps) {
   const today = new Date();
 
@@ -73,8 +78,6 @@ export function DatePickerPopup({
   const [textInput, setTextInput] = useState('');
   const [parsedPreview, setParsedPreview] = useState<string | null>(null);
   const [parsedValid, setParsedValid] = useState(true);
-
-  const { firstDayOfWeek } = useSettingsStore();
 
   // Rotate weekday labels so the configured first day appears first
   const WEEKDAYS = [
@@ -130,9 +133,7 @@ export function DatePickerPopup({
   }, [onClose, anchorRef]);
 
   // Existing daily pages for "has-note" styling
-  const { data: dailyPages } = useExistingDailyPages();
   const existingDates = useMemo(() => {
-    if (!dailyPages) return new Set<string>();
     const dates = new Set<string>();
     for (const page of dailyPages) {
       if (page.uuid) {
@@ -330,4 +331,3 @@ export function DatePickerPopup({
 
   return createPortal(popup, document.body);
 }
-

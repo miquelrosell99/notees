@@ -83,18 +83,20 @@ export function ShareModal({ nodeId, isOpen, onClose }: ShareModalProps) {
             Anyone with the link can view this page without signing in.
           </p>
           <div className="share-modal__create">
-            <label className="share-modal__label">Optional expiry date</label>
+            <label htmlFor="share-expiry-date" className="share-modal__label">Optional expiry date</label>
             <div className="share-modal__create-row">
               <input
+                id="share-expiry-date"
                 type="datetime-local"
                 className="share-modal__date-input"
                 value={expiryDate}
                 onChange={(e) => setExpiryDate(e.target.value)}
               />
             </div>
-            <label className="share-modal__label">Optional password</label>
+            <label htmlFor="share-public-password" className="share-modal__label">Optional password</label>
             <div className="share-modal__create-row">
               <TextField
+                id="share-public-password"
                 type="password"
                 placeholder="Leave empty for no password"
                 value={publicPassword}

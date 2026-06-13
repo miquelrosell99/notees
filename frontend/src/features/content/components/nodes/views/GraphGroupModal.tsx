@@ -6,7 +6,7 @@
  * Scope is always locked to 'pages'.
  */
 
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { ColorButton } from '@/components/ui/ColorButton';
@@ -66,6 +66,7 @@ export function GraphGroupModal({
   const [name, setName] = useState('');
   const [query, setQuery] = useState<QueryAST>(createEmptyQueryAST());
   const [color, setColor] = useState(COLOR_ENTRIES[0].cssVar);
+  const nameInputRef = useRef<HTMLInputElement>(null);
 
   // Reset state when opening for a new group; load existing data when editing
   useEffect(() => {
@@ -73,6 +74,7 @@ export function GraphGroupModal({
       setName(initialGroup?.name ?? '');
       setQuery(initialGroup?.query ?? createEmptyQueryAST());
       setColor(initialGroup?.color ?? COLOR_ENTRIES[0].cssVar);
+      nameInputRef.current?.focus();
     }
   }, [isOpen, initialGroup]);
 
@@ -141,11 +143,11 @@ export function GraphGroupModal({
       <div className="graph-group-modal__body">
         {/* Name */}
         <TextField
+          ref={nameInputRef}
           label="Group name"
           placeholder="e.g. Important Books"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          autoFocus
         />
 
         {/* Color */}

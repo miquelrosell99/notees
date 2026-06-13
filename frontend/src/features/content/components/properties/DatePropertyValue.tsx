@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo, useRef } from 'react';
 import { useNode } from '@/hooks';
-import { DatePickerPopup } from '@/components/ui/DatePickerPopup';
+import { DatePickerPopup } from '@/features/content/components/DatePickerPopup';
 import { Button } from '@/components/ui/Button';
 import { getOrCreateDaily } from '@/api/nodes';
 import { nodeNameToText } from '@/hooks/useStringifyAST';

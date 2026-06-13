@@ -9,13 +9,13 @@
 
 /* Connected — green with pulse */
 .live-sync-indicator--connected {
-  background-color: var(--color-success, #22c55e);
+  background-color: var(--color-success);
   animation: live-sync-pulse 2s ease-in-out infinite;
 }
 
 /* Connecting — yellow */
 .live-sync-indicator--connecting {
-  background-color: var(--color-warning, #f59e0b);
+  background-color: var(--color-warning);
   animation: live-sync-pulse 1s ease-in-out infinite;
 }
 
@@ -23,7 +23,7 @@
 .live-sync-indicator--error,
 .live-sync-indicator--disconnected {
   background-color: transparent;
-  border: 2px solid var(--color-error, #ef4444);
+  border: 2px solid var(--color-error);
   width: 8px;
   height: 8px;
 }

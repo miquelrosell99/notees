@@ -6,6 +6,11 @@
  * and a compact "selected" row when a file has been chosen.
  */
 
+
+:root {
+  --components-ui-file-drop-zone-gap-6: 6px;
+}
+
 /* ── Dropzone (no file selected) ─────────────────────────── */
 
 .file-drop-zone {
@@ -13,7 +18,8 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: var(--components-ui-file-drop-zone-gap-6);
+  width: 100%;
   padding: var(--spacing-6) var(--spacing-5);
   border: 1px dashed var(--color-outline-variant, var(--color-outline));
   border-radius: var(--shape-extra-large);
@@ -23,6 +29,12 @@
   background: transparent;
   text-align: center;
   user-select: none;
+  font: inherit;
+}
+
+.file-drop-zone:focus-visible {
+  outline: var(--border-width-thick) solid var(--color-accent);
+  outline-offset: var(--focus-outline-offset);
 }
 
 .file-drop-zone:hover:not(.file-drop-zone--disabled) {

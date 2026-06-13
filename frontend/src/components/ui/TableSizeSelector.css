@@ -4,11 +4,20 @@
  * Styles for the table size selection grid component.
  */
 
+
+:root {
+  --components-ui-table-size-selector-min-width-200: 200px;
+}
+
 .table-size-selector {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: var(--spacing-2);
+}
+
+.table-size-selector:focus-visible {
+  outline: none;
 }
 
 .table-size-selector__content {
@@ -124,7 +133,7 @@
   align-items: center;
   gap: var(--spacing-3);
   padding: var(--spacing-3);
-  min-width: 200px;
+  min-width: var(--components-ui-table-size-selector-min-width-200);
 }
 
 .table-size-modal__adapt-label {

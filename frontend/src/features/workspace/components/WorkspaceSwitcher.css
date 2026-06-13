@@ -4,6 +4,12 @@
  * Searchable dropdown for graph selection with create-new functionality.
  */
 
+
+:root {
+  --features-workspace-components-workspace-switcher-max-height-300: 300px;
+  --features-workspace-components-workspace-switcher-max-height-240: 240px;
+}
+
 /* ==================== Container ==================== */
 .workspace-switcher {
   position: relative;
@@ -49,7 +55,7 @@
   border: 1px solid var(--color-outline-variant);
   border-radius: var(--shape-medium);
   overflow: hidden;
-  max-height: 300px;
+  max-height: var(--features-workspace-components-workspace-switcher-max-height-300);
   display: flex;
   flex-direction: column;
 }
@@ -82,7 +88,7 @@
 /* ==================== List ==================== */
 .workspace-switcher__list {
   overflow-y: auto;
-  max-height: 240px;
+  max-height: var(--features-workspace-components-workspace-switcher-max-height-240);
   padding: var(--spacing-1);
 }
 

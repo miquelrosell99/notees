@@ -7,6 +7,11 @@
  * Teenage Engineering-inspired: tactile, circular, responsive to input.
  */
 
+
+:root {
+  --features-content-components-blocks-bullet-left-6: -6px;
+}
+
 /* ==================== Bullet Wrapper ==================== */
 
 .bullet-wrapper {
@@ -26,7 +31,7 @@
 /* Cover indicator - small dot to the left */
 .bullet-cover-indicator {
   position: absolute;
-  left: -6px;
+  left: var(--features-content-components-blocks-bullet-left-6);
   width: var(--bullet-size-xs);
   height: var(--bullet-size-xs);
   border-radius: 50%;
@@ -55,6 +60,18 @@
   cursor: pointer;
   border-radius: 50%;
   /* Prevent text cursor from showing */
+  pointer-events: auto;
+}
+
+/* Invisible minimum hit-area overlay for accessible touch targets */
+.bullet-interactive::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: var(--button-icon-only-xs);
+  height: var(--button-icon-only-xs);
   pointer-events: auto;
 }
 

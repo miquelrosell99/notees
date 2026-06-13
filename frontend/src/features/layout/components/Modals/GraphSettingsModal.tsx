@@ -169,12 +169,13 @@ export function GraphSettingsModal({ isOpen, onClose }: GraphSettingsModalProps)
                 
                 <div className="settings-item">
                   <div className="settings-item__info">
-                    <label className="settings-item__label">Date format</label>
+                    <label htmlFor="graph-date-format" className="settings-item__label">Date format</label>
                     <p className="settings-item__description">
                       Format used for daily and monthly notes in this graph
                     </p>
                   </div>
-                  <select 
+                  <select
+                    id="graph-date-format"
                     className="settings-item__select"
                     value={dateFormat}
                     onChange={(e) => handleDateFormatChange(e.target.value as DateFormat)}

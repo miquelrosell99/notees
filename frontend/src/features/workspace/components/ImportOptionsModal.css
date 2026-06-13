@@ -1,5 +1,10 @@
 /* ── Unified import modal ─────────────────────────────────── */
 
+
+:root {
+  --features-workspace-components-import-options-modal-max-height-240: 240px;
+}
+
 .import-unified__body {
   display: flex;
   flex-direction: column;
@@ -40,8 +45,8 @@
   align-items: center;
   gap: var(--spacing-2);
   padding: var(--spacing-3) var(--spacing-4);
-  background: color-mix(in srgb, var(--color-warning, #f59e0b) 10%, transparent);
-  color: var(--color-warning, #b45309);
+  background: color-mix(in srgb, var(--color-warning) 10%, transparent);
+  color: var(--color-warning);
   border-radius: var(--radius-sm);
   font-size: 0.875rem;
 }
@@ -88,7 +93,7 @@
   gap: var(--spacing-2);
   padding: var(--spacing-2) var(--spacing-3);
   border-top: 1px solid var(--color-outline-variant);
-  max-height: 240px;
+  max-height: var(--features-workspace-components-import-options-modal-max-height-240);
   overflow-y: auto;
 }
 

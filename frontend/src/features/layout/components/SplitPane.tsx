@@ -67,11 +67,26 @@ export function SplitPane({ orientation, primary, secondary, defaultSplit = 0.5 
       >
         {primary}
       </div>
+      {/* eslint-disable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex */}
       <div
+        role="separator"
+        aria-label="Resize panes"
+        tabIndex={0}
         className="split-pane__resizer"
         onMouseDown={handleResizeStart}
         title={isHorizontal ? 'Resize (drag)' : 'Resize (drag)'}
+        onKeyDown={(e) => {
+          const keys = isHorizontal ? ['ArrowLeft', 'ArrowRight'] : ['ArrowUp', 'ArrowDown'];
+          if (!keys.includes(e.key)) return;
+          e.preventDefault();
+          setSplit((prev) => {
+            const step = 0.05;
+            const delta = (e.key === 'ArrowRight' || e.key === 'ArrowDown') ? step : -step;
+            return Math.max(0.2, Math.min(0.8, prev + delta));
+          });
+        }}
       />
+      {/* eslint-enable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex */}
       <div
         className="split-pane__pane split-pane__pane--secondary"
         style={{ flex: `1 1 auto` }}

@@ -38,9 +38,9 @@ function InlineLinkWrapper({ nodeUuid, children }: { nodeUuid: string; children:
   }, [node, openNode, addSidebarCard]);
 
   return (
-    <span role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }} className="inline-link-wrapper" onClick={handleClick}>
+    <button type="button" className="inline-link-wrapper" onClick={handleClick}>
       {children}
-    </span>
+    </button>
   );
 }
 

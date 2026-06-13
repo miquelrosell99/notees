@@ -110,7 +110,7 @@
 }
 
 .table-sort-index {
-  font-size: 9px;
+  font-size: var(--font-size-xs);
   font-weight: 600;
   color: var(--color-outline);
 }
@@ -166,8 +166,8 @@
 /* Checkbox column */
 .table-cell--checkbox.table-cell {
   width: var(--icon-size-2xl);
-  min-width: 40px;
-  max-width: 40px;
+  min-width: var(--spacing-10);
+  max-width: var(--spacing-10);
   text-align: center;
   position: sticky;
   left: 0;
@@ -202,7 +202,7 @@
 
 .table-drag-handle {
   position: absolute;
-  left: -28px;
+  left: calc(var(--spacing-7) * -1);
   top: 50%;
   transform: translateY(-50%);
   display: flex;
@@ -217,18 +217,24 @@
   cursor: grab;
   color: var(--color-outline);
   opacity: 0;
-  transition: opacity 0.15s, background-color 0.15s, color 0.15s;
+  transition: opacity var(--motion-duration-shorter) var(--motion-easing-standard), background-color var(--motion-duration-shorter) var(--motion-easing-standard), color var(--motion-duration-shorter) var(--motion-easing-standard);
 }
 
 .table-row:hover .table-drag-handle,
+.table-row:focus-within .table-drag-handle,
 .table-drag-handle:hover,
-.table-drag-handle:focus {
+.table-drag-handle:focus-visible {
   opacity: 1;
 }
 
 .table-drag-handle:hover {
   background: var(--color-hover-overlay);
   color: var(--color-on-surface-variant);
+}
+
+.table-drag-handle:focus-visible {
+  outline: var(--border-width-thick) solid var(--color-accent);
+  outline-offset: var(--focus-outline-offset);
 }
 
 .table-drag-handle:active {
@@ -338,11 +344,14 @@
   border-radius: var(--shape-small);
 }
 
-.table-cell--editable-header:hover .table-delete-col-btn {
+.table-cell--editable-header:hover .table-delete-col-btn,
+.table-cell--editable-header:focus-within .table-delete-col-btn,
+.table-delete-col-btn:focus-visible {
   opacity: 1;
 }
 
-.table-delete-col-btn:hover {
+.table-delete-col-btn:hover,
+.table-delete-col-btn:focus-visible {
   background: var(--color-error-container);
   color: var(--color-error);
 }
@@ -350,7 +359,7 @@
 /* Add column cell */
 .table-add-col-cell {
   width: var(--icon-size-2xl);
-  min-width: 40px;
+  min-width: var(--spacing-10);
   padding: 0;
   background: transparent;
   border-bottom: 1px solid var(--color-outline-variant);
@@ -406,7 +415,7 @@
 /* Row actions column */
 .table-row-actions-cell {
   width: var(--icon-size-2xl);
-  min-width: 40px;
+  min-width: var(--spacing-10);
   padding: 0;
   text-align: center;
 }
@@ -425,11 +434,14 @@
   border-radius: var(--shape-small);
 }
 
-.table-row:hover .table-delete-row-btn {
+.table-row:hover .table-delete-row-btn,
+.table-row:focus-within .table-delete-row-btn,
+.table-delete-row-btn:focus-visible {
   opacity: 1;
 }
 
-.table-delete-row-btn:hover {
+.table-delete-row-btn:hover,
+.table-delete-row-btn:focus-visible {
   background: var(--color-error-container);
   color: var(--color-error);
 }
@@ -463,16 +475,16 @@
 
 /* Selection checkbox column */
 .table-select-col {
-  width: 36px;
-  min-width: 36px;
+  width: var(--spacing-9);
+  min-width: var(--spacing-9);
   padding: var(--spacing-2);
   text-align: center;
   background: var(--color-surface-variant);
 }
 
 .table-select-cell {
-  width: 36px;
-  min-width: 36px;
+  width: var(--spacing-9);
+  min-width: var(--spacing-9);
   padding: var(--spacing-2);
   text-align: center;
 }

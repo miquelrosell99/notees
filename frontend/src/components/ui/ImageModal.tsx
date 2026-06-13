@@ -8,8 +8,9 @@
  * - Click outside or Escape to close
  * - Rendered using React portal to escape parent constraints
  */
-import { useEffect, useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
 import { Button } from './Button';
 import './ImageModal.css';
 
@@ -35,23 +36,18 @@ export function ImageModal({
   isOpen,
   onClose,
   src,
-  alt = 'Image',
   filename,
+  alt = filename || '',
   bullet,
 }: ImageModalProps) {
-  // Handle escape key
-  useEffect(() => {
-    if (!isOpen) return;
+  const backdropRef = useRef<HTMLDivElement>(null);
 
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onClose();
-      }
-    };
-
-    document.addEventListener('keydown', handleEscape);
-    return () => document.removeEventListener('keydown', handleEscape);
-  }, [isOpen, onClose]);
+  // Trap focus inside the modal while it is open and return focus on close
+  useFocusTrap(backdropRef, {
+    enabled: isOpen,
+    onEscape: onClose,
+    restoreFocus: true,
+  });
 
   // Handle backdrop click
   const handleBackdropClick = useCallback(
@@ -62,7 +58,7 @@ export function ImageModal({
     },
     [onClose]
   );
-  
+
   // Handle download
   const handleDownload = useCallback(() => {
     const link = document.createElement('a');
@@ -76,7 +72,20 @@ export function ImageModal({
   if (!isOpen) return null;
 
   const modalContent = (
-    <div className="image-modal-backdrop" onClick={handleBackdropClick}>
+    <div
+      ref={backdropRef}
+      role="button"
+      tabIndex={-1}
+      aria-label="Close image viewer"
+      className="image-modal-backdrop"
+      onClick={handleBackdropClick}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onClose();
+        }
+      }}
+    >
       {/* Action buttons - top right corner of screen */}
       <div className="image-modal-actions">
         <Button aria-label="Download image"

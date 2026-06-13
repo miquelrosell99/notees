@@ -519,8 +519,10 @@ export function SuggestionPopup({
   };
   
   return (
-    <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }}
+    <div
       ref={containerRef}
+      role="dialog"
+      aria-modal="true"
       className={`suggestion-popup ${multiSelect ? 'suggestion-popup--multi-select' : ''}`}
       style={{
         position: 'fixed',
@@ -529,8 +531,8 @@ export function SuggestionPopup({
         zIndex: 1000,
       }}
       onFocus={(e) => e.stopPropagation()}
-      onMouseDown={(e) => e.stopPropagation()}
-      onClick={(e) => e.stopPropagation()}
+      onMouseDownCapture={(e) => e.stopPropagation()}
+      onClickCapture={(e) => e.stopPropagation()}
     >
       <div className="suggestion-popup__header">
         {headerText ? (

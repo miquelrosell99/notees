@@ -1,7 +1,7 @@
 /**
  * WhiteboardShapeRenderer — Renders shape elements with SVG.
  */
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import type { WhiteboardShapeElement } from '@/types/whiteboard';
 import { getShapePath } from './whiteboardShapeUtils';
 
@@ -19,6 +19,13 @@ export const WhiteboardShapeRenderer: React.FC<Props> = ({
   onBlur,
 }) => {
   const { shapeType, fill, stroke, strokeWidth, strokeStyle, borderRadius, text, textColor, fontSize, textAlign, fontWeight } = element;
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (isEditing) {
+      textareaRef.current?.focus();
+    }
+  }, [isEditing]);
 
   const ssClass = strokeStyle === 'dashed' ? 'wb-ss-dashed' : strokeStyle === 'dotted' ? 'wb-ss-dotted' : '';
 
@@ -72,8 +79,8 @@ export const WhiteboardShapeRenderer: React.FC<Props> = ({
         >
           {isEditing ? (
             <textarea
+              ref={textareaRef}
               className="whiteboard-shape__text-input"
-              autoFocus
               value={text}
               onChange={(e) => onTextChange?.(e.target.value)}
               onBlur={onBlur}

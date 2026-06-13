@@ -71,7 +71,7 @@
 /* Always show required toggle if it's active (required=true) */
 .class-property-required-btn--active {
   opacity: 1;
-  color: var(--color-error, #d32f2f);
+  color: var(--color-error);
 }
 
 .list-sortable__item:hover .class-property-required-btn,

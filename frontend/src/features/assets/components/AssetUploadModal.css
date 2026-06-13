@@ -2,6 +2,14 @@
  * AssetUploadModal styles.
  */
 
+
+:root {
+  --features-assets-components-asset-upload-modal-max-height-200: 200px;
+  --features-assets-components-asset-upload-modal-max-width-300: 300px;
+  --features-assets-components-asset-upload-modal-padding-10: 10px;
+  --features-assets-components-asset-upload-modal-padding-14: 14px;
+}
+
 /* AssetUploadModal-specific styles only.
    Base modal primitives are provided by the core Modal component. */
 
@@ -58,7 +66,7 @@
 
 .asset-upload-modal__preview-image {
   max-width: 100%;
-  max-height: 200px;
+  max-height: var(--features-assets-components-asset-upload-modal-max-height-200);
   border-radius: var(--shape-large);
   object-fit: contain;
 }
@@ -78,7 +86,7 @@
 
 .asset-upload-modal__preview-audio audio {
   width: 100%;
-  max-width: 300px;
+  max-width: var(--features-assets-components-asset-upload-modal-max-width-300);
 }
 
 .asset-upload-modal__preview-file {
@@ -123,7 +131,7 @@
 /* Error */
 .asset-upload-modal__error {
   margin-top: var(--spacing-3);
-  padding: 10px 14px;
+  padding: var(--features-assets-components-asset-upload-modal-padding-10) var(--features-assets-components-asset-upload-modal-padding-14);
   background: var(--color-error-container);
   border: 1px solid var(--color-outline-variant);
   border-radius: var(--shape-large);

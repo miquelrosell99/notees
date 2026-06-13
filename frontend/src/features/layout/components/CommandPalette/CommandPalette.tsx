@@ -77,7 +77,19 @@ export function CommandPalette(props: CommandPaletteProps) {
 
   return (
     <>
-    <div className={`command-palette__backdrop${isOpen ? '' : ' command-palette__backdrop--hidden'}`} onClick={handleBackdropClick}>
+    <div
+      role="button"
+      tabIndex={-1}
+      aria-label="Close command palette"
+      className={`command-palette__backdrop${isOpen ? '' : ' command-palette__backdrop--hidden'}`}
+      onClick={handleBackdropClick}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          handleBackdropClick(e as unknown as React.MouseEvent);
+        }
+      }}
+    >
       <div ref={containerRef} className="command-palette">
         <div className="command-palette__input-container">
           <input

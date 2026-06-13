@@ -1,4 +1,4 @@
-﻿/**
+/**
  * ImportLogseqModal - Manual import from Logseq (opened via command palette).
  *
  * The 7-phase import pipeline lives in useLogseqImporter so it can also be
@@ -265,7 +265,8 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
               Upload a Logseq SQLite database file (<code>.sqlite</code>). These are
               found in your Logseq data directory for DB-based graphs.
             </p>
-            <div
+            <button
+              type="button"
               className={`import-logseq__dropzone${
                 parseError ? ' import-logseq__dropzone--error' : ''
               }${parsed ? ' import-logseq__dropzone--valid' : ''
@@ -273,9 +274,6 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
               onDrop={handleFileDrop}
               onDragOver={(e) => e.preventDefault()}
               onClick={() => fileInputRef.current?.click()}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') fileInputRef.current?.click(); }}
             >
               <input
                 ref={fileInputRef}
@@ -297,7 +295,7 @@ export function ImportLogseqModal({ isOpen, onClose }: ImportLogseqModalProps) {
                   Drop a <code>.sqlite</code> file here or click to browse
                 </span>
               )}
-            </div>
+            </button>
           </>
         )}
 

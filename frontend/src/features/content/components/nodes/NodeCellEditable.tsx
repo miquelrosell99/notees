@@ -52,7 +52,7 @@ export function NodeCellEditable({ node }: NodeCellEditableProps) {
 
   if (editing) {
     return (
-      <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }} ref={containerRef} className="table-node-cell__editor" onClick={(e) => e.stopPropagation()}>
+      <div ref={containerRef} className="table-node-cell__editor" onClickCapture={(e) => e.stopPropagation()}>
         <NodeCollection
           nodes={[node]}
           viewMode="document"
@@ -71,7 +71,8 @@ export function NodeCellEditable({ node }: NodeCellEditableProps) {
   }
 
   return (
-    <span role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }}
+    <button
+      type="button"
       className="table-node-cell__name"
       onClick={(e) => {
         e.stopPropagation();
@@ -79,6 +80,6 @@ export function NodeCellEditable({ node }: NodeCellEditableProps) {
       }}
     >
       <NodeNameContent name={node.name} />
-    </span>
+    </button>
   );
 }

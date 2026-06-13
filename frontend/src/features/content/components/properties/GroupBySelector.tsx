@@ -9,7 +9,7 @@
  *  - Page (group by source page — pseudo-property)
  *  - Any real property (by UUID)
  */
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { useProperties } from '@/hooks';
 import { Spinner } from '@/components/ui/Spinner';
 import { SearchIcon, NodeIcon, CheckIcon } from '@/components/ui/icons';
@@ -54,7 +54,12 @@ export interface GroupBySelectorProps {
 
 export function GroupBySelector({ value, onChange, onClose, hidePageOption = false }: GroupBySelectorProps) {
   const [searchQuery, setSearchQuery] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
   const { data: properties = [], isLoading } = useProperties();
+
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
 
   // Build filterable property list (exclude hidden system props and image/text types
   // that aren't useful for grouping)
@@ -111,7 +116,7 @@ export function GroupBySelector({ value, onChange, onClose, hidePageOption = fal
             placeholder="Search properties…"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            autoFocus
+            ref={inputRef}
           />
         </div>
       </div>
@@ -122,7 +127,8 @@ export function GroupBySelector({ value, onChange, onClose, hidePageOption = fal
         {pseudoOptions.map((opt) => {
           const isActive = value === opt.uuid;
           return (
-            <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }}
+            <button
+              type="button"
               key={opt.uuid}
               className={`group-by-selector__item ${isActive ? 'group-by-selector__item--active' : ''}`}
               onClick={() => handleSelect(opt.uuid)}
@@ -134,7 +140,7 @@ export function GroupBySelector({ value, onChange, onClose, hidePageOption = fal
                   <span className="group-by-selector__item-type">{opt.type}</span>
                 )}
               </span>
-            </div>
+            </button>
           );
         })}
 
@@ -147,7 +153,8 @@ export function GroupBySelector({ value, onChange, onClose, hidePageOption = fal
         {filteredProperties.map((prop) => {
           const isActive = value === prop.uuid;
           return (
-            <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }}
+            <button
+              type="button"
               key={prop.uuid}
               className={`group-by-selector__item ${isActive ? 'group-by-selector__item--active' : ''}`}
               onClick={() => handleSelect(prop.uuid)}
@@ -160,7 +167,7 @@ export function GroupBySelector({ value, onChange, onClose, hidePageOption = fal
                 </span>
                 <span className="group-by-selector__item-type">{prop.type.toUpperCase()}</span>
               </span>
-            </div>
+            </button>
           );
         })}
 

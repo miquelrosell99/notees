@@ -2,6 +2,12 @@
  * Base styles - builds on variables.css design system
  */
 
+@import url('./styles/icon-only-touch-targets.css');
+
+:root {
+  --index-min-width-320: 320px;
+}
+
 :root {
   font-family: var(--font-family-base);
   line-height: 1.5;
@@ -42,7 +48,7 @@ a:hover {
 
 body {
   margin: 0;
-  min-width: 320px;
+  min-width: var(--index-min-width-320);
   min-height: 100vh;
 }
 

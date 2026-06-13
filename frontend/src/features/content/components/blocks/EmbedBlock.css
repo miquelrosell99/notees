@@ -9,7 +9,7 @@
   margin: var(--spacing-1) 0;
   border: 2px dashed var(--color-outline-variant);
   border-radius: var(--shape-medium);
-  background: var(--color-surface-variant, rgba(0,0,0,0.03));
+  background: var(--color-surface-variant);
   transition:
     border-color var(--motion-duration-short) var(--motion-easing-standard),
     background var(--motion-duration-short) var(--motion-easing-standard),

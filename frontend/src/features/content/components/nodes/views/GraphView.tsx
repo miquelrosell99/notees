@@ -17,7 +17,7 @@
  * Uses NodeGraphRenderer for the actual visualization.
  */
 import { useState, useCallback, useMemo, useRef, useEffect, useDeferredValue } from 'react';
-import { useClasses, useGraphLinks } from '@/hooks';
+import { useClasses, useGraphLinks, useReducedMotion } from '@/hooks';
 import { useSettingsQuery } from '@/hooks/useSettings';
 import { useNavigationStore } from '@/stores';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
@@ -231,7 +231,24 @@ export function GraphView({
 }: GraphViewProps) {
   const rendererRef = useRef<GraphRendererRef>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(localGraphMode);
-  
+  const reducedMotion = useReducedMotion();
+
+  // Pause/resume physics when the user's reduced-motion preference changes.
+  const pausedByMotionRef = useRef(false);
+  useEffect(() => {
+    const renderer = rendererRef.current;
+    if (!renderer) return;
+    if (reducedMotion) {
+      renderer.pauseSimulation();
+      setSimulationPaused(true);
+      pausedByMotionRef.current = true;
+    } else if (pausedByMotionRef.current) {
+      renderer.resumeSimulation();
+      setSimulationPaused(false);
+      pausedByMotionRef.current = false;
+    }
+  }, [reducedMotion]);
+
   // Fetch links between the provided nodes
   const nodeIds = useMemo(() => apiNodes.map(n => n.id), [apiNodes]);
 

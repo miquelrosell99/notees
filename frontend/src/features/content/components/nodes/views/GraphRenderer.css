@@ -1,5 +1,18 @@
 /* SGEGraphView.css */
 
+
+:root {
+  --features-content-components-nodes-views-graph-renderer-top-10: 10px;
+  --features-content-components-nodes-views-graph-renderer-right-10: 10px;
+  --features-content-components-nodes-views-graph-renderer-gap-6: 6px;
+  --features-content-components-nodes-views-graph-renderer-bottom-10: 10px;
+  --features-content-components-nodes-views-graph-renderer-left-10: 10px;
+  --features-content-components-nodes-views-graph-renderer-padding-10: 10px;
+  --features-content-components-nodes-views-graph-renderer-padding-6: 6px;
+  --features-content-components-nodes-views-graph-renderer-max-width-220: 220px;
+  --features-content-components-nodes-views-graph-renderer-max-width-340: 340px;
+}
+
 /* ── Container ────────────────────────────────────────────────────────────── */
 
 .sge-graph-view {
@@ -35,11 +48,11 @@
 
 .sge-graph-view__toolbar {
   position: absolute;
-  top: 10px;
-  right: 10px;
+  top: var(--features-content-components-nodes-views-graph-renderer-top-10);
+  right: var(--features-content-components-nodes-views-graph-renderer-right-10);
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--features-content-components-nodes-views-graph-renderer-gap-6);
   z-index: 10;
 }
 
@@ -74,12 +87,12 @@
 
 .sge-stats {
   position: absolute;
-  bottom: 10px;
-  left: 10px;
+  bottom: var(--features-content-components-nodes-views-graph-renderer-bottom-10);
+  left: var(--features-content-components-nodes-views-graph-renderer-left-10);
   display: flex;
   flex-wrap: wrap;
   gap: 6px var(--spacing-3);
-  padding: 5px 10px;
+  padding: 5px var(--features-content-components-nodes-views-graph-renderer-padding-10);
   border-radius: var(--shape-medium);
   background: var(--graph-stats-bg);
   backdrop-filter: blur(4px);
@@ -98,7 +111,7 @@
   position: absolute;
   z-index: 20;
   pointer-events: none;
-  padding: 6px 10px;
+  padding: var(--features-content-components-nodes-views-graph-renderer-padding-6) var(--features-content-components-nodes-views-graph-renderer-padding-10);
   border-radius: var(--shape-medium);
   background: var(--graph-tooltip-bg);
   backdrop-filter: blur(6px);
@@ -108,7 +121,7 @@
   color: var(--graph-tooltip-color);
   font-size: var(--font-size-sm);
   font-weight: 500;
-  max-width: 220px;
+  max-width: var(--features-content-components-nodes-views-graph-renderer-max-width-220);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -130,7 +143,7 @@
 }
 
 .sge-graph-view__no-webgl-msg {
-  max-width: 340px;
+  max-width: var(--features-content-components-nodes-views-graph-renderer-max-width-340);
   padding: var(--spacing-5);
   text-align: center;
   color: var(--graph-fallback-msg-color);

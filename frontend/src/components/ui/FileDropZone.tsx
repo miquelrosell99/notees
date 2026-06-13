@@ -44,7 +44,7 @@ export function FileDropZone({
   const inputRef = useRef<HTMLInputElement>(null);
   const isDraggingRef = useRef(false);
   // We use a state-free approach for the dragging class to avoid re-renders
-  const zoneRef = useRef<HTMLDivElement>(null);
+  const zoneRef = useRef<HTMLButtonElement>(null);
 
   const openFilePicker = () => {
     if (!disabled) inputRef.current?.click();
@@ -121,8 +121,9 @@ export function FileDropZone({
 
   return (
     <>
-      <div
+      <button
         ref={zoneRef}
+        type="button"
         className={[
           'file-drop-zone',
           disabled ? 'file-drop-zone--disabled' : '',
@@ -134,19 +135,13 @@ export function FileDropZone({
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
         onClick={openFilePicker}
-        role="button"
         tabIndex={disabled ? -1 : 0}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            openFilePicker();
-          }
-        }}
+        aria-label={file ? undefined : `${placeholder}. ${hint}`}
       >
         {icon && <div className="file-drop-zone__icon">{icon}</div>}
         <span className="file-drop-zone__primary">{placeholder}</span>
         {hint && <span className="file-drop-zone__hint">{hint}</span>}
-      </div>
+      </button>
       {hiddenInput}
     </>
   );

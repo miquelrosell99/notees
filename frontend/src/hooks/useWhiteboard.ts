@@ -72,6 +72,7 @@ export function useWhiteboard(nodeId: number | null) {
       historyRef.current = [{ elements: parsed.elements, groups: parsed.groups, timestamp: Date.now() }];
       historyIndexRef.current = 0;
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Only reset when the node identity changes; refs and full node object are intentionally excluded.
   }, [node?.id]);
 
   // Element manipulation
@@ -292,6 +293,7 @@ export function useWhiteboard(nodeId: number | null) {
   }, [gridSnap, gridSize]);
 
   // Flush pending save on unmount
+  /* eslint-disable react-hooks/exhaustive-deps -- Cleanup intentionally reads mutable refs to flush the latest pending save at unmount; refs are stable and flushSave is the only meaningful dependency. */
   useEffect(() => {
     return () => {
       if (saveTimeoutRef.current) {
@@ -299,7 +301,8 @@ export function useWhiteboard(nodeId: number | null) {
         flushSave(latestDataRef.current);
       }
     };
-  }, [flushSave, saveTimeoutRef, latestDataRef]);
+  }, [flushSave]);
+  /* eslint-enable react-hooks/exhaustive-deps */
 
   return {
     node,

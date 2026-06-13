@@ -152,8 +152,11 @@ export function MergePagesModal({ isOpen, onClose }: MergePagesModalProps) {
         )}
 
         <div className="merge-pages__field">
-          <label className="merge-pages__label">Source page (will be deleted)</label>
+          <label htmlFor="merge-source" className="merge-pages__label">
+            Source page (will be deleted)
+          </label>
           <NodeSelector
+            id="merge-source"
             trigger="select"
             value={sourceNode?.id ?? null}
             searchMode="pages"
@@ -166,8 +169,11 @@ export function MergePagesModal({ isOpen, onClose }: MergePagesModalProps) {
         </div>
 
         <div className="merge-pages__field">
-          <label className="merge-pages__label">Target page (merge destination)</label>
+          <label htmlFor="merge-target" className="merge-pages__label">
+            Target page (merge destination)
+          </label>
           <NodeSelector
+            id="merge-target"
             trigger="select"
             value={targetNode?.id ?? null}
             searchMode="pages"

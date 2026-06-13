@@ -411,7 +411,7 @@ export function PageHeader({
       e.preventDefault();
       e.currentTarget.blur();
     }
-  }, [page.name, classPopupOpen]);
+  }, [page.name, page.uuid, classPopupOpen]);
 
   const handleHeaderClick = useCallback((e: React.MouseEvent) => {
     if (e.shiftKey) {
@@ -422,9 +422,9 @@ export function PageHeader({
 
   return (
     <>
-      <header role="button" tabIndex={0} onKeyDown={(e) => { if (e.target !== e.currentTarget) return; if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }} 
-        className="page-header" 
-        onClick={handleHeaderClick} 
+      <header
+        className="page-header"
+        onClickCapture={handleHeaderClick}
         onContextMenu={onContextMenu}
       >
         {/* Title row: Icon + Title */}

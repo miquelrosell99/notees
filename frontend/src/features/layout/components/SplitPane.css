@@ -32,7 +32,7 @@
 .split-pane__resizer {
   flex-shrink: 0;
   background: var(--color-border);
-  transition: background 0.15s ease;
+  transition: background-color var(--motion-duration-shorter) var(--motion-easing-standard);
   z-index: 10;
 }
 

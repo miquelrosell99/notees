@@ -51,6 +51,60 @@
   box-shadow: 0 0 0 2px var(--color-primary-container);
 }
 
+.settings-accent-swatch--custom {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid transparent;
+}
+
+.settings-accent-swatch__icon {
+  font-size: var(--font-size-md);
+  line-height: 1;
+  pointer-events: none;
+}
+
+.settings-accent-custom-input {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  flex-shrink: 0;
+}
+
+.settings-accent-color-picker {
+  width: var(--icon-size-2xl);
+  height: var(--icon-size-2xl);
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.settings-accent-color-picker::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.settings-accent-color-picker::-webkit-color-swatch {
+  border: none;
+  border-radius: 50%;
+}
+
+.settings-accent-color-picker::-moz-color-swatch {
+  border: none;
+  border-radius: 50%;
+}
+
+.settings-accent-hex-input {
+  width: var(--spacing-24);
+  text-transform: uppercase;
+}
+
+.settings-item--indented {
+  padding-left: var(--spacing-4);
+}
+
 /* ==================== About Section ==================== */
 .settings-about__copyright {
   font: var(--font-body-small);

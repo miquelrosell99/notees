@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { NodeViewSection } from '@/features/content/components/nodes/NodeViewSection';
 import { useNavigationStore } from '@/stores';
 import { Button } from '@/components/ui/Button';
@@ -50,7 +50,12 @@ interface QuickAddCommentProps {
 
 function QuickAddComment({ nodeId, onClose }: QuickAddCommentProps) {
   const [text, setText] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
   const createComment = useCreateComment();
+
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
 
   const handleSubmit = () => {
     if (!text.trim()) return;
@@ -78,7 +83,7 @@ function QuickAddComment({ nodeId, onClose }: QuickAddCommentProps) {
         onChange={(e) => setText(e.target.value)}
         onKeyDown={handleKeyDown}
         placeholder="Add a comment..."
-        autoFocus
+        ref={inputRef}
         onBlur={() => { if (!text.trim()) onClose(); }}
         icon={
           <Button aria-label="Send comment"

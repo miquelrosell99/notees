@@ -204,7 +204,7 @@ export function useVirtualizedQuery(
     staleTime: staleTime ?? (viewId > 0 ? 30_000 : 0),
   });
 
-  const allNodes = data?.nodes ?? [];
+  const allNodes = useMemo(() => data?.nodes ?? [], [data?.nodes]);
   const totalCount = data?.total_count ?? null;
   const metrics = data?.metrics ?? null;
 

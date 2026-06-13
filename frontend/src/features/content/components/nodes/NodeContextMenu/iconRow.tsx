@@ -27,11 +27,6 @@ export function IconColorPickerRow({
   const [pickerPos, setPickerPos] = useState({ x: 0, y: 0 });
   const triggerRef = useRef<HTMLButtonElement>(null);
 
-  const handleMouseDown = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    e.preventDefault();
-  };
-
   const handleIconClick = useCallback(() => {
     if (triggerRef.current) {
       const rect = triggerRef.current.getBoundingClientRect();
@@ -67,20 +62,7 @@ export function IconColorPickerRow({
 
   return (
     <div
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          e.currentTarget.click();
-        }
-      }}
       className="context-menu-icon-color-row"
-      onMouseDown={handleMouseDown}
-      onClick={(e) => {
-        e.stopPropagation();
-        e.preventDefault();
-      }}
     >
       <button
         ref={triggerRef}

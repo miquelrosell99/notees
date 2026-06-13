@@ -3,6 +3,13 @@
  * Mirrors the old .block-ui from BlockEditor.css.
  */
 
+
+:root {
+  --features-content-components-blocks-block-ui-margin-right-6: 6px;
+  --features-content-components-blocks-block-ui-width-6: 6px;
+  --features-content-components-blocks-block-ui-height-6: 6px;
+}
+
 .block-ui {
   position: relative;
   display: flex;
@@ -65,7 +72,7 @@
 
 /* Block bullet specific: right margin for spacing from content */
 .block-ui > .bullet-wrapper {
-  margin-right: 6px;
+  margin-right: var(--features-content-components-blocks-block-ui-margin-right-6);
   cursor: grab;
 }
 
@@ -96,7 +103,6 @@
   font-size: var(--presence-avatar-font-size);
   font-weight: 600;
   color: var(--color-on-surface);
-  text-shadow: 0 1px 2px color-mix(in srgb, var(--color-scrim) 60%, transparent);
   line-height: 1;
 }
 
@@ -118,8 +124,8 @@
 }
 
 .block-ui__typing-dot {
-  width: 6px;
-  height: 6px;
+  width: var(--features-content-components-blocks-block-ui-width-6);
+  height: var(--features-content-components-blocks-block-ui-height-6);
   border-radius: 50%;
   animation: typing-pulse 1.2s ease-in-out infinite;
 }

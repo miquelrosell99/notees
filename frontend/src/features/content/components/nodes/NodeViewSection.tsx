@@ -72,8 +72,19 @@ export function NodeViewSection({
   
   return (
     <section className={`node-view-section ${isExpanded ? 'expanded' : 'collapsed'} ${className}`}>
-      <header role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }} className="node-view-section__header" onClick={handleToggle}>
-        <Button 
+      <header
+        role="button"
+        tabIndex={0}
+        className="node-view-section__header"
+        onClick={handleToggle}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            handleToggle();
+          }
+        }}
+      >
+        <Button
           variant="ghost"
           size="xs"
           className="node-view-section__toggle"
@@ -82,7 +93,7 @@ export function NodeViewSection({
         >
           {isExpanded ? <ChevronDownIcon size="xs" /> : <ChevronRightIcon size="xs" />}
         </Button>
-        
+
         <div className="node-view-section__title-area">
           {icon && <span className="node-view-section__icon">{icon}</span>}
           <h3 className="node-view-section__title">{title}</h3>
@@ -90,9 +101,9 @@ export function NodeViewSection({
             <span className="node-view-section__count">({count})</span>
           )}
         </div>
-        
+
         {headerActions && (
-          <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }} className="node-view-section__actions" onClick={e => e.stopPropagation()}>
+          <div className="node-view-section__actions" onClickCapture={e => e.stopPropagation()}>
             {headerActions}
           </div>
         )}

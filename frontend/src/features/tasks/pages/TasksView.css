@@ -2,6 +2,11 @@
  * Tasks View styles
  */
 
+
+:root {
+  --features-tasks-pages-tasks-view-min-height-200: 200px;
+}
+
 .tasks-view {
   max-width: none;
   padding: 0;
@@ -66,7 +71,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 200px;
+  min-height: var(--features-tasks-pages-tasks-view-min-height-200);
 }
 
 .tasks-view__empty {

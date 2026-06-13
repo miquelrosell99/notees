@@ -98,7 +98,7 @@ export function BlockUI({
               key={u.id}
               className="block-ui__presence-avatar"
               title={`${u.name} is here`}
-              style={{ backgroundColor: u.color || '#888' }}
+              style={{ backgroundColor: u.color || 'var(--color-on-surface-variant)' }}
             >
               {u.name.charAt(0).toUpperCase()}
             </span>
@@ -122,7 +122,7 @@ export function BlockUI({
               key={u.id}
               className="block-ui__typing-dot"
               title={`${u.name} is typing…`}
-              style={{ backgroundColor: u.color || '#888' }}
+              style={{ backgroundColor: u.color || 'var(--color-on-surface-variant)' }}
             />
           ))}
         </div>

@@ -25,6 +25,8 @@ export {
   formatDate,
   formatMonth,
   formatYear,
+  isValidHexColor,
+  getContrastColor,
   DATE_FORMAT_OPTIONS,
   FIRST_DAY_OF_WEEK_OPTIONS,
   ACCENT_COLOR_OPTIONS,

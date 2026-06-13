@@ -14,6 +14,7 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { useClickOutside } from '@/hooks/useClickOutside';
 import { useEscapeKey } from '@/hooks/useEscapeKey';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
 import { isAndroidApp } from '@/hooks/useAndroidBridge';
 import './AccountMenu.css';
 import { Icon } from '@/components/ui/icons';
@@ -34,6 +35,13 @@ export function AccountMenu({ onOpenUserSettings, onOpenSystemSettings }: Accoun
   const { setShowWorkspaceManager } = useModalStore();
   const { data: notificationsData } = useNotifications(false);
 
+  // Trap focus inside the account dropdown while it is open and return focus on close
+  useFocusTrap(menuRef, {
+    enabled: isOpen,
+    onEscape: () => setIsOpen(false),
+    restoreFocus: true,
+  });
+
   const unreadCount = notificationsData?.unread_count ?? 0;
   const unreadMentions = (notificationsData?.notifications ?? []).filter(
     (n) => n.type === 'mention' && !n.is_read
@@ -41,9 +49,8 @@ export function AccountMenu({ onOpenUserSettings, onOpenSystemSettings }: Accoun
 
   useClickOutside([triggerRef, menuRef], () => setIsOpen(false), isOpen);
   useEscapeKey(() => {
-    setIsOpen(false);
     setNotificationPanel({ open: false });
-  });
+  }, notificationPanel.open);
 
   // Compute portal position when opened
   const updatePosition = useCallback(() => {

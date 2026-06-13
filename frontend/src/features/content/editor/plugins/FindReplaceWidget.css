@@ -3,8 +3,8 @@
   top: calc(var(--topbar-height, 44px) + 8px);
   right: 8px;
   z-index: 1000;
-  background: var(--surface-elevated, #fff);
-  border: 1px solid var(--border-color, #e5e5e5);
+  background: var(--color-surface-bright);
+  border: 1px solid var(--color-outline-variant);
   border-radius: var(--shape-large);
   box-shadow: none;
   padding: var(--spacing-2);
@@ -23,11 +23,11 @@
 .find-replace-input {
   flex: 1;
   padding: var(--spacing-1) var(--spacing-2);
-  border: 1px solid var(--border-color, #e5e5e5);
+  border: 1px solid var(--color-outline-variant);
   border-radius: var(--shape-small);
   font-size: var(--font-size-button);
-  background: var(--surface-bg, #fff);
-  color: var(--text-primary, #111);
+  background: var(--color-surface);
+  color: var(--color-on-surface);
 }
 
 .find-replace-input:focus {
@@ -37,24 +37,24 @@
 
 .find-replace-count {
   font-size: var(--font-size-sm);
-  color: var(--text-muted, #666);
+  color: var(--color-on-surface-variant);
   min-width: 32px;
   text-align: center;
 }
 
 .find-replace-btn {
   padding: var(--spacing-1) var(--spacing-2);
-  border: 1px solid var(--border-color, #e5e5e5);
+  border: 1px solid var(--color-outline-variant);
   border-radius: var(--shape-small);
-  background: var(--surface-bg, #fff);
-  color: var(--text-primary, #111);
+  background: var(--color-surface);
+  color: var(--color-on-surface);
   font-size: var(--font-size-sm);
   cursor: pointer;
   white-space: nowrap;
 }
 
 .find-replace-btn:hover:not(:disabled) {
-  background: var(--hover-bg, #f5f5f5);
+  background: var(--color-surface-container-high);
 }
 
 .find-replace-btn:disabled {
@@ -64,7 +64,7 @@
 
 .find-replace-btn.active {
   background: var(--accent-color, var(--color-accent));
-  color: var(--color-on-surface);
+  color: var(--color-on-accent);
   border-color: var(--accent-color, var(--color-accent));
 }
 

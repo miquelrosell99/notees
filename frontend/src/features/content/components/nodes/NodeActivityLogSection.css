@@ -3,6 +3,11 @@
  * Uses BlockPreview for consistent list item display
  */
 
+
+:root {
+  --features-content-components-nodes-node-activity-log-section-max-height-300: 300px;
+}
+
 .node-activity-btn {
   display: flex;
   align-items: center;
@@ -23,7 +28,7 @@
 }
 
 .node-activity-list {
-  max-height: 300px;
+  max-height: var(--features-content-components-nodes-node-activity-log-section-max-height-300);
   overflow-y: auto;
 }
 
@@ -82,6 +87,10 @@
   cursor: pointer;
   text-decoration: none;
   font-weight: 500;
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
   border-radius: var(--shape-extra-small);
   transition: background-color var(--motion-duration-short) var(--motion-easing-standard), color var(--motion-duration-short) var(--motion-easing-standard);
 }

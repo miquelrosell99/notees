@@ -36,7 +36,19 @@ export function TabOverflowDropdown({ tabs, activeTabId, onSelect, onClose }: Ta
 
   return (
     <>
-      <div className="tab-overflow-backdrop" onClick={onClose} />
+      <div
+        role="button"
+        tabIndex={-1}
+        aria-label="Close tab list"
+        className="tab-overflow-backdrop"
+        onClick={onClose}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onClose();
+          }
+        }}
+      />
       <div ref={panelRef} className="tab-overflow-dropdown">
         <div className="tab-overflow-dropdown__header">
           <span>Open tabs</span>

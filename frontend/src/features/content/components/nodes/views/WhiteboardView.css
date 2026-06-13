@@ -78,6 +78,11 @@
   outline: none;
 }
 
+.whiteboard-view__canvas:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--color-accent);
+}
+
 /* SVG Overlays (Strokes, Connectors) — scoped to direct children only
    so that icons inside card elements are unaffected. */
 .whiteboard-view__canvas > svg {
@@ -143,6 +148,11 @@
   padding: 0;
   margin: 0;
   overflow: hidden;
+}
+
+.whiteboard-text--editing textarea:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--color-accent);
 }
 
 /* Images */
@@ -485,11 +495,13 @@
   align-items: center;
   justify-content: center;
   min-width: 44px;
-  height: var(--height-md);
+  min-height: 44px;
   padding: 0 var(--spacing-2);
   font: var(--font-label-medium);
   color: var(--color-on-surface-variant);
   cursor: pointer;
+  border: none;
+  background: none;
   border-radius: var(--shape-large);
   transition: background var(--motion-duration-short) var(--motion-easing-standard);
 }
@@ -652,6 +664,11 @@
   background: transparent;
   color: var(--color-on-surface);
   font-size: var(--font-size-base);
+}
+
+.wb-search-bar__input:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--color-accent);
 }
 
 .wb-search-bar__input::placeholder {

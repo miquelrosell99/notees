@@ -2,6 +2,12 @@
  * TriggerPopup styles — unified popup for +, @, #, / triggers.
  */
 
+
+:root {
+  --features-content-editor-plugins-trigger-popup-max-height-400: 400px;
+  --features-content-editor-plugins-trigger-popup-padding-6: 6px;
+}
+
 .trigger-popup {
   width: var(--modal-width-sm);
   max-width: 90vw;
@@ -10,7 +16,7 @@
   border-radius: var(--shape-medium);
   display: flex;
   flex-direction: column;
-  max-height: 400px;
+  max-height: var(--features-content-editor-plugins-trigger-popup-max-height-400);
   overflow: hidden;
   animation: trigger-popup-enter 150ms var(--motion-easing-standard);
   box-shadow: var(--shadow-2);
@@ -85,7 +91,7 @@
   display: inline-flex;
   align-items: center;
   gap: var(--spacing-1);
-  padding: 2px 6px;
+  padding: 2px var(--features-content-editor-plugins-trigger-popup-padding-6);
   background: var(--color-primary-container);
   color: var(--color-on-primary-container);
   border-radius: var(--shape-small);

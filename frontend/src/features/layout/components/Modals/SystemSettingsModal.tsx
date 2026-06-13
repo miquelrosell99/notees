@@ -314,8 +314,9 @@ export function SystemSettingsModal({ isOpen, onClose }: SystemSettingsModalProp
             onChange={(e) => setNewUser({ ...newUser, name: e.target.value })}
           />
           <div className="system-settings__field">
-            <label className="system-settings__field-label">Role</label>
+            <label htmlFor="system-user-role" className="system-settings__field-label">Role</label>
             <Dropdown
+              id="system-user-role"
               options={ROLE_OPTIONS}
               value={newUser.role}
               onChange={(val) => setNewUser({ ...newUser, role: val ?? 'user' })}

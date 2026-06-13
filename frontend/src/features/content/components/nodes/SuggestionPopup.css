@@ -2,6 +2,12 @@
  * Suggestion Popup styles (@ types and # tags)
  */
 
+
+:root {
+  --features-content-components-nodes-suggestion-popup-max-height-320: 320px;
+  --features-content-components-nodes-suggestion-popup-font-size-10: 10px;
+}
+
 .suggestion-popup {
   width: var(--modal-width-xs);
   max-width: 90vw;
@@ -10,7 +16,7 @@
   border-radius: var(--shape-medium);
   display: flex;
   flex-direction: column;
-  max-height: 320px;
+  max-height: var(--features-content-components-nodes-suggestion-popup-max-height-320);
   overflow: hidden;
   animation: suggestion-popup-enter 150ms var(--motion-easing-standard);
 }
@@ -213,7 +219,7 @@
   display: inline-flex;
   align-items: center;
   padding: 1px 5px;
-  font-size: 10px;
+  font-size: var(--features-content-components-nodes-suggestion-popup-font-size-10);
   font-weight: 500;
   line-height: 1.4;
   color: var(--color-on-surface-variant);
@@ -271,7 +277,7 @@
   background: var(--color-surface);
   border: 1px solid var(--color-outline-variant);
   border-radius: 3px;
-  font-size: 10px;
+  font-size: var(--features-content-components-nodes-suggestion-popup-font-size-10);
   font-family: inherit;
 }
 

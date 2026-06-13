@@ -248,7 +248,7 @@
   color: var(--color-on-surface-variant);
   font-size: var(--font-size-button);
   cursor: pointer;
-  transition: all var(--motion-duration-short) var(--motion-easing-standard);
+  transition: background-color var(--motion-duration-short) var(--motion-easing-standard), border-color var(--motion-duration-short) var(--motion-easing-standard), color var(--motion-duration-short) var(--motion-easing-standard);
   position: relative;
 }
 

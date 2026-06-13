@@ -2,6 +2,11 @@
  * SearchBox Component Styles
  */
 
+
+:root {
+  --components-ui-search-box-max-height-400: 400px;
+}
+
 /* ==================== Search Box Container ==================== */
 .search-box {
   position: relative;
@@ -19,7 +24,7 @@
   border: 1px solid var(--color-outline-variant);
   border-radius: var(--shape-medium);
   /* Design system: zero visual noise — no elevation shadows */
-  max-height: 400px;
+  max-height: var(--components-ui-search-box-max-height-400);
   overflow-y: auto;
   z-index: var(--z-dropdown);
 }
@@ -80,16 +85,15 @@
 
 .search-result-item--create {
   color: var(--color-primary);
-  font-weight: 500;
+  font: var(--font-label-large);
 }
 
 .search-result-item--create .result-icon {
-  font-size: 18px;
-  font-weight: 600;
+  font: var(--font-title-large);
 }
 
 .result-icon {
-  font-size: 0.875rem;
+  font: var(--font-body-medium);
   color: var(--color-on-surface-variant);
   flex-shrink: 0;
 }

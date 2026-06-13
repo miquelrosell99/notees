@@ -93,16 +93,12 @@ export function getNodeColorStyles(color: string, isDarkMode: boolean = false): 
   // Light mode: 3-5% opacity works well
   // Dark mode: 4-7% opacity needed for visibility on dark backgrounds
   const tintOpacity = isDarkMode ? 0.06 : 0.04;
-  
-  // Halo (outer gradient) is more transparent
-  const haloOpacity = isDarkMode ? 0.25 : 0.20;
-  
+
   return {
     '--node-color': color,
     '--node-color-rgb': `${r}, ${g}, ${b}`,
     '--node-tint': `rgba(${r}, ${g}, ${b}, ${tintOpacity})`,
     '--node-border-solid': color,
-    '--node-border-halo': `rgba(${r}, ${g}, ${b}, ${haloOpacity})`,
   } as React.CSSProperties;
 }
 

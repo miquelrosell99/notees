@@ -1,6 +1,10 @@
+:root {
+  --features-shares-pages-share-inbox-view-max-width-800: 800px;
+}
+
 .share-inbox-view {
   padding: 3rem 1.5rem 1.5rem;
-  max-width: 800px;
+  max-width: var(--features-shares-pages-share-inbox-view-max-width-800);
   margin: 0 auto;
 }
 

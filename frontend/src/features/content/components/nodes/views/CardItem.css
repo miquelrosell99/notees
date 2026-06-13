@@ -5,6 +5,11 @@
  * Direct port of the old NodeCardView.css adapted for Lexical editors.
  */
 
+
+:root {
+  --features-content-components-nodes-views-card-item-min-height-200: 200px;
+}
+
 /* ─── Individual card — extends Card core component ────────────── */
 
 .node-card.card {
@@ -60,7 +65,7 @@
   grid-column: 1;
   grid-row: 1 / 5;
   height: auto;
-  min-height: 200px;
+  min-height: var(--features-content-components-nodes-views-card-item-min-height-200);
   border-bottom: 1px solid var(--color-outline-variant);
 }
 
@@ -68,7 +73,7 @@
   grid-column: 2;
   grid-row: 1 / 5;
   height: auto;
-  min-height: 200px;
+  min-height: var(--features-content-components-nodes-views-card-item-min-height-200);
   border-bottom: 1px solid var(--color-outline-variant);
 }
 
@@ -424,6 +429,11 @@
   min-height: unset;
 }
 
+.node-card__title-editor .notees-editor-content:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--color-accent);
+}
+
 .node-card__title-editor .notees-editor-placeholder {
   color: var(--color-on-surface-variant);
   opacity: 0.4;
@@ -477,7 +487,9 @@
   flex-shrink: 0;
 }
 
-.node-card:hover .node-card__action-button {
+.node-card:hover .node-card__action-button,
+.node-card:focus-within .node-card__action-button,
+.node-card .node-card__action-button:focus-visible {
   opacity: 1;
 }
 
@@ -534,6 +546,11 @@
   user-select: none;
   -webkit-user-select: none;
   -moz-user-select: none;
+}
+
+.node-card__children-editable:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--color-accent);
 }
 
 /* ─── Colored cards ────────────────────────────────────────────── */
@@ -610,6 +627,8 @@
 }
 
 .node-card:hover .node-card__checkbox,
+.node-card:focus-within .node-card__checkbox,
+.node-card__checkbox:focus-visible,
 .node-card--selected .node-card__checkbox {
   opacity: 1;
   pointer-events: auto;
@@ -621,6 +640,8 @@
 }
 
 .node-card-view--selectable .node-card:hover .node-card__checkbox,
+.node-card-view--selectable .node-card:focus-within .node-card__checkbox,
+.node-card-view--selectable .node-card__checkbox:focus-visible,
 .node-card-view--selectable .node-card--selected .node-card__checkbox {
   opacity: 1;
   pointer-events: auto;
@@ -657,7 +678,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 200px;
+  min-height: var(--features-content-components-nodes-views-card-item-min-height-200);
   border: 2px dashed var(--color-outline-variant);
   background: var(--color-surface-container);
   transition: all var(--motion-duration-medium) var(--motion-easing-standard);

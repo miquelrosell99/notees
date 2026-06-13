@@ -1,3 +1,8 @@
+:root {
+  --features-shares-pages-public-share-view-max-width-400: 400px;
+  --features-shares-pages-public-share-view-max-width-720: 720px;
+}
+
 .public-share-view {
   min-height: 100vh;
   background: var(--color-surface);
@@ -19,7 +24,7 @@
 
 .public-share-view__error {
   text-align: center;
-  max-width: 400px;
+  max-width: var(--features-shares-pages-public-share-view-max-width-400);
 }
 
 .public-share-view__error h1 {
@@ -34,7 +39,7 @@
 }
 
 .public-share-view__header {
-  max-width: 720px;
+  max-width: var(--features-shares-pages-public-share-view-max-width-720);
   margin: 0 auto var(--spacing-4);
   padding-bottom: var(--spacing-4);
   border-bottom: 1px solid var(--color-outline-variant);
@@ -54,7 +59,7 @@
 
 /* Properties Section */
 .public-share-view__properties {
-  max-width: 720px;
+  max-width: var(--features-shares-pages-public-share-view-max-width-720);
   margin: 0 auto var(--spacing-4);
   padding: var(--spacing-3);
   background: var(--color-surface-container-low);
@@ -154,7 +159,7 @@
 }
 
 .public-share-view__content {
-  max-width: 720px;
+  max-width: var(--features-shares-pages-public-share-view-max-width-720);
   margin: 0 auto;
 }
 

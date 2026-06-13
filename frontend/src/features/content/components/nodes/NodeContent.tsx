@@ -490,38 +490,34 @@ export function NodeContent({
       {/* Empty state — full-width clickable placeholder row */}
       {showPlaceholder && (
         <div className="node-content-empty">
-          <div
+          <button
+            type="button"
             className="node-content-placeholder"
             onClick={handleAddBlock}
-            role="button"
-            tabIndex={0}
             title="Click to add a block"
             aria-label="Add block"
-            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleAddBlock(); } }}
           >
             <span className="node-content-placeholder__bullet-wrapper" aria-hidden="true">
               <span className="node-content-placeholder__bullet" />
             </span>
-          </div>
+          </button>
         </div>
       )}
-      
+
       {/* Trailing placeholder — appears below existing blocks */}
       {showTrailingPlaceholder && (
         <div className="node-content-add hover-reveal">
-          <div
+          <button
+            type="button"
             className="node-content-placeholder"
             onClick={handleAddBlock}
-            role="button"
-            tabIndex={0}
             title="Click to add a block"
             aria-label="Add block"
-            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleAddBlock(); } }}
           >
             <span className="node-content-placeholder__bullet-wrapper" aria-hidden="true">
               <span className="node-content-placeholder__bullet" />
             </span>
-          </div>
+          </button>
         </div>
       )}
       

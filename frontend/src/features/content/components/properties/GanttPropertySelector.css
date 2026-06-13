@@ -1,9 +1,15 @@
 /* GanttPropertySelector styles */
 
+
+:root {
+  --features-content-components-properties-gantt-property-selector-min-width-220: 220px;
+  --features-content-components-properties-gantt-property-selector-max-height-420: 420px;
+}
+
 .gantt-property-selector {
   padding: var(--spacing-2);
-  min-width: 220px;
-  max-height: 420px;
+  min-width: var(--features-content-components-properties-gantt-property-selector-min-width-220);
+  max-height: var(--features-content-components-properties-gantt-property-selector-max-height-420);
   overflow-y: auto;
 }
 

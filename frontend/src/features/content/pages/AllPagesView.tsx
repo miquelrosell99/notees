@@ -5,7 +5,7 @@
  */
 import { useCallback } from 'react';
 import { QuerySection } from '@/features/content/components/nodes/QuerySection';
-import { SearchBox } from '@/components/ui/SearchBox';
+import { NodeSearchBox } from '@/features/content/components/nodes/NodeSearchBox';
 import { Button } from '@/components/ui/Button';
 import { useNavigationStore } from '@/stores';
 import { useModalStore } from '@/stores';
@@ -36,7 +36,7 @@ export function AllPagesView({ className = '' }: AllPagesViewProps) {
           <div className="page-header all-pages-view__header">
             <h1 className="page-header__title">All Pages</h1>
             <div className="all-pages-view__search">
-              <SearchBox
+              <NodeSearchBox
                 placeholder="Search pages..."
                 onSelect={handleSearchSelect}
               />

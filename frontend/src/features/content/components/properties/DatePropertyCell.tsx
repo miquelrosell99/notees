@@ -2,7 +2,7 @@ import { useState, useRef, useMemo, useCallback } from 'react';
 import type { Property, Node } from '@/types/api';
 import { useSetNodeProperty, useNode } from '@/hooks';
 import { getOrCreateDaily } from '@/api/nodes';
-import { DatePickerPopup } from '@/components/ui/DatePickerPopup';
+import { DatePickerPopup } from '@/features/content/components/DatePickerPopup';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import './PropertyCell.css';
 
@@ -24,7 +24,7 @@ export function DatePropertyCell({
   editable,
 }: DatePropertyCellProps) {
   const [isPickerOpen, setIsPickerOpen] = useState(false);
-  const cellRef = useRef<HTMLDivElement>(null);
+  const cellRef = useRef<HTMLButtonElement>(null);
   const setPropertyMutation = useSetNodeProperty();
 
   // value is a day-page node ID (number)
@@ -57,9 +57,18 @@ export function DatePropertyCell({
     }
   }, [node.id, property.id, setPropertyMutation]);
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (!editable) return;
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      setIsPickerOpen((prev) => !prev);
+    }
+  };
+
   if (!dayNodeId) {
     return (
-      <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }}
+      <button
+        type="button"
         ref={cellRef}
         className={`property-cell ${editable ? 'property-cell--editable' : ''} property-cell--empty`}
         onClick={async (e) => {
@@ -72,6 +81,8 @@ export function DatePropertyCell({
           }
           setIsPickerOpen((prev) => !prev);
         }}
+        onKeyDown={handleKeyDown}
+        disabled={!editable}
       >
         <span className="property-placeholder">Empty</span>
         {isPickerOpen && (
@@ -82,16 +93,19 @@ export function DatePropertyCell({
             anchorRef={cellRef}
           />
         )}
-      </div>
+      </button>
     );
   }
 
   return (
-    <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }}
+    <button
+      type="button"
       ref={cellRef}
       className={`property-cell property-cell--date ${editable ? 'property-cell--editable' : ''}`}
       onClick={() => editable && setIsPickerOpen((prev) => !prev)}
+      onKeyDown={handleKeyDown}
       title={editable ? 'Click to change date' : undefined}
+      disabled={!editable}
     >
       <span className="property-cell__date-name">{displayName || '...'}</span>
       {isPickerOpen && (
@@ -102,6 +116,6 @@ export function DatePropertyCell({
           anchorRef={cellRef}
         />
       )}
-    </div>
+    </button>
   );
 }

@@ -4,9 +4,14 @@
  * Styles for document view mode - no bullets, no indentation, paragraph-style
  */
 
+
+:root {
+  --features-content-components-nodes-views-document-view-max-width-900: 900px;
+}
+
 .node-document-view {
   width: 100%;
-  max-width: 900px;
+  max-width: var(--features-content-components-nodes-views-document-view-max-width-900);
   margin: 0 auto;
 }
 

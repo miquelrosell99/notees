@@ -11,7 +11,7 @@ import { nodeKeys } from '@/hooks/queryKeys';
 import { useNavigationStore, useModalStore } from '@/stores';
 import { NodeCollection } from '@/features/content/components/nodes/NodeCollection';
 import { NodeCollectionToolbar } from '@/features/content/components/nodes/NodeCollectionToolbar';
-import { SearchBox } from '@/components/ui/SearchBox';
+import { NodeSearchBox } from '@/features/content/components/nodes/NodeSearchBox';
 import { Button } from '@/components/ui/Button';
 import { DataStateView } from '@/components/ui/DataStateView';
 import type { NodeCollectionViewMode } from '@/types/nodeCollection';
@@ -96,7 +96,7 @@ export function PagesView({ initialViewMode }: PagesViewProps) {
             {/* Search — hidden in immersive view modes (graph/timeline) */}
             {viewMode !== 'graph' && viewMode !== 'timeline' && (
               <div className="pages-view__search">
-                <SearchBox
+                <NodeSearchBox
                   placeholder="Search pages..."
                   onSelect={handleSearchSelect}
                 />

@@ -2,6 +2,17 @@
  * NodeBreadcrumbs styles
  */
 
+
+:root {
+  --features-content-components-nodes-node-breadcrumbs-max-width-120: 120px;
+  --features-content-components-nodes-node-breadcrumbs-font-size-10: 10px;
+  --features-content-components-nodes-node-breadcrumbs-max-width-150: 150px;
+  --features-content-components-nodes-node-breadcrumbs-min-width-28: 28px;
+  --features-content-components-nodes-node-breadcrumbs-min-width-160: 160px;
+  --features-content-components-nodes-node-breadcrumbs-max-width-280: 280px;
+  --features-content-components-nodes-node-breadcrumbs-max-height-320: 320px;
+}
+
 .node-breadcrumbs {
   display: flex;
   align-items: center;
@@ -30,7 +41,7 @@
 }
 
 .node-breadcrumbs--compact .node-breadcrumb-name {
-  max-width: 120px;
+  max-width: var(--features-content-components-nodes-node-breadcrumbs-max-width-120);
 }
 
 .node-breadcrumb-item {
@@ -82,12 +93,12 @@
 }
 
 .node-breadcrumb-bullet {
-  font-size: 10px;
+  font-size: var(--features-content-components-nodes-node-breadcrumbs-font-size-10);
   color: var(--color-on-surface-variant);
 }
 
 .node-breadcrumb-name {
-  max-width: 150px;
+  max-width: var(--features-content-components-nodes-node-breadcrumbs-max-width-150);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -120,7 +131,7 @@
 }
 
 .node-breadcrumb-property-icon {
-  font-size: 10px;
+  font-size: var(--features-content-components-nodes-node-breadcrumbs-font-size-10);
   opacity: 0.8;
 }
 
@@ -134,7 +145,7 @@
 .node-breadcrumb-ellipsis {
   font-weight: 600;
   letter-spacing: 1px;
-  min-width: 28px;
+  min-width: var(--features-content-components-nodes-node-breadcrumbs-min-width-28);
   justify-content: center;
 }
 
@@ -151,9 +162,9 @@
 .node-breadcrumbs-popup {
   display: flex;
   flex-direction: column;
-  min-width: 160px;
-  max-width: 280px;
-  max-height: 320px;
+  min-width: var(--features-content-components-nodes-node-breadcrumbs-min-width-160);
+  max-width: var(--features-content-components-nodes-node-breadcrumbs-max-width-280);
+  max-height: var(--features-content-components-nodes-node-breadcrumbs-max-height-320);
   overflow-y: auto;
   background: var(--color-surface-container);
   border: 1px solid var(--color-outline-variant);

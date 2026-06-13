@@ -182,7 +182,7 @@ function NodeBreadcrumbsList({ items, onClick, variant = 'inline', onEditParent,
  * For blocks: stops at the containing page.
  * Uses the closure table for O(1) lookup — a single API call regardless of depth.
  */
-function useAncestorChain(nodeId: number | null, nodeType: 'page' | 'block'): { items: BreadcrumbItem[]; isPending: boolean } {
+function useAncestorChain(nodeId: number | null, _nodeType: 'page' | 'block'): { items: BreadcrumbItem[]; isPending: boolean } {
   const { data: breadcrumbs, isPending } = useBreadcrumbs(nodeId);
 
   const items = useMemo(() => {
@@ -201,7 +201,7 @@ function useAncestorChain(nodeId: number | null, nodeType: 'page' | 'block'): { 
     }
 
     return chain;
-  }, [breadcrumbs, nodeType]);
+  }, [breadcrumbs]);
 
   return { items, isPending: isPending && !!nodeId };
 }
@@ -414,7 +414,7 @@ export function NodeBreadcrumbs({
         },
       },
     ];
-  }, [contextMenuState, handleEditParent, updateNode, invalidateBreadcrumbs]);
+  }, [contextMenuState, breadcrumbs, nodeId, handleEditParent, updateNode, invalidateBreadcrumbs]);
 
   // ─── Splitting for overflow ──────────────────────────────────────────
   const needsCollapse = isOverflowing && breadcrumbs.length > VISIBLE_START + VISIBLE_END;

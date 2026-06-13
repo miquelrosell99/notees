@@ -45,23 +45,14 @@ export function SidebarCardNode({ nodeId, cardType, onClose }: SidebarCardNodePr
 
   const titleText = nodeNameToText(node?.name) || 'Untitled';
 
-  const handleTitleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      handleOpen();
-    }
-  }, [handleOpen]);
-
   const title = (
-    <span
+    <button
+      type="button"
       className="sidebar-card-node__title-link"
       onClick={handleOpen}
-      onKeyDown={handleTitleKeyDown}
-      role="button"
-      tabIndex={0}
     >
       {titleText}
-    </span>
+    </button>
   );
 
   return (

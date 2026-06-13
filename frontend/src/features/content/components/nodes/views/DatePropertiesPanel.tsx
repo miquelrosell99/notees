@@ -10,7 +10,7 @@ import type { Property } from '@/types';
 import { useProperties } from '@/hooks';
 import { Button } from '@/components/ui/Button';
 import { ColorButton } from '@/components/ui/ColorButton';
-import { SearchBox } from '@/components/ui/SearchBox';
+import { NodeSearchBox } from '@/features/content/components/nodes/NodeSearchBox';
 import { getDateLanePalette } from './viewTypes';
 import { Icon } from '@/components/ui/icons';
 
@@ -121,7 +121,7 @@ export function DatePropertiesPanel({
       </div>
       
       <div className="date-properties-panel__add">
-        <SearchBox<Property>
+        <NodeSearchBox<Property>
           placeholder="Search date properties..."
           searchFn={searchProperties}
           filterFn={(prop: Property) => prop.type === 'date' && !existingPropNames.has(prop.name)}

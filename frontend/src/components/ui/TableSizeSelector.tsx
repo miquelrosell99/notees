@@ -102,9 +102,18 @@ export function TableSizeSelector({
     : hintText;
 
   return (
-    <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }} 
+    <div
+      role="button"
+      tabIndex={-1}
+      aria-label="Cancel table size selection"
       className="table-size-selector"
       onClick={handleBackdropClick}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onCancel?.();
+        }
+      }}
     >
       <div className="table-size-selector__content">
         <div 

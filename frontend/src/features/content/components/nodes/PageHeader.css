@@ -5,6 +5,12 @@
  * The two-column layout (with cover image) is handled by NodeView.
  */
 
+
+:root {
+  --features-content-components-nodes-page-header-min-width-32: 32px;
+  --features-content-components-nodes-page-header-min-width-100: 100px;
+}
+
 .page-header {
   margin-bottom: var(--spacing-6);
   padding: var(--spacing-6);
@@ -109,6 +115,11 @@
   field-sizing: content;
 }
 
+.page-title-input:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--color-accent);
+}
+
 .page-title-input--medium {
   font: var(--font-headline-medium);
 }
@@ -137,7 +148,7 @@
   }
 
   .page-icon-btn .page-icon-large {
-    min-width: 32px;
+    min-width: var(--features-content-components-nodes-page-header-min-width-32);
     min-height: var(--height-md);
   }
 
@@ -147,7 +158,7 @@
   }
 
   .page-title-container {
-    min-width: 100px;
+    min-width: var(--features-content-components-nodes-page-header-min-width-100);
   }
 }
 

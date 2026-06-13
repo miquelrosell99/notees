@@ -14,7 +14,7 @@ import { createPortal } from 'react-dom';
 import { Button, type ButtonProps, type ButtonSize, type ButtonVariant } from './Button';
 import { Card } from './Card';
 import { useClickOutside } from '@/hooks/useClickOutside';
-import { useEscapeKey } from '@/hooks/useEscapeKey';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
 import './ButtonWithPanel.css';
 
 export type PanelPosition = 'left' | 'right' | 'top' | 'bottom';
@@ -107,14 +107,13 @@ export function ButtonWithPanel({
   const closePanel = useCallback(() => {
     handleOpenChange(false);
   }, [handleOpenChange]);
-  
-  // Close on escape key
-  useEscapeKey(() => {
-    if (closeOnEscape) {
-      closePanel();
-      buttonRef.current?.focus();
-    }
-  }, isOpen);
+
+  // Trap focus while the panel is open and return focus to the trigger on close
+  useFocusTrap(panelRef, {
+    enabled: isOpen,
+    onEscape: closeOnEscape ? closePanel : undefined,
+    restoreFocus: true,
+  });
 
   // Close on click outside
   useClickOutside([containerRef, panelRef], closePanel, isOpen && closeOnClickOutside);
@@ -276,21 +275,14 @@ export function ButtonWithPanel({
   return (
     <div className={containerClasses} ref={containerRef}>
       {customTrigger ? (
-        <div 
+        <button
+          type="button"
           className={`btn-panel-custom-trigger ${buttonClassName}`}
           onClick={disabled ? undefined : togglePanel}
-          style={{ cursor: disabled ? 'not-allowed' : 'pointer' }}
-          role="button"
-          tabIndex={disabled ? -1 : 0}
-          onKeyDown={(e) => {
-            if (!disabled && (e.key === 'Enter' || e.key === ' ')) {
-              e.preventDefault();
-              togglePanel();
-            }
-          }}
+          disabled={disabled}
         >
           {customTrigger}
-        </div>
+        </button>
       ) : (
         <Button
           ref={buttonRef}

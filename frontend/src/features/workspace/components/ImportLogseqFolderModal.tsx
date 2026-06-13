@@ -131,12 +131,11 @@ export function ImportLogseqFolderModal({ isOpen, onClose }: ImportLogseqFolderM
           <code>journals/</code> subfolders with <code>.md</code> files.
         </p>
 
-        <div
+        <button
+          type="button"
           className={`import-folder__dropzone${folderResult ? ' import-folder__dropzone--valid' : ''}${error ? ' import-folder__dropzone--error' : ''}`}
           onClick={() => fileInputRef.current?.click()}
-          role="button"
-          tabIndex={0}
-          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') fileInputRef.current?.click(); }}
+          disabled={importing}
         >
           <input
             ref={fileInputRef}
@@ -164,7 +163,7 @@ export function ImportLogseqFolderModal({ isOpen, onClose }: ImportLogseqFolderM
               Click to select a Logseq graph folder
             </span>
           )}
-        </div>
+        </button>
 
         {error && <div className="import-folder__error">{error}</div>}
 

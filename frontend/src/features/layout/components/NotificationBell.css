@@ -1,3 +1,8 @@
+:root {
+  --features-layout-components-notification-bell-padding-6: 6px;
+  --features-layout-components-notification-bell-max-height-400: 400px;
+}
+
 .notification-bell {
   position: relative;
 }
@@ -6,7 +11,7 @@
   background: none;
   border: none;
   cursor: pointer;
-  padding: 6px;
+  padding: var(--features-layout-components-notification-bell-padding-6);
   border-radius: var(--shape-medium);
   color: var(--color-text-secondary);
   position: relative;
@@ -35,7 +40,7 @@
   top: calc(100% + 8px);
   right: 0;
   width: var(--modal-width-sm);
-  max-height: 400px;
+  max-height: var(--features-layout-components-notification-bell-max-height-400);
   background: var(--color-surface-elevated);
   border: 1px solid var(--color-border);
   border-radius: var(--shape-large);
@@ -71,10 +76,17 @@
 }
 
 .notification-bell__item {
+  display: block;
+  width: 100%;
   padding: 10px var(--spacing-3);
+  border: none;
+  background: none;
   border-radius: var(--shape-medium);
   cursor: pointer;
-  transition: background 0.15s;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  transition: background-color var(--motion-duration-shorter) var(--motion-easing-standard);
 }
 
 .notification-bell__item:hover {

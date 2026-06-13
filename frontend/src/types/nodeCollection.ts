@@ -8,7 +8,7 @@ import type { Node, Property } from './api';
 import type { NodeView } from './nodeView';
 import type { ReactNode } from 'react';
 import type { ContextMenuItem } from '@/components/ui/ContextMenu';
-import type { SortEntry } from '@/components/ui/Table';
+import type { SortEntry } from '@/features/content/components/nodes/views/NodeTable';
 
 // ==================== GroupBy Options ====================
 

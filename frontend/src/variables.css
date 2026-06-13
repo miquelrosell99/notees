@@ -61,6 +61,7 @@
   --color-surface-dim: #e5e1d9;
   --color-surface-bright: #ffffff;
   --color-surface-container: #faf8f4;
+  --color-surface-container-active: color-mix(in srgb, var(--color-surface-container) 75%, black);
   --color-surface-container-low: #f5f3ef;
   --color-surface-container-high: #eae6df;
   --color-surface-container-highest: #dad6cf;
@@ -82,8 +83,11 @@
   --color-focus-overlay: rgba(0, 0, 0, 0.08);
   --color-pressed-overlay: rgba(0, 0, 0, 0.12);
 
-  /* ==================== Accent (subtle dot indicator) ==================== */
-  --color-accent: #404040;
+  /* ==================== Accent (sage default) ==================== */
+  --color-accent: #5B7D5B;
+  --color-on-accent: #ffffff;
+  --color-accent-hover: color-mix(in srgb, var(--color-accent) 90%, black);
+  --color-accent-active: color-mix(in srgb, var(--color-accent) 80%, black);
   --color-accent-subtle: #737373;
   --color-surface-tint: transparent;
 
@@ -91,7 +95,6 @@
   --graph-node-default: #737373;
   --graph-edge-color: #d4d4d4;
   --graph-bg: transparent;
-  --graph-glow-alpha: 0.06;
 
   /* Graph semantic colors */
   --graph-edge-cooccurrence: #7c3aed;
@@ -129,11 +132,11 @@
   --height-button-md: 36px;
   --height-button-lg: 44px;
 
-  /* Icon-only button targets — tight squares so the icon dominates, not the padding */
-  --button-icon-only-xs: 20px;
-  --button-icon-only-sm: 24px;
-  --button-icon-only-md: 28px;
-  --button-icon-only-lg: 32px;
+  /* Icon-only button targets — minimum 44×44 px for accessible touch */
+  --button-icon-only-xs: 44px;
+  --button-icon-only-sm: 44px;
+  --button-icon-only-md: 48px;
+  --button-icon-only-lg: 48px;
 
   /* ==================== Border Width ==================== */
   --border-width-default: 1px;
@@ -215,6 +218,7 @@
   --shape-button-small: 12px;
   --shape-sheet: 28px;
   --shape-button-compact: 10px;
+  --shape-floating-panel: var(--shape-large);  /* 8px — small floating surfaces (menus, popovers) */
   --shape-full: 9999px;
 
   /* Drag handle token */
@@ -240,6 +244,7 @@
 
   /* ==================== Spacing ==================== */
   --spacing-0: 0;
+  --spacing-micro: 2px;
   --spacing-1: 0.25rem;
   --spacing-2: 0.5rem;
   --spacing-3: 0.75rem;
@@ -247,9 +252,11 @@
   --spacing-5: 1.25rem;
   --spacing-6: 1.5rem;
   --spacing-8: 2rem;
+  --spacing-9: 2.25rem;
   --spacing-10: 2.5rem;
   --spacing-12: 3rem;
   --spacing-16: 4rem;
+  --spacing-24: 6rem;
 
   /* ==================== Z-Index ==================== */
   --z-dropdown: 100;
@@ -326,14 +333,6 @@
   --spacing-0-5: 0.125rem;
   --spacing-1-5: 0.375rem;
   --spacing-7: 1.75rem;
-
-  /* ==================== Tokenized glows ==================== */
-  --glow-primary-soft: 0 0 6px 2px color-mix(in srgb, var(--color-primary) 35%, transparent);
-  --glow-primary-medium: 0 0 4px color-mix(in srgb, var(--color-primary) 35%, transparent);
-  --glow-primary-strong: 0 0 5px color-mix(in srgb, var(--color-primary) 45%, transparent);
-  --glow-primary-hover: 0 0 6px color-mix(in srgb, var(--color-primary) 50%, transparent);
-  --glow-primary-breathe-0: 0 0 4px 1px color-mix(in srgb, var(--color-primary) 22%, transparent);
-  --glow-primary-breathe-50: 0 0 10px 3px color-mix(in srgb, var(--color-primary) 45%, transparent);
 
   /* ==================== Legacy variable aliases ==================== */
   /* These map older/one-off variable names to the canonical design tokens
@@ -480,7 +479,6 @@
   --graph-node-default: #b8b8b8;
   --graph-edge-color: #3a3a3a;
   --graph-bg: transparent;
-  --graph-glow-alpha: 0.08;
 
   /* Graph semantic colors */
   --graph-edge-cooccurrence: #a855f7;
@@ -554,6 +552,37 @@
   --color-on-accent: #ffffff;
 }
 
+[data-accent="custom"] {
+  --color-accent: var(--color-accent-custom, #5B7D5B);
+  --color-on-accent: var(--color-on-accent-custom, #ffffff);
+  --color-accent-subtle: color-mix(in srgb, var(--color-accent) 72%, var(--color-on-accent));
+}
+
+/* ==================== Dark-mode accent overrides ==================== */
+/* Lightened/desaturated accents so primary buttons remain readable on dark surfaces. */
+[data-theme="dark"][data-accent="sage"] {
+  --color-accent: #7FB285;
+  --color-on-accent: #000000;
+}
+
+[data-theme="dark"][data-accent="teal"] {
+  --color-accent: #5DB5A0;
+  --color-on-accent: #000000;
+}
+
+[data-theme="dark"][data-accent="rose"] {
+  --color-accent: #C98A8A;
+  --color-on-accent: #000000;
+}
+
+[data-theme="dark"][data-accent="navy"] {
+  --color-accent: #5B7D9E;
+  --color-on-accent: #000000;
+}
+
+/* OLED inherits the dark accent values above; accent colors are not dimmed further
+   so primary actions stay legible on pure-black surfaces. */
+
 /* ==================== Responsive Breakpoints ==================== */
 :root {
   --breakpoint-mobile: 480px;
@@ -607,8 +636,4 @@
   100% { opacity: 1; transform: scale(1); }
 }
 
-/* Breathe — for active/selected block indicators */
-@keyframes breathe {
-  0%, 100% { opacity: 0.6; }
-  50%       { opacity: 1; }
-}
+

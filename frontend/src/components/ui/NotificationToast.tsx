@@ -73,19 +73,17 @@ function ToastItem({ notification, onDismiss }: ToastItemProps) {
 }
 
 export function NotificationToast({ notifications, onDismiss }: NotificationToastProps) {
-  if (notifications.length === 0) {
-    return null;
-  }
-
   return (
-    <div className="notification-toast-container">
-      {notifications.map((notification) => (
-        <ToastItem
-          key={notification.id}
-          notification={notification}
-          onDismiss={onDismiss}
-        />
-      ))}
+    <div role="status" aria-live="polite" aria-atomic="false">
+      <div className="notification-toast-container">
+        {notifications.map((notification) => (
+          <ToastItem
+            key={notification.id}
+            notification={notification}
+            onDismiss={onDismiss}
+          />
+        ))}
+      </div>
     </div>
   );
 }

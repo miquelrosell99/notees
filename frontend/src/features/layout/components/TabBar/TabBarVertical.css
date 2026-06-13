@@ -1,5 +1,10 @@
 /* TabBarVertical.css */
 
+
+:root {
+  --features-layout-components-tab-bar-tab-bar-vertical-min-height-34: 34px;
+}
+
 .tab-bar-vertical {
   --tab-bar-vertical-width: 42px;
   display: flex;
@@ -33,8 +38,8 @@
   width: 2px;
   background-color: var(--color-primary);
   border-radius: 0 2px 2px 0;
-  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1),
-    height 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: transform var(--motion-duration-short) var(--motion-easing-standard),
+    height var(--motion-duration-short) var(--motion-easing-standard);
   z-index: 2;
   pointer-events: none;
 }
@@ -68,7 +73,7 @@
 
 .tab-bar-vertical__slot .tab-item {
   justify-content: center;
-  min-height: 34px;
+  min-height: var(--features-layout-components-tab-bar-tab-bar-vertical-min-height-34);
   max-width: none;
 }
 

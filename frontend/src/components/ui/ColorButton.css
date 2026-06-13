@@ -5,6 +5,11 @@
  * Has a gap between the color fill and the button border.
  */
 
+
+:root {
+  --components-ui-color-button-gap-6: 6px;
+}
+
 /* Base button - matches Button component styling */
 .color-btn {
   display: inline-flex;
@@ -117,7 +122,7 @@
 
 .color-btn-picker__custom {
   display: flex;
-  gap: 6px;
+  gap: var(--components-ui-color-button-gap-6);
   align-items: center;
   padding-top: var(--spacing-2);
   border-top: 1px solid var(--color-outline-variant);

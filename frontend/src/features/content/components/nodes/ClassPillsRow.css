@@ -1,3 +1,8 @@
+:root {
+  --features-content-components-nodes-class-pills-row-min-width-160: 160px;
+  --features-content-components-nodes-class-pills-row-max-width-260: 260px;
+}
+
 .class-pills-row {
   display: flex;
   align-items: center;
@@ -9,6 +14,14 @@
 
 .class-pills-row__pill {
   flex-shrink: 0;
+}
+
+.class-pills-row__overflow-wrapper {
+  display: inline-flex;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
 }
 
 .class-pills-row__overflow {
@@ -25,14 +38,18 @@
   z-index: 9999;
 }
 
+.class-pills-popup-backdrop:focus-visible {
+  outline: none;
+}
+
 .class-pills-popup {
   background: var(--color-surface);
   border: 1px solid var(--color-outline-variant);
   border-radius: var(--shape-medium);
   box-shadow: var(--elevation-2);
   padding: var(--spacing-2);
-  min-width: 160px;
-  max-width: 260px;
+  min-width: var(--features-content-components-nodes-class-pills-row-min-width-160);
+  max-width: var(--features-content-components-nodes-class-pills-row-max-width-260);
 }
 
 .class-pills-popup__header {
