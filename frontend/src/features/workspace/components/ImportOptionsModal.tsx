@@ -1,4 +1,4 @@
-﻿/**
+/**
  * ImportOptionsModal
  *
  * Unified single-step import modal.
@@ -133,10 +133,21 @@ export function ImportOptionsModal({
   const [folderName, setFolderName] = useState<string | null>(null);
   const [folderParseError, setFolderParseError] = useState<string | null>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
+  const nameInputRef = useRef<HTMLInputElement>(null);
+  const ednTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Modal phase  'preparing' = workspace switch in progress
   type ModalPhase = 'form' | 'preparing' | 'importing' | 'report';
   const [phase, setPhase] = useState<ModalPhase>('form');
+
+  useEffect(() => {
+    if (!isOpen || phase !== 'form') return;
+    if (selectedType === 'json' || selectedType === 'logseq-sqlite' || selectedType === 'markdown') {
+      nameInputRef.current?.focus();
+    } else if (selectedType === 'logseq-edn') {
+      ednTextareaRef.current?.focus();
+    }
+  }, [isOpen, phase, selectedType]);
 
   const workspaceUuidRef = useRef<string | null>(null);
   const pendingParsedRef = useRef<LogseqExport | null>(null);
@@ -402,7 +413,7 @@ export function ImportOptionsModal({
     return false;
   })();
 
-  const handleSubmit = () => {
+  const handleSubmit = useCallback(() => {
     if (!isSubmitEnabled) return;
     setSubmitError(null);
     const trimmedName = name.trim();
@@ -411,7 +422,7 @@ export function ImportOptionsModal({
     } else {
       createMutation.mutate(trimmedName);
     }
-  };
+  }, [isSubmitEnabled, name, selectedType, jsonFile, importMutation, createMutation]);
 
   // Enter anywhere inside the modal = submit (capture phase)
   useEffect(() => {
@@ -579,11 +590,11 @@ export function ImportOptionsModal({
         <div className="import-unified__footer">
           <div className="import-unified__footer-name">
           <TextField
+            ref={nameInputRef}
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="my-notes"
-            autoFocus
             disabled={isPending}
             error={name.length >= 2 && nameCheck?.available === false}
             errorMessage={
@@ -657,12 +668,12 @@ export function ImportOptionsModal({
             <span className="import-unified__section-label">EDN content</span>
             <CodeTextarea
               value={ednContent}
+              ref={ednTextareaRef}
               onChange={setEdnContent}
               placeholder='{:pages-and-blocks [...] :properties {...} :classes {...}}'
               disabled={isPending}
               error={!!parseError}
               valid={!!parsedExport}
-              autoFocus
               minHeight={200}
             />
           </div>
@@ -694,12 +705,11 @@ export function ImportOptionsModal({
         {selectedType === 'logseq-folder' && (
           <div className="import-unified__field-group">
             <span className="import-unified__section-label">Logseq graph folder</span>
-            <div
+            <button
+              type="button"
               className={`import-folder__dropzone${folderResult ? ' import-folder__dropzone--valid' : ''}${folderParseError ? ' import-folder__dropzone--error' : ''}`}
               onClick={() => folderInputRef.current?.click()}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') folderInputRef.current?.click(); }}
+              disabled={isPending}
             >
               <input
                 ref={folderInputRef}
@@ -727,7 +737,7 @@ export function ImportOptionsModal({
                   Click to select a Logseq graph folder
                 </span>
               )}
-            </div>
+            </button>
             {folderParseError && (
               <div className="import-unified__error">
                 <AlertIcon size="sm" />

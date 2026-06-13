@@ -4,6 +4,10 @@
   z-index: 9999;
 }
 
+.tab-overflow-backdrop:focus-visible {
+  outline: none;
+}
+
 .tab-overflow-dropdown {
   position: absolute;
   top: calc(100% + var(--spacing-1));

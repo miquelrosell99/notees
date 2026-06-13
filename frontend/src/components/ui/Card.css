@@ -35,7 +35,11 @@
   background: color-mix(in srgb, var(--color-surface-variant) 30%, transparent);
 }
 
-/* Border radius */
+/* Border radius
+   Use --shape-card (20px) for the default content card radius.
+   For small floating panels that need the previous 8px radius, apply the
+   --shape-floating-panel token via a custom class or use radius="sm" when the
+   design-system mapping is updated. */
 .card--radius-none {
   border-radius: 0;
 }
@@ -45,8 +49,13 @@
   overflow: hidden;
 }
 
+.card--radius-floating {
+  border-radius: var(--shape-floating-panel);
+  overflow: hidden;
+}
+
 .card--radius-md {
-  border-radius: var(--container-radius);
+  border-radius: var(--shape-card);
   overflow: hidden;
 }
 

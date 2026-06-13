@@ -14,6 +14,7 @@ import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
 import { useTodayNote, usePages, useNodeByUuid, useMoveNode, useDeleteNode } from '@/hooks';
 import { useContentSave, flushAllContentSaves } from '@/hooks/useContentSave';
 import { queueContentSave } from '@/hooks/useBlockPersist';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
 import { useSettingsStore } from '@/stores';
 import { generateUUID } from '@/utils/uuid';
 import { SYSTEM_PAGE_UUIDS } from '@/constants/systemProperties';
@@ -35,6 +36,13 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
   const [showDestinationPicker, setShowDestinationPicker] = useState(false);
   const dragOffset = useRef({ x: 0, y: 0 });
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Trap focus inside the scratchpad while it is open and return focus on close
+  useFocusTrap(containerRef, {
+    enabled: isOpen,
+    onEscape: onClose,
+    restoreFocus: true,
+  });
 
   const { quickAddDestination } = useSettingsStore();
   const moveNodeMutation = useMoveNode();
@@ -214,6 +222,7 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
     } else if (isOpen && !position) {
       setPosition({ x: 100, y: 100 });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
   // Close on outside click when not pinned
@@ -234,34 +243,6 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isOpen, isPinned, onClose, anchorRef]);
 
-  // Close on Escape when no block is being edited or selected (pinned prevents closing)
-  useEffect(() => {
-    if (!isOpen || isPinned) return;
-
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
-      if (!containerRef.current) return;
-
-      if (e.defaultPrevented) return;
-
-      const active = document.activeElement;
-
-      const focusInside = active && containerRef.current.contains(active);
-      const noFocus = !active || active === document.body;
-      if (!focusInside && !noFocus) return;
-
-      if (focusInside && (active as HTMLElement).isContentEditable) return;
-      if (containerRef.current.querySelector('.node-block--selected')) return;
-
-      e.preventDefault();
-      e.stopPropagation();
-      onClose();
-    };
-
-    document.addEventListener('keydown', handleEscape);
-    return () => document.removeEventListener('keydown', handleEscape);
-  }, [isOpen, isPinned, onClose]);
-
   const handleTogglePin = useCallback(() => {
     setIsPinned(prev => {
       localStorage.setItem('notees-scratchpad-pinned', String(!prev));
@@ -271,7 +252,7 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
 
   // Dragging handlers
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if (e.target !== e.currentTarget || !position) return;
+    if (!position) return;
     setIsDragging(true);
     dragOffset.current = {
       x: e.clientX - position.x,
@@ -317,8 +298,29 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
       className={`scratchpad ${isDragging ? 'dragging' : ''} ${isPinned ? 'pinned' : ''}`}
       style={{ left: position.x, top: position.y }}
     >
-      <div className="scratchpad-header" onMouseDown={handleMouseDown}>
-        <span className="scratchpad-title">Scratchpad{meaningfulCount > 0 ? ` (${meaningfulCount})` : ''}</span>
+      <div className="scratchpad-header">
+        <button
+          type="button"
+          className="scratchpad-drag-handle"
+          aria-label="Drag to move scratchpad"
+          onMouseDown={handleMouseDown}
+          onKeyDown={(e) => {
+            if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) return;
+            e.preventDefault();
+            setPosition((prev) => {
+              if (!prev) return prev;
+              const step = e.shiftKey ? 50 : 10;
+              const dx = e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0;
+              const dy = e.key === 'ArrowUp' ? -step : e.key === 'ArrowDown' ? step : 0;
+              return {
+                x: Math.max(0, Math.min(window.innerWidth - 360, prev.x + dx)),
+                y: Math.max(0, Math.min(window.innerHeight - 200, prev.y + dy)),
+              };
+            });
+          }}
+        >
+          <span className="scratchpad-title">Scratchpad{meaningfulCount > 0 ? ` (${meaningfulCount})` : ''}</span>
+        </button>
         <div className="scratchpad-actions">
           <Button aria-label="Clear all"
             className="scratchpad-btn"

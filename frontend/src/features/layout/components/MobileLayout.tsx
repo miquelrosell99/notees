@@ -20,6 +20,7 @@
 import { useEffect, useRef } from 'react';
 import { useNavigationStore, useModalStore } from '@/stores';
 import { reportDrawerStateToAndroid } from '@/hooks';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
 import { Button } from '@/components/ui/Button';
 import { Sidebar } from './Sidebar';
 import { MainContent } from './MainContent';
@@ -41,6 +42,14 @@ export function MobileLayout({ currentNodeId }: MobileLayoutProps) {
   const toggleSidebar = useNavigationStore(s => s.toggleSidebar);
   const setScratchpadOpen = useModalStore(s => s.setScratchpadOpen);
   const drawerOpen = !isSidebarCollapsed;
+  const drawerRef = useRef<HTMLElement | null>(null);
+
+  // Trap focus inside the mobile drawer while it is open
+  useFocusTrap(drawerRef, {
+    enabled: drawerOpen,
+    onEscape: toggleSidebar,
+    restoreFocus: true,
+  });
 
   // Keep the Android native back-button handler in sync with drawer state
   useEffect(() => {
@@ -90,19 +99,6 @@ export function MobileLayout({ currentNodeId }: MobileLayoutProps) {
     };
   }, [drawerOpen, toggleSidebar]);
 
-  // Close drawer on Escape key
-  useEffect(() => {
-    if (!drawerOpen) return;
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        toggleSidebar();
-      }
-    };
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
-  }, [drawerOpen, toggleSidebar]);
-
   return (
     <div className="mobile-canvas">
       {/* ── Top bar ── */}
@@ -114,12 +110,14 @@ export function MobileLayout({ currentNodeId }: MobileLayoutProps) {
       </main>
 
       {/* ── Overlay drawer ── */}
-      <div
+      <aside
+        ref={drawerRef}
+        aria-label="Sidebar"
         className={`mobile-drawer${drawerOpen ? ' mobile-drawer--open' : ''}`}
         aria-hidden={!drawerOpen}
       >
         <Sidebar collapsed={false} />
-      </div>
+      </aside>
 
       {/* ── Scrim backdrop ── */}
       {drawerOpen && (

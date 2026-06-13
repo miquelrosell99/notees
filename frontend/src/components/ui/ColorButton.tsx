@@ -230,11 +230,14 @@ export const ColorButton = forwardRef<HTMLButtonElement, ColorButtonProps>(funct
       </button>
 
       {showPicker && isPickerOpen && createPortal(
-        <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }}
+        <div
           ref={pickerRef}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Color picker"
           className="color-btn-picker"
-          onClick={(e) => e.stopPropagation()}
-          onMouseDown={(e) => e.stopPropagation()}
+          onClickCapture={(e) => e.stopPropagation()}
+          onMouseDownCapture={(e) => e.stopPropagation()}
           style={{
             position: 'fixed',
             top: `${pickerPosition.top}px`,

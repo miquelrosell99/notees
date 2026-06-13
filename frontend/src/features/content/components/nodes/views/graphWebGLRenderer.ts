@@ -263,7 +263,7 @@ void main() {
 `;
 
 /**
- * Ring / glow disc fragment — drawn BEFORE nodes so it appears underneath them.
+ * Ring disc fragment — drawn BEFORE nodes so it appears underneath them.
  * Renders a soft filled disc slightly larger than the node, peeking out around
  * the node edge as an outer circle (bullet-style hover/select indicator).
  */
@@ -287,28 +287,6 @@ void main() {
   // Gamma correction — same rationale as NODE_FRAG_SRC.
   float alpha = pow(rawAlpha, 1.0 / 2.2) * v_color.a;
   if (alpha <= 0.01) discard;
-  outColor = vec4(v_color.rgb, alpha);
-}
-`;
-
-/**
- * Glow / halo fragment shader — soft radial falloff for cluster halos.
- * Reuses the same vertex layout as RING but with a softer alpha profile.
- */
-const GLOW_FRAG_SRC = /* glsl */ `#version 300 es
-precision mediump float;
-
-in vec2 v_uv;
-in vec4 v_color;
-out vec4 outColor;
-
-void main() {
-  float d = length(v_uv);
-  float fw = fwidth(d);
-  // Sharp-edged outer circle (bullet-style halo) instead of soft gradient
-  float rawAlpha = 1.0 - smoothstep(1.0 - fw, 1.0 + fw, d);
-  float alpha = pow(rawAlpha, 1.0 / 2.2) * v_color.a;
-  if (alpha <= 0.005) discard;
   outColor = vec4(v_color.rgb, alpha);
 }
 `;
@@ -387,8 +365,6 @@ export interface RendererOptions {
   edgeWidth?: number;
   /** Arrow size in world units. Default: 3.5 */
   arrowSize?: number;
-  /** Node glow radius multiplier. Default: 4.5 */
-  glowRadiusMult?: number;
   /** Minimum node radius on screen in pixels when zoomed out. Default: 3 */
   minNodeRadiusPx?: number;
   /** Cull nodes/edges outside this many world units beyond the viewport. 0 = no culling. */
@@ -599,7 +575,6 @@ export class GraphWebGLRenderer {
   private nodeProg: WebGLProgram | null = null;
   private edgeProg: WebGLProgram | null = null;
   private ringProg: WebGLProgram | null = null;
-  private glowProg: WebGLProgram | null = null;
   private arrowProg: WebGLProgram | null = null;
 
   // --- Node VAO / buffers ---
@@ -626,20 +601,6 @@ export class GraphWebGLRenderer {
   private readonly ringInstData = new Float32Array(NODE_STRIDE * 2); // max 2 rings
   private ringInstCount = 0;
   private ringUniforms: {
-    resolution: WebGLUniformLocation | null;
-    camera:     WebGLUniformLocation | null;
-    zoom:       WebGLUniformLocation | null;
-  } = { resolution: null, camera: null, zoom: null };
-
-  // --- Glow VAO / buffer (cluster halos behind nodes) ---
-  // Reuses NODE_STRIDE layout; one instance per node.
-  private glowVAO: WebGLVertexArrayObject | null = null;
-  private glowQuadBuf: WebGLBuffer | null = null;
-  private glowInstBuf: WebGLBuffer | null = null;
-  private glowInstCapacity = 0;
-  private glowInstData: Float32Array = new Float32Array(0);
-  private glowInstCount = 0;
-  private glowUniforms: {
     resolution: WebGLUniformLocation | null;
     camera:     WebGLUniformLocation | null;
     zoom:       WebGLUniformLocation | null;
@@ -737,7 +698,6 @@ export class GraphWebGLRenderer {
       defaultRadius: opts.defaultRadius ?? 8,
       edgeWidth: opts.edgeWidth ?? 0.8,
       arrowSize: opts.arrowSize ?? 2.2,
-      glowRadiusMult: opts.glowRadiusMult ?? 4.5,
       minNodeRadiusPx: opts.minNodeRadiusPx ?? MIN_NODE_SCREEN_RADIUS_PX,
       cullMargin: opts.cullMargin ?? 150,
       initialCapacity: opts.initialCapacity ?? 512,
@@ -768,7 +728,6 @@ export class GraphWebGLRenderer {
     this.nodeProg = linkProgram(gl, NODE_VERT_SRC, NODE_FRAG_SRC);
     this.edgeProg = linkProgram(gl, EDGE_VERT_SRC, EDGE_FRAG_SRC);
     this.ringProg = linkProgram(gl, RING_VERT_SRC, RING_FRAG_SRC);
-    this.glowProg = linkProgram(gl, RING_VERT_SRC, GLOW_FRAG_SRC);
     this.arrowProg = linkProgram(gl, ARROW_VERT_SRC, ARROW_FRAG_SRC);
 
     // Cache uniform locations once — they never change after linking
@@ -792,11 +751,6 @@ export class GraphWebGLRenderer {
       camera:     gl.getUniformLocation(this.ringProg, 'u_camera'),
       zoom:       gl.getUniformLocation(this.ringProg, 'u_zoom'),
     };
-    this.glowUniforms = {
-      resolution: gl.getUniformLocation(this.glowProg, 'u_resolution'),
-      camera:     gl.getUniformLocation(this.glowProg, 'u_camera'),
-      zoom:       gl.getUniformLocation(this.glowProg, 'u_zoom'),
-    };
     this.arrowUniforms = {
       resolution: gl.getUniformLocation(this.arrowProg, 'u_resolution'),
       camera:     gl.getUniformLocation(this.arrowProg, 'u_camera'),
@@ -808,7 +762,6 @@ export class GraphWebGLRenderer {
     this._initNodeBuffers();
     this._initEdgeBuffers();
     this._initRingBuffers();
-    this._initGlowBuffers();
     this._initArrowBuffers();
     this._initPositionTexture();
     ensureThemeObserver();
@@ -826,7 +779,6 @@ export class GraphWebGLRenderer {
     gl.deleteProgram(this.nodeProg);
     gl.deleteProgram(this.edgeProg);
     gl.deleteProgram(this.ringProg);
-    gl.deleteProgram(this.glowProg);
     gl.deleteProgram(this.arrowProg);
     gl.deleteBuffer(this.nodeQuadBuf);
     gl.deleteBuffer(this.nodeInstBuf);
@@ -834,14 +786,11 @@ export class GraphWebGLRenderer {
     gl.deleteBuffer(this.edgeInstBuf);
     gl.deleteBuffer(this.ringQuadBuf);
     gl.deleteBuffer(this.ringInstBuf);
-    gl.deleteBuffer(this.glowQuadBuf);
-    gl.deleteBuffer(this.glowInstBuf);
     gl.deleteBuffer(this.arrowTriBuf);
     gl.deleteBuffer(this.arrowInstBuf);
     gl.deleteVertexArray(this.nodeVAO);
     gl.deleteVertexArray(this.edgeVAO);
     gl.deleteVertexArray(this.ringVAO);
-    gl.deleteVertexArray(this.glowVAO);
     gl.deleteVertexArray(this.arrowVAO);
     gl.deleteTexture(this.posTex);
 
@@ -887,47 +836,6 @@ export class GraphWebGLRenderer {
     gl.vertexAttribDivisor(aRadius, 1);
 
     // a_color: vec4 at offset 12
-    gl.enableVertexAttribArray(aColor);
-    gl.vertexAttribPointer(aColor, 4, gl.FLOAT, false, STRIDE, 12);
-    gl.vertexAttribDivisor(aColor, 1);
-
-    gl.bindVertexArray(null);
-  }
-
-  private _initGlowBuffers(): void {
-    const gl = this.gl!;
-    this.glowVAO = gl.createVertexArray()!;
-    gl.bindVertexArray(this.glowVAO);
-
-    // Reuse the same unit quad geometry
-    this.glowQuadBuf = gl.createBuffer()!;
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.glowQuadBuf);
-    gl.bufferData(gl.ARRAY_BUFFER, QUAD_VERTS, gl.STATIC_DRAW);
-
-    const aQuad = gl.getAttribLocation(this.glowProg!, 'a_quad');
-    gl.enableVertexAttribArray(aQuad);
-    gl.vertexAttribPointer(aQuad, 2, gl.FLOAT, false, 0, 0);
-
-    // Dynamic instance buffer — NODE_STRIDE layout, one per node
-    this.glowInstCapacity = this.opts.initialCapacity * NODE_STRIDE;
-    this.glowInstData = new Float32Array(this.glowInstCapacity);
-    this.glowInstBuf = gl.createBuffer()!;
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.glowInstBuf);
-    gl.bufferData(gl.ARRAY_BUFFER, this.glowInstData, gl.DYNAMIC_DRAW);
-
-    const STRIDE = NODE_STRIDE * 4;
-    const aPos = gl.getAttribLocation(this.glowProg!, 'a_pos');
-    const aRadius = gl.getAttribLocation(this.glowProg!, 'a_radius');
-    const aColor = gl.getAttribLocation(this.glowProg!, 'a_color');
-
-    gl.enableVertexAttribArray(aPos);
-    gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, STRIDE, 0);
-    gl.vertexAttribDivisor(aPos, 1);
-
-    gl.enableVertexAttribArray(aRadius);
-    gl.vertexAttribPointer(aRadius, 1, gl.FLOAT, false, STRIDE, 8);
-    gl.vertexAttribDivisor(aRadius, 1);
-
     gl.enableVertexAttribArray(aColor);
     gl.vertexAttribPointer(aColor, 4, gl.FLOAT, false, STRIDE, 12);
     gl.vertexAttribDivisor(aColor, 1);
@@ -1216,14 +1124,14 @@ export class GraphWebGLRenderer {
     // Camera is only a uniform — no dirty flag needed, no CPU repack required.
   }
 
-  /** Signal the renderer which node is currently hovered (for glow + dimming). */
+  /** Signal the renderer which node is currently hovered (for ring + dimming). */
   setHoveredNode(id: number): void {
     if (this._hoveredNodeId === id) return;
     this._hoveredNodeId = id;
     this._recomputeHighlighted();
   }
 
-  /** Signal the renderer which node is currently selected (for glow + dimming). */
+  /** Signal the renderer which node is currently selected (for ring + dimming). */
   setSelectedNode(id: number): void {
     if (this._selectedNodeId === id) return;
     this._selectedNodeId = id;
@@ -1466,55 +1374,6 @@ export class GraphWebGLRenderer {
     gl.bufferSubData(gl.ARRAY_BUFFER, 0, this.arrowInstData, 0, count * ARROW_STRIDE);
   }
 
-  /**
-   * Pack glow/halo instances — one large soft disc per node.
-   * Creates Obsidian-like cluster halos by blending where same-colored nodes cluster.
-   */
-  private _packGlowInstances(): void {
-    const n = this.nodeIdOrder.length;
-    const needed = n * NODE_STRIDE;
-
-    if (this.glowInstCapacity < needed) {
-      this.glowInstCapacity = Math.ceil(needed * 1.5);
-      this.glowInstData = new Float32Array(this.glowInstCapacity);
-
-      const gl = this.gl!;
-      gl.bindBuffer(gl.ARRAY_BUFFER, this.glowInstBuf);
-      gl.bufferData(gl.ARRAY_BUFFER, this.glowInstCapacity * 4, gl.DYNAMIC_DRAW);
-    }
-
-    const pos = this.positions;
-    const defaultColor = getCssNodeDefaultColor();
-    const glowMult = this.opts.glowRadiusMult;
-
-    for (let i = 0; i < n; i++) {
-      const id = this.nodeIdOrder[i];
-      const vis = this.nodeVisuals.get(id);
-      const radius = (vis?.radius ?? this.opts.defaultRadius) * glowMult;
-      const color = vis?.color;
-      const def = color ? null : defaultColor;
-
-      const base = i * NODE_STRIDE;
-      this.glowInstData[base    ] = pos[i * 2];
-      this.glowInstData[base + 1] = pos[i * 2 + 1];
-      this.glowInstData[base + 2] = radius;
-      this.glowInstData[base + 3] = color ? color[0] : def![0];
-      this.glowInstData[base + 4] = color ? color[1] : def![1];
-      this.glowInstData[base + 5] = color ? color[2] : def![2];
-      // Read glow alpha from CSS so themes can control intensity
-      const glowAlphaStr = getComputedStyle(document.documentElement)
-        .getPropertyValue('--graph-glow-alpha').trim();
-      const glowAlpha = glowAlphaStr ? parseFloat(glowAlphaStr) : 0.08;
-      this.glowInstData[base + 6] = glowAlpha;
-    }
-
-    this.glowInstCount = n;
-
-    const gl = this.gl!;
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.glowInstBuf);
-    gl.bufferSubData(gl.ARRAY_BUFFER, 0, this.glowInstData, 0, n * NODE_STRIDE);
-  }
-
   // ─── Render ────────────────────────────────────────────────────────────────
 
   /** Draw one frame. Call from requestAnimationFrame callback. */
@@ -1529,7 +1388,7 @@ export class GraphWebGLRenderer {
     }
 
     // ── Position / dim update ──
-    // Upload positions texture + repack node instances + glow instances.
+    // Upload positions texture + repack node instances.
     // Camera movement does NOT reach this path — camera is just a uniform.
     // _dimDirty triggers a repack (no texture upload needed) when hover/select
     // changes so dimming is applied immediately without waiting for new physics.
@@ -1543,10 +1402,6 @@ export class GraphWebGLRenderer {
         }
         this._dimDirty = false;
         this._packNodeInstances();     // O(N): positions + radii + colors + dim per node
-        // Glow disabled — was creating muddy overlapping halos on dense graphs.
-        // Re-enable here and in render() if a subtler effect is desired later.
-        // eslint-disable-next-line no-constant-condition
-        if (false) this._packGlowInstances();
       }
     }
 
@@ -1558,18 +1413,7 @@ export class GraphWebGLRenderer {
     this._camBuf[0] = cx;
     this._camBuf[1] = cy;
 
-    // Glow pass disabled — see _packGlowInstances() comment above.
-    // eslint-disable-next-line no-constant-condition, no-constant-binary-expression
-    if (false && this.glowInstCount > 0 && this.glowVAO && this.positions.length > 0) {
-      gl!.useProgram(this.glowProg);
-      gl!.bindVertexArray(this.glowVAO);
-      gl!.uniform2fv(this.glowUniforms.resolution, this._resBuf);
-      gl!.uniform2fv(this.glowUniforms.camera, this._camBuf);
-      gl!.uniform1f( this.glowUniforms.zoom, zoom);
-      gl!.drawArraysInstanced(gl!.TRIANGLES, 0, 6, this.glowInstCount);
-    }
-
-    // ── Build hover / selection glow rings ────────────────────────────────
+    // ── Build hover / selection rings ────────────────────────────────
     // Written so rings are drawn BEFORE nodes (appear under the main circle).
     this.ringInstCount = 0;
     const rid = this.ringInstData;
@@ -1670,7 +1514,6 @@ export class GraphWebGLRenderer {
       nodeInstCount: this.nodeInstCount,
       edgeInstCount: this.edgeInstCount,
       arrowInstCount: this.arrowInstCount,
-      glowInstCount: this.glowInstCount,
       nodeDataCapacity: this.nodeInstCapacity,
       edgeDataCapacity: this.edgeInstCapacity,
     };

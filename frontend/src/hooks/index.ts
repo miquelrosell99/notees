@@ -49,3 +49,4 @@ export * from './useEffectiveNodePermissions';
 export * from './useDocumentTitle';
 export * from './useFavorites';
 export * from './useRecents';
+export * from './useReducedMotion';

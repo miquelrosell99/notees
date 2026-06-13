@@ -1,10 +1,21 @@
 /* ChartView.css */
 
+
+:root {
+  --features-content-components-nodes-views-chart-view-min-height-400: 400px;
+  --features-content-components-nodes-views-chart-view-padding-6: 6px;
+  --features-content-components-nodes-views-chart-view-padding-10: 10px;
+  --features-content-components-nodes-views-chart-view-min-width-160: 160px;
+  --features-content-components-nodes-views-chart-view-gap-6: 6px;
+  --features-content-components-nodes-views-chart-view-width-10: 10px;
+  --features-content-components-nodes-views-chart-view-height-10: 10px;
+}
+
 .chart-view {
   display: flex;
   flex-direction: column;
   height: 100%;
-  min-height: 400px;
+  min-height: var(--features-content-components-nodes-views-chart-view-min-height-400);
   background: var(--surface);
   border-radius: var(--shape-large);
   overflow: hidden;
@@ -69,14 +80,14 @@
 }
 
 .chart-view__property-dropdown {
-  padding: 6px 10px;
+  padding: var(--features-content-components-nodes-views-chart-view-padding-6) var(--features-content-components-nodes-views-chart-view-padding-10);
   border: 1px solid var(--outline-variant);
   border-radius: var(--shape-medium);
   background: var(--surface-container);
   color: var(--on-surface);
   font-size: 0.85rem;
   cursor: pointer;
-  min-width: 160px;
+  min-width: var(--features-content-components-nodes-views-chart-view-min-width-160);
 }
 
 /* Chart canvas */
@@ -128,13 +139,13 @@
 .chart-view__legend-item {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--features-content-components-nodes-views-chart-view-gap-6);
   font-size: 0.8rem;
 }
 
 .chart-view__legend-color {
-  width: 10px;
-  height: 10px;
+  width: var(--features-content-components-nodes-views-chart-view-width-10);
+  height: var(--features-content-components-nodes-views-chart-view-height-10);
   border-radius: var(--shape-extra-small);
 }
 

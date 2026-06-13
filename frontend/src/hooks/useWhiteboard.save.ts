@@ -25,7 +25,7 @@ export function useWhiteboardSave(
     ];
     const serialized = JSON.stringify(ast);
     mutateRef.current({ id: nodeId, data: { name: serialized } });
-  }, [nodeId]);
+  }, [nodeId, mutateRef, titleRef]);
 
   const saveToBackend = useCallback((newData: WhiteboardData) => {
     latestDataRef.current = newData;

@@ -16,7 +16,11 @@
   font-family: var(--font-family-base);
   font-weight: 500;
   cursor: pointer;
-  transition: all var(--motion-duration-short) var(--motion-easing-standard);
+  transition:
+    background-color var(--motion-duration-short) var(--motion-easing-standard),
+    border-color var(--motion-duration-short) var(--motion-easing-standard),
+    color var(--motion-duration-short) var(--motion-easing-standard),
+    opacity var(--motion-duration-short) var(--motion-easing-standard);
   user-select: none;
   white-space: nowrap;
   text-decoration: none;
@@ -42,7 +46,7 @@
   padding: 0 var(--spacing-1);
   font-size: var(--font-size-xs);
   gap: var(--spacing-1);
-  border-radius: var(--shape-small);
+  border-radius: var(--shape-button-small);
 }
 
 .btn--sm {
@@ -50,7 +54,7 @@
   padding: 0 var(--spacing-2);
   font-size: var(--font-size-sm);
   gap: var(--spacing-1);
-  border-radius: var(--shape-small);
+  border-radius: var(--shape-button-small);
 }
 
 .btn--md {
@@ -58,7 +62,7 @@
   padding: 0 var(--spacing-3);
   font-size: var(--font-size-button);
   gap: var(--spacing-2);
-  border-radius: var(--shape-medium);
+  border-radius: var(--shape-button-large);
 }
 
 .btn--lg {
@@ -66,38 +70,58 @@
   padding: 0 var(--spacing-4);
   font-size: var(--font-size-base);
   gap: var(--spacing-2);
-  border-radius: var(--shape-medium);
+  border-radius: var(--shape-button-large);
+}
+
+/* Compact size — tight radius for dense toolbars/chips */
+.btn--compact {
+  border-radius: var(--shape-button-compact);
 }
 
 /* Icon-only: no text, so no horizontal padding — just a square */
 .btn--icon-only {
   padding: 0;
   aspect-ratio: 1;
-  min-width: unset;
+  min-width: var(--button-min-height);
+  min-height: var(--button-min-height);
+  position: relative;
+}
+
+/* Invisible minimum hit-area overlay so the target stays ≥ 44×44 even if a
+   size-specific rule or override shrinks the visible button. */
+.btn--icon-only::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: max(100%, var(--button-min-height));
+  height: max(100%, var(--button-min-height));
+  pointer-events: auto;
 }
 
 .btn--icon-only.btn--xs {
   height: var(--button-icon-only-xs);
   min-width: var(--button-icon-only-xs);
-  border-radius: var(--shape-small);
+  border-radius: var(--shape-button-small);
 }
 
 .btn--icon-only.btn--sm {
   height: var(--button-icon-only-sm);
   min-width: var(--button-icon-only-sm);
-  border-radius: calc(var(--shape-small) + var(--spacing-1));
+  border-radius: var(--shape-button-small);
 }
 
 .btn--icon-only.btn--md {
   height: var(--button-icon-only-md);
   min-width: var(--button-icon-only-md);
-  border-radius: var(--shape-button-small);
+  border-radius: var(--shape-button-large);
 }
 
 .btn--icon-only.btn--lg {
   height: var(--button-icon-only-lg);
   min-width: var(--button-icon-only-lg);
-  border-radius: var(--shape-button-small);
+  border-radius: var(--shape-button-large);
 }
 
 /* Icon + Text buttons - use grid for proper centering */
@@ -144,7 +168,7 @@
 }
 
 .btn--default.btn--active {
-  background: color-mix(in srgb, var(--color-surface-container) 75%, black);
+  background: var(--color-surface-container-active);
   border-color: var(--color-outline-variant);
   color: var(--color-on-surface);
 }
@@ -163,20 +187,20 @@
 }
 
 .btn--primary:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--color-accent) 90%, black);
-  border-color: color-mix(in srgb, var(--color-accent) 90%, black);
+  background: var(--color-accent-hover);
+  border-color: var(--color-accent-hover);
   color: var(--color-on-accent);
 }
 
 .btn--primary.btn--active {
-  background: color-mix(in srgb, var(--color-accent) 80%, black);
-  border-color: color-mix(in srgb, var(--color-accent) 80%, black);
+  background: var(--color-accent-active);
+  border-color: var(--color-accent-active);
   color: var(--color-on-accent);
 }
 
 .btn--primary:active:not(:disabled) {
-  background: color-mix(in srgb, var(--color-accent) 80%, black);
-  border-color: color-mix(in srgb, var(--color-accent) 80%, black);
+  background: var(--color-accent-active);
+  border-color: var(--color-accent-active);
   color: var(--color-on-accent);
 }
 
@@ -194,7 +218,7 @@
 }
 
 .btn--ghost.btn--active {
-  background: color-mix(in srgb, var(--color-surface-container) 75%, black);
+  background: var(--color-surface-container-active);
   border-color: var(--color-outline-variant);
   color: var(--color-on-surface);
 }
@@ -230,32 +254,9 @@
 /* Active toggle state hover — keep pressed appearance */
 .btn--default.btn--active:hover:not(:disabled),
 .btn--ghost.btn--active:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--color-surface-container) 75%, black);
+  background: var(--color-surface-container-active);
   border-color: var(--color-outline-variant);
   color: var(--color-on-surface);
-}
-
-/* ================================================================
-   ACTIVE GLOW — static or animated halo when active
-   ================================================================ */
-
-/* Static persistent glow ring */
-.btn--glow-static.btn--active {
-  box-shadow: var(--glow-primary-soft);
-}
-
-/* Animated breathing halo */
-.btn--glow-breathe.btn--active {
-  animation: btn-breathe-halo 2.4s ease-in-out infinite;
-}
-
-@keyframes btn-breathe-halo {
-  0%, 100% {
-    box-shadow: var(--glow-primary-breathe-0);
-  }
-  50% {
-    box-shadow: var(--glow-primary-breathe-50);
-  }
 }
 
 /* ==================== States ==================== */

@@ -8,11 +8,15 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: color-mix(in srgb, black 90%, transparent);
+  background: var(--color-scrim);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 10000;
+}
+
+.image-modal-backdrop:focus-visible {
+  outline: none;
 }
 
 .image-modal-actions {

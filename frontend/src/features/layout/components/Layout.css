@@ -2,6 +2,14 @@
  * Layout Component Styles
  */
 
+
+:root {
+  --features-layout-components-layout-min-height-52: 52px;
+  --features-layout-components-layout-min-width-300: 300px;
+  --features-layout-components-layout-max-width-480: 480px;
+  --features-layout-components-layout-max-width-400: 400px;
+}
+
 /* ==================== Main Container ==================== */
 .main-container {
   flex: 1;
@@ -36,7 +44,7 @@
   z-index: 10;
   background: var(--color-surface);
   border-bottom: 1px solid var(--color-outline-variant);
-  min-height: 52px;
+  min-height: var(--features-layout-components-layout-min-height-52);
   box-sizing: border-box;
 }
 
@@ -168,8 +176,8 @@
 .right-container--expanded,
 .right-sidebar--expanded {
   width: var(--right-sidebar-width);
-  min-width: 300px;
-  max-width: 480px;
+  min-width: var(--features-layout-components-layout-min-width-300);
+  max-width: var(--features-layout-components-layout-max-width-480);
   opacity: 1;
   transform: translateX(0);
   pointer-events: auto;
@@ -225,7 +233,7 @@
 
 .empty-state p {
   margin: 0;
-  max-width: 400px;
+  max-width: var(--features-layout-components-layout-max-width-400);
 }
 
 /* ==================== View Descriptions ==================== */

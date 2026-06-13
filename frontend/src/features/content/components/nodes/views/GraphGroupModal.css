@@ -2,6 +2,11 @@
  * GraphGroupModal Styles
  */
 
+
+:root {
+  --features-content-components-nodes-views-graph-group-modal-gap-6: 6px;
+}
+
 .graph-group-modal__content {
   max-height: 80vh;
   overflow-y: auto;
@@ -31,7 +36,7 @@
 .graph-group-modal__color-palette {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--features-content-components-nodes-views-graph-group-modal-gap-6);
   flex-wrap: wrap;
 }
 

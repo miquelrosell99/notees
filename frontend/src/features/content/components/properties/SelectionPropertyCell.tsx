@@ -78,13 +78,24 @@ export function SelectionPropertyCell({
     }
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (!editable) return;
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      setIsPickerOpen((prev) => !prev);
+    }
+  };
+
   // Empty state
   if (resolvedOptions.length === 0) {
     return (
-      <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }}
+      <div
         ref={cellRef}
+        role="button"
+        tabIndex={editable ? 0 : -1}
         className={`property-cell ${editable ? 'property-cell--editable' : ''} property-cell--empty`}
         onClick={() => editable && setIsPickerOpen((prev) => !prev)}
+        onKeyDown={handleKeyDown}
         title={editable ? 'Click to select' : undefined}
       >
         <span className="property-placeholder">Empty</span>
@@ -93,7 +104,8 @@ export function SelectionPropertyCell({
             {options.map(option => {
               const color = option.color || parseIconField(option.icon || '').color || null;
               return (
-                <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }}
+                <button
+                  type="button"
                   key={option.id}
                   className="property-cell__picker-option"
                   onClick={() => handleAddOption(option)}
@@ -102,7 +114,7 @@ export function SelectionPropertyCell({
                     ? <span className="selection-color-dot" style={{ background: color }} />
                     : option.icon && <NodeIcon icon={option.icon} size="xs" />}
                   <span>{option.name}</span>
-                </div>
+                </button>
               );
             })}
           </div>
@@ -143,7 +155,8 @@ export function SelectionPropertyCell({
             .map(option => {
               const color = option.color || parseIconField(option.icon || '').color || null;
               return (
-                <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }}
+                <button
+                  type="button"
                   key={option.id}
                   className="property-cell__picker-option"
                   onClick={() => handleAddOption(option)}
@@ -152,7 +165,7 @@ export function SelectionPropertyCell({
                     ? <span className="selection-color-dot" style={{ background: color }} />
                     : option.icon && <NodeIcon icon={option.icon} size="xs" />}
                   <span>{option.name}</span>
-                </div>
+                </button>
               );
             })}
         </div>

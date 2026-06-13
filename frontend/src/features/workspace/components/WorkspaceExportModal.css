@@ -1,5 +1,11 @@
 /* ── Workspace export modal ───────────────────────────────── */
 
+
+:root {
+  --features-workspace-components-workspace-export-modal-max-width-280: 280px;
+  --features-workspace-components-workspace-export-modal-height-6: 6px;
+}
+
 .workspace-export__body {
   display: flex;
   flex-direction: column;
@@ -56,8 +62,8 @@
 /* Determinate progress bar */
 .workspace-export__progress-track {
   width: 100%;
-  max-width: 280px;
-  height: 6px;
+  max-width: var(--features-workspace-components-workspace-export-modal-max-width-280);
+  height: var(--features-workspace-components-workspace-export-modal-height-6);
   background: var(--color-surface-variant);
   border-radius: var(--shape-full);
   overflow: hidden;

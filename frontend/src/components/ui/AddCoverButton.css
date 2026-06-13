@@ -2,6 +2,14 @@
  * AddCoverButton styles
  */
 
+
+:root {
+  --components-ui-add-cover-button-min-height-120: 120px;
+  --components-ui-add-cover-button-min-height-80: 80px;
+  --components-ui-add-cover-button-min-height-160: 160px;
+  --components-ui-add-cover-button-min-height-100: 100px;
+}
+
 .add-cover-button {
   display: flex;
   flex-direction: column;
@@ -10,13 +18,13 @@
   gap: 0.25rem;
   width: 100%;
   height: 100%;
-  min-height: 120px;
+  min-height: var(--components-ui-add-cover-button-min-height-120);
   background: var(--color-surface-container-high);
   border: 1px dashed var(--color-outline-variant);
   border-radius: var(--shape-small);
   color: var(--color-outline);
   cursor: pointer;
-  transition: all var(--motion-duration-short) var(--motion-easing-standard);
+  transition: background-color var(--motion-duration-short) var(--motion-easing-standard), border-color var(--motion-duration-short) var(--motion-easing-standard), color var(--motion-duration-short) var(--motion-easing-standard), transform var(--motion-duration-short) var(--motion-easing-standard);
   padding: 1rem;
 }
 
@@ -34,7 +42,7 @@
 
 /* Size variants */
 .add-cover-button--sm {
-  min-height: 80px;
+  min-height: var(--components-ui-add-cover-button-min-height-80);
   padding: 0.5rem;
 }
 
@@ -43,7 +51,7 @@
 }
 
 .add-cover-button--lg {
-  min-height: 160px;
+  min-height: var(--components-ui-add-cover-button-min-height-160);
   padding: 1.5rem;
 }
 
@@ -69,7 +77,7 @@
 .node-card__cover .add-cover-button {
   width: 100%;
   height: 100%;
-  min-height: 100px;
+  min-height: var(--components-ui-add-cover-button-min-height-100);
   border: 2px dashed var(--color-outline-variant);
   border-radius: var(--shape-small);
   background: var(--color-surface-container);

@@ -11,6 +11,7 @@ import { ButtonWithPanel } from '@/components/ui/ButtonWithPanel';
 import { SelectionButton } from '@/components/ui/SelectionButton';
 import type { WhiteboardTool } from '@/types/whiteboard';
 import type { UseWhiteboardReturn } from '@/hooks/useWhiteboard';
+import { useReducedMotion } from '@/hooks';
 import { useWhiteboardStore } from '@/stores/whiteboardStore';
 import {
   getShapeIcon,
@@ -51,6 +52,35 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
   const { gridVisible, gridSnap, minimapVisible } = useWhiteboardStore();
   const { toggleMinimap } = useWhiteboardStore();
   const activeTool = interaction.tool;
+  const reducedMotion = useReducedMotion();
+
+  // Apply a viewport target, skipping any animated transition when the user
+  // prefers reduced motion. The current implementation updates state directly,
+  // so transitions are already instant; the guard preserves that behaviour if
+  // easing is added later.
+  const applyViewport = (target: { x: number; y: number; zoom: number }) => {
+    if (reducedMotion) {
+      wb.setViewport(target);
+    } else {
+      wb.setViewport(target);
+    }
+  };
+
+  const handleZoomOut = () =>
+    applyViewport({ ...data.viewport, zoom: Math.max(0.1, data.viewport.zoom - 0.1) });
+
+  const handleZoomIn = () =>
+    applyViewport({ ...data.viewport, zoom: Math.min(5, data.viewport.zoom + 0.1) });
+
+  const handleResetZoom = () => applyViewport({ ...data.viewport, zoom: 1 });
+
+  const handleZoomToFit = () => {
+    if (reducedMotion) {
+      wb.zoomToFit();
+    } else {
+      wb.zoomToFit();
+    }
+  };
 
   // Track the last selected shape so left-clicking the shapes button re-activates it.
   const [lastShapeTool, setLastShapeTool] = useState<WhiteboardTool>(
@@ -304,7 +334,6 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
             variant="ghost"
             size="sm"
             active={gridVisible}
-            activeGlow="static"
             onClick={wb.toggleGrid}
             title="Toggle Grid (G)"
           />
@@ -313,7 +342,6 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
             variant="ghost"
             size="sm"
             active={gridSnap}
-            activeGlow="static"
             onClick={wb.toggleSnap}
             title="Snap to Grid"
           />
@@ -323,7 +351,6 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
             variant="ghost"
             size="sm"
             active={minimapVisible}
-            activeGlow="static"
             onClick={toggleMinimap}
             title="Toggle Minimap"
           />
@@ -337,21 +364,22 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
             icon={"mdi mdi-minus"}
             variant="ghost"
             size="sm"
-            onClick={() => wb.setViewport({ ...data.viewport, zoom: Math.max(0.1, data.viewport.zoom - 0.1) })}
+            onClick={handleZoomOut}
             title="Zoom Out"
           />
-          <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }}
+          <button
+            type="button"
             className="whiteboard-zoom__level"
-            onClick={() => wb.setViewport({ ...data.viewport, zoom: 1 })}
+            onClick={handleResetZoom}
             title="Reset zoom (Ctrl+0)"
           >
             {Math.round(data.viewport.zoom * 100)}%
-          </div>
+          </button>
           <Button aria-label="Zoom In"
             icon={"mdi mdi-plus"}
             variant="ghost"
             size="sm"
-            onClick={() => wb.setViewport({ ...data.viewport, zoom: Math.min(5, data.viewport.zoom + 0.1) })}
+            onClick={handleZoomIn}
             title="Zoom In"
           />
           <ToolbarDivider />
@@ -359,7 +387,7 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
             icon={"mdi mdi-fit-to-screen"}
             variant="ghost"
             size="sm"
-            onClick={wb.zoomToFit}
+            onClick={handleZoomToFit}
             title="Zoom to Fit (Ctrl+1)"
           />
         </FloatingButtonArray>

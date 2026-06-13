@@ -1,6 +1,10 @@
+:root {
+  --features-shares-pages-shares-view-max-width-960: 960px;
+}
+
 .shares-view {
   padding: var(--spacing-12) var(--spacing-6) var(--spacing-6);
-  max-width: 960px;
+  max-width: var(--features-shares-pages-shares-view-max-width-960);
   margin: 0 auto;
 }
 

@@ -2,9 +2,14 @@
  * TableView styles.
  */
 
+
+:root {
+  --features-content-components-nodes-views-table-view-max-width-1200: 1200px;
+}
+
 .node-block-table-view {
   width: 100%;
-  max-width: 1200px;
+  max-width: var(--features-content-components-nodes-views-table-view-max-width-1200);
   margin: 0 auto;
   overflow-x: auto;
   padding: var(--spacing-1) 0;

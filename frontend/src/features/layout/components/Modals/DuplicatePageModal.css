@@ -2,6 +2,11 @@
  * DuplicatePageModal Styles
  */
 
+
+:root {
+  --features-layout-components-modals-duplicate-page-modal-max-height-240: 240px;
+}
+
 .duplicate-page-modal {
   display: flex;
   flex-direction: column;
@@ -38,7 +43,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--spacing-1);
-  max-height: 240px;
+  max-height: var(--features-layout-components-modals-duplicate-page-modal-max-height-240);
   overflow-y: auto;
   border: 1px solid var(--color-outline-variant);
   border-radius: var(--radius-sm);

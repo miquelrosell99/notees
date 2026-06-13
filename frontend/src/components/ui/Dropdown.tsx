@@ -72,6 +72,8 @@ export interface DropdownProps<T = string> {
   emptyContent?: ReactNode;
   /** Additional className */
   className?: string;
+  /** ID for the container, used for label association */
+  id?: string;
 }
 
 /**
@@ -97,6 +99,7 @@ export function Dropdown<T = string>({
   footer,
   emptyContent = 'No options',
   className = '',
+  id,
 }: DropdownProps<T>) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -204,13 +207,13 @@ export function Dropdown<T = string>({
     .join(' ');
 
   return (
-    <div className="dropdown-container">
+    <div id={id} className="dropdown-container">
       <div className={containerClasses} ref={containerRef}>
         {/* Trigger */}
         {renderTrigger ? (
-          <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }} onClick={handleToggle}>
+          <button type="button" className="dropdown-custom-trigger" onClick={handleToggle}>
             {renderTrigger({ isOpen, selectedLabel })}
-          </div>
+          </button>
         ) : (
           <SelectTrigger
             isOpen={isOpen}

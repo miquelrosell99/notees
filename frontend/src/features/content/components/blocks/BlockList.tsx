@@ -372,6 +372,7 @@ export function BlockList({
     scrollElementRef.current = null;
   }, []);
 
+  // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Virtual's `useVirtualizer()` API returns non-memoized functions by design.
   const virtualizer = useVirtualizer({
     count: flatNodes.length,
     getScrollElement: () => scrollElementRef.current,

@@ -4,6 +4,13 @@
  * Button-style multi-option selector with animated indicator
  */
 
+
+:root {
+  --components-ui-selection-button-min-width-160: 160px;
+  --components-ui-selection-button-padding-6: 6px;
+  --components-ui-selection-button-padding-10: 10px;
+}
+
 .selection-button {
   position: relative;
   display: inline-flex;
@@ -120,7 +127,7 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
-  min-width: 160px;
+  min-width: var(--components-ui-selection-button-min-width-160);
   padding: var(--spacing-1);
   background: var(--color-surface);
   border: 1px solid var(--color-outline-variant);
@@ -133,12 +140,12 @@
   align-items: center;
   gap: var(--spacing-2);
   width: 100%;
-  padding: 6px 10px;
+  padding: var(--components-ui-selection-button-padding-6) var(--components-ui-selection-button-padding-10);
   border: none;
   border-radius: var(--shape-small);
   background: transparent;
   color: var(--color-on-surface);
-  font-size: 0.875rem;
+  font: var(--font-label-large);
   cursor: pointer;
   text-align: left;
   transition: background var(--motion-duration-short) var(--motion-easing-standard);
@@ -222,21 +229,21 @@
 }
 
 .selection-button__label {
-  font-size: 0.875rem;
+  font: var(--font-label-large);
   color: var(--color-on-surface);
   user-select: none;
 }
 
 .selection-button__description {
-  font-size: 0.75rem;
+  font: var(--font-body-small);
   color: var(--color-on-surface-variant);
 }
 
 /* Size-specific label adjustments */
 .selection-button__wrapper--sm .selection-button__label {
-  font-size: 0.75rem;
+  font: var(--font-label-medium);
 }
 
 .selection-button__wrapper--lg .selection-button__label {
-  font-size: 1rem;
+  font: var(--font-title-medium);
 }

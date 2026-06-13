@@ -87,7 +87,7 @@ export function AssetUploadModal({
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
 
-  const validateFile = (file: File): string | null => {
+  const validateFile = useCallback((file: File): string | null => {
     if (!isSupportedAssetType(file.type)) {
       return 'Unsupported file type.';
     }
@@ -101,7 +101,7 @@ export function AssetUploadModal({
       return `File too large. Maximum size is ${MAX_ASSET_SIZE / (1024 * 1024)}MB.`;
     }
     return null;
-  };
+  }, [acceptedTypes]);
 
   const handleFile = useCallback((file: File) => {
     const validationError = validateFile(file);
@@ -122,7 +122,7 @@ export function AssetUploadModal({
       setPreview(e.target?.result as string);
     };
     reader.readAsDataURL(file);
-  }, [acceptedTypes]);
+  }, [validateFile]);
 
   // Handle initial file (e.g. from paste)
   useEffect(() => {

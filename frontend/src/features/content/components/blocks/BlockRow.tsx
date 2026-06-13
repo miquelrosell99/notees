@@ -359,21 +359,14 @@ export const BlockRow = memo(
         nodeUuid={nodeUuid}
       />
     ) : (
-      <div
+      <button
+        type="button"
         className="block-row__content-fallback"
         onClick={() => setIsInViewport(true)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            setIsInViewport(true);
-          }
-        }}
-        role="button"
-        tabIndex={0}
         aria-label="Load editor"
       >
         {plainTextFallback || '\u00A0'}
-      </div>
+      </button>
     );
 
     return (
@@ -388,13 +381,12 @@ export const BlockRow = memo(
         onMouseLeave={() => setIsHovered(false)}
       >
         {depth > 0 && (
-          <div
+          <button
+            type="button"
             className="block-thread-line"
             onClick={handleThreadLineClick}
-            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleThreadLineClick(e as unknown as React.MouseEvent); } }}
-            role="button"
-            tabIndex={0}
             title="Collapse/expand all children"
+            aria-label="Collapse/expand all children"
           />
         )}
         <div className="block-row__left">

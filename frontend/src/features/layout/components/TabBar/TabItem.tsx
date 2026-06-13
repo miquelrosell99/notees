@@ -51,8 +51,7 @@ export function TabItem({
   index,
 }: TabItemProps) {
   const [contextMenuOpen, setContextMenuOpen] = useState(false);
-  const [showClose, setShowClose] = useState(false);
-  const tabRef = useRef<HTMLDivElement>(null);
+  const tabRef = useRef<HTMLButtonElement>(null);
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -69,31 +68,34 @@ export function TabItem({
 
   return (
     <>
-      <div
-        ref={tabRef}
-        className={`tab-item ${isActive ? 'tab-item--active' : ''} ${isSecondary ? 'tab-item--secondary' : ''} ${tab.pinned ? 'tab-item--pinned' : ''}`}
-        onClick={onActivate}
-        onContextMenu={handleContextMenu}
-        onMouseDown={handleMouseDown}
-        onMouseEnter={() => setShowClose(true)}
-        onMouseLeave={() => setShowClose(false)}
-        draggable
-        onDragStart={(e) => onDragStart(e, tab.id)}
-        onDragOver={(e) => onDragOver(e, tab.id, index)}
-        onDrop={(e) => onDrop(e, tab.id, index)}
-        title={tab.label}
-        data-tab-id={tab.id}
-      >
-        {tab.color && (
-          <span className="tab-item__color-indicator" style={{ backgroundColor: tab.color }} />
-        )}
-        {tab.icon && (
-          <Icon path={tab.icon} size={0.75} className="tab-item__icon" />
-        )}
-        {!tab.pinned && (
-          <span className="tab-item__label">{tab.label}</span>
-        )}
-        {canClose && (showClose || isActive) && !tab.pinned && (
+      <div className="tab-item-wrapper">
+        <button
+          ref={tabRef}
+          type="button"
+          role="tab"
+          aria-selected={isActive}
+          className={`tab-item ${isActive ? 'tab-item--active' : ''} ${isSecondary ? 'tab-item--secondary' : ''} ${tab.pinned ? 'tab-item--pinned' : ''}`}
+          onClick={onActivate}
+          onContextMenu={handleContextMenu}
+          onMouseDown={handleMouseDown}
+          draggable
+          onDragStart={(e) => onDragStart(e, tab.id)}
+          onDragOver={(e) => onDragOver(e, tab.id, index)}
+          onDrop={(e) => onDrop(e, tab.id, index)}
+          title={tab.label}
+          data-tab-id={tab.id}
+        >
+          {tab.color && (
+            <span className="tab-item__color-indicator" style={{ backgroundColor: tab.color }} />
+          )}
+          {tab.icon && (
+            <Icon path={tab.icon} size={0.75} className="tab-item__icon" />
+          )}
+          {!tab.pinned && (
+            <span className="tab-item__label">{tab.label}</span>
+          )}
+        </button>
+        {canClose && !tab.pinned && (
           <Button aria-label="Close tab"
             variant="ghost"
             size="xs"

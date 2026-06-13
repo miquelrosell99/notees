@@ -1,5 +1,10 @@
 /* LoadingScreen — centered loading overlay */
 
+
+:root {
+  --components-ui-loading-screen-min-height-200: 200px;
+}
+
 .loading-screen {
   display: flex;
   align-items: center;
@@ -14,7 +19,7 @@
 
 .loading-screen--inline {
   height: 100%;
-  min-height: 200px;
+  min-height: var(--components-ui-loading-screen-min-height-200);
 }
 
 .loading-screen__content {

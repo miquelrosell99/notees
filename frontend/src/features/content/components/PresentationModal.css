@@ -1,10 +1,14 @@
+:root {
+  --features-content-components-presentation-modal-max-width-960: 960px;
+}
+
 .presentation-modal-backdrop {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background: color-mix(in srgb, black 92%, transparent);
+  background: var(--color-scrim);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -37,7 +41,7 @@
 
 .presentation-modal-slide {
   width: 90vw;
-  max-width: 960px;
+  max-width: var(--features-content-components-presentation-modal-max-width-960);
   max-height: 90vh;
   display: flex;
   flex-direction: column;

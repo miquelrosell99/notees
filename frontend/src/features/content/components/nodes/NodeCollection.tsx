@@ -34,7 +34,7 @@ import type {
 } from '@/types/nodeCollection';
 import type { Property } from '@/types';
 import { DEFAULT_VIEW_MODES_ORDER } from '@/constants/viewModes';
-import type { SortEntry } from '@/components/ui/Table';
+import type { SortEntry } from '@/features/content/components/nodes/views/NodeTable';
 import { sortNodesByEntries } from '@/utils/nodeSort';
 import { getViewDefinition } from './views';
 import { NodeCollectionToolbar } from './NodeCollectionToolbar';

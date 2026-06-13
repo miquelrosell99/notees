@@ -1,10 +1,17 @@
 /* GraphViewLocal - Sidebar local graph */
 
+
+:root {
+  --features-sidebar-components-sidebar-local-graph-min-height-180: 180px;
+  --features-sidebar-components-sidebar-local-graph-max-width-140: 140px;
+  --features-sidebar-components-sidebar-local-graph-min-height-150: 150px;
+}
+
 .graph-view-local {
   display: flex;
   flex-direction: column;
   height: 100%;
-  min-height: 180px;
+  min-height: var(--features-sidebar-components-sidebar-local-graph-min-height-180);
 }
 
 .graph-view-local__info {
@@ -22,7 +29,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: 140px;
+  max-width: var(--features-sidebar-components-sidebar-local-graph-max-width-140);
 }
 
 .graph-view-local__stats {
@@ -32,7 +39,7 @@
 
 .graph-view-local__content {
   flex: 1;
-  min-height: 150px;
+  min-height: var(--features-sidebar-components-sidebar-local-graph-min-height-150);
 }
 
 .graph-view-local__graph {
@@ -46,7 +53,7 @@
   align-items: center;
   justify-content: center;
   height: 100%;
-  min-height: 180px;
+  min-height: var(--features-sidebar-components-sidebar-local-graph-min-height-180);
   color: var(--color-on-surface-variant);
   font-size: var(--font-size-button);
 }

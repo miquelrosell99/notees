@@ -1,8 +1,11 @@
 /**
- * Table Component
- * 
- * A flexible table component with sorting, selection, and styling options.
- * 
+ * NodeTable Component
+ *
+ * A flexible table component for node collections with sorting, selection, and
+ * styling options. Domain-aware wrapper around a generic table shell: it knows
+ * how to render Node cells with breadcrumbs, page/block icons, and navigation
+ * actions.
+ *
  * Features:
  * - Configurable columns with custom renderers
  * - Row selection (single/multi)
@@ -21,9 +24,9 @@ import { NodeNameContent } from '@/features/content/components/blocks/NodeNameCo
 import { NodeCellEditable } from '@/features/content/components/nodes/NodeCellEditable';
 import { NodeBreadcrumbs } from '@/features/content/components/nodes/NodeBreadcrumbs';
 import { Icon, PageIcon } from '@/components/ui/icons';
-import { Checkbox } from './Checkbox';
-import { Button } from './Button';
-import './Table.css';
+import { Checkbox } from '@/components/ui/Checkbox';
+import { Button } from '@/components/ui/Button';
+import './NodeTable.css';
 
 export type TableSize = 'sm' | 'md' | 'lg';
 export type TableVariant = 'default' | 'striped' | 'bordered';
@@ -93,7 +96,7 @@ export interface ReorderableConfig {
   renderDragHandle?: () => ReactNode;
 }
 
-export interface TableProps<T> {
+export interface NodeTableProps<T> {
   /** Array of data items */
   data: T[];
   /** Column definitions */
@@ -175,10 +178,10 @@ const DefaultDragHandle = () => (
 );
 
 /**
- * Table component for displaying tabular data.
+ * NodeTable component for displaying tabular node data.
  * Supports sorting, selection, expandable rows, and drag-and-drop reordering.
  */
-export function Table<T>({
+export function NodeTable<T>({
   data,
   columns,
   getRowKey,
@@ -212,12 +215,12 @@ export function Table<T>({
   onSortChange,
   virtualized = false,
   virtualizedRowHeight = 48,
-}: TableProps<T>) {
+}: NodeTableProps<T>) {
   // User-selected sort columns. Empty means fall back to defaultSort.
   const [internalUserSortColumns, setInternalUserSortColumns] = useState<SortEntry[]>([]);
   const isControlledSort = sort !== undefined;
 
-  // Reset internal user sorts when defaultSort changes (e.g., view/column changes)
+  // Reset internal user sorts when defaultSort changes (e.g. view/column changes)
   useEffect(() => {
     if (!isControlledSort) {
       setInternalUserSortColumns([]);
@@ -226,17 +229,20 @@ export function Table<T>({
 
   // Effective sort: controlled prop takes precedence, then internal state, then default
   const userSortColumns = isControlledSort ? sort : internalUserSortColumns;
-  const sortColumns = userSortColumns.length > 0 ? userSortColumns : (defaultSort ?? []);
-  
+  const sortColumns = useMemo(
+    () => (userSortColumns.length > 0 ? userSortColumns : (defaultSort ?? [])),
+    [userSortColumns, defaultSort]
+  );
+
   // Internal expanded state (when uncontrolled) - currently only controlled mode is supported
   // since no internal toggle UI exists
   const [internalExpandedKeys, _setInternalExpandedKeys] = useState<Set<string | number>>(new Set());
   const expandedKeys = controlledExpandedKeys ?? internalExpandedKeys;
-  
+
   // Suppress unused variable warnings for expansion control (kept for API compatibility)
   void _onExpandedChange;
   void _setInternalExpandedKeys;
-  
+
   // Drag state for reorderable rows
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [dropTargetIndex, setDropTargetIndex] = useState<number | null>(null);
@@ -249,14 +255,14 @@ export function Table<T>({
 
     const computeNextSort = (prev: SortEntry[]): SortEntry[] => {
       const existingIndex = prev.findIndex(s => s.key === column.key);
-      
+
       if (existingIndex === -1) {
         // Column not in sort list - add it with ascending
         return [...prev, { key: column.key, direction: 'asc' as const }];
       }
-      
+
       const existing = prev[existingIndex];
-      
+
       if (existing.direction === 'asc') {
         // Currently ascending - toggle to descending
         const updated = [...prev];
@@ -307,7 +313,7 @@ export function Table<T>({
 
     // Check if all keys are selected
     const allKeysSelected = allKeys.length > 0 && allKeys.every(key => selectedKeys?.has(key));
-    
+
     if (allKeysSelected) {
       onSelectionChange(new Set());
     } else {
@@ -359,7 +365,7 @@ export function Table<T>({
     const handleMouseMove = (e: MouseEvent) => {
       const tbody = container.querySelector('.table-body');
       if (!tbody) return;
-      
+
       const tbodyRect = tbody.getBoundingClientRect();
       const mouseY = e.clientY - tbodyRect.top;
       const rowHeight = rowHeightRef.current;
@@ -392,7 +398,7 @@ export function Table<T>({
         for (const sortEntry of sortColumns) {
           const column = columns.find(c => c.key === sortEntry.key);
           if (!column) continue;
-          
+
           let comparison: number;
           if (column.sortFn) {
             comparison = column.sortFn(a, b);
@@ -402,7 +408,7 @@ export function Table<T>({
             const bVal = String(column.accessor(b) ?? '');
             comparison = aVal.localeCompare(bVal);
           }
-          
+
           if (comparison !== 0) {
             return sortEntry.direction === 'asc' ? comparison : -comparison;
           }
@@ -415,6 +421,7 @@ export function Table<T>({
 
   // Virtualization only works for flat tables (no expandable rows, no reordering)
   const isVirtualized = virtualized && !expandable && !reorderable;
+  // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Virtual's `useVirtualizer()` API returns non-memoized functions by design.
   const virtualizer = useVirtualizer({
     count: isVirtualized ? sortedData.length : 0,
     getScrollElement: () => containerRef.current,
@@ -436,14 +443,14 @@ export function Table<T>({
     });
     return keys;
   };
-  
+
   const allKeys = computeAllKeys(data);
   const allSelected = allKeys.length > 0 && allKeys.every(key => selectedKeys?.has(key));
   const someSelected = allKeys.some(key => selectedKeys?.has(key)) && !allSelected;
 
   // Calculate colspan for loading/empty states
-  const extraColumns = 
-    (selectable ? 1 : 0) + 
+  const extraColumns =
+    (selectable ? 1 : 0) +
     (expandable ? 1 : 0);
 
   const containerClasses = [
@@ -472,7 +479,7 @@ export function Table<T>({
     const isExpanded = expandedKeys.has(key);
     const isDragging = dragIndex === index && currentDepth === depth;
     const isDropTarget = dropTargetIndex === index && dragIndex !== null && dragIndex !== index && currentDepth === depth;
-    
+
     // Check if row has children and can be expanded
     const children = expandable?.getChildren(row) ?? [];
     const maxDepth = expandable?.maxDepth ?? Infinity;
@@ -498,16 +505,17 @@ export function Table<T>({
         >
           {/* Drag handle - positioned element to the left of row */}
           {reorderable && currentDepth === depth && (
-            <div role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }}
+            <button
+              type="button"
               className="table-drag-handle hover-reveal"
               onMouseDown={(e) => handleDragStart(index, e)}
               onClick={(e) => e.stopPropagation()}
-              title="Drag to reorder"
+              aria-label="Drag to reorder"
             >
               {reorderable.renderDragHandle?.() ?? <DefaultDragHandle />}
-            </div>
+            </button>
           )}
-          
+
           {/* Checkbox column */}
           {selectable && (
             <td className="table-cell table-cell--checkbox" onClick={(e) => e.stopPropagation()}>
@@ -518,12 +526,12 @@ export function Table<T>({
               />
             </td>
           )}
-          
+
           {/* Data columns */}
           {columns.map((column) => {
             const cellValue = column.accessor(row);
             const shouldRenderNodeCell = column.renderNodeCell !== false && isNode(cellValue);
-            
+
             return (
               <td
                 key={column.key}
@@ -541,6 +549,7 @@ export function Table<T>({
                       <NodeCellEditable node={cellValue as unknown as Node} />
                     ) : (
                       <div className="table-node-cell__name">
+                        {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- Wrapper solely prevents row selection when interacting with breadcrumbs; no semantic action. */}
                         <div onClick={(e) => e.stopPropagation()}>
                           <NodeBreadcrumbs
                             nodeId={(cellValue as unknown as Node).id}
@@ -593,9 +602,9 @@ export function Table<T>({
             );
           })}
         </tr>
-        
+
         {/* Render children if expanded */}
-        {shouldShowChildren && children.map((child, childIndex) => 
+        {shouldShowChildren && children.map((child, childIndex) =>
           renderRow(child, childIndex, currentDepth + 1)
         )}
       </Fragment>
@@ -606,13 +615,13 @@ export function Table<T>({
     <div className={containerClasses} ref={containerRef}>
       <table className={tableClasses}>
         {caption && <caption className="table-caption">{caption}</caption>}
-        
+
         {showHeader && (
           <thead className="table-header">
             <tr className="table-row table-row--header">
               {selectable && (
-                <th 
-                  className="table-cell table-cell--checkbox" 
+                <th
+                  className="table-cell table-cell--checkbox"
                   onClick={(e) => e.stopPropagation()}
                   onContextMenu={onHeaderCheckboxContextMenu ? (e) => {
                     e.preventDefault();
@@ -632,7 +641,7 @@ export function Table<T>({
                 const sortEntry = sortColumns.find(s => s.key === column.key);
                 const sortIndex = sortColumns.findIndex(s => s.key === column.key);
                 const showSortIndex = sortColumns.length > 1 && sortIndex !== -1;
-                
+
                 return (
                   <th
                     key={column.key}

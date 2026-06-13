@@ -248,7 +248,7 @@ export function Layout() {
       el.removeEventListener('dragover', handleDragOver);
       el.removeEventListener('drop', handleDrop);
     };
-  }, [openNode]);
+  }, [openNode, splitTab]);
   
   // Sidebar resize handlers
   const handleLeftSidebarResizeStart = useCallback((e: React.MouseEvent) => {
@@ -323,10 +323,24 @@ export function Layout() {
               <div className={`sidebar-wrapper${isSidebarCollapsed ? ' sidebar-wrapper--collapsed' : ''}`} style={leftSidebarStyle}>
                 <Sidebar collapsed={isSidebarCollapsed} />
                 {!isSidebarCollapsed && (
+                  /* eslint-disable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex */
                   <div
+                    role="separator"
+                    aria-label="Resize left sidebar"
+                    tabIndex={0}
                     className="sidebar-resize-handle sidebar-resize-handle--left"
                     onMouseDown={handleLeftSidebarResizeStart}
+                    onKeyDown={(e) => {
+                      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+                      e.preventDefault();
+                      setLeftSidebarWidth((prev) => {
+                        const current = prev ?? 300;
+                        const step = e.key === 'ArrowRight' ? 20 : -20;
+                        return Math.max(200, Math.min(400, current + step));
+                      });
+                    }}
                   />
+                  /* eslint-enable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex */
                 )}
               </div>
               {tabPosition === 'left' && <TabBar />}
@@ -335,10 +349,25 @@ export function Layout() {
               </Card>
               <div className={`sidebar-wrapper sidebar-wrapper--right${!showSidebar ? ' sidebar-wrapper--collapsed' : ''}`} style={rightSidebarStyle}>
                 {showSidebar && (
+                  /* eslint-disable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex */
                   <div
+                    role="separator"
+                    aria-label="Resize right sidebar"
+                    tabIndex={0}
                     className="sidebar-resize-handle sidebar-resize-handle--right"
                     onMouseDown={handleRightSidebarResizeStart}
+                    onKeyDown={(e) => {
+                      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+                      e.preventDefault();
+                      setRightSidebarWidth((prev) => {
+                        const current = prev ?? 360;
+                        // ArrowLeft moves resizer left, widening the right sidebar
+                        const step = e.key === 'ArrowLeft' ? 20 : -20;
+                        return Math.max(260, Math.min(500, current + step));
+                      });
+                    }}
                   />
+                  /* eslint-enable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex */
                 )}
                 <Card
                   className={`right-container ${showSidebar ? 'right-container--expanded' : 'right-container--collapsed'}`}

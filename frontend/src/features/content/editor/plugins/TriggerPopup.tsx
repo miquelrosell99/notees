@@ -578,7 +578,6 @@ export function TriggerPopup({
         ref={inputRef}
         type="text"
         value={cleanQuery}
-        autoFocus
         onChange={(e) => {
           setQuery(e.target.value);
           setSelectedIndex(0);
@@ -713,6 +712,7 @@ export function TriggerPopup({
   );
 
   const popup = (
+    // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
     <div
       ref={containerRef}
       data-editor-companion
@@ -725,6 +725,10 @@ export function TriggerPopup({
         visibility: isPositioned ? 'visible' : 'hidden',
       }}
       onMouseDown={(e) => e.stopPropagation()}
+      role="dialog"
+      aria-modal="true"
+      aria-label={headerText}
+      tabIndex={-1}
     >
       {placement === 'below' ? (
         <>

@@ -2,8 +2,16 @@
  * AST Viewer Modal Styles
  */
 
+
+:root {
+  --features-content-components-nodes-astviewer-modal-max-width-700: 700px;
+  --features-content-components-nodes-astviewer-modal-min-width-60: 60px;
+  --features-content-components-nodes-astviewer-modal-max-height-400: 400px;
+  --features-content-components-nodes-astviewer-modal-max-height-150: 150px;
+}
+
 .ast-viewer-modal {
-  max-width: 700px;
+  max-width: var(--features-content-components-nodes-astviewer-modal-max-width-700);
 }
 
 .ast-viewer-content {
@@ -30,7 +38,7 @@
 .ast-viewer-label {
   font-weight: 500;
   color: var(--color-text-muted);
-  min-width: 60px;
+  min-width: var(--features-content-components-nodes-astviewer-modal-min-width-60);
 }
 
 .ast-viewer-value {
@@ -72,7 +80,7 @@
   border-radius: var(--radius-sm);
   color: var(--color-text-secondary);
   cursor: pointer;
-  transition: all var(--motion-duration-short) var(--motion-easing-standard);
+  transition: background-color var(--motion-duration-short) var(--motion-easing-standard), border-color var(--motion-duration-short) var(--motion-easing-standard), color var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 .ast-viewer-copy-btn:hover {
@@ -90,7 +98,7 @@
   font-family: var(--font-mono);
   font-size: 0.85rem;
   line-height: 1.5;
-  max-height: 400px;
+  max-height: var(--features-content-components-nodes-astviewer-modal-max-height-400);
   overflow-y: auto;
 }
 
@@ -111,7 +119,7 @@
 .ast-viewer-pre.compact {
   padding: 0.5rem;
   font-size: 0.75rem;
-  max-height: 150px;
+  max-height: var(--features-content-components-nodes-astviewer-modal-max-height-150);
 }
 
 /* Children section */
@@ -126,7 +134,7 @@
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
-  max-height: 400px;
+  max-height: var(--features-content-components-nodes-astviewer-modal-max-height-400);
   overflow-y: auto;
   padding: 0.5rem;
   background: var(--color-bg-secondary);

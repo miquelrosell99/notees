@@ -71,25 +71,18 @@
   flex-direction: column;
 }
 
-.right-sidebar-cards__item {
-  transition: box-shadow var(--motion-duration-short) var(--motion-easing-standard);
-}
-
 .right-sidebar-cards__item--flash {
   animation: sidebar-card-flash 1.5s ease-out;
 }
 
 @keyframes sidebar-card-flash {
   0% {
-    box-shadow: 0 0 0 3px var(--color-primary);
     background-color: var(--color-primary-container);
   }
   50% {
-    box-shadow: 0 0 0 3px var(--color-primary);
     background-color: var(--color-primary-container);
   }
   100% {
-    box-shadow: none;
     background-color: transparent;
   }
 }
