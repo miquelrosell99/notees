@@ -15,18 +15,18 @@
     var(--color-surface-container-high) 75%
   );
   background-size: 200% 100%;
-  animation: shimmer 1.4s var(--motion-easing-linear) infinite;
+  animation: shimmer var(--skeleton-shimmer-duration) var(--motion-easing-linear) infinite;
 }
 
 /* ── Shape variants ─────────────────────────────────────── */
 
 .skeleton--text {
-  height: 0.875em;
+  height: var(--skeleton-text-height);
   border-radius: var(--shape-extra-small);
 }
 
 .skeleton--heading {
-  height: 1.25em;
+  height: var(--skeleton-heading-height);
   border-radius: var(--shape-extra-small);
 }
 

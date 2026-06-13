@@ -111,7 +111,7 @@
 .card--interactive:hover {
   background: var(--color-hover-overlay);
   border-color: var(--color-outline);
-  transform: translateY(-1px);
+  transform: translateY(calc(var(--spacing-hairline) * -1));
 }
 
 .card--interactive:active {

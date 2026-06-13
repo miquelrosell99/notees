@@ -13,7 +13,7 @@
   padding: var(--spacing-6);
   background: var(--color-surface-container);
   border-radius: var(--shape-medium);
-  border-left: var(--border-width-thick) solid var(--color-accent);
+  border-left: var(--page-header-accent-border-width) solid var(--color-accent);
 }
 
 /* Title row: Icon + Title horizontally */
@@ -185,7 +185,7 @@
   background: var(--color-error-container);
   border-radius: var(--shape-small);
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: var(--letter-spacing-badge);
 }
 
 .private-badge {
@@ -198,7 +198,7 @@
   background: var(--color-surface-container-high);
   border-radius: var(--shape-small);
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: var(--letter-spacing-badge);
   opacity: var(--opacity-70);
 }
 

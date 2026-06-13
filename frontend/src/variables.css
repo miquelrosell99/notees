@@ -148,6 +148,7 @@
   --border-width-node-color: 4px;
   --border-width-node-color-strong: 8px;
   --focus-outline-offset: 2px;
+  --page-header-accent-border-width: var(--border-width-thick);
 
   /* ==================== Component Sizes ==================== */
   --button-min-height: 44px;
@@ -212,6 +213,11 @@
   --font-size-3xl: 1.5rem;     /* 24px – large icons/headlines */
   --font-size-4xl: 3rem;       /* 48px – hero logos / empty-state icons */
 
+  /* Letter spacing */
+  --letter-spacing-badge: 0.5px;
+  --letter-spacing-label: 0.05em;
+  --letter-spacing-section: 0.08em;
+
   /* ==================== Elevation (Box Shadows) ==================== */
   /* Design system: zero visual noise — elevation is always none */
   --elevation-0: none;
@@ -251,6 +257,12 @@
   --motion-duration-long: 300ms;
   --motion-duration-extra-long: 500ms;
   --motion-duration-medium-fast: 200ms;
+
+  /* Caret motion */
+  --motion-duration-caret-move: 80ms;
+  --motion-duration-caret-resize: 120ms;
+  --motion-duration-caret-breathe: 850ms;
+  --motion-duration-caret-breathe-slow: 1400ms;
 
   --motion-easing-standard: cubic-bezier(0.645, 0.045, 0.355, 1);
   --motion-easing-emphasized: cubic-bezier(0.645, 0.045, 0.355, 1);
@@ -403,6 +415,11 @@
   --whiteboard-toolbar-min-width: 11.25rem;
   --whiteboard-shortcuts-max-width: 30rem;
   --kanban-view-header-offset: 200px;
+
+  /* Loading skeleton */
+  --skeleton-shimmer-duration: 1400ms;
+  --skeleton-text-height: 0.875em;
+  --skeleton-heading-height: 1.25em;
 
   /* ==================== Additional spacing tokens ==================== */
   --spacing-0-5: 0.125rem;
