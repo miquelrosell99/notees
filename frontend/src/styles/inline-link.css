@@ -61,6 +61,27 @@
   margin-right: var(--spacing-micro);
 }
 
+/* Embed pills — subtle dashed underline + cube icon tint */
+.inline-link-wrapper .inline-link-inner[data-ref-type="embed"] {
+  text-decoration-style: dashed;
+  text-decoration-color: var(--color-accent-subtle);
+  cursor: pointer;
+}
+
+.inline-link-wrapper:hover .inline-link-inner[data-ref-type="embed"] {
+  text-decoration-style: solid;
+  text-decoration-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.inline-link-wrapper .inline-link-inner[data-ref-type="embed"] .inline-link-icon {
+  color: var(--color-accent-subtle);
+}
+
+.inline-link-wrapper:hover .inline-link-inner[data-ref-type="embed"] .inline-link-icon {
+  color: var(--color-accent);
+}
+
 /* User mention pills — distinct color, no underline */
 .inline-link-wrapper .inline-link-inner[data-ref-type="user"] {
   color: var(--color-primary);

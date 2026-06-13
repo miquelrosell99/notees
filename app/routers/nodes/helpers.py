@@ -243,7 +243,7 @@ async def _get_class_ids(service: NodeService, node_id: int) -> list[int]:
 
 
 async def _get_tag_ids(service: NodeService, node_id: int) -> list[int]:
-    """Helper to get tag IDs for a node (from node_link with is_tag=1)."""
+    """Helper to get tag IDs for a node (from node.tag_ids column)."""
     return await service.get_tag_link_targets(node_id)
 
 

@@ -41,7 +41,7 @@ export function useNodesWithClass(classId: number | null) {
 }
 
 /**
- * Hook to fetch text links for a node with is_tag info
+ * Hook to fetch text links for a node
  */
 
 export function useTextLinks(nodeId: number | null) {

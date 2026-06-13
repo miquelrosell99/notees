@@ -5,11 +5,11 @@
  * Uses QueryAST from '@/types/queryAST' as the canonical format.
  */
 
-import type { QueryAST } from './queryAST';
+import type { AggregationNode, QueryAST } from './queryAST';
 import type { Node } from '@/types/api';
 
 // Re-export commonly used types from queryAST
-export type { QueryAST } from './queryAST';
+export type { AggregationNode, QueryAST } from './queryAST';
 
 // ==================== NodeView Types ====================
 
@@ -88,6 +88,18 @@ export interface QueryExecuteRequest {
     classes?: boolean;
     properties?: boolean;
   };
+  /** Backend aggregation (count + group_by) */
+  aggregation?: AggregationNode;
+  /** Compact text query language alternative to query_ast */
+  query_language?: string;
+}
+
+/**
+ * Single group returned by a backend aggregation query
+ */
+export interface QueryGroupResult {
+  group_key: string | number | null;
+  count: number;
 }
 
 /**
@@ -95,6 +107,8 @@ export interface QueryExecuteRequest {
  */
 export interface QueryExecuteResponse {
   nodes: Node[];
+  /** Aggregation groups (present when aggregation is requested) */
+  groups?: QueryGroupResult[];
   /** Total matching rows (present when limit/offset used) */
   total_count?: number;
   /** Execution metrics from backend */

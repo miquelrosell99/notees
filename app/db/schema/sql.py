@@ -154,6 +154,8 @@ CREATE TABLE IF NOT EXISTS node (
     is_private BOOLEAN NOT NULL DEFAULT FALSE,
     -- Class IDs stored directly on the node
     class_ids INTEGER[] DEFAULT '{}',
+    -- Tag IDs stored directly on the node (mirrors class_ids)
+    tag_ids INTEGER[] DEFAULT '{}',
     classes_path JSONB DEFAULT '[]'::jsonb,
     open_date TIMESTAMPTZ,
     -- Alias support: if set, this node is an alias of the referenced node
@@ -195,6 +197,7 @@ CREATE INDEX IF NOT EXISTS idx_node_is_deleted ON node(is_deleted) WHERE is_dele
 -- Enables fast index-only scans when filtering out soft-deleted rows without a full table scan.
 CREATE INDEX IF NOT EXISTS idx_node_live ON node(workspace_id, id) WHERE active = TRUE AND is_deleted = FALSE;
 CREATE INDEX IF NOT EXISTS idx_node_class_ids ON node USING GIN (class_ids);
+CREATE INDEX IF NOT EXISTS idx_node_tag_ids ON node USING GIN (tag_ids);
 CREATE INDEX IF NOT EXISTS idx_node_classes_path ON node USING GIN (classes_path);
 CREATE INDEX IF NOT EXISTS idx_node_search ON node USING GIN (search_vector);
 CREATE INDEX IF NOT EXISTS idx_node_create_uid ON node(create_uid);
@@ -494,6 +497,7 @@ CREATE TABLE IF NOT EXISTS node_link (
     position INTEGER DEFAULT 0,
     is_tag BOOLEAN DEFAULT FALSE,
     is_inline_class BOOLEAN DEFAULT FALSE,
+    is_embed BOOLEAN DEFAULT FALSE,
     name TEXT,
     create_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     create_uid INTEGER REFERENCES "user"(id) ON DELETE SET NULL
@@ -510,15 +514,37 @@ CREATE INDEX IF NOT EXISTS idx_node_link_workspace_target ON node_link(workspace
 -- Highest-ROI index for graph-heavy (Obsidian-style) forward-traversal queries:
 --   SELECT target_id FROM node_link WHERE workspace_id = ? AND source_id = ?;
 CREATE INDEX IF NOT EXISTS idx_node_link_ws_source_target ON node_link(workspace_id, source_id, target_id);
--- Unique constraint: prevent duplicate links between the same source and target
--- (Phase 0.5: Harden node_link)
+
+-- Ensure is_embed column exists for databases created before embed backlinks.
 DO $$
 BEGIN
     IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'node_link' AND column_name = 'is_embed'
+    ) THEN
+        ALTER TABLE node_link ADD COLUMN is_embed BOOLEAN DEFAULT FALSE;
+    END IF;
+END $$;
+
+-- Unique constraint: prevent duplicate links between the same source and target.
+-- Embeds and inline classes are distinct from regular text links, so they are
+-- included in the uniqueness key. PostgreSQL treats NULLs as distinct, so
+-- property_id does not need to be coalesced.
+DO $$
+BEGIN
+    IF EXISTS (
         SELECT 1 FROM pg_constraint
         WHERE conname = 'unique_node_link' AND conrelid = 'node_link'::regclass
     ) THEN
-        ALTER TABLE node_link ADD CONSTRAINT unique_node_link UNIQUE (workspace_id, source_id, target_id);
+        ALTER TABLE node_link DROP CONSTRAINT unique_node_link;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'unique_node_link_typed' AND conrelid = 'node_link'::regclass
+    ) THEN
+        ALTER TABLE node_link ADD CONSTRAINT unique_node_link_typed
+            UNIQUE (workspace_id, source_id, target_id, property_id, is_inline_class, is_embed);
     END IF;
 END $$;
 
@@ -526,6 +552,37 @@ END $$;
 
 -- Inline class references are now stored in node_link with is_inline_class = TRUE
 -- (class_inline table has been merged into node_link)
+
+-- ============================================================
+-- NODE MENTIONS (UNLINKED MENTION CANDIDATES)
+-- ============================================================
+-- Tracks occurrences of a page name in another page's content that are not yet
+-- explicit links. Used to power the "Unlinked Mentions" panel.
+
+CREATE TABLE IF NOT EXISTS node_mention (
+    id SERIAL PRIMARY KEY,
+    uuid UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
+    source_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
+    target_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
+    workspace_id INTEGER NOT NULL REFERENCES workspace(id) ON DELETE CASCADE,
+    match_text TEXT NOT NULL,
+    position INTEGER DEFAULT 0,
+    is_ignored BOOLEAN DEFAULT FALSE,
+    create_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    write_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    create_uid INTEGER REFERENCES "user"(id) ON DELETE SET NULL,
+    write_uid INTEGER REFERENCES "user"(id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_node_mention_source_id ON node_mention(source_id);
+CREATE INDEX IF NOT EXISTS idx_node_mention_target_id ON node_mention(target_id);
+CREATE INDEX IF NOT EXISTS idx_node_mention_workspace_id ON node_mention(workspace_id);
+CREATE INDEX IF NOT EXISTS idx_node_mention_workspace_target ON node_mention(workspace_id, target_id)
+    WHERE is_ignored = FALSE;
+
+ALTER TABLE node_mention DROP CONSTRAINT IF EXISTS unique_node_mention;
+ALTER TABLE node_mention ADD CONSTRAINT unique_node_mention
+    UNIQUE (workspace_id, source_id, target_id, position);
 
 -- ============================================================
 -- NODE VIEWS (DYNAMIC QUERY TABS)
@@ -680,6 +737,7 @@ BEGIN
     -- Capture when name, class, or structural properties change
     IF OLD.name IS DISTINCT FROM NEW.name
        OR OLD.class_ids IS DISTINCT FROM NEW.class_ids
+       OR OLD.tag_ids IS DISTINCT FROM NEW.tag_ids
        OR OLD.parent_id IS DISTINCT FROM NEW.parent_id
        OR OLD.page_id IS DISTINCT FROM NEW.page_id
     THEN
@@ -789,6 +847,52 @@ BEGIN
        AND NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'property_class_filter') THEN
         ALTER TABLE property_type_filter RENAME TO property_class_filter;
         ALTER TABLE property_class_filter RENAME COLUMN type_node_id TO class_node_id;
+    END IF;
+END $$;
+
+-- ============================================================
+-- MIGRATION: TAGS FROM node_link TO node.tag_ids
+-- ============================================================
+
+-- Migration: Add tag_ids column to node table and migrate existing tag links
+DO $$
+BEGIN
+    -- Add tag_ids column if it doesn't exist
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'node' AND column_name = 'tag_ids'
+    ) THEN
+        ALTER TABLE node ADD COLUMN tag_ids INTEGER[] DEFAULT '{}';
+    END IF;
+
+    -- Populate tag_ids from existing node_link.is_tag rows (one-time migration)
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'node_link' AND column_name = 'is_tag'
+    ) THEN
+        UPDATE node n
+        SET tag_ids = COALESCE((
+            SELECT ARRAY_AGG(DISTINCT target_id ORDER BY target_id)
+            FROM node_link nl
+            WHERE nl.source_id = n.id
+              AND nl.is_tag = TRUE
+              AND nl.property_id IS NULL
+              AND nl.workspace_id = n.workspace_id
+        ), '{}'::INTEGER[])
+        WHERE n.tag_ids = '{}'::INTEGER[]
+          AND EXISTS (
+              SELECT 1 FROM node_link nl2
+              WHERE nl2.source_id = n.id
+                AND nl2.is_tag = TRUE
+                AND nl2.property_id IS NULL
+          );
+    END IF;
+
+    -- Create GIN index for tag_ids if it doesn't exist
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_indexes WHERE indexname = 'idx_node_tag_ids'
+    ) THEN
+        CREATE INDEX idx_node_tag_ids ON node USING GIN (tag_ids);
     END IF;
 END $$;
 

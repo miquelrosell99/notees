@@ -1,32 +1,34 @@
 # Notees Linking & Filtering Assessment
 
-> Generated: 2026-06-12
+> Generated: 2026-06-12 (revised 2026-06-13)
 >
 > Scope: Review and assess Notees node linking and filtering logic, compare against Logseq, Roam Research, and Obsidian, and suggest improvements.
 
 ## TL;DR
 
-Notees has a **solid architectural foundation** for a block-based, linked note system, but it currently sits between Obsidian's page-centric model and Roam/Logseq's block-centric model without fully committing to either. The biggest gaps are:
+Notees is **not a broken version of Roam/Logseq**; it uses a different linking model that is appropriate for its data model. Pages are namespaced containers (different parents/classes can produce pages with identical display names), so title-based `[[Page Name]]` resolution is intentionally avoided in favor of stable, UUID-backed links inserted through the `@` trigger and slash commands.
 
-1. **Page links are not parsed** — pages cannot contain `[[...]]` references.
-2. **No block-reference syntax** — there is no `((block-uuid))` equivalent; all links collapse to node links.
-3. **Unlinked references are just text search**, not true "mentions that could become links."
-4. **Graph view is page-only**, losing block-level resolution.
-5. **No aliases / synonyms**, so unlinked-mention discovery is brittle.
-6. **No block embeds / transclusion**.
-7. **QueryAST is GUI-only**; there is no power-user text query language.
+The real gaps are:
+
+1. **Unlinked references are just text search**, not a true mention index with one-click promotion.
+2. **Block embeds / transclusion** exist as a slash command but should use a floating transclusion UI rather than inline editing.
+3. **QueryAST is GUI-only**; this is acceptable for most users but is a power-user limitation.
+
+**Completed:** tags now live in `node.tag_ids` (like `class_ids`), with `node_link.is_tag` removed.
+
+The earlier recommendation to adopt `[[Page Name]]` / `((block-uuid))` syntax is **rejected** as architecturally incompatible with Notees's namespaced page model.
 
 ## Comparison Matrix
 
 | Capability | Notees | Roam | Logseq | Obsidian |
 |---|---|---|---|---|
-| Page links (`[[Page]]`) | ❌ Pages cannot contain inline links | ✅ Core | ✅ Core | ✅ Core |
-| Block refs (`((block))`) | ❌ No distinct syntax | ✅ Invented it | ✅ `(( ))` | ⚠️ Plugin / embed only |
-| Block embeds / transclusion | ❌ | ✅ Live editable | ✅ Live editable | ⚠️ Embed plugin |
+| Page links | ✅ Via `@` trigger / slash command | ✅ `[[Page]]` | ✅ `[[Page]]` (with namespace disambiguation) | ✅ `[[Page]]` |
+| Block refs | ✅ Via *Insert Block Link* slash command | ✅ `((block))` | ✅ `(( ))` | ⚠️ Plugin / embed only |
+| Block embeds / transclusion | ⚠️ Slash command exists; live-edit behavior TBD | ✅ Live editable | ✅ Live editable | ⚠️ Embed plugin |
 | Bidirectional backlinks | ✅ Linked + property refs | ✅ Linked + unlinked | ✅ Linked + unlinked | ✅ Linked + unlinked |
 | Unlinked mentions | ⚠️ Text search only | ✅ True mentions | ✅ True mentions | ✅ True mentions |
-| Aliases / synonyms | ❌ | ✅ | ✅ `alias::` | ✅ Aliases |
-| Graph view | ⚠️ Page-only | ✅ Block-aware | ✅ Block-aware | ✅ Page + tag |
+| Aliases / synonyms | ✅ | ✅ | ✅ `alias::` | ✅ Aliases |
+| Graph view | ✅ Page-only + local mode | ✅ Block-aware | ✅ Block-aware | ✅ Page + tag |
 | Query language | ⚠️ GUI QueryAST → SQL | ✅ Datalog | ✅ Datalog | ⚠️ Dataview plugin |
 | Local-first / offline | ✅ PWA + service worker | ❌ Cloud | ✅ Yes | ✅ Yes |
 | Daily journal | ✅ | ✅ | ✅ | ⚠️ Template / plugin |
@@ -36,30 +38,36 @@ Notees has a **solid architectural foundation** for a block-based, linked note s
 
 ### Notees today
 
-- Content is stored as JSON AST in `node.name`.
+- Everything is a `node`. Pages are nodes with `is_page = TRUE`; they act as containers/anchors for blocks and child pages.
+- Content is stored as JSON AST in `node.name` for blocks.
 - Links are AST nodes with `ref_type: "node"` and a compound `link_id` of `"nodeUuid:linkUuid"`.
-- User-visible syntax is `[[UUID]]` or `[label]([[UUID]])`.
-- `LinkParsingService.update_node_links()` re-parses the AST on save and rebuilds `node_link` rows.
+- Users insert links with the **`@` trigger** or the **`/ → Insert Page Link / Insert Block Link`** slash commands.
+- `LinkParsingService.update_node_links()` re-parses block AST on save and rebuilds `node_link` rows.
+- Pages themselves do **not** parse inline links in their `name` field by design: a page's content lives in its child blocks.
 
-### Problems
+### Why Notees does not use `[[Page Name]]`
 
-- The syntax is **UUID-based, not name-based**. Users cannot type `[[Project Alpha]]` and have it resolve to a page; they must select an existing node.
-- **Page nodes explicitly skip link parsing** (`if is_page: return []`). This means page titles/bodies cannot reference other pages, a severe restriction for a wiki-style tool.
-- There is **no separate `((block-uuid))` syntax**; block references and page references use the same `[[...]]` form.
+In Notees, multiple pages can share the same display name if they live under different parents or classes. Resolving `[[Project Alpha]]` would therefore be ambiguous. The product intentionally avoids this by:
+
+1. Using UUID-backed pills as the source of truth.
+2. Letting the `@` picker disambiguate by context (parent path, class, etc.).
+3. Keeping links stable when targets are renamed or when a new同名 page is created.
+
+Logseq has moved away from pure title-based linking for the same namespace reasons. Notees sidesteps the problem entirely by using the picker → UUID flow.
 
 ### What competitors do
 
-- `[[Page Name]]` resolves by page title.
+- `[[Page Name]]` resolves by page title (works only when titles are globally unique).
 - `((block-uuid))` resolves a specific block.
 - Block embeds let you edit the original from any embed location.
 - Aliases let one page answer to multiple names, which powers unlinked-mention detection.
 
 ### Recommendations
 
-1. Introduce **human-readable page links**: `[[Page Name]]` resolves to the page with that `display_name` (or name), with disambiguation UI for collisions.
-2. Introduce **block references**: `((block-uuid))` syntax and a distinct AST node type.
-3. Allow **pages to contain inline links** — remove the `is_page` short-circuit.
-4. Add an **alias/synonym** property on pages so unlinked mentions can match "LLM", "large language model", etc.
+1. **Keep UUID-backed links.** Do not introduce `[[Page Name]]` resolution.
+2. **Keep the `@` picker** as implemented; breadcrumbs and class context are already present.
+3. **Implement block embeds as a floating transclusion UI**, not inline editable embeds.
+4. **Keep aliases/synonyms** as already implemented.
 
 ## 2. Backlinks & Unlinked Mentions
 
@@ -73,7 +81,7 @@ Notees has a **solid architectural foundation** for a block-based, linked note s
 
 - The unlinked-references view cannot distinguish "mentions the exact name but is not linked" from "mentions a string that happens to match the name."
 - There is no way to **promote an unlinked mention to a real link** in one click.
-- Aliases are not considered, so unlinked-mention discovery is brittle.
+- Aliases are already supported; the unlinked-references view should use them.
 
 ### What competitors do
 
@@ -83,7 +91,7 @@ Notees has a **solid architectural foundation** for a block-based, linked note s
 
 ### Recommendations
 
-1. Build a real **mention index**: after parsing content, scan plain text for known page names + aliases and store candidate mentions separately from explicit links.
+1. Build a real **mention candidate table** separate from `node_link`: after parsing content, scan plain text for known page names + aliases and store candidate mentions.
 2. Expose an endpoint to **convert a mention to a link** (rewrites the source AST, inserts the link node, removes the plain-text occurrence).
 3. Allow the user to **ignore false-positive mentions** per page/alias.
 4. Surface unlinked mentions in the backlinks panel, not just as a query view.
@@ -92,18 +100,18 @@ Notees has a **solid architectural foundation** for a block-based, linked note s
 
 ### Notees today
 
-- None. Links point to a target; they do not render the target's content inline.
+- A slash command *Embed Node* exists.
 
 ### What competitors do
 
-- **Roam/Logseq**: `((block-uuid))` is a reference; embed syntax renders the block live and editable.
-- **Obsidian**: `![[note]]` or block embeds via `![[note#^block-id]]`.
+- **Roam/Logseq**: block embeds render the block inline and editable.
+- **Obsidian**: `![[note]]` or block embeds via `![[note#^block-id]]` open a floating transclusion preview rather than editing inline.
 
 ### Recommendations
 
-1. Add an **embed** ref type (`embed` already exists in the AST but appears unused for block content).
-2. Embeds should be **live**: editing the embedded copy edits the original.
-3. Track embeds in `node_link` so they show up in backlinks (or a separate embeds panel).
+1. Do **not** allow inline editing of embedded nodes inside other nodes.
+2. Implement a **floating transclusion UI** (similar to Obsidian/Logseq hover previews) that shows the embedded node's content in a popup/panel.
+3. Track embeds in `node_link` (or a separate embed table) so they show up in backlinks.
 
 ## 4. Graph View
 
@@ -113,10 +121,9 @@ Notees has a **solid architectural foundation** for a block-based, linked note s
 - Backend returns `reference`, `parent`, `class`, `extends`, `property-reference`, and `cooccurrence` link types.
 - The endpoint only sees **page nodes** (`is_page = TRUE`), so block-level references are aggregated to their parent page.
 
-### Problems
+### Assessment
 
-- Block-level relationships are **lossy** in the graph.
-- Co-occurrence is heuristic and capped at 10 targets per block.
+This is an **intentional design choice**, not a gap. Because Notees pages can be namespaced and blocks are numerous, a block-level force graph would be noisy and less useful than a page-level graph. The graph answers "how do my high-level containers connect?" which matches the page-as-anchor mental model.
 
 ### What competitors do
 
@@ -126,10 +133,10 @@ Notees has a **solid architectural foundation** for a block-based, linked note s
 
 ### Recommendations
 
-1. Add a **block-level graph mode** (toggle or separate view).
-2. Use the closure table + `node_link` to render hierarchical edges (`parent → child`) alongside reference edges.
-3. Add **local graph view** (1–2 hops from current node), which is more useful than global graph at scale.
-4. Allow filtering edges by type and weight (hide weak co-occurrence links).
+1. **Keep the graph page-only.**
+2. Local graph view is already implemented.
+3. Allow filtering edges by type and weight (hide weak co-occurrence links).
+4. Consider a **hierarchical view** using the closure table (`parent → child`) alongside reference edges.
 
 ## 5. Querying & Filtering
 
@@ -138,7 +145,7 @@ Notees has a **solid architectural foundation** for a block-based, linked note s
 - **QueryAST**: visual tree builder with conditions for class, property, content, reference, parent/child, flag, page.
 - Compiles to PostgreSQL via `query_ast_sql.py`.
 - Placeholders like `{current_node_uuid}` are string-substituted into the AST.
-- The `class_path` condition exists in the frontend config but has **no backend entity or SQL generator**.
+- A `class_path` condition exists in the frontend config but duplicates the behavior of the existing class filter, which already resolves inheritance via `class_extend`.
 
 ### What competitors do
 
@@ -150,66 +157,55 @@ Notees has a **solid architectural foundation** for a block-based, linked note s
 
 - QueryAST is **GUI-only**. Power users cannot copy/paste or version-control queries.
 - String-based placeholder substitution is fragile.
-- The `class_path` mismatch shows frontend/backend drift.
+- The `class_path` condition duplicates the existing class filter and should be removed or consolidated.
 - No aggregation (count, sum, group by) in QueryAST.
 
 ### Recommendations
 
-1. Add a **text query language** that compiles to QueryAST / SQL (a simplified Datalog-like or Dataview-like syntax).
+1. **Remove or consolidate `class_path`** with the existing class filter that already handles inheritance.
 2. Replace string placeholder substitution with typed parameters.
-3. Implement `class_path` condition or remove it from the frontend config.
-4. Add **aggregation operators** (count, group by) for dashboards.
-5. Add **relative date operators** ("today", "last 7 days", "this week") for journal/task queries.
+3. Add **aggregation operators** (count, group by) for dashboards.
+4. Add **relative date operators** ("today", "last 7 days", "this week") for journal/task queries.
+5. Optional: add a **text query language** that compiles to QueryAST / SQL for power users.
 
 ## 6. Tag, Class & Property Filtering
 
 ### Notees today
 
-- Tags are `node_link.is_tag = TRUE`.
+- Tags are stored in `node.tag_ids` (like `node.class_ids`).
 - Classes are stored in `node.class_ids` with inheritance via `class_extend`.
 - Properties have scalar, selection, and relation value tables.
-- `ReferenceCondition` ignores inline-class links.
 
 ### Problems
 
-- Inline classes are not treated as references in queries, creating an inconsistency.
-- Tag links can become orphaned if content is edited but not re-parsed.
-- There is no class-level query for "all descendants of this class."
+- Inline class links are not treated as references in queries, creating an inconsistency.
 
 ### Recommendations
 
-1. Make `ReferenceCondition` include inline-class links.
-2. Add a `ClassPathCondition` (or fix the existing frontend stub) to query "nodes whose class is or inherits from X."
-3. Rebuild tag links on every save, not just tag add/remove operations.
-4. Consider materializing a `node.search_text` column to avoid `jsonb_path_query` on every content comparison.
+1. Remove or consolidate the `class_path` condition with the existing class filter that already resolves inheritance.
+2. Consider materializing a `node.search_text` column to avoid `jsonb_path_query` on every content comparison.
 
 ## Prioritized Improvement Roadmap
 
-### P0 — Core linking parity
+### P0 — Fix drift and inconsistency
 
-1. Allow pages to contain `[[...]]` links.
-2. Introduce human-readable `[[Page Name]]` resolution.
-3. Add `((block-uuid))` block-reference syntax.
-4. Fix the `class_path` frontend/backend mismatch.
+1. Remove or hide the `class_path` QueryAST condition if the existing class filter already handles inheritance. Consolidate on one behavior.
+2. Audit and document current block embed behavior; implement floating transclusion UI.
 
 ### P1 — Discoverability
 
-5. Build a real unlinked-mentions index using page names + aliases.
-6. One-click "link this mention" from backlinks panel.
-7. Add aliases/synonyms support for pages.
+3. Build a real unlinked-mentions index using page names + aliases.
+4. One-click "link this mention" from backlinks panel.
+5. Allow ignoring false-positive mentions per page/alias.
 
 ### P2 — Power features
 
-8. Block embeds / transclusion.
-9. Text-based query language compiling to QueryAST.
-10. Block-level graph view + local graph mode.
-11. Aggregation in QueryAST for dashboards.
+6. Text-based query language compiling to QueryAST.
+7. Aggregation in QueryAST for dashboards.
 
 ### P3 — Quality of life
 
-12. Materialized `search_text` column for performance.
-13. ReferenceCondition includes inline classes.
-14. Graph edge filtering by type/weight.
+8. Materialized `search_text` column for performance.
 
 ## Architectural Observations
 
@@ -219,10 +215,10 @@ The Notees design is well-positioned to support these improvements:
 - **`node_link` table** is the right primitive for explicit graph edges.
 - **Closure table (`node_path`)** already supports fast hierarchy queries.
 - **Property/value tables** already support structured filtering.
+- **UUID-backed pills** are the correct source of truth for a system with namespaced, non-unique page names.
 
 Main architectural debt to address first:
 
-- Remove the **page-link exception** in `LinkParsingService`.
-- Separate **link types** more explicitly in the AST (`page_ref`, `block_ref`, `embed`, `tag`, `class`).
+- Remove or consolidate the `class_path` condition with the existing class filter.
 - Move from string-based placeholder substitution to typed parameters in QueryAST execution.
 - Introduce a **mention candidate table** separate from `node_link` so unlinked mentions can be tracked, ignored, and promoted.

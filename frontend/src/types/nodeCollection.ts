@@ -5,7 +5,7 @@
  * NodeCollection is the universal interface for displaying collections of nodes.
  */
 import type { Node, Property } from './api';
-import type { NodeView } from './nodeView';
+import type { NodeView, QueryAST } from './nodeView';
 import type { ReactNode } from 'react';
 import type { ContextMenuItem } from '@/components/ui/ContextMenu';
 import type { SortEntry } from '@/features/content/components/nodes/views/NodeTable';
@@ -248,6 +248,9 @@ export interface NodeCollectionProps {
 
   /** Force all nodes to be expanded, ignoring stored collapsed state. */
   expandAll?: boolean;
+
+  /** Optional QueryAST for views that re-fetch with backend aggregation. */
+  queryAst?: QueryAST;
 }
 
 // ==================== View-Specific Props ====================
@@ -327,6 +330,9 @@ export interface NodeCollectionViewBaseProps {
 
   /** Force all nodes to be expanded, ignoring stored collapsed state. */
   expandAll?: boolean;
+
+  /** Optional QueryAST for views that need to re-fetch with backend aggregation. */
+  queryAst?: QueryAST;
 }
 
 /**
@@ -505,6 +511,10 @@ export interface NodeCalendarViewProps extends NodeCollectionViewBaseProps {
 export interface NodeChartViewProps extends NodeCollectionViewBaseProps {
   /** Property to group nodes by for aggregation */
   groupByProperty?: Property;
+  /** QueryAST so the chart can request backend aggregation */
+  queryAst?: QueryAST;
+  /** NodeView ID for executing backend aggregation */
+  viewId?: number;
 }
 
 // ==================== Context ====================

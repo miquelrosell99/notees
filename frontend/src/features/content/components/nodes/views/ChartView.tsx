@@ -3,13 +3,21 @@
  *
  * Groups nodes by a selected property and renders counts as SVG charts.
  * No external charting library — pure SVG + React.
+ *
+ * When the QueryAST contains a backend aggregation node and a NodeView ID is
+ * available, the chart fetches pre-aggregated counts from the server. Otherwise
+ * it falls back to client-side grouping using the node list.
  */
 import { useMemo, useState, useCallback, memo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import type { Node } from '@/types';
 import type { Property } from '@/types/api';
 import type { NodeChartViewProps } from '@/types/nodeCollection';
+import type { QueryGroupResult } from '@/types/nodeView';
 import { useProperties } from '@/hooks';
+import { executeNodeViewQuery } from '@/api/nodeViews';
 import { Icon } from '@/components/ui/icons';
+import { Spinner } from '@/components/ui/Spinner';
 import { registerView } from './registry';
 import './ChartView.css';
 
@@ -63,6 +71,16 @@ function buildChartData(nodes: Node[], property: Property | undefined): ChartDat
       color: CHART_COLORS[i % CHART_COLORS.length],
     }));
   return sorted;
+}
+
+function buildChartDataFromGroups(groups: QueryGroupResult[]): ChartDatum[] {
+  return groups
+    .filter(g => g.count > 0)
+    .map((g, i) => ({
+      label: g.group_key == null || g.group_key === '' ? '(No value)' : String(g.group_key),
+      count: g.count,
+      color: CHART_COLORS[i % CHART_COLORS.length],
+    }));
 }
 
 // ==================== BarChart ====================
@@ -215,6 +233,9 @@ export const ChartView = memo(function ChartView({
   groupByProperty: groupByPropertyProp,
   onNodeClick,
   className = '',
+  queryAst,
+  viewId,
+  nodeUuid,
 }: NodeChartViewProps) {
   const [chartType, setChartType] = useState<ChartType>('bar');
   const [selectedPropertyUuid, setSelectedPropertyUuid] = useState<string | undefined>(
@@ -228,9 +249,46 @@ export const ChartView = memo(function ChartView({
     return allProperties.find(p => p.uuid === selectedPropertyUuid);
   }, [groupByPropertyProp, selectedPropertyUuid, allProperties]);
 
-  const chartData = useMemo(() => buildChartData(nodes, activeProperty), [nodes, activeProperty]);
+  const hasBackendAggregation = Boolean(queryAst?.aggregation) && viewId != null && viewId > 0;
+
+  const { data: aggregateResult, isLoading: isAggregateLoading } = useQuery({
+    queryKey: ['node-view-aggregate', viewId, queryAst?.aggregation, nodeUuid],
+    queryFn: async () => {
+      if (!viewId || !queryAst?.aggregation) return null;
+      return executeNodeViewQuery(viewId, {
+        runtime_params: { current_node_uuid: nodeUuid },
+        aggregation: queryAst.aggregation,
+      });
+    },
+    enabled: hasBackendAggregation,
+    staleTime: 30_000,
+  });
+
+  const aggregationLabel = useMemo(() => {
+    if (!queryAst?.aggregation) return null;
+    const { group_by } = queryAst.aggregation;
+    const builtinLabels: Record<string, string> = {
+      is_page: 'page type',
+      create_date: 'create date',
+      write_date: 'write date',
+      open_date: 'open date',
+      page: 'page',
+      class: 'class',
+    };
+    if (builtinLabels[group_by]) return builtinLabels[group_by];
+    const property = allProperties.find(p => p.uuid === group_by);
+    return property?.name ?? 'group';
+  }, [queryAst?.aggregation, allProperties]);
+
+  const chartData = useMemo(() => {
+    if (aggregateResult?.groups) {
+      return buildChartDataFromGroups(aggregateResult.groups);
+    }
+    return buildChartData(nodes, activeProperty);
+  }, [aggregateResult, nodes, activeProperty]);
 
   const handleBarClick = useCallback((label: string) => {
+    if (aggregateResult?.groups) return;
     if (!activeProperty) return;
     // Find a representative node in this group and open it
     const propId = String(activeProperty.id);
@@ -239,15 +297,23 @@ export const ChartView = memo(function ChartView({
       return getPropertyGroupLabel(activeProperty, rawValue) === label;
     });
     if (match) onNodeClick?.(match);
-  }, [nodes, activeProperty, onNodeClick]);
+  }, [nodes, activeProperty, onNodeClick, aggregateResult]);
 
-  // Empty state
-  if (!activeProperty) {
+  // Empty state: no aggregation configured and no property selected
+  if (!hasBackendAggregation && !activeProperty) {
     return (
       <div className={`chart-view chart-view--empty ${className}`}>
         <div className="chart-view__empty-msg">
           Choose a property to group and chart.
         </div>
+      </div>
+    );
+  }
+
+  if (isAggregateLoading) {
+    return (
+      <div className={`chart-view chart-view--empty ${className}`}>
+        <Spinner size="sm" />
       </div>
     );
   }
@@ -276,7 +342,9 @@ export const ChartView = memo(function ChartView({
           </div>
         </div>
         <div className="chart-view__empty-msg">
-          No items have a value for <em>{activeProperty.name}</em>.
+          {hasBackendAggregation
+            ? `No items to group by ${aggregationLabel}.`
+            : <>No items have a value for <em>{activeProperty?.name}</em>.</>}
         </div>
       </div>
     );
@@ -305,22 +373,31 @@ export const ChartView = memo(function ChartView({
           </button>
         </div>
 
-        {/* Property selector */}
-        <div className="chart-view__property-select">
-          <span className="chart-view__property-label">Group by</span>
-          <select
-            value={selectedPropertyUuid ?? ''}
-            onChange={(e) => setSelectedPropertyUuid(e.target.value || undefined)}
-            className="chart-view__property-dropdown"
-          >
-            <option value="">Select property...</option>
-            {allProperties.map((p) => (
-              <option key={p.uuid} value={p.uuid}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-        </div>
+        {/* Property selector (only for client-side grouping) */}
+        {!hasBackendAggregation && (
+          <div className="chart-view__property-select">
+            <span className="chart-view__property-label">Group by</span>
+            <select
+              value={selectedPropertyUuid ?? ''}
+              onChange={(e) => setSelectedPropertyUuid(e.target.value || undefined)}
+              className="chart-view__property-dropdown"
+            >
+              <option value="">Select property...</option>
+              {allProperties.map((p) => (
+                <option key={p.uuid} value={p.uuid}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        {hasBackendAggregation && aggregationLabel && (
+          <div className="chart-view__property-select">
+            <span className="chart-view__property-label">Grouped by</span>
+            <span className="chart-view__property-value">{aggregationLabel}</span>
+          </div>
+        )}
       </div>
 
       {/* Chart */}

@@ -13,6 +13,7 @@ if TYPE_CHECKING:
         Node,
         NodeCreateData,
         NodeLink,
+        NodeMention,
         NodeProperty,
         NodeUpdateData,
         NodeView,
@@ -499,6 +500,31 @@ class NodeClassRepository(ABC):
     @abstractmethod
     async def get_class_ids_batch(self, node_ids: list[int]) -> dict[int, list[int]]:
         """Get class_ids arrays for multiple nodes in a single query."""
+        pass
+
+    @abstractmethod
+    async def get_node_tag_ids(self, node_id: int) -> list[int]:
+        """Get the tag_ids array for a node."""
+        pass
+
+    @abstractmethod
+    async def update_node_tag_ids(self, node_id: int, tag_ids: list[int]) -> None:
+        """Update tag_ids for a node."""
+        pass
+
+    @abstractmethod
+    async def get_tag_ids_batch(self, node_ids: list[int]) -> dict[int, list[int]]:
+        """Get tag_ids arrays for multiple nodes in a single query."""
+        pass
+
+    @abstractmethod
+    async def remove_tag_id_from_all_nodes(self, tag_id: int) -> int:
+        """Remove a tag ID from all node.tag_ids arrays. Returns number of nodes updated."""
+        pass
+
+    @abstractmethod
+    async def redirect_tag_ids(self, old_tag_id: int, new_tag_id: int) -> int:
+        """Replace old_tag_id with new_tag_id in all node.tag_ids arrays. Returns number of nodes updated."""
         pass
 
     @abstractmethod
@@ -1006,36 +1032,14 @@ class LinkRepository(ABC):
 
     @abstractmethod
     async def get_text_link_targets(self, source_node_id: int) -> list[int]:
-        """Get target IDs of text links (non-tag, non-inline-class) from a source node."""
+        """Get target IDs of text links (non-inline-class) from a source node."""
         pass
 
     @abstractmethod
-    async def get_tag_link_targets(self, source_node_id: int) -> list[int]:
-        """Get target IDs of tag links from a source node."""
-        pass
-
-    @abstractmethod
-    async def delete_non_tag_text_links(self, source_node_id: int) -> int:
-        """Delete all non-tag, non-inline-class text links from a source node.
+    async def delete_non_inline_class_text_links(self, source_node_id: int) -> int:
+        """Delete all non-inline-class text links from a source node.
 
         Returns the number of links deleted.
-        """
-        pass
-
-    @abstractmethod
-    async def ensure_tag_link(self, source_node_id: int, target_id: int) -> bool:
-        """Ensure a tag link exists between source and target.
-
-        If a text link already exists, upgrades it to a tag link.
-        Returns True if a link now exists (created or upgraded).
-        """
-        pass
-
-    @abstractmethod
-    async def clear_tag_link(self, source_node_id: int, target_id: int) -> bool:
-        """Remove the tag flag from a link between source and target.
-
-        Returns True if the link was updated.
         """
         pass
 
@@ -1057,14 +1061,6 @@ class LinkRepository(ABC):
         """Get alias node IDs for multiple target nodes.
 
         Returns a mapping of target_id -> list of alias node IDs.
-        """
-        pass
-
-    @abstractmethod
-    async def get_tag_link_targets_batch(self, source_ids: list[int]) -> dict[int, list[int]]:
-        """Get tag link target IDs for multiple source nodes.
-
-        Returns a mapping of source_id -> list of target IDs.
         """
         pass
 
@@ -1192,8 +1188,60 @@ class LinkRepository(ABC):
         pass
 
     @abstractmethod
-    async def delete_non_tag_text_links_for_workspace(self) -> int:
-        """Delete all non-tag text links (property_id IS NULL, is_tag=FALSE) in the workspace."""
+    async def delete_text_links_for_workspace(self) -> int:
+        """Delete all text links (property_id IS NULL) in the workspace."""
+        pass
+
+
+class MentionRepository(ABC):
+    """Repository interface for unlinked mention candidates."""
+
+    @abstractmethod
+    async def delete_for_source(self, source_node_id: int) -> int:
+        """Delete all mentions for a source node."""
+        pass
+
+    @abstractmethod
+    async def create(self, mention: NodeMention) -> NodeMention:
+        """Create a mention candidate."""
+        pass
+
+    @abstractmethod
+    async def create_many(self, mentions: list[NodeMention]) -> None:
+        """Create multiple mention candidates in one batch."""
+        pass
+
+    @abstractmethod
+    async def list_for_target(
+        self,
+        target_node_id: int,
+        include_ignored: bool = False,
+    ) -> list[NodeMention]:
+        """List mentions for a target node."""
+        pass
+
+    @abstractmethod
+    async def list_for_target_with_source_info(
+        self,
+        target_node_id: int,
+        include_ignored: bool = False,
+    ) -> list[dict[str, Any]]:
+        """List mentions with source node name/uuid."""
+        pass
+
+    @abstractmethod
+    async def get_by_id(self, mention_id: int) -> NodeMention | None:
+        """Get a mention by ID."""
+        pass
+
+    @abstractmethod
+    async def set_ignored(self, mention_id: int, ignored: bool = True) -> NodeMention | None:
+        """Mark a mention as ignored (or un-ignored)."""
+        pass
+
+    @abstractmethod
+    async def delete_for_workspace(self) -> int:
+        """Delete all mentions in the workspace (e.g. for workspace deletion)."""
         pass
 
 

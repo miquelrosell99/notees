@@ -10,6 +10,7 @@ import type {
   NodeView, 
   NodeViewCreate, 
   NodeViewUpdate, 
+  QueryAST,
   QueryExecuteRequest,
   QueryExecuteResponse,
 } from '@/types/nodeView';
@@ -24,6 +25,7 @@ interface NodeViewsResponse {
 
 interface QueryExecuteAPIResponse {
   nodes: Node[];
+  groups?: QueryExecuteResponse['groups'];
   total_count?: number;
   metrics?: QueryExecuteResponse['metrics'];
 }
@@ -142,6 +144,7 @@ export async function executeNodeViewQuery(
     pages_only?: boolean;
     include_properties?: boolean;
     enrich?: { children?: boolean; classes?: boolean; properties?: boolean };
+    aggregation?: QueryExecuteRequest['aggregation'];
   }
 ): Promise<QueryExecuteResponse> {
   const data = await nodeQueryWorkerClient.post<QueryExecuteAPIResponse>(
@@ -150,6 +153,7 @@ export async function executeNodeViewQuery(
   );
   return {
     nodes: data.nodes,
+    groups: data.groups,
     total_count: data.total_count,
     metrics: data.metrics,
   };
@@ -166,6 +170,7 @@ export async function executeQuery(request: QueryExecuteRequest): Promise<QueryE
   );
   return {
     nodes: data.nodes,
+    groups: data.groups,
     total_count: data.total_count,
     metrics: data.metrics,
   };
@@ -206,4 +211,14 @@ export async function resetNodeViews(nodeId: number): Promise<NodeView[]> {
     `${BASE}/reset/${nodeId}`
   );
   return response.data.views;
+}
+
+/**
+ * Parse a compact text query into a QueryAST without executing it.
+ */
+export async function parseQueryLanguage(queryLanguage: string): Promise<QueryAST> {
+  const response = await api.post<{ query_ast: QueryAST }>(`${BASE}/parse`, {
+    query_language: queryLanguage,
+  });
+  return response.data.query_ast;
 }

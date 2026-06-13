@@ -20,6 +20,7 @@ import {
   operatorNeedsValue, 
   alwaysUsesNestedGroup 
 } from './conditionConfigs';
+import './GenericConditionRenderer.css';
 
 // ==================== Types ====================
 
@@ -396,10 +397,54 @@ export function GenericConditionRenderer({
     );
   };
   
+  const DATE_COLUMNS = ['create_date', 'write_date', 'open_date'];
+
+  const isDateCondition = (): boolean => {
+    if (condition.condition_type !== 'property') return false;
+    const propCondition = condition as unknown as Record<string, unknown>;
+    return propCondition.property_type === 'date' || DATE_COLUMNS.includes(propCondition.property_name as string);
+  };
+
+  const handleDateChip = (_label: string, operator: string, value: string) => {
+    onUpdate({
+      ...condition,
+      operator,
+      value,
+    } as unknown as ConditionNode);
+  };
+
+  const renderDateChips = () => {
+    if (!isDateCondition() || !needsValue || selectionMode !== 'static') return null;
+
+    const chips = [
+      { label: 'today', operator: 'gte', value: '{today}' },
+      { label: 'this week', operator: 'gte', value: '{this_week}' },
+      { label: 'this month', operator: 'gte', value: '{this_month}' },
+      { label: 'this year', operator: 'gte', value: '{this_year}' },
+      { label: 'before today', operator: 'lte', value: '{today}' },
+    ];
+
+    return (
+      <div className="prose-condition__date-chips">
+        {chips.map((chip) => (
+          <button
+            key={chip.label}
+            type="button"
+            onClick={() => handleDateChip(chip.label, chip.operator, chip.value)}
+            disabled={readOnly}
+            className="prose-condition__date-chip"
+          >
+            {chip.label}
+          </button>
+        ))}
+      </div>
+    );
+  };
+
   // Render static value input
   const renderStaticInput = () => {
     if (!needsValue || selectionMode === 'dynamic') return null;
-    
+
     // Show "Current Page" indicator when in current mode
     if (selectionMode === 'current') {
       return (
@@ -408,18 +453,18 @@ export function GenericConditionRenderer({
         </span>
       );
     }
-    
+
     switch (config.staticMode.inputType) {
       case 'text': {
         const value = (condition as unknown as Record<string, unknown>).value ?? '';
         const isEmpty = value === '' || value === null || value === undefined;
         const showError = isEmpty && config.staticMode.required && !readOnly;
-        
+
         return (
           <TextField
             value={String(value)}
             onChange={(e) => handleValueChange(e.target.value)}
-            placeholder={config.staticMode.placeholder}
+            placeholder={isDateCondition() ? 'date or placeholder...' : config.staticMode.placeholder}
             disabled={readOnly}
             size="sm"
             className={`prose-condition__input ${showError ? 'prose-condition__input--error' : ''}`}
@@ -525,10 +570,13 @@ export function GenericConditionRenderer({
           const builtInProps = [
             { value: 'uuid', label: 'uuid' },
             { value: 'id', label: 'id' },
+            { value: 'create_date', label: 'create date' },
+            { value: 'write_date', label: 'write date' },
+            { value: 'open_date', label: 'open date' },
           ];
           const customProps = allProperties.map(p => ({ value: p.name, label: p.name }));
           const allProps = [...builtInProps, ...customProps];
-          
+
           return (
             <Dropdown
               value={propertyName}
@@ -538,6 +586,7 @@ export function GenericConditionRenderer({
                   ...condition,
                   property_name: value || '',
                   property_uuid: matched?.uuid ?? undefined,
+                  property_type: matched?.type ?? 'text',
                 } as unknown as ConditionNode);
               }}
               options={allProps}
@@ -584,15 +633,18 @@ export function GenericConditionRenderer({
   // Render property name dropdown for property conditions
   const renderPropertyName = () => {
     if (condition.condition_type !== 'property') return null;
-    
+
     const propertyName = condition.property_name || '';
     const builtInProps = [
       { value: 'uuid', label: 'uuid' },
       { value: 'id', label: 'id' },
+      { value: 'create_date', label: 'create date' },
+      { value: 'write_date', label: 'write date' },
+      { value: 'open_date', label: 'open date' },
     ];
     const customProps = allProperties.map(p => ({ value: p.name, label: p.name }));
     const allProps = [...builtInProps, ...customProps];
-    
+
     return (
       <Dropdown
         value={propertyName}
@@ -602,6 +654,7 @@ export function GenericConditionRenderer({
             ...condition,
             property_name: value || '',
             property_uuid: matched?.uuid ?? undefined,
+            property_type: matched?.type ?? 'text',
           } as unknown as ConditionNode);
         }}
         options={allProps}
@@ -630,6 +683,7 @@ export function GenericConditionRenderer({
       )}
       {renderPropertyName()}
       {renderOperator()}
+      {renderDateChips()}
       {renderStaticInput()}
       {renderModeToggle()}
     </div>

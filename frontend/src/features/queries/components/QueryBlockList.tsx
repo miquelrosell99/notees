@@ -168,16 +168,6 @@ export function QueryBlockList({
     
   }, [blocks, onChange]);
 
-  const handleAddClassPath = useCallback(() => {
-    const newCondition: ConditionNode = {
-      type: 'condition',
-      condition_type: 'class_path',
-      class_uuids: [],
-    };
-    onChange([...blocks, newCondition]);
-    
-  }, [blocks, onChange]);
-
   const handleAddReferencePath = useCallback(() => {
     const newCondition: ConditionNode = {
       type: 'condition',
@@ -227,11 +217,6 @@ export function QueryBlockList({
       id: 'class',
       label: 'CLASS',
       onClick: () => { handleAddClass(); setMenuAnchor(null); },
-    },
-    {
-      id: 'class_path',
-      label: 'CLASS PATH',
-      onClick: () => { handleAddClassPath(); setMenuAnchor(null); },
     },
     { id: 'sep-2', label: '', separator: true },
     {

@@ -24,6 +24,8 @@ export type { QueryNodeCollectionProps, QueryNodeCollectionResult } from './Quer
 export { QuerySection } from './QuerySection';
 export type { QuerySectionProps } from './QuerySection';
 
+export { UnlinkedMentionsSection } from './UnlinkedMentionsSection';
+
 export { NodeCollection } from './NodeCollection';
 export { useNodeCollectionContext } from './NodeCollectionContext';
 export type { NodeCollectionProps, NodeCollectionViewMode } from './NodeCollection';

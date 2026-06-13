@@ -13,6 +13,8 @@ import type {
   BacklinksResponse,
   LinkedReference,
   LinkedReferencesResponse,
+  Mention,
+  MentionsResponse,
   BatchNodeCreateRequest,
   BatchNodeCreateResponse,
   BatchNodeUpdateRequest,
@@ -657,20 +659,19 @@ export async function getCommentCount(nodeId: number): Promise<number> {
 }
 
 /**
- * Text link info with is_tag flag
+ * Text link info
  */
 export interface TextLink {
   id: number;
   uuid: string;
   source_node_id: number;
   target_node_id: number;
-  is_tag: boolean;
   position: number;
   name?: string | null;
 }
 
 /**
- * Get all text links from a node with is_tag info
+ * Get all text links from a node
  */
 export async function getTextLinks(nodeId: number): Promise<TextLink[]> {
   const response = await api.get<{ links: TextLink[] }>(`${BASE}/${nodeId}/text-links`);
@@ -690,20 +691,21 @@ export async function batchGetTextLinks(nodeIds: number[]): Promise<Record<strin
 }
 
 /**
- * Add a tag link from a node to a target page
+ * Add a tag to a node
  */
-export async function addTagLink(nodeId: number, targetNodeId: number): Promise<TextLink> {
-  const response = await api.post<TextLink>(`${BASE}/${nodeId}/tag-links`, {
+export async function addTagLink(nodeId: number, targetNodeId: number): Promise<{ success: boolean }> {
+  const response = await api.post<{ success: boolean }>(`${BASE}/${nodeId}/tag-links`, {
     target_node_id: targetNodeId,
   });
   return response.data;
 }
 
 /**
- * Remove a tag link (converts back to regular link)
+ * Remove a tag from a node
  */
-export async function removeTagLink(nodeId: number, targetId: number): Promise<void> {
-  await api.delete(`${BASE}/${nodeId}/tag-links/${targetId}`);
+export async function removeTagLink(nodeId: number, targetId: number): Promise<{ removed: boolean }> {
+  const response = await api.delete<{ removed: boolean }>(`${BASE}/${nodeId}/tag-links/${targetId}`);
+  return response.data;
 }
 
 // ==================== Aliases ====================
@@ -1040,5 +1042,54 @@ export async function instantiateTemplate(
   options: TemplateInstantiateOptions,
 ): Promise<TemplateInstantiateResult> {
   const response = await api.post<TemplateInstantiateResult>(`${BASE}/${nodeId}/instantiate`, options);
+  return response.data;
+}
+
+// ==================== Unlinked Mentions ====================
+
+/**
+ * Get unlinked mention candidates for a node.
+ */
+export async function getUnlinkedMentions(nodeId: number): Promise<Mention[]> {
+  const response = await api.get<MentionsResponse>(`${BASE}/${nodeId}/mentions`);
+  return response.data.mentions ?? [];
+}
+
+/**
+ * Promote an unlinked mention into a real node link.
+ */
+export async function promoteMention(
+  nodeId: number,
+  mentionId: number,
+): Promise<{ success: boolean; source_node_id: number | null }> {
+  const response = await api.post<{ success: boolean; source_node_id: number | null }>(
+    `${BASE}/${nodeId}/mentions/${mentionId}/promote`,
+  );
+  return response.data;
+}
+
+/**
+ * Ignore an unlinked mention candidate.
+ */
+export async function ignoreMention(
+  nodeId: number,
+  mentionId: number,
+): Promise<{ success: boolean; is_ignored: boolean }> {
+  const response = await api.post<{ success: boolean; is_ignored: boolean }>(
+    `${BASE}/${nodeId}/mentions/${mentionId}/ignore`,
+  );
+  return response.data;
+}
+
+/**
+ * Restore a previously ignored mention candidate.
+ */
+export async function unignoreMention(
+  nodeId: number,
+  mentionId: number,
+): Promise<{ success: boolean; is_ignored: boolean }> {
+  const response = await api.post<{ success: boolean; is_ignored: boolean }>(
+    `${BASE}/${nodeId}/mentions/${mentionId}/unignore`,
+  );
   return response.data;
 }

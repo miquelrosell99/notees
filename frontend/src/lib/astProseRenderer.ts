@@ -26,7 +26,6 @@ import type {
   ParentPathCondition,
   ChildCondition,
   ChildPathCondition,
-  ClassPathCondition,
 } from '@/types/queryAST';
 import type { Node } from '@/types/api';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
@@ -186,8 +185,6 @@ export function renderConditionProse(condition: ConditionNode, nodesMap?: Map<st
       return renderChildConditionProse(condition, nodesMap);
     case 'child_path':
       return renderChildPathProse(condition, nodesMap);
-    case 'class_path':
-      return renderClassPathProse(condition, nodesMap);
     default:
       return 'match unknown condition';
   }
@@ -335,14 +332,6 @@ function renderChildPathProse(condition: ChildPathCondition, nodesMap?: Map<stri
   return 'have descendants matching criteria';
 }
 
-function renderClassPathProse(condition: ClassPathCondition, nodesMap?: Map<string, Node>): string {
-  if (condition.nested_group && condition.nested_group.children.length > 0) {
-    const nested = toThirdPersonSingular(renderGroupProse(condition.nested_group, nodesMap));
-    return `inherit a class that ${nested}`;
-  }
-  return 'inherit classes from ancestors';
-}
-
 // ==================== Helper Functions ====================
 
 /**
@@ -397,7 +386,6 @@ export function getConditionCapabilities(condition: ConditionNode): NodeProseCap
     'parent_path',
     'child',
     'child_path',
-    'class_path',
   ];
 
   if (nestableTypes.includes(condition.condition_type)) {

@@ -857,8 +857,6 @@ The `evaluateQueryAST.ts` module lets you evaluate QueryAST queries against loca
 | `child` / `child_path` | Inverse of parent | Same patterns as parent |
 | `reference` | `GraphLink[]` with `type === 'reference'` | — |
 | `reference_path` | Direct references only | Transitive reference closure not pre-computed |
-| `class_path` | Ancestor classes | Approximates inherited classes |
-| `extends` | Class descendants | — |
 | `style` | — | Returns `false` (content AST not available client-side) |
 
 **Usage:**

@@ -236,23 +236,6 @@ export const CONDITION_CONFIGS: Record<string, ConditionConfig> = {
     },
   },
   
-  class_path: {
-    label: 'CLASS PATH',
-    operators: [{ value: 'has_inherited_class', label: 'from ancestors' }],
-    defaultOperator: 'has_inherited_class',
-    hasStaticDynamicToggle: true,
-    staticMode: {
-      inputType: 'class-selector',
-      placeholder: 'Select classes...',
-      required: true,
-      allowMultiple: true,
-    },
-    dynamicMode: {
-      whereLabel: 'where class',
-      defaultLogic: 'AND',
-    },
-  },
-  
   flag: {
     label: 'flag',
     operators: FLAG_OPERATORS,

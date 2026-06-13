@@ -150,7 +150,7 @@ async def export_workspace_full(
         SELECT id, uuid, name, icon, color, parent_id, page_id, sequence,
                collapsed, active, version, is_class, is_page, is_day,
                is_month, is_year, is_asset, is_template, is_comment,
-               class_ids, classes_path, open_date, create_date, write_date,
+               class_ids, tag_ids, classes_path, open_date, create_date, write_date,
                aliased_id, is_deleted, deleted_at
         FROM node WHERE workspace_id = $1
     """,
@@ -161,7 +161,7 @@ async def export_workspace_full(
     links = await conn.fetch(
         """
         SELECT id, uuid, source_id, target_id, property_id, position,
-               is_tag, is_inline_class, name, create_date
+               is_inline_class, name, create_date
         FROM node_link WHERE workspace_id = $1
     """,
         workspace_id,
@@ -483,6 +483,7 @@ async def _import_dump_core(
                 _to_bool(node_data.get("is_template", False)),
                 _to_bool(node_data.get("is_comment", False)),
                 _ensure_list(node_data.get("classes_path", [])),
+                _ensure_list(node_data.get("tag_ids", [])),
                 _parse_datetime(node_data.get("open_date")),
                 _parse_datetime(node_data.get("create_date")) or now,
                 _parse_datetime(node_data.get("write_date")) or now,
@@ -500,7 +501,7 @@ async def _import_dump_core(
                 sequence, collapsed, active, version,
                 is_class, is_page, is_day, is_month, is_year,
                 is_asset, is_template, is_comment,
-                classes_path, open_date, create_date, write_date,
+                classes_path, tag_ids, open_date, create_date, write_date,
                 is_deleted, deleted_at,
                 create_uid, write_uid
             ) VALUES (
@@ -508,9 +509,9 @@ async def _import_dump_core(
                 $6, $7, $8, $9,
                 $10, $11, $12, $13, $14,
                 $15, $16, $17,
-                $18::jsonb, $19, $20, $21,
-                $22, $23,
-                $24, $24
+                $18::jsonb, $19, $20, $21, $22,
+                $23, $24,
+                $25, $25
             )
         """,
             node_records,
@@ -543,6 +544,7 @@ async def _import_dump_core(
         page_id = node_id_map.get(int(node_data["page_id"])) if node_data.get("page_id") is not None else None
         aliased_id = node_id_map.get(int(node_data["aliased_id"])) if node_data.get("aliased_id") is not None else None
         class_ids = _remap_int_list(node_data.get("class_ids", []), node_id_map)
+        tag_ids = _remap_int_list(node_data.get("tag_ids", []), node_id_map)
         classes_path = node_data.get("classes_path", [])
         if isinstance(classes_path, list):
             classes_path = _remap_int_list(classes_path, node_id_map)
@@ -555,13 +557,14 @@ async def _import_dump_core(
             )
             aliased_id = None
 
-        if parent_id or page_id or aliased_id or class_ids:
+        if parent_id or page_id or aliased_id or class_ids or tag_ids:
             update_records.append(
                 (
                     parent_id,
                     page_id,
                     aliased_id,
                     class_ids if class_ids else [],
+                    tag_ids if tag_ids else [],
                     _ensure_list(classes_path),
                     new_id,
                 )
@@ -572,8 +575,8 @@ async def _import_dump_core(
             """
             UPDATE node
             SET parent_id = $1, page_id = $2, aliased_id = $3,
-                class_ids = $4, classes_path = $5::jsonb
-            WHERE id = $6
+                class_ids = $4, tag_ids = $5, classes_path = $6::jsonb
+            WHERE id = $7
         """,
             update_records,
             timeout=None,
@@ -1044,6 +1047,7 @@ async def _import_dump_core(
     logger.info(f"Importing {len(links_data)} node links")
 
     link_records = []
+    tag_links_by_source: dict[int, set[int]] = {}
     for link_data in links_data:
         source = node_id_map.get(int(link_data["source_id"]))
         target = node_id_map.get(int(link_data["target_id"]))
@@ -1052,6 +1056,12 @@ async def _import_dump_core(
             logger.warning(
                 f"Skipping node_link: source {link_data['source_id']} or target {link_data['target_id']} not found"
             )
+            continue
+
+        # Legacy exports stored tags as node_link rows with is_tag=True.
+        # Migrate those into node.tag_ids and do not insert a node_link row.
+        if _to_bool(link_data.get("is_tag", False)):
+            tag_links_by_source.setdefault(source, set()).add(target)
             continue
 
         link_uuid = map_uuid(link_data.get("uuid"))
@@ -1071,7 +1081,6 @@ async def _import_dump_core(
                 workspace_id,
                 link_property_id,
                 _to_int(link_data.get("position", 0)),
-                _to_bool(link_data.get("is_tag", False)),
                 _to_bool(link_data.get("is_inline_class", False)),
                 link_name,
                 _parse_datetime(link_data.get("create_date")) or now,
@@ -1084,15 +1093,33 @@ async def _import_dump_core(
             """
             INSERT INTO node_link (
                 uuid, source_id, target_id, workspace_id, property_id,
-                position, is_tag, is_inline_class, name, create_date,
+                position, is_inline_class, name, create_date,
                 create_uid
             ) VALUES (
                 $1::uuid, $2, $3, $4, $5,
-                $6, $7, $8, $9, $10,
-                $11
+                $6, $7, $8, $9,
+                $10
             )
         """,
             link_records,
+            timeout=None,
+        )
+
+    # Merge legacy tag links into node.tag_ids
+    if tag_links_by_source:
+        tag_update_records = []
+        for source_id, targets in tag_links_by_source.items():
+            tag_update_records.append((list(targets), source_id))
+        await conn.executemany(
+            """
+            UPDATE node
+            SET tag_ids = (
+                SELECT ARRAY_AGG(DISTINCT x ORDER BY x)
+                FROM unnest(COALESCE(tag_ids, '{}') || $1::INTEGER[]) AS x
+            )
+            WHERE id = $2
+        """,
+            tag_update_records,
             timeout=None,
         )
 

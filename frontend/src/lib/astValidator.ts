@@ -204,7 +204,6 @@ function validateCondition(condition: ConditionNode, path: string[], errors: Val
     }
     case 'parent':
     case 'child':
-    case 'class_path':
       if (!condition.nested_group) {
         errors.push({
           severity: 'error',

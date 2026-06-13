@@ -7,6 +7,8 @@ Generates optimized SQL with proper indexing and filtering.
 from typing import Any
 
 from app.domain.entities.query_ast import (
+    AggregateFunction,
+    AggregationNode,
     ChildCondition,
     ChildPathCondition,
     ClassCondition,
@@ -118,6 +120,109 @@ class QueryASTToSQL:
         sql = "\n".join(sql_parts)
 
         return sql, self.params
+
+    def generate_aggregate(self, ast: QueryAST) -> tuple[str, dict[str, Any]]:
+        """Generate an aggregate SQL query from AST.
+
+        The filtered node set is computed using the normal query logic, then
+        grouped according to ast.aggregation. Returns SQL that selects group_key
+        and the aggregate value (e.g. count).
+        """
+        if not ast.aggregation:
+            raise DomainError("Aggregation requested but AST has no aggregation node")
+
+        base_sql, base_params = self.generate(ast)
+        # Strip the trailing ORDER BY clause so the query can be used as a CTE.
+        base_sql = base_sql.rsplit("\nORDER BY", 1)[0]
+
+        aggregation = ast.aggregation
+        group_sql, group_params = self._generate_group_by_sql(aggregation)
+
+        sql = f"""WITH filtered_nodes AS (
+{base_sql}
+)
+{group_sql}"""
+        params = {**base_params, **group_params}
+        return sql, params
+
+    def _generate_group_by_sql(self, aggregation: AggregationNode) -> tuple[str, dict[str, Any]]:
+        """Generate the GROUP BY portion of an aggregate query."""
+        function = aggregation.function
+        group_by = aggregation.group_by
+
+        aggregate_expr = {
+            AggregateFunction.COUNT: "COUNT(*)",
+            AggregateFunction.SUM: "SUM(%s)",
+            AggregateFunction.AVG: "AVG(%s)",
+            AggregateFunction.MIN: "MIN(%s)",
+            AggregateFunction.MAX: "MAX(%s)",
+        }.get(function, "COUNT(*)")
+
+        # Built-in node fields
+        builtin_groups = {
+            "is_page": "fn.is_page",
+            "create_date": "fn.create_date::date",
+            "write_date": "fn.write_date::date",
+            "open_date": "fn.open_date::date",
+            "page": "fn.page_id",
+            "class": "COALESCE(fn.class_ids::text, '[]')",
+        }
+
+        if group_by in builtin_groups:
+            key_expr = builtin_groups[group_by]
+            sql = f"""SELECT
+    {key_expr} AS group_key,
+    {aggregate_expr} AS count
+FROM filtered_nodes fn
+GROUP BY {key_expr}
+ORDER BY {aggregate_expr} DESC"""
+            return sql, {}
+
+        # Property-based grouping
+        if not aggregation.group_by_property_type:
+            raise DomainError(f"Property grouping requires group_by_property_type for {group_by}")
+
+        prop_uuid_param = self._add_param(group_by)
+        prop_type = aggregation.group_by_property_type
+
+
+        if prop_type == PropertyType.SELECTION.value:
+            sql = f"""SELECT
+    COALESCE(psl.name, '(No value)') AS group_key,
+    COUNT(*) AS count
+FROM filtered_nodes fn
+LEFT JOIN node_property np ON np.node_id = fn.id
+LEFT JOIN property p ON p.uuid = %({prop_uuid_param})s::uuid AND p.workspace_id = %(workspace_id)s
+LEFT JOIN property_value_selection pvs ON pvs.node_property_id = np.id
+LEFT JOIN property_selection_line psl ON psl.id = pvs.selection_line_id
+GROUP BY psl.name
+ORDER BY count DESC"""
+            return sql, {prop_uuid_param: group_by}
+
+        if prop_type in (PropertyType.NODE.value, PropertyType.DATE.value):
+            sql = f"""SELECT
+    COALESCE(target.uuid::text, '(No value)') AS group_key,
+    COUNT(*) AS count
+FROM filtered_nodes fn
+LEFT JOIN node_property np ON np.node_id = fn.id
+LEFT JOIN property p ON p.uuid = %({prop_uuid_param})s::uuid AND p.workspace_id = %(workspace_id)s
+LEFT JOIN property_value_relation pvr ON pvr.node_property_id = np.id
+LEFT JOIN node target ON target.id = pvr.target_id
+GROUP BY target.uuid
+ORDER BY count DESC"""
+            return sql, {prop_uuid_param: group_by}
+
+        # Scalar / text / number properties
+        sql = f"""SELECT
+    COALESCE(pvs.value_text, '(No value)') AS group_key,
+    COUNT(*) AS count
+FROM filtered_nodes fn
+LEFT JOIN node_property np ON np.node_id = fn.id
+LEFT JOIN property p ON p.uuid = %({prop_uuid_param})s::uuid AND p.workspace_id = %(workspace_id)s
+LEFT JOIN property_value_scalar pvs ON pvs.node_property_id = np.id
+GROUP BY pvs.value_text
+ORDER BY count DESC"""
+        return sql, {prop_uuid_param: group_by}
 
     def _generate_scope_sql(self, scope: ScopeNode) -> str | None:
         """Generate SQL for scope filtering."""
@@ -355,7 +460,19 @@ class QueryASTToSQL:
             return None
 
         # Built-in node columns that should be queried directly
-        builtin_columns = {"uuid", "name", "id", "parent_id", "is_page", "is_favorite", "page_uuid"}
+        builtin_columns = {
+            "uuid",
+            "name",
+            "id",
+            "parent_id",
+            "is_page",
+            "is_favorite",
+            "page_uuid",
+            "create_date",
+            "write_date",
+            "open_date",
+        }
+        date_columns = {"create_date", "write_date", "open_date"}
 
         # Check if this is a built-in column
         if condition.property_name in builtin_columns:
@@ -370,7 +487,7 @@ class QueryASTToSQL:
                 return None
 
             # Don't add property name as parameter for built-in columns
-            value_param = self._add_param(str(condition.value))
+            value_param = self._add_param(condition.value)
             column_name = condition.property_name
 
             # Special handling for UUID columns
@@ -398,6 +515,22 @@ class QueryASTToSQL:
                     return f"{text_expr} != %({value_param})s"
                 elif condition.operator == "contains":
                     return f"{text_expr} ILIKE '%%' || %({value_param})s || '%%'"
+                return None
+
+            # Date column handling
+            if column_name in date_columns:
+                if condition.operator == "equals":
+                    return f"n.{column_name}::date = %({value_param})s::date"
+                elif condition.operator == "not_equals":
+                    return f"n.{column_name}::date != %({value_param})s::date"
+                elif condition.operator == "greater_than":
+                    return f"n.{column_name}::date > %({value_param})s::date"
+                elif condition.operator == "less_than":
+                    return f"n.{column_name}::date < %({value_param})s::date"
+                elif condition.operator == "gte":
+                    return f"n.{column_name}::date >= %({value_param})s::date"
+                elif condition.operator == "lte":
+                    return f"n.{column_name}::date <= %({value_param})s::date"
                 return None
 
             # Standard text comparison for other columns
@@ -514,6 +647,26 @@ class QueryASTToSQL:
                         JOIN node target ON target.id = pvr.target_id
                         WHERE np.node_id = n.id
                         AND target.uuid::text < %({value_param})s
+                    )"""
+
+                elif condition.operator == "gte":
+                    return f"""EXISTS (
+                        SELECT 1 FROM node_property np
+                        {prop_join_clause}
+                        JOIN property_value_relation pvr ON pvr.node_property_id = np.id
+                        JOIN node target ON target.id = pvr.target_id
+                        WHERE np.node_id = n.id
+                        AND target.uuid::text >= %({value_param})s
+                    )"""
+
+                elif condition.operator == "lte":
+                    return f"""EXISTS (
+                        SELECT 1 FROM node_property np
+                        {prop_join_clause}
+                        JOIN property_value_relation pvr ON pvr.node_property_id = np.id
+                        JOIN node target ON target.id = pvr.target_id
+                        WHERE np.node_id = n.id
+                        AND target.uuid::text <= %({value_param})s
                     )"""
 
                 return None

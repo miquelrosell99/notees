@@ -29,6 +29,7 @@ if TYPE_CHECKING:
         UserRepository,
     )
     from .link_service import LinkParsingService
+    from .mention_service import MentionService
 
 logger = get_logger(__name__)
 
@@ -67,6 +68,7 @@ class NodeService:
         activity_repo: ActivityRepository | None = None,
         class_extend_repo: ClassExtendRepository | None = None,
         user_repository: UserRepository | None = None,
+        mention_service: MentionService | None = None,
     ):
         self._node_repo = node_repository
         self._property_repo = property_repository
@@ -77,9 +79,11 @@ class NodeService:
         self._settings_repo = settings_repo
         self._activity_repo = activity_repo
         self._user_repo = user_repository
+        self._mention_service = mention_service
         self._class_service = ClassManagementService(
             workspace_id, node_repository, property_repository, class_extend_repo
         )
+        self._permissions: PermissionChecker | None = None
 
     # ── Public properties ──────────────────────────────────────────────────
 
@@ -164,12 +168,12 @@ class NodeService:
         return await self._node_repo.get_node_class_ids(node_id)
 
     async def get_tag_link_targets(self, node_id: int) -> list[int]:
-        """Get tag link target IDs for a source node."""
-        return await self._link_service._link_repo.get_tag_link_targets(node_id)
+        """Get tag IDs for a source node."""
+        return await self._node_repo.get_node_tag_ids(node_id)
 
     async def get_tag_link_targets_batch(self, node_ids: list[int]) -> dict[int, list[int]]:
-        """Get tag link target IDs for multiple source nodes."""
-        return await self._link_service._link_repo.get_tag_link_targets_batch(node_ids)
+        """Get tag IDs for multiple source nodes."""
+        return await self._node_repo.get_tag_ids_batch(node_ids)
 
     async def get_alias_node_ids(self, target_node_id: int) -> list[int]:
         """Get IDs of nodes that alias the target node."""
@@ -178,6 +182,30 @@ class NodeService:
     async def get_alias_node_ids_batch(self, target_node_ids: list[int]) -> dict[int, list[int]]:
         """Get alias node IDs for multiple target nodes."""
         return await self._link_service._link_repo.get_alias_node_ids_batch(target_node_ids)
+
+    async def list_unlinked_mentions(self, target_node_id: int) -> list[dict[str, Any]]:
+        """List unlinked mention candidates for a target node."""
+        if self._mention_service is None:
+            return []
+        return await self._mention_service.list_unlinked_mentions(target_node_id)
+
+    async def promote_mention(self, mention_id: int) -> Node | None:
+        """Promote an unlinked mention into a real node link."""
+        if self._mention_service is None:
+            return None
+        return await self._mention_service.promote_mention(mention_id)
+
+    async def ignore_mention(self, mention_id: int) -> Any | None:
+        """Ignore an unlinked mention candidate."""
+        if self._mention_service is None:
+            return None
+        return await self._mention_service.ignore_mention(mention_id)
+
+    async def unignore_mention(self, mention_id: int) -> Any | None:
+        """Restore a previously ignored mention candidate."""
+        if self._mention_service is None:
+            return None
+        return await self._mention_service.unignore_mention(mention_id)
 
     async def get_extended_classes_batch(self, node_ids: list[int]) -> dict[int, list[int]]:
         """Get parent class IDs for multiple class nodes."""
@@ -281,13 +309,21 @@ class NodeService:
         """Get text links for multiple nodes, grouped by source_id."""
         return await self._link_service.get_text_links_batch(node_ids)
 
-    async def add_tag_link(self, source_node_id: int, target_node_id: int):
-        """Add or upgrade a tag link from source to target."""
-        return await self._link_service.add_tag_link(source_node_id, target_node_id)
+    async def add_tag_link(self, source_node_id: int, target_node_id: int) -> None:
+        """Add a tag to a node (idempotent)."""
+        tag_ids = await self._node_repo.get_node_tag_ids(source_node_id)
+        if target_node_id not in tag_ids:
+            tag_ids.append(target_node_id)
+            await self._node_repo.update_node_tag_ids(source_node_id, tag_ids)
 
     async def remove_tag_link(self, source_node_id: int, target_node_id: int) -> bool:
-        """Remove a tag flag from a link between source and target."""
-        return await self._link_service.remove_tag_link(source_node_id, target_node_id)
+        """Remove a tag from a node."""
+        tag_ids = await self._node_repo.get_node_tag_ids(source_node_id)
+        if target_node_id not in tag_ids:
+            return False
+        tag_ids = [tid for tid in tag_ids if tid != target_node_id]
+        await self._node_repo.update_node_tag_ids(source_node_id, tag_ids)
+        return True
 
     async def get_property_backlinks(self, node_id: int):
         """Get pages that reference this node via date or node properties."""
@@ -468,6 +504,8 @@ class NodeService:
                 if new_page.name and new_page.id is not None:
                     await self._link_service.update_node_links(new_page.id, new_page.name)
                     await self._link_service.update_inline_classes(new_page.id, new_page.name)
+                    if self._mention_service is not None:
+                        await self._mention_service.reindex_source(new_page.id)
 
                 if is_leaf:
                     # This is the final node to return
@@ -542,6 +580,8 @@ class NodeService:
         if node.name and node.id is not None:
             await self._link_service.update_node_links(node.id, node.name)
             await self._link_service.update_inline_classes(node.id, node.name)
+            if self._mention_service is not None:
+                await self._mention_service.reindex_source(node.id)
 
         # Log activity
         if node.id is not None:
@@ -833,6 +873,8 @@ class NodeService:
         if data.name is not None and node.id is not None:
             await self._link_service.update_node_links(node.id, node.name)
             await self._link_service.update_inline_classes(node.id, node.name)
+            if self._mention_service is not None:
+                await self._mention_service.reindex_source(node.id)
 
         # Update classes path if parent changed (inherited classes may have changed)
         if data.parent_id is not None and data.parent_id != old_parent_id and node.id is not None:
@@ -1205,6 +1247,15 @@ class NodeService:
         deleted_count = await self._property_repo.delete_relation_values_by_target(node_id)
         if deleted_count > 0:
             logger.debug("Removed node %s from %s property value relations", node_id, deleted_count)
+
+        # Remove from node.tag_ids arrays
+        tag_cleanup_count = await self._node_repo.remove_tag_id_from_all_nodes(node_id)
+        if tag_cleanup_count > 0:
+            logger.debug("Removed node %s from %s node tag arrays", node_id, tag_cleanup_count)
+
+    async def _redirect_tag_ids(self, old_tag_id: int, new_tag_id: int) -> int:
+        """Replace old_tag_id with new_tag_id in all node.tag_ids arrays."""
+        return await self._node_repo.redirect_tag_ids(old_tag_id, new_tag_id)
 
     async def _count_active_day_descendants(self, node_id: int) -> int:
         """Count active day pages that are descendants of this node.
@@ -2021,6 +2072,10 @@ class NodeService:
         # Step 5: Redirect structural backlinks in node_link table
         await self._link_service._link_repo.redirect_link_targets(source_id, target_id)
         logger.info(f"[MERGE] Redirected node_link backlinks from {source_id} to {target_id}")
+
+        # Step 5a: Redirect tag_ids arrays that point to source to target
+        await self._redirect_tag_ids(source_id, target_id)
+        logger.info(f"[MERGE] Redirected tag_ids arrays from {source_id} to {target_id}")
 
         # Step 5b: Redirect node-type property values that point to the source page
         pvr_count = await self._node_repo.redirect_property_relation_targets(source_id, target_id)

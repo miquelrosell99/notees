@@ -220,11 +220,6 @@ function validateCondition(condition: ConditionNode, path: string[], issues: Val
       }
       break;
       
-    case 'class_path':
-      if (condition.nested_group) {
-        validateGroup(condition.nested_group, [...path, 'nested_group'], issues);
-      }
-      break;
   }
 }
 

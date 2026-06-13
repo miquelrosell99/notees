@@ -607,14 +607,14 @@ export function QueryNodeCollection({
   // Windowed result set — bypass windowing in immersive/visualization modes
   // (gantt, graph, timeline) so all items are available for rendering.
   const windowedResultNodes = useMemo(() => {
-    if (collectionViewMode === 'gantt' || collectionViewMode === 'graph' || collectionViewMode === 'timeline') {
+    if (collectionViewMode === 'gantt' || collectionViewMode === 'graph' || collectionViewMode === 'timeline' || collectionViewMode === 'chart') {
       return resultNodes;
     }
     if (resultNodes.length <= WINDOW_SIZE) return resultNodes;
     return resultNodes.slice(0, renderWindow);
   }, [resultNodes, renderWindow, collectionViewMode]);
 
-  const hasMoreResults = !(collectionViewMode === 'gantt' || collectionViewMode === 'graph' || collectionViewMode === 'timeline') && renderWindow < resultNodes.length;
+  const hasMoreResults = !(collectionViewMode === 'gantt' || collectionViewMode === 'graph' || collectionViewMode === 'timeline' || collectionViewMode === 'chart') && renderWindow < resultNodes.length;
 
   const handleLoadMore = useCallback(() => {
     if (viewType === 'linked_references') {
@@ -1001,6 +1001,7 @@ export function QueryNodeCollection({
             onAddClass={handleAddClass}
             showBreadcrumbs={viewType !== 'all_pages' && viewType !== 'child_pages'}
             hideProperties={viewType === 'all_pages' || viewType === 'child_pages'}
+            queryAst={activeAST}
           />
 
           {/* Load more button for windowed results (hidden in gantt mode — filtering happens inside GanttView) */}
@@ -1060,6 +1061,7 @@ export function QueryNodeCollection({
                 containerCard={false}
                 onAddClass={handleAddClass}
                 showBreadcrumbs={viewType !== 'all_pages' && viewType !== 'child_pages'}
+                queryAst={activeAST}
               />}
             </>
           )}

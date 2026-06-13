@@ -132,6 +132,7 @@ class NodeCreateRequest(BaseModel):
     parent_id: int | None = None
     sequence: float = 0.0
     classes: list[int] = []  # Class node IDs - flags are computed from these
+    tags: list[int] = []  # Tag node IDs
     properties: dict[int, Any] = {}  # property_id -> value
     uuid: str | None = None  # Optional: override auto-generated UUID (e.g. from Logseq import)
     # For date nodes
@@ -194,7 +195,6 @@ class NodeLinkResponse(BaseModel):
     uuid: str  # Unique identifier for this link instance
     source_node_id: int
     target_node_id: int
-    is_tag: bool
     position: int
     name: str | None = None  # Custom display text for the link
 
@@ -214,6 +214,21 @@ class PropertyBacklinkResponse(BaseModel):
     source_page: NodeResponse
     property_id: int
     property_name: str
+
+
+class MentionResponse(BaseModel):
+    """An unlinked mention candidate for a target node."""
+
+    id: int
+    uuid: str
+    source_node_id: int
+    source_node_uuid: str
+    source_node_name: str
+    source_is_page: bool
+    target_id: int
+    match_text: str
+    position: int
+    is_ignored: bool = False
 
 
 class CommentCreateRequest(BaseModel):

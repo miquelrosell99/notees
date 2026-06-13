@@ -14,7 +14,7 @@
  * - Task blocks       → Status badges
  * - Query blocks      → Query results via QueryNodeCollection
  * - Table blocks      → HTML table with row/cell rendering
- * - Embed blocks      → Embedded node preview card
+ * - Embed links       → Rendered inline as pills with a floating preview
  */
 
 import { useMemo, useState, useEffect, useRef } from 'react';
@@ -27,12 +27,11 @@ import { QueryNodeCollection } from '@/features/content/components/nodes/QueryNo
 import { useQueryBlock } from '@/hooks/useQueryBlock';
 import { Card } from '@/components/ui/Card';
 import { useNavigationStore } from '@/stores';
-import { useNode, useNodeByUuid } from '@/hooks';
+import { useNode } from '@/hooks';
 import type { Node } from '@/types/api';
 import type { ASTDocument, ASTInlineNode } from '@/types/ast';
 import { parseAST, parseLinkId } from '@/lib/astBuilder';
 import { NodeRef } from '@/features/content/components/nodes/NodeRef';
-import { Icon } from '@/components/ui/Icon';
 import type { JSX } from 'react';
 import './BlockAfterContent.css';
 
@@ -406,59 +405,6 @@ function TablePreview({ node }: { node: Node }): JSX.Element | null {
   );
 }
 
-// ─── Embed Preview ───────────────────────────────────────────────
-
-function findEmbedLinkId(name: string): string | null {
-  const ast = parseAST(name);
-  for (const block of ast) {
-    if (block.type !== 'paragraph' && block.type !== 'heading') continue;
-    for (const inline of block.children) {
-      if (inline.type === 'node_link' && inline.ref_type === 'embed') {
-        return inline.link_id;
-      }
-    }
-  }
-  return null;
-}
-
-function EmbedPreview({ node }: { node: Node }): JSX.Element | null {
-  const embedLinkId = useMemo(() => findEmbedLinkId(node.name), [node.name]);
-  const { nodeUuid } = embedLinkId ? parseLinkId(embedLinkId) : { nodeUuid: null };
-  const { data: embeddedNode, isLoading } = useNodeByUuid(nodeUuid, { include_children: true });
-
-  if (!nodeUuid) return null;
-
-  const embeddedName = embeddedNode ? nodeNameToText(embeddedNode.name) || '[Untitled]' : '';
-
-  return (
-    <div className="embed-block-card">
-      <div className="embed-block-header">
-        <Icon path="mdi-cube-outline" className="embed-block-header__icon" />
-        <span className="embed-block-header__label" title={embeddedName}>
-          {isLoading ? 'Loading embed…' : `Embed: ${embeddedName}`}
-        </span>
-      </div>
-      {embeddedNode && (
-        <div className="embed-block-content">
-          {embeddedNode.children && embeddedNode.children.length > 0 ? (
-            <ul className="embed-block-list">
-              {embeddedNode.children.map((child) => (
-                <li key={child.id} className="embed-block-list-item">
-                  <CellContent name={child.name} />
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <div className="embed-block-empty">
-              <CellContent name={embeddedNode.name} />
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ─── Main Component ──────────────────────────────────────────────
 
 export function BlockAfterContent({ node, backlinkExpanded }: BlockAfterContentProps): JSX.Element {
@@ -473,12 +419,10 @@ export function BlockAfterContent({ node, backlinkExpanded }: BlockAfterContentP
   const hasBacklinks = (node.backlink_count ?? 0) > 0;
   const isTask = graphNode?.taskStatus != null;
   const calloutType = detectCalloutType(classIds);
-  const embedLinkId = useMemo(() => findEmbedLinkId(node.name), [node.name]);
-  const hasEmbed = embedLinkId != null;
   const isCollapsed = graphNode?.collapsed ?? node.collapsed ?? false;
 
   const hasContent =
-    isAsset || isCode || isQuery || isTable || hasBacklinks || isTask || calloutType != null || hasEmbed;
+    isAsset || isCode || isQuery || isTable || hasBacklinks || isTask || calloutType != null;
 
   if (!hasContent) {
     return <div className="block-after-content" />;
@@ -493,7 +437,6 @@ export function BlockAfterContent({ node, backlinkExpanded }: BlockAfterContentP
       {hasBacklinks && <BacklinkPreview node={node} expanded={backlinkExpanded} />}
       {isQuery && !isCollapsed && <QueryPreview node={node} />}
       {isTable && <TablePreview node={node} />}
-      {hasEmbed && <EmbedPreview node={node} />}
     </div>
   );
 }

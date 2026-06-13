@@ -98,6 +98,11 @@ export const NodeCollection = memo(function NodeCollection({
   customContextMenuItems,
   autoCollapse = false,
   expandAll = false,
+  defaultSort,
+  ganttStartDateProperty: ganttStartDatePropertyProp,
+  ganttEndDateProperty: ganttEndDatePropertyProp,
+  onGanttStartDatePropertyChange,
+  onGanttEndDatePropertyChange,
   containerCard = false,
   activeNode,
   pageId,
@@ -111,11 +116,7 @@ export const NodeCollection = memo(function NodeCollection({
   hideProperties = false,
   size,
   showClasses = false,
-  ganttStartDateProperty: ganttStartDatePropertyProp,
-  ganttEndDateProperty: ganttEndDatePropertyProp,
-  onGanttStartDatePropertyChange,
-  onGanttEndDatePropertyChange,
-  defaultSort,
+  queryAst,
 }: NodeCollectionProps) {
   // Always use store for card layout to ensure reactivity
   // Components can still pass cardLayout to override if needed for specific cases
@@ -453,6 +454,8 @@ export const NodeCollection = memo(function NodeCollection({
           ...commonViewProps,
           nodes,
           groupByProperty,
+          queryAst,
+          viewId,
         };
 
       case 'timeline':

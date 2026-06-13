@@ -218,7 +218,7 @@ TASK_RECURRENCE_OPTIONS = [
 ]
 
 SYSTEM_PROPERTIES = [
-    {"name": "Tags", "type": "node", "multi": True, "is_system": True, "uuid": SYSTEM_PROPERTY_UUIDS["tags"]},
+    # "tags" removed - now stored directly in node.tag_ids column
     # "classes" removed - now stored directly in node.class_ids column
     {
         "name": "Show hierarchy",
