@@ -3,15 +3,7 @@
  */
 
 
-:root {
-  --features-content-components-nodes-node-breadcrumbs-max-width-120: 120px;
-  --features-content-components-nodes-node-breadcrumbs-font-size-10: 10px;
-  --features-content-components-nodes-node-breadcrumbs-max-width-150: 150px;
-  --features-content-components-nodes-node-breadcrumbs-min-width-28: 28px;
-  --features-content-components-nodes-node-breadcrumbs-min-width-160: 160px;
-  --features-content-components-nodes-node-breadcrumbs-max-width-280: 280px;
-  --features-content-components-nodes-node-breadcrumbs-max-height-320: 320px;
-}
+
 
 .node-breadcrumbs {
   display: flex;
@@ -33,15 +25,15 @@
 }
 
 .node-breadcrumbs--compact {
-  gap: 2px;
+  gap: var(--spacing-micro);
 }
 
 .node-breadcrumbs--compact .node-breadcrumb-link {
-  padding: 2px var(--spacing-1);
+  padding: var(--spacing-micro) var(--spacing-1);
 }
 
 .node-breadcrumbs--compact .node-breadcrumb-name {
-  max-width: var(--features-content-components-nodes-node-breadcrumbs-max-width-120);
+  max-width: var(--layout-size-sm);
 }
 
 .node-breadcrumb-item {
@@ -93,12 +85,12 @@
 }
 
 .node-breadcrumb-bullet {
-  font-size: var(--features-content-components-nodes-node-breadcrumbs-font-size-10);
+  font-size: var(--font-size-2xs);
   color: var(--color-on-surface-variant);
 }
 
 .node-breadcrumb-name {
-  max-width: var(--features-content-components-nodes-node-breadcrumbs-max-width-150);
+  max-width: var(--layout-size-lg);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -112,7 +104,7 @@
 /* Context text (e.g., "via property_name") */
 .node-breadcrumb-context {
   font-style: italic;
-  opacity: 0.8;
+  opacity: var(--opacity-80);
 }
 
 .node-breadcrumb-context-text {
@@ -131,8 +123,8 @@
 }
 
 .node-breadcrumb-property-icon {
-  font-size: var(--features-content-components-nodes-node-breadcrumbs-font-size-10);
-  opacity: 0.8;
+  font-size: var(--font-size-2xs);
+  opacity: var(--opacity-80);
 }
 
 /* ─── Ellipsis / overflow collapse ─────────────────────────────────────────── */
@@ -145,7 +137,7 @@
 .node-breadcrumb-ellipsis {
   font-weight: 600;
   letter-spacing: 1px;
-  min-width: var(--features-content-components-nodes-node-breadcrumbs-min-width-28);
+  min-width: 1.75rem;
   justify-content: center;
 }
 
@@ -155,19 +147,19 @@
   position: absolute;
   top: 100%;
   left: 0;
-  z-index: 100;
+  z-index: var(--z-100);
   padding-top: var(--spacing-1);
 }
 
 .node-breadcrumbs-popup {
   display: flex;
   flex-direction: column;
-  min-width: var(--features-content-components-nodes-node-breadcrumbs-min-width-160);
-  max-width: var(--features-content-components-nodes-node-breadcrumbs-max-width-280);
-  max-height: var(--features-content-components-nodes-node-breadcrumbs-max-height-320);
+  min-width: var(--layout-size-xl);
+  max-width: var(--layout-size-6xl);
+  max-height: var(--layout-size-8xl);
   overflow-y: auto;
   background: var(--color-surface-container);
-  border: 1px solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
   border-radius: var(--shape-medium);
   padding: var(--spacing-1);
 }
@@ -218,16 +210,16 @@
   min-width: 0 !important;
   padding: 0 !important;
   overflow: hidden;
-  opacity: 0;
+  opacity: var(--opacity-0);
   transition:
-    opacity 0.15s ease,
-    width 0.15s ease;
+    opacity var(--motion-duration-shorter) var(--motion-easing-ease),
+    width var(--motion-duration-shorter) var(--motion-easing-ease);
   color: var(--color-on-surface-variant);
   flex-shrink: 0;
 }
 
 .node-breadcrumb-item:hover .node-breadcrumb-edit-btn {
-  opacity: 1;
+  opacity: var(--opacity-100);
   width: var(--icon-size-md) !important;
 }
 
@@ -241,21 +233,21 @@
   display: inline-block;
   width: var(--icon-size-xs);
   height: var(--icon-size-xs);
-  border: 2px solid var(--color-outline-variant);
+  border: var(--border-width-thick) solid var(--color-outline-variant);
   border-top-color: var(--color-on-surface-variant);
   border-radius: var(--shape-full);
-  animation: spin 0.8s linear infinite;
+  animation: spin 0.8s var(--motion-easing-linear) infinite;
 }
 
 /* ─── "+ Add parent" button ──────────────────────────────────────────────────── */
 
 .node-breadcrumb-add-parent {
-  opacity: 0.45;
-  transition: opacity 150ms ease;
+  opacity: var(--opacity-45);
+  transition: opacity var(--motion-duration-shorter) var(--motion-easing-ease);
 }
 
 .node-breadcrumb-add-parent:hover {
-  opacity: 1;
+  opacity: var(--opacity-100);
 }
 /* Mobile: expand breadcrumb edit button width */
 @media (max-width: 768px) {

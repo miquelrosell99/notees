@@ -3,9 +3,7 @@
  */
 
 
-:root {
-  --features-content-editor-plugins-floating-toolbar-plugin-min-width-28: 28px;
-}
+
 
 .floating-toolbar {
   pointer-events: auto;
@@ -14,11 +12,11 @@
 
 @keyframes floating-toolbar-fade-in {
   from {
-    opacity: 0;
+    opacity: var(--opacity-0);
     transform: translateY(4px);
   }
   to {
-    opacity: 1;
+    opacity: var(--opacity-100);
     transform: translateY(0);
   }
 }
@@ -26,7 +24,7 @@
 .floating-toolbar__card {
   display: inline-flex;
   background: var(--color-surface);
-  border: 1px solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
 }
 
 .floating-toolbar__actions {
@@ -36,7 +34,7 @@
 }
 
 .floating-toolbar__button {
-  min-width: var(--features-content-editor-plugins-floating-toolbar-plugin-min-width-28);
+  min-width: 1.75rem;
   height: var(--height-sm);
   padding: var(--spacing-1);
 }
@@ -60,7 +58,7 @@
   gap: var(--spacing-1);
   margin-left: var(--spacing-1);
   padding-left: var(--spacing-1);
-  border-left: 1px solid var(--color-outline-variant);
+  border-left: var(--border-width-default) solid var(--color-outline-variant);
 }
 
 .floating-toolbar__link-input input {
@@ -68,7 +66,7 @@
   height: var(--height-sm);
   padding: var(--spacing-1) var(--spacing-2);
   font-size: var(--font-size-sm);
-  border: 1px solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
   background: var(--color-surface);
   color: var(--color-on-surface);
 }

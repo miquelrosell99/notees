@@ -1,6 +1,4 @@
-:root {
-  --features-content-components-presentation-modal-max-width-960: 960px;
-}
+
 
 .presentation-modal-backdrop {
   position: fixed;
@@ -41,7 +39,7 @@
 
 .presentation-modal-slide {
   width: 90vw;
-  max-width: var(--features-content-components-presentation-modal-max-width-960);
+  max-width: 60rem;
   max-height: 90vh;
   display: flex;
   flex-direction: column;

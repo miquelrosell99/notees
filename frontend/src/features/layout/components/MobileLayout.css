@@ -9,10 +9,6 @@
  */
 
 
-:root {
-  --features-layout-components-mobile-layout-right: var(--spacing-5);
-}
-
 /* ── Canvas ──────────────────────────────────────────────────── */
 .mobile-canvas {
   display: flex;
@@ -49,7 +45,7 @@
 
 /* Ensure scrollable content clears the FAB (56px + 16px gap) */
 .mobile-content .main-content {
-  padding-bottom: calc(72px + env(safe-area-inset-bottom));
+  padding-bottom: calc(var(--mobile-bottom-sheet-height) + env(safe-area-inset-bottom));
 }
 
 /* On Android the native shell already pads for the nav bar — don't double up */
@@ -75,7 +71,7 @@
   left: 0;
   /* Full height, including under status bar */
   height: 100dvh;
-  width: min(80vw, 300px);
+  width: min(80vw, var(--layout-size-7xl));
   z-index: var(--z-modal);
   /* Slide off-screen by default */
   transform: translateX(-100%);
@@ -90,7 +86,7 @@
 /* In landscape, cap the drawer to a reasonable width */
 @media (orientation: landscape) {
   .mobile-drawer {
-    width: min(45vw, 320px);
+    width: min(45vw, var(--layout-size-8xl));
   }
 }
 
@@ -118,7 +114,7 @@
 /* Override desktop collapse styles that use visibility/opacity/transform */
 .mobile-drawer .sidebar,
 .mobile-drawer--open .sidebar {
-  opacity: 1 !important;
+  opacity: var(--opacity-100) !important;
   transform: none !important;
   visibility: visible !important;
 }
@@ -133,15 +129,15 @@
 }
 
 @keyframes mobile-backdrop-in {
-  from { opacity: 0; }
-  to   { opacity: 1; }
+  from { opacity: var(--opacity-0); }
+  to   { opacity: var(--opacity-100); }
 }
 
 /* ── Floating action button ──────────────────────────────────── */
 .mobile-fab {
   position: fixed;
   bottom: calc(var(--spacing-5) + env(safe-area-inset-bottom));
-  right: var(--features-layout-components-mobile-layout-right);
+  right: var(--spacing-5);
   width: var(--height-2xl);
   height: var(--height-2xl);
   border-radius: var(--shape-button-large);

@@ -1,7 +1,4 @@
-:root {
-  --features-content-components-nodes-class-pills-row-min-width-160: 160px;
-  --features-content-components-nodes-class-pills-row-max-width-260: 260px;
-}
+
 
 .class-pills-row {
   display: flex;
@@ -35,7 +32,7 @@
 .class-pills-popup-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 9999;
+  z-index: var(--z-9999);
 }
 
 .class-pills-popup-backdrop:focus-visible {
@@ -44,12 +41,12 @@
 
 .class-pills-popup {
   background: var(--color-surface);
-  border: 1px solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
   border-radius: var(--shape-medium);
   box-shadow: var(--elevation-2);
   padding: var(--spacing-2);
-  min-width: var(--features-content-components-nodes-class-pills-row-min-width-160);
-  max-width: var(--features-content-components-nodes-class-pills-row-max-width-260);
+  min-width: var(--layout-size-xl);
+  max-width: var(--layout-size-5xl);
 }
 
 .class-pills-popup__header {
@@ -60,7 +57,7 @@
   margin-bottom: var(--spacing-2);
   font: var(--font-label-medium);
   color: var(--color-on-surface-variant);
-  border-bottom: 1px solid var(--color-outline-variant);
+  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
 }
 
 .class-pills-popup__close {
@@ -115,7 +112,7 @@
   border-radius: 50%;
   cursor: pointer;
   color: var(--color-on-surface-variant);
-  opacity: 0.6;
+  opacity: var(--opacity-60);
   transition: all var(--motion-duration-short) var(--motion-easing-standard);
   flex-shrink: 0;
 }
@@ -123,7 +120,7 @@
 .class-pills-popup__remove:hover {
   background: var(--color-error-container);
   color: var(--color-on-error-container);
-  opacity: 1;
+  opacity: var(--opacity-100);
 }
 
 /* Add class button — visible on row hover */
@@ -139,7 +136,7 @@
   background: transparent;
   color: var(--color-on-surface-variant);
   cursor: pointer;
-  opacity: 0;
+  opacity: var(--opacity-0);
   transition: opacity var(--motion-duration-short) var(--motion-easing-standard),
               background var(--motion-duration-short) var(--motion-easing-standard),
               color var(--motion-duration-short) var(--motion-easing-standard);
@@ -149,11 +146,11 @@
 .class-pills-row:hover .class-pills-row__add,
 .block-row:hover .class-pills-row__add,
 .node-block:hover .class-pills-row__add {
-  opacity: 0.6;
+  opacity: var(--opacity-60);
 }
 
 .class-pills-row__add:hover {
-  opacity: 1 !important;
+  opacity: var(--opacity-100) !important;
   background: var(--color-surface-container-high);
   color: var(--color-on-surface);
 }

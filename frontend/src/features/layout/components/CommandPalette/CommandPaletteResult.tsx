@@ -54,7 +54,7 @@ export function ResultItem({
         <div className="command-palette__result-row">
           <span className="command-palette__result-icon">
             {result.property.icon ? (
-              <span style={{ fontSize: '1.2em' }}>{result.property.icon}</span>
+              <span style={{ fontSize: 'var(--font-size-md)' }}>{result.property.icon}</span>
             ) : (
               <PropertiesIcon size="sm" />
             )}

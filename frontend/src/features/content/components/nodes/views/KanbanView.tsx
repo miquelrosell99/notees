@@ -59,7 +59,7 @@ function LazyNodeCard(props: React.ComponentProps<typeof NodeCard>) {
       {inView ? (
         <NodeCard {...props} />
       ) : (
-        <div className="node-card-placeholder" style={{ minHeight: 120 }} />
+        <div className="node-card-placeholder" style={{ minHeight: '7.5rem' }} />
       )}
     </div>
   );

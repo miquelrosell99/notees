@@ -3,9 +3,7 @@
  */
 
 
-:root {
-  --components-ui-notification-toast-max-width-400: 400px;
-}
+
 
 .notification-toast-container {
   position: fixed;
@@ -15,7 +13,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--spacing-2);
-  max-width: var(--components-ui-notification-toast-max-width-400);
+  max-width: var(--layout-size-9xl);
   pointer-events: none;
 }
 
@@ -26,7 +24,7 @@
   padding: var(--spacing-3);
   border-radius: var(--shape-medium);
   background: var(--color-surface);
-  border: 1px solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
   /* Design system: zero visual noise — no elevation shadows */
   pointer-events: auto;
   animation: slideInRight var(--motion-duration-medium) var(--motion-easing-decelerate);
@@ -35,19 +33,19 @@
 /* Uses global slideInRight keyframe from variables.css */
 
 .notification-toast--success {
-  border-left: 3px solid var(--color-success);
+  border-left: var(--border-width-extra-thick) solid var(--color-success);
 }
 
 .notification-toast--error {
-  border-left: 3px solid var(--color-error);
+  border-left: var(--border-width-extra-thick) solid var(--color-error);
 }
 
 .notification-toast--warning {
-  border-left: 3px solid var(--color-warning);
+  border-left: var(--border-width-extra-thick) solid var(--color-warning);
 }
 
 .notification-toast--info {
-  border-left: 3px solid var(--color-primary);
+  border-left: var(--border-width-extra-thick) solid var(--color-primary);
 }
 
 .notification-toast__icon {
@@ -91,7 +89,7 @@
 .notification-toast__message {
   color: var(--color-on-surface-variant);
   font-size: var(--font-size-xs);
-  margin-top: 2px;
+  margin-top: var(--spacing-micro);
 }
 
 .notification-toast__action {
@@ -111,11 +109,11 @@
   cursor: pointer;
   border-radius: var(--shape-small);
   font-size: var(--font-size-sm);
-  opacity: 0.6;
+  opacity: var(--opacity-60);
   transition: opacity var(--motion-duration-shorter) var(--motion-easing-standard);
 }
 
 .notification-toast__dismiss:hover {
-  opacity: 1;
+  opacity: var(--opacity-100);
   background: var(--color-hover-overlay);
 }

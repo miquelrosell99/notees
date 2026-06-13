@@ -25,12 +25,12 @@
 
 .inline-editor__content:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px var(--color-accent);
+  box-shadow: var(--shadow-focus-ring);
 }
 
 .inline-editor__placeholder {
   color: var(--color-on-surface-variant);
-  opacity: 0.45;
+  opacity: var(--opacity-45);
   position: absolute;
   top: 0;
   left: 0;
@@ -105,8 +105,8 @@
 
 .notees-text-code {
   background: var(--color-surface-container-high);
-  border-radius: 3px;
-  padding: 1px var(--spacing-1);
+  border-radius: var(--shape-tiny);
+  padding: var(--spacing-hairline) var(--spacing-1);
   font-family: var(--font-family-mono);
   font-size: 0.9em;
 }

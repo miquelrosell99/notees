@@ -1062,7 +1062,7 @@ export function GraphView({
                 setVisibilityFilters({ ...DEFAULT_VISIBILITY_FILTERS });
                 if (currentNodeId != null) setLevels(1);
               }}
-              style={{ marginTop: '12px' }}
+              style={{ marginTop: 'var(--spacing-3)' }}
             >
               Reset filters
             </Button>

@@ -1,29 +1,29 @@
 .find-replace-widget {
   position: fixed;
-  top: calc(var(--topbar-height, 44px) + 8px);
-  right: 8px;
-  z-index: 1000;
+  top: calc(var(--topbar-height) + var(--spacing-2));
+  right: var(--spacing-2);
+  z-index: var(--z-1000);
   background: var(--color-surface-bright);
-  border: 1px solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
   border-radius: var(--shape-large);
   box-shadow: none;
   padding: var(--spacing-2);
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  min-width: 320px;
+  gap: var(--spacing-1-5);
+  min-width: var(--layout-size-8xl);
 }
 
 .find-replace-row {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--spacing-1-5);
 }
 
 .find-replace-input {
   flex: 1;
   padding: var(--spacing-1) var(--spacing-2);
-  border: 1px solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
   border-radius: var(--shape-small);
   font-size: var(--font-size-button);
   background: var(--color-surface);
@@ -38,13 +38,13 @@
 .find-replace-count {
   font-size: var(--font-size-sm);
   color: var(--color-on-surface-variant);
-  min-width: 32px;
+  min-width: var(--spacing-8);
   text-align: center;
 }
 
 .find-replace-btn {
   padding: var(--spacing-1) var(--spacing-2);
-  border: 1px solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
   border-radius: var(--shape-small);
   background: var(--color-surface);
   color: var(--color-on-surface);
@@ -58,7 +58,7 @@
 }
 
 .find-replace-btn:disabled {
-  opacity: 0.5;
+  opacity: var(--opacity-50);
   cursor: not-allowed;
 }
 

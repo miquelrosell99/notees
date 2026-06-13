@@ -3,12 +3,10 @@
  */
 
 
-:root {
-  --features-sidebar-components-sidebar-card-local-graph-min-height-280: 280px;
-}
+
 
 .sidebar-card-local-graph {
-  min-height: var(--features-sidebar-components-sidebar-card-local-graph-min-height-280);
+  min-height: var(--layout-size-6xl);
 }
 
 .sidebar-card-local-graph__content {

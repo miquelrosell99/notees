@@ -4,7 +4,7 @@
  * Usage:
  *   <LoadingSkeleton rows={3} />
  *   <Skeleton shape="heading" width="3-4" />
- *   <Skeleton shape="circle" style={{ width: 32, height: 32 }} />
+ *   <Skeleton shape="circle" style={{ width: 'var(--icon-size-xl)', height: 'var(--icon-size-xl)' }} />
  */
 import type { CSSProperties } from 'react';
 import './LoadingSkeleton.css';
@@ -62,14 +62,14 @@ export function LoadingSkeleton({
   return (
     <div className={`skeleton-group ${className}`} role="status" aria-label="Loading…">
       {showHeading && (
-        <Skeleton shape="heading" width="half" style={{ marginBottom: '0.5rem' }} />
+        <Skeleton shape="heading" width="half" style={{ marginBottom: 'var(--spacing-2)' }} />
       )}
       {Array.from({ length: rows }).map((_, i) => (
         <div key={i} className="skeleton-row">
           {showAvatar && (
             <Skeleton
               shape="circle"
-              style={{ width: 32, height: 32, flexShrink: 0 }}
+              style={{ width: 'var(--icon-size-xl)', height: 'var(--icon-size-xl)', flexShrink: 0 }}
             />
           )}
           <div className="skeleton-group" style={{ flex: 1 }}>

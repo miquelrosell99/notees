@@ -25,12 +25,12 @@
 .property-form__icon-picker {
   flex-shrink: 0;
   width: var(--icon-size-2xl);
-  height: 40px;
+  height: var(--spacing-10);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: var(--font-size-lg);
-  border: 1px solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
   border-radius: var(--shape-extra-large);
   background: var(--color-surface-variant);
   cursor: pointer;
@@ -44,7 +44,7 @@
 
 .property-form__icon-picker:empty::after {
   content: '😀';
-  opacity: 0.3;
+  opacity: var(--opacity-30);
 }
 
 .property-form__type-grid {
@@ -57,10 +57,10 @@
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 2px;
-  padding: 10px var(--spacing-3);
+  gap: var(--spacing-micro);
+  padding: var(--spacing-tight) var(--spacing-3);
   background: var(--color-surface-variant);
-  border: 2px solid var(--color-outline-variant);
+  border: var(--border-width-thick) solid var(--color-outline-variant);
   border-radius: var(--shape-extra-large);
   cursor: pointer;
   transition: all var(--motion-duration-short) var(--motion-easing-standard);
@@ -74,7 +74,7 @@
 
 .property-form__type-option:disabled {
   cursor: not-allowed;
-  opacity: 0.5;
+  opacity: var(--opacity-50);
 }
 
 .property-form__type-option--selected {
@@ -97,7 +97,7 @@
 .property-form__type-display {
   padding: var(--spacing-2) var(--spacing-3);
   background: var(--color-surface-variant);
-  border: 1px solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
   border-radius: var(--shape-extra-large);
   font-size: var(--font-size-button);
   color: var(--color-on-surface);
@@ -107,7 +107,7 @@
   font-size: var(--font-size-sm);
   color: var(--color-on-surface-variant);
   line-height: 1.4;
-  margin-top: -4px;
+  margin-top: calc(var(--spacing-1) * -1);
 }
 
 .property-form__options-list {
@@ -131,7 +131,7 @@
   align-items: center;
   justify-content: center;
   font-size: var(--font-size-md);
-  border: 1px solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
   border-radius: var(--shape-small);
   background: var(--color-surface);
   cursor: pointer;
@@ -145,13 +145,13 @@
 
 .property-form__option-icon-picker:empty::after {
   content: '🏷️';
-  opacity: 0.3;
+  opacity: var(--opacity-30);
 }
 
 .property-form__allowed-classes {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: var(--spacing-1-5);
   margin-bottom: var(--spacing-2);
 }
 
@@ -161,7 +161,7 @@
   gap: var(--spacing-1);
   padding: var(--spacing-1) var(--spacing-2);
   background: var(--color-surface-variant);
-  border: 1px solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
   border-radius: var(--shape-extra-large);
   font-size: var(--font-size-sm);
   color: var(--color-on-surface);
@@ -174,8 +174,8 @@
   font-size: var(--font-size-md);
   line-height: 1;
   cursor: pointer;
-  padding: 0 2px;
-  margin-left: 2px;
+  padding: 0 var(--spacing-micro);
+  margin-left: var(--spacing-micro);
 }
 
 .property-form__class-remove:hover {
@@ -187,10 +187,10 @@
   height: var(--height-lg);
   padding: var(--spacing-2) var(--spacing-3);
   background: var(--color-surface);
-  border: 1px solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
   border-radius: var(--shape-extra-large);
   color: var(--color-on-surface);
-  font-size: 0.875rem;
+  font-size: var(--font-size-base);
   font-family: inherit;
   cursor: pointer;
   transition: border-color var(--motion-duration-short) var(--motion-easing-standard);
@@ -208,20 +208,20 @@
 .property-form__select:focus {
   outline: none;
   border-color: var(--color-accent);
-  box-shadow: 0 0 0 2px var(--color-primary-container);
+  box-shadow: var(--shadow-focus-ring-primary-container);
 }
 
 .property-form__select:disabled {
   cursor: not-allowed;
-  opacity: 0.5;
+  opacity: var(--opacity-50);
 }
 
 /* Compact emoji picker for per-option icons in the sortable list */
 .property-form__option-icon-btn {
-  min-width: 24px;
+  min-width: var(--spacing-6);
   width: var(--icon-size-lg);
   height: var(--height-xs);
-  padding: 2px;
+  padding: var(--spacing-micro);
   font-size: var(--font-size-base);
   border-radius: var(--shape-small);
 }

@@ -3,23 +3,18 @@
  */
 
 
-:root {
-  --features-content-components-properties-property-suggestion-popup-min-width-200: 200px;
-  --features-content-components-properties-property-suggestion-popup-max-width-280: 280px;
-  --features-content-components-properties-property-suggestion-popup-max-height-240: 240px;
-  --features-content-components-properties-property-suggestion-popup-font-size-10: 10px;
-}
+
 
 .property-suggestion-popup {
   position: absolute;
   top: 100%;
   left: 0;
   z-index: var(--z-dropdown);
-  min-width: var(--features-content-components-properties-property-suggestion-popup-min-width-200);
-  max-width: var(--features-content-components-properties-property-suggestion-popup-max-width-280);
+  min-width: var(--layout-size-2xl);
+  max-width: var(--layout-size-6xl);
   margin-top: var(--spacing-1);
   background: var(--color-surface-container);
-  border: 1px solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
   border-radius: var(--shape-medium);
   overflow: hidden;
 }
@@ -28,7 +23,7 @@
   width: 100%;
   padding: var(--spacing-2);
   border: none;
-  border-bottom: 1px solid var(--color-outline-variant);
+  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
   background: transparent;
   font: var(--font-body-small);
   color: var(--color-on-surface);
@@ -40,7 +35,7 @@
 }
 
 .property-suggestion-popup__options {
-  max-height: var(--features-content-components-properties-property-suggestion-popup-max-height-240);
+  max-height: var(--layout-size-4xl);
   overflow-y: auto;
 }
 
@@ -113,10 +108,10 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: var(--features-content-components-properties-property-suggestion-popup-font-size-10);
+  font-size: var(--font-size-2xs);
   font-weight: 600;
   line-height: 1;
-  padding: 1px var(--spacing-1);
+  padding: var(--spacing-hairline) var(--spacing-1);
   border-radius: var(--radius-sm);
   flex-shrink: 0;
   margin-left: var(--spacing-1);
@@ -134,10 +129,10 @@
 
 /* Secondary "Create as..." buttons shown below the primary create option */
 .property-suggestion-popup__option--create-alt {
-  font-size: var(--font-size-xs, 11px);
+  font-size: var(--font-size-xs);
   color: var(--color-on-surface-variant);
-  padding-top: 2px;
-  padding-bottom: 2px;
+  padding-top: var(--spacing-micro);
+  padding-bottom: var(--spacing-micro);
 }
 
 .property-suggestion-popup__option--create-alt:hover {

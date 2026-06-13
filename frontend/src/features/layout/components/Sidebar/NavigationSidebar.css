@@ -3,12 +3,7 @@
  */
 
 
-:root {
-  --features-layout-components-sidebar-navigation-sidebar-min-height-52: 52px;
-  --features-layout-components-sidebar-navigation-sidebar-min-width-180: 180px;
-  --features-layout-components-sidebar-navigation-sidebar-min-height-150: 150px;
-  --features-layout-components-sidebar-navigation-sidebar-max-height-250: 250px;
-}
+
 
 /* ==================== Sidebar Container ==================== */
 .sidebar {
@@ -32,7 +27,7 @@
 .sidebar--expanded {
   width: var(--sidebar-width);
   min-width: var(--sidebar-width);
-  opacity: 1;
+  opacity: var(--opacity-100);
   transform: translateX(0);
   pointer-events: auto;
   /* Margin handled by gap in parent, but we need to account for it when collapsed */
@@ -43,7 +38,7 @@
 .sidebar--collapsed {
   width: 0;
   min-width: 0;
-  opacity: 0;
+  opacity: var(--opacity-0);
   transform: translateX(-16px);
   pointer-events: none;
   /* Hide content when collapsed to prevent overflow */
@@ -71,14 +66,14 @@
 /* ==================== Sidebar Header (Database Switcher Area) ==================== */
 .sidebar-header {
   padding: var(--spacing-2) var(--spacing-3);
-  border-bottom: 1px solid var(--color-outline-variant);
-  min-height: var(--features-layout-components-sidebar-navigation-sidebar-min-height-52);
+  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
+  min-height: 3.25rem;
   box-sizing: border-box;
 }
 
 /* ==================== Sidebar Nav Section ==================== */
 .sidebar-nav-section {
-  border-bottom: 1px solid var(--color-outline-variant);
+  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
 }
 
 /* ==================== Sidebar Content ==================== */
@@ -96,7 +91,7 @@
   display: flex;
   flex-direction: row;
   flex-wrap: wrap;
-  gap: 2px;
+  gap: var(--spacing-micro);
 }
 
 /* ==================== Navigation Items ==================== */
@@ -106,7 +101,7 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  font-size: 1rem;
+  font-size: var(--font-size-md);
   line-height: 1;
   width: var(--icon-size-md);
   height: var(--icon-size-md);
@@ -143,7 +138,7 @@
   flex-shrink: 0;
   width: var(--icon-size-xs);
   height: var(--icon-size-xs);
-  opacity: 0.7;
+  opacity: var(--opacity-70);
 }
 
 .sidebar-section-title {
@@ -197,13 +192,13 @@
 
 .sidebar-favorite-item:focus-visible {
   outline: var(--border-width-thick) solid var(--color-accent);
-  outline-offset: -2px;
+  outline-offset: calc(var(--spacing-micro) * -1);
 }
 
 .sidebar-favorite-item.dragging {
   background: var(--color-surface-container-high);
-  opacity: 0.95;
-  z-index: 100;
+  opacity: var(--opacity-95);
+  z-index: var(--z-100);
 }
 
 /* Drag handle for favorites */
@@ -218,7 +213,7 @@
   flex-shrink: 0;
   display: flex;
   align-items: center;
-  opacity: 0.35;
+  opacity: var(--opacity-35);
   transition: opacity var(--motion-duration-short);
   border: none;
   background: none;
@@ -226,11 +221,11 @@
 
 .sidebar-drag-handle:focus-visible {
   outline: var(--border-width-thick) solid var(--color-accent);
-  outline-offset: -2px;
+  outline-offset: calc(var(--spacing-micro) * -1);
 }
 
 .sidebar-favorite-item:hover .sidebar-drag-handle {
-  opacity: 1;
+  opacity: var(--opacity-100);
 }
 
 .sidebar-drag-handle:active {
@@ -256,17 +251,17 @@
 
 /* Remove button */
 .sidebar-favorite-remove {
-  opacity: 0;
+  opacity: var(--opacity-0);
   transition: opacity var(--motion-duration-short);
 }
 
 .sidebar-favorite-item:hover .sidebar-favorite-remove {
-  opacity: 1;
+  opacity: var(--opacity-100);
 }
 
 /* Breadcrumb wrapper — hidden by default, revealed on hover/focus */
 .sidebar-item-breadcrumbs-wrapper {
-  opacity: 0;
+  opacity: var(--opacity-0);
   max-height: 0;
   overflow: hidden;
   transition:
@@ -278,8 +273,8 @@
 .sidebar-favorite-item:focus-within .sidebar-item-breadcrumbs-wrapper,
 .sidebar-recent-item:hover .sidebar-item-breadcrumbs-wrapper,
 .sidebar-recent-item:focus-within .sidebar-item-breadcrumbs-wrapper {
-  opacity: 1;
-  max-height: 2rem;
+  opacity: var(--opacity-100);
+  max-height: var(--spacing-8);
 }
 
 /* Block component styling within sidebar items */
@@ -355,14 +350,14 @@
 
 .sidebar-recent-item:focus-visible {
   outline: var(--border-width-thick) solid var(--color-accent);
-  outline-offset: -2px;
+  outline-offset: calc(var(--spacing-micro) * -1);
 }
 
 .sidebar-recent-item__classes {
   display: flex;
   align-items: center;
-  padding-left: calc(18px + var(--spacing-2));
-  margin-top: 2px;
+  padding-left: calc(var(--spacing-4-5) + var(--spacing-2));
+  margin-top: var(--spacing-micro);
   min-width: 0;
 }
 
@@ -370,9 +365,9 @@
 .sidebar-item-skeleton {
   height: var(--height-sm);
   border-radius: var(--shape-small);
-  background: linear-gradient(90deg, var(--color-surface-container) 25%, var(--color-surface-container-high) 50%, var(--color-surface-container) 75%);
+  background: var(--motion-easing-linear)-gradient(90deg, var(--color-surface-container) 25%, var(--color-surface-container-high) 50%, var(--color-surface-container) 75%);
   background-size: 200% 100%;
-  animation: shimmer 1.5s ease-in-out infinite;
+  animation: shimmer 1.5s var(--motion-easing-ease-in-out) infinite;
   width: 100%;
 }
 
@@ -380,8 +375,8 @@
 /* Uses Panel component for base styling */
 .sidebar-context-menu {
   position: fixed;
-  z-index: 1000;
-  min-width: var(--features-layout-components-sidebar-navigation-sidebar-min-width-180);
+  z-index: var(--z-1000);
+  min-width: 11.25rem;
 }
 
 .sidebar-context-menu-item {
@@ -442,11 +437,11 @@
 
 .page-bullet {
   color: var(--color-outline);
-  font-size: 0.75rem;
+  font-size: var(--font-size-sm);
 }
 
 .page-icon {
-  font-size: 1rem;
+  font-size: var(--font-size-md);
   flex-shrink: 0;
 }
 
@@ -460,7 +455,7 @@
 /* ==================== Sidebar Footer Section ==================== */
 .sidebar-footer-section {
   margin-top: auto;
-  border-top: 1px solid var(--color-outline-variant);
+  border-top: var(--border-width-default) solid var(--color-outline-variant);
 }
 
 /* ==================== Sidebar Footer ==================== */
@@ -468,7 +463,7 @@
   display: flex;
   flex-direction: row;
   flex-wrap: wrap;
-  gap: 2px;
+  gap: var(--spacing-micro);
   padding: var(--spacing-2);
 }
 
@@ -521,7 +516,7 @@
 
 .sidebar-graph .graph-view {
   height: 100%;
-  border: 1px solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
   border-radius: var(--shape-small);
 }
 
@@ -530,8 +525,8 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  min-height: var(--features-layout-components-sidebar-navigation-sidebar-min-height-150);
-  max-height: var(--features-layout-components-sidebar-navigation-sidebar-max-height-250);
+  min-height: var(--layout-size-lg);
+  max-height: 15.625rem;
   overflow: hidden;
 }
 
@@ -561,7 +556,7 @@
   border: none;
   border-radius: var(--shape-small);
   cursor: pointer;
-  font-size: 1.25rem;
+  font-size: var(--font-size-lg);
   color: var(--color-on-surface-variant);
   transition: background-color var(--motion-duration-short) var(--motion-easing-standard), color var(--motion-duration-short) var(--motion-easing-standard);
 }

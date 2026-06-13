@@ -3,9 +3,7 @@
  */
 
 
-:root {
-  --features-tasks-pages-tasks-view-min-height-200: 200px;
-}
+
 
 .tasks-view {
   max-width: none;
@@ -31,7 +29,7 @@
 .tasks-view__tabs {
   display: flex;
   gap: var(--spacing-1);
-  border-bottom: 1px solid var(--color-outline-variant);
+  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
   padding: 0 var(--spacing-6);
   flex-shrink: 0;
 }
@@ -43,12 +41,12 @@
   padding: var(--spacing-2) var(--spacing-4);
   background: none;
   border: none;
-  border-bottom: 2px solid transparent;
+  border-bottom: var(--border-width-thick) solid transparent;
   color: var(--color-on-surface-variant);
   font-size: var(--font-size-sm);
   font-weight: 500;
   cursor: pointer;
-  transition: color 0.15s ease, border-color 0.15s ease;
+  transition: color var(--motion-duration-shorter) var(--motion-easing-ease), border-color var(--motion-duration-shorter) var(--motion-easing-ease);
 }
 
 .tasks-view__tab:hover {
@@ -71,7 +69,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: var(--features-tasks-pages-tasks-view-min-height-200);
+  min-height: 12.5rem;
 }
 
 .tasks-view__empty {

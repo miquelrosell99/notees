@@ -6,9 +6,7 @@
  */
 
 
-:root {
-  --components-ui-button-with-panel-width-6: 6px;
-}
+
 
 /* ==================== Container ==================== */
 .btn-panel-container {
@@ -34,7 +32,7 @@
 
 .btn-panel-custom-trigger:disabled {
   cursor: not-allowed;
-  opacity: 0.5;
+  opacity: var(--opacity-50);
 }
 
 /* ==================== Panel Base ==================== */
@@ -126,7 +124,7 @@
   align-items: center;
   justify-content: space-between;
   padding: var(--spacing-2) var(--spacing-3);
-  border-bottom: 1px solid var(--color-outline-variant);
+  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
   background: var(--color-surface-container);
   flex-shrink: 0;
 }
@@ -148,7 +146,7 @@
   border-radius: var(--shape-small);
   background: transparent;
   color: var(--color-on-surface-variant);
-  font-size: 18px;
+  font-size: var(--font-size-lead);
   line-height: 1;
   cursor: pointer;
   transition: background-color var(--motion-duration-short) var(--motion-easing-standard), color var(--motion-duration-short) var(--motion-easing-standard);
@@ -168,7 +166,7 @@
 
 /* Scrollbar styling */
 .btn-panel__content::-webkit-scrollbar {
-  width: var(--components-ui-button-with-panel-width-6);
+  width: var(--shape-medium);
 }
 
 .btn-panel__content::-webkit-scrollbar-track {
@@ -177,7 +175,7 @@
 
 .btn-panel__content::-webkit-scrollbar-thumb {
   background: var(--color-outline-variant);
-  border-radius: 3px;
+  border-radius: var(--shape-tiny);
 }
 
 .btn-panel__content::-webkit-scrollbar-thumb:hover {
@@ -187,11 +185,11 @@
 /* ==================== Animation ==================== */
 @keyframes panel-fade-in {
   from {
-    opacity: 0;
+    opacity: var(--opacity-0);
     transform: scale(0.95);
   }
   to {
-    opacity: 1;
+    opacity: var(--opacity-100);
     transform: scale(1);
   }
 }
@@ -230,19 +228,19 @@
 
 @keyframes panel-fade-in-y {
   from {
-    opacity: 0;
+    opacity: var(--opacity-0);
   }
   to {
-    opacity: 1;
+    opacity: var(--opacity-100);
   }
 }
 
 @keyframes panel-fade-in-x {
   from {
-    opacity: 0;
+    opacity: var(--opacity-0);
   }
   to {
-    opacity: 1;
+    opacity: var(--opacity-100);
   }
 }
 

@@ -21,10 +21,10 @@
 
 @keyframes backdropFadeIn {
   from {
-    opacity: 0;
+    opacity: var(--opacity-0);
   }
   to {
-    opacity: 1;
+    opacity: var(--opacity-100);
   }
 }
 
@@ -53,11 +53,11 @@
 
 @keyframes modalSlideIn {
   from {
-    opacity: 0;
+    opacity: var(--opacity-0);
     transform: translateY(-20px) scale(0.95);
   }
   to {
-    opacity: 1;
+    opacity: var(--opacity-100);
     transform: translateY(0) scale(1);
   }
 }
@@ -81,22 +81,22 @@
    dialogs usable on tiny screens without magic pixel widths. */
 .modal--sm {
   width: 100%;
-  max-width: min(var(--modal-width-sm, 320px), calc(100vw - 2 * var(--spacing-4)));
+  max-width: min(var(--modal-width-sm), calc(100vw - 2 * var(--spacing-4)));
 }
 
 .modal--md {
   width: 100%;
-  max-width: min(var(--modal-width-lg, 560px), calc(100vw - 2 * var(--spacing-4)));
+  max-width: min(var(--modal-width-lg), calc(100vw - 2 * var(--spacing-4)));
 }
 
 .modal--lg {
   width: 95%;
-  max-width: min(var(--modal-width-xl, 1200px), calc(100vw - 2 * var(--spacing-4)));
+  max-width: min(var(--modal-width-xl), calc(100vw - 2 * var(--spacing-4)));
 }
 
 .modal--xl {
   width: 100%;
-  max-width: min(1000px, calc(100vw - 2 * var(--spacing-4)));
+  max-width: min(var(--modal-width-2xl), calc(100vw - 2 * var(--spacing-4)));
 }
 
 /* Header */
@@ -104,7 +104,7 @@
   display: flex;
   align-items: center;
   padding: var(--spacing-4);
-  border-bottom: 1px solid var(--color-outline-variant);
+  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
   flex-shrink: 0;
   gap: var(--spacing-2);
   border-radius: var(--shape-sheet) var(--shape-sheet) 0 0;
@@ -131,9 +131,9 @@
 /* Drag handle for bottom-sheet modals / drawers.
    Centered 32×4 px, 2 px radius, muted color at 35 % opacity. */
 .modal__drag-handle {
-  width: var(--drag-handle-width, 32px);
-  height: var(--drag-handle-height, 4px);
-  border-radius: var(--drag-handle-radius, 2px);
+  width: var(--drag-handle-width, var(--spacing-8));
+  height: var(--drag-handle-height, var(--shape-small));
+  border-radius: var(--drag-handle-radius, var(--shape-extra-small));
   background: color-mix(in srgb, var(--color-on-surface-variant) 35%, transparent);
   margin: var(--spacing-3) auto;
   flex-shrink: 0;
@@ -158,7 +158,7 @@
   justify-content: flex-end;
   gap: var(--spacing-2);
   padding: var(--spacing-3) var(--spacing-4);
-  border-top: 1px solid var(--color-outline-variant);
+  border-top: var(--border-width-default) solid var(--color-outline-variant);
   flex-shrink: 0;
   border-radius: 0 0 var(--shape-sheet) var(--shape-sheet);
 }

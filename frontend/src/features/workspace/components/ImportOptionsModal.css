@@ -1,9 +1,7 @@
 /* ── Unified import modal ─────────────────────────────────── */
 
 
-:root {
-  --features-workspace-components-import-options-modal-max-height-240: 240px;
-}
+
 
 .import-unified__body {
   display: flex;
@@ -18,7 +16,7 @@
 }
 
 .import-unified__section-label {
-  font-size: 0.775rem;
+  font-size: var(--font-size-sm);
   font-weight: 600;
   color: var(--color-on-surface-variant);
   text-transform: uppercase;
@@ -29,13 +27,13 @@
 
 .import-unified__hint {
   margin: 0;
-  font-size: 0.85rem;
+  font-size: var(--font-size-button);
   color: var(--color-on-surface-variant);
   line-height: 1.5;
   padding: var(--spacing-3) var(--spacing-4);
   background: var(--color-surface-variant);
   border-radius: var(--radius-md);
-  border-left: 3px solid var(--color-outline-variant);
+  border-left: var(--border-width-extra-thick) solid var(--color-outline-variant);
 }
 
 /* ── Warning ─────────────────────────────────────────────── */
@@ -48,20 +46,20 @@
   background: color-mix(in srgb, var(--color-warning) 10%, transparent);
   color: var(--color-warning);
   border-radius: var(--radius-sm);
-  font-size: 0.875rem;
+  font-size: var(--font-size-base);
 }
 
 /* ── UUID overrides ───────────────────────────────────────── */
 
 .import-unified__uuid-overrides {
-  border: 1px solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
   border-radius: var(--shape-medium);
   overflow: hidden;
 }
 
 .import-unified__uuid-overrides-summary {
   padding: var(--spacing-2) var(--spacing-3);
-  font-size: 0.775rem;
+  font-size: var(--font-size-sm);
   font-weight: 600;
   color: var(--color-on-surface-variant);
   text-transform: uppercase;
@@ -78,7 +76,7 @@
 
 .import-unified__uuid-overrides-summary::before {
   content: '▶';
-  font-size: 0.55rem;
+  font-size: var(--font-size-3xs);
   color: var(--color-on-surface-variant);
   transition: transform var(--motion-duration-short) var(--motion-easing-standard);
 }
@@ -92,8 +90,8 @@
   flex-direction: column;
   gap: var(--spacing-2);
   padding: var(--spacing-2) var(--spacing-3);
-  border-top: 1px solid var(--color-outline-variant);
-  max-height: var(--features-workspace-components-import-options-modal-max-height-240);
+  border-top: var(--border-width-default) solid var(--color-outline-variant);
+  max-height: 15rem;
   overflow-y: auto;
 }
 
@@ -106,7 +104,7 @@
 .import-unified__uuid-override-title {
   flex: 0 0 140px;
   min-width: 0;
-  font-size: 0.85rem;
+  font-size: var(--font-size-button);
   color: var(--color-on-surface);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -128,7 +126,7 @@
   background: color-mix(in srgb, var(--color-error) 10%, transparent);
   color: var(--color-error);
   border-radius: var(--radius-sm);
-  font-size: 0.875rem;
+  font-size: var(--font-size-base);
 }
 
 /* ── Progress overlay (replaces body while mutation is running) ── */
@@ -139,7 +137,7 @@
   align-items: center;
   justify-content: center;
   gap: var(--spacing-3);
-  padding: var(--spacing-8, 48px) var(--spacing-4);
+  padding: var(--spacing-8, var(--spacing-12)) var(--spacing-4);
 }
 
 @keyframes import-spin {
@@ -147,27 +145,27 @@
 }
 
 .import-unified__progress-spin {
-  animation: import-spin 1.2s linear infinite;
+  animation: import-spin 1.2s var(--motion-easing-linear) infinite;
   color: var(--color-primary);
 }
 
 .import-unified__progress-label {
   margin: 0;
-  font-size: 0.9rem;
+  font-size: var(--font-size-base);
   color: var(--color-on-surface-variant);
 }
 
 /* ── Parsed data preview (collapsible) ───────────────────── */
 
 .import-unified__preview {
-  border: 1px solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
   border-radius: var(--shape-medium);
   overflow: hidden;
 }
 
 .import-unified__preview-summary {
   padding: var(--spacing-2) var(--spacing-3);
-  font-size: 0.775rem;
+  font-size: var(--font-size-sm);
   font-weight: 600;
   color: var(--color-on-surface-variant);
   text-transform: uppercase;
@@ -184,7 +182,7 @@
 
 .import-unified__preview-summary::before {
   content: '▶';
-  font-size: 0.55rem;
+  font-size: var(--font-size-3xs);
   color: var(--color-on-surface-variant);
   transition: transform var(--motion-duration-short) var(--motion-easing-standard);
 }
@@ -197,16 +195,16 @@
   margin: 0;
   padding: 0;
   list-style: none;
-  border-top: 1px solid var(--color-outline-variant);
+  border-top: var(--border-width-default) solid var(--color-outline-variant);
 }
 
 .import-unified__preview-list li {
   display: flex;
   justify-content: space-between;
   padding: var(--spacing-2) var(--spacing-3);
-  font-size: 0.85rem;
+  font-size: var(--font-size-button);
   color: var(--color-on-surface);
-  border-bottom: 1px solid var(--color-outline-variant);
+  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
 }
 
 .import-unified__preview-list li:last-child { border-bottom: none; }

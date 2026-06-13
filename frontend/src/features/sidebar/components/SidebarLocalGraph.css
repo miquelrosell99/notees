@@ -1,17 +1,13 @@
 /* GraphViewLocal - Sidebar local graph */
 
 
-:root {
-  --features-sidebar-components-sidebar-local-graph-min-height-180: 180px;
-  --features-sidebar-components-sidebar-local-graph-max-width-140: 140px;
-  --features-sidebar-components-sidebar-local-graph-min-height-150: 150px;
-}
+
 
 .graph-view-local {
   display: flex;
   flex-direction: column;
   height: 100%;
-  min-height: var(--features-sidebar-components-sidebar-local-graph-min-height-180);
+  min-height: 11.25rem;
 }
 
 .graph-view-local__info {
@@ -20,7 +16,7 @@
   align-items: center;
   padding: var(--spacing-2) var(--spacing-3);
   font-size: var(--font-size-sm);
-  border-bottom: 1px solid var(--color-outline-variant);
+  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
 }
 
 .graph-view-local__label {
@@ -29,7 +25,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  max-width: var(--features-sidebar-components-sidebar-local-graph-max-width-140);
+  max-width: var(--layout-size-md);
 }
 
 .graph-view-local__stats {
@@ -39,7 +35,7 @@
 
 .graph-view-local__content {
   flex: 1;
-  min-height: var(--features-sidebar-components-sidebar-local-graph-min-height-150);
+  min-height: var(--layout-size-lg);
 }
 
 .graph-view-local__graph {
@@ -53,7 +49,7 @@
   align-items: center;
   justify-content: center;
   height: 100%;
-  min-height: var(--features-sidebar-components-sidebar-local-graph-min-height-180);
+  min-height: 11.25rem;
   color: var(--color-on-surface-variant);
   font-size: var(--font-size-button);
 }

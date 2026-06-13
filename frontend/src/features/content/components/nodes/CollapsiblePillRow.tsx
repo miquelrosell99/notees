@@ -117,7 +117,7 @@ export function CollapsiblePillRow<T>({
               position: 'fixed',
               left: popupPos.x,
               top: popupPos.y,
-              zIndex: 10000,
+              zIndex: 'var(--z-10000)',
             }}
           >
             {popupTitle && (

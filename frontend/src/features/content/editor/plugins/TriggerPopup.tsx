@@ -721,7 +721,7 @@ export function TriggerPopup({
         position: 'fixed',
         top: popupPos.top,
         left: popupPos.left,
-        zIndex: 1000,
+        zIndex: 'var(--z-1000)',
         visibility: isPositioned ? 'visible' : 'hidden',
       }}
       onMouseDown={(e) => e.stopPropagation()}

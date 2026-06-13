@@ -3,10 +3,7 @@
  */
 
 
-:root {
-  --features-content-components-nodes-views-graph-renderer-bottom-12: 12px;
-  --features-content-components-nodes-views-graph-renderer-right-12: 12px;
-}
+
 
 .node-graph-renderer {
   width: 100%;
@@ -25,15 +22,15 @@
 
 .recenter-btn {
   position: absolute;
-  bottom: var(--features-content-components-nodes-views-graph-renderer-bottom-12);
-  right: var(--features-content-components-nodes-views-graph-renderer-right-12);
-  z-index: 10;
-  opacity: 0;
+  bottom: var(--font-size-sm);
+  right: var(--font-size-sm);
+  z-index: var(--z-10);
+  opacity: var(--opacity-0);
   transition: opacity var(--motion-duration-medium) var(--motion-easing-standard);
   pointer-events: none;
 }
 
 .node-graph-view:hover .recenter-btn {
-  opacity: 1;
+  opacity: var(--opacity-100);
   pointer-events: auto;
 }

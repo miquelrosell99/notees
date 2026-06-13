@@ -6,9 +6,7 @@
  */
 
 
-:root {
-  --features-queries-components-view-builder-min-height-80: 80px;
-}
+
 
 .view-builder {
   display: flex;
@@ -23,12 +21,12 @@
   display: flex;
   align-items: center;
   gap: var(--spacing-3);
-  font-size: 0.9375rem;
+  font-size: var(--font-size-body-lg);
   flex-wrap: wrap;
   padding: var(--spacing-4);
   background: var(--color-surface-variant);
   border-radius: var(--shape-medium);
-  border: 1px solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
   margin-bottom: var(--spacing-3);
 }
 
@@ -42,7 +40,7 @@
 }
 
 .view-builder__scope-icon {
-  font-size: 1rem;
+  font-size: var(--font-size-md);
 }
 
 .view-builder__scope-text {
@@ -59,7 +57,7 @@
 
 .view-builder__filters-section {
   padding: var(--spacing-3) 0;
-  min-height: var(--features-queries-components-view-builder-min-height-80);
+  min-height: var(--layout-size-2xs);
 }
 
 /* ==================== Footer ==================== */
@@ -69,7 +67,7 @@
   align-items: center;
   justify-content: center;
   padding: var(--spacing-3) 0;
-  border-top: 1px solid var(--color-outline-variant);
+  border-top: var(--border-width-default) solid var(--color-outline-variant);
   margin-top: var(--spacing-3);
 }
 
@@ -80,20 +78,20 @@
 /* ==================== Result Preview ==================== */
 
 .view-builder__result-preview {
-  font-size: 0.875rem;
+  font-size: var(--font-size-base);
   color: var(--color-on-surface-variant);
 }
 
 .view-builder__result-count,
 .view-builder__result-loading {
-  font-size: 0.8125rem;
+  font-size: var(--font-size-button);
   color: var(--color-on-surface-variant);
 }
 
 .view-builder__result-dot {
   color: var(--color-success);
   margin-right: var(--spacing-2);
-  font-size: 1rem;
+  font-size: var(--font-size-md);
 }
 
 .view-builder__result-loading {
@@ -107,7 +105,7 @@
   flex-direction: column;
   gap: var(--spacing-3);
   padding: var(--spacing-3) 0;
-  border-top: 1px solid var(--color-outline-variant);
+  border-top: var(--border-width-default) solid var(--color-outline-variant);
   margin-top: var(--spacing-3);
 }
 
@@ -116,7 +114,7 @@
   background: none;
   border: none;
   padding: var(--spacing-2) 0;
-  font-size: 0.8125rem;
+  font-size: var(--font-size-button);
   color: var(--color-on-surface-variant);
   cursor: pointer;
 }

@@ -1,9 +1,7 @@
 /* ── TaskReport ──────────────────────────────────────────────── */
 
 
-:root {
-  --components-ui-task-report-gap-10: 10px;
-}
+
 
 .task-report {
   display: flex;
@@ -14,7 +12,7 @@
 .task-report__summary {
   display: flex;
   align-items: center;
-  gap: var(--components-ui-task-report-gap-10);
+  gap: var(--spacing-tight);
   padding: var(--spacing-3) var(--spacing-4);
   border-radius: var(--shape-medium);
   font-size: var(--font-size-sm);
@@ -33,13 +31,13 @@
 .task-report__summary div {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--spacing-micro);
 }
 
 .task-report__totals {
   font-size: var(--font-size-xs);
   font-weight: 400;
-  opacity: 0.8;
+  opacity: var(--opacity-80);
 }
 
 /* ── Phases ──────────────────────────────────────────────────── */
@@ -47,7 +45,7 @@
 .task-report__phases {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--spacing-micro);
 }
 
 .task-report__phase {
@@ -91,7 +89,7 @@
   color: var(--color-success);
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: var(--spacing-micro);
 }
 
 .task-report__phase-fail {

@@ -5,16 +5,11 @@
  */
 
 
-:root {
-  --features-content-components-nodes-views-list-view-max-width-900: 900px;
-  --features-content-components-nodes-views-list-view-max-width-120: 120px;
-  --features-content-components-nodes-views-list-view-left-14: -14px;
-  --features-content-components-nodes-views-list-view-left-22: -22px;
-}
+
 
 .node-list-view {
   width: 100%;
-  max-width: var(--features-content-components-nodes-views-list-view-max-width-900);
+  max-width: var(--layout-size-14xl);
   margin: 0 auto;
 }
 
@@ -24,7 +19,7 @@
 
 .node-list-item-wrapper {
   position: relative;
-  border-bottom: 1px solid var(--color-outline-variant);
+  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
 }
 
 /* Inline breadcrumbs for list items */
@@ -37,7 +32,7 @@
 /* Sortable mode */
 .node-list-view--sortable {
   width: 100%;
-  max-width: var(--features-content-components-nodes-views-list-view-max-width-900);
+  max-width: var(--layout-size-14xl);
   margin: 0 auto;
 }
 
@@ -46,7 +41,7 @@
 }
 
 .node-list-view__item-name {
-  font-size: 0.875rem;
+  font-size: var(--font-size-base);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -136,7 +131,7 @@
   display: inline-flex;
   align-items: center;
   gap: var(--spacing-2);
-  font-size: 0.85rem;
+  font-size: var(--font-size-button);
   font-weight: 600;
   color: var(--color-on-surface-variant);
   padding: 0 var(--spacing-1);
@@ -151,7 +146,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--spacing-2);
-  border-top: 1px solid var(--color-outline-variant);
+  border-top: var(--border-width-default) solid var(--color-outline-variant);
   padding-top: var(--spacing-4);
 }
 
@@ -179,16 +174,16 @@
   align-items: center;
   margin-bottom: 0;
   padding: 0;
-  gap: 2px;
+  gap: var(--spacing-micro);
   font: var(--font-label-small);
 }
 
 .node-list-view__group-ancestors .node-breadcrumb-link {
-  padding: 2px var(--spacing-1);
+  padding: var(--spacing-micro) var(--spacing-1);
 }
 
 .node-list-view__group-ancestors .node-breadcrumb-name {
-  max-width: var(--features-content-components-nodes-views-list-view-max-width-120);
+  max-width: var(--layout-size-sm);
 }
 
 /* ==================== Non-grouped breadcrumb mode ==================== */
@@ -217,14 +212,14 @@
   margin-bottom: 0;
   padding: 0;
   padding-left: var(--spacing-2);
-  gap: 2px;
+  gap: var(--spacing-micro);
   font: var(--font-label-small);
 }
 
 /* ==================== Small size variant ==================== */
 
 .node-list-view--sm .node-block {
-  margin: 1px 0;
+  margin: var(--spacing-hairline) 0;
   min-height: 1.3em;
   line-height: 1.4;
   font: var(--font-body-small);
@@ -241,7 +236,7 @@
   width: var(--icon-size-sm);
   height: var(--icon-size-sm);
   margin-right: var(--spacing-1);
-  margin-top: 1px;
+  margin-top: var(--spacing-hairline);
 }
 
 .node-list-view--sm .bullet-dot {
@@ -260,21 +255,21 @@
 }
 
 .node-list-view--sm .notees-editor-content {
-  padding: 2px 0;
+  padding: var(--spacing-micro) 0;
 }
 
 .node-list-view--sm .block-collapse-arrow {
   width: var(--icon-size-xs);
   height: var(--icon-size-xs);
-  left: var(--features-content-components-nodes-views-list-view-left-14);
+  left: calc(var(--icon-size-xs) * -1);
 }
 
 .node-list-view__block-breadcrumbs .node-breadcrumb-link {
-  padding: 2px var(--spacing-1);
+  padding: var(--spacing-micro) var(--spacing-1);
 }
 
 .node-list-view__block-breadcrumbs .node-breadcrumb-name {
-  max-width: var(--features-content-components-nodes-views-list-view-max-width-120);
+  max-width: var(--layout-size-sm);
 }
 
 /* Pages section (standalone pages before grouped blocks) */
@@ -317,12 +312,12 @@
 .node-list-group__actions {
   display: flex;
   gap: var(--spacing-1);
-  opacity: 0;
+  opacity: var(--opacity-0);
   transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 .node-list-group__header:hover .node-list-group__actions {
-  opacity: 1;
+  opacity: var(--opacity-100);
 }
 
 .node-list-group__page-header .block-preview__content {
@@ -332,7 +327,7 @@
 /* Collapse arrow button - positioned to the left of the header */
 .node-list-group__collapse-arrow {
   position: absolute;
-  left: var(--features-content-components-nodes-views-list-view-left-22); /* Position arrow to the left of header */
+  left: calc(var(--bullet-wrapper-size) * -1); /* Position arrow to the left of header */
   display: flex;
   align-items: center;
   justify-content: center;
@@ -362,7 +357,7 @@
 
 /* Group children - blocks indented from the header */
 .node-list-group__children {
-  padding-left: 0.25rem; /* Minimal indent, bullets provide visual hierarchy */
+  padding-left: var(--spacing-1); /* Minimal indent, bullets provide visual hierarchy */
 }
 
 /* Ensure proper padding for items within groups */

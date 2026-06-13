@@ -4,11 +4,7 @@
  */
 
 
-:root {
-  --features-content-components-blocks-block-ui-margin-right-6: 6px;
-  --features-content-components-blocks-block-ui-width-6: 6px;
-  --features-content-components-blocks-block-ui-height-6: 6px;
-}
+
 
 .block-ui {
   position: relative;
@@ -39,12 +35,12 @@
   border-radius: 50%;
   color: var(--color-on-surface-variant);
   cursor: pointer;
-  opacity: 0;
+  opacity: var(--opacity-0);
   transition: opacity var(--motion-duration-short) var(--motion-easing-standard),
               color var(--motion-duration-short) var(--motion-easing-standard),
               background-color var(--motion-duration-short) var(--motion-easing-standard),
               transform var(--motion-duration-short) var(--motion-easing-tactile);
-  z-index: 5;
+  z-index: var(--z-5);
   user-select: none;
   -webkit-user-select: none;
 }
@@ -57,7 +53,7 @@
 }
 
 .block-collapse-arrow:hover {
-  opacity: 1;
+  opacity: var(--opacity-100);
   color: var(--color-on-surface);
 }
 
@@ -67,12 +63,12 @@
 
 /* Show collapse arrow when hovering the block row */
 .node-block:hover .block-collapse-arrow {
-  opacity: 1;
+  opacity: var(--opacity-100);
 }
 
 /* Block bullet specific: right margin for spacing from content */
 .block-ui > .bullet-wrapper {
-  margin-right: var(--features-content-components-blocks-block-ui-margin-right-6);
+  margin-right: var(--spacing-1-5);
   cursor: grab;
 }
 
@@ -81,15 +77,15 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-left: 2px;
-  opacity: 0.85;
+  margin-left: var(--spacing-micro);
+  opacity: var(--opacity-85);
 }
 
 /* Presence avatars — small colored initials for remote users on this block */
 .block-ui__presence {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: var(--spacing-micro);
   margin-left: var(--spacing-1);
 }
 
@@ -111,26 +107,26 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-left: 2px;
-  opacity: 0.6;
+  margin-left: var(--spacing-micro);
+  opacity: var(--opacity-60);
 }
 
 /* Typing indicator — ephemeral dots for remote users typing in this block */
 .block-ui__typing {
   display: flex;
   align-items: center;
-  gap: 3px;
+  gap: var(--spacing-tiny);
   margin-left: var(--spacing-1);
 }
 
 .block-ui__typing-dot {
-  width: var(--features-content-components-blocks-block-ui-width-6);
-  height: var(--features-content-components-blocks-block-ui-height-6);
+  width: var(--shape-medium);
+  height: var(--shape-medium);
   border-radius: 50%;
-  animation: typing-pulse 1.2s ease-in-out infinite;
+  animation: typing-pulse 1.2s var(--motion-easing-ease-in-out) infinite;
 }
 
 @keyframes typing-pulse {
-  0%, 100% { opacity: 0.35; transform: scale(0.9); }
-  50% { opacity: 1; transform: scale(1.1); }
+  0%, 100% { opacity: var(--opacity-35); transform: scale(0.9); }
+  50% { opacity: var(--opacity-100); transform: scale(1.1); }
 }

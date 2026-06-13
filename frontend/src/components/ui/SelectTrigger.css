@@ -20,7 +20,7 @@
 .select-trigger {
   cursor: pointer;
   width: 100%;
-  border: 1px solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
   border-radius: var(--shape-medium);
   transition: 
     border-color var(--motion-duration-short) var(--motion-easing-standard),
@@ -43,7 +43,7 @@
 
 .select-trigger:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px var(--color-accent);
+  box-shadow: var(--shadow-focus-ring);
 }
 
 .select-trigger--open {
@@ -55,7 +55,7 @@
 }
 
 .select-trigger--disabled {
-  opacity: 0.5;
+  opacity: var(--opacity-50);
   cursor: not-allowed;
 }
 
@@ -127,5 +127,5 @@
 /* Placeholder styling (when used with text content) */
 .select-trigger__placeholder {
   color: var(--color-on-surface-variant);
-  opacity: 0.7;
+  opacity: var(--opacity-70);
 }

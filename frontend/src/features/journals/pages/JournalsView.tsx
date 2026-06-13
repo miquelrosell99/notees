@@ -36,7 +36,7 @@ function JournalEntry({ dailyPageId }: JournalEntryProps) {
           className="journal-entry__card"
           style={{ 
             '--card-border-color': borderColor,
-            borderLeft: '8px solid var(--card-border-color)'
+            borderLeft: 'var(--border-width-node-color-strong) solid var(--card-border-color)'
           } as React.CSSProperties}
         >
           <NodeViewContent 

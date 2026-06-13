@@ -528,7 +528,7 @@ function NodeRefInteractive({
                   left: 0,
                   right: 0,
                   bottom: 0,
-                  zIndex: 9998,
+                  zIndex: 'var(--z-9998)',
                 }}
                 onClick={handleCloseContextMenu}
                 onKeyDown={(e) => {
@@ -545,7 +545,7 @@ function NodeRefInteractive({
                   position: 'fixed',
                   left: contextMenu.x,
                   top: contextMenu.y,
-                  zIndex: 9999,
+                  zIndex: 'var(--z-9999)',
                   display: 'flex',
                   flexDirection: 'column',
                 }}

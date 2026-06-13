@@ -3,9 +3,7 @@
  */
 
 
-:root {
-  --features-content-components-nodes-node-content-min-height-200: 200px;
-}
+
 
 .node-content {
   position: relative;
@@ -13,7 +11,7 @@
 
 /* Only apply min-height in document mode where we want more vertical space */
 .node-content.document {
-  min-height: var(--features-content-components-nodes-node-content-min-height-200);
+  min-height: var(--layout-size-2xl);
 }
 
 /* Separator line for content sections (bullet, document, card modes) */
@@ -96,17 +94,17 @@
 .node-content-placeholder {
   display: flex;
   align-items: flex-start;
-  margin: 3px 0;
+  margin: var(--spacing-tiny) 0;
   min-height: 1.6em;
   line-height: 1.6;
   cursor: text;
   background: transparent;
-  opacity: 0;
+  opacity: var(--opacity-0);
   transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 .node-content:hover .node-content-placeholder {
-  opacity: 1;
+  opacity: var(--opacity-100);
 }
 
 /* Placeholder bullet wrapper — matches real .bullet-wrapper.bullet-sm */
@@ -125,17 +123,17 @@
   height: var(--bullet-dot-size);
   border-radius: 50%;
   background-color: var(--color-outline);
-  opacity: 0.4;
+  opacity: var(--opacity-40);
 }
 
 .node-content-add {
   padding: var(--spacing-2) 0;
-  opacity: 0;
+  opacity: var(--opacity-0);
   transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 .node-content:hover .node-content-add {
-  opacity: 1;
+  opacity: var(--opacity-100);
 }
 
 .add-block-btn {

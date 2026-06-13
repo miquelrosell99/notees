@@ -25,19 +25,19 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 2px;
+  padding: var(--spacing-micro);
   background: none;
   border: none;
   border-radius: var(--radius-sm);
   color: var(--color-on-surface-variant);
   cursor: pointer;
-  opacity: 0;
+  opacity: var(--opacity-0);
   transition: opacity var(--motion-duration-short) var(--motion-easing-standard), color var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 .list-sortable__item:hover .class-property-menu-btn,
 .class-property-menu-btn:focus {
-  opacity: 1;
+  opacity: var(--opacity-100);
 }
 
 .class-property-menu-btn:hover {
@@ -49,7 +49,7 @@
 .class-property-actions {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: var(--spacing-micro);
 }
 
 /* Required toggle button (* asterisk) */
@@ -57,12 +57,12 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 2px;
+  padding: var(--spacing-micro);
   background: none;
   border: none;
   border-radius: var(--radius-sm);
   cursor: pointer;
-  opacity: 0;
+  opacity: var(--opacity-0);
   color: var(--color-on-surface-variant);
   transition: opacity var(--motion-duration-short) var(--motion-easing-standard),
               color var(--motion-duration-short) var(--motion-easing-standard);
@@ -70,13 +70,13 @@
 
 /* Always show required toggle if it's active (required=true) */
 .class-property-required-btn--active {
-  opacity: 1;
+  opacity: var(--opacity-100);
   color: var(--color-error);
 }
 
 .list-sortable__item:hover .class-property-required-btn,
 .class-property-required-btn:focus {
-  opacity: 1;
+  opacity: var(--opacity-100);
 }
 
 .class-property-required-btn:not(.class-property-required-btn--active):hover {

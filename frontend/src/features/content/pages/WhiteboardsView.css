@@ -3,9 +3,7 @@
  */
 
 
-:root {
-  --features-content-pages-whiteboards-view-min-height-200: 200px;
-}
+
 
 .whiteboards-view {
   max-width: none;
@@ -39,7 +37,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: var(--features-content-pages-whiteboards-view-min-height-200);
+  min-height: var(--layout-size-2xl);
 }
 
 .whiteboards-view__empty {

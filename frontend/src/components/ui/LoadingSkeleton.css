@@ -8,7 +8,7 @@
 .skeleton {
   display: inline-block;
   border-radius: var(--shape-small);
-  background: linear-gradient(
+  background: var(--motion-easing-linear)-gradient(
     90deg,
     var(--color-surface-container-high) 25%,
     var(--color-surface-container-highest) 50%,

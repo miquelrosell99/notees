@@ -26,7 +26,7 @@
 .create-uuid-modal__input {
   width: 100%;
   padding: var(--spacing-2) var(--spacing-3);
-  border: 1px solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
   background: var(--color-surface-container-low);
   color: var(--color-on-surface);
   font: var(--font-body-medium);

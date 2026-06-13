@@ -137,7 +137,7 @@ export function WorkspaceNameModal({
         />
 
         {error && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-2)', padding: 'var(--spacing-3)', background: 'var(--color-error-container)', borderRadius: 'var(--radius-sm)', color: 'var(--color-error)', fontSize: '0.875rem', marginTop: 'var(--spacing-3)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-2)', padding: 'var(--spacing-3)', background: 'var(--color-error-container)', borderRadius: 'var(--radius-sm)', color: 'var(--color-error)', fontSize: 'var(--font-size-base)', marginTop: 'var(--spacing-3)' }}>
             <AlertIcon size="sm" /> {error}
           </div>
         )}

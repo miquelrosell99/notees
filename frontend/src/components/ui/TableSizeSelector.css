@@ -5,9 +5,7 @@
  */
 
 
-:root {
-  --components-ui-table-size-selector-min-width-200: 200px;
-}
+
 
 .table-size-selector {
   display: flex;
@@ -27,13 +25,13 @@
   gap: var(--spacing-2);
   padding: var(--spacing-3);
   background: var(--color-surface);
-  border: 1px solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
   border-radius: var(--shape-medium);
 }
 
 .table-size-selector__grid {
   display: grid;
-  gap: 3px;
+  gap: var(--spacing-tiny);
   padding: var(--spacing-1);
   background: var(--color-surface-container-low);
   border-radius: var(--shape-small);
@@ -44,7 +42,7 @@
   height: var(--icon-size-md);
   padding: 0;
   background: var(--color-surface);
-  border: 1.5px solid var(--color-outline);
+  border: var(--border-width-medium) solid var(--color-outline);
   border-radius: var(--shape-extra-small);
   cursor: pointer;
   transition: background-color var(--motion-duration-instant) var(--motion-easing-standard), border-color var(--motion-duration-instant) var(--motion-easing-standard);
@@ -58,7 +56,7 @@
 }
 
 .table-size-selector__cell:focus-visible {
-  outline: 2px solid var(--color-primary);
+  outline: var(--border-width-thick) solid var(--color-primary);
   outline-offset: 1px;
 }
 
@@ -86,7 +84,7 @@
   align-items: center;
   justify-content: center;
   background: var(--color-scrim);
-  z-index: 1000;
+  z-index: var(--z-1000);
 }
 
 .table-size-modal__content {
@@ -133,7 +131,7 @@
   align-items: center;
   gap: var(--spacing-3);
   padding: var(--spacing-3);
-  min-width: var(--components-ui-table-size-selector-min-width-200);
+  min-width: var(--layout-size-2xl);
 }
 
 .table-size-modal__adapt-label {
@@ -149,7 +147,7 @@
   font: var(--font-body-medium);
   color: var(--color-on-surface);
   background: var(--color-surface);
-  border: 1px solid var(--color-outline);
+  border: var(--border-width-default) solid var(--color-outline);
   border-radius: var(--shape-small);
   cursor: pointer;
 }
@@ -159,7 +157,7 @@
 }
 
 .table-size-modal__adapt-select:focus {
-  outline: 2px solid color-mix(in srgb, var(--color-primary) 35%, var(--color-outline-variant));
+  outline: var(--border-width-thick) solid color-mix(in srgb, var(--color-primary) 35%, var(--color-outline-variant));
   outline-offset: 1px;
 }
 

@@ -21,7 +21,7 @@
   font-size: var(--font-size-sm);
   color: var(--color-on-surface);
   background: var(--color-surface);
-  border: 1px solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
   border-radius: var(--shape-extra-large);
   transition: 
     border-color var(--motion-duration-short) var(--motion-easing-standard),
@@ -35,7 +35,7 @@
 
 .text-field:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px var(--color-accent);
+  box-shadow: var(--shadow-focus-ring);
 }
 
 .text-field::placeholder {
@@ -51,7 +51,7 @@
 }
 
 .text-field--disabled {
-  opacity: 0.5;
+  opacity: var(--opacity-50);
   cursor: not-allowed;
   background: var(--color-surface-variant);
 }
@@ -79,7 +79,7 @@
   display: flex;
   align-items: center;
   width: 100%;
-  border: 1px solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
   border-radius: var(--shape-extra-large);
   background: var(--color-surface);
   transition: 
@@ -94,7 +94,7 @@
 
 .text-field__container:has(.text-field:focus-visible) {
   outline: none;
-  box-shadow: 0 0 0 2px var(--color-accent);
+  box-shadow: var(--shadow-focus-ring);
 }
 
 .text-field__container--error {
@@ -107,7 +107,7 @@
 
 
 .text-field__container--disabled {
-  opacity: 0.5;
+  opacity: var(--opacity-50);
   cursor: not-allowed;
   background: var(--color-surface-variant);
 }

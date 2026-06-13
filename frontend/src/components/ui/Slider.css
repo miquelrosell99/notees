@@ -6,9 +6,7 @@
  */
 
 
-:root {
-  --components-ui-slider-width-14: 14px;
-}
+
 
 .slider {
   display: flex;
@@ -55,7 +53,7 @@
   -webkit-appearance: none;
   appearance: none;
   width: 100%;
-  height: 4px;
+  height: var(--shape-small);
   border-radius: var(--shape-full);
   background: transparent;
   cursor: pointer;
@@ -63,7 +61,7 @@
   padding: 0;
   margin: 0;
   position: relative;
-  z-index: 1;
+  z-index: var(--z-1);
 }
 
 /* Filled track via box-shadow trick on the thumb — use a filled background
@@ -73,11 +71,11 @@
   left: 0;
   top: 50%;
   transform: translateY(-50%);
-  height: 4px;
+  height: var(--shape-small);
   border-radius: var(--shape-full);
   background: var(--color-primary);
   pointer-events: none;
-  z-index: 0;
+  z-index: var(--z-0);
 }
 
 .slider__bg {
@@ -86,11 +84,11 @@
   right: 0;
   top: 50%;
   transform: translateY(-50%);
-  height: 4px;
+  height: var(--shape-small);
   border-radius: var(--shape-full);
   background: var(--color-outline-variant);
   pointer-events: none;
-  z-index: 0;
+  z-index: var(--z-0);
 }
 
 /* Thumb — WebKit */
@@ -101,10 +99,10 @@
   height: var(--icon-size-xs);
   border-radius: 50%;
   background: var(--color-primary);
-  border: 2px solid var(--color-surface);
+  border: var(--border-width-thick) solid var(--color-surface);
   cursor: pointer;
   position: relative;
-  z-index: 2;
+  z-index: var(--z-2);
   transition: transform var(--motion-duration-short) var(--motion-easing-standard);
 }
 
@@ -114,11 +112,11 @@
 
 /* Thumb — Firefox */
 .slider__input::-moz-range-thumb {
-  width: var(--components-ui-slider-width-14);
+  width: var(--icon-size-xs);
   height: var(--icon-size-xs);
   border-radius: 50%;
   background: var(--color-primary);
-  border: 2px solid var(--color-surface);
+  border: var(--border-width-thick) solid var(--color-surface);
   cursor: pointer;
   transition: transform var(--motion-duration-short) var(--motion-easing-standard);
 }
@@ -129,8 +127,8 @@
 
 /* Focus ring */
 .slider__input:focus-visible::-webkit-slider-thumb {
-  outline: 2px solid var(--color-primary);
-  outline-offset: 2px;
+  outline: var(--border-width-thick) solid var(--color-primary);
+  outline-offset: var(--spacing-micro);
 }
 
 /* ─── Size variants ───────────────────────────────────────────────── */
@@ -158,7 +156,7 @@
 
 .slider--disabled .slider__input {
   cursor: not-allowed;
-  opacity: 0.4;
+  opacity: var(--opacity-40);
 }
 
 .slider--disabled .slider__filled {

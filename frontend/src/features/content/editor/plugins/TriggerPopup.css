@@ -3,47 +3,44 @@
  */
 
 
-:root {
-  --features-content-editor-plugins-trigger-popup-max-height-400: 400px;
-  --features-content-editor-plugins-trigger-popup-padding-6: 6px;
-}
+
 
 .trigger-popup {
   width: var(--modal-width-sm);
   max-width: 90vw;
   background: var(--color-surface);
-  border: 1px solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
   border-radius: var(--shape-medium);
   display: flex;
   flex-direction: column;
-  max-height: var(--features-content-editor-plugins-trigger-popup-max-height-400);
+  max-height: var(--layout-size-9xl);
   overflow: hidden;
-  animation: trigger-popup-enter 150ms var(--motion-easing-standard);
+  animation: trigger-popup-enter var(--motion-duration-shorter) var(--motion-easing-standard);
   box-shadow: var(--shadow-2);
 }
 
 @keyframes trigger-popup-enter {
   from {
-    opacity: 0;
+    opacity: var(--opacity-0);
     transform: translateY(-4px);
   }
   to {
-    opacity: 1;
+    opacity: var(--opacity-100);
     transform: translateY(0);
   }
 }
 
 .trigger-popup--above {
-  animation: trigger-popup-enter-above 150ms var(--motion-easing-standard);
+  animation: trigger-popup-enter-above var(--motion-duration-shorter) var(--motion-easing-standard);
 }
 
 @keyframes trigger-popup-enter-above {
   from {
-    opacity: 0;
+    opacity: var(--opacity-0);
     transform: translateY(4px);
   }
   to {
-    opacity: 1;
+    opacity: var(--opacity-100);
     transform: translateY(0);
   }
 }
@@ -53,21 +50,21 @@
   align-items: center;
   gap: var(--spacing-2);
   padding: var(--spacing-2) var(--spacing-3);
-  border-bottom: 1px solid var(--color-outline-variant);
+  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
   font: var(--font-label-medium);
   color: var(--color-on-surface-variant);
 }
 
 .trigger-popup__search {
   padding: var(--spacing-2) var(--spacing-3);
-  border-bottom: 1px solid var(--color-outline-variant);
+  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
 }
 
 .trigger-popup__input {
   width: 100%;
   padding: var(--spacing-2) var(--spacing-3);
   background: var(--color-surface-container);
-  border: 1px solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
   border-radius: var(--shape-small);
   font: var(--font-body-small);
   color: var(--color-on-surface);
@@ -91,7 +88,7 @@
   display: inline-flex;
   align-items: center;
   gap: var(--spacing-1);
-  padding: 2px var(--features-content-editor-plugins-trigger-popup-padding-6);
+  padding: var(--spacing-micro) var(--spacing-1-5);
   background: var(--color-primary-container);
   color: var(--color-on-primary-container);
   border-radius: var(--shape-small);
@@ -103,19 +100,19 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 1px;
+  padding: var(--spacing-hairline);
   background: transparent;
   border: none;
   border-radius: var(--shape-small);
   color: inherit;
   cursor: pointer;
-  opacity: 0.7;
+  opacity: var(--opacity-70);
   transition: opacity var(--motion-duration-short) var(--motion-easing-standard),
               background var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 .trigger-popup__filter-pill-remove:hover {
-  opacity: 1;
+  opacity: var(--opacity-100);
   background: color-mix(in srgb, currentColor 12%, transparent);
 }
 
@@ -162,7 +159,7 @@
   margin-left: auto;
   font: var(--font-label-small);
   color: var(--color-on-surface-variant);
-  opacity: 0.7;
+  opacity: var(--opacity-70);
 }
 
 /* ─── List area ─────────────────────────────────────────────────── */
@@ -214,7 +211,7 @@
 .trigger-popup__command-desc {
   font: var(--font-label-small);
   color: var(--color-on-surface-variant);
-  opacity: 0.7;
+  opacity: var(--opacity-70);
 }
 
 /* Create new option */
@@ -248,21 +245,21 @@
   align-items: center;
   justify-content: space-between;
   padding: var(--spacing-2) var(--spacing-3);
-  border-top: 1px solid var(--color-outline-variant);
+  border-top: var(--border-width-default) solid var(--color-outline-variant);
   background: var(--color-surface-container);
 }
 
 /* When popup is above the trigger, the footer sits at the top of the list area */
 .trigger-popup--above .trigger-popup__footer {
   border-top: none;
-  border-bottom: 1px solid var(--color-outline-variant);
+  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
 }
 
 /* When popup is above, the header sits just above the searchbox with a top border
    to separate it from the list/footer above */
 .trigger-popup--above .trigger-popup__header {
   border-bottom: none;
-  border-top: 1px solid var(--color-outline-variant);
+  border-top: var(--border-width-default) solid var(--color-outline-variant);
 }
 
 .trigger-popup__hint {

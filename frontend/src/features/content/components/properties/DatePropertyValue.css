@@ -30,10 +30,10 @@
 }
 
 .property-value-date-clear {
-  opacity: 0;
-  transition: opacity 0.1s;
+  opacity: var(--opacity-0);
+  transition: opacity var(--motion-duration-short);
 }
 
 .property-value-date-container:hover .property-value-date-clear {
-  opacity: 1;
+  opacity: var(--opacity-100);
 }

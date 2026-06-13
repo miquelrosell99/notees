@@ -13,14 +13,14 @@
 }
 
 .toggle-switch--disabled {
-  opacity: 0.5;
+  opacity: var(--opacity-50);
   cursor: not-allowed;
   pointer-events: none;
 }
 
 .toggle-switch:focus-visible {
-  outline: 2px solid var(--color-primary);
-  outline-offset: 2px;
+  outline: var(--border-width-thick) solid var(--color-primary);
+  outline-offset: var(--spacing-micro);
   border-radius: var(--shape-small);
 }
 
@@ -43,7 +43,7 @@
   display: flex;
   align-items: center;
   background: var(--color-surface-container-high);
-  border: 1px solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
   border-radius: var(--shape-full);
   transition: background-color var(--motion-duration-short) var(--motion-easing-standard);
 }
@@ -81,32 +81,32 @@
 .toggle-switch--sm .toggle-switch__thumb {
   width: var(--icon-size-xs);
   height: var(--icon-size-xs);
-  left: 2px;
+  left: var(--spacing-micro);
 }
 
 .toggle-switch--md .toggle-switch__thumb {
   width: var(--icon-size-md);
   height: var(--icon-size-md);
-  left: 2px;
+  left: var(--spacing-micro);
 }
 
 .toggle-switch--lg .toggle-switch__thumb {
   width: var(--toggle-thumb-size-lg);
   height: var(--toggle-thumb-size-lg);
-  left: 2px;
+  left: var(--spacing-micro);
 }
 
 /* Checked state - move thumb to the right */
 .toggle-switch--checked.toggle-switch--sm .toggle-switch__thumb {
-  transform: translateX(calc(var(--height-xs) - 2px));
+  transform: translateX(calc(var(--height-xs) - var(--spacing-micro)));
 }
 
 .toggle-switch--checked.toggle-switch--md .toggle-switch__thumb {
-  transform: translateX(calc(var(--height-sm) - 2px));
+  transform: translateX(calc(var(--height-sm) - var(--spacing-micro)));
 }
 
 .toggle-switch--checked.toggle-switch--lg .toggle-switch__thumb {
-  transform: translateX(calc(var(--height-md) - 2px));
+  transform: translateX(calc(var(--height-md) - var(--spacing-micro)));
 }
 
 /* Hover state */

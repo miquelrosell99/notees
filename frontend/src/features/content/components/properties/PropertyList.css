@@ -8,17 +8,14 @@
  */
 
 
-:root {
-  --features-content-components-properties-property-list-min-height-36: 36px;
-  --features-content-components-properties-property-list-padding-top-6: 6px;
-}
+
 
 /* ==================== Table Container ==================== */
 
 .property-table {
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
   border-radius: var(--shape-medium);
   overflow: hidden;
 }
@@ -34,8 +31,8 @@
   display: grid;
   grid-template-columns: minmax(120px, 180px) 1fr;
   align-items: center;
-  min-height: var(--features-content-components-properties-property-list-min-height-36);
-  border-bottom: 1px solid var(--color-outline-variant);
+  min-height: var(--spacing-9);
+  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
 }
 
 /* Mobile: tighter rows and smaller label column */
@@ -66,7 +63,7 @@
 }
 
 .property-row:has(.text-property-block--has-content) .property-row__label {
-  padding-top: var(--features-content-components-properties-property-list-padding-top-6);
+  padding-top: var(--spacing-1-5);
 }
 
 /* ==================== Property Label ==================== */
@@ -82,12 +79,12 @@
   cursor: default;
   padding: var(--spacing-2) var(--spacing-3);
   height: 100%;
-  border-right: 1px solid var(--color-outline-variant);
+  border-right: var(--border-width-default) solid var(--color-outline-variant);
 }
 
 .property-row__label:focus-visible {
   outline: var(--border-width-thick) solid var(--color-accent);
-  outline-offset: -2px;
+  outline-offset: calc(var(--spacing-micro) * -1);
 }
 
 /* Override NodeInline hover: underline instead of background */
@@ -97,9 +94,9 @@
 }
 
 .property-row__icon {
-  font-size: 0.875rem;
+  font-size: var(--font-size-base);
   flex-shrink: 0;
-  opacity: 0.8;
+  opacity: var(--opacity-80);
 }
 
 .property-row__name {
@@ -119,7 +116,7 @@
   display: flex;
   align-items: center;
   min-width: 0;
-  min-height: var(--features-content-components-properties-property-list-min-height-36);
+  min-height: var(--spacing-9);
   padding: var(--spacing-2) var(--spacing-3);
 }
 
@@ -156,7 +153,7 @@
 .property-row__value .dropdown-value--placeholder {
   color: var(--color-on-surface-variant);
   font-style: italic;
-  opacity: 0.45;
+  opacity: var(--opacity-45);
   font-size: 0.85em;
 }
 
@@ -165,7 +162,7 @@
 .property-row-group {
   display: flex;
   flex-direction: column;
-  border-bottom: 1px solid var(--color-outline-variant);
+  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
 }
 
 .property-row-group:last-child {
@@ -179,12 +176,12 @@
 
 /* Value cells in a group get a top border (except the first) */
 .property-row-group .property-row--continuation .property-row__value {
-  border-top: 1px solid var(--color-outline-variant);
+  border-top: var(--border-width-default) solid var(--color-outline-variant);
 }
 
 /* Continuation rows: empty label cell, no border between merged labels */
 .property-row--continuation .property-row__label {
-  border-right: 1px solid var(--color-outline-variant);
+  border-right: var(--border-width-default) solid var(--color-outline-variant);
 }
 
 /* ==================== Hidden Properties Section ==================== */

@@ -32,9 +32,9 @@ import type { UseWhiteboardReturn } from '@/hooks/useWhiteboard';
 
 function ShortcutRow({ keys, action }: { keys: string; action: string }) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0', borderBottom: '1px solid var(--color-outline-variant)' }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: 'var(--spacing-1) 0', borderBottom: 'var(--border-width-default) solid var(--color-outline-variant)' }}>
       <span style={{ color: 'var(--color-on-surface)' }}>{action}</span>
-      <kbd style={{ background: 'var(--color-surface-variant)', padding: '2px 8px', borderRadius: 4, fontSize: 12, fontFamily: 'monospace', color: 'var(--color-on-surface-variant)' }}>{keys}</kbd>
+      <kbd style={{ background: 'var(--color-surface-variant)', padding: 'var(--spacing-micro) var(--spacing-2)', borderRadius: 'var(--shape-small)', fontSize: 'var(--font-size-sm)', fontFamily: 'monospace', color: 'var(--color-on-surface-variant)' }}>{keys}</kbd>
     </div>
   );
 }
@@ -1721,7 +1721,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
     };
 
     return (
-      <svg className="whiteboard-view__strokes-svg" style={{ zIndex: 3 }}>
+      <svg className="whiteboard-view__strokes-svg" style={{ zIndex: 'var(--z-10)' }}>
         <defs>
           <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
             <polygon points="0 0, 10 3.5, 0 7" fill="var(--text-primary)" />
@@ -1828,7 +1828,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
     >
       {/* Search bar */}
       {isSearchOpen && (
-        <div className="wb-search-bar" style={{ position: 'absolute', top: 12, right: 12, zIndex: 'var(--wb-z-overlay)' }}>
+        <div className="wb-search-bar" style={{ position: 'absolute', top: 'var(--spacing-3)', right: 'var(--spacing-3)', zIndex: 'var(--wb-z-overlay)' }}>
           <input
             ref={searchInputRef}
             type="text"
@@ -1848,12 +1848,12 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
         // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- modal backdrop closes on click
         <div className="wb-shortcuts-modal" style={{ position: 'absolute', inset: 0, zIndex: 'var(--wb-z-overlay)', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--color-scrim)' }} onClick={() => setShowShortcuts(false)}>
           {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- modal content stops click propagation */}
-          <div className="wb-shortcuts-modal__content" style={{ background: 'var(--color-surface)', borderRadius: 'var(--shape-large)', padding: 24, maxWidth: 480, width: '90%' }} onClick={e => e.stopPropagation()}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <h3 style={{ margin: 0, fontSize: 18, fontWeight: 600 }}>Keyboard Shortcuts</h3>
+          <div className="wb-shortcuts-modal__content" style={{ background: 'var(--color-surface)', borderRadius: 'var(--shape-large)', padding: 'var(--spacing-6)', maxWidth: 'var(--whiteboard-shortcuts-max-width)', width: '90%' }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--spacing-4)' }}>
+              <h3 style={{ margin: 0, fontSize: 'var(--font-size-lead)', fontWeight: 600 }}>Keyboard Shortcuts</h3>
               <Button variant="ghost" size="xs" icon="mdi mdi-close" aria-label="Close shortcuts panel" className="wb-align-panel__btn" onClick={() => setShowShortcuts(false)} />
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 24px', fontSize: 14 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--spacing-2) var(--spacing-6)', fontSize: 'var(--font-size-base)' }}>
               <ShortcutRow keys="V" action="Select tool" />
               <ShortcutRow keys="R" action="Rectangle" />
               <ShortcutRow keys="O" action="Ellipse" />
@@ -1970,7 +1970,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
                 className="whiteboard-element__rotation-handle"
                 style={{
                   left: '50%',
-                  top: -30,
+                  top: 'calc(var(--spacing-7-5) * -1)',
                   transform: 'translateX(-50%)',
                 }}
               />
@@ -2057,7 +2057,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
               top: st,
               width: sw,
               height: sh,
-              opacity: 0.45,
+              opacity: 'var(--opacity-45)',
               pointerEvents: 'none',
               zIndex: 'var(--wb-z-overlay)' as any,
               transform: previewRotation ? `rotate(${previewRotation}deg)` : undefined,

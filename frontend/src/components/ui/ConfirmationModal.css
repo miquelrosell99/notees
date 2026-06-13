@@ -12,7 +12,7 @@
   width: var(--icon-size-md);
   height: var(--icon-size-md);
   color: var(--color-primary);
-  margin-top: 2px;
+  margin-top: var(--spacing-micro);
 }
 
 .confirmation-modal__title {

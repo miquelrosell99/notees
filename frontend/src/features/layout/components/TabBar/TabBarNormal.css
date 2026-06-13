@@ -11,12 +11,12 @@
 }
 
 .tab-bar-normal__label {
-  font-size: 0.625rem;
+  font-size: var(--font-size-2xs);
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--color-on-surface-variant);
-  opacity: 0.45;
+  opacity: var(--opacity-45);
   user-select: none;
   white-space: nowrap;
   flex-shrink: 0;
@@ -37,9 +37,9 @@
   scrollbar-width: none;
   -ms-overflow-style: none;
   gap: 0;
-  padding: 1px var(--spacing-1);
+  padding: var(--spacing-hairline) var(--spacing-1);
   background: var(--color-surface-container);
-  border: 1px solid color-mix(in srgb, var(--color-outline-variant) 35%, transparent);
+  border: var(--border-width-default) solid color-mix(in srgb, var(--color-outline-variant) 35%, transparent);
   border-radius: var(--shape-large);
 }
 
@@ -52,12 +52,12 @@
   position: absolute;
   bottom: 1px;
   left: 0;
-  height: 2px;
+  height: var(--shape-extra-small);
   background: var(--color-primary);
-  border-radius: 1px;
+  border-radius: var(--shape-hairline);
   transition: transform var(--motion-duration-medium) var(--motion-easing-standard),
               width var(--motion-duration-short) var(--motion-easing-standard);
-  z-index: 2;
+  z-index: var(--z-2);
   pointer-events: none;
 }
 
@@ -68,7 +68,7 @@
   gap: 0;
   position: sticky;
   left: 0;
-  z-index: 2;
+  z-index: var(--z-2);
   background: inherit;
   border-radius: inherit;
   flex-shrink: 0;
@@ -80,7 +80,7 @@
   width: 1px;
   height: var(--height-xs);
   background: var(--color-outline-variant);
-  opacity: 0.5;
+  opacity: var(--opacity-50);
   margin: 0 var(--spacing-1);
   flex-shrink: 0;
 }
@@ -101,7 +101,7 @@
   height: 50%;
   width: 1px;
   background: var(--color-outline-variant);
-  opacity: 0.4;
+  opacity: var(--opacity-40);
 }
 
 /* Section divider between tabs and the add button */
@@ -112,16 +112,16 @@
   align-self: stretch;
   background: var(--color-primary);
   border-radius: var(--shape-full);
-  margin: 0 1px;
+  margin: 0 var(--spacing-hairline);
   flex-shrink: 0;
-  opacity: 0.5;
+  opacity: var(--opacity-50);
 }
 
 .tab-bar-normal__section-divider {
   width: 1px;
   height: var(--height-xs);
   background: var(--color-outline-variant);
-  opacity: 0.4;
+  opacity: var(--opacity-40);
   margin: 0 var(--spacing-1);
   flex-shrink: 0;
 }

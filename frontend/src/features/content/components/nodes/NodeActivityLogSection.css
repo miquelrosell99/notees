@@ -4,9 +4,7 @@
  */
 
 
-:root {
-  --features-content-components-nodes-node-activity-log-section-max-height-300: 300px;
-}
+
 
 .node-activity-btn {
   display: flex;
@@ -28,7 +26,7 @@
 }
 
 .node-activity-list {
-  max-height: var(--features-content-components-nodes-node-activity-log-section-max-height-300);
+  max-height: var(--layout-size-7xl);
   overflow-y: auto;
 }
 
@@ -47,7 +45,7 @@
 }
 
 .node-activity-item {
-  padding: 2px 0;
+  padding: var(--spacing-micro) 0;
   border-radius: var(--shape-small);
   transition: background-color var(--motion-duration-short) var(--motion-easing-standard);
 }
@@ -58,12 +56,12 @@
 
 /* Bullet hover effect - same as blocks */
 .node-activity-item .bullet-wrapper .bullet-dot {
-  opacity: 0.5;
+  opacity: var(--opacity-50);
   transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 .node-activity-item:hover .bullet-wrapper .bullet-dot {
-  opacity: 1;
+  opacity: var(--opacity-100);
 }
 
 /* Ensure BlockPreview inside activity items has proper styling */
@@ -101,7 +99,7 @@
 }
 
 .activity-node-link:focus-visible {
-  outline: 2px solid var(--color-primary);
+  outline: var(--border-width-thick) solid var(--color-primary);
   outline-offset: 1px;
 }
 

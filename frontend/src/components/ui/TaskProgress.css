@@ -1,20 +1,17 @@
 /* ── TaskProgress ────────────────────────────────────────────── */
 
 
-:root {
-  --components-ui-task-progress-gap-6: 6px;
-  --components-ui-task-progress-height-6: 6px;
-}
+
 
 .task-progress {
   display: flex;
   flex-direction: column;
-  gap: var(--components-ui-task-progress-gap-6);
+  gap: var(--spacing-1-5);
 }
 
 .task-progress__track {
   width: 100%;
-  height: var(--components-ui-task-progress-height-6);
+  height: var(--shape-medium);
   background: var(--color-surface-variant);
   border-radius: var(--shape-full);
   overflow: hidden;
@@ -43,18 +40,18 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  animation: task-progress-pulse 1.5s ease-in-out infinite;
+  animation: task-progress-pulse 1.5s var(--motion-easing-ease-in-out) infinite;
 }
 
 @keyframes task-progress-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
+  0%, 100% { opacity: var(--opacity-100); }
+  50% { opacity: var(--opacity-50); }
 }
 
 .task-progress__error {
   display: flex;
   align-items: center;
-  gap: var(--components-ui-task-progress-gap-6);
+  gap: var(--spacing-1-5);
   font-size: var(--font-size-sm);
   color: var(--color-error);
   margin-top: var(--spacing-1);

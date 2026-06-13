@@ -1,17 +1,14 @@
 /* TabBarVertical.css */
 
 
-:root {
-  --features-layout-components-tab-bar-tab-bar-vertical-min-height-34: 34px;
-}
+
 
 .tab-bar-vertical {
-  --tab-bar-vertical-width: 42px;
   display: flex;
   flex-direction: column;
   height: 100%;
   background-color: var(--color-surface);
-  border-right: 1px solid var(--color-border);
+  border-right: var(--border-width-default) solid var(--color-border);
   width: var(--tab-bar-vertical-width);
   overflow: hidden;
 }
@@ -35,12 +32,12 @@
   position: absolute;
   left: 0;
   top: 0;
-  width: 2px;
+  width: var(--shape-extra-small);
   background-color: var(--color-primary);
-  border-radius: 0 2px 2px 0;
+  border-radius: 0 var(--shape-extra-small) var(--shape-extra-small) 0;
   transition: transform var(--motion-duration-short) var(--motion-easing-standard),
     height var(--motion-duration-short) var(--motion-easing-standard);
-  z-index: 2;
+  z-index: var(--z-2);
   pointer-events: none;
 }
 
@@ -49,7 +46,7 @@
   flex-direction: column;
   padding-bottom: var(--spacing-1);
   margin-bottom: var(--spacing-1);
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: var(--border-width-default) solid var(--color-border);
 }
 
 .tab-bar-vertical__slot {
@@ -68,12 +65,12 @@
   width: 70%;
   height: 1px;
   background: var(--color-outline-variant);
-  opacity: 0.4;
+  opacity: var(--opacity-40);
 }
 
 .tab-bar-vertical__slot .tab-item {
   justify-content: center;
-  min-height: var(--features-layout-components-tab-bar-tab-bar-vertical-min-height-34);
+  min-height: 2.125rem;
   max-width: none;
 }
 
@@ -83,16 +80,16 @@
 
 .tab-bar-vertical__slot .tab-item .tab-item__close {
   position: absolute;
-  right: 2px;
+  right: var(--spacing-micro);
   top: 50%;
   transform: translateY(-50%);
 }
 
 .tab-bar-vertical__insert-indicator {
-  height: 2px;
+  height: var(--shape-extra-small);
   background-color: var(--color-primary);
-  border-radius: 1px;
-  margin: 1px 0;
+  border-radius: var(--shape-hairline);
+  margin: var(--spacing-hairline) 0;
   flex-shrink: 0;
 }
 
@@ -110,7 +107,7 @@
   width: var(--height-xs);
   height: 1px;
   background: var(--color-outline-variant);
-  opacity: 0.4;
+  opacity: var(--opacity-40);
   margin: var(--spacing-1) auto;
   flex-shrink: 0;
 }
@@ -119,7 +116,7 @@
   display: flex;
   justify-content: center;
   padding: var(--spacing-1);
-  border-top: 1px solid var(--color-border);
+  border-top: var(--border-width-default) solid var(--color-border);
   flex-shrink: 0;
 }
 

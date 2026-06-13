@@ -528,7 +528,7 @@ export function SuggestionPopup({
         position: 'fixed',
         top: adjustedPosition.top,
         left: adjustedPosition.left,
-        zIndex: 1000,
+        zIndex: 'var(--z-1000)',
       }}
       onFocus={(e) => e.stopPropagation()}
       onMouseDownCapture={(e) => e.stopPropagation()}

@@ -177,10 +177,10 @@ export function DndProvider({ children }: DndProviderProps) {
         {activeId ? (
           <div style={{
             background: 'var(--background)',
-            border: '1px solid var(--border)',
-            borderRadius: '4px',
-            padding: '0.5rem',
-            opacity: 0.8,
+            border: 'var(--border-width-default) solid var(--color-outline-variant)',
+            borderRadius: 'var(--shape-small)',
+            padding: 'var(--spacing-2)',
+            opacity: 'var(--opacity-80)',
           }}>
           </div>
         ) : null}

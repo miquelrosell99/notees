@@ -88,9 +88,9 @@ export function BlockPresenceOverlay({ nodeUuid }: BlockPresenceOverlayProps) {
             position: 'fixed',
             left,
             top,
-            zIndex: 50,
+            zIndex: 'var(--z-50)',
             display: 'flex',
-            gap: '2px',
+            gap: 'var(--spacing-micro)',
             pointerEvents: 'none',
           }}
           title={users.map((u) => `${u.name} is editing`).join(', ')}
@@ -100,21 +100,21 @@ export function BlockPresenceOverlay({ nodeUuid }: BlockPresenceOverlayProps) {
               key={u.id}
               className="block-presence-dot"
               style={{
-                width: '16px',
-                height: '16px',
+                width: 'var(--icon-size-sm)',
+                height: 'var(--icon-size-sm)',
                 borderRadius: '50%',
                 backgroundColor: u.color,
-                border: '2px solid var(--surface-1, #fff)',
-                boxShadow: '0 0 0 1px rgba(0,0,0,0.1)',
+                border: 'var(--border-width-thick) solid var(--color-on-primary)',
+                boxShadow: 'var(--shadow-presence-ring)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                fontSize: '9px',
+                fontSize: 'var(--font-size-3xs)',
                 fontWeight: 700,
-                color: '#fff',
-                textShadow: '0 1px 2px rgba(0,0,0,0.3)',
-                marginLeft: idx > 0 ? '-4px' : '0',
-                animation: 'presence-dot-in 0.2s ease-out',
+                color: 'var(--color-on-primary)',
+                textShadow: 'var(--shadow-presence-text)',
+                marginLeft: idx > 0 ? 'calc(var(--spacing-1) * -1)' : '0',
+                animation: 'presence-dot-in var(--motion-duration-medium-fast) ease-out',
               }}
             >
               {getInitials(u.name)}

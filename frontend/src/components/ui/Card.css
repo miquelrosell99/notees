@@ -11,11 +11,11 @@
 
 /* Variants */
 .card--variant-default {
-  border: 1px solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
 }
 
 .card--variant-outlined {
-  border: 1px solid var(--color-outline);
+  border: var(--border-width-default) solid var(--color-outline);
   background: transparent;
 }
 
@@ -31,7 +31,7 @@
 }
 
 .card--variant-dashed {
-  border: 1px dashed color-mix(in srgb, var(--color-outline-variant) 50%, transparent);
+  border: var(--border-width-default) dashed color-mix(in srgb, var(--color-outline-variant) 50%, transparent);
   background: color-mix(in srgb, var(--color-surface-variant) 30%, transparent);
 }
 
@@ -134,17 +134,17 @@
   position: absolute;
   top: var(--spacing-2);
   right: var(--spacing-2);
-  z-index: 1;
+  z-index: var(--z-1);
 }
 
 /* Animation for appearing cards */
 @keyframes cardFadeIn {
   from {
-    opacity: 0;
+    opacity: var(--opacity-0);
     transform: scale(0.95);
   }
   to {
-    opacity: 1;
+    opacity: var(--opacity-100);
     transform: scale(1);
   }
 }

@@ -8,7 +8,7 @@
   right: var(--spacing-4);
   width: var(--minimap-width);
   height: var(--minimap-height);
-  z-index: 1000;
+  z-index: var(--z-1000);
   border-radius: var(--radius-lg);
   overflow: hidden;
   background: var(--color-surface-container);
@@ -16,9 +16,9 @@
 
 .graph-minimap__close {
   position: absolute;
-  top: 8px;
-  right: 8px;
-  z-index: 10;
+  top: var(--spacing-2);
+  right: var(--spacing-2);
+  z-index: var(--z-10);
 }
 
 .graph-minimap__graph {

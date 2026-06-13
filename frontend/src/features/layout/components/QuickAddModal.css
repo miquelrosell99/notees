@@ -2,9 +2,7 @@
  * QuickAddModal Styles
  */
 
-:root {
-  --features-layout-components-quick-add-modal-min-height-44: 44px;
-}
+
 
 .quick-add-content {
   display: flex;
@@ -17,14 +15,14 @@
 .quick-add-textarea {
   width: 100%;
   padding: var(--spacing-2) var(--spacing-3);
-  border: 1px solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
   border-radius: var(--shape-small);
   background: var(--color-surface);
   color: var(--color-on-surface);
   font-size: var(--font-size-base);
   line-height: 1.5;
   resize: vertical;
-  min-height: var(--features-layout-components-quick-add-modal-min-height-44);
+  min-height: var(--button-min-height);
   margin-bottom: var(--spacing-2);
   font-family: inherit;
 }
@@ -53,7 +51,7 @@
 
 .quick-add-destination-btn {
   background: none;
-  border: 1px solid transparent;
+  border: var(--border-width-default) solid transparent;
   cursor: pointer;
   font-size: var(--font-size-sm);
   padding: var(--spacing-1) var(--spacing-2);

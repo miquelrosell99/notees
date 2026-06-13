@@ -37,26 +37,26 @@ export function QueryPreviewModal({ isOpen, editAST, nodesMap, onClose, onNodeLi
       className="query-preview-modal"
     >
       {editAST && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-6)' }}>
           {/* Prose description */}
           <div>
             <h4 style={{
-              fontSize: '13px',
+              fontSize: 'var(--font-size-button)',
               fontWeight: 600,
               color: 'var(--text-secondary)',
-              marginBottom: '12px',
+              marginBottom: 'var(--spacing-3)',
               textTransform: 'uppercase',
               letterSpacing: '0.5px',
             }}>
               Natural Language
             </h4>
             <div style={{
-              padding: '16px',
-              fontSize: '15px',
+              padding: 'var(--spacing-4)',
+              fontSize: 'var(--font-size-body-lg)',
               lineHeight: '1.6',
               color: 'var(--text-primary)',
               backgroundColor: 'var(--bg-secondary)',
-              borderRadius: '4px',
+              borderRadius: 'var(--shape-small)',
             }}>
               {renderProseWithLinks(getQueryIntent(editAST, nodesMap), onNodeLinkClick)}
             </div>
@@ -68,10 +68,10 @@ export function QueryPreviewModal({ isOpen, editAST, nodesMap, onClose, onNodeLi
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              marginBottom: '12px',
+              marginBottom: 'var(--spacing-3)',
             }}>
               <h4 style={{
-                fontSize: '13px',
+                fontSize: 'var(--font-size-button)',
                 fontWeight: 600,
                 color: 'var(--text-secondary)',
                 textTransform: 'uppercase',
@@ -89,13 +89,13 @@ export function QueryPreviewModal({ isOpen, editAST, nodesMap, onClose, onNodeLi
               </Button>
             </div>
             <pre style={{
-              padding: '16px',
-              fontSize: '13px',
+              padding: 'var(--spacing-4)',
+              fontSize: 'var(--font-size-button)',
               lineHeight: '1.5',
               backgroundColor: 'var(--bg-tertiary)',
-              borderRadius: '4px',
+              borderRadius: 'var(--shape-small)',
               overflow: 'auto',
-              maxHeight: '300px',
+              maxHeight: '18.75rem',
               color: 'var(--text-primary)',
             }}>
               {JSON.stringify(editAST, null, 2)}
@@ -111,8 +111,8 @@ export function QueryPreviewModal({ isOpen, editAST, nodesMap, onClose, onNodeLi
                 style={{
                   background: 'none',
                   border: 'none',
-                  padding: '8px 0',
-                  fontSize: '13px',
+                  padding: 'var(--spacing-2) 0',
+                  fontSize: 'var(--font-size-button)',
                   color: 'var(--text-tertiary)',
                   cursor: 'pointer',
                   textDecoration: 'underline',
@@ -125,11 +125,11 @@ export function QueryPreviewModal({ isOpen, editAST, nodesMap, onClose, onNodeLi
                 <div style={{
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: '4px',
-                  marginBottom: '12px',
+                  gap: 'var(--spacing-1)',
+                  marginBottom: 'var(--spacing-3)',
                 }}>
                   <h4 style={{
-                    fontSize: '13px',
+                    fontSize: 'var(--font-size-button)',
                     fontWeight: 600,
                     color: 'var(--text-secondary)',
                     textTransform: 'uppercase',
@@ -138,7 +138,7 @@ export function QueryPreviewModal({ isOpen, editAST, nodesMap, onClose, onNodeLi
                     Execution Preview
                   </h4>
                   <span style={{
-                    fontSize: '12px',
+                    fontSize: 'var(--font-size-sm)',
                     color: 'var(--text-tertiary)',
                     fontStyle: 'italic',
                   }}>
@@ -152,9 +152,9 @@ export function QueryPreviewModal({ isOpen, editAST, nodesMap, onClose, onNodeLi
                   style={{
                     background: 'none',
                     border: 'none',
-                    padding: '8px 0',
-                    marginTop: '8px',
-                    fontSize: '13px',
+                    padding: 'var(--spacing-2) 0',
+                    marginTop: 'var(--spacing-2)',
+                    fontSize: 'var(--font-size-button)',
                     color: 'var(--text-tertiary)',
                     cursor: 'pointer',
                     textDecoration: 'underline',
