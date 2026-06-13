@@ -84,6 +84,27 @@ Key features:
 
 ---
 
+## Fleet Migration
+
+Notees was brought into compliance with the RosellRamos fleet skill library. The full phased plan is recorded in `docs/migration-plan.md`.
+
+Skills applied during the migration:
+
+- `fleet-migration`
+- `design-system`
+- `ui-ux-audit`
+- `accessibility-primer`
+- `performance-optimizer`
+- `security-hardening`
+- `codebase-organizer`
+- `react-ui-patterns`
+- `fastapi-patterns`
+- `frontend-design`
+
+Post-migration, the backend enforces strict hexagonal boundaries, the frontend uses the sage-accented tokenized design system with accessible components, and mobile hardening is complete. See [Known Drift / Resolved](#known-drift--resolved) for the specific drift items that were fixed.
+
+---
+
 ## Project Structure
 
 ```
@@ -174,6 +195,12 @@ The backend follows a strict hexagonal architecture with three layers:
    - FastAPI routers that depend on domain services.
    - Request/response schemas are defined in `app/models.py` or `app/routers/*/models.py`.
 
+**Post-migration boundary changes:**
+- Routers are thin HTTP adapters; business logic and orchestration live in domain services.
+- `UndoService` no longer executes SQL directly; persistence is handled by the `UndoRepository` interface implemented in `postgres_undo.py`.
+- Auth persistence moved from direct database access in `app/auth.py` into `UserRepository`.
+- Routers depend on repository interfaces from `app/domain/repositories/interfaces.py`; concrete `Postgres*` implementations are wired in `app/dependencies.py`.
+
 **Key backend patterns:**
 - **Request-scoped DB connections**: `app/db/connection.py` uses a `ContextVar` to share one pooled connection across all repository calls within a single HTTP request. This avoids pool contention.
 - **Everything is a Node**: Pages, blocks, tags, classes, properties, journals, tasks, templates, comments, and assets are all `node` table rows differentiated by boolean flags (`is_page`, `is_tag`, `is_property`, `is_daily`, `is_task`, etc.).
@@ -185,6 +212,20 @@ The backend follows a strict hexagonal architecture with three layers:
 - **Long-running operations**: Any endpoint that may take more than a few seconds (exports, bulk imports, migrations) must not hold a synchronous HTTP connection open. Use an async job pattern: return a job ID immediately, run work in a background `asyncio` task, and expose a poll endpoint for progress. The frontend polls with TanStack Query (`refetchInterval`) and downloads the result when `status: "completed"`.
   - Background task functions must be **module-level**, never inline closures inside the endpoint handler. Closures capture request-scoped variables (DB connections, user dependencies) by reference, which leads to race conditions and hard-to-debug 500s once the request context is torn down. Pass all required data as explicit arguments.
   - Background tasks spawned with `asyncio.create_task` **inherit the parent's context variables**, including the request-scoped DB connection. The task MUST call `clear_request_conn()` (from `app.db.connection`) before any DB access, or it will race with the middleware releasing the connection and raise `InterfaceError: cannot perform operation: another operation is in progress`.
+
+### Known Drift / Resolved
+
+The fleet audit identified a number of drift items. The following have been resolved during the migration:
+
+- **Router-level SQL**: Direct `await conn.` calls and raw SQL were removed from routers; persistence operations now live in domain services and repository implementations.
+- **UndoService SQL**: `UndoService` no longer contains SQL; all undo persistence is handled by the `UndoRepository` interface implemented in `postgres_undo.py`.
+- **Auth persistence**: Direct database access in `app/auth.py` was moved into `UserRepository`.
+- **Concrete repository imports**: Routers depend on repository interfaces from `app/domain/repositories/interfaces.py`; concrete `Postgres*` implementations are wired in `app/dependencies.py`.
+- **Design-token drift**: Hardcoded colors, decorative glows/shadows, and incorrect radius values were replaced with tokens from `variables.css`.
+- **Accent default**: The `:root` default accent is now sage `#5B7D5B`, with `--color-on-accent` and dark-mode overrides. The earlier default `#404040` has been retired.
+- **Block bullet**: Block bullets remain **circular** per the product-owner decision; the design language documents this signature element.
+- **Accessibility gaps**: Touch targets were increased to at least 44×44 px, `div role="button"` controls were converted to real `<button>` elements, visible `:focus-visible` rings were restored, form labels were associated with inputs, toast notifications were given `aria-live` regions, modal-like surfaces trap focus, and hover-only actions also reveal on `:focus-within`/`:focus-visible`.
+- **Mobile hardening**: Hardcoded English strings were externalized to `strings.xml`, WebView cookie/third-party settings were tightened, origin handling was improved, `android:allowBackup` was set to `false`, and the debug keystore is tracked.
 
 ### Frontend: React SPA
 
@@ -439,7 +480,8 @@ See `.env.example` for the full template.
 - **SECRET_KEY is mandatory** and validated at startup (min 32 chars). The app will refuse to start without it.
 - **Password hashing**: Uses `bcrypt` via passlib (with `pbkdf2_sha256` retained for backward compatibility with existing hashes).
 - **JWT tokens**: Signed with HS256. Token lifetime defaults to 24 hours (configurable via `ACCESS_TOKEN_EXPIRE_HOURS`).
-- **CORS**: Disabled by default (frontend and backend are same-origin). Only configure `CORS_ORIGINS` if you run them on separate domains.
+- **CORS**: Disabled by default (frontend and backend are same-origin). Only configure `CORS_ORIGINS` if you run them on separate domains. When CORS is enabled with `allow_credentials=True` in production, a startup warning is logged.
+- **HSTS / HTTPS redirect**: Hardened headers (`Strict-Transport-Security` and the HTTP→HTTPS redirect) are enabled **only** when `ENVIRONMENT=production`. Set this explicitly for production deployments; do not rely on the reload flag.
 - **Rate limiting**: `fastapi_limiter` (0.2.0) + `pyrate_limiter` are configured in `app/main.py` and individual routers. See the [Rate Limiting](#rate-limiting) subsystem reference for details.
 - **Request body size limit**: 55 MB maximum (to support the 50 MB asset upload cap plus multipart overhead).
 - **User cache**: In-memory user cache with 5-minute TTL to avoid DB pool acquisition on every request.
@@ -623,14 +665,20 @@ Notees is a calm, writing-first knowledge workspace. Its visual identity is defi
 - **30% editorial-software** — typographic hierarchy, structured pages, long-form reading feel.
 - **15% playful-computational-design** — tactile block-editor interactions and purposeful micro-motion.
 
-**Palette**: a warm paper base (`--color-background: #f5f3ef` in light mode; warm charcoal in dark mode) with pure-white page surfaces. The default functional accent is **sage** (`--color-accent: #5B7D5B`). Accent is reserved for links, active filters, selected states, and primary actions.
+**Palette**: a warm paper base (`--color-background: #f5f3ef` in light mode; warm charcoal in dark mode) with pure-white page surfaces. The default functional accent is **sage** (`--color-accent: #5B7D5B`; dark-mode override `#7FB285`). Users can choose an arbitrary custom accent from Settings → Appearance. Custom accents set `--color-accent` directly and compute `--color-on-accent` (black or white) from the hex value so primary actions stay readable in light, dark, and OLED modes. Preset accents include dark-mode overrides; accent is reserved for links, active filters, selected states, and primary actions.
 
 **Typography**: Inter remains the UI and body face. Page titles and major headlines use the system serif display stack (`--font-family-display: Georgia, 'Times New Roman', serif`) for an editorial feel. Use the type-scale tokens (`--font-body-*`, `--font-title-*`, `--font-headline-*`, `--font-label-*`, `--font-display-*`) rather than raw sizes.
 
 **Signature elements**:
 - **Editorial page header**: warm surface container, accent left border, large serif title.
-- **Square block bullet**: small, sharp bullet indicator (`border-radius: calc(var(--shape-small) / 2)`) that turns accent on hover/selection.
+- **Circular block bullet**: small, solid circular bullet indicator (`border-radius: 50%`) that turns accent on hover/selection.
 - **Receding chrome**: top bar and sidebars use transparent or surface-container backgrounds so the page surface dominates.
+
+**Design decision log**:
+| Date | Decision | Rationale |
+|---|---|---|
+| 2026-06-12 | Block bullets remain circular | Product-owner preference; the earlier “sharp square” exploration was rejected in favor of the softer circular mark. |
+| 2026-06-12 | Custom accent picker in Settings | Phase 6.3 of the fleet migration plan; `--color-on-accent` is computed from luminance so the chosen color is usable in every theme. |
 
 **Elevation**: Zero decorative shadows. `--elevation-*` tokens are all `none`. Depth is conveyed with surface color shifts and thin outlines (`--color-outline-variant`).
 
@@ -1059,20 +1107,20 @@ The fix is `PerKeyBucketFactory` (defined in `app/main.py`). It creates a separa
 
 ## Fleet Alignment Scorecard
 
-Audit performed against the fleet skill library. Scores are rough percentages of alignment; gaps are the migration backlog.
+The fleet audit identified drift across the stack. After the migration, alignment is measured by the major fixes below rather than by invented percentages.
 
-| Skill | Scope | Alignment | Key Strengths | Key Gaps |
+| Skill | Scope | Status | Key Strengths | Major Fixes Applied |
 |---|---|---|---|---|
-| `fastapi-patterns` | Backend | **85%** | Hexagonal layers, request-scoped connections, Pydantic models, lifespan, background jobs. | Some routers execute raw SQL; a few direct `pool.acquire()` calls remain outside `app/db/connection.py`. |
-| `security-hardening` | Backend/Infra | **75%** | bcrypt + correct pin, JWT + refresh rotation, rate limits, security headers, upload validation. | HSTS/HTTPS gated by `reload=True` default; CORS too permissive when enabled; no MFA; no `SECURITY.md`; no dependency audit automation. |
-| `performance-optimizer` | Backend | **80%** | Asyncpg pool tuning, request-scoped connections, pagination, in-memory caches, background exports, gzip. | Some unbounded queries (10k node search, all descendants); no Redis query-result caching. |
-| `react-ui-patterns` | Frontend | **75%** | Feature-first structure, path aliases, co-located CSS, TanStack Query + Zustand, lazy loading, barrel files. | No Tailwind; custom router instead of `react-router-dom`; some `ui/` components import domain stores/features. |
-| `design-system` | Frontend | **75%** | Comprehensive `variables.css` tokens, monochrome base, accent palette, dark/OLED modes, validator script, zero elevation. | `PresentationModal.css` uses undefined/legacy tokens; `Button` xs size below 44 px touch target. |
-| `frontend-design` | Frontend | **70%** | Cohesive minimal aesthetic, functional accents, motion tokens. | Visual language is safe/productivity-app rather than bold signature; token drift in grandfathered files. |
-| `accessibility-primer` | Frontend | **65%** | Focus trap, skip link, visible focus rings, ARIA patterns, reduced-motion reset. | Icon-only buttons not guaranteed `aria-label`; many unlabeled `role="button"` divs; `jsx-a11y/recommended` not enabled; touch targets ad-hoc. |
-| `performance-optimizer` | Frontend | **75%** | Virtualization in Table/BlockList/query, React.memo on heavy views, code splitting, manualChunks, observers, useTransition, offline cache cap. | Not all lists virtualized; render-path object allocations; some very large hooks. |
-| `codebase-organizer` | Cross-stack | **80%** | Feature-first frontend, clear backend layers, reusable UI kit, barrel files. | Some UI kit boundary violations; backend auth module mixes concerns. |
-| `selfhost-release` | Deployment | **85%** | Docker Compose dev, multi-stage production Dockerfile, non-root user, healthcheck, env files. | Dev Postgres settings documented as non-production; mobile build instructions live only in README. |
+| `fastapi-patterns` | Backend | Improved | Hexagonal layers, request-scoped connections, Pydantic models, lifespan, background jobs. | Router SQL removed; `UndoRepository` extracted; auth persistence moved to `UserRepository`; routers depend on repository interfaces. |
+| `security-hardening` | Backend/Infra | Improved | bcrypt + correct pin, JWT + refresh rotation, rate limits, security headers, upload validation. | QueryAST `flag_name` whitelist; per-IP batch rate limits; HSTS/HTTPS gated on `ENVIRONMENT=production`; auth logs redacted; admin password complexity enforced; `SECURITY.md` added. |
+| `performance-optimizer` | Backend | Improved | Asyncpg pool tuning, request-scoped connections, pagination, in-memory caches, background exports, gzip. | `pages_only` endpoint bounded; unbounded list queries capped. |
+| `react-ui-patterns` | Frontend | Improved | Feature-first structure, path aliases, co-located CSS, TanStack Query + Zustand, lazy loading, barrel files. | `components/ui/` boundary restored; barrel files slimmed; mutation/cache patterns preserved. |
+| `design-system` | Frontend | Improved | Comprehensive `variables.css` tokens, monochrome base, accent palette, dark/OLED modes, validator script, zero elevation. | Default accent is sage `#5B7D5B`; custom accent picker added; dark-mode accent overrides implemented; hardcoded colors/radii/shadows replaced with tokens. |
+| `frontend-design` | Frontend | Improved | Cohesive minimal aesthetic, functional accents, motion tokens. | Visual identity aligned with `docs/design-language.md`; circular block bullet retained. |
+| `accessibility-primer` | Frontend | Improved | Focus trap, skip link, visible focus rings, ARIA patterns, reduced-motion reset. | Touch targets ≥ 44×44 px; `div role="button"` converted to real `<button>`; visible `:focus-visible` rings; associated form labels; toast `aria-live`; focus traps; hover-reveal focus fallbacks. |
+| `performance-optimizer` | Frontend | Improved | Virtualization in Table/BlockList/query, React.memo on heavy views, code splitting, manualChunks, observers, useTransition, offline cache cap. | `prefers-reduced-motion` honored in JS-driven motion. |
+| `codebase-organizer` | Cross-stack | Improved | Feature-first frontend, clear backend layers, reusable UI kit, barrel files. | UI kit boundary violations fixed; auth module concerns separated. |
+| `selfhost-release` | Deployment | Improved | Docker Compose dev, multi-stage production Dockerfile, non-root user, healthcheck, env files. | Mobile build instructions updated; debug keystore tracked. |
 
 ---
 
