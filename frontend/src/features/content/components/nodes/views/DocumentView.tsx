@@ -153,7 +153,7 @@ export const DocumentView = memo(function DocumentView({
   if (allNodes.length === 0) {
     return (
       <div className={`node-document-view node-document-view--empty ${className}`}>
-        <span className="node-document-view__empty-message">No content</span>
+        <span className="node-document-view__empty-message">No content yet</span>
       </div>
     );
   }

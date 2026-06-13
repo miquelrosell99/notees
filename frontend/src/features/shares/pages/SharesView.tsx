@@ -35,8 +35,8 @@ export function SharesView() {
         isEmpty={shares.length === 0}
         onRetry={refetch}
         errorTitle="Failed to load shares"
-        emptyTitle="No shared links yet."
-        emptyDescription="Open any page and click the share button to create a public link."
+        emptyTitle="No shared links yet"
+        emptyDescription="Open a page and select Share to create a public link."
         skeletonRows={4}
       >
         <div className="shares-view__list">

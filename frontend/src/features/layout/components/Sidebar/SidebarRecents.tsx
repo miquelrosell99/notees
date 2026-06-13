@@ -126,7 +126,7 @@ export function SidebarRecents({ onContextMenu }: SidebarRecentsProps) {
         <div className="sidebar-recents-list">
           {recents.length === 0 ? (
             <div className="sidebar-empty-message">
-              No recent pages yet.
+              No recent pages yet
             </div>
           ) : (
             recents.map((recent) => (

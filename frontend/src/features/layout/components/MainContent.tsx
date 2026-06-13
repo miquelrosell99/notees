@@ -40,7 +40,7 @@ export function MainContent() {
       <main className="main-content">
         <div className="empty-state">
           <h2>Welcome to Notees</h2>
-          <p>Select a page from the sidebar or create a new one.</p>
+          <p>Select a page from the sidebar, or press Ctrl+K to create one.</p>
         </div>
       </main>
     );
