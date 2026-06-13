@@ -39,7 +39,7 @@ export function SidebarLocalGraph({
   if (!allNodes || allNodes.length === 0) {
     return (
       <div className={`graph-view-local empty ${className}`}>
-        <div className="graph-view-local__empty">No connections</div>
+        <div className="graph-view-local__empty">No connections yet</div>
       </div>
     );
   }

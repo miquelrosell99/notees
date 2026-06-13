@@ -191,7 +191,7 @@ export function WorkspaceShareModal({ workspaceUuid, isOpen, onClose }: Workspac
             )}
 
             {members.length === 0 && (
-              <div className="workspace-share-modal__empty">No members yet.</div>
+              <div className="workspace-share-modal__empty">No members yet</div>
             )}
           </>
         )}

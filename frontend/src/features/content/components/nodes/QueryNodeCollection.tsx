@@ -992,7 +992,7 @@ export function QueryNodeCollection({
             selectedPropertyUuids={selectedPropertyUuids}
             onPropertyColumnsChange={handlePropertyColumnsChange}
             onNodeClick={(node) => onNodeClick?.(node.id, node.is_page)}
-            emptyMessage={filterBlockCount > 0 ? "No results match the query filters" : "No results found"}
+            emptyMessage={filterBlockCount > 0 ? "No items match the filters" : "No items found"}
             showEmpty={!showPagesSection}
             autoCollapse={true}
             containerCard={showPagesSection ? false : viewType !== 'all_pages'}

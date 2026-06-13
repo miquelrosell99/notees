@@ -24,8 +24,8 @@ export function AllPagesGraphView({ className = '' }: AllPagesGraphViewProps) {
         error={error}
         isEmpty={!graphNodes || graphNodes.length === 0}
         skeletonRows={6}
-        emptyTitle="No pages found"
-        emptyDescription="Create some pages to see them in the graph view."
+        emptyTitle="No pages yet"
+        emptyDescription="Add pages to see them connected in the graph."
         onRetry={refetch}
         className="all-pages-graph-view__state"
       >

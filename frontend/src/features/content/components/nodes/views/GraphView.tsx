@@ -886,8 +886,8 @@ export function GraphView({
     return (
       <div className={`node-graph-view empty ${className}`}>
         <div className="node-graph-view__empty">
-          <h3>No nodes to display</h3>
-          <p>Create some pages to see them in the graph view.</p>
+          <h3>Nothing to graph yet</h3>
+          <p>Add pages and blocks to see how they connect.</p>
         </div>
       </div>
     );

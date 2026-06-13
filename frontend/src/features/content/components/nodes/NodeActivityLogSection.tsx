@@ -184,7 +184,7 @@ export function NodeActivityLogSection({ nodeId, defaultExpanded = false }: Node
           {isLoading ? (
             <div className="node-activity-loading"><Spinner size="sm" /></div>
           ) : count === 0 || !activities ? (
-            <div className="node-activity-empty">No activity recorded</div>
+            <div className="node-activity-empty">No activity recorded yet</div>
           ) : (
             activities.map(activity => (
               <div

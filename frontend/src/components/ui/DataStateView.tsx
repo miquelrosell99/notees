@@ -62,7 +62,7 @@ export function DataStateView({
   isEmpty = false,
   skeletonRows = 4,
   skeletonShowHeading = false,
-  emptyTitle = 'No items',
+  emptyTitle = 'Nothing to show',
   emptyDescription,
   emptyIcon,
   emptyAction,

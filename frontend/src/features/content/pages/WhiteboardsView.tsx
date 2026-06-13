@@ -103,7 +103,8 @@ export function WhiteboardsView({ className = '' }: WhiteboardsViewProps) {
           error={error}
           isEmpty={whiteboards.length === 0}
           errorTitle="Failed to load whiteboards."
-          emptyTitle="No whiteboards yet. Create your first whiteboard!"
+          emptyTitle="No whiteboards yet"
+          emptyDescription="Whiteboards are free-form canvases for notes, shapes, and images."
           skeletonRows={4}
         >
           <NodeCollection
@@ -118,7 +119,7 @@ export function WhiteboardsView({ className = '' }: WhiteboardsViewProps) {
             showAddButton
             onAdd={handleCreateWhiteboard}
             can_create={!!whiteboardClassId}
-            emptyMessage="No whiteboards yet. Create your first whiteboard!"
+            emptyMessage="Create a whiteboard to get started"
           />
         </DataStateView>
       </div>

@@ -162,7 +162,7 @@ export function ArchivedPagesView({ className = '' }: ArchivedPagesViewProps) {
           onRetry={refetch}
           errorTitle="Failed to load archived pages"
           emptyTitle="No archived pages"
-          emptyDescription="Archived pages are hidden from your workspace but kept safe here. Right-click any page and select Archive to move it here."
+          emptyDescription="Archived pages are hidden from your workspace. Right-click a page and select Archive to move it here."
           emptyIcon={<ArchiveIcon size="lg" />}
           skeletonRows={4}
         >

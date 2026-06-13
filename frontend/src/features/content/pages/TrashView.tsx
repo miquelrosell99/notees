@@ -242,7 +242,7 @@ export function TrashView({ className = '' }: TrashViewProps) {
           onRetry={refetch}
           errorTitle="Failed to load trash"
           emptyTitle="Trash is empty"
-          emptyDescription="Deleted pages and blocks appear here. You can restore them or delete permanently."
+          emptyDescription="Deleted pages and blocks appear here. Restore them or delete them permanently."
           emptyIcon={<TrashIcon size="lg" />}
           skeletonRows={4}
         >

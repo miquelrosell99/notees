@@ -118,7 +118,7 @@ export function ShareModal({ nodeId, isOpen, onClose }: ShareModalProps) {
           {publicLoading ? (
             <div className="share-modal__loading"><Spinner size="sm" label="Loading links…" /></div>
           ) : shares.length === 0 ? (
-            <div className="share-modal__empty">No public links yet.</div>
+            <div className="share-modal__empty">No public links yet</div>
           ) : (
             <div className="share-modal__list">
               {shares.map((share) => (
@@ -202,7 +202,7 @@ export function ShareModal({ nodeId, isOpen, onClose }: ShareModalProps) {
 
               {/* People list */}
               {userShares.length === 0 ? (
-                <div className="share-modal__people-empty">No one has been invited yet.</div>
+                <div className="share-modal__people-empty">No one invited yet</div>
               ) : (
                 <div className="share-modal__people-list">
                   {userShares.map((share) => (

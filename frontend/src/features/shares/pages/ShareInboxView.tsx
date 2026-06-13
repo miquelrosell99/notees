@@ -36,9 +36,9 @@ export function ShareInboxView() {
         <div className="share-inbox-view__loading"><Spinner size="md" centered /></div>
       ) : items.length === 0 ? (
         <div className="share-inbox-view__empty">
-          <p>Nothing shared with you yet.</p>
+          <p>Nothing shared with you yet</p>
           <p className="share-inbox-view__empty-hint">
-            When someone shares a node with you, it will appear here.
+            Pages and blocks shared with you appear here.
           </p>
         </div>
       ) : (

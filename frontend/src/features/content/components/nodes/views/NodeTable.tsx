@@ -196,7 +196,7 @@ export function NodeTable<T>({
   onHeaderContextMenu,
   onHeaderCheckboxContextMenu,
   loading = false,
-  emptyContent = 'No data',
+  emptyContent = 'Nothing to show',
   caption,
   showHeader = true,
   hoverable = true,

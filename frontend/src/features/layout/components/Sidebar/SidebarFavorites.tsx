@@ -226,7 +226,7 @@ export function SidebarFavorites({ onContextMenu }: SidebarFavoritesProps) {
         >
           {favorites.length === 0 ? (
             <div className="sidebar-empty-message">
-              No favorites yet. Right-click a page header to add.
+              No favorites yet. Right-click a page header to add one.
             </div>
           ) : (
             favorites.map((fav, index) => (

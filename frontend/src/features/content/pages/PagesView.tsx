@@ -131,7 +131,9 @@ export function PagesView({ initialViewMode }: PagesViewProps) {
           error={error}
           isEmpty={displayNodes.length === 0}
           onRetry={refetch}
-          emptyTitle="No pages found"
+          emptyTitle="No pages yet"
+          emptyDescription="Create your first page to start building your workspace."
+          emptyAction={{ label: 'Create page', onClick: () => setCommandPaletteOpen(true) }}
           skeletonRows={4}
         >
           <NodeCollection
@@ -148,7 +150,7 @@ export function PagesView({ initialViewMode }: PagesViewProps) {
             onNodeClick={(node) => openNode(node.id)}
             showClasses={true}
             showEmpty={true}
-            emptyMessage="No pages found"
+            emptyMessage="Create a page to get started"
             expandAll={true}
             className="pages-view__node-collection"
             defaultSort={[{ key: 'name', direction: 'asc' }]}

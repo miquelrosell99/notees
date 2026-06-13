@@ -104,7 +104,7 @@ export function NodeCollectionView({ title, queryAST, nodes }: NodeCollectionVie
             showAddButton={false}
           />
         ) : (
-          <div className="empty-state">No results to display.</div>
+          <div className="empty-state">No results to display</div>
         )}
       </div>
     </article>

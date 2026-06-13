@@ -116,7 +116,7 @@ export function JournalsView({ className = '' }: JournalsViewProps) {
           onRetry={refetch}
           errorTitle="Failed to load journal entries"
           emptyTitle="No journal entries yet"
-          emptyDescription="Daily journal pages are created automatically when you open today's note."
+          emptyDescription="Daily journal pages are created when you open today's note."
           emptyIcon={<JournalIcon size="lg" />}
           emptyAction={{ label: "Open today's note", onClick: handleOpenToday }}
           skeletonRows={5}
