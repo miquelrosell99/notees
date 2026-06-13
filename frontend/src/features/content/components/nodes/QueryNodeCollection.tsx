@@ -201,7 +201,7 @@ export function QueryNodeCollection({
   const queryAvailableViewModes: NodeCollectionViewMode[] =
     viewType === 'classed_nodes'
       ? ['list', 'table', 'kanban', 'graph']
-      : ['list', 'table', 'kanban', 'gantt', 'calendar', 'chart', 'graph', 'timeline'];
+      : ['list', 'table', 'kanban', 'gantt', 'calendar', 'chart', 'pivot', 'graph', 'timeline'];
 
   // View modes that actually render nested children
   const childrenFriendlyViewModes: NodeCollectionViewMode[] = ['list', 'table', 'kanban'];
@@ -607,14 +607,14 @@ export function QueryNodeCollection({
   // Windowed result set — bypass windowing in immersive/visualization modes
   // (gantt, graph, timeline) so all items are available for rendering.
   const windowedResultNodes = useMemo(() => {
-    if (collectionViewMode === 'gantt' || collectionViewMode === 'graph' || collectionViewMode === 'timeline' || collectionViewMode === 'chart') {
+    if (collectionViewMode === 'gantt' || collectionViewMode === 'graph' || collectionViewMode === 'timeline' || collectionViewMode === 'chart' || collectionViewMode === 'pivot') {
       return resultNodes;
     }
     if (resultNodes.length <= WINDOW_SIZE) return resultNodes;
     return resultNodes.slice(0, renderWindow);
   }, [resultNodes, renderWindow, collectionViewMode]);
 
-  const hasMoreResults = !(collectionViewMode === 'gantt' || collectionViewMode === 'graph' || collectionViewMode === 'timeline' || collectionViewMode === 'chart') && renderWindow < resultNodes.length;
+  const hasMoreResults = !(collectionViewMode === 'gantt' || collectionViewMode === 'graph' || collectionViewMode === 'timeline' || collectionViewMode === 'chart' || collectionViewMode === 'pivot') && renderWindow < resultNodes.length;
 
   const handleLoadMore = useCallback(() => {
     if (viewType === 'linked_references') {
