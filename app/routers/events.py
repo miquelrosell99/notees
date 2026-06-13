@@ -13,13 +13,11 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
 from starlette.status import HTTP_404_NOT_FOUND
 
-from ..db.connection import get_pool
-from ..dependencies import _get_workspace_context_cached
+from ..dependencies import get_current_user, get_workspace_id
 from ..domain.permissions import PermissionChecker
 from ..infrastructure.redis_pubsub import collab_pubsub
 from ..logging_config import get_logger
 from ..models import User
-from .auth import get_current_user
 
 logger = get_logger(__name__)
 
@@ -63,6 +61,7 @@ async def _event_stream(
 async def workspace_events(
     request: Request,
     user: User = Depends(get_current_user),
+    workspace_id: int = Depends(get_workspace_id),
 ):
     """Subscribe to workspace-level events via Server-Sent Events.
 
@@ -74,12 +73,8 @@ async def workspace_events(
 
     Authentication: Bearer token or X-API-Key header.
     """
-    pool = await get_pool()
     user_id = int(user.id)
 
-    # Resolve active workspace
-
-    workspace_id, _ = await _get_workspace_context_cached(pool, user_id)
     if not workspace_id:
         from fastapi import HTTPException
         raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="No active workspace")

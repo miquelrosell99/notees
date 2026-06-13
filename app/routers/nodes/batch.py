@@ -6,11 +6,11 @@ from fastapi import APIRouter, Depends, Request, Response
 from fastapi_limiter.depends import RateLimiter as _RateLimiter
 from pyrate_limiter import Duration, Limiter, Rate
 
-from ...db.connection import acquire_connection
+from ...dependencies import get_current_user, get_link_repository
 from ...domain.entities import NodeCreateData, NodeUpdateData
+from ...domain.repositories.interfaces import LinkRepository
 from ...logging_config import get_logger
 from ...models import User
-from ..auth import get_current_user
 from .helpers import (
     _apply_node_extras,
     _get_class_ids_batch,
@@ -323,6 +323,7 @@ async def batch_delete_nodes(
 async def batch_get_nodes(
     request: BatchGetNodesRequest,
     user: User = Depends(get_current_user),
+    link_repo: LinkRepository = Depends(get_link_repository),
 ):
     """Fetch multiple nodes by ID in a single call.
 
@@ -334,8 +335,6 @@ async def batch_get_nodes(
     especially for pages with many inline links or NodePill components.
     """
     service = await _get_node_service(user)
-    pool = service.pool
-    workspace_id = service.workspace_id or 0
 
     # Fetch all nodes in a single query
     nodes = await service.get_nodes_by_ids(request.ids)
@@ -346,24 +345,13 @@ async def batch_get_nodes(
     node_ids = [n.id for n in nodes if n.id is not None]
 
     # Batch-fetch metadata for all nodes in parallel
-    class_map = await _get_class_ids_batch(pool, workspace_id, node_ids)
-    tag_map = await _get_related_ids_batch(pool, workspace_id, node_ids, "tags")
+    class_map = await _get_class_ids_batch(service, node_ids)
+    tag_map = await _get_related_ids_batch(service, node_ids, "tags")
 
     # Batch-fetch backlink counts
     backlink_counts: dict[int, int] = {}
     if node_ids:
-        async with acquire_connection(pool) as conn:
-            rows = await conn.fetch(
-                """
-                SELECT target_id, COUNT(*) as count
-                FROM node_link
-                WHERE target_id = ANY($1)
-                GROUP BY target_id
-            """,
-                node_ids,
-            )
-            for row in rows:
-                backlink_counts[row["target_id"]] = row["count"]
+        backlink_counts = await link_repo.get_backlink_counts(node_ids)
 
     # Batch-fetch properties if requested (3 queries total, not N)
     node_properties_map: dict[int, dict[str, any]] = {}

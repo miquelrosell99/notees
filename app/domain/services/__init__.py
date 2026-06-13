@@ -7,6 +7,7 @@ from .node_service import NodeService
 from .node_view_service import NodeViewService
 from .query_ast_sql import QueryASTToSQL
 from .query_service import QueryExecutor
+from .sync_service import SyncService
 
 __all__ = [
     "NodeService",
@@ -16,4 +17,5 @@ __all__ = [
     "QueryASTToSQL",
     "NodeViewService",
     "ClassManagementService",
+    "SyncService",
 ]

@@ -35,6 +35,11 @@ async def init_database(conn: asyncpg.Connection) -> None:
     This creates all tables, indexes, and triggers.
     Call this during application startup.
     """
+    # Enable UUID extension separately before running the main schema DDL.
+    # PostgreSQL/asyncpg can fail with a unique-violation on pg_extension_name_index
+    # when CREATE EXTENSION IF NOT EXISTS is embedded in a multi-statement string.
+    await conn.execute('CREATE EXTENSION IF NOT EXISTS "uuid-ossp"')
+
     # Execute schema (creates tables if they don't exist)
     await conn.execute(SCHEMA_SQL)
 
@@ -57,6 +62,18 @@ async def init_database(conn: asyncpg.Connection) -> None:
         await conn.execute("DROP FUNCTION IF EXISTS node_path_delete()")
         await conn.execute("DROP FUNCTION IF EXISTS rebuild_node_path()")
         await conn.execute("DROP TABLE IF EXISTS node_path CASCADE")
+
+    # Diagnostic: ensure schema_meta was created by SCHEMA_SQL in public schema
+    schema_meta_exists = await conn.fetchval(
+        "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'schema_meta')"
+    )
+    if not schema_meta_exists:
+        tables = await conn.fetch(
+            "SELECT table_schema, table_name FROM information_schema.tables WHERE table_name = 'schema_meta' ORDER BY table_schema"
+        )
+        raise RuntimeError(
+            f"schema_meta missing in public after SCHEMA_SQL. schema_meta rows: {[(r['table_schema'], r['table_name']) for r in tables]}"
+        )
 
     # Store schema version
     await conn.execute(

@@ -1248,6 +1248,23 @@ class PostgresPropertyRepository(BasePostgresRepository, PropertyRepository):
 
         return result
 
+    async def get_text_property_target_ids(self, target_ids: list[int]) -> set[int]:
+        """Get IDs of nodes that are text-property value blocks for the given targets."""
+        if not target_ids:
+            return set()
+        async with acquire_connection(self._pool) as conn:
+            rows = await conn.fetch(
+                """
+                SELECT DISTINCT pvr.target_id
+                FROM property_value_relation pvr
+                JOIN property p ON p.id = pvr.property_id
+                WHERE pvr.target_id = ANY($1)
+                  AND p.type = 'text'
+            """,
+                target_ids,
+            )
+            return {row["target_id"] for row in rows}
+
     async def clear_all_property_values(self, node_id: int, property_id: int) -> None:
         """Clear all values for a property on a node (but keep the assignment)."""
         async with acquire_connection(self._pool) as conn:
@@ -1360,3 +1377,185 @@ class PostgresPropertyRepository(BasePostgresRepository, PropertyRepository):
                 class_node_id,
             )
             return [self._row_to_class_property(row) for row in rows]
+
+    async def get_property_stats(self) -> list[dict[str, Any]]:
+        """Return usage counts per property across all nodes in this workspace."""
+        async with acquire_connection(self._pool) as conn:
+            rows = await conn.fetch(
+                """
+                SELECT np.property_id,
+                       COUNT(DISTINCT np.node_id) AS usage_count
+                FROM node_property np
+                JOIN property p ON np.property_id = p.id
+                WHERE p.workspace_id = $1 OR p.workspace_id IS NULL
+                GROUP BY np.property_id
+                """,
+                self._workspace_id,
+            )
+        return [{"property_id": r["property_id"], "usage_count": r["usage_count"]} for r in rows]
+
+    async def get_property_suggestions(self, node_id: int | None) -> list[dict[str, Any]]:
+        """Return property suggestions for a node, ranked by usage frequency."""
+        async with acquire_connection(self._pool) as conn:
+            assigned_ids: set[int] = set()
+            if node_id:
+                rows = await conn.fetch(
+                    "SELECT property_id FROM node_property WHERE node_id = $1",
+                    node_id,
+                )
+                assigned_ids = {r["property_id"] for r in rows}
+
+            rows = await conn.fetch(
+                """
+                SELECT p.id, p.name, p.icon, p.type,
+                       COUNT(DISTINCT np.node_id) AS usage_count
+                FROM property p
+                LEFT JOIN node_property np ON np.property_id = p.id
+                WHERE (p.workspace_id = $1 OR p.workspace_id IS NULL)
+                  AND p.active = TRUE
+                  AND p.scope = 'global'
+                GROUP BY p.id, p.name, p.icon, p.type
+                ORDER BY usage_count DESC, p.name
+                LIMIT 20
+                """,
+                self._workspace_id,
+            )
+        return [
+            {
+                "property_id": r["id"],
+                "name": r["name"],
+                "icon": r["icon"],
+                "type": r["type"],
+                "usage_count": r["usage_count"],
+                "already_assigned": r["id"] in assigned_ids,
+            }
+            for r in rows
+        ]
+
+    async def get_page_class_id(self) -> int | None:
+        """Return the integer ID of the page class in this workspace."""
+        from ...db.schema.constants import SYSTEM_CLASS_UUIDS
+
+        async with acquire_connection(self._pool) as conn:
+            row = await conn.fetchrow(
+                "SELECT id FROM node WHERE uuid = $1 AND workspace_id = $2",
+                SYSTEM_CLASS_UUIDS["page"],
+                self._workspace_id,
+            )
+            return row["id"] if row else None
+
+    async def update_property_multi_and_rules(
+        self,
+        property_id: int,
+        is_multi: bool | None,
+        validation_rules: dict[str, Any] | None,
+        user_id: int,
+    ) -> None:
+        """Update property is_multi and/or validation_rules."""
+        async with acquire_connection(self._pool) as conn:
+            if is_multi is not None and validation_rules is not None:
+                await conn.execute(
+                    """
+                    UPDATE property
+                    SET is_multi = $1, validation_rules = $2::jsonb, write_date = $3, write_uid = $4
+                    WHERE id = $5
+                    """,
+                    is_multi,
+                    validation_rules,
+                    utc_now(),
+                    user_id,
+                    property_id,
+                )
+            elif is_multi is not None:
+                await conn.execute(
+                    """
+                    UPDATE property
+                    SET is_multi = $1, write_date = $2, write_uid = $3
+                    WHERE id = $4
+                    """,
+                    is_multi,
+                    utc_now(),
+                    user_id,
+                    property_id,
+                )
+            elif validation_rules is not None:
+                await conn.execute(
+                    """
+                    UPDATE property
+                    SET validation_rules = $1::jsonb, write_date = $2, write_uid = $3
+                    WHERE id = $4
+                    """,
+                    validation_rules,
+                    utc_now(),
+                    user_id,
+                    property_id,
+                )
+
+    async def delete_excess_property_values(self, property_id: int, prop_type: PropertyType) -> None:
+        """Delete all but the first value per node when switching from multi to single."""
+        async with acquire_connection(self._pool) as conn:
+            if prop_type in SCALAR_TYPES:
+                await conn.execute(
+                    """
+                    DELETE FROM property_value_scalar
+                    WHERE id NOT IN (
+                        SELECT MIN(id) FROM property_value_scalar
+                        WHERE property_id = $1
+                        GROUP BY node_id
+                    ) AND property_id = $1
+                    """,
+                    property_id,
+                )
+            elif prop_type in RELATION_TYPES:
+                await conn.execute(
+                    """
+                    DELETE FROM property_value_relation
+                    WHERE id NOT IN (
+                        SELECT MIN(id) FROM property_value_relation
+                        WHERE property_id = $1
+                        GROUP BY node_id
+                    ) AND property_id = $1
+                    """,
+                    property_id,
+                )
+            elif prop_type == PropertyType.SELECTION:
+                await conn.execute(
+                    """
+                    DELETE FROM property_value_selection
+                    WHERE id NOT IN (
+                        SELECT MIN(id) FROM property_value_selection
+                        WHERE property_id = $1
+                        GROUP BY node_id
+                    ) AND property_id = $1
+                    """,
+                    property_id,
+                )
+
+    async def get_nodes_with_property_detailed(
+        self, property_id: int
+    ) -> list[tuple[asyncpg.Record, list[int], dict[int, dict[str, Any]]]]:
+        """Get detailed node info for all nodes that have this property assigned."""
+        node_ids = await self.get_node_ids_with_property(property_id)
+        if not node_ids:
+            return []
+
+        from ..nodes.helpers import _get_class_ids_batch
+
+        class_ids_map = await _get_class_ids_batch(self._pool, self._workspace_id, node_ids)
+
+        async with acquire_connection(self._pool) as conn:
+            result: list[tuple[asyncpg.Record, list[int], dict[int, dict[str, Any]]]] = []
+            for node_id in node_ids:
+                node_row = await conn.fetchrow(
+                    """SELECT id, uuid, name, icon, color, parent_id, page_id, is_page, is_class,
+                       create_date, write_date FROM node
+                       WHERE id = $1 AND workspace_id = $2 AND active = TRUE""",
+                    node_id,
+                    self._workspace_id,
+                )
+                if not node_row:
+                    continue
+                all_prop_values = await self.get_all_property_values(node_id)
+                class_ids = class_ids_map.get(node_id, [])
+                result.append((node_row, class_ids, all_prop_values))
+            return result

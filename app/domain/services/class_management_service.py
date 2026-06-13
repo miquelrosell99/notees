@@ -8,7 +8,7 @@ across NodeService, the classes router, and the postgres_node repository.
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from ...db.schema.constants import SYSTEM_CLASS_UUIDS
 from ...logging_config import get_logger
@@ -75,22 +75,15 @@ class ClassManagementService:
         node_repo: NodeRepository,
         property_repo: PropertyRepository,
         class_extend_repo: ClassExtendRepository,
-        pool: Any = None,
     ) -> None:
         self._workspace_id = workspace_id
         self._node_repo = node_repo
         self._property_repo = property_repo
         self._class_extend_repo = class_extend_repo
-        self._pool = pool
 
     @property
     def workspace_id(self) -> int | None:
         return self._workspace_id
-
-    @property
-    def pool(self) -> Any:
-        """Connection pool for direct query access."""
-        return self._pool
 
     # ------------------------------------------------------------------
     # Flag computation

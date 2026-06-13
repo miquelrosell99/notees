@@ -4,10 +4,8 @@ import contextlib
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from ...db.connection import acquire_connection
-from ...db.schema.constants import SYSTEM_CLASS_UUIDS, SYSTEM_PAGE_UUIDS
+from ...dependencies import get_current_user
 from ...models import PaginatedResponse, User
-from ..auth import get_current_user
 from .helpers import (
     _build_children_tree,
     _get_class_ids_batch,
@@ -38,249 +36,38 @@ async def get_workspace_data_endpoint(
     Returns all pages as nodes and links between them based on node_link table.
     """
     service = await _get_node_service(user)
+    total, node_dicts, link_dicts = await service._node_repo.get_workspace_data(page, page_size)
 
-    async with acquire_connection(service.pool) as conn:
-        # System type UUIDs to exclude from workspace view
-        excluded_uuids = [
-            SYSTEM_CLASS_UUIDS["page"],
-            SYSTEM_CLASS_UUIDS["class"],
-            *SYSTEM_PAGE_UUIDS.values(),
-        ]
-
-        # Get total count of pages
-        total = await conn.fetchval(
-            """
-            SELECT COUNT(*) FROM node
-            WHERE workspace_id = $1 AND is_page = TRUE AND active = TRUE
-              AND uuid::text NOT IN (SELECT unnest($2::text[]))
-            """,
-            service.workspace_id,
-            excluded_uuids,
+    nodes = [
+        WorkspaceNodeResponse(
+            id=n["id"],
+            uuid=n["uuid"],
+            name=n["name"],
+            icon=n["icon"],
+            is_class=n["is_class"],
+            is_daily=n["is_daily"],
+            is_monthly=n["is_monthly"],
+            is_yearly=n["is_yearly"],
+            class_ids=n["class_ids"],
+            block_count=n["block_count"],
+            aliased_id=n["aliased_id"],
         )
+        for n in node_dicts
+    ]
+    links = [
+        WorkspaceLinkResponse(source=link["source"], target=link["target"], type=link["type"])
+        for link in link_dicts
+    ]
 
-        offset = (page - 1) * page_size
-
-        # Get paginated active pages as nodes (excluding system types)
-        page_rows = await conn.fetch(
-            """
-            SELECT id, uuid, name, icon, is_class, is_day, is_month, is_year, aliased_id
-            FROM node
-            WHERE workspace_id = $1 AND is_page = TRUE AND active = TRUE
-              AND uuid::text NOT IN (SELECT unnest($2::text[]))
-            ORDER BY name
-            LIMIT $3 OFFSET $4
-            """,
-            service.workspace_id,
-            excluded_uuids,
-            page_size,
-            offset,
-        )
-
-        # Get types for each page
-        page_ids = [row["id"] for row in page_rows]
-        class_ids_map = (
-            await _get_class_ids_batch(service.pool, service.workspace_id or 0, page_ids, conn=conn) if page_ids else {}
-        )
-
-        # Get block counts per page (recursive, excludes child pages and their hierarchies)
-        block_count_map = {}
-        if page_ids:
-            block_count_rows = await conn.fetch(
-                """
-                SELECT page_id, COUNT(*) as block_count
-                FROM node
-                WHERE workspace_id = $1 AND is_page = FALSE AND active = TRUE AND page_id IS NOT NULL
-                GROUP BY page_id
-                """,
-                service.workspace_id,
-            )
-            block_count_map = {row["page_id"]: row["block_count"] for row in block_count_rows}
-
-        # Build nodes
-        nodes: list[WorkspaceNodeResponse] = []
-        for row in page_rows:
-            node_class_ids = class_ids_map.get(row["id"], [])
-            nodes.append(
-                WorkspaceNodeResponse(
-                    id=row["id"],
-                    uuid=str(row["uuid"]),
-                    name=row["name"],
-                    icon=row["icon"],
-                    is_class=row["is_class"],
-                    is_daily=row["is_day"],
-                    is_monthly=row["is_month"],
-                    is_yearly=row["is_year"],
-                    class_ids=node_class_ids,
-                    block_count=block_count_map.get(row["id"], 0),
-                    aliased_id=row["aliased_id"],
-                )
-            )
-
-        # Get reference links between pages (only page-to-page links)
-        link_rows = await conn.fetch(
-            """
-            SELECT DISTINCT nl.source_id, nl.target_id
-            FROM node_link nl
-            JOIN node source ON nl.source_id = source.id
-            JOIN node target ON nl.target_id = target.id
-            WHERE source.workspace_id = $1
-              AND target.workspace_id = $1
-              AND target.is_page = TRUE
-              AND source.active = TRUE
-              AND target.active = TRUE
-            """,
-            service.workspace_id,
-        )
-
-        # Build reference links - source is the page containing the block that links
-        links: list[WorkspaceLinkResponse] = []
-        page_id_set = {row["id"] for row in page_rows}
-
-        # Batch-resolve block sources to their page_id (avoid N+1 queries)
-        block_source_ids = [row["source_id"] for row in link_rows if row["source_id"] not in page_id_set]
-        block_to_page = {}
-        if block_source_ids:
-            # Fetch all block→page mappings in one query
-            block_rows = await conn.fetch("SELECT id, page_id FROM node WHERE id = ANY($1::int[])", block_source_ids)
-            for br in block_rows:
-                if br["page_id"]:
-                    block_to_page[br["id"]] = br["page_id"]
-
-        for row in link_rows:
-            source_id = row["source_id"]
-            target_id = row["target_id"]
-
-            # Get the source page (may be the block's page_id)
-            source_page_id = source_id
-            if source_id not in page_id_set:
-                source_page_id = block_to_page.get(source_id, source_id)
-
-            if source_page_id in page_id_set and target_id in page_id_set:
-                links.append(
-                    WorkspaceLinkResponse(
-                        source=source_page_id,
-                        target=target_id,
-                        type="reference",
-                    )
-                )
-
-        # Get parent relationships between pages
-        parent_rows = await conn.fetch(
-            """
-            SELECT child.id as child_id, parent.id as parent_id
-            FROM node child
-            JOIN node parent ON child.parent_id = parent.id
-            WHERE child.workspace_id = $1
-              AND child.is_page = TRUE
-              AND parent.is_page = TRUE
-              AND child.active = TRUE
-              AND parent.active = TRUE
-            """,
-            service.workspace_id,
-        )
-
-        for row in parent_rows:
-            child_id = row["child_id"]
-            parent_id = row["parent_id"]
-            if child_id in page_id_set and parent_id in page_id_set:
-                links.append(
-                    WorkspaceLinkResponse(
-                        source=parent_id,
-                        target=child_id,
-                        type="parent",
-                    )
-                )
-
-        # Get class relationships from node.class_ids field
-        # Create links from node to its assigned classes (types)
-        for row in page_rows:
-            node_id = row["id"]
-            node_class_ids = class_ids_map.get(node_id, [])
-            for class_id in node_class_ids:
-                # Only add link if the class is also a visible page node
-                if class_id in page_id_set:
-                    links.append(
-                        WorkspaceLinkResponse(
-                            source=node_id,
-                            target=class_id,
-                            type="class",
-                        )
-                    )
-
-        # Get class extends relationships (inheritance between classes)
-        class_extends_rows = await conn.fetch(
-            """
-            SELECT ce.target_id as child_id, ce.source_id as parent_id
-            FROM class_extend ce
-            JOIN node child ON ce.target_id = child.id
-            JOIN node parent ON ce.source_id = parent.id
-            WHERE child.workspace_id = $1
-              AND parent.workspace_id = $1
-              AND child.active = TRUE
-              AND parent.active = TRUE
-            """,
-            service.workspace_id,
-        )
-
-        for row in class_extends_rows:
-            child_id = row["child_id"]
-            parent_id = row["parent_id"]
-            if child_id in page_id_set and parent_id in page_id_set:
-                links.append(
-                    WorkspaceLinkResponse(
-                        source=child_id,
-                        target=parent_id,
-                        type="extends",
-                    )
-                )
-
-        # Get property-based links (node-type properties)
-        property_link_rows = await conn.fetch(
-            """
-            SELECT DISTINCT pvr.node_id, pvr.target_id
-            FROM property_value_relation pvr
-            JOIN node source ON pvr.node_id = source.id
-            JOIN node target ON pvr.target_id = target.id
-            WHERE source.workspace_id = $1
-              AND target.workspace_id = $1
-              AND source.is_page = TRUE
-              AND target.is_page = TRUE
-              AND source.active = TRUE
-              AND target.active = TRUE
-            """,
-            service.workspace_id,
-        )
-
-        for row in property_link_rows:
-            source_id = row["node_id"]
-            target_id = row["target_id"]
-            if source_id in page_id_set and target_id in page_id_set:
-                links.append(
-                    WorkspaceLinkResponse(
-                        source=source_id,
-                        target=target_id,
-                        type="property-reference",
-                    )
-                )
-
-        # Remove duplicate links (keeping first occurrence)
-        seen = set()
-        unique_links = []
-        for link in links:
-            key = (link.source, link.target, link.type)
-            if key not in seen:
-                seen.add(key)
-                unique_links.append(link)
-
-        return WorkspaceDataResponse(
-            nodes=nodes,
-            links=unique_links,
-            total=total,
-            page=page,
-            page_size=page_size,
-            has_next=(page * page_size) < total,
-            has_prev=page > 1,
-        )
+    return WorkspaceDataResponse(
+        nodes=nodes,
+        links=links,
+        total=total,
+        page=page,
+        page_size=page_size,
+        has_next=(page * page_size) < total,
+        has_prev=page > 1,
+    )
 
 
 @router.get("/workspace/nodes")
@@ -302,107 +89,32 @@ async def get_workspace_nodes_endpoint(
         page_size = 100
     service = await _get_node_service(user)
 
-    async with acquire_connection(service.pool) as conn:
-        excluded_uuids = [
-            SYSTEM_CLASS_UUIDS["page"],
-            SYSTEM_CLASS_UUIDS["class"],
-            *SYSTEM_PAGE_UUIDS.values(),
-        ]
+    total, node_dicts = await service._node_repo.get_workspace_nodes(page, page_size)
 
-        total = await conn.fetchval(
-            """
-            SELECT COUNT(*) FROM node
-            WHERE workspace_id = $1 AND is_page = TRUE AND active = TRUE
-              AND uuid::text NOT IN (SELECT unnest($2::text[]))
-            """,
-            service.workspace_id,
-            excluded_uuids,
+    nodes = [
+        WorkspaceNodeResponse(
+            id=n["id"],
+            uuid=n["uuid"],
+            name=n["name"],
+            icon=n["icon"],
+            is_class=n["is_class"],
+            is_daily=n["is_daily"],
+            is_monthly=n["is_monthly"],
+            is_yearly=n["is_yearly"],
+            class_ids=n["class_ids"],
+            block_count=n["block_count"],
         )
+        for n in node_dicts
+    ]
 
-        if page_size is None:
-            page_rows = await conn.fetch(
-                """
-                SELECT id, uuid, name, icon, is_class, is_day, is_month, is_year, aliased_id
-                FROM node
-                WHERE workspace_id = $1 AND is_page = TRUE AND active = TRUE
-                  AND uuid::text NOT IN (SELECT unnest($2::text[]))
-                ORDER BY name
-                """,
-                service.workspace_id,
-                excluded_uuids,
-            )
-        else:
-            offset = (page - 1) * page_size
-            page_rows = await conn.fetch(
-                """
-                SELECT id, uuid, name, icon, is_class, is_day, is_month, is_year, aliased_id
-                FROM node
-                WHERE workspace_id = $1 AND is_page = TRUE AND active = TRUE
-                  AND uuid::text NOT IN (SELECT unnest($2::text[]))
-                ORDER BY name
-                LIMIT $3 OFFSET $4
-                """,
-                service.workspace_id,
-                excluded_uuids,
-                page_size,
-                offset,
-            )
-
-        page_ids = [row["id"] for row in page_rows]
-        class_ids_map = (
-            await _get_class_ids_batch(service.pool, service.workspace_id or 0, page_ids, conn=conn) if page_ids else {}
-        )
-
-        # Get block counts per page (recursive, excludes child pages and their hierarchies)
-        block_count_map = {}
-        if page_ids:
-            block_count_rows = await conn.fetch(
-                """
-                SELECT page_id, COUNT(*) as block_count
-                FROM node
-                WHERE workspace_id = $1 AND is_page = FALSE AND active = TRUE AND page_id IS NOT NULL
-                GROUP BY page_id
-                """,
-                service.workspace_id,
-            )
-            block_count_map = {row["page_id"]: row["block_count"] for row in block_count_rows}
-
-        nodes: list[WorkspaceNodeResponse] = []
-        for row in page_rows:
-            node_class_ids = class_ids_map.get(row["id"], [])
-            nodes.append(
-                WorkspaceNodeResponse(
-                    id=row["id"],
-                    uuid=str(row["uuid"]),
-                    name=row["name"],
-                    icon=row["icon"],
-                    is_class=row["is_class"],
-                    is_daily=row["is_day"],
-                    is_monthly=row["is_month"],
-                    is_yearly=row["is_year"],
-                    class_ids=node_class_ids,
-                    block_count=block_count_map.get(row["id"], 0),
-                )
-            )
-
-        if page_size is None:
-            return PaginatedResponse[WorkspaceNodeResponse](
-                items=nodes,
-                total=total,
-                page=1,
-                page_size=total,
-                has_next=False,
-                has_prev=False,
-            )
-
-        return PaginatedResponse[WorkspaceNodeResponse](
-            items=nodes,
-            total=total,
-            page=page,
-            page_size=page_size,
-            has_next=(page * page_size) < total,
-            has_prev=page > 1,
-        )
+    return PaginatedResponse[WorkspaceNodeResponse](
+        items=nodes,
+        total=total,
+        page=page,
+        page_size=page_size,
+        has_next=(page * page_size) < total,
+        has_prev=page > 1,
+    )
 
 
 @router.post("/links", response_model=LinksResponse)
@@ -435,283 +147,11 @@ async def get_links_for_nodes(
         raise HTTPException(status_code=400, detail="scope must be 'between' or 'touching'")
 
     service = await _get_node_service(user)
+    links = await service._link_service._link_repo.get_links_for_nodes(
+        node_ids, scope, cooccurrence, body.context_node_id
+    )
 
-    async with acquire_connection(service.pool) as conn:
-        node_id_set = set(node_ids)
-        require_both = scope == "between"
-        links = []
-
-        # 1. Reference links (from node_link table, resolving blocks to pages)
-        link_rows = await conn.fetch(
-            """
-            SELECT DISTINCT nl.source_id, nl.target_id
-            FROM node_link nl
-            JOIN node source ON nl.source_id = source.id
-            JOIN node target ON nl.target_id = target.id
-            WHERE source.workspace_id = $1
-              AND target.workspace_id = $1
-              AND target.is_page = TRUE
-              AND source.active = TRUE
-              AND target.active = TRUE
-              AND (nl.source_id = ANY($2::int[]) OR nl.target_id = ANY($2::int[]))
-            """,
-            service.workspace_id,
-            node_ids,
-        )
-
-        # Batch-resolve block sources to their page_id
-        block_source_ids = [row["source_id"] for row in link_rows if row["source_id"] not in node_id_set]
-        block_to_page = {}
-        if block_source_ids:
-            block_rows = await conn.fetch("SELECT id, page_id FROM node WHERE id = ANY($1::int[])", block_source_ids)
-            for br in block_rows:
-                if br["page_id"]:
-                    block_to_page[br["id"]] = br["page_id"]
-
-        for row in link_rows:
-            source_page_id = row["source_id"]
-            if source_page_id not in node_id_set:
-                source_page_id = block_to_page.get(source_page_id, source_page_id)
-            target_id = row["target_id"]
-            if require_both:
-                if source_page_id in node_id_set and target_id in node_id_set:
-                    links.append({"source": source_page_id, "target": target_id, "type": "reference"})
-            else:
-                # touching: at least one end is in the set
-                if source_page_id in node_id_set or target_id in node_id_set:
-                    links.append({"source": source_page_id, "target": target_id, "type": "reference"})
-
-        # 2. Parent relationships
-        if require_both:
-            parent_rows = await conn.fetch(
-                """
-                SELECT child.id as child_id, parent.id as parent_id
-                FROM node child
-                JOIN node parent ON child.parent_id = parent.id
-                WHERE child.workspace_id = $1
-                  AND child.is_page = TRUE
-                  AND parent.is_page = TRUE
-                  AND child.active = TRUE
-                  AND parent.active = TRUE
-                  AND child.id = ANY($2::int[])
-                  AND parent.id = ANY($2::int[])
-                """,
-                service.workspace_id,
-                node_ids,
-            )
-        else:
-            parent_rows = await conn.fetch(
-                """
-                SELECT child.id as child_id, parent.id as parent_id
-                FROM node child
-                JOIN node parent ON child.parent_id = parent.id
-                WHERE child.workspace_id = $1
-                  AND child.is_page = TRUE
-                  AND parent.is_page = TRUE
-                  AND child.active = TRUE
-                  AND parent.active = TRUE
-                  AND (child.id = ANY($2::int[]) OR parent.id = ANY($2::int[]))
-                """,
-                service.workspace_id,
-                node_ids,
-            )
-        for row in parent_rows:
-            links.append({"source": row["parent_id"], "target": row["child_id"], "type": "parent"})
-
-        # 3. Class relationships
-        class_ids_map = await _get_class_ids_batch(service.pool, service.workspace_id or 0, node_ids, conn=conn)
-        for nid in node_ids:
-            for class_id in class_ids_map.get(nid, []):
-                if not require_both or class_id in node_id_set:
-                    links.append({"source": nid, "target": class_id, "type": "class"})
-
-        # 4. Class extends (inheritance)
-        if require_both:
-            class_extends_rows = await conn.fetch(
-                """
-                SELECT ce.target_id as child_id, ce.source_id as parent_id
-                FROM class_extend ce
-                JOIN node child ON ce.target_id = child.id
-                JOIN node parent ON ce.source_id = parent.id
-                WHERE child.workspace_id = $1
-                  AND parent.workspace_id = $1
-                  AND child.active = TRUE
-                  AND parent.active = TRUE
-                  AND ce.target_id = ANY($2::int[])
-                  AND ce.source_id = ANY($2::int[])
-                """,
-                service.workspace_id,
-                node_ids,
-            )
-        else:
-            class_extends_rows = await conn.fetch(
-                """
-                SELECT ce.target_id as child_id, ce.source_id as parent_id
-                FROM class_extend ce
-                JOIN node child ON ce.target_id = child.id
-                JOIN node parent ON ce.source_id = parent.id
-                WHERE child.workspace_id = $1
-                  AND parent.workspace_id = $1
-                  AND child.active = TRUE
-                  AND parent.active = TRUE
-                  AND (ce.target_id = ANY($2::int[]) OR ce.source_id = ANY($2::int[]))
-                """,
-                service.workspace_id,
-                node_ids,
-            )
-        for row in class_extends_rows:
-            links.append({"source": row["child_id"], "target": row["parent_id"], "type": "extends"})
-
-        # 5. Property-based links
-        if require_both:
-            property_link_rows = await conn.fetch(
-                """
-                SELECT DISTINCT pvr.node_id, pvr.target_id
-                FROM property_value_relation pvr
-                JOIN node source ON pvr.node_id = source.id
-                JOIN node target ON pvr.target_id = target.id
-                WHERE source.workspace_id = $1
-                  AND target.workspace_id = $1
-                  AND source.is_page = TRUE
-                  AND target.is_page = TRUE
-                  AND source.active = TRUE
-                  AND target.active = TRUE
-                  AND pvr.node_id = ANY($2::int[])
-                  AND pvr.target_id = ANY($2::int[])
-                """,
-                service.workspace_id,
-                node_ids,
-            )
-        else:
-            property_link_rows = await conn.fetch(
-                """
-                SELECT DISTINCT pvr.node_id, pvr.target_id
-                FROM property_value_relation pvr
-                JOIN node source ON pvr.node_id = source.id
-                JOIN node target ON pvr.target_id = target.id
-                WHERE source.workspace_id = $1
-                  AND target.workspace_id = $1
-                  AND source.is_page = TRUE
-                  AND target.is_page = TRUE
-                  AND source.active = TRUE
-                  AND target.active = TRUE
-                  AND (pvr.node_id = ANY($2::int[]) OR pvr.target_id = ANY($2::int[]))
-                """,
-                service.workspace_id,
-                node_ids,
-            )
-        for row in property_link_rows:
-            links.append({"source": row["node_id"], "target": row["target_id"], "type": "property-reference"})
-
-        # 6. Co-occurrence inference: links from blocks with multiple page references
-        if cooccurrence:
-            context_node_id = body.context_node_id
-            from collections import Counter, defaultdict
-
-            if context_node_id:
-                # Local/context mode: parent-inclusive co-occurrence within context page
-                block_rows = await conn.fetch(
-                    """
-                    SELECT id, parent_id FROM node
-                    WHERE workspace_id = $1 AND is_page = FALSE AND active = TRUE AND page_id = $2
-                    """,
-                    service.workspace_id,
-                    context_node_id,
-                )
-                block_ids = [r["id"] for r in block_rows]
-                parent_map = {r["id"]: r["parent_id"] for r in block_rows}
-
-                if block_ids:
-                    link_rows = await conn.fetch(
-                        """
-                        SELECT nl.source_id AS block_id, nl.target_id
-                        FROM node_link nl
-                        WHERE nl.source_id = ANY($1::int[]) AND nl.target_id = ANY($2::int[])
-                        """,
-                        block_ids,
-                        node_ids,
-                    )
-
-                    block_targets: dict = defaultdict(list)
-                    for row in link_rows:
-                        block_targets[row["block_id"]].append(row["target_id"])
-
-                    parent_ids = list({p for p in parent_map.values() if p is not None})
-                    if parent_ids:
-                        parent_link_rows = await conn.fetch(
-                            """
-                            SELECT nl.source_id AS block_id, nl.target_id
-                            FROM node_link nl
-                            WHERE nl.source_id = ANY($1::int[]) AND nl.target_id = ANY($2::int[])
-                            """,
-                            parent_ids,
-                            node_ids,
-                        )
-                        parent_targets: dict = defaultdict(list)
-                        for row in parent_link_rows:
-                            parent_targets[row["block_id"]].append(row["target_id"])
-
-                        for block_id, parent_id in parent_map.items():
-                            if parent_id in parent_targets:
-                                block_targets[block_id].extend(parent_targets[parent_id])
-
-                    pair_counts = Counter()
-                    for _block_id, targets in block_targets.items():
-                        unique_targets = list(dict.fromkeys(targets))[:10]
-                        if len(unique_targets) < 2:
-                            continue
-                        for i in range(len(unique_targets)):
-                            for j in range(i + 1, len(unique_targets)):
-                                a, b = unique_targets[i], unique_targets[j]
-                                pair_counts[(a, b)] += 1
-
-                    for (a, b), count in pair_counts.items():
-                        links.append({"source": a, "target": b, "type": "cooccurrence", "weight": count})
-            else:
-                # Global mode: flat co-occurrence across all blocks mentioning the node set
-                sem_rows = await conn.fetch(
-                    """
-                    SELECT nl.source_id AS block_id, nl.target_id AS target_page_id
-                    FROM node_link nl
-                    JOIN node block ON nl.source_id = block.id
-                    JOIN node target ON nl.target_id = target.id
-                    WHERE block.workspace_id = $1
-                      AND block.is_page = FALSE
-                      AND block.active = TRUE
-                      AND target.active = TRUE
-                      AND target.is_page = TRUE
-                      AND nl.target_id = ANY($2::int[])
-                    """,
-                    service.workspace_id,
-                    node_ids,
-                )
-                block_targets: dict = defaultdict(list)
-                for row in sem_rows:
-                    block_targets[row["block_id"]].append(row["target_page_id"])
-
-                pair_counts = Counter()
-                for _block_id, targets in block_targets.items():
-                    unique_targets = list(dict.fromkeys(targets))[:10]
-                    if len(unique_targets) < 2:
-                        continue
-                    for i in range(len(unique_targets)):
-                        for j in range(i + 1, len(unique_targets)):
-                            a, b = unique_targets[i], unique_targets[j]
-                            pair_counts[(a, b)] += 1
-
-                for (a, b), count in pair_counts.items():
-                    links.append({"source": a, "target": b, "type": "cooccurrence", "weight": count})
-
-        # Deduplicate
-        seen = set()
-        unique_links = []
-        for link in links:
-            key = (link["source"], link["target"], link["type"])
-            if key not in seen:
-                seen.add(key)
-                unique_links.append(link)
-
-        return LinksResponse(links=unique_links)
+    return LinksResponse(links=links)
 
 
 @router.get("/search", response_model=SearchResponse)
@@ -765,23 +205,12 @@ async def search_nodes(
 
             # Fall back to prefix match (uuid starts with the search term)
             if len(uuid) >= 4:  # Require at least 4 chars for prefix search
-                async with acquire_connection(service.pool) as conn:
-                    rows = await conn.fetch(
-                        """SELECT n.* FROM node n
-                        WHERE n.workspace_id = $1 AND n.active = TRUE AND n.is_deleted = FALSE
-                          AND n.uuid::text LIKE $2
-                        ORDER BY n.write_date DESC NULLS LAST
-                        LIMIT $3""",
-                        service.workspace_id,
-                        uuid + "%",
-                        min(limit, 20),
-                    )
-                    result = []
-                    for row in rows:
-                        node_obj = service.row_to_node(row)
-                        node_class_ids = node_obj.class_ids or []
-                        result.append(_node_to_response(node_obj, classes=node_class_ids))
-                    return SearchResponse(nodes=result)
+                nodes = await service._node_repo.search_by_uuid_prefix(uuid, min(limit, 20))
+                result = []
+                for node_obj in nodes:
+                    node_class_ids = node_obj.class_ids or []
+                    result.append(_node_to_response(node_obj, classes=node_class_ids))
+                return SearchResponse(nodes=result)
 
             return SearchResponse(nodes=[])
 
@@ -851,6 +280,9 @@ async def list_nodes(
     if order not in ("asc", "desc"):
         order = "asc"
 
+    # Clamp page_size to the endpoint's maximum to prevent unbounded reads.
+    effective_page_size = min(page_size or 1000, 5000)
+
     service = await _get_node_service(user)
 
     if parent_id:
@@ -858,10 +290,10 @@ async def list_nodes(
     elif type_id:
         nodes = await service.get_nodes_typed_with(type_id)
     elif pages_only:
-        nodes = await service.get_all_pages()
+        # Fetch up to the endpoint maximum so in-memory pagination works.
+        nodes = await service.get_all_pages(limit=5000)
     else:
-        # Clamp to the endpoint's own maximum to prevent unbounded reads.
-        nodes = await service.search("", limit=min(5000, page_size or 5000))
+        nodes = await service.search("", limit=5000)
 
     # Parse class filters if provided
     filter_class_ids: set | None = None
@@ -870,26 +302,14 @@ async def list_nodes(
             filter_class_ids = {int(cid.strip()) for cid in class_filters.split(",") if cid.strip()}
 
     # Expand class filters to include all subclasses (inheritance)
-    if filter_class_ids:
-        async with acquire_connection(service.pool) as conn:
-            hierarchy_rows = await conn.fetch(
-                """
-                WITH RECURSIVE filter_hierarchy AS (
-                    SELECT id FROM node WHERE id = ANY($1::int[]) AND workspace_id = $2
-                    UNION
-                    SELECT ce.target_id FROM class_extend ce
-                    INNER JOIN filter_hierarchy fh ON ce.source_id = fh.id
-                )
-                SELECT id FROM filter_hierarchy
-                """,
-                list(filter_class_ids),
-                service.workspace_id,
-            )
-            filter_class_ids = {row["id"] for row in hierarchy_rows}
+    if filter_class_ids and service._class_service._class_extend_repo is not None:
+        filter_class_ids = await service._class_service._class_extend_repo.expand_class_hierarchy(
+            list(filter_class_ids)
+        )
 
     # Batch fetch class_ids for all nodes
     node_ids = [n.id for n in nodes if n.id is not None]
-    class_ids_map = await _get_class_ids_batch(service.pool, service.workspace_id or 0, node_ids)
+    class_ids_map = await _get_class_ids_batch(service, node_ids)
 
     # Filter to root nodes if requested
     if root_only:
@@ -923,19 +343,12 @@ async def list_nodes(
     if include_children and result:
         result = await _build_children_tree(service, result, class_ids_map)
 
-    # Apply pagination only when page_size is requested
+    # Apply pagination using the bounded page_size.
     total = len(result)
-    if page_size is not None:
-        offset = (page - 1) * page_size
-        paginated_items = result[offset : offset + page_size]
-        has_next = (page * page_size) < total
-        has_prev = page > 1
-        effective_page_size = page_size
-    else:
-        paginated_items = result
-        has_next = False
-        has_prev = False
-        effective_page_size = total
+    offset = (page - 1) * effective_page_size
+    paginated_items = result[offset : offset + effective_page_size]
+    has_next = (page * effective_page_size) < total
+    has_prev = page > 1
 
     return PaginatedResponse[NodeResponse](
         items=paginated_items,

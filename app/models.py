@@ -23,6 +23,29 @@ from typing import TypeVar
 from pydantic import BaseModel, field_validator
 
 
+def _validate_password_strength(v: str | None) -> str | None:
+    """Shared password complexity validator.
+
+    Enforces length (8-128), uppercase, lowercase, digit, and special character
+    requirements. Returns None unchanged so it can be used on optional fields.
+    """
+    if v is None:
+        return v
+    if len(v) < 8:
+        raise ValueError("Password must be at least 8 characters")
+    if len(v) > 128:
+        raise ValueError("Password must be at most 128 characters")
+    if not any(c.isupper() for c in v):
+        raise ValueError("Password must contain at least one uppercase letter")
+    if not any(c.islower() for c in v):
+        raise ValueError("Password must contain at least one lowercase letter")
+    if not any(c.isdigit() for c in v):
+        raise ValueError("Password must contain at least one digit")
+    if not any(c in "!@#$%^&*()_+-=[]{}|;':\",./<>?`~" for c in v):
+        raise ValueError("Password must contain at least one special character")
+    return v
+
+
 def generate_uuid() -> str:
     """Generate a unique UUID for nodes."""
     return str(uuid.uuid4())
@@ -69,19 +92,7 @@ class UserCreate(UserBase):
     @field_validator("password")
     @classmethod
     def validate_password(cls, v):
-        if len(v) < 8:
-            raise ValueError("Password must be at least 8 characters")
-        if len(v) > 128:
-            raise ValueError("Password must be at most 128 characters")
-        if not any(c.isupper() for c in v):
-            raise ValueError("Password must contain at least one uppercase letter")
-        if not any(c.islower() for c in v):
-            raise ValueError("Password must contain at least one lowercase letter")
-        if not any(c.isdigit() for c in v):
-            raise ValueError("Password must contain at least one digit")
-        if not any(c in "!@#$%^&*()_+-=[]{}|;':\",./<>?`~" for c in v):
-            raise ValueError("Password must contain at least one special character")
-        return v
+        return _validate_password_strength(v)
 
 
 class UserLogin(UserBase):
@@ -107,19 +118,7 @@ class PasswordChangeRequest(BaseModel):
     @field_validator("new_password")
     @classmethod
     def validate_new_password(cls, v):
-        if len(v) < 8:
-            raise ValueError("Password must be at least 8 characters")
-        if len(v) > 128:
-            raise ValueError("Password must be at most 128 characters")
-        if not any(c.isupper() for c in v):
-            raise ValueError("Password must contain at least one uppercase letter")
-        if not any(c.islower() for c in v):
-            raise ValueError("Password must contain at least one lowercase letter")
-        if not any(c.isdigit() for c in v):
-            raise ValueError("Password must contain at least one digit")
-        if not any(c in "!@#$%^&*()_+-=[]{}|;':\",./<>?`~" for c in v):
-            raise ValueError("Password must contain at least one special character")
-        return v
+        return _validate_password_strength(v)
 
 
 class AdminUserCreate(UserCreate):
@@ -139,6 +138,11 @@ class AdminUserUpdate(BaseModel):
     profile_pic: str | None = None
     role: str | None = None
     active: bool | None = None
+
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, v):
+        return _validate_password_strength(v)
 
 
 class User(UserBase):

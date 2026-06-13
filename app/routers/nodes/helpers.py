@@ -3,23 +3,42 @@
 import json
 from typing import Any
 
-from ...db.connection import acquire_connection, get_pool
+from ...dependencies import (
+    _get_node_service,
+    _get_undo_service,
+)
 from ...domain.entities import Node
 from ...domain.permissions import PermissionChecker
-from ...domain.repositories import (
-    PostgresActivityRepository,
-    PostgresClassExtendRepository,
-    PostgresLinkRepository,
-    PostgresNodeRepository,
-    PostgresPropertyRepository,
-    PostgresSettingsRepository,
-)
-from ...domain.services import LinkParsingService, NodeService
+from ...domain.services import NodeService
 from ...logging_config import get_logger
-from ...models import User
 from .models import NodeResponse
 
 logger = get_logger(__name__)
+
+__all__ = [
+    "_get_node_service",
+    "_get_undo_service",
+    "extract_properties_dict",
+    "_node_to_response",
+    "_node_to_response_with_permissions",
+    "_build_children_response",
+    "_get_descendants",
+    "_get_class_ids",
+    "_get_tag_ids",
+    "_get_alias_ids",
+    "_get_class_ids_batch",
+    "_get_extends_batch",
+    "_get_related_ids_batch",
+    "_get_effective_class_ids_batch",
+    "_build_children_tree",
+    "_node_snapshot",
+    "_name_text",
+    "_resolve_referenced_display_names",
+    "_format_date_with_pattern",
+    "_format_month_with_pattern",
+    "_format_year",
+    "_apply_node_extras",
+]
 
 
 def _extract_property_value(val):
@@ -223,248 +242,63 @@ async def _get_class_ids(service: NodeService, node_id: int) -> list[int]:
     return [c.id for c in classes if c.id]
 
 
-async def _get_tag_ids(pool, workspace_id: int, node_id: int) -> list[int]:
+async def _get_tag_ids(service: NodeService, node_id: int) -> list[int]:
     """Helper to get tag IDs for a node (from node_link with is_tag=1)."""
-    async with acquire_connection(pool) as conn:
-        rows = await conn.fetch(
-            """
-            SELECT target_id FROM node_link
-            WHERE source_id = $1 AND is_tag = TRUE AND property_id IS NULL
-            ORDER BY position
-        """,
-            node_id,
-        )
-        return [row["target_id"] for row in rows]
+    return await service.get_tag_link_targets(node_id)
 
 
-async def _get_alias_ids(pool, workspace_id: int, node_id: int) -> list[int]:
+async def _get_alias_ids(service: NodeService, node_id: int) -> list[int]:
     """Helper to get alias IDs for a node (nodes that have aliased_id = node_id)."""
-    async with acquire_connection(pool) as conn:
-        rows = await conn.fetch(
-            """
-            SELECT id FROM node
-            WHERE aliased_id = $1 AND workspace_id = $2
-              AND active = TRUE AND (is_deleted = FALSE OR is_deleted IS NULL)
-            ORDER BY name
-        """,
-            node_id,
-            workspace_id,
-        )
-        return [row["id"] for row in rows]
+    return await service.get_alias_node_ids(node_id)
 
 
-async def _get_class_ids_batch(pool, workspace_id: int, node_ids: list[int], *, conn=None) -> dict[int, list[int]]:
+async def _get_class_ids_batch(service: NodeService, node_ids: list[int]) -> dict[int, list[int]]:
     """Efficiently fetch class_ids directly from node table.
 
     Returns a dict mapping node_id -> list of class_ids.
-    If conn is provided, uses that connection instead of acquiring from pool.
     """
-    if not node_ids:
-        return {}
-
-    async def _fetch(c):
-        rows = await c.fetch(
-            """
-            SELECT id, class_ids
-            FROM node
-            WHERE id = ANY($1) AND workspace_id = $2
-        """,
-            node_ids,
-            workspace_id,
-        )
-        return {row["id"]: list(row["class_ids"] or []) for row in rows}
-
-    if conn is not None:
-        return await _fetch(conn)
-
-    async with acquire_connection(pool) as c:
-        return await _fetch(c)
+    return await service.get_class_ids_batch(node_ids)
 
 
-async def _get_extends_batch(pool, workspace_id: int, node_ids: list[int]) -> dict[int, list[int]]:
+async def _get_extends_batch(service: NodeService, node_ids: list[int]) -> dict[int, list[int]]:
     """Batch-fetch class extends (parent class IDs) for a set of class nodes.
 
     Returns a dict mapping target_id (child class) -> list of source_ids (parent classes)
     in sequence order.
     """
-    if not node_ids:
-        return {}
-
-    async with acquire_connection(pool) as conn:
-        rows = await conn.fetch(
-            """
-            SELECT ce.target_id, ce.source_id
-            FROM class_extend ce
-            JOIN node n ON n.id = ce.source_id
-            WHERE ce.target_id = ANY($1)
-              AND n.workspace_id = $2
-              AND n.active = TRUE
-            ORDER BY ce.target_id, ce.sequence, ce.id
-        """,
-            node_ids,
-            workspace_id,
-        )
-
-        result: dict[int, list[int]] = {}
-        for row in rows:
-            result.setdefault(row["target_id"], []).append(row["source_id"])
-        return result
+    return await service.get_extended_classes_batch(node_ids)
 
 
 async def _get_related_ids_batch(
-    pool,
-    workspace_id: int,
+    service: NodeService,
     node_ids: list[int],
     relation_type: str,
 ) -> dict[int, list[int]]:
     """Generic batch-fetch for IDs related to a set of source node IDs.
 
     Args:
-        pool: asyncpg connection pool
-        workspace_id: Current workspace (used for alias lookups)
-        node_ids: Source node IDs to look up relations for
-        relation_type: One of 'tags', 'aliases', 'classes'
+        service: NodeService wired to the current workspace.
+        node_ids: Source node IDs to look up relations for.
+        relation_type: One of 'tags', 'aliases', 'classes'.
 
     Returns:
         Dict mapping source node_id -> list of related IDs.
-
-    Note:
-        'classes' uses a dedicated path because the data lives in an array
-        column rather than a join table, and supports an optional ``conn``
-        override.  Prefer calling ``_get_class_ids_batch`` directly when you
-        already hold a connection.
     """
-    if not node_ids:
-        return {}
-
-    result: dict[int, list[int]] = {nid: [] for nid in node_ids}
-
-    if relation_type == "tags":
-        async with acquire_connection(pool) as conn:
-            rows = await conn.fetch(
-                """
-                SELECT source_id, target_id
-                FROM node_link
-                WHERE source_id = ANY($1) AND is_tag = TRUE AND property_id IS NULL
-                ORDER BY source_id, position
-            """,
-                node_ids,
-            )
-        for row in rows:
-            source_id = row["source_id"]
-            if source_id in result and row["target_id"]:
-                result[source_id].append(row["target_id"])
-
-    elif relation_type == "aliases":
-        async with acquire_connection(pool) as conn:
-            rows = await conn.fetch(
-                """
-                SELECT aliased_id, id
-                FROM node
-                WHERE aliased_id = ANY($1) AND workspace_id = $2
-                  AND active = TRUE AND (is_deleted = FALSE OR is_deleted IS NULL)
-                ORDER BY aliased_id, name
-            """,
-                node_ids,
-                workspace_id,
-            )
-        for row in rows:
-            aliased_id = row["aliased_id"]
-            if aliased_id in result:
-                result[aliased_id].append(row["id"])
-
-    elif relation_type == "classes":
-        async with acquire_connection(pool) as conn:
-            rows = await conn.fetch(
-                """
-                SELECT id, class_ids
-                FROM node
-                WHERE id = ANY($1) AND workspace_id = $2
-            """,
-                node_ids,
-                workspace_id,
-            )
-        for row in rows:
-            result[row["id"]] = list(row["class_ids"] or [])
-
-    else:
-        raise ValueError(f"Unknown relation_type: {relation_type!r}")
-
-    return result
+    return await service.get_related_ids_batch(node_ids, relation_type)
 
 
 async def _get_effective_class_ids_batch(
-    pool, workspace_id: int, node_ids: list[int], user_id: int
+    service: NodeService, node_ids: list[int]
 ) -> dict[int, list[int]]:
-    """Fetch class_ids for multiple nodes including inherited classes from extends.
-
-    For each node:
-    - Gets explicit classes from the class_ids column
-    - For each explicit class, gets all classes it extends (inheritance chain)
-    - Returns combined list (explicit + inherited), with explicit classes first
-
-    Returns a dict mapping node_id -> list of class_ids (explicit + inherited).
-    """
-    from ...domain.repositories import (
-        PostgresClassExtendRepository,
-        PostgresNodeRepository,
-        PostgresPropertyRepository,
-    )
-    from ...domain.services.class_extension_service import ClassExtensionService
-
-    # First get explicit classes
-    explicit_classes = await _get_class_ids_batch(pool, workspace_id, node_ids)
-
-    if not explicit_classes:
-        return {nid: [] for nid in node_ids}
-
-    # For each unique class, get its inheritance chain
-    all_explicit_class_ids = set()
-    for class_list in explicit_classes.values():
-        all_explicit_class_ids.update(class_list)
-
-    if not all_explicit_class_ids:
-        return explicit_classes
-
-    property_repo = PostgresPropertyRepository(pool, workspace_id, user_id)
-    class_extend_repo = PostgresClassExtendRepository(pool, workspace_id, user_id)
-    node_repo = PostgresNodeRepository(pool, workspace_id, 0, user_id)
-    extension_service = ClassExtensionService(
-        workspace_id, property_repo, class_extend_repo, node_repo
-    )
-
-    # Cache for class -> extended classes
-    extends_cache: dict[int, list[int]] = {}
-
-    for class_id in all_explicit_class_ids:
-        try:
-            # get_all_extended_classes returns [class_id, parent1, parent2, ...]
-            extended = await extension_service.get_all_extended_classes(class_id)
-            # Store only the parents (skip the first element which is class_id itself)
-            extends_cache[class_id] = extended[1:] if len(extended) > 1 else []
-        except (ValueError, RecursionError):
-            # If there's an error (e.g., circular reference), just skip inheritance for this class
-            extends_cache[class_id] = []
-
-    # Build effective class lists
-    result: dict[int, list[int]] = {}
-    for node_id in node_ids:
-        explicit = explicit_classes.get(node_id, [])
-        effective = list(explicit)  # Start with explicit classes
-
-        # Add inherited classes
-        for class_id in explicit:
-            inherited = extends_cache.get(class_id, [])
-            for inherited_class in inherited:
-                if inherited_class not in effective:
-                    effective.append(inherited_class)
-
-        result[node_id] = effective
-
-    return result
+    """Fetch class_ids for multiple nodes including inherited classes from extends."""
+    return await service.get_effective_class_ids_batch(node_ids)
 
 
-async def _build_children_tree(service, nodes: list[Any], class_ids_map: dict[int, list[int]]) -> list[Any]:
+async def _build_children_tree(
+    service: NodeService,
+    nodes: list[Any],
+    class_ids_map: dict[int, list[int]],
+) -> list[Any]:
     """Build a tree with children for each node.
 
     Fetches all descendants for each node and builds a nested structure.
@@ -492,7 +326,7 @@ async def _build_children_tree(service, nodes: list[Any], class_ids_map: dict[in
         all_descendant_ids.extend(desc_ids)
 
     if all_descendant_ids:
-        desc_class_ids = await _get_class_ids_batch(service.pool, service.workspace_id or 0, all_descendant_ids)
+        desc_class_ids = await _get_class_ids_batch(service, all_descendant_ids)
         class_ids_map.update(desc_class_ids)
 
     # Fetch all descendant nodes in one query
@@ -555,51 +389,6 @@ async def _build_children_tree(service, nodes: list[Any], class_ids_map: dict[in
     return result
 
 
-async def _get_node_service(user: User) -> NodeService:
-    from ...dependencies import _get_workspace_context_cached
-
-    pool = await get_pool()
-    user_id = int(user.id)
-
-    workspace_id, page_class_id = await _get_workspace_context_cached(pool, user_id)
-
-    # Create repositories with workspace context
-    node_repo = PostgresNodeRepository(pool, workspace_id, page_class_id, user_id)
-    property_repo = PostgresPropertyRepository(pool, workspace_id, user_id)
-    link_repo = PostgresLinkRepository(pool, workspace_id, user_id)
-    settings_repo = PostgresSettingsRepository(pool)
-    activity_repo = PostgresActivityRepository(pool, workspace_id, user_id)
-    class_extend_repo = PostgresClassExtendRepository(pool, workspace_id, user_id)
-
-    # Create services
-    link_service = LinkParsingService(node_repo, link_repo)
-    node_service = NodeService(
-        node_repo,
-        property_repo,
-        link_service,
-        page_class_id,
-        pool=pool,
-        workspace_id=workspace_id,
-        user_id=user_id,
-        settings_repo=settings_repo,
-        activity_repo=activity_repo,
-        class_extend_repo=class_extend_repo,
-    )
-
-    return node_service
-
-
-async def _get_undo_service(user: User):
-    """Get an UndoService for the current user's workspace."""
-    from ...dependencies import _get_workspace_context_cached
-    from ...domain.services.undo_service import UndoService
-
-    pool = await get_pool()
-    user_id = int(user.id)
-    workspace_id, _ = await _get_workspace_context_cached(pool, user_id)
-    return UndoService(pool, workspace_id, user_id)
-
-
 def _node_snapshot(node) -> dict:
     """Capture the columns needed for undo/redo of a node."""
     return {
@@ -629,64 +418,16 @@ def _name_text(name: str | None, max_len: int = 60) -> str:
     return name[:max_len]
 
 
-async def _resolve_referenced_display_names(pool, workspace_id: int, target_rows) -> dict[str, str]:
+async def _resolve_referenced_display_names(service: NodeService, target_rows) -> dict[str, str]:
     """Resolve node links embedded in names and return uuid → resolved plain-text map.
 
     Only returns entries for rows whose names actually contain node links.
     Used by referenced_nodes builders so inline link pills show resolved text
     instead of "..." for blocks whose names reference other nodes.
+
+    ``target_rows`` may be asyncpg records, domain Node objects, or dicts.
     """
-    import re
-
-    from ...domain.stringify_ast import NodeLinkResolution, StringifyMode, StringifyOptions, parse_ast, stringify_ast
-
-    link_node_uuids: set = set()
-    for row in target_rows:
-        name = row["name"] or ""
-        for match in re.finditer(r'"link_id"\s*:\s*"([^"]+)"', name):
-            link_id = match.group(1)
-            colon = link_id.find(":")
-            node_uuid = link_id[:colon] if colon > 0 else link_id
-            link_node_uuids.add(node_uuid)
-
-    link_target_map: dict[str, Any] = {}
-    if link_node_uuids:
-        async with acquire_connection(pool) as conn:
-            uuid_list = list(link_node_uuids)
-            placeholders = ", ".join(f"${i + 2}" for i in range(len(uuid_list)))
-            rows = await conn.fetch(
-                f"SELECT uuid, name FROM node WHERE workspace_id = $1 AND uuid::text IN ({placeholders})",
-                workspace_id,
-                *uuid_list,
-            )
-            for ref_row in rows:
-                link_target_map[str(ref_row["uuid"])] = parse_ast(ref_row["name"])
-
-    if not link_target_map:
-        return {}
-
-    def _resolve_link(link_id: str):
-        colon = link_id.find(":")
-        node_uuid = link_id[:colon] if colon > 0 else link_id
-        target_ast = link_target_map.get(node_uuid)
-        if target_ast is None:
-            return None
-        return NodeLinkResolution(target_ast=target_ast, label=None, target_id=node_uuid)
-
-    opts = StringifyOptions(
-        mode=StringifyMode.TEXT_ONLY,
-        resolve_node_link=_resolve_link,
-    )
-
-    result: dict[str, str] = {}
-    for row in target_rows:
-        name = row["name"] or ""
-        if '"link_id"' in name:
-            resolved = stringify_ast(parse_ast(name), opts)
-            if resolved:
-                result[str(row["uuid"])] = resolved
-
-    return result
+    return await service.resolve_referenced_display_names(target_rows)
 
 
 def _format_date_with_pattern(year: int, month: int, day: int, pattern: str) -> str:

@@ -10,9 +10,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
 from pydantic import BaseModel
 
+from ..dependencies import get_current_user
 from ..models import ExportFormat, ExportRequest, User
 from ..node_export import export_nodes as _run_export
-from .auth import get_current_user
 
 router = APIRouter(prefix="/export", tags=["Export"])
 

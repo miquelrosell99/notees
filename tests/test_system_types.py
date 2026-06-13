@@ -6,11 +6,12 @@ This tests the following constraints:
 3. System types cannot have the "type" type removed from them
 """
 import pytest
+import pytest_asyncio
 
 from app.db.schema import SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def node_service(db_pool, test_user):
     """Create a NodeService for testing."""
     from app.domain.repositories import (
@@ -45,11 +46,11 @@ async def node_service(db_pool, test_user):
     return service
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def system_type_ids(db_pool, test_user):
     """Get system type IDs for the test workspace."""
     workspace_id = test_user["workspace_id"]
-    
+
     async with db_pool.acquire() as conn:
         ids = {}
         for name in ['day', 'month', 'year', 'class', 'task', 'page']:
@@ -58,7 +59,7 @@ async def system_type_ids(db_pool, test_user):
                 SYSTEM_CLASS_UUIDS[name], workspace_id
             )
             ids[name] = row['id'] if row else None
-    
+
     return ids
 
 

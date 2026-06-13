@@ -1,8 +1,11 @@
 """Authentication module for Notees.
 
 Handles user authentication, JWT tokens, and password hashing.
-Uses PostgreSQL for user storage.
+User persistence is delegated to ``UserRepository``; this module keeps the
+password/token cryptography and the in-memory user cache.
 """
+
+from __future__ import annotations
 
 import secrets
 import string
@@ -16,7 +19,10 @@ from jwt import PyJWTError
 from passlib.context import CryptContext
 
 from .config import settings
-from .db.connection import get_connection
+from .db.connection import get_pool
+from .domain.entities import User, UserCreateData
+from .domain.repositories import PostgresUserRepository
+from .domain.repositories.interfaces import UserRepository
 from .logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -30,6 +36,30 @@ _USER_CACHE_TTL = 300  # 5 minutes
 def clear_user_cache(user_id: str) -> None:
     """Invalidate the in-memory user cache for a single user."""
     _user_cache.pop(user_id, None)
+
+
+async def _get_user_repo() -> UserRepository:
+    """Return a UserRepository backed by the current pool."""
+    return PostgresUserRepository(await get_pool())
+
+
+def _user_to_dict(user: User, include_hash: bool = False) -> dict:
+    """Convert a User entity to the dict shape used by API callers."""
+    result = {
+        "id": str(user.id) if user.id is not None else None,
+        "uuid": user.uuid,
+        "email": user.email,
+        "name": user.name,
+        "surnames": user.surnames,
+        "profile_pic": user.profile_pic,
+        "role": user.role,
+        "is_active": user.active,
+        "created_at": user.create_date,
+    }
+    if include_hash:
+        result["hashed_password"] = user.password_hash
+    return result
+
 
 # Password hashing context.
 # Primary: bcrypt (recommended by the security-hardening skill).
@@ -71,13 +101,9 @@ async def rehash_password(user_id: str | int, password: str) -> None:
 
     Call this after a successful login when password_needs_rehash() is True.
     """
+    repo = await _get_user_repo()
     new_hash = hash_password(password)
-    async with get_connection() as conn:
-        await conn.execute(
-            'UPDATE "user" SET password_hash = $1 WHERE id = $2',
-            new_hash,
-            int(user_id),
-        )
+    await repo.update_password_hash(str(user_id), new_hash)
     clear_user_cache(str(user_id))
 
 
@@ -115,60 +141,21 @@ async def get_user_by_id(user_id: str) -> dict | None:
         if now - cached_at < _USER_CACHE_TTL:
             return user_dict
 
-    async with get_connection() as conn:
-        row = await conn.fetchrow(
-            """
-            SELECT id, uuid, email, password_hash as hashed_password, name, surnames,
-                   profile_pic, role, active, create_date as created_at
-            FROM "user"
-            WHERE id::text = $1 OR uuid::text = $1
-            """,
-            user_id,
-        )
-        if row:
-            result = {
-                "id": str(row["id"]),
-                "uuid": str(row["uuid"]),
-                "email": row["email"],
-                "name": row["name"],
-                "surnames": row["surnames"],
-                "profile_pic": row["profile_pic"],
-                "role": row["role"],
-                # Deliberately omit hashed_password from the cached dict. Auth code
-                # that needs the hash fetches it explicitly via get_user_by_email.
-                "is_active": row["active"],
-                "created_at": row["created_at"].isoformat() if row["created_at"] else None,
-            }
-            _user_cache[user_id] = (result, now)
-            return result
+    repo = await _get_user_repo()
+    user = await repo.get_by_id_or_uuid(user_id)
+    if user:
+        result = _user_to_dict(user, include_hash=False)
+        _user_cache[user_id] = (result, now)
+        return result
     return None
 
 
 async def get_user_by_email(email: str) -> dict | None:
-    """Get a user by email."""
-    async with get_connection() as conn:
-        row = await conn.fetchrow(
-            """
-            SELECT id, uuid, email, password_hash as hashed_password, name, surnames,
-                   profile_pic, role, active, create_date as created_at
-            FROM "user"
-            WHERE email = $1
-            """,
-            email,
-        )
-        if row:
-            return {
-                "id": str(row["id"]),
-                "uuid": str(row["uuid"]),
-                "email": row["email"],
-                "name": row["name"],
-                "surnames": row["surnames"],
-                "profile_pic": row["profile_pic"],
-                "role": row["role"],
-                "hashed_password": row["hashed_password"],
-                "is_active": row["active"],
-                "created_at": row["created_at"].isoformat() if row["created_at"] else None,
-            }
+    """Get a user by email, including the password hash for authentication."""
+    repo = await _get_user_repo()
+    user = await repo.get_by_email(email)
+    if user:
+        return _user_to_dict(user, include_hash=True)
     return None
 
 
@@ -181,111 +168,50 @@ async def create_user(
     role: str = "user",
 ) -> dict:
     """Create a new user."""
-    existing = await get_user_by_email(email)
+    repo = await _get_user_repo()
+    existing = await repo.get_by_email(email)
     if existing:
-        logger.warning(f"Attempted to create duplicate user: {email}")
+        logger.warning("Attempted to create duplicate user")
         raise ValueError(f"Email '{email}' already exists")
 
     hashed = hash_password(password)
-
-    async with get_connection() as conn:
-        row = await conn.fetchrow(
-            """
-            INSERT INTO "user" (email, password_hash, name, surnames, profile_pic, role, active)
-            VALUES ($1, $2, $3, $4, $5, $6, TRUE)
-            RETURNING id, uuid, email, name, surnames, profile_pic, role, active, create_date as created_at
-            """,
-            email,
-            hashed,
-            name,
-            surnames,
-            profile_pic,
-            role,
-        )
-        if row is None:
-            raise RuntimeError("Failed to create user")
-
-        user = {
-            "id": str(row["id"]),
-            "uuid": str(row["uuid"]),
-            "email": row["email"],
-            "name": row["name"],
-            "surnames": row["surnames"],
-            "profile_pic": row["profile_pic"],
-            "role": row["role"],
-            "is_active": row["active"],
-            "created_at": row["created_at"].isoformat() if row["created_at"] else None,
-        }
-
-        logger.info(f"Created new user: {email} (ID: {user['id']}, role: {role})")
-        return user
+    data = UserCreateData(
+        email=email,
+        password=password,
+        name=name,
+        surnames=surnames,
+        profile_pic=profile_pic,
+        role=role,
+    )
+    user = await repo.create(data, hashed)
+    result = _user_to_dict(user, include_hash=False)
+    logger.info(f"Created new user (user_id={result['id']}, role={role})")
+    return result
 
 
 async def update_user(user_id: str, **fields) -> dict | None:
     """Update a user's profile fields."""
-    allowed = {"name", "surnames", "profile_pic"}
-    updates = {k: v for k, v in fields.items() if k in allowed and v is not None}
-    if not updates:
-        return await get_user_by_id(user_id)
-
-    set_clauses = ", ".join(f"{k} = ${i + 2}" for i, k in enumerate(updates))
-    values = list(updates.values())
-
-    async with get_connection() as conn:
-        row = await conn.fetchrow(
-            f"""
-            UPDATE "user" SET {set_clauses}, write_date = NOW()
-            WHERE id::text = $1 OR uuid::text = $1
-            RETURNING id, uuid, email, name, surnames, profile_pic, role, active, create_date as created_at
-            """,
-            user_id,
-            *values,
-        )
-        if row:
-            # Invalidate cache
-            _user_cache.pop(user_id, None)
-            return {
-                "id": str(row["id"]),
-                "uuid": str(row["uuid"]),
-                "email": row["email"],
-                "name": row["name"],
-                "surnames": row["surnames"],
-                "profile_pic": row["profile_pic"],
-                "role": row["role"],
-                "is_active": row["active"],
-                "created_at": row["created_at"],
-            }
+    repo = await _get_user_repo()
+    user = await repo.update_profile(
+        user_id,
+        name=fields.get("name"),
+        surnames=fields.get("surnames"),
+        profile_pic=fields.get("profile_pic"),
+    )
+    if user:
+        clear_user_cache(user_id)
+        return _user_to_dict(user, include_hash=False)
     return None
 
 
 async def update_password(user_id: str, password: str) -> dict | None:
     """Update a user's password hash and invalidate the cached user record."""
+    repo = await _get_user_repo()
     hashed = hash_password(password)
-
-    async with get_connection() as conn:
-        row = await conn.fetchrow(
-            """
-            UPDATE "user"
-            SET password_hash = $2, write_date = NOW()
-            WHERE id::text = $1 OR uuid::text = $1
-            RETURNING id, uuid, email, name, surnames, profile_pic, role, active, create_date as created_at
-            """,
-            user_id,
-            hashed,
-        )
-        if row:
-            _user_cache.pop(user_id, None)
-            return {
-                "id": str(row["id"]),
-                "uuid": str(row["uuid"]),
-                "email": row["email"],
-                "name": row["name"],
-                "surnames": row["surnames"],
-                "profile_pic": row["profile_pic"],
-                "role": row["role"],
-                "is_active": row["active"],
-                "created_at": row["created_at"].isoformat() if row["created_at"] else None,
-            }
+    user = await repo.update_password_hash(user_id, hashed)
+    if user:
+        clear_user_cache(user_id)
+        return _user_to_dict(user, include_hash=False)
     return None
 
 
@@ -293,29 +219,27 @@ async def authenticate_user(email: str, password: str) -> dict | None:
     """Authenticate a user and return user data if valid."""
     user = await get_user_by_email(email)
     if not user:
-        logger.warning(f"Authentication failed for '{email}': user not found")
+        logger.warning("Authentication failed: user not found")
         return None
 
     verified = verify_password(password, user.get("hashed_password", ""))
-    logger.debug(f"Authentication attempt for user '{email}': verified={bool(verified)}")
+    logger.debug(f"Authentication attempt (user_id={user['id']}): verified={bool(verified)}")
     if not verified:
-        logger.warning(f"Authentication failed for '{email}': invalid password")
+        logger.warning(f"Authentication failed (user_id={user['id']}): invalid password")
         return None
 
     if not user.get("is_active", True):
-        logger.warning(f"Authentication failed for '{email}': account inactive")
+        logger.warning(f"Authentication failed (user_id={user['id']}): account inactive")
         return None
 
-
-    logger.info(f"Authentication successful for user '{email}' (id={user.get('id')})")
+    logger.info(f"Authentication successful (user_id={user.get('id')})")
     return user
 
 
 async def is_first_boot() -> bool:
     """Check if the system has no users yet (first boot)."""
-    async with get_connection() as conn:
-        count = await conn.fetchval('SELECT COUNT(*) FROM "user"')
-        return count == 0
+    repo = await _get_user_repo()
+    return await repo.count_users() == 0
 
 
 async def get_current_user_from_token(token: str) -> dict | None:
@@ -380,7 +304,9 @@ def verify_api_key(key: str, hashed: str) -> bool:
         return False
 
 
-async def create_api_key(user_id: int, name: str, scopes: list[str] | None = None, expires_at: datetime | None = None) -> dict:
+async def create_api_key(
+    user_id: int, name: str, scopes: list[str] | None = None, expires_at: datetime | None = None
+) -> dict:
     """Create a new API key for a user.
 
     Returns the plaintext key ONLY once. The caller must show it to the user
@@ -388,97 +314,40 @@ async def create_api_key(user_id: int, name: str, scopes: list[str] | None = Non
     """
     key = generate_api_key()
     key_hash = hash_api_key(key)
-    # Store a prefix + last-4 lookup key so authentication can hit an index
-    # instead of scanning/bcrypt-verifying every active key.
     key_prefix = key[len(_API_KEY_PREFIX):len(_API_KEY_PREFIX) + 8]
     last_4 = key[-4:]
     scopes_json = scopes if scopes is not None else ["read", "write"]
 
-    async with get_connection() as conn:
-        row = await conn.fetchrow(
-            """
-            INSERT INTO api_key (user_id, name, key_hash, scopes, key_prefix, last_4, expires_at)
-            VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7)
-            RETURNING id, uuid, name, scopes, key_prefix, last_4, revoked, create_date, expires_at
-            """,
-            user_id,
-            name,
-            key_hash,
-            scopes_json,
-            key_prefix,
-            last_4,
-            expires_at,
-        )
-        if row is None:
-            raise RuntimeError("Failed to create API key")
-
-        return {
-            "id": str(row["id"]),
-            "uuid": str(row["uuid"]),
-            "name": row["name"],
-            "key": key,
-            "scopes": row["scopes"],
-            "last_4": row["last_4"],
-            "revoked": row["revoked"],
-            "created_at": row["create_date"].isoformat() if row["create_date"] else None,
-            "expires_at": row["expires_at"].isoformat() if row["expires_at"] else None,
-        }
+    repo = await _get_user_repo()
+    record = await repo.create_api_key(
+        user_id=user_id,
+        name=name,
+        key_hash=key_hash,
+        scopes=scopes_json,
+        key_prefix=key_prefix,
+        last_4=last_4,
+        expires_at=expires_at,
+    )
+    record["key"] = key
+    return record
 
 
 async def list_api_keys(user_id: int) -> list[dict]:
     """List all non-revoked API keys for a user."""
-    async with get_connection() as conn:
-        rows = await conn.fetch(
-            """
-            SELECT id, uuid, name, scopes, last_4, last_used_at, revoked, create_date, expires_at
-            FROM api_key
-            WHERE user_id = $1 AND revoked = FALSE
-            ORDER BY create_date DESC
-            """,
-            user_id,
-        )
-        return [
-            {
-                "id": str(row["id"]),
-                "uuid": str(row["uuid"]),
-                "name": row["name"],
-                "scopes": row["scopes"],
-                "last_4": row["last_4"],
-                "last_used_at": row["last_used_at"].isoformat() if row["last_used_at"] else None,
-                "revoked": row["revoked"],
-                "created_at": row["create_date"].isoformat() if row["create_date"] else None,
-                "expires_at": row["expires_at"].isoformat() if row["expires_at"] else None,
-            }
-            for row in rows
-        ]
+    repo = await _get_user_repo()
+    return await repo.list_api_keys(user_id)
 
 
 async def revoke_all_user_api_keys(user_id: int) -> None:
     """Revoke all API keys for a user (e.g., password change)."""
-    async with get_connection() as conn:
-        await conn.execute(
-            """
-            UPDATE api_key
-            SET revoked = TRUE, write_date = NOW()
-            WHERE user_id = $1 AND revoked = FALSE
-            """,
-            user_id,
-        )
+    repo = await _get_user_repo()
+    await repo.revoke_all_api_keys(user_id)
 
 
 async def revoke_api_key(user_id: int, key_id: str) -> bool:
     """Revoke an API key. Returns True if the key existed and belonged to the user."""
-    async with get_connection() as conn:
-        result = await conn.execute(
-            """
-            UPDATE api_key SET revoked = TRUE, write_date = NOW()
-            WHERE id::text = $1 AND user_id = $2 AND revoked = FALSE
-            """,
-            key_id,
-            user_id,
-        )
-        # asyncpg execute returns a status string like "UPDATE 1"
-        return result.startswith("UPDATE 1")
+    repo = await _get_user_repo()
+    return await repo.revoke_api_key(user_id, key_id)
 
 
 async def authenticate_api_key(key: str) -> dict | None:
@@ -498,35 +367,19 @@ async def authenticate_api_key(key: str) -> dict | None:
     key_prefix = key[len(_API_KEY_PREFIX):len(_API_KEY_PREFIX) + 8]
     last_4 = key[-4:]
 
-    async with get_connection() as conn:
-        # Fetch only keys matching the indexed (prefix, last_4) pair. This avoids
-        # a full table scan and keeps the bcrypt verification set tiny.
-        rows = await conn.fetch(
-            """
-            SELECT id, user_id, key_hash, expires_at, scopes
-            FROM api_key
-            WHERE revoked = FALSE
-              AND (expires_at IS NULL OR expires_at > NOW())
-              AND key_prefix = $1
-              AND last_4 = $2
-            """,
-            key_prefix,
-            last_4,
-        )
+    repo = await _get_user_repo()
+    rows = await repo.find_api_key_candidates(key_prefix, last_4)
 
-        for row in rows:
-            if verify_api_key(key, row["key_hash"]):
-                # Update last_used_at
-                await conn.execute(
-                    "UPDATE api_key SET last_used_at = NOW() WHERE id = $1",
-                    row["id"],
-                )
-                user = await get_user_by_id(str(row["user_id"]))
-                if user:
-                    user["_api_key_scopes"] = row["scopes"] if row["scopes"] else ["read", "write"]
-                return user
+    for row in rows:
+        if verify_api_key(key, row["key_hash"]):
+            await repo.update_api_key_last_used(row["id"])
+            user = await get_user_by_id(str(row["user_id"]))
+            if user:
+                user["_api_key_scopes"] = row["scopes"] if row["scopes"] else ["read", "write"]
+            return user
 
     return None
+
 
 # ─── Refresh Token Management ────────────────────────────────────
 
@@ -554,23 +407,11 @@ def verify_refresh_token(token: str, hashed: str) -> bool:
 
 async def create_refresh_token_db(user_id: int, token: str, family_id: str | None = None) -> dict:
     """Store a refresh token in the database. Returns the DB row dict."""
+    repo = await _get_user_repo()
     token_hash = hash_refresh_token(token)
     expires_at = datetime.now(UTC) + timedelta(days=settings.refresh_token_expire_days)
     family = family_id or str(uuid.uuid4())
-
-    async with get_connection() as conn:
-        row = await conn.fetchrow(
-            """
-            INSERT INTO refresh_token (user_id, token_hash, expires_at, family_id)
-            VALUES ($1, $2, $3, $4)
-            RETURNING id, user_id, family_id, expires_at, created_at
-            """,
-            user_id,
-            token_hash,
-            expires_at,
-            family,
-        )
-        return dict(row) if row else {}
+    return await repo.create_refresh_token(user_id, token_hash, expires_at, family)
 
 
 async def verify_refresh_token_db(token: str) -> dict | None:
@@ -579,29 +420,19 @@ async def verify_refresh_token_db(token: str) -> dict | None:
     Returns the token row dict if valid, None otherwise.
     Does NOT rotate or revoke — just verifies.
     """
-    async with get_connection() as conn:
-        # Fetch non-revoked, non-expired tokens for this user
-        rows = await conn.fetch(
-            """
-            SELECT id, user_id, token_hash, family_id, expires_at, revoked_at, replaced_by
-            FROM refresh_token
-            WHERE revoked_at IS NULL AND expires_at > NOW()
-            """
-        )
-        for row in rows:
-            if verify_refresh_token(token, row["token_hash"]):
-                return dict(row)
+    repo = await _get_user_repo()
+    rows = await repo.list_active_refresh_tokens()
+    for row in rows:
+        if verify_refresh_token(token, row["token_hash"]):
+            return row
     return None
 
 
 async def is_refresh_token_reused(token_id: int) -> bool:
     """Return True if the refresh token has already been rotated (reused)."""
-    async with get_connection() as conn:
-        replaced = await conn.fetchval(
-            "SELECT replaced_by FROM refresh_token WHERE id = $1",
-            token_id,
-        )
-        return replaced is not None
+    repo = await _get_user_repo()
+    replaced = await repo.get_refresh_token_replacement(token_id)
+    return replaced is not None
 
 
 async def rotate_refresh_token(old_token_id: int, new_token: str) -> dict:
@@ -609,66 +440,19 @@ async def rotate_refresh_token(old_token_id: int, new_token: str) -> dict:
 
     Returns the new token row dict.
     """
+    repo = await _get_user_repo()
     token_hash = hash_refresh_token(new_token)
     expires_at = datetime.now(UTC) + timedelta(days=settings.refresh_token_expire_days)
-
-    async with get_connection() as conn, conn.transaction():
-            # Get old token's family_id and user_id
-            old_row = await conn.fetchrow(
-                "SELECT user_id, family_id FROM refresh_token WHERE id = $1",
-                old_token_id,
-            )
-            if not old_row:
-                raise ValueError("Old refresh token not found")
-
-            # Create new token
-            new_row = await conn.fetchrow(
-                """
-                INSERT INTO refresh_token (user_id, token_hash, expires_at, family_id)
-                VALUES ($1, $2, $3, $4)
-                RETURNING id, user_id, family_id, expires_at, created_at
-                """,
-                old_row["user_id"],
-                token_hash,
-                expires_at,
-                old_row["family_id"],
-            )
-
-            # Revoke old token and set replaced_by
-            await conn.execute(
-                """
-                UPDATE refresh_token
-                SET revoked_at = NOW(), replaced_by = $1
-                WHERE id = $2
-                """,
-                new_row["id"],
-                old_token_id,
-            )
-
-            return dict(new_row)
+    return await repo.rotate_refresh_token(old_token_id, token_hash, expires_at)
 
 
 async def revoke_refresh_token_family(family_id: str) -> None:
     """Revoke all refresh tokens in a family (reuse detection)."""
-    async with get_connection() as conn:
-        await conn.execute(
-            """
-            UPDATE refresh_token
-            SET revoked_at = NOW()
-            WHERE family_id = $1 AND revoked_at IS NULL
-            """,
-            family_id,
-        )
+    repo = await _get_user_repo()
+    await repo.revoke_refresh_token_family(family_id)
 
 
 async def revoke_all_user_refresh_tokens(user_id: int) -> None:
     """Revoke all refresh tokens for a user (e.g., password change)."""
-    async with get_connection() as conn:
-        await conn.execute(
-            """
-            UPDATE refresh_token
-            SET revoked_at = NOW()
-            WHERE user_id = $1 AND revoked_at IS NULL
-            """,
-            user_id,
-        )
+    repo = await _get_user_repo()
+    await repo.revoke_all_user_refresh_tokens(user_id)

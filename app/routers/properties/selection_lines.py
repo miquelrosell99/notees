@@ -2,9 +2,9 @@
 
 from fastapi import APIRouter, Depends, HTTPException
 
+from ...dependencies import get_current_user
 from ...domain.entities import PropertyType
 from ...models import User
-from ..auth import get_current_user
 from .helpers import _get_property_repo
 from .models import SelectionLineRequest, SelectionLineResponse, SelectionLineUpdateRequest
 

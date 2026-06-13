@@ -234,6 +234,31 @@ class PostgresNodeHierarchyMixin(_PostgresNodeBase):
             )
             return [row["id"] for row in rows]
 
+    async def get_descendants_ordered(self, node_id: int) -> list[object]:
+        """Get all descendants as Node entities ordered by depth then sequence."""
+        async with acquire_connection(self._pool) as conn:
+            rows = await conn.fetch(
+                """
+                WITH RECURSIVE descendants AS (
+                    SELECT id, 0 AS depth
+                    FROM node
+                    WHERE id = $1 AND workspace_id = $2 AND active = TRUE AND is_deleted = FALSE AND is_comment = FALSE
+                    UNION ALL
+                    SELECT n.id, d.depth + 1
+                    FROM node n
+                    INNER JOIN descendants d ON n.parent_id = d.id
+                    WHERE n.workspace_id = $2 AND n.active = TRUE AND n.is_deleted = FALSE AND n.is_comment = FALSE
+                )
+                SELECT n.* FROM descendants d
+                JOIN node n ON n.id = d.id
+                WHERE d.depth > 0 AND (n.is_deleted = FALSE OR n.is_deleted IS NULL)
+                ORDER BY d.depth, n.sequence
+            """,
+                node_id,
+                self._workspace_id,
+            )
+            return [self._row_to_node(row) for row in rows]
+
     async def get_descendants_batch(
         self,
         node_ids: list[int],

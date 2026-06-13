@@ -110,14 +110,115 @@ class TestNodeRetrieval:
         """Test listing all nodes."""
         # Create a node first
         await authenticated_client.post("/api/nodes/", json=sample_node_data)
-        
+
         # List nodes
         response = await authenticated_client.get("/api/nodes/")
         assert response.status_code == 200
-        
+
         data = response.json()
         assert "items" in data
         assert isinstance(data["items"], list)
+
+    @pytest.mark.asyncio
+    async def test_list_nodes_pages_only_pagination(
+        self,
+        authenticated_client: AsyncClient,
+        test_user: dict,
+    ):
+        """pages_only honors page/page_size and returns bounded slices."""
+        page_class_id = test_user["page_class_id"]
+        names = ["PgTest-A", "PgTest-B", "PgTest-C", "PgTest-D", "PgTest-E"]
+        for name in names:
+            response = await authenticated_client.post(
+                "/api/nodes/",
+                json={"name": name, "classes": [page_class_id]},
+            )
+            assert response.status_code == 200
+
+        params = {
+            "pages_only": "true",
+            "page_size": 2,
+            "sort_by": "write_date",
+            "order": "desc",
+        }
+
+        def _our(items):
+            return [item for item in items if "PgTest-" in item["name"]]
+
+        page1 = await authenticated_client.get("/api/nodes/", params={**params, "page": 1})
+        assert page1.status_code == 200
+        data1 = page1.json()
+        our1 = _our(data1["items"])
+        assert [name in item["name"] for item, name in zip(our1, ["PgTest-E", "PgTest-D"])]
+
+        page2 = await authenticated_client.get("/api/nodes/", params={**params, "page": 2})
+        assert page2.status_code == 200
+        data2 = page2.json()
+        our2 = _our(data2["items"])
+        assert [name in item["name"] for item, name in zip(our2, ["PgTest-C", "PgTest-B"])]
+
+        page3 = await authenticated_client.get("/api/nodes/", params={**params, "page": 3})
+        assert page3.status_code == 200
+        data3 = page3.json()
+        our3 = _our(data3["items"])
+        assert [name in item["name"] for item, name in zip(our3, ["PgTest-A"])]
+
+    @pytest.mark.asyncio
+    async def test_list_nodes_pages_only_caps_page_size(
+        self,
+        authenticated_client: AsyncClient,
+        test_user: dict,
+    ):
+        """Excessive page_size for pages_only is capped at 5000."""
+        page_class_id = test_user["page_class_id"]
+        for name in ("PgTest-One", "PgTest-Two"):
+            response = await authenticated_client.post(
+                "/api/nodes/",
+                json={"name": name, "classes": [page_class_id]},
+            )
+            assert response.status_code == 200
+
+        response = await authenticated_client.get(
+            "/api/nodes/",
+            params={"pages_only": "true", "page_size": 10000},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        # The cap is enforced in the repository; with few pages the effective
+        # page_size equals the total returned.
+        assert data["total"] <= 5000
+        assert data["page_size"] <= 5000
+        assert len(data["items"]) <= 5000
+        our_names = [item["name"] for item in data["items"] if "PgTest-" in item["name"]]
+        assert any("PgTest-One" in name for name in our_names)
+        assert any("PgTest-Two" in name for name in our_names)
+
+    @pytest.mark.asyncio
+    async def test_list_nodes_pages_only_defaults_page_size(
+        self,
+        authenticated_client: AsyncClient,
+        test_user: dict,
+    ):
+        """pages_only defaults to a bounded result set when page_size is omitted."""
+        page_class_id = test_user["page_class_id"]
+        response = await authenticated_client.post(
+            "/api/nodes/",
+            json={"name": "PgTest-Solo", "classes": [page_class_id]},
+        )
+        assert response.status_code == 200
+
+        response = await authenticated_client.get(
+            "/api/nodes/",
+            params={"pages_only": "true"},
+        )
+        assert response.status_code == 200
+        data = response.json()
+        # The repository default limit bounds the unbounded request.
+        assert data["total"] <= 1000
+        assert data["page_size"] <= 1000
+        assert len(data["items"]) <= 1000
+        our_names = [item["name"] for item in data["items"] if "PgTest-" in item["name"]]
+        assert any("PgTest-Solo" in name for name in our_names)
 
 
 class TestNodeUpdate:

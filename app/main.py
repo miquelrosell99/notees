@@ -40,7 +40,6 @@ from pyrate_limiter import Duration, Limiter, Rate
 from starlette.responses import RedirectResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-from . import auth as auth_module
 from .backup import get_backup_scheduler
 from .cleanup import get_cleanup_scheduler
 from .config import ensure_directories, settings
@@ -52,6 +51,7 @@ from .domain.errors import (
     NodeNotFoundError,
     PermissionDeniedError,
 )
+from .domain.repositories import PostgresUserRepository
 from .logging_config import get_logger, setup_logging
 from .node_export import get_static_share_path
 from .rate_limit import PerKeyBucketFactory, ip_only_identifier
@@ -102,24 +102,23 @@ async def lifespan(app: FastAPI):
         # Ensure an admin exists. If ADMIN_PASSWORD is set and no admin exists,
         # create the initial admin automatically. Otherwise warn so the operator
         # knows to run the promotion script.
-        async with acquire_connection(pool) as conn:
-            admin_count = await conn.fetchval(
-                "SELECT COUNT(*) FROM \"user\" WHERE role = 'admin' AND active = TRUE"
-            )
-            if admin_count == 0:
-                admin_password = os.environ.get("ADMIN_PASSWORD", "").strip()
-                if admin_password:
-                    try:
-                        await auth_module.create_user(
-                            email="admin@notees.local",
-                            password=admin_password,
-                            name="Admin",
-                            role="admin",
-                        )
-                        logger.info("Created initial admin user from ADMIN_PASSWORD")
-                    except Exception as e:
-                        logger.error(f"Failed to create initial admin user: {e}")
-                else:
+        admin_password = os.environ.get("ADMIN_PASSWORD", "").strip()
+        if admin_password:
+            try:
+                user_repo = PostgresUserRepository(pool)
+                created = await user_repo.ensure_initial_admin(
+                    "admin@notees.local", admin_password
+                )
+                if created:
+                    logger.info("Created initial admin user from ADMIN_PASSWORD")
+            except Exception as e:
+                logger.error(f"Failed to create initial admin user: {e}")
+        else:
+            async with acquire_connection(pool) as conn:
+                admin_count = await conn.fetchval(
+                    'SELECT COUNT(*) FROM "user" WHERE role = \'admin\' AND active = TRUE'
+                )
+                if admin_count == 0:
                     logger.warning(
                         "No admin user found. To create an admin, run: python scripts/promote_user_to_admin.py <email>"
                     )
@@ -230,8 +229,15 @@ class LimitUploadSizeMiddleware:
 app.add_middleware(LimitUploadSizeMiddleware, max_size=MAX_REQUEST_BODY_SIZE)
 
 def _is_production() -> bool:
-    """Return True when running in a production environment."""
-    return settings.environment.lower() == "production" or not settings.reload
+    """Return True when running in a production environment.
+
+    Hardened security headers (HSTS, HTTPS redirect) are only enabled when
+    ENVIRONMENT is explicitly set to "production". The previous fallback based on
+    the reload flag was unsafe because development defaults (reload=True) could
+    accidentally trigger hardened behavior, and production deployments that set
+    reload=False without setting ENVIRONMENT would still miss the headers.
+    """
+    return settings.environment.lower() == "production"
 
 
 # Configure CORS if origins are specified
@@ -254,6 +260,12 @@ if cors_origins:
         max_age=600,
     )
     logger.info(f"CORS enabled for origins: {cors_origins}")
+    if settings.environment.lower() == "production":
+        logger.warning(
+            "CORS is enabled with allow_credentials=True in production. "
+            "Ensure CORS_ORIGINS is restricted to trusted origins; allowing credentials "
+            "with broad origins can expose authenticated requests to CSRF-like attacks."
+        )
 
 
 # Security headers middleware
@@ -491,11 +503,10 @@ if dist_path.exists():
 
 
 
-# Global default rate limit: 5000 requests per minute per IP.
-# A modern React SPA can easily fire 50–100 requests when loading a complex page
-# (node details, children, properties, backlinks, views, etc.). 200 req/min shared
-# across *all* keys caused routine browsing to hit 429 Too Many Requests.
-_default_api_limiter = Limiter(PerKeyBucketFactory([Rate(5000, Duration.MINUTE)]))
+# Global default rate limit: 120 requests per minute per IP.
+# This is a self-hosted notes app; 120 req/min per client is generous for normal
+# browsing while still protecting against accidental abuse or runaway scripts.
+_default_api_limiter = Limiter(PerKeyBucketFactory([Rate(120, Duration.MINUTE)]))
 
 api_router = APIRouter(
     prefix="/api",

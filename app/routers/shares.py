@@ -4,27 +4,15 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from ..db.connection import acquire_connection, get_pool
-from ..dependencies import _get_workspace_context_cached
-from ..domain.repositories import PostgresNodeRepository, PostgresShareRepository
-from ..domain.services.share_service import ShareService
+from ..dependencies import _get_share_service, get_current_user, get_node_repository, get_share_repository
+from ..domain.repositories.interfaces import NodeRepository, ShareRepository
 from ..logging_config import get_logger
 from ..models import PaginatedResponse, User
 from ..node_export import delete_share_html
-from .auth import get_current_user
 from .nodes.helpers import _name_text, _resolve_referenced_display_names
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/shares", tags=["Shares"])
-
-
-async def _get_share_service(user: User) -> ShareService:
-    pool = await get_pool()
-    user_id = int(user.id)
-    workspace_id, _ = await _get_workspace_context_cached(pool, user_id)
-    share_repo = PostgresShareRepository(pool, workspace_id, user_id)
-    node_repo = PostgresNodeRepository(pool, workspace_id, user_id)
-    return ShareService(share_repo, node_repo, workspace_id, user_id)
 
 
 def _share_to_response(share, resolved_names: dict | None = None) -> dict:
@@ -48,6 +36,8 @@ def _share_to_response(share, resolved_names: dict | None = None) -> dict:
 @router.get("")
 async def list_workspace_shares(
     user: User = Depends(get_current_user),  # noqa: B008
+    share_repo: ShareRepository = Depends(get_share_repository),
+    node_repo: NodeRepository = Depends(get_node_repository),
 ):
     """List all active shares in the current workspace."""
     service = await _get_share_service(user)
@@ -61,8 +51,8 @@ async def list_workspace_shares(
     ]
     resolved = {}
     if share_rows:
-        pool = await get_pool()
-        workspace_id, _ = await _get_workspace_context_cached(pool, int(user.id))
+        pool = node_repo.get_connection()
+        workspace_id = node_repo.workspace_id
         resolved = await _resolve_referenced_display_names(pool, workspace_id, share_rows)
 
     return {"shares": [_share_to_response(s, resolved) for s in shares]}
@@ -93,42 +83,11 @@ async def get_share_inbox(
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=500),
     user: User = Depends(get_current_user),  # noqa: B008
+    share_repo: ShareRepository = Depends(get_share_repository),
+    node_repo: NodeRepository = Depends(get_node_repository),
 ):
     """Get all nodes shared with the current user (share inbox)."""
-    pool = await get_pool()
-    user_id = int(user.id)
-
-    async with acquire_connection(pool) as conn:
-        total = await conn.fetchval(
-            """
-            SELECT COUNT(*) FROM node_share ns
-            JOIN node n ON n.id = ns.node_id
-            WHERE ns.user_id = $1 AND ns.active = TRUE
-              AND n.active = TRUE AND n.is_deleted = FALSE
-            """,
-            user_id,
-        )
-        offset = (page - 1) * page_size
-        rows = await conn.fetch(
-            """
-            SELECT ns.id, ns.node_id, ns.can_read, ns.can_write,
-                   ns.create_date as shared_at, ns.create_uid as shared_by_id,
-                   u.email as shared_by_email,
-                   n.uuid as node_uuid, n.name as node_name, n.icon as node_icon,
-                   n.is_page, n.workspace_id, w.name as workspace_name, w.uuid as workspace_uuid
-            FROM node_share ns
-            JOIN node n ON n.id = ns.node_id
-            JOIN "user" u ON u.id = ns.create_uid
-            JOIN workspace w ON w.id = n.workspace_id
-            WHERE ns.user_id = $1 AND ns.active = TRUE
-              AND n.active = TRUE AND n.is_deleted = FALSE
-            ORDER BY ns.create_date DESC
-            LIMIT $2 OFFSET $3
-            """,
-            user_id,
-            page_size,
-            offset,
-        )
+    total, rows = await share_repo.list_share_inbox(int(user.id), page, page_size)
 
     # Resolve node names that contain inline links to plain text
     from collections import defaultdict
@@ -137,6 +96,7 @@ async def get_share_inbox(
     for r in rows:
         workspace_rows[r["workspace_id"]].append({"name": r["node_name"], "uuid": r["node_uuid"]})
 
+    pool = node_repo.get_connection()
     resolved: dict[str, str] = {}
     for ws_id, ws_rows in workspace_rows.items():
         ws_resolved = await _resolve_referenced_display_names(pool, ws_id, ws_rows)
@@ -167,9 +127,9 @@ async def get_share_inbox(
 
     return PaginatedResponse[dict](
         items=items,
-        total=total or 0,
+        total=total,
         page=page,
         page_size=page_size,
-        has_next=(page * page_size) < (total or 0),
+        has_next=(page * page_size) < total,
         has_prev=page > 1,
     )

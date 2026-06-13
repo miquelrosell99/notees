@@ -5,11 +5,11 @@ Comments are child nodes with is_comment=true, stored directly under the target 
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from ...db.connection import acquire_connection
 from ...db.schema.constants import SYSTEM_CLASS_UUIDS
+from ...dependencies import get_current_user, get_node_repository
 from ...domain.entities import NodeCreateData
+from ...domain.repositories.interfaces import NodeRepository
 from ...models import PaginatedResponse, User
-from ..auth import get_current_user
 from .helpers import _build_children_response, _get_class_ids_batch, _get_node_service, _node_to_response
 from .models import CommentCreateRequest, NodeResponse
 
@@ -22,6 +22,7 @@ async def get_comments(
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=500),
     user: User = Depends(get_current_user),
+    repo: NodeRepository = Depends(get_node_repository),
 ):
     """Get all comments for a node.
 
@@ -40,34 +41,8 @@ async def get_comments(
         raise HTTPException(403, "Not allowed to view comments")
 
     # Get comment child nodes for this node (paginated top-level only)
-    pool = service.pool
-    offset = (page - 1) * page_size
+    total, comment_ids = await repo.get_comment_ids_paginated(node_id, page, page_size)
 
-    async with acquire_connection(pool) as conn:
-        count_row = await conn.fetchrow(
-            """
-            SELECT COUNT(*) as total FROM node
-            WHERE parent_id = $1 AND is_comment = TRUE AND active = TRUE
-                  AND (is_deleted = FALSE OR is_deleted IS NULL)
-            """,
-            node_id,
-        )
-        total = count_row["total"] if count_row else 0
-
-        rows = await conn.fetch(
-            """
-            SELECT id FROM node
-            WHERE parent_id = $1 AND is_comment = TRUE AND active = TRUE
-                  AND (is_deleted = FALSE OR is_deleted IS NULL)
-            ORDER BY sequence, create_date
-            LIMIT $2 OFFSET $3
-            """,
-            node_id,
-            page_size,
-            offset,
-        )
-
-    comment_ids = [row["id"] for row in rows]
     if not comment_ids:
         return PaginatedResponse[NodeResponse](
             items=[], total=total, page=page, page_size=page_size, has_next=False, has_prev=page > 1
@@ -85,7 +60,7 @@ async def get_comments(
 
     # Batch-fetch class IDs for all nodes
     all_ids = [n.id for n in all_nodes if n.id]
-    class_ids_map = await _get_class_ids_batch(pool, service.workspace_id or 0, all_ids) if all_ids else {}
+    class_ids_map = await _get_class_ids_batch(service, all_ids) if all_ids else {}
 
     # Build top-level comment responses with nested children
     comments = []
@@ -113,6 +88,7 @@ async def create_comment(
     node_id: int,
     request: CommentCreateRequest,
     user: User = Depends(get_current_user),
+    repo: NodeRepository = Depends(get_node_repository),
 ):
     """Create a new comment on a node.
 
@@ -144,16 +120,7 @@ async def create_comment(
         actual_parent_id = request.parent_comment_id
 
     # Get the next sequence number for comments under the parent
-    pool = service.pool
-    seq_row = await pool.fetchrow(
-        """
-        SELECT COALESCE(MAX(sequence), -1) + 1 as next_seq
-        FROM node WHERE parent_id = $1 AND is_comment = TRUE AND active = TRUE
-              AND (is_deleted = FALSE OR is_deleted IS NULL)
-    """,
-        actual_parent_id,
-    )
-    next_seq = seq_row["next_seq"] if seq_row else 0
+    next_seq = await repo.get_next_comment_sequence(actual_parent_id)
 
     # Create the comment node as a child with Comment class
     data = NodeCreateData(
@@ -168,11 +135,7 @@ async def create_comment(
     if not comment_node.id:
         raise HTTPException(500, "Failed to create comment node")
 
-    classes = await _get_class_ids_batch(
-        service.pool,
-        service.workspace_id or 0,
-        [comment_node.id],
-    )
+    classes = await _get_class_ids_batch(service, [comment_node.id])
     return _node_to_response(comment_node, classes=classes.get(comment_node.id, []))
 
 
@@ -206,21 +169,11 @@ async def delete_comment(
 async def get_comment_count(
     node_id: int,
     user: User = Depends(get_current_user),
+    repo: NodeRepository = Depends(get_node_repository),
 ):
     """Get the count of comments for a node.
 
     Useful for showing comment indicators without loading all comments.
     """
-    service = await _get_node_service(user)
-
-    pool = service.pool
-    row = await pool.fetchrow(
-        """
-        SELECT COUNT(*) as count FROM node
-        WHERE parent_id = $1 AND is_comment = TRUE AND active = TRUE
-              AND (is_deleted = FALSE OR is_deleted IS NULL)
-    """,
-        node_id,
-    )
-
-    return {"count": row["count"] if row else 0}
+    count = await repo.get_comment_count(node_id)
+    return {"count": count}

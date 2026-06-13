@@ -7,10 +7,10 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from ..db.connection import acquire_connection, get_pool
+from ..dependencies import get_current_user, get_notification_repository
+from ..domain.repositories.interfaces import NotificationRepository
 from ..logging_config import get_logger
 from ..models import NotificationResponse, User
-from .auth import get_current_user
 
 router = APIRouter(prefix="/notifications", tags=["Notifications"])
 logger = get_logger(__name__)
@@ -21,42 +21,10 @@ async def list_notifications(
     include_read: bool = False,
     limit: int = 20,
     user: User = Depends(get_current_user),
+    repo: NotificationRepository = Depends(get_notification_repository),
 ):
     """List notifications for the current user."""
-    pool = await get_pool()
-    user_id = int(user.id)
-
-    async with acquire_connection(pool) as conn:
-        if include_read:
-            rows = await conn.fetch(
-                """
-                SELECT n.id, n.type, n.actor_user_id, u.name as actor_name,
-                       n.node_id, nd.name as node_name, n.message, n.is_read, n.create_date
-                FROM notification n
-                LEFT JOIN "user" u ON u.id = n.actor_user_id
-                LEFT JOIN node nd ON nd.id = n.node_id
-                WHERE n.user_id = $1
-                ORDER BY n.create_date DESC
-                LIMIT $2
-                """,
-                user_id,
-                limit,
-            )
-        else:
-            rows = await conn.fetch(
-                """
-                SELECT n.id, n.type, n.actor_user_id, u.name as actor_name,
-                       n.node_id, nd.name as node_name, n.message, n.is_read, n.create_date
-                FROM notification n
-                LEFT JOIN "user" u ON u.id = n.actor_user_id
-                LEFT JOIN node nd ON nd.id = n.node_id
-                WHERE n.user_id = $1 AND n.is_read = FALSE
-                ORDER BY n.create_date DESC
-                LIMIT $2
-                """,
-                user_id,
-                limit,
-            )
+    rows = await repo.list_notifications(int(user.id), include_read, limit)
 
     notifications = []
     for r in rows:
@@ -81,19 +49,12 @@ async def list_notifications(
 async def mark_notification_read(
     notification_id: int,
     user: User = Depends(get_current_user),
+    repo: NotificationRepository = Depends(get_notification_repository),
 ):
     """Mark a notification as read."""
-    pool = await get_pool()
-    user_id = int(user.id)
-
-    async with acquire_connection(pool) as conn:
-        result = await conn.execute(
-            "UPDATE notification SET is_read = TRUE WHERE id = $1 AND user_id = $2",
-            notification_id,
-            user_id,
-        )
-        if result.split()[-1] == "0":
-            raise HTTPException(status_code=404, detail="Notification not found")
+    updated = await repo.mark_notification_read(notification_id, int(user.id))
+    if not updated:
+        raise HTTPException(status_code=404, detail="Notification not found")
 
     return {"status": "ok"}
 
@@ -101,16 +62,10 @@ async def mark_notification_read(
 @router.post("/read-all")
 async def mark_all_notifications_read(
     user: User = Depends(get_current_user),
+    repo: NotificationRepository = Depends(get_notification_repository),
 ):
     """Mark all notifications as read."""
-    pool = await get_pool()
-    user_id = int(user.id)
-
-    async with acquire_connection(pool) as conn:
-        await conn.execute(
-            "UPDATE notification SET is_read = TRUE WHERE user_id = $1",
-            user_id,
-        )
+    await repo.mark_all_notifications_read(int(user.id))
 
     return {"status": "ok"}
 
@@ -121,21 +76,10 @@ async def create_notification(
     actor_user_id: int | None,
     node_id: int | None,
     message: str | None,
+    repo: NotificationRepository,
 ) -> None:
     """Create a notification (internal helper).
 
     Can be called from other routers/services.
     """
-    pool = await get_pool()
-    async with acquire_connection(pool) as conn:
-        await conn.execute(
-            """
-            INSERT INTO notification (user_id, type, actor_user_id, node_id, message)
-            VALUES ($1, $2, $3, $4, $5)
-            """,
-            user_id,
-            type,
-            actor_user_id,
-            node_id,
-            message,
-        )
+    await repo.create_notification(user_id, type, actor_user_id, node_id, message)

@@ -26,7 +26,8 @@ import uuid as uuid_module
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
-from ..entities import BacklinkInfo, NodeLink
+from ..entities import BacklinkInfo, NodeLink, NodeUpdateData
+from ..errors import NodeNotFoundError, NodeValidationError
 from ..stringify_ast import ParseMode, StringifyMode, StringifyOptions, parse_ast, stringify_ast
 
 if TYPE_CHECKING:
@@ -372,7 +373,7 @@ class LinkParsingService:
         """Delete all non-tag, non-inline-class text links from a source node."""
         await self._link_repo.delete_non_tag_text_links(source_node_id)
 
-    async def add_tag_link(self, source_node_id: int, target_node_id: int) -> NodeLink | None:
+    async def add_tag_link(self, source_node_id: int, target_node_id: int) -> NodeLink:
         """Add a tag link from source to target.
 
         Creates or updates a link to mark it as a tag.
@@ -382,16 +383,30 @@ class LinkParsingService:
             source_node_id: The block containing the [[id]] reference
             target_node_id: The page being referenced as a tag
 
+        Raises:
+            NodeNotFoundError: If source or target does not exist.
+            NodeValidationError: If target is not eligible to be tagged.
+
         Returns:
-            The created/updated NodeLink or None if target doesn't exist
+            The created/updated NodeLink.
         """
-        # Verify target exists and is a page
+        source_node = await self._node_repo.get_by_id(source_node_id)
+        if not source_node:
+            raise NodeNotFoundError(str(source_node_id))
+
         target_node = await self._node_repo.get_by_id(target_node_id)
-        if not target_node or not target_node.is_page:
-            return None
+        if not target_node:
+            raise NodeNotFoundError(str(target_node_id))
+        if not target_node.is_page and target_node.parent_id is not None:
+            raise NodeValidationError("Tags can only point to pages")
 
         upgraded = await self._link_repo.ensure_tag_link(source_node_id, target_node_id)
         if upgraded:
+            # Fetch the upgraded link to return full details
+            links = await self._link_repo.get_text_links(source_node_id)
+            for link in links:
+                if link.target_id == target_node_id:
+                    return link
             return NodeLink(
                 source_id=source_node_id,
                 target_id=target_node_id,
@@ -880,3 +895,548 @@ class LinkParsingService:
     async def delete_source_links(self, source_node_id: int) -> int:
         """Delete all links from a source node."""
         return await self._link_repo.delete_source_links(source_node_id)
+
+    async def get_text_links(self, source_node_id: int) -> list[NodeLink]:
+        """Get all text links (property_id IS NULL) from a source node."""
+        return await self._link_repo.get_text_links(source_node_id)
+
+    async def get_text_links_batch(self, node_ids: list[int]) -> dict[int, list[NodeLink]]:
+        """Get text links for multiple source nodes, grouped by source_id."""
+        links = await self._link_repo.get_text_links_batch(node_ids)
+        result: dict[int, list[NodeLink]] = {}
+        for link in links:
+            result.setdefault(link.source_id, []).append(link)
+        return result
+
+    async def get_property_backlinks(
+        self, node_id: int
+    ) -> list[tuple[Any, int, str]]:
+        """Get pages that reference this node via date or node properties.
+
+        Returns a list of (page_node, property_id, property_name) tuples.
+        """
+        target = await self._node_repo.get_by_id(node_id)
+        if not target:
+            raise NodeNotFoundError(str(node_id))
+
+        from ...db.schema import parse_date_uuid
+
+        date_info = parse_date_uuid(target.uuid)
+        is_day = date_info is not None and date_info.get("type") == "day"
+
+        date_rows, node_rows = await self._link_repo.get_property_backlinks_for_node(node_id)
+        rows = list(node_rows)
+        if is_day:
+            rows.extend(date_rows)
+
+        result: list[tuple[Any, int, str]] = []
+        seen_page_ids: set[int] = set()
+
+        for row in rows:
+            source_node = await self._node_repo.get_by_id(row["node_id"])
+            if not source_node:
+                continue
+
+            page = source_node
+            if source_node.page_id:
+                page = await self._node_repo.get_by_id(source_node.page_id)
+                if not page:
+                    page = source_node
+
+            if page.id is None or page.id in seen_page_ids:
+                continue
+            seen_page_ids.add(page.id)
+            result.append((page, row["property_id"], row["property_name"]))
+
+        return result
+
+    async def get_alias_ids(self, target_node_id: int) -> list[int]:
+        """Get IDs of nodes that are aliases of the target node."""
+        return await self._link_repo.get_alias_node_ids(target_node_id)
+
+    async def add_alias(self, target_node_id: int, alias_node_id: int) -> None:
+        """Add a page as an alias of the target node.
+
+        Raises:
+            NodeNotFoundError: If target or alias node does not exist.
+            NodeValidationError: If alias constraints are violated.
+        """
+        if alias_node_id == target_node_id:
+            raise NodeValidationError("A node cannot be an alias of itself")
+
+        target = await self._node_repo.get_by_id(target_node_id)
+        if not target:
+            raise NodeNotFoundError(str(target_node_id))
+        if not target.is_page:
+            raise NodeValidationError("Aliases can only be added to page nodes")
+        if target.aliased_id is not None:
+            raise NodeValidationError(
+                "Cannot add aliases to a node that is itself an alias. Add aliases to the main node instead."
+            )
+
+        alias = await self._node_repo.get_by_id(alias_node_id)
+        if not alias:
+            raise NodeNotFoundError(str(alias_node_id))
+        if not alias.is_page:
+            raise NodeValidationError("Only page nodes can be used as aliases")
+        if alias.aliased_id is not None:
+            raise NodeValidationError("This node is already an alias of another node")
+
+        alias_ids = await self._link_repo.get_alias_node_ids(alias_node_id)
+        if alias_ids:
+            raise NodeValidationError(
+                "Cannot use a node that has aliases as an alias itself. Remove its aliases first."
+            )
+
+        await self._link_repo.set_alias(target_node_id, alias_node_id)
+
+    async def remove_alias(self, target_node_id: int, alias_node_id: int) -> bool:
+        """Remove an alias from a node."""
+        return await self._link_repo.remove_alias(target_node_id, alias_node_id)
+
+    async def rebuild_all_links(self) -> dict[str, Any]:
+        """Rebuild all node_link records from AST content.
+
+        Deletes existing text links and inline classes, then re-parses all nodes'
+        AST content to rebuild both types of links.
+        """
+        from ...logging_config import get_logger
+
+        logger = get_logger(__name__)
+
+        deleted = await self._link_repo.delete_non_tag_text_links_for_workspace()
+        logger.info(f"[REBUILD_LINKS] Deleted {deleted} existing text links and inline classes")
+
+        nodes = await self._node_repo.get_active_nodes()
+        logger.info(f"[REBUILD_LINKS] Processing {len(nodes)} nodes")
+
+        nodes_processed = 0
+        links_created = 0
+        inline_classes_created = 0
+        errors: list[str] = []
+
+        for node in nodes:
+            node_id = node.id
+            content = node.name
+
+            if not content:
+                nodes_processed += 1
+                continue
+
+            try:
+                created_links = await self.update_node_links(node_id, content)
+                links_created += len(created_links)
+
+                created_classes = await self.update_inline_classes(node_id, content)
+                inline_classes_created += len(created_classes)
+
+                nodes_processed += 1
+
+                if nodes_processed % 100 == 0:
+                    logger.info(f"[REBUILD_LINKS] Progress: {nodes_processed}/{len(nodes)} nodes")
+            except Exception as e:
+                error_msg = f"Node {node_id}: {str(e)}"
+                errors.append(error_msg)
+                logger.warning(f"[REBUILD_LINKS] Error processing node {node_id}: {e}")
+                nodes_processed += 1
+                continue
+
+        logger.info(
+            f"[REBUILD_LINKS] Completed: {nodes_processed} nodes, {links_created} links + "
+            f"{inline_classes_created} inline classes created, {len(errors)} errors"
+        )
+
+        return {
+            "success": True,
+            "nodes_processed": nodes_processed,
+            "links_created": links_created,
+            "inline_classes_created": inline_classes_created,
+            "errors": errors[:100],
+            "total_errors": len(errors),
+        }
+
+    async def fix_raw_uuid_links(self) -> dict[str, Any]:
+        """Find raw [[uuid]] text in AST content and convert them to proper node_link AST nodes."""
+        from ...logging_config import get_logger
+
+        logger = get_logger(__name__)
+
+        uuid_re = r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+        uuid_pattern = re.compile(
+            rf"(?:\[(?P<label>[^\]]+)\]\(\[\[(?P<uuid_labeled>{uuid_re})\]\]\)|\[\[(?P<uuid_bare>{uuid_re})\]\])",
+            re.IGNORECASE,
+        )
+
+        def _extract_uuid_and_label(match: re.Match) -> tuple[str, str | None]:
+            if match.group("uuid_labeled"):
+                return match.group("uuid_labeled").lower(), match.group("label") or None
+            return match.group("uuid_bare").lower(), None
+
+        def transform_text_node(text_value: str, uuid_to_node: dict) -> list[dict[str, Any]]:
+            parts: list[dict[str, Any]] = []
+            last_end = 0
+
+            for match in uuid_pattern.finditer(text_value):
+                target_uuid, label = _extract_uuid_and_label(match)
+                if target_uuid not in uuid_to_node:
+                    continue
+
+                before = text_value[last_end : match.start()]
+                if before:
+                    parts.append({"type": "text", "text": before})
+
+                link_uuid = str(uuid_module.uuid4())
+                link_id = f"{target_uuid}:{link_uuid}"
+                node_link: dict[str, Any] = {
+                    "type": "node_link",
+                    "link_id": link_id,
+                    "ref_type": "node",
+                }
+                if label:
+                    node_link["label"] = label
+                parts.append(node_link)
+
+                last_end = match.end()
+
+            if last_end < len(text_value):
+                remaining = text_value[last_end:]
+                if remaining:
+                    parts.append({"type": "text", "text": remaining})
+
+            return parts
+
+        def walk_and_transform(nodes: list[Any], uuid_to_node: dict) -> tuple[list[Any], int]:
+            converted = 0
+            new_nodes: list[Any] = []
+
+            for node in nodes:
+                if not isinstance(node, dict):
+                    new_nodes.append(node)
+                    continue
+
+                node_type = node.get("type")
+                if node_type == "broken_link":
+                    link_id = node.get("link_id", "")
+                    colon_idx = link_id.find(":")
+                    node_uuid = link_id[:colon_idx].lower() if colon_idx > 0 else link_id.lower()
+                    if node_uuid in uuid_to_node:
+                        new_link_uuid = str(uuid_module.uuid4())
+                        new_link_id = f"{node_uuid}:{new_link_uuid}"
+                        new_node = {
+                            **node,
+                            "type": "node_link",
+                            "ref_type": "node",
+                            "link_id": new_link_id,
+                        }
+                        new_nodes.append(new_node)
+                        converted += 1
+                        continue
+                    new_nodes.append(node)
+                elif node_type == "text":
+                    text_val = node.get("text", "")
+                    if "[[" in text_val and uuid_pattern.search(text_val):
+                        replacement = transform_text_node(text_val, uuid_to_node)
+                        if replacement and replacement != [node]:
+                            link_count = sum(
+                                1 for r in replacement if isinstance(r, dict) and r.get("type") == "node_link"
+                            )
+                            if link_count > 0:
+                                new_nodes.extend(replacement)
+                                converted += link_count
+                                continue
+                    new_nodes.append(node)
+                elif "children" in node:
+                    child_nodes, child_converted = walk_and_transform(node["children"], uuid_to_node)
+                    new_node = {**node, "children": child_nodes}
+                    new_nodes.append(new_node)
+                    converted += child_converted
+                else:
+                    new_nodes.append(node)
+
+            return new_nodes, converted
+
+        nodes = await self._node_repo.get_active_nodes()
+        logger.info(f"[FIX_RAW_UUID_LINKS] Processing {len(nodes)} nodes")
+
+        nodes_processed = 0
+        nodes_fixed = 0
+        links_converted = 0
+        errors: list[str] = []
+
+        all_referenced_uuids: set[str] = set()
+        for node in nodes:
+            content = node.name
+            if not content:
+                continue
+            if "[[" not in content and "broken_link" not in content:
+                continue
+            try:
+                ast = json.loads(content)
+                if not isinstance(ast, list):
+                    continue
+            except (json.JSONDecodeError, TypeError):
+                continue
+
+            def collect_uuids(nodes: list[Any]) -> None:
+                for n in nodes:
+                    if not isinstance(n, dict):
+                        continue
+                    if n.get("type") == "text":
+                        text = n.get("text", "")
+                        if "[[" in text:
+                            for m in uuid_pattern.finditer(text):
+                                uuid = (m.group("uuid_labeled") or m.group("uuid_bare")).lower()
+                                all_referenced_uuids.add(uuid)
+                    elif n.get("type") == "broken_link":
+                        link_id = n.get("link_id", "")
+                        colon_idx = link_id.find(":")
+                        node_uuid = link_id[:colon_idx].lower() if colon_idx > 0 else link_id.lower()
+                        if re.match(uuid_re, node_uuid, re.IGNORECASE):
+                            all_referenced_uuids.add(node_uuid)
+                    if "children" in n:
+                        collect_uuids(n["children"])
+
+            collect_uuids(ast)
+
+        if not all_referenced_uuids:
+            logger.info("[FIX_RAW_UUID_LINKS] No raw UUID links found")
+            return {
+                "success": True,
+                "nodes_processed": len(nodes),
+                "nodes_fixed": 0,
+                "links_converted": 0,
+                "errors": [],
+                "total_errors": 0,
+            }
+
+        logger.info(f"[FIX_RAW_UUID_LINKS] Found {len(all_referenced_uuids)} unique referenced UUIDs")
+
+        uuid_to_node: dict[str, dict[str, Any]] = {}
+        for ref_uuid in all_referenced_uuids:
+            found = await self._node_repo.get_by_uuid(ref_uuid)
+            if found and found.id is not None:
+                uuid_to_node[ref_uuid] = {"id": found.id, "uuid": found.uuid}
+
+        logger.info(
+            f"[FIX_RAW_UUID_LINKS] Resolved {len(uuid_to_node)}/{len(all_referenced_uuids)} UUIDs to existing nodes"
+        )
+
+        for node in nodes:
+            node_id = node.id
+            content = node.name
+            nodes_processed += 1
+
+            if not content or ("[[" not in content and "broken_link" not in content):
+                continue
+
+            try:
+                ast = json.loads(content)
+                if not isinstance(ast, list):
+                    continue
+                if ast and (not isinstance(ast[0], dict) or "type" not in ast[0]):
+                    continue
+            except (json.JSONDecodeError, TypeError):
+                continue
+
+            try:
+                new_ast, converted = walk_and_transform(ast, uuid_to_node)
+
+                if converted > 0:
+                    new_content = json.dumps(new_ast, ensure_ascii=False)
+                    await self._node_repo.update(node_id, NodeUpdateData(name=new_content))
+
+                    await self.update_node_links(node_id, new_content)
+                    await self.update_inline_classes(node_id, new_content)
+
+                    nodes_fixed += 1
+                    links_converted += converted
+
+                    if nodes_fixed % 50 == 0:
+                        logger.info(
+                            f"[FIX_RAW_UUID_LINKS] Progress: {nodes_fixed} nodes fixed, {links_converted} links converted"
+                        )
+
+            except Exception as e:
+                error_msg = f"Node {node_id}: {str(e)}"
+                errors.append(error_msg)
+                logger.warning(f"[FIX_RAW_UUID_LINKS] Error processing node {node_id}: {e}")
+                continue
+
+        logger.info(
+            f"[FIX_RAW_UUID_LINKS] Completed: {nodes_processed} processed, {nodes_fixed} fixed, "
+            f"{links_converted} links converted, {len(errors)} errors"
+        )
+
+        return {
+            "success": True,
+            "nodes_processed": nodes_processed,
+            "nodes_fixed": nodes_fixed,
+            "links_converted": links_converted,
+            "errors": errors[:100],
+            "total_errors": len(errors),
+        }
+
+    async def fix_links_for_uuid(self, target_uuid: str) -> dict[str, Any]:
+        """Fix broken_link and raw [[uuid]] references pointing to a specific UUID."""
+        from ...logging_config import get_logger
+
+        logger = get_logger(__name__)
+
+        uuid_re_full = r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        if not re.match(uuid_re_full, target_uuid, re.IGNORECASE):
+            raise NodeValidationError(f"Invalid UUID format: {target_uuid}")
+
+        target_uuid_lower = target_uuid.lower()
+
+        uuid_re_fragment = r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+        uuid_pattern = re.compile(
+            rf"(?:\[(?P<label>[^\]]+)\]\(\[\[(?P<uuid_labeled>{uuid_re_fragment})\]\]\)|\[\[(?P<uuid_bare>{uuid_re_fragment})\]\])",
+            re.IGNORECASE,
+        )
+
+        def _extract_uuid_and_label(match: re.Match) -> tuple[str, str | None]:
+            if match.group("uuid_labeled"):
+                return match.group("uuid_labeled").lower(), match.group("label") or None
+            return match.group("uuid_bare").lower(), None
+
+        def transform_text_node(text_value: str) -> list[dict[str, Any]]:
+            parts: list[dict[str, Any]] = []
+            last_end = 0
+
+            for match in uuid_pattern.finditer(text_value):
+                ref_uuid, label = _extract_uuid_and_label(match)
+                if ref_uuid != target_uuid_lower:
+                    continue
+
+                before = text_value[last_end : match.start()]
+                if before:
+                    parts.append({"type": "text", "text": before})
+
+                link_uuid = str(uuid_module.uuid4())
+                link_id = f"{target_uuid_lower}:{link_uuid}"
+                node_link: dict[str, Any] = {
+                    "type": "node_link",
+                    "link_id": link_id,
+                    "ref_type": "node",
+                }
+                if label:
+                    node_link["label"] = label
+                parts.append(node_link)
+
+                last_end = match.end()
+
+            if last_end < len(text_value):
+                remaining = text_value[last_end:]
+                if remaining:
+                    parts.append({"type": "text", "text": remaining})
+
+            return parts
+
+        def walk_and_transform(nodes: list[Any]) -> tuple[list[Any], int]:
+            converted = 0
+            new_nodes: list[Any] = []
+
+            for node in nodes:
+                if not isinstance(node, dict):
+                    new_nodes.append(node)
+                    continue
+
+                node_type = node.get("type")
+                if node_type == "broken_link":
+                    link_id = node.get("link_id", "")
+                    colon_idx = link_id.find(":")
+                    node_uuid = link_id[:colon_idx].lower() if colon_idx > 0 else link_id.lower()
+                    if node_uuid == target_uuid_lower:
+                        new_link_uuid = str(uuid_module.uuid4())
+                        new_link_id = f"{node_uuid}:{new_link_uuid}"
+                        new_node = {
+                            **node,
+                            "type": "node_link",
+                            "ref_type": "node",
+                            "link_id": new_link_id,
+                        }
+                        new_nodes.append(new_node)
+                        converted += 1
+                        continue
+                    new_nodes.append(node)
+                elif node_type == "text":
+                    text_val = node.get("text", "")
+                    if "[[" in text_val and uuid_pattern.search(text_val):
+                        replacement = transform_text_node(text_val)
+                        if replacement and replacement != [node]:
+                            link_count = sum(
+                                1 for r in replacement if isinstance(r, dict) and r.get("type") == "node_link"
+                            )
+                            if link_count > 0:
+                                new_nodes.extend(replacement)
+                                converted += link_count
+                                continue
+                    new_nodes.append(node)
+                elif "children" in node:
+                    child_nodes, child_converted = walk_and_transform(node["children"])
+                    new_node = {**node, "children": child_nodes}
+                    new_nodes.append(new_node)
+                    converted += child_converted
+                else:
+                    new_nodes.append(node)
+
+            return new_nodes, converted
+
+        patterns = [f'%"{target_uuid_lower}"%', f"%[[{target_uuid_lower}]]%"]
+        candidate_rows = await self._node_repo.find_active_nodes_by_name_patterns(patterns)
+
+        logger.info(
+            f"[FIX_LINKS_FOR_UUID] Found {len(candidate_rows)} candidate nodes for UUID {target_uuid_lower}"
+        )
+
+        nodes_fixed = 0
+        links_converted = 0
+        errors: list[str] = []
+
+        for row in candidate_rows:
+            node_id = row["id"]
+            content = row["name"]
+
+            if not content:
+                continue
+
+            try:
+                ast = json.loads(content)
+                if not isinstance(ast, list):
+                    continue
+                if ast and (not isinstance(ast[0], dict) or "type" not in ast[0]):
+                    continue
+            except (json.JSONDecodeError, TypeError):
+                continue
+
+            try:
+                new_ast, converted = walk_and_transform(ast)
+
+                if converted > 0:
+                    new_content = json.dumps(new_ast, ensure_ascii=False)
+                    await self._node_repo.update(node_id, NodeUpdateData(name=new_content))
+
+                    await self.update_node_links(node_id, new_content)
+                    await self.update_inline_classes(node_id, new_content)
+
+                    nodes_fixed += 1
+                    links_converted += converted
+            except Exception as e:
+                error_msg = f"Node {node_id}: {str(e)}"
+                errors.append(error_msg)
+                logger.warning(f"[FIX_LINKS_FOR_UUID] Error processing node {node_id}: {e}")
+                continue
+
+        logger.info(
+            f"[FIX_LINKS_FOR_UUID] Completed for {target_uuid_lower}: {nodes_fixed} nodes fixed, "
+            f"{links_converted} links converted, {len(errors)} errors"
+        )
+
+        return {
+            "success": True,
+            "target_uuid": target_uuid_lower,
+            "nodes_fixed": nodes_fixed,
+            "links_converted": links_converted,
+            "errors": errors[:50],
+            "total_errors": len(errors),
+        }

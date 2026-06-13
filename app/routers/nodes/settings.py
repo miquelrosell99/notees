@@ -2,11 +2,10 @@
 
 from fastapi import APIRouter, Depends
 
-from ...db.connection import acquire_connection
-from ...db.schema import parse_date_uuid
+from ...dependencies import get_current_user, get_settings_repository
 from ...domain.entities import NodeUpdateData
+from ...domain.repositories.interfaces import SettingsRepository
 from ...models import User
-from ..auth import get_current_user
 from .helpers import (
     _format_date_with_pattern,
     _format_month_with_pattern,
@@ -21,6 +20,7 @@ router = APIRouter()
 async def update_date_format(
     request: DateFormatUpdateRequest,
     user: User = Depends(get_current_user),
+    settings_repo: SettingsRepository = Depends(get_settings_repository),
 ):
     """
     Update the name format of all date and month nodes.
@@ -34,16 +34,13 @@ async def update_date_format(
     pattern = request.new_format
 
     # Also save the user's date format preference
-    async with acquire_connection(service.pool) as conn:
-        await conn.execute(
-            """
-            INSERT INTO setting_user (user_id, key, value)
-            VALUES ($1, 'date_format', $2)
-            ON CONFLICT (user_id, key) DO UPDATE SET value = $2
-        """,
-            int(user.id),
-            pattern,
-        )
+    import json
+
+    from ...utils import utc_now
+
+    await settings_repo.set_user_setting(
+        int(user.id), "date_format", json.dumps(pattern), utc_now()
+    )
 
     updated_count = 0
     errors = []
@@ -59,6 +56,8 @@ async def update_date_format(
 
         try:
             # Parse the date UUID using the proper parser
+            from ...db.schema import parse_date_uuid
+
             date_info = parse_date_uuid(uuid)
             if not date_info:
                 continue

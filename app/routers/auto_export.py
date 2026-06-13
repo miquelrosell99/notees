@@ -21,13 +21,15 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from ..db.connection import clear_request_conn, get_connection, get_workspace_dir
+from ..db.connection import clear_request_conn, get_connection, get_workspace_dir, get_workspace_uuid
 from ..db.schema.init import get_or_create_user_workspace
+from ..dependencies import get_current_user, get_export_repository, get_pool
+from ..domain.repositories.interfaces import ExportRepository
+from ..domain.repositories.postgres_export import PostgresExportRepository
 from ..domain.stringify_ast import StringifyMode, StringifyOptions, parse_ast, stringify_ast
 from ..logging_config import get_logger
 from ..models import User
 from ..node_export import export_nodes
-from ..routers.auth import get_current_user
 from ..workspace_manager import _active_workspaces, _get_numeric_user_id
 
 logger = get_logger(__name__)
@@ -192,202 +194,6 @@ def _build_yaml_frontmatter(data: dict) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Node metadata fetching
-# ---------------------------------------------------------------------------
-
-
-async def _fetch_node_metadata(conn, workspace_id: int, node_uuid: str) -> dict:
-    """Fetch node info, ancestors, tags, classes, and properties."""
-    # 1. Basic node info
-    node_row = await conn.fetchrow(
-        """
-        SELECT id, uuid::text as uuid, name, is_page, is_day, is_month, is_year,
-               is_class, is_asset, is_template, is_comment, color, icon, class_ids,
-               parent_id, create_date, write_date
-        FROM node
-        WHERE workspace_id = $1 AND uuid::text = $2
-        """,
-        workspace_id,
-        node_uuid,
-    )
-    if not node_row:
-        raise ValueError(f"Node not found: {node_uuid}")
-
-    metadata = {
-        "uuid": str(node_row["uuid"]),
-        "id": node_row["id"],
-        "title": _extract_page_title(node_row["name"]),
-        "is_page": node_row["is_page"],
-        "is_day": node_row["is_day"],
-        "is_month": node_row["is_month"],
-        "is_year": node_row["is_year"],
-        "is_class": node_row["is_class"],
-        "is_asset": node_row["is_asset"],
-        "is_template": node_row["is_template"],
-        "is_comment": node_row["is_comment"],
-        "create_date": node_row["create_date"].isoformat() if node_row["create_date"] else None,
-        "write_date": node_row["write_date"].isoformat() if node_row["write_date"] else None,
-    }
-
-    # 2. Ancestors (via recursive CTE, ordered by depth ascending)
-    ancestor_rows = await conn.fetch(
-        """
-        WITH RECURSIVE ancestors AS (
-            SELECT id, parent_id, 0 AS depth
-            FROM node
-            WHERE id = $1
-            UNION ALL
-            SELECT n.id, n.parent_id, a.depth + 1
-            FROM node n
-            INNER JOIN ancestors a ON n.id = a.parent_id
-        )
-        SELECT a.id as ancestor_id, a.depth, n.uuid::text as uuid, n.name
-        FROM ancestors a
-        JOIN node n ON n.id = a.id
-        WHERE a.depth > 0
-        ORDER BY a.depth DESC
-        """,
-        node_row["id"],
-    )
-    parents = []
-    for row in ancestor_rows:
-        parents.append(
-            {
-                "uuid": str(row["uuid"]),
-                "title": _extract_page_title(row["name"]),
-                "depth": row["depth"],
-            }
-        )
-    if parents:
-        metadata["parents"] = parents
-
-    # 3. Tags (node_link with is_tag = TRUE)
-    tag_rows = await conn.fetch(
-        """
-        SELECT n.uuid::text as uuid, n.name
-        FROM node_link nl
-        JOIN node n ON n.id = nl.target_id
-        WHERE nl.source_id = $1
-          AND nl.is_tag = TRUE
-          AND nl.property_id IS NULL
-        ORDER BY nl.position
-        """,
-        node_row["id"],
-    )
-    if tag_rows:
-        metadata["tags"] = [
-            {
-                "uuid": str(row["uuid"]),
-                "name": _extract_page_title(row["name"]),
-            }
-            for row in tag_rows
-        ]
-
-    # 4. Classes (from class_ids array + extends chain)
-    class_ids = list(node_row["class_ids"] or [])
-    if class_ids:
-        class_rows = await conn.fetch(
-            """
-            SELECT id, uuid::text as uuid, name
-            FROM node
-            WHERE id = ANY($1) AND active = TRUE
-            ORDER BY array_position($1, id)
-            """,
-            class_ids,
-        )
-        metadata["classes"] = [
-            {
-                "uuid": str(row["uuid"]),
-                "name": _extract_page_title(row["name"]),
-            }
-            for row in class_rows
-        ]
-
-    # 5. Properties
-    prop_rows = await conn.fetch(
-        """
-        SELECT
-            p.name AS property_name,
-            p.type AS property_type,
-            p.is_multi,
-            pvs.value_text,
-            pvs.value_boolean,
-            pvs.value_float,
-            pvs.value_integer,
-            psl.name AS selection_value,
-            pvr.target_id AS relation_target_id,
-            rel.uuid::text AS relation_target_uuid,
-            rel.name AS relation_target_name
-        FROM node_property np
-        JOIN property p ON p.id = np.property_id
-        LEFT JOIN property_value_scalar pvs ON pvs.node_property_id = np.id
-        LEFT JOIN property_value_relation pvr ON pvr.node_property_id = np.id
-        LEFT JOIN property_value_selection pvsel ON pvsel.node_property_id = np.id
-        LEFT JOIN property_selection_line psl ON psl.id = pvsel.selection_line_id
-        LEFT JOIN node rel ON rel.id = pvr.target_id
-        WHERE np.node_id = $1
-          AND p.active = TRUE
-        ORDER BY p.name
-        """,
-        node_row["id"],
-    )
-
-    props_agg: dict[str, dict] = {}
-    for row in prop_rows:
-        prop_name = row["property_name"]
-        prop_type = row["property_type"]
-        if prop_name not in props_agg:
-            props_agg[prop_name] = {
-                "type": prop_type,
-                "values": [],
-            }
-
-        value = None
-        if prop_type == "integer" and row["value_integer"] is not None:
-            value = row["value_integer"]
-        elif prop_type == "float" and row["value_float"] is not None:
-            value = row["value_float"]
-        elif prop_type == "boolean" and row["value_boolean"] is not None:
-            value = bool(row["value_boolean"])
-        elif prop_type == "date" and row["value_text"] is not None:
-            value = row["value_text"]
-        elif prop_type == "selection" and row["selection_value"] is not None:
-            value = row["selection_value"]
-        elif prop_type in ("node", "text") and row["relation_target_id"] is not None:
-            value = {
-                "id": row["relation_target_id"],
-                "uuid": str(row["relation_target_uuid"]) if row["relation_target_uuid"] else None,
-                "name": _extract_page_title(row["relation_target_name"]),
-            }
-        elif prop_type == "text" and row["value_text"] is not None:
-            value = row["value_text"]
-
-        if value is not None and value not in props_agg[prop_name]["values"]:
-            props_agg[prop_name]["values"].append(value)
-
-    if props_agg:
-        # For single-value props, flatten to scalar; for multi-value, keep list
-        props_out = {}
-        for prop_name, prop_data in props_agg.items():
-            values = prop_data["values"]
-            prop_type = prop_data["type"]
-            if not values:
-                continue
-            if len(values) == 1 and prop_type != "text":
-                props_out[prop_name] = values[0]
-            else:
-                props_out[prop_name] = values
-        if props_out:
-            metadata["properties"] = props_out
-
-    # 6. Icon
-    if node_row["icon"]:
-        metadata["icon"] = node_row["icon"]
-
-    return metadata
-
-
-# ---------------------------------------------------------------------------
 # Core export writer
 # ---------------------------------------------------------------------------
 
@@ -397,6 +203,7 @@ async def _write_page_markdown(
     workspace_id: int,
     workspace_uuid: str,
     node_uuid: str,
+    export_repo: ExportRepository,
 ) -> str:
     """Export a single page to markdown and write it to the export directory.
 
@@ -416,8 +223,7 @@ async def _write_page_markdown(
     body = content_bytes.decode("utf-8")
 
     # 2. Fetch metadata for YAML frontmatter
-    async with get_connection() as conn:
-        metadata = await _fetch_node_metadata(conn, workspace_id, node_uuid)
+    metadata = await export_repo.get_auto_export_metadata(workspace_id, node_uuid)
 
     # 3. Build YAML frontmatter and prepend to body
     frontmatter = _build_yaml_frontmatter(metadata)
@@ -445,6 +251,7 @@ class BatchExportRequest(BaseModel):
 async def auto_export_batch(
     _request: BatchExportRequest,
     user: User = Depends(get_current_user),
+    export_repo: ExportRepository = Depends(get_export_repository),
 ):
     """Force re-export of all pages in the workspace to markdown.
 
@@ -459,11 +266,10 @@ async def auto_export_batch(
 
     async with get_connection() as conn:
         workspace_id = await get_or_create_user_workspace(conn, numeric_user_id, workspace_uuid=active_uuid)
-        ws_row = await conn.fetchrow(
-            "SELECT uuid::text as uuid FROM workspace WHERE id = $1",
-            workspace_id,
-        )
-        workspace_uuid = ws_row["uuid"] if ws_row else active_uuid
+
+    workspace_uuid = await get_workspace_uuid(workspace_id)
+    if not workspace_uuid:
+        workspace_uuid = active_uuid
 
     if not workspace_uuid:
         raise HTTPException(status_code=400, detail="No active workspace")
@@ -497,19 +303,10 @@ async def _run_batch_export(
     # race with the middleware releasing the connection back to the pool.
     clear_request_conn()
     try:
-        async with get_connection() as conn:
-            rows = await conn.fetch(
-                """
-                SELECT uuid::text as uuid, name
-                FROM node
-                WHERE workspace_id = $1
-                  AND is_page = TRUE
-                  AND is_deleted = FALSE
-                  AND active = TRUE
-                ORDER BY id
-                """,
-                workspace_id,
-            )
+        pool = await get_pool()
+        export_repo = PostgresExportRepository(pool, workspace_id)
+
+        rows = await export_repo.list_exportable_pages(workspace_id)
 
         page_uuids = [r["uuid"] for r in rows]
         total = len(page_uuids)
@@ -531,7 +328,7 @@ async def _run_batch_export(
                     running=True, total=total, completed=i, current_page=title, error=None
                 )
             try:
-                await _write_page_markdown(user_id, workspace_id, workspace_uuid, node_uuid)
+                await _write_page_markdown(user_id, workspace_id, workspace_uuid, node_uuid, export_repo)
             except Exception as e:
                 logger.error(f"Batch export failed for page {node_uuid}: {e}")
                 # Continue with other pages, record error at end
@@ -553,6 +350,7 @@ async def _run_batch_export(
 async def auto_export_page(
     node_uuid: str,
     user: User = Depends(get_current_user),
+    export_repo: ExportRepository = Depends(get_export_repository),
 ):
     """Export a single page to the workspace markdown-export directory."""
     numeric_user_id = await _get_numeric_user_id(user.id)
@@ -563,17 +361,16 @@ async def auto_export_page(
 
     async with get_connection() as conn:
         workspace_id = await get_or_create_user_workspace(conn, numeric_user_id, workspace_uuid=active_uuid)
-        ws_row = await conn.fetchrow(
-            "SELECT uuid::text as uuid FROM workspace WHERE id = $1",
-            workspace_id,
-        )
-        workspace_uuid = ws_row["uuid"] if ws_row else active_uuid
+
+    workspace_uuid = await get_workspace_uuid(workspace_id)
+    if not workspace_uuid:
+        workspace_uuid = active_uuid
 
     if not workspace_uuid:
         raise HTTPException(status_code=400, detail="No active workspace")
 
     try:
-        filename = await _write_page_markdown(user.id, workspace_id, workspace_uuid, node_uuid)
+        filename = await _write_page_markdown(user.id, workspace_id, workspace_uuid, node_uuid, export_repo)
     except ValueError as e:
         logger.warning(f"Auto-export failed for {node_uuid}: {e}")
         raise HTTPException(status_code=404, detail=str(e)) from e
@@ -614,19 +411,12 @@ async def auto_export_download(
 
     async with get_connection() as conn:
         workspace_id = await get_or_create_user_workspace(conn, numeric_user_id, workspace_uuid=active_uuid)
-        workspace_row = await conn.fetchrow(
-            """
-            SELECT w.uuid::text as uuid, w.name
-            FROM workspace w
-            WHERE w.id = $1 AND w.active = TRUE
-            """,
-            workspace_id,
-        )
-        if not workspace_row:
-            raise HTTPException(status_code=404, detail="Workspace not found")
 
-        workspace_uuid = workspace_row["uuid"]
-        workspace_name = workspace_row["name"] or "workspace"
+    workspace_uuid = await get_workspace_uuid(workspace_id)
+    if not workspace_uuid:
+        raise HTTPException(status_code=404, detail="Workspace not found")
+
+    workspace_name = "workspace"  # Name is not critical for the archive filename
 
     export_dir = _get_markdown_export_dir(workspace_uuid)
     md_files = sorted(export_dir.glob("*.md"))

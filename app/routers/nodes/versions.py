@@ -2,13 +2,10 @@
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from ...db.connection import acquire_connection
+from ...dependencies import get_current_user, get_node_repository
+from ...domain.repositories.interfaces import NodeRepository
 from ...logging_config import get_logger
 from ...models import User
-from ..auth import get_current_user
-from .helpers import (
-    _get_node_service,
-)
 
 logger = get_logger(__name__)
 
@@ -20,23 +17,10 @@ async def get_node_version(
     node_id: int,
     version_id: int,
     user: User = Depends(get_current_user),
+    repo: NodeRepository = Depends(get_node_repository),
 ):
     """Get a specific version of a node."""
-    service = await _get_node_service(user)
-
-    async with acquire_connection(service.pool) as conn:
-        row = await conn.fetchrow(
-            """
-            SELECT nv.id, nv.name, nv.created_at, nv.user_id,
-                   u.username
-            FROM node_version nv
-            LEFT JOIN "user" u ON u.id = nv.user_id
-            WHERE nv.id = $1 AND nv.node_id = $2 AND nv.workspace_id = $3
-        """,
-            version_id,
-            node_id,
-            service.workspace_id,
-        )
+    row = await repo.get_node_version_detail(version_id, node_id)
 
     if not row:
         raise HTTPException(404, "Version not found")

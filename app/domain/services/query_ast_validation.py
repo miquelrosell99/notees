@@ -10,6 +10,7 @@ from app.domain.entities.query_ast import (
     ClassCondition,
     ConditionNode,
     ContentCondition,
+    FlagCondition,
     GroupNode,
     NotNode,
     ParentCondition,
@@ -18,6 +19,7 @@ from app.domain.entities.query_ast import (
     ReferenceCondition,
     ScopeNode,
 )
+from app.domain.services.query_ast_sql import ALLOWED_FLAG_NAMES
 
 
 @dataclass
@@ -267,6 +269,26 @@ def validate_condition(condition: ConditionNode, path: str) -> list[ValidationIs
                         suggestion="Select child nodes or add filtering criteria",
                     )
                 )
+
+    elif isinstance(condition, FlagCondition):
+        if not condition.flag_name:
+            issues.append(
+                ValidationIssue(
+                    severity="error",
+                    message="Flag condition missing flag_name",
+                    path=f"{path}.flag_name",
+                    suggestion="Select a flag such as is_page or is_day",
+                )
+            )
+        elif condition.flag_name not in ALLOWED_FLAG_NAMES:
+            issues.append(
+                ValidationIssue(
+                    severity="error",
+                    message=f"Invalid flag_name: {condition.flag_name!r}",
+                    path=f"{path}.flag_name",
+                    suggestion=f"Allowed flag names are: {', '.join(sorted(ALLOWED_FLAG_NAMES))}",
+                )
+            )
 
     return issues
 

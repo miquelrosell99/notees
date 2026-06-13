@@ -156,3 +156,46 @@ class PostgresClassExtendRepository(BasePostgresRepository, ClassExtendRepositor
                 self._workspace_id,
             )
             return [row["id"] for row in rows]
+
+    async def get_extended_classes_batch(self, node_ids: list[int]) -> dict[int, list[int]]:
+        """Batch-fetch class extends (parent class IDs) for a set of class nodes."""
+        if not node_ids:
+            return {}
+        async with acquire_connection(self._pool) as conn:
+            rows = await conn.fetch(
+                """
+                SELECT ce.target_id, ce.source_id
+                FROM class_extend ce
+                JOIN node n ON n.id = ce.source_id
+                WHERE ce.target_id = ANY($1)
+                  AND n.workspace_id = $2
+                  AND n.active = TRUE
+                ORDER BY ce.target_id, ce.sequence, ce.id
+            """,
+                node_ids,
+                self._workspace_id,
+            )
+            result: dict[int, list[int]] = {}
+            for row in rows:
+                result.setdefault(row["target_id"], []).append(row["source_id"])
+            return result
+
+    async def expand_class_hierarchy(self, class_ids: list[int]) -> set[int]:
+        """Expand a set of class IDs to include all subclasses recursively."""
+        if not class_ids:
+            return set()
+        async with acquire_connection(self._pool) as conn:
+            rows = await conn.fetch(
+                """
+                WITH RECURSIVE filter_hierarchy AS (
+                    SELECT id FROM node WHERE id = ANY($1::int[]) AND workspace_id = $2
+                    UNION
+                    SELECT ce.target_id FROM class_extend ce
+                    INNER JOIN filter_hierarchy fh ON ce.source_id = fh.id
+                )
+                SELECT id FROM filter_hierarchy
+            """,
+                class_ids,
+                self._workspace_id,
+            )
+            return {row["id"] for row in rows}
