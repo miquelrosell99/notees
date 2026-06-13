@@ -75,7 +75,7 @@ export const NodeCollection = memo(function NodeCollection({
   showGroupBy: showGroupByProp = false,
   pagesOnly = false,
   showEmpty = true,
-  emptyMessage = 'No items',
+  emptyMessage = 'Nothing to show',
   maxDepth = Infinity,
   tableColumns,
   isolatedBlockState = false,

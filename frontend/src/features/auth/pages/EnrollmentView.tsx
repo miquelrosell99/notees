@@ -132,8 +132,7 @@ export function EnrollmentView({ onComplete }: EnrollmentViewProps) {
               <div className="enrollment__step">
                 <h2 className="enrollment__title">Welcome to Notees!</h2>
                 <p className="enrollment__description">
-                  Let's set up your preferences to get you started.
-                  This will only take a moment.
+                  Set your preferences to finish getting started.
                 </p>
                 <div className="enrollment__actions">
                   <Button variant="primary" size="lg" onClick={handleNext}>
@@ -210,7 +209,7 @@ export function EnrollmentView({ onComplete }: EnrollmentViewProps) {
                 <h2 className="enrollment__title">Date format</h2>
                 <p className="enrollment__description">
                   Choose how dates appear in your daily and monthly notes.
-                  You can change this per-graph later.
+                  You can change this per workspace later.
                 </p>
                 <div className="enrollment__options enrollment__date-options">
                   {DATE_FORMAT_OPTIONS.map((option) => (
@@ -239,7 +238,7 @@ export function EnrollmentView({ onComplete }: EnrollmentViewProps) {
               <div className="enrollment__step">
                 <h2 className="enrollment__title">You're all set!</h2>
                 <p className="enrollment__description">
-                  Your preferences have been saved. Create your first graph to start taking notes.
+                  Your preferences are saved. Create your first workspace to start taking notes.
                 </p>
                 <div className="enrollment__actions">
                   <Button variant="primary" size="lg" onClick={handleNext}>

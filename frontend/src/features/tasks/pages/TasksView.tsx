@@ -110,11 +110,11 @@ export function TasksView() {
   const emptyMessage = useMemo(() => {
     switch (activeTab) {
       case 'all':
-        return 'No active tasks. Create your first task!';
+        return 'No active tasks yet';
       case 'today':
-        return 'No tasks for today or overdue. You are all caught up!';
+        return 'No tasks for today or overdue';
       case 'future':
-        return 'No upcoming scheduled tasks.';
+        return 'No upcoming scheduled tasks';
     }
   }, [activeTab]);
 

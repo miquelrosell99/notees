@@ -401,7 +401,7 @@ export const GanttView = memo(function GanttView({
     return (
       <div className={`gantt-view gantt-view--empty ${className}`}>
         <div className="gantt-view__empty-msg">
-          Select a start date property via <strong>Configure Gantt</strong> in the toolbar.
+          Choose a start date property to see items on the Gantt chart.
         </div>
       </div>
     );
@@ -411,7 +411,7 @@ export const GanttView = memo(function GanttView({
     return (
       <div className={`gantt-view gantt-view--empty ${className}`}>
         <div className="gantt-view__empty-msg">
-          No nodes have a value for <em>{startDateProperty.name}</em>.
+          No items have a date in <em>{startDateProperty.name}</em>.
         </div>
       </div>
     );
