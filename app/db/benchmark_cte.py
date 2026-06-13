@@ -3,6 +3,11 @@
 Phase 0.3: Data Model Hardening — measure get_descendants() performance
 at various depths and node counts to decide if closure table is needed.
 
+WARNING: This is a standalone benchmark script. It creates and deletes test
+nodes in workspace id 1 and should only be run against a development database.
+It uses the shared application pool via ``app.db.connection`` rather than
+creating its own pool.
+
 Usage (inside backend container):
     python -m app.db.benchmark_cte
 """
@@ -12,7 +17,7 @@ import time
 
 import asyncpg
 
-from app.db.connection import get_database_url
+from app.db.connection import acquire_connection, get_pool
 
 
 async def setup_benchmark_data(conn: asyncpg.Connection, depth: int, nodes_per_level: int) -> int:
@@ -55,9 +60,9 @@ async def setup_benchmark_data(conn: asyncpg.Connection, depth: int, nodes_per_l
 
 
 async def run_benchmark():
-    pool = await asyncpg.create_pool(get_database_url())
+    pool = await get_pool()
 
-    async with pool.acquire() as conn:
+    async with acquire_connection(pool) as conn:
         # Ensure test workspace exists
         ws = await conn.fetchrow(
             "SELECT id FROM workspace WHERE id = 1"
@@ -155,8 +160,6 @@ async def run_benchmark():
 
         # Cleanup
         await conn.execute("DELETE FROM node WHERE name LIKE 'benchmark-%' AND workspace_id = 1")
-
-    await pool.close()
 
 
 if __name__ == "__main__":

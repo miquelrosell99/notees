@@ -5,6 +5,7 @@ Orchestrates node operations with link parsing and property management.
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from ...db.connection import get_workspace_uuid
@@ -15,6 +16,7 @@ from ..errors import DatePageDeletionError, DuplicateNodeError, NodeValidationEr
 from ..permissions import PermissionChecker
 from ..stringify_ast import ParseMode, StringifyMode, StringifyOptions, parse_ast, serialize_ast, stringify_ast
 from ..validation import validate_node_create, validate_node_update
+from .class_extension_service import ClassExtensionService
 from .class_management_service import ClassManagementService
 
 if TYPE_CHECKING:
@@ -24,6 +26,7 @@ if TYPE_CHECKING:
         NodeRepository,
         PropertyRepository,
         SettingsRepository,
+        UserRepository,
     )
     from .link_service import LinkParsingService
 
@@ -52,44 +55,33 @@ def _format_node_name(raw_name: str | None) -> str:
 class NodeService:
     """Domain service for node operations."""
 
-    # Optional attributes set by routers for direct pool/workspace access
-    _pool: Any = None
-    _workspace_id: int | None = None
-    _user_id: int | None = None
-    _permissions: PermissionChecker | None = None
-
     def __init__(
         self,
         node_repository: NodeRepository,
         property_repository: PropertyRepository,
         link_service: LinkParsingService,
         page_class_id: int,
-        pool: Any = None,
         workspace_id: int | None = None,
         user_id: int | None = None,
         settings_repo: SettingsRepository | None = None,
         activity_repo: ActivityRepository | None = None,
         class_extend_repo: ClassExtendRepository | None = None,
+        user_repository: UserRepository | None = None,
     ):
         self._node_repo = node_repository
         self._property_repo = property_repository
         self._link_service = link_service
         self._page_class_id = page_class_id
-        self._pool = pool
         self._workspace_id = workspace_id
         self._user_id = user_id
         self._settings_repo = settings_repo
         self._activity_repo = activity_repo
+        self._user_repo = user_repository
         self._class_service = ClassManagementService(
-            workspace_id, node_repository, property_repository, class_extend_repo, pool=pool
+            workspace_id, node_repository, property_repository, class_extend_repo
         )
 
     # ── Public properties ──────────────────────────────────────────────────
-
-    @property
-    def pool(self):
-        """Connection pool for direct query access."""
-        return self._pool
 
     @property
     def workspace_id(self) -> int | None:
@@ -105,6 +97,11 @@ class NodeService:
     def property_repo(self):
         """Property repository (used by property routers that need repo-level CRUD)."""
         return self._property_repo
+
+    @property
+    def user_repo(self):
+        """User repository (used for mention lookups)."""
+        return self._user_repo
 
     @property
     def permissions(self) -> PermissionChecker:
@@ -158,6 +155,96 @@ class NodeService:
         """Get multiple nodes by ID list."""
         return await self._node_repo.get_by_ids(ids)
 
+    async def get_class_ids_batch(self, node_ids: list[int]) -> dict[int, list[int]]:
+        """Get class_ids arrays for multiple nodes in a single query."""
+        return await self._node_repo.get_class_ids_batch(node_ids)
+
+    async def get_node_class_ids(self, node_id: int) -> list[int]:
+        """Get class_ids array for a single node."""
+        return await self._node_repo.get_node_class_ids(node_id)
+
+    async def get_tag_link_targets(self, node_id: int) -> list[int]:
+        """Get tag link target IDs for a source node."""
+        return await self._link_service._link_repo.get_tag_link_targets(node_id)
+
+    async def get_tag_link_targets_batch(self, node_ids: list[int]) -> dict[int, list[int]]:
+        """Get tag link target IDs for multiple source nodes."""
+        return await self._link_service._link_repo.get_tag_link_targets_batch(node_ids)
+
+    async def get_alias_node_ids(self, target_node_id: int) -> list[int]:
+        """Get IDs of nodes that alias the target node."""
+        return await self._link_service._link_repo.get_alias_node_ids(target_node_id)
+
+    async def get_alias_node_ids_batch(self, target_node_ids: list[int]) -> dict[int, list[int]]:
+        """Get alias node IDs for multiple target nodes."""
+        return await self._link_service._link_repo.get_alias_node_ids_batch(target_node_ids)
+
+    async def get_extended_classes_batch(self, node_ids: list[int]) -> dict[int, list[int]]:
+        """Get parent class IDs for multiple class nodes."""
+        if self._class_service._class_extend_repo is None:
+            return {}
+        return await self._class_service._class_extend_repo.get_extended_classes_batch(node_ids)
+
+    async def get_related_ids_batch(
+        self, node_ids: list[int], relation_type: str
+    ) -> dict[int, list[int]]:
+        """Get related IDs for multiple nodes (tags, aliases, or classes)."""
+        if relation_type == "tags":
+            return await self.get_tag_link_targets_batch(node_ids)
+        if relation_type == "aliases":
+            return await self.get_alias_node_ids_batch(node_ids)
+        if relation_type == "classes":
+            return await self.get_class_ids_batch(node_ids)
+        raise ValueError(f"Unknown relation_type: {relation_type!r}")
+
+    async def get_effective_class_ids_batch(self, node_ids: list[int]) -> dict[int, list[int]]:
+        """Get class_ids for multiple nodes including inherited classes from extends."""
+        explicit_classes = await self._node_repo.get_class_ids_batch(node_ids)
+        if not explicit_classes:
+            return {nid: [] for nid in node_ids}
+
+        all_explicit_class_ids = set()
+        for class_list in explicit_classes.values():
+            all_explicit_class_ids.update(class_list)
+
+        if not all_explicit_class_ids:
+            return explicit_classes
+
+        class_extend_repo = self._class_service._class_extend_repo
+        if class_extend_repo is None:
+            return explicit_classes
+
+        extension_service = ClassExtensionService(
+            self._workspace_id or 0,
+            self._property_repo,
+            class_extend_repo,
+            self._node_repo,
+        )
+
+        extends_cache: dict[int, list[int]] = {}
+        for class_id in all_explicit_class_ids:
+            try:
+                extended = await extension_service.get_all_extended_classes(class_id)
+                extends_cache[class_id] = extended[1:] if len(extended) > 1 else []
+            except (ValueError, RecursionError):
+                extends_cache[class_id] = []
+
+        result: dict[int, list[int]] = {}
+        for node_id in node_ids:
+            explicit = explicit_classes.get(node_id, [])
+            effective = list(explicit)
+            for class_id in explicit:
+                for inherited_class in extends_cache.get(class_id, []):
+                    if inherited_class not in effective:
+                        effective.append(inherited_class)
+            result[node_id] = effective
+
+        return result
+
+    async def resolve_referenced_display_names(self, target_rows: list[Any]) -> dict[str, str]:
+        """Resolve node links embedded in names."""
+        return await self._node_repo.resolve_referenced_display_names(target_rows)
+
     async def get_node_breadcrumbs(self, node_id: int) -> list[Node]:
         """Get ancestor chain from root to node's immediate parent."""
         return await self._node_repo.get_breadcrumbs(node_id)
@@ -185,6 +272,50 @@ class NodeService:
     async def update_inline_classes(self, node_id: int, content: str):
         """Parse and sync {{class}} inline type references in content for this node."""
         return await self._link_service.update_inline_classes(node_id, content)
+
+    async def get_text_links(self, node_id: int):
+        """Get all text links from a node."""
+        return await self._link_service.get_text_links(node_id)
+
+    async def get_text_links_batch(self, node_ids: list[int]):
+        """Get text links for multiple nodes, grouped by source_id."""
+        return await self._link_service.get_text_links_batch(node_ids)
+
+    async def add_tag_link(self, source_node_id: int, target_node_id: int):
+        """Add or upgrade a tag link from source to target."""
+        return await self._link_service.add_tag_link(source_node_id, target_node_id)
+
+    async def remove_tag_link(self, source_node_id: int, target_node_id: int) -> bool:
+        """Remove a tag flag from a link between source and target."""
+        return await self._link_service.remove_tag_link(source_node_id, target_node_id)
+
+    async def get_property_backlinks(self, node_id: int):
+        """Get pages that reference this node via date or node properties."""
+        return await self._link_service.get_property_backlinks(node_id)
+
+    async def get_alias_ids(self, target_node_id: int) -> list[int]:
+        """Get IDs of nodes that are aliases of the target node."""
+        return await self._link_service.get_alias_ids(target_node_id)
+
+    async def add_alias(self, target_node_id: int, alias_node_id: int) -> None:
+        """Add a page as an alias of the target node."""
+        await self._link_service.add_alias(target_node_id, alias_node_id)
+
+    async def remove_alias(self, target_node_id: int, alias_node_id: int) -> bool:
+        """Remove an alias from a node."""
+        return await self._link_service.remove_alias(target_node_id, alias_node_id)
+
+    async def rebuild_all_links(self) -> dict:
+        """Rebuild all node_link records from AST content."""
+        return await self._link_service.rebuild_all_links()
+
+    async def fix_raw_uuid_links(self) -> dict:
+        """Find raw [[uuid]] text in AST content and convert to proper node_link AST nodes."""
+        return await self._link_service.fix_raw_uuid_links()
+
+    async def fix_links_for_uuid(self, target_uuid: str) -> dict:
+        """Fix broken_link and raw [[uuid]] references pointing to a specific UUID."""
+        return await self._link_service.fix_links_for_uuid(target_uuid)
 
     def row_to_node(self, row) -> Node:
         """Convert a raw DB row to a Node entity."""
@@ -894,12 +1025,12 @@ class NodeService:
         # If this is an asset node, delete the asset folder on hard-delete
         if node.is_asset and node.uuid:
             try:
-                from ...domain.services.asset_service import AssetService
+                from ...domain.services.asset_service import AssetFileService
 
                 workspace_uuid = await get_workspace_uuid(self._workspace_id)
                 if workspace_uuid:
-                    asset_service = AssetService(workspace_uuid)
-                    asset_service.delete_asset(node.uuid)
+                    asset_file_service = AssetFileService(workspace_uuid)
+                    asset_file_service.delete_asset(node.uuid)
                     logger.info("Deleted asset folder for node %s", node_id)
             except Exception as e:
                 logger.error(f"[PERM_DELETE] Failed to delete asset folder for node {node_id}: {e}", exc_info=True)
@@ -1382,9 +1513,9 @@ class NodeService:
             "properties": properties,
         }
 
-    async def get_all_pages(self) -> list[Node]:
-        """Get all pages."""
-        return await self._node_repo.get_all_pages()
+    async def get_all_pages(self, limit: int = 1000, offset: int = 0) -> list[Node]:
+        """Get pages, paginated."""
+        return await self._node_repo.get_all_pages(limit=limit, offset=offset)
 
     async def get_page_content(self, page_id: int) -> dict[str, Any] | None:
         """Get a page with all its blocks and properties."""
@@ -1403,6 +1534,360 @@ class NodeService:
             "blocks": blocks,
             "backlinks": backlinks,
         }
+
+    async def find_user_id_by_page_node_uuid(self, node_uuid: str) -> int | None:
+        """Find the user ID whose profile page has the given node UUID."""
+        if self._user_repo is None:
+            return None
+        return await self._user_repo.get_user_id_by_page_node_uuid(node_uuid)
+
+    async def get_node_suggestions(
+        self,
+        class_filters: str | None,
+        limit: int,
+    ) -> tuple[list[Node], list[Node]]:
+        """Return suggested pages for node pickers.
+
+        Optionally filtered by a comma-separated list of class IDs, expanded
+        to include all subclasses.
+        """
+        class_filter_ids: list[int] = []
+        if class_filters:
+            class_filter_ids = [
+                int(c.strip())
+                for c in class_filters.split(",")
+                if c.strip().isdigit()
+            ]
+
+        if class_filter_ids and self._class_service._class_extend_repo is not None:
+            from .class_extension_service import ClassExtensionService
+
+            extension_service = ClassExtensionService(
+                self._workspace_id,
+                self._property_repo,
+                self._class_service._class_extend_repo,
+                self._node_repo,
+            )
+            expanded: set[int] = set()
+            for class_id in class_filter_ids:
+                try:
+                    chain = await extension_service.get_all_extended_classes(class_id)
+                    expanded.update(chain)
+                except (ValueError, LookupError, RecursionError):
+                    expanded.add(class_id)
+            class_filter_ids = list(expanded)
+
+        return await self._node_repo.get_node_suggestions(
+            class_filter_ids or None, limit
+        )
+
+    async def get_archived_pages_paginated(
+        self, page: int, page_size: int
+    ) -> tuple[list[Node], int]:
+        """Get archived pages with total count."""
+        return await self._node_repo.get_archived_pages_paginated(page, page_size)
+
+    async def list_templates_paginated(
+        self, page: int, page_size: int
+    ) -> tuple[list[Node], int]:
+        """List active templates with total count."""
+        return await self._node_repo.list_templates_paginated(page, page_size)
+
+    async def clear_scratchpad(self, user_id: int) -> dict[str, Any]:
+        """Hard-delete all children of the Scratchpad system page.
+
+        Creates the scratchpad page if it does not already exist.
+        """
+        from ...db.schema.constants import SYSTEM_PAGE_UUIDS
+
+        scratchpad_uuid = SYSTEM_PAGE_UUIDS["scratchpad"]
+        scratchpad = await self._node_repo.get_by_uuid(scratchpad_uuid)
+
+        if scratchpad is None or scratchpad.id is None:
+            await self.create_page("Scratchpad", user_id=user_id)
+            return {"status": "ok", "deleted_count": 0}
+
+        child_ids = await self._node_repo.get_descendants(
+            scratchpad.id, include_self=False
+        )
+        if not child_ids:
+            return {"status": "ok", "deleted_count": 0}
+
+        await self._node_repo.hard_delete_nodes(child_ids)
+        return {"status": "ok", "deleted_count": len(child_ids)}
+
+    async def get_node_breadcrumbs_with_resolved_links(
+        self, node_id: int
+    ) -> list[dict[str, Any]]:
+        """Get ancestor breadcrumb chain with resolved link display names."""
+        import re
+
+        from ...domain.stringify_ast import (
+            NodeLinkResolution,
+            StringifyMode,
+            StringifyOptions,
+            parse_ast,
+            stringify_ast,
+        )
+
+        node = await self.get_node(node_id)
+        breadcrumb_target_id = node_id
+        if node and node.aliased_id:
+            breadcrumb_target_id = node.aliased_id
+
+        breadcrumb_nodes = await self.get_node_breadcrumbs(breadcrumb_target_id)
+
+        link_node_uuids: set[str] = set()
+        for breadcrumb_node in breadcrumb_nodes:
+            if breadcrumb_node.name:
+                for match in re.finditer(r'"link_id"\s*:\s*"([^"]+)"', breadcrumb_node.name):
+                    link_id = match.group(1)
+                    colon = link_id.find(":")
+                    node_uuid = link_id[:colon] if colon > 0 else link_id
+                    link_node_uuids.add(node_uuid)
+
+        link_target_map: dict[str, Any] = {}
+        if link_node_uuids:
+            target_nodes = await self.get_nodes_by_uuids(list(link_node_uuids))
+            for target in target_nodes.values():
+                if target.name:
+                    link_target_map[target.uuid] = parse_ast(target.name)
+
+        def _resolve_link(link_id: str):
+            colon = link_id.find(":")
+            node_uuid = link_id[:colon] if colon > 0 else link_id
+            target_ast = link_target_map.get(node_uuid)
+            if target_ast is None:
+                return None
+            return NodeLinkResolution(
+                target_ast=target_ast,
+                label=None,
+                target_id=node_uuid,
+            )
+
+        opts = StringifyOptions(
+            mode=StringifyMode.TEXT_ONLY,
+            resolve_node_link=_resolve_link if link_target_map else None,
+        )
+
+        items: list[dict[str, Any]] = []
+        for breadcrumb_node in breadcrumb_nodes:
+            if breadcrumb_node.id == breadcrumb_target_id:
+                continue
+            raw_name = breadcrumb_node.name or ""
+            display = stringify_ast(parse_ast(raw_name), opts)
+            items.append(
+                {
+                    "id": breadcrumb_node.id or 0,
+                    "name": raw_name,
+                    "display_name": display or "Untitled",
+                    "icon": breadcrumb_node.icon,
+                    "is_page": breadcrumb_node.is_page,
+                    "parent_locked": breadcrumb_node.parent_locked,
+                }
+            )
+
+        return items
+
+    async def load_node_children(
+        self,
+        node_id: int,
+        include_properties: bool = False,
+    ) -> dict[str, Any]:
+        """Load all descendant data needed to build the children response tree.
+
+        Returns descendants ordered by depth/sequence, the parent-child map for
+        has_children calculation, backlink counts, referenced target nodes, and
+        optionally extracted property values.
+        """
+        all_descendants = await self._node_repo.get_descendants_ordered(node_id)
+
+        # Filter out text-property value blocks and their subtrees
+        all_desc_ids = [d.id for d in all_descendants if d.id is not None]
+        text_prop_ids: set[int] = set()
+        if all_desc_ids:
+            text_prop_ids = await self._property_repo.get_text_property_target_ids(
+                all_desc_ids
+            )
+
+        if text_prop_ids:
+            excluded: set = set()
+            filtered: list[Node] = []
+            for d in all_descendants:
+                if d.id in text_prop_ids or d.parent_id in excluded:
+                    if d.id is not None:
+                        excluded.add(d.id)
+                    continue
+                filtered.append(d)
+            all_descendants = filtered
+
+        # Prune collapsed subtrees
+        collapsed_ids: set = set()
+        children_of: dict[int, list] = {}
+        visible_descendants: list[Node] = []
+
+        for d in all_descendants:
+            if d.id is None:
+                continue
+            pid = d.parent_id
+            if pid is not None:
+                children_of.setdefault(pid, []).append(d.id)
+
+            if pid in collapsed_ids:
+                collapsed_ids.add(d.id)
+                continue
+
+            visible_descendants.append(d)
+
+            if d.collapsed:
+                collapsed_ids.add(d.id)
+
+        descendant_ids = [d.id for d in visible_descendants if d.id is not None]
+
+        backlink_counts: dict[int, int] = {}
+        if descendant_ids:
+            backlink_counts = await self._link_service._link_repo.get_backlink_counts(
+                descendant_ids
+            )
+
+        node_properties_map: dict[int, dict[str, Any]] = {}
+        if include_properties and descendant_ids:
+            batch_result = await self.get_nodes_properties_batch(descendant_ids)
+            for nid, prop_data in batch_result.items():
+                node_properties_map[nid] = prop_data
+
+        referenced_nodes: list[Node] = []
+        all_source_ids = [node_id] + descendant_ids
+        if all_source_ids:
+            target_ids = await self._link_service._link_repo.get_text_link_targets_batch(
+                all_source_ids
+            )
+            if target_ids:
+                referenced_nodes = await self._node_repo.get_by_ids(target_ids)
+
+        return {
+            "descendants": visible_descendants,
+            "children_of": children_of,
+            "backlink_counts": backlink_counts,
+            "referenced_nodes": referenced_nodes,
+            "node_properties_map": node_properties_map,
+        }
+
+    async def load_page_references(
+        self,
+        page_id: int,
+        block_ids: list[int],
+    ) -> dict[str, Any]:
+        """Load backlink counts and referenced nodes for a page and its blocks."""
+        backlink_counts: dict[int, int] = {}
+        if block_ids:
+            backlink_counts = await self._link_service._link_repo.get_backlink_counts(
+                block_ids
+            )
+
+        referenced_nodes: list[Node] = []
+        all_source_ids = [page_id] + block_ids
+        if all_source_ids:
+            target_ids = await self._link_service._link_repo.get_text_link_targets_batch(
+                all_source_ids
+            )
+            if target_ids:
+                referenced_nodes = await self._node_repo.get_by_ids(target_ids)
+
+        return {
+            "backlink_counts": backlink_counts,
+            "referenced_nodes": referenced_nodes,
+        }
+
+    async def mark_page_opened(self, node_id: int) -> str:
+        """Mark a page as opened and return the ISO-formatted open_date."""
+        node = await self._node_repo.get_by_id(node_id)
+        if node is None:
+            raise ValueError("Node not found")
+        if not node.is_page:
+            raise ValueError("Only pages can have open_date updated")
+
+        updated = await self._node_repo.update_open_date(node_id)
+        if updated is None or updated.open_date is None:
+            now = datetime.now(UTC)
+            return now.isoformat()
+        return updated.open_date
+
+    async def get_node_versions(self, node_id: int, limit: int) -> list[dict[str, Any]]:
+        """Get version history for a node."""
+        rows = await self._node_repo.get_node_versions(node_id, limit)
+        return [
+            {
+                "id": row["id"],
+                "name": row["name"],
+                "created_at": (
+                    row["created_at"].isoformat() if row["created_at"] else None
+                ),
+                "user": row["username"],
+            }
+            for row in rows
+        ]
+
+    async def restore_node_version(
+        self, node_id: int, version_id: int, user_id: int
+    ) -> Node | None:
+        """Restore a node to a previous version's content."""
+        version_name = await self._node_repo.get_node_version(
+            node_id, version_id
+        )
+        if version_name is None:
+            return None
+
+        updated = await self.update_node(
+            node_id, NodeUpdateData(name=version_name), user_id=user_id
+        )
+        return updated
+
+    async def get_node_including_archived(self, node_id: int) -> Node | None:
+        """Get a node by ID including archived and deleted rows."""
+        return await self._node_repo.get_node_by_id_with_workspace(node_id)
+
+    async def get_delete_undo_state(self, node_id: int) -> dict[str, Any] | None:
+        """Capture the undo state for a node deletion including descendant IDs."""
+        node = await self.get_node_including_archived(node_id)
+        if not node:
+            return None
+
+        desc_ids = await self._node_repo.get_all_descendants(
+            node_id, include_self=False
+        )
+        return {
+            "name": node.name,
+            "icon": node.icon,
+            "color": node.color,
+            "parent_id": node.parent_id,
+            "sequence": node.sequence,
+            "collapsed": node.collapsed,
+            "deleted_ids": [node_id] + desc_ids,
+        }
+
+    async def delete_node_assets(self, node_uuid: str, workspace_id: int) -> None:
+        """Delete any asset files stored for a node UUID."""
+        from ...db.connection import get_workspace_assets_dir, get_workspace_uuid
+
+        workspace_uuid = await get_workspace_uuid(workspace_id)
+        if not workspace_uuid:
+            return
+
+        assets_dir = get_workspace_assets_dir(workspace_uuid)
+        for asset_file in assets_dir.glob(f"{node_uuid}.*"):
+            try:
+                asset_file.unlink()
+                logger.info("Deleted asset file %s", asset_file)
+            except Exception as e:
+                logger.warning("Failed to delete asset file %s: %s", asset_file, e)
+
+    async def get_nodes_by_uuids(self, uuids: list[str]) -> dict[str, Node]:
+        """Get nodes by UUID, returning a dict keyed by UUID."""
+        if not uuids:
+            return {}
+        nodes = await self._node_repo.get_by_uuids(uuids)
+        return {node.uuid: node for node in nodes if node.uuid}
 
     async def search(
         self,

@@ -286,7 +286,7 @@ class TestPermissionCheckerPrivacy:
 
         # Create a PermissionChecker for a different user
         other_user = await auth.create_user("permission_checker@example.com", "password123")
-        checker = PermissionChecker(db_pool, int(other_user["id"]))
+        checker = PermissionChecker(int(other_user["id"]))
 
         perms = await checker.get_node_permissions(page.id)
         assert perms == Permissions.none()
@@ -323,7 +323,7 @@ class TestPermissionCheckerPrivacy:
                 int(test_user["id"]),
             )
 
-        checker = PermissionChecker(db_pool, int(other_user["id"]))
+        checker = PermissionChecker(int(other_user["id"]))
         perms = await checker.get_node_permissions(page.id)
         assert perms.can_read is True
         assert perms.can_write is False
@@ -341,7 +341,7 @@ class TestPermissionCheckerPrivacy:
 
         await node_service._node_repo.update(page.id, NodeUpdateData(is_private=True))
 
-        checker = PermissionChecker(db_pool, int(test_user["id"]))
+        checker = PermissionChecker(int(test_user["id"]))
         perms = await checker.get_node_permissions(page.id)
         assert perms == Permissions.owner()
         assert perms.can_read

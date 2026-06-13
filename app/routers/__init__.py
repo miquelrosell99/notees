@@ -5,7 +5,6 @@ Uses the new node-centric architecture where everything is a node.
 """
 
 from .assets import router as assets_router
-from .auth import get_current_user
 from .auth import router as auth_router
 from .auto_export import router as auto_export_router
 from .export import router as export_router
@@ -27,5 +26,4 @@ __all__ = [
     "undo_router",
     "auto_export_router",
     "live_sync_ws_router",
-    "get_current_user",
 ]

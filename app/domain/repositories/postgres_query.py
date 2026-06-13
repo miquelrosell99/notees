@@ -33,7 +33,7 @@ class PostgresQueryRepository(BasePostgresRepository, QueryRepository):
         """Substitute runtime parameters in QueryAST."""
         import copy
 
-        logger.info(f"[_substitute_params] runtime_params={runtime_params}")
+        logger.debug("[_substitute_params] runtime_params keys=%s", list(runtime_params.keys()) if runtime_params else None)
         query_ast = copy.deepcopy(query_ast)
 
         if hasattr(query_ast.scope, "excluded_page_uuids") and query_ast.scope.excluded_page_uuids:
@@ -86,13 +86,9 @@ class PostgresQueryRepository(BasePostgresRepository, QueryRepository):
                     child.child.value = self._resolve_placeholder(child.child.value, runtime_params)
                 elif isinstance(child.child, ParentCondition):
                     if child.child.parent_uuid:
-                        logger.info(
-                            f"[_substitute_in_group] NOT>ParentCondition parent_uuid before: {child.child.parent_uuid}"
-                        )
+                        logger.debug("[_substitute_in_group] NOT>ParentCondition parent_uuid before: %s", child.child.parent_uuid)
                         child.child.parent_uuid = self._resolve_placeholder(child.child.parent_uuid, runtime_params)
-                        logger.info(
-                            f"[_substitute_in_group] NOT>ParentCondition parent_uuid after: {child.child.parent_uuid}"
-                        )
+                        logger.debug("[_substitute_in_group] NOT>ParentCondition parent_uuid after: %s", child.child.parent_uuid)
                     if child.child.nested_group:
                         self._substitute_in_group(child.child.nested_group, runtime_params)
             elif isinstance(child, ClassCondition):
@@ -109,11 +105,11 @@ class PostgresQueryRepository(BasePostgresRepository, QueryRepository):
             elif isinstance(child, (PropertyCondition, ContentCondition)):
                 child.value = self._resolve_placeholder(child.value, runtime_params)
             elif isinstance(child, ParentCondition):
-                logger.info(f"[_substitute_in_group] ParentCondition found, parent_uuid={child.parent_uuid}")
+                logger.debug("[_substitute_in_group] ParentCondition found, parent_uuid=%s", child.parent_uuid)
                 if child.parent_uuid:
-                    logger.info(f"[_substitute_in_group] ParentCondition parent_uuid before: {child.parent_uuid}")
+                    logger.debug("[_substitute_in_group] ParentCondition parent_uuid before: %s", child.parent_uuid)
                     child.parent_uuid = self._resolve_placeholder(child.parent_uuid, runtime_params)
-                    logger.info(f"[_substitute_in_group] ParentCondition parent_uuid after: {child.parent_uuid}")
+                    logger.debug("[_substitute_in_group] ParentCondition parent_uuid after: %s", child.parent_uuid)
                 if child.nested_group:
                     self._substitute_in_group(child.nested_group, runtime_params)
 
@@ -156,6 +152,13 @@ class PostgresQueryRepository(BasePostgresRepository, QueryRepository):
     ) -> dict[str, Any]:
         """Execute a query and return results with optional pagination metadata."""
         t_start = time.monotonic()
+
+        # Defense-in-depth: clamp pagination parameters even though routers
+        # validate them via Pydantic.
+        if limit is not None:
+            limit = max(1, min(int(limit), 1000))
+        if offset is not None:
+            offset = max(0, int(offset))
 
         query_ast = QueryAST.from_dict(query) if isinstance(query, dict) else query
 

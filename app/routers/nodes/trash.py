@@ -4,10 +4,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi_limiter.depends import RateLimiter
 from pyrate_limiter import Duration, Limiter, Rate
 
-from ...db.connection import acquire_connection
+from ...dependencies import get_current_user, get_node_repository
+from ...domain.repositories.interfaces import NodeRepository
 from ...logging_config import get_logger
 from ...models import PaginatedResponse, User
-from ..auth import get_current_user
 from .helpers import (
     _get_node_service,
     _node_to_response,
@@ -30,6 +30,7 @@ async def get_trash(
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=500),
     user: User = Depends(get_current_user),
+    repo: NodeRepository = Depends(get_node_repository),
 ):
     """Get all soft-deleted nodes (trash) for the current workspace.
 
@@ -37,26 +38,7 @@ async def get_trash(
     permanently removed from the database.
     """
     service = await _get_node_service(user)
-    offset = (page - 1) * page_size
-
-    async with acquire_connection(service.pool) as conn:
-        count_row = await conn.fetchrow(
-            "SELECT COUNT(*) as total FROM node WHERE workspace_id = $1 AND is_deleted = true",
-            service.workspace_id,
-        )
-        total = count_row["total"] if count_row else 0
-
-        rows = await conn.fetch(
-            """
-            SELECT * FROM node
-            WHERE workspace_id = $1 AND is_deleted = true
-            ORDER BY deleted_at DESC NULLS LAST
-            LIMIT $2 OFFSET $3
-            """,
-            service.workspace_id,
-            page_size,
-            offset,
-        )
+    total, rows = await repo.get_trash_paginated(page, page_size)
 
     responses = []
     for row in rows:

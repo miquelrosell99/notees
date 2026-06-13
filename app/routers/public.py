@@ -2,24 +2,21 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from ..auth import verify_password
-from ..db.connection import acquire_connection, get_pool
-from ..domain.repositories import PostgresNodeRepository, PostgresPropertyRepository, PostgresShareRepository
-from ..domain.services.share_service import ShareService
+from ..dependencies import (
+    _get_public_share_service,
+    get_node_repository,
+    get_public_property_repository,
+    get_share_repository_for_public,
+)
+from ..domain.repositories.interfaces import NodeRepository, PropertyRepository, ShareRepository
 from ..logging_config import get_logger
-from .nodes.helpers import _name_text, _resolve_referenced_display_names, extract_properties_dict
+from .nodes.helpers import _name_text, extract_properties_dict
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/public", tags=["Public"])
-
-
-async def _get_public_share_service(workspace_id: int) -> ShareService:
-    pool = await get_pool()
-    share_repo = PostgresShareRepository(pool, workspace_id, None)
-    node_repo = PostgresNodeRepository(pool, workspace_id, None)
-    return ShareService(share_repo, node_repo, workspace_id, 0)
 
 
 def _node_to_public_dict(node, depth: int = 0, display_name: str = "") -> dict:
@@ -80,11 +77,11 @@ def _property_to_public_dict(prop) -> dict:
 async def get_shared_node(
     share_uuid: str,
     request: Request,
+    repo: NodeRepository = Depends(get_node_repository),
+    share_repo: ShareRepository = Depends(get_share_repository_for_public),
+    prop_repo: PropertyRepository = Depends(get_public_property_repository),
 ):
     """Get a publicly shared node and its direct children."""
-    # First, resolve the share to get the workspace_id
-    pool = await get_pool()
-    share_repo = PostgresShareRepository(pool, 0, None)
     share = await share_repo.get_share_by_uuid(share_uuid)
 
     if share is None or not share.is_valid():
@@ -103,40 +100,11 @@ async def get_shared_node(
         raise HTTPException(status_code=404, detail="Share not found or expired")
 
     # Get all non-page descendants (full block hierarchy, excluding child pages)
-    async with acquire_connection(pool) as conn:
-        rows = await conn.fetch(
-            """
-            WITH RECURSIVE tree AS (
-                SELECT id, parent_id, sequence, 1 as depth,
-                       LPAD(sequence::text, 4, '0') as path
-                FROM node
-                WHERE parent_id = $1
-                  AND workspace_id = $2
-                  AND active = TRUE
-                  AND is_deleted = FALSE
-                  AND is_page = FALSE
-                UNION ALL
-                SELECT n.id, n.parent_id, n.sequence, t.depth + 1,
-                       t.path || '/' || LPAD(n.sequence::text, 4, '0')
-                FROM node n
-                JOIN tree t ON n.parent_id = t.id
-                WHERE n.workspace_id = $2
-                  AND n.active = TRUE
-                  AND n.is_deleted = FALSE
-                  AND n.is_page = FALSE
-            )
-            SELECT n.*, t.depth
-            FROM node n
-            JOIN tree t ON n.id = t.id
-            ORDER BY t.path
-            """,
-            node.id,
-            share.workspace_id,
-        )
+    rows = await repo.get_shared_node_children(node.id)
 
     # Resolve display names for nodes that contain inline links
     rows_as_dicts = [{"name": node.name, "uuid": node.uuid}] + [dict(r) for r in rows]
-    resolved = await _resolve_referenced_display_names(pool, share.workspace_id, rows_as_dicts)
+    resolved = await repo.resolve_referenced_display_names(rows_as_dicts)
 
     node_display_name = resolved.get(node.uuid) or _name_text(node.name, max_len=1000) or "Untitled"
 
@@ -166,7 +134,6 @@ async def get_shared_node(
         })
 
     # Load node properties and definitions for the public share
-    prop_repo = PostgresPropertyRepository(pool, share.workspace_id, None)
     raw_properties = await prop_repo.get_all_property_values(node.id)
     properties_dict = extract_properties_dict(raw_properties)
 

@@ -11,10 +11,14 @@ from . import generate_uuid, utc_now_iso
 class User:
     """Domain entity representing a user."""
 
-    username: str
+    email: str
     password_hash: str
     id: int | None = None
     uuid: str = field(default_factory=generate_uuid)
+    name: str | None = None
+    surnames: str | None = None
+    profile_pic: str | None = None
+    role: str = "user"
     active: bool = True  # soft-delete flag
     create_date: str = field(default_factory=utc_now_iso)
     write_date: str = field(default_factory=utc_now_iso)
@@ -29,15 +33,19 @@ class User:
 class UserCreateData:
     """Data for creating a new user."""
 
-    username: str
+    email: str
     password: str  # Plain password, will be hashed
+    name: str | None = None
+    surnames: str | None = None
+    profile_pic: str | None = None
+    role: str = "user"
 
 
 @dataclass
 class UserCredentials:
     """User credentials for authentication."""
 
-    username: str
+    email: str
     password: str
 
 
@@ -47,6 +55,6 @@ class AuthenticatedUser:
 
     id: int
     uuid: str
-    username: str
+    email: str
     is_active: bool
     token: str | None = None

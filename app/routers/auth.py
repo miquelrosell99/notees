@@ -14,6 +14,8 @@ from pyrate_limiter import Duration
 
 from .. import auth
 from ..config import settings
+from ..dependencies import get_current_user, get_invite_repository
+from ..domain.repositories.interfaces import InviteRepository
 from ..logging_config import get_logger
 from ..models import (
     AccessTokenResponse,
@@ -28,7 +30,7 @@ from ..models import (
     UserLogin,
     UserUpdate,
 )
-from ..rate_limit import ip_only_identifier, per_ip_limiter
+from ..rate_limit import auth_identifier, auth_per_account_limiter, ip_only_identifier, per_ip_limiter
 
 
 class AuthStatusResponse(BaseModel):
@@ -48,6 +50,12 @@ _auth_limiter_login = per_ip_limiter(5, Duration.MINUTE)
 _auth_limiter_refresh = per_ip_limiter(10, Duration.MINUTE)
 _auth_limiter_invite = per_ip_limiter(5, Duration.MINUTE)
 _auth_limiter_api_key = per_ip_limiter(10, Duration.MINUTE)
+
+# Per-account auth limiters keyed by username/email in addition to IP.
+_auth_limiter_register_account = auth_per_account_limiter(3, Duration.MINUTE, identifier="register")
+_auth_limiter_login_account = auth_per_account_limiter(5, Duration.MINUTE, identifier="login")
+_auth_limiter_change_password_account = auth_per_account_limiter(5, Duration.MINUTE, identifier="change-password")
+_auth_limiter_invite_account = auth_per_account_limiter(5, Duration.MINUTE, identifier="invite-accept")
 
 
 async def _resolve_user_from_auth(
@@ -95,20 +103,6 @@ async def _get_api_key_scopes(api_key: str) -> list[str] | None:
     scopes = user.get("_api_key_scopes", ["read", "write"])
     _api_key_scope_cache[api_key] = (scopes, now)
     return scopes
-
-
-async def get_current_user(
-    request: Request,
-    credentials: HTTPAuthorizationCredentials = Depends(security),  # noqa: B008
-) -> User:
-    """Get the current authenticated user from JWT token or X-API-Key header."""
-    api_key = request.headers.get("X-API-Key")
-    user_dict = await _resolve_user_from_auth(credentials, api_key)
-
-    if not user_dict:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-
-    return User(**user_dict)
 
 
 async def get_current_user_optional(
@@ -191,7 +185,10 @@ def _set_refresh_cookie(response: Response, token: str) -> None:
 @router.post(
     "/register",
     response_model=Token,
-    dependencies=[Depends(RateLimiter(limiter=_auth_limiter_register))],
+    dependencies=[
+        Depends(RateLimiter(limiter=_auth_limiter_register)),
+        Depends(RateLimiter(limiter=_auth_limiter_register_account, identifier=auth_identifier)),
+    ],
 )
 async def register(request: Request, response: Response, user_data: UserCreate):
     """Register a new user."""
@@ -226,31 +223,34 @@ async def register(request: Request, response: Response, user_data: UserCreate):
 @router.post(
     "/login",
     response_model=Token,
-    dependencies=[Depends(RateLimiter(limiter=_auth_limiter_login))],
+    dependencies=[
+        Depends(RateLimiter(limiter=_auth_limiter_login)),
+        Depends(RateLimiter(limiter=_auth_limiter_login_account, identifier=auth_identifier)),
+    ],
 )
 async def login(request: Request, response: Response, credentials: UserLogin):
     """Login and get access token."""
-    logger.info(f"Login attempt for user: '{credentials.email}'")
+    logger.info("Login attempt")
 
     user = await auth.get_user_by_email(credentials.email)
     if not user:
-        logger.warning(f"Login failed for '{credentials.email}': user not found")
+        logger.warning("Login failed: user not found")
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
     stored_hash = user.get("hashed_password", "")
     if not auth.verify_password(credentials.password, stored_hash):
-        logger.warning(f"Login failed for '{credentials.email}': invalid password")
+        logger.warning(f"Login failed (user_id={user.get('id')}): invalid password")
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
     if not user.get("is_active", True):
-        logger.warning(f"Login failed for '{credentials.email}': account inactive")
+        logger.warning(f"Login failed (user_id={user.get('id')}): account inactive")
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
     # Transparently migrate legacy pbkdf2_sha256 hashes to bcrypt on login.
     if auth.password_needs_rehash(stored_hash):
         await auth.rehash_password(user["id"], credentials.password)
 
-    logger.info(f"Login successful for '{credentials.email}' (id={user.get('id')})")
+    logger.info(f"Login successful (user_id={user.get('id')})")
     access_token = auth.create_token(user["id"], user["email"], user["role"])
     refresh_token = auth.generate_refresh_token()
     await auth.create_refresh_token_db(int(user["id"]), refresh_token)
@@ -308,122 +308,43 @@ async def refresh_access_token(request: Request, response: Response):
 @router.post(
     "/invites/accept",
     response_model=Token,
-    dependencies=[Depends(RateLimiter(limiter=_auth_limiter_invite, identifier=ip_only_identifier))],
+    dependencies=[
+        Depends(RateLimiter(limiter=_auth_limiter_invite, identifier=ip_only_identifier)),
+        Depends(RateLimiter(limiter=_auth_limiter_invite_account, identifier=auth_identifier)),
+    ],
 )
-async def accept_invite(request: Request, response: Response, body: InviteAcceptRequest):
+async def accept_invite(
+    request: Request,
+    response: Response,
+    body: InviteAcceptRequest,
+    invite_repo: InviteRepository = Depends(get_invite_repository),
+):
     """Accept a pending invitation and create/login user.
 
     If the user already exists, this converts the pending invite to a share.
     If not, a new user is created (if registration is enabled or this is first boot).
     """
-    from ..db.connection import get_connection
+    from ..domain.services.invite_service import InviteService
 
-    async with get_connection() as conn:
-        invite = await conn.fetchrow(
-            """
-            SELECT id, email, workspace_id, node_id, role, invited_by, expires_at
-            FROM pending_invite
-            WHERE uuid::text = $1 AND active = TRUE
-            """,
-            body.token,
+    invite_service = InviteService(invite_repo, auth)
+    try:
+        user_record = await invite_service.accept_invite(
+            token=body.token,
+            password=body.password,
+            name=body.name,
         )
-        if not invite:
-            raise HTTPException(status_code=404, detail="Invite not found or expired")
+    except ValueError as e:
+        detail = str(e)
+        if "expired" in detail.lower():
+            raise HTTPException(status_code=410, detail=detail) from e
+        raise HTTPException(status_code=404, detail=detail) from e
 
-        if invite["expires_at"] and invite["expires_at"] < datetime.now():
-            await conn.execute(
-                "UPDATE pending_invite SET active = FALSE WHERE id = $1", invite["id"]
-            )
-            raise HTTPException(status_code=410, detail="Invite has expired")
+    access_token = auth.create_token(user_record["id"], user_record["email"], user_record["role"])
+    refresh_token = auth.generate_refresh_token()
+    await auth.create_refresh_token_db(int(user_record["id"]), refresh_token)
+    _set_refresh_cookie(response, refresh_token)
 
-        email = invite["email"]
-        existing = await auth.get_user_by_email(email)
-
-        if existing:
-            user_id = int(existing["id"])
-        else:
-            is_first = await auth.is_first_boot()
-            if not settings.registration_enabled and not is_first:
-                raise HTTPException(status_code=403, detail="Registration is disabled")
-
-            if not body.password:
-                raise HTTPException(status_code=400, detail="Password is required to create account")
-
-            role = "admin" if is_first else "user"
-            user = await auth.create_user(
-                email=email,
-                password=body.password,
-                name=body.name,
-                role=role,
-            )
-            user_id = int(user["id"])
-
-        # Convert pending invite to actual share
-        if invite["workspace_id"]:
-            perms = {"viewer": (True, False, False, False, False), "commenter": (True, False, False, False, True), "editor": (True, True, True, False, True), "admin": (True, True, True, True, True)}.get(
-                invite["role"], (True, False, False, False, False)
-            )
-            await conn.execute(
-                """
-                INSERT INTO workspace_share (workspace_id, user_id, can_read, can_write, can_create, can_delete, can_comment, active, create_uid, write_uid)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, TRUE, $8, $8)
-                ON CONFLICT (workspace_id, user_id)
-                DO UPDATE SET can_read = EXCLUDED.can_read, can_write = EXCLUDED.can_write,
-                              can_create = EXCLUDED.can_create, can_delete = EXCLUDED.can_delete,
-                              can_comment = EXCLUDED.can_comment, active = TRUE, write_uid = EXCLUDED.write_uid,
-                              write_date = NOW()
-                """,
-                invite["workspace_id"],
-                user_id,
-                perms[0],
-                perms[1],
-                perms[2],
-                perms[3],
-                perms[4],
-                invite["invited_by"],
-            )
-            await conn.execute(
-                "UPDATE workspace SET is_shared = TRUE WHERE id = $1",
-                invite["workspace_id"],
-            )
-
-        if invite["node_id"]:
-            perm = invite["role"]  # "read" or "write"
-            can_write = perm == "write"
-            await conn.execute(
-                """
-                INSERT INTO node_share (node_id, user_id, can_read, can_write, can_create, can_delete, can_comment, active, create_uid, write_uid)
-                VALUES ($1, $2, TRUE, $3, FALSE, FALSE, FALSE, TRUE, $4, $4)
-                ON CONFLICT (node_id, user_id)
-                DO UPDATE SET can_read = TRUE, can_write = EXCLUDED.can_write, active = TRUE,
-                              write_uid = EXCLUDED.write_uid, write_date = NOW()
-                """,
-                invite["node_id"],
-                user_id,
-                can_write,
-                invite["invited_by"],
-            )
-            await conn.execute(
-                "UPDATE node SET is_shared = TRUE WHERE id = $1",
-                invite["node_id"],
-            )
-
-        await conn.execute(
-            "UPDATE pending_invite SET active = FALSE WHERE id = $1",
-            invite["id"],
-        )
-
-        # Get full user record for token
-        user_record = await auth.get_user_by_id(user_id)
-        if not user_record:
-            raise HTTPException(status_code=500, detail="Failed to retrieve user after invite acceptance")
-
-        access_token = auth.create_token(user_record["id"], user_record["email"], user_record["role"])
-        refresh_token = auth.generate_refresh_token()
-        await auth.create_refresh_token_db(int(user_record["id"]), refresh_token)
-        _set_refresh_cookie(response, refresh_token)
-
-        return {"access_token": access_token, "refresh_token": refresh_token, "token_type": "bearer", "user": user_record}
+    return {"access_token": access_token, "refresh_token": refresh_token, "token_type": "bearer", "user": user_record}
 
 
 @router.get("/me", response_model=User)
@@ -464,7 +385,10 @@ _auth_limiter_change_password = per_ip_limiter(5, Duration.MINUTE)
 
 @router.post(
     "/change-password",
-    dependencies=[Depends(RateLimiter(limiter=_auth_limiter_change_password, identifier=ip_only_identifier))],
+    dependencies=[
+        Depends(RateLimiter(limiter=_auth_limiter_change_password, identifier=ip_only_identifier)),
+        Depends(RateLimiter(limiter=_auth_limiter_change_password_account, identifier=auth_identifier)),
+    ],
 )
 async def change_password(
     data: PasswordChangeRequest,

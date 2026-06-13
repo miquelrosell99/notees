@@ -1,21 +1,21 @@
 """CRUD operations for nodes."""
 
-from datetime import UTC
+from contextlib import suppress
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request
 from fastapi_limiter.depends import RateLimiter
 from pyrate_limiter import Duration, Limiter, Rate
 
-from ...db.connection import acquire_connection, get_pool, get_workspace_assets_dir, get_workspace_uuid
+from ...dependencies import _get_share_service, get_current_user, get_notification_repository
 from ...domain.entities import NodeCreateData, NodeUpdateData
 from ...domain.errors import DatePageDeletionError, DuplicateNodeError, OptimisticLockError, SystemClassConstraintError
+from ...domain.repositories.interfaces import NotificationRepository
 from ...domain.stringify_ast import extract_node_links, parse_ast
 from ...logging_config import get_logger
 from ...models import PaginatedResponse, User
-from ...node_export import write_share_html
 from ...routers.notifications import create_notification
-from ..auth import get_current_user
 from .helpers import (
+    _apply_node_extras,
     _get_alias_ids,
     _get_class_ids,
     _get_class_ids_batch,
@@ -50,7 +50,7 @@ _crud_limiter = Limiter(Rate(120, Duration.MINUTE))
 router = APIRouter()
 
 
-async def _notify_mentions(node, actor_user_id: int) -> None:
+async def _notify_mentions(service, node, actor_user_id: int, repo: NotificationRepository) -> None:
     """Scan node name AST for node links to user pages and create notifications."""
     if not node or not node.name:
         return
@@ -60,34 +60,26 @@ async def _notify_mentions(node, actor_user_id: int) -> None:
         if not links:
             return
 
-        pool = await get_pool()
-        async with acquire_connection(pool) as conn:
-            for link in links:
-                link_id = link.get("link_id", "")
-                if not link_id:
-                    continue
-                # link_id may be "nodeUuid:linkUuid" or just "nodeUuid"
-                colon = link_id.find(":")
-                node_uuid = link_id[:colon] if colon > 0 else link_id
+        for link in links:
+            link_id = link.get("link_id", "")
+            if not link_id:
+                continue
+            # link_id may be "nodeUuid:linkUuid" or just "nodeUuid"
+            colon = link_id.find(":")
+            node_uuid = link_id[:colon] if colon > 0 else link_id
 
-                # Check if this node is a user page
-                user_row = await conn.fetchrow(
-                    'SELECT id FROM "user" WHERE user_page_node_id = (SELECT id FROM node WHERE uuid::text = $1)',
-                    node_uuid,
-                )
-                if not user_row:
-                    continue
-                target_user_id = user_row["id"]
-                if target_user_id == actor_user_id:
-                    continue
-                label = link.get("label") or "someone"
-                await create_notification(
-                    user_id=target_user_id,
-                    type="mention",
-                    actor_user_id=actor_user_id,
-                    node_id=node.id,
-                    message=f"mentioned you in '{label}'",
-                )
+            target_user_id = await service.find_user_id_by_page_node_uuid(node_uuid)
+            if target_user_id is None or target_user_id == actor_user_id:
+                continue
+            label = link.get("label") or "someone"
+            await create_notification(
+                user_id=target_user_id,
+                type="mention",
+                actor_user_id=actor_user_id,
+                node_id=node.id,
+                message=f"mentioned you in '{label}'",
+                repo=repo,
+            )
     except (LookupError, ValueError):
         logger.exception("Failed to process mentions for node")
 
@@ -101,6 +93,7 @@ async def create_node(
     request: Request,
     body: NodeCreateRequest,
     user: User = Depends(get_current_user),
+    notification_repo: NotificationRepository = Depends(get_notification_repository),
 ):
     """Create a new node."""
     service = await _get_node_service(user)
@@ -146,7 +139,7 @@ async def create_node(
         pass  # Never fail the mutation because of undo logging
 
     # Notify mentions
-    await _notify_mentions(node, int(user.id))
+    await _notify_mentions(service, node, int(user.id), notification_repo)
 
     return _node_to_response(node, classes=list(body.classes))
 
@@ -179,7 +172,7 @@ async def get_recent_pages(
     service = await _get_node_service(user)
     nodes = await service._node_repo.get_recent_pages(limit)
     node_ids = [node.id for node in nodes if node.id is not None]
-    alias_ids_map = await _get_related_ids_batch(service.pool, service.workspace_id or 0, node_ids, "aliases")
+    alias_ids_map = await _get_related_ids_batch(service, node_ids, "aliases")
     return {
         "nodes": [
             _node_to_response(node, aliases=alias_ids_map.get(node.id or 0, []))
@@ -200,7 +193,7 @@ async def get_random_pages(
     service = await _get_node_service(user)
     nodes = await service._node_repo.get_random_pages(limit)
     node_ids = [node.id for node in nodes if node.id is not None]
-    alias_ids_map = await _get_related_ids_batch(service.pool, service.workspace_id or 0, node_ids, "aliases")
+    alias_ids_map = await _get_related_ids_batch(service, node_ids, "aliases")
     return {
         "nodes": [
             _node_to_response(node, aliases=alias_ids_map.get(node.id or 0, []))
@@ -218,7 +211,7 @@ async def get_recently_created_pages(
     service = await _get_node_service(user)
     nodes = await service._node_repo.get_recently_created_pages(limit)
     node_ids = [node.id for node in nodes if node.id is not None]
-    alias_ids_map = await _get_related_ids_batch(service.pool, service.workspace_id or 0, node_ids, "aliases")
+    alias_ids_map = await _get_related_ids_batch(service, node_ids, "aliases")
     return {
         "nodes": [
             _node_to_response(node, aliases=alias_ids_map.get(node.id or 0, []))
@@ -243,129 +236,33 @@ async def get_node_suggestions(
     """
     service = await _get_node_service(user)
 
-    # Parse class filters
-    class_filter_ids = []
-    if class_filters:
-        class_filter_ids = [int(c.strip()) for c in class_filters.split(",") if c.strip().isdigit()]
+    recent_nodes, linked_nodes = await service.get_node_suggestions(class_filters, limit)
+    all_nodes = recent_nodes + linked_nodes
 
-    # Expand class filters to include all subclasses (inheritance)
-    if class_filter_ids:
-        async with acquire_connection(service.pool) as conn:
-            hierarchy_rows = await conn.fetch(
-                """
-                WITH RECURSIVE filter_hierarchy AS (
-                    SELECT id FROM node WHERE id = ANY($1::int[]) AND workspace_id = $2
-                    UNION
-                    SELECT ce.target_id FROM class_extend ce
-                    INNER JOIN filter_hierarchy fh ON ce.source_id = fh.id
-                )
-                SELECT id FROM filter_hierarchy
-                """,
-                class_filter_ids,
-                service.workspace_id,
-            )
-            class_filter_ids = [row["id"] for row in hierarchy_rows]
-
-    class_filter_clause = ""
-    if class_filter_ids:
-        class_filter_clause = " AND n.class_ids && $3::int[]"
-
-    async with acquire_connection(service.pool) as conn:
-        # Tier 1: Recently created pages (last 15 minutes)
-        params_recent: list = [service.workspace_id, limit]
-        if class_filter_ids:
-            params_recent.append(class_filter_ids)
-
-        recent_rows = await conn.fetch(
-            f"""
-            SELECT n.id, n.uuid, n.name, n.icon, n.color, n.parent_id, n.page_id,
-                   n.is_page, n.is_class, n.is_day, n.is_month, n.is_year,
-                   n.create_date, n.write_date, n.class_ids, n.aliased_id,
-                   1 AS tier
-            FROM node n
-            WHERE n.is_page = true AND n.active = true
-                  AND (n.is_deleted = false OR n.is_deleted IS NULL)
-                  AND n.workspace_id = $1
-                  AND n.create_date > NOW() - INTERVAL '15 minutes'
-                  {class_filter_clause}
-            ORDER BY n.create_date DESC
-            LIMIT $2
-        """,
-            *params_recent,
-        )
-
-        recent_ids = {row["id"] for row in recent_rows}
-
-        # Tier 2: Pages by most recently linked (target of a link)
-        remaining = limit - len(recent_rows)
-        linked_rows = []
-        if remaining > 0:
-            # Build exclusion clause for already-included IDs
-            exclude_clause = ""
-            params_linked: list = [service.workspace_id, remaining]
-            param_idx = 3
-
-            if recent_ids:
-                exclude_clause = f" AND n.id != ALL(${param_idx}::int[])"
-                params_linked.append(list(recent_ids))
-                param_idx += 1
-
-            if class_filter_ids:
-                class_filter_clause_linked = f" AND n.class_ids && ${param_idx}::int[]"
-                params_linked.append(class_filter_ids)
-            else:
-                class_filter_clause_linked = ""
-
-            linked_rows = await conn.fetch(
-                f"""
-                SELECT n.id, n.uuid, n.name, n.icon, n.color, n.parent_id, n.page_id,
-                       n.is_page, n.is_class, n.is_day, n.is_month, n.is_year,
-                       n.create_date, n.write_date, n.class_ids, n.aliased_id,
-                       2 AS tier
-                FROM node n
-                INNER JOIN (
-                    SELECT target_id, MAX(create_date) AS last_linked
-                    FROM node_link
-                    WHERE workspace_id = $1
-                    GROUP BY target_id
-                ) nl ON nl.target_id = n.id
-                WHERE n.is_page = true AND n.active = true
-                      AND (n.is_deleted = false OR n.is_deleted IS NULL)
-                      AND n.workspace_id = $1
-                      {exclude_clause}
-                      {class_filter_clause_linked}
-                ORDER BY nl.last_linked DESC
-                LIMIT $2
-            """,
-                *params_linked,
-            )
-
-        all_rows = list(recent_rows) + list(linked_rows)
-
-    node_ids = [row["id"] for row in all_rows]
-    alias_ids_map = await _get_related_ids_batch(service.pool, service.workspace_id or 0, node_ids, "aliases")
+    node_ids = [node.id for node in all_nodes if node.id is not None]
+    alias_ids_map = await _get_related_ids_batch(service, node_ids, "aliases")
 
     nodes = []
-    for row in all_rows:
+    for node in all_nodes:
         nodes.append(
             {
-                "id": row["id"],
-                "uuid": str(row["uuid"]),
-                "name": row["name"],
-                "icon": row["icon"],
-                "color": row["color"],
-                "parent_id": row["parent_id"],
-                "page_id": row["page_id"],
-                "is_page": row["is_page"],
-                "is_class": row["is_class"],
-                "is_daily": row["is_day"],
-                "is_monthly": row["is_month"],
-                "is_yearly": row["is_year"],
-                "create_date": row["create_date"].isoformat() if row["create_date"] else None,
-                "write_date": row["write_date"].isoformat() if row["write_date"] else None,
-                "classes": list(row["class_ids"] or []),
-                "aliased_id": row["aliased_id"],
-                "aliases": alias_ids_map.get(row["id"], []),
+                "id": node.id,
+                "uuid": str(node.uuid),
+                "name": node.name,
+                "icon": node.icon,
+                "color": node.color,
+                "parent_id": node.parent_id,
+                "page_id": node.page_id,
+                "is_page": node.is_page,
+                "is_class": node.is_class,
+                "is_daily": node.is_day,
+                "is_monthly": node.is_month,
+                "is_yearly": node.is_year,
+                "create_date": node.create_date,
+                "write_date": node.write_date,
+                "classes": list(node.class_ids or []),
+                "aliased_id": node.aliased_id,
+                "aliases": alias_ids_map.get(node.id or 0, []),
             }
         )
 
@@ -380,37 +277,11 @@ async def get_archived_pages(
 ):
     """Get all archived pages."""
     service = await _get_node_service(user)
-    offset = (page - 1) * page_size
 
-    async with acquire_connection(service.pool) as conn:
-        count_row = await conn.fetchrow(
-            """
-            SELECT COUNT(*) as total FROM node
-            WHERE is_page = true AND active = false
-                  AND (is_deleted = false OR is_deleted IS NULL)
-                  AND workspace_id = $1
-            """,
-            service.workspace_id,
-        )
-        total = count_row["total"] if count_row else 0
-
-        rows = await conn.fetch(
-            """
-            SELECT * FROM node
-            WHERE is_page = true AND active = false
-                  AND (is_deleted = false OR is_deleted IS NULL)
-                  AND workspace_id = $1
-            ORDER BY write_date DESC NULLS LAST
-            LIMIT $2 OFFSET $3
-            """,
-            service.workspace_id,
-            page_size,
-            offset,
-        )
+    archived_nodes, total = await service.get_archived_pages_paginated(page, page_size)
 
     result = []
-    for row in rows:
-        page_node = service.row_to_node(row)
+    for page_node in archived_nodes:
         if page_node.id is None:
             continue
         types = await service.get_node_classes(page_node.id)
@@ -434,42 +305,15 @@ async def list_templates(
 ):
     """List all template nodes in the current workspace."""
     service = await _get_node_service(user)
-    offset = (page - 1) * page_size
 
-    async with acquire_connection(service.pool) as conn:
-        count_row = await conn.fetchrow(
-            """
-            SELECT COUNT(*) as total FROM node
-            WHERE workspace_id = $1 AND is_template = TRUE AND active = TRUE
-                  AND (is_deleted = FALSE OR is_deleted IS NULL)
-            """,
-            service.workspace_id,
-        )
-        total = count_row["total"] if count_row else 0
-
-        rows = await conn.fetch(
-            """
-            SELECT * FROM node
-            WHERE workspace_id = $1 AND is_template = TRUE AND active = TRUE
-                  AND (is_deleted = FALSE OR is_deleted IS NULL)
-            ORDER BY name
-            LIMIT $2 OFFSET $3
-            """,
-            service.workspace_id,
-            page_size,
-            offset,
-        )
-
-    pool = service.pool
-    workspace_id = service.workspace_id or 0
+    template_nodes, total = await service.list_templates_paginated(page, page_size)
 
     result = []
-    for row in rows:
-        t = service.row_to_node(row)
+    for t in template_nodes:
         if t.id is None:
             continue
         class_ids = await _get_class_ids(service, t.id)
-        tag_ids = await _get_tag_ids(pool, workspace_id, t.id)
+        tag_ids = await _get_tag_ids(service, t.id)
         result.append(_node_to_response(t, classes=class_ids, tags=tag_ids))
 
     return PaginatedResponse[NodeResponse](
@@ -499,8 +343,6 @@ async def list_tasks(
     from ...db.schema.constants import SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS
 
     service = await _get_node_service(user)
-    pool = service.pool
-    workspace_id = service.workspace_id or 0
 
     # Find the task class node ID
     task_class_node = await service.get_node_by_uuid(SYSTEM_CLASS_UUIDS["task"])
@@ -514,8 +356,8 @@ async def list_tasks(
 
     # Batch load class_ids and tags
     node_ids = [n.id for n in nodes if n.id is not None]
-    class_ids_map = await _get_class_ids_batch(pool, workspace_id, node_ids)
-    tag_ids_map = await _get_related_ids_batch(pool, workspace_id, node_ids, "tags")
+    class_ids_map = await _get_class_ids_batch(service, node_ids)
+    tag_ids_map = await _get_related_ids_batch(service, node_ids, "tags")
 
     # If filtering out completed tasks, batch-load task_status property
     if not include_complete and node_ids:
@@ -573,77 +415,8 @@ async def clear_scratchpad(
     Called on app startup to ensure the scratchpad starts empty.
     Hard-deletes all child blocks since scratchpad content is ephemeral.
     """
-    from ...db.schema.constants import SYSTEM_PAGE_UUIDS
-
     service = await _get_node_service(user)
-    pool = service.pool
-
-    scratchpad_uuid = SYSTEM_PAGE_UUIDS["scratchpad"]
-
-    # Find the scratchpad page
-    scratchpad = await pool.fetchrow(
-        "SELECT id FROM node WHERE uuid = $1 AND workspace_id = $2", scratchpad_uuid, service.workspace_id
-    )
-
-    if not scratchpad:
-        # Auto-create the scratchpad page if it doesn't exist (for existing workspaces)
-        from datetime import datetime
-
-        from ...domain.stringify_ast import ParseMode, parse_ast, serialize_ast
-
-        now = datetime.now(UTC)
-        await pool.fetchrow(
-            """
-            INSERT INTO node (uuid, workspace_id, name, is_page, create_date, write_date, create_uid, write_uid)
-            VALUES ($1, $2, $3, TRUE, $4, $4, $5, $5)
-            ON CONFLICT (workspace_id, uuid) DO NOTHING
-            RETURNING id
-        """,
-            scratchpad_uuid,
-            service.workspace_id,
-            serialize_ast(parse_ast("Scratchpad", ParseMode.PLAIN)),
-            now,
-            int(user.id),
-        )
-
-        return {"status": "ok", "deleted_count": 0}
-
-    scratchpad_id = scratchpad["id"]
-
-    # Get all descendant block IDs (children and their children recursively)
-    child_rows = await pool.fetch(
-        """
-        WITH RECURSIVE descendants AS (
-            SELECT id, 0 AS depth
-            FROM node
-            WHERE id = $1
-            UNION ALL
-            SELECT n.id, d.depth + 1
-            FROM node n
-            INNER JOIN descendants d ON n.parent_id = d.id
-        )
-        SELECT id FROM descendants WHERE depth > 0
-    """,
-        scratchpad_id,
-    )
-
-    if not child_rows:
-        return {"status": "ok", "deleted_count": 0}
-
-    child_ids = [r["id"] for r in child_rows]
-
-    # Hard-delete all children (scratchpad content is ephemeral)
-    deleted = await pool.execute(
-        """
-        DELETE FROM node WHERE id = ANY($1) AND workspace_id = $2
-    """,
-        child_ids,
-        service.workspace_id,
-    )
-
-    deleted_count = int(deleted.split()[-1]) if deleted else 0
-
-    return {"status": "ok", "deleted_count": deleted_count}
+    return await service.clear_scratchpad(int(user.id))
 
 
 @router.post("/{node_id}/restore", name="restore_node")
@@ -677,88 +450,22 @@ async def get_node_breadcrumbs(
     Uses the closure table for O(1) ancestor lookup — much faster than
     chaining individual GET requests.
     """
-    from ...domain.stringify_ast import (
-        NodeLinkResolution,
-        StringifyMode,
-        StringifyOptions,
-        parse_ast,
-        stringify_ast,
-    )
-
     service = await _get_node_service(user)
 
-    # If this node is an alias, return the aliased node's breadcrumbs instead
-    breadcrumb_target_id = node_id
-    node = await service.get_node(node_id)
-    if node and node.aliased_id:
-        breadcrumb_target_id = node.aliased_id
-
-    # Use the repository's get_breadcrumbs which queries the closure table
-    breadcrumb_nodes = await service.get_node_breadcrumbs(breadcrumb_target_id)
-
-    # Collect all node link references from breadcrumb names to resolve them
-    import re
-
-    link_node_uuids: set[str] = set()
-    for node in breadcrumb_nodes:
-        if node.name:
-            # Extract node UUIDs from link_id patterns ("nodeUuid:linkUuid" or bare UUID)
-            for match in re.finditer(r'"link_id"\s*:\s*"([^"]+)"', node.name):
-                link_id = match.group(1)
-                colon = link_id.find(":")
-                node_uuid = link_id[:colon] if colon > 0 else link_id
-                link_node_uuids.add(node_uuid)
-
-    # Resolve link targets in a single batch query
-    link_target_map: dict[str, list] = {}
-    if link_node_uuids:
-        async with acquire_connection(service.pool) as conn:
-            uuid_list = list(link_node_uuids)
-            placeholders = ", ".join(f"${i + 2}" for i in range(len(uuid_list)))
-            rows = await conn.fetch(
-                f"SELECT uuid, name FROM node WHERE workspace_id = $1 AND uuid::text IN ({placeholders})",
-                service.workspace_id,
-                *uuid_list,
-            )
-            for row in rows:
-                link_target_map[str(row["uuid"])] = parse_ast(row["name"])
-
-    def _resolve_link(link_id: str):
-        colon = link_id.find(":")
-        node_uuid = link_id[:colon] if colon > 0 else link_id
-        target_ast = link_target_map.get(node_uuid)
-        if target_ast is None:
-            return None
-        return NodeLinkResolution(
-            target_ast=target_ast,
-            label=None,
-            target_id=node_uuid,
-        )
-
-    opts = StringifyOptions(
-        mode=StringifyMode.TEXT_ONLY,
-        resolve_node_link=_resolve_link if link_target_map else None,
-    )
-
-    # The breadcrumbs include the target node itself at the end — exclude it
-    items = []
-    for node in breadcrumb_nodes:
-        if node.id == breadcrumb_target_id:
-            continue
-        raw_name = node.name or ""
-        display = stringify_ast(parse_ast(raw_name), opts)
-        items.append(
+    breadcrumb_items = await service.get_node_breadcrumbs_with_resolved_links(node_id)
+    return BreadcrumbsResponse(
+        breadcrumbs=[
             BreadcrumbItem(
-                id=node.id or 0,
-                name=raw_name,
-                display_name=display or "Untitled",
-                icon=node.icon,
-                is_page=node.is_page,
-                parent_locked=node.parent_locked,
+                id=item["id"],
+                name=item["name"],
+                display_name=item["display_name"],
+                icon=item["icon"],
+                is_page=item["is_page"],
+                parent_locked=item["parent_locked"],
             )
-        )
-
-    return BreadcrumbsResponse(breadcrumbs=items)
+            for item in breadcrumb_items
+        ]
+    )
 
 
 @router.post("/{node_id}/instantiate", name="instantiate_template")
@@ -832,131 +539,32 @@ async def get_node(
     class_ids = await _get_class_ids(service, node_id)
 
     # Get tags for the node (from node_link with is_tag=1)
-    tag_ids = await _get_tag_ids(service.pool, service.workspace_id or 0, node_id)
+    tag_ids = await _get_tag_ids(service, node_id)
 
     # Get aliases for the node (nodes that have aliased_id pointing to this node)
-    alias_ids = await _get_alias_ids(service.pool, service.workspace_id or 0, node_id)
+    alias_ids = await _get_alias_ids(service, node_id)
 
     response = await _node_to_response_with_permissions(
         node, service.permissions, tags=tag_ids, classes=class_ids, aliases=alias_ids
     )
 
     if include_children:
-        pool = service.pool
 
-        # Get ALL descendants using recursive CTE
-        rows = await pool.fetch(
-            """
-            WITH RECURSIVE descendants AS (
-                SELECT id, 0 AS depth
-                FROM node
-                WHERE id = $1 AND active = TRUE
-                UNION ALL
-                SELECT n.id, d.depth + 1
-                FROM node n
-                INNER JOIN descendants d ON n.parent_id = d.id
-                WHERE n.active = TRUE
-            )
-            SELECT n.*
-            FROM descendants d
-            JOIN node n ON n.id = d.id
-            WHERE d.depth > 0
-              AND (n.is_deleted = FALSE OR n.is_deleted IS NULL)
-            ORDER BY d.depth, n.sequence
-        """,
-            node_id,
+        children_data = await service.load_node_children(
+            node_id, include_properties=include_properties
         )
-        all_descendants = [service.row_to_node(row) for row in rows]
+        visible_descendants = children_data["descendants"]
+        children_of = children_data["children_of"]
+        backlink_counts = children_data["backlink_counts"]
+        node_properties_raw = children_data["node_properties_map"]
+        referenced_targets = children_data["referenced_nodes"]
 
-        # ── Filter out text-property value blocks and their subtrees ──
-        # Text properties store their value as a child block linked via
-        # property_value_relation.  These blocks (and their descendants)
-        # are rendered inside PropertiesSection, not in the main content.
-        all_desc_ids = [d.id for d in all_descendants if d.id is not None]
-        if all_desc_ids:
-            tp_rows = await pool.fetch(
-                """
-                SELECT DISTINCT pvr.target_id
-                FROM property_value_relation pvr
-                JOIN property p ON p.id = pvr.property_id
-                WHERE pvr.target_id = ANY($1)
-                  AND p.type = 'text'
-            """,
-                all_desc_ids,
-            )
-            text_prop_ids = {r["target_id"] for r in tp_rows}
-            if text_prop_ids:
-                # Remove text-property blocks and their entire subtrees
-                excluded: set = set()
-                filtered = []
-                for d in all_descendants:
-                    if d.id in text_prop_ids or d.parent_id in excluded:
-                        if d.id is not None:
-                            excluded.add(d.id)
-                        continue
-                    filtered.append(d)
-                all_descendants = filtered
-
-        # ── Prune collapsed subtrees ──────────────────────────────
-        # Build a set of IDs whose descendants should be excluded:
-        # any node that is collapsed.  We keep the collapsed node itself
-        # (so the frontend sees it with has_children=True) but drop its
-        # descendants to avoid sending hundreds of invisible blocks.
-        #
-        # Because the closure-table query returns rows ORDER BY depth,
-        # we process ancestors before descendants, so a collapsed node
-        # at depth 1 will cause its depth-2+ children to be skipped.
-        collapsed_ids: set = set()
-        children_of: dict[int, list] = {}  # parent_id -> list of ids (for has_children)
-        visible_descendants = []
-
-        for d in all_descendants:
-            if d.id is None:
-                continue
-            # Record parent-child relationship for has_children calculation
-            pid = d.parent_id
-            if pid is not None:
-                children_of.setdefault(pid, []).append(d.id)
-
-            # Skip if any ancestor is collapsed (check parent chain)
-            if pid in collapsed_ids:
-                # This node's parent is collapsed → skip it and propagate
-                collapsed_ids.add(d.id)
-                continue
-
-            visible_descendants.append(d)
-
-            # If this node is collapsed, mark it so its children are pruned
-            if d.collapsed:
-                collapsed_ids.add(d.id)
-
-        # Get all visible descendant IDs
         descendant_ids = [d.id for d in visible_descendants if d.id is not None]
+        node_class_map = await _get_class_ids_batch(service, descendant_ids)
 
-        # Get backlink counts for all descendants in one query
-        backlink_counts: dict[int, int] = {}
-        if descendant_ids:
-            rows = await pool.fetch(
-                """
-                SELECT target_id, COUNT(*) as count
-                FROM node_link
-                WHERE target_id = ANY($1)
-                GROUP BY target_id
-            """,
-                descendant_ids,
-            )
-            for row in rows:
-                backlink_counts[row["target_id"]] = row["count"]
-
-        # Get classes for all descendants in one batch using node.class_ids
-        node_class_map = await _get_class_ids_batch(pool, service.workspace_id or 0, descendant_ids)
-
-        # Get properties for all descendants if include_properties is requested
         node_properties_map: dict[int, dict[str, any]] = {}
-        if include_properties and descendant_ids:
-            # Use batch fetch (3 queries total) instead of N individual queries
-            batch_result = await service.get_nodes_properties_batch(descendant_ids)
-            for nid, prop_data in batch_result.items():
+        if include_properties:
+            for nid, prop_data in node_properties_raw.items():
                 node_properties_map[nid] = extract_properties_dict(prop_data)
 
         # Build tree structure from flat list using parent_id
@@ -993,46 +601,30 @@ async def get_node(
 
         # Build referenced_nodes map for inline pills — lightweight metadata
         # for all outgoing text link targets from this node and its descendants.
-        all_source_ids = [node_id] + descendant_ids
-        if all_source_ids:
-            target_rows = await pool.fetch(
-                """
-                SELECT DISTINCT n.id, n.uuid, n.name, n.icon, n.color, n.is_page, n.is_class,
-                       n.create_date, n.write_date, n.parent_id, n.page_id, n.sequence,
-                       n.collapsed, n.active, n.class_ids
-                FROM node_link nl
-                JOIN node n ON n.id = nl.target_id
-                WHERE nl.source_id = ANY($1)
-                  AND nl.is_tag = FALSE
-                  AND nl.is_inline_class = FALSE
-                  AND nl.property_id IS NULL
-                  AND n.active = TRUE
-                  AND n.is_deleted = FALSE
-            """,
-                all_source_ids,
+        if referenced_targets:
+            display_names = await _resolve_referenced_display_names(
+                service, referenced_targets
             )
-
-            display_names = await _resolve_referenced_display_names(pool, service.workspace_id or 0, target_rows)
             referenced_nodes: dict[str, NodeResponse] = {}
-            for row in target_rows:
-                uuid_str = str(row["uuid"])
+            for target in referenced_targets:
+                uuid_str = str(target.uuid)
                 referenced_nodes[uuid_str] = NodeResponse(
-                    id=row["id"],
+                    id=target.id or 0,
                     uuid=uuid_str,
-                    name=row["name"] or "",
-                    icon=row["icon"],
-                    color=row["color"],
-                    is_page=row["is_page"],
-                    is_class=row.get("is_class", False),
-                    create_date=str(row["create_date"]),
-                    write_date=str(row["write_date"]),
-                    parent_id=row["parent_id"],
-                    page_id=row["page_id"],
-                    sequence=row["sequence"],
-                    collapsed=row["collapsed"],
-                    active=row["active"],
+                    name=target.name or "",
+                    icon=target.icon,
+                    color=target.color,
+                    is_page=target.is_page,
+                    is_class=target.is_class,
+                    create_date=str(target.create_date),
+                    write_date=str(target.write_date),
+                    parent_id=target.parent_id,
+                    page_id=target.page_id,
+                    sequence=target.sequence,
+                    collapsed=target.collapsed,
+                    active=target.active,
                     display_name=display_names.get(uuid_str),
-                    classes=list(row["class_ids"] or []),
+                    classes=list(target.class_ids or []),
                 )
             response.referenced_nodes = referenced_nodes
 
@@ -1135,33 +727,18 @@ async def get_page_content(
     blocks = content["blocks"]
     backlinks = content["backlinks"]
 
-    # Get connection early to avoid unbound variable
-    pool = service.pool
-
     # Get block IDs for batch queries
     block_ids = [b.id for b in blocks if b.id is not None]
 
-    # Get backlink counts for all blocks
-    backlink_counts: dict[int, int] = {}
-    if block_ids:
-        rows = await pool.fetch(
-            """
-            SELECT target_id, COUNT(*) as count
-            FROM node_link
-            WHERE target_id = ANY($1)
-            GROUP BY target_id
-        """,
-            block_ids,
-        )
-        for row in rows:
-            backlink_counts[row["target_id"]] = row["count"]
+    references = await service.load_page_references(page_id, block_ids)
+    backlink_counts = references["backlink_counts"]
 
     # Get classes for all nodes in one batch (from node.class_ids column)
     all_node_ids = [page_id] + block_ids
-    node_class_map = await _get_class_ids_batch(pool, service.workspace_id or 0, all_node_ids)
+    node_class_map = await _get_class_ids_batch(service, all_node_ids)
 
     # Get tags for all nodes in one batch (from node_link with is_tag=1)
-    node_tag_map = await _get_related_ids_batch(pool, service.workspace_id or 0, all_node_ids, "tags")
+    node_tag_map = await _get_related_ids_batch(service, all_node_ids, "tags")
 
     # Build tree structure from flat list
     block_map = {}
@@ -1192,7 +769,7 @@ async def get_page_content(
     page_tag_ids = node_tag_map.get(page_id, [])
 
     # Get aliases for the page
-    page_alias_ids = await _get_alias_ids(service.pool, service.workspace_id or 0, page_id)
+    page_alias_ids = await _get_alias_ids(service, page_id)
 
     page_response = await _node_to_response_with_permissions(
         page, service.permissions, tags=page_tag_ids, classes=page_class_ids, aliases=page_alias_ids
@@ -1237,113 +814,32 @@ async def get_page_content(
 
     # Build referenced_nodes map — lightweight metadata for all outgoing link targets.
     # This eliminates N+1 GET /api/nodes/uuid/{uuid} calls from inline pills.
-    all_source_ids = [page_id] + block_ids
-    if all_source_ids:
-        target_id_rows = await pool.fetch(
-            """
-            SELECT DISTINCT target_id
-            FROM node_link
-            WHERE source_id = ANY($1)
-              AND is_tag = FALSE
-              AND is_inline_class = FALSE
-              AND property_id IS NULL
-        """,
-            all_source_ids,
-        )
-        target_ids = [r["target_id"] for r in target_id_rows]
-        target_rows = []
-        if target_ids:
-            target_rows = await pool.fetch(
-                """
-                SELECT id, uuid, name, icon, color, is_page, is_class,
-                       create_date, write_date, parent_id, page_id, sequence,
-                       collapsed, active, class_ids
-                FROM node
-                WHERE id = ANY($1)
-                  AND active = TRUE
-                  AND is_deleted = FALSE
-            """,
-                target_ids,
-            )
-
+    referenced_targets = references["referenced_nodes"]
+    if referenced_targets:
         referenced_nodes: dict[str, NodeResponse] = {}
-        for row in target_rows:
-            uuid_str = str(row["uuid"])
+        for target in referenced_targets:
+            uuid_str = str(target.uuid)
             referenced_nodes[uuid_str] = NodeResponse(
-                id=row["id"],
+                id=target.id or 0,
                 uuid=uuid_str,
-                name=row["name"] or "",
-                icon=row["icon"],
-                color=row["color"],
-                is_page=row["is_page"],
-                is_class=row.get("is_class", False),
-                create_date=str(row["create_date"]),
-                write_date=str(row["write_date"]),
-                parent_id=row["parent_id"],
-                page_id=row["page_id"],
-                sequence=row["sequence"],
-                collapsed=row["collapsed"],
-                active=row["active"],
+                name=target.name or "",
+                icon=target.icon,
+                color=target.color,
+                is_page=target.is_page,
+                is_class=target.is_class,
+                create_date=str(target.create_date),
+                write_date=str(target.write_date),
+                parent_id=target.parent_id,
+                page_id=target.page_id,
+                sequence=target.sequence,
+                collapsed=target.collapsed,
+                active=target.active,
                 display_name=None,
-                classes=list(row["class_ids"] or []),
+                classes=list(target.class_ids or []),
             )
         page_response.referenced_nodes = referenced_nodes
 
     return page_response
-
-
-async def _apply_node_extras(service, node_id: int, classes, properties) -> None:
-    """Reconcile classes and apply property values alongside a core node update.
-
-    - ``classes``: when not None, the node's classes are set to exactly this list
-      (adds missing, removes extras — Odoo-style).
-    - ``properties``: dict of {property_id: value}; each pair is applied using
-      the same dispatch logic as the ``POST /{node_id}/properties`` endpoint.
-    """
-    if classes is not None:
-        async with acquire_connection(service.pool) as conn:
-            row = await conn.fetchrow(
-                "SELECT class_ids FROM node WHERE id = $1 AND workspace_id = $2",
-                node_id,
-                service.workspace_id,
-            )
-        current = set(row["class_ids"] or []) if row else set()
-        want = set(classes)
-        for cls_id in want - current:
-            await service.add_class(node_id, cls_id)
-        for cls_id in current - want:
-            await service.remove_class(node_id, cls_id)
-
-    if properties:
-        from ...domain.entities.property import RELATION_TYPES, SCALAR_TYPES
-
-        repo = service.property_repo
-        for prop_id, value in properties.items():
-            prop = await repo.get_by_id(prop_id)
-            if not prop:
-                continue
-            if prop.type in SCALAR_TYPES:
-                await repo.set_scalar_value(node_id, prop_id, value)
-            elif prop.type in RELATION_TYPES:
-                if value == "" or value is None:
-                    await repo.assign_property_to_node(node_id, prop_id)
-                elif isinstance(value, list):
-                    unique_vals = list(dict.fromkeys(value))
-                    await repo.clear_relation_values(node_id, prop_id)
-                    for target_id in unique_vals:
-                        await repo.set_relation_value(node_id, prop_id, int(target_id))
-                else:
-                    await repo.set_relation_value(node_id, prop_id, int(value))
-            else:  # SELECTION
-                if value == "" or value is None:
-                    await repo.assign_property_to_node(node_id, prop_id)
-                elif isinstance(value, list):
-                    unique_vals = list(dict.fromkeys(value))
-                    await repo.clear_selection_values(node_id, prop_id)
-                    for sel_id in unique_vals:
-                        await repo.set_selection_value(node_id, prop_id, int(sel_id))
-                else:
-                    await repo.set_selection_value(node_id, prop_id, int(value))
 
 
 @router.put(
@@ -1355,6 +851,7 @@ async def update_node(
     node_id: int,
     body: NodeUpdateRequest,
     user: User = Depends(get_current_user),
+    notification_repo: NotificationRepository = Depends(get_notification_repository),
 ):
     """Update a node."""
     from ...logging_config import get_logger
@@ -1399,17 +896,8 @@ async def update_node(
 
         # Invalidate static share HTML caches for this node
         try:
-            pool = await get_pool()
-            async with acquire_connection(pool) as conn:
-                share_rows = await conn.fetch(
-                    "SELECT uuid FROM node_public_share WHERE node_id = $1 AND active = TRUE",
-                    node_id,
-                )
-                for share_row in share_rows:
-                    try:
-                        await write_share_html(str(share_row["uuid"]), node.workspace_id, node.uuid)
-                    except (OSError, ValueError):
-                        logger.exception(f"Failed to regenerate share HTML for {share_row['uuid']}")
+            share_service = await _get_share_service(user)
+            await share_service.regenerate_share_html_for_node(node)
         except (OSError, ValueError):
             logger.exception("Failed to invalidate share HTML caches")
 
@@ -1438,7 +926,7 @@ async def update_node(
                 pass
 
         # Notify mentions
-        await _notify_mentions(node, int(user.id))
+        await _notify_mentions(service, node, int(user.id), notification_repo)
 
         return _node_to_response(node)
     except OptimisticLockError as e:
@@ -1526,66 +1014,20 @@ async def delete_node(
         HTTPException 404: If node not found
     """
     service = await _get_node_service(user)
-    pool = service.pool
 
     # Snapshot before state for undo (node name + descendants list)
     undo_before = None
-    try:
-        old_node = await service.get_node(node_id)
-        if old_node:
-            # Get descendant IDs for undo (needed to restore them too)
-            desc_rows = await pool.fetch(
-                """
-                WITH RECURSIVE descendants AS (
-                    SELECT id, 0 AS depth
-                    FROM node
-                    WHERE id = $1
-                    UNION ALL
-                    SELECT n.id, d.depth + 1
-                    FROM node n
-                    INNER JOIN descendants d ON n.parent_id = d.id
-                )
-                SELECT id FROM descendants WHERE depth > 0
-                """,
-                node_id,
-            )
-            desc_ids = [r["id"] for r in desc_rows]
-            undo_before = {
-                **_node_snapshot(old_node),
-                "deleted_ids": [node_id] + desc_ids,
-            }
-    except (ValueError, TypeError, LookupError):
-        pass
+    with suppress(ValueError, TypeError, LookupError):
+        undo_before = await service.get_delete_undo_state(node_id)
 
     # Get the node including archived ones (for UUID and asset cleanup)
-    row = await pool.fetchrow(
-        "SELECT uuid FROM node WHERE id = $1 AND workspace_id = $2", node_id, service.workspace_id
-    )
-    if not row:
-        # Debug: check if node exists at all
-        debug_row = await pool.fetchrow("SELECT id, workspace_id, active FROM node WHERE id = $1", node_id)
-        if debug_row:
-            raise HTTPException(
-                404,
-                f"Node {node_id} exists in workspace {debug_row['workspace_id']} (active={debug_row['active']}), but current user workspace is {service.workspace_id}",
-            )
-        raise HTTPException(404, f"Node {node_id} not found in any workspace")
-
-    node_uuid = row["uuid"]
+    node = await service.get_node_including_archived(node_id)
+    if node is None:
+        raise HTTPException(404, f"Node {node_id} not found")
 
     # Try to delete any associated asset file
-    if node_uuid and service.workspace_id is not None:
-        # Get workspace UUID for asset storage
-        workspace_uuid = await get_workspace_uuid(service.workspace_id)
-        if workspace_uuid:
-            assets_dir = get_workspace_assets_dir(workspace_uuid)
-            # Check for asset files with any extension
-            for asset_file in assets_dir.glob(f"{node_uuid}.*"):
-                try:
-                    asset_file.unlink()
-                    logger.info(f"Deleted asset file {asset_file} for node {node_id}")
-                except Exception as e:
-                    logger.warning(f"Failed to delete asset file {asset_file}: {e}")
+    if node.uuid and service.workspace_id is not None:
+        await service.delete_node_assets(node.uuid, service.workspace_id)
 
     try:
         success = await service.delete_node(node_id)
@@ -1707,31 +1149,17 @@ async def mark_page_opened(
 
     Also ensures default NodeViews exist for the page (lazy initialization).
     """
-    from datetime import datetime
-
     service = await _get_node_service(user)
-    async with acquire_connection(service.pool) as conn:
-        # Verify it's a page and exists
-        row = await conn.fetchrow(
-            "SELECT id, is_page FROM node WHERE id = $1 AND active = TRUE AND is_deleted = FALSE AND workspace_id = $2",
-            node_id,
-            service.workspace_id,
-        )
-
-        if not row:
-            raise HTTPException(status_code=404, detail="Node not found")
-
-        if not row["is_page"]:
-            raise HTTPException(status_code=400, detail="Only pages can have open_date updated")
-
-        # Update open_date
-        now = datetime.now(UTC)
-        await conn.execute("UPDATE node SET open_date = $1 WHERE id = $2", now, node_id)
+    try:
+        open_date = await service.mark_page_opened(node_id)
+    except ValueError as e:
+        status_code = 404 if "not found" in str(e).lower() else 400
+        raise HTTPException(status_code=status_code, detail=str(e)) from e
 
     # Note: Default views are now lazily created by the frontend via ensure-defaults endpoint
     # This keeps all query structure logic in one place
 
-    return {"status": "ok", "open_date": now.isoformat()}
+    return {"status": "ok", "open_date": open_date}
 
 
 @router.get("/{node_id}/versions", name="get_node_versions")
@@ -1742,34 +1170,7 @@ async def get_node_versions(
 ):
     """Get version history for a node, ordered by most recent first."""
     service = await _get_node_service(user)
-
-    async with acquire_connection(service.pool) as conn:
-        rows = await conn.fetch(
-            """
-            SELECT nv.id, nv.name, nv.created_at, nv.user_id,
-                   u.username
-            FROM node_version nv
-            LEFT JOIN "user" u ON u.id = nv.user_id
-            WHERE nv.node_id = $1 AND nv.workspace_id = $2
-            ORDER BY nv.created_at DESC
-            LIMIT $3
-        """,
-            node_id,
-            service.workspace_id,
-            limit,
-        )
-
-    versions = []
-    for row in rows:
-        versions.append(
-            {
-                "id": row["id"],
-                "name": row["name"],
-                "created_at": row["created_at"].isoformat() if row["created_at"] else None,
-                "user": row["username"],
-            }
-        )
-
+    versions = await service.get_node_versions(node_id, limit)
     return {"versions": versions}
 
 
@@ -1782,27 +1183,11 @@ async def restore_node_version(
     """Restore a node to a previous version's content."""
     service = await _get_node_service(user)
 
-    async with acquire_connection(service.pool) as conn:
-        # Get the version content
-        row = await conn.fetchrow(
-            """
-            SELECT name FROM node_version
-            WHERE id = $1 AND node_id = $2 AND workspace_id = $3
-        """,
-            version_id,
-            node_id,
-            service.workspace_id,
-        )
-
-        if not row:
-            raise HTTPException(404, "Version not found")
-
-    # Update the node with the old content
-    data = NodeUpdateData(name=row["name"])
-    updated = await service.update_node(node_id, data, user_id=int(user.id))
-
+    updated = await service.restore_node_version(
+        node_id, version_id, user_id=int(user.id)
+    )
     if not updated:
-        raise HTTPException(404, "Node not found")
+        raise HTTPException(404, "Version or node not found")
 
     types = await service.get_node_classes(node_id)
     return _node_to_response(updated, classes=[t.id for t in types if t.id])

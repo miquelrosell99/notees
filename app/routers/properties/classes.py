@@ -3,9 +3,9 @@
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from ...db.connection import get_pool
+from ...dependencies import _get_class_extension_service as _get_extension_service
+from ...dependencies import get_current_user
 from ...models import User
-from ..auth import get_current_user
 from .helpers import _get_property_repo
 from .models import (
     ClassExtendsRequest,
@@ -15,21 +15,6 @@ from .models import (
 )
 
 router = APIRouter()
-
-
-async def _get_extension_service(user: User):
-    """Get ClassExtensionService for user's workspace (respects active workspace)."""
-    from ...dependencies import _get_workspace_context_cached
-    from ...domain.repositories import PostgresClassExtendRepository, PostgresNodeRepository
-    from ...domain.services.class_extension_service import ClassExtensionService
-
-    pool = await get_pool()
-    user_id = int(user.id)
-    workspace_id, _ = await _get_workspace_context_cached(pool, user_id)
-    repo = await _get_property_repo(user)
-    class_extend_repo = PostgresClassExtendRepository(pool, workspace_id, user_id)
-    node_repo = PostgresNodeRepository(pool, workspace_id, 0, user_id)
-    return ClassExtensionService(workspace_id, repo, class_extend_repo, node_repo)
 
 
 # ============== Batch Class Properties ==============

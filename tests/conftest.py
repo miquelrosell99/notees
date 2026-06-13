@@ -14,21 +14,20 @@ using PostgreSQL. Supports two modes:
 """
 import asyncio
 import os
-import sys
 import secrets
+import sys
+from collections.abc import AsyncGenerator, Generator
 from pathlib import Path
-from typing import AsyncGenerator, Generator
 
 import pytest
 import pytest_asyncio
-from httpx import AsyncClient, ASGITransport
+from httpx import ASGITransport, AsyncClient
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from app.main import app
 from app.config import settings
-
+from app.main import app
 
 # ==================== PYTEST CONFIGURATION ====================
 
@@ -55,10 +54,10 @@ if not _EXTERNAL_DB_URL:
 @pytest.fixture(scope="session")
 def postgres_container():
     """Start a PostgreSQL container for the entire test session.
-    
+
     This fixture uses testcontainers to spin up a real PostgreSQL instance.
     The container is started once per session and shared across all tests.
-    
+
     If TEST_DATABASE_URL is set, this fixture is skipped and the external
     database is used instead.
     """
@@ -66,13 +65,13 @@ def postgres_container():
         # No container needed - using external database
         yield None
         return
-        
+
     if not _USE_TESTCONTAINERS:
         pytest.skip(
             "Docker not available and TEST_DATABASE_URL not set. "
             "Either start Docker or set TEST_DATABASE_URL=postgresql://user:pass@host:port/dbname"
         )
-        
+
     with _PostgresContainer(
         image="postgres:16-alpine",
         username="test",
@@ -87,7 +86,7 @@ def database_url(postgres_container) -> str:
     """Get the database URL for the test PostgreSQL instance."""
     if _EXTERNAL_DB_URL:
         return _EXTERNAL_DB_URL
-        
+
     return postgres_container.get_connection_url().replace(
         "postgresql+psycopg2://", "postgresql://"
     )
@@ -99,19 +98,19 @@ def temp_data_dir(tmp_path: Path) -> Generator[Path, None, None]:
     data_dir = tmp_path / "data"
     data_dir.mkdir(parents=True, exist_ok=True)
     (data_dir / "users").mkdir(exist_ok=True)
-    
+
     # Override settings
     original_dir = settings.database_dir
     settings.database_dir = data_dir
-    
+
     # Update auth module's USERS_DIR for user files (if it exists)
     from app import auth
     original_users_dir = getattr(auth, 'USERS_DIR', None)
     if original_users_dir is not None:
         auth.USERS_DIR = data_dir / "users"
-    
+
     yield data_dir
-    
+
     # Restore
     settings.database_dir = original_dir
     if original_users_dir is not None:
@@ -127,41 +126,102 @@ async def db_pool(database_url: str, temp_data_dir: Path):
     2. Re-running schema initialization
     """
     import asyncpg
+
     from app.db import connection, schema
-    
+
     # Set the DATABASE_URL for the connection module
     os.environ['DATABASE_URL'] = database_url
-    
-    # Initialize the connection pool
-    pool = await connection.init_pool()
-    
+    # Pydantic settings are loaded once at import time; update the cached
+    # instance explicitly so the app under test uses the test database.
+    settings.database_url = database_url
+
+    # Close any pool left open by a previously aborted test so the fresh
+    # schema init below does not race with stale pooled connections.
+    await connection.close_pool()
+
     # Clean database before each test and re-initialize schema on a dedicated,
     # non-pooled connection. Keeping DDL out of the pool guarantees all locks
     # are released and the transaction is fully closed before test code acquires
     # any pool connections.
     setup_conn = await asyncpg.connect(database_url)
     try:
-        # Drop the public schema entirely so an aborted or partially-applied
-        # schema init cannot leave behind tables, types, or migrations that
-        # would collide with the fresh initialization below.
-        await setup_conn.execute("DROP SCHEMA IF EXISTS public CASCADE")
+        # Forcibly terminate any other backends still connected to this test
+        # database. Leaked connections from background tasks or aborted tests
+        # would otherwise block DROP SCHEMA or cause deadlocks. We re-try the
+        # drop briefly so transient connections have time to exit.
+        for _ in range(5):
+            try:
+                await setup_conn.execute("DROP SCHEMA IF EXISTS public CASCADE")
+                break
+            except asyncpg.exceptions.DependencyStillExistsError:
+                await setup_conn.execute(
+                    """
+                    SELECT pg_terminate_backend(pid)
+                    FROM pg_stat_activity
+                    WHERE datname = current_database()
+                      AND pid <> pg_backend_pid()
+                """
+                )
+                await asyncio.sleep(0.05)
+        else:
+            await setup_conn.execute("DROP SCHEMA IF EXISTS public CASCADE")
+
         await setup_conn.execute("CREATE SCHEMA public")
         await setup_conn.execute("GRANT ALL ON SCHEMA public TO public")
+        await setup_conn.execute("SET search_path TO public")
 
-        # Re-create required extensions in the fresh public schema
+        # Re-create required extensions in the fresh public schema.
+        # pg_trgm is used for full-text-ish substring matching. uuid-ossp is
+        # created by init_database itself because running CREATE EXTENSION IF
+        # NOT EXISTS twice in the same connection before SCHEMA_SQL triggers an
+        # asyncpg/PostgreSQL unique-violation on pg_extension_name_index.
         await setup_conn.execute("CREATE EXTENSION IF NOT EXISTS pg_trgm")
 
         # Initialize fresh schema on the same connection
         await schema.init_database(setup_conn)
     finally:
         await setup_conn.close()
-    
+
+    # Initialize the connection pool *after* the schema is ready so all pooled
+    # connections see the freshly-created tables.
+    pool = await connection.init_pool()
+
     # Clear in-memory auth cache so tests don't see stale user data
     from app import auth
     auth._user_cache.clear()
-    
+
     yield pool
-    
+
+    # Cancel known application background tasks (e.g. export jobs) so they don't
+    # hold pooled connections open across test boundaries. We identify tasks by
+    # their coroutine function name to avoid cancelling pytest-asyncio internals.
+    def _task_coro_name(task: asyncio.Task) -> str | None:
+        coro = task.get_coro()
+        if coro is None:
+            return None
+        return getattr(coro, "__qualname__", None) or getattr(
+            getattr(coro, "cr_code", None), "co_name", None
+        )
+
+    background_task_names = {
+        "_run_batch_export",
+        "_run_export_job",
+        "_run_lock_timer",
+        "_run_redis_loop",
+    }
+    current_task = asyncio.current_task()
+    pending = [
+        t
+        for t in asyncio.all_tasks()
+        if t is not current_task
+        and not t.done()
+        and _task_coro_name(t) in background_task_names
+    ]
+    for task in pending:
+        task.cancel()
+    if pending:
+        await asyncio.gather(*pending, return_exceptions=True)
+
     # Close pool after test
     await connection.close_pool()
 
@@ -170,17 +230,18 @@ async def db_pool(database_url: str, temp_data_dir: Path):
 async def test_user(db_pool, temp_data_dir: Path) -> dict:
     """Create a test user and workspace, return user data with auth token."""
     import shutil
+
     from app import auth
     from app.db import schema
     from app.db.connection import get_workspace_dir
-    
+
     # Use unique email per test to avoid conflicts
     unique_id = secrets.token_hex(4)
     email = f"testuser_{unique_id}@example.com"
-    
+
     # Create user via auth module
     user = await auth.create_user(email, "testpassword123")
-    
+
     # Create workspace for user and seed system types
     async with db_pool.acquire() as conn:
         workspace_id = await schema.create_workspace_for_user(conn, int(user["id"]))
@@ -196,10 +257,10 @@ async def test_user(db_pool, temp_data_dir: Path) -> dict:
             workspace_id, schema.SYSTEM_CLASS_UUIDS["page"]
         )
         page_class_id = page_row["id"] if page_row else None
-    
+
     # Generate auth token
     token = auth.create_token(user["id"], user["email"], user["role"])
-    
+
     user_data = {
         "id": user["id"],
         "email": user["email"],
@@ -209,9 +270,9 @@ async def test_user(db_pool, temp_data_dir: Path) -> dict:
         "token": token,
         "auth_header": {"Authorization": f"Bearer {token}"},
     }
-    
+
     yield user_data
-    
+
     # Clean up workspace directory on disk (DB is cleaned by db_pool)
     if workspace_uuid:
         ws_dir = get_workspace_dir(workspace_uuid)
@@ -224,7 +285,7 @@ async def test_user(db_pool, temp_data_dir: Path) -> dict:
 @pytest_asyncio.fixture(scope="function")
 async def client(db_pool) -> AsyncGenerator[AsyncClient, None]:
     """Create an async HTTP client for testing.
-    
+
     The db_pool fixture ensures the database is initialized before
     any HTTP requests are made.
     """
@@ -235,7 +296,7 @@ async def client(db_pool) -> AsyncGenerator[AsyncClient, None]:
 
 @pytest_asyncio.fixture(scope="function")
 async def authenticated_client(
-    client: AsyncClient, 
+    client: AsyncClient,
     test_user: dict
 ) -> AsyncClient:
     """Create an authenticated HTTP client."""

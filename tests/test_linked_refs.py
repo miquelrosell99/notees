@@ -10,12 +10,13 @@ Key semantics:
 """
 import json
 import pytest
+import pytest_asyncio
 from datetime import datetime, timezone
 
 from app.db.schema import SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS
 
 
-@pytest.fixture
+@pytest_asyncio.fixture(scope="function")
 async def link_service_fixtures(db_pool, test_user):
     """Create repositories and link service for testing."""
     from app.domain.repositories import (
