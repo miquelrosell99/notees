@@ -18,6 +18,7 @@ import './TableView';
 const GanttView = lazy(() => import('./GanttView').then((m) => ({ default: m.GanttView })));
 const GraphView = lazy(() => import('./GraphView').then((m) => ({ default: m.GraphView })));
 const TimelineView = lazy(() => import('./TimelineView').then((m) => ({ default: m.TimelineView })));
+const PivotView = lazy(() => import('./PivotView').then((m) => ({ default: m.PivotView })));
 
 registerView({
   id: 'gantt',
@@ -41,4 +42,12 @@ registerView({
   icon: 'mdi mdi-timeline-clock-outline',
   component: TimelineView,
   capabilities: { errorBoundary: true },
+});
+
+registerView({
+  id: 'pivot',
+  label: 'Pivot',
+  icon: 'mdi mdi-table-pivot',
+  component: PivotView,
+  capabilities: { groupBy: false },
 });

@@ -18,6 +18,7 @@ export const DEFAULT_VIEW_MODES_ORDER: NodeCollectionViewMode[] = [
   'gantt',
   'calendar',
   'chart',
+  'pivot',
   'graph',
   'timeline'
 ];
@@ -33,6 +34,7 @@ export const VIEW_MODE_ICONS: Record<NodeCollectionViewMode, string> = {
   gantt: "mdi mdi-chart-gantt",
   calendar: "mdi mdi-calendar-month",
   chart: "mdi mdi-chart-bar",
+  pivot: "mdi mdi-table-pivot",
   graph: "mdi mdi-graph-outline",
   timeline: "mdi mdi-timeline-clock-outline",
 };
@@ -48,6 +50,7 @@ export const VIEW_MODE_LABELS: Record<NodeCollectionViewMode, string> = {
   gantt: 'Gantt',
   calendar: 'Calendar',
   chart: 'Chart',
+  pivot: 'Pivot',
   graph: 'Graph',
   timeline: 'Timeline',
 };

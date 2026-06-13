@@ -302,8 +302,9 @@ class PostgresQueryRepository(BasePostgresRepository, QueryRepository):
             groups: list[dict[str, Any]] = []
             for row in rows:
                 group_dict = dict(row)
-                if isinstance(group_dict.get("group_key"), date):
-                    group_dict["group_key"] = group_dict["group_key"].isoformat()
+                for key, value in group_dict.items():
+                    if isinstance(value, date):
+                        group_dict[key] = value.isoformat()
                 groups.append(group_dict)
             results: list[dict[str, Any]] = groups
         else:

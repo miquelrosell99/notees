@@ -15,9 +15,10 @@ import type { SortEntry } from '@/features/content/components/nodes/views/NodeTa
 /**
  * Available groupBy options for NodeCollection.
  * Special values: 'none' (no grouping), 'page' (group by source page).
- * Any other string is treated as a property UUID to group by.
+ * Any string is treated as a property UUID to group by.
+ * An array enables multi-level grouping (list view).
  */
-export type NodeCollectionGroupBy = string;
+export type NodeCollectionGroupBy = string | string[];
 
 // ==================== View Modes ====================
 
@@ -31,7 +32,8 @@ export type NodeCollectionViewMode =
   | 'table'     // Table with rows
   | 'gantt'     // Timeline/Gantt view
   | 'calendar'  // Calendar month/week view
-  | 'chart'     // Bar/pie chart aggregation view
+  | 'chart'     // Bar/line/pie chart aggregation view
+  | 'pivot'     // Pivot table with row/column dimensions and measures
   | 'graph'     // Graph visualization
   | 'timeline'; // Timeline with date-based circular nodes
 
@@ -369,9 +371,12 @@ export interface NodeListViewProps extends NodeCollectionViewBaseProps {
   /** Group by option (default: 'none' when showGroupBy is false) */
   groupBy?: NodeCollectionGroupBy;
 
-  /** Property object when groupBy is a property UUID */
+  /** Property object when groupBy is a single property UUID */
   groupByProperty?: Property;
-  
+
+  /** Resolved property objects for multi-level grouping */
+  groupByProperties?: Property[];
+
   /** Whether grouping is enabled (default: false) */
   enableGrouping?: boolean;
   /** Whether to hide inline property rows below blocks (default: false) */
@@ -512,6 +517,16 @@ export interface NodeChartViewProps extends NodeCollectionViewBaseProps {
   /** Property to group nodes by for aggregation */
   groupByProperty?: Property;
   /** QueryAST so the chart can request backend aggregation */
+  queryAst?: QueryAST;
+  /** NodeView ID for executing backend aggregation */
+  viewId?: number;
+}
+
+/**
+ * Props for NodePivotView (pivot mode)
+ */
+export interface NodePivotViewProps extends NodeCollectionViewBaseProps {
+  /** QueryAST for the base query (used for drill-down) */
   queryAst?: QueryAST;
   /** NodeView ID for executing backend aggregation */
   viewId?: number;

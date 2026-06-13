@@ -103,6 +103,7 @@ async def init_database(conn: asyncpg.Connection) -> None:
     from app.db.migrations.add_node_mention import run as _run_add_node_mention
     await _run_migration("add_node_mention", conn, _run_add_node_mention)
     await _run_migration("remove_tags_system_property", conn, _remove_tags_system_property)
+    await _run_migration("materialize_search_text", conn, _materialize_search_text)
 
 
 
@@ -1375,3 +1376,161 @@ async def _remove_tags_system_property(conn: asyncpg.Connection) -> None:
             "DELETE FROM property WHERE id = $1",
             property_id,
         )
+
+
+async def _materialize_search_text(conn: asyncpg.Connection) -> None:
+    """Add and populate the materialized node.search_text column.
+
+    Existing databases may already have the column from SCHEMA_SQL, but the
+    trigger-populated values will be NULL until this migration runs.  We add
+    the column idempotently, ensure the helper functions and triggers exist,
+    and backfill all existing rows.
+    """
+    from ...logging_config import get_logger
+
+    logger = get_logger(__name__)
+
+    await conn.execute(
+        "ALTER TABLE node ADD COLUMN IF NOT EXISTS search_text TEXT"
+    )
+
+    # Recreate functions/triggers idempotently in case an older schema left
+    # them in a partial state.
+    await conn.execute(
+        """
+        CREATE OR REPLACE FUNCTION node_plain_text(p_name TEXT)
+        RETURNS TEXT AS $$
+        DECLARE
+            v_result TEXT;
+        BEGIN
+            IF p_name IS NOT NULL AND p_name LIKE '[%' THEN
+                BEGIN
+                    SELECT COALESCE(string_agg(t #>> '{}', ''), '') INTO v_result
+                    FROM jsonb_path_query(p_name::jsonb, '$.**.text') AS t;
+                EXCEPTION WHEN OTHERS THEN
+                    v_result := COALESCE(p_name, '');
+                END;
+            ELSE
+                v_result := COALESCE(p_name, '');
+            END IF;
+            RETURN v_result;
+        END;
+        $$ LANGUAGE plpgsql IMMUTABLE;
+
+        CREATE OR REPLACE FUNCTION compute_node_search_text(p_node_id INTEGER)
+        RETURNS TEXT AS $$
+        DECLARE
+            v_own TEXT;
+            v_links TEXT;
+        BEGIN
+            SELECT node_plain_text(name) INTO v_own
+            FROM node WHERE id = p_node_id;
+
+            WITH RECURSIVE link_path(source_id, target_id, link_name, depth) AS (
+                SELECT nl.source_id, nl.target_id, nl.name, 1
+                FROM node_link nl
+                WHERE nl.source_id = p_node_id AND nl.is_inline_class = FALSE
+                UNION ALL
+                SELECT lp.source_id, nl.target_id, nl.name, lp.depth + 1
+                FROM link_path lp
+                JOIN node_link nl ON nl.source_id = lp.target_id
+                WHERE nl.is_inline_class = FALSE AND lp.depth < 5
+            )
+            SELECT COALESCE(string_agg(part, ' '), '') INTO v_links
+            FROM (
+                SELECT DISTINCT node_plain_text(n.name) AS part
+                FROM link_path lp
+                JOIN node n ON n.id = lp.target_id
+                WHERE n.name IS NOT NULL
+                UNION
+                SELECT DISTINCT lp.link_name AS part
+                FROM link_path lp
+                WHERE lp.link_name IS NOT NULL
+            ) t;
+
+            RETURN COALESCE(v_own, '') || ' ' || v_links;
+        END;
+        $$ LANGUAGE plpgsql STABLE;
+
+        CREATE OR REPLACE FUNCTION node_search_text_after_insert()
+        RETURNS TRIGGER AS $$
+        BEGIN
+            UPDATE node SET search_text = compute_node_search_text(NEW.id) WHERE id = NEW.id;
+            RETURN NEW;
+        END;
+        $$ LANGUAGE plpgsql;
+
+        DROP TRIGGER IF EXISTS node_search_text_insert_trigger ON node;
+        CREATE TRIGGER node_search_text_insert_trigger
+            AFTER INSERT ON node
+            FOR EACH ROW
+            EXECUTE FUNCTION node_search_text_after_insert();
+
+        -- Drop legacy BEFORE UPDATE trigger if it exists; we use AFTER UPDATE.
+        DROP TRIGGER IF EXISTS node_search_text_update_trigger ON node;
+        DROP FUNCTION IF EXISTS node_search_text_update();
+
+        CREATE OR REPLACE FUNCTION node_search_text_after_update()
+        RETURNS TRIGGER AS $$
+        BEGIN
+            UPDATE node SET search_text = compute_node_search_text(NEW.id) WHERE id = NEW.id;
+            UPDATE node n
+            SET search_text = compute_node_search_text(n.id)
+            WHERE n.id IN (
+                SELECT source_id FROM node_link
+                WHERE target_id = NEW.id AND is_inline_class = FALSE
+            );
+            RETURN NEW;
+        END;
+        $$ LANGUAGE plpgsql;
+
+        DROP TRIGGER IF EXISTS node_search_text_after_update_trigger ON node;
+        CREATE TRIGGER node_search_text_after_update_trigger
+            AFTER UPDATE OF name ON node
+            FOR EACH ROW
+            EXECUTE FUNCTION node_search_text_after_update();
+
+        CREATE OR REPLACE FUNCTION node_link_search_text_change()
+        RETURNS TRIGGER AS $$
+        DECLARE
+            v_source_id INTEGER;
+            v_old_source_id INTEGER;
+        BEGIN
+            IF TG_OP = 'DELETE' THEN
+                v_source_id := OLD.source_id;
+                v_old_source_id := NULL;
+            ELSE
+                v_source_id := NEW.source_id;
+                v_old_source_id := OLD.source_id;
+            END IF;
+
+            UPDATE node SET search_text = compute_node_search_text(v_source_id) WHERE id = v_source_id;
+
+            IF TG_OP = 'UPDATE' AND v_old_source_id IS DISTINCT FROM v_source_id THEN
+                UPDATE node SET search_text = compute_node_search_text(v_old_source_id) WHERE id = v_old_source_id;
+            END IF;
+
+            RETURN COALESCE(NEW, OLD);
+        END;
+        $$ LANGUAGE plpgsql;
+
+        DROP TRIGGER IF EXISTS node_link_search_text_trigger ON node_link;
+        CREATE TRIGGER node_link_search_text_trigger
+            AFTER INSERT OR UPDATE OR DELETE ON node_link
+            FOR EACH ROW
+            EXECUTE FUNCTION node_link_search_text_change();
+        """
+    )
+
+    result = await conn.execute(
+        """
+        UPDATE node
+        SET search_text = compute_node_search_text(id)
+        WHERE search_text IS NULL
+          AND active = TRUE
+          AND is_deleted = FALSE
+        """
+    )
+    count = int(result.split()[-1]) if result else 0
+    if count > 0:
+        logger.info(f"Backfilled search_text for {count} existing nodes")
