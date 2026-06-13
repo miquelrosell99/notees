@@ -227,26 +227,34 @@ class PostgresNodeSearchMixin(_PostgresNodeBase):
             )
             return [self._row_to_node(row) for row in rows]
 
-    async def get_all_pages(self, limit: int | None = None, offset: int = 0) -> list[object]:
-        """Get all active nodes tagged as 'page'."""
+    _MAX_PAGES_LIMIT = 5000
+
+    async def get_all_pages(self, limit: int = 1000, offset: int = 0) -> list[object]:
+        """Get active nodes tagged as 'page', bounded and paginated."""
         from ...db.schema.constants import SYSTEM_PAGE_UUIDS
 
+        if limit < 1:
+            limit = 1
+        if offset < 0:
+            offset = 0
+        limit = min(limit, self._MAX_PAGES_LIMIT)
+
         async with acquire_connection(self._pool) as conn:
-            query = """
+            excluded_uuids = list(SYSTEM_PAGE_UUIDS.values())
+            rows = await conn.fetch(
+                """
                 SELECT * FROM node
                 WHERE is_page = true AND active = true AND is_deleted = false AND workspace_id = $1
                   AND uuid NOT IN (SELECT unnest($2::uuid[]))
                   AND aliased_id IS NULL
                 ORDER BY write_date DESC NULLS LAST
-            """
-            excluded_uuids = list(SYSTEM_PAGE_UUIDS.values())
-            params: list = [self._workspace_id, excluded_uuids]
-
-            if limit is not None:
-                query += " LIMIT $3 OFFSET $4"
-                params.extend([limit, offset])
-
-            rows = await conn.fetch(query, *params)
+                LIMIT $3 OFFSET $4
+                """,
+                self._workspace_id,
+                excluded_uuids,
+                limit,
+                offset,
+            )
             return [self._row_to_node(row) for row in rows]
 
     async def get_archived_pages(self) -> list[object]:
@@ -317,3 +325,79 @@ class PostgresNodeSearchMixin(_PostgresNodeBase):
                 limit,
             )
             return [self._row_to_node(row) for row in rows]
+
+    async def get_node_suggestions(
+        self, class_filter_ids: list[int] | None, limit: int
+    ) -> tuple[list[object], list[object]]:
+        """Return suggested pages: recently created and recently linked.
+
+        The persistence logic mirrors the legacy router query in
+        ``crud.py::get_node_suggestions``.
+        """
+        class_filter_clause = ""
+        if class_filter_ids:
+            class_filter_clause = " AND n.class_ids && $3::int[]"
+
+        async with acquire_connection(self._pool) as conn:
+            params_recent: list = [self._workspace_id, limit]
+            if class_filter_ids:
+                params_recent.append(class_filter_ids)
+
+            recent_rows = await conn.fetch(
+                f"""
+                SELECT n.*
+                FROM node n
+                WHERE n.is_page = true AND n.active = true
+                      AND (n.is_deleted = false OR n.is_deleted IS NULL)
+                      AND n.workspace_id = $1
+                      AND n.create_date > NOW() - INTERVAL '15 minutes'
+                      {class_filter_clause}
+                ORDER BY n.create_date DESC
+                LIMIT $2
+            """,
+                *params_recent,
+            )
+            recent_nodes = [self._row_to_node(row) for row in recent_rows]
+            recent_ids = {row["id"] for row in recent_rows}
+
+            remaining = limit - len(recent_rows)
+            linked_nodes: list[object] = []
+            if remaining > 0:
+                exclude_clause = ""
+                params_linked: list = [self._workspace_id, remaining]
+                param_idx = 3
+
+                if recent_ids:
+                    exclude_clause = f" AND n.id != ALL(${param_idx}::int[])"
+                    params_linked.append(list(recent_ids))
+                    param_idx += 1
+
+                if class_filter_ids:
+                    class_filter_clause_linked = f" AND n.class_ids && ${param_idx}::int[]"
+                    params_linked.append(class_filter_ids)
+                else:
+                    class_filter_clause_linked = ""
+
+                linked_rows = await conn.fetch(
+                    f"""
+                    SELECT n.*
+                    FROM node n
+                    INNER JOIN (
+                        SELECT target_id, MAX(create_date) AS last_linked
+                        FROM node_link
+                        WHERE workspace_id = $1
+                        GROUP BY target_id
+                    ) nl ON nl.target_id = n.id
+                    WHERE n.is_page = true AND n.active = true
+                          AND (n.is_deleted = false OR n.is_deleted IS NULL)
+                          AND n.workspace_id = $1
+                          {exclude_clause}
+                          {class_filter_clause_linked}
+                    ORDER BY nl.last_linked DESC
+                    LIMIT $2
+                """,
+                    *params_linked,
+                )
+                linked_nodes = [self._row_to_node(row) for row in linked_rows]
+
+        return recent_nodes, linked_nodes

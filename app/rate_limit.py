@@ -63,6 +63,51 @@ async def ip_only_identifier(request: Request) -> str:
     return ip
 
 
+async def _extract_auth_identifier(request: Request) -> str | None:
+    """Extract username/email from JSON body or form data for auth endpoints."""
+    content_type = request.headers.get("content-type", "")
+    if "application/json" in content_type:
+        try:
+            import json
+
+            data = json.loads(await request.body())
+            return data.get("email") or data.get("username")
+        except Exception:
+            return None
+    elif "application/x-www-form-urlencoded" in content_type or "multipart/form-data" in content_type:
+        try:
+            form = await request.form()
+            return form.get("email") or form.get("username")
+        except Exception:
+            return None
+    return None
+
+
+async def auth_identifier(request: Request) -> str:
+    """Return a rate-limit key combining endpoint path and account identifier.
+
+    For auth endpoints we want per-account limits in addition to the existing
+    per-IP limits. The key includes the request path so each auth endpoint gets
+    its own bucket, plus the username/email when available. When no identifier
+    can be extracted, the client IP is used as a fallback so the bucket still
+    isolates anonymous clients.
+    """
+    identifier = await _extract_auth_identifier(request)
+    if identifier:
+        return f"auth:{request.scope.get('path', request.url.path)}:{identifier.lower()}"
+    ip = await ip_only_identifier(request)
+    return f"auth:{request.scope.get('path', request.url.path)}:{ip}"
+
+
 def per_ip_limiter(requests: int, duration: Duration) -> Limiter:
     """Build a per-IP limiter with the shared bucket factory."""
+    return Limiter(PerKeyBucketFactory([Rate(requests, duration)]))
+
+
+def auth_per_account_limiter(requests: int, duration: Duration) -> Limiter:
+    """Build a per-account auth limiter with the shared bucket factory.
+
+    The actual rate-limit key is produced by ``auth_identifier`` and includes
+    the endpoint path, client IP, and the account email/username when available.
+    """
     return Limiter(PerKeyBucketFactory([Rate(requests, duration)]))

@@ -5,12 +5,12 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from ...db.connection import get_pool
 from ...db.schema.constants import SYSTEM_PROPERTY_UUIDS, generate_day_uuid
+from ...dependencies import get_activity_repository, get_current_user
 from ...domain.entities import RELATION_TYPES, SCALAR_TYPES, PropertyType
+from ...domain.repositories.interfaces import ActivityRepository
 from ...logging_config import get_logger
 from ...models import User
-from ..auth import get_current_user
 from ..nodes.helpers import _get_node_service, _node_to_response, extract_properties_dict
 from .helpers import (
     _get_property_repo,
@@ -281,6 +281,7 @@ async def set_property_value(
     node_id: int,
     request: SetPropertyRequest,
     user: User = Depends(get_current_user),
+    activity_repo: ActivityRepository = Depends(get_activity_repository),
 ):
     """Set a property value for a node (auto-detects type and dispatches to correct handler).
 
@@ -384,23 +385,15 @@ async def set_property_value(
 
     # Log property change activity
     try:
-        from datetime import UTC, datetime
+        from ...utils import utc_now
 
-        from ...db.connection import acquire_connection
-
-        now = datetime.now(UTC)
-        async with acquire_connection(await get_pool()) as conn:
-            await conn.execute(
-                """
-                INSERT INTO node_activity (node_id, action, details, target_node_id, create_date)
-                VALUES ($1, $2, $3, $4, $5)
-                """,
-                node_id,
-                "property_changed",
-                f"Property '{prop.name}' changed",
-                request.property_id,
-                now,
-            )
+        await activity_repo.create_node_activity(
+            node_id=node_id,
+            action="property_changed",
+            details=f"Property '{prop.name}' changed",
+            target_node_id=request.property_id,
+            now=utc_now(),
+        )
     except (ValueError, TypeError, LookupError):
         pass  # Activity logging must never fail the user operation
 

@@ -75,3 +75,16 @@ class ShareService:
     async def get_share_by_uuid(self, share_uuid: str) -> PublicShare | None:
         """Get share metadata by UUID."""
         return await self._share_repo.get_share_by_uuid(share_uuid)
+
+    async def regenerate_share_html_for_node(self, node: Node) -> None:
+        """Regenerate static share HTML for all active shares of a node."""
+        from ...node_export import write_share_html
+
+        shares = await self._share_repo.list_shares_for_node(node.id)
+        for share in shares:
+            if not share.active:
+                continue
+            try:
+                await write_share_html(str(share.uuid), self._workspace_id, node.uuid)
+            except (OSError, ValueError):
+                logger.exception("Failed to regenerate share HTML for %s", share.uuid)

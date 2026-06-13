@@ -26,15 +26,15 @@ async def send_email(
     """Send an email asynchronously.
 
     Returns True if the email was handed off to the MTA, False if SMTP is
-    not configured (in which case the message is logged at INFO level).
+    not configured (in which case only metadata is logged).
     """
     if not settings.smtp_host:
+        body = body_text or body_html or ""
         logger.info(
-            "SMTP not configured. Email would have been sent to %s:\n"
-            "Subject: %s\nText: %s",
-            to,
-            subject,
-            body_text or body_html,
+            "Would send email (SMTP not configured): recipient count=1, "
+            "body length=%s, subject length=%s",
+            len(body),
+            len(subject),
         )
         return False
 
@@ -63,7 +63,7 @@ async def send_email(
             server.quit()
             return True
         except Exception as exc:
-            logger.warning("Failed to send email to %s: %s", to, exc)
+            logger.warning("Email send failed: %s", exc)
             return False
 
     return await asyncio.to_thread(_send)

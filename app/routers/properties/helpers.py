@@ -6,15 +6,13 @@ Updated for workspace-based schema:
 - Repositories now take user_id for audit trails
 """
 
-from ...db.connection import get_pool
+from ...dependencies import _get_property_repo as _get_property_repo
 from ...domain.entities import (
     Property,
     PropertyValueRelation,
     PropertyValueScalar,
     PropertyValueSelection,
 )
-from ...domain.repositories import PostgresPropertyRepository
-from ...models import User
 from .models import (
     PropertyResponse,
     RelationValueResponse,
@@ -22,16 +20,6 @@ from .models import (
     SelectionLineResponse,
     SelectionValueResponse,
 )
-
-
-async def _get_property_repo(user: User) -> PostgresPropertyRepository:
-    """Get PropertyRepository for user's workspace."""
-    from ...dependencies import _get_workspace_context_cached
-
-    pool = await get_pool()
-    user_id = int(user.id)
-    workspace_id, _ = await _get_workspace_context_cached(pool, user_id)
-    return PostgresPropertyRepository(pool, workspace_id, user_id)
 
 
 def _property_to_response(prop: Property) -> PropertyResponse:

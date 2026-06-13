@@ -140,9 +140,14 @@ async def close_pool() -> None:
     global _pool
 
     if _pool is not None:
-        await _pool.close()
-        logger.info("PostgreSQL pool closed")
+        pool = _pool
         _pool = None
+        try:
+            await pool.close()
+            logger.info("PostgreSQL pool closed")
+        except Exception:
+            logger.warning("Error while closing PostgreSQL pool; terminating", exc_info=True)
+            pool.terminate()
 
 
 async def get_pool() -> asyncpg.Pool:

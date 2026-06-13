@@ -7,6 +7,7 @@ postgres_node_search.py.  Shared utilities live in postgres_node_base.py.
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 import asyncpg
@@ -14,6 +15,7 @@ import asyncpg
 from ...db.connection import acquire_connection
 from ...utils import utc_now
 from ..entities import Node, NodeCreateData, NodeUpdateData, generate_uuid
+from ..stringify_ast import NodeLinkResolution, StringifyMode, StringifyOptions, parse_ast, stringify_ast
 from .interfaces import NodeRepository
 from .postgres_node_base import _normalize_name_to_ast
 from .postgres_node_hierarchy import PostgresNodeHierarchyMixin
@@ -530,6 +532,69 @@ class PostgresNodeRepository(
             )
             return self._row_to_node(row) if row else None
 
+    async def get_archived_pages_paginated(
+        self, page: int, page_size: int
+    ) -> tuple[list[Node], int]:
+        """Get archived pages with total count."""
+        offset = (page - 1) * page_size
+        async with acquire_connection(self._pool) as conn:
+            count_row = await conn.fetchrow(
+                """
+                SELECT COUNT(*) as total FROM node
+                WHERE is_page = true AND active = false
+                      AND (is_deleted = false OR is_deleted IS NULL)
+                      AND workspace_id = $1
+                """,
+                self._workspace_id,
+            )
+            total = count_row["total"] if count_row else 0
+
+            rows = await conn.fetch(
+                f"""
+                SELECT {_NODE_SELECT_COLUMNS} FROM node
+                WHERE is_page = true AND active = false
+                      AND (is_deleted = false OR is_deleted IS NULL)
+                      AND workspace_id = $1
+                ORDER BY write_date DESC NULLS LAST
+                LIMIT $2 OFFSET $3
+            """,
+                self._workspace_id,
+                page_size,
+                offset,
+            )
+            return [self._row_to_node(row) for row in rows], total
+
+    async def get_node_versions(self, node_id: int, limit: int) -> list[asyncpg.Record]:
+        """Get version history rows for a node."""
+        async with acquire_connection(self._pool) as conn:
+            return await conn.fetch(
+                """
+                SELECT nv.id, nv.name, nv.created_at, nv.user_id, u.username
+                FROM node_version nv
+                LEFT JOIN "user" u ON u.id = nv.user_id
+                WHERE nv.node_id = $1 AND nv.workspace_id = $2
+                ORDER BY nv.created_at DESC
+                LIMIT $3
+            """,
+                node_id,
+                self._workspace_id,
+                limit,
+            )
+
+    async def get_node_version(self, node_id: int, version_id: int) -> str | None:
+        """Get the stored name for a specific node version."""
+        async with acquire_connection(self._pool) as conn:
+            row = await conn.fetchrow(
+                """
+                SELECT name FROM node_version
+                WHERE id = $1 AND node_id = $2 AND workspace_id = $3
+            """,
+                version_id,
+                node_id,
+                self._workspace_id,
+            )
+            return row["name"] if row else None
+
     # ============== Bulk / Ad-hoc Operations (migrated from domain services) ==============
 
     async def find_page_by_name(self, name: str, parent_id: int | None = None) -> list[asyncpg.Record]:
@@ -793,6 +858,36 @@ class PostgresNodeRepository(
             )
             return [self._row_to_node(row) for row in rows]
 
+    async def list_templates_paginated(
+        self, page: int, page_size: int
+    ) -> tuple[list[Node], int]:
+        """List active templates with total count."""
+        offset = (page - 1) * page_size
+        async with acquire_connection(self._pool) as conn:
+            count_row = await conn.fetchrow(
+                """
+                SELECT COUNT(*) as total FROM node
+                WHERE workspace_id = $1 AND is_template = TRUE AND active = TRUE
+                      AND (is_deleted = FALSE OR is_deleted IS NULL)
+                """,
+                self._workspace_id,
+            )
+            total = count_row["total"] if count_row else 0
+
+            rows = await conn.fetch(
+                f"""
+                SELECT {_NODE_SELECT_COLUMNS} FROM node
+                WHERE workspace_id = $1 AND is_template = TRUE AND active = TRUE
+                      AND (is_deleted = FALSE OR is_deleted IS NULL)
+                ORDER BY name
+                LIMIT $2 OFFSET $3
+            """,
+                self._workspace_id,
+                page_size,
+                offset,
+            )
+            return [self._row_to_node(row) for row in rows], total
+
     async def get_template_descendants(self, template_id: int) -> list[Node]:
         """Get all descendant nodes of a template (excluding the template itself)."""
         async with acquire_connection(self._pool) as conn:
@@ -943,6 +1038,364 @@ class PostgresNodeRepository(
             )
             return row["id"] if row else None
 
+    async def get_page_id_by_uuid(self, uuid: str) -> int | None:
+        """Get the ID of an active page node by UUID."""
+        async with acquire_connection(self._pool) as conn:
+            row = await conn.fetchrow(
+                "SELECT id FROM node WHERE uuid::text = $1 AND active = TRUE AND workspace_id = $2",
+                uuid,
+                self._workspace_id,
+            )
+            return row["id"] if row else None
+
+    async def search_by_uuid_prefix(self, uuid_prefix: str, limit: int) -> list[Node]:
+        """Search active nodes by UUID prefix."""
+        async with acquire_connection(self._pool) as conn:
+            rows = await conn.fetch(
+                """SELECT n.* FROM node n
+                WHERE n.workspace_id = $1 AND n.active = TRUE AND n.is_deleted = FALSE
+                  AND n.uuid::text LIKE $2
+                ORDER BY n.write_date DESC NULLS LAST
+                LIMIT $3""",
+                self._workspace_id,
+                uuid_prefix + "%",
+                limit,
+            )
+            return [self._row_to_node(row) for row in rows]
+
+    async def get_node_names_by_uuids(self, uuids: list[str]) -> dict[str, str | None]:
+        """Fetch node names for the given UUIDs in this workspace."""
+        if not uuids:
+            return {}
+        async with acquire_connection(self._pool) as conn:
+            rows = await conn.fetch(
+                "SELECT uuid::text AS uuid, name FROM node WHERE workspace_id = $1 AND uuid::text = ANY($2::text[])",
+                self._workspace_id,
+                uuids,
+            )
+            return {row["uuid"]: row["name"] for row in rows}
+
+    async def resolve_referenced_display_names(self, target_rows: list[Any]) -> dict[str, str]:
+        """Resolve node links embedded in names and return uuid -> resolved plain-text map."""
+
+        def _row_name(row):
+            if hasattr(row, "name"):
+                return row.name or ""
+            return row.get("name", "") if isinstance(row, dict) else row["name"] or ""
+
+        def _row_uuid(row):
+            if hasattr(row, "uuid"):
+                return str(row.uuid)
+            return str(row.get("uuid", "")) if isinstance(row, dict) else str(row["uuid"])
+
+        link_node_uuids: set[str] = set()
+        for row in target_rows:
+            name = _row_name(row)
+            for match in re.finditer(r'"link_id"\s*:\s*"([^"]+)"', name):
+                link_id = match.group(1)
+                colon = link_id.find(":")
+                node_uuid = link_id[:colon] if colon > 0 else link_id
+                link_node_uuids.add(node_uuid)
+
+        link_target_map: dict[str, Any] = {}
+        if link_node_uuids:
+            name_map = await self.get_node_names_by_uuids(list(link_node_uuids))
+            for node_uuid, name in name_map.items():
+                if name is not None:
+                    link_target_map[node_uuid] = parse_ast(name)
+
+        if not link_target_map:
+            return {}
+
+        def _resolve_link(link_id: str):
+            colon = link_id.find(":")
+            node_uuid = link_id[:colon] if colon > 0 else link_id
+            target_ast = link_target_map.get(node_uuid)
+            if target_ast is None:
+                return None
+            return NodeLinkResolution(target_ast=target_ast, label=None, target_id=node_uuid)
+
+        opts = StringifyOptions(
+            mode=StringifyMode.TEXT_ONLY,
+            resolve_node_link=_resolve_link,
+        )
+
+        result: dict[str, str] = {}
+        for row in target_rows:
+            name = _row_name(row)
+            if '"link_id"' in name:
+                resolved = stringify_ast(parse_ast(name), opts)
+                if resolved:
+                    result[_row_uuid(row)] = resolved
+
+        return result
+
+    async def get_workspace_data(
+        self, page: int, page_size: int
+    ) -> tuple[int, list[dict[str, Any]], list[dict[str, Any]]]:
+        """Return workspace visualization data: (total, nodes, links)."""
+        from ...db.schema.constants import SYSTEM_CLASS_UUIDS, SYSTEM_PAGE_UUIDS
+
+        excluded_uuids = [
+            SYSTEM_CLASS_UUIDS["page"],
+            SYSTEM_CLASS_UUIDS["class"],
+            *SYSTEM_PAGE_UUIDS.values(),
+        ]
+        offset = (page - 1) * page_size
+
+        async with acquire_connection(self._pool) as conn:
+            total = await conn.fetchval(
+                """
+                SELECT COUNT(*) FROM node
+                WHERE workspace_id = $1 AND is_page = TRUE AND active = TRUE
+                  AND uuid::text NOT IN (SELECT unnest($2::text[]))
+            """,
+                self._workspace_id,
+                excluded_uuids,
+            )
+
+            page_rows = await conn.fetch(
+                """
+                SELECT id, uuid, name, icon, is_class, is_day, is_month, is_year, aliased_id
+                FROM node
+                WHERE workspace_id = $1 AND is_page = TRUE AND active = TRUE
+                  AND uuid::text NOT IN (SELECT unnest($2::text[]))
+                ORDER BY name
+                LIMIT $3 OFFSET $4
+            """,
+                self._workspace_id,
+                excluded_uuids,
+                page_size,
+                offset,
+            )
+
+            page_ids = [row["id"] for row in page_rows]
+            class_ids_map = (
+                await self.get_class_ids_batch(page_ids) if page_ids else {}
+            )
+
+            block_count_map: dict[int, int] = {}
+            if page_ids:
+                block_count_rows = await conn.fetch(
+                    """
+                    SELECT page_id, COUNT(*) as block_count
+                    FROM node
+                    WHERE workspace_id = $1 AND is_page = FALSE AND active = TRUE AND page_id IS NOT NULL
+                    GROUP BY page_id
+                """,
+                    self._workspace_id,
+                )
+                block_count_map = {row["page_id"]: row["block_count"] for row in block_count_rows}
+
+            nodes = []
+            for row in page_rows:
+                node_class_ids = class_ids_map.get(row["id"], [])
+                nodes.append(
+                    {
+                        "id": row["id"],
+                        "uuid": str(row["uuid"]),
+                        "name": row["name"],
+                        "icon": row["icon"],
+                        "is_class": row["is_class"],
+                        "is_daily": row["is_day"],
+                        "is_monthly": row["is_month"],
+                        "is_yearly": row["is_year"],
+                        "class_ids": node_class_ids,
+                        "block_count": block_count_map.get(row["id"], 0),
+                        "aliased_id": row["aliased_id"],
+                    }
+                )
+
+            page_id_set = {row["id"] for row in page_rows}
+
+            link_rows = await conn.fetch(
+                """
+                SELECT DISTINCT nl.source_id, nl.target_id
+                FROM node_link nl
+                JOIN node source ON nl.source_id = source.id
+                JOIN node target ON nl.target_id = target.id
+                WHERE source.workspace_id = $1
+                  AND target.workspace_id = $1
+                  AND target.is_page = TRUE
+                  AND source.active = TRUE
+                  AND target.active = TRUE
+            """,
+                self._workspace_id,
+            )
+
+            block_source_ids = [row["source_id"] for row in link_rows if row["source_id"] not in page_id_set]
+            block_to_page: dict[int, int] = {}
+            if block_source_ids:
+                block_rows = await conn.fetch(
+                    "SELECT id, page_id FROM node WHERE id = ANY($1::int[])", block_source_ids
+                )
+                for br in block_rows:
+                    if br["page_id"]:
+                        block_to_page[br["id"]] = br["page_id"]
+
+            links: list[dict[str, Any]] = []
+            for row in link_rows:
+                source_id = row["source_id"]
+                target_id = row["target_id"]
+                source_page_id = source_id
+                if source_id not in page_id_set:
+                    source_page_id = block_to_page.get(source_id, source_id)
+                if source_page_id in page_id_set and target_id in page_id_set:
+                    links.append({"source": source_page_id, "target": target_id, "type": "reference"})
+
+            parent_rows = await conn.fetch(
+                """
+                SELECT child.id as child_id, parent.id as parent_id
+                FROM node child
+                JOIN node parent ON child.parent_id = parent.id
+                WHERE child.workspace_id = $1
+                  AND child.is_page = TRUE
+                  AND parent.is_page = TRUE
+                  AND child.active = TRUE
+                  AND parent.active = TRUE
+            """,
+                self._workspace_id,
+            )
+            for row in parent_rows:
+                child_id = row["child_id"]
+                parent_id = row["parent_id"]
+                if child_id in page_id_set and parent_id in page_id_set:
+                    links.append({"source": parent_id, "target": child_id, "type": "parent"})
+
+            for row in page_rows:
+                node_id = row["id"]
+                node_class_ids = class_ids_map.get(node_id, [])
+                for class_id in node_class_ids:
+                    if class_id in page_id_set:
+                        links.append({"source": node_id, "target": class_id, "type": "class"})
+
+            class_extends_rows = await conn.fetch(
+                """
+                SELECT ce.target_id as child_id, ce.source_id as parent_id
+                FROM class_extend ce
+                JOIN node child ON ce.target_id = child.id
+                JOIN node parent ON ce.source_id = parent.id
+                WHERE child.workspace_id = $1
+                  AND parent.workspace_id = $1
+                  AND child.active = TRUE
+                  AND parent.active = TRUE
+            """,
+                self._workspace_id,
+            )
+            for row in class_extends_rows:
+                child_id = row["child_id"]
+                parent_id = row["parent_id"]
+                if child_id in page_id_set and parent_id in page_id_set:
+                    links.append({"source": child_id, "target": parent_id, "type": "extends"})
+
+            property_link_rows = await conn.fetch(
+                """
+                SELECT DISTINCT pvr.node_id, pvr.target_id
+                FROM property_value_relation pvr
+                JOIN node source ON pvr.node_id = source.id
+                JOIN node target ON pvr.target_id = target.id
+                WHERE source.workspace_id = $1
+                  AND target.workspace_id = $1
+                  AND source.is_page = TRUE
+                  AND target.is_page = TRUE
+                  AND source.active = TRUE
+                  AND target.active = TRUE
+            """,
+                self._workspace_id,
+            )
+            for row in property_link_rows:
+                source_id = row["node_id"]
+                target_id = row["target_id"]
+                if source_id in page_id_set and target_id in page_id_set:
+                    links.append({"source": source_id, "target": target_id, "type": "property-reference"})
+
+            seen = set()
+            unique_links = []
+            for link in links:
+                key = (link["source"], link["target"], link["type"])
+                if key not in seen:
+                    seen.add(key)
+                    unique_links.append(link)
+
+            return total, nodes, unique_links
+
+    async def get_workspace_nodes(
+        self, page: int, page_size: int
+    ) -> tuple[int, list[dict[str, Any]]]:
+        """Return workspace nodes without links: (total, nodes)."""
+        from ...db.schema.constants import SYSTEM_CLASS_UUIDS, SYSTEM_PAGE_UUIDS
+
+        excluded_uuids = [
+            SYSTEM_CLASS_UUIDS["page"],
+            SYSTEM_CLASS_UUIDS["class"],
+            *SYSTEM_PAGE_UUIDS.values(),
+        ]
+        offset = (page - 1) * page_size
+
+        async with acquire_connection(self._pool) as conn:
+            total = await conn.fetchval(
+                """
+                SELECT COUNT(*) FROM node
+                WHERE workspace_id = $1 AND is_page = TRUE AND active = TRUE
+                  AND uuid::text NOT IN (SELECT unnest($2::text[]))
+            """,
+                self._workspace_id,
+                excluded_uuids,
+            )
+
+            page_rows = await conn.fetch(
+                """
+                SELECT id, uuid, name, icon, is_class, is_day, is_month, is_year, aliased_id
+                FROM node
+                WHERE workspace_id = $1 AND is_page = TRUE AND active = TRUE
+                  AND uuid::text NOT IN (SELECT unnest($2::text[]))
+                ORDER BY name
+                LIMIT $3 OFFSET $4
+            """,
+                self._workspace_id,
+                excluded_uuids,
+                page_size,
+                offset,
+            )
+
+            page_ids = [row["id"] for row in page_rows]
+            class_ids_map = (
+                await self.get_class_ids_batch(page_ids) if page_ids else {}
+            )
+
+            block_count_map: dict[int, int] = {}
+            if page_ids:
+                block_count_rows = await conn.fetch(
+                    """
+                    SELECT page_id, COUNT(*) as block_count
+                    FROM node
+                    WHERE workspace_id = $1 AND is_page = FALSE AND active = TRUE AND page_id IS NOT NULL
+                    GROUP BY page_id
+                """,
+                    self._workspace_id,
+                )
+                block_count_map = {row["page_id"]: row["block_count"] for row in block_count_rows}
+
+            nodes = []
+            for row in page_rows:
+                node_class_ids = class_ids_map.get(row["id"], [])
+                nodes.append(
+                    {
+                        "id": row["id"],
+                        "uuid": str(row["uuid"]),
+                        "name": row["name"],
+                        "icon": row["icon"],
+                        "is_class": row["is_class"],
+                        "is_daily": row["is_day"],
+                        "is_monthly": row["is_month"],
+                        "is_yearly": row["is_year"],
+                        "class_ids": node_class_ids,
+                        "block_count": block_count_map.get(row["id"], 0),
+                    }
+                )
+
+            return total, nodes
+
     async def get_node_class_ids(self, node_id: int) -> list[int]:
         """Get the class_ids array for a node."""
         async with acquire_connection(self._pool) as conn:
@@ -968,3 +1421,251 @@ class PostgresNodeRepository(
                 "UPDATE property_value_relation SET target_id = $1 WHERE target_id = $2", new_target_id, old_target_id
             )
             return int(result.split()[-1]) if result and result.split()[-1].isdigit() else 0
+
+    async def get_active_nodes(self, limit: int | None = None) -> list[Node]:
+        """Get all active nodes in the workspace, optionally limited."""
+        async with acquire_connection(self._pool) as conn:
+            limit_clause = ""
+            params: list[Any] = [self._workspace_id]
+            if limit is not None:
+                limit_clause = f" LIMIT ${len(params) + 1}"
+                params.append(limit)
+            rows = await conn.fetch(
+                f"""SELECT {_NODE_SELECT_COLUMNS} FROM node
+                   WHERE workspace_id = $1 AND active = TRUE
+                   ORDER BY id{limit_clause}""",
+                *params,
+            )
+            return [self._row_to_node(row) for row in rows]
+
+    async def get_class_ids_batch(self, node_ids: list[int]) -> dict[int, list[int]]:
+        """Get class_ids arrays for multiple nodes in a single query."""
+        if not node_ids:
+            return {}
+        async with acquire_connection(self._pool) as conn:
+            rows = await conn.fetch(
+                """
+                SELECT id, class_ids
+                FROM node
+                WHERE id = ANY($1) AND workspace_id = $2
+            """,
+                node_ids,
+                self._workspace_id,
+            )
+            return {row["id"]: list(row["class_ids"] or []) for row in rows}
+
+    async def find_active_nodes_by_name_patterns(self, patterns: list[str]) -> list[asyncpg.Record]:
+        """Get active node id/name rows matching any of the given LIKE patterns."""
+        if not patterns:
+            return []
+        async with acquire_connection(self._pool) as conn:
+            # Query for nodes matching any pattern, ordered by id.
+            # Use a subquery to avoid duplicates when a node matches multiple patterns.
+            placeholders = ", ".join(f"${i + 2}" for i in range(len(patterns)))
+            rows = await conn.fetch(
+                f"""
+                SELECT DISTINCT id, name
+                FROM node
+                WHERE workspace_id = $1 AND active = TRUE
+                  AND name LIKE ANY(ARRAY[{placeholders}])
+                ORDER BY id
+            """,
+                self._workspace_id,
+                *patterns,
+            )
+            return list(rows)
+
+    async def get_node_version_detail(
+        self, version_id: int, node_id: int
+    ) -> dict[str, Any] | None:
+        """Get a single node version detail row including username."""
+        async with acquire_connection(self._pool) as conn:
+            row = await conn.fetchrow(
+                """
+                SELECT nv.id, nv.name, nv.created_at, nv.user_id,
+                       u.username
+                FROM node_version nv
+                LEFT JOIN "user" u ON u.id = nv.user_id
+                WHERE nv.id = $1 AND nv.node_id = $2 AND nv.workspace_id = $3
+                """,
+                version_id,
+                node_id,
+                self._workspace_id,
+            )
+        return dict(row) if row else None
+
+    async def filter_existing_active_node_ids(
+        self, node_ids: list[int]
+    ) -> set[int]:
+        """Return IDs of active, non-deleted nodes that exist in this workspace."""
+        if not node_ids:
+            return set()
+        async with acquire_connection(self._pool) as conn:
+            rows = await conn.fetch(
+                """
+                SELECT id FROM node
+                WHERE id = ANY($1::int[]) AND workspace_id = $2
+                      AND active = true
+                      AND (is_deleted = false OR is_deleted IS NULL)
+                """,
+                node_ids,
+                self._workspace_id,
+            )
+            return {row["id"] for row in rows}
+
+    async def get_page_node_check(self, node_id: int) -> dict[str, Any] | None:
+        """Get id and is_page for a node if active and in workspace."""
+        async with acquire_connection(self._pool) as conn:
+            row = await conn.fetchrow(
+                "SELECT id, is_page FROM node WHERE id = $1 AND active = TRUE AND workspace_id = $2",
+                node_id,
+                self._workspace_id,
+            )
+            return dict(row) if row else None
+
+    async def list_daily_pages_paginated(
+        self, page: int, page_size: int
+    ) -> tuple[int, list[asyncpg.Record]]:
+        """List daily pages ordered by UUID desc."""
+        offset = (page - 1) * page_size
+        async with acquire_connection(self._pool) as conn:
+            count_row = await conn.fetchrow(
+                """
+                SELECT COUNT(*) as total FROM node
+                WHERE is_day = TRUE AND active = TRUE AND is_class = FALSE AND workspace_id = $1
+                  AND (is_deleted = FALSE OR is_deleted IS NULL)
+                """,
+                self._workspace_id,
+            )
+            total = count_row["total"] if count_row else 0
+
+            rows = await conn.fetch(
+                f"""
+                SELECT {_NODE_SELECT_COLUMNS} FROM node
+                WHERE is_day = TRUE AND active = TRUE AND is_class = FALSE AND workspace_id = $1
+                  AND (is_deleted = FALSE OR is_deleted IS NULL)
+                ORDER BY uuid DESC
+                LIMIT $2 OFFSET $3
+                """,
+                self._workspace_id,
+                page_size,
+                offset,
+            )
+            return total, rows
+
+    async def get_comment_ids_paginated(
+        self, parent_id: int, page: int, page_size: int
+    ) -> tuple[int, list[int]]:
+        """Get paginated top-level comment IDs under a node."""
+        offset = (page - 1) * page_size
+        async with acquire_connection(self._pool) as conn:
+            count_row = await conn.fetchrow(
+                """
+                SELECT COUNT(*) as total FROM node
+                WHERE parent_id = $1 AND is_comment = TRUE AND active = TRUE
+                      AND (is_deleted = FALSE OR is_deleted IS NULL)
+                """,
+                parent_id,
+            )
+            total = count_row["total"] if count_row else 0
+
+            rows = await conn.fetch(
+                """
+                SELECT id FROM node
+                WHERE parent_id = $1 AND is_comment = TRUE AND active = TRUE
+                      AND (is_deleted = FALSE OR is_deleted IS NULL)
+                ORDER BY sequence, create_date
+                LIMIT $2 OFFSET $3
+                """,
+                parent_id,
+                page_size,
+                offset,
+            )
+            return total, [row["id"] for row in rows]
+
+    async def get_next_comment_sequence(self, parent_id: int) -> int:
+        """Get the next sequence value for a comment under a parent."""
+        async with acquire_connection(self._pool) as conn:
+            row = await conn.fetchrow(
+                """
+                SELECT COALESCE(MAX(sequence), -1) + 1 as next_seq
+                FROM node WHERE parent_id = $1 AND is_comment = TRUE AND active = TRUE
+                      AND (is_deleted = FALSE OR is_deleted IS NULL)
+                """,
+                parent_id,
+            )
+            return row["next_seq"] if row else 0
+
+    async def get_comment_count(self, node_id: int) -> int:
+        """Count active comments under a node."""
+        async with acquire_connection(self._pool) as conn:
+            row = await conn.fetchrow(
+                """
+                SELECT COUNT(*) as count FROM node
+                WHERE parent_id = $1 AND is_comment = TRUE AND active = TRUE
+                      AND (is_deleted = FALSE OR is_deleted IS NULL)
+                """,
+                node_id,
+            )
+            return row["count"] if row else 0
+
+    async def get_shared_node_children(
+        self, node_id: int
+    ) -> list[asyncpg.Record]:
+        """Get non-page descendants of a shared node for public access."""
+        async with acquire_connection(self._pool) as conn:
+            rows = await conn.fetch(
+                """
+                WITH RECURSIVE tree AS (
+                    SELECT id, parent_id, sequence, 1 as depth,
+                           LPAD(sequence::text, 4, '0') as path
+                    FROM node
+                    WHERE parent_id = $1
+                      AND workspace_id = $2
+                      AND active = TRUE
+                      AND is_deleted = FALSE
+                      AND is_page = FALSE
+                    UNION ALL
+                    SELECT n.id, n.parent_id, n.sequence, t.depth + 1,
+                           t.path || '/' || LPAD(n.sequence::text, 4, '0')
+                    FROM node n
+                    JOIN tree t ON n.parent_id = t.id
+                    WHERE n.workspace_id = $2
+                      AND n.active = TRUE
+                      AND n.is_deleted = FALSE
+                      AND n.is_page = FALSE
+                )
+                SELECT n.*, t.depth
+                FROM node n
+                JOIN tree t ON n.id = t.id
+                ORDER BY t.path
+                """,
+                node_id,
+                self._workspace_id,
+            )
+            return list(rows)
+
+    async def get_trash_paginated(
+        self, page: int, page_size: int
+    ) -> tuple[int, list[asyncpg.Record]]:
+        """Get paginated soft-deleted nodes for the workspace."""
+        offset = (page - 1) * page_size
+        async with acquire_connection(self._pool) as conn:
+            count_row = await conn.fetchrow(
+                "SELECT COUNT(*) as total FROM node WHERE workspace_id = $1 AND is_deleted = true",
+                self._workspace_id,
+            )
+            total = count_row["total"] if count_row else 0
+
+            rows = await conn.fetch(
+                f"""
+                SELECT {_NODE_SELECT_COLUMNS}, is_deleted, deleted_at FROM node
+                WHERE workspace_id = $1 AND is_deleted = true
+                ORDER BY deleted_at DESC NULLS LAST
+                LIMIT $2 OFFSET $3
+                """,
+                self._workspace_id,
+                page_size,
+                offset,
+            )
+            return total, rows

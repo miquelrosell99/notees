@@ -6,15 +6,14 @@ Provides endpoints for managing NodeViews - dynamic query tabs for nodes.
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
+from ...dependencies import _get_node_view_repo, get_current_user, get_query_executor
 from ...domain.entities.query_ast import QueryAST, create_default_query_ast
-from ...domain.repositories import PostgresNodeViewRepository
 from ...domain.services.query_ast_validation import can_save_query, validate_query_ast
 from ...domain.services.query_service import QueryExecutor
 from ...logging_config import get_logger
 from ...models import User
-from ..auth import get_current_user
 from .helpers import _get_node_service, _resolve_referenced_display_names, extract_properties_dict
 
 logger = get_logger(__name__)
@@ -69,8 +68,8 @@ class QueryExecuteRequest(BaseModel):
 
     query_ast: dict[str, Any] | None = None
     runtime_params: dict[str, Any] | None = None
-    limit: int | None = None
-    offset: int | None = None
+    limit: int | None = Field(None, ge=1, le=1000)
+    offset: int | None = Field(None, ge=0)
     order_by: str | None = None
     include_children: bool | None = False
     include_all_children: bool | None = False
@@ -122,7 +121,7 @@ async def _resolve_display_names_for_results(user: User, results: list[dict[str,
     if not nodes_with_links:
         return results
 
-    resolved_map = await _resolve_referenced_display_names(service.pool, service.workspace_id, nodes_with_links)
+    resolved_map = await _resolve_referenced_display_names(service, nodes_with_links)
 
     # Set display_name on matching nodes
     for node in nodes_with_links:
@@ -131,30 +130,6 @@ async def _resolve_display_names_for_results(user: User, results: list[dict[str,
             node["display_name"] = resolved_map[node_uuid]
 
     return results
-
-
-async def _get_node_view_repo(user: User) -> PostgresNodeViewRepository:
-    """Get NodeView repository for the current user."""
-    service = await _get_node_service(user)
-    if service.workspace_id is None:
-        raise HTTPException(status_code=500, detail="Workspace ID not set")
-    return PostgresNodeViewRepository(
-        pool=service.pool,
-        workspace_id=service.workspace_id,
-        user_id=user.id,
-    )
-
-
-async def _get_query_executor(user: User) -> QueryExecutor:
-    """Get query executor for the current user."""
-    service = await _get_node_service(user)
-    if service.workspace_id is None:
-        raise HTTPException(status_code=500, detail="Workspace ID not set")
-    return QueryExecutor(
-        pool=service.pool,
-        workspace_id=service.workspace_id,
-        user_id=user.id,
-    )
 
 
 async def _get_property_repo(user: User):
@@ -182,9 +157,7 @@ async def _include_classes_for_results(user: User, results: list[dict[str, Any]]
             return
 
         # Fetch classes for all nodes in batch
-        from app.routers.nodes.helpers import _get_class_ids_batch
-
-        classes_map = await _get_class_ids_batch(service.pool, service.workspace_id, node_ids)
+        classes_map = await service.get_class_ids_batch(node_ids)
 
         # Attach classes to each node
         for node in nodes:
@@ -687,6 +660,7 @@ async def execute_node_view_query(
     view_id: int,
     request: QueryExecuteRequest | None = None,
     user: User = Depends(get_current_user),
+    executor: QueryExecutor = Depends(get_query_executor),
 ) -> dict[str, Any]:
     """Execute a NodeView's query and return results.
 
@@ -701,7 +675,6 @@ async def execute_node_view_query(
           - 'metrics': execution performance metrics
     """
     repo = await _get_node_view_repo(user)
-    executor = await _get_query_executor(user)
 
     view = await repo.get_by_id(view_id)
     if not view:
@@ -710,7 +683,11 @@ async def execute_node_view_query(
     # Execute the query with optional overrides from request
     request = request or QueryExecuteRequest()
 
-    logger.info(f"[execute_node_view_query] view_id={view_id}, runtime_params={request.runtime_params}")
+    logger.debug(
+        "[execute_node_view_query] view_id=%s runtime_params keys=%s",
+        view_id,
+        list(request.runtime_params.keys()) if request.runtime_params else None,
+    )
 
     # Use request query_ast if provided, otherwise use view's query_json
     effective_query = request.query_ast if request.query_ast else view.query_json
@@ -722,8 +699,10 @@ async def execute_node_view_query(
             "root_group": {"type": "group", "logic": "AND", "children": []},
         }
 
-    logger.info(
-        f"[execute_node_view_query] effective_query scope={effective_query.get('scope')}, root_group={effective_query.get('root_group')}"
+    logger.debug(
+        "[execute_node_view_query] effective_query scope_type=%s root_group_children=%s",
+        effective_query.get("scope", {}).get("scope_type"),
+        len(effective_query.get("root_group", {}).get("children", [])),
     )
 
     # New execute_query returns a dict with nodes + metrics
@@ -737,8 +716,10 @@ async def execute_node_view_query(
 
     results = exec_result["nodes"]
 
-    logger.info(
-        f"[execute_node_view_query] Query returned {len(results)} nodes (include_children={request.include_children})"
+    logger.debug(
+        "[execute_node_view_query] Query returned %s nodes (include_children=%s)",
+        len(results),
+        request.include_children,
     )
 
     # Determine enrichment — use explicit enrich dict if provided, else fallback to flags
@@ -749,7 +730,7 @@ async def execute_node_view_query(
 
     # Lazy enrichment: only fetch what's actually needed
     if should_include_children:
-        logger.info(f"[execute_node_view_query] Fetching children for {len(results)} nodes")
+        logger.debug("[execute_node_view_query] Fetching children for %s nodes", len(results))
         results = await _include_children_for_results(user, results, blocks_only=request.include_all_children or False, pages_only=request.pages_only or False)
 
     if should_include_classes:
@@ -777,6 +758,7 @@ async def execute_node_view_query(
 async def execute_query(
     request: QueryExecuteRequest,
     user: User = Depends(get_current_user),
+    executor: QueryExecutor = Depends(get_query_executor),
 ) -> dict[str, Any]:
     """Execute a query directly (without saving).
 
@@ -786,8 +768,6 @@ async def execute_query(
     Returns:
         Dict with 'nodes', optional 'total_count' and 'metrics'
     """
-    executor = await _get_query_executor(user)
-
     effective_query = request.query_ast
     if not effective_query:
         effective_query = {
@@ -837,6 +817,7 @@ async def execute_query(
 async def count_query_results(
     request: QueryExecuteRequest,
     user: User = Depends(get_current_user),
+    executor: QueryExecutor = Depends(get_query_executor),
 ) -> dict[str, int]:
     """Count results for a query without fetching all data.
 
@@ -846,8 +827,6 @@ async def count_query_results(
     Returns:
         Dict with 'count' of matching nodes
     """
-    executor = await _get_query_executor(user)
-
     effective_query = request.query_ast
     if not effective_query:
         effective_query = {
@@ -903,7 +882,8 @@ async def ensure_default_views(
 
     # Create missing views
     if types_needed:
-        view_service = NodeViewService(service.pool, service.workspace_id, user.id)
+        view_repo = await _get_node_view_repo(user)
+        view_service = NodeViewService(view_repo)
         await view_service.create_default_views(node_id, types_needed)
 
     # Return all views
@@ -947,20 +927,21 @@ async def reset_node_views(
     for view in existing_views:
         await repo.hard_delete(view.id)
 
-    logger.info(f"Deleted {len(existing_views)} views (including non-default views) for node {node_id}")
+    logger.info("Deleted %s views (including non-default views) for node %s", len(existing_views), node_id)
 
     # Create new default views for all standard view types
     from ...db.schema.constants import DEFAULT_VIEW_CLASSES
 
-    logger.info(f"service.workspace_id={service.workspace_id}, user.id={user.id}")
-    view_service = NodeViewService(service.pool, service.workspace_id, user.id)
-    logger.info(f"Creating default views for node {node_id}, types: {DEFAULT_VIEW_CLASSES}")
+    logger.debug("service.workspace_id=%s, user.id=%s", service.workspace_id, user.id)
+    view_repo = await _get_node_view_repo(user)
+    view_service = NodeViewService(view_repo)
+    logger.debug("Creating default views for node %s, types: %s", node_id, DEFAULT_VIEW_CLASSES)
     created_views = await view_service.create_default_views(node_id, DEFAULT_VIEW_CLASSES)
-    logger.info(f"create_default_views returned {len(created_views)} views")
+    logger.debug("create_default_views returned %s views", len(created_views))
 
     # Convert the created views directly to responses (don't re-query)
     responses = [await _node_view_to_response(v, include_query_ast=True, user=user) for v in created_views]
 
-    logger.info(f"Created {len(created_views)} default views for node {node_id}, returning {len(responses)} responses")
+    logger.info("Created %s default views for node %s", len(created_views), node_id)
 
     return {"views": responses}

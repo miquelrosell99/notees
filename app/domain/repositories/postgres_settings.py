@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 import asyncpg
 
 from ...db.connection import acquire_connection
+from ...utils import utc_now
 from .interfaces import SettingsRepository
 
 
@@ -23,6 +25,38 @@ class PostgresSettingsRepository(SettingsRepository):
                 user_id,
             )
         return {row["key"]: row["value"] for row in rows}
+
+    async def get_user_setting(self, user_id: int, key: str) -> Any | None:
+        async with acquire_connection(self._pool) as conn:
+            row = await conn.fetchrow(
+                "SELECT value FROM setting_user WHERE key = $1 AND user_id = $2",
+                key,
+                user_id,
+            )
+            return row["value"] if row else None
+
+    async def get_user_favorites(self, user_id: int) -> list[int]:
+        async with acquire_connection(self._pool) as conn:
+            row = await conn.fetchrow(
+                "SELECT value FROM setting_user WHERE key = 'favorites' AND user_id = $1",
+                user_id,
+            )
+        if not row or not row["value"]:
+            return []
+        try:
+            value = row["value"]
+            parsed = json.loads(value) if isinstance(value, str) else value
+            if isinstance(parsed, list):
+                return [int(x) for x in parsed]
+        except (json.JSONDecodeError, TypeError, ValueError):
+            pass
+        return []
+
+    async def set_user_favorites(self, user_id: int, favorites: list[int], now: Any | None = None) -> None:
+        if now is None:
+            now = utc_now()
+        json_value = json.dumps(favorites)
+        await self.set_user_setting(user_id, "favorites", json_value, now)
 
     async def set_user_setting(self, user_id: int, key: str, json_value: str, now: Any) -> None:
         async with acquire_connection(self._pool) as conn:

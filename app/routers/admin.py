@@ -10,7 +10,8 @@ from pydantic import BaseModel
 
 from .. import auth
 from ..auth import hash_password
-from ..db.connection import get_connection, get_data_dir
+from ..dependencies import get_user_repository
+from ..domain.repositories.interfaces import UserRepository
 from ..logging_config import get_logger
 from ..models import AdminUserCreate, AdminUserUpdate, PaginatedResponse
 from ..system_settings import get_all_system_settings, get_system_setting, set_system_setting
@@ -31,21 +32,11 @@ async def list_users(
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=500),
     admin_user=Depends(require_admin),  # noqa: B008
+    user_repo: UserRepository = Depends(get_user_repository),
 ):
     """List all users."""
-    async with get_connection() as conn:
-        total = await conn.fetchval('SELECT COUNT(*) FROM "user"')
-        offset = (page - 1) * page_size
-        rows = await conn.fetch(
-            """
-            SELECT id, uuid, email, name, surnames, profile_pic, role, active, create_date
-            FROM "user"
-            ORDER BY create_date DESC
-            LIMIT $1 OFFSET $2
-            """,
-            page_size,
-            offset,
-        )
+    total, rows = await user_repo.list_users_paginated(page, page_size)
+
     items = [
         {
             "id": str(r["id"]),
@@ -92,75 +83,49 @@ async def update_user(
     user_id: str,
     data: AdminUserUpdate,
     admin_user=Depends(require_admin),  # noqa: B008
+    user_repo: UserRepository = Depends(get_user_repository),
 ):
     """Update a user (admin only)."""
-    async with get_connection() as conn:
-        current = await conn.fetchrow(
-            'SELECT role FROM "user" WHERE id::text = $1',
-            user_id,
-        )
-        if not current:
-            raise HTTPException(status_code=404, detail="User not found")
+    current = await user_repo.get_by_id_or_uuid(user_id)
+    if not current:
+        raise HTTPException(status_code=404, detail="User not found")
 
-        if str(user_id) == str(admin_user.id) and data.role is not None and data.role != "admin":
-            raise HTTPException(status_code=400, detail="Cannot demote yourself")
+    if str(user_id) == str(admin_user.id) and data.role is not None and data.role != "admin":
+        raise HTTPException(status_code=400, detail="Cannot demote yourself")
 
-        # Prevent demoting the last active admin
-        if data.role is not None and current["role"] == "admin" and data.role != "admin":
-            other_admins = await conn.fetchval(
-                "SELECT COUNT(*) FROM \"user\" WHERE role = 'admin' AND active = TRUE AND id::text != $1",
-                user_id,
-            )
-            if other_admins == 0:
-                raise HTTPException(status_code=400, detail="Cannot demote the last admin")
+    # Prevent demoting the last active admin
+    if data.role is not None and current.role == "admin" and data.role != "admin":
+        other_admins = await user_repo.count_other_admins(int(user_id))
+        if other_admins == 0:
+            raise HTTPException(status_code=400, detail="Cannot demote the last admin")
 
-        # Build dynamic SET clause for provided fields only
-        updates: dict[str, object] = {}
-        if data.email is not None:
-            updates["email"] = data.email
-        if data.password is not None:
-            updates["password_hash"] = hash_password(data.password)
-        if data.name is not None:
-            updates["name"] = data.name
-        if data.surnames is not None:
-            updates["surnames"] = data.surnames
-        if data.profile_pic is not None:
-            updates["profile_pic"] = data.profile_pic
-        if data.role is not None:
-            updates["role"] = data.role
-        if data.active is not None:
-            updates["active"] = data.active
+    # Build dynamic SET clause for provided fields only
+    updates: dict[str, object] = {}
+    if data.email is not None:
+        updates["email"] = data.email
+    if data.password is not None:
+        updates["password_hash"] = hash_password(data.password)
+    if data.name is not None:
+        updates["name"] = data.name
+    if data.surnames is not None:
+        updates["surnames"] = data.surnames
+    if data.profile_pic is not None:
+        updates["profile_pic"] = data.profile_pic
+    if data.role is not None:
+        updates["role"] = data.role
+    if data.active is not None:
+        updates["active"] = data.active
 
-        if not updates:
-            row = await conn.fetchrow(
-                """
-                SELECT id, uuid, email, name, surnames, profile_pic, role, active, create_date
-                FROM "user" WHERE id::text = $1
-                """,
-                user_id,
-            )
-        else:
-            set_clauses = ", ".join(f"{k} = ${i + 1}" for i, k in enumerate(updates.keys()))
-            values = list(updates.values())
-            row = await conn.fetchrow(
-                f"""
-                UPDATE "user"
-                SET {set_clauses}, write_date = NOW()
-                WHERE id::text = ${len(values) + 1}
-                RETURNING id, uuid, email, name, surnames, profile_pic, role, active, create_date
-                """,
-                *values,
-                user_id,
-            )
+    row = await user_repo.update_user_admin(user_id, updates)
 
-        if not row:
-            raise HTTPException(status_code=404, detail="User not found")
+    if not row:
+        raise HTTPException(status_code=404, detail="User not found")
 
-        if data.password is not None:
-            user_id_int = int(user_id)
-            await auth.revoke_all_user_refresh_tokens(user_id_int)
-            await auth.revoke_all_user_api_keys(user_id_int)
-            auth.clear_user_cache(user_id)
+    if data.password is not None:
+        user_id_int = int(user_id)
+        await auth.revoke_all_user_refresh_tokens(user_id_int)
+        await auth.revoke_all_user_api_keys(user_id_int)
+        auth.clear_user_cache(user_id)
 
     return {
         "id": str(row["id"]),
@@ -179,73 +144,34 @@ async def update_user(
 async def deactivate_user(
     user_id: str,
     admin_user=Depends(require_admin),  # noqa: B008
+    user_repo: UserRepository = Depends(get_user_repository),
 ):
     """Deactivate a user (admin only)."""
     if str(user_id) == str(admin_user.id):
         raise HTTPException(status_code=400, detail="Cannot deactivate yourself")
 
-    async with get_connection() as conn:
-        target = await conn.fetchrow(
-            'SELECT role FROM "user" WHERE id::text = $1 AND active = TRUE',
-            user_id,
-        )
-        if not target:
-            raise HTTPException(status_code=404, detail="User not found")
+    target = await user_repo.get_by_id_or_uuid(user_id)
+    if not target or not target.active:
+        raise HTTPException(status_code=404, detail="User not found")
 
-        # Prevent deactivating the last active admin
-        if target["role"] == "admin":
-            other_admins = await conn.fetchval(
-                "SELECT COUNT(*) FROM \"user\" WHERE role = 'admin' AND active = TRUE AND id::text != $1",
-                user_id,
-            )
-            if other_admins == 0:
-                raise HTTPException(status_code=400, detail="Cannot deactivate the last admin")
+    # Prevent deactivating the last active admin
+    if target.role == "admin":
+        other_admins = await user_repo.count_other_admins(int(user_id))
+        if other_admins == 0:
+            raise HTTPException(status_code=400, detail="Cannot deactivate the last admin")
 
-        await conn.execute(
-            'UPDATE "user" SET active = FALSE WHERE id::text = $1',
-            user_id,
-        )
+    await user_repo.deactivate_user_admin(user_id)
 
     return {"success": True}
 
 
 @router.get("/metrics")
-async def get_metrics(admin_user=Depends(require_admin)):  # noqa: B008
+async def get_metrics(
+    admin_user=Depends(require_admin),  # noqa: B008
+    user_repo: UserRepository = Depends(get_user_repository),
+):
     """Get system metrics."""
-    async with get_connection() as conn:
-        node_count = await conn.fetchval("SELECT COUNT(*) FROM node WHERE active = TRUE")
-        page_count = await conn.fetchval("SELECT COUNT(*) FROM node WHERE active = TRUE AND is_page = TRUE")
-        block_count = await conn.fetchval("SELECT COUNT(*) FROM node WHERE active = TRUE AND is_page = FALSE")
-        daily_count = await conn.fetchval("SELECT COUNT(*) FROM node WHERE active = TRUE AND is_day = TRUE")
-        user_count = await conn.fetchval('SELECT COUNT(*) FROM "user"')
-        workspace_count = await conn.fetchval("SELECT COUNT(*) FROM workspace WHERE active = TRUE")
-        public_share_count = await conn.fetchval("SELECT COUNT(*) FROM node_public_share WHERE active = TRUE")
-        user_share_count = await conn.fetchval("SELECT COUNT(*) FROM node_share WHERE active = TRUE")
-
-    import shutil
-
-    from ..config import settings
-
-    data_dir = settings.database_dir
-    storage_used = 0
-    if data_dir.exists():
-        storage_used = shutil.disk_usage(data_dir).used
-
-    return {
-        "nodes": {
-            "total": node_count,
-            "pages": page_count,
-            "blocks": block_count,
-            "daily_journals": daily_count,
-        },
-        "users": user_count,
-        "workspaces": workspace_count,
-        "shares": {
-            "public": public_share_count,
-            "user": user_share_count,
-        },
-        "storage_bytes": storage_used,
-    }
+    return await user_repo.get_system_metrics()
 
 
 @router.get("/settings")
@@ -285,93 +211,11 @@ async def update_system_setting(
 async def audit_assets(
     dry_run: bool = True,
     admin_user=Depends(require_admin),  # noqa: B008
+    user_repo: UserRepository = Depends(get_user_repository),
 ):
     """Audit asset files on disk vs. active asset nodes in the database.
 
     Scans all workspace asset directories and reports (or deletes) orphaned files
     that have no corresponding active node row.
     """
-
-    data_dir = get_data_dir()
-    workspaces_dir = data_dir / "workspaces"
-    orphans: list[dict] = []
-    missing_files: list[dict] = []
-
-    async with get_connection() as conn:
-        # Get all workspace UUIDs and their IDs
-        workspaces = await conn.fetch(
-            "SELECT id, uuid FROM workspace WHERE active = TRUE"
-        )
-
-        for ws_row in workspaces:
-            ws_uuid = str(ws_row["uuid"])
-            ws_id = ws_row["id"]
-            assets_dir = workspaces_dir / ws_uuid / "assets"
-            if not assets_dir.exists():
-                continue
-
-            for asset_folder in assets_dir.iterdir():
-                if not asset_folder.is_dir():
-                    continue
-                asset_uuid = asset_folder.name
-
-                # Check if this asset has an active node
-                node = await conn.fetchrow(
-                    """
-                    SELECT id, is_deleted, active FROM node
-                    WHERE uuid = $1 AND workspace_id = $2 AND is_asset = TRUE
-                    """,
-                    asset_uuid,
-                    ws_id,
-                )
-
-                if not node:
-                    orphans.append({
-                        "workspace_id": ws_id,
-                        "workspace_uuid": ws_uuid,
-                        "asset_uuid": asset_uuid,
-                        "path": str(asset_folder),
-                        "reason": "no_node",
-                    })
-                    if not dry_run:
-                        import shutil
-                        shutil.rmtree(asset_folder, ignore_errors=True)
-                        logger.info(f"[ASSET_AUDIT] Removed orphan folder: {asset_folder}")
-                elif node["is_deleted"] or not node["active"]:
-                    orphans.append({
-                        "workspace_id": ws_id,
-                        "workspace_uuid": ws_uuid,
-                        "asset_uuid": asset_uuid,
-                        "path": str(asset_folder),
-                        "reason": "node_deleted_or_inactive",
-                        "node_id": node["id"],
-                    })
-                    # NOTE: We do NOT delete files for soft-deleted nodes;
-                    # they are cleaned up on hard-delete or by a separate purge.
-
-            # Find active asset nodes that have MISSING files
-            missing_rows = await conn.fetch(
-                """
-                SELECT uuid FROM node
-                WHERE workspace_id = $1 AND is_asset = TRUE AND active = TRUE AND is_deleted = FALSE
-                """,
-                ws_id,
-            )
-            for row in missing_rows:
-                asset_uuid = str(row["uuid"])
-                asset_folder = assets_dir / asset_uuid
-                if not asset_folder.exists():
-                    missing_files.append({
-                        "workspace_id": ws_id,
-                        "workspace_uuid": ws_uuid,
-                        "asset_uuid": asset_uuid,
-                        "reason": "folder_missing",
-                    })
-
-    return {
-        "dry_run": dry_run,
-        "orphans": orphans,
-        "orphan_count": len(orphans),
-        "missing_files": missing_files,
-        "missing_count": len(missing_files),
-    }
+    return await user_repo.audit_assets(dry_run)

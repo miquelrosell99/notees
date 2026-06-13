@@ -1,19 +1,20 @@
 """Tests for asset operations and lifecycle."""
-import pytest
 import shutil
+
+import pytest
 
 
 @pytest.mark.asyncio
 async def test_asset_folder_deletion(node_service, tmp_path):
     """Test that asset folders are deleted when asset nodes are soft-deleted."""
-    from app.domain.services.asset_service import AssetService
+    from app.domain.services.asset_service import AssetFileService
 
     workspace_id = node_service._workspace_id
 
     test_assets_dir = tmp_path / "test_assets"
     test_assets_dir.mkdir(parents=True, exist_ok=True)
 
-    asset_service = AssetService(workspace_uuid=str(workspace_id))
+    asset_service = AssetFileService(workspace_uuid=str(workspace_id))
 
     original_assets_dir = asset_service.assets_dir
     asset_service.assets_dir = test_assets_dir

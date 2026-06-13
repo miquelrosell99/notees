@@ -13,9 +13,6 @@ Key changes from v2:
 """
 
 SCHEMA_SQL = """
--- Enable UUID extension
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-
 -- ============================================================
 -- CORE IDENTITY & ACCESS
 -- ============================================================

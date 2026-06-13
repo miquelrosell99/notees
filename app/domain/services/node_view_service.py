@@ -26,7 +26,7 @@ from ..entities.query_ast import (
     ScopeNode,
     ScopeType,
 )
-from ..repositories import PostgresNodeViewRepository
+from ..repositories.interfaces import NodeViewRepository
 
 logger = get_logger(__name__)
 
@@ -119,21 +119,14 @@ class NodeViewService:
 
     def __init__(
         self,
-        pool,
-        workspace_id: int,
-        user_id: str | None = None,
+        view_repo: NodeViewRepository,
     ):
         """Initialize the NodeView service.
 
         Args:
-            pool: asyncpg connection pool
-            workspace_id: Current workspace ID
-            user_id: Current user ID (string) for audit
+            view_repo: NodeView repository for the current workspace.
         """
-        self._pool = pool
-        self._workspace_id = workspace_id
-        self._user_id = user_id
-        self._view_repo = PostgresNodeViewRepository(pool, workspace_id, user_id)
+        self._view_repo = view_repo
 
     async def create_default_views(self, node_id: int, view_types: list[str] | None = None) -> list[NodeView]:
         """Create default NodeViews for a node.

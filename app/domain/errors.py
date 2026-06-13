@@ -136,27 +136,27 @@ class UserNotFoundError(UserError):
         super().__init__(message=f"User not found: {identifier}", code="USER_NOT_FOUND")
 
 
-class DuplicateUsernameError(UserError):
-    """Raised when attempting to create a user with an existing username."""
+class DuplicateEmailError(UserError):
+    """Raised when attempting to create a user with an existing email."""
 
-    def __init__(self, username: str):
-        self.username = username
-        super().__init__(message=f"Username already exists: {username}", code="DUPLICATE_USERNAME")
+    def __init__(self, email: str):
+        self.email = email
+        super().__init__(message=f"Email already exists: {email}", code="DUPLICATE_EMAIL")
 
 
 class InvalidCredentialsError(UserError):
     """Raised when authentication fails."""
 
     def __init__(self):
-        super().__init__(message="Invalid username or password", code="INVALID_CREDENTIALS")
+        super().__init__(message="Invalid email or password", code="INVALID_CREDENTIALS")
 
 
 class InactiveUserError(UserError):
     """Raised when an inactive user attempts to authenticate."""
 
-    def __init__(self, username: str):
-        self.username = username
-        super().__init__(message=f"User account is inactive: {username}", code="INACTIVE_USER")
+    def __init__(self, email: str):
+        self.email = email
+        super().__init__(message=f"User account is inactive: {email}", code="INACTIVE_USER")
 
 
 # ==================== Workspace Errors ====================

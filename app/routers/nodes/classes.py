@@ -2,8 +2,15 @@
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
+from ...dependencies import (
+    _get_class_management_service as _get_class_service,
+)
+from ...dependencies import (
+    get_current_user,
+    get_node_view_repository,
+)
+from ...domain.repositories import PostgresNodeViewRepository
 from ...models import PaginatedResponse, User
-from ..auth import get_current_user
 from .helpers import (
     _get_class_ids_batch,
     _get_extends_batch,
@@ -14,29 +21,6 @@ from .helpers import (
 from .models import ClassRequest, NodeResponse
 
 router = APIRouter()
-
-
-async def _get_class_service(user: User):
-    """Return a :class:`ClassManagementService` wired to the user's workspace."""
-    from ...db.connection import get_pool
-    from ...dependencies import _get_workspace_context_cached
-    from ...domain.repositories import (
-        PostgresClassExtendRepository,
-        PostgresNodeRepository,
-        PostgresPropertyRepository,
-    )
-    from ...domain.services.class_management_service import ClassManagementService
-
-    pool = await get_pool()
-    user_id = int(user.id)
-    workspace_id, page_class_id = await _get_workspace_context_cached(pool, user_id)
-
-    node_repo = PostgresNodeRepository(pool, workspace_id, page_class_id, user_id)
-    property_repo = PostgresPropertyRepository(pool, workspace_id, user_id)
-    class_extend_repo = PostgresClassExtendRepository(pool, workspace_id, user_id)
-    return ClassManagementService(
-        workspace_id, node_repo, property_repo, class_extend_repo, pool=pool
-    )
 
 
 @router.get("/classes")
@@ -51,13 +35,12 @@ async def list_classes(
     Returns nodes with class_ids populated (classes can themselves be classed).
     """
     class_service = await _get_class_service(user)
+    node_service = await _get_node_service(user)
     nodes = await class_service.list_classes()
 
-    pool = class_service.pool
-    workspace_id = class_service.workspace_id
     node_ids = [n.id for n in nodes if n.id is not None]
-    class_ids_map = await _get_class_ids_batch(pool, workspace_id or 0, node_ids)
-    extends_map = await _get_extends_batch(pool, workspace_id or 0, node_ids)
+    class_ids_map = await _get_class_ids_batch(node_service, node_ids)
+    extends_map = await _get_extends_batch(node_service, node_ids)
 
     return {
         "nodes": [
@@ -83,14 +66,12 @@ async def search_classes(
     Only returns nodes where is_class=TRUE.
     """
     class_service = await _get_class_service(user)
+    node_service = await _get_node_service(user)
     nodes = await class_service.search_classes(q, limit)
 
-    pool = class_service.pool
-    workspace_id = class_service.workspace_id
-
     node_ids = [n.id for n in nodes if n.id is not None]
-    class_ids_map = await _get_class_ids_batch(pool, workspace_id or 0, node_ids)
-    extends_map = await _get_extends_batch(pool, workspace_id or 0, node_ids)
+    class_ids_map = await _get_class_ids_batch(node_service, node_ids)
+    extends_map = await _get_extends_batch(node_service, node_ids)
 
     return {
         "nodes": [
@@ -118,12 +99,13 @@ async def get_nodes_with_class(
     Uses direct array queries with class_ids column for performance.
     """
     class_service = await _get_class_service(user)
+    node_service = await _get_node_service(user)
     offset = (page - 1) * page_size
     nodes = await class_service.get_nodes_with_class(class_id, limit=page_size, offset=offset)
     total = await class_service.count_nodes_with_class(class_id)
 
     node_ids = [n.id for n in nodes if n.id is not None]
-    class_ids_map = await _get_class_ids_batch(class_service.pool, class_service.workspace_id or 0, node_ids)
+    class_ids_map = await _get_class_ids_batch(node_service, node_ids)
 
     items = [_node_to_response(n, classes=class_ids_map.get(n.id, []) if n.id else []) for n in nodes]
 
@@ -142,22 +124,16 @@ async def add_node_class(
     node_id: int,
     request: ClassRequest,
     user: User = Depends(get_current_user),
+    view_repo: PostgresNodeViewRepository = Depends(get_node_view_repository),
 ):
     """Add a class to a node."""
     from ...db.schema.constants import SYSTEM_CLASS_UUIDS
     from ...domain.errors import SystemClassConstraintError
-    from ...domain.repositories import PostgresNodeViewRepository
 
     service = await _get_node_service(user)
 
     # Snapshot class_ids before add
-    pool = service.pool
-    before_row = await pool.fetchrow(
-        "SELECT class_ids FROM node WHERE id = $1 AND workspace_id = $2",
-        node_id,
-        service.workspace_id,
-    )
-    before_class_ids = list(before_row["class_ids"] or []) if before_row else []
+    before_class_ids = await service.get_node_class_ids(node_id)
 
     try:
         success = await service.add_class(node_id, request.class_node_id)
@@ -168,12 +144,7 @@ async def add_node_class(
 
     # Record for undo
     try:
-        after_row = await pool.fetchrow(
-            "SELECT class_ids FROM node WHERE id = $1 AND workspace_id = $2",
-            node_id,
-            service.workspace_id,
-        )
-        after_class_ids = list(after_row["class_ids"] or []) if after_row else []
+        after_class_ids = await service.get_node_class_ids(node_id)
         undo = await _get_undo_service(user)
         await undo.record(
             "add_class",
@@ -189,7 +160,6 @@ async def add_node_class(
     # Special handling for query class: create a main_content NodeView
     added_class_node = await service.get_node(request.class_node_id)
     if added_class_node and added_class_node.uuid == SYSTEM_CLASS_UUIDS["query"] and service.workspace_id:
-        view_repo = PostgresNodeViewRepository(service.pool, service.workspace_id, str(user.id))
         # Check if main_content view already exists for this node
         existing_views = await view_repo.list_by_node(node_id, view_type="main_content")
         if not existing_views:
@@ -215,27 +185,20 @@ async def remove_node_class_endpoint(
     node_id: int,
     class_id: int,
     user: User = Depends(get_current_user),
+    view_repo: PostgresNodeViewRepository = Depends(get_node_view_repository),
 ):
     """Remove a class from a node."""
     from ...db.schema.constants import SYSTEM_CLASS_UUIDS
     from ...domain.errors import SystemClassConstraintError
-    from ...domain.repositories import PostgresNodeViewRepository
 
     service = await _get_node_service(user)
 
     # Snapshot class_ids before removal
-    pool = service.pool
-    before_row = await pool.fetchrow(
-        "SELECT class_ids FROM node WHERE id = $1 AND workspace_id = $2",
-        node_id,
-        service.workspace_id,
-    )
-    before_class_ids = list(before_row["class_ids"] or []) if before_row else []
+    before_class_ids = await service.get_node_class_ids(node_id)
 
     # Special handling for query class: delete the main_content NodeView before removing the class
     removed_class_node = await service.get_node(class_id)
     if removed_class_node and removed_class_node.uuid == SYSTEM_CLASS_UUIDS["query"] and service.workspace_id:
-        view_repo = PostgresNodeViewRepository(service.pool, service.workspace_id, str(user.id))
         # Delete all main_content views for this node
         existing_views = await view_repo.list_by_node(node_id, view_type="main_content")
         for view in existing_views:
@@ -252,12 +215,7 @@ async def remove_node_class_endpoint(
 
     # Record for undo
     try:
-        after_row = await pool.fetchrow(
-            "SELECT class_ids FROM node WHERE id = $1 AND workspace_id = $2",
-            node_id,
-            service.workspace_id,
-        )
-        after_class_ids = list(after_row["class_ids"] or []) if after_row else []
+        after_class_ids = await service.get_node_class_ids(node_id)
         undo = await _get_undo_service(user)
         await undo.record(
             "remove_class",

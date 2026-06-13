@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -71,8 +72,8 @@ class NodeCrudRepository(ABC):
         pass
 
     @abstractmethod
-    async def get_all_pages(self) -> list[Node]:
-        """Get all nodes tagged as 'page'."""
+    async def get_all_pages(self, limit: int = 1000, offset: int = 0) -> list[Node]:
+        """Get nodes tagged as 'page', paginated."""
         pass
 
     @abstractmethod
@@ -91,8 +92,87 @@ class NodeCrudRepository(ABC):
         pass
 
     @abstractmethod
+    async def get_archived_pages_paginated(
+        self, page: int, page_size: int
+    ) -> tuple[list[Node], int]:
+        """Get archived pages with total count."""
+        pass
+
+    @abstractmethod
     async def node_exists(self, node_id: int) -> bool:
         """Check if a node exists in this workspace."""
+        pass
+
+    @abstractmethod
+    async def get_active_nodes(self, limit: int | None = None) -> list[Node]:
+        """Get all active nodes in the workspace, optionally limited."""
+        pass
+
+    @abstractmethod
+    async def get_node_versions(self, node_id: int, limit: int) -> list[Any]:
+        """Get version history rows for a node."""
+        pass
+
+    @abstractmethod
+    async def get_node_version(self, node_id: int, version_id: int) -> str | None:
+        """Get the stored name for a specific node version."""
+        pass
+
+    @abstractmethod
+    async def get_node_version_detail(
+        self, version_id: int, node_id: int
+    ) -> dict[str, Any] | None:
+        """Get a single node version detail row including username."""
+        pass
+
+    @abstractmethod
+    async def filter_existing_active_node_ids(
+        self, node_ids: list[int]
+    ) -> set[int]:
+        """Return IDs of active, non-deleted nodes that exist in this workspace."""
+        pass
+
+    @abstractmethod
+    async def get_page_node_check(self, node_id: int) -> dict[str, Any] | None:
+        """Get id and is_page for a node if active and in workspace."""
+        pass
+
+    @abstractmethod
+    async def list_daily_pages_paginated(
+        self, page: int, page_size: int
+    ) -> tuple[int, list[Any]]:
+        """List daily pages ordered by UUID desc."""
+        pass
+
+    @abstractmethod
+    async def get_comment_ids_paginated(
+        self, parent_id: int, page: int, page_size: int
+    ) -> tuple[int, list[int]]:
+        """Get paginated top-level comment IDs under a node."""
+        pass
+
+    @abstractmethod
+    async def get_next_comment_sequence(self, parent_id: int) -> int:
+        """Get the next sequence value for a comment under a parent."""
+        pass
+
+    @abstractmethod
+    async def get_comment_count(self, node_id: int) -> int:
+        """Count active comments under a node."""
+        pass
+
+    @abstractmethod
+    async def get_shared_node_children(
+        self, node_id: int
+    ) -> list[Any]:
+        """Get non-page descendants of a shared node for public access."""
+        pass
+
+    @abstractmethod
+    async def get_trash_paginated(
+        self, page: int, page_size: int
+    ) -> tuple[int, list[Any]]:
+        """Get paginated soft-deleted nodes for the workspace."""
         pass
 
 
@@ -143,6 +223,11 @@ class NodeHierarchyRepository(ABC):
     @abstractmethod
     async def get_descendants(self, node_id: int, include_self: bool = False) -> list[int]:
         """Get all descendant IDs of a node using recursive CTE."""
+        pass
+
+    @abstractmethod
+    async def get_descendants_ordered(self, node_id: int) -> list[Node]:
+        """Get all descendants as Node entities ordered by depth then sequence."""
         pass
 
     @abstractmethod
@@ -270,6 +355,62 @@ class NodeSearchRepository(ABC):
         """Get recently created pages ordered by create_date DESC."""
         pass
 
+    @abstractmethod
+    async def find_active_nodes_by_name_patterns(self, patterns: list[str]) -> list[Any]:
+        """Get active node id/name rows matching any of the given LIKE patterns."""
+        pass
+
+    @abstractmethod
+    async def get_page_id_by_uuid(self, uuid: str) -> int | None:
+        """Get the ID of an active page node by UUID."""
+        pass
+
+    @abstractmethod
+    async def search_by_uuid_prefix(self, uuid_prefix: str, limit: int) -> list[Node]:
+        """Search active nodes by UUID prefix."""
+        pass
+
+    @abstractmethod
+    async def resolve_referenced_display_names(self, target_rows: list[Any]) -> dict[str, str]:
+        """Resolve node links embedded in names and return uuid -> resolved plain-text map.
+
+        Only returns entries for rows whose names actually contain node links.
+        """
+        pass
+
+    @abstractmethod
+    async def get_node_names_by_uuids(self, uuids: list[str]) -> dict[str, str | None]:
+        """Fetch node names for the given UUIDs in this workspace."""
+        pass
+
+    @abstractmethod
+    async def get_workspace_data(
+        self, page: int, page_size: int
+    ) -> tuple[int, list[dict[str, Any]], list[dict[str, Any]]]:
+        """Return workspace visualization data: (total, nodes, links).
+
+        Nodes and links are returned as plain dicts to be mapped to response
+        models by the caller.
+        """
+        pass
+
+    @abstractmethod
+    async def get_workspace_nodes(
+        self, page: int, page_size: int
+    ) -> tuple[int, list[dict[str, Any]]]:
+        """Return workspace nodes without links: (total, nodes)."""
+        pass
+
+    @abstractmethod
+    async def get_node_suggestions(
+        self, class_filter_ids: list[int] | None, limit: int
+    ) -> tuple[list[Node], list[Node]]:
+        """Return suggested pages: recently created and recently linked.
+
+        Returns a tuple of (recent_nodes, linked_nodes) in priority order.
+        """
+        pass
+
 
 class NodeTrashRepository(ABC):
     """Repository interface for Node trash and archive operations."""
@@ -324,6 +465,13 @@ class NodeTemplateRepository(ABC):
         pass
 
     @abstractmethod
+    async def list_templates_paginated(
+        self, page: int, page_size: int
+    ) -> tuple[list[Node], int]:
+        """List active templates with total count."""
+        pass
+
+    @abstractmethod
     async def get_template_descendants(self, template_id: int) -> list[Node]:
         """Get all descendant nodes of a template (excluding the template itself)."""
         pass
@@ -345,6 +493,11 @@ class NodeClassRepository(ABC):
     @abstractmethod
     async def update_node_class_ids(self, node_id: int, class_ids: list[int]) -> None:
         """Update class_ids for a node."""
+        pass
+
+    @abstractmethod
+    async def get_class_ids_batch(self, node_ids: list[int]) -> dict[int, list[int]]:
+        """Get class_ids arrays for multiple nodes in a single query."""
         pass
 
     @abstractmethod
@@ -374,6 +527,32 @@ class NodeRepository(
     """
 
     pass
+
+
+class AssetRepository(ABC):
+    """Repository interface for asset-specific persistence operations."""
+
+    @abstractmethod
+    async def get_page_and_asset_class_ids(self, user_id: int) -> tuple[int, int]:
+        """Return (page_class_id, asset_class_id), creating the asset class if needed."""
+        pass
+
+    @abstractmethod
+    async def convert_node_to_asset(
+        self,
+        node_id: int,
+        asset_uuid: str,
+        name: str,
+        asset_class_id: int,
+        user_id: int,
+    ) -> None:
+        """Update an existing node so it becomes an asset node."""
+        pass
+
+    @abstractmethod
+    async def asset_exists_by_uuid(self, uuid: str) -> bool:
+        """Return True if an asset node with the given UUID exists in the workspace."""
+        pass
 
 
 class QueryRepository(ABC):
@@ -433,6 +612,20 @@ class ClassExtendRepository(ABC):
     @abstractmethod
     async def get_direct_subclasses(self, class_node_id: int) -> list[int]:
         """Get direct subclass IDs (classes that extend this class)."""
+        pass
+
+    @abstractmethod
+    async def get_extended_classes_batch(self, node_ids: list[int]) -> dict[int, list[int]]:
+        """Batch-fetch class extends (parent class IDs) for a set of class nodes.
+
+        Returns a dict mapping target_id (child class) -> list of source_ids
+        (parent classes) in sequence order.
+        """
+        pass
+
+    @abstractmethod
+    async def expand_class_hierarchy(self, class_ids: list[int]) -> set[int]:
+        """Expand a set of class IDs to include all subclasses recursively."""
         pass
 
 
@@ -685,6 +878,11 @@ class PropertyRepository(ABC):
         pass
 
     @abstractmethod
+    async def get_text_property_target_ids(self, target_ids: list[int]) -> set[int]:
+        """Get IDs of nodes that are text-property value blocks for the given targets."""
+        pass
+
+    @abstractmethod
     async def clear_all_property_values(self, node_id: int, property_id: int) -> None:
         """Clear all values for a property on a node (but keep the assignment)."""
         pass
@@ -722,6 +920,44 @@ class PropertyRepository(ABC):
     @abstractmethod
     async def get_all_inherited_properties(self, class_node_id: int) -> list[ClassProperty]:
         """Get all properties for a class including inherited ones."""
+        pass
+
+    @abstractmethod
+    async def get_property_stats(self) -> list[dict[str, Any]]:
+        """Return usage counts per property across all nodes in this workspace."""
+        pass
+
+    @abstractmethod
+    async def get_property_suggestions(self, node_id: int | None) -> list[dict[str, Any]]:
+        """Return property suggestions for a node, ranked by usage frequency."""
+        pass
+
+    @abstractmethod
+    async def get_page_class_id(self) -> int | None:
+        """Return the integer ID of the page class in this workspace."""
+        pass
+
+    @abstractmethod
+    async def update_property_multi_and_rules(
+        self,
+        property_id: int,
+        is_multi: bool | None,
+        validation_rules: dict[str, Any] | None,
+        user_id: int,
+    ) -> None:
+        """Update property is_multi and/or validation_rules."""
+        pass
+
+    @abstractmethod
+    async def delete_excess_property_values(self, property_id: int, prop_type: PropertyType) -> None:
+        """Delete all but the first value per node when switching from multi to single."""
+        pass
+
+    @abstractmethod
+    async def get_nodes_with_property_detailed(
+        self, property_id: int
+    ) -> list[tuple[Any, list[int], dict[int, dict[str, Any]]]]:
+        """Get detailed node rows, class_ids, and property values for nodes with a property."""
         pass
 
 
@@ -816,6 +1052,42 @@ class LinkRepository(ABC):
         pass
 
     @abstractmethod
+    async def get_alias_node_ids_batch(self, target_ids: list[int]) -> dict[int, list[int]]:
+        """Get alias node IDs for multiple target nodes.
+
+        Returns a mapping of target_id -> list of alias node IDs.
+        """
+        pass
+
+    @abstractmethod
+    async def get_tag_link_targets_batch(self, source_ids: list[int]) -> dict[int, list[int]]:
+        """Get tag link target IDs for multiple source nodes.
+
+        Returns a mapping of source_id -> list of target IDs.
+        """
+        pass
+
+    @abstractmethod
+    async def get_links_for_nodes(
+        self,
+        node_ids: list[int],
+        scope: str,
+        cooccurrence: bool,
+        context_node_id: int | None,
+    ) -> list[dict[str, Any]]:
+        """Get links (reference, parent, class, extends, property-reference, cooccurrence).
+
+        Args:
+            node_ids: The set of node IDs to compute links for.
+            scope: "between" (both ends in set) or "touching" (at least one end in set).
+            cooccurrence: Whether to include co-occurrence links.
+            context_node_id: Optional context page for local co-occurrence.
+
+        Returns a list of link dicts with keys source, target, type, and optional weight.
+        """
+        pass
+
+    @abstractmethod
     async def get_backlinks_batch(self, target_ids: list[int]) -> list[Any]:
         """Get all node_link backlinks for multiple target IDs at once.
 
@@ -836,6 +1108,16 @@ class LinkRepository(ABC):
     @abstractmethod
     async def get_path_references(self, source_ids: list[int]) -> list[int]:
         """Get distinct target IDs referenced by any of the source nodes."""
+        pass
+
+    @abstractmethod
+    async def get_text_link_targets_batch(self, source_ids: list[int]) -> list[int]:
+        """Get distinct target IDs of text links from source nodes."""
+        pass
+
+    @abstractmethod
+    async def get_backlink_counts(self, target_ids: list[int]) -> dict[int, int]:
+        """Get backlink counts for multiple target nodes."""
         pass
 
     @abstractmethod
@@ -879,9 +1161,51 @@ class LinkRepository(ABC):
         """Update all node_link records to point from old_target to new_target."""
         pass
 
+    @abstractmethod
+    async def get_text_links(self, source_node_id: int) -> list[NodeLink]:
+        """Get all text links (property_id IS NULL) from a source node ordered by position."""
+        pass
+
+    @abstractmethod
+    async def get_text_links_batch(self, node_ids: list[int]) -> list[NodeLink]:
+        """Get all text links for multiple source nodes ordered by source_id, position."""
+        pass
+
+    @abstractmethod
+    async def get_property_backlinks_for_node(self, node_id: int) -> tuple[list[Any], list[Any]]:
+        """Get property backlinks for a node.
+
+        Returns (date_property_rows, node_property_rows) where each row has
+        node_id, property_id, property_name.
+        """
+        pass
+
+    @abstractmethod
+    async def set_alias(self, target_node_id: int, alias_node_id: int) -> None:
+        """Set aliased_id on alias_node_id to target_node_id."""
+        pass
+
+    @abstractmethod
+    async def remove_alias(self, target_node_id: int, alias_node_id: int) -> bool:
+        """Clear aliased_id for an alias of target_node_id. Returns True if updated."""
+        pass
+
+    @abstractmethod
+    async def delete_non_tag_text_links_for_workspace(self) -> int:
+        """Delete all non-tag text links (property_id IS NULL, is_tag=FALSE) in the workspace."""
+        pass
+
 
 class UserRepository(ABC):
-    """Repository interface for User operations."""
+    """Repository interface for User operations and auth persistence.
+
+    This port consolidates user-account persistence together with the
+    API-key and refresh-token tables that are logically owned by the
+    authentication subsystem. Concrete adapters implement the raw SQL;
+    callers in ``app.auth`` build tokens, hashes, and caching on top.
+    """
+
+    # ============== User CRUD ==============
 
     @abstractmethod
     async def create(self, data: UserCreateData, password_hash: str) -> User:
@@ -899,18 +1223,159 @@ class UserRepository(ABC):
         pass
 
     @abstractmethod
-    async def get_by_username(self, username: str) -> User | None:
-        """Get user by username."""
+    async def get_by_id_or_uuid(self, user_id: str) -> User | None:
+        """Get user by ID or UUID string."""
         pass
 
     @abstractmethod
-    async def update_password(self, user_id: int, password_hash: str) -> bool:
-        """Update user password."""
+    async def get_by_email(self, email: str) -> User | None:
+        """Get user by email address."""
+        pass
+
+    @abstractmethod
+    async def get_user_id_by_page_node_uuid(self, node_uuid: str) -> int | None:
+        """Get user ID whose user page node has the given UUID."""
+        pass
+
+    @abstractmethod
+    async def update_profile(
+        self,
+        user_id: str,
+        name: str | None = None,
+        surnames: str | None = None,
+        profile_pic: str | None = None,
+    ) -> User | None:
+        """Update a user's profile fields."""
+        pass
+
+    @abstractmethod
+    async def update_password_hash(self, user_id: str, password_hash: str) -> User | None:
+        """Update a user's password hash and return the updated user."""
         pass
 
     @abstractmethod
     async def deactivate(self, user_id: int) -> bool:
         """Deactivate a user."""
+        pass
+
+    @abstractmethod
+    async def count_users(self) -> int:
+        """Return the total number of users in the system."""
+        pass
+
+    @abstractmethod
+    async def ensure_initial_admin(self, admin_email: str, admin_password: str) -> bool:
+        """Create an initial admin user if no active admin exists.
+
+        Returns True if a new admin was created, False if an admin already exists.
+        """
+        pass
+
+    # ============== Admin operations ==============
+
+    @abstractmethod
+    async def list_users_paginated(self, page: int, page_size: int) -> tuple[int, list[Any]]:
+        """List all users paginated."""
+        pass
+
+    @abstractmethod
+    async def count_other_admins(self, user_id: int) -> int:
+        """Count active admins other than the given user."""
+        pass
+
+    @abstractmethod
+    async def update_user_admin(self, user_id: str, updates: dict[str, Any]) -> dict[str, Any] | None:
+        """Update a user as admin. Returns the updated user row or None."""
+        pass
+
+    @abstractmethod
+    async def deactivate_user_admin(self, user_id: str) -> bool:
+        """Deactivate a user as admin. Returns True if updated."""
+        pass
+
+    @abstractmethod
+    async def get_system_metrics(self) -> dict[str, Any]:
+        """Get system-wide node/user/workspace/share counts."""
+        pass
+
+    @abstractmethod
+    async def audit_assets(self, dry_run: bool) -> dict[str, Any]:
+        """Audit asset files on disk vs active asset nodes."""
+        pass
+
+    # ============== API Keys ==============
+
+    @abstractmethod
+    async def create_api_key(
+        self,
+        user_id: int,
+        name: str,
+        key_hash: str,
+        scopes: list[str],
+        key_prefix: str,
+        last_4: str,
+        expires_at: datetime | None = None,
+    ) -> dict:
+        """Store a new API key and return the persisted record."""
+        pass
+
+    @abstractmethod
+    async def list_api_keys(self, user_id: int) -> list[dict]:
+        """List all non-revoked API keys for a user."""
+        pass
+
+    @abstractmethod
+    async def revoke_all_api_keys(self, user_id: int) -> None:
+        """Revoke all active API keys for a user."""
+        pass
+
+    @abstractmethod
+    async def revoke_api_key(self, user_id: int, key_id: str) -> bool:
+        """Revoke a single API key. Returns True if a row was updated."""
+        pass
+
+    @abstractmethod
+    async def find_api_key_candidates(self, key_prefix: str, last_4: str) -> list[dict]:
+        """Fetch non-revoked, non-expired API keys matching the prefix/last-4 pair."""
+        pass
+
+    @abstractmethod
+    async def update_api_key_last_used(self, key_id: int) -> None:
+        """Update the last_used_at timestamp for an API key."""
+        pass
+
+    # ============== Refresh Tokens ==============
+
+    @abstractmethod
+    async def create_refresh_token(
+        self, user_id: int, token_hash: str, expires_at: datetime, family_id: str
+    ) -> dict:
+        """Store a refresh token and return the persisted record."""
+        pass
+
+    @abstractmethod
+    async def list_active_refresh_tokens(self) -> list[dict]:
+        """Fetch all non-revoked, non-expired refresh tokens."""
+        pass
+
+    @abstractmethod
+    async def get_refresh_token_replacement(self, token_id: int) -> int | None:
+        """Return the token_id that replaced this token, if any."""
+        pass
+
+    @abstractmethod
+    async def rotate_refresh_token(self, old_token_id: int, token_hash: str, expires_at: datetime) -> dict:
+        """Rotate a refresh token: revoke old, create new, link them."""
+        pass
+
+    @abstractmethod
+    async def revoke_refresh_token_family(self, family_id: str) -> None:
+        """Revoke all refresh tokens in a family."""
+        pass
+
+    @abstractmethod
+    async def revoke_all_user_refresh_tokens(self, user_id: int) -> None:
+        """Revoke all refresh tokens for a user."""
         pass
 
 
@@ -1022,6 +1487,324 @@ class ShareRepository(ABC):
         """Get the node associated with a valid share."""
         pass
 
+    @abstractmethod
+    async def set_share_password(self, share_id: int, password_hash: str) -> None:
+        """Set a password hash on a public share."""
+        pass
+
+    @abstractmethod
+    async def list_share_inbox(
+        self, user_id: int, page: int, page_size: int
+    ) -> tuple[int, list[Any]]:
+        """Get paginated node shares for a user."""
+        pass
+
+    @abstractmethod
+    async def create_node_user_share(
+        self,
+        node_id: int,
+        workspace_id: int,
+        user_id: int,
+        target_email: str,
+        permission: str,
+    ) -> dict[str, Any] | None:
+        """Create or update a node-level user share. May create a pending invite.
+
+        Returns a dict describing the result. For direct shares it includes the
+        inserted share row; for invites it returns {"status": "pending", ...}.
+        """
+        pass
+
+    @abstractmethod
+    async def list_node_user_shares(
+        self, node_id: int, workspace_id: int, user_id: int
+    ) -> tuple[bool, list[Any]]:
+        """List user shares for a node.
+
+        Returns (is_owner, rows).
+        """
+        pass
+
+    @abstractmethod
+    async def revoke_user_share(
+        self, share_id: int, workspace_id: int, user_id: int
+    ) -> dict[str, Any] | None:
+        """Revoke a node user share and clear is_shared if no shares remain.
+
+        Returns {"node_id": node_id} on success, or None if not found/forbidden.
+        """
+        pass
+
+
+class UndoRepository(ABC):
+    """Repository interface for undo / redo log operations."""
+
+    @abstractmethod
+    async def record(
+        self,
+        operation: str,
+        entity_type: str,
+        entity_id: int,
+        before_state: dict | None,
+        after_state: dict | None,
+        description: str = "",
+    ) -> None:
+        """Append an entry to the undo log.
+
+        Also clears any redo entries and trims old entries to the configured
+        maximum stack size.
+        """
+        pass
+
+    @abstractmethod
+    async def get_undo(self) -> dict | None:
+        """Return the most recent non-undone entry, or None if empty."""
+        pass
+
+    @abstractmethod
+    async def get_redo(self) -> dict | None:
+        """Return the most recently undone entry, or None if empty."""
+        pass
+
+    @abstractmethod
+    async def undo(self) -> dict | None:
+        """Undo the most recent operation and mark it undone.
+
+        Returns a summary dict on success, or None if nothing to undo.
+        """
+        pass
+
+    @abstractmethod
+    async def redo(self) -> dict | None:
+        """Redo the most recently undone operation and mark it not undone.
+
+        Returns a summary dict on success, or None if nothing to redo.
+        """
+        pass
+
+    @abstractmethod
+    async def get_undo_entries(self) -> list[dict]:
+        """Return all non-undone entries ordered newest first."""
+        pass
+
+    @abstractmethod
+    async def get_redo_entries(self) -> list[dict]:
+        """Return all undone entries ordered oldest first."""
+        pass
+
+    @abstractmethod
+    async def undo_to(self, entry_id: int) -> list[dict]:
+        """Undo all operations down to and including entry_id."""
+        pass
+
+    @abstractmethod
+    async def redo_to(self, entry_id: int) -> list[dict]:
+        """Redo all operations up to and including entry_id."""
+        pass
+
+    @abstractmethod
+    async def clear(self) -> None:
+        """Delete all undo/redo entries for the current user+workspace."""
+        pass
+
+    @abstractmethod
+    async def clear_for_node(self, node_id: int) -> None:
+        """Delete all undo/redo entries affecting the given node."""
+        pass
+
+
+class ExportRepository(ABC):
+    """Repository interface for node export SQL operations."""
+
+    @abstractmethod
+    async def get_export_node_tree(
+        self, workspace_id: int, node_uuid: str, include_children: bool
+    ) -> list[Any]:
+        """Fetch a node and optionally all its descendants.
+
+        Returns raw rows ordered by path_order.  When include_children is False
+        only the matching root node is returned.
+        """
+        pass
+
+    @abstractmethod
+    async def filter_text_property_node_ids(self, node_ids: list[int]) -> set[int]:
+        """Return IDs of nodes that are text-property relation targets."""
+        pass
+
+    @abstractmethod
+    async def get_system_class_map(self, workspace_id: int, uuids: list[str]) -> dict[int, str]:
+        """Fetch system class IDs/names for the given class UUIDs."""
+        pass
+
+    @abstractmethod
+    async def resolve_link_targets(
+        self, workspace_id: int, uuids: list[str]
+    ) -> list[Any]:
+        """Fetch node rows for link target UUIDs."""
+        pass
+
+    @abstractmethod
+    async def get_node_properties_data(self, node_ids: list[int]) -> list[Any]:
+        """Fetch all property rows for the given node IDs."""
+        pass
+
+    @abstractmethod
+    async def get_relation_target_names(self, target_ids: list[int]) -> dict[int, str]:
+        """Fetch plain-text names for relation target IDs."""
+        pass
+
+    @abstractmethod
+    async def get_node_class_and_tag_names(
+        self, page_node_ids: list[int], workspace_id: int
+    ) -> tuple[dict[str, list[str]], dict[str, list[str]]]:
+        """Return (class_names_by_node_uuid, tag_labels_by_node_uuid)."""
+        pass
+
+    @abstractmethod
+    async def get_text_property_subtrees(
+        self, target_ids: list[int]
+    ) -> dict[int, list[dict[str, Any]]]:
+        """Fetch descendant blocks for text-property target IDs."""
+        pass
+
+    @abstractmethod
+    async def get_page_metadata(
+        self, workspace_id: int, node_uuid: str, include_properties: bool = True
+    ) -> dict[str, Any]:
+        """Fetch full metadata for a page's YAML frontmatter."""
+        pass
+
+    @abstractmethod
+    async def get_auto_export_metadata(
+        self, workspace_id: int, node_uuid: str
+    ) -> dict[str, Any]:
+        """Fetch node metadata for auto-export YAML frontmatter."""
+        pass
+
+    @abstractmethod
+    async def list_exportable_pages(
+        self, workspace_id: int
+    ) -> list[dict[str, Any]]:
+        """List active non-deleted page UUIDs and names for batch export."""
+        pass
+
+
+class WorkspaceRepository(ABC):
+    """Repository interface for workspace lifecycle, membership, and invite operations."""
+
+    @abstractmethod
+    async def list_workspaces(self, user_id: int) -> list[Any]:
+        """List all workspaces accessible to a user (owned + shared).
+
+        Returns raw rows with workspace info plus share permission columns.
+        """
+        pass
+
+    @abstractmethod
+    async def get_by_name_and_owner(self, name: str, owner_id: int) -> Any | None:
+        """Get an active workspace by name and owner."""
+        pass
+
+    @abstractmethod
+    async def create(self, name: str, owner_id: int) -> Any:
+        """Create a new workspace and return the inserted row."""
+        pass
+
+    @abstractmethod
+    async def get_by_uuid_for_user(self, workspace_uuid: str, user_id: int) -> Any | None:
+        """Get a workspace by UUID if the user has access."""
+        pass
+
+    @abstractmethod
+    async def rename(self, workspace_id: int, new_name: str, owner_id: int) -> Any | None:
+        """Rename a workspace (owner only) and return the updated row."""
+        pass
+
+    @abstractmethod
+    async def get_id_by_uuid_and_owner(self, workspace_uuid: str, owner_id: int) -> int | None:
+        """Get a workspace ID by UUID, verifying the user is the owner."""
+        pass
+
+    @abstractmethod
+    async def delete_cascade(self, workspace_id: int) -> bool:
+        """Hard-delete a workspace and all its data.
+
+        Disables triggers for bulk deletion, removes node/activity/link/property
+        rows, deletes the workspace row, and returns True if a row was deleted.
+        """
+        pass
+
+    @abstractmethod
+    async def resolve_workspace_for_export(
+        self, user_id: int, workspace_uuid: str | None = None
+    ) -> int:
+        """Resolve a workspace ID for export operations."""
+        pass
+
+    @abstractmethod
+    async def seed_workspace(self, workspace_id: int, user_id: int) -> None:
+        """Seed a new workspace with system classes, properties, and pages."""
+        pass
+
+    @abstractmethod
+    async def ensure_user_page(self, workspace_id: int, user_id: int) -> int | None:
+        """Create a system user page node if the user doesn't have one yet."""
+        pass
+
+    @abstractmethod
+    async def get_workspace_uuid_by_name_for_user(self, name: str, user_id: int) -> str | None:
+        """Resolve a workspace UUID from its name for a user (owner or shared)."""
+        pass
+
+    @abstractmethod
+    async def get_workspace_id_owner(self, workspace_uuid: str) -> tuple[int, int] | None:
+        """Return (workspace_id, owner_id) for an active workspace, or None."""
+        pass
+
+    @abstractmethod
+    async def is_workspace_member(self, workspace_id: int, user_id: int) -> bool:
+        """Return True if the user has an active workspace_share record."""
+        pass
+
+    @abstractmethod
+    async def invite_existing_member(
+        self, workspace_id: int, target_id: int, role: str, owner_id: int
+    ) -> None:
+        """Upsert a workspace_share record for an existing user."""
+        pass
+
+    @abstractmethod
+    async def create_pending_invite(
+        self, workspace_id: int, email: str, role: str, invited_by: int
+    ) -> str:
+        """Create or refresh a pending_invite record and return its UUID."""
+        pass
+
+    @abstractmethod
+    async def list_members(
+        self, workspace_id: int, page: int, page_size: int
+    ) -> dict[str, Any]:
+        """Return owner, shared members, and pending invites for a workspace."""
+        pass
+
+    @abstractmethod
+    async def update_member_role(
+        self, workspace_id: int, member_user_id: int, role: str, owner_id: int
+    ) -> bool:
+        """Update an active member's role. Returns True if a row was updated."""
+        pass
+
+    @abstractmethod
+    async def remove_member(self, workspace_id: int, member_user_id: int) -> None:
+        """Soft-remove a member by marking their workspace_share record inactive."""
+        pass
+
+    @abstractmethod
+    async def remove_pending_invite(self, workspace_id: int, email: str) -> None:
+        """Cancel a pending invite by email for a workspace-wide invite."""
+        pass
+
 
 class SettingsRepository(ABC):
     """Repository interface for user and workspace settings."""
@@ -1032,8 +1815,23 @@ class SettingsRepository(ABC):
         pass
 
     @abstractmethod
+    async def get_user_setting(self, user_id: int, key: str) -> Any | None:
+        """Return a single user setting value, or None if not set."""
+        pass
+
+    @abstractmethod
     async def set_user_setting(self, user_id: int, key: str, json_value: str, now: Any) -> None:
         """Upsert a single user setting (json_value is a serialised JSON string)."""
+        pass
+
+    @abstractmethod
+    async def get_user_favorites(self, user_id: int) -> list[int]:
+        """Return the user's favorite node IDs as a list of ints."""
+        pass
+
+    @abstractmethod
+    async def set_user_favorites(self, user_id: int, favorites: list[int], now: Any | None = None) -> None:
+        """Persist the user's favorite node IDs."""
         pass
 
     @abstractmethod
@@ -1054,4 +1852,82 @@ class SettingsRepository(ABC):
     @abstractmethod
     async def remove_node_from_favorites(self, node_id: int) -> None:
         """Remove a node ID from all users' favorites lists."""
+        pass
+
+
+class InviteRepository(ABC):
+    """Repository interface for pending-invite acceptance operations."""
+
+    @abstractmethod
+    async def get_pending_invite(self, token: str) -> Any | None:
+        """Get an active pending invite by its UUID token."""
+        pass
+
+    @abstractmethod
+    async def expire_invite(self, invite_id: int) -> None:
+        """Mark a pending invite as inactive."""
+        pass
+
+    @abstractmethod
+    async def apply_invite_shares(
+        self,
+        invite: Any,
+        user_id: int,
+    ) -> None:
+        """Create workspace/node shares from an invite in a single transaction."""
+        pass
+
+
+class NotificationRepository(ABC):
+    """Repository interface for in-app notification operations."""
+
+    @abstractmethod
+    async def list_notifications(self, user_id: int, include_read: bool, limit: int) -> list[Any]:
+        """List notifications for a user, optionally including read ones."""
+        pass
+
+    @abstractmethod
+    async def mark_notification_read(self, notification_id: int, user_id: int) -> bool:
+        """Mark a single notification as read. Returns True if updated."""
+        pass
+
+    @abstractmethod
+    async def mark_all_notifications_read(self, user_id: int) -> None:
+        """Mark all notifications for a user as read."""
+        pass
+
+    @abstractmethod
+    async def create_notification(
+        self, user_id: int, type: str, actor_user_id: int | None, node_id: int | None, message: str | None
+    ) -> None:
+        """Create a notification for a user."""
+        pass
+
+
+class SyncRepository(ABC):
+    """Repository interface for client-server node synchronization."""
+
+    @abstractmethod
+    async def get_server_nodes_since(
+        self, workspace_id: int, last_sync: str | None, limit: int
+    ) -> list[dict[str, Any]]:
+        """Fetch server-side node states modified since last_sync (or all active nodes)."""
+        pass
+
+    @abstractmethod
+    async def get_node_state_by_uuid(self, uuid: str) -> dict[str, Any] | None:
+        """Fetch minimal node state (id, version, is_deleted, workspace_id) by UUID."""
+        pass
+
+    @abstractmethod
+    async def apply_client_node_update(
+        self,
+        node_id: int,
+        name: str | None,
+        parent_id: int | None,
+        sequence: float | None,
+        is_deleted: bool,
+        user_id: int,
+    ) -> None:
+        """Apply a client change to a node (metadata-only)."""
         pass

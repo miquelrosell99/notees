@@ -29,10 +29,28 @@ from app.domain.entities.query_ast import (
     ScopeType,
     StyleCondition,
 )
+from app.domain.errors import DomainError
 
 from ...logging_config import get_logger
 
 logger = get_logger(__name__)
+
+# Whitelist of known boolean flag columns on the node table.
+# FlagCondition.flag_name MUST be one of these; anything else is rejected to
+# prevent SQL injection via identifier interpolation in _generate_flag_condition.
+ALLOWED_FLAG_NAMES = {
+    "is_page",
+    "is_class",
+    "is_day",
+    "is_month",
+    "is_year",
+    "is_asset",
+    "is_template",
+    "is_comment",
+    "is_private",
+    "is_favorite",
+    "active",
+}
 
 
 class QueryASTToSQL:
@@ -881,6 +899,13 @@ class QueryASTToSQL:
         """Generate SQL for flag condition (is_page, is_day, etc)."""
         if not condition.flag_name:
             return None
+
+        if condition.flag_name not in ALLOWED_FLAG_NAMES:
+            raise DomainError(
+                message=f"Invalid flag_name: {condition.flag_name!r}. "
+                f"Allowed values are: {', '.join(sorted(ALLOWED_FLAG_NAMES))}.",
+                code="INVALID_FLAG_NAME",
+            )
 
         # Direct boolean column check
         if condition.value:
