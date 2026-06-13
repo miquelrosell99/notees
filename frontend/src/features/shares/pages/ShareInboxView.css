@@ -1,22 +1,20 @@
-:root {
-  --features-shares-pages-share-inbox-view-max-width-800: 800px;
-}
+
 
 .share-inbox-view {
-  padding: 3rem 1.5rem 1.5rem;
-  max-width: var(--features-shares-pages-share-inbox-view-max-width-800);
+  padding: var(--spacing-12) var(--spacing-6) var(--spacing-6);
+  max-width: var(--layout-size-13xl);
   margin: 0 auto;
 }
 
 .share-inbox-view__header {
-  margin-bottom: 1.5rem;
+  margin-bottom: var(--spacing-6);
 }
 
 .share-inbox-view__title {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  font-size: 1.5rem;
+  gap: var(--spacing-2);
+  font-size: var(--font-size-3xl);
   font-weight: 600;
   margin: 0;
 }
@@ -24,27 +22,27 @@
 .share-inbox-view__loading,
 .share-inbox-view__empty {
   text-align: center;
-  padding: 3rem 1rem;
+  padding: var(--spacing-12) var(--spacing-4);
   color: var(--text-muted);
 }
 
 .share-inbox-view__empty-hint {
-  font-size: 0.875rem;
-  margin-top: 0.5rem;
+  font-size: var(--font-size-base);
+  margin-top: var(--spacing-2);
 }
 
 .share-inbox-view__list {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: var(--spacing-3);
 }
 
 .share-inbox-view__item {
-  border: 1px solid var(--border-color);
-  border-radius: 0.5rem;
-  padding: 1rem;
+  border: var(--border-width-default) solid var(--border-color);
+  border-radius: var(--shape-large);
+  padding: var(--spacing-4);
   background: var(--surface-color);
-  transition: border-color 0.15s ease;
+  transition: border-color var(--motion-duration-shorter) var(--motion-easing-ease);
 }
 
 .share-inbox-view__item:hover {
@@ -56,23 +54,23 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.75rem;
-  margin-bottom: 0.5rem;
+  gap: var(--spacing-3);
+  margin-bottom: var(--spacing-2);
 }
 
 .share-inbox-view__item-name {
   font-weight: 500;
-  font-size: 1rem;
+  font-size: var(--font-size-md);
 }
 
 .share-inbox-view__item-badge {
-  font-size: 0.65rem;
+  font-size: var(--font-size-2xs);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   font-weight: 600;
-  padding: 0.15rem 0.5rem;
+  padding: var(--spacing-micro) var(--spacing-2);
   border-radius: var(--shape-full);
-  border: 1px solid var(--border-color);
+  border: var(--border-width-default) solid var(--border-color);
 }
 
 .share-inbox-view__item-badge--read {
@@ -88,10 +86,10 @@
 .share-inbox-view__item-meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem 1rem;
-  font-size: 0.8rem;
+  gap: var(--spacing-2) var(--spacing-4);
+  font-size: var(--font-size-sm);
   color: var(--text-muted);
-  margin-bottom: 0.75rem;
+  margin-bottom: var(--spacing-3);
 }
 
 .share-inbox-view__item-time {

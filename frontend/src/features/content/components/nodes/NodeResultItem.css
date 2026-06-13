@@ -6,9 +6,7 @@
  */
 
 
-:root {
-  --features-content-components-nodes-node-result-item-padding-6: 6px;
-}
+
 
 .node-result-item {
   display: flex;
@@ -41,15 +39,15 @@
 .node-result-item__crumbs {
   font: var(--font-label-small);
   color: var(--color-on-surface-variant);
-  opacity: 0.55;
+  opacity: var(--opacity-55);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   direction: rtl;
   text-align: left;
   /* indent by icon width (18px) + gap (8px) so path aligns with the name */
-  padding-left: calc(var(--spacing-6) + 2px);
-  margin-bottom: 1px;
+  padding-left: calc(var(--spacing-6) + var(--spacing-micro));
+  margin-bottom: var(--spacing-hairline);
 }
 
 .node-result-item__row {
@@ -90,7 +88,7 @@
   font: var(--font-label-small);
   color: var(--color-on-surface-variant);
   background: var(--color-surface-container);
-  padding: 1px var(--features-content-components-nodes-node-result-item-padding-6);
+  padding: var(--spacing-hairline) var(--spacing-1-5);
   border-radius: var(--shape-button-compact);
   white-space: nowrap;
 }

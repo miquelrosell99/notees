@@ -4,9 +4,7 @@
 
 @import url('./styles/icon-only-touch-targets.css');
 
-:root {
-  --index-min-width-320: 320px;
-}
+
 
 :root {
   font-family: var(--font-family-base);
@@ -48,7 +46,7 @@ a:hover {
 
 body {
   margin: 0;
-  min-width: var(--index-min-width-320);
+  min-width: var(--layout-body-min-width);
   min-height: 100vh;
 }
 
@@ -71,8 +69,8 @@ button {
 }
 
 button:focus-visible {
-  outline: 2px solid var(--color-primary);
-  outline-offset: 2px;
+  outline: var(--border-width-thick) solid var(--color-primary);
+  outline-offset: var(--spacing-micro);
 }
 
 /* Input reset */
@@ -89,8 +87,8 @@ input:focus, textarea:focus, select:focus {
 
 /* Scrollbar styling */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: var(--shape-large);
+  height: var(--shape-large);
 }
 
 ::-webkit-scrollbar-track {
@@ -140,13 +138,13 @@ input:focus, textarea:focus, select:focus {
 
 /* Utility: hidden by default, revealed on parent hover via component CSS */
 .hover-reveal {
-  opacity: 0;
+  opacity: var(--opacity-0);
   transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 @media (max-width: 768px), (hover: none) {
   .hover-reveal {
-    opacity: 1 !important;
+    opacity: var(--opacity-100) !important;
     pointer-events: auto !important;
   }
 }
@@ -154,7 +152,7 @@ input:focus, textarea:focus, select:focus {
 /* Desktop touchscreens (e.g., Surface, touch monitors) */
 @media (hover: none) {
   .hover-reveal {
-    opacity: 1 !important;
+    opacity: var(--opacity-100) !important;
     pointer-events: auto !important;
   }
 }

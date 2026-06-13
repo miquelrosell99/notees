@@ -4,11 +4,12 @@
 /* ────────────────────────────────────────────────────────────── */
 
 .whiteboard-view {
+  --grid-dot-radius: var(--border-width-medium);
   --wb-z-canvas: 0;
-  --wb-z-strokes: 10;
-  --wb-z-elements: 20;
-  --wb-z-ui: 100;
-  --wb-z-overlay: 1000;
+  --wb-z-strokes: var(--z-10);
+  --wb-z-elements: var(--z-20);
+  --wb-z-ui: var(--z-100);
+  --wb-z-overlay: var(--z-1000);
 }
 
 /* ────────────────────────────────────────────────────────────── */
@@ -34,11 +35,11 @@
 .whiteboard-view--grid {
   background-image: radial-gradient(
     circle,
-    var(--color-outline-variant) var(--grid-dot-radius, 1.5px),
-    transparent var(--grid-dot-radius, 1.5px)
+    var(--color-outline-variant) var(--grid-dot-radius),
+    transparent var(--grid-dot-radius)
   );
   background-position: var(--grid-offset-x, 0px) var(--grid-offset-y, 0px);
-  background-size: var(--grid-size, 24px) var(--grid-size, 24px);
+  background-size: var(--grid-size) var(--grid-size);
 }
 
 /* Pan/Zoom cursors */
@@ -80,7 +81,7 @@
 
 .whiteboard-view__canvas:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px var(--color-accent);
+  box-shadow: var(--shadow-focus-ring);
 }
 
 /* SVG Overlays (Strokes, Connectors) — scoped to direct children only
@@ -120,8 +121,8 @@
 }
 
 .whiteboard-element--search-match {
-  outline: 2px solid var(--color-tertiary);
-  outline-offset: 2px;
+  outline: var(--border-width-thick) solid var(--color-tertiary);
+  outline-offset: var(--spacing-micro);
 }
 
 /* Text elements */
@@ -152,7 +153,7 @@
 
 .whiteboard-text--editing textarea:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px var(--color-accent);
+  box-shadow: var(--shadow-focus-ring);
 }
 
 /* Images */
@@ -176,14 +177,14 @@
 
 .whiteboard-element--locked {
   cursor: not-allowed;
-  opacity: 0.8;
+  opacity: var(--opacity-80);
 }
 
 .whiteboard-element--dragging {
   cursor: grabbing;
-  opacity: 0.95;
+  opacity: var(--opacity-95);
   transition: box-shadow var(--motion-duration-medium) var(--motion-easing-standard);
-  z-index: 1000 !important;
+  z-index: var(--z-1000) !important;
 }
 
 /* ────────────────────────────────────────────────────────────── */
@@ -193,7 +194,7 @@
 .whiteboard-group {
   position: absolute;
   pointer-events: none; /* Hit detection is canvas-based, not DOM-based */
-  border: 1.5px dashed var(--color-outline-variant);
+  border: var(--border-width-medium) dashed var(--color-outline-variant);
   border-radius: var(--shape-medium);
   background: color-mix(in srgb, var(--color-primary) 4%, transparent);
   box-sizing: border-box;
@@ -214,20 +215,20 @@
 
 .whiteboard-element__resize-handles {
   position: absolute;
-  inset: -8px; /* Slightly larger hit area container */
+  inset: calc(var(--spacing-2) * -1); /* Slightly larger hit area container */
   pointer-events: none;
 }
 
 .whiteboard-element__resize-handle {
   position: absolute;
-  width: 10px;
-  height: 10px;
+  width: var(--spacing-tight);
+  height: var(--spacing-tight);
   background: var(--color-background);
-  border: 2px solid var(--color-primary);
+  border: var(--border-width-thick) solid var(--color-primary);
   border-radius: var(--shape-full);
   pointer-events: auto;
-  z-index: 20;
-  opacity: 1;
+  z-index: var(--z-20);
+  opacity: var(--opacity-100);
   transition: transform var(--motion-duration-short) var(--motion-easing-tactile);
 }
 
@@ -237,14 +238,14 @@
 }
 
 /* Handle Positions */
-.whiteboard-element__resize-handle--nw { top: -5px; left: -5px; cursor: nw-resize; }
-.whiteboard-element__resize-handle--n  { top: -5px; left: 50%; transform: translateX(-50%); cursor: n-resize; }
-.whiteboard-element__resize-handle--ne { top: -5px; right: -5px; cursor: ne-resize; }
-.whiteboard-element__resize-handle--e  { top: 50%; right: -5px; transform: translateY(-50%); cursor: e-resize; }
-.whiteboard-element__resize-handle--se { bottom: -5px; right: -5px; cursor: se-resize; }
-.whiteboard-element__resize-handle--s  { bottom: -5px; left: 50%; transform: translateX(-50%); cursor: s-resize; }
-.whiteboard-element__resize-handle--sw { bottom: -5px; left: -5px; cursor: sw-resize; }
-.whiteboard-element__resize-handle--w  { top: 50%; left: -5px; transform: translateY(-50%); cursor: w-resize; }
+.whiteboard-element__resize-handle--nw { top: calc(var(--spacing-xxs) * -1); left: calc(var(--spacing-xxs) * -1); cursor: nw-resize; }
+.whiteboard-element__resize-handle--n  { top: calc(var(--spacing-xxs) * -1); left: 50%; transform: translateX(-50%); cursor: n-resize; }
+.whiteboard-element__resize-handle--ne { top: calc(var(--spacing-xxs) * -1); right: calc(var(--spacing-xxs) * -1); cursor: ne-resize; }
+.whiteboard-element__resize-handle--e  { top: 50%; right: calc(var(--spacing-xxs) * -1); transform: translateY(-50%); cursor: e-resize; }
+.whiteboard-element__resize-handle--se { bottom: calc(var(--spacing-xxs) * -1); right: calc(var(--spacing-xxs) * -1); cursor: se-resize; }
+.whiteboard-element__resize-handle--s  { bottom: calc(var(--spacing-xxs) * -1); left: 50%; transform: translateX(-50%); cursor: s-resize; }
+.whiteboard-element__resize-handle--sw { bottom: calc(var(--spacing-xxs) * -1); left: calc(var(--spacing-xxs) * -1); cursor: sw-resize; }
+.whiteboard-element__resize-handle--w  { top: 50%; left: calc(var(--spacing-xxs) * -1); transform: translateY(-50%); cursor: w-resize; }
 
 /* Preserve centering transforms on edge handles when hovered */
 .whiteboard-element__resize-handle--n:hover { transform: translateX(-50%) scale(1.3); }
@@ -255,7 +256,7 @@
 /* Rotation Handle */
 .whiteboard-element__rotation-handle {
   position: absolute;
-  top: -30px;
+  top: calc(var(--whiteboard-rotation-handle-offset) * -1);
   left: 50%;
   transform: translateX(-50%);
   width: var(--icon-size-lg);
@@ -264,16 +265,16 @@
   align-items: center;
   justify-content: center;
   cursor: grab;
-  z-index: 20;
+  z-index: var(--z-20);
 }
 
 .whiteboard-element__rotation-handle::after {
   content: '';
-  width: 10px;
-  height: 10px;
+  width: var(--spacing-tight);
+  height: var(--spacing-tight);
   border-radius: var(--shape-full);
   background: var(--color-background);
-  border: 2px solid var(--color-primary);
+  border: var(--border-width-thick) solid var(--color-primary);
   transition: transform var(--motion-duration-short) var(--motion-easing-standard);
 }
 
@@ -285,7 +286,7 @@
 .whiteboard-element__rotation-handle::before {
   content: '';
   position: absolute;
-  top: 14px;
+  top: var(--icon-size-xs);
   height: var(--icon-size-sm);
   width: 1px;
   background: var(--color-primary);
@@ -297,24 +298,24 @@
 
 .whiteboard-element__anchor {
   position: absolute;
-  width: 10px;
-  height: 10px;
+  width: var(--spacing-tight);
+  height: var(--spacing-tight);
   background: var(--color-primary);
-  border: 2px solid var(--color-background);
+  border: var(--border-width-thick) solid var(--color-background);
   border-radius: var(--shape-full);
   cursor: crosshair;
   pointer-events: auto;
-  opacity: 0;
+  opacity: var(--opacity-0);
   transform: translate(-50%, -50%) scale(0.5);
   transition:
     opacity var(--motion-duration-medium) var(--motion-easing-standard),
     transform var(--motion-duration-medium) var(--motion-easing-tactile);
-  z-index: 30;
+  z-index: var(--z-30);
 }
 
 .whiteboard-element:hover .whiteboard-element__anchor,
 .whiteboard-element--selected .whiteboard-element__anchor {
-  opacity: 1;
+  opacity: var(--opacity-100);
   transform: translate(-50%, -50%) scale(1);
 }
 
@@ -337,7 +338,7 @@
   display: flex;
   flex-direction: column;
   background: var(--color-surface);
-  border: 1px solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
   border-radius: var(--shape-large);
   overflow: hidden;
   transition:
@@ -354,8 +355,8 @@
   gap: var(--spacing-2);
   padding: var(--spacing-2) var(--spacing-3);
   background: var(--color-surface-variant);
-  border-bottom: 1px solid var(--color-outline-variant);
-  min-height: 36px;
+  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
+  min-height: var(--spacing-9);
   cursor: grab;
 }
 
@@ -422,10 +423,10 @@
   position: absolute;
   bottom: var(--spacing-4);
   right: var(--spacing-4);
-  width: 260px;
+  width: var(--layout-size-5xl);
   height: 170px;
   background: color-mix(in srgb, var(--color-background) 90%, transparent);
-  border: 1px solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
   border-radius: var(--shape-extra-large);
   backdrop-filter: blur(8px);
   z-index: var(--wb-z-ui);
@@ -434,7 +435,7 @@
 
 .whiteboard-minimap__viewport {
   position: absolute;
-  border: 2px solid var(--color-primary);
+  border: var(--border-width-thick) solid var(--color-primary);
   background: color-mix(in srgb, var(--color-primary) 10%, transparent);
   border-radius: var(--shape-large);
   pointer-events: none;
@@ -494,8 +495,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  min-width: 44px;
-  min-height: 44px;
+  min-width: var(--button-min-height);
+  min-height: var(--button-min-height);
   padding: 0 var(--spacing-2);
   font: var(--font-label-medium);
   color: var(--color-on-surface-variant);
@@ -527,11 +528,11 @@
 
 .whiteboard-view__selection-card {
   position: absolute;
-  border: 1px dashed color-mix(in srgb, var(--color-primary) 40%, transparent);
+  border: var(--border-width-default) dashed color-mix(in srgb, var(--color-primary) 40%, transparent);
   border-radius: var(--shape-large);
   background: transparent;
   pointer-events: none;
-  z-index: 50; /* above elements (20), below UI (100) */
+  z-index: var(--z-50); /* above elements (20), below UI (100) */
   /* Stays crisp during drag/pan transforms */
   will-change: left, top, width, height;
 }
@@ -542,7 +543,7 @@
 
 .whiteboard-view__selection-box {
   position: absolute;
-  border: 1px dashed color-mix(in srgb, var(--color-primary) 50%, transparent);
+  border: var(--border-width-default) dashed color-mix(in srgb, var(--color-primary) 50%, transparent);
   background: color-mix(in srgb, var(--color-primary) 3%, transparent);
   pointer-events: none;
   z-index: var(--wb-z-overlay);
@@ -556,9 +557,9 @@
 .whiteboard-context-menu {
   position: fixed;
   z-index: var(--z-modal-backdrop);
-  min-width: 200px;
+  min-width: var(--layout-size-2xl);
   background: var(--color-surface);
-  border: 1px solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
   border-radius: var(--shape-large);
   padding: var(--spacing-1);
 }
@@ -571,8 +572,8 @@
 }
 
 .whiteboard-properties__section {
-  padding: 10px var(--spacing-3);
-  border-bottom: 1px solid var(--color-outline-variant);
+  padding: var(--spacing-tight) var(--spacing-3);
+  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
   display: flex;
   flex-direction: column;
   gap: var(--spacing-2);
@@ -590,8 +591,8 @@
 }
 
 @keyframes wb-pop-in {
-  from { opacity: 0; transform: scale(0.95); }
-  to { opacity: 1; transform: scale(1); }
+  from { opacity: var(--opacity-0); transform: scale(0.95); }
+  to { opacity: var(--opacity-100); transform: scale(1); }
 }
 
 /* ─── Stroke style utility classes (applied via className on SVG elements) ─── */
@@ -604,9 +605,9 @@
   display: flex;
   flex-direction: column;
   gap: var(--spacing-1);
-  padding: 6px;
+  padding: var(--spacing-1-5);
   background: var(--color-surface);
-  border: 1px solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
   border-radius: var(--shape-medium);
   box-shadow: var(--shadow-2);
   z-index: var(--wb-z-overlay);
@@ -641,7 +642,7 @@
 .wb-align-panel__divider {
   height: 1px;
   background: var(--color-outline-variant);
-  margin: 2px 0;
+  margin: var(--spacing-micro) 0;
 }
 
 /* ─── Canvas search bar ─── */
@@ -649,16 +650,16 @@
   display: flex;
   align-items: center;
   gap: var(--spacing-2);
-  padding: 6px 10px;
+  padding: var(--spacing-1-5) var(--spacing-tight);
   background: var(--color-surface);
-  border: 1px solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
   border-radius: var(--shape-medium);
   box-shadow: var(--shadow-2);
   animation: wb-pop-in var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 .wb-search-bar__input {
-  width: 180px;
+  width: 11.25rem;
   border: none;
   outline: none;
   background: transparent;
@@ -668,7 +669,7 @@
 
 .wb-search-bar__input:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px var(--color-accent);
+  box-shadow: var(--shadow-focus-ring);
 }
 
 .wb-search-bar__input::placeholder {
@@ -687,8 +688,8 @@
 }
 
 @keyframes wb-fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from { opacity: var(--opacity-0); }
+  to { opacity: var(--opacity-100); }
 }
 
 .wb-shortcuts-modal__content {

@@ -113,7 +113,7 @@ export function renderProseWithLinks(text: string, onLinkClick: (uuid: string) =
           color: 'var(--color-primary)',
           textDecoration: 'none',
           cursor: 'pointer',
-          borderBottom: '1px solid var(--color-primary)',
+          borderBottom: 'var(--border-width-default) solid var(--color-primary)',
           background: 'none',
           border: 'none',
           padding: 0,

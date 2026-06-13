@@ -63,7 +63,7 @@ export function SplitPane({ orientation, primary, secondary, defaultSplit = 0.5 
     >
       <div
         className="split-pane__pane split-pane__pane--primary"
-        style={{ flex: `0 0 calc(${split * 100}% - 2px)` }}
+        style={{ flex: `0 0 calc(${split * 100}% - var(--spacing-micro))` }}
       >
         {primary}
       </div>

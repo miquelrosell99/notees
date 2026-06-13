@@ -36,7 +36,7 @@
   justify-content: space-between;
   align-items: center;
   padding-bottom: var(--spacing-8);
-  border-bottom: 1px solid var(--color-outline-variant);
+  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
   margin-bottom: var(--spacing-8);
   gap: var(--spacing-4);
 }
@@ -145,7 +145,7 @@
   align-items: center;
   padding: var(--spacing-2) var(--spacing-3);
   background: var(--color-surface-container);
-  border-bottom: 1px solid var(--color-outline-variant);
+  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
 }
 
 .workspace-management__card-title {
@@ -183,15 +183,15 @@
 }
 
 .workspace-management__card-actions .btn--icon-only.btn--ghost {
-  opacity: 0.7;
+  opacity: var(--opacity-70);
 }
 
 .workspace-management__card-actions .btn--icon-only.btn--ghost:hover:not(:disabled) {
-  opacity: 1;
+  opacity: var(--opacity-100);
 }
 
 .workspace-management__access-btn {
-  opacity: 1 !important;
+  opacity: var(--opacity-100) !important;
 }
 
 .workspace-management__card-name {
@@ -211,7 +211,7 @@
 .workspace-management__restore-confirm {
   padding: var(--spacing-2) var(--spacing-3);
   margin-bottom: var(--spacing-2);
-  border: 1px solid var(--color-error);
+  border: var(--border-width-default) solid var(--color-error);
   border-radius: var(--shape-small);
   background: color-mix(in srgb, var(--color-error) 8%, transparent);
   display: flex;
@@ -257,7 +257,7 @@
   gap: var(--spacing-4);
   padding: var(--spacing-8) var(--spacing-12);
   background: var(--color-surface);
-  border: 1px solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
   border-radius: var(--shape-extra-large);
   color: var(--color-on-surface);
   font: var(--font-title-medium);
@@ -267,7 +267,7 @@
 .workspace-management__footer {
   text-align: center;
   padding-top: var(--spacing-8);
-  border-top: 1px solid var(--color-outline-variant);
+  border-top: var(--border-width-default) solid var(--color-outline-variant);
   margin-top: var(--spacing-8);
 }
 

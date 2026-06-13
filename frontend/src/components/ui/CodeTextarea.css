@@ -3,19 +3,17 @@
  */
 
 
-:root {
-  --components-ui-code-textarea-min-height-200: 200px;
-}
+
 
 .code-textarea {
   width: 100%;
-  min-height: var(--components-ui-code-textarea-min-height-200);
+  min-height: var(--layout-size-2xl);
   padding: var(--spacing-3);
   font-family: var(--font-family-mono);
   font-size: var(--font-size-xs);
   line-height: 1.6;
   background: var(--color-surface);
-  border: 1px solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
   color: var(--color-on-surface);
   resize: vertical;
   box-sizing: border-box;
@@ -32,7 +30,7 @@
 
 .code-textarea::placeholder {
   color: var(--color-on-surface-variant);
-  opacity: 0.5;
+  opacity: var(--opacity-50);
   font-family: var(--font-family-mono);
 }
 
@@ -42,7 +40,7 @@
 
 .code-textarea--error:focus {
   border-color: var(--color-error);
-  box-shadow: 0 0 0 1px var(--color-error);
+  box-shadow: var(--shadow-error-ring-thin);
 }
 
 .code-textarea--valid {
@@ -54,7 +52,7 @@
 }
 
 .code-textarea:disabled {
-  opacity: 0.5;
+  opacity: var(--opacity-50);
   cursor: not-allowed;
   resize: none;
 }

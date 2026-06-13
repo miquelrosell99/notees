@@ -3,12 +3,7 @@
  */
 
 
-:root {
-  --features-layout-components-layout-min-height-52: 52px;
-  --features-layout-components-layout-min-width-300: 300px;
-  --features-layout-components-layout-max-width-480: 480px;
-  --features-layout-components-layout-max-width-400: 400px;
-}
+
 
 /* ==================== Main Container ==================== */
 .main-container {
@@ -41,10 +36,10 @@
 /* Fixed header for node view (not sticky, truly fixed above scroll area) */
 .main-content-wrapper > .main-content-header {
   flex-shrink: 0;
-  z-index: 10;
+  z-index: var(--z-10);
   background: var(--color-surface);
-  border-bottom: 1px solid var(--color-outline-variant);
-  min-height: var(--features-layout-components-layout-min-height-52);
+  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
+  min-height: 3.25rem;
   box-sizing: border-box;
 }
 
@@ -54,10 +49,10 @@
   top: 0;
   left: 0;
   right: 0;
-  z-index: 10;
+  z-index: var(--z-10);
   margin: 0 calc(-1 * var(--spacing-6)) var(--spacing-4);
   background: var(--color-surface) !important;
-  border-bottom: 1px solid var(--color-outline-variant);
+  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
 }
 
 /* When page has a color, inherit that for the sticky header */
@@ -142,13 +137,13 @@
  */
 .main-content.has-node-border {
   /* Subtle left border */
-  border-left: 3px solid var(--node-border-color);
+  border-left: var(--border-width-extra-thick) solid var(--node-border-color);
 }
 
 /* On mobile, keep the border minimal */
 @media (max-width: 480px) {
   .main-content.has-node-border {
-    border-left-width: 2px;
+    border-left-width: var(--border-width-thick);
   }
 }
 
@@ -176,9 +171,9 @@
 .right-container--expanded,
 .right-sidebar--expanded {
   width: var(--right-sidebar-width);
-  min-width: var(--features-layout-components-layout-min-width-300);
-  max-width: var(--features-layout-components-layout-max-width-480);
-  opacity: 1;
+  min-width: var(--layout-size-7xl);
+  max-width: var(--layout-size-10xl);
+  opacity: var(--opacity-100);
   transform: translateX(0);
   pointer-events: auto;
   visibility: visible;
@@ -198,7 +193,7 @@
   width: 0;
   min-width: 0;
   max-width: 0;
-  opacity: 0;
+  opacity: var(--opacity-0);
   transform: translateX(16px);
   pointer-events: none;
   visibility: hidden;
@@ -233,7 +228,7 @@
 
 .empty-state p {
   margin: 0;
-  max-width: var(--features-layout-components-layout-max-width-400);
+  max-width: var(--layout-size-9xl);
 }
 
 /* ==================== View Descriptions ==================== */
@@ -269,17 +264,17 @@
   position: absolute;
   top: 0;
   bottom: 0;
-  width: 8px;
+  width: var(--shape-large);
   cursor: col-resize;
-  z-index: 100;
+  z-index: var(--z-100);
 }
 
 .sidebar-resize-handle--left {
-  right: -4px;
+  right: calc(var(--spacing-1) * -1);
 }
 
 .sidebar-resize-handle--right {
-  left: -4px;
+  left: calc(var(--spacing-1) * -1);
 }
 
 /* ==================== Responsive Breakpoints ==================== */

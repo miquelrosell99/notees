@@ -3,10 +3,7 @@
  */
 
 
-:root {
-  --features-workspace-components-import-data-modal-min-height-150: 150px;
-  --features-workspace-components-import-data-modal-max-height-150: 150px;
-}
+
 
 .import-data-modal {
   width: var(--modal-width-lg);
@@ -46,13 +43,13 @@
 .import-data-modal__textarea {
   width: 100%;
   height: var(--textarea-height-sm);
-  min-height: var(--features-workspace-components-import-data-modal-min-height-150);
+  min-height: 9.375rem;
   padding: var(--spacing-3);
   font-family: var(--font-family-mono);
   font-size: var(--font-size-sm);
   line-height: 1.5;
   background: var(--color-surface);
-  border: 1px solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
   resize: vertical;
   color: var(--color-on-surface);
   transition: border-color var(--motion-duration-short) var(--motion-easing-standard);
@@ -69,7 +66,7 @@
 
 .import-data-modal__textarea--error:focus {
   border-color: var(--color-error);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-error) 20%, transparent);
+  box-shadow: var(--shadow-error-ring-subtle);
 }
 
 .import-data-modal__textarea--valid {
@@ -78,7 +75,7 @@
 
 .import-data-modal__textarea--valid:focus {
   border-color: var(--color-success);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-success) 20%, transparent);
+  box-shadow: var(--shadow-success-ring-subtle);
 }
 
 .import-data-modal__textarea::placeholder {
@@ -99,7 +96,7 @@
 
 .import-data-modal__preview {
   margin-top: var(--spacing-4);
-  border: 1px solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
   border-radius: var(--shape-medium);
   overflow: hidden;
 }
@@ -110,7 +107,7 @@
   align-items: center;
   padding: var(--spacing-2) var(--spacing-3);
   background: var(--color-surface-container-low);
-  border-bottom: 1px solid var(--color-outline-variant);
+  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
 }
 
 .import-data-modal__preview-title {
@@ -126,7 +123,7 @@
 
 .import-data-modal__preview-blocks {
   padding: var(--spacing-2) var(--spacing-3);
-  max-height: var(--features-workspace-components-import-data-modal-max-height-150);
+  max-height: 9.375rem;
   overflow-y: auto;
 }
 

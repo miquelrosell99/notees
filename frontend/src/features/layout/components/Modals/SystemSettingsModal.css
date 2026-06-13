@@ -1,24 +1,22 @@
-:root {
-  --features-layout-components-modals-system-settings-modal-min-width-140: 140px;
-}
+
 
 .system-settings {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: var(--spacing-4);
 }
 
 .system-settings__tabs {
   display: flex;
-  gap: 0.5rem;
+  gap: var(--spacing-2);
 }
 
 .system-settings__tab {
-  padding: 0.5rem 1rem;
+  padding: var(--spacing-2) var(--spacing-4);
   border: none;
   background: transparent;
   color: var(--color-on-surface-variant);
-  font-size: 0.9rem;
+  font-size: var(--font-size-base);
   cursor: pointer;
   border-radius: var(--shape-medium);
   transition: background var(--motion-duration-short) var(--motion-easing-standard),
@@ -39,19 +37,19 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 1rem;
+  margin-bottom: var(--spacing-4);
 }
 
 .system-settings__users-header h3 {
   margin: 0;
-  font-size: 1.1rem;
+  font-size: var(--font-size-title-lg);
   color: var(--color-on-surface);
 }
 
 .system-settings__table {
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
   border-radius: var(--shape-large);
   overflow: hidden;
 }
@@ -59,11 +57,11 @@
 .system-settings__table-header {
   display: grid;
   grid-template-columns: 2fr 1fr 1fr 0.75fr 2.5rem;
-  gap: 0.5rem;
-  padding: 0.75rem 1rem;
+  gap: var(--spacing-2);
+  padding: var(--spacing-3) var(--spacing-4);
   background: var(--color-surface-container);
   font-weight: 600;
-  font-size: 0.75rem;
+  font-size: var(--font-size-sm);
   color: var(--color-on-surface-variant);
   text-transform: uppercase;
   letter-spacing: 0.03em;
@@ -72,11 +70,11 @@
 .system-settings__table-row {
   display: grid;
   grid-template-columns: 2fr 1fr 1fr 0.75fr 2.5rem;
-  gap: 0.5rem;
+  gap: var(--spacing-2);
   align-items: center;
-  padding: 0.75rem 1rem;
-  border-top: 1px solid var(--color-outline-variant);
-  font-size: 0.9rem;
+  padding: var(--spacing-3) var(--spacing-4);
+  border-top: var(--border-width-default) solid var(--color-outline-variant);
+  font-size: var(--font-size-base);
   color: var(--color-on-surface);
 }
 
@@ -108,12 +106,12 @@
 
 .system-settings__actions-menu {
   position: absolute;
-  top: calc(100% + 4px);
+  top: calc(100% + var(--spacing-1));
   right: 0;
-  z-index: 100;
-  min-width: var(--features-layout-components-modals-system-settings-modal-min-width-140);
+  z-index: var(--z-100);
+  min-width: var(--layout-size-md);
   background: var(--color-surface-container-high);
-  border: 1px solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
   border-radius: var(--shape-medium);
   box-shadow: none;
   overflow: hidden;
@@ -122,13 +120,13 @@
 .system-settings__actions-menu-item {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--spacing-2);
   width: 100%;
-  padding: 0.6rem 0.75rem;
+  padding: var(--spacing-2-5) var(--spacing-3);
   border: none;
   background: transparent;
   color: var(--color-on-surface);
-  font-size: 0.875rem;
+  font-size: var(--font-size-base);
   text-align: left;
   cursor: pointer;
   transition: background var(--motion-duration-short) var(--motion-easing-standard);
@@ -139,7 +137,7 @@
 }
 
 .system-settings__actions-menu-item:disabled {
-  opacity: 0.5;
+  opacity: var(--opacity-50);
   cursor: not-allowed;
 }
 
@@ -154,17 +152,17 @@
 .system-settings__create-form {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: var(--spacing-4);
 }
 
 .system-settings__field {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: var(--spacing-1);
 }
 
 .system-settings__field-label {
-  font-size: 0.875rem;
+  font-size: var(--font-size-base);
   font-weight: 500;
   color: var(--color-on-surface-variant);
 }
@@ -172,22 +170,22 @@
 .system-settings__create-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 0.5rem;
-  margin-top: 0.5rem;
+  gap: var(--spacing-2);
+  margin-top: var(--spacing-2);
 }
 
 .system-settings__error {
-  padding: 0.75rem;
+  padding: var(--spacing-3);
   background: var(--color-error-container);
   color: var(--color-on-error-container);
   border-radius: var(--shape-medium);
-  font-size: 0.875rem;
+  font-size: var(--font-size-base);
 }
 
 .system-settings__metrics-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 1rem;
+  gap: var(--spacing-4);
 }
 
 .system-settings__metric-card {
@@ -195,26 +193,26 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 1.25rem;
+  padding: var(--spacing-5);
   background: var(--color-surface-container);
   border-radius: var(--shape-large);
   text-align: center;
 }
 
 .system-settings__metric-value {
-  font-size: 1.75rem;
+  font-size: var(--font-size-hero);
   font-weight: 600;
   color: var(--color-on-surface);
 }
 
 .system-settings__metric-label {
-  font-size: 0.8rem;
+  font-size: var(--font-size-sm);
   color: var(--color-on-surface-variant);
-  margin-top: 0.25rem;
+  margin-top: var(--spacing-1);
 }
 
 .system-settings__loading {
-  padding: 2rem;
+  padding: var(--spacing-8);
   text-align: center;
   color: var(--color-on-surface-variant);
 }

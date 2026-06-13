@@ -33,16 +33,16 @@
   flex-shrink: 0;
   background: var(--color-border);
   transition: background-color var(--motion-duration-shorter) var(--motion-easing-standard);
-  z-index: 10;
+  z-index: var(--z-10);
 }
 
 .split-pane--horizontal .split-pane__resizer {
-  width: 4px;
+  width: var(--shape-small);
   cursor: col-resize;
 }
 
 .split-pane--vertical .split-pane__resizer {
-  height: 4px;
+  height: var(--shape-small);
   cursor: row-resize;
 }
 

@@ -3,9 +3,7 @@
  */
 
 
-:root {
-  --features-layout-components-modals-duplicate-page-modal-max-height-240: 240px;
-}
+
 
 .duplicate-page-modal {
   display: flex;
@@ -27,7 +25,7 @@
 .duplicate-page-modal__input {
   width: 100%;
   padding: var(--spacing-2) var(--spacing-3);
-  border: 1px solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
   background: var(--color-surface-container-low);
   color: var(--color-on-surface);
   font: var(--font-body-medium);
@@ -43,9 +41,9 @@
   display: flex;
   flex-direction: column;
   gap: var(--spacing-1);
-  max-height: var(--features-layout-components-modals-duplicate-page-modal-max-height-240);
+  max-height: var(--layout-size-4xl);
   overflow-y: auto;
-  border: 1px solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
   border-radius: var(--radius-sm);
   padding: var(--spacing-1);
 }

@@ -3,17 +3,12 @@
  */
 
 
-:root {
-  --features-queries-components-query-block-list-min-height-48: 48px;
-  --features-queries-components-query-block-list-top-12: 12px;
-  --features-queries-components-query-block-list-right-12: 12px;
-  --features-queries-components-query-block-list-min-width-150: 150px;
-}
+
 
 .query-block-list {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: var(--spacing-3);
 }
 
 /* Empty state */
@@ -25,7 +20,7 @@
 .query-block-list__empty-message {
   margin: 0;
   color: var(--color-on-surface-variant);
-  font-size: 0.875rem;
+  font-size: var(--font-size-base);
 }
 
 /* Block item container */
@@ -41,7 +36,7 @@
   display: block;
   padding-left: var(--spacing-2);
   color: var(--color-on-surface-variant);
-  font-size: 0.875rem;
+  font-size: var(--font-size-base);
   font-weight: 500;
   text-transform: lowercase;
 }
@@ -57,8 +52,8 @@
 /* Block content */
 .query-block-list__content {
   flex: 1;
-  padding: 0.75rem;
-  min-height: var(--features-queries-components-query-block-list-min-height-48);
+  padding: var(--spacing-3);
+  min-height: var(--spacing-12);
   display: flex;
   align-items: center;
 }
@@ -66,19 +61,19 @@
 /* Delete button (top right, hover only) */
 .query-block-list__delete {
   position: absolute;
-  top: var(--features-queries-components-query-block-list-top-12);
-  right: var(--features-queries-components-query-block-list-right-12);
-  opacity: 0;
+  top: var(--font-size-sm);
+  right: var(--font-size-sm);
+  opacity: var(--opacity-0);
   transition: opacity var(--motion-duration-medium);
   flex-shrink: 0;
 }
 
 .query-block-list__card:hover .query-block-list__delete {
-  opacity: 0.6;
+  opacity: var(--opacity-60);
 }
 
 .query-block-list__delete:hover {
-  opacity: 1 !important;
+  opacity: var(--opacity-100) !important;
 }
 
 /* Add button */
@@ -88,17 +83,17 @@
 }
 
 .query-block-list__add button {
-  opacity: 0.3;
+  opacity: var(--opacity-30);
   transition: opacity var(--motion-duration-short);
 }
 
 .query-block-list__add:hover button,
 .query-block-list__add button:focus {
-  opacity: 0.7;
+  opacity: var(--opacity-70);
 }
 
 .query-block-list__add button:hover {
-  opacity: 1 !important;
+  opacity: var(--opacity-100) !important;
 }
 
 /* Big add button when empty */
@@ -117,17 +112,17 @@
 }
 
 .query-block-list__inline-add button {
-  opacity: 0.3;
+  opacity: var(--opacity-30);
   transition: opacity var(--motion-duration-short);
 }
 
 .query-block-list__inline-add:hover button,
 .query-block-list__inline-add button:focus {
-  opacity: 0.7;
+  opacity: var(--opacity-70);
 }
 
 .query-block-list__inline-add button:hover {
-  opacity: 1 !important;
+  opacity: var(--opacity-100) !important;
 }
 
 /* Add menu */
@@ -141,8 +136,8 @@
 }
 
 .query-block-list__add-menu-dropdown {
-  min-width: var(--features-queries-components-query-block-list-min-width-150);
-  padding: 0.25rem;
+  min-width: var(--layout-size-lg);
+  padding: var(--spacing-1);
   z-index: var(--z-floating);
 }
 
@@ -155,7 +150,7 @@
   padding: var(--spacing-2) var(--spacing-3);
   cursor: pointer;
   border-radius: var(--shape-extra-small);
-  font-size: 0.875rem;
+  font-size: var(--font-size-base);
   transition: background-color var(--motion-duration-short);
 }
 

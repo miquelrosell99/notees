@@ -6,13 +6,7 @@
  */
 
 
-:root {
-  --features-queries-components-query-block-card-top-6: 6px;
-  --features-queries-components-query-block-card-bottom-6: 6px;
-  --features-queries-components-query-block-card-right-6: 6px;
-  --features-queries-components-query-block-card-top-6-1: -6px;
-  --features-queries-components-query-block-card-right-6-1: -6px;
-}
+
 
 /* ==================== Card Base ==================== */
 
@@ -20,8 +14,8 @@
   position: relative;
   display: flex;
   align-items: stretch;
-  min-height: calc(36px + 12px); /* Selection button height (36px) + margins */
-  border: 1px solid var(--color-outline-variant);
+  min-height: calc(var(--height-button-md) + var(--spacing-3)); /* Selection button height + margins */
+  border: var(--border-width-default) solid var(--color-outline-variant);
   border-radius: var(--shape-small);
   background: var(--color-surface);
   overflow: visible;
@@ -45,7 +39,7 @@
 
 /* Label styling for groups (AND/OR/NOT) */
 .query-block-card__label {
-  font-size: 0.75rem;
+  font-size: var(--font-size-sm);
   font-weight: 600;
   text-transform: uppercase;
   color: var(--color-on-surface-variant);
@@ -56,38 +50,38 @@
 
 .query-block-card__action {
   position: absolute;
-  top: var(--features-queries-components-query-block-card-top-6);
-  bottom: var(--features-queries-components-query-block-card-bottom-6);
-  right: var(--features-queries-components-query-block-card-right-6);
+  top: var(--spacing-1-5);
+  bottom: var(--spacing-1-5);
+  right: var(--spacing-1-5);
   margin: auto 0;
   height: fit-content;
-  z-index: 1;
-  opacity: 0.8;
+  z-index: var(--z-1);
+  opacity: var(--opacity-80);
   transition: opacity var(--motion-duration-medium);
 }
 
 .query-block-card:hover .query-block-card__action {
-  opacity: 1;
+  opacity: var(--opacity-100);
 }
 
 /* ==================== Corner Button ==================== */
 
 .query-block-card__corner-button {
   position: absolute !important;
-  top: var(--features-queries-components-query-block-card-top-6-1);
-  right: var(--features-queries-components-query-block-card-right-6-1);
-  opacity: 0;
+  top: calc(var(--spacing-1-5) * -1);
+  right: calc(var(--spacing-1-5) * -1);
+  opacity: var(--opacity-0);
   transition: opacity var(--motion-duration-short), transform var(--motion-duration-short);
-  z-index: 2;
+  z-index: var(--z-2);
 }
 
 .query-block-card__corner-button:hover {
   transform: scale(1.05);
-  opacity: 1 !important;
+  opacity: var(--opacity-100) !important;
 }
 
 .query-block-card:hover .query-block-card__corner-button {
-  opacity: 0.7;
+  opacity: var(--opacity-70);
 }
 
 /* System lock icon - always visible but subtle */
@@ -99,8 +93,8 @@
   height: var(--icon-size-md);
   background: var(--color-surface-variant);
   color: var(--color-on-surface-variant);
-  border: 1px solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
   border-radius: 50%;
-  opacity: 0.5;
+  opacity: var(--opacity-50);
   cursor: default;
 }

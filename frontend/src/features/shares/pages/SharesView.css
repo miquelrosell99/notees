@@ -1,10 +1,8 @@
-:root {
-  --features-shares-pages-shares-view-max-width-960: 960px;
-}
+
 
 .shares-view {
   padding: var(--spacing-12) var(--spacing-6) var(--spacing-6);
-  max-width: var(--features-shares-pages-shares-view-max-width-960);
+  max-width: 60rem;
   margin: 0 auto;
 }
 
@@ -32,7 +30,7 @@
 .shares-view__empty-hint {
   font: var(--font-body-medium);
   color: var(--color-on-surface-variant);
-  opacity: 0.7;
+  opacity: var(--opacity-70);
   margin-top: var(--spacing-2);
 }
 
@@ -48,7 +46,7 @@
   gap: var(--spacing-2) var(--spacing-4);
   padding: var(--spacing-3) var(--spacing-4);
   background: var(--color-surface-container);
-  border: 1px solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
   border-radius: var(--shape-medium);
   align-items: center;
 }
@@ -89,7 +87,7 @@
   grid-column: 1;
   font: var(--font-label-small);
   color: var(--color-on-surface-variant);
-  opacity: 0.8;
+  opacity: var(--opacity-80);
 }
 
 .shares-view__item-expiry {

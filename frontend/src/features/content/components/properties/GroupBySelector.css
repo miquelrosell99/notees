@@ -1,21 +1,14 @@
 /* GroupBySelector - single-select variant of PropertyColumnSelector */
 
 
-:root {
-  --features-content-components-properties-group-by-selector-min-width-240: 240px;
-  --features-content-components-properties-group-by-selector-max-width-350: 350px;
-  --features-content-components-properties-group-by-selector-max-height-480: 480px;
-  --features-content-components-properties-group-by-selector-padding-6: 6px;
-  --features-content-components-properties-group-by-selector-padding-10: 10px;
-  --features-content-components-properties-group-by-selector-font-size-10: 10px;
-}
+
 
 .group-by-selector {
   display: flex;
   flex-direction: column;
-  min-width: var(--features-content-components-properties-group-by-selector-min-width-240);
-  max-width: var(--features-content-components-properties-group-by-selector-max-width-350);
-  max-height: var(--features-content-components-properties-group-by-selector-max-height-480);
+  min-width: var(--layout-size-4xl);
+  max-width: 21.875rem;
+  max-height: var(--layout-size-10xl);
 }
 
 .group-by-selector__loading {
@@ -29,7 +22,7 @@
   display: flex;
   align-items: center;
   padding: var(--spacing-3) var(--spacing-4);
-  border-bottom: 1px solid var(--color-outline-variant);
+  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
 }
 
 .group-by-selector__title {
@@ -41,16 +34,16 @@
 
 /* Search */
 .group-by-selector__search {
-  padding: 10px var(--spacing-3);
-  border-bottom: 1px solid var(--color-outline-variant);
+  padding: var(--spacing-tight) var(--spacing-3);
+  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
 }
 
 .group-by-selector__search-box {
   display: flex;
   align-items: center;
   gap: var(--spacing-2);
-  padding: var(--features-content-components-properties-group-by-selector-padding-6) var(--features-content-components-properties-group-by-selector-padding-10);
-  border: 1px solid var(--color-outline-variant);
+  padding: var(--spacing-1-5) var(--spacing-tight);
+  border: var(--border-width-default) solid var(--color-outline-variant);
   border-radius: var(--shape-medium);
   background: var(--color-surface);
   transition: border-color var(--motion-duration-short) var(--motion-easing-standard);
@@ -77,7 +70,7 @@
 .group-by-selector__list {
   flex: 1;
   overflow-y: auto;
-  padding: var(--features-content-components-properties-group-by-selector-padding-6) 0;
+  padding: var(--spacing-1-5) 0;
 }
 
 .group-by-selector__divider {
@@ -92,7 +85,7 @@
   align-items: center;
   gap: var(--spacing-2);
   width: 100%;
-  padding: 7px var(--spacing-3);
+  padding: var(--spacing-1-75) var(--spacing-3);
   cursor: pointer;
   border: none;
   background: none;
@@ -148,12 +141,12 @@
 }
 
 .group-by-selector__item-type {
-  font-size: var(--features-content-components-properties-group-by-selector-font-size-10);
+  font-size: var(--font-size-2xs);
   font-weight: 600;
   color: var(--color-on-surface-variant);
   background: var(--color-surface-container);
-  padding: 2px 5px;
-  border-radius: 3px;
+  padding: var(--spacing-micro) var(--spacing-xxs);
+  border-radius: var(--shape-tiny);
   flex-shrink: 0;
 }
 

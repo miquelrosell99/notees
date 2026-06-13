@@ -40,7 +40,7 @@
   justify-content: space-between;
   padding: var(--spacing-2) var(--spacing-3);
   background: var(--color-surface-container);
-  border-bottom: 1px solid var(--color-outline-variant);
+  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
   flex-shrink: 0;
 }
 
@@ -72,7 +72,7 @@
 }
 
 .right-sidebar-cards__item--flash {
-  animation: sidebar-card-flash 1.5s ease-out;
+  animation: sidebar-card-flash 1.5s var(--motion-easing-ease-out);
 }
 
 @keyframes sidebar-card-flash {

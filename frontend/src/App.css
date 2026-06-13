@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Main application styles
  * 
  * Using the design system variables from variables.css
@@ -6,9 +6,7 @@
  */
 
 
-:root {
-  --app-top-40: -40px;
-}
+
 
 /* Inline SVG icons — ensure proper alignment */
 svg[class*="icon"],
@@ -22,7 +20,7 @@ svg[class*="icon"],
 /* ==================== Skip Navigation ==================== */
 .skip-link {
   position: absolute;
-  top: var(--app-top-40);
+  top: calc(var(--spacing-10) * -1);
   left: 0;
   background: var(--color-primary);
   color: var(--color-on-primary);

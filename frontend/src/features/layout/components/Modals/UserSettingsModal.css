@@ -36,7 +36,7 @@
   height: var(--icon-size-xl);
   aspect-ratio: 1;
   border-radius: 50%;
-  border: 2px solid transparent;
+  border: var(--border-width-thick) solid transparent;
   cursor: pointer;
   transition: transform var(--motion-duration-short) var(--motion-easing-tactile),
               border-color var(--motion-duration-short) var(--motion-easing-standard);
@@ -48,14 +48,14 @@
 
 .settings-accent-swatch--active {
   border-color: var(--color-primary);
-  box-shadow: 0 0 0 2px var(--color-primary-container);
+  box-shadow: var(--shadow-focus-ring-primary-container);
 }
 
 .settings-accent-swatch--custom {
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 2px solid transparent;
+  border: var(--border-width-thick) solid transparent;
 }
 
 .settings-accent-swatch__icon {
@@ -116,7 +116,7 @@
 
 .settings-api-key-secret {
   background: var(--color-primary-container);
-  border: 1px solid var(--color-primary);
+  border: var(--border-width-default) solid var(--color-primary);
   border-radius: var(--shape-small);
   padding: var(--spacing-4);
   margin-bottom: var(--spacing-4);
@@ -181,7 +181,7 @@
 .settings-privacy-card {
   padding: var(--spacing-4);
   background: var(--color-surface-container);
-  border: 1px solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
   border-radius: var(--shape-large);
 }
 
@@ -212,7 +212,7 @@
 
 .settings-form-input {
   padding: var(--spacing-2) var(--spacing-3);
-  border: 1px solid var(--color-outline-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
   border-radius: var(--shape-medium);
   background: var(--color-surface);
   color: var(--color-on-surface);
