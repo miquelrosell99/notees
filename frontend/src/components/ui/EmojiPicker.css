@@ -4,11 +4,15 @@
 
 /*  Main container  */
 .ep {
+  --emoji-picker-width: 21.25rem;
+  --emoji-picker-max-height: 460px;
+  --letter-spacing-section: 0.6px;
+
   background: var(--color-surface);
   border: var(--border-width-default) solid var(--color-outline-variant);
   border-radius: var(--shape-extra-large);
-  width: 21.25rem;
-  max-height: 460px;
+  width: var(--emoji-picker-width);
+  max-height: var(--emoji-picker-max-height);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -90,7 +94,7 @@
   font-size: var(--font-size-2xs);
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.6px;
+  letter-spacing: var(--letter-spacing-section);
   color: var(--color-on-surface-variant);
   padding: var(--spacing-1) 0 var(--spacing-micro) 0;
 }
@@ -100,7 +104,7 @@
   font-size: var(--font-size-2xs);
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.6px;
+  letter-spacing: var(--letter-spacing-section);
   color: var(--color-on-surface-variant);
   padding: var(--spacing-1-5) 0 var(--spacing-1) 0;
 }
