@@ -83,6 +83,8 @@ function WorkspaceRedirect() {
   useEffect(() => {
     if (dbData?.active) {
       navigate(`/${dbData.active}`, { replace: true });
+    } else if (dbData && !dbData.active) {
+      navigate('/workspaces', { replace: true });
     }
   }, [dbData, navigate]);
 
@@ -97,6 +99,8 @@ function AuthenticatedShell() {
   const { isAuthenticated, setUser } = useAuthStore();
   const { showWorkspaceManager, setShowWorkspaceManager } = useModalStore();
   const location = useLocation();
+  const navigate = useNavigate();
+  const isWorkspacesRoute = location.pathname === '/workspaces';
   const queryClient = useQueryClient();
   const [authRestored, setAuthRestored] = useState(false);
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
@@ -160,6 +164,29 @@ function AuthenticatedShell() {
     }
   }, [isAuthenticated, needsOnboarding, location]);
 
+  // Keep the workspace manager and the URL in sync. When the manager is opened
+  // from inside a workspace, push /workspaces so the URL no longer shows the
+  // old workspace UUID. Closing it returns to the active workspace.
+  useEffect(() => {
+    if (!dbData) return;
+    const active = dbData.active;
+    if (showWorkspaceManager && active && !isWorkspacesRoute) {
+      navigate('/workspaces', { replace: true });
+    } else if (!showWorkspaceManager && isWorkspacesRoute && active) {
+      navigate(`/${active}`, { replace: true });
+    } else if (!active && !isWorkspacesRoute) {
+      navigate('/workspaces', { replace: true });
+    }
+  }, [showWorkspaceManager, dbData, isWorkspacesRoute, navigate]);
+
+  // If the user navigates away from /workspaces via the browser back/forward
+  // buttons, make sure the modal flag is cleared so the UI stays consistent.
+  useEffect(() => {
+    if (!isWorkspacesRoute && showWorkspaceManager) {
+      setShowWorkspaceManager(false);
+    }
+  }, [isWorkspacesRoute, showWorkspaceManager, setShowWorkspaceManager]);
+
   if (!authRestored || isLoadingAuthStatus) {
     return <LoadingScreen label="Loading…" />;
   }
@@ -185,7 +212,7 @@ function AuthenticatedShell() {
   const hasNoWorkspaces = !dbData?.workspaces || dbData.workspaces.length === 0;
   const hasNoActiveWorkspace = !dbData?.active;
 
-  if (hasNoWorkspaces || hasNoActiveWorkspace || showWorkspaceManager) {
+  if (hasNoWorkspaces || hasNoActiveWorkspace || isWorkspacesRoute || showWorkspaceManager) {
     return (
       <Suspense fallback={<LoadingScreen label="Loading…" />}>
         <WorkspaceManagementView
@@ -234,6 +261,7 @@ export function AppRoutes() {
         <Route path="/auth" element={<LoginRoute />} />
         <Route element={<AuthenticatedShell />}>
           <Route path="/" element={<WorkspaceRedirect />} />
+          <Route path="/workspaces" element={<Outlet />} />
           <Route path="/:workspaceId/*" element={<Layout />} />
         </Route>
       </Routes>
