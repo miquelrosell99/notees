@@ -13,7 +13,7 @@
  *   - Remove link
  */
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
 import { $getRoot, $isElementNode, type ElementNode } from 'lexical';
 import { NodeRef } from '@/features/content/components/nodes/NodeRef';
@@ -29,6 +29,7 @@ import {
 import { Icon } from '@/components/ui/icons';
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/ContextMenu';
 import { LinkEditModal, type LinkEditResult } from './LinkEditModal';
+import { TransclusionPopover } from '@/features/content/components/transclusion/TransclusionPopover';
 import { useNavigationStore } from '@/stores';
 import { useClasses } from '@/hooks';
 import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
@@ -46,6 +47,9 @@ export function InlineLink({ linkId, refType, url, label }: InlineLinkProps) {
   const [editor] = useLexicalComposerContext();
   const [menuPos, setMenuPos] = useState<{ x: number; y: number } | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isEmbedOpen, setIsEmbedOpen] = useState(false);
+  const embedAnchorRef = useRef<HTMLSpanElement>(null);
+  const embedHoverTimer = useRef<number | null>(null);
 
   const { nodeUuid } = parseLinkId(linkId);
   const openNode = useNavigationStore((s) => s.openNode);
@@ -199,6 +203,44 @@ export function InlineLink({ linkId, refType, url, label }: InlineLinkProps) {
     },
     [],
   );
+
+  const handleEmbedOpen = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsEmbedOpen(true);
+  }, []);
+
+  const handleEmbedClose = useCallback(() => {
+    setIsEmbedOpen(false);
+    if (embedHoverTimer.current) {
+      window.clearTimeout(embedHoverTimer.current);
+      embedHoverTimer.current = null;
+    }
+  }, []);
+
+  const handleEmbedMouseEnter = useCallback(() => {
+    if (embedHoverTimer.current) {
+      window.clearTimeout(embedHoverTimer.current);
+    }
+    embedHoverTimer.current = window.setTimeout(() => {
+      setIsEmbedOpen(true);
+    }, 400);
+  }, []);
+
+  const handleEmbedMouseLeave = useCallback(() => {
+    if (embedHoverTimer.current) {
+      window.clearTimeout(embedHoverTimer.current);
+      embedHoverTimer.current = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (embedHoverTimer.current) {
+        window.clearTimeout(embedHoverTimer.current);
+      }
+    };
+  }, []);
 
   const menuItems = useMemo((): ContextMenuItem[] => {
     const items: ContextMenuItem[] = [];
@@ -396,14 +438,66 @@ export function InlineLink({ linkId, refType, url, label }: InlineLinkProps) {
     );
   }
 
-  // ─── Node / class / embed pill ─────────────────────────────
+  // ─── Embed pill ────────────────────────────────────────────
+  if (refType === 'embed' && nodeUuid) {
+    return (
+      <>
+        <span
+          ref={embedAnchorRef}
+          className="inline-link-inner inline-link-inner--embed"
+          data-ref-type="embed"
+          onClick={handleEmbedOpen}
+          onMouseEnter={handleEmbedMouseEnter}
+          onMouseLeave={handleEmbedMouseLeave}
+          onContextMenu={handleContextMenu}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              setIsEmbedOpen(true);
+            }
+          }}
+          role="button"
+          aria-haspopup="dialog"
+          aria-expanded={isEmbedOpen}
+          tabIndex={0}
+        >
+          <span className="inline-link-icon">
+            <Icon path="mdi-cube-outline" size="14px" />
+          </span>
+          <NodeRef variant="inline" nodeUuid={nodeUuid} refType="node" customName={label} />
+        </span>
+        {isEmbedOpen && embedAnchorRef.current && (
+          <TransclusionPopover
+            nodeUuid={nodeUuid}
+            anchorEl={embedAnchorRef.current}
+            onClose={handleEmbedClose}
+          />
+        )}
+        {menuPos && (
+          <ContextMenu items={menuItems} position={menuPos} onClose={handleCloseMenu} />
+        )}
+        {isEditModalOpen && (
+          <LinkEditModal
+            isOpen={true}
+            linkId={linkId}
+            refType={refType}
+            currentLabel={label}
+            onSave={handleEditSave}
+            onClose={handleCloseEditModal}
+          />
+        )}
+      </>
+    );
+  }
+
+  // ─── Node / class pill ─────────────────────────────────────
   return (
     <>
       <span onContextMenu={handleContextMenu}>
         <NodeRef
           variant="inline"
           nodeUuid={nodeUuid}
-          refType={refType === 'embed' ? 'node' : refType}
+          refType={refType as 'node' | 'class'}
           customName={label}
         />
       </span>

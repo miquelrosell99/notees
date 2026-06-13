@@ -52,10 +52,10 @@ _auth_limiter_invite = per_ip_limiter(5, Duration.MINUTE)
 _auth_limiter_api_key = per_ip_limiter(10, Duration.MINUTE)
 
 # Per-account auth limiters keyed by username/email in addition to IP.
-_auth_limiter_register_account = auth_per_account_limiter(3, Duration.MINUTE, identifier="register")
-_auth_limiter_login_account = auth_per_account_limiter(5, Duration.MINUTE, identifier="login")
-_auth_limiter_change_password_account = auth_per_account_limiter(5, Duration.MINUTE, identifier="change-password")
-_auth_limiter_invite_account = auth_per_account_limiter(5, Duration.MINUTE, identifier="invite-accept")
+_auth_limiter_register_account = auth_per_account_limiter(3, Duration.MINUTE)
+_auth_limiter_login_account = auth_per_account_limiter(5, Duration.MINUTE)
+_auth_limiter_change_password_account = auth_per_account_limiter(5, Duration.MINUTE)
+_auth_limiter_invite_account = auth_per_account_limiter(5, Duration.MINUTE)
 
 
 async def _resolve_user_from_auth(

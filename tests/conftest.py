@@ -344,7 +344,26 @@ async def link_service(node_repository, link_repository):
 
 
 @pytest_asyncio.fixture(scope="function")
-async def node_service(node_repository, property_repository, link_service, test_user):
+async def mention_repository(db_pool, test_user):
+    """Create a mention repository for the test user's workspace."""
+    from app.domain.repositories import PostgresMentionRepository
+    return PostgresMentionRepository(db_pool, test_user["workspace_id"], int(test_user["id"]))
+
+
+@pytest_asyncio.fixture(scope="function")
+async def mention_service(node_repository, mention_repository, link_repository, test_user):
+    """Create a MentionService for the test user's workspace."""
+    from app.domain.services.mention_service import MentionService
+    return MentionService(
+        node_repository,
+        mention_repository,
+        link_repository,
+        user_id=int(test_user["id"]),
+    )
+
+
+@pytest_asyncio.fixture(scope="function")
+async def node_service(node_repository, property_repository, link_service, mention_service, test_user):
     """Create a NodeService for the test user's workspace."""
     from app.domain.services.node_service import NodeService
     return NodeService(
@@ -352,8 +371,8 @@ async def node_service(node_repository, property_repository, link_service, test_
         property_repository,
         link_service,
         test_user["page_class_id"],
-        pool=node_repository._pool,
         workspace_id=test_user["workspace_id"],
+        mention_service=mention_service,
     )
 
 

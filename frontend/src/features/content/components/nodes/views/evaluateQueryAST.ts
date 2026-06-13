@@ -5,7 +5,7 @@
  * Supports: class, property, content, page, parent, child, reference,
  * parent_path, child_path, reference_path conditions.
  *
- * Style, extends, and class_path return false (content AST / full hierarchy
+ * Style and extends return false (content AST / full hierarchy
  * not available client-side).
  */
 
@@ -195,8 +195,6 @@ function evaluateCondition(condition: ConditionNode, node: ApiGraphNode, ctx: Ev
       return evaluateReferencePathCondition(condition, node, ctx);
     case 'extends':
       return evaluateExtendsCondition(condition, node, ctx);
-    case 'class_path':
-      return evaluateClassPathCondition(condition, node, ctx);
     case 'style':
       // Content AST not available client-side
       return false;
@@ -632,46 +630,6 @@ function evaluateReferencePathCondition(
   }
 
   return refs.length > 0;
-}
-
-// ----- Class Path -----
-
-function evaluateClassPathCondition(
-  cond: Extract<ConditionNode, { condition_type: 'class_path' }>,
-  node: ApiGraphNode,
-  ctx: EvalContext,
-): boolean {
-  // Check if any ancestor has a specific class
-  // We approximate by checking the node's own classes + ancestor nodes' classes
-  const ancestors = ctx.transitiveParentMap.get(node.id) ?? new Set<number>();
-  const nodeClassIds = new Set(node.class_ids ?? []);
-  for (const aid of ancestors) {
-    const ancestor = ctx.nodeById.get(aid);
-    if (ancestor) {
-      for (const cid of ancestor.class_ids ?? []) {
-        nodeClassIds.add(cid);
-      }
-    }
-  }
-
-  if (cond.class_ids && cond.class_ids.length > 0) {
-    return cond.class_ids.some(cid => nodeClassIds.has(cid));
-  }
-
-  if (cond.class_uuids && cond.class_uuids.length > 0) {
-    const classIds = cond.class_uuids
-      .map(uuid => ctx.classes.find(c => c.uuid === uuid)?.id)
-      .filter((id): id is number => id !== undefined);
-    return classIds.some(cid => nodeClassIds.has(cid));
-  }
-
-  if (cond.nested_group) {
-    // Approximation: check if any inherited class matches the nested group
-    // This is complex; for now return false
-    return false;
-  }
-
-  return false;
 }
 
 // ==================== Operator Evaluation ====================

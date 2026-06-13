@@ -439,6 +439,52 @@ class NotNode:
         return NotNode(child=child)
 
 
+# ==================== Aggregation Node ====================
+
+
+class AggregateFunction(StrEnum):
+    """Supported aggregate functions."""
+
+    COUNT = "count"
+    SUM = "sum"
+    AVG = "avg"
+    MIN = "min"
+    MAX = "max"
+
+
+@dataclass
+class AggregationNode:
+    """Aggregation definition for QueryAST.
+
+    When present, the query returns aggregated groups instead of individual nodes.
+    """
+
+    type: Literal["aggregation"] = "aggregation"
+    function: AggregateFunction = AggregateFunction.COUNT
+    group_by: str = ""  # Reserved builtin: 'is_page', 'create_date', 'page', 'class', or a property UUID
+    group_by_property_type: str | None = None  # Required when group_by is a property UUID
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        result: dict[str, Any] = {
+            "type": self.type,
+            "function": self.function.value,
+            "group_by": self.group_by,
+        }
+        if self.group_by_property_type:
+            result["group_by_property_type"] = self.group_by_property_type
+        return result
+
+    @staticmethod
+    def from_dict(data: dict[str, Any]) -> AggregationNode:
+        """Create from dictionary."""
+        return AggregationNode(
+            function=AggregateFunction(data.get("function", "count")),
+            group_by=data.get("group_by", ""),
+            group_by_property_type=data.get("group_by_property_type"),
+        )
+
+
 # ==================== Query AST Root ====================
 
 
@@ -450,6 +496,7 @@ class QueryAST:
     version: str = "1.0"  # For future compatibility
     scope: ScopeNode = field(default_factory=ScopeNode)
     root_group: GroupNode = field(default_factory=GroupNode)
+    aggregation: AggregationNode | None = None
 
     # Metadata
     id: str | None = None  # Stable identifier for query identity
@@ -468,6 +515,8 @@ class QueryAST:
             "scope": self.scope.to_dict(),
             "root_group": self.root_group.to_dict(),
         }
+        if self.aggregation:
+            result["aggregation"] = self.aggregation.to_dict()
         if self.id:
             result["id"] = self.id
         if self.created_at:
@@ -483,10 +532,12 @@ class QueryAST:
     @staticmethod
     def from_dict(data: dict[str, Any]) -> QueryAST:
         """Create from dictionary."""
+        aggregation_data = data.get("aggregation")
         return QueryAST(
             version=data.get("version", "1.0"),
             scope=ScopeNode.from_dict(data.get("scope", {})),
             root_group=GroupNode.from_dict(data.get("root_group", {})),
+            aggregation=AggregationNode.from_dict(aggregation_data) if aggregation_data else None,
             id=data.get("id"),
             created_at=data.get("created_at"),
             updated_at=data.get("updated_at"),

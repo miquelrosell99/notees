@@ -110,3 +110,34 @@
   flex-shrink: 0;
   border: var(--border-width-default) solid var(--color-primary);
 }
+
+/* ==================== Date Quick Chips ==================== */
+
+.prose-condition__date-chips {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  flex-shrink: 0;
+}
+
+.prose-condition__date-chip {
+  padding: var(--spacing-1) var(--spacing-2);
+  background: var(--color-surface-container-high);
+  color: var(--color-on-surface-variant);
+  border: var(--border-width-default) solid var(--color-outline-variant);
+  border-radius: var(--shape-small);
+  font-size: var(--font-size-button);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.prose-condition__date-chip:hover:not(:disabled) {
+  background: var(--color-primary-container);
+  color: var(--color-on-primary-container);
+  border-color: var(--color-primary);
+}
+
+.prose-condition__date-chip:disabled {
+  opacity: var(--opacity-50);
+  cursor: not-allowed;
+}
