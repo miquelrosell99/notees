@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request
 from fastapi_limiter.depends import RateLimiter
 from pyrate_limiter import Duration, Limiter, Rate
 
+from ...db.connection import get_transaction
 from ...dependencies import _get_share_service, get_current_user, get_notification_repository
 from ...domain.entities import NodeCreateData, NodeUpdateData
 from ...domain.errors import DatePageDeletionError, DuplicateNodeError, OptimisticLockError, SystemClassConstraintError
@@ -113,7 +114,22 @@ async def create_node(
     )
 
     try:
-        node = await service.create_node(data, user_id=int(user.id))
+        async with get_transaction():
+            node = await service.create_node(data, user_id=int(user.id))
+
+            # Record for undo
+            try:
+                undo = await _get_undo_service(user)
+                await undo.record(
+                    "create_node",
+                    "node",
+                    node.id,
+                    before_state=None,
+                    after_state=_node_snapshot(node),
+                    description=f"Created '{_name_text(node.name)}'",
+                )
+            except (ValueError, TypeError, LookupError):
+                pass  # Never fail the mutation because of undo logging
     except DuplicateNodeError as e:
         raise HTTPException(
             status_code=409,
@@ -124,20 +140,6 @@ async def create_node(
                 "conflicting_classes": e.conflicting_classes,
             },
         ) from e
-
-    # Record for undo
-    try:
-        undo = await _get_undo_service(user)
-        await undo.record(
-            "create_node",
-            "node",
-            node.id,
-            before_state=None,
-            after_state=_node_snapshot(node),
-            description=f"Created '{_name_text(node.name)}'",
-        )
-    except (ValueError, TypeError, LookupError):
-        pass  # Never fail the mutation because of undo logging
 
     # Notify mentions
     await _notify_mentions(service, node, int(user.id), notification_repo)
@@ -885,15 +887,40 @@ async def update_node(
     before = _node_snapshot(old_node) if old_node else None
 
     try:
-        node = await service.update_node(node_id, data)
-        if not node:
-            raise HTTPException(404, "Node not found")
+        async with get_transaction():
+            node = await service.update_node(node_id, data)
+            if not node:
+                raise HTTPException(404, "Node not found")
 
-        logger.debug("[UPDATE_NODE] result node.color=%s", node.color)
+            logger.debug("[UPDATE_NODE] result node.color=%s", node.color)
 
-        # Apply class reconciliation and property values if provided
-        if body.classes is not None or body.properties:
-            await _apply_node_extras(service, node_id, body.classes, body.properties)
+            # Apply class reconciliation and property values if provided
+            if body.classes is not None or body.properties:
+                await _apply_node_extras(service, node_id, body.classes, body.properties)
+
+            # Record for undo
+            if before:
+                try:
+                    undo = await _get_undo_service(user)
+                    after = _node_snapshot(node)
+                    # Only record if something actually changed
+                    if before != after:
+                        old_name = _name_text(before.get("name", ""), 30)
+                        new_name = _name_text(after.get("name", ""), 30)
+                        if before.get("name") != after.get("name"):
+                            desc = f"Renamed '{old_name}' → '{new_name}'"
+                        else:
+                            desc = f"Updated '{old_name}'"
+                        await undo.record(
+                            "update_node",
+                            "node",
+                            node_id,
+                            before_state=before,
+                            after_state=after,
+                            description=desc,
+                        )
+                except (ValueError, TypeError, LookupError):
+                    pass
 
         # Invalidate static share HTML caches for this node
         try:
@@ -901,30 +928,6 @@ async def update_node(
             await share_service.regenerate_share_html_for_node(node)
         except (OSError, ValueError):
             logger.exception("Failed to invalidate share HTML caches")
-
-        # Record for undo
-        if before:
-            try:
-                undo = await _get_undo_service(user)
-                after = _node_snapshot(node)
-                # Only record if something actually changed
-                if before != after:
-                    old_name = _name_text(before.get("name", ""), 30)
-                    new_name = _name_text(after.get("name", ""), 30)
-                    if before.get("name") != after.get("name"):
-                        desc = f"Renamed '{old_name}' → '{new_name}'"
-                    else:
-                        desc = f"Updated '{old_name}'"
-                    await undo.record(
-                        "update_node",
-                        "node",
-                        node_id,
-                        before_state=before,
-                        after_state=after,
-                        description=desc,
-                    )
-            except (ValueError, TypeError, LookupError):
-                pass
 
         # Notify mentions
         await _notify_mentions(service, node, int(user.id), notification_repo)
@@ -970,28 +973,29 @@ async def move_node(
     before = _node_snapshot(old_node) if old_node else None
 
     try:
-        node = await service.move_node(node_id, request.parent_id, position)
+        async with get_transaction():
+            node = await service.move_node(node_id, request.parent_id, position)
+            if not node:
+                raise HTTPException(404, "Node not found")
+
+            # Record for undo
+            if before:
+                try:
+                    undo = await _get_undo_service(user)
+                    after = _node_snapshot(node)
+                    name = _name_text(node.name, 30)
+                    await undo.record(
+                        "move_node",
+                        "node",
+                        node_id,
+                        before_state=before,
+                        after_state=after,
+                        description=f"Moved '{name}'",
+                    )
+                except (ValueError, TypeError, LookupError):
+                    pass
     except ValueError as e:
         raise HTTPException(422, str(e)) from e
-    if not node:
-        raise HTTPException(404, "Node not found")
-
-    # Record for undo
-    if before:
-        try:
-            undo = await _get_undo_service(user)
-            after = _node_snapshot(node)
-            name = _name_text(node.name, 30)
-            await undo.record(
-                "move_node",
-                "node",
-                node_id,
-                before_state=before,
-                after_state=after,
-                description=f"Moved '{name}'",
-            )
-        except (ValueError, TypeError, LookupError):
-            pass
 
     return _node_to_response(node)
 
@@ -1031,28 +1035,28 @@ async def delete_node(
         await service.delete_node_assets(node.uuid, service.workspace_id)
 
     try:
-        success = await service.delete_node(node_id)
+        async with get_transaction():
+            success = await service.delete_node(node_id)
+            if not success:
+                raise HTTPException(404, "Node not found")
+
+            # Record for undo
+            if undo_before:
+                try:
+                    undo = await _get_undo_service(user)
+                    name = _name_text(undo_before.get("name", ""), 30)
+                    await undo.record(
+                        "delete_node",
+                        "node",
+                        node_id,
+                        before_state=undo_before,
+                        after_state=None,
+                        description=f"Deleted '{name}'",
+                    )
+                except (ValueError, TypeError, LookupError):
+                    pass
     except DatePageDeletionError as e:
         raise HTTPException(400, e.message) from e
-
-    if not success:
-        raise HTTPException(404, "Node not found")
-
-    # Record for undo
-    if undo_before:
-        try:
-            undo = await _get_undo_service(user)
-            name = _name_text(undo_before.get("name", ""), 30)
-            await undo.record(
-                "delete_node",
-                "node",
-                node_id,
-                before_state=undo_before,
-                after_state=None,
-                description=f"Deleted '{name}'",
-            )
-        except (ValueError, TypeError, LookupError):
-            pass
 
     return {"status": "ok"}
 
@@ -1065,24 +1069,25 @@ async def archive_node(
     """Archive a node (set active to false)."""
     service = await _get_node_service(user)
 
-    node = await service.archive_node(node_id, None)
-    if not node:
-        raise HTTPException(404, "Node not found")
+    async with get_transaction():
+        node = await service.archive_node(node_id, None)
+        if not node:
+            raise HTTPException(404, "Node not found")
 
-    # Record for undo
-    try:
-        undo = await _get_undo_service(user)
-        name = _name_text(node.name, 30)
-        await undo.record(
-            "archive_node",
-            "node",
-            node_id,
-            before_state={"active": True},
-            after_state={"active": False},
-            description=f"Archived '{name}'",
-        )
-    except (ValueError, TypeError, LookupError):
-        pass
+        # Record for undo
+        try:
+            undo = await _get_undo_service(user)
+            name = _name_text(node.name, 30)
+            await undo.record(
+                "archive_node",
+                "node",
+                node_id,
+                before_state={"active": True},
+                after_state={"active": False},
+                description=f"Archived '{name}'",
+            )
+        except (ValueError, TypeError, LookupError):
+            pass
 
     types = await service.get_node_classes(node_id)
     return _node_to_response(node, classes=[t.id for t in types if t.id])
@@ -1115,24 +1120,25 @@ async def unarchive_node(
     """Unarchive a node (set active to true)."""
     service = await _get_node_service(user)
 
-    node = await service.unarchive_node(node_id, None)
-    if not node:
-        raise HTTPException(404, "Node not found")
+    async with get_transaction():
+        node = await service.unarchive_node(node_id, None)
+        if not node:
+            raise HTTPException(404, "Node not found")
 
-    # Record for undo
-    try:
-        undo = await _get_undo_service(user)
-        name = _name_text(node.name, 30)
-        await undo.record(
-            "unarchive_node",
-            "node",
-            node_id,
-            before_state={"active": False},
-            after_state={"active": True},
-            description=f"Unarchived '{name}'",
-        )
-    except (ValueError, TypeError, LookupError):
-        pass
+        # Record for undo
+        try:
+            undo = await _get_undo_service(user)
+            name = _name_text(node.name, 30)
+            await undo.record(
+                "unarchive_node",
+                "node",
+                node_id,
+                before_state={"active": False},
+                after_state={"active": True},
+                description=f"Unarchived '{name}'",
+            )
+        except (ValueError, TypeError, LookupError):
+            pass
 
     types = await service.get_node_classes(node_id)
     return _node_to_response(node, classes=[t.id for t in types if t.id])

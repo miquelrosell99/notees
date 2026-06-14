@@ -3,7 +3,7 @@
  * 
  * The layout consists of:
  * - Canvas: The background area containing all elements
- * - Left Sidebar: Database switcher, navigation, settings (optional, fully hidden when collapsed)
+ * - Left Sidebar: Database switcher, navigation, settings (collapses to an icon-only strip)
  * - Main Container: Primary content area with rounded corners
  * - Comments Sidebar: Comments panel for selected node (between main and right sidebar)
  * - Right Sidebar: Secondary content (local graph, node cards) with rounded corners
@@ -13,12 +13,12 @@
  * - Drag the left edge of right sidebar to resize
  */
 import React, { useEffect, useCallback, useRef, useState, Suspense } from 'react';
-import { useLocation } from 'react-router-dom';
+
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigationStore, useModalStore, useSettingsStore, usePresentationStore } from '@/stores';
 import { useCommand } from '@/hooks/useCommand';
 import { COMMAND_IDS } from '@/stores/commandRegistry';
-import { useTodayNote, useCreateNode, useNode, useIsMobile, useDocumentTitle } from '@/hooks';
+import { useCreateNode, useNode, useIsMobile, useDocumentTitle } from '@/hooks';
 import { RouteAdapter } from './RouteAdapter';
 import { NavigationUrlSync } from './NavigationUrlSync';
 import { useSettingsQuery } from '@/hooks/useSettings';
@@ -53,7 +53,6 @@ import './Layout.css';
 export function Layout() {
   const hasInitialized = useRef(false);
   const isProcessingUrl = useRef(false);
-  const location = useLocation();
 
   useDocumentTitle();
 
@@ -91,7 +90,6 @@ export function Layout() {
   const isMinimapOpen = useModalStore(s => s.isMinimapOpen);
   const presentationNodeId = usePresentationStore(s => s.nodeId);
   const setMinimapOpen = useModalStore(s => s.setMinimapOpen);
-  const setMainViewType = useNavigationStore(s => s.setMainViewType);
   const openNode = useNavigationStore(s => s.openNode);
   const splitTab = useNavigationStore(s => s.splitTab);
   const workspaceRef = useRef<HTMLDivElement>(null);
@@ -102,14 +100,13 @@ export function Layout() {
     setCreateWithUuidModalOpen(true, uuid);
   }, [setCreateWithUuidModalOpen]);
   
-  const { defaultView, wideMode, tabPosition } = useSettingsStore();
+  const { wideMode, tabPosition } = useSettingsStore();
   const createNodeMutation = useCreateNode();
-  const hasAppliedDefaultView = useRef(false);
   const { data: currentNode } = useNode(currentNodeId);
   
-  // Settings are guaranteed to be in TanStack Query cache before Layout mounts
-  // (App.tsx gates rendering behind fetchQuery completion).
-  // useSettingsQuery() is used here only so components downstream can read cached data.
+  // Settings are synced from the backend into the local store before Layout
+  // mounts. useSettingsQuery() is used here only so components downstream can
+  // read cached data.
   useSettingsQuery();
   
   // Responsive: true on phones/small tablets
@@ -121,9 +118,6 @@ export function Layout() {
   const isResizingLeftRef = useRef(false);
   const isResizingRightRef = useRef(false);
 
-  // Fetch today's note for default view
-  const { data: todayNote } = useTodayNote();
-  
   const queryClient = useQueryClient();
 
   // NOTE: loadFavorites() and loadRecents() are called in App.tsx when dbData?.active changes.
@@ -143,42 +137,6 @@ export function Layout() {
     }
   }, [currentNodeId, mainViewType, currentNode?.is_page, queryClient]);
   
-  // Apply default view ONLY on initial load when URL is "/" (home)
-  // This ensures URL-based navigation takes precedence
-  useEffect(() => {
-    if (hasAppliedDefaultView.current) return;
-    
-    // Only apply default view if we're at the root URL with no specific view/node
-    const isAtRoot = location.pathname === '/' || location.pathname === '';
-    const hasNoCurrentNode = currentNodeId === null;
-    const isDefaultNodeView = mainViewType === 'node';
-    
-    if (!isAtRoot || !hasNoCurrentNode || !isDefaultNodeView) {
-      // URL specifies a destination, don't override
-      hasAppliedDefaultView.current = true;
-      return;
-    }
-    
-    if (defaultView === 'today') {
-      // Wait for today's note to load, then set as current page
-      if (todayNote) {
-        openNode(todayNote.id);
-        hasAppliedDefaultView.current = true;
-      }
-    } else if (defaultView === 'journal') {
-      setMainViewType('journals');
-      hasAppliedDefaultView.current = true;
-    } else if (defaultView === 'all-pages') {
-      setMainViewType('pages');
-      hasAppliedDefaultView.current = true;
-    } else if (defaultView === 'graph') {
-      setMainViewType('graph');
-      hasAppliedDefaultView.current = true;
-    } else {
-      hasAppliedDefaultView.current = true;
-    }
-  }, [defaultView, todayNote, setMainViewType, openNode, currentNodeId, mainViewType, location.pathname]);
-
   // Register commands in the Command Registry
   useCommand(COMMAND_IDS.COMMAND_PALETTE, () => {
     setCommandPaletteOpen(true);

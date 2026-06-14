@@ -22,8 +22,6 @@ import { Card } from '@/components/ui/Card';
 import { ContextMenu } from '@/components/ui/ContextMenu';
 import type { ContextMenuItem } from '@/components/ui/ContextMenu';
 import { Scratchpad } from './Scratchpad';
-import { AccountMenu } from './AccountMenu';
-import { UserSettingsModal, SystemSettingsModal } from './Modals';
 import { LiveSyncIndicator } from '@/features/collab/components/LiveSyncIndicator';
 import { TabBar } from './TabBar/TabBar';
 
@@ -80,8 +78,6 @@ export function TopBar() {
   const scratchpadBtnRef = useRef<HTMLButtonElement>(null);
   const undoBtnRef = useRef<HTMLButtonElement>(null);
   const redoBtnRef = useRef<HTMLButtonElement>(null);
-  const [isUserSettingsOpen, setIsUserSettingsOpen] = useState(false);
-  const [isSystemSettingsOpen, setIsSystemSettingsOpen] = useState(false);
   const [scratchpadEntryCount, setScratchpadEntryCount] = useState(0);
   const [goToTodaySignal] = useState(0);
 
@@ -409,11 +405,6 @@ export function TopBar() {
           badges={sidebarBadges}
         />
         
-        {/* Account menu */}
-        <AccountMenu
-          onOpenUserSettings={() => setIsUserSettingsOpen(true)}
-          onOpenSystemSettings={() => setIsSystemSettingsOpen(true)}
-        />
       </div>
       </header>
       
@@ -424,19 +415,6 @@ export function TopBar() {
         onEntryCountChange={setScratchpadEntryCount}
       />
       
-      {/* User Settings Modal */}
-      <UserSettingsModal
-        isOpen={isUserSettingsOpen}
-        onClose={() => setIsUserSettingsOpen(false)}
-      />
-
-      {/* System Settings Modal */}
-      <SystemSettingsModal
-        isOpen={isSystemSettingsOpen}
-        onClose={() => setIsSystemSettingsOpen(false)}
-      />
-
-
     </Card>
   );
 }

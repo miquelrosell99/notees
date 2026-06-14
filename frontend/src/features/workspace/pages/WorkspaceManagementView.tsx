@@ -17,7 +17,7 @@ import {
   restoreWorkspace,
   type WorkspaceInfo,
 } from '@/features/workspace/api/workspaces';
-import { useAuthStore, useNavigationStore, useModalStore } from '@/stores';
+import { useNavigationStore, useModalStore } from '@/stores';
 import { WorkspaceModal } from '@/features/workspace/components/WorkspaceModal';
 import { ImportOptionsModal, type ImportResult } from '@/features/workspace/components/ImportOptionsModal';
 import { ImportLogseqModal } from '@/features/workspace/components/ImportLogseqModal';
@@ -27,6 +27,7 @@ import { WorkspaceActionsMenu } from '@/features/workspace/components/WorkspaceA
 import { WorkspaceShareModal } from '@/features/workspace/components/WorkspaceShareModal';
 import { WorkspaceExportModal } from '@/features/workspace/components/WorkspaceExportModal';
 import { UserSettingsModal, SystemSettingsModal } from '@/features/layout/components/Modals';
+import { AccountMenu } from '@/features/layout/components/AccountMenu';
 
 
 import { Button } from '@/components/ui/Button';
@@ -39,16 +40,10 @@ import './WorkspaceManagementView.css';
 interface WorkspaceManagementViewProps {
   /** Called when a workspace is selected/activated */
   onWorkspaceSelected?: () => void;
-  /** Whether to show the back/close button */
-  showClose?: boolean;
-  /** Called when close is clicked */
-  onClose?: () => void;
 }
 
 export function WorkspaceManagementView({ 
-  onWorkspaceSelected, 
-  showClose = false,
-  onClose,
+  onWorkspaceSelected,
 }: WorkspaceManagementViewProps) {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isImportOptionsOpen, setIsImportOptionsOpen] = useState(false);
@@ -78,7 +73,6 @@ export function WorkspaceManagementView({
   const restoreTargetRef = useRef<string | null>(null);
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const { logout, user } = useAuthStore();
   const { isImportLogseqModalOpen, setImportLogseqModalOpen } = useModalStore();
 
   // Fetch workspaces
@@ -95,6 +89,9 @@ export function WorkspaceManagementView({
   // Switch database mutation
   const switchMutation = useMutation({
     mutationFn: switchWorkspace,
+    onMutate: () => {
+      useNavigationStore.setState({ isSwitchingWorkspace: true });
+    },
     onSuccess: (_data, switchedUuid) => {
       // Reset node state to prevent showing stale data from previous database
       useNavigationStore.setState({
@@ -115,6 +112,10 @@ export function WorkspaceManagementView({
       // Clear ALL cached data to prevent any stale data from previous workspace
       queryClient.clear();
       onWorkspaceSelected?.();
+      useNavigationStore.setState({ isSwitchingWorkspace: false });
+    },
+    onError: () => {
+      useNavigationStore.setState({ isSwitchingWorkspace: false });
     },
   });
 
@@ -266,36 +267,11 @@ export function WorkspaceManagementView({
             <div className="workspace-management__logo">
               <h1 className="workspace-management__title">Notees</h1>
             </div>
-            {showClose && onClose && (
-              <Button className="workspace-management__close" variant="ghost" size="sm" onClick={onClose}>
-                ÔåÉ Back to app
-              </Button>
-            )}
           </div>
-          <div className="workspace-management__user-info">
-            <span className="workspace-management__username">{user?.email}</span>
-            <Button aria-label="User Settings"
-              className="workspace-management__user-settings"
-              variant="ghost"
-              size="sm"
-              icon={"mdi mdi-cog-outline"}
-              onClick={() => setIsUserSettingsOpen(true)}
-              title="User Settings"
-            />
-            {user?.role === 'admin' && (
-              <Button aria-label="System Settings"
-                className="workspace-management__system-settings"
-                variant="ghost"
-                size="sm"
-                icon={"mdi mdi-account-cog"}
-                onClick={() => setIsSystemSettingsOpen(true)}
-                title="System Settings"
-              />
-            )}
-            <Button className="workspace-management__logout" variant="ghost" size="sm" onClick={logout}>
-              Logout
-            </Button>
-          </div>
+          <AccountMenu
+            onOpenUserSettings={() => setIsUserSettingsOpen(true)}
+            onOpenSystemSettings={() => setIsSystemSettingsOpen(true)}
+          />
         </header>
 
         {/* Main Content */}
@@ -350,15 +326,11 @@ export function WorkspaceManagementView({
                     className={`workspace-management__card ${workspace.uuid === data?.active ? 'workspace-management__card--active' : ''} ${deleteConfirm === workspace.uuid ? 'workspace-management__card--delete-confirm' : ''}`}
                     elevation="low"
                     padding={false}
-                    selected={workspace.uuid === data?.active}
                   >
                     <div className="workspace-management__card-header">
                       <div className="workspace-management__card-title">
                         <span className="workspace-management__card-name">{workspace.name}</span>
                         <div className="workspace-management__card-badges">
-                          {workspace.uuid === data?.active && (
-                            <Pill text="Active" className="workspace-management__pill--active" />
-                          )}
                           {workspace.is_shared && (
                             <Pill text="Shared" className="workspace-management__pill--shared" />
                           )}
@@ -438,9 +410,14 @@ export function WorkspaceManagementView({
                           </div>
                         </div>
                       )}
-                      <div className="workspace-management__card-meta">
-                        <span>Created {formatDate(workspace.created_at)}</span>
-                        <span>Modified {formatRelativeTime(workspace.updated_at)}</span>
+                      <div className="workspace-management__card-footer">
+                        <div className="workspace-management__card-meta">
+                          <span>Created {formatDate(workspace.created_at)}</span>
+                          <span>Modified {formatRelativeTime(workspace.updated_at)}</span>
+                        </div>
+                        {workspace.uuid === data?.active && (
+                          <Pill text="Active" className="workspace-management__pill--active" />
+                        )}
                       </div>
                     </div>
                   </Card>
@@ -526,15 +503,6 @@ export function WorkspaceManagementView({
           isOpen={shareModalState.isOpen}
           onClose={() => setShareModalState({ isOpen: false, workspaceUuid: null })}
         />
-      )}
-
-      {/* Switching overlay – locks the interface during workspace switch */}
-      {switchMutation.isPending && (
-        <div className="workspace-management__switching-overlay" aria-live="assertive" role="status">
-          <div className="workspace-management__switching-box">
-            <Spinner size="lg" label="Switching workspace…" />
-          </div>
-        </div>
       )}
 
       {/* Deleting overlay – locks the interface during workspace deletion */}

@@ -76,14 +76,14 @@ export function useContentSave(options: UseContentSaveOptions = {}) {
       }
     }
 
-    // Record runtime intent for offline support
+    // Record runtime intent for offline support and undo history
     let mutationKey: string | null = null;
     if (blockUuid) {
       runtime.applyIntent({
         type: 'update_content',
         blockId: blockUuid,
         contentAST: converted,
-      }, false);
+      }, true);
       const pending = runtime.getPendingIntentsForBlock(blockUuid);
       const contentIntent = pending.find(p => p.intent.type === 'update_content');
       mutationKey = contentIntent?.mutationKey ?? null;

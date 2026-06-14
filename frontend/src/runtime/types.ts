@@ -154,7 +154,8 @@ export type RuntimeEvent =
   | { type: 'expand_children_needed'; blockId: string; serverId?: number }
   | { type: 'undo'; entry: UndoEntry }
   | { type: 'redo'; entry: UndoEntry }
-  | { type: 'undo_stack_changed' };
+  | { type: 'undo_stack_changed' }
+  | { type: 'flush_intents_requested' };
 
 export type RuntimeEventHandler = (event: RuntimeEvent) => void;
 

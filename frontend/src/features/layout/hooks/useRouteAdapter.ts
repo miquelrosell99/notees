@@ -9,7 +9,8 @@
 import { useEffect, useCallback, type MutableRefObject } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useNavigationStore, type MainViewType } from '@/stores';
+import { useNavigationStore, useSettingsStore, type MainViewType, type DefaultView } from '@/stores';
+import { useTodayNote } from '@/hooks';
 import { useNavigationHistoryStore } from '@/stores/navigationHistoryStore';
 import { listWorkspaces, switchWorkspace } from '@/features/workspace/api/workspaces';
 import { getNodeByUuid } from '@/api/nodes';
@@ -22,13 +23,21 @@ import { isDayUuid, isMonthUuid, isYearUuid } from '@/utils/dateUuid';
 
 const log = getLogger('RouteAdapter');
 
+const DEFAULT_VIEW_TO_MAIN_VIEW: Record<Exclude<DefaultView, 'today'>, MainViewType> = {
+  journal: 'journals',
+  'all-pages': 'pages',
+  graph: 'graph',
+};
+
 interface RouteAdapterRefs {
   hasInitialized: MutableRefObject<boolean>;
   isProcessingUrl: MutableRefObject<boolean>;
 }
 
 export function useRouteAdapter({ hasInitialized, isProcessingUrl }: RouteAdapterRefs) {
-  const { workspaceId, entityUuid } = useParams<{ workspaceId?: string; entityUuid?: string }>();
+  const params = useParams();
+  const workspaceId = params.workspaceId;
+  const entityUuid = params['*'];
   const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
 
@@ -38,6 +47,9 @@ export function useRouteAdapter({ hasInitialized, isProcessingUrl }: RouteAdapte
     openPropertyView,
     openNodeInNewTab,
   } = useNavigationStore();
+
+  const defaultView = useSettingsStore((s) => s.defaultView);
+  const { data: todayNote } = useTodayNote();
 
   const { data: dbData, isLoading: isLoadingDbs } = useQuery({
     queryKey: ['workspaces'],
@@ -61,28 +73,33 @@ export function useRouteAdapter({ hasInitialized, isProcessingUrl }: RouteAdapte
       }
 
       log.info('Auto-switching workspace for URL', { from: dbData.active, to: targetWsUuid });
-      await switchWorkspace(targetWsUuid);
+      useNavigationStore.setState({ isSwitchingWorkspace: true });
+      try {
+        await switchWorkspace(targetWsUuid);
 
-      useNavigationStore.setState({
-        currentNodeId: null,
-        activeNodeId: null,
-        sidebarNode: null,
-        localGraphNodeId: null,
-        mainViewType: 'node',
-      });
+        useNavigationStore.setState({
+          currentNodeId: null,
+          activeNodeId: null,
+          sidebarNode: null,
+          localGraphNodeId: null,
+          mainViewType: 'node',
+        });
 
-      queryClient.removeQueries({ queryKey: favoriteKeys.all });
-      queryClient.removeQueries({ queryKey: recentKeys.all });
-      queryClient.clear();
+        queryClient.removeQueries({ queryKey: favoriteKeys.all });
+        queryClient.removeQueries({ queryKey: recentKeys.all });
+        queryClient.clear();
 
-      await queryClient.fetchQuery({
-        queryKey: ['workspaces'],
-        queryFn: () => listWorkspaces(),
-      });
+        await queryClient.fetchQuery({
+          queryKey: ['workspaces'],
+          queryFn: () => listWorkspaces(),
+        });
 
-      queryClient.invalidateQueries({ queryKey: favoriteKeys.all });
-      queryClient.invalidateQueries({ queryKey: recentKeys.all });
-      return true;
+        queryClient.invalidateQueries({ queryKey: favoriteKeys.all });
+        queryClient.invalidateQueries({ queryKey: recentKeys.all });
+        return true;
+      } finally {
+        useNavigationStore.setState({ isSwitchingWorkspace: false });
+      }
     },
     [dbData, queryClient]
   );
@@ -100,7 +117,17 @@ export function useRouteAdapter({ hasInitialized, isProcessingUrl }: RouteAdapte
       await ensureWorkspace(workspaceId);
 
       if (!entityUuid) {
-        goHome();
+        // Workspace root: honour the user's "Default view" setting. This uses
+        // the normal tab-opening paths, so a tab is created when the tab list is
+        // empty and the URL syncs just like any other navigation.
+        if (defaultView === 'today') {
+          if (todayNote) {
+            openNode(todayNote.id);
+          }
+          // If today's note is still loading, this effect will re-run once it resolves.
+        } else {
+          setMainViewType(DEFAULT_VIEW_TO_MAIN_VIEW[defaultView]);
+        }
         return;
       }
 
@@ -116,6 +143,17 @@ export function useRouteAdapter({ hasInitialized, isProcessingUrl }: RouteAdapte
         const uuid = entityUuid;
         const isDateUuid = isDayUuid(uuid) || isMonthUuid(uuid) || isYearUuid(uuid);
 
+        // Pages/nodes are the common case; try them first to avoid spurious
+        // property 404s on every page navigation.
+        try {
+          const node = await getNodeByUuid(uuid);
+          log.debug('UUID resolved to node', { uuid, id: node.id, is_page: node.is_page });
+          openNode(node.id);
+          return;
+        } catch {
+          /* not a node */
+        }
+
         if (!isDateUuid) {
           try {
             const property = await getPropertyByUuid(uuid);
@@ -123,19 +161,13 @@ export function useRouteAdapter({ hasInitialized, isProcessingUrl }: RouteAdapte
             openPropertyView(property.id);
             return;
           } catch {
-            /* not a property */
+            /* not a property either */
           }
         }
 
-        try {
-          const node = await getNodeByUuid(uuid);
-          log.debug('UUID resolved to node', { uuid, id: node.id, is_page: node.is_page });
-          openNode(node.id);
-        } catch {
-          log.warn('UUID not found as property or node, going home', { uuid });
-          useNavigationStore.setState({ currentNodeId: null, currentPropertyId: null });
-          goHome();
-        }
+        log.warn('UUID not found as node or property, going home', { uuid });
+        useNavigationStore.setState({ currentNodeId: null, currentPropertyId: null });
+        goHome();
         return;
       }
 
@@ -157,6 +189,8 @@ export function useRouteAdapter({ hasInitialized, isProcessingUrl }: RouteAdapte
     openPropertyView,
     hasInitialized,
     isProcessingUrl,
+    defaultView,
+    todayNote,
   ]);
 
   // Process the route whenever the workspace or entity segment changes.

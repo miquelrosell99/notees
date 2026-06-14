@@ -4,7 +4,7 @@
  * Replaces the bespoke custom router with declarative routes while keeping
  * the existing navigationStore tab model.
  */
-import React, { Suspense, useEffect, useState } from 'react';
+import React, { Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   Routes,
   Route,
@@ -14,7 +14,20 @@ import {
   useLocation,
 } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useAuthStore, useModalStore } from '@/stores';
+import {
+  useAuthStore,
+  useModalStore,
+  useNavigationStore,
+  useSettingsStore,
+  DATE_FORMAT_OPTIONS,
+  type ThemePreference,
+  type AccentColor,
+  type DateFormat,
+  type DefaultView,
+  type QuickAddDestination,
+  type FirstDayOfWeek,
+  type HashtagPasteMode,
+} from '@/stores';
 import { COMMAND_IDS } from '@/stores/commandRegistry';
 import { useCommand } from '@/hooks/useCommand';
 import { getAuthStatus } from '@/features/auth/api/auth';
@@ -23,7 +36,9 @@ import { getSettings } from '@/features/workspace/api/workspaces';
 import { settingsKeys } from '@/hooks/queryKeys';
 import { getAuthToken, getUserData } from '@/utils/auth';
 import { LoadingScreen } from '@/components/ui/LoadingScreen';
+import { useDelayedOverlay } from '@/hooks/useDelayedOverlay';
 import type { User } from '@/types';
+import './AppRoutes.css';
 
 const Layout = React.lazy(() => import('./Layout').then((m) => ({ default: m.Layout })));
 const LoginView = React.lazy(() => import('@/features/auth/pages/LoginView').then((m) => ({ default: m.LoginView })));
@@ -33,6 +48,72 @@ const InviteAcceptView = React.lazy(() => import('@/features/auth/pages/InviteAc
 const PublicShareView = React.lazy(() => import('@/features/shares/pages/PublicShareView').then((m) => ({ default: m.PublicShareView })));
 const OnboardingView = React.lazy(() => import('@/features/auth/pages/OnboardingView').then((m) => ({ default: m.OnboardingView })));
 const QuickAddModal = React.lazy(() => import('./QuickAddModal').then((m) => ({ default: m.QuickAddModal })));
+
+/**
+ * Apply user settings returned by the backend so the local Zustand store (and
+ * therefore localStorage) stays in sync with the server-side source of truth.
+ * This is especially important for settings like `default_view` that affect
+ * startup routing.
+ */
+function syncUserSettingsFromBackend(settings: Record<string, unknown>) {
+  const state = useSettingsStore.getState();
+
+  if (typeof settings.oled_mode === 'boolean') {
+    state.setOledMode(settings.oled_mode);
+  }
+
+  const validThemes: ThemePreference[] = ['light', 'dark', 'system'];
+  if (typeof settings.theme === 'string' && validThemes.includes(settings.theme as ThemePreference)) {
+    state.setTheme(settings.theme as ThemePreference);
+  }
+
+  if (typeof settings.custom_accent_hex === 'string') {
+    state.setCustomAccentHex(settings.custom_accent_hex);
+  }
+
+  const validAccents: AccentColor[] = ['monochrome', 'sage', 'teal', 'rose', 'navy', 'custom'];
+  if (typeof settings.accent_color === 'string' && validAccents.includes(settings.accent_color as AccentColor)) {
+    state.setAccentColor(settings.accent_color as AccentColor);
+  }
+
+  const validDateFormats = DATE_FORMAT_OPTIONS.map((o) => o.value);
+  if (typeof settings.date_format === 'string' && validDateFormats.includes(settings.date_format as DateFormat)) {
+    state.setDateFormat(settings.date_format as DateFormat);
+  }
+
+  const validDefaultViews: DefaultView[] = ['journal', 'all-pages', 'graph', 'today'];
+  if (typeof settings.default_view === 'string' && validDefaultViews.includes(settings.default_view as DefaultView)) {
+    state.setDefaultView(settings.default_view as DefaultView);
+  }
+
+  const validQuickAddDestinations: QuickAddDestination[] = ['inbox', 'today'];
+  if (
+    typeof settings.quick_add_destination === 'string' &&
+    validQuickAddDestinations.includes(settings.quick_add_destination as QuickAddDestination)
+  ) {
+    state.setQuickAddDestination(settings.quick_add_destination as QuickAddDestination);
+  }
+
+  const validFirstDayOfWeek: FirstDayOfWeek[] = [0, 1, 6];
+  if (
+    typeof settings.first_day_of_week === 'number' &&
+    validFirstDayOfWeek.includes(settings.first_day_of_week as FirstDayOfWeek)
+  ) {
+    state.setFirstDayOfWeek(settings.first_day_of_week as FirstDayOfWeek);
+  }
+
+  if (typeof settings.linked_refs_collapse_level === 'number') {
+    state.setLinkedRefsCollapseLevel(settings.linked_refs_collapse_level);
+  }
+
+  const validHashtagPasteModes: HashtagPasteMode[] = ['inline-tag', 'inline-class'];
+  if (
+    typeof settings.hashtag_paste_mode === 'string' &&
+    validHashtagPasteModes.includes(settings.hashtag_paste_mode as HashtagPasteMode)
+  ) {
+    state.setHashtagPasteMode(settings.hashtag_paste_mode as HashtagPasteMode);
+  }
+}
 
 function OnboardingRoute() {
   const navigate = useNavigate();
@@ -104,6 +185,7 @@ function AuthenticatedShell() {
   const queryClient = useQueryClient();
   const [authRestored, setAuthRestored] = useState(false);
   const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
+  const [settingsSynced, setSettingsSynced] = useState(false);
 
   useCommand(COMMAND_IDS.QUICK_ADD, () => {
     setIsQuickAddOpen((prev) => !prev);
@@ -146,6 +228,15 @@ function AuthenticatedShell() {
     staleTime: Infinity,
   });
 
+  // Sync server-stored user settings into the local Zustand store before the
+  // workspace shell renders, so startup routing respects the backend source of
+  // truth (e.g. `default_view`).
+  useLayoutEffect(() => {
+    if (!enrollmentSettings || settingsSynced) return;
+    syncUserSettingsFromBackend(enrollmentSettings);
+    setSettingsSynced(true);
+  }, [enrollmentSettings, settingsSynced]);
+
   const needsEnrollment = enrollmentSettings
     ? String(enrollmentSettings['enrollment_completed']) !== 'true'
     : false;
@@ -181,10 +272,14 @@ function AuthenticatedShell() {
 
   // If the user navigates away from /workspaces via the browser back/forward
   // buttons, make sure the modal flag is cleared so the UI stays consistent.
+  // Only clear on a transition *from* /workspaces to somewhere else; this
+  // avoids fighting the sync effect above while the manager is opening.
+  const wasWorkspacesRouteRef = useRef(isWorkspacesRoute);
   useEffect(() => {
-    if (!isWorkspacesRoute && showWorkspaceManager) {
+    if (wasWorkspacesRouteRef.current && !isWorkspacesRoute && showWorkspaceManager) {
       setShowWorkspaceManager(false);
     }
+    wasWorkspacesRouteRef.current = isWorkspacesRoute;
   }, [isWorkspacesRoute, showWorkspaceManager, setShowWorkspaceManager]);
 
   if (!authRestored || isLoadingAuthStatus) {
@@ -220,14 +315,12 @@ function AuthenticatedShell() {
             setShowWorkspaceManager(false);
             queryClient.invalidateQueries({ queryKey: ['workspaces'] });
           }}
-          showClose={!hasNoWorkspaces && !hasNoActiveWorkspace}
-          onClose={() => setShowWorkspaceManager(false)}
         />
       </Suspense>
     );
   }
 
-  if (isCheckingEnrollment) {
+  if (isCheckingEnrollment || !settingsSynced) {
     return <LoadingScreen label="Loading…" />;
   }
 
@@ -252,19 +345,34 @@ function AuthenticatedShell() {
 }
 
 export function AppRoutes() {
+  const isSwitchingWorkspace = useNavigationStore((state) => state.isSwitchingWorkspace);
+  const { isRendered, isVisible } = useDelayedOverlay(
+    isSwitchingWorkspace,
+    150,   // don't show for switches under 150 ms
+    200,   // fade-out duration
+  );
+
   return (
-    <Suspense fallback={<LoadingScreen label="Loading…" />}>
-      <Routes>
-        <Route path="/enroll" element={<InviteAcceptView />} />
-        <Route path="/s/:shareUuid" element={<PublicShareView />} />
-        <Route path="/onboarding" element={<OnboardingRoute />} />
-        <Route path="/auth" element={<LoginRoute />} />
-        <Route element={<AuthenticatedShell />}>
-          <Route path="/" element={<WorkspaceRedirect />} />
-          <Route path="/workspaces" element={<Outlet />} />
-          <Route path="/:workspaceId/*" element={<Layout />} />
-        </Route>
-      </Routes>
-    </Suspense>
+    <>
+      <Suspense fallback={<LoadingScreen label="Loading…" />}>
+        <Routes>
+          <Route path="/enroll" element={<InviteAcceptView />} />
+          <Route path="/s/:shareUuid" element={<PublicShareView />} />
+          <Route path="/onboarding" element={<OnboardingRoute />} />
+          <Route path="/auth" element={<LoginRoute />} />
+          <Route element={<AuthenticatedShell />}>
+            <Route path="/" element={<WorkspaceRedirect />} />
+            <Route path="/workspaces" element={<Outlet />} />
+            <Route path="/:workspaceId/*" element={<Layout />} />
+          </Route>
+        </Routes>
+      </Suspense>
+      {isRendered && (
+        <LoadingScreen
+          label="Switching workspace…"
+          className={`workspace-switch-overlay ${isVisible ? 'workspace-switch-overlay--visible' : ''}`}
+        />
+      )}
+    </>
   );
 }
