@@ -16,28 +16,27 @@
 
 /* Separator line for content sections (bullet, document, card modes) */
 .node-content-children,
-.node-content-cards,
-.node-content-empty {
+.node-content-cards {
   padding-top: var(--spacing-4);
   border-top: var(--border-width-default) solid var(--color-outline-variant);
 }
 
-/* Children/cards keep top margin for spacing from properties; empty state
-   relies on the preceding element's margin-bottom so the placeholder is
-   centered between the two divider lines. */
+/* Empty state placeholder sits below the content area; it does not add its
+   own top border so there is only one divider line above the main content. */
+.node-content-empty {
+  padding-top: var(--spacing-4);
+  margin-top: 0;
+}
+
+/* Children/cards keep top margin for spacing from properties. */
 .node-content-children,
 .node-content-cards {
   margin-top: var(--spacing-4);
 }
 
-.node-content-empty {
-  margin-top: 0;
-}
-
 @media (max-width: 768px) {
   .node-content-children,
-  .node-content-cards,
-  .node-content-empty {
+  .node-content-cards {
     padding-top: var(--spacing-2);
   }
 

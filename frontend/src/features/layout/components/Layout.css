@@ -250,11 +250,8 @@
   flex-direction: row-reverse;
 }
 
-/* Compensate for the parent gap when the sidebar inside is collapsed */
-.sidebar-wrapper:not(.sidebar-wrapper--right).sidebar-wrapper--collapsed {
-  margin-right: calc(-1 * var(--container-gap));
-}
-
+/* The left sidebar stays visible as an icon-only strip when collapsed, so keep
+   the layout gap. The right sidebar is fully hidden when collapsed. */
 .sidebar-wrapper--right.sidebar-wrapper--collapsed {
   margin-left: calc(-1 * var(--container-gap));
 }

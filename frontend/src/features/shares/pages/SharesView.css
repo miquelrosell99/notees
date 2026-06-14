@@ -14,7 +14,7 @@
   display: flex;
   align-items: center;
   gap: var(--spacing-3);
-  font: var(--font-headline-small);
+  font: var(--font-title-large);
   color: var(--color-on-surface);
   margin: 0;
 }

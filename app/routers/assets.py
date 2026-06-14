@@ -4,6 +4,7 @@ Routers are thin: validation, auth, and response formatting only.  All
 persistence and filesystem operations are delegated to the domain AssetService.
 """
 
+from collections.abc import AsyncGenerator
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -13,7 +14,15 @@ from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 
 from ..config import settings
-from ..dependencies import get_asset_service, get_current_user
+from ..db.connection import get_workspace_uuid
+from ..dependencies import (
+    _get_workspace_context_cached,
+    _make_asset_repository,
+    _make_node_repository,
+    get_asset_service,
+    get_current_user,
+    get_pool,
+)
 from ..domain.services.asset_service import (
     AssetMissingError,
     AssetPermissionError,
@@ -75,6 +84,36 @@ async def get_user_from_asset_token(asset_token: str, asset_uuid: str) -> User |
     if not user_data:
         return None
     return User(**user_data)
+
+
+async def _get_asset_service_for_request(
+    request: Request,
+    asset_token: str | None = Query(None, description="Short-lived asset access token"),
+    current_user: User | None = Depends(get_current_user_optional),
+) -> AsyncGenerator[AssetService, None]:
+    """Build an AssetService for the user resolved from JWT/API key or asset_token."""
+    user = current_user
+
+    if not user and asset_token:
+        asset_uuid = request.path_params.get("asset_uuid")
+        if asset_uuid:
+            user = await get_user_from_asset_token(asset_token, asset_uuid)
+        if not user:
+            raise HTTPException(status_code=401, detail="Invalid or expired asset token")
+
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    pool = await get_pool()
+    user_id = int(user.id)
+    workspace_id, _ = await _get_workspace_context_cached(pool, user_id)
+    workspace_uuid = await get_workspace_uuid(workspace_id)
+    if not workspace_uuid:
+        raise HTTPException(status_code=500, detail="Workspace UUID not found")
+
+    asset_repo = _make_asset_repository(pool, workspace_id, user_id)
+    node_repo = _make_node_repository(pool, workspace_id, 0, user_id)
+    yield AssetService(workspace_uuid, user_id, node_repo, asset_repo)
 
 
 class AssetResponse(BaseModel):
@@ -215,27 +254,13 @@ def _infer_content_type(file_path: Path) -> str:
 async def get_asset(
     request: Request,
     asset_uuid: str,
-    asset_token: str | None = Query(None, description="Short-lived asset access token"),
-    current_user: User | None = Depends(get_current_user_optional),
-    asset_service: AssetService = Depends(get_asset_service),
+    asset_service: AssetService = Depends(_get_asset_service_for_request),
 ):
     """Get an asset file by its UUID.
 
     Supports HTTP Range requests for seekable media playback.
-    Authentication: asset_token query parameter first, then JWT header.
+    Authentication: asset_token query parameter or JWT header.
     """
-    user = None
-    if asset_token:
-        user = await get_user_from_asset_token(asset_token, asset_uuid)
-        if not user:
-            raise HTTPException(status_code=401, detail="Invalid or expired asset token")
-
-    if not user:
-        user = current_user
-
-    if not user:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-
     file_path = asset_service.get_asset_file_path(asset_uuid)
     if file_path is None:
         raise HTTPException(status_code=404, detail="Asset not found")
@@ -289,23 +314,12 @@ async def get_asset(
 @router.get("/{asset_uuid}/thumbnail")
 async def get_asset_thumbnail(
     asset_uuid: str,
-    asset_token: str | None = Query(None, description="Short-lived asset access token"),
-    current_user: User | None = Depends(get_current_user_optional),
-    asset_service: AssetService = Depends(get_asset_service),
+    asset_service: AssetService = Depends(_get_asset_service_for_request),
 ):
-    """Get thumbnail for an image asset."""
-    user = None
-    if asset_token:
-        user = await get_user_from_asset_token(asset_token, asset_uuid)
-        if not user:
-            raise HTTPException(status_code=401, detail="Invalid or expired asset token")
+    """Get thumbnail for an image asset.
 
-    if not user:
-        user = current_user
-
-    if not user:
-        raise HTTPException(status_code=401, detail="Not authenticated")
-
+    Authentication: asset_token query parameter or JWT header.
+    """
     thumbnail_path = asset_service.file_service.get_thumbnail_path(asset_uuid)
     if not thumbnail_path.exists():
         raise HTTPException(status_code=404, detail="Thumbnail not found")

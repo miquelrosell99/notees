@@ -177,6 +177,9 @@ export function useBlockPersist(options: UseBlockPersistOptions = {}) {
       if (event.type === 'structure_changed' || event.type === 'nodes_changed') {
         persistAll();
       }
+      if (event.type === 'flush_intents_requested') {
+        persistAll();
+      }
       if (event.type === 'block_deleted' && event.serverId != null) {
         const deletedServerId = event.serverId;
 

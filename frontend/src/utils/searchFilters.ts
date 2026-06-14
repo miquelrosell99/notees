@@ -36,6 +36,8 @@ export interface ParsedFilters {
   suggestedPrefixes: FilterPrefixConfig[];
   /** UUID being searched for (when query is uuid:value) */
   uuidSearch: string | null;
+  /** Whether the query ends with a standalone colon and filter options should be shown */
+  isTypingColon: boolean;
 }
 
 /**
@@ -66,6 +68,7 @@ export function parseQueryWithFilters(query: string, appliedFilters: AppliedFilt
           isTypingFilter: true,
           suggestedPrefixes: [],
           uuidSearch: prefix === 'uuid' && value ? value : null,
+          isTypingColon: false,
         };
       }
 
@@ -77,6 +80,7 @@ export function parseQueryWithFilters(query: string, appliedFilters: AppliedFilt
           isTypingFilter: true,
           suggestedPrefixes: [],
           uuidSearch: null,
+          isTypingColon: false,
         };
       }
 
@@ -87,8 +91,22 @@ export function parseQueryWithFilters(query: string, appliedFilters: AppliedFilt
         isTypingFilter: true,
         suggestedPrefixes: [],
         uuidSearch: null,
+        isTypingColon: false,
       };
     }
+  }
+
+  // Standalone colon at the end — show the filter option popup
+  const standaloneColonMatch = query.match(/(^|\s):$/);
+  if (standaloneColonMatch) {
+    return {
+      searchTerm: query.replace(/\s*:$/, '').trim(),
+      activeFilter: null,
+      isTypingFilter: false,
+      suggestedPrefixes: [],
+      uuidSearch: null,
+      isTypingColon: true,
+    };
   }
 
   // Also support the "prefix:" with no value yet (user just typed the colon)
@@ -103,6 +121,7 @@ export function parseQueryWithFilters(query: string, appliedFilters: AppliedFilt
         isTypingFilter: true,
         suggestedPrefixes: [],
         uuidSearch: null,
+        isTypingColon: false,
       };
     }
   }
@@ -125,10 +144,11 @@ export function parseQueryWithFilters(query: string, appliedFilters: AppliedFilt
           isTypingFilter: false,
           suggestedPrefixes: matching,
           uuidSearch: null,
+          isTypingColon: false,
         };
       }
     }
   }
 
-  return { searchTerm: query, activeFilter: null, isTypingFilter: false, suggestedPrefixes: [], uuidSearch: null };
+  return { searchTerm: query, activeFilter: null, isTypingFilter: false, suggestedPrefixes: [], uuidSearch: null, isTypingColon: false };
 }

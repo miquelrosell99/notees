@@ -36,7 +36,7 @@
 }
 
 /* Border radius
-   Use --shape-card (20px) for the default content card radius.
+   Use --shape-card (16px) for the default content card radius.
    For small floating panels that need the previous 8px radius, apply the
    --shape-floating-panel token via a custom class or use radius="sm" when the
    design-system mapping is updated. */

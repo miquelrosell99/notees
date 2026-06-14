@@ -8,6 +8,7 @@ import { useNavigationStore } from '@/stores';
 import { useWorkspaceShares, useDeleteShare, useShareInbox } from '@/features/shares/hooks/useShares';
 import { switchWorkspace } from '@/features/workspace/api/workspaces';
 import { Button } from '@/components/ui/Button';
+import { Tabs } from '@/components/ui/Tabs';
 import { Icon } from '@/components/ui/icons';
 import { NodeInline } from '@/features/content/components/blocks/NodeInline';
 import { copyToClipboard } from '@/utils/clipboardManager';
@@ -38,8 +39,13 @@ export function SharesUnifiedView({ initialTab = 'shared-out' }: SharesUnifiedVi
 
   const handleOpenInboxItem = useCallback(
     async (item: NonNullable<typeof inboxData>['items'][number]) => {
-      await switchWorkspace(item.workspace.uuid);
-      openNode(item.node_id);
+      useNavigationStore.setState({ isSwitchingWorkspace: true });
+      try {
+        await switchWorkspace(item.workspace.uuid);
+        openNode(item.node_id);
+      } finally {
+        useNavigationStore.setState({ isSwitchingWorkspace: false });
+      }
     },
     [openNode]
   );
@@ -50,20 +56,12 @@ export function SharesUnifiedView({ initialTab = 'shared-out' }: SharesUnifiedVi
         <h1 className="shares-unified-view__title">
           Shares
         </h1>
-        <div className="shares-unified-view__tabs">
-          <button
-            className={`shares-unified-view__tab ${activeTab === 'shared-out' ? 'active' : ''}`}
-            onClick={() => setActiveTab('shared-out')}
-          >
-            Shared Out
-          </button>
-          <button
-            className={`shares-unified-view__tab ${activeTab === 'inbox' ? 'active' : ''}`}
-            onClick={() => setActiveTab('inbox')}
-          >
-            Inbox
-          </button>
-        </div>
+        <Tabs value={activeTab} onChange={setActiveTab}>
+          <Tabs.List>
+            <Tabs.Tab value="shared-out">Shared Out</Tabs.Tab>
+            <Tabs.Tab value="inbox">Inbox</Tabs.Tab>
+          </Tabs.List>
+        </Tabs>
       </div>
 
       {activeTab === 'shared-out' && (
