@@ -5,6 +5,7 @@ import type { UndoStackEntry } from '@/api/undo';
 import type { UndoEntry } from '@/runtime/types';
 import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
 import { nodeKeys, propertyKeys } from '@/hooks/queryKeys';
+import { useNotificationStore } from '@/stores/notificationStore';
 
 interface UnifiedUndoEntry extends UndoStackEntry {
   /** Negative IDs indicate runtime (local) entries. */
@@ -34,9 +35,7 @@ function runtimeEntryDescription(entry: UndoEntry): string {
 }
 
 /** Build synthetic UndoStackEntry rows from the runtime stacks. */
-function buildRuntimeEntries(
-  stack: UndoEntry[],
-): UnifiedUndoEntry[] {
+function buildRuntimeEntries(stack: UndoEntry[]): UnifiedUndoEntry[] {
   // Assign negative IDs based on display order (top/first = -1, next = -2, …).
   // For both undo and redo stacks we display in the same order the arrays
   // are returned: undo newest-first (reverse of storage), redo oldest-first.
@@ -47,6 +46,19 @@ function buildRuntimeEntries(
     entity_id: 0,
     description: runtimeEntryDescription(entry),
   }));
+}
+
+function notifyUndo(description: string): void {
+  useNotificationStore.getState().info('Undone', description);
+}
+
+function notifyRedo(description: string): void {
+  useNotificationStore.getState().info('Redone', description);
+}
+
+function notifyUndoRedoError(action: string, error: unknown): void {
+  const message = error instanceof Error ? error.message : 'Please try again.';
+  useNotificationStore.getState().error(`${action} failed`, message);
 }
 
 export const useUndoStore = create<UndoState>()((set, get) => ({
@@ -112,12 +124,16 @@ export const useUndoStore = create<UndoState>()((set, get) => ({
   performUndo: async (queryClient: QueryClient) => {
     const runtime = getNodeGraphRuntime();
 
+    try {
+      await runtime.flushPendingIntents();
+    } catch {
+      // Proceed with undo even if flush times out; local state is still valid.
+    }
+
     // 1. Try runtime first (local block operations are always more recent)
     const localEntry = runtime.undo();
     if (localEntry) {
-      // The reverse intent has been executed locally; it will generate its own
-      // pending intent that useBlockPersist will sync. Invalidate broad caches
-      // so TanStack Query reconciles with the runtime state.
+      notifyUndo(runtimeEntryDescription(localEntry));
       await queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
       await get().refreshStack();
       return;
@@ -126,9 +142,11 @@ export const useUndoStore = create<UndoState>()((set, get) => ({
     // 2. Fall back to backend undo log
     try {
       const result = await undoApi.undo();
+      notifyUndo(result.description);
       await invalidateForEntity(queryClient, result.entity_type, result.entity_id);
       await get().refreshStack();
-    } catch {
+    } catch (error) {
+      notifyUndoRedoError('Undo', error);
       await get().refreshStack();
     }
   },
@@ -136,19 +154,33 @@ export const useUndoStore = create<UndoState>()((set, get) => ({
   performRedo: async (queryClient: QueryClient) => {
     const runtime = getNodeGraphRuntime();
 
+    try {
+      await runtime.flushPendingIntents();
+    } catch {
+      // Proceed even if flush times out.
+    }
+
     // 1. Try backend first (backend redos are the most recently undone persisted ops)
     try {
       const result = await undoApi.redo();
+      notifyRedo(result.description);
       await invalidateForEntity(queryClient, result.entity_type, result.entity_id);
       await get().refreshStack();
       return;
-    } catch {
+    } catch (error) {
       // 404 = nothing on backend to redo — fall through to runtime
+      const apiError = error as { response?: { status?: number } };
+      if (apiError.response?.status !== 404) {
+        notifyUndoRedoError('Redo', error);
+        await get().refreshStack();
+        return;
+      }
     }
 
     // 2. Fall back to runtime redo stack
     const localEntry = runtime.redo();
     if (localEntry) {
+      notifyRedo(runtimeEntryDescription(localEntry));
       await queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
       await get().refreshStack();
     } else {
@@ -159,12 +191,21 @@ export const useUndoStore = create<UndoState>()((set, get) => ({
   performUndoTo: async (queryClient: QueryClient, entryId: number) => {
     const runtime = getNodeGraphRuntime();
 
+    try {
+      await runtime.flushPendingIntents();
+    } catch {
+      // Proceed even if flush times out.
+    }
+
     if (entryId < 0) {
       // Target is a runtime entry — undo N times where N is the display position.
       const steps = Math.abs(entryId);
+      let lastDescription = '';
       for (let i = 0; i < steps; i++) {
-        runtime.undo();
+        const entry = runtime.undo();
+        if (entry) lastDescription = runtimeEntryDescription(entry);
       }
+      if (lastDescription) notifyUndo(lastDescription);
       await queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
       await get().refreshStack();
       return;
@@ -173,11 +214,15 @@ export const useUndoStore = create<UndoState>()((set, get) => ({
     // Target is a backend entry
     try {
       const results = await undoApi.undoTo(entryId);
+      if (results.length > 0) {
+        notifyUndo(results[0].description);
+      }
       for (const r of results) {
         await invalidateForEntity(queryClient, r.entity_type, r.entity_id);
       }
       await get().refreshStack();
-    } catch {
+    } catch (error) {
+      notifyUndoRedoError('Undo', error);
       await get().refreshStack();
     }
   },
@@ -185,12 +230,21 @@ export const useUndoStore = create<UndoState>()((set, get) => ({
   performRedoTo: async (queryClient: QueryClient, entryId: number) => {
     const runtime = getNodeGraphRuntime();
 
+    try {
+      await runtime.flushPendingIntents();
+    } catch {
+      // Proceed even if flush times out.
+    }
+
     if (entryId < 0) {
       // Target is a runtime entry — redo N times where N is the display position.
       const steps = Math.abs(entryId);
+      let lastDescription = '';
       for (let i = 0; i < steps; i++) {
-        runtime.redo();
+        const entry = runtime.redo();
+        if (entry) lastDescription = runtimeEntryDescription(entry);
       }
+      if (lastDescription) notifyRedo(lastDescription);
       await queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
       await get().refreshStack();
       return;
@@ -199,11 +253,15 @@ export const useUndoStore = create<UndoState>()((set, get) => ({
     // Target is a backend entry
     try {
       const results = await undoApi.redoTo(entryId);
+      if (results.length > 0) {
+        notifyRedo(results[results.length - 1].description);
+      }
       for (const r of results) {
         await invalidateForEntity(queryClient, r.entity_type, r.entity_id);
       }
       await get().refreshStack();
-    } catch {
+    } catch (error) {
+      notifyUndoRedoError('Redo', error);
       await get().refreshStack();
     }
   },
@@ -213,8 +271,9 @@ export const useUndoStore = create<UndoState>()((set, get) => ({
     runtime.clearUndoRedo();
     try {
       await undoApi.clearHistory();
-    } catch {
-      // ignore
+      useNotificationStore.getState().success('History cleared', 'Undo/redo history has been cleared.');
+    } catch (error) {
+      notifyUndoRedoError('Clear history', error);
     }
     set({ canUndo: false, canRedo: false, undoEntries: [], redoEntries: [] });
   },

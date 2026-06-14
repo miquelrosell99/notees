@@ -422,15 +422,6 @@ export const ListView = memo(function ListView({
     );
   }
 
-  // Early return if no nodes
-  if (allNodes.length === 0) {
-    return (
-      <div className={`node-list-view node-list-view--empty ${sizeClass} ${className}`}>
-        <span className="node-list-view__empty-message">Nothing to show</span>
-      </div>
-    );
-  }
-
   // Non-grouped breadcrumb mode: show full NodeBreadcrumbs above each top-level node.
   if (showBreadcrumbs) {
     return (

@@ -20,10 +20,8 @@
 
 .node-collection-view__title {
   margin: 0;
-  font-size: var(--font-headline-medium);
-  font-weight: 600;
+  font: var(--font-title-large);
   color: var(--color-on-surface);
-  line-height: 1.3;
 }
 
 .node-collection-view__count {

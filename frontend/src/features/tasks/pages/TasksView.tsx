@@ -7,9 +7,9 @@
  */
 import { useState, useCallback, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { Icon } from '@/components/ui/Icon';
 import { NodeCollection } from '@/features/content';
 import { Button } from '@/components/ui/Button';
+import { Tabs } from '@/components/ui/Tabs';
 import { DataStateView } from '@/components/ui/DataStateView';
 import { useNavigationStore } from '@/stores';
 import { useSystemClasses } from '@/hooks/usePageClass';
@@ -141,17 +141,15 @@ export function TasksView() {
 
       {/* Tabs */}
       <div className="tasks-view__tabs">
-        {TABS.map((tab) => (
-          <button
-            key={tab.key}
-            className={`tasks-view__tab ${activeTab === tab.key ? 'tasks-view__tab--active' : ''}`}
-            onClick={() => setActiveTab(tab.key)}
-            type="button"
-          >
-            <Icon path={tab.icon} />
-            <span>{tab.label}</span>
-          </button>
-        ))}
+        <Tabs value={activeTab} onChange={setActiveTab}>
+          <Tabs.List>
+            {TABS.map((tab) => (
+              <Tabs.Tab key={tab.key} value={tab.key} icon={tab.icon}>
+                {tab.label}
+              </Tabs.Tab>
+            ))}
+          </Tabs.List>
+        </Tabs>
       </div>
 
       {/* Content */}

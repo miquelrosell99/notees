@@ -159,9 +159,10 @@ const SortableFavoriteItem = memo(function SortableFavoriteItem({
 
 interface SidebarFavoritesProps {
   onContextMenu: (nodeId: number, e: React.MouseEvent) => void;
+  onItemClick?: () => void;
 }
 
-export function SidebarFavorites({ onContextMenu }: SidebarFavoritesProps) {
+export function SidebarFavorites({ onContextMenu, onItemClick }: SidebarFavoritesProps) {
   const [expanded, setExpanded] = useState(true);
   const { data: favoritesData } = useFavorites();
   const favorites = favoritesData ?? [];
@@ -186,7 +187,8 @@ export function SidebarFavorites({ onContextMenu }: SidebarFavoritesProps) {
       openNode(nodeId);
       closeMobileDrawer();
     }
-  }, [openNode, openNodeInNewTab, closeMobileDrawer]);
+    onItemClick?.();
+  }, [openNode, openNodeInNewTab, closeMobileDrawer, onItemClick]);
 
   const removeFavoriteMutation = useRemoveFavoriteMutation();
   const reorderFavoritesMutation = useReorderFavoritesMutation();

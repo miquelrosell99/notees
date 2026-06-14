@@ -78,9 +78,10 @@ const RecentItem = memo(function RecentItem({ nodeId, isActive, onClick, onNavig
 
 interface SidebarRecentsProps {
   onContextMenu: (nodeId: number, e: React.MouseEvent) => void;
+  onItemClick?: () => void;
 }
 
-export function SidebarRecents({ onContextMenu }: SidebarRecentsProps) {
+export function SidebarRecents({ onContextMenu, onItemClick }: SidebarRecentsProps) {
   const [expanded, setExpanded] = useState(true);
   const { data: recentsData } = useRecents();
   const recents = recentsData ?? [];
@@ -105,12 +106,14 @@ export function SidebarRecents({ onContextMenu }: SidebarRecentsProps) {
       openNode(nodeId);
       closeMobileDrawer();
     }
-  }, [openNode, openNodeInNewTab, closeMobileDrawer]);
+    onItemClick?.();
+  }, [openNode, openNodeInNewTab, closeMobileDrawer, onItemClick]);
 
   const handleBreadcrumbNavigate = useCallback((nodeId: number) => {
     openNode(nodeId);
     closeMobileDrawer();
-  }, [openNode, closeMobileDrawer]);
+    onItemClick?.();
+  }, [openNode, closeMobileDrawer, onItemClick]);
 
   return (
     <div className="sidebar-section">

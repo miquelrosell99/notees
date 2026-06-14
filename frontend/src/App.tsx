@@ -18,11 +18,13 @@ import { ErrorBoundary } from './components/ui/ErrorBoundary';
 import { KeyboardShortcutsProvider } from './hooks/KeyboardShortcutsProvider';
 import { useGlobalKeyboardListener } from './hooks/useGlobalKeyboardListener';
 import { useCommand } from './hooks/useCommand';
+import { useUndoStackPersistence } from './hooks/useUndoStackPersistence';
 import { COMMAND_IDS } from './stores/commandRegistry';
 import { DndProvider } from './providers/DndProvider';
 import { useUndoStore } from './stores';
 import { useAndroidBridge } from './hooks';
 import { AppRoutes } from './features/layout/components/AppRoutes';
+import { CommandRegistrations } from './features/commands';
 import { getLogger } from './utils/logger';
 import './App.css';
 import './focus-mode.css';
@@ -35,23 +37,18 @@ const log = getLogger('App');
  */
 function GlobalKeyboardHandler() {
   useGlobalKeyboardListener();
+  useUndoStackPersistence();
 
   // Register global commands in the Command Registry
   useCommand(COMMAND_IDS.UNDO, () => {
-    const active = document.activeElement;
-    if (active?.closest('[data-lexical-editor]')) return false;
     useUndoStore.getState().performUndo(queryClient);
   }, { label: 'Undo' });
 
   useCommand(COMMAND_IDS.REDO, () => {
-    const active = document.activeElement;
-    if (active?.closest('[data-lexical-editor]')) return false;
     useUndoStore.getState().performRedo(queryClient);
   }, { label: 'Redo' });
 
   useCommand(COMMAND_IDS.REDO_ALT, () => {
-    const active = document.activeElement;
-    if (active?.closest('[data-lexical-editor]')) return false;
     useUndoStore.getState().performRedo(queryClient);
   }, { label: 'Redo' });
 
@@ -166,6 +163,7 @@ function App() {
         <KeyboardShortcutsProvider>
           <DndProvider>
             <GlobalKeyboardHandler />
+            <CommandRegistrations />
             <BrowserRouter>
               <ErrorBoundary context="App">
                 <AppContent />

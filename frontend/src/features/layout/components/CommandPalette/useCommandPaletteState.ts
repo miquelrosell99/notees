@@ -26,7 +26,8 @@ import { useNotifications } from '@/stores/notificationStore';
 import { parseDate, generateDateUuid, type ParsedDate } from '@/utils/dateParser';
 import { nodeKeys } from '@/hooks/queryKeys';
 import { parseQueryWithFilters } from '@/utils/searchFilters';
-import type { AppliedFilter, DuplicateModalState, CommandDef } from './CommandPalette.types';
+import { useCommandRegistry, type Command } from '@/stores/commandRegistry';
+import type { AppliedFilter, DuplicateModalState } from './CommandPalette.types';
 import {
   INITIAL_MAX_PAGES,
   INITIAL_MAX_BLOCKS,
@@ -42,6 +43,7 @@ export function useCommandPaletteState({ isOpen, onClose }: UseCommandPaletteSta
   const [query, setQuery] = useState('');
   const [appliedFilters, setAppliedFilters] = useState<AppliedFilter[]>([]);
   const [classPopupPosition, setClassPopupPosition] = useState<{ top: number; left: number } | null>(null);
+  const [filterPrefixPopupPosition, setFilterPrefixPopupPosition] = useState<{ top: number; left: number } | null>(null);
   const [duplicateModal, setDuplicateModal] = useState<DuplicateModalState>({
     isOpen: false,
     pageName: '',
@@ -55,7 +57,7 @@ export function useCommandPaletteState({ isOpen, onClose }: UseCommandPaletteSta
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const { quickAddDestination, dateFormat, showDevOptions } = useSettingsStore();
+  const { quickAddDestination, dateFormat } = useSettingsStore();
 
   const { error: notifyError } = useNotifications();
   const createNodeMutation = useCreateNode();
@@ -73,7 +75,7 @@ export function useCommandPaletteState({ isOpen, onClose }: UseCommandPaletteSta
   );
 
   // Parse query for filter prefix syntax (class:, uuid:, is_page:, etc.)
-  const { searchTerm, isTypingFilter, activeFilter, suggestedPrefixes, uuidSearch } = useMemo(
+  const { searchTerm, isTypingFilter, activeFilter, suggestedPrefixes, uuidSearch, isTypingColon } = useMemo(
     () => parseQueryWithFilters(query, appliedFilters), [query, appliedFilters]
   );
 
@@ -175,34 +177,16 @@ export function useCommandPaletteState({ isOpen, onClose }: UseCommandPaletteSta
     return pd.label;
   }, [dateFormat]);
 
-  // Command definitions for the palette
-  const commands = useMemo<CommandDef[]>(() => {
-    const cmds: CommandDef[] = [
-      { id: 'import-logseq', label: 'Import Logseq', icon: 'import' },
-      { id: 'import-logseq-folder', label: 'Import Logseq Markdown folder', icon: 'import' },
-      { id: 'import-markdown', label: 'Import Markdown files', icon: 'import' },
-      { id: 'export-page', label: 'Export current page', icon: 'export', requiresPage: true },
-      { id: 'rebuild-links', label: 'Rebuild links from AST', icon: 'maintenance' },
-      { id: 'fix-raw-links', label: 'Fix raw UUID links', icon: 'maintenance', devOnly: true },
-      { id: 'toggle-focus-mode', label: 'Toggle Focus Mode', icon: 'focus' },
-      { id: 'merge-pages', label: 'Merge pages', icon: 'merge' },
-      { id: 'create-page-with-uuid', label: 'Create node with custom UUID', icon: 'uuid', devOnly: true },
-      { id: 'reset-views', label: 'Reset views to defaults (current node)', icon: 'maintenance', requiresPage: true, devOnly: true },
-      { id: 'open-random-page', label: 'Open random page', icon: 'random' },
-      { id: 'toggle-minimap', label: 'Toggle minimap', icon: 'minimap' },
-      { id: 'toggle-local-graph', label: 'Toggle local graph', icon: 'graph', requiresPage: true },
-      { id: 'toggle-wide-mode', label: 'Toggle wide mode', icon: 'expand' },
-      { id: 'start-presentation', label: 'Start presentation', icon: 'presentation' },
-      { id: 'open-broken-links', label: 'Open node list: Broken links', icon: 'maintenance' },
-      { id: 'share-page', label: 'Share current page', icon: 'share', requiresPage: true },
-      { id: 'toggle-private', label: 'Toggle page privacy', icon: 'lock', requiresPage: true },
-      { id: 'force-reexport-markdown', label: 'Force re-export all pages to markdown', icon: 'sync', devOnly: true },
-      { id: 'open-tasks', label: 'Open Tasks', icon: 'maintenance' },
-      { id: 'open-today', label: 'Open Today', icon: 'focus' },
-      { id: 'capture-task', label: 'Capture task', icon: 'import' },
-    ];
-    return cmds.filter(cmd => !cmd.devOnly || showDevOptions);
-  }, [showDevOptions]);
+  // Command definitions for the palette — read from the global CommandRegistry.
+  // Read the raw Map (stable reference) and derive the palette list in useMemo
+  // instead of using getPaletteCommands() directly, because the latter returns a
+  // new array on every call and triggers React's "getSnapshot should be cached"
+  // infinite-loop warning when used as a Zustand selector.
+  const allCommands = useCommandRegistry((state) => state.commands);
+  const commands = useMemo<Command[]>(
+    () => Array.from(allCommands.values()).filter((c) => c.palette && c.palette.visible !== false),
+    [allCommands]
+  );
 
   // Empty-state sections: recently accessed, recently created, random pages
   const [recentAccessedPages, setRecentAccessedPages] = useState<RecentPage[]>([]);
@@ -249,6 +233,19 @@ export function useCommandPaletteState({ isOpen, onClose }: UseCommandPaletteSta
       setClassPopupPosition(null);
     }
   }, [isTypingClass]);
+
+  // Calculate filter prefix popup position when typing a standalone colon
+  useEffect(() => {
+    if (isTypingColon && inputRef.current) {
+      const inputRect = inputRef.current.getBoundingClientRect();
+      setFilterPrefixPopupPosition({
+        top: inputRect.bottom + 4,
+        left: inputRect.left,
+      });
+    } else {
+      setFilterPrefixPopupPosition(null);
+    }
+  }, [isTypingColon]);
 
   // Handle class selection from popup
   const handleClassSelect = useCallback((classNode: Node) => {
@@ -300,6 +297,20 @@ export function useCommandPaletteState({ isOpen, onClose }: UseCommandPaletteSta
     inputRef.current?.focus();
   }, [query]);
 
+  // Handle selecting a filter prefix from the standalone-colon popup
+  const handleFilterPrefixSelect = useCallback((prefix: string) => {
+    const beforeColon = query.replace(/\s*:$/, '');
+    setQuery(beforeColon ? `${beforeColon} ${prefix}:` : `${prefix}:`);
+    inputRef.current?.focus();
+  }, [query]);
+
+  // Close the standalone-colon popup and remove the trailing colon
+  const handleFilterPrefixClose = useCallback(() => {
+    const beforeColon = query.replace(/\s*:$/, '');
+    setQuery(beforeColon);
+    inputRef.current?.focus();
+  }, [query]);
+
   // Handle creating a new class from popup
   const handleClassCreate = useCallback(async (name: string) => {
     if (!classClassId || !pageClassId) return;
@@ -343,6 +354,8 @@ export function useCommandPaletteState({ isOpen, onClose }: UseCommandPaletteSta
     setAppliedFilters,
     classPopupPosition,
     setClassPopupPosition,
+    filterPrefixPopupPosition,
+    setFilterPrefixPopupPosition,
     duplicateModal,
     setDuplicateModal,
     maxPages,
@@ -363,6 +376,7 @@ export function useCommandPaletteState({ isOpen, onClose }: UseCommandPaletteSta
     classQuery,
     isTypingBoolean,
     booleanOptions,
+    isTypingColon,
     debouncedSearchTerm,
     classFilter,
     booleanFilters,
@@ -391,6 +405,8 @@ export function useCommandPaletteState({ isOpen, onClose }: UseCommandPaletteSta
     handleRemoveFilter,
     handleBooleanSelect,
     handlePrefixSelect,
+    handleFilterPrefixSelect,
+    handleFilterPrefixClose,
     handleClassCreate,
     handleBackdropClick,
     pageClassId,

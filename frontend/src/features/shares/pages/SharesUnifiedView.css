@@ -20,39 +20,16 @@
   display: flex;
   align-items: center;
   gap: var(--spacing-3);
-  font: var(--font-headline-small);
+  font: var(--font-title-large);
   color: var(--color-on-surface);
   margin: 0;
 }
 
 .shares-unified-view__tabs {
   display: flex;
-  gap: var(--spacing-2);
   border-bottom: var(--border-width-default) solid var(--color-outline-variant);
   padding: 0 var(--spacing-6) var(--spacing-1);
   flex-shrink: 0;
-}
-
-.shares-unified-view__tab {
-  padding: var(--spacing-2) var(--spacing-4);
-  border: none;
-  background: transparent;
-  color: var(--color-on-surface-variant);
-  font: var(--font-label-medium);
-  cursor: pointer;
-  border-radius: var(--shape-medium);
-  transition: background var(--motion-duration-short) var(--motion-easing-standard),
-              color var(--motion-duration-short) var(--motion-easing-standard);
-}
-
-.shares-unified-view__tab:hover {
-  background: var(--color-surface-container);
-}
-
-.shares-unified-view__tab.active {
-  background: var(--color-surface-container-high);
-  color: var(--color-on-surface);
-  font-weight: 600;
 }
 
 .shares-unified-view__panel {

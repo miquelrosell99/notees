@@ -220,6 +220,9 @@ export function useStructureSync(options: UseStructureSyncOptions = {}) {
           syncAllPending();
         }, delay);
       }
+      if (event.type === 'flush_intents_requested') {
+        flush();
+      }
     });
 
     syncAllPending();
@@ -234,7 +237,7 @@ export function useStructureSync(options: UseStructureSyncOptions = {}) {
         coordinator.activeInstanceId = null;
       }
     };
-  }, [enabled, delay, syncAllPending]);
+  }, [enabled, delay, syncAllPending, flush]);
 
   return { flush };
 }

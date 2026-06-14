@@ -32,6 +32,23 @@ export type ShortcutContext =
   | 'sidebar'       // Active when sidebar is focused
   | 'search';       // Active when search is focused
 
+export type PaletteCommandCategory =
+  | 'navigation'
+  | 'view'
+  | 'page'
+  | 'tools'
+  | 'import-export'
+  | 'developer';
+
+export interface PaletteCommandMeta {
+  /** Display category used for sorting/grouping in the command palette */
+  category?: PaletteCommandCategory;
+  /** Whether the command appears in the command palette (default true if palette is provided) */
+  visible?: boolean;
+  /** Optional extra search keywords */
+  keywords?: string[];
+}
+
 export interface Command {
   /** Unique identifier (e.g. 'commandPalette.open', 'page.find') */
   id: string;
@@ -46,7 +63,9 @@ export interface Command {
   /** Context where this command is active */
   context: ShortcutContext;
   /** The function to run when the command is invoked */
-  execute: () => void | boolean;
+  execute: () => void | boolean | Promise<void> | Promise<boolean>;
+  /** Palette-specific metadata; presence indicates the command should appear in the palette */
+  palette?: PaletteCommandMeta;
 }
 
 interface CommandRegistryState {
@@ -70,6 +89,9 @@ interface CommandRegistryState {
 
   /** Get commands filtered by context */
   getCommandsByContext: (context: ShortcutContext) => Command[];
+
+  /** Get commands that should appear in the command palette */
+  getPaletteCommands: () => Command[];
 }
 
 export const useCommandRegistry = create<CommandRegistryState>((set, get) => ({
@@ -104,6 +126,9 @@ export const useCommandRegistry = create<CommandRegistryState>((set, get) => ({
 
   getCommandsByContext: (context) =>
     Array.from(get().commands.values()).filter((c) => c.context === context),
+
+  getPaletteCommands: () =>
+    Array.from(get().commands.values()).filter((c) => c.palette && c.palette.visible !== false),
 }));
 
 /**
@@ -173,12 +198,24 @@ export const COMMAND_IDS = {
   OPEN_RANDOM_PAGE: 'nav.randomPage',
   OPEN_BROKEN_LINKS: 'nav.brokenLinks',
   OPEN_TASKS: 'nav.tasks',
+  OPEN_TODAY: 'nav.today',
   CAPTURE_TASK: 'task.capture',
   FORCE_REEXPORT: 'data.forceReexport',
+
+  // View navigation (command palette)
+  OPEN_JOURNALS: 'view.journals',
+  OPEN_TASKS_VIEW: 'view.tasks',
+  OPEN_ALL_PAGES: 'view.allPages',
+  OPEN_PAGES: 'view.pages',
 } as const;
 
-/** Helper hook for registering a command in a component */
+/** Module-level command registration (useful for static/feature registrations). */
 export function registerCommand(command: Command): () => void {
   useCommandRegistry.getState().registerCommand(command);
   return () => useCommandRegistry.getState().unregisterCommand(command.id);
+}
+
+/** Module-level command unregistration. */
+export function unregisterCommand(id: string): void {
+  useCommandRegistry.getState().unregisterCommand(id);
 }

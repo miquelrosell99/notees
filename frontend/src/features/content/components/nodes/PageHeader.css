@@ -13,7 +13,6 @@
   padding: var(--spacing-6);
   background: var(--color-surface-container);
   border-radius: var(--shape-medium);
-  border-left: var(--page-header-accent-border-width) solid var(--color-accent);
 }
 
 /* Title row: Icon + Title horizontally */

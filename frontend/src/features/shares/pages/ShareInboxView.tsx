@@ -16,8 +16,13 @@ export function ShareInboxView() {
 
   const handleOpen = useCallback(
     async (item: NonNullable<typeof data>['items'][number]) => {
-      await switchWorkspace(item.workspace.uuid);
-      openNode(item.node_id);
+      useNavigationStore.setState({ isSwitchingWorkspace: true });
+      try {
+        await switchWorkspace(item.workspace.uuid);
+        openNode(item.node_id);
+      } finally {
+        useNavigationStore.setState({ isSwitchingWorkspace: false });
+      }
     },
     [openNode]
   );

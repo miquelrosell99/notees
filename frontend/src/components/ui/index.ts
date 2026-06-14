@@ -34,6 +34,7 @@ export * from './Separator';
 export * from './Slider';
 export * from './TableCreationModal';
 export * from './TableSizeSelector';
+export * from './Tabs';
 export * from './TaskProgress';
 export * from './TaskReport';
 export * from './TextField';

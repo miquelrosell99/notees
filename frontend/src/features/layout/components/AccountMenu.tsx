@@ -4,9 +4,9 @@
  * Square button with user profile initial that shows a dropdown menu
  * with User Settings, Workspaces, and Log Out actions.
  */
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { useAuthStore, useModalStore } from '@/stores';
+import { useAuthStore } from '@/stores';
 import { useNotifications } from '@/hooks/useNotifications';
 import { NotificationPanel } from './NotificationBell';
 
@@ -16,23 +16,48 @@ import { useClickOutside } from '@/hooks/useClickOutside';
 import { useEscapeKey } from '@/hooks/useEscapeKey';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
 import { isAndroidApp } from '@/hooks/useAndroidBridge';
+import { cn } from '@/utils/cn';
 import './AccountMenu.css';
 import { Icon } from '@/components/ui/icons';
 
 interface AccountMenuProps {
   onOpenUserSettings: () => void;
   onOpenSystemSettings?: () => void;
+  /** Open workspace/graph-level Settings (e.g. date format, sidebar visibility). */
+  onOpenSettings?: () => void;
+  /** Open the shared pages view. */
+  onOpenShares?: () => void;
+  className?: string;
+  /** Custom trigger button. Receives a ref that must be attached to a button element. */
+  renderTrigger?: (props: {
+    ref: React.RefObject<HTMLButtonElement | null>;
+    onClick: () => void;
+    isOpen: boolean;
+    label: string;
+  }) => ReactNode;
+  /** Dropdown placement relative to the trigger. Defaults to opening below. */
+  placement?: 'bottom' | 'top';
+  /** Horizontal alignment of the dropdown relative to the trigger. Defaults to right. */
+  align?: 'left' | 'right';
 }
 
-export function AccountMenu({ onOpenUserSettings, onOpenSystemSettings }: AccountMenuProps) {
+export function AccountMenu({
+  onOpenUserSettings,
+  onOpenSystemSettings,
+  onOpenSettings,
+  onOpenShares,
+  className,
+  renderTrigger,
+  placement = 'bottom',
+  align = 'right',
+}: AccountMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
+  const [menuPos, setMenuPos] = useState<{ top?: number; bottom?: number; left?: number; right?: number } | null>(null);
   const [notificationPanel, setNotificationPanel] = useState<{ open: boolean; filter?: string; title?: string }>({ open: false });
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
   const { user, logout } = useAuthStore();
-  const { setShowWorkspaceManager } = useModalStore();
   const { data: notificationsData } = useNotifications(false);
 
   // Trap focus inside the account dropdown while it is open and return focus on close
@@ -56,11 +81,21 @@ export function AccountMenu({ onOpenUserSettings, onOpenSystemSettings }: Accoun
   const updatePosition = useCallback(() => {
     if (!triggerRef.current) return;
     const rect = triggerRef.current.getBoundingClientRect();
-    setMenuPos({
-      top: rect.bottom + 8,
-      left: rect.right,
-    });
-  }, []);
+    const horizontal = align === 'left'
+      ? { left: rect.left }
+      : { right: window.innerWidth - rect.right };
+    if (placement === 'top') {
+      setMenuPos({
+        bottom: window.innerHeight - rect.top + 8,
+        ...horizontal,
+      });
+    } else {
+      setMenuPos({
+        top: rect.bottom + 8,
+        ...horizontal,
+      });
+    }
+  }, [placement, align]);
 
   useEffect(() => {
     if (isOpen) {
@@ -90,9 +125,14 @@ export function AccountMenu({ onOpenUserSettings, onOpenSystemSettings }: Accoun
     onOpenSystemSettings?.();
   };
 
-  const handleManageGraphs = () => {
+  const handleSettings = () => {
     setIsOpen(false);
-    setShowWorkspaceManager(true);
+    onOpenSettings?.();
+  };
+
+  const handleShares = () => {
+    setIsOpen(false);
+    onOpenShares?.();
   };
 
   const handleLogout = () => {
@@ -114,20 +154,28 @@ export function AccountMenu({ onOpenUserSettings, onOpenSystemSettings }: Accoun
   const initial = displayName.charAt(0).toUpperCase() || '?';
 
   return (
-    <div className="account-menu">
-      <Button
-        ref={triggerRef}
-        variant="ghost"
-        size="sm"
-        onClick={() => setIsOpen(!isOpen)}
-        title={displayName}
-        active={isOpen}
-      >
-        <span className="account-menu__button-inner">
-          {initial}
-          {unreadCount > 0 && <span className="account-menu__notification-dot" />}
-        </span>
-      </Button>
+    <div className={cn('account-menu', className)}>
+      {renderTrigger ? (
+        renderTrigger({
+          ref: triggerRef,
+          onClick: () => setIsOpen(!isOpen),
+          isOpen,
+          label: displayName,
+        })
+      ) : (
+        <Button
+          ref={triggerRef}
+          variant="ghost"
+          size="sm"
+          icon="mdi mdi-account"
+          onClick={() => setIsOpen(!isOpen)}
+          title={displayName}
+          active={isOpen}
+          badges={unreadCount > 0 ? [{ count: unreadCount, position: 'top-right' }] : undefined}
+        >
+          {displayName}
+        </Button>
+      )}
 
       {isOpen && menuPos && createPortal(
         <Card
@@ -137,8 +185,8 @@ export function AccountMenu({ onOpenUserSettings, onOpenSystemSettings }: Accoun
           padding={false}
           style={{
             position: 'fixed',
-            top: `${menuPos.top}px`,
-            right: `${window.innerWidth - menuPos.left}px`,
+            ...(menuPos.top !== undefined ? { top: `${menuPos.top}px` } : { bottom: `${menuPos.bottom}px` }),
+            ...(menuPos.left !== undefined ? { left: `${menuPos.left}px` } : { right: `${menuPos.right}px` }),
           }}
         >
           <div className="account-menu__user-info">
@@ -157,14 +205,23 @@ export function AccountMenu({ onOpenUserSettings, onOpenSystemSettings }: Accoun
             {unreadMentions > 0 && <span className="account-menu__badge">{unreadMentions}</span>}
           </button>
           <div className="account-menu__divider" />
+          {onOpenShares && (
+            <button className="account-menu__item" onClick={handleShares}>
+              <Icon path={"mdi mdi-share-variant"} size={0.7} />
+              <span>Shares</span>
+            </button>
+          )}
+          <div className="account-menu__divider" />
           <button className="account-menu__item" onClick={handleUserSettings}>
-            <Icon path={"mdi mdi-cog"} size={0.7} />
+            <Icon path={"mdi mdi-account-outline"} size={0.7} />
             <span>User Settings</span>
           </button>
-          <button className="account-menu__item" onClick={handleManageGraphs}>
-            <Icon path={"mdi mdi-database-outline"} size={0.7} />
-            <span>Workspaces</span>
-          </button>
+          {onOpenSettings && (
+            <button className="account-menu__item" onClick={handleSettings}>
+              <Icon path={"mdi mdi-cog"} size={0.7} />
+              <span>Settings</span>
+            </button>
+          )}
           {user?.role === 'admin' && onOpenSystemSettings && (
             <button className="account-menu__item" onClick={handleSystemSettings}>
               <Icon path={"mdi mdi-account-cog"} size={0.7} />
@@ -195,8 +252,8 @@ export function AccountMenu({ onOpenUserSettings, onOpenSystemSettings }: Accoun
           className="account-menu__notification-panel"
           style={{
             position: 'fixed',
-            top: `${menuPos.top}px`,
-            right: `${window.innerWidth - menuPos.left}px`,
+            ...(menuPos.top !== undefined ? { top: `${menuPos.top}px` } : { bottom: `${menuPos.bottom}px` }),
+            ...(menuPos.left !== undefined ? { left: `${menuPos.left}px` } : { right: `${menuPos.right}px` }),
           }}
         >
           <NotificationPanel

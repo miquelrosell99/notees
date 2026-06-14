@@ -19,9 +19,17 @@ export const Pill: React.FC<PillProps> = ({
   color,
   className = '',
 }) => {
-  const handleRightIconClick = (e: React.MouseEvent) => {
+  const handleRightIconClick = (e: React.MouseEvent | React.KeyboardEvent) => {
     e.stopPropagation();
     onRightIconClick?.();
+  };
+
+  const handleRightIconKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      e.stopPropagation();
+      onRightIconClick?.();
+    }
   };
 
   const pillStyle = color
@@ -46,14 +54,16 @@ export const Pill: React.FC<PillProps> = ({
       </span>
       
       {rightIcon && (
-        <button
+        <span
           className="pill__right-button"
+          role="button"
+          tabIndex={0}
           onClick={handleRightIconClick}
-          type="button"
+          onKeyDown={handleRightIconKeyDown}
           aria-label="Remove"
         >
           {rightIcon}
-        </button>
+        </span>
       )}
     </div>
   );

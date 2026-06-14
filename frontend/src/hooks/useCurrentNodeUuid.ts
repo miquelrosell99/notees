@@ -5,6 +5,7 @@ import { useParams } from 'react-router-dom';
 import { isUuid } from '@/utils/uuid';
 
 export function useCurrentNodeUuid(): string | null {
-  const { entityUuid } = useParams<{ entityUuid?: string }>();
+  const params = useParams();
+  const entityUuid = params['*'];
   return entityUuid && isUuid(entityUuid) ? entityUuid : null;
 }

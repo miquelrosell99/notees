@@ -6,7 +6,7 @@
  * send focus/blur/block-update events without prop-drilling.
  */
 
-import { useAuthStore } from '@/features/auth/stores/authStore';
+import { getAuthToken } from '@/utils/auth';
 
 export interface LiveSyncUser {
   id: number;
@@ -121,7 +121,7 @@ class LiveSyncManager {
     const nodeUuid = this.nodeUuid;
     if (!nodeUuid) return;
 
-    const token = useAuthStore.getState().token;
+    const token = getAuthToken();
     if (!token) return;
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';

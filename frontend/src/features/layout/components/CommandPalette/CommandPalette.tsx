@@ -13,11 +13,13 @@
 import './CommandPalette.css';
 import { useCommandPalette } from './useCommandPalette';
 import { ResultItem } from './CommandPaletteResult';
+import { FilterPrefixPopup } from './FilterPrefixPopup';
 import { SuggestionPopup } from '@/features/content/components/nodes/SuggestionPopup';
 import { NodeRef } from '@/features/content/components/nodes/NodeRef';
 import { DuplicatePageModal } from '@/features/layout/components/Modals';
 import { Button } from '@/components/ui/Button';
-import { Icon, AddIcon, CalendarIcon, ImportIcon, CheckIcon, ChevronRightIcon } from '@/components/ui/icons';
+import { Icon, AddIcon, CalendarIcon, CheckIcon, ChevronRightIcon } from '@/components/ui/icons';
+import { useCommandRegistry } from '@/stores/commandRegistry';
 
 import type { CommandPaletteProps } from './CommandPalette.types';
 
@@ -29,12 +31,14 @@ export function CommandPalette(props: CommandPaletteProps) {
     setQuery,
     appliedFilters,
     classPopupPosition,
+    filterPrefixPopupPosition,
     duplicateModal,
     setDuplicateModal,
     inputRef,
     containerRef,
     isTypingClass,
     isTypingFilter,
+    isTypingColon,
     classQuery,
     isLoading,
     debouncedSearchTerm,
@@ -47,6 +51,8 @@ export function CommandPalette(props: CommandPaletteProps) {
     handleSelect,
     handleClassSelect,
     handleRemoveFilter,
+    handleFilterPrefixSelect,
+    handleFilterPrefixClose,
     handleClassCreate,
     handleBackdropClick,
     groupedItems,
@@ -59,6 +65,17 @@ export function CommandPalette(props: CommandPaletteProps) {
   } = useCommandPalette(props);
 
   const { onClose } = props;
+  const getCommand = useCommandRegistry((s) => s.getCommand);
+
+  const resolveCommandIcon = (commandId?: string): string => {
+    if (!commandId) return 'mdi mdi-chevron-right';
+    return getCommand(commandId)?.icon ?? 'mdi mdi-chevron-right';
+  };
+
+  const isDevCommand = (commandId?: string): boolean => {
+    if (!commandId) return false;
+    return getCommand(commandId)?.devOnly ?? false;
+  };
 
   const {
     dateItems,
@@ -99,7 +116,7 @@ export function CommandPalette(props: CommandPaletteProps) {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={appliedFilters.length > 0 ? "Search with active filters..." : "Search pages, blocks, properties... (try class: uuid: is_page:)"}
+            placeholder={appliedFilters.length > 0 ? "Search with active filters..." : "Search pages, blocks, properties... (type : to browse filters)"}
           />
           {/* Filter pills — classes + boolean filters */}
           {appliedFilters.length > 0 && (
@@ -149,6 +166,15 @@ export function CommandPalette(props: CommandPaletteProps) {
           />
         )}
 
+        {/* Filter prefix popup when typing a standalone colon */}
+        {isTypingColon && filterPrefixPopupPosition && (
+          <FilterPrefixPopup
+            position={filterPrefixPopupPosition}
+            onSelect={handleFilterPrefixSelect}
+            onClose={handleFilterPrefixClose}
+          />
+        )}
+
         {/* Hierarchical path preview — hidden when date is detected */}
         {pathInfo && !isTypingClass && !parsedDate && (
           <div className="command-palette__path-preview">
@@ -171,6 +197,10 @@ export function CommandPalette(props: CommandPaletteProps) {
           {isTypingClass ? (
             <div className="command-palette__hint">
               Type to search classes, press Enter to select
+            </div>
+          ) : isTypingColon ? (
+            <div className="command-palette__hint">
+              Select a filter from the popup above
             </div>
           ) : (
             <>
@@ -321,40 +351,12 @@ export function CommandPalette(props: CommandPaletteProps) {
                   >
                     <div className="command-palette__result-row">
                       <span className="command-palette__result-icon">
-                        {item.commandIcon === 'import' ? (
-                          <ImportIcon size="sm" />
-                        ) : item.commandIcon === 'maintenance' ? (
-                          <Icon path={"mdi mdi-database-refresh"} size={0.7} />
-                        ) : item.commandIcon === 'focus' ? (
-                          <Icon path={"mdi mdi-brain"} size={0.7} />
-                        ) : item.commandIcon === 'uuid' ? (
-                          <Icon path={"mdi mdi-fingerprint"} size={0.7} />
-                        ) : item.commandIcon === 'merge' ? (
-                          <Icon path={"mdi mdi-merge"} size={0.7} />
-                        ) : item.commandIcon === 'random' ? (
-                          <Icon path={"mdi mdi-shuffle"} size={0.7} />
-                        ) : item.commandIcon === 'minimap' ? (
-                          <Icon path={"mdi mdi-map"} size={0.7} />
-                        ) : item.commandIcon === 'graph' ? (
-                          <Icon path={"mdi mdi-graph-outline"} size={0.7} />
-                        ) : item.commandIcon === 'expand' ? (
-                          <Icon path={"mdi mdi-arrow-expand-horizontal"} size={0.7} />
-                        ) : item.commandIcon === 'presentation' ? (
-                          <Icon path={"mdi mdi-presentation-play"} size={0.7} />
-                        ) : item.commandIcon === 'share' ? (
-                          <Icon path={"mdi mdi-share-variant-outline"} size={0.7} />
-                        ) : item.commandIcon === 'lock' ? (
-                          <Icon path={"mdi mdi-lock-outline"} size={0.7} />
-                        ) : item.commandIcon === 'sync' ? (
-                          <Icon path={"mdi mdi-sync"} size={0.7} />
-                        ) : (
-                          <Icon path={"mdi mdi-export"} size={0.7} />
-                        )}
+                        <Icon path={resolveCommandIcon(item.commandId)} size={0.7} />
                       </span>
                       <span className="command-palette__result-content">
                         <span className="command-palette__result-name">{item.label}</span>
                       </span>
-                      {item.commandDevOnly && (
+                      {isDevCommand(item.commandId) && (
                         <span className="command-palette__result-dev-badge">DEV</span>
                       )}
                     </div>

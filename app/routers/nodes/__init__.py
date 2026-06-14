@@ -142,11 +142,13 @@ router.include_router(templates_router)
 # Version endpoints (GET /{node_id}/versions, GET /{node_id}/versions/{version_id}, POST /{node_id}/versions/{version_id}/restore)
 router.include_router(versions_router)
 
+# Links endpoints (GET/POST/DELETE /{node_id}/text-links, backlinks, mentions, etc.)
+# Registered before the generic CRUD router so that specific /{node_id}/...
+# routes take precedence over /{node_id}.
+router.include_router(links_router)
+
 # CRUD endpoints (POST "", POST /page, GET /recents, GET /archived, GET/PUT/DELETE /{node_id}, etc.)
 router.include_router(crud_router)
-
-# Links endpoints (GET/POST/DELETE /{node_id}/text-links, backlinks, etc.)
-router.include_router(links_router)
 
 # Shares endpoints (POST/GET /{node_id}/shares)
 router.include_router(shares_router)

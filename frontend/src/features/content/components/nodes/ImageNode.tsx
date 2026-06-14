@@ -74,6 +74,7 @@ export function ImageNode({
 }: ImageNodeProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [hasError, setHasError] = useState(false);
   const { data: assetNode, isLoading } = useNode(assetNodeId, { include_children: false });
   const openNode = useNavigationStore(s => s.openNode);
   const addSidebarCard = useNavigationStore(s => s.addSidebarCard);
@@ -82,10 +83,12 @@ export function ImageNode({
   useEffect(() => {
     if (!assetNodeId || !assetNode?.uuid) {
       setImageUrl(null);
+      setHasError(false);
       return;
     }
 
     let cancelled = false;
+    setHasError(false);
 
     getAssetUrlAsync(assetNode.uuid)
       .then(url => {
@@ -127,6 +130,11 @@ export function ImageNode({
     onClick?.();
   }, [clickable, onClick]);
 
+  const handleImageError = useCallback(() => {
+    console.error(`Image failed to load: ${imageUrl}`);
+    setHasError(true);
+  }, [imageUrl]);
+
   // Loading state
   if (assetNodeId && isLoading) {
     return loadingPlaceholder || (
@@ -143,7 +151,7 @@ export function ImageNode({
   }
 
   // No image
-  if (!assetNodeId || !imageUrl) {
+  if (!assetNodeId || !imageUrl || hasError) {
     return null;
   }
 
@@ -155,6 +163,7 @@ export function ImageNode({
       alt={alt}
       loading="lazy"
       className="image-node__img"
+      onError={handleImageError}
       style={{
         pointerEvents: isDragging ? 'none' : 'auto'
       }}

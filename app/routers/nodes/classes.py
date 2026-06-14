@@ -2,6 +2,7 @@
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
+from ...db.connection import get_transaction
 from ...dependencies import (
     _get_class_management_service as _get_class_service,
 )
@@ -132,8 +133,13 @@ async def add_node_class(
 
     service = await _get_node_service(user)
 
-    # Snapshot class_ids before add
-    before_class_ids = await service.get_node_class_ids(node_id)
+    # Snapshot full node state before add
+    before_node = await service.get_node(node_id)
+    before_state = {
+        "class_ids": list(before_node.class_ids) if before_node else [],
+        "tag_ids": list(before_node.tag_ids) if before_node else [],
+        "classes_path": list(before_node.classes_path) if before_node else [],
+    }
 
     try:
         success = await service.add_class(node_id, request.class_node_id)
@@ -142,36 +148,42 @@ async def add_node_class(
     except SystemClassConstraintError as e:
         raise HTTPException(400, e.message) from e
 
-    # Record for undo
-    try:
-        after_class_ids = await service.get_node_class_ids(node_id)
-        undo = await _get_undo_service(user)
-        await undo.record(
-            "add_class",
-            "node",
-            node_id,
-            before_state={"class_ids": before_class_ids},
-            after_state={"class_ids": after_class_ids},
-            description=f"Added class to node {node_id}",
-        )
-    except (ValueError, TypeError, LookupError):
-        pass
+    async with get_transaction():
+        # Special handling for query class: create a main_content NodeView
+        added_class_node = await service.get_node(request.class_node_id)
+        if added_class_node and added_class_node.uuid == SYSTEM_CLASS_UUIDS["query"] and service.workspace_id:
+            # Check if main_content view already exists for this node
+            existing_views = await view_repo.list_by_node(node_id, view_type="main_content")
+            if not existing_views:
+                # Create a non-system main_content view with empty query
+                await view_repo.create(
+                    node_id=node_id,
+                    name="Query",
+                    view_type="main_content",
+                    query_json={"type": "AND_CONTAINER", "blocks": []},
+                    order_index=0,
+                    is_default=True,
+                )
 
-    # Special handling for query class: create a main_content NodeView
-    added_class_node = await service.get_node(request.class_node_id)
-    if added_class_node and added_class_node.uuid == SYSTEM_CLASS_UUIDS["query"] and service.workspace_id:
-        # Check if main_content view already exists for this node
-        existing_views = await view_repo.list_by_node(node_id, view_type="main_content")
-        if not existing_views:
-            # Create a non-system main_content view with empty query
-            await view_repo.create(
-                node_id=node_id,
-                name="Query",
-                view_type="main_content",
-                query_json={"type": "AND_CONTAINER", "blocks": []},
-                order_index=0,
-                is_default=True,
+        # Record for undo
+        try:
+            after_node = await service.get_node(node_id)
+            after_state = {
+                "class_ids": list(after_node.class_ids) if after_node else [],
+                "tag_ids": list(after_node.tag_ids) if after_node else [],
+                "classes_path": list(after_node.classes_path) if after_node else [],
+            }
+            undo = await _get_undo_service(user)
+            await undo.record(
+                "add_class",
+                "node",
+                node_id,
+                before_state=before_state,
+                after_state=after_state,
+                description=f"Added class to node {node_id}",
             )
+        except (ValueError, TypeError, LookupError):
+            pass
 
     node = await service.get_node(node_id)
     if not node:
@@ -193,40 +205,50 @@ async def remove_node_class_endpoint(
 
     service = await _get_node_service(user)
 
-    # Snapshot class_ids before removal
-    before_class_ids = await service.get_node_class_ids(node_id)
+    # Snapshot full node state before removal
+    before_node = await service.get_node(node_id)
+    before_state = {
+        "class_ids": list(before_node.class_ids) if before_node else [],
+        "tag_ids": list(before_node.tag_ids) if before_node else [],
+        "classes_path": list(before_node.classes_path) if before_node else [],
+    }
 
-    # Special handling for query class: delete the main_content NodeView before removing the class
-    removed_class_node = await service.get_node(class_id)
-    if removed_class_node and removed_class_node.uuid == SYSTEM_CLASS_UUIDS["query"] and service.workspace_id:
-        # Delete all main_content views for this node
-        existing_views = await view_repo.list_by_node(node_id, view_type="main_content")
-        for view in existing_views:
-            await view_repo.delete(view.id)
+    async with get_transaction():
+        # Special handling for query class: delete the main_content NodeView before removing the class
+        removed_class_node = await service.get_node(class_id)
+        if removed_class_node and removed_class_node.uuid == SYSTEM_CLASS_UUIDS["query"] and service.workspace_id:
+            # Delete all main_content views for this node
+            existing_views = await view_repo.list_by_node(node_id, view_type="main_content")
+            for view in existing_views:
+                await view_repo.delete(view.id)
 
-    try:
-        await service.remove_class(node_id, class_id)
-    except SystemClassConstraintError as e:
-        raise HTTPException(400, e.message) from e
+        try:
+            await service.remove_class(node_id, class_id)
+        except SystemClassConstraintError as e:
+            raise HTTPException(400, e.message) from e
 
-    node = await service.get_node(node_id)
-    if not node:
-        raise HTTPException(404, "Node not found")
+        node = await service.get_node(node_id)
+        if not node:
+            raise HTTPException(404, "Node not found")
 
-    # Record for undo
-    try:
-        after_class_ids = await service.get_node_class_ids(node_id)
-        undo = await _get_undo_service(user)
-        await undo.record(
-            "remove_class",
-            "node",
-            node_id,
-            before_state={"class_ids": before_class_ids},
-            after_state={"class_ids": after_class_ids},
-            description=f"Removed class from node {node_id}",
-        )
-    except (ValueError, TypeError, LookupError):
-        pass
+        # Record for undo
+        try:
+            after_state = {
+                "class_ids": list(node.class_ids),
+                "tag_ids": list(node.tag_ids),
+                "classes_path": list(node.classes_path),
+            }
+            undo = await _get_undo_service(user)
+            await undo.record(
+                "remove_class",
+                "node",
+                node_id,
+                before_state=before_state,
+                after_state=after_state,
+                description=f"Removed class from node {node_id}",
+            )
+        except (ValueError, TypeError, LookupError):
+            pass
 
     classes = await service.get_node_classes(node_id)
     return _node_to_response(node, classes=[c.id for c in classes if c.id])

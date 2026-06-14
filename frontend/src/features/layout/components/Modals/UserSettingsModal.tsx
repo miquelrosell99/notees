@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/Button';
 import { SelectionButton } from '@/components/ui/SelectionButton';
 import { BooleanToggle } from '@/components/ui/BooleanToggle';
 import { Separator } from '@/components/ui/Separator';
+import { Tabs } from '@/components/ui/Tabs';
 import './UserSettingsModal.css';
 
 interface UserSettingsModalProps {
@@ -241,20 +242,15 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
       contentClassName="settings-modal__body"
     >
       <div className="settings-modal__container">
-        <nav className="settings-modal__nav">
-          {tabs.map((tab) => (
-            <Button
-              key={tab.id}
-              className={`settings-modal__nav-item ${activeTab === tab.id ? 'settings-modal__nav-item--active' : ''}`}
-              variant="ghost"
-              size="sm"
-              active={activeTab === tab.id}
-              onClick={() => setActiveTab(tab.id)}
-            >
-              <span className="settings-modal__nav-label">{tab.label}</span>
-            </Button>
-          ))}
-        </nav>
+        <Tabs value={activeTab} onChange={setActiveTab}>
+          <Tabs.List>
+            {tabs.map((tab) => (
+              <Tabs.Tab key={tab.id} value={tab.id}>
+                {tab.label}
+              </Tabs.Tab>
+            ))}
+          </Tabs.List>
+        </Tabs>
 
         <div className="settings-modal__content">
           {activeTab === 'appearance' && (

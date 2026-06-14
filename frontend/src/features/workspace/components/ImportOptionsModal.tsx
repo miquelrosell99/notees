@@ -229,19 +229,24 @@ export function ImportOptionsModal({
       workspaceUuidRef.current = workspace!.uuid;
       useModalStore.getState().setShowWorkspaceManager(true);
       queryClient.invalidateQueries({ queryKey: ['workspaces'] });
-      await switchWorkspace(workspace!.uuid);
-      useNavigationStore.setState({
-        currentNodeId: null,
-        activeNodeId: null,
-        sidebarNode: null,
-        localGraphNodeId: null,
-        mainViewType: 'node',
-      });
-      queryClient.removeQueries({ queryKey: favoriteKeys.all });
-      queryClient.removeQueries({ queryKey: recentKeys.all });
-      queryClient.clear();
-      navigate(`/${workspace!.uuid}`, { replace: true });
-      if (!cancelled) setPhase('importing');
+      useNavigationStore.setState({ isSwitchingWorkspace: true });
+      try {
+        await switchWorkspace(workspace!.uuid);
+        useNavigationStore.setState({
+          currentNodeId: null,
+          activeNodeId: null,
+          sidebarNode: null,
+          localGraphNodeId: null,
+          mainViewType: 'node',
+        });
+        queryClient.removeQueries({ queryKey: favoriteKeys.all });
+        queryClient.removeQueries({ queryKey: recentKeys.all });
+        queryClient.clear();
+        navigate(`/${workspace!.uuid}`, { replace: true });
+        if (!cancelled) setPhase('importing');
+      } finally {
+        useNavigationStore.setState({ isSwitchingWorkspace: false });
+      }
     }
     prepare().catch(() => { if (!cancelled) setPhase('form'); });
     return () => { cancelled = true; };

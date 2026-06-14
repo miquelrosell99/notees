@@ -1,4 +1,4 @@
-﻿/**
+/**
  * EmojiPicker Component
  *
  * A picker with three tabs: All, Emojis, Icons (MDI symbols).
@@ -22,6 +22,7 @@ import { getMdiClass } from '@/utils/iconDom';
 
 import { Button } from './Button';
 import { ColorButton } from './ColorButton';
+import { Tabs } from './Tabs';
 import './EmojiPicker.css';
 import { Icon } from '@/components/ui/icons';
 
@@ -425,11 +426,13 @@ const popupStyle: React.CSSProperties =
     >
       {/* Header: tabs + actions */}
       <div className="ep-header">
-        <div className="ep-tabs">
-          <Button variant="ghost" size="sm" active={activeTab === 'all'} onClick={() => handleTabChange('all')}>All</Button>
-          <Button variant="ghost" size="sm" active={activeTab === 'emojis'} onClick={() => handleTabChange('emojis')}>Emojis</Button>
-          <Button variant="ghost" size="sm" active={activeTab === 'icons'} onClick={() => handleTabChange('icons')}>Icons</Button>
-        </div>
+        <Tabs value={activeTab} onChange={handleTabChange}>
+          <Tabs.List>
+            <Tabs.Tab value="all">All</Tabs.Tab>
+            <Tabs.Tab value="emojis">Emojis</Tabs.Tab>
+            <Tabs.Tab value="icons">Icons</Tabs.Tab>
+          </Tabs.List>
+        </Tabs>
         <div className="ep-header-actions">
           {useColor && onColorChange && (
             <ColorButton

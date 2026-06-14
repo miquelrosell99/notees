@@ -1,7 +1,8 @@
 import { useMemo } from 'react';
 import type { Node } from '@/types';
 import type { RecentPage } from '@/api/nodes';
-import type { ItemEntry, CommandDef, AppliedFilter, FilterPrefixConfig } from './CommandPalette.types';
+import type { Command } from '@/stores/commandRegistry';
+import type { ItemEntry, AppliedFilter, FilterPrefixConfig } from './CommandPalette.types';
 import type { Property } from '@/types';
 
 import { nodeNameToText } from '@/hooks/useStringifyAST';
@@ -16,7 +17,7 @@ interface UseCommandPaletteItemsParams {
   selectedClasses: Node[];
   parsedDate: ParsedDate | null;
   existingDateNode: Node | null;
-  commands: CommandDef[];
+  commands: Command[];
   pageMap: Map<number, Node>;
   recentAccessedPages: RecentPage[];
   recentCreatedPages: RecentPage[];
@@ -32,6 +33,8 @@ interface UseCommandPaletteItemsParams {
   activeFilter: { prefix: string; value: string; config: FilterPrefixConfig } | null;
   formatParsedDateLabel: (pd: ParsedDate) => string;
   currentNodeId: number | null;
+  showDevOptions: boolean;
+  isTypingColon: boolean;
 }
 
 export function useCommandPaletteItems(params: UseCommandPaletteItemsParams): ItemEntry[] {
@@ -60,10 +63,17 @@ export function useCommandPaletteItems(params: UseCommandPaletteItemsParams): It
     activeFilter,
     formatParsedDateLabel,
     currentNodeId,
+    showDevOptions,
+    isTypingColon,
   } = params;
 
   return useMemo<ItemEntry[]>(() => {
     const items: ItemEntry[] = [];
+
+    // While the standalone-colon filter popup is open, don't show any results
+    if (isTypingColon) {
+      return items;
+    }
 
     // When no query and no filters, show browse sections
     if (!searchTerm.trim() && !uuidSearch && appliedFilters.length === 0) {
@@ -99,8 +109,9 @@ export function useCommandPaletteItems(params: UseCommandPaletteItemsParams): It
       const lowerSearch = searchTerm.toLowerCase();
       for (const cmd of commands) {
         if (cmd.requiresPage && !currentNodeId) continue;
+        if (cmd.devOnly && !showDevOptions) continue;
         if (cmd.label.toLowerCase().includes(lowerSearch)) {
-          items.push({ type: 'command', label: cmd.label, commandId: cmd.id, commandIcon: cmd.icon, commandDevOnly: cmd.devOnly });
+          items.push({ type: 'command', label: cmd.label, commandId: cmd.id });
         }
       }
     }
@@ -177,5 +188,6 @@ export function useCommandPaletteItems(params: UseCommandPaletteItemsParams): It
     parsedDate, existingDateNode, commands, pageMap, recentAccessedPages, recentCreatedPages,
     randomPages, maxPages, maxBlocks, maxProperties, uuidSearch, appliedFilters, isTypingBoolean,
     booleanOptions, suggestedPrefixes, activeFilter, formatParsedDateLabel, currentNodeId,
+    showDevOptions, isTypingColon,
   ]);
 }

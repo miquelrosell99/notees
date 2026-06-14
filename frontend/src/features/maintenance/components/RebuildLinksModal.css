@@ -116,8 +116,7 @@
 }
 
 .rebuild-links__stat-value {
-  font: var(--font-headline-large);
-  font-weight: 600;
+  font: var(--font-title-large);
 }
 
 .rebuild-links__stat--error .rebuild-links__stat-value {

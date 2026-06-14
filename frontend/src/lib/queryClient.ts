@@ -65,11 +65,28 @@ export const queryClient = new QueryClient({
       retry: 0,
       onError: onMutationError,
       onSuccess: () => {
-        useUndoStore.getState().refreshStack();
+        debouncedRefreshStack();
       },
     },
   },
 });
+
+// ─── Debounced undo-stack refresh ─────────────────────────────────
+
+let refreshStackTimer: ReturnType<typeof setTimeout> | null = null;
+const REFRESH_STACK_DEBOUNCE_MS = 500;
+
+function debouncedRefreshStack(): void {
+  if (refreshStackTimer) {
+    clearTimeout(refreshStackTimer);
+  }
+  refreshStackTimer = setTimeout(() => {
+    refreshStackTimer = null;
+    useUndoStore.getState().refreshStack().catch((error) => {
+      console.error('[queryClient] Failed to refresh undo stack:', error);
+    });
+  }, REFRESH_STACK_DEBOUNCE_MS);
+}
 
 // ─── Offline Persistence ─────────────────────────────────────────
 

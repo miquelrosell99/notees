@@ -20,6 +20,7 @@ import { nodeViewKeys } from './useNodeViews';
 import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
 import { invalidateNodeCaches } from './useNodeMutations.utils';
 import { insertChildIntoTreeCaches } from './cacheUtils';
+import { inFlightBlocks } from './useBlockPersist.utils';
 
 export function useCreateNode() {
   const queryClient = useQueryClient();
@@ -64,11 +65,19 @@ export function useCreateNode() {
       // Find the mutationKey that applyIntent generated
       const pending = runtime.getPendingIntentsForBlock(blockId);
       const mutationKey = pending.find(p => p.intent.type === 'create_block')?.mutationKey ?? null;
+      if (mutationKey) {
+        runtime.markMutationInFlight(mutationKey);
+      }
+      inFlightBlocks.add(blockId);
 
       return { optimisticNode: null, runtimeBlockId: blockId, mutationKey, undoEntry };
     },
     onSuccess: (newNode, variables, context) => {
       const { runtimeBlockId, mutationKey } = context || {};
+
+      if (runtimeBlockId) {
+        inFlightBlocks.delete(runtimeBlockId);
+      }
 
       // Add the new node to its own detail cache
       queryClient.setQueriesData<Node>(
@@ -119,6 +128,10 @@ export function useCreateNode() {
     },
     onError: (_error, variables, context) => {
       const { runtimeBlockId, mutationKey } = context || {};
+
+      if (runtimeBlockId) {
+        inFlightBlocks.delete(runtimeBlockId);
+      }
 
       if (variables.parent_id && runtimeBlockId) {
         const runtime = getNodeGraphRuntime();

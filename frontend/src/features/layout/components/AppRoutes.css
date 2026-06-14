@@ -1,0 +1,15 @@
+/* AppRoutes — global workspace switching overlay */
+
+.workspace-switch-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-floating);
+  opacity: 0;
+  transition: opacity var(--motion-duration-medium-fast) var(--motion-easing-standard);
+  pointer-events: none;
+}
+
+.workspace-switch-overlay--visible {
+  opacity: 1;
+  pointer-events: auto;
+}

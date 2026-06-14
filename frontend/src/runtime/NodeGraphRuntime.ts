@@ -1012,6 +1012,19 @@ export class NodeGraphRuntime {
     this.emit({ type: 'undo_stack_changed' });
   }
 
+  serializeUndoStacks(): { undo: UndoEntry[]; redo: UndoEntry[] } {
+    return {
+      undo: [...this.undoStack],
+      redo: [...this.redoStack],
+    };
+  }
+
+  restoreUndoStacks(undo: UndoEntry[], redo: UndoEntry[]): void {
+    this.undoStack = [...undo];
+    this.redoStack = [...redo];
+    this.emit({ type: 'undo_stack_changed' });
+  }
+
   private _intentLabel(intent: MutationIntent): string {
     switch (intent.type) {
       case 'create_block': return 'Create block';
@@ -1620,6 +1633,20 @@ export class NodeGraphRuntime {
     this.inFlightMutations.delete(mutationKey);
   }
 
+  /**
+   * Ask all bridge hooks to flush pending intents and wait for in-flight
+   * mutations to drain. Call before undo/redo to avoid racing local changes.
+   */
+  async flushPendingIntents(timeoutMs = 3000): Promise<void> {
+    this.emit({ type: 'flush_intents_requested' });
+    // Give hooks a tick to enqueue mutations.
+    await new Promise(resolve => setTimeout(resolve, 50));
+    const start = Date.now();
+    while (this.inFlightMutations.size > 0 && Date.now() - start < timeoutMs) {
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+  }
+
   // ─── Undo / Redo ──────────────────────────────────────────────
 
   private computeReverse(intent: MutationIntent): MutationIntent | null {
@@ -1665,6 +1692,39 @@ export class NodeGraphRuntime {
         const node = this.nodes.get(intent.blockId);
         if (!node) return null;
         return { type: 'set_collapsed', blockId: intent.blockId, collapsed: node.collapsed };
+      }
+      case 'set_node_type': {
+        const node = this.nodes.get(intent.blockId);
+        if (!node) return null;
+        return { type: 'set_node_type', blockId: intent.blockId, nodeType: node.nodeType };
+      }
+      case 'reorder_blocks': {
+        const previousOrder = this.childrenIndex.get(intent.parentId) || [];
+        return {
+          type: 'reorder_blocks',
+          parentId: intent.parentId,
+          orderedBlockIds: [...previousOrder],
+        };
+      }
+      case 'split_block': {
+        // Undo split by merging the new block back into the original.
+        return {
+          type: 'merge_blocks',
+          sourceBlockId: intent.newBlockId,
+          targetBlockId: intent.blockId,
+        };
+      }
+      case 'merge_blocks': {
+        const target = this.nodes.get(intent.targetBlockId);
+        if (!target) return null;
+        const mergeOffset = getContentASTLength(target.contentAST);
+        return {
+          type: 'split_block',
+          blockId: intent.targetBlockId,
+          atOffset: mergeOffset,
+          newBlockId: intent.sourceBlockId,
+          forceSibling: true,
+        };
       }
       case 'batch': {
         const reverses: MutationIntent[] = [];

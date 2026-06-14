@@ -1,0 +1,163 @@
+/**
+ * Tabs Component Styles
+ *
+ * Generic tab bar styled after the node navigation tabs:
+ * - contained pill-shaped surface
+ * - short sliding underline indicator for the active tab
+ * - muted vertical dividers between tabs
+ * - optional add-tab button after a section divider
+ */
+
+/* Root wrapper */
+.tabs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+/* Tab list container */
+.tabs__list {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 0;
+  padding: var(--spacing-hairline) var(--spacing-1);
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.tabs__list::-webkit-scrollbar {
+  display: none;
+}
+
+/* Contained variant — node-tab pill bar */
+.tabs__list--contained {
+  background: var(--color-surface-container);
+  border: var(--border-width-default) solid color-mix(in srgb, var(--color-outline-variant) 35%, transparent);
+  border-radius: var(--shape-large);
+}
+
+/* Short centered underline indicator for the active tab */
+.tabs__indicator {
+  position: absolute;
+  bottom: 1px;
+  left: 0;
+  height: var(--shape-extra-small);
+  background: var(--color-primary);
+  border-radius: var(--shape-hairline);
+  transition:
+    transform var(--motion-duration-medium) var(--motion-easing-standard),
+    width var(--motion-duration-short) var(--motion-easing-standard);
+  z-index: var(--z-2);
+  pointer-events: none;
+}
+
+/* Individual tab trigger */
+.tabs__tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-1);
+  height: var(--height-sm);
+  padding: 0 var(--spacing-3);
+  border: none;
+  border-radius: var(--shape-small);
+  background: transparent;
+  color: var(--color-on-surface-variant);
+  font: inherit;
+  font-size: var(--font-size-button);
+  font-weight: 400;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  transition:
+    color var(--motion-duration-short) var(--motion-easing-standard),
+    background var(--motion-duration-short) var(--motion-easing-standard);
+  max-width: 12rem;
+  min-width: var(--height-sm);
+  flex-shrink: 0;
+}
+
+/* Muted vertical divider between tabs */
+.tabs__tab:not(:last-of-type)::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 25%;
+  height: 50%;
+  width: 1px;
+  background: var(--color-outline-variant);
+  opacity: var(--opacity-40);
+}
+
+.tabs__tab:hover:not(:disabled) {
+  color: var(--color-on-surface);
+}
+
+.tabs__tab:focus-visible {
+  outline: var(--border-width-thick) solid var(--color-accent);
+  outline-offset: calc(var(--spacing-micro) * -1);
+}
+
+.tabs__tab--active {
+  color: var(--color-on-surface);
+  font-weight: 500;
+}
+
+.tabs__tab--active:hover:not(:disabled) {
+  background: transparent;
+}
+
+.tabs__tab--disabled {
+  opacity: var(--opacity-50);
+  cursor: not-allowed;
+}
+
+.tabs__tab-icon {
+  flex-shrink: 0;
+  opacity: var(--opacity-70);
+}
+
+.tabs__tab--active .tabs__tab-icon {
+  opacity: var(--opacity-100);
+}
+
+.tabs__tab-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1;
+}
+
+/* Add-button slot */
+.tabs__add-slot {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+/* Section divider before the add button */
+.tabs__section-divider {
+  width: 1px;
+  height: var(--height-xs);
+  background: var(--color-outline-variant);
+  opacity: var(--opacity-40);
+  margin: 0 var(--spacing-1);
+  flex-shrink: 0;
+}
+
+.tabs__add-button {
+  flex-shrink: 0;
+}
+
+/* Tab panel */
+.tabs__panel {
+  flex: 1;
+  min-height: 0;
+}

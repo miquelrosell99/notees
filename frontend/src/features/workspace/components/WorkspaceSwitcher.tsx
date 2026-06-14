@@ -47,12 +47,19 @@ export function WorkspaceSwitcher() {
     
     // Clear ALL cached data to prevent any stale data from previous workspace
     queryClient.clear();
+    useNavigationStore.setState({ isSwitchingWorkspace: false });
   }, [queryClient, navigate]);
 
   const switchMutation = useMutation({
     mutationFn: switchWorkspace,
+    onMutate: () => {
+      useNavigationStore.setState({ isSwitchingWorkspace: true });
+    },
     onSuccess: (_data, switchedUuid) => {
       clearCacheOnSwitch(switchedUuid);
+    },
+    onError: () => {
+      useNavigationStore.setState({ isSwitchingWorkspace: false });
     },
   });
 
