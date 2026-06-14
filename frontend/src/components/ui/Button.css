@@ -82,8 +82,6 @@
 .btn--icon-only {
   padding: 0;
   aspect-ratio: 1;
-  min-width: var(--button-min-height);
-  min-height: var(--button-min-height);
   position: relative;
 }
 
@@ -101,27 +99,31 @@
 }
 
 .btn--icon-only.btn--xs {
-  height: var(--button-icon-only-xs);
-  min-width: var(--button-icon-only-xs);
-  border-radius: var(--shape-button-small);
+  height: var(--button-icon-only-visible-xs);
+  min-width: var(--button-icon-only-visible-xs);
+  min-height: var(--button-icon-only-visible-xs);
+  border-radius: var(--shape-medium);
 }
 
 .btn--icon-only.btn--sm {
-  height: var(--button-icon-only-sm);
-  min-width: var(--button-icon-only-sm);
-  border-radius: var(--shape-button-small);
+  height: var(--button-icon-only-visible-sm);
+  min-width: var(--button-icon-only-visible-sm);
+  min-height: var(--button-icon-only-visible-sm);
+  border-radius: var(--shape-large);
 }
 
 .btn--icon-only.btn--md {
-  height: var(--button-icon-only-md);
-  min-width: var(--button-icon-only-md);
-  border-radius: var(--shape-button-large);
+  height: var(--button-icon-only-visible-md);
+  min-width: var(--button-icon-only-visible-md);
+  min-height: var(--button-icon-only-visible-md);
+  border-radius: var(--shape-button-compact);
 }
 
 .btn--icon-only.btn--lg {
-  height: var(--button-icon-only-lg);
-  min-width: var(--button-icon-only-lg);
-  border-radius: var(--shape-button-large);
+  height: var(--button-icon-only-visible-lg);
+  min-width: var(--button-icon-only-visible-lg);
+  min-height: var(--button-icon-only-visible-lg);
+  border-radius: var(--shape-button-small);
 }
 
 /* Icon + Text buttons - use grid for proper centering */

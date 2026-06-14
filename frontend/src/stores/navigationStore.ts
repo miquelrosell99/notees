@@ -100,6 +100,9 @@ interface NavigationState {
   mainViewType: MainViewType;
   currentPropertyId: number | null;
 
+  // Workspace switching
+  isSwitchingWorkspace: boolean;
+
   // Temporary node collection view (IDs only; full nodes fetched on demand)
   nodeCollectionTitle: string | null;
   nodeCollectionQueryAST: QueryAST | null;
@@ -121,6 +124,7 @@ interface NavigationState {
   setViewMode: (mode: ViewMode) => void;
   toggleFocusMode: () => void;
   setMainViewType: (viewType: MainViewType) => void;
+  setSwitchingWorkspace: (value: boolean) => void;
   openPropertyView: (propertyId: number) => void;
   openNodeCollection: (title: string, queryAST: QueryAST) => void;
   openNodeCollectionFromNodes: (title: string, nodeIds: number[]) => void;
@@ -205,6 +209,7 @@ export const useNavigationStore = create<NavigationState>()((set, get) => {
     preFocusModeSidebarCollapsed: null,
     mainViewType: 'node' as MainViewType,
     currentPropertyId: null,
+    isSwitchingWorkspace: false,
     nodeCollectionTitle: null,
     nodeCollectionQueryAST: null,
     nodeCollectionNodeIds: null,
@@ -327,6 +332,8 @@ export const useNavigationStore = create<NavigationState>()((set, get) => {
           sidebarOpen: false,
         };
       }),
+
+    setSwitchingWorkspace: (value) => set({ isSwitchingWorkspace: value }),
 
     setMainViewType: (viewType) => {
       const state = get();

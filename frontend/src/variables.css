@@ -132,11 +132,19 @@
   --height-button-md: 36px;
   --height-button-lg: 44px;
 
-  /* Icon-only button targets — minimum 44×44 px for accessible touch */
+  /* Icon-only button touch targets — the invisible ::after overlay still
+     guarantees a 44×44 px accessible hit area on every icon-only control. */
   --button-icon-only-xs: 44px;
   --button-icon-only-sm: 44px;
   --button-icon-only-md: 48px;
   --button-icon-only-lg: 48px;
+
+  /* Icon-only button visible sizes. These are smaller than the touch target;
+     the overlay above preserves the 44×44 px hit area. */
+  --button-icon-only-visible-xs: var(--spacing-7);
+  --button-icon-only-visible-sm: var(--spacing-8);
+  --button-icon-only-visible-md: var(--spacing-9);
+  --button-icon-only-visible-lg: var(--spacing-10);
 
   /* ==================== Border Width ==================== */
   --border-width-default: 1px;
@@ -148,7 +156,6 @@
   --border-width-node-color: 4px;
   --border-width-node-color-strong: 8px;
   --focus-outline-offset: 2px;
-  --page-header-accent-border-width: var(--border-width-thick);
 
   /* ==================== Component Sizes ==================== */
   --button-min-height: 44px;
@@ -234,10 +241,10 @@
   --shape-medium: 6px;
   --shape-large: 8px;
   --shape-extra-large: 12px;
-  --shape-card: 20px;
+  --shape-card: 16px;
   --shape-button-large: 16px;
   --shape-button-small: 12px;
-  --shape-sheet: 28px;
+  --shape-sheet: 20px;
   --shape-button-compact: 10px;
   --shape-floating-panel: var(--shape-large);  /* 8px — small floating surfaces (menus, popovers) */
   --shape-full: 9999px;
@@ -350,7 +357,7 @@
 
   /* ==================== Layout ==================== */
   --sidebar-width: 240px;
-  --sidebar-collapsed-width: 0px;
+  --sidebar-collapsed-width: 3.5rem;
   --right-sidebar-width: 320px;
   --topbar-height: 44px;
   --container-gap: 8px;

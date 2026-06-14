@@ -17,6 +17,7 @@ import './index.css'
 import { App } from './App.tsx'
 import { useSettingsStore, applyTheme } from './stores'
 import { restorePendingIntents, savePendingIntents } from './lib/pendingIntentStorage'
+import { restoreUndoStacks } from './lib/undoStackStorage'
 
 // Apply saved theme on startup — wrapped in try/catch so a corrupt store
 // never prevents the app from mounting at all.
@@ -27,9 +28,12 @@ try {
   console.error('[main] Failed to apply saved theme, falling back to default:', e);
 }
 
-// Restore pending intents from previous session (offline support)
+// Restore pending intents and undo stacks from previous session (offline support)
 restorePendingIntents().catch((e) => {
   console.error('[main] Failed to restore pending intents:', e);
+});
+restoreUndoStacks().catch((e) => {
+  console.error('[main] Failed to restore undo stacks:', e);
 });
 
 // Save pending intents before page unload

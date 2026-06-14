@@ -365,7 +365,12 @@
 }
 
 .node-view__cover-image {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   max-height: var(--layout-size-2xl);
+  min-width: var(--layout-size-xs);
+  min-height: var(--layout-size-xs);
 }
 
 .node-view__cover-image .card {
@@ -378,6 +383,7 @@
 .node-view__cover-image .image-node__img {
   width: auto;
   height: auto;
+  max-width: 100%;
   max-height: var(--layout-size-2xl);
   object-fit: contain;
 }

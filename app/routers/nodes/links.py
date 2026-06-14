@@ -1,7 +1,10 @@
 """Backlinks, linked references, tag links, alias, and property endpoints."""
 
+from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException
 
+from ...db.connection import get_transaction
 from ...dependencies import get_current_user
 from ...domain.entities import BacklinkInfo
 from ...domain.errors import NodeNotFoundError, NodeValidationError
@@ -109,8 +112,29 @@ async def add_tag_link(
     Stores the target page ID in the node's tag_ids array.
     """
     service = await _get_node_service(user)
+
+    node = await service.get_node(node_id)
+    if not node:
+        raise HTTPException(404, "Node not found")
+    before_tag_ids = list(node.tag_ids)
+
     try:
-        await service.add_tag_link(node_id, request.target_node_id)
+        async with get_transaction():
+            await service.add_tag_link(node_id, request.target_node_id)
+
+            # Record for undo
+            try:
+                undo = await _get_undo_service(user)
+                await undo.record(
+                    "add_tag_link",
+                    "node",
+                    node_id,
+                    before_state={"tag_ids": before_tag_ids},
+                    after_state={"tag_ids": [*before_tag_ids, request.target_node_id]},
+                    description=f"Added tag link to node {node_id}",
+                )
+            except (ValueError, TypeError, LookupError):
+                pass
     except NodeNotFoundError as e:
         raise HTTPException(404, str(e)) from e
     except NodeValidationError as e:
@@ -127,8 +151,32 @@ async def remove_tag_link(
 ):
     """Remove a tag from a node."""
     service = await _get_node_service(user)
-    removed = await service.remove_tag_link(node_id, target_id)
-    return {"removed": removed}
+
+    node = await service.get_node(node_id)
+    if not node:
+        raise HTTPException(404, "Node not found")
+    before_tag_ids = list(node.tag_ids)
+
+    async with get_transaction():
+        removed = await service.remove_tag_link(node_id, target_id)
+        if not removed:
+            raise HTTPException(404, "Tag link not found")
+
+        # Record for undo
+        try:
+            undo = await _get_undo_service(user)
+            await undo.record(
+                "remove_tag_link",
+                "node",
+                node_id,
+                before_state={"tag_ids": before_tag_ids},
+                after_state={"tag_ids": [tid for tid in before_tag_ids if tid != target_id]},
+                description=f"Removed tag link from node {node_id}",
+            )
+        except (ValueError, TypeError, LookupError):
+            pass
+
+    return {"removed": True}
 
 
 @router.post("/{node_id}/properties")
@@ -145,55 +193,61 @@ async def set_property(
     if not prop:
         raise HTTPException(404, "Property not found")
 
-    # Snapshot existing property value before setting
     from ...domain.entities import RELATION_TYPES, SCALAR_TYPES, PropertyType
 
-    old_value = None
+    # Snapshot existing assignment and values before setting
+    old_values: list[Any] = []
+    had_assignment = False
     try:
+        np = await service.property_repo.get_node_property(node_id, request.property_id)
+        had_assignment = np is not None
         if prop.type in SCALAR_TYPES:
-            vals = await service.property_repo.get_scalar_values(node_id, request.property_id)
-            old_value = vals[0].value if vals else None
+            old_values = [v.value for v in await service.property_repo.get_scalar_values(node_id, request.property_id)]
         elif prop.type in RELATION_TYPES:
-            vals = await service.property_repo.get_relation_values(node_id, request.property_id)
-            old_value = vals[0].target_node_id if vals else None
+            old_values = [v.target_id for v in await service.property_repo.get_relation_values(node_id, request.property_id)]
         elif prop.type == PropertyType.SELECTION:
-            vals = await service.property_repo.get_scalar_values(node_id, request.property_id)
-            old_value = vals[0].value if vals else None
+            old_values = [v.selection_line_id for v in await service.property_repo.get_selection_values(node_id, request.property_id)]
     except LookupError:
         pass
 
-    # Set value based on property type
-    if prop.type in SCALAR_TYPES:
-        await service.property_repo.set_scalar_value(node_id, request.property_id, request.value)
-    elif prop.type in RELATION_TYPES:
-        # For relation types, value should be a target_node_id
-        await service.property_repo.set_relation_value(node_id, request.property_id, request.value)
-    elif prop.type == PropertyType.SELECTION:
-        # For selection types, value should be a selection_line_id
-        await service.property_repo.set_selection_value(node_id, request.property_id, request.value)
+    prop_type_str = prop.type.value if hasattr(prop.type, "value") else str(prop.type)
 
-    # Record for undo
-    try:
-        undo = await _get_undo_service(user)
-        await undo.record(
-            "set_property",
-            "node",
-            node_id,
-            before_state={
-                "property_id": request.property_id,
-                "property_type": prop.type.value if hasattr(prop.type, "value") else str(prop.type),
-                "had_value": old_value is not None,
-                "value": old_value,
-            },
-            after_state={
-                "property_id": request.property_id,
-                "property_type": prop.type.value if hasattr(prop.type, "value") else str(prop.type),
-                "value": request.value,
-            },
-            description=f"Set property {prop.name} on node {node_id}",
-        )
-    except (ValueError, TypeError, LookupError):
-        pass
+    async with get_transaction():
+        # Set value based on property type
+        if prop.type in SCALAR_TYPES:
+            await service.property_repo.set_scalar_value(node_id, request.property_id, request.value)
+        elif prop.type in RELATION_TYPES:
+            # For relation types, value should be a target_node_id
+            await service.property_repo.set_relation_value(node_id, request.property_id, request.value)
+        elif prop.type == PropertyType.SELECTION:
+            # For selection types, value should be a selection_line_id
+            await service.property_repo.set_selection_value(node_id, request.property_id, request.value)
+
+        # Record for undo
+        try:
+            undo = await _get_undo_service(user)
+            await undo.record(
+                "set_property",
+                "node",
+                node_id,
+                before_state={
+                    "property_id": request.property_id,
+                    "property_type": prop_type_str,
+                    "is_multi": prop.is_multi,
+                    "had_assignment": had_assignment,
+                    "values": old_values,
+                },
+                after_state={
+                    "property_id": request.property_id,
+                    "property_type": prop_type_str,
+                    "is_multi": prop.is_multi,
+                    "had_assignment": True,
+                    "values": [request.value] if request.value is not None else [],
+                },
+                description=f"Set property {prop.name} on node {node_id}",
+            )
+        except (ValueError, TypeError, LookupError):
+            pass
 
     node = await service.get_node(node_id)
     if not node:
@@ -213,47 +267,50 @@ async def remove_property(
     # Snapshot existing property value before removal
     from ...domain.entities import RELATION_TYPES, SCALAR_TYPES, PropertyType
 
-    old_value = None
+    old_values: list[Any] = []
     prop = None
     try:
         prop = await service.property_repo.get_by_id(property_id)
         if prop:
             if prop.type in SCALAR_TYPES:
-                vals = await service.property_repo.get_scalar_values(node_id, property_id)
-                old_value = vals[0].value if vals else None
+                old_values = [v.value for v in await service.property_repo.get_scalar_values(node_id, property_id)]
             elif prop.type in RELATION_TYPES:
-                vals = await service.property_repo.get_relation_values(node_id, property_id)
-                old_value = vals[0].target_node_id if vals else None
+                old_values = [v.target_id for v in await service.property_repo.get_relation_values(node_id, property_id)]
             elif prop.type == PropertyType.SELECTION:
-                vals = await service.property_repo.get_scalar_values(node_id, property_id)
-                old_value = vals[0].value if vals else None
+                old_values = [v.selection_line_id for v in await service.property_repo.get_selection_values(node_id, property_id)]
     except LookupError:
         pass
 
-    await service.property_repo.remove_property_from_node(node_id, property_id)
+    prop_type_str = (
+        prop.type.value
+        if prop and hasattr(prop.type, "value")
+        else str(prop.type)
+        if prop
+        else ""
+    )
 
-    # Record for undo
-    try:
-        undo = await _get_undo_service(user)
-        await undo.record(
-            "remove_property",
-            "node",
-            node_id,
-            before_state={
-                "property_id": property_id,
-                "property_type": prop.type.value
-                if prop and hasattr(prop.type, "value")
-                else str(prop.type)
-                if prop
-                else None,
-                "had_value": old_value is not None,
-                "value": old_value,
-            },
-            after_state={"property_id": property_id, "removed": True},
-            description=f"Removed property {prop.name if prop else property_id} from node {node_id}",
-        )
-    except (ValueError, TypeError, LookupError):
-        pass
+    async with get_transaction():
+        await service.property_repo.remove_property_from_node(node_id, property_id)
+
+        # Record for undo
+        try:
+            undo = await _get_undo_service(user)
+            await undo.record(
+                "remove_property",
+                "node",
+                node_id,
+                before_state={
+                    "property_id": property_id,
+                    "property_type": prop_type_str,
+                    "is_multi": prop.is_multi if prop else False,
+                    "had_assignment": True,
+                    "values": old_values,
+                },
+                after_state={"property_id": property_id, "property_type": prop_type_str, "removed": True},
+                description=f"Removed property {prop.name if prop else property_id} from node {node_id}",
+            )
+        except (ValueError, TypeError, LookupError):
+            pass
 
     node = await service.get_node(node_id)
     if not node:
@@ -540,8 +597,28 @@ async def add_alias(
     """
     service = await _get_node_service(user)
 
+    alias_node = await service.get_node(request.alias_node_id)
+    if not alias_node:
+        raise HTTPException(404, "Alias node not found")
+    before_aliased_id = alias_node.aliased_id
+
     try:
-        await service.add_alias(node_id, request.alias_node_id)
+        async with get_transaction():
+            await service.add_alias(node_id, request.alias_node_id)
+
+            # Record for undo
+            try:
+                undo = await _get_undo_service(user)
+                await undo.record(
+                    "add_alias",
+                    "node",
+                    node_id,
+                    before_state={"alias_node_id": request.alias_node_id, "aliased_id": before_aliased_id},
+                    after_state={"alias_node_id": request.alias_node_id, "aliased_id": node_id},
+                    description=f"Added alias to node {node_id}",
+                )
+            except (ValueError, TypeError, LookupError):
+                pass
     except NodeNotFoundError as e:
         raise HTTPException(404, str(e)) from e
     except NodeValidationError as e:
@@ -562,9 +639,29 @@ async def remove_alias(
     """Remove an alias from a node (clears aliased_id on the alias node)."""
     service = await _get_node_service(user)
 
-    removed = await service.remove_alias(node_id, alias_id)
-    if not removed:
-        raise HTTPException(404, "Alias relationship not found")
+    alias_node = await service.get_node(alias_id)
+    if not alias_node:
+        raise HTTPException(404, "Alias node not found")
+    before_aliased_id = alias_node.aliased_id
+
+    async with get_transaction():
+        removed = await service.remove_alias(node_id, alias_id)
+        if not removed:
+            raise HTTPException(404, "Alias relationship not found")
+
+        # Record for undo
+        try:
+            undo = await _get_undo_service(user)
+            await undo.record(
+                "remove_alias",
+                "node",
+                node_id,
+                before_state={"alias_node_id": alias_id, "aliased_id": before_aliased_id},
+                after_state={"alias_node_id": alias_id, "aliased_id": None},
+                description=f"Removed alias from node {node_id}",
+            )
+        except (ValueError, TypeError, LookupError):
+            pass
 
     return {"removed": True}
 

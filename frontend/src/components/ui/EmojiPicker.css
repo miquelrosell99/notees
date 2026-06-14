@@ -39,11 +39,6 @@
   flex-shrink: 0;
 }
 
-.ep-tabs {
-  display: flex;
-  gap: var(--spacing-micro);
-}
-
 .ep-header-actions {
   display: flex;
   align-items: center;

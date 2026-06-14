@@ -30,16 +30,6 @@ export type {
   ParsedFilters,
 } from '@/utils/searchFilters';
 
-export type CommandIcon = 'import' | 'export' | 'maintenance' | 'focus' | 'uuid' | 'merge' | 'random' | 'minimap' | 'graph' | 'expand' | 'presentation' | 'share' | 'sync' | 'lock';
-
-export interface CommandDef {
-  id: string;
-  label: string;
-  icon: CommandIcon;
-  requiresPage?: boolean;
-  devOnly?: boolean;
-}
-
 export interface DuplicateModalState {
   isOpen: boolean;
   pageName: string;
@@ -61,8 +51,6 @@ export interface ItemEntry {
   parsedDate?: ParsedDate;
   existingNode?: Node;
   commandId?: string;
-  commandIcon?: CommandIcon;
-  commandDevOnly?: boolean;
   browseSection?: 'recent-accessed' | 'recent-created' | 'random';
   showMoreSection?: 'pages' | 'blocks' | 'properties';
   showMoreCount?: number;

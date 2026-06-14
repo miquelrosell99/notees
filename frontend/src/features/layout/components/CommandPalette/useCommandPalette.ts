@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from 'react';
 import type { Node } from '@/types';
-import { useNavigationStore } from '@/stores';
+import { useNavigationStore, useSettingsStore } from '@/stores';
 import { useKeyboardListNav } from '@/hooks/useKeyboardListNav';
 import type { CommandPaletteProps, ItemEntry, GroupedItems } from './CommandPalette.types';
 import { useCommandPaletteState } from './useCommandPaletteState';
@@ -10,6 +10,7 @@ import { useCommandPaletteSelection } from './useCommandPaletteSelection';
 export function useCommandPalette({ isOpen, onClose, onSelect }: CommandPaletteProps) {
   const state = useCommandPaletteState({ isOpen, onClose });
   const currentNodeId = useNavigationStore((s) => s.currentNodeId);
+  const showDevOptions = useSettingsStore((s) => s.showDevOptions);
 
   const allItems = useCommandPaletteItems({
     rawPages: state.rawPages,
@@ -36,6 +37,8 @@ export function useCommandPalette({ isOpen, onClose, onSelect }: CommandPaletteP
     activeFilter: state.activeFilter,
     formatParsedDateLabel: state.formatParsedDateLabel,
     currentNodeId,
+    showDevOptions,
+    isTypingColon: state.isTypingColon,
   });
 
   const { handleSelect } = useCommandPaletteSelection({
@@ -44,7 +47,6 @@ export function useCommandPalette({ isOpen, onClose, onSelect }: CommandPaletteP
     pageNameForCreation: state.pageNameForCreation,
     selectedClasses: state.selectedClasses,
     pageClassId: state.pageClassId,
-    allClasses: state.allClasses,
     destinationPage: state.destinationPage,
     onSelect,
     onClose,
@@ -66,23 +68,40 @@ export function useCommandPalette({ isOpen, onClose, onSelect }: CommandPaletteP
 
   const { openNodeCollectionFromNodes, openNode } = useNavigationStore();
 
-  // Wrap to let SuggestionPopup handle keyboard when class popup is open
+  // Destructure popup state so the keyboard handler has a stable dependency list
+  const {
+    isTypingClass,
+    isTypingColon,
+    handleFilterPrefixClose,
+    searchResults,
+    searchTerm,
+  } = state;
+
+  // Wrap to let popups handle keyboard when a popup is open
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (state.isTypingClass) {
+    if (isTypingClass) {
       if (e.key === 'Escape') {
         e.preventDefault();
         onClose();
       }
       return;
     }
+
+    if (isTypingColon) {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        handleFilterPrefixClose();
+      }
+      return;
+    }
     // Ctrl+Enter opens all search results in a temporary NodeCollection view
     if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-      if (state.searchResults && state.searchResults.length > 0) {
+      if (searchResults && searchResults.length > 0) {
         e.preventDefault();
         e.stopPropagation();
         openNodeCollectionFromNodes(
-          state.searchTerm.trim() ? `Search: "${state.searchTerm}"` : 'Search results',
-          (state.searchResults as Node[]).map((n) => n.id),
+          searchTerm.trim() ? `Search: "${searchTerm}"` : 'Search results',
+          (searchResults as Node[]).map((n) => n.id),
         );
         onClose();
         return;
@@ -97,7 +116,7 @@ export function useCommandPalette({ isOpen, onClose, onSelect }: CommandPaletteP
       }
     }
     listKeyDown(e);
-  }, [state.isTypingClass, state.searchResults, state.searchTerm, allItems, handleSelect, listKeyDown, onClose, openNodeCollectionFromNodes]);
+  }, [isTypingClass, isTypingColon, handleFilterPrefixClose, searchResults, searchTerm, allItems, handleSelect, listKeyDown, onClose, openNodeCollectionFromNodes]);
 
   // Group items for rendering — pre-compute index maps to avoid O(n²) indexOf in JSX
   const groupedItems = useMemo<GroupedItems>(() => {
@@ -146,6 +165,7 @@ export function useCommandPalette({ isOpen, onClose, onSelect }: CommandPaletteP
     setQuery: state.setQuery,
     appliedFilters: state.appliedFilters,
     classPopupPosition: state.classPopupPosition,
+    filterPrefixPopupPosition: state.filterPrefixPopupPosition,
     duplicateModal: state.duplicateModal,
     setDuplicateModal: state.setDuplicateModal,
     inputRef: state.inputRef,
@@ -153,6 +173,7 @@ export function useCommandPalette({ isOpen, onClose, onSelect }: CommandPaletteP
     isOpen,
     isTypingClass: state.isTypingClass,
     isTypingFilter: state.isTypingFilter,
+    isTypingColon: state.isTypingColon,
     classQuery: state.classQuery,
     isTypingBoolean: state.isTypingBoolean,
     booleanOptions: state.booleanOptions,
@@ -171,6 +192,8 @@ export function useCommandPalette({ isOpen, onClose, onSelect }: CommandPaletteP
     handleRemoveFilter: state.handleRemoveFilter,
     handleBooleanSelect: state.handleBooleanSelect,
     handlePrefixSelect: state.handlePrefixSelect,
+    handleFilterPrefixSelect: state.handleFilterPrefixSelect,
+    handleFilterPrefixClose: state.handleFilterPrefixClose,
     handleClassCreate: state.handleClassCreate,
     handleBackdropClick: state.handleBackdropClick,
     refreshRandomPages: state.refreshRandomPages,
