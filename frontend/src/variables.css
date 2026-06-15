@@ -369,10 +369,13 @@
   /* Spacing system for the block tree. All block chrome positions are
      derived from these tokens so that changes require no manual recalculation. */
   --block-indent-step: 24px;
-  --editing-trail-offset: -14px;
-  --thread-line-offset: -18px;
-  --thread-line-width: 10px;
+  --block-thread-line-align: calc(var(--bullet-wrapper-size) / 2);
   --thread-line-visual-width: 2px;
+  --thread-line-guide-width: 1px;
+  --thread-line-hit-width: max(44px, var(--block-indent-step));
+  --thread-line-connector-radius: calc(var(--block-indent-step) / 2);
+  --thread-line-bullet-gap: 16px;
+  --block-thread-line-overhang: calc(var(--spacing-tiny) + var(--spacing-micro) / 2);
   --bullet-wrapper-size: 22px;
   --bullet-dot-size: 6px;
   --collapse-arrow-offset: -12px;
