@@ -84,7 +84,7 @@ class PostgresNodeHierarchyMixin(_PostgresNodeBase):
                     SELECT n.id, n.parent_id, a.depth + 1
                     FROM node n
                     INNER JOIN ancestors a ON n.id = a.parent_id
-                    WHERE n.workspace_id = $2 AND n.active = TRUE AND n.is_deleted = FALSE
+                    WHERE n.workspace_id = $2 AND n.active = TRUE AND n.is_deleted = FALSE AND a.depth < 100
                 )
                 SELECT n.* FROM ancestors a
                 JOIN node n ON n.id = a.id
@@ -121,7 +121,7 @@ class PostgresNodeHierarchyMixin(_PostgresNodeBase):
                     SELECT n.id, n.parent_id, a.depth + 1, a.exit_node_id
                     FROM node n
                     INNER JOIN ancestors a ON n.id = a.parent_id
-                    WHERE n.workspace_id = $2 AND n.active = TRUE AND n.is_deleted = FALSE
+                    WHERE n.workspace_id = $2 AND n.active = TRUE AND n.is_deleted = FALSE AND a.depth < 100
                 )
                 SELECT n.*, a.exit_node_id, a.depth FROM ancestors a
                 JOIN node n ON n.id = a.id
@@ -155,7 +155,7 @@ class PostgresNodeHierarchyMixin(_PostgresNodeBase):
                     SELECT n.id, n.parent_id, a.depth + 1
                     FROM node n
                     INNER JOIN ancestors a ON n.id = a.parent_id
-                    WHERE n.workspace_id = $2 AND n.active = TRUE AND n.is_deleted = FALSE
+                    WHERE n.workspace_id = $2 AND n.active = TRUE AND n.is_deleted = FALSE AND a.depth < 100
                 )
                 SELECT id, depth FROM ancestors
                 WHERE ($3::boolean OR depth > 0)
@@ -190,7 +190,7 @@ class PostgresNodeHierarchyMixin(_PostgresNodeBase):
                     SELECT n.id, n.parent_id, a.depth + 1, a.start_node_id
                     FROM node n
                     INNER JOIN ancestors a ON n.id = a.parent_id
-                    WHERE n.workspace_id = $2 AND n.active = TRUE AND n.is_deleted = FALSE
+                    WHERE n.workspace_id = $2 AND n.active = TRUE AND n.is_deleted = FALSE AND a.depth < 100
                 )
                 SELECT id, start_node_id FROM ancestors
                 WHERE ($3::boolean OR depth > 0)
@@ -223,7 +223,7 @@ class PostgresNodeHierarchyMixin(_PostgresNodeBase):
                     SELECT n.id, d.depth + 1
                     FROM node n
                     INNER JOIN descendants d ON n.parent_id = d.id
-                    WHERE n.workspace_id = $2 AND n.active = TRUE AND n.is_deleted = FALSE AND n.is_comment = FALSE
+                    WHERE n.workspace_id = $2 AND n.active = TRUE AND n.is_deleted = FALSE AND n.is_comment = FALSE AND d.depth < 100
                 )
                 SELECT id FROM descendants
                 WHERE ($3::boolean OR depth > 0)
@@ -247,7 +247,7 @@ class PostgresNodeHierarchyMixin(_PostgresNodeBase):
                     SELECT n.id, d.depth + 1
                     FROM node n
                     INNER JOIN descendants d ON n.parent_id = d.id
-                    WHERE n.workspace_id = $2 AND n.active = TRUE AND n.is_deleted = FALSE AND n.is_comment = FALSE
+                    WHERE n.workspace_id = $2 AND n.active = TRUE AND n.is_deleted = FALSE AND n.is_comment = FALSE AND d.depth < 100
                 )
                 SELECT n.* FROM descendants d
                 JOIN node n ON n.id = d.id
@@ -282,7 +282,7 @@ class PostgresNodeHierarchyMixin(_PostgresNodeBase):
                     SELECT n.id, d.root_id, d.depth + 1
                     FROM node n
                     INNER JOIN descendants d ON n.parent_id = d.id
-                    WHERE n.workspace_id = $2 AND n.active = TRUE AND n.is_deleted = FALSE AND n.is_comment = FALSE
+                    WHERE n.workspace_id = $2 AND n.active = TRUE AND n.is_deleted = FALSE AND n.is_comment = FALSE AND d.depth < 100
                 )
                 SELECT root_id, id FROM descendants
                 WHERE ($3::boolean OR depth > 0)
@@ -316,6 +316,7 @@ class PostgresNodeHierarchyMixin(_PostgresNodeBase):
                     SELECT n.id, d.depth + 1
                     FROM node n
                     INNER JOIN descendants d ON n.parent_id = d.id
+                    WHERE d.depth < 100
                 )
                 SELECT id FROM descendants
                 WHERE ($2::boolean OR depth > 0)

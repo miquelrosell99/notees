@@ -5,13 +5,18 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from ...db.schema.constants import SYSTEM_PROPERTY_UUIDS, generate_day_uuid
-from ...dependencies import get_activity_repository, get_current_user
+from ...db.schema.constants import SYSTEM_PROPERTY_UUIDS
+from ...dependencies import (
+    get_activity_repository,
+    get_current_user,
+    get_task_automation_service,
+)
 from ...domain.entities import RELATION_TYPES, SCALAR_TYPES, PropertyType
 from ...domain.repositories.interfaces import ActivityRepository
+from ...domain.services import TaskAutomationService
 from ...logging_config import get_logger
 from ...models import User
-from ..nodes.helpers import _get_node_service, _node_to_response, extract_properties_dict
+from ..nodes.helpers import _get_class_ids, _node_to_response, extract_properties_dict
 from .helpers import (
     _get_property_repo,
     _property_to_response,
@@ -29,214 +34,29 @@ from .models import (
 logger = get_logger(__name__)
 
 
-async def _handle_closed_date_automation(
+def _normalize_selection_value(value: Any) -> int | None:
+    """Extract a single selection line ID from a scalar, list, or empty value."""
+    if value is None or value == "":
+        return None
+    if isinstance(value, list):
+        return value[0] if value else None
+    return int(value)
+
+
+async def _run_task_automations(
     node_id: int,
     prop: Any,
-    selection_value: Any,
-    repo: Any,
-    node_service: Any,
+    value: Any,
+    task_service: TaskAutomationService,
 ) -> None:
-    """Auto-set or clear Closed Date when task Status is set to Done/Cancelled."""
+    """Delegate task lifecycle automations to the domain service."""
     if prop.uuid != SYSTEM_PROPERTY_UUIDS["task_status"]:
         return
-
-    closed_date_prop = await repo.get_by_uuid(SYSTEM_PROPERTY_UUIDS["task_closed_date"])
-    if not closed_date_prop or closed_date_prop.id is None:
-        return
-
-    # Determine which selection option was chosen
-    if selection_value is None or selection_value == "":
-        selected_id = None
-    elif isinstance(selection_value, list):
-        selected_id = selection_value[0] if selection_value else None
-    else:
-        selected_id = int(selection_value)
-
-    closed_statuses = {"Done", "Cancelled"}
-    should_close = False
-
-    if selected_id is not None and prop.id is not None:
-        lines = await repo.get_selection_lines(prop.id)
-        selected_line = next((line for line in lines if line.id == selected_id), None)
-        if selected_line and selected_line.name in closed_statuses:
-            should_close = True
-
-    if should_close:
-        from datetime import date
-
-        from ...db.schema.constants import SYSTEM_CLASS_UUIDS
-        from ...domain.entities import NodeCreateData
-        from ...domain.stringify_ast import ParseMode, parse_ast, serialize_ast
-
-        today = date.today()
-        day_uuid = generate_day_uuid(today)
-        day_node = await node_service.get_node_by_uuid(day_uuid)
-        if not day_node:
-            day_type = await node_service.get_node_by_uuid(SYSTEM_CLASS_UUIDS["day"])
-            classes = [node_service.page_class_id]
-            if day_type and day_type.id:
-                classes.append(day_type.id)
-            iso_name = serialize_ast(parse_ast(today.strftime("%Y-%m-%d"), ParseMode.PLAIN))
-            day_node = await node_service.create_raw_node(NodeCreateData(name=iso_name, classes=classes), uuid=day_uuid)
-        if day_node and day_node.id:
-            await repo.clear_relation_values(node_id, closed_date_prop.id)
-            await repo.set_relation_value(node_id, closed_date_prop.id, day_node.id)
-    else:
-        await repo.clear_relation_values(node_id, closed_date_prop.id)
-
-
-async def _handle_recurrence_automation(
-    node_id: int,
-    prop: Any,
-    selection_value: Any,
-    repo: Any,
-    node_service: Any,
-) -> None:
-    """When a recurring task is completed, reset it to Pending and advance dates.
-
-    If a task has a recurrence rule and its status changes to Done/Cancelled,
-    this resets the status to Pending and shifts scheduled/deadline dates
-    forward by the recurrence interval.
-    """
-    if prop.uuid != SYSTEM_PROPERTY_UUIDS["task_status"]:
-        return
-
-    # Check if the new status is a "closed" status
-    if selection_value is None or selection_value == "":
-        return
-    selected_id = int(selection_value[0]) if isinstance(selection_value, list) else int(selection_value)
-
-    if prop.id is None:
-        return
-    lines = await repo.get_selection_lines(prop.id)
-    selected_line = next((line for line in lines if line.id == selected_id), None)
-    if not selected_line or selected_line.name not in {"Done", "Cancelled"}:
-        return
-
-    # Check if this task has a recurrence rule
-    recurrence_prop = await repo.get_by_uuid(SYSTEM_PROPERTY_UUIDS["task_recurrence"])
-    if not recurrence_prop or recurrence_prop.id is None:
-        return
-
-    existing_props = await repo.get_all_property_values(node_id)
-    if recurrence_prop.id not in existing_props:
-        return
-
-    # Get the recurrence value
-    recurrence_values = existing_props[recurrence_prop.id]
-    if not recurrence_values or not recurrence_values.get("values"):
-        return
-
-    # Get the selection line name for the recurrence
-    rec_values_list = recurrence_values["values"]
-    if not rec_values_list:
-        return
-    rec_val = rec_values_list[0]
-    rec_id = getattr(rec_val, "selection_line_id", None)
-    if rec_id is None:
-        return
-    rec_lines = await repo.get_selection_lines(recurrence_prop.id)
-    rec_line = next((line for line in rec_lines if line.id == rec_id), None)
-    if not rec_line:
-        return
-
-    recurrence_rule = rec_line.name  # "Daily", "Weekly", etc.
-
-    from datetime import date, timedelta
-
-    from ...db.schema.constants import SYSTEM_CLASS_UUIDS
-    from ...domain.entities import NodeCreateData
-    from ...domain.stringify_ast import ParseMode, parse_ast, serialize_ast
-
-    def _advance_date(d: date, rule: str) -> date:
-        """Advance a date by the recurrence interval."""
-        if rule == "Daily":
-            return d + timedelta(days=1)
-        elif rule == "Every Weekday":
-            next_d = d + timedelta(days=1)
-            while next_d.weekday() >= 5:  # Skip Saturday(5) and Sunday(6)
-                next_d += timedelta(days=1)
-            return next_d
-        elif rule == "Weekly":
-            return d + timedelta(weeks=1)
-        elif rule == "Biweekly":
-            return d + timedelta(weeks=2)
-        elif rule == "Monthly":
-            month = d.month + 1
-            year = d.year
-            if month > 12:
-                month = 1
-                year += 1
-            day = min(d.day, 28)  # Safe day for all months
-            return date(year, month, day)
-        elif rule == "Yearly":
-            return date(d.year + 1, d.month, min(d.day, 28))
-        return d + timedelta(days=1)
-
-    async def _get_day_node(target_date: date) -> int | None:
-        """Get or create a day page node for the given date."""
-        day_uuid = generate_day_uuid(target_date)
-        day_node = await node_service.get_node_by_uuid(day_uuid)
-        if not day_node:
-            day_type = await node_service.get_node_by_uuid(SYSTEM_CLASS_UUIDS["day"])
-            classes = [node_service.page_class_id]
-            if day_type and day_type.id:
-                classes.append(day_type.id)
-            iso_name = serialize_ast(parse_ast(target_date.strftime("%Y-%m-%d"), ParseMode.PLAIN))
-            day_node = await node_service.create_raw_node(NodeCreateData(name=iso_name, classes=classes), uuid=day_uuid)
-        return day_node.id if day_node else None
-
-    def _uuid_to_date(uuid_str: str) -> date | None:
-        """Extract date from a day page UUID (format: 00000000-0000-0000-00dd-YYYYMMDD0000)."""
-        try:
-            # The date is embedded in the last segment: YYYYMMDD0000
-            parts = uuid_str.split("-")
-            date_part = parts[4][:8]  # YYYYMMDD
-            return date(int(date_part[:4]), int(date_part[4:6]), int(date_part[6:8]))
-        except (IndexError, ValueError):
-            return None
-
-    # Advance scheduled and deadline dates
-    for date_prop_key in ("task_scheduled", "task_deadline"):
-        date_prop = await repo.get_by_uuid(SYSTEM_PROPERTY_UUIDS[date_prop_key])
-        if not date_prop or date_prop.id is None or date_prop.id not in existing_props:
-            continue
-
-        date_values = existing_props[date_prop.id]
-        if not date_values or not date_values.get("values"):
-            continue
-
-        # Get the current day node to extract the date
-        date_values_list = date_values["values"]
-        if not date_values_list:
-            continue
-        target_id = getattr(date_values_list[0], "target_id", None)
-        if not target_id:
-            continue
-
-        target_node = await node_service.get_node(int(target_id))
-        if not target_node or not target_node.uuid:
-            continue
-
-        current_date = _uuid_to_date(target_node.uuid)
-        if not current_date:
-            continue
-
-        new_date = _advance_date(current_date, recurrence_rule)
-        new_day_id = await _get_day_node(new_date)
-        if new_day_id:
-            await repo.clear_relation_values(node_id, date_prop.id)
-            await repo.set_relation_value(node_id, date_prop.id, new_day_id)
-
-    # Reset status to Pending
-    pending_line = next((line for line in lines if line.name == "Pending"), None)
-    if pending_line and pending_line.id is not None:
-        await repo.set_selection_value(node_id, prop.id, pending_line.id)
-
-    # Clear the closed date since the task is being reset
-    closed_date_prop = await repo.get_by_uuid(SYSTEM_PROPERTY_UUIDS["task_closed_date"])
-    if closed_date_prop and closed_date_prop.id is not None:
-        await repo.clear_relation_values(node_id, closed_date_prop.id)
+    status_line_id = _normalize_selection_value(value)
+    try:
+        await task_service.handle_status_change(node_id, status_line_id)
+    except Exception as e:
+        logger.warning(f"[TASK_AUTOMATION] Failed for node {node_id}: {e}")
 
 
 router = APIRouter()
@@ -282,6 +102,7 @@ async def set_property_value(
     request: SetPropertyRequest,
     user: User = Depends(get_current_user),
     activity_repo: ActivityRepository = Depends(get_activity_repository),
+    task_service: TaskAutomationService = Depends(get_task_automation_service),
 ):
     """Set a property value for a node (auto-detects type and dispatches to correct handler).
 
@@ -289,7 +110,7 @@ async def set_property_value(
     the appropriate type-specific endpoint. Returns the updated node.
     """
     repo = await _get_property_repo(user)
-    node_service = await _get_node_service(user)
+    node_service = task_service.node_service
 
     # Get the property to determine its type
     prop = await repo.get_by_id(request.property_id)
@@ -372,16 +193,9 @@ async def set_property_value(
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
 
-    # Auto-update Closed Date when task Status changes
+    # Run task lifecycle automations when task_status changes.
     if prop.type not in SCALAR_TYPES and prop.type not in RELATION_TYPES:
-        try:
-            await _handle_closed_date_automation(node_id, prop, request.value, repo, node_service)
-        except Exception as e:
-            logger.warning(f"[CLOSED_DATE] Automation failed for node {node_id}: {e}")
-        try:
-            await _handle_recurrence_automation(node_id, prop, request.value, repo, node_service)
-        except Exception as e:
-            logger.warning(f"[RECURRENCE] Automation failed for node {node_id}: {e}")
+        await _run_task_automations(node_id, prop, request.value, task_service)
 
     # Log property change activity
     try:
@@ -403,8 +217,6 @@ async def set_property_value(
         raise HTTPException(404, f"Node {node_id} not found")
 
     # Get classes for the node
-    from ..nodes.helpers import _get_class_ids
-
     class_ids = await _get_class_ids(node_service, node_id)
 
     # Build response with properties populated
@@ -732,6 +544,7 @@ class BatchSetPropertyResponse(BaseModel):
 async def batch_set_property_values(
     request: BatchSetPropertyRequest,
     user: User = Depends(get_current_user),
+    task_service: TaskAutomationService = Depends(get_task_automation_service),
 ):
     """Set property values for many (node, property, value) tuples in one request.
 
@@ -739,7 +552,6 @@ async def batch_set_property_values(
     others from being set.  Returns per-item results.
     """
     repo = await _get_property_repo(user)
-    node_service = await _get_node_service(user)
 
     # Pre-fetch all referenced properties once to avoid N lookups
     prop_ids = list({item.property_id for item in request.items})
@@ -789,14 +601,9 @@ async def batch_set_property_values(
 
                 # Run task automations for selection properties
                 if prop.uuid == SYSTEM_PROPERTY_UUIDS["task_status"]:
-                    try:
-                        await _handle_closed_date_automation(item.node_id, prop, item.value, repo, node_service)
-                    except Exception as e:
-                        logger.warning(f"[CLOSED_DATE] Batch automation failed for node {item.node_id}: {e}")
-                    try:
-                        await _handle_recurrence_automation(item.node_id, prop, item.value, repo, node_service)
-                    except Exception as e:
-                        logger.warning(f"[RECURRENCE] Batch automation failed for node {item.node_id}: {e}")
+                    await _run_task_automations(
+                        item.node_id, prop, item.value, task_service
+                    )
 
             results.append(BatchSetPropertyResultItem(index=i, success=True))
             succeeded += 1

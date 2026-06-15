@@ -114,6 +114,8 @@
   flex-shrink: 0;
   width: var(--bullet-wrapper-size);
   height: var(--bullet-wrapper-size);
+  /* Keep the placeholder dot optically aligned with body text, same as real bullets. */
+  transform: translateY(var(--bullet-optical-offset, 0.2em));
 }
 
 /* Placeholder bullet — faint dot */

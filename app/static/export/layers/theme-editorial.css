@@ -5,7 +5,7 @@
    ========================================================= */
 
 .theme-editorial {
-  --te-font-serif:    'Source Serif Pro', 'Merriweather', 'Georgia', 'Times New Roman', serif;
+  --te-font-serif:    'Source Serif 4', 'Source Serif Pro', 'Merriweather', 'Georgia', 'Times New Roman', serif;
   --te-font-sans:     'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   --te-font-mono:     'JetBrains Mono', 'Fira Code', 'SF Mono', Consolas, monospace;
   --te-size:          11.5pt;
@@ -290,17 +290,30 @@
 }
 
 /* --- Cover page --- */
-.cover-page.theme-editorial h1:first-of-type {
+.theme-editorial .cover__title {
   font-family: var(--te-font-sans);
-  font-size: 2.6rem;
+  font-size: 2.8rem;
   font-weight: 800;
   letter-spacing: -0.04em;
   color: var(--te-color-h1);
-  padding-top: 28vh;
-  text-align: center;
 }
 
-.cover-page.theme-editorial h1:first-of-type::after {
+.theme-editorial .cover__subtitle {
+  font-family: var(--te-font-sans);
+  color: var(--te-color-muted);
+}
+
+.theme-editorial .cover__date {
+  font-family: var(--te-font-sans);
+  color: var(--te-color-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.75rem;
+}
+
+.theme-editorial .cover::after {
+  content: '';
+  display: block;
   width: 40px;
   height: 2px;
   background: var(--te-border);

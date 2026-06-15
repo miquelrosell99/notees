@@ -9,7 +9,7 @@ import { persist } from 'zustand/middleware';
 
 export type ExportFormat = 'markdown' | 'html' | 'pdf' | 'text' | 'json';
 export type ExportLayout = 'outline' | 'flat';
-export type ExportStyle = 'modern' | 'editorial' | 'technical' | 'book';
+export type ExportStyle = 'modern' | 'casual' | 'editorial' | 'technical' | 'book';
 export type ExportProperties = 'none' | 'main' | 'all';
 export type ExportDensity = 'comfortable' | 'compact';
 export type ExportNumbering = 'none' | 'hierarchical' | 'legal' | 'appendix';
@@ -17,6 +17,8 @@ export type ExportMeasure = 'full' | 'readable' | 'book' | 'two-column';
 export type ExportDoctype = 'none' | 'article' | 'report' | 'book' | 'legal' | 'academic';
 export type ExportLinkStyle = 'raw' | 'text';
 export type ExportThemeMode = 'light' | 'dark';
+export type ExportPageSize = 'a4' | 'letter' | 'legal';
+export type ExportPreset = 'casual' | 'editorial' | 'technical' | 'book' | 'legal' | 'academic';
 
 interface ExportSettingsState {
   format: ExportFormat;
@@ -34,6 +36,8 @@ interface ExportSettingsState {
   cssOverrides: string;
   themeMode: ExportThemeMode;
   coverPage: boolean;
+  pageSize: ExportPageSize;
+  includeChildPages: boolean;
 
   setFormat: (format: ExportFormat) => void;
   setLayout: (layout: ExportLayout) => void;
@@ -50,7 +54,9 @@ interface ExportSettingsState {
   setCssOverrides: (cssOverrides: string) => void;
   setThemeMode: (themeMode: ExportThemeMode) => void;
   setCoverPage: (coverPage: boolean) => void;
-  applyPreset: (preset: 'casual' | 'editorial' | 'technical' | 'book') => void;
+  setPageSize: (pageSize: ExportPageSize) => void;
+  setIncludeChildPages: (includeChildPages: boolean) => void;
+  applyPreset: (preset: ExportPreset) => void;
 }
 
 export const useExportSettingsStore = create<ExportSettingsState>()(
@@ -71,6 +77,8 @@ export const useExportSettingsStore = create<ExportSettingsState>()(
       cssOverrides: '',
       themeMode: 'light',
       coverPage: false,
+      pageSize: 'a4',
+      includeChildPages: false,
 
       setFormat: (format) => set({ format }),
       setLayout: (layout) => set({ layout }),
@@ -87,11 +95,13 @@ export const useExportSettingsStore = create<ExportSettingsState>()(
       setCssOverrides: (cssOverrides) => set({ cssOverrides }),
       setThemeMode: (themeMode) => set({ themeMode }),
       setCoverPage: (coverPage) => set({ coverPage }),
+      setPageSize: (pageSize) => set({ pageSize }),
+      setIncludeChildPages: (includeChildPages) => set({ includeChildPages }),
 
-      applyPreset: (preset: 'casual' | 'editorial' | 'technical' | 'book') => {
+      applyPreset: (preset: ExportPreset) => {
         if (preset === 'casual') {
           set({
-            style: 'modern',
+            style: 'casual',
             density: 'comfortable',
             measure: 'readable',
             numbering: 'none',
@@ -140,6 +150,32 @@ export const useExportSettingsStore = create<ExportSettingsState>()(
             layout: 'flat',
             themeMode: 'light',
             coverPage: true,
+          });
+        } else if (preset === 'legal') {
+          set({
+            style: 'technical',
+            density: 'compact',
+            measure: 'full',
+            numbering: 'legal',
+            doctype: 'legal',
+            sectionBreak: false,
+            formatting: true,
+            layout: 'outline',
+            themeMode: 'light',
+            coverPage: false,
+          });
+        } else if (preset === 'academic') {
+          set({
+            style: 'editorial',
+            density: 'comfortable',
+            measure: 'readable',
+            numbering: 'none',
+            doctype: 'academic',
+            sectionBreak: false,
+            formatting: true,
+            layout: 'outline',
+            themeMode: 'light',
+            coverPage: false,
           });
         }
       },

@@ -5,11 +5,11 @@ Orchestrates node operations with link parsing and property management.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import TYPE_CHECKING, Any
 
 from ...db.connection import get_workspace_uuid
-from ...db.schema.constants import SYSTEM_CLASS_UUIDS
+from ...db.schema.constants import SYSTEM_CLASS_UUIDS, generate_day_uuid
 from ...logging_config import get_logger
 from ..entities import Node, NodeCreateData, NodeUpdateData
 from ..errors import DatePageDeletionError, DuplicateNodeError, NodeValidationError, PermissionDeniedError
@@ -154,6 +154,10 @@ class NodeService:
     async def get_nodes_typed_with(self, class_id: int) -> list[Node]:
         """Get all nodes that have this class assigned."""
         return await self._node_repo.get_typed_with(class_id)
+
+    async def get_task_nodes(self, limit: int = 1000, offset: int = 0) -> list[Node]:
+        """Get active task nodes using the is_task index."""
+        return await self._node_repo.get_task_nodes(limit=limit, offset=offset)
 
     async def get_nodes_by_ids(self, ids: list[int]) -> list[Node]:
         """Get multiple nodes by ID list."""
@@ -1550,6 +1554,27 @@ class NodeService:
         """Get a node by UUID (resolves aliases transparently)."""
         node = await self._node_repo.get_by_uuid(uuid)
         return await self._resolve_alias(node)
+
+    async def get_or_create_day_node(self, target_date: date) -> Node | None:
+        """Fetch an existing day page or create it with the proper classes.
+
+        Day pages use deterministic UUIDs so multiple callers converge on the
+        same row without races.
+        """
+        day_uuid = generate_day_uuid(target_date)
+        day_node = await self.get_node_by_uuid(day_uuid)
+        if day_node:
+            return day_node
+
+        day_type = await self.get_node_by_uuid(SYSTEM_CLASS_UUIDS["day"])
+        classes = [self.page_class_id]
+        if day_type and day_type.id:
+            classes.append(day_type.id)
+
+        iso_name = serialize_ast(parse_ast(target_date.strftime("%Y-%m-%d"), ParseMode.PLAIN))
+        return await self.create_raw_node(
+            NodeCreateData(name=iso_name, classes=classes), uuid=day_uuid
+        )
 
     async def get_node_with_properties(self, node_id: int) -> dict[str, Any] | None:
         """Get a node with all its property values."""

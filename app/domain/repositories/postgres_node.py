@@ -15,6 +15,7 @@ import asyncpg
 from ...db.connection import acquire_connection
 from ...utils import utc_now
 from ..entities import Node, NodeCreateData, NodeUpdateData, generate_uuid
+from ..node_flags import compute_node_flags
 from ..stringify_ast import NodeLinkResolution, StringifyMode, StringifyOptions, parse_ast, stringify_ast
 from .interfaces import NodeRepository
 from .postgres_node_base import _normalize_name_to_ast
@@ -23,7 +24,7 @@ from .postgres_node_search import PostgresNodeSearchMixin
 
 _NODE_SELECT_COLUMNS = (
     "id, uuid, workspace_id, name, icon, color, parent_id, page_id, sequence, collapsed, active, "
-    "is_shared, is_page, is_class, is_day, is_month, is_year, is_asset, is_template, is_comment, "
+    "is_shared, is_page, is_class, is_day, is_month, is_year, is_asset, is_template, is_comment, is_task, "
     "parent_locked, is_private, is_deleted, deleted_at, class_ids, tag_ids, classes_path, "
     "create_date, write_date, open_date, create_uid, write_uid, version, aliased_id"
 )
@@ -61,49 +62,18 @@ class PostgresNodeRepository(
             else:
                 page_id = await self._compute_page_id(data.parent_id)
 
-        is_class = False
-        is_page = False
-        is_day = False
-        is_month = False
-        is_year = False
-        is_asset = False
-        is_template = False
-        is_comment = False
+        class_nodes = await self.get_by_ids(data.classes) if data.classes else []
+        flags = compute_node_flags(class_nodes)
 
-        if data.classes:
-            from ...db.schema.constants import SYSTEM_CLASS_UUIDS
-
-            class_uuid_to_flag = {
-                SYSTEM_CLASS_UUIDS["class"]: "is_class",
-                SYSTEM_CLASS_UUIDS["page"]: "is_page",
-                SYSTEM_CLASS_UUIDS["day"]: "is_day",
-                SYSTEM_CLASS_UUIDS["month"]: "is_month",
-                SYSTEM_CLASS_UUIDS["year"]: "is_year",
-                SYSTEM_CLASS_UUIDS["asset"]: "is_asset",
-                SYSTEM_CLASS_UUIDS["template"]: "is_template",
-                SYSTEM_CLASS_UUIDS["comment"]: "is_comment",
-            }
-
-            for class_id in data.classes:
-                class_node = await self.get_by_id(class_id)
-                if class_node and class_node.uuid in class_uuid_to_flag:
-                    flag_name = class_uuid_to_flag[class_node.uuid]
-                    if flag_name == "is_class":
-                        is_class = True
-                    elif flag_name == "is_page":
-                        is_page = True
-                    elif flag_name == "is_day":
-                        is_day = True
-                    elif flag_name == "is_month":
-                        is_month = True
-                    elif flag_name == "is_year":
-                        is_year = True
-                    elif flag_name == "is_asset":
-                        is_asset = True
-                    elif flag_name == "is_template":
-                        is_template = True
-                    elif flag_name == "is_comment":
-                        is_comment = True
+        is_class = flags.get("is_class", False)
+        is_page = flags.get("is_page", False)
+        is_day = flags.get("is_day", False)
+        is_month = flags.get("is_month", False)
+        is_year = flags.get("is_year", False)
+        is_asset = flags.get("is_asset", False)
+        is_template = flags.get("is_template", False)
+        is_comment = flags.get("is_comment", False)
+        is_task = flags.get("is_task", False)
 
         # Pages never have page_id - only blocks do
         if is_page:
@@ -116,11 +86,11 @@ class PostgresNodeRepository(
                     uuid, workspace_id, name, icon, color, parent_id, page_id,
                     sequence, collapsed,
                     is_class, is_page, is_day, is_month, is_year,
-                    is_asset, is_template, is_comment,
+                    is_asset, is_template, is_comment, is_task,
                     class_ids, tag_ids,
                     create_date, write_date, create_uid, write_uid
                 )
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $20, $21, $21)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $21, $22, $22)
                 RETURNING id
                 """,
                 uuid,
@@ -140,6 +110,7 @@ class PostgresNodeRepository(
                 is_asset,
                 is_template,
                 is_comment,
+                is_task,
                 data.classes if data.classes else [],
                 data.tags if data.tags else [],
                 now,
@@ -172,6 +143,7 @@ class PostgresNodeRepository(
             tag_ids=data.tags if data.tags else [],
             is_template=is_template,
             is_comment=is_comment,
+            is_task=is_task,
             create_date=now.isoformat(),
             write_date=now.isoformat(),
             create_uid=uid,
@@ -278,15 +250,8 @@ class PostgresNodeRepository(
             current_node = await self.get_by_id(node_id)
             node_is_page = current_node.is_page if current_node else False
             if data.classes is not None:
-                from ...db.schema.constants import SYSTEM_CLASS_UUIDS
-
-                page_class_uuid = SYSTEM_CLASS_UUIDS["page"]
-                node_is_page = False
-                for cid in data.classes:
-                    cn = await self.get_by_id(cid)
-                    if cn and cn.uuid == page_class_uuid:
-                        node_is_page = True
-                        break
+                class_nodes = await self.get_by_ids(data.classes)
+                node_is_page = compute_node_flags(class_nodes).get("is_page", False)
             if node_is_page:
                 page_id = None
             elif await self._is_page(data.parent_id):
@@ -316,34 +281,8 @@ class PostgresNodeRepository(
             param_idx += 1
 
         if data.classes is not None:
-            from ...db.schema.constants import SYSTEM_CLASS_UUIDS
-
-            class_uuid_to_flag = {
-                SYSTEM_CLASS_UUIDS["class"]: "is_class",
-                SYSTEM_CLASS_UUIDS["page"]: "is_page",
-                SYSTEM_CLASS_UUIDS["day"]: "is_day",
-                SYSTEM_CLASS_UUIDS["month"]: "is_month",
-                SYSTEM_CLASS_UUIDS["year"]: "is_year",
-                SYSTEM_CLASS_UUIDS["asset"]: "is_asset",
-                SYSTEM_CLASS_UUIDS["template"]: "is_template",
-                SYSTEM_CLASS_UUIDS["comment"]: "is_comment",
-            }
-
-            flags = {
-                "is_class": False,
-                "is_page": False,
-                "is_day": False,
-                "is_month": False,
-                "is_year": False,
-                "is_asset": False,
-                "is_template": False,
-                "is_comment": False,
-            }
-
-            for class_id in data.classes:
-                class_node = await self.get_by_id(class_id)
-                if class_node and class_node.uuid in class_uuid_to_flag:
-                    flags[class_uuid_to_flag[class_node.uuid]] = True
+            class_nodes = await self.get_by_ids(data.classes)
+            flags = compute_node_flags(class_nodes)
 
             for flag_name, flag_value in flags.items():
                 set_clauses.append(f"{flag_name} = ${param_idx}")

@@ -821,13 +821,13 @@ async def execute_query(
     )
 
     # Aggregation queries return groups, not nodes. Skip enrichment for them.
-    if request.aggregation:
+    if effective_query.get("aggregation"):
         return {
             "groups": exec_result.get("groups", []),
             "metrics": exec_result.get("metrics"),
         }
 
-    results = exec_result["nodes"]
+    results = exec_result.get("nodes", [])
 
     # Lazy enrichment
     enrich = request.enrich or {}

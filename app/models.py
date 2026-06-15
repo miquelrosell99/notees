@@ -345,12 +345,14 @@ class ExportRequest(BaseModel):
     link_style: str = "raw"
     theme_mode: str = "light"
     cover_page: bool = False
+    page_size: str = "a4"
+    include_child_pages: bool = False
 
     @field_validator("layout")
     @classmethod
     def validate_layout(cls, v):
-        if v not in {"outline", "flat", "document", "table"}:
-            raise ValueError("layout must be one of: outline, flat, document, table")
+        if v not in {"outline", "flat"}:
+            raise ValueError("layout must be one of: outline, flat")
         return v
 
     @field_validator("properties")
@@ -363,43 +365,50 @@ class ExportRequest(BaseModel):
     @field_validator("density")
     @classmethod
     def validate_density(cls, v):
-        if v not in {"comfortable", "compact", "spacious"}:
-            raise ValueError("density must be one of: comfortable, compact, spacious")
+        if v not in {"comfortable", "compact"}:
+            raise ValueError("density must be one of: comfortable, compact")
         return v
 
     @field_validator("numbering")
     @classmethod
     def validate_numbering(cls, v):
-        if v not in {"none", "decimal", "bullet", "checklist"}:
-            raise ValueError("numbering must be one of: none, decimal, bullet, checklist")
+        if v not in {"none", "hierarchical", "legal", "appendix"}:
+            raise ValueError("numbering must be one of: none, hierarchical, legal, appendix")
         return v
 
     @field_validator("measure")
     @classmethod
     def validate_measure(cls, v):
-        if v not in {"full", "compact", "minimal"}:
-            raise ValueError("measure must be one of: full, compact, minimal")
+        if v not in {"full", "readable", "book", "two-column"}:
+            raise ValueError("measure must be one of: full, readable, book, two-column")
         return v
 
     @field_validator("doctype")
     @classmethod
     def validate_doctype(cls, v):
-        if v not in {"none", "article", "report", "letter", "book"}:
-            raise ValueError("doctype must be one of: none, article, report, letter, book")
+        if v not in {"none", "article", "report", "book", "legal", "academic"}:
+            raise ValueError("doctype must be one of: none, article, report, book, legal, academic")
         return v
 
     @field_validator("link_style")
     @classmethod
     def validate_link_style(cls, v):
-        if v not in {"raw", "wiki", "markdown"}:
-            raise ValueError("link_style must be one of: raw, wiki, markdown")
+        if v not in {"raw", "text"}:
+            raise ValueError("link_style must be one of: raw, text")
         return v
 
     @field_validator("theme_mode")
     @classmethod
     def validate_theme_mode(cls, v):
-        if v not in {"light", "dark", "auto"}:
-            raise ValueError("theme_mode must be one of: light, dark, auto")
+        if v not in {"light", "dark"}:
+            raise ValueError("theme_mode must be one of: light, dark")
+        return v
+
+    @field_validator("page_size")
+    @classmethod
+    def validate_page_size(cls, v):
+        if v not in {"a4", "letter", "legal"}:
+            raise ValueError("page_size must be one of: a4, letter, legal")
         return v
 
 

@@ -10,13 +10,12 @@
  */
 
 import type { SGEConfig, SGEEdge, SGEState, SGENode } from './types';
-import { LINK_REST_MULT, LINK_STIFF_MULT } from './types';
+import { LINK_REST_MULT, LINK_STIFF_MULT, LINK_COMPRESS_MULT } from './types';
 import type { ForcePlugin } from './forces/interface';
 import { SpringForce } from './forces/springs';
 import { LocalRepelForce } from './forces/localRepel';
 import { ClusterCohesionForce } from './forces/clusterCohesion';
 import { ClusterRepulsionForce } from './forces/clusterRepulsion';
-import { RadialStabilityForce } from './forces/radialStability';
 import { ComponentBubbleForce } from './forces/componentBubble';
 import { CenterGravityForce } from './forces/centerGravity';
 import { FastSpatialHash } from './spatialHash';
@@ -229,10 +228,11 @@ export class SGEEngine {
   activeCount = 0;
 
   // Pre-resolved edge arrays
-  edgeSrc:   Int32Array   = new Int32Array(0);
-  edgeTgt:   Int32Array   = new Int32Array(0);
-  edgeRest:  Float32Array = new Float32Array(0);
-  edgeStiff: Float32Array = new Float32Array(0);
+  edgeSrc:     Int32Array   = new Int32Array(0);
+  edgeTgt:     Int32Array   = new Int32Array(0);
+  edgeRest:    Float32Array = new Float32Array(0);
+  edgeStiff:   Float32Array = new Float32Array(0);
+  edgeCompress: Float32Array = new Float32Array(0);
   numEdges = 0;
 
   // Cluster centroid arrays
@@ -277,7 +277,6 @@ export class SGEEngine {
       new LocalRepelForce(),
       new ClusterCohesionForce(),
       new ClusterRepulsionForce(),
-      new RadialStabilityForce(),
       new ComponentBubbleForce(),
       new CenterGravityForce(),
     ];
@@ -350,6 +349,13 @@ export class SGEEngine {
     this.ensureCap(N);
     this.n = N;
 
+    // Preserve positions of nodes that survive a topology change so that
+    // toggling filters or changing levels does not throw away the layout.
+    const oldPositions = new Map<number, { x: number; y: number }>();
+    for (const [id, idx] of this.nodeIndex) {
+      oldPositions.set(id, { x: this.posX[idx], y: this.posY[idx] });
+    }
+
     this.adjacency.clear();
     this.nodeIndex.clear();
     for (const nd of nodes) this.adjacency.set(nd.id, new Set());
@@ -377,7 +383,7 @@ export class SGEEngine {
       this.posX[i] = 0; this.posY[i] = 0;
       this.velX[i] = 0; this.velY[i] = 0;
       this.oldAx[i] = 0; this.oldAy[i] = 0;
-      this.pinnedArr[i] = 0;
+      this.pinnedArr[i] = inp.pinned ? 1 : 0;
       this.clIdArr[i] = this.clusterMap.get(inp.id) ?? 0;
       this.compIdArr[i] = this.componentMap.get(inp.id) ?? 0;
       this.degArr[i] = this.adjacency.get(inp.id)?.size ?? 0;
@@ -388,8 +394,19 @@ export class SGEEngine {
     this._computeInitialPositions();
     for (let i = 0; i < N; i++) {
       const inp = nodes[i];
-      if (inp.x !== undefined && inp.x !== 0) this.posX[i] = inp.x;
-      if (inp.y !== undefined && inp.y !== 0) this.posY[i] = inp.y;
+      const old = oldPositions.get(inp.id);
+      const explicitX = inp.x !== undefined && inp.x !== 0;
+      const explicitY = inp.y !== undefined && inp.y !== 0;
+      if (explicitX) {
+        this.posX[i] = inp.x!;
+      } else if (old) {
+        this.posX[i] = old.x;
+      }
+      if (explicitY) {
+        this.posY[i] = inp.y!;
+      } else if (old) {
+        this.posY[i] = old.y;
+      }
     }
 
     this._rebuildEdgeArrays();
@@ -406,10 +423,11 @@ export class SGEEngine {
     const E = this.edges.length;
     const cap = Math.max(E * 2, 64);
     if (this.edgeSrc.length < E) {
-      this.edgeSrc   = new Int32Array(cap);
-      this.edgeTgt   = new Int32Array(cap);
-      this.edgeRest  = new Float32Array(cap);
-      this.edgeStiff = new Float32Array(cap);
+      this.edgeSrc     = new Int32Array(cap);
+      this.edgeTgt     = new Int32Array(cap);
+      this.edgeRest    = new Float32Array(cap);
+      this.edgeStiff   = new Float32Array(cap);
+      this.edgeCompress = new Float32Array(cap);
     }
     const deg = this.degArr;
     const rest0 = this.config.idealDistance;
@@ -424,11 +442,13 @@ export class SGEEngine {
       const type = e.type || 'reference';
       const restMult = LINK_REST_MULT[type] ?? 1.0;
       const stiffMult = LINK_STIFF_MULT[type] ?? 1.0;
-      this.edgeSrc[valid]   = si;
-      this.edgeTgt[valid]   = ti;
-      this.edgeRest[valid]  = (isInterCluster ? rest0 * 1.6 : rest0) * restMult;
+      const compressMult = LINK_COMPRESS_MULT[type] ?? 1.0;
+      this.edgeSrc[valid]     = si;
+      this.edgeTgt[valid]     = ti;
+      this.edgeRest[valid]    = (isInterCluster ? rest0 * 1.6 : rest0) * restMult;
       const stiffScale = this.config.linkCountAttraction ? 1 / Math.sqrt(maxDeg) : 1 / maxDeg;
-      this.edgeStiff[valid] = stiffScale * (isInterCluster ? 0.7 : 1.0) * stiffMult;
+      this.edgeStiff[valid]   = stiffScale * (isInterCluster ? 0.7 : 1.0) * stiffMult;
+      this.edgeCompress[valid] = compressMult;
       valid++;
     }
     this.numEdges = valid;
@@ -602,6 +622,11 @@ export class SGEEngine {
       this.velX[idx] = 0; this.velY[idx] = 0;
       this._rebuildActiveIndices();
     }
+  }
+
+  isPinned(id: number): boolean {
+    const idx = this.nodeIndex.get(id);
+    return idx !== undefined && this.pinnedArr[idx] === 1;
   }
 
   moveNode(id: number, x: number, y: number): void {

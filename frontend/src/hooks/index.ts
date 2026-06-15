@@ -50,3 +50,4 @@ export * from './useDocumentTitle';
 export * from './useFavorites';
 export * from './useRecents';
 export * from './useReducedMotion';
+export * from './useTaskRecurrence';

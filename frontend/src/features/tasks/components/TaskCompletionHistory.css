@@ -1,0 +1,96 @@
+.task-completion-history {
+  display: inline-flex;
+}
+
+.task-completion-history__trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1, 0.25rem);
+  padding: var(--space-1, 0.25rem) var(--space-2, 0.5rem);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md, 0.375rem);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm, 0.875rem);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.task-completion-history__trigger:hover {
+  background: var(--color-surface-hover);
+}
+
+.task-completion-history__icon {
+  font-size: var(--font-size-base, 1rem);
+}
+
+.task-completion-history__count {
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.task-completion-history__label {
+  color: var(--color-text-secondary);
+}
+
+.task-completion-history__loading {
+  padding: var(--space-4, 1rem);
+  text-align: center;
+  color: var(--color-text-secondary);
+}
+
+.task-completion-history__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2, 0.5rem);
+  max-height: 24rem;
+  overflow-y: auto;
+}
+
+.task-completion-history__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3, 0.75rem);
+  padding: var(--space-2, 0.5rem);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md, 0.375rem);
+  background: var(--color-surface);
+}
+
+.task-completion-history__status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1, 0.25rem);
+  min-width: 5.5rem;
+  font-size: var(--font-size-sm, 0.875rem);
+  font-weight: 500;
+}
+
+.task-completion-history__status--done {
+  color: var(--color-success);
+}
+
+.task-completion-history__status--cancelled {
+  color: var(--color-danger);
+}
+
+.task-completion-history__status--skipped {
+  color: var(--color-text-secondary);
+}
+
+.task-completion-history__dates {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-0-5, 0.125rem);
+  flex: 1;
+  font-size: var(--font-size-xs, 0.75rem);
+  color: var(--color-text-secondary);
+}
+
+.task-completion-history__completed-at {
+  font-size: var(--font-size-xs, 0.75rem);
+  color: var(--color-text-secondary);
+}

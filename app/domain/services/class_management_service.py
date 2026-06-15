@@ -14,6 +14,7 @@ from ...db.schema.constants import SYSTEM_CLASS_UUIDS
 from ...logging_config import get_logger
 from ..entities import Node, NodeCreateData, NodeUpdateData
 from ..errors import SystemClassConstraintError
+from ..node_flags import CLASS_UUID_TO_FLAG, compute_node_flags
 from ..stringify_ast import ParseMode, parse_ast, serialize_ast
 
 if TYPE_CHECKING:
@@ -46,24 +47,12 @@ ALL_SYSTEM_CLASS_UUIDS = set(SYSTEM_CLASS_UUIDS.values())
 # UUID of the 'class' class — cannot be stripped from system class nodes
 CLASS_CLASS_UUID = SYSTEM_CLASS_UUIDS["class"]
 
-# Maps class UUID → the boolean flag column on the node row
-CLASS_UUID_TO_FLAG: dict[str, str] = {
-    SYSTEM_CLASS_UUIDS["class"]: "is_class",
-    SYSTEM_CLASS_UUIDS["page"]: "is_page",
-    SYSTEM_CLASS_UUIDS["day"]: "is_day",
-    SYSTEM_CLASS_UUIDS["month"]: "is_month",
-    SYSTEM_CLASS_UUIDS["year"]: "is_year",
-    SYSTEM_CLASS_UUIDS["asset"]: "is_asset",
-    SYSTEM_CLASS_UUIDS["template"]: "is_template",
-    SYSTEM_CLASS_UUIDS["comment"]: "is_comment",
-}
-
 
 class ClassManagementService:
     """Domain service that owns all class management operations.
 
     Responsibilities:
-    - Flag computation (CLASS_UUID_TO_FLAG mapping → is_* boolean columns)
+    - Flag computation (system class UUID → is_* boolean columns)
     - Listing and searching class nodes
     - Adding and removing classes from nodes (with system constraint checks)
     - Querying which classes a node has
@@ -94,13 +83,10 @@ class ClassManagementService:
 
         Only system classes produce boolean flags; user-defined classes do not.
         """
-        flags: dict[str, bool] = {}
-        if class_ids:
-            class_nodes = await self._node_repo.get_by_ids(class_ids)
-            for class_node in class_nodes:
-                if class_node.uuid in CLASS_UUID_TO_FLAG:
-                    flags[CLASS_UUID_TO_FLAG[class_node.uuid]] = True
-        return flags
+        if not class_ids:
+            return dict.fromkeys(CLASS_UUID_TO_FLAG.values(), False)
+        class_nodes = await self._node_repo.get_by_ids(class_ids)
+        return compute_node_flags(class_nodes)
 
     async def update_flags_from_classes(self, node_id: int, class_ids: list[int]) -> None:
         """Recompute and persist all is_* flags for *node_id* from *class_ids*.

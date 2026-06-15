@@ -59,6 +59,11 @@
   white-space: nowrap;
 }
 
+.task-badge.badge--backlog {
+  background-color: var(--color-surface-container);
+  color: var(--color-on-surface-variant);
+}
+
 .task-badge.badge--pending {
   background-color: var(--color-surface-variant);
   color: var(--color-on-surface-variant);
@@ -69,9 +74,21 @@
   color: var(--color-on-primary-container);
 }
 
+.task-badge.badge--reviewing {
+  background-color: var(--color-secondary-container);
+  color: var(--color-on-secondary-container);
+}
+
 .task-badge.badge--done {
   background-color: var(--color-success-container, var(--color-tertiary-container));
   color: var(--color-on-success-container, var(--color-on-tertiary-container));
+  text-decoration: line-through;
+  opacity: var(--opacity-70);
+}
+
+.task-badge.badge--cancelled {
+  background-color: var(--color-error-container, var(--color-surface-variant));
+  color: var(--color-on-error-container, var(--color-on-surface-variant));
   text-decoration: line-through;
   opacity: var(--opacity-70);
 }

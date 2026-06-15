@@ -39,8 +39,10 @@ export const GRAPH_VIEW_MODES: GraphViewMode[] = ['normal', 'circle', 'tree'];
 export interface GraphNode {
   id: number;
   uuid: string;
-  x: number;
-  y: number;
+  /** Physics x coordinate. Undefined means "use preserved or initial layout". */
+  x?: number;
+  /** Physics y coordinate. Undefined means "use preserved or initial layout". */
+  y?: number;
   vx: number;
   vy: number;
   targetX: number;

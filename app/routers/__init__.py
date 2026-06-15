@@ -12,6 +12,7 @@ from .live_sync_ws import router as live_sync_ws_router
 from .nodes import router as nodes_router
 from .properties import router as properties_router
 from .sync import router as sync_router
+from .tasks import router as tasks_router
 from .undo import router as undo_router
 from .workspaces import router as workspaces_router
 
@@ -26,4 +27,5 @@ __all__ = [
     "undo_router",
     "auto_export_router",
     "live_sync_ws_router",
+    "tasks_router",
 ]

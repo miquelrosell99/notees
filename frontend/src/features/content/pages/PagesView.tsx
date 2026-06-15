@@ -14,8 +14,9 @@ import { NodeCollectionToolbar } from '@/features/content/components/nodes/NodeC
 import { NodeSearchBox } from '@/features/content/components/nodes/NodeSearchBox';
 import { Button } from '@/components/ui/Button';
 import { DataStateView } from '@/components/ui/DataStateView';
-import type { NodeCollectionViewMode } from '@/types/nodeCollection';
+import type { NodeCollectionViewMode, NodeCollectionGroupBy } from '@/types/nodeCollection';
 import type { Node } from '@/types';
+import type { SortEntry } from '@/features/content/components/nodes/views/NodeTable';
 import './PagesView.css';
 
 const AVAILABLE_VIEW_MODES: NodeCollectionViewMode[] = [
@@ -37,6 +38,12 @@ export function PagesView({ initialViewMode }: PagesViewProps) {
   const queryClient = useQueryClient();
 
   const [viewMode, setViewMode] = useState<NodeCollectionViewMode>(initialViewMode ?? 'list');
+
+  // Transient filter state for All Pages — resets on page reload
+  const [groupBy, setGroupBy] = useState<NodeCollectionGroupBy>('page');
+  const [sortColumns, setSortColumns] = useState<SortEntry[]>([{ key: 'name', direction: 'asc' }]);
+  const [selectedPropertyUuids, setSelectedPropertyUuids] = useState<string[]>([]);
+  const [cardLayout, setCardLayout] = useState<'no-cover' | 'cover-top' | 'cover-left' | 'cover-right'>('no-cover');
 
   const handleViewModeChange = useCallback((mode: NodeCollectionViewMode) => {
     setViewMode(mode);
@@ -108,6 +115,16 @@ export function PagesView({ initialViewMode }: PagesViewProps) {
                 availableViewModes={AVAILABLE_VIEW_MODES}
                 onViewModeChange={handleViewModeChange}
                 hideToolbarControls={false}
+                isTransient={true}
+                showGroupBy={true}
+                groupBy={groupBy}
+                onGroupByChange={setGroupBy}
+                sortColumns={sortColumns}
+                onSortChange={setSortColumns}
+                selectedPropertyUuids={selectedPropertyUuids}
+                onPropertyColumnsChange={setSelectedPropertyUuids}
+                cardLayout={cardLayout}
+                onCardLayoutChange={setCardLayout}
               />
               <Button
                 variant="primary"
@@ -153,7 +170,16 @@ export function PagesView({ initialViewMode }: PagesViewProps) {
             emptyMessage="Create a page to get started"
             expandAll={true}
             className="pages-view__node-collection"
-            defaultSort={[{ key: 'name', direction: 'asc' }]}
+            isTransient={true}
+            showGroupBy={true}
+            groupBy={groupBy}
+            onGroupByChange={setGroupBy}
+            sort={sortColumns}
+            onSortChange={setSortColumns}
+            selectedPropertyUuids={selectedPropertyUuids}
+            onPropertyColumnsChange={setSelectedPropertyUuids}
+            cardLayout={cardLayout}
+            onCardLayoutChange={setCardLayout}
           />
         </DataStateView>
       </div>

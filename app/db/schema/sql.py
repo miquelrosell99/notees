@@ -148,6 +148,7 @@ CREATE TABLE IF NOT EXISTS node (
     is_asset BOOLEAN NOT NULL DEFAULT FALSE,
     is_template BOOLEAN NOT NULL DEFAULT FALSE,
     is_comment BOOLEAN NOT NULL DEFAULT FALSE,
+    is_task BOOLEAN NOT NULL DEFAULT FALSE,
     -- Parent lock flag
     parent_locked BOOLEAN NOT NULL DEFAULT FALSE,
     -- Privacy: if true, only the owner can access this node
@@ -170,6 +171,35 @@ CREATE TABLE IF NOT EXISTS node (
     create_uid INTEGER REFERENCES "user"(id) ON DELETE SET NULL,
     write_uid INTEGER REFERENCES "user"(id) ON DELETE SET NULL
 );
+
+-- Ensure columns referenced by the indexes below exist on databases created
+-- before these columns were added to the CREATE TABLE statement.  Without
+-- these guards, CREATE INDEX on a pre-existing node table that is missing a
+-- column fails with "column does not exist" before the later migration blocks
+-- have a chance to run.
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'node' AND column_name = 'is_task'
+    ) THEN
+        ALTER TABLE node ADD COLUMN is_task BOOLEAN NOT NULL DEFAULT FALSE;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'node' AND column_name = 'tag_ids'
+    ) THEN
+        ALTER TABLE node ADD COLUMN tag_ids INTEGER[] DEFAULT '{}';
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'node' AND column_name = 'search_text'
+    ) THEN
+        ALTER TABLE node ADD COLUMN search_text TEXT;
+    END IF;
+END $$;
 
 -- Node indexes
 CREATE INDEX IF NOT EXISTS idx_node_workspace_id ON node(workspace_id);
@@ -194,6 +224,9 @@ CREATE INDEX IF NOT EXISTS idx_node_is_day ON node(is_day) WHERE is_day = TRUE;
 CREATE INDEX IF NOT EXISTS idx_node_workspace_is_day ON node(workspace_id, is_day) WHERE is_day = TRUE;
 CREATE INDEX IF NOT EXISTS idx_node_open_date ON node(open_date) WHERE open_date IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_node_is_deleted ON node(is_deleted) WHERE is_deleted = TRUE;
+CREATE INDEX IF NOT EXISTS idx_node_is_task ON node(is_task) WHERE is_task = TRUE;
+-- Composite: fast task lookups scoped to a specific workspace
+CREATE INDEX IF NOT EXISTS idx_node_workspace_is_task ON node(workspace_id, is_task) WHERE active = TRUE AND is_deleted = FALSE;
 -- Partial index covering all live (active, non-deleted) nodes - matches the most common query predicate.
 -- Enables fast index-only scans when filtering out soft-deleted rows without a full table scan.
 CREATE INDEX IF NOT EXISTS idx_node_live ON node(workspace_id, id) WHERE active = TRUE AND is_deleted = FALSE;
@@ -784,6 +817,14 @@ BEGIN
     END IF;
 END $$;
 
+-- Migration: Add is_task column to node table if missing
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'node' AND column_name = 'is_task') THEN
+        ALTER TABLE node ADD COLUMN is_task BOOLEAN NOT NULL DEFAULT FALSE;
+    END IF;
+END $$;
+
 -- Migration: Rename type_property table to class_property
 DO $$
 BEGIN
@@ -1109,6 +1150,51 @@ BEGIN
         ALTER TABLE node ADD COLUMN parent_locked BOOLEAN DEFAULT FALSE;
     END IF;
 END $$;
+
+-- ============================================================
+-- TASK RECURRENCE
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS task_recurrence (
+    id SERIAL PRIMARY KEY,
+    uuid UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
+    task_node_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
+    workspace_id INTEGER NOT NULL REFERENCES workspace(id) ON DELETE CASCADE,
+    rule_type VARCHAR(50) NOT NULL,
+    interval INTEGER NOT NULL DEFAULT 1,
+    weekdays SMALLINT[],
+    day_of_month SMALLINT,
+    week_of_month SMALLINT,
+    month SMALLINT,
+    end_after_count INTEGER,
+    end_date DATE,
+    active BOOLEAN NOT NULL DEFAULT TRUE,
+    create_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    write_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    create_uid INTEGER REFERENCES "user"(id) ON DELETE SET NULL,
+    write_uid INTEGER REFERENCES "user"(id) ON DELETE SET NULL,
+    UNIQUE(task_node_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_task_recurrence_task_node_id ON task_recurrence(task_node_id);
+CREATE INDEX IF NOT EXISTS idx_task_recurrence_workspace_id ON task_recurrence(workspace_id);
+
+CREATE TABLE IF NOT EXISTS task_completion (
+    id SERIAL PRIMARY KEY,
+    uuid UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
+    task_node_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
+    workspace_id INTEGER NOT NULL REFERENCES workspace(id) ON DELETE CASCADE,
+    scheduled_date DATE,
+    deadline_date DATE,
+    status VARCHAR(50) NOT NULL,
+    completed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    completed_by INTEGER REFERENCES "user"(id) ON DELETE SET NULL,
+    create_date TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_task_completion_task_node_id ON task_completion(task_node_id);
+CREATE INDEX IF NOT EXISTS idx_task_completion_workspace_id ON task_completion(workspace_id);
+CREATE INDEX IF NOT EXISTS idx_task_completion_completed_at ON task_completion(completed_at DESC);
 
 -- ============================================================
 -- SCHEMA METADATA

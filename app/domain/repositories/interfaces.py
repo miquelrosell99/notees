@@ -24,6 +24,8 @@ if TYPE_CHECKING:
         PropertyValueRelation,
         PropertyValueScalar,
         PropertyValueSelection,
+        TaskCompletion,
+        TaskRecurrence,
         User,
         UserCreateData,
     )
@@ -310,6 +312,13 @@ class NodeSearchRepository(ABC):
         self, type_node_id: int, limit: int = 1000, offset: int = 0
     ) -> list[Node]:
         """Get nodes with a specific type, paginated."""
+        pass
+
+    @abstractmethod
+    async def get_task_nodes(
+        self, limit: int = 1000, offset: int = 0
+    ) -> list[Node]:
+        """Get active task nodes using the is_task index, paginated."""
         pass
 
     @abstractmethod
@@ -1783,12 +1792,14 @@ class ExportRepository(ABC):
 
     @abstractmethod
     async def get_export_node_tree(
-        self, workspace_id: int, node_uuid: str, include_children: bool
+        self, workspace_id: int, node_uuid: str, include_children: bool, include_child_pages: bool = False
     ) -> list[Any]:
         """Fetch a node and optionally all its descendants.
 
         Returns raw rows ordered by path_order.  When include_children is False
-        only the matching root node is returned.
+        only the matching root node is returned.  When include_child_pages is True,
+        nested page nodes are included as section boundaries; otherwise only
+        non-page descendants are returned.
         """
         pass
 
@@ -2095,4 +2106,49 @@ class SyncRepository(ABC):
         user_id: int,
     ) -> None:
         """Apply a client change to a node (metadata-only)."""
+        pass
+
+
+class TaskRecurrenceRepository(ABC):
+    """Repository interface for task recurrence rules."""
+
+    @abstractmethod
+    async def get_by_task(self, task_node_id: int) -> TaskRecurrence | None:
+        """Get the recurrence rule for a task node."""
+        pass
+
+    @abstractmethod
+    async def upsert(self, data: TaskRecurrence) -> TaskRecurrence:
+        """Create or update a recurrence rule for a task node."""
+        pass
+
+    @abstractmethod
+    async def delete(self, task_node_id: int) -> bool:
+        """Delete the recurrence rule for a task node. Returns True if deleted."""
+        pass
+
+
+class TaskCompletionRepository(ABC):
+    """Repository interface for task completion history."""
+
+    @abstractmethod
+    async def list_by_task(
+        self, task_node_id: int, limit: int = 50, offset: int = 0
+    ) -> list[TaskCompletion]:
+        """List completion records for a task node, newest first."""
+        pass
+
+    @abstractmethod
+    async def create(self, completion: TaskCompletion) -> TaskCompletion:
+        """Record a new task completion."""
+        pass
+
+    @abstractmethod
+    async def count_by_task(self, task_node_id: int) -> int:
+        """Count total completions for a task node."""
+        pass
+
+    @abstractmethod
+    async def delete(self, completion_id: int) -> bool:
+        """Delete a completion record. Returns True if deleted."""
         pass

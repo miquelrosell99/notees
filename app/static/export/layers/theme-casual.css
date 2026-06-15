@@ -308,21 +308,33 @@
 }
 
 /* --- Cover page --- */
-.cover-page.theme-casual h1:first-of-type {
-  font-size: 2.2rem;
+.theme-casual .cover__title {
+  font-family: var(--tc-font);
+  font-size: 2.4rem;
   font-weight: 700;
   letter-spacing: -0.02em;
   color: var(--tc-color-h1);
-  padding-top: 28vh;
-  text-align: center;
 }
 
-.cover-page.theme-casual h1:first-of-type::after {
+.theme-casual .cover__subtitle {
+  font-family: var(--tc-font);
+  color: var(--tc-color-muted);
+}
+
+.theme-casual .cover__date {
+  font-family: var(--tc-font);
+  color: var(--tc-color-faint);
+  font-size: 0.85rem;
+}
+
+.theme-casual .cover::after {
+  content: '';
+  display: block;
   width: 50px;
   height: 2.5px;
   background: var(--tc-border);
   border-radius: 2px;
-  margin: 1.2rem auto 0;
+  margin-top: 1.5rem;
 }
 
 /* --- Dark mode --- */

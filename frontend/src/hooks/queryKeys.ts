@@ -132,3 +132,12 @@ export const recentKeys = {
   all: ['recents'] as const,
   list: (limit?: number) => [...recentKeys.all, 'list', limit ?? 10] as const,
 };
+
+// ==================== Task Recurrence Query Keys ====================
+
+export const taskKeys = {
+  all: ['tasks'] as const,
+  recurrence: (nodeId: number) => [...taskKeys.all, 'recurrence', nodeId] as const,
+  completions: (nodeId: number, limit?: number, offset?: number) =>
+    [...taskKeys.all, 'completions', nodeId, { limit: limit ?? 50, offset: offset ?? 0 }] as const,
+};

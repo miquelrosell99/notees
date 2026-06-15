@@ -25,7 +25,6 @@ export interface SGEConfig {
   clusterSpacing: number;
   localRepelStrength: number;
   localRepelRadius: number;
-  radialStrength: number;
   componentCenterStrength: number;
   componentSpacing: number;
   damping: number;
@@ -67,6 +66,7 @@ export interface SGENode {
   x?: number;
   y?: number;
   connectionCount?: number;
+  pinned?: boolean;
 }
 
 // ─── Per-link-type physics multipliers ────────────────────────────────────────
@@ -89,4 +89,16 @@ export const LINK_STIFF_MULT: Record<string, number> = {
   'property-reference': 0.8,
   cooccurrence: 0.4,
   temporal: 0.3,
+};
+
+/** Asymmetry factor applied when a link is shorter than its rest length.
+ *  Values > 1 make the link resist compression more strongly. */
+export const LINK_COMPRESS_MULT: Record<string, number> = {
+  parent: 3.0,
+  extends: 2.5,
+  class: 2.0,
+  reference: 1.0,
+  'property-reference': 1.2,
+  cooccurrence: 0.6,
+  temporal: 0.5,
 };

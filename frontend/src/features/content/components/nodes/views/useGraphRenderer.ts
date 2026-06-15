@@ -125,6 +125,81 @@ function nodeRadius(n: GraphNode, maxConn: number, base: number): number {
   return base * scale;
 }
 
+/** Build renderer edge descriptors from graph links. */
+function buildPhysEdges(
+  nodes: GraphNode[],
+  edges: GraphLink[],
+  coloredEdges: boolean,
+  taperedEdges: boolean,
+  curvedEdges: boolean,
+  pathEdgeKeys?: Set<string>,
+) {
+  const COOCCURRENCE_COLOR = getCssEdgeCooccurrenceColor();
+  const maxCooccurrenceWeight = Math.max(
+    ...edges.filter(e => e.type === 'cooccurrence').map(e => e.weight ?? 1),
+    1,
+  );
+
+  const nodeColorMap = new Map<number, [number, number, number, number]>();
+  for (const n of nodes) {
+    const c = nodeColor(n);
+    if (c) nodeColorMap.set(n.id, [c[0], c[1], c[2], c[3]]);
+  }
+  const defaultEdgeColor = getCssEdgeColor();
+  const PATH_EDGE_COLOR = getCssEdgePathColor();
+
+  return edges.map(e => {
+    const edgeKey = `${Math.min(e.source, e.target)}-${Math.max(e.source, e.target)}`;
+    const isPath = pathEdgeKeys?.has(edgeKey) ?? false;
+    const srcNodeColor = nodeColorMap.get(e.source);
+    const tgtNodeColor = nodeColorMap.get(e.target);
+    const srcColor = coloredEdges
+      ? (srcNodeColor ? tintEdgeColor(srcNodeColor, defaultEdgeColor, 0.3) : defaultEdgeColor)
+      : undefined;
+    const tgtColor = coloredEdges
+      ? (tgtNodeColor ? tintEdgeColor(tgtNodeColor, defaultEdgeColor, 0.3) : defaultEdgeColor)
+      : undefined;
+    const baseWidth = e.type === 'cooccurrence'
+      ? 0.8 + 2.0 * ((e.weight ?? 1) / maxCooccurrenceWeight)
+      : e.type === 'parent' || e.type === 'extends' ? 2.0
+      : e.type === 'class' ? 1.2
+      : 1.0;
+    return {
+      source: e.source,
+      target: e.target,
+      type: e.type,
+      dashed: false,
+      color: (!coloredEdges && e.type === 'cooccurrence') ? COOCCURRENCE_COLOR : undefined,
+      colorSrc: isPath ? PATH_EDGE_COLOR : (coloredEdges ? srcColor : undefined),
+      colorTgt: isPath ? PATH_EDGE_COLOR : (coloredEdges ? tgtColor : undefined),
+      width: isPath ? baseWidth * 1.6 : (taperedEdges ? baseWidth : baseWidth * 0.8),
+      curvature: curvedEdges ? (LINK_TYPE_CURVATURE[e.type] ?? 0.0) : 0.0,
+      linkType: LINK_TYPE_IDS[e.type] ?? 0,
+    };
+  });
+}
+
+/** Build renderer node visuals, including path highlights and pin indicators. */
+function buildNodeVisuals(
+  nodes: GraphNode[],
+  sizeByConnections: boolean,
+  baseNodeRadius: number,
+  pathNodeIds?: Set<number>,
+): { visuals: Map<number, NodeVisual>; maxConn: number } {
+  const PATH_COLOR = getCssNodePathColor();
+  const maxConn = nodes.reduce((m, n) => Math.max(m, n.connectionCount), 0);
+  const visuals = new Map<number, NodeVisual>();
+  for (const n of nodes) {
+    const isPath = pathNodeIds?.has(n.id) ?? false;
+    visuals.set(n.id, {
+      radius: sizeByConnections ? nodeRadius(n, maxConn, baseNodeRadius) : baseNodeRadius,
+      color: isPath ? PATH_COLOR : nodeColor(n),
+      pin: n.pinned,
+    });
+  }
+  return { visuals, maxConn };
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface GraphRendererStats {
@@ -179,6 +254,8 @@ export interface GraphRendererHandle {
   pause: () => void;
   resume: () => void;
   setConfig: (cfg: SGEPhysicsConfig) => void;
+  pinNode: (id: number) => void;
+  unpinNode: (id: number) => void;
   recenter: () => void;
   panBy: (dx: number, dy: number) => void;
   zoomBy: (factor: number) => void;
@@ -219,6 +296,8 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
 
   const nodeNamesRef = useRef(new Map<number, string>());
   const nodeRadiiRef = useRef(new Map<number, number>());
+  // Last known physics positions, used to preserve layout across topology changes.
+  const lastPositionsRef = useRef(new Map<number, { x: number; y: number }>());
 
   type DragMode = 'none' | 'camera' | 'node';
   const dragRef = useRef<{
@@ -329,6 +408,12 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
         statsAccRef.current.energy = msg.energy;
         statsAccRef.current.ticks = msg.ticks;
         dirtyRef.current.positions = true;
+        const positions = msg.positions as Float32Array;
+        const ids = msg.nodeIds as Int32Array;
+        const map = lastPositionsRef.current;
+        for (let i = 0; i < msg.nodeCount; i++) {
+          map.set(ids[i], { x: positions[i * 2], y: positions[i * 2 + 1] });
+        }
         if (needsAutoFitRef.current && msg.nodeCount > 0) {
           needsAutoFitRef.current = false;
           autoFit(msg.positions, msg.nodeCount);
@@ -357,6 +442,10 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
           statsAccRef.current.energy = metaF32[3];
           statsAccRef.current.ticks = Atomics.load(metaI32, 2);
           dirtyRef.current.positions = true;
+          const map = lastPositionsRef.current;
+          for (let i = 0; i < n; i++) {
+            map.set(sabNids[i], { x: sabPos[i * 2], y: sabPos[i * 2 + 1] });
+          }
           if (needsAutoFitRef.current && n > 0) {
             needsAutoFitRef.current = false;
             autoFit(sabPos, n);
@@ -568,100 +657,35 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
     return () => ro.disconnect();
   }, []);
 
-  // ─── Topology sync: nodes + edges → physics + renderer ──────────────────────
-  const topoFingerprintRef = useRef('');
+  // ─── Topology sync: nodes + edges → physics worker ───────────────────────────
   const topoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    const renderer = rendRef.current;
-    if (!renderer) return;
-
-    const nodeIdStr = nodes.map(n => n.id).join(',');
-    const edgeStr   = edges.map(e => `${e.source}-${e.target}`).join(',');
-    const pathNodeStr = pathNodeIds ? [...pathNodeIds].sort().join(',') : '';
-    const pathEdgeStr = pathEdgeKeys ? [...pathEdgeKeys].sort().join(',') : '';
-    const fingerprint = `${nodeIdStr}|${edgeStr}|${sizeByConnections}|${baseNodeRadius}|${curvedEdges}|${coloredEdges}|${taperedEdges}|${pathNodeStr}|${pathEdgeStr}`;
-
-    if (fingerprint === topoFingerprintRef.current) return;
-    topoFingerprintRef.current = fingerprint;
+    if (!rendRef.current) return;
 
     if (topoTimerRef.current) clearTimeout(topoTimerRef.current);
 
     topoTimerRef.current = setTimeout(() => {
       topoTimerRef.current = null;
 
-      const maxConn = nodes.reduce((m, n) => Math.max(m, n.connectionCount), 0);
-
-      const COOCCURRENCE_COLOR = getCssEdgeCooccurrenceColor();
-      const maxCooccurrenceWeight = Math.max(
-        ...edges.filter(e => e.type === 'cooccurrence').map(e => e.weight ?? 1),
-        1
-      );
-
-      const nodeColorMap = new Map<number, [number, number, number, number]>();
-      for (const n of nodes) {
-        const c = nodeColor(n);
-        if (c) nodeColorMap.set(n.id, [c[0], c[1], c[2], c[3]]);
-      }
-      const defaultEdgeColor = getCssEdgeColor();
-
-      const PATH_EDGE_COLOR = getCssEdgePathColor();
-      const physEdges = edges.map(e => {
-        const edgeKey = `${Math.min(e.source, e.target)}-${Math.max(e.source, e.target)}`;
-        const isPath = pathEdgeKeys?.has(edgeKey) ?? false;
-        const srcNodeColor = nodeColorMap.get(e.source);
-        const tgtNodeColor = nodeColorMap.get(e.target);
-        const srcColor = coloredEdges
-          ? (srcNodeColor ? tintEdgeColor(srcNodeColor, defaultEdgeColor, 0.3) : defaultEdgeColor)
-          : undefined;
-        const tgtColor = coloredEdges
-          ? (tgtNodeColor ? tintEdgeColor(tgtNodeColor, defaultEdgeColor, 0.3) : defaultEdgeColor)
-          : undefined;
-        const baseWidth = e.type === 'cooccurrence'
-          ? 0.8 + 2.0 * ((e.weight ?? 1) / maxCooccurrenceWeight)
-          : e.type === 'parent' || e.type === 'extends' ? 2.0
-          : e.type === 'class' ? 1.2
-          : 1.0;
+      const lastPos = lastPositionsRef.current;
+      const physNodes = nodes.map(n => {
+        const preserved = lastPos.get(n.id);
         return {
-          source: e.source,
-          target: e.target,
-          type: e.type,
-          dashed: false,
-          color: (!coloredEdges && e.type === 'cooccurrence') ? COOCCURRENCE_COLOR : undefined,
-          colorSrc: isPath ? PATH_EDGE_COLOR : (coloredEdges ? srcColor : undefined),
-          colorTgt: isPath ? PATH_EDGE_COLOR : (coloredEdges ? tgtColor : undefined),
-          width: isPath ? baseWidth * 1.6 : (taperedEdges ? baseWidth : baseWidth * 0.8),
-          curvature: curvedEdges ? (LINK_TYPE_CURVATURE[e.type] ?? 0.0) : 0.0,
-          linkType: LINK_TYPE_IDS[e.type] ?? 0,
+          id: n.id,
+          x: n.x ?? preserved?.x,
+          y: n.y ?? preserved?.y,
+          pinned: n.pinned,
         };
       });
+      workerRef.current?.postMessage({ type: 'init', nodes: physNodes, edges, config });
 
-      const PATH_COLOR = getCssNodePathColor();
-
-      const visuals = new Map<number, NodeVisual>();
-      for (const n of nodes) {
-        const isPath = pathNodeIds?.has(n.id) ?? false;
-        visuals.set(n.id, {
-          radius: sizeByConnections ? nodeRadius(n, maxConn, baseNodeRadius) : baseNodeRadius,
-          color: isPath ? PATH_COLOR : nodeColor(n),
-        });
-      }
-
-      const idArr = new Int32Array(nodes.map(n => n.id));
-      renderer.setNodeVisuals(idArr, visuals);
-      renderer.setEdges(physEdges);
-
+      // Display names only change when the node set changes.
       const names = nodeNamesRef.current;
       names.clear();
-      const radii = nodeRadiiRef.current;
-      radii.clear();
       for (const n of nodes) {
         names.set(n.id, n.displayName || n.name || String(n.id));
-        radii.set(n.id, sizeByConnections ? nodeRadius(n, maxConn, baseNodeRadius) : baseNodeRadius);
       }
-
-      const physNodes = nodes.map(n => ({ id: n.id, x: n.x, y: n.y }));
-      workerRef.current?.postMessage({ type: 'init', nodes: physNodes, edges, config });
 
       if (nodes.length > 0) {
         needsAutoFitRef.current = true;
@@ -676,26 +700,28 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
         topoTimerRef.current = null;
       }
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nodes, edges, sizeByConnections, baseNodeRadius, curvedEdges, coloredEdges, taperedEdges, pathNodeIds, pathEdgeKeys]);
+  }, [nodes, edges, config]);
 
-  // ─── Visual-only updates (radius, color) ────────────────────────────────────
+  // ─── Visual-only updates (radius, color, edges, paths) ──────────────────────
   useEffect(() => {
     const renderer = rendRef.current;
     if (!renderer) return;
 
-    const maxConn = nodes.reduce((m, n) => Math.max(m, n.connectionCount), 0);
-    const visuals = new Map<number, NodeVisual>();
-    for (const n of nodes) {
-      visuals.set(n.id, {
-        radius: sizeByConnections ? nodeRadius(n, maxConn, baseNodeRadius) : baseNodeRadius,
-        color: nodeColor(n),
-      });
-    }
+    const { visuals, maxConn } = buildNodeVisuals(nodes, sizeByConnections, baseNodeRadius, pathNodeIds);
     const idArr = new Int32Array(nodes.map(n => n.id));
     renderer.setNodeVisuals(idArr, visuals);
+
+    const physEdges = buildPhysEdges(nodes, edges, coloredEdges, taperedEdges, curvedEdges, pathEdgeKeys);
+    renderer.setEdges(physEdges);
+
+    const radii = nodeRadiiRef.current;
+    radii.clear();
+    for (const n of nodes) {
+      radii.set(n.id, sizeByConnections ? nodeRadius(n, maxConn, baseNodeRadius) : baseNodeRadius);
+    }
+
     dirtyRef.current.positions = true;
-  }, [nodes, baseNodeRadius, sizeByConnections]);
+  }, [nodes, edges, sizeByConnections, baseNodeRadius, curvedEdges, coloredEdges, taperedEdges, pathNodeIds, pathEdgeKeys]);
 
   // ─── Label canvas resize observer ─────────────────────────────────────────
   useEffect(() => {
@@ -914,6 +940,14 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
     workerRef.current?.postMessage({ type: 'setConfig', config: cfg });
   }, []);
 
+  const pinNode = useCallback((id: number) => {
+    workerRef.current?.postMessage({ type: 'pin', nodeId: id });
+  }, []);
+
+  const unpinNode = useCallback((id: number) => {
+    workerRef.current?.postMessage({ type: 'unpin', nodeId: id });
+  }, []);
+
   const recenter = useCallback(() => {
     const rend = rendRef.current;
     const canvas = canvasRef.current;
@@ -988,6 +1022,8 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
     pause,
     resume,
     setConfig,
+    pinNode,
+    unpinNode,
     recenter,
     panBy,
     zoomBy,

@@ -23,12 +23,13 @@ class PostgresExportRepository(ExportRepository):
         self._workspace_id = workspace_id
 
     async def get_export_node_tree(
-        self, workspace_id: int, node_uuid: str, include_children: bool
+        self, workspace_id: int, node_uuid: str, include_children: bool, include_child_pages: bool = False
     ) -> list[Any]:
         async with acquire_connection(self._pool) as conn:
             if include_children:
+                page_filter = "" if include_child_pages else "AND n.is_page = FALSE"
                 return await conn.fetch(
-                    """
+                    f"""
                     WITH RECURSIVE tree AS (
                         SELECT n.id, n.uuid, n.name, n.parent_id, n.is_page, n.color, n.class_ids,
                                0 AS depth,
@@ -45,7 +46,7 @@ class PostgresExportRepository(ExportRepository):
                         WHERE n.workspace_id = $1
                           AND n.is_deleted = FALSE
                           AND n.active = TRUE
-                          AND n.is_page = FALSE
+                          {page_filter}
                           AND NOT EXISTS (
                               SELECT 1
                               FROM property_value_relation pvr

@@ -179,12 +179,34 @@ class PostgresQueryRepository(BasePostgresRepository, QueryRepository):
                 elif isinstance(child, PropertyCondition):
                     apply_cond(child)
 
+        # Map storage-level property types (from the DB property table) to the
+        # query-language PropertyType values used by the SQL generator.
+        storage_to_query_type = {
+            "text": PropertyType.TEXT,
+            "url": PropertyType.TEXT,
+            "email": PropertyType.TEXT,
+            "integer": PropertyType.NUMBER,
+            "float": PropertyType.NUMBER,
+            "boolean": PropertyType.CHECKBOX,
+            "node": PropertyType.NODE,
+            "date": PropertyType.DATE,
+            "selection": PropertyType.SELECTION,
+        }
+
         def apply_cond(condition: PropertyCondition) -> None:
             info = mapping.get(condition.property_name)
             if not info:
                 return
             condition.property_uuid = info["uuid"]
-            condition.property_type = PropertyType(info["type"])
+            query_type = storage_to_query_type.get(info["type"])
+            if query_type is None:
+                logger.warning(
+                    "Unknown property type %r for %r, defaulting to TEXT",
+                    info["type"],
+                    condition.property_name,
+                )
+                query_type = PropertyType.TEXT
+            condition.property_type = query_type
 
         apply(query_ast.root_group)
 

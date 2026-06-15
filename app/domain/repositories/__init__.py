@@ -15,6 +15,8 @@ from .interfaces import (
     SettingsRepository,
     ShareRepository,
     SyncRepository,
+    TaskCompletionRepository,
+    TaskRecurrenceRepository,
     UndoRepository,
     UserRepository,
     WorkspaceRepository,
@@ -34,6 +36,8 @@ from .postgres_query import PostgresQueryRepository
 from .postgres_settings import PostgresSettingsRepository
 from .postgres_share import PostgresShareRepository
 from .postgres_sync import PostgresSyncRepository
+from .postgres_task_completion import PostgresTaskCompletionRepository
+from .postgres_task_recurrence import PostgresTaskRecurrenceRepository
 from .postgres_undo import PostgresUndoRepository
 from .postgres_user import PostgresUserRepository
 from .postgres_workspace import PostgresWorkspaceRepository
@@ -50,6 +54,8 @@ __all__ = [
     "SettingsRepository",
     "ShareRepository",
     "SyncRepository",
+    "TaskCompletionRepository",
+    "TaskRecurrenceRepository",
     "UndoRepository",
     "WorkspaceRepository",
     "ExportRepository",
@@ -70,6 +76,8 @@ __all__ = [
     "PostgresSettingsRepository",
     "PostgresShareRepository",
     "PostgresSyncRepository",
+    "PostgresTaskCompletionRepository",
+    "PostgresTaskRecurrenceRepository",
     "PostgresUndoRepository",
     "PostgresWorkspaceRepository",
     "PostgresExportRepository",

@@ -35,7 +35,7 @@ export class ClusterCohesionForce implements ForcePlugin {
       if (cnt <= 1) continue;
       const dx = posX[i] - clCx[c], dy = posY[i] - clCy[c];
       const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-      const shellR = idealDist * 0.5 * Math.sqrt(cnt);
+      const shellR = Math.min(idealDist * 0.5 * Math.sqrt(cnt), idealDist * 6);
       const err = dist - shellR;
       const f = (err > 0 ? -clusterStr * err : -clusterStr * err * 0.15) / dist;
       ax[i] += dx * f;

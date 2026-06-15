@@ -24,8 +24,33 @@ export const SYSTEM_PROPERTY_UUIDS = {
   task_recurrence: '00000000-0000-0000-0003-000000000006',
 } as const;
 
-/** Task status cycle order for Ctrl+Enter */
-export const TASK_STATUS_CYCLE = ['Pending', 'Doing', 'Done'] as const;
+/** All task status names, ordered to match the backend TASK_STATUS_OPTIONS. */
+export const TASK_STATUSES = [
+  'Backlog',
+  'Pending',
+  'Doing',
+  'Reviewing',
+  'Done',
+  'Cancelled',
+] as const;
+
+/** Terminal task statuses that should be treated as "completed". */
+export const TASK_CLOSED_STATUSES = new Set<string>(['Done', 'Cancelled']);
+
+/**
+ * Status cycle order for Ctrl+Enter.
+ *
+ * Cancelled is intentionally excluded: it is a terminal state that should be
+ * set explicitly, not cycled through. If a task is currently Cancelled,
+ * cycling restarts from Pending.
+ */
+export const TASK_STATUS_CYCLE = [
+  'Backlog',
+  'Pending',
+  'Doing',
+  'Reviewing',
+  'Done',
+] as const;
 
 /**
  * System class UUIDs - these match the fixed UUIDs in the backend schema.

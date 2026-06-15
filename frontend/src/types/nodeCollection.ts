@@ -248,11 +248,22 @@ export interface NodeCollectionProps {
   /** Default sort columns applied on initial render (user can clear/override) */
   defaultSort?: SortEntry[];
 
+  /** Controlled sort columns (if provided, overrides internal sort state) */
+  sort?: SortEntry[];
+
+  /** Called when sort columns change */
+  onSortChange?: (sort: SortEntry[]) => void;
+
   /** Force all nodes to be expanded, ignoring stored collapsed state. */
   expandAll?: boolean;
 
   /** Optional QueryAST for views that re-fetch with backend aggregation. */
   queryAst?: QueryAST;
+
+  /** When true, filter/view settings (group-by, sort, property columns, card layout,
+   *  gantt properties) are kept in component state and never persisted to stores,
+   *  localStorage, or the backend node_view table. */
+  isTransient?: boolean;
 }
 
 // ==================== View-Specific Props ====================

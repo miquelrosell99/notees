@@ -1,13 +1,10 @@
 /**
- * SGE v2 — Centroid-based center force (d3-force style).
+ * SGE v2 — Per-node center gravity.
  *
- * Matches Obsidian's forceCenter: computes the centroid of all active nodes
- * and applies a uniform translation force that pulls the *center of mass*
- * toward the origin. This prevents the graph from drifting off-screen
- * without compressing nodes into a dense sphere.
- *
- * Unlike the old per-node gravity, every node receives the SAME force vector,
- * so the internal structure (cluster spacing, node distances) is preserved.
+ * Pulls every active node toward the origin with a Hookean spring force.
+ * Unlike the previous centroid translation, this does not translate the whole
+ * graph as a rigid body, so dragging one node no longer perturbs unrelated
+ * nodes through the centering force.
  */
 
 import type { ForcePlugin } from './interface';
@@ -30,24 +27,10 @@ export class CenterGravityForce implements ForcePlugin {
     const activeIdx = e.activeNodeIndices;
     const activeCount = e.activeCount;
 
-    // Compute centroid
-    let cx = 0, cy = 0;
     for (let k = 0; k < activeCount; k++) {
       const i = activeIdx[k];
-      cx += posX[i];
-      cy += posY[i];
-    }
-    cx /= activeCount;
-    cy /= activeCount;
-
-    // Pull centroid toward origin — uniform translation, no compression
-    const dx = cx * strength;
-    const dy = cy * strength;
-
-    for (let k = 0; k < activeCount; k++) {
-      const i = activeIdx[k];
-      ax[i] -= dx;
-      ay[i] -= dy;
+      ax[i] -= posX[i] * strength;
+      ay[i] -= posY[i] * strength;
     }
   }
 }

@@ -43,6 +43,8 @@ from .domain.repositories import (
     PostgresSettingsRepository,
     PostgresShareRepository,
     PostgresSyncRepository,
+    PostgresTaskCompletionRepository,
+    PostgresTaskRecurrenceRepository,
     PostgresUndoRepository,
     PostgresUserRepository,
     PostgresWorkspaceRepository,
@@ -60,6 +62,8 @@ from .domain.repositories.interfaces import (
     PropertyRepository,
     SettingsRepository,
     ShareRepository,
+    TaskCompletionRepository,
+    TaskRecurrenceRepository,
     UndoRepository,
     UserRepository,
     WorkspaceRepository,
@@ -69,6 +73,7 @@ from .domain.services import (
     LinkParsingService,
     MentionService,
     NodeService,
+    TaskAutomationService,
 )
 from .domain.services.asset_service import AssetService
 from .domain.services.class_extension_service import ClassExtensionService
@@ -305,6 +310,22 @@ def _make_sync_repository(
     return PostgresSyncRepository(pool, workspace_id, user_id)
 
 
+def _make_task_recurrence_repository(
+    pool: asyncpg.Pool,
+    workspace_id: int,
+    user_id: int,
+) -> PostgresTaskRecurrenceRepository:
+    return PostgresTaskRecurrenceRepository(pool, workspace_id, user_id)
+
+
+def _make_task_completion_repository(
+    pool: asyncpg.Pool,
+    workspace_id: int,
+    user_id: int,
+) -> PostgresTaskCompletionRepository:
+    return PostgresTaskCompletionRepository(pool, workspace_id, user_id)
+
+
 async def _get_sync_service(user: User, workspace_id: int) -> SyncService:
     """Return a SyncService wired to the user's workspace."""
     pool = await get_pool()
@@ -422,6 +443,26 @@ async def get_undo_repository(
     user_id = int(user.id)
     workspace_id, _ = await _get_workspace_context_cached(pool, user_id)
     yield _make_undo_repository(pool, workspace_id, user_id)
+
+
+async def get_task_recurrence_repository(
+    user: User = Depends(get_current_user),
+) -> AsyncGenerator[TaskRecurrenceRepository, None]:
+    """Get a TaskRecurrenceRepository for the current user's workspace."""
+    pool = await get_pool()
+    user_id = int(user.id)
+    workspace_id, _ = await _get_workspace_context_cached(pool, user_id)
+    yield _make_task_recurrence_repository(pool, workspace_id, user_id)
+
+
+async def get_task_completion_repository(
+    user: User = Depends(get_current_user),
+) -> AsyncGenerator[TaskCompletionRepository, None]:
+    """Get a TaskCompletionRepository for the current user's workspace."""
+    pool = await get_pool()
+    user_id = int(user.id)
+    workspace_id, _ = await _get_workspace_context_cached(pool, user_id)
+    yield _make_task_completion_repository(pool, workspace_id, user_id)
 
 
 async def get_share_repository(
@@ -549,6 +590,13 @@ async def _get_node_service(user: User) -> NodeService:
     return await _get_node_service_for_workspace(user, workspace_id, page_class_id)
 
 
+async def get_node_service(
+    user: User = Depends(get_current_user),
+) -> AsyncGenerator[NodeService, None]:
+    """FastAPI dependency yielding a NodeService."""
+    yield await _get_node_service(user)
+
+
 async def _get_node_service_for_workspace(
     user: User, workspace_id: int, page_class_id: int = 0
 ) -> NodeService:
@@ -589,6 +637,28 @@ async def _get_undo_service(user: User) -> UndoService:
     workspace_id, _ = await _get_workspace_context_cached(pool, user_id)
     undo_repo = _make_undo_repository(pool, workspace_id, user_id)
     return UndoService(undo_repo)
+
+
+async def _get_task_automation_service(user: User) -> TaskAutomationService:
+    """Return a TaskAutomationService wired to the user's workspace."""
+    pool = await get_pool()
+    user_id = int(user.id)
+    workspace_id, _ = await _get_workspace_context_cached(pool, user_id)
+    node_service = await _get_node_service(user)
+    recurrence_repo = _make_task_recurrence_repository(pool, workspace_id, user_id)
+    completion_repo = _make_task_completion_repository(pool, workspace_id, user_id)
+    return TaskAutomationService(
+        node_service,
+        recurrence_repo,
+        completion_repo,
+    )
+
+
+async def get_task_automation_service(
+    user: User = Depends(get_current_user),
+) -> AsyncGenerator[TaskAutomationService, None]:
+    """FastAPI dependency yielding a TaskAutomationService."""
+    yield await _get_task_automation_service(user)
 
 
 async def _get_class_management_service(user: User) -> ClassManagementService:

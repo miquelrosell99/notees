@@ -27,7 +27,7 @@ import { getExportFormat, formatHasHtmlOptions, getExportExtension, getRegistere
 import './registerExportFormats';
 import './ExportPageModal.css';
 
-import type { ExportFormat, ExportLayout, ExportStyle, ExportProperties, ExportDensity, ExportNumbering, ExportMeasure, ExportDoctype, ExportLinkStyle, ExportThemeMode } from '@/stores/exportSettingsStore';
+import type { ExportFormat, ExportLayout, ExportStyle, ExportProperties, ExportDensity, ExportNumbering, ExportMeasure, ExportDoctype, ExportLinkStyle, ExportThemeMode, ExportPageSize, ExportPreset } from '@/stores/exportSettingsStore';
 
 export interface ExportPageModalProps {
   isOpen: boolean;
@@ -59,6 +59,8 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid, nodeUuids, nodeName
     cssOverrides, setCssOverrides,
     themeMode, setThemeMode,
     coverPage, setCoverPage,
+    pageSize, setPageSize,
+    includeChildPages, setIncludeChildPages,
     applyPreset,
   } = useExportSettingsStore();
 
@@ -72,6 +74,8 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid, nodeUuids, nodeName
   const [qrError, setQrError] = useState<string | null>(null);
   const [qrGenerating, setQrGenerating] = useState(false);
   const [htmlViewMode, setHtmlViewMode] = useState<'preview' | 'source'>('preview');
+  const [pdfPreviewUrl, setPdfPreviewUrl] = useState<string | null>(null);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
 
   const effectiveNodeUuids = useMemo(() => {
     if (nodeUuids && nodeUuids.length > 0) return nodeUuids;
@@ -81,11 +85,29 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid, nodeUuids, nodeName
 
   const isBatch = effectiveNodeUuids.length > 1;
 
+  const activePreset: ExportPreset | 'custom' = useMemo(() => {
+    const current = { style, density, measure, numbering, doctype, sectionBreak, layout, themeMode, coverPage };
+    const presets: Record<ExportPreset, typeof current> = {
+      casual: { style: 'casual', density: 'comfortable', measure: 'readable', numbering: 'none', doctype: 'article', sectionBreak: false, layout: 'outline', themeMode: 'light', coverPage: false },
+      editorial: { style: 'editorial', density: 'comfortable', measure: 'readable', numbering: 'none', doctype: 'article', sectionBreak: false, layout: 'outline', themeMode: 'light', coverPage: true },
+      technical: { style: 'technical', density: 'compact', measure: 'full', numbering: 'hierarchical', doctype: 'report', sectionBreak: true, layout: 'flat', themeMode: 'light', coverPage: true },
+      book: { style: 'book', density: 'comfortable', measure: 'book', numbering: 'hierarchical', doctype: 'book', sectionBreak: true, layout: 'flat', themeMode: 'light', coverPage: true },
+      legal: { style: 'technical', density: 'compact', measure: 'full', numbering: 'legal', doctype: 'legal', sectionBreak: false, layout: 'outline', themeMode: 'light', coverPage: false },
+      academic: { style: 'editorial', density: 'comfortable', measure: 'readable', numbering: 'none', doctype: 'academic', sectionBreak: false, layout: 'outline', themeMode: 'light', coverPage: false },
+    };
+    for (const [key, values] of Object.entries(presets)) {
+      const match = Object.entries(values).every(([k, v]) => current[k as keyof typeof current] === v);
+      if (match) return key as ExportPreset;
+    }
+    return 'custom';
+  }, [style, density, measure, numbering, doctype, sectionBreak, layout, themeMode, coverPage]);
+
   const handleFormatChange = useCallback((f: ExportFormat) => {
     setFormat(f);
   }, [setFormat]);
 
-  // Fetch preview HTML whenever settings change (all formats share the same preview).
+  // Fetch preview whenever settings change.
+  // For PDF we request the real PDF bytes; for other formats we request HTML/text.
   useEffect(() => {
     if (!isOpen || effectiveNodeUuids.length === 0) {
       return;
@@ -93,10 +115,9 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid, nodeUuids, nodeName
 
     let cancelled = false;
     setLoading(true);
-      setError(null);;
+    setError(null);
 
     const params: Record<string, unknown> = {
-      format: formatHasHtmlOptions(format) ? 'html' : format,
       include_children: true,
       layout,
       formatting,
@@ -111,28 +132,65 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid, nodeUuids, nodeName
       link_style: linkStyle,
       theme_mode: themeMode,
       cover_page: coverPage,
+      page_size: pageSize,
+      include_child_pages: includeChildPages,
     };
 
-    const request = isBatch
-      ? api.post('/export', { node_ids: effectiveNodeUuids, ...params }, { responseType: 'text' })
-      : api.get(`/export/${effectiveNodeUuids[0]}`, { params, responseType: 'text' });
+    if (format === 'pdf') {
+      const request = isBatch
+        ? api.post('/export', { node_ids: effectiveNodeUuids, ...params, format }, { responseType: 'blob' })
+        : api.get(`/export/${effectiveNodeUuids[0]}`, { params: { ...params, format }, responseType: 'blob' });
 
-    request
-      .then((response) => {
-        if (!cancelled) setPreviewContent(response.data as string);
-      })
-      .catch((e: unknown) => {
-        if (!cancelled)
-          setError(e instanceof Error ? e.message : 'Failed to load preview');
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
+      request
+        .then((response) => {
+          if (cancelled) return;
+          const blob = new Blob([response.data as BlobPart], { type: 'application/pdf' });
+          const url = URL.createObjectURL(blob);
+          setPdfPreviewUrl((prev) => {
+            if (prev) URL.revokeObjectURL(prev);
+            return url;
+          });
+        })
+        .catch((e: unknown) => {
+          if (!cancelled)
+            setError(e instanceof Error ? e.message : 'Failed to load PDF preview');
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
+    } else {
+      const previewFormat = formatHasHtmlOptions(format) ? 'html' : format;
+      const request = isBatch
+        ? api.post('/export', { node_ids: effectiveNodeUuids, ...params, format: previewFormat }, { responseType: 'text' })
+        : api.get(`/export/${effectiveNodeUuids[0]}`, { params: { ...params, format: previewFormat }, responseType: 'text' });
+
+      request
+        .then((response) => {
+          if (!cancelled) setPreviewContent(response.data as string);
+        })
+        .catch((e: unknown) => {
+          if (!cancelled)
+            setError(e instanceof Error ? e.message : 'Failed to load preview');
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
+    }
 
     return () => {
       cancelled = true;
     };
-  }, [isOpen, format, layout, formatting, style, properties, density, numbering, measure, doctype, sectionBreak, showUuid, linkStyle, themeMode, coverPage, effectiveNodeUuids, isBatch]);
+  }, [isOpen, format, layout, formatting, style, properties, density, numbering, measure, doctype, sectionBreak, showUuid, linkStyle, themeMode, coverPage, pageSize, includeChildPages, effectiveNodeUuids, isBatch]);
+
+  // Revoke PDF object URL when the modal closes or format changes.
+  useEffect(() => {
+    return () => {
+      setPdfPreviewUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return null;
+      });
+    };
+  }, [format, isOpen]);
 
   // For Markdown/Text/JSON tabs, show plain-text body content.
   // For HTML/PDF tab, show the raw HTML or inject CSS overrides.
@@ -178,30 +236,44 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid, nodeUuids, nodeName
         link_style: linkStyle,
         theme_mode: themeMode,
         cover_page: coverPage,
+        page_size: pageSize,
+        include_child_pages: includeChildPages,
       };
 
       if (getExportFormat(format)?.format === 'pdf') {
-        const htmlParams = { ...baseParams, format: 'html' };
-        let html: string;
-        if (isBatch) {
-          const htmlResponse = await api.post('/export', { node_ids: effectiveNodeUuids, ...htmlParams }, { responseType: 'text' });
-          html = htmlResponse.data as string;
-        } else {
-          const htmlResponse = await api.get(`/export/${effectiveNodeUuids[0]}`, { params: htmlParams, responseType: 'text' });
-          html = htmlResponse.data as string;
-        }
         if (cssOverrides.trim()) {
+          // Preserve custom-CSS path: fetch HTML, inject overrides, render PDF.
+          const htmlParams = { ...baseParams, format: 'html' };
+          let html: string;
+          if (isBatch) {
+            const htmlResponse = await api.post('/export', { node_ids: effectiveNodeUuids, ...htmlParams }, { responseType: 'text' });
+            html = htmlResponse.data as string;
+          } else {
+            const htmlResponse = await api.get(`/export/${effectiveNodeUuids[0]}`, { params: htmlParams, responseType: 'text' });
+            html = htmlResponse.data as string;
+          }
           const styleTag = `<style>\n${cssOverrides.trim()}\n</style>`;
           html = html.includes('</head>')
             ? html.replace('</head>', `${styleTag}\n</head>`)
             : styleTag + '\n' + html;
+          const pdfResponse = await api.post(`/export/render-pdf`, { html }, { responseType: 'blob' });
+          downloadBlob(pdfResponse.data as Blob, 'export.pdf');
+        } else {
+          // Fast path: server generates PDF directly from the export options.
+          let response;
+          if (isBatch) {
+            response = await api.post('/export', { node_ids: effectiveNodeUuids, ...baseParams }, { responseType: 'blob' });
+          } else {
+            response = await api.get(`/export/${effectiveNodeUuids[0]}`, { params: baseParams, responseType: 'blob' });
+          }
+          const disposition = response.headers['content-disposition'] ?? undefined;
+          let filename = 'export.pdf';
+          if (disposition) {
+            const match = disposition.match(/filename="?([^"]+)"?/);
+            if (match) filename = match[1];
+          }
+          downloadBlob(response.data as Blob, filename);
         }
-        const pdfResponse = await api.post(
-          `/export/render-pdf`,
-          { html },
-          { responseType: 'blob' }
-        );
-        downloadBlob(pdfResponse.data as Blob, 'export.pdf');
       } else {
         let response;
         if (isBatch) {
@@ -222,7 +294,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid, nodeUuids, nodeName
     } finally {
       setDownloading(false);
     }
-  }, [format, layout, formatting, style, properties, density, numbering, measure, doctype, sectionBreak, showUuid, linkStyle, themeMode, coverPage, effectiveNodeUuids, isBatch, cssOverrides]);
+  }, [format, layout, formatting, style, properties, density, numbering, measure, doctype, sectionBreak, showUuid, linkStyle, themeMode, coverPage, pageSize, includeChildPages, effectiveNodeUuids, isBatch, cssOverrides]);
 
   const handleGenerateQr = useCallback(async () => {
     const text = displayContent || previewContent;
@@ -279,246 +351,299 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid, nodeUuids, nodeName
               {/* Presets */}
               <div className="visibility-option">
                 <div className="export-presets">
-                  <span className="export-presets__label">Quick preset</span>
+                  <div className="export-presets__header">
+                    <span className="export-presets__label">Quick preset</span>
+                    <span className="export-presets__active">{activePreset === 'custom' ? 'Custom' : activePreset.charAt(0).toUpperCase() + activePreset.slice(1)}</span>
+                  </div>
                   <div className="export-presets__row">
-                    <button
-                      type="button"
-                      className="export-preset-btn"
-                      onClick={() => applyPreset('casual')}
-                      title="Casual note (Obsidian-like)"
-                    >
-                      <Icon path="mdi-note-text-outline" className="export-preset-btn__icon" />
-                      <span className="export-preset-btn__text">Casual</span>
-                    </button>
-                    <button
-                      type="button"
-                      className="export-preset-btn"
-                      onClick={() => applyPreset('editorial')}
-                      title="Editorial prose (serif, elegant)"
-                    >
-                      <Icon path="mdi-feather" className="export-preset-btn__icon" />
-                      <span className="export-preset-btn__text">Editorial</span>
-                    </button>
-                    <button
-                      type="button"
-                      className="export-preset-btn"
-                      onClick={() => applyPreset('technical')}
-                      title="Technical document (LaTeX-like)"
-                    >
-                      <Icon path="mdi-file-document-outline" className="export-preset-btn__icon" />
-                      <span className="export-preset-btn__text">Technical</span>
-                    </button>
-                    <button
-                      type="button"
-                      className="export-preset-btn"
-                      onClick={() => applyPreset('book')}
-                      title="Long-form book"
-                    >
-                      <Icon path="mdi-book-open-variant" className="export-preset-btn__icon" />
-                      <span className="export-preset-btn__text">Book</span>
-                    </button>
+                    {[
+                      { key: 'casual', icon: 'mdi-note-text-outline', title: 'Casual note (Obsidian-like)' },
+                      { key: 'editorial', icon: 'mdi-feather', title: 'Editorial prose (serif, elegant)' },
+                      { key: 'technical', icon: 'mdi-file-document-outline', title: 'Technical document (LaTeX-like)' },
+                      { key: 'book', icon: 'mdi-book-open-variant', title: 'Long-form book' },
+                      { key: 'legal', icon: 'mdi-scale-balance', title: 'Legal memo' },
+                      { key: 'academic', icon: 'mdi-school', title: 'Academic paper' },
+                    ].map((p) => (
+                      <button
+                        key={p.key}
+                        type="button"
+                        className={`export-preset-btn${activePreset === p.key ? ' export-preset-btn--active' : ''}`}
+                        onClick={() => applyPreset(p.key as ExportPreset)}
+                        title={p.title}
+                      >
+                        <Icon path={`mdi ${p.icon}`} className="export-preset-btn__icon" />
+                        <span className="export-preset-btn__text">{p.key.charAt(0).toUpperCase() + p.key.slice(1)}</span>
+                      </button>
+                    ))}
                   </div>
                 </div>
               </div>
 
-              {formatHasHtmlOptions(format) && (
-                <div className="visibility-option">
-                  <SelectionButton
-                    size="sm"
-                    label="Theme mode"
-                    description="Light or dark background for the export"
-                    labelPosition="left"
-                    options={[
-                      { value: 'light', icon: "mdi mdi-white-balance-sunny", label: 'Light' },
-                      { value: 'dark', icon: "mdi mdi-weather-night", label: 'Dark' },
-                    ]}
-                    value={themeMode}
-                    onChange={(v) => setThemeMode(v as ExportThemeMode)}
-                  />
-                </div>
-              )}
+              <div className="export-options-section">
+                <span className="export-options-section__label">Theme</span>
+                {formatHasHtmlOptions(format) && (
+                  <div className="visibility-option">
+                    <SelectionButton
+                      size="sm"
+                      label="Style"
+                      description="Visual theme for the exported document"
+                      labelPosition="left"
+                      options={[
+                        { value: 'modern', icon: "mdi mdi-text-short", label: 'Modern' },
+                        { value: 'casual', icon: "mdi mdi-note-text-outline", label: 'Casual' },
+                        { value: 'editorial', icon: "mdi mdi-feather", label: 'Editorial' },
+                        { value: 'technical', icon: "mdi mdi-book-open-page-variant", label: 'Technical' },
+                        { value: 'book', icon: "mdi mdi-book", label: 'Book' },
+                      ]}
+                      value={style}
+                      onChange={(v) => setStyle(v as ExportStyle)}
+                    />
+                  </div>
+                )}
+                {formatHasHtmlOptions(format) && (
+                  <div className="visibility-option">
+                    <SelectionButton
+                      size="sm"
+                      label="Theme mode"
+                      description="Light or dark background for the export"
+                      labelPosition="left"
+                      options={[
+                        { value: 'light', icon: "mdi mdi-white-balance-sunny", label: 'Light' },
+                        { value: 'dark', icon: "mdi mdi-weather-night", label: 'Dark' },
+                      ]}
+                      value={themeMode}
+                      onChange={(v) => setThemeMode(v as ExportThemeMode)}
+                    />
+                  </div>
+                )}
+              </div>
 
-              <div className="visibility-option">
-                <SelectionButton
-                  size="sm"
-                  label="Layout"
-                  description="Outline preserves hierarchy, flat lists all content"
-                  labelPosition="left"
-                  options={[
-                    { value: 'outline', icon: "mdi mdi-file-tree", label: 'Outline' },
-                    { value: 'flat', icon: "mdi mdi-file-document-outline", label: 'Flat' },
-                  ]}
-                  value={layout}
-                  onChange={(v) => setLayout(v as ExportLayout)}
-                />
-              </div>
-              {formatHasHtmlOptions(format) && (
+              <div className="export-options-section">
+                <span className="export-options-section__label">Page</span>
                 <div className="visibility-option">
                   <SelectionButton
                     size="sm"
-                    label="Style"
-                    description="Visual theme for the exported document"
+                    label="Layout"
+                    description="Outline preserves hierarchy, flat lists all content"
                     labelPosition="left"
                     options={[
-                      { value: 'modern', icon: "mdi mdi-text-short", label: 'Modern' },
-                      { value: 'editorial', icon: "mdi mdi-feather", label: 'Editorial' },
-                      { value: 'technical', icon: "mdi mdi-book-open-page-variant", label: 'Technical' },
-                      { value: 'book', icon: "mdi mdi-book", label: 'Book' },
+                      { value: 'outline', icon: "mdi mdi-file-tree", label: 'Outline' },
+                      { value: 'flat', icon: "mdi mdi-file-document-outline", label: 'Flat' },
                     ]}
-                    value={style}
-                    onChange={(v) => setStyle(v as ExportStyle)}
+                    value={layout}
+                    onChange={(v) => setLayout(v as ExportLayout)}
                   />
                 </div>
-              )}
-              {formatHasHtmlOptions(format) && (
-                <div className="visibility-option">
-                  <SelectionButton
-                    size="sm"
-                    label="Density"
-                    description="Spacing between elements in the output"
-                    labelPosition="left"
-                    options={[
-                      { value: 'comfortable', icon: "mdi mdi-view-headline", label: 'Comfortable' },
-                      { value: 'compact', icon: "mdi mdi-view-compact", label: 'Compact' },
-                    ]}
-                    value={density}
-                    onChange={(v) => setDensity(v as ExportDensity)}
-                  />
-                </div>
-              )}
-              {formatHasHtmlOptions(format) && (
-                <div className="visibility-option">
-                  <SelectionButton
-                    size="sm"
-                    label="Measure"
-                    description="Page width and column layout"
-                    labelPosition="left"
-                    options={[
-                      { value: 'full', icon: "mdi mdi-arrow-expand-horizontal", label: 'Full' },
-                      { value: 'readable', icon: "mdi mdi-text", label: 'Readable' },
-                      { value: 'book', icon: "mdi mdi-book", label: 'Book' },
-                      { value: 'two-column', icon: "mdi mdi-view-column", label: '2-column' },
-                    ]}
-                    value={measure}
-                    onChange={(v) => setMeasure(v as ExportMeasure)}
-                  />
-                </div>
-              )}
-              {formatHasHtmlOptions(format) && (
-                <div className="visibility-option">
-                  <SelectionButton
-                    size="sm"
-                    label="Numbering"
-                    description="Add hierarchical numbers to headings"
-                    labelPosition="left"
-                    options={[
-                      { value: 'none', icon: "mdi mdi-format-list-bulleted", label: 'None' },
-                      { value: 'hierarchical', icon: "mdi mdi-format-list-numbered-rtl", label: 'Hierarchical' },
-                      { value: 'legal', icon: "mdi mdi-format-list-numbered", label: 'Legal' },
-                      { value: 'appendix', icon: "mdi mdi-format-letter-case-upper", label: 'Appendix' },
-                    ]}
-                    value={numbering}
-                    onChange={(v) => setNumbering(v as ExportNumbering)}
-                  />
-                </div>
-              )}
-              {formatHasHtmlOptions(format) && (
-                <div className="visibility-option">
-                  <SelectionButton
-                    size="sm"
-                    label="Document type"
-                    description="Semantic document behaviour: page breaks, spacing, TOC"
-                    labelPosition="left"
-                    options={[
-                      { value: 'none', icon: "mdi mdi-minus", label: 'None' },
-                      { value: 'article', icon: "mdi mdi-newspaper", label: 'Article' },
-                      { value: 'report', icon: "mdi mdi-file-chart-outline", label: 'Report' },
-                      { value: 'book', icon: "mdi mdi-book", label: 'Book' },
-                      { value: 'legal', icon: "mdi mdi-scale-balance", label: 'Legal' },
-                      { value: 'academic', icon: "mdi mdi-school", label: 'Academic' },
-                    ]}
-                    value={doctype}
-                    onChange={(v) => setDoctype(v as ExportDoctype)}
-                  />
-                </div>
-              )}
-              {formatHasHtmlOptions(format) && (
+                {formatHasHtmlOptions(format) && (
+                  <div className="visibility-option">
+                    <SelectionButton
+                      size="sm"
+                      label="Page size"
+                      description="Paper size for PDF output"
+                      labelPosition="left"
+                      options={[
+                        { value: 'a4', icon: "mdi mdi-file-document-outline", label: 'A4' },
+                        { value: 'letter', icon: "mdi mdi-file-document-outline", label: 'Letter' },
+                        { value: 'legal', icon: "mdi mdi-file-document-outline", label: 'Legal' },
+                      ]}
+                      value={pageSize}
+                      onChange={(v) => setPageSize(v as ExportPageSize)}
+                    />
+                  </div>
+                )}
+                {formatHasHtmlOptions(format) && (
+                  <div className="visibility-option">
+                    <BooleanToggle
+                      size="sm"
+                      label="Cover page"
+                      description="Render the title as a standalone title page"
+                      labelPosition="left"
+                      checked={coverPage}
+                      onChange={(e) => setCoverPage(e.target.checked)}
+                    />
+                  </div>
+                )}
+                {formatHasHtmlOptions(format) && (
+                  <div className="visibility-option">
+                    <BooleanToggle
+                      size="sm"
+                      label="Section page breaks"
+                      description="Force h1/h2 headings to start on a new page"
+                      labelPosition="left"
+                      checked={sectionBreak}
+                      onChange={(e) => setSectionBreak(e.target.checked)}
+                    />
+                  </div>
+                )}
                 <div className="visibility-option">
                   <BooleanToggle
                     size="sm"
-                    label="Cover page"
-                    description="Render the first heading as a standalone title page"
+                    label="Include child pages"
+                    description="Export nested pages as sections"
                     labelPosition="left"
-                    checked={coverPage}
-                    onChange={(e) => setCoverPage(e.target.checked)}
+                    checked={includeChildPages}
+                    onChange={(e) => setIncludeChildPages(e.target.checked)}
                   />
                 </div>
-              )}
-              {formatHasHtmlOptions(format) && (
+              </div>
+
+              <div className="export-options-section">
+                <span className="export-options-section__label">Content</span>
+                <div className="visibility-option">
+                  <SelectionButton
+                    size="sm"
+                    label="Formatting"
+                    description="Apply rich text styles or export plain text"
+                    labelPosition="left"
+                    options={[
+                      { value: 'true', icon: "mdi mdi-format-text", label: 'Formatted' },
+                      { value: 'false', icon: "mdi mdi-code-braces", label: 'Plain' },
+                    ]}
+                    value={formatting ? 'true' : 'false'}
+                    onChange={(v) => setFormatting(v === 'true')}
+                  />
+                </div>
+                <div className="visibility-option">
+                  <SelectionButton
+                    size="sm"
+                    label="Properties"
+                    description="Which nodes to show properties for"
+                    labelPosition="left"
+                    options={[
+                      { value: 'none', icon: "mdi mdi-tag-off", label: 'None' },
+                      { value: 'main', icon: "mdi mdi-tag-outline", label: 'Main node' },
+                      { value: 'all', icon: "mdi mdi-tag-multiple-outline", label: 'All nodes' },
+                    ]}
+                    value={properties}
+                    onChange={(v) => setProperties(v as ExportProperties)}
+                  />
+                </div>
                 <div className="visibility-option">
                   <BooleanToggle
                     size="sm"
-                    label="Section page breaks"
-                    description="Force h1/h2 headings to start on a new page"
+                    label="Show UUID"
+                    description="Include the node UUID as a property in the export"
                     labelPosition="left"
-                    checked={sectionBreak}
-                    onChange={(e) => setSectionBreak(e.target.checked)}
+                    checked={showUuid}
+                    onChange={(e) => setShowUuid(e.target.checked)}
                   />
                 </div>
+                <div className="visibility-option">
+                  <SelectionButton
+                    size="sm"
+                    label="Links"
+                    description="Show raw UUIDs in links or only the display text"
+                    labelPosition="left"
+                    options={[
+                      { value: 'raw', icon: "mdi mdi-link-variant", label: 'Raw' },
+                      { value: 'text', icon: "mdi mdi-link-off", label: 'Text only' },
+                    ]}
+                    value={linkStyle}
+                    onChange={(v) => setLinkStyle(v as ExportLinkStyle)}
+                  />
+                </div>
+              </div>
+
+              {formatHasHtmlOptions(format) && (
+                <div className="export-options-section">
+                  <button
+                    type="button"
+                    className="export-options-section__toggle"
+                    onClick={() => setAdvancedOpen((o) => !o)}
+                  >
+                    <span>Advanced</span>
+                    <Icon path={`mdi ${advancedOpen ? 'mdi-chevron-up' : 'mdi-chevron-down'}`} />
+                  </button>
+                  {advancedOpen && (
+                    <>
+                      <div className="visibility-option">
+                        <SelectionButton
+                          size="sm"
+                          label="Density"
+                          description="Spacing between elements in the output"
+                          labelPosition="left"
+                          options={[
+                            { value: 'comfortable', icon: "mdi mdi-view-headline", label: 'Comfortable' },
+                            { value: 'compact', icon: "mdi mdi-view-compact", label: 'Compact' },
+                          ]}
+                          value={density}
+                          onChange={(v) => setDensity(v as ExportDensity)}
+                        />
+                      </div>
+                      <div className="visibility-option">
+                        <SelectionButton
+                          size="sm"
+                          label="Measure"
+                          description="Page width and column layout"
+                          labelPosition="left"
+                          options={[
+                            { value: 'full', icon: "mdi mdi-arrow-expand-horizontal", label: 'Full' },
+                            { value: 'readable', icon: "mdi mdi-text", label: 'Readable' },
+                            { value: 'book', icon: "mdi mdi-book", label: 'Book' },
+                            { value: 'two-column', icon: "mdi mdi-view-column", label: '2-column' },
+                          ]}
+                          value={measure}
+                          onChange={(v) => setMeasure(v as ExportMeasure)}
+                        />
+                      </div>
+                      <div className="visibility-option">
+                        <SelectionButton
+                          size="sm"
+                          label="Numbering"
+                          description="Add hierarchical numbers to headings"
+                          labelPosition="left"
+                          options={[
+                            { value: 'none', icon: "mdi mdi-format-list-bulleted", label: 'None' },
+                            { value: 'hierarchical', icon: "mdi mdi-format-list-numbered-rtl", label: 'Hierarchical' },
+                            { value: 'legal', icon: "mdi mdi-format-list-numbered", label: 'Legal' },
+                            { value: 'appendix', icon: "mdi mdi-format-letter-case-upper", label: 'Appendix' },
+                          ]}
+                          value={numbering}
+                          onChange={(v) => setNumbering(v as ExportNumbering)}
+                        />
+                      </div>
+                      <div className="visibility-option">
+                        <SelectionButton
+                          size="sm"
+                          label="Document type"
+                          description="Semantic document behaviour: page breaks, spacing, TOC"
+                          labelPosition="left"
+                          options={[
+                            { value: 'none', icon: "mdi mdi-minus", label: 'None' },
+                            { value: 'article', icon: "mdi mdi-newspaper", label: 'Article' },
+                            { value: 'report', icon: "mdi mdi-file-chart-outline", label: 'Report' },
+                            { value: 'book', icon: "mdi mdi-book", label: 'Book' },
+                            { value: 'legal', icon: "mdi mdi-scale-balance", label: 'Legal' },
+                            { value: 'academic', icon: "mdi mdi-school", label: 'Academic' },
+                          ]}
+                          value={doctype}
+                          onChange={(v) => setDoctype(v as ExportDoctype)}
+                        />
+                      </div>
+                      {formatHasHtmlOptions(format) && (
+                        <div className="visibility-option">
+                          <label className="export-modal__label" htmlFor="export-css-overrides">
+                            Custom CSS overrides{' '}
+                            <span className="export-modal__label-hint">(preview only)</span>
+                          </label>
+                          <textarea
+                            id="export-css-overrides"
+                            className="export-modal__css-textarea"
+                            value={cssOverrides}
+                            onChange={(e) => setCssOverrides(e.target.value)}
+                            placeholder={`body { font-family: Georgia, serif; }\n@media print { .sidebar { display: none; } }`}
+                            spellCheck={false}
+                            rows={4}
+                          />
+                          <p className="export-modal__pdf-hint">
+                            CSS overrides are applied to the live preview only.
+                          </p>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
               )}
-              <div className="visibility-option">
-                <SelectionButton
-                  size="sm"
-                  label="Formatting"
-                  description="Apply rich text styles or export plain text"
-                  labelPosition="left"
-                  options={[
-                    { value: 'true', icon: "mdi mdi-format-text", label: 'Formatted' },
-                    { value: 'false', icon: "mdi mdi-code-braces", label: 'Plain' },
-                  ]}
-                  value={formatting ? 'true' : 'false'}
-                  onChange={(v) => setFormatting(v === 'true')}
-                />
-              </div>
-              <div className="visibility-option">
-                <SelectionButton
-                  size="sm"
-                  label="Properties"
-                  description="Which nodes to show properties for"
-                  labelPosition="left"
-                  options={[
-                    { value: 'none', icon: "mdi mdi-tag-off", label: 'None' },
-                    { value: 'main', icon: "mdi mdi-tag-outline", label: 'Main node' },
-                    { value: 'all', icon: "mdi mdi-tag-multiple-outline", label: 'All nodes' },
-                  ]}
-                  value={properties}
-                  onChange={(v) => setProperties(v as ExportProperties)}
-                />
-              </div>
-              <div className="visibility-option">
-                <BooleanToggle
-                  size="sm"
-                  label="Show UUID"
-                  description="Include the node UUID as a property in the export"
-                  labelPosition="left"
-                  checked={showUuid}
-                  onChange={(e) => setShowUuid(e.target.checked)}
-                />
-              </div>
-              <div className="visibility-option">
-                <SelectionButton
-                  size="sm"
-                  label="Links"
-                  description="Show raw UUIDs in links or only the display text"
-                  labelPosition="left"
-                  options={[
-                    { value: 'raw', icon: "mdi mdi-link-variant", label: 'Raw' },
-                    { value: 'text', icon: "mdi mdi-link-off", label: 'Text only' },
-                  ]}
-                  value={linkStyle}
-                  onChange={(v) => setLinkStyle(v as ExportLinkStyle)}
-                />
-              </div>
             </div>
           </ButtonWithPanel>
           <div className="export-modal__footer-actions">
@@ -607,7 +732,16 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid, nodeUuids, nodeName
                   </button>
                 </div>
               )}
-              {format === 'html' && htmlViewMode === 'source' ? (
+              {format === 'pdf' && pdfPreviewUrl ? (
+                <div className={`export-modal__iframe-wrap export-modal__iframe-wrap--pdf${loading ? ' export-modal__iframe-wrap--loading' : ''}`}>
+                  <embed
+                    className="export-modal__iframe"
+                    title="PDF preview"
+                    src={pdfPreviewUrl}
+                    type="application/pdf"
+                  />
+                </div>
+              ) : format === 'html' && htmlViewMode === 'source' ? (
                 <textarea
                   className={`export-modal__preview${loading ? ' export-modal__preview--loading' : ''}`}
                   readOnly
@@ -625,29 +759,6 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid, nodeUuids, nodeName
                       sandbox="allow-same-origin"
                     />
                   )}
-                </div>
-              )}
-              {format === 'pdf' && (
-                <div className="export-modal__pdf-section">
-                  <label
-                    className="export-modal__label"
-                    htmlFor="export-css-overrides"
-                  >
-                    Custom CSS overrides{' '}
-                    <span className="export-modal__label-hint">(optional)</span>
-                  </label>
-                  <textarea
-                    id="export-css-overrides"
-                    className="export-modal__css-textarea"
-                    value={cssOverrides}
-                    onChange={(e) => setCssOverrides(e.target.value)}
-                    placeholder={`body { font-family: Georgia, serif; }\n@media print { .sidebar { display: none; } }`}
-                    spellCheck={false}
-                    rows={4}
-                  />
-                  <p className="export-modal__pdf-hint">
-                    Optional CSS is injected before rendering to PDF.
-                  </p>
                 </div>
               )}
             </>

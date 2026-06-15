@@ -16,27 +16,28 @@ from app.domain.entities import Property, PropertyType
 from app.domain.services.query_language import parse_query_language
 
 
-@pytest_asyncio.fixture
+@pytest_asyncio.fixture(scope="function")
 async def text_property(property_repository):
-    """Create a reusable text property for aggregation / query tests."""
-    prop = Property(name="status", type=PropertyType.TEXT)
+    """Create a reusable scalar text property for aggregation / query tests."""
+    prop = Property(name="status", type=PropertyType.URL)
     created = await property_repository.create(prop)
     return created
 
 
-@pytest_asyncio.fixture
+@pytest_asyncio.fixture(scope="function")
 async def priority_property(property_repository):
-    """Create a reusable text property for query-language resolution tests."""
-    prop = Property(name="priority", type=PropertyType.TEXT)
+    """Create a reusable scalar text property for query-language resolution tests."""
+    prop = Property(name="priority", type=PropertyType.URL)
     created = await property_repository.create(prop)
     return created
 
 
-@pytest_asyncio.fixture
-async def sample_page(authenticated_client):
+@pytest_asyncio.fixture(scope="function")
+async def sample_page(authenticated_client, test_user):
     """Create a simple page node."""
     response = await authenticated_client.post(
-        "/api/nodes", json={"name": "Sample Page", "is_page": True}
+        "/api/nodes/",
+        json={"name": "Sample Page", "classes": [test_user["page_class_id"]]},
     )
     assert response.status_code == 200
     data = response.json()
@@ -142,13 +143,13 @@ async def test_typed_current_node_id_placeholder(authenticated_client, sample_pa
 
 @pytest.mark.asyncio
 async def test_aggregation_count_by_text_property(
-    authenticated_client, property_repository, text_property
+    authenticated_client, property_repository, text_property, test_user
 ):
     """Backend aggregation can count nodes grouped by a text property value."""
     created = []
     for name, value in (("Page A", "active"), ("Page B", "active"), ("Page C", "done")):
         resp = await authenticated_client.post(
-            "/api/nodes", json={"name": name, "is_page": True}
+            "/api/nodes/", json={"name": name, "classes": [test_user["page_class_id"]]}
         )
         assert resp.status_code == 200
         page_id = resp.json()["id"]
@@ -175,7 +176,7 @@ async def test_aggregation_count_by_text_property(
     assert response.status_code == 200
     data = response.json()
     groups = data["groups"]
-    by_key = {g["group_key"]: g["count"] for g in groups}
+    by_key = {g["dim_0"]: g["value"] for g in groups}
     assert by_key.get("active") == 2
     assert by_key.get("done") == 1
 
@@ -206,11 +207,12 @@ async def test_query_language_parses_complex_expression():
 
 @pytest.mark.asyncio
 async def test_query_language_executes_with_property_name_resolution(
-    authenticated_client, property_repository, priority_property
+    authenticated_client, property_repository, priority_property, test_user
 ):
     """A text query using a property name is resolved to its UUID at execution time."""
     resp = await authenticated_client.post(
-        "/api/nodes", json={"name": "Priority Page", "is_page": True}
+        "/api/nodes/",
+        json={"name": "Priority Page", "classes": [test_user["page_class_id"]]},
     )
     assert resp.status_code == 200
     page_id = resp.json()["id"]
