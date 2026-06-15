@@ -25,7 +25,6 @@
 
 .inline-editor__content:focus-visible {
   outline: none;
-  box-shadow: var(--shadow-focus-ring);
 }
 
 .inline-editor__placeholder {

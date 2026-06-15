@@ -1,5 +1,5 @@
 /**
- * InlineEditorKeysPlugin — Intercepts Enter, Backspace, Delete, Tab
+ * InlineEditorKeysPlugin — Intercepts Enter, Backspace, Delete
  * inside InlineEditor and calls external callbacks for block-level actions.
  *
  * This replaces BlockList.onKeyDown for keys that need cursor-position
@@ -15,7 +15,6 @@ import {
   KEY_ENTER_COMMAND,
   KEY_BACKSPACE_COMMAND,
   KEY_DELETE_COMMAND,
-  KEY_TAB_COMMAND,
   KEY_ESCAPE_COMMAND,
   INSERT_PARAGRAPH_COMMAND,
   DELETE_CHARACTER_COMMAND,
@@ -33,8 +32,6 @@ export interface InlineEditorKeysPluginProps {
   onBackspaceAtStart?: () => void;
   /** Called on Delete when cursor is at the end of the block. */
   onDeleteAtEnd?: () => void;
-  /** Called on Tab. */
-  onTab?: (shift: boolean) => void;
   /** Called on Escape (blur editor and select block). */
   onEscape?: () => void;
 }
@@ -46,7 +43,6 @@ export function InlineEditorKeysPlugin({
   onCtrlEnter,
   onBackspaceAtStart,
   onDeleteAtEnd,
-  onTab,
   onEscape,
 }: InlineEditorKeysPluginProps): null {
   const [editor] = useLexicalComposerContext();
@@ -186,21 +182,6 @@ export function InlineEditorKeysPlugin({
       COMMAND_PRIORITY_HIGH,
     );
   }, [editor, onDeleteAtEnd, checkAtEnd]);
-
-  // ─── Tab ────────────────────────────────────────────────────────
-
-  useEffect(() => {
-    if (!onTab) return;
-    return editor.registerCommand(
-      KEY_TAB_COMMAND,
-      (event) => {
-        event?.preventDefault();
-        onTab(event?.shiftKey ?? false);
-        return true;
-      },
-      COMMAND_PRIORITY_HIGH,
-    );
-  }, [editor, onTab]);
 
   // ─── Escape ─────────────────────────────────────────────────────
 

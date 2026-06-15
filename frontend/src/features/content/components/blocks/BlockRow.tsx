@@ -59,7 +59,6 @@ interface BlockRowProps {
   onEnter?: (blockId: string) => void;
   onBackspaceAtStart?: (blockId: string) => void;
   onDeleteAtEnd?: (blockId: string) => void;
-  onTab?: (blockId: string, shift: boolean) => void;
   /** Called on Escape (blur editor and select block). */
   onEscape?: (blockId: string) => void;
   /** UUID of the containing page (for live sync lock indicators). */
@@ -93,7 +92,6 @@ export const BlockRow = memo(
       onEnter,
       onBackspaceAtStart,
       onDeleteAtEnd,
-      onTab,
       onEscape,
       nodeUuid,
       showClasses = false,
@@ -176,7 +174,6 @@ export const BlockRow = memo(
       onEnter,
       onBackspaceAtStart,
       onDeleteAtEnd,
-      onTab,
       onEscape,
       onCollapseToggle,
     });
@@ -185,16 +182,14 @@ export const BlockRow = memo(
         onEnter,
         onBackspaceAtStart,
         onDeleteAtEnd,
-        onTab,
         onEscape,
         onCollapseToggle,
       };
-    }, [onEnter, onBackspaceAtStart, onDeleteAtEnd, onTab, onEscape, onCollapseToggle]);
+    }, [onEnter, onBackspaceAtStart, onDeleteAtEnd, onEscape, onCollapseToggle]);
 
     const handleEnter = useCallback(() => callbacksRef.current.onEnter?.(node.uuid), [node.uuid]);
     const handleBackspaceAtStart = useCallback(() => callbacksRef.current.onBackspaceAtStart?.(node.uuid), [node.uuid]);
     const handleDeleteAtEnd = useCallback(() => callbacksRef.current.onDeleteAtEnd?.(node.uuid), [node.uuid]);
-    const handleTab = useCallback((shift: boolean) => callbacksRef.current.onTab?.(node.uuid, shift), [node.uuid]);
     const handleEscape = useCallback(() => callbacksRef.current.onEscape?.(node.uuid), [node.uuid]);
     const handleCollapseToggleLocal = useCallback(() => callbacksRef.current.onCollapseToggle?.(node.uuid), [node.uuid]);
 
@@ -354,7 +349,6 @@ export const BlockRow = memo(
         onCtrlEnter={cycleTaskStatus}
         onBackspaceAtStart={handleBackspaceAtStart}
         onDeleteAtEnd={handleDeleteAtEnd}
-        onTab={handleTab}
         onEscape={handleEscape}
         nodeUuid={nodeUuid}
       />
@@ -390,35 +384,35 @@ export const BlockRow = memo(
           />
         )}
         <div className="block-row__left">
-        <BlockUI
-          node={node}
-          icon={bulletIcon}
-          hasChildren={hasQueryClass || (node.has_children ?? false)}
-          collapsed={effectiveCollapsed ?? node.collapsed ?? false}
-          onCollapseToggle={handleCollapseToggleLocal}
-          onNavigate={onNavigate}
-          onOpenInSidebar={onOpenInSidebar}
-          onContextMenu={handleBulletContextMenu}
-          isHovered={isHovered}
-          lockedBy={lockedBy}
-          presenceUsers={presenceUsers}
-          typingUsers={typingUsers}
-        />
-        {propertyIcons.afterBullet.length > 0 && (
-          <div className="block-property-icons">
-            {propertyIcons.afterBullet.map(({ property: prop, value: val }) => (
-              <PropertyIconButton
-                key={prop.id}
-                property={prop}
-                node={node}
-                value={val}
-                editable={!readOnly}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-      <div className="block-row__body">
+          <BlockUI
+            node={node}
+            icon={bulletIcon}
+            hasChildren={hasQueryClass || (node.has_children ?? false)}
+            collapsed={effectiveCollapsed ?? node.collapsed ?? false}
+            onCollapseToggle={handleCollapseToggleLocal}
+            onNavigate={onNavigate}
+            onOpenInSidebar={onOpenInSidebar}
+            onContextMenu={handleBulletContextMenu}
+            isHovered={isHovered}
+            lockedBy={lockedBy}
+            presenceUsers={presenceUsers}
+            typingUsers={typingUsers}
+          />
+          {propertyIcons.afterBullet.length > 0 && (
+            <div className="block-property-icons">
+              {propertyIcons.afterBullet.map(({ property: prop, value: val }) => (
+                <PropertyIconButton
+                  key={prop.id}
+                  property={prop}
+                  node={node}
+                  value={val}
+                  editable={!readOnly}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="block-row__body">
           {hasClasses || hasBacklinks ? (
             <div className="block-row__content-line">
               <div className="block-row__content">
@@ -473,6 +467,8 @@ export const BlockRow = memo(
               {editorElement}
             </div>
           )}
+        </div>
+        <div className="block-row__after-content">
           <BlockAfterContent node={node} backlinkExpanded={backlinkExpanded} />
         </div>
       </div>

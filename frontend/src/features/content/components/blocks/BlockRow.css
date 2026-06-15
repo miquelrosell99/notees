@@ -8,8 +8,12 @@
 
 .block-row {
   position: relative;
-  display: flex;
-  align-items: flex-start;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas:
+    "left content"
+    ".    after";
+  align-items: center;
   padding: 0;
   margin: var(--spacing-tiny) 0;
   margin-left: calc(min(var(--block-depth, 0), 8) * var(--block-indent-step));
@@ -20,10 +24,40 @@
   contain: layout style;
 }
 
+/* Left chrome column — bullet, presence, locks, after-bullet icons */
 .block-row__left {
+  grid-area: left;
   display: flex;
   align-items: center;
   flex-shrink: 0;
+}
+
+/* Body column — main content line */
+.block-row__body {
+  grid-area: content;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 1.5em;
+}
+
+/* After-content lives in its own grid row so it doesn't affect the vertical
+   centering of the bullet against the content line. */
+.block-row__after-content {
+  grid-area: after;
+  min-width: 0;
+}
+
+/* The bullet wrapper is centered in the left column, so the dot optical nudge
+   (designed for top-aligned rows) pushes it below the text. Remove it here. */
+.block-row__left .bullet-container {
+  transform: none;
+}
+
+/* Block bullet specific: right margin for spacing from content */
+.block-ui > .bullet-wrapper {
+  margin-right: var(--spacing-1-5);
+  cursor: grab;
 }
 
 /* Default thread line — hidden visually, used only for editing trail */
@@ -220,15 +254,6 @@
   transform: scale(1.2);
   background-color: var(--color-primary);
   opacity: var(--opacity-90);
-}
-
-/* Body — wraps content + after-content in a vertical stack */
-.block-row__body {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-width: 2em;
-  min-height: 1.5em;
 }
 
 /* Content area — inline editor sits here */
