@@ -9,6 +9,7 @@ import { useRef, useMemo, useEffect, useLayoutEffect, forwardRef, useImperativeH
 import { InlineEditor, type InlineEditorHandle } from '@/features/content/editor/InlineEditor';
 import { BlockUI } from './BlockUI';
 import { BlockAfterContent } from './BlockAfterContent';
+import { ThreadLine } from './ThreadLine';
 import { useEditorFocusStore } from '@/stores/editorFocusStore';
 import { parseAST, parseLinkId } from '@/lib/astBuilder';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
@@ -71,6 +72,10 @@ interface BlockRowProps {
   isGhost?: boolean;
   /** Called when the ghost pseudo-block is clicked. */
   onGhostRealize?: (ghostUuid: string) => void;
+  /** True when this block is an ancestor of the currently edited block. */
+  isOnActiveTrail?: boolean;
+  /** If true, the list-level overlay renders guide lines; this row only shows its own thread line. */
+  useOverlayForGuides?: boolean;
 }
 
 // ─── Component ────────────────────────────────────────────────────
@@ -102,6 +107,8 @@ export const BlockRow = memo(
       effectiveCollapsed,
       isGhost = false,
       onGhostRealize,
+      isOnActiveTrail = false,
+      useOverlayForGuides = false,
     },
     ref,
   ): JSX.Element {
@@ -392,12 +399,12 @@ export const BlockRow = memo(
         onMouseLeave={() => setIsHovered(false)}
       >
         {depth > 0 && !isGhost && (
-          <button
-            type="button"
-            className="block-thread-line"
+          <ThreadLine
+            depth={Math.min(depth, 8)}
+            isActivePath={isActive || isOnActiveTrail}
             onClick={handleThreadLineClick}
-            title="Collapse/expand all children"
-            aria-label="Collapse/expand all children"
+            interactive={!readOnly}
+            useOverlayForGuides={useOverlayForGuides}
           />
         )}
         <div className="block-row__left">

@@ -26,6 +26,7 @@ import { useBlockTree, parseGhostParentUuid } from '@/hooks/useBlockTree';
 import { useStructureSync } from '@/hooks/useStructureSync';
 import { useBlockPersist } from '@/hooks/useBlockPersist';
 import { BlockRow, type BlockRowHandle } from './BlockRow';
+import { ThreadLineOverlay } from './ThreadLineOverlay';
 import { useEditorFocusStore } from '@/stores/editorFocusStore';
 import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
 import { generateUUID } from '@/utils/uuid';
@@ -106,7 +107,7 @@ export function BlockList({
   showClasses = false,
   expandAll = false,
 }: BlockListProps): JSX.Element {
-  const { flatNodes } = useBlockTree(nodes, {
+  const { flatNodes, structureVersion } = useBlockTree(nodes, {
     maxDepth,
     pagesOnly,
     skipPages,
@@ -146,6 +147,28 @@ export function BlockList({
   });
 
   const activeBlockId = useEditorFocusStore((s) => s.activeBlockId);
+
+  // Compute ancestor UUIDs of the active block so each row can know whether it
+  // sits on the active editing path. This replaces the imperative DOM class
+  // toggling that the old thread-line system used.
+  const activeTrailIds = useMemo(() => {
+    if (!activeBlockId) return new Set<string>();
+    // structureVersion is intentionally unused inside the callback; it acts as
+    // a signal that the runtime tree structure changed, so we must re-walk the
+    // active block's ancestors.
+    void structureVersion;
+    const runtime = getNodeGraphRuntime();
+    const trail = new Set<string>();
+    let current = runtime.getNode(activeBlockId);
+    while (current?.parentId) {
+      const parent = runtime.getNode(current.parentId);
+      if (!parent) break;
+      trail.add(parent.blockId);
+      current = parent;
+    }
+    return trail;
+  }, [activeBlockId, structureVersion]);
+
   const focusPreviousBlock = useEditorFocusStore((s) => s.focusPreviousBlock);
   const focusNextBlock = useEditorFocusStore((s) => s.focusNextBlock);
   const setPendingFocus = useEditorFocusStore((s) => s.setPendingFocus);
@@ -321,6 +344,11 @@ export function BlockList({
     runtime.flushEvents();
   }, []);
 
+  const handleOverlayLineClick = useCallback((blockId: string) => {
+    if (readOnly) return;
+    handleCollapseToggle(blockId);
+  }, [readOnly, handleCollapseToggle]);
+
   const handleGhostRealize = useCallback((ghostUuid: string) => {
     const parentUuid = parseGhostParentUuid(ghostUuid);
     if (!parentUuid) return;
@@ -462,7 +490,15 @@ export function BlockList({
       tabIndex={-1}
     >
       {enableVirtualization ? (
-        <div style={{ position: 'relative', height: `${totalSize}px` }}>
+        <>
+          <ThreadLineOverlay
+            containerRef={containerRef}
+            flatNodes={flatNodes}
+            virtualized
+            virtualItems={virtualItems.map((vi) => ({ index: vi.index, start: vi.start, end: vi.end }))}
+            onLineClick={handleOverlayLineClick}
+          />
+          <div style={{ position: 'relative', height: `${totalSize}px` }}>
           {virtualItems.map((virtualRow) => {
             const { node, depth, effectiveCollapsed, isGhost } = flatNodes[virtualRow.index];
             return (
@@ -484,6 +520,8 @@ export function BlockList({
                   depth={depth}
                   effectiveCollapsed={effectiveCollapsed}
                   isGhost={isGhost}
+                  isOnActiveTrail={activeTrailIds.has(node.uuid)}
+                  useOverlayForGuides
                   onGhostRealize={handleGhostRealize}
                   readOnly={readOnly}
                   placeholder={placeholder}
@@ -509,16 +547,26 @@ export function BlockList({
             );
           })}
         </div>
+      </>
       ) : (
-        flatNodes.map(({ node, depth, effectiveCollapsed, isGhost }) => (
-          <BlockRow
-            key={node.uuid}
-            ref={(ref) => setRowRef(node.uuid, ref)}
-            node={node}
-            depth={depth}
-            effectiveCollapsed={effectiveCollapsed}
-            isGhost={isGhost}
-            onGhostRealize={handleGhostRealize}
+        <>
+          <ThreadLineOverlay
+            containerRef={containerRef}
+            flatNodes={flatNodes}
+            virtualized={false}
+            onLineClick={handleOverlayLineClick}
+          />
+          {flatNodes.map(({ node, depth, effectiveCollapsed, isGhost }) => (
+            <BlockRow
+              key={node.uuid}
+              ref={(ref) => setRowRef(node.uuid, ref)}
+              node={node}
+              depth={depth}
+              effectiveCollapsed={effectiveCollapsed}
+              isGhost={isGhost}
+              isOnActiveTrail={activeTrailIds.has(node.uuid)}
+              useOverlayForGuides
+              onGhostRealize={handleGhostRealize}
             readOnly={readOnly}
             placeholder={placeholder}
             onContentChange={onContentChange}
@@ -539,7 +587,8 @@ export function BlockList({
             onEscape={handleEscape}
             onCollapseToggle={handleCollapseToggle}
           />
-        ))
+        ))}
+      </>
       )}
       {!readOnly && <BlockFindReplacePlugin />}
     </div>
