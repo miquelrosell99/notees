@@ -1,0 +1,16 @@
+.task-recurrence-section {
+  margin-top: var(--space-2, 0.5rem);
+}
+
+.task-recurrence-section__icon {
+  font-size: var(--font-size-base, 1rem);
+  color: var(--color-text-secondary);
+}
+
+.task-recurrence-section__body {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3, 0.75rem);
+  flex-wrap: wrap;
+}

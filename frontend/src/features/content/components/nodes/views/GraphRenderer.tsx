@@ -42,6 +42,10 @@ export interface GraphRendererRef {
   clearSelection: () => void;
   /** Live-update SGE config without recreating the worker. */
   setConfig: (cfg: SGEPhysicsConfig) => void;
+  /** Pin a node in place so physics ignores it. */
+  pinNode: (id: number) => void;
+  /** Unpin a node so physics can move it again. */
+  unpinNode: (id: number) => void;
 }
 
 // ─── Props ────────────────────────────────────────────────────────────────────
@@ -175,6 +179,8 @@ export const GraphRenderer = memo(forwardRef<GraphRendererRef, GraphRendererProp
     zoomBy,
     clearSelection,
     setConfig: _setConfig,
+    pinNode,
+    unpinNode,
     _pointerDown,
     _pointerMove,
     _pointerUp,
@@ -197,7 +203,9 @@ export const GraphRenderer = memo(forwardRef<GraphRendererRef, GraphRendererProp
     zoomBy,
     clearSelection,
     setConfig: _setConfig,
-  }), [pause, resume, recenter, panBy, zoomBy, clearSelection, _setConfig]);
+    pinNode,
+    unpinNode,
+  }), [pause, resume, recenter, panBy, zoomBy, clearSelection, _setConfig, pinNode, unpinNode]);
 
   // Prevent native context menu on right-click
   const onContextMenu = useCallback((e: React.MouseEvent) => {

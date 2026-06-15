@@ -340,22 +340,15 @@ async def list_tasks(
 ):
     """List all task nodes in the current workspace.
 
-    Tasks are nodes that have the 'task' system class assigned.
+    Tasks are nodes with is_task = TRUE (synchronized with the task class).
     By default, excludes tasks with status 'Done' or 'Cancelled'.
     """
-    from ...db.schema.constants import SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS
+    from ...db.schema.constants import SYSTEM_PROPERTY_UUIDS, TASK_CLOSED_STATUSES
 
     service = await _get_node_service(user)
 
-    # Find the task class node ID
-    task_class_node = await service.get_node_by_uuid(SYSTEM_CLASS_UUIDS["task"])
-    if not task_class_node or task_class_node.id is None:
-        return PaginatedResponse[NodeResponse](
-            items=[], total=0, page=page, page_size=page_size, has_next=False, has_prev=False
-        )
-
-    # Get all nodes with the task class
-    nodes = await service.get_nodes_typed_with(task_class_node.id)
+    # Get all active task nodes using the is_task index
+    nodes = await service.get_task_nodes()
 
     # Batch load class_ids and tags
     node_ids = [n.id for n in nodes if n.id is not None]
@@ -368,7 +361,7 @@ async def list_tasks(
         if status_prop and status_prop.id is not None:
             batch_props = await service.get_nodes_properties_batch(node_ids)
             lines = await service.property_repo.get_selection_lines(status_prop.id)
-            closed_line_ids = {line.id for line in lines if line.name in {"Done", "Cancelled"}}
+            closed_line_ids = {line.id for line in lines if line.name in TASK_CLOSED_STATUSES}
 
             filtered_nodes = []
             for n in nodes:

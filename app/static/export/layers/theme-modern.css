@@ -281,20 +281,35 @@
 }
 
 /* --- Cover page --- */
-.cover-page.theme-modern h1:first-of-type {
-  font-size: 2.4rem;
+.theme-modern .cover__title {
+  font-family: var(--tm-font);
+  font-size: 2.6rem;
   font-weight: 700;
   letter-spacing: -0.03em;
   color: var(--tm-color-h1);
-  padding-top: 30vh;
 }
 
-.cover-page.theme-modern h1:first-of-type::after {
+.theme-modern .cover__subtitle {
+  font-family: var(--tm-font);
+  color: var(--tm-color-muted);
+}
+
+.theme-modern .cover__date {
+  font-family: var(--tm-font);
+  color: var(--tm-color-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.8rem;
+}
+
+.theme-modern .cover::after {
+  content: '';
+  display: block;
   width: 50px;
   height: 3px;
   background: var(--tm-border);
   border-radius: 2px;
-  margin-top: 1.2rem;
+  margin-top: 1.5rem;
 }
 
 /* --- Dark mode --- */

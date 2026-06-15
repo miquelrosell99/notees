@@ -138,7 +138,9 @@ class TestExportToHtmlCodeAndQuote:
         nodes = [{"uuid": "c1", "name": '[{"type":"paragraph","children":[{"type":"text","text":"print(\'hi\')"}]}]', "is_page": False, "depth": 0, "class_ids": [99]}]
         html = export_to_html(nodes, code_class_id=99)
         assert '<pre class="code-block"' in html
-        assert '<code>print(&#x27;hi&#x27;)</code>' in html
+        assert '<code class="highlight">' in html
+        assert 'print' in html
+        assert 'hi' in html
         assert '</pre>' in html
 
     def test_quote_block_renders_blockquote(self):

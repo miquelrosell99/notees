@@ -42,9 +42,17 @@ router = APIRouter(prefix="/assets", tags=["Assets"])
 logger = get_logger(__name__)
 
 
-def create_asset_token(asset_uuid: str, user_id: str) -> str:
-    """Create a short-lived JWT token for asset access (5 minutes)."""
-    expires_delta = timedelta(minutes=5)
+_ASSET_TOKEN_LIFETIME_MINUTES = 15
+_ASSET_TOKEN_LEEWAY_SECONDS = 60
+
+
+def create_asset_token(asset_uuid: str, user_id: str) -> tuple[str, datetime]:
+    """Create a short-lived JWT token for asset access.
+
+    Returns the encoded token and the exact expiration datetime used for the
+    JWT ``exp`` claim so callers can report the same value to clients.
+    """
+    expires_delta = timedelta(minutes=_ASSET_TOKEN_LIFETIME_MINUTES)
     expire = datetime.now(UTC) + expires_delta
     payload = {
         "asset_uuid": asset_uuid,
@@ -52,16 +60,31 @@ def create_asset_token(asset_uuid: str, user_id: str) -> str:
         "exp": expire,
         "type": "asset_access",
     }
-    return jwt.encode(payload, settings.secret_key, algorithm=settings.algorithm)
+    return jwt.encode(payload, settings.secret_key, algorithm=settings.algorithm), expire
 
 
 def decode_asset_token(token: str) -> dict | None:
-    """Decode and verify an asset token."""
+    """Decode and verify an asset token.
+
+    Allows a small leeway for clock skew between the client and server.
+    """
     try:
-        payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
+        payload = jwt.decode(
+            token,
+            settings.secret_key,
+            algorithms=[settings.algorithm],
+            leeway=_ASSET_TOKEN_LEEWAY_SECONDS,
+        )
         if payload.get("type") != "asset_access":
+            logger.warning("Asset token rejected: wrong type")
             return None
         return payload
+    except jwt.ExpiredSignatureError as e:
+        logger.warning(f"Asset token expired: {e}")
+        return None
+    except jwt.InvalidTokenError as e:
+        logger.warning(f"Asset token invalid: {e}")
+        return None
     except Exception as e:
         logger.warning(f"Asset token decode error: {e}")
         return None
@@ -77,11 +100,13 @@ async def get_user_from_asset_token(asset_token: str, asset_uuid: str) -> User |
         return None
     user_id = payload.get("user_id")
     if not user_id:
+        logger.warning(f"Asset token missing user_id for asset {asset_uuid}")
         return None
     from .. import auth
 
     user_data = await auth.get_user_by_id(user_id)
     if not user_data:
+        logger.warning(f"Asset token user not found: user_id={user_id}, asset={asset_uuid}")
         return None
     return User(**user_data)
 
@@ -93,15 +118,22 @@ async def _get_asset_service_for_request(
 ) -> AsyncGenerator[AssetService, None]:
     """Build an AssetService for the user resolved from JWT/API key or asset_token."""
     user = current_user
+    path_asset_uuid = request.path_params.get("asset_uuid")
 
     if not user and asset_token:
-        asset_uuid = request.path_params.get("asset_uuid")
-        if asset_uuid:
-            user = await get_user_from_asset_token(asset_token, asset_uuid)
-        if not user:
+        if path_asset_uuid:
+            user = await get_user_from_asset_token(asset_token, path_asset_uuid)
+            if not user:
+                logger.warning(
+                    f"Asset auth failed for {path_asset_uuid}: token present but user not resolved"
+                )
+                raise HTTPException(status_code=401, detail="Invalid or expired asset token")
+        else:
+            logger.warning("Asset auth failed: asset_token present but no asset_uuid in path")
             raise HTTPException(status_code=401, detail="Invalid or expired asset token")
 
     if not user:
+        logger.warning(f"Asset auth failed for {path_asset_uuid}: no asset_token or current_user")
         raise HTTPException(status_code=401, detail="Not authenticated")
 
     pool = await get_pool()
@@ -215,10 +247,7 @@ async def generate_asset_token(
     if not await asset_service.asset_exists(asset_uuid):
         raise HTTPException(status_code=404, detail="Asset not found")
 
-    token = create_asset_token(asset_uuid, user_id)
-    from datetime import UTC, datetime, timedelta
-
-    expires_at = datetime.now(UTC) + timedelta(minutes=5)
+    token, expires_at = create_asset_token(asset_uuid, user_id)
     return AssetTokenResponse(token=token, expires_at=expires_at.isoformat())
 
 

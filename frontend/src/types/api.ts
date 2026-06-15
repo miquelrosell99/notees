@@ -53,6 +53,7 @@ export interface Node {
   is_monthly?: boolean; // Whether this is a monthly note
   is_yearly?: boolean; // Whether this is a yearly note
   is_comment?: boolean; // Whether this node is a comment
+  is_task?: boolean; // Whether this node is a task item
   parent_locked?: boolean; // Whether this node's parent is locked
   is_private?: boolean; // If true, only the owner can access this node
   
@@ -898,12 +899,6 @@ export interface NotificationResponse {
   create_date: string;
 }
 
-/**
- * Check if a UUID is a date UUID
- */
-export function isDateUuid(uuid: string): boolean {
-  return parseDateUuid(uuid) !== null;
-}
 
 /**
  * Get a Date object from a day UUID
@@ -914,4 +909,59 @@ export function dateFromUuid(uuid: string): Date | null {
     return null;
   }
   return new Date(info.year, info.month - 1, info.day);
+}
+
+// ==================== Task Recurrence Types ====================
+
+/**
+ * Recurrence rule returned by the dedicated task recurrence API.
+ */
+export interface RecurrenceRule {
+  id: number;
+  uuid: string;
+  task_node_id: number;
+  rule_type: 'daily' | 'weekday' | 'weekly' | 'monthly' | 'yearly';
+  interval: number;
+  weekdays: number[] | null;
+  day_of_month: number | null;
+  week_of_month: number | null;
+  month: number | null;
+  end_after_count: number | null;
+  end_date: string | null;
+  active: boolean;
+  create_date: string;
+  write_date: string;
+  description: string;
+}
+
+/**
+ * Fields the client can set when creating or updating a recurrence rule.
+ */
+export type RecurrenceRuleInput = Omit<
+  RecurrenceRule,
+  'id' | 'uuid' | 'task_node_id' | 'create_date' | 'write_date' | 'description'
+>;
+
+/**
+ * A single recorded completion (or skip) of a recurring task occurrence.
+ */
+export interface TaskCompletion {
+  id: number;
+  uuid: string;
+  task_node_id: number;
+  scheduled_date: string | null;
+  deadline_date: string | null;
+  status: 'done' | 'cancelled' | 'skipped';
+  completed_at: string;
+  completed_by: number | null;
+  create_date: string;
+}
+
+/**
+ * Fields the client can send when manually recording a completion.
+ */
+export interface TaskCompletionInput {
+  scheduled_date?: string | null;
+  deadline_date?: string | null;
+  status?: 'done' | 'cancelled' | 'skipped';
 }

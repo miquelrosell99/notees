@@ -356,6 +356,8 @@ export interface NodeVisual {
   radius: number;
   /** Explicit RGBA color. When undefined, the renderer uses --color-outline from CSS. */
   color?: Float32Array;
+  /** When true, the node is rendered slightly brighter as a pinned indicator. */
+  pin?: boolean;
 }
 
 export interface RendererOptions {
@@ -1192,14 +1194,15 @@ export class GraphWebGLRenderer {
 
       // Dimming: non-highlighted nodes fade when something is focused
       const dimmed = hasFocus && !this._highlightedIds.has(id);
+      const pinBrighten = vis?.pin ? 1.2 : 1.0;
 
       const base = i * NODE_STRIDE;
       this.nodeInstData[base    ] = pos[i * 2];
       this.nodeInstData[base + 1] = pos[i * 2 + 1];
       this.nodeInstData[base + 2] = radius;
-      this.nodeInstData[base + 3] = color ? color[0] : def![0];
-      this.nodeInstData[base + 4] = color ? color[1] : def![1];
-      this.nodeInstData[base + 5] = color ? color[2] : def![2];
+      this.nodeInstData[base + 3] = Math.min(1, (color ? color[0] : def![0]) * pinBrighten);
+      this.nodeInstData[base + 4] = Math.min(1, (color ? color[1] : def![1]) * pinBrighten);
+      this.nodeInstData[base + 5] = Math.min(1, (color ? color[2] : def![2]) * pinBrighten);
       const baseAlpha             = color ? color[3] : def![3];
       this.nodeInstData[base + 6] = dimmed ? baseAlpha * this.DIM_ALPHA : baseAlpha;
     }

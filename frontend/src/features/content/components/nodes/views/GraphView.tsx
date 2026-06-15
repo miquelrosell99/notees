@@ -275,7 +275,7 @@ export function GraphView({
   
   // View state
   const [selectedNodes, setSelectedNodes] = useState<SelectedNodeItem[]>([]);
-  const [pinnedNodes] = useState<Set<number>>(new Set());
+  const [pinnedNodes, setPinnedNodes] = useState<Set<number>>(new Set());
   const [simulationPaused, setSimulationPaused] = useState(false);
   
   // Settings state
@@ -561,8 +561,8 @@ export function GraphView({
       return {
         id: apiNode.id,
         uuid: apiNode.uuid,
-        x: 0,
-        y: 0,
+        x: undefined,
+        y: undefined,
         vx: 0,
         vy: 0,
         targetX: 0,
@@ -794,6 +794,20 @@ export function GraphView({
       return newList.map((item, i) => ({ ...item, order: i }));
     });
   }, []);
+
+  const togglePin = useCallback((nodeId: number) => {
+    setPinnedNodes(prev => {
+      const next = new Set(prev);
+      if (next.has(nodeId)) {
+        next.delete(nodeId);
+        rendererRef.current?.unpinNode(nodeId);
+      } else {
+        next.add(nodeId);
+        rendererRef.current?.pinNode(nodeId);
+      }
+      return next;
+    });
+  }, []);
   
   // Pre-compute display names once per sourceNodes change —
   // searchResults can then read O(1) from this map instead of calling
@@ -993,16 +1007,28 @@ export function GraphView({
                   <span className="node-name">{item.name}</span>
                 )}
                 renderAction={(item) => (
-                  <Button
-                    icon={"mdi mdi-close"}
-                    size="xs"
-                    variant="ghost"
-                    aria-label="Remove from selection"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      removeFromSelection(item.id);
-                    }}
-                  />
+                  <>
+                    <Button
+                      icon={pinnedNodes.has(item.id) ? "mdi mdi-pin" : "mdi mdi-pin-outline"}
+                      size="xs"
+                      variant={pinnedNodes.has(item.id) ? "primary" : "ghost"}
+                      aria-label={pinnedNodes.has(item.id) ? "Unpin node" : "Pin node"}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        togglePin(item.id);
+                      }}
+                    />
+                    <Button
+                      icon={"mdi mdi-close"}
+                      size="xs"
+                      variant="ghost"
+                      aria-label="Remove from selection"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeFromSelection(item.id);
+                      }}
+                    />
+                  </>
                 )}
               />
             </div>

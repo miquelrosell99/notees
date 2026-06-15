@@ -22,6 +22,8 @@ interface UseLivePageSyncOptions {
   nodeUuid: string | null | undefined;
   /** Server node ID of the page (for cache invalidation). */
   pageId?: number | null;
+  /** When false, the hook is a no-op and always reports 'idle'. */
+  enabled?: boolean;
 }
 
 /**
@@ -41,13 +43,13 @@ function applyRemoteBlockUpdate(
   updateNodeInListCaches(queryClient, blockId, updater);
 }
 
-export function useLivePageSync({ nodeUuid }: UseLivePageSyncOptions) {
+export function useLivePageSync({ nodeUuid, enabled = true }: UseLivePageSyncOptions) {
   const queryClient = useQueryClient();
   const unsubRef = useRef<(() => void) | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'connecting' | 'error' | 'idle'>('idle');
 
   useEffect(() => {
-    if (!nodeUuid) return;
+    if (!enabled || !nodeUuid) return;
 
     const unsubStatus = liveSyncManager.onStatusChange(setConnectionStatus);
 
@@ -147,7 +149,7 @@ export function useLivePageSync({ nodeUuid }: UseLivePageSyncOptions) {
         }));
       }
     };
-  }, [nodeUuid, queryClient]);
+  }, [nodeUuid, queryClient, enabled]);
 
   return connectionStatus;
 }

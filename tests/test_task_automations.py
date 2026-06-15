@@ -6,10 +6,10 @@ Covers:
 - Batch property endpoint triggering automations
 """
 
+from datetime import date
+
 import pytest
-from datetime import date, timedelta
 from httpx import AsyncClient
-from typing import Any
 
 from app.db.schema import SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS
 
@@ -131,7 +131,6 @@ class TestRecurrenceAutomation:
             authenticated_client, SYSTEM_PROPERTY_UUIDS["task_scheduled"]
         )
         today = date.today()
-        day_uuid = f"00000000-0000-0000-00dd-{today.strftime('%Y%m%d')}0000"
         # Use the daily note endpoint to auto-create the day page
         resp = await authenticated_client.post(
             "/api/nodes/daily", params={"date": today.strftime("%Y-%m-%d")}

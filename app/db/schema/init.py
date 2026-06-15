@@ -87,11 +87,13 @@ async def init_database(conn: asyncpg.Connection) -> None:
 
     # Run idempotent data migrations once per database
     await _run_migration("repair_page_ids", conn, _repair_page_ids)
-    await _run_migration("ensure_task_recurrence_property", conn, _ensure_task_recurrence_property)
+    from app.db.migrations.ensure_task_recurrence_property import run as _run_ensure_task_recurrence_property
+    await _run_migration("ensure_task_recurrence_property", conn, _run_ensure_task_recurrence_property)
     await _run_migration("ensure_inbox_system_uuid", conn, _ensure_inbox_system_uuid)
     await _run_migration("migrate_visibility_to_is_private", conn, _migrate_visibility_to_is_private)
     await _run_migration("migrate_mdi_prefix_icons", conn, _migrate_mdi_prefix_icons)
     await _run_migration("migrate_non_system_task_statuses", conn, _migrate_non_system_task_statuses)
+    await _run_migration("backfill_is_task_flags", conn, _backfill_is_task_flags)
     await _run_migration("migrate_collaboration_schema", conn, _migrate_collaboration_schema)
     await _run_migration("cleanup_self_referencing_aliases", conn, _cleanup_self_referencing_aliases)
     await _run_migration("seed_system_settings", conn, _seed_system_settings)
@@ -104,6 +106,8 @@ async def init_database(conn: asyncpg.Connection) -> None:
     await _run_migration("add_node_mention", conn, _run_add_node_mention)
     await _run_migration("remove_tags_system_property", conn, _remove_tags_system_property)
     await _run_migration("materialize_search_text", conn, _materialize_search_text)
+    from app.db.migrations.migrate_task_recurrence_to_table import run as _run_migrate_task_recurrence
+    await _run_migration("migrate_task_recurrence_to_table", conn, _run_migrate_task_recurrence)
 
 
 
@@ -214,96 +218,6 @@ async def _cleanup_self_referencing_aliases(conn: asyncpg.Connection) -> None:
     count = int(result.split()[-1]) if result else 0
     if count > 0:
         logger.warning(f"Cleaned up {count} self-referencing alias(es)")
-
-
-async def _ensure_task_recurrence_property(conn: asyncpg.Connection) -> None:
-    """Ensure the task_recurrence property exists in all workspaces.
-
-    Idempotent migration for existing databases that don't have
-    the recurrence property yet.
-    """
-    from ...logging_config import get_logger
-
-    logger = get_logger(__name__)
-
-    recurrence_uuid = SYSTEM_PROPERTY_UUIDS["task_recurrence"]
-    task_uuid = SYSTEM_CLASS_UUIDS["task"]
-
-    # Get all workspaces that have the task class but not the recurrence property
-    workspaces = await conn.fetch(
-        """
-        SELECT DISTINCT w.workspace_id, w.task_node_id
-        FROM (
-            SELECT n.workspace_id, n.id AS task_node_id
-            FROM node n
-            WHERE n.uuid = $1 AND n.active = TRUE
-        ) w
-        WHERE NOT EXISTS (
-            SELECT 1 FROM property p
-            WHERE p.workspace_id = w.workspace_id AND p.uuid = $2
-        )
-    """,
-        task_uuid,
-        recurrence_uuid,
-    )
-
-    if not workspaces:
-        return
-
-    from datetime import datetime
-
-    now = datetime.now(UTC)
-
-    for ws in workspaces:
-        workspace_id = ws["workspace_id"]
-        task_class_id = ws["task_node_id"]
-
-        # Get a user_id from the workspace
-        user_row = await conn.fetchrow(
-            """
-            SELECT create_uid FROM node WHERE workspace_id = $1 AND create_uid IS NOT NULL LIMIT 1
-        """,
-            workspace_id,
-        )
-        user_id = user_row["create_uid"] if user_row else 1
-
-        recurrence_row = await conn.fetchrow(
-            """
-            INSERT INTO property (uuid, workspace_id, name, icon, type, is_multi, is_system, create_date, write_date, create_uid, write_uid)
-            VALUES ($1, $2, 'Recurrence', 'repeat', 'selection', FALSE, FALSE, $3, $3, $4, $4)
-            ON CONFLICT (workspace_id, uuid) DO UPDATE SET uuid = EXCLUDED.uuid
-            RETURNING id
-        """,
-            recurrence_uuid,
-            workspace_id,
-            now,
-            user_id,
-        )
-
-        if recurrence_row:
-            recurrence_property_id = recurrence_row["id"]
-            for opt in TASK_RECURRENCE_OPTIONS:
-                await conn.execute(
-                    """
-                    INSERT INTO property_selection_line (property_id, name, icon)
-                    VALUES ($1, $2, $3)
-                """,
-                    recurrence_property_id,
-                    opt["name"],
-                    opt["icon"],
-                )
-
-            await conn.execute(
-                """
-                INSERT INTO class_property (class_node_id, property_id, sequence)
-                VALUES ($1, $2, 5)
-                ON CONFLICT (class_node_id, property_id) DO NOTHING
-            """,
-                task_class_id,
-                recurrence_property_id,
-            )
-
-            logger.info(f"Created task_recurrence property for workspace {workspace_id}")
 
 
 async def _ensure_inbox_system_uuid(conn: asyncpg.Connection) -> None:
@@ -578,6 +492,52 @@ async def _migrate_non_system_task_statuses(conn: asyncpg.Connection) -> None:
             f"Migration complete: removed {total_removed} non-system task status(es), "
             f"migrated {total_migrated} node(s)"
         )
+
+
+async def _backfill_is_task_flags(conn: asyncpg.Connection) -> None:
+    """Set node.is_task for nodes that already have the task class assigned.
+
+    is_task is kept in sync with class assignments by the node repository, but
+    existing databases created before the flag was introduced need a one-time
+    backfill from class_ids.
+    """
+    from ...logging_config import get_logger
+
+    logger = get_logger(__name__)
+
+    task_uuid = SYSTEM_CLASS_UUIDS["task"]
+    task_class_rows = await conn.fetch(
+        """
+        SELECT id, workspace_id FROM node
+        WHERE uuid = $1 AND is_class = TRUE AND active = TRUE
+    """,
+        task_uuid,
+    )
+
+    if not task_class_rows:
+        return
+
+    total_updated = 0
+    for row in task_class_rows:
+        task_class_id = row["id"]
+        result = await conn.execute(
+            """
+            UPDATE node
+            SET is_task = TRUE
+            WHERE workspace_id = $1
+              AND is_task = FALSE
+              AND active = TRUE
+              AND is_deleted = FALSE
+              AND $2 = ANY(class_ids)
+        """,
+            row["workspace_id"],
+            task_class_id,
+        )
+        count = int(result.split()[-1]) if result else 0
+        total_updated += count
+
+    if total_updated > 0:
+        logger.info(f"Backfilled is_task flag for {total_updated} task node(s)")
 
 
 async def _migrate_mdi_prefix_icons(conn: asyncpg.Connection) -> None:

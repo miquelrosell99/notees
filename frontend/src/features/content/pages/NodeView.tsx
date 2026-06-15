@@ -50,6 +50,7 @@ import { QuerySection, NodeActivityLogSection, UnlinkedMentionsSection } from '@
 import { PropertiesSection } from '@/features/content/components/properties/PropertiesSection';
 import { PropertySuggestionPopup } from '@/features/content/components/properties/PropertySuggestionPopup';
 import { ClassPropertiesEditor } from '@/features/content/components/properties/ClassPropertiesEditor';
+import { TaskRecurrenceSection } from '@/features/tasks/components/TaskRecurrenceSection';
 import { NodeMetadataSection } from '@/features/content/components/nodes/NodeMetadataSection';
 import { Modal } from '@/components/ui/Modal';
 import { TableIcon, PageIcon, LinkIcon } from '@/components/ui/icons';
@@ -303,6 +304,8 @@ interface NodeViewProps {
   propertiesCollapsed?: boolean;
   /** Whether the linked references section is collapsed by default */
   linkedRefsCollapsed?: boolean;
+  /** If true, enables WebSocket live-sync for this page. Should only be enabled for the main content view. */
+  liveSync?: boolean;
 }
 
 export interface NodeViewResult {
@@ -358,7 +361,8 @@ export function NodeView({
   hideQueries,
   hideFooter,
   propertiesCollapsed = false, 
-  linkedRefsCollapsed = false 
+  linkedRefsCollapsed = false,
+  liveSync = false,
 }: NodeViewProps): NodeViewResult {
   // Compute section visibility from mode flags and explicit overrides
   const showBanner = hideBanner !== undefined ? !hideBanner : !sidebarMode;
@@ -698,8 +702,12 @@ export function NodeView({
   const [isCoverDragging, setIsCoverDragging] = useState(false);
   const [isBannerHovered, setIsBannerHovered] = useState(false);
   const [isCoverHovered, setIsCoverHovered] = useState(false);
-  // Auto-enable lightweight live sync when viewing a page
-  const liveSyncStatus = useLivePageSync({ nodeUuid: node?.is_page ? node?.uuid ?? null : null, pageId: node?.id ?? null });
+  // Auto-enable lightweight live sync when viewing a page in the main content pane
+  const liveSyncStatus = useLivePageSync({
+    nodeUuid: node?.is_page ? node?.uuid ?? null : null,
+    pageId: node?.id ?? null,
+    enabled: liveSync,
+  });
   
   // Determine node type from the data if not explicitly provided
   const resolvedType: NodeViewType = node?.is_page ? 'page' : 'block';
@@ -1261,7 +1269,7 @@ export function NodeView({
           {/* Properties Section - full width row below header section */}
           {showProperties && (
             <div className="page-properties-section">
-              <PropertiesSection 
+              <PropertiesSection
                 nodeId={node.id}
                 showHiddenSection={true}
                 showAddProperty={true}
@@ -1272,7 +1280,17 @@ export function NodeView({
               />
             </div>
           )}
-          
+
+          {/* Recurrence Section - only for tasks */}
+          {showProperties && node.is_task && (
+            <div className="page-recurrence-section">
+              <TaskRecurrenceSection
+                nodeId={node.id}
+                readOnly={!workspaceCanWrite}
+              />
+            </div>
+          )}
+
           {/* Banner Image Picker Modal */}
           <AssetUploadModal
             isOpen={isBannerImagePickerOpen}

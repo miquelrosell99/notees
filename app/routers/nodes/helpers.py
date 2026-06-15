@@ -126,6 +126,7 @@ def _node_to_response(
         is_daily=node.is_day,
         is_monthly=node.is_month,
         is_yearly=node.is_year,
+        is_task=node.is_task,
         is_comment=node.is_comment,
         parent_locked=node.parent_locked,
         is_private=node.is_private,
