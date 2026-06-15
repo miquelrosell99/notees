@@ -22,6 +22,8 @@ export interface FlatNode {
   node: Node;
   depth: number;
   effectiveCollapsed: boolean;
+  /** True for the trailing pseudo-block used to create new blocks in place. */
+  isGhost?: boolean;
 }
 
 interface UseBlockTreeOptions {
@@ -31,6 +33,8 @@ interface UseBlockTreeOptions {
   expandAll?: boolean;
   nodeId?: number;
   nodeUuid?: string;
+  /** If false (default), a ghost block is appended as the last sibling. */
+  readOnly?: boolean;
 }
 
 /** Flatten a node tree statically (no runtime overlay). */
@@ -68,6 +72,50 @@ function flattenNodes(
  * source of truth. The runtime only overlays pending intents on top of the base
  * state received from the query cache.
  */
+const GHOST_PREFIX = '__ghost-';
+
+export function isGhostId(uuid: string): boolean {
+  return uuid.startsWith(GHOST_PREFIX);
+}
+
+export function buildGhostId(parentUuid: string): string {
+  return `${GHOST_PREFIX}${parentUuid}`;
+}
+
+export function parseGhostParentUuid(ghostUuid: string): string | null {
+  if (!isGhostId(ghostUuid)) return null;
+  return ghostUuid.slice(GHOST_PREFIX.length);
+}
+
+function createGhostFlatNode(parentUuid: string, depth: number): FlatNode {
+  return {
+    node: {
+      id: -1,
+      uuid: buildGhostId(parentUuid),
+      name: '',
+      icon: null,
+      color: null,
+      parent_id: null,
+      page_id: null,
+      sequence: Number.MAX_SAFE_INTEGER,
+      collapsed: false,
+      active: true,
+      is_page: false,
+      is_deleted: false,
+      has_children: false,
+      children: [],
+      create_date: '',
+      write_date: '',
+      classes: [],
+      tags: [],
+      properties: {},
+    },
+    depth,
+    effectiveCollapsed: false,
+    isGhost: true,
+  };
+}
+
 function flattenNodesFromRuntime(
   nodes: Node[],
   maxDepth: number,
@@ -75,22 +123,36 @@ function flattenNodesFromRuntime(
   skipPages: boolean,
   runtime: ReturnType<typeof getNodeGraphRuntime>,
   expandAll = false,
+  readOnly = false,
+  rootUuid?: string,
 ): FlatNode[] {
   const nodeMap = new Map<string, Node>();
+  const idToUuid = new Map<number, string>();
   const collect = (n: Node) => {
     nodeMap.set(n.uuid, n);
+    idToUuid.set(n.id, n.uuid);
     if (n.children) for (const c of n.children) collect(c);
   };
   for (const n of nodes) collect(n);
 
-  const byParent = new Map<string, Node[]>();
-  for (const [uuid, node] of nodeMap) {
-    const graphNode = runtime.getNode(uuid);
+  function resolveParentId(node: Node): string {
+    const graphNode = runtime.getNode(node.uuid);
     const propParentId = node.parent_id?.toString() || '__root__';
     const runtimeParentId = graphNode?.parentId;
-    const parentId = (runtimeParentId && nodeMap.has(runtimeParentId))
+    let parentId = (runtimeParentId && nodeMap.has(runtimeParentId))
       ? runtimeParentId
       : propParentId;
+    // Fall back from numeric parent_id to UUID when the runtime hasn't synced yet.
+    if (!nodeMap.has(parentId) && node.parent_id != null) {
+      const parentUuid = idToUuid.get(node.parent_id);
+      if (parentUuid) parentId = parentUuid;
+    }
+    return parentId;
+  }
+
+  const byParent = new Map<string, Node[]>();
+  for (const [, node] of nodeMap) {
+    const parentId = resolveParentId(node);
     if (!byParent.has(parentId)) byParent.set(parentId, []);
     byParent.get(parentId)!.push(node);
   }
@@ -154,6 +216,11 @@ function flattenNodesFromRuntime(
       if (!effectiveCollapsed && (maxDepth < 0 || depth < maxDepth)) {
         const children = byParent.get(uuid) || [];
         result.push(...flatten(children.map(c => c.uuid), depth + 1));
+        // Trailing pseudo-block for creating children of this parent.
+        // Skip nested ghosts when page filtering is active to avoid orphan rows.
+        if (!readOnly && !pagesOnly && !skipPages) {
+          result.push(createGhostFlatNode(uuid, depth + 1));
+        }
       }
     }
     return result;
@@ -161,12 +228,7 @@ function flattenNodesFromRuntime(
 
   const topLevel: string[] = [];
   for (const [uuid, node] of nodeMap) {
-    const graphNode = runtime.getNode(uuid);
-    const propParentId = node.parent_id?.toString() || '__root__';
-    const runtimeParentId = graphNode?.parentId;
-    const parentId = (runtimeParentId && nodeMap.has(runtimeParentId))
-      ? runtimeParentId
-      : propParentId;
+    const parentId = resolveParentId(node);
     if (!nodeMap.has(parentId)) topLevel.push(uuid);
   }
 
@@ -183,7 +245,12 @@ function flattenNodesFromRuntime(
     return seqA - seqB;
   });
 
-  return flatten(topLevel, 0);
+  const result = flatten(topLevel, 0);
+  // Trailing pseudo-block for the root list.
+  if (!readOnly && rootUuid) {
+    result.push(createGhostFlatNode(rootUuid, 0));
+  }
+  return result;
 }
 
 export function useBlockTree(
@@ -197,6 +264,7 @@ export function useBlockTree(
     expandAll = false,
     nodeId,
     nodeUuid,
+    readOnly = false,
   } = options;
 
   // Sync prop nodes into the runtime so structural ops have graph data.
@@ -239,13 +307,13 @@ export function useBlockTree(
 
   const flatNodes = useMemo(() => {
     const runtime = getNodeGraphRuntime();
-    const hasRuntimeData = nodes.some((n) => runtime.getNode(n.uuid) != null);
+    const hasRuntimeData = nodeUuid != null || nodes.some((n) => runtime.getNode(n.uuid) != null);
     if (!hasRuntimeData) {
       return flattenNodes(nodes, maxDepth, pagesOnly, skipPages, 0, expandAll);
     }
-    return flattenNodesFromRuntime(nodes, maxDepth, pagesOnly, skipPages, runtime, expandAll);
+    return flattenNodesFromRuntime(nodes, maxDepth, pagesOnly, skipPages, runtime, expandAll, readOnly, nodeUuid);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nodes, maxDepth, pagesOnly, skipPages, expandAll, structureVersion]);
+  }, [nodes, maxDepth, pagesOnly, skipPages, expandAll, readOnly, nodeUuid, structureVersion]);
 
   return { flatNodes, structureVersion };
 }

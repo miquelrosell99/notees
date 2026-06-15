@@ -114,7 +114,10 @@ export function useTouchIndent({ containerRef, onIndent, onOutdent, readOnly }: 
       const blockEl = target.closest<HTMLElement>('.node-block[data-block-id]');
       if (!blockEl) return;
 
-      activeBlockId = blockEl.getAttribute('data-block-id');
+      const blockId = blockEl.getAttribute('data-block-id');
+      if (!blockId || blockEl.hasAttribute('data-ghost')) return;
+
+      activeBlockId = blockId;
       activeBlockEl = blockEl;
       startX = e.touches[0].clientX;
       startY = e.touches[0].clientY;

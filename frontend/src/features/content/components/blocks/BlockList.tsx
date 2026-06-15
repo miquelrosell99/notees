@@ -22,7 +22,7 @@ import {
   type JSX,
 } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { useBlockTree } from '@/hooks/useBlockTree';
+import { useBlockTree, parseGhostParentUuid } from '@/hooks/useBlockTree';
 import { useStructureSync } from '@/hooks/useStructureSync';
 import { useBlockPersist } from '@/hooks/useBlockPersist';
 import { BlockRow, type BlockRowHandle } from './BlockRow';
@@ -113,9 +113,11 @@ export function BlockList({
     expandAll,
     nodeId,
     nodeUuid,
+    readOnly,
   });
 
-  const blockIds = useMemo(() => flatNodes.map((n) => n.node.uuid), [flatNodes]);
+  const blockIds = useMemo(() => flatNodes.filter((n) => !n.isGhost).map((n) => n.node.uuid), [flatNodes]);
+  const ghostIds = useMemo(() => flatNodes.filter((n) => n.isGhost).map((n) => n.node.uuid), [flatNodes]);
   const blockIdsRef = useRef(blockIds);
   useLayoutEffect(() => {
     blockIdsRef.current = blockIds;
@@ -126,7 +128,7 @@ export function BlockList({
   useStructureSync({ enabled: !readOnly });
   useBlockPersist({ enabled: !readOnly });
 
-  useBlockDragDrop({ containerRef, editorId: 'block-list', readOnly });
+  useBlockDragDrop({ containerRef, editorId: 'block-list', readOnly, excludedIds: ghostIds });
   useBlockSelection({ containerRef, blockIds, readOnly });
   useTouchIndent({
     containerRef,
@@ -319,6 +321,27 @@ export function BlockList({
     runtime.flushEvents();
   }, []);
 
+  const handleGhostRealize = useCallback((ghostUuid: string) => {
+    const parentUuid = parseGhostParentUuid(ghostUuid);
+    if (!parentUuid) return;
+
+    flushAllContentSaves();
+    const runtime = getNodeGraphRuntime();
+    const runtimeChildren = runtime.getChildren(parentUuid);
+    const lastRealChild = runtimeChildren.length > 0 ? runtimeChildren[runtimeChildren.length - 1] : null;
+
+    const newBlockId = generateUUID();
+    runtime.applyIntent({
+      type: 'create_block',
+      parentId: parentUuid,
+      afterBlockId: lastRealChild?.blockId ?? null,
+      blockId: newBlockId,
+      contentAST: [{ type: 'paragraph', children: [{ type: 'text', text: '' }] }],
+    });
+    runtime.flushEvents();
+    setPendingFocus(newBlockId);
+  }, [setPendingFocus]);
+
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLDivElement>) => {
       if (!activeBlockId) return;
@@ -441,7 +464,7 @@ export function BlockList({
       {enableVirtualization ? (
         <div style={{ position: 'relative', height: `${totalSize}px` }}>
           {virtualItems.map((virtualRow) => {
-            const { node, depth, effectiveCollapsed } = flatNodes[virtualRow.index];
+            const { node, depth, effectiveCollapsed, isGhost } = flatNodes[virtualRow.index];
             return (
               <div
                 key={node.uuid}
@@ -460,6 +483,8 @@ export function BlockList({
                   node={node}
                   depth={depth}
                   effectiveCollapsed={effectiveCollapsed}
+                  isGhost={isGhost}
+                  onGhostRealize={handleGhostRealize}
                   readOnly={readOnly}
                   placeholder={placeholder}
                   onContentChange={onContentChange}
@@ -485,13 +510,15 @@ export function BlockList({
           })}
         </div>
       ) : (
-        flatNodes.map(({ node, depth, effectiveCollapsed }) => (
+        flatNodes.map(({ node, depth, effectiveCollapsed, isGhost }) => (
           <BlockRow
             key={node.uuid}
             ref={(ref) => setRowRef(node.uuid, ref)}
             node={node}
             depth={depth}
             effectiveCollapsed={effectiveCollapsed}
+            isGhost={isGhost}
+            onGhostRealize={handleGhostRealize}
             readOnly={readOnly}
             placeholder={placeholder}
             onContentChange={onContentChange}

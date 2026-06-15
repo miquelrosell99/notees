@@ -58,6 +58,7 @@ export function useBlockSelection({ containerRef, blockIds, readOnly }: UseBlock
       if (target.closest('.bullet-wrapper') || target.closest('.block-collapse-arrow')) return;
       const blockEl = target.closest('[data-block-id]') as HTMLElement;
       if (!blockEl) return;
+      if (blockEl.hasAttribute('data-ghost')) return;
       const blockId = blockEl.getAttribute('data-block-id');
       if (!blockId) return;
 
@@ -107,7 +108,7 @@ export function useBlockSelection({ containerRef, blockIds, readOnly }: UseBlock
         if (isBlockSelectionMode.current) {
           const target = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null;
           const hoveredBlock = target?.closest('[data-block-id]') as HTMLElement | null;
-          if (hoveredBlock) {
+          if (hoveredBlock && !hoveredBlock.hasAttribute('data-ghost')) {
             const hoveredBlockId = hoveredBlock.getAttribute('data-block-id');
             if (hoveredBlockId && hoveredBlockId !== lastHoveredBlock.current) {
               lastHoveredBlock.current = hoveredBlockId;

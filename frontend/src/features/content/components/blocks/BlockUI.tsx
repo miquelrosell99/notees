@@ -25,6 +25,8 @@ interface BlockUIProps {
   onNavigate?: (blockId: string) => void;
   onOpenInSidebar?: (blockId: string) => void;
   onContextMenu?: (nodeId: number, event: React.MouseEvent) => void;
+  /** Whether the bullet should be interactive (clickable/draggable). */
+  interactive?: boolean;
   /** Whether the block row is being hovered */
   isHovered?: boolean;
   /** Remote users currently editing this block (for lock indicator). */
@@ -44,6 +46,7 @@ export function BlockUI({
   onNavigate,
   onOpenInSidebar,
   onContextMenu,
+  interactive = true,
   isHovered,
   lockedBy,
   presenceUsers,
@@ -83,6 +86,7 @@ export function BlockUI({
         nodeId={node.id}
         icon={iconOverride ?? node.icon}
         isPage={node.is_page}
+        interactive={interactive}
         hasChildren={hasChildren}
         collapsed={collapsed}
         onClick={handleClick}

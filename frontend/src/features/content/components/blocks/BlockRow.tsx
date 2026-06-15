@@ -67,6 +67,10 @@ interface BlockRowProps {
   showClasses?: boolean;
   /** Effective collapsed state (may differ from node.collapsed when expandAll is active). */
   effectiveCollapsed?: boolean;
+  /** True for the trailing pseudo-block that creates a real block on click. */
+  isGhost?: boolean;
+  /** Called when the ghost pseudo-block is clicked. */
+  onGhostRealize?: (ghostUuid: string) => void;
 }
 
 // ─── Component ────────────────────────────────────────────────────
@@ -96,6 +100,8 @@ export const BlockRow = memo(
       nodeUuid,
       showClasses = false,
       effectiveCollapsed,
+      isGhost = false,
+      onGhostRealize,
     },
     ref,
   ): JSX.Element {
@@ -330,7 +336,17 @@ export const BlockRow = memo(
       return getNodeColorStylesAuto(node.color);
     }, [node.color]);
 
-    const editorElement = shouldMountEditor ? (
+    const editorElement = isGhost ? (
+      <button
+        type="button"
+        className="block-row__content-fallback block-row__content-fallback--ghost"
+        onClick={() => onGhostRealize?.(node.uuid)}
+        aria-label="Add block"
+        title="Click to add a block"
+      >
+        {'\u00A0'}
+      </button>
+    ) : shouldMountEditor ? (
       <InlineEditor
         ref={editorRef}
         blockId={node.uuid}
@@ -367,14 +383,15 @@ export const BlockRow = memo(
       <>
       <div
         ref={rowRef}
-        className={`block-row node-block ${isActive ? 'block-row--active' : ''} ${node.is_page ? 'node-block--page' : ''}`}
+        className={`block-row node-block ${isActive ? 'block-row--active' : ''} ${node.is_page ? 'node-block--page' : ''} ${isGhost ? 'block-row--ghost' : ''}`}
         data-block-id={node.uuid}
         data-depth={depth}
+        data-ghost={isGhost || undefined}
         style={{ '--block-depth': depth, ...colorStyle } as React.CSSProperties}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
       >
-        {depth > 0 && (
+        {depth > 0 && !isGhost && (
           <button
             type="button"
             className="block-thread-line"
@@ -387,12 +404,13 @@ export const BlockRow = memo(
           <BlockUI
             node={node}
             icon={bulletIcon}
-            hasChildren={hasQueryClass || (node.has_children ?? false)}
+            interactive={!isGhost}
+            hasChildren={!isGhost && (hasQueryClass || (node.has_children ?? false))}
             collapsed={effectiveCollapsed ?? node.collapsed ?? false}
-            onCollapseToggle={handleCollapseToggleLocal}
-            onNavigate={onNavigate}
-            onOpenInSidebar={onOpenInSidebar}
-            onContextMenu={handleBulletContextMenu}
+            onCollapseToggle={isGhost ? undefined : handleCollapseToggleLocal}
+            onNavigate={isGhost ? undefined : onNavigate}
+            onOpenInSidebar={isGhost ? undefined : onOpenInSidebar}
+            onContextMenu={isGhost ? undefined : handleBulletContextMenu}
             isHovered={isHovered}
             lockedBy={lockedBy}
             presenceUsers={presenceUsers}
@@ -413,7 +431,11 @@ export const BlockRow = memo(
           )}
         </div>
         <div className="block-row__body">
-          {hasClasses || hasBacklinks ? (
+          {isGhost ? (
+            <div className="block-row__content">
+              {editorElement}
+            </div>
+          ) : hasClasses || hasBacklinks ? (
             <div className="block-row__content-line">
               <div className="block-row__content">
                 {/* Property value icons - before content position */}
@@ -468,11 +490,13 @@ export const BlockRow = memo(
             </div>
           )}
         </div>
-        <div className="block-row__after-content">
-          <BlockAfterContent node={node} backlinkExpanded={backlinkExpanded} />
-        </div>
+        {!isGhost && (
+          <div className="block-row__after-content">
+            <BlockAfterContent node={node} backlinkExpanded={backlinkExpanded} />
+          </div>
+        )}
       </div>
-      {contextMenuPos && (
+      {!isGhost && contextMenuPos && (
         <NodeContextMenu
           node={node}
           position={contextMenuPos}

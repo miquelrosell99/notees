@@ -293,6 +293,26 @@
   font: inherit;
 }
 
+/* Ghost pseudo-block — looks like a normal empty block, but the content area
+   is the click target that realizes it into a real block. */
+.block-row--ghost {
+  opacity: var(--opacity-60);
+}
+
+.block-row--ghost .bullet-dot {
+  opacity: var(--opacity-40);
+  background-color: var(--color-outline);
+}
+
+.block-row--ghost:hover .bullet-dot {
+  opacity: var(--opacity-55);
+  background-color: var(--color-on-surface-variant);
+}
+
+.block-row--ghost .block-row__content-fallback--ghost {
+  cursor: text;
+}
+
 /* ─── Selected state (block selection via Escape / keyboard / drag) ─ */
 
 .node-block--selected .bullet-wrapper,
