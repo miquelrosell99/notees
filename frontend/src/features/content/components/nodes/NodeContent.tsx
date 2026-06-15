@@ -14,7 +14,7 @@
  */
 import { useRef, useCallback, useState, useMemo } from 'react';
 import { useContentSave, useNodeNavigation, useAddClass, useRemoveClass, useClasses, useUpdateNode, useSetNodeProperty, useProperties } from '@/hooks';
-import { generateUUID } from '@/utils/uuid';
+
 import { useBlockPersist } from '@/hooks/useBlockPersist';
 import { useLazyChildren } from '@/hooks/useLazyChildren';
 import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
@@ -61,7 +61,7 @@ export function NodeContent({
   children,
   displayMode = 'bullet',
   editable = true,
-  canCreate = true,
+  canCreate: _canCreate = true,
 }: NodeContentProps) {
   const contentRef = useRef<HTMLDivElement>(null);
 
@@ -381,31 +381,6 @@ export function NodeContent({
     setTableTargetBlockId(null);
   }, []);
 
-  const handleAddBlock = useCallback(() => {
-    // Create via runtime intent so the block appears immediately (no API roundtrip)
-    // and useBlockPersist handles persistence automatically.
-    const runtime = getNodeGraphRuntime();
-    const newBlockId = generateUUID();
-
-    // Register the parent's serverId so useBlockPersist can resolve it
-    runtime.registerParentServerId(node.uuid, node.id);
-
-    // Find the last child's blockId to insert after it
-    // The API orders children by sequence, so the last array element is the rightmost block.
-    const runtimeChildren = runtime.getChildren(node.uuid);
-    const lastChildUuid = runtimeChildren.length > 0 ? runtimeChildren[runtimeChildren.length - 1].blockId : null;
-
-    runtime.requestFocus(newBlockId);
-    runtime.applyIntent({
-      type: 'create_block',
-      parentId: node.uuid,
-      afterBlockId: lastChildUuid,
-      blockId: newBlockId,
-      contentAST: [{ type: 'paragraph', children: [{ type: 'text', text: '' }] }],
-    });
-    runtime.flushEvents();
-  }, [node.uuid, node.id]);
-
   // Handle successful asset upload
   // Strategy:
   // - If block was NOT converted to asset: insert [[assetNodeId]] link at end
@@ -458,10 +433,6 @@ export function NodeContent({
 
   const viewMode = toViewMode(displayMode);
 
-  const runtimeChildrenCount = getNodeGraphRuntime().getChildren(node.uuid).length;
-  const showPlaceholder = canCreate && children.length === 0 && runtimeChildrenCount === 0;
-  const showTrailingPlaceholder = canCreate && (children.length > 0 || runtimeChildrenCount > 0);
-
   return (
     <div className={`node-content ${displayMode}`} ref={contentRef}>
       {/* Always render NodeCollection so BlockList is mounted and can pick up
@@ -486,41 +457,7 @@ export function NodeContent({
           onPasteImage={handlePasteImage}
         />
       </section>
-      
-      {/* Empty state — full-width clickable placeholder row */}
-      {showPlaceholder && (
-        <div className="node-content-empty">
-          <button
-            type="button"
-            className="node-content-placeholder"
-            onClick={handleAddBlock}
-            title="Click to add a block"
-            aria-label="Add block"
-          >
-            <span className="node-content-placeholder__bullet-wrapper" aria-hidden="true">
-              <span className="node-content-placeholder__bullet" />
-            </span>
-          </button>
-        </div>
-      )}
 
-      {/* Trailing placeholder — appears below existing blocks */}
-      {showTrailingPlaceholder && (
-        <div className="node-content-add hover-reveal">
-          <button
-            type="button"
-            className="node-content-placeholder"
-            onClick={handleAddBlock}
-            title="Click to add a block"
-            aria-label="Add block"
-          >
-            <span className="node-content-placeholder__bullet-wrapper" aria-hidden="true">
-              <span className="node-content-placeholder__bullet" />
-            </span>
-          </button>
-        </div>
-      )}
-      
       {/* Asset Upload Modal */}
       <AssetUploadModal
         isOpen={isAssetUploadOpen}
