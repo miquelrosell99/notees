@@ -1,17 +1,19 @@
 import { useMemo, useCallback } from 'react';
 import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
 import { useSetNodeProperty, useProperties } from '@/hooks/useProperties';
-import { SYSTEM_PROPERTY_UUIDS } from '@/constants/systemProperties';
+import {
+  SYSTEM_PROPERTY_UUIDS,
+  TASK_STATUSES,
+  TASK_STATUS_CYCLE,
+} from '@/constants/systemProperties';
 import { queryClient } from '@/lib/queryClient';
 import { propertyKeys } from '@/hooks/queryKeys';
 import type { Node } from '@/types/api';
 
 /**
- * Cycle of task statuses.
+ * All known task statuses (matches backend TASK_STATUS_OPTIONS).
  */
-export const TASK_STATUS_CYCLE = ['Pending', 'Doing', 'Done'] as const;
-
-export type TaskStatus = (typeof TASK_STATUS_CYCLE)[number];
+export type TaskStatus = (typeof TASK_STATUSES)[number];
 
 /**
  * Check if a node is a task by looking at the runtime graph node.
@@ -32,16 +34,23 @@ function getTaskStatus(node: Node | undefined): TaskStatus | null {
   const runtime = getNodeGraphRuntime();
   const gn = runtime.getNode(node.uuid);
   if (!gn) return null;
-  return (gn.taskStatus as TaskStatus) ?? null;
+  const status = gn.taskStatus;
+  if (!status) return null;
+  return TASK_STATUSES.includes(status as TaskStatus) ? (status as TaskStatus) : null;
 }
 
 /**
  * Cycle to the next task status.
+ *
+ * Only the statuses in TASK_STATUS_CYCLE participate in the cycle. Cancelled
+ * is excluded as a terminal state; cycling from Cancelled (or any unknown
+ * status) restarts at the beginning of the cycle.
  */
 function nextStatus(current: TaskStatus | null): TaskStatus {
   if (!current) return 'Pending';
-  const idx = TASK_STATUS_CYCLE.indexOf(current);
-  if (idx === -1 || idx === TASK_STATUS_CYCLE.length - 1) return 'Pending';
+  const idx = TASK_STATUS_CYCLE.indexOf(current as (typeof TASK_STATUS_CYCLE)[number]);
+  if (idx === -1) return TASK_STATUS_CYCLE[0];
+  if (idx === TASK_STATUS_CYCLE.length - 1) return TASK_STATUS_CYCLE[0];
   return TASK_STATUS_CYCLE[idx + 1];
 }
 

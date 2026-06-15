@@ -43,6 +43,8 @@ async def export_nodes(request: ExportRequest, user: User = Depends(get_current_
             link_style=request.link_style,
             theme_mode=request.theme_mode,
             cover_page=request.cover_page,
+            page_size=request.page_size,
+            include_child_pages=request.include_child_pages,
         )
 
         return Response(
@@ -70,6 +72,8 @@ async def export_single_node(
     link_style: str = "raw",
     theme_mode: str = "light",
     cover_page: bool = False,
+    page_size: str = "a4",
+    include_child_pages: bool = False,
     user: User = Depends(get_current_user),
 ):
     """Export a single node by UUID."""
@@ -107,6 +111,9 @@ async def export_single_node(
     if theme_mode not in ("light", "dark"):
         raise HTTPException(status_code=400, detail=f"Invalid theme_mode: {theme_mode}")
 
+    if page_size not in ("a4", "letter", "legal"):
+        raise HTTPException(status_code=400, detail=f"Invalid page_size: {page_size}")
+
     # cover_page is a boolean flag, no validation needed
 
     try:
@@ -128,6 +135,8 @@ async def export_single_node(
             link_style=link_style,
             theme_mode=theme_mode,
             cover_page=cover_page,
+            page_size=page_size,
+            include_child_pages=include_child_pages,
             frontmatter=export_format == ExportFormat.MARKDOWN,
         )
 

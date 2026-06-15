@@ -14,33 +14,62 @@ interface AssetToken {
   expires_at: string;
 }
 
-const tokenCache = new Map<string, { token: string; expiresAt: number }>();
+interface CachedAssetToken {
+  token: string;
+  expiresAt: number;
+}
+
+const tokenCache = new Map<string, CachedAssetToken>();
+
+// Buffer before expiry to refresh tokens (milliseconds)
+const TOKEN_REFRESH_BUFFER_MS = 60_000;
+
+/**
+ * Extract the JWT ``exp`` claim from an asset token.
+ * Falls back to the server-provided expires_at when the token isn't a JWT.
+ */
+function getTokenExpiresAt(token: string, serverExpiresAt: number): number {
+  try {
+    const payloadBase64 = token.split('.')[1];
+    if (!payloadBase64) return serverExpiresAt;
+    const payload = JSON.parse(atob(payloadBase64)) as { exp?: number };
+    if (typeof payload.exp === 'number') {
+      return payload.exp * 1000;
+    }
+  } catch {
+    // Ignore malformed tokens and trust the server timestamp
+  }
+  return serverExpiresAt;
+}
 
 /**
  * Get a short-lived asset token for accessing an asset.
- * 
- * Tokens are cached and automatically refreshed when they expire.
- * 
+ *
+ * Tokens are cached and automatically refreshed before they expire. The cache
+ * TTL is derived from the JWT ``exp`` claim so it stays in sync with the
+ * backend even if clocks drift.
+ *
  * @param assetUuid - The asset UUID
  * @returns The asset access token
  */
 export async function getAssetToken(assetUuid: string): Promise<string> {
   const cached = tokenCache.get(assetUuid);
   const now = Date.now();
-  
-  // Return cached token if valid for at least 30 more seconds
-  if (cached && cached.expiresAt > now + 30000) {
+
+  // Return cached token if still valid beyond the refresh buffer
+  if (cached && cached.expiresAt > now + TOKEN_REFRESH_BUFFER_MS) {
     return cached.token;
   }
-  
+
   // Request new short-lived token
   log.debug(`Requesting asset token for ${assetUuid}`);
   const response = await api.post<AssetToken>(`/assets/${assetUuid}/token`);
-  const expiresAt = new Date(response.data.expires_at).getTime();
-  
+  const serverExpiresAt = new Date(response.data.expires_at).getTime();
+  const expiresAt = getTokenExpiresAt(response.data.token, serverExpiresAt);
+
   tokenCache.set(assetUuid, { token: response.data.token, expiresAt });
   log.debug(`Asset token cached until ${new Date(expiresAt).toISOString()}`);
-  
+
   return response.data.token;
 }
 

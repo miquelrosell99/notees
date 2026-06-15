@@ -26,7 +26,7 @@ Key features:
 - **DB Connections**: Never call `pool.acquire()` directly. Use `app.db.connection.get_connection()` or `get_transaction()`.
 - **Frontend Imports**: Always use path aliases (e.g., `@/components/ui/Button`, `@/features/auth/api/auth`). Never use relative `../../../` paths. CSS is co-located with components.
 - **Secret Key**: `SECRET_KEY` is mandatory (>= 32 chars). The app will not start without it.
-- **Node Model**: Everything is a `node` (pages, blocks, tags, properties, journals). Differentiation is via boolean flags (`is_page`, `is_tag`, etc.).
+- **Node Model**: Everything is a `node` (pages, blocks, tags, properties, journals, tasks). Differentiation is via boolean flags (`is_page`, `is_task`, etc.) that are kept in sync with system class assignments.
 - **Dev vs. Prod**: Dev PostgreSQL settings (`fsync=off`, etc.) in `compose.yaml` must never be used in production.
 - **Technical Excellence**: Always take the technically best path, not the simpler path. Proper extraction, clean interfaces, and type safety take precedence over minimal diff size.
 - **Root Causes Over Hacks**: Always fix root causes instead of adding defensive workarounds. If a symptom points to a deeper architectural issue (stale state, lifecycle mismatches, incorrect boundaries), refactor the underlying cause rather than patching around it.
@@ -203,7 +203,7 @@ The backend follows a strict hexagonal architecture with three layers:
 
 **Key backend patterns:**
 - **Request-scoped DB connections**: `app/db/connection.py` uses a `ContextVar` to share one pooled connection across all repository calls within a single HTTP request. This avoids pool contention.
-- **Everything is a Node**: Pages, blocks, tags, classes, properties, journals, tasks, templates, comments, and assets are all `node` table rows differentiated by boolean flags (`is_page`, `is_tag`, `is_property`, `is_daily`, `is_task`, etc.).
+- **Everything is a Node**: Pages, blocks, tags, classes, properties, journals, tasks, templates, comments, and assets are all `node` table rows differentiated by boolean flags (`is_page`, `is_tag`, `is_property`, `is_daily`, `is_task`, `is_template`, etc.). Task items are flagged with `is_task`, which is kept in sync with the `task` system class assignment and indexed for fast queries.
 - **Closure table**: `node_path` maintains transitive ancestor/descendant relationships for fast tree queries.
 - **Link parsing**: `[[Page Name]]` and `((block-uuid))` references in content are parsed into explicit `node_link` records for efficient backlink queries.
 - **QueryAST**: Structured queries compile to PostgreSQL SQL at runtime via `app/domain/services/query_ast_sql.py`.
@@ -535,10 +535,13 @@ workspace
         ├── node_path (closure table: transitive ancestor/descendant relationships)
         ├── node_link (parsed [[Page]] and ((block-uuid)) references for backlinks)
         ├── property (schema definitions + values)
-        └── asset (files on disk under data/workspaces/{workspace_uuid}/assets/)
+        ├── asset (files on disk under data/workspaces/{workspace_uuid}/assets/)
+        ├── task_recurrence (structured recurrence rule per task node)
+        └── task_completion (history of completed/skipped occurrences)
 ```
 
-- **Everything is a Node**: One `node` table with boolean flags (`is_page`, `is_tag`, `is_property`, `is_daily`, `is_task`, `is_template`, `is_system`).
+- **Everything is a Node**: One `node` table with boolean flags (`is_page`, `is_tag`, `is_property`, `is_daily`, `is_task`, `is_template`, `is_system`). `is_task` is kept in sync with the `task` system class assignment and indexed for fast queries.
+- **Task Recurrence**: A dedicated `task_recurrence` table is the source of truth for automation. The legacy `task_recurrence` selection property is kept for QueryAST compatibility but is no longer used by `TaskAutomationService`. Completion history lives in `task_completion`.
 - **Closure Table**: `node_path` stores transitive parent/child relationships for fast tree queries and soft-delete cascading.
 - **Links**: `node_link` is the source of truth for backlinks; it is populated by parsing the block content AST.
 - **Workspace Isolation**: Every node, property, and asset belongs to exactly one workspace.
@@ -550,7 +553,7 @@ Everything in the system is a **Node**. Differentiation happens via boolean colu
 - `is_tag = true` → Tag (also a page)
 - `is_property = true` → Property schema (also a page)
 - `is_daily = true` → Daily journal page
-- `is_task = true` → Task item
+- `is_task = true` → Task item (synchronized with the `task` system class)
 - `is_template = true` → Template page
 - `is_system = true` → System-generated node (e.g., system classes)
 

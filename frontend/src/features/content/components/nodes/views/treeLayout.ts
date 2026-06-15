@@ -158,7 +158,7 @@ function _placeOnRing(
   node.targetX = centerX + radius * Math.cos(angle);
   node.targetY = centerY + radius * Math.sin(angle);
   (node as GraphNode & { _treeRadius?: number })._treeRadius = radius;
-  if (node.x === 0 && node.y === 0) {
+  if (node.x == null && node.y == null) {
     node.x = node.targetX;
     node.y = node.targetY;
   }

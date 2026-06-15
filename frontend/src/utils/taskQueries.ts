@@ -9,29 +9,26 @@ import {
   createPropertyCondition,
 } from '@/types/queryAST';
 import type { QueryAST, PropertyCondition } from '@/types/queryAST';
-import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from '@/constants/systemProperties';
+import {
+  SYSTEM_CLASS_UUIDS,
+  SYSTEM_PROPERTY_UUIDS,
+  TASK_CLOSED_STATUSES,
+} from '@/constants/systemProperties';
 import { dateToDayUuid, getTodayDayUuid } from '@/utils/dateUuid';
 
 /**
- * Create conditions to exclude completed tasks (Done / Cancelled).
+ * Create conditions to exclude completed tasks.
  */
 function notCompletedConditions(): PropertyCondition[] {
-  return [
+  return Array.from(TASK_CLOSED_STATUSES).map((status) =>
     createPropertyCondition(
       'task_status',
       'not_equals',
-      'Done',
+      status,
       'select',
       SYSTEM_PROPERTY_UUIDS.task_status,
-    ),
-    createPropertyCondition(
-      'task_status',
-      'not_equals',
-      'Cancelled',
-      'select',
-      SYSTEM_PROPERTY_UUIDS.task_status,
-    ),
-  ];
+    )
+  );
 }
 
 /**

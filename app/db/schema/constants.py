@@ -199,6 +199,14 @@ TASK_STATUS_OPTIONS = [
     {"name": "Cancelled", "icon": '{"icon":"close-circle","color":"var(--color-preset-red)"}'},
 ]
 
+# Centralized task status helpers derived from TASK_STATUS_OPTIONS.
+# Import these instead of hardcoding status names throughout the codebase.
+TASK_CLOSED_STATUSES = {"Done", "Cancelled"}
+TASK_DEFAULT_STATUS = "Pending"
+TASK_ACTIVE_STATUSES = [
+    opt["name"] for opt in TASK_STATUS_OPTIONS if opt["name"] not in TASK_CLOSED_STATUSES
+]
+
 # Task priority options with their icons
 TASK_PRIORITY_OPTIONS = [
     {"name": "Low", "icon": "chevron-down"},

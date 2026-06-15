@@ -290,21 +290,44 @@
 }
 
 /* --- Cover page --- */
-.cover-page.theme-technical h1:first-of-type {
-  font-family: var(--tt-font-sans);
-  font-size: 2rem;
-  font-weight: 700;
+.theme-technical .cover {
+  align-items: flex-start;
   text-align: left;
-  padding-top: 22vh;
-  padding-left: 0;
-  text-transform: none;
 }
 
-.cover-page.theme-technical h1:first-of-type::after {
+.theme-technical .cover__title {
+  font-family: var(--tt-font-sans);
+  font-size: 2.2rem;
+  font-weight: 700;
+  text-transform: none;
+  color: var(--tt-color);
+}
+
+.theme-technical .cover__subtitle {
+  font-family: var(--tt-font-sans);
+  color: var(--tt-color-muted);
+}
+
+.theme-technical .cover__date {
+  font-family: var(--tt-font-sans);
+  color: var(--tt-color-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.8rem;
+}
+
+.theme-technical .cover__tags,
+.theme-technical .cover__classes {
+  justify-content: flex-start;
+}
+
+.theme-technical .cover::after {
+  content: '';
+  display: block;
   width: 80px;
   height: 1.5px;
   background: var(--tt-color);
-  margin: 1rem 0 0;
+  margin-top: 1rem;
 }
 
 /* --- Dark mode --- */

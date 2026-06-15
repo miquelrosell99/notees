@@ -429,23 +429,55 @@ div.page-break {
   page-break-before: always;
 }
 
-/* --- Cover page: first h1 becomes a standalone title page --- */
-.cover-page h1:first-of-type {
+/* --- Cover page --- */
+.cover {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 70vh;
+  text-align: center;
   page-break-after: always;
   break-after: page;
-  margin-top: 0;
-  padding-top: 25vh;
-  text-align: center;
-  border-bottom: none;
+  padding: 2rem 0;
+  max-width: none;
 }
 
-.cover-page h1:first-of-type::after {
-  content: '';
-  display: block;
-  width: 60px;
-  height: 2px;
-  background: var(--color-border);
-  margin: 1.5rem auto 0;
+.cover__icon {
+  font-size: 2.5rem;
+  margin-bottom: 1rem;
+  color: var(--color-text-muted);
+}
+
+.cover__title {
+  margin: 0;
+  font-size: 2.4rem;
+  font-weight: 700;
+  line-height: 1.15;
+  color: var(--color-text);
+}
+
+.cover__subtitle {
+  margin: 0.75rem 0 0;
+  font-size: 1.1rem;
+  color: var(--color-text-muted);
+  max-width: 50ch;
+}
+
+.cover__date {
+  margin: 1.5rem 0 0;
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  letter-spacing: 0.02em;
+}
+
+.cover__tags,
+.cover__classes {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.4rem;
+  margin-top: 1.25rem;
 }
 
 /* Suppress break-before on the very first heading so it doesn't create a blank first page */

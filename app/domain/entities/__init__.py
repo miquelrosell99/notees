@@ -51,6 +51,8 @@ from .query import (
     ReferencePathBlock,
     UuidBlock,
 )
+from .task_completion import TaskCompletion
+from .task_recurrence import TaskRecurrence
 from .user import (
     AuthenticatedUser,
     User,
@@ -110,4 +112,7 @@ __all__ = [
     "QueryAST",
     "NodeView",
     "QUERY_PLACEHOLDERS",
+    # Task recurrence
+    "TaskRecurrence",
+    "TaskCompletion",
 ]

@@ -64,6 +64,7 @@ from .routers import (
     nodes_router,
     properties_router,
     sync_router,
+    tasks_router,
     undo_router,
     workspaces_router,
 )
@@ -470,6 +471,9 @@ async def log_requests(request, call_next):
     # Required for SharedArrayBuffer (crossOriginIsolated = true in the browser)
     response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
     response.headers["Cross-Origin-Embedder-Policy"] = "require-corp"
+    # Allow this resource to be embedded by cross-origin documents that also
+    # enforce COEP, which is required for images/assets to load reliably.
+    response.headers["Cross-Origin-Resource-Policy"] = "cross-origin"
 
     return response
 
@@ -520,6 +524,7 @@ routers = [
     nodes_router,
     properties_router,
     sync_router,
+    tasks_router,
     export_router,
     auto_export_router,
     assets_router,

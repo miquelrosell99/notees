@@ -51,6 +51,7 @@ ALLOWED_FLAG_NAMES = {
     "is_asset",
     "is_template",
     "is_comment",
+    "is_task",
     "is_private",
     "is_favorite",
     "active",
@@ -587,6 +588,22 @@ ORDER BY {order_by_sql}"""
                     return f"n.{column_name}::date >= %({value_param})s::date"
                 elif condition.operator == "lte":
                     return f"n.{column_name}::date <= %({value_param})s::date"
+                return None
+
+            # Numeric id column handling
+            if column_name == "id":
+                if condition.operator == "equals":
+                    return f"n.{column_name} = %({value_param})s"
+                elif condition.operator == "not_equals":
+                    return f"n.{column_name} != %({value_param})s"
+                elif condition.operator == "greater_than":
+                    return f"n.{column_name} > %({value_param})s"
+                elif condition.operator == "less_than":
+                    return f"n.{column_name} < %({value_param})s"
+                elif condition.operator == "gte":
+                    return f"n.{column_name} >= %({value_param})s"
+                elif condition.operator == "lte":
+                    return f"n.{column_name} <= %({value_param})s"
                 return None
 
             # Standard text comparison for other columns

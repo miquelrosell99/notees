@@ -13,6 +13,8 @@
  *   { type: 'dragStart', nodeId }
  *   { type: 'dragMove', nodeId, x, y }
  *   { type: 'dragEnd', nodeId }
+ *   { type: 'pin', nodeId }
+ *   { type: 'unpin', nodeId }
  *   { type: 'destroy' }
  *
  * Worker → Main:
@@ -41,6 +43,7 @@ let engine: SGEEngine | null = null;
 let tickTimeout: ReturnType<typeof setTimeout> | undefined;
 let running = false;
 let nodeIds: Int32Array = new Int32Array(0);
+let dragWasPinned = false;
 
 // SharedArrayBuffer path
 const SAB_ENABLED = typeof SharedArrayBuffer !== 'undefined' &&
@@ -216,6 +219,7 @@ self.onmessage = (e: MessageEvent) => {
     }
     case 'dragStart': {
       if (!engine) break;
+      dragWasPinned = engine.isPinned(msg.nodeId);
       engine.pinNode(msg.nodeId);
       break;
     }
@@ -225,6 +229,20 @@ self.onmessage = (e: MessageEvent) => {
       break;
     }
     case 'dragEnd': {
+      if (!engine) break;
+      // Only unpin nodes that were not already pinned by the user.
+      if (!dragWasPinned) {
+        engine.unpinNode(msg.nodeId);
+      }
+      dragWasPinned = false;
+      break;
+    }
+    case 'pin': {
+      if (!engine) break;
+      engine.pinNode(msg.nodeId);
+      break;
+    }
+    case 'unpin': {
       if (!engine) break;
       engine.unpinNode(msg.nodeId);
       break;

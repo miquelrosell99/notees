@@ -181,6 +181,24 @@ class PostgresNodeSearchMixin(_PostgresNodeBase):
             )
             return [self._row_to_node(row) for row in rows]
 
+    async def get_task_nodes(
+        self, limit: int = 1000, offset: int = 0
+    ) -> list[object]:
+        """Get active task nodes using the is_task index, paginated."""
+        async with acquire_connection(self._pool) as conn:
+            rows = await conn.fetch(
+                """
+                SELECT n.* FROM node n
+                WHERE n.is_task = TRUE
+                  AND n.workspace_id = $1 AND n.active = TRUE AND n.is_deleted = FALSE
+                LIMIT $2 OFFSET $3
+            """,
+                self._workspace_id,
+                limit,
+                offset,
+            )
+            return [self._row_to_node(row) for row in rows]
+
     _MAX_PAGES_LIMIT = 5000
 
     async def get_all_pages(self, limit: int = 1000, offset: int = 0) -> list[object]:

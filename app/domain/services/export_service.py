@@ -18,11 +18,11 @@ class ExportService:
         self._export_repo = export_repo
 
     async def get_export_node_tree(
-        self, workspace_id: int, node_uuid: str, include_children: bool
+        self, workspace_id: int, node_uuid: str, include_children: bool, include_child_pages: bool = False
     ) -> list[dict[str, Any]]:
         """Fetch a node tree ready for export rendering."""
         rows = await self._export_repo.get_export_node_tree(
-            workspace_id, node_uuid, include_children
+            workspace_id, node_uuid, include_children, include_child_pages
         )
         nodes_data: list[dict[str, Any]] = []
         for row in rows:

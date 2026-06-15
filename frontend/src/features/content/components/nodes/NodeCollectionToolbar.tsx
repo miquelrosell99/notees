@@ -94,6 +94,8 @@ export interface NodeCollectionToolbarProps {
   onSortChange?: (sort: SortEntry[]) => void;
   /** Available columns for sorting */
   availableSortColumns?: { key: string; label: string }[];
+  /** When true, view settings are not persisted to stores/localStorage. */
+  isTransient?: boolean;
   /** Additional CSS class */
   className?: string;
 }
@@ -128,15 +130,21 @@ export function NodeCollectionToolbar({
   toolbarPrefix,
   leftElement,
   hideToolbarControls = false,
+  isTransient = false,
   className = '',
 }: NodeCollectionToolbarProps) {
-  // Use store for card layout if not controlled
+  // Use store for card layout if not controlled and not transient
   const storeCardLayout = useAppStore((state) => state.cardLayout);
   const storeSetCardLayout = useAppStore((state) => state.setCardLayout);
+  const [transientCardLayout, setTransientCardLayout] = useState<'no-cover' | 'cover-top' | 'cover-left' | 'cover-right'>('no-cover');
 
-  const effectiveCardLayout = cardLayout ?? storeCardLayout;
+  const effectiveCardLayout = cardLayout ?? (isTransient ? transientCardLayout : storeCardLayout);
   const effectiveOnCardLayoutChange = onCardLayoutChange ?? ((layout: 'no-cover' | 'cover-top' | 'cover-left' | 'cover-right') => {
-    storeSetCardLayout(layout);
+    if (isTransient) {
+      setTransientCardLayout(layout);
+    } else {
+      storeSetCardLayout(layout);
+    }
   });
 
   const showViewSwitcher = availableViewModes.length > 1 && onViewModeChange;
