@@ -84,59 +84,6 @@
   display: none;
 }
 
-.node-content-empty {
-  padding: var(--spacing-4) 0;
-  background: transparent;
-}
-
-/* Logseq-style placeholder block — hidden by default, revealed on hover */
-.node-content-placeholder {
-  display: flex;
-  align-items: flex-start;
-  margin: var(--spacing-tiny) 0;
-  min-height: 1.6em;
-  line-height: 1.6;
-  cursor: text;
-  background: transparent;
-  opacity: var(--opacity-0);
-  transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
-}
-
-.node-content:hover .node-content-placeholder {
-  opacity: var(--opacity-100);
-}
-
-/* Placeholder bullet wrapper — matches real .bullet-wrapper.bullet-sm */
-.node-content-placeholder__bullet-wrapper {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  width: var(--bullet-wrapper-size);
-  height: var(--bullet-wrapper-size);
-  /* Keep the placeholder dot optically aligned with body text, same as real bullets. */
-  transform: translateY(var(--bullet-optical-offset, 0.2em));
-}
-
-/* Placeholder bullet — faint dot */
-.node-content-placeholder__bullet {
-  width: var(--bullet-dot-size);
-  height: var(--bullet-dot-size);
-  border-radius: 50%;
-  background-color: var(--color-outline);
-  opacity: var(--opacity-40);
-}
-
-.node-content-add {
-  padding: var(--spacing-2) 0;
-  opacity: var(--opacity-0);
-  transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
-}
-
-.node-content:hover .node-content-add {
-  opacity: var(--opacity-100);
-}
-
 .add-block-btn {
   display: inline-flex;
   align-items: center;

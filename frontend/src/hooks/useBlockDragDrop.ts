@@ -22,9 +22,11 @@ export interface UseBlockDragDropOptions {
   containerRef: RefObject<HTMLElement | null>;
   editorId: string;
   readOnly?: boolean;
+  /** Block IDs that should be excluded from drag interactions (e.g. ghost blocks). */
+  excludedIds?: string[];
 }
 
-export function useBlockDragDrop({ containerRef, editorId, readOnly }: UseBlockDragDropOptions): void {
+export function useBlockDragDrop({ containerRef, editorId, readOnly, excludedIds }: UseBlockDragDropOptions): void {
   const ghostRef = useRef<HTMLDivElement | null>(null);
   const anchorsRef = useRef<DropAnchor[]>([]);
   const activeAnchorRef = useRef<DropAnchor | null>(null);
@@ -45,6 +47,10 @@ export function useBlockDragDrop({ containerRef, editorId, readOnly }: UseBlockD
   }, []);
 
   // Main drag effect
+  useEffect(() => {
+    excludedIdsRef.current = new Set(excludedIds ?? []);
+  }, [excludedIds]);
+
   useEffect(() => {
     if (readOnly) return;
     const rootEl = containerRef.current;

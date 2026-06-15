@@ -102,6 +102,8 @@ async def init_database(conn: asyncpg.Connection) -> None:
     await _run_migration("convert_raw_uuid_to_broken_link", conn, _run_convert_raw_uuid)
     from app.db.migrations.consolidate_class_path import run as _run_consolidate_class_path
     await _run_migration("consolidate_class_path", conn, _run_consolidate_class_path)
+    from app.db.migrations.normalize_inline_class_links import run as _run_normalize_inline_class_links
+    await _run_migration("normalize_inline_class_links", conn, _run_normalize_inline_class_links)
     from app.db.migrations.add_node_mention import run as _run_add_node_mention
     await _run_migration("add_node_mention", conn, _run_add_node_mention)
     await _run_migration("remove_tags_system_property", conn, _remove_tags_system_property)
