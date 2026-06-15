@@ -283,18 +283,6 @@ export function BlockList({
     [setPendingFocus, canMergeInHierarchy],
   );
 
-  const handleTab = useCallback(
-    (blockId: string, shift: boolean) => {
-      const runtime = getNodeGraphRuntime();
-      runtime.applyIntent({
-        type: shift ? 'outdent_block' : 'indent_block',
-        blockId,
-      });
-      runtime.flushEvents();
-    },
-    [],
-  );
-
   const handleEscape = useCallback((blockId: string) => {
     useEditorFocusStore.getState().blurBlock(blockId);
     const container = containerRef.current;
@@ -338,6 +326,17 @@ export function BlockList({
       if (idx < 0) return;
 
       switch (e.key) {
+        case 'Tab': {
+          e.preventDefault();
+          flushAllContentSaves();
+          const runtime = getNodeGraphRuntime();
+          runtime.applyIntent({
+            type: e.shiftKey ? 'outdent_block' : 'indent_block',
+            blockId: activeBlockId,
+          });
+          runtime.flushEvents();
+          break;
+        }
         case 'ArrowUp': {
           e.preventDefault();
           focusPreviousBlock(blockIds);
@@ -478,7 +477,6 @@ export function BlockList({
                   onEnter={handleEnter}
                   onBackspaceAtStart={handleBackspaceAtStart}
                   onDeleteAtEnd={handleDeleteAtEnd}
-                  onTab={handleTab}
                   onEscape={handleEscape}
                   onCollapseToggle={handleCollapseToggle}
                 />
@@ -511,7 +509,6 @@ export function BlockList({
             onEnter={handleEnter}
             onBackspaceAtStart={handleBackspaceAtStart}
             onDeleteAtEnd={handleDeleteAtEnd}
-            onTab={handleTab}
             onEscape={handleEscape}
             onCollapseToggle={handleCollapseToggle}
           />

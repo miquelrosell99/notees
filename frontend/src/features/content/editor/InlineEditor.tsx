@@ -104,8 +104,6 @@ interface InlineEditorProps {
   onBackspaceAtStart?: () => void;
   /** Called on Delete at end of block (merge with next). */
   onDeleteAtEnd?: () => void;
-  /** Called on Tab / Shift+Tab (indent / outdent). */
-  onTab?: (shift: boolean) => void;
   /** Called on Escape (blur editor and select block). */
   onEscape?: () => void;
   /** UUID of the containing node (for live sync focus tracking). */
@@ -133,7 +131,6 @@ export const InlineEditor = memo(
       onCtrlEnter,
       onBackspaceAtStart,
       onDeleteAtEnd,
-      onTab,
       onEscape,
       nodeUuid,
     },
@@ -370,7 +367,6 @@ export const InlineEditor = memo(
           onCtrlEnter={onCtrlEnter}
           onBackspaceAtStart={onBackspaceAtStart}
           onDeleteAtEnd={onDeleteAtEnd}
-          onTab={onTab}
           onEscape={onEscape}
           onContentChange={onContentChange}
           editorRef={editorRef}
@@ -400,7 +396,6 @@ interface InlineEditorInnerProps {
   onCtrlEnter?: InlineEditorProps['onCtrlEnter'];
   onBackspaceAtStart?: InlineEditorProps['onBackspaceAtStart'];
   onDeleteAtEnd?: InlineEditorProps['onDeleteAtEnd'];
-  onTab?: InlineEditorProps['onTab'];
   onEscape?: InlineEditorProps['onEscape'];
   onContentChange?: InlineEditorProps['onContentChange'];
   editorRef: React.MutableRefObject<LexicalEditor | null>;
@@ -424,7 +419,6 @@ function InlineEditorInner({
   onCtrlEnter,
   onBackspaceAtStart,
   onDeleteAtEnd,
-  onTab,
   onEscape,
   onContentChange,
   editorRef,
@@ -470,7 +464,6 @@ function InlineEditorInner({
           onCtrlEnter={onCtrlEnter}
           onBackspaceAtStart={onBackspaceAtStart}
           onDeleteAtEnd={onDeleteAtEnd}
-          onTab={onTab}
           onEscape={onEscape}
         />
       )}
