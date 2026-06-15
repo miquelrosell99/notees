@@ -147,3 +147,59 @@ class TestListTasks:
         data = resp.json()
         assert len(data["items"]) == 1
         assert data["items"][0]["id"] == task["id"]
+
+
+class TestIsTaskFlag:
+    """Tests that node.is_task stays synchronized with the task class assignment."""
+
+    @pytest.mark.asyncio
+    async def test_is_task_set_on_creation_with_task_class(
+        self, authenticated_client: AsyncClient
+    ):
+        task_class_id = await _get_task_class_id(authenticated_client)
+        task = await _create_node(
+            authenticated_client, name="Task on Create", classes=[task_class_id]
+        )
+        assert task.get("is_task") is True
+
+        resp = await authenticated_client.get(f"/api/nodes/{task['id']}")
+        assert resp.status_code == 200
+        assert resp.json().get("is_task") is True
+
+    @pytest.mark.asyncio
+    async def test_is_task_false_without_task_class(
+        self, authenticated_client: AsyncClient
+    ):
+        page = await _create_node(authenticated_client, name="Plain Page")
+        assert page.get("is_task") is False
+
+    @pytest.mark.asyncio
+    async def test_is_task_set_when_adding_task_class(
+        self, authenticated_client: AsyncClient
+    ):
+        page = await _create_node(authenticated_client, name="Becomes Task")
+        assert page.get("is_task") is False
+
+        task_class_id = await _get_task_class_id(authenticated_client)
+        resp = await authenticated_client.post(
+            f"/api/nodes/{page['id']}/classes",
+            json={"class_node_id": task_class_id},
+        )
+        assert resp.status_code == 200
+        assert resp.json().get("is_task") is True
+
+    @pytest.mark.asyncio
+    async def test_is_task_cleared_when_removing_task_class(
+        self, authenticated_client: AsyncClient
+    ):
+        task_class_id = await _get_task_class_id(authenticated_client)
+        task = await _create_node(
+            authenticated_client, name="Former Task", classes=[task_class_id]
+        )
+        assert task.get("is_task") is True
+
+        resp = await authenticated_client.delete(
+            f"/api/nodes/{task['id']}/classes/{task_class_id}"
+        )
+        assert resp.status_code == 200
+        assert resp.json().get("is_task") is False

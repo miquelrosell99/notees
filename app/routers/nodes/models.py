@@ -29,6 +29,7 @@ class NodeResponse(BaseModel):
     is_daily: bool = False  # Daily journal page
     is_monthly: bool = False  # Monthly journal page
     is_yearly: bool = False  # Yearly journal page
+    is_task: bool = False  # Task item (synchronized with task class assignment)
     is_comment: bool = False  # Whether this node is a comment
     parent_locked: bool = False  # Whether this node's parent is locked
     is_private: bool = False  # If true, only the owner can access this node

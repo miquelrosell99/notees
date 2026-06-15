@@ -19,7 +19,12 @@
 
 import { useMemo, useState, useEffect, useRef } from 'react';
 import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
-import { SYSTEM_CLASS_UUIDS } from '@/constants/systemProperties';
+import {
+  SYSTEM_CLASS_UUIDS,
+  TASK_STATUSES,
+  TASK_CLOSED_STATUSES,
+} from '@/constants/systemProperties';
+import type { TaskStatus } from '@/hooks/useTaskActions';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { ImageNode } from '@/features/content/components/nodes/ImageNode';
 import { QuerySection } from '@/features/content/components/nodes/QuerySection';
@@ -129,30 +134,36 @@ function CellContent({ name }: { name: string | null | undefined }): JSX.Element
 
 // ─── Task Badges ─────────────────────────────────────────────────
 
+const TASK_BADGE_CLASS: Record<TaskStatus, string> = {
+  Backlog: 'badge--backlog',
+  Pending: 'badge--pending',
+  Doing: 'badge--doing',
+  Reviewing: 'badge--reviewing',
+  Done: 'badge--done',
+  Cancelled: 'badge--cancelled',
+};
+
 function TaskBadges({ node }: { node: Node }): JSX.Element | null {
   const runtime = getNodeGraphRuntime();
   const graphNode = runtime.getNode(node.uuid);
   const taskStatus = graphNode?.taskStatus;
 
-  if (!taskStatus) return null;
-
-  const badges: { label: string; cls: string }[] = [];
-
-  if (taskStatus === 'Done') {
-    badges.push({ label: 'Done', cls: 'badge--done' });
-  } else if (taskStatus === 'Doing') {
-    badges.push({ label: 'Doing', cls: 'badge--doing' });
-  } else if (taskStatus === 'Pending') {
-    badges.push({ label: 'Pending', cls: 'badge--pending' });
+  if (!taskStatus || !TASK_STATUSES.includes(taskStatus as TaskStatus)) {
+    return null;
   }
+
+  const status = taskStatus as TaskStatus;
+  const isClosed = TASK_CLOSED_STATUSES.has(status);
 
   return (
     <div className="block-after-content__badges">
-      {badges.map((b) => (
-        <span key={b.label} className={`task-badge ${b.cls}`}>
-          {b.label}
-        </span>
-      ))}
+      <span
+        className={`task-badge ${TASK_BADGE_CLASS[status]}`}
+        data-task-status={status}
+        data-task-closed={isClosed}
+      >
+        {status}
+      </span>
     </div>
   );
 }

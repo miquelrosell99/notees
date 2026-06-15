@@ -4,6 +4,7 @@ Handles exporting nodes to Markdown, HTML, and PDF formats, with support for
 properties, tags, classes, and text property subtrees.
 """
 
+import html
 from pathlib import Path
 from typing import Any
 
@@ -57,6 +58,8 @@ async def export_nodes(
     link_style: str = "raw",  # "raw" | "text"
     theme_mode: str = "light",  # "light" | "dark"
     cover_page: bool = False,
+    page_size: str = "a4",  # "a4" | "letter" | "legal"
+    include_child_pages: bool = False,
     asset_path_map: dict[str, str] | None = None,
     highlight_syntax: bool = True,
     link_target_brackets: bool = True,
@@ -98,7 +101,7 @@ async def export_nodes(
     seen_uuids: set[str] = set()
     for node_uuid in node_ids:
         fetched = await export_service.get_export_node_tree(
-            workspace_id, node_uuid, include_children
+            workspace_id, node_uuid, include_children, include_child_pages
         )
         for nd in fetched:
             row_uuid = nd["uuid"]
@@ -187,6 +190,17 @@ async def export_nodes(
 
     strip_links = link_style == "text"
 
+    cover_metadata = None
+    if cover_page and node_ids and format in {
+        ExportFormat.HTML,
+        "html",
+        ExportFormat.PDF,
+        "pdf",
+    }:
+        cover_metadata = await export_service.get_page_metadata(
+            workspace_id, node_ids[0], include_properties=False
+        )
+
     if format == ExportFormat.MARKDOWN or format == "markdown":
         content = MarkdownConverter().convert(
             nodes_data,
@@ -256,6 +270,8 @@ async def export_nodes(
             callout_class_map=callout_class_map,
             theme_mode=theme_mode,
             cover_page=cover_page,
+            page_size=page_size,
+            cover_metadata=cover_metadata,
         )
         filename = "export.html"
         mime_type = "text/html"
@@ -278,6 +294,8 @@ async def export_nodes(
             callout_class_map=callout_class_map,
             theme_mode=theme_mode,
             cover_page=cover_page,
+            page_size=page_size,
+            cover_metadata=cover_metadata,
         )
         try:
             from weasyprint import HTML as WEASYPRINT_HTML
@@ -419,6 +437,33 @@ def markdown_inline_to_html(md: str) -> str:
     return "".join(result)
 
 
+def _highlight_code(text: str, language: str | None = None) -> str:
+    """Highlight code with Pygments.
+
+    Falls back to plain text if Pygments is missing or cannot determine a lexer.
+    """
+    try:
+        from pygments import highlight as pygments_highlight
+        from pygments.formatters import HtmlFormatter
+        from pygments.lexers import get_lexer_by_name, guess_lexer
+        from pygments.util import ClassNotFound
+    except ImportError:
+        return html.escape(text)
+
+    try:
+        lexer = get_lexer_by_name(language) if language else guess_lexer(text)
+    except ClassNotFound:
+        try:
+            lexer = guess_lexer(text)
+        except Exception:
+            return html.escape(text)
+    except Exception:
+        return html.escape(text)
+
+    formatter = HtmlFormatter(nowrap=True)
+    return pygments_highlight(text, lexer, formatter)
+
+
 def _get_export_css_single() -> str:
     """Read and cache the layered export CSS from layers/ directory."""
     global _export_css_cache
@@ -446,6 +491,7 @@ def build_body_class(
     section_break: bool = False,
     theme_mode: str = "light",
     cover_page: bool = False,
+    page_size: str = "a4",
 ) -> str:
     """Return the body class string encoding all render axes."""
     theme = style if style in EXPORT_THEMES else "modern"
@@ -463,13 +509,21 @@ def build_body_class(
         classes += " cover-page"
     if theme_mode == "dark":
         classes += " theme-dark"
+    if page_size in {"a4", "letter", "legal"}:
+        classes += f" page-size-{page_size}"
     return classes
 
 
-def _html_style_tag() -> str:
-    """Return a <style> element containing the full export CSS, or empty string."""
+def _html_style_tag(page_size: str = "a4") -> str:
+    """Return <style> elements containing the full export CSS plus page-size override."""
     css = _get_export_css_single().strip()
-    return f"<style>\n{css}\n</style>" if css else ""
+    parts: list[str] = []
+    if css:
+        parts.append(f"<style>\n{css}\n</style>")
+    size = page_size if page_size in {"a4", "letter", "legal"} else "a4"
+    if size != "a4":
+        parts.append(f"<style>\n@page {{ size: {size}; }}\n</style>")
+    return "\n".join(parts)
 
 
 def build_toc_html(nodes: list[dict], title_fn, html_mod) -> str:
@@ -504,6 +558,34 @@ def build_toc_html(nodes: list[dict], title_fn, html_mod) -> str:
         parts.append("</ul>")
         current_depth -= 1
     return f'<nav class="toc"><h2>Table of Contents</h2>{"".join(parts)}</nav>'
+
+
+def _build_cover_html(metadata: dict[str, Any] | None, html_mod) -> str:
+    """Build a dedicated cover page section from node metadata."""
+    if not metadata:
+        return ""
+    title = html_mod.escape(str(metadata.get("title", "Notees Export")))
+    parts: list[str] = ['<section class="cover">']
+    icon = metadata.get("icon")
+    if icon:
+        parts.append(f'<div class="cover__icon">{html_mod.escape(str(icon))}</div>')
+    parts.append(f'<h1 class="cover__title">{title}</h1>')
+    subtitle = metadata.get("subtitle")
+    if subtitle:
+        parts.append(f'<p class="cover__subtitle">{html_mod.escape(str(subtitle))}</p>')
+    date_str = metadata.get("write_date") or metadata.get("create_date")
+    if date_str:
+        parts.append(f'<p class="cover__date">{html_mod.escape(str(date_str)[:10])}</p>')
+    tags = metadata.get("tags")
+    if tags:
+        tag_labels = [html_mod.escape(str(t.get("name", t) if isinstance(t, dict) else t)) for t in tags]
+        parts.append('<div class="cover__tags">' + "".join(f'<span class="tag-pill">{t}</span>' for t in tag_labels) + "</div>")
+    classes = metadata.get("classes")
+    if classes:
+        class_labels = [html_mod.escape(str(c.get("name", c) if isinstance(c, dict) else c)) for c in classes]
+        parts.append('<div class="cover__classes">' + "".join(f'<span class="tag-pill">{c}</span>' for c in class_labels) + "</div>")
+    parts.append("</section>")
+    return "\n".join(parts)
 
 
 def node_is_code(node: dict, code_class_id: int | None) -> bool:
@@ -662,6 +744,8 @@ def export_to_html(
     callout_class_map: dict[int, str] | None = None,
     theme_mode: str = "light",
     cover_page: bool = False,
+    page_size: str = "a4",
+    cover_metadata: dict[str, Any] | None = None,
 ) -> str:
     """Convert nodes to HTML format."""
     import html as html_mod
@@ -748,9 +832,9 @@ def export_to_html(
         return f"<{tag}{_id_attr(node)}{_color_attr(node)}{cls}>{rendered}</{tag}>"
 
     body_class = build_body_class(
-        style, layout, density, numbering, measure, doctype, section_break, theme_mode, cover_page
+        style, layout, density, numbering, measure, doctype, section_break, theme_mode, cover_page, page_size
     )
-    style_tag = _html_style_tag()
+    style_tag = _html_style_tag(page_size)
     head_extra = f"\n{style_tag}" if style_tag else ""
 
     if not nodes:
@@ -779,7 +863,9 @@ def export_to_html(
                 return f"  <h{level}{_id_attr(node)}{_color_attr(node)}>{rendered}{props_html}</h{level}>"
             return f"  <h{level}{_id_attr(node)}{_color_attr(node)}>{rendered}</h{level}>"
         if is_code:
-            code_html = f'  <pre class="code-block"><code>{rendered}</code></pre>'
+            code_text = _stringify_node(node, StringifyMode.TEXT_ONLY, resolver)
+            highlighted = _highlight_code(code_text)
+            code_html = f'  <pre class="code-block"><code class="highlight">{highlighted}</code></pre>'
             return f"{code_html}\n  {props_html}" if props_html else code_html
         if callout_type:
             callout_html = f'  <blockquote class="callout callout--{callout_type}"{_id_attr(node)}{_color_attr(node)}>{rendered}</blockquote>'
@@ -791,10 +877,21 @@ def export_to_html(
             return f"  <p{_id_attr(node)}{_color_attr(node)}>{rendered}{props_html}</p>"
         return f"  <p{_id_attr(node)}{_color_attr(node)}>{rendered}</p>"
 
+    cover_html = _build_cover_html(cover_metadata, html_mod) if cover_page else ""
+    # When a cover page is requested, the root page title is shown on the cover.
+    # Skip the root page heading in the body and start with its children.
+    body_nodes = nodes
+    root_props_html = ""
+    if cover_page and nodes and nodes[0].get("is_page"):
+        body_nodes = nodes[1:]
+        root_props_html = _render_properties(nodes[0])
+
     if layout == "flat":
-        lines = [_render_flat_node(n) for n in nodes]
+        lines = [_render_flat_node(n) for n in body_nodes]
         title = _title(nodes[0]) if nodes[0].get("is_page") else "Notees Export"
         body_content = f"{toc_html}\n{chr(10).join(lines)}" if toc_html else chr(10).join(lines)
+        if cover_html:
+            body_content = f"{cover_html}\n{root_props_html}\n{body_content}" if root_props_html else f"{cover_html}\n{body_content}"
         return f"""<!DOCTYPE html>
 <html>
 <head>
@@ -809,7 +906,7 @@ def export_to_html(
     lines = []
     current_depth = -1
     ul_open_count = 0
-    for node in nodes:
+    for node in body_nodes:
         rendered = _render(node)
         depth = node.get("depth", 0)
         is_page = node.get("is_page", False)
@@ -861,7 +958,9 @@ def export_to_html(
                 indent = "  " * (depth + 1)
                 props_html = _render_properties(node)
                 if is_code:
-                    inner = f'<pre class="code-block"><code>{rendered}</code></pre>'
+                    code_text = _stringify_node(node, StringifyMode.TEXT_ONLY, resolver)
+                    highlighted = _highlight_code(code_text)
+                    inner = f'<pre class="code-block"><code class="highlight">{highlighted}</code></pre>'
                 elif callout_type:
                     inner = f'<blockquote class="callout callout--{callout_type}">{rendered}</blockquote>'
                 else:
@@ -899,6 +998,8 @@ def export_to_html(
         ul_open_count -= 1
 
     body_content = f"{toc_html}\n{chr(10).join(lines)}" if toc_html else chr(10).join(lines)
+    if cover_html:
+        body_content = f"{cover_html}\n{root_props_html}\n{body_content}" if root_props_html else f"{cover_html}\n{body_content}"
     return f"""<!DOCTYPE html>
 <html>
 <head>

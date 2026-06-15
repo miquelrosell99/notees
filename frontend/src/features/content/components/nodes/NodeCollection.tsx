@@ -113,6 +113,8 @@ export const NodeCollection = memo(function NodeCollection({
   autoCollapse = false,
   expandAll = false,
   defaultSort,
+  sort: sortProp,
+  onSortChange,
   ganttStartDateProperty: ganttStartDatePropertyProp,
   ganttEndDateProperty: ganttEndDatePropertyProp,
   onGanttStartDatePropertyChange,
@@ -131,11 +133,11 @@ export const NodeCollection = memo(function NodeCollection({
   size,
   showClasses = false,
   queryAst,
+  isTransient = false,
 }: NodeCollectionProps) {
-  // Always use store for card layout to ensure reactivity
-  // Components can still pass cardLayout to override if needed for specific cases
+  // Use store for card layout unless transient or controlled
   const storeCardLayout = useAppStore((state) => state.cardLayout);
-  const rawCardLayout = cardLayout ?? storeCardLayout;
+  const rawCardLayout = cardLayout ?? (isTransient ? 'no-cover' : storeCardLayout);
   // Filter out invalid 'cover-bottom' from old persisted state
   const effectiveCardLayout: 'no-cover' | 'cover-top' | 'cover-left' | 'cover-right' =
     rawCardLayout as string === 'cover-bottom' ? 'no-cover' : rawCardLayout;
@@ -175,7 +177,9 @@ export const NodeCollection = memo(function NodeCollection({
   const selectedPropertyUuids = selectedPropertyUuidsProp ?? internalPropertyUuids;
 
   // Explicit sort columns (empty = no sort; defaultSort seeds initial state)
-  const [sortColumns, setSortColumns] = useState<SortEntry[]>(defaultSort ?? []);
+  const [internalSortColumns, setInternalSortColumns] = useState<SortEntry[]>(defaultSort ?? []);
+  const sortColumns = sortProp ?? internalSortColumns;
+  const setSortColumns = onSortChange ?? setInternalSortColumns;
 
   // Available sort columns for the sort popup (all applicable fields)
   const availableSortColumns = useMemo(() => {
@@ -202,22 +206,32 @@ export const NodeCollection = memo(function NodeCollection({
   }, [nodes, sortColumns, viewMode, allProperties]);
 
   // Gantt date property state (controlled or uncontrolled)
-  // In uncontrolled mode: drive from the persisted store UUIDs
+  // In uncontrolled mode: drive from the persisted store UUIDs unless transient
   const storeGanttStartUuid = useAppStore((state) => state.ganttStartDatePropertyUuid);
   const storeGanttEndUuid = useAppStore((state) => state.ganttEndDatePropertyUuid);
   const setStoreGanttStartUuid = useAppStore((state) => state.setGanttStartDatePropertyUuid);
   const setStoreGanttEndUuid = useAppStore((state) => state.setGanttEndDatePropertyUuid);
-  const ganttTimeScale = useAppStore((state) => state.ganttTimeScale);
-  const setGanttTimeScale = useAppStore((state) => state.setGanttTimeScale);
+  const storeGanttTimeScale = useAppStore((state) => state.ganttTimeScale);
+  const setStoreGanttTimeScale = useAppStore((state) => state.setGanttTimeScale);
+
+  const [transientGanttStartUuid, setTransientGanttStartUuid] = useState('');
+  const [transientGanttEndUuid, setTransientGanttEndUuid] = useState('');
+  const [transientGanttTimeScale, setTransientGanttTimeScale] = useState<'day' | 'week' | 'month'>('month');
 
   // Resolve UUIDs → Property objects (works once allProperties is loaded)
+  const effectiveGanttStartUuid = onGanttStartDatePropertyChange
+    ? undefined
+    : (isTransient ? transientGanttStartUuid : storeGanttStartUuid);
+  const effectiveGanttEndUuid = onGanttEndDatePropertyChange
+    ? undefined
+    : (isTransient ? transientGanttEndUuid : storeGanttEndUuid);
   const storeGanttStartProperty = useMemo(
-    () => allProperties.find((p) => p.uuid === storeGanttStartUuid),
-    [allProperties, storeGanttStartUuid]
+    () => allProperties.find((p) => p.uuid === effectiveGanttStartUuid),
+    [allProperties, effectiveGanttStartUuid]
   );
   const storeGanttEndProperty = useMemo(
-    () => allProperties.find((p) => p.uuid === storeGanttEndUuid),
-    [allProperties, storeGanttEndUuid]
+    () => allProperties.find((p) => p.uuid === effectiveGanttEndUuid),
+    [allProperties, effectiveGanttEndUuid]
   );
 
   const ganttStartDateProperty = onGanttStartDatePropertyChange
@@ -226,9 +240,12 @@ export const NodeCollection = memo(function NodeCollection({
   const ganttEndDateProperty = onGanttEndDatePropertyChange
     ? ganttEndDatePropertyProp
     : (ganttEndDatePropertyProp ?? storeGanttEndProperty);
+  const ganttTimeScale = isTransient ? transientGanttTimeScale : storeGanttTimeScale;
   const handleGanttStartDatePropertyChange = (property: Property | undefined) => {
     if (onGanttStartDatePropertyChange) {
       onGanttStartDatePropertyChange(property);
+    } else if (isTransient) {
+      setTransientGanttStartUuid(property?.uuid ?? '');
     } else {
       setStoreGanttStartUuid(property?.uuid ?? '');
     }
@@ -236,15 +253,24 @@ export const NodeCollection = memo(function NodeCollection({
   const handleGanttEndDatePropertyChange = (property: Property | undefined) => {
     if (onGanttEndDatePropertyChange) {
       onGanttEndDatePropertyChange(property);
+    } else if (isTransient) {
+      setTransientGanttEndUuid(property?.uuid ?? '');
     } else {
       setStoreGanttEndUuid(property?.uuid ?? '');
     }
   };
+  const handleGanttTimeScaleChange = (scale: 'day' | 'week' | 'month') => {
+    if (isTransient) {
+      setTransientGanttTimeScale(scale);
+    } else {
+      setStoreGanttTimeScale(scale);
+    }
+  };
   const updateNodeView = useUpdateNodeView();
 
-  // Load property columns from view configuration (only for uncontrolled mode)
+  // Load property columns from view configuration (only for uncontrolled, non-transient mode)
   useEffect(() => {
-    if (!selectedPropertyUuidsProp && view?.shown_properties) {
+    if (!isTransient && !selectedPropertyUuidsProp && view?.shown_properties) {
       // Sort by sequence and extract UUIDs
       const sortedProperties = [...view.shown_properties]
         .sort((a, b) => a.sequence - b.sequence)
@@ -252,7 +278,7 @@ export const NodeCollection = memo(function NodeCollection({
        
       setInternalPropertyUuids(sortedProperties);
     }
-  }, [view, selectedPropertyUuidsProp]);
+  }, [view, selectedPropertyUuidsProp, isTransient]);
 
   const handlePropertyColumnsChange = (propertyUuids: string[]) => {
     // If controlled, call the callback
@@ -261,11 +287,11 @@ export const NodeCollection = memo(function NodeCollection({
       return;
     }
 
-    // Otherwise, update internal state and persist
+    // Otherwise, update internal state and persist (unless transient)
     setInternalPropertyUuids(propertyUuids);
 
     // Save to view configuration via API
-    if (viewId) {
+    if (!isTransient && viewId) {
       const shown_properties = propertyUuids.map((uuid, index) => ({
         uuid,
         sequence: index + 1,
@@ -618,7 +644,8 @@ export const NodeCollection = memo(function NodeCollection({
               onGanttStartDatePropertyChange={handleGanttStartDatePropertyChange}
               onGanttEndDatePropertyChange={handleGanttEndDatePropertyChange}
               ganttTimeScale={ganttTimeScale}
-              onGanttTimeScaleChange={setGanttTimeScale}
+              onGanttTimeScaleChange={handleGanttTimeScaleChange}
+              isTransient={isTransient}
               toolbarPrefix={toolbarPrefix}
               leftElement={typeof leftElement === 'function' ? (leftElement as (count: number) => ReactNode)(nodes.length) : leftElement}
               hideToolbarControls={hideToolbarControls}

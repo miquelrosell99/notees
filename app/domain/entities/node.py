@@ -79,6 +79,7 @@ class Node:
     is_asset: bool = False  # Asset/file block
     is_template: bool = False  # Template page
     is_comment: bool = False  # Comment block
+    is_task: bool = False  # Task item (synchronized with task class assignment)
 
     # Parent lock - prevents parent_id from being changed
     parent_locked: bool = False

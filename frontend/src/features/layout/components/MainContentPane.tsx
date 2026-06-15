@@ -170,13 +170,13 @@ export function MainContentPane({ tab, onNavigateToNode }: MainContentPaneProps)
 
   return (
     <div className="main-content-wrapper" style={nodeColorStyle}>
-      <NodeViewWrapper nodeId={tab.nodeId} viewMode={viewMode} />
+      <NodeViewWrapper nodeId={tab.nodeId} viewMode={viewMode} liveSync />
       <main
         id="main-content"
         className={`main-content${nodeColorStyle ? ' has-node-border' : ''}`}
         style={nodeColorStyle}
       >
-        <NodeViewContent nodeId={tab.nodeId} viewMode={viewMode} />
+        <NodeViewContent nodeId={tab.nodeId} viewMode={viewMode} liveSync />
       </main>
     </div>
   );
