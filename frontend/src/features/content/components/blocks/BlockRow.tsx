@@ -424,6 +424,7 @@ export const BlockRow = memo(
             onOpenInSidebar={isGhost ? undefined : onOpenInSidebar}
             onContextMenu={isGhost ? undefined : handleBulletContextMenu}
             isActivePath={isActive || isOnActiveTrail}
+            depth={depth}
             lockedBy={lockedBy}
             presenceUsers={presenceUsers}
             typingUsers={typingUsers}
