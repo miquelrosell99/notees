@@ -10,6 +10,7 @@ of each method independently acquiring and releasing from the pool.
 from __future__ import annotations
 
 import asyncio
+import json
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
@@ -100,6 +101,22 @@ def get_database_url() -> str:
     return settings.database_url
 
 
+async def setup_jsonb_codec(conn: asyncpg.Connection) -> None:
+    """Configure JSONB codec so Python objects are encoded/decoded automatically.
+
+    Without this asyncpg treats JSONB values as plain strings on both read and
+    write. Setting the codec to ``json.dumps`` / ``json.loads`` lets callers
+    pass native lists/dicts/booleans/numbers and receive them back as the same
+    Python types.
+    """
+    await conn.set_type_codec(
+        "jsonb",
+        encoder=json.dumps,
+        decoder=json.loads,
+        schema="pg_catalog",
+    )
+
+
 async def init_pool() -> asyncpg.Pool:
     """Initialize the connection pool on app startup.
 
@@ -122,6 +139,9 @@ async def init_pool() -> asyncpg.Pool:
 
         database_url = get_database_url()
 
+        async def _init_conn(conn: asyncpg.Connection) -> None:
+            await setup_jsonb_codec(conn)
+
         _pool = await asyncpg.create_pool(
             dsn=database_url,
             min_size=settings.postgres_pool_min,
@@ -129,6 +149,7 @@ async def init_pool() -> asyncpg.Pool:
             max_inactive_connection_lifetime=settings.postgres_pool_max_inactive_time,
             statement_cache_size=settings.postgres_statement_cache_size,
             command_timeout=60,
+            init=_init_conn,
         )
 
     logger.info(f"PostgreSQL pool initialized: min={_pool.get_min_size()}, max={_pool.get_max_size()}")

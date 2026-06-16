@@ -89,6 +89,11 @@ def _walk(
                 changed = True
                 continue
 
+            # Already a valid UUID-based link — keep it as-is.
+            if _is_uuid(node_identifier):
+                new_nodes.append(node)
+                continue
+
             if node_identifier.isdigit():
                 numeric_ids.add(int(node_identifier))
                 new_nodes.append({"__numeric_placeholder__": True, "node": node})

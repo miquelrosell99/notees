@@ -6,7 +6,6 @@ setting_system table. Falls back to app.config values for unset keys.
 
 from __future__ import annotations
 
-import json
 from typing import Any
 
 from .db.connection import get_connection
@@ -42,11 +41,11 @@ async def set_system_setting(key: str, value: Any) -> None:
         await conn.execute(
             """
             INSERT INTO setting_system (key, value, create_date, write_date)
-            VALUES ($1, $2, NOW(), NOW())
-            ON CONFLICT (key) DO UPDATE SET value = $2, write_date = NOW()
+            VALUES ($1, $2::jsonb, NOW(), NOW())
+            ON CONFLICT (key) DO UPDATE SET value = $2::jsonb, write_date = NOW()
             """,
             key,
-            json.dumps(value),
+            value,
         )
 
 
