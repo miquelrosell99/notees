@@ -40,7 +40,7 @@ import type { ViewMode, NodeViewType } from '@/stores';
 import { MainContentTopbar } from '@/features/layout/components/MainContentTopbar';
 import { PageHeader } from '@/features/content/components/nodes/PageHeader';
 import { AssetImage } from '@/features/content/components/nodes/AssetImage';
-import { AddCoverButton } from '@/components/ui/AddCoverButton';
+
 import { AssetUploadModal } from '@/features/assets/components/AssetUploadModal';
 import { NodeContent } from '@/features/content/components/nodes/NodeContent';
 import { NodeCollection } from '@/features/content/components/nodes/NodeCollection';
@@ -1143,34 +1143,34 @@ export function NodeView({
               onDragLeave={handleBannerDragLeave}
               onDrop={handleBannerDrop}
             >
-              {bannerImageId ? (
-                <AssetImage
-                  assetNodeId={bannerImageId}
-                  alt="Banner"
-                  className="node-view__banner-image"
-                  showCard={true}
-                  elevation="low"
-                  radius="md"
-                  clickable={true}
-                  showActions={isBannerHovered && !isBannerCollapsed}
-                  onEdit={handleSelectBannerImage}
-                  onRemove={handleRemoveBanner}
-                  actionsDirection="horizontal"
-                  isDragging={isBannerDragging}
-                  showModalBullet={true}
-                />
-              ) : (
-                <Button 
-                  variant="ghost"
-                  size="sm"
-                  className="node-view__banner-add-btn"
-                  onClick={handleSelectBannerImage}
-                  title="Add banner image"
-                >
-                  <Icon path={"mdi mdi-image-outline"} size={0.8} />
-                  <span>Add banner</span>
-                </Button>
-              )}
+              <AssetImage
+                assetNodeId={bannerImageId}
+                alt="Banner"
+                className="node-view__banner-image"
+                showCard={true}
+                elevation="low"
+                variant={bannerImageId ? 'default' : 'dashed'}
+                radius="md"
+                clickable={true}
+                showActions={isBannerHovered && !isBannerCollapsed}
+                onEdit={handleSelectBannerImage}
+                onRemove={handleRemoveBanner}
+                actionsDirection="horizontal"
+                isDragging={isBannerDragging}
+                showModalBullet={true}
+                emptyPlaceholder={
+                  <button
+                    type="button"
+                    aria-label="Add banner image"
+                    title="Add banner image"
+                    className="node-view__banner-empty-btn"
+                    onClick={handleSelectBannerImage}
+                  >
+                    <Icon path="mdi mdi-image-outline" size={0.8} />
+                    <span>Add banner</span>
+                  </button>
+                }
+              />
             </div>
           </div>
           )}
@@ -1217,6 +1217,7 @@ export function NodeView({
                   className="node-view__cover-image"
                   showCard={true}
                   elevation="low"
+                  variant={coverImageId ? 'default' : 'dashed'}
                   radius="md"
                   clickable={true}
                   showActions={isCoverHovered && !isCoverCollapsed}
@@ -1226,11 +1227,16 @@ export function NodeView({
                   isDragging={isCoverDragging}
                   showModalBullet={true}
                   emptyPlaceholder={
-                    <AddCoverButton
+                    <button
+                      type="button"
+                      aria-label="Add cover image"
+                      title="Add cover image"
+                      className="node-view__cover-empty-btn"
                       onClick={handleSelectCoverImage}
-                      className="node-view__cover-add-btn"
-                      size="lg"
-                    />
+                    >
+                      <Icon path="mdi mdi-image-plus" size={0.9} />
+                      <span>Add cover</span>
+                    </button>
                   }
                 />
               </div>
