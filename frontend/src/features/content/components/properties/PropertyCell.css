@@ -78,12 +78,12 @@ button.property-cell,
   padding: var(--spacing-1);
 }
 
-.property-cell--image .image-node {
+.property-cell--image .asset-image {
   height: var(--spacing-12);
   max-width: var(--layout-size-xl);
 }
 
-.property-cell--image .image-node img {
+.property-cell--image .asset-image img {
   height: var(--spacing-12);
   max-width: var(--layout-size-xl);
   object-fit: cover;

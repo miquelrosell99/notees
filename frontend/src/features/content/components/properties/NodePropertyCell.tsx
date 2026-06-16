@@ -5,7 +5,7 @@ import { useSetNodeProperty, nodeKeys } from '@/hooks';
 import { useNavigationStore } from '@/stores';
 import * as nodesApi from '@/api/nodes';
 import { NodeSelector } from '@/features/content/components/nodes/NodeSelector';
-import { ImageNode } from '@/features/content/components/nodes/ImageNode';
+import { AssetImage } from '@/features/content/components/nodes/AssetImage';
 import { Spinner } from '@/components/ui/Spinner';
 import './PropertyCell.css';
 
@@ -19,7 +19,7 @@ interface NodePropertyCellProps {
 
 /**
  * NodePropertyCell - Handles all node-type properties (empty/single/multi, asset/regular)
- * Uses NodeSelector for regular nodes, ImageNode for assets
+ * Uses NodeSelector for regular nodes, AssetImage for assets
  */
 export function NodePropertyCell({
   property,
@@ -70,7 +70,7 @@ export function NodePropertyCell({
     return (
       <div className="property-cell property-cell--image">
         {nodeIds.map((nodeId) => (
-          <ImageNode
+          <AssetImage
             key={nodeId}
             assetNodeId={nodeId}
             showCard={false}

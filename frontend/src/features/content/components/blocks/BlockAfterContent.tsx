@@ -25,7 +25,7 @@ import {
 } from '@/constants/systemProperties';
 import type { TaskStatus } from '@/hooks/useTaskActions';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
-import { ImageNode } from '@/features/content/components/nodes/ImageNode';
+import { AssetImage } from '@/features/content/components/nodes/AssetImage';
 import { QuerySection } from '@/features/content/components/nodes/QuerySection';
 import { QueryNodeCollection } from '@/features/content/components/nodes/QueryNodeCollection';
 import { useQueryBlock } from '@/hooks/useQueryBlock';
@@ -176,7 +176,7 @@ function AssetPreview({ node }: { node: Node }): JSX.Element | null {
 
   return (
     <div className="block-after-content__asset">
-      <ImageNode
+      <AssetImage
         assetNodeId={node.id}
         showCard={false}
         elevation="none"

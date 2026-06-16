@@ -1,5 +1,5 @@
 /**
- * ImageNode Component
+ * AssetImage Component
  * 
  * A reusable component for displaying image assets within Card containers.
  * Used for banner images, cover images, and asset blocks to provide consistent
@@ -17,9 +17,9 @@ import { Button } from '@/components/ui/Button';
 import { ImageModal } from '@/components/ui/ImageModal';
 import { FloatingButtonArray } from '@/components/ui/FloatingButtonArray';
 import { Bullet } from '@/features/content/components/blocks/Bullet';
-import './ImageNode.css';
+import './AssetImage.css';
 
-interface ImageNodeProps {
+interface AssetImageProps {
   /** Asset node ID */
   assetNodeId: number | null;
   /** Alt text for the image */
@@ -50,11 +50,13 @@ interface ImageNodeProps {
   isDragging?: boolean;
   /** Loading placeholder component */
   loadingPlaceholder?: React.ReactNode;
+  /** Placeholder rendered when no image is set */
+  emptyPlaceholder?: React.ReactNode;
   /** Whether to show bullet in modal */
   showModalBullet?: boolean;
 }
 
-export function ImageNode({
+export function AssetImage({
   assetNodeId,
   alt = 'Image',
   className = '',
@@ -70,8 +72,9 @@ export function ImageNode({
   onClick,
   isDragging = false,
   loadingPlaceholder,
+  emptyPlaceholder,
   showModalBullet = true,
-}: ImageNodeProps) {
+}: AssetImageProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [hasError, setHasError] = useState(false);
@@ -138,13 +141,13 @@ export function ImageNode({
   // Loading state
   if (assetNodeId && isLoading) {
     return loadingPlaceholder || (
-      <div className={`image-node image-node--loading ${className}`}>
+      <div className={`asset-image asset-image--loading ${className}`}>
         {showCard ? (
           <Card padding={false} radius={radius} elevation={elevation}>
-            <div className="image-node__placeholder" />
+            <div className="asset-image__placeholder" />
           </Card>
         ) : (
-          <div className="image-node__placeholder" />
+          <div className="asset-image__placeholder" />
         )}
       </div>
     );
@@ -152,7 +155,17 @@ export function ImageNode({
 
   // No image
   if (!assetNodeId || !imageUrl || hasError) {
-    return null;
+    return (
+      <div className={`asset-image asset-image--empty ${className}`}>
+        {showCard ? (
+          <Card padding={false} radius={radius} elevation={elevation}>
+            {emptyPlaceholder || <div className="asset-image__placeholder" />}
+          </Card>
+        ) : (
+          emptyPlaceholder || <div className="asset-image__placeholder" />
+        )}
+      </div>
+    );
   }
 
   // Render image content
@@ -162,7 +175,7 @@ export function ImageNode({
       src={imageUrl}
       alt={alt}
       loading="lazy"
-      className="image-node__img"
+      className="asset-image__img"
       onError={handleImageError}
       style={{
         pointerEvents: isDragging ? 'none' : 'auto'
@@ -175,7 +188,7 @@ export function ImageNode({
   const imageContent = clickable ? (
     <button
       type="button"
-      className="image-node__button"
+      className="asset-image__button"
       onClick={handleImageClick}
       title="Click to view full size"
     >
@@ -213,11 +226,11 @@ export function ImageNode({
 
   return (
     <>
-      <div className={`image-node ${className}`}>
+      <div className={`asset-image ${className}`}>
         {/* Action buttons */}
         {showActions && actionButtons && (
           <FloatingButtonArray
-            className="image-node__actions"
+            className="asset-image__actions"
             direction={actionsDirection}
             size="sm"
           >
@@ -261,4 +274,3 @@ export function ImageNode({
     </>
   );
 }
-
