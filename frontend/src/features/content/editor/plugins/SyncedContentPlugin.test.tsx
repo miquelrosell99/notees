@@ -10,7 +10,7 @@ import { RichTextPlugin } from '@lexical/react/LexicalRichTextPlugin';
 import { ContentEditable } from '@lexical/react/LexicalContentEditable';
 import { LexicalErrorBoundary } from '@lexical/react/LexicalErrorBoundary';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
-import { ParagraphNode, TextNode, $getRoot, type ElementNode } from 'lexical';
+import { ParagraphNode, TextNode, $getRoot, $createTextNode, type ElementNode } from 'lexical';
 import { notesEditorTheme } from '../theme';
 import { InlineLinkNode } from '../nodes/InlineLinkNode';
 import { MathNode } from '../nodes/MathNode';
@@ -31,6 +31,7 @@ interface TestEditorHandle {
   getContent: () => string;
   focus: () => void;
   blur: () => void;
+  insertText: (text: string) => void;
 }
 
 interface TestEditorProps {
@@ -67,6 +68,15 @@ const TestEditorInner = forwardRef<TestEditorHandle, TestEditorProps>(function T
     },
     blur: () => {
       editor.getRootElement()?.blur();
+    },
+    insertText: (text: string) => {
+      editor.update(() => {
+        const root = $getRoot();
+        const paragraph = root.getFirstChild();
+        if (!paragraph) return;
+        const textNode = $createTextNode(text);
+        (paragraph as ElementNode).append(textNode);
+      });
     },
   }));
 
@@ -127,6 +137,36 @@ describe('SyncedContentPlugin', () => {
       ref.current!.blur();
     });
 
+    await waitFor(() => {
+      expect(ref.current!.getContent()).toBe(JSON.stringify(astB));
+    });
+  });
+
+  it('does not overwrite local edits on blur when the prop has not changed', async () => {
+    const ref = createRef<TestEditorHandle>();
+    const { rerender } = render(<TestEditor ref={ref} contentAST={astA} />);
+
+    await waitFor(() => expect(ref.current).not.toBeNull());
+    act(() => {
+      ref.current!.focus();
+    });
+
+    // Simulate typing a trigger character while focused.
+    act(() => {
+      ref.current!.insertText('@');
+    });
+
+    // Blurring should not clobber the locally-typed character because the
+    // external prop has not changed.
+    act(() => {
+      ref.current!.blur();
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(ref.current!.getContent()).toBe(JSON.stringify([{ type: 'paragraph', children: [{ type: 'text', text: 'hello@' }] }]));
+
+    // Once the prop does change, the blur-sync should apply it.
+    rerender(<TestEditor ref={ref} contentAST={astB} />);
     await waitFor(() => {
       expect(ref.current!.getContent()).toBe(JSON.stringify(astB));
     });

@@ -11,7 +11,7 @@
  * - When the editor loses focus, re-evaluate and apply any pending prop change.
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
 import { $getRoot, $createParagraphNode, type ElementNode } from 'lexical';
 import { populateInlineContent, extractInlineContent } from '../inlineContentPopulation';
@@ -31,6 +31,11 @@ function isEditorFocused(editor: ReturnType<typeof useLexicalComposerContext>[0]
 export function SyncedContentPlugin({ contentAST }: SyncedContentPluginProps): null {
   const [editor] = useLexicalComposerContext();
   const [isFocused, setIsFocused] = useState(() => isEditorFocused(editor));
+  // Track the last prop value we actually wrote into the editor. This lets us
+  // distinguish "the prop changed externally" from "the editor has local edits
+  // that haven't propagated back to the prop yet" (e.g. a trigger char typed
+  // right before a popup blurs the editor).
+  const lastAppliedPropRef = useRef<string | null>(null);
 
   // Subscribe to focus changes on the editor root so that losing focus can
   // trigger a re-sync with the latest prop.
@@ -56,6 +61,14 @@ export function SyncedContentPlugin({ contentAST }: SyncedContentPluginProps): n
   useEffect(() => {
     if (isFocused) return;
 
+    // If the prop hasn't changed since the last time we applied it, don't
+    // overwrite whatever is currently in the editor. This prevents popups that
+    // steal focus (trigger menus, pickers) from clobbering a freshly-typed
+    // character before the debounced save has propagated to the prop.
+    if (lastAppliedPropRef.current !== null && serializedProp === lastAppliedPropRef.current) {
+      return;
+    }
+
     const currentSerialized = editor.getEditorState().read(() => {
       const root = $getRoot();
       const paragraph = root.getFirstChild();
@@ -63,15 +76,24 @@ export function SyncedContentPlugin({ contentAST }: SyncedContentPluginProps): n
       return serializeContentAST(extractInlineContent(paragraph as ElementNode));
     });
 
-    if (serializedProp === currentSerialized) return;
+    if (serializedProp === currentSerialized) {
+      // Already in sync; record the prop so future changes are detected.
+      lastAppliedPropRef.current = serializedProp;
+      return;
+    }
 
-    editor.update(() => {
-      const root = $getRoot();
-      root.clear();
-      const paragraph = $createParagraphNode();
-      populateInlineContent(paragraph, contentAST);
-      root.append(paragraph);
-    });
+    editor.update(
+      () => {
+        const root = $getRoot();
+        root.clear();
+        const paragraph = $createParagraphNode();
+        populateInlineContent(paragraph, contentAST);
+        root.append(paragraph);
+      },
+      { tag: 'synced-content' },
+    );
+
+    lastAppliedPropRef.current = serializedProp;
   }, [editor, serializedProp, contentAST, isFocused]);
 
   return null;

@@ -11,6 +11,7 @@ import { BlockUI } from './BlockUI';
 import { BlockAfterContent } from './BlockAfterContent';
 import { BulletLine } from './BulletLine';
 import { useEditorFocusStore } from '@/stores/editorFocusStore';
+import { liveSyncManager } from '@/collab/LiveSyncManager';
 import { parseAST, parseLinkId } from '@/lib/astBuilder';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 import { NodeContextMenu } from '@/features/content/components/nodes/NodeContextMenu';
@@ -141,6 +142,12 @@ export const BlockRow = memo(
     const typingUsers = useLivePresenceStore(
       useShallow((s) => (nodeUuid ? s.getTypingUsersOnBlock(nodeUuid, node.uuid).filter((u) => u.id !== currentUserId) : [])),
     );
+    const isQueued = useLivePresenceStore(
+      (s) => (nodeUuid ? s.isQueued(nodeUuid, node.uuid) : false),
+    );
+    const conflict = useLivePresenceStore(
+      (s) => (nodeUuid ? s.getConflict(nodeUuid, node.uuid) : undefined),
+    );
 
     // Lazy-mount editor based on viewport visibility to reduce DOM weight
     const [isInViewport, setIsInViewport] = useState(true);
@@ -262,6 +269,18 @@ export const BlockRow = memo(
         pasteBlocksAfterBlock(copiedBlocks, node.uuid);
       }
     }, [node.uuid]);
+
+    const handleRequestLock = useCallback(() => {
+      if (!nodeUuid) return;
+      liveSyncManager.sendRequestLock(node.uuid);
+      useLivePresenceStore.getState().setQueued(nodeUuid, node.uuid, true);
+    }, [node.uuid, nodeUuid]);
+
+    const handleResolveConflict = useCallback(() => {
+      if (!nodeUuid) return;
+      useLivePresenceStore.getState().setConflict(nodeUuid, node.uuid, null);
+      liveSyncManager.sendFocus(node.uuid);
+    }, [node.uuid, nodeUuid]);
 
     const plainTextFallback = useMemo(() => nodeNameToText(node.name), [node.name]);
     const classDetails = useResolvedClassDetails(node.classes, { skipNodesFallback: true });
@@ -428,6 +447,10 @@ export const BlockRow = memo(
             lockedBy={lockedBy}
             presenceUsers={presenceUsers}
             typingUsers={typingUsers}
+            isQueued={isQueued}
+            conflict={conflict}
+            onRequestLock={nodeUuid ? handleRequestLock : undefined}
+            onResolveConflict={nodeUuid ? handleResolveConflict : undefined}
           />
           {propertyIcons.afterBullet.length > 0 && (
             <div className="block-property-icons">

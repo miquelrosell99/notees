@@ -8,6 +8,7 @@
 import { useCallback } from 'react';
 import { Bullet } from './Bullet';
 import { Icon } from '@/components/ui/icons';
+import { Button } from '@/components/ui/Button';
 import type { Node } from '@/types/api';
 import type { JSX } from 'react';
 import type { PresenceUser } from '@/stores/livePresenceStore';
@@ -37,6 +38,14 @@ interface BlockUIProps {
   presenceUsers?: PresenceUser[];
   /** Remote users currently typing in this block (ephemeral). */
   typingUsers?: PresenceUser[];
+  /** True when the local user is queued for this block's lock. */
+  isQueued?: boolean;
+  /** Active conflict info for the local user on this block. */
+  conflict?: { reason: string; user?: PresenceUser } | null;
+  /** Request to be added to the lock wait queue. */
+  onRequestLock?: () => void;
+  /** Dismiss the conflict banner and refresh the block. */
+  onResolveConflict?: () => void;
 }
 
 export function BlockUI({
@@ -54,6 +63,10 @@ export function BlockUI({
   lockedBy,
   presenceUsers,
   typingUsers,
+  isQueued,
+  conflict,
+  onRequestLock,
+  onResolveConflict,
 }: BlockUIProps): JSX.Element {
   const handleClick = () => {
     onNavigate?.(node.uuid);
@@ -72,9 +85,13 @@ export function BlockUI({
 
   const hasChildren = hasChildrenOverride ?? (node.has_children ?? false);
   const collapsed = collapsedProp ?? node.collapsed ?? false;
+  const ownerColor = lockedBy?.[0]?.color;
 
   return (
-    <div className="block-ui">
+    <div
+      className="block-ui"
+      style={ownerColor ? { borderLeft: `2px solid ${ownerColor}`, paddingLeft: 4 } : undefined}
+    >
       {hasChildren && onCollapseToggle && (
         <button
           className={`block-collapse-arrow ${(isActivePath && depth > 0) ? 'block-collapse-arrow--thread-overlap' : ''}`}
@@ -133,6 +150,37 @@ export function BlockUI({
               style={{ backgroundColor: u.color || 'var(--color-on-surface-variant)' }}
             />
           ))}
+        </div>
+      )}
+      {isQueued && (
+        <div className="block-ui__queue" title="Waiting to edit">
+          <Icon path="mdi mdi-timer-sand" size={0.7} color="var(--color-outline)" />
+        </div>
+      )}
+      {lockedBy && lockedBy.length > 0 && onRequestLock && !isQueued && (
+        <button
+          type="button"
+          className="block-ui__request-button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onRequestLock();
+          }}
+          title="Request to edit"
+          aria-label="Request to edit"
+        >
+          <Icon path="mdi mdi-pencil-lock" size={0.7} color="var(--color-outline)" />
+        </button>
+      )}
+      {conflict && onResolveConflict && (
+        <div className="block-ui__conflict">
+          <span className="block-ui__conflict-text">
+            {conflict.reason === 'lock_expired'
+              ? 'Your lock expired.'
+              : 'This block was edited by someone else.'}
+          </span>
+          <Button variant="primary" size="sm" onClick={onResolveConflict}>
+            Refresh
+          </Button>
         </div>
       )}
     </div>
