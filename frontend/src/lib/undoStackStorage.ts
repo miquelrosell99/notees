@@ -8,7 +8,8 @@
 
 import { get, set } from 'idb-keyval';
 import type { MutationIntent, UndoEntry } from '@/runtime/types';
-import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
+import { getOperationRuntime } from '@/runtime';
+import { getUndoEngine } from '@/stores/undoEngine';
 
 const STORAGE_KEY = 'notees-undo-stacks';
 
@@ -47,7 +48,7 @@ function getAffectedBlockIds(intent: MutationIntent): string[] {
 }
 
 function entryIsRestorable(entry: UndoEntry): boolean {
-  const runtime = getNodeGraphRuntime();
+  const runtime = getOperationRuntime();
   const blockIds = new Set([
     ...getAffectedBlockIds(entry.forward),
     ...getAffectedBlockIds(entry.reverse),
@@ -76,12 +77,11 @@ export async function restoreUndoStacks(): Promise<void> {
   const stored = value as StoredStacks;
   if (!Array.isArray(stored.undo) || !Array.isArray(stored.redo)) return;
 
-  const runtime = getNodeGraphRuntime();
   const undo = stored.undo.filter(entryIsRestorable);
   const redo = stored.redo.filter(entryIsRestorable);
 
   if (undo.length > 0 || redo.length > 0) {
-    runtime.restoreUndoStacks(undo, redo);
+    getUndoEngine().restoreUndoStacks(undo, redo);
   }
 
   // Clear storage after restore so stale entries don't accumulate.
