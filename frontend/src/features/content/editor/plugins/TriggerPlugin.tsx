@@ -96,8 +96,12 @@ export function TriggerPlugin({
         // Don't intercept while popup is already open
         if (popupOpenRef.current) return false;
 
-        // Only unmodified trigger keys
-        if (event.ctrlKey || event.metaKey || event.altKey) return false;
+        // Only unmodified trigger keys. Allow Alt/AltGraph because many
+        // keyboard layouts (Mac Option, European AltGr) use them to type
+        // trigger characters such as @ and #.
+        const isAltGraph = event.getModifierState('AltGraph');
+        if (event.metaKey) return false;
+        if (event.ctrlKey && !isAltGraph) return false;
 
         const key = event.key;
         if (!['+', '@', '#', '/'].includes(key)) return false;
@@ -269,12 +273,16 @@ export function TriggerPlugin({
     );
   }, [editor, blockIdProp]);
 
-  // ─── Track popup state in InputContext ───────────────────────
+  // ─── Track popup state in InputContext / EditorFocusStore ─────
 
   useEffect(() => {
     if (popup) {
       useInputContext.getState().enterPopup();
-      return () => useInputContext.getState().leavePopup();
+      useEditorFocusStore.getState().openPopup();
+      return () => {
+        useInputContext.getState().leavePopup();
+        useEditorFocusStore.getState().closePopup();
+      };
     }
   }, [popup]);
 

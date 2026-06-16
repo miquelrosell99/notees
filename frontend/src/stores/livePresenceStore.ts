@@ -19,6 +19,19 @@ interface PageLocks {
   [blockUuid: string]: PresenceUser | undefined;
 }
 
+interface PageQueue {
+  [blockUuid: string]: boolean | undefined;
+}
+
+interface ConflictInfo {
+  reason: string;
+  user?: PresenceUser;
+}
+
+interface PageConflicts {
+  [blockUuid: string]: ConflictInfo | undefined;
+}
+
 interface TypingEntry {
   user: PresenceUser;
   expiresAt: number;
@@ -35,6 +48,10 @@ interface LivePresenceState {
   locks: Record<string, PageLocks>;
   /** nodeUuid -> blockUuid -> users currently typing */
   typing: Record<string, PageTyping>;
+  /** nodeUuid -> blockUuid -> local user is waiting for the lock */
+  queues: Record<string, PageQueue>;
+  /** nodeUuid -> blockUuid -> active conflict info for the local user */
+  conflicts: Record<string, PageConflicts>;
   /** The block uuid that the LOCAL user is currently focused on */
   localFocus: Record<string, string | null>;
 
@@ -52,6 +69,12 @@ interface LivePresenceState {
   setUserTyping(nodeUuid: string, blockUuid: string, user: PresenceUser, ttlMs?: number): void;
   clearUserTyping(nodeUuid: string, blockUuid: string, userId: number): void;
   getTypingUsersOnBlock(nodeUuid: string, blockUuid: string): PresenceUser[];
+
+  setQueued(nodeUuid: string, blockUuid: string, queued: boolean): void;
+  isQueued(nodeUuid: string, blockUuid: string): boolean;
+
+  setConflict(nodeUuid: string, blockUuid: string, info: ConflictInfo | null): void;
+  getConflict(nodeUuid: string, blockUuid: string): ConflictInfo | undefined;
 }
 
 const EMPTY_USERS: PresenceUser[] = [];
@@ -60,6 +83,8 @@ export const useLivePresenceStore = create<LivePresenceState>((set, get) => ({
   presence: {},
   locks: {},
   typing: {},
+  queues: {},
+  conflicts: {},
   localFocus: {},
 
   setUserFocus(nodeUuid, blockUuid, user) {
@@ -206,5 +231,43 @@ export const useLivePresenceStore = create<LivePresenceState>((set, get) => ({
     const active = entries.filter((e) => e.expiresAt > now);
     if (active.length === 0) return EMPTY_USERS;
     return active.map((e) => e.user);
+  },
+
+  setQueued(nodeUuid, blockUuid, queued) {
+    set((state) => {
+      const page = state.queues[nodeUuid] ?? {};
+      const nextPage = { ...page };
+      if (queued) {
+        nextPage[blockUuid] = true;
+      } else {
+        delete nextPage[blockUuid];
+      }
+      return {
+        queues: { ...state.queues, [nodeUuid]: nextPage },
+      };
+    });
+  },
+
+  isQueued(nodeUuid, blockUuid) {
+    return !!get().queues[nodeUuid]?.[blockUuid];
+  },
+
+  setConflict(nodeUuid, blockUuid, info) {
+    set((state) => {
+      const page = state.conflicts[nodeUuid] ?? {};
+      const nextPage = { ...page };
+      if (info) {
+        nextPage[blockUuid] = info;
+      } else {
+        delete nextPage[blockUuid];
+      }
+      return {
+        conflicts: { ...state.conflicts, [nodeUuid]: nextPage },
+      };
+    });
+  },
+
+  getConflict(nodeUuid, blockUuid) {
+    return get().conflicts[nodeUuid]?.[blockUuid];
   },
 }));
