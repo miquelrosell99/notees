@@ -12,9 +12,11 @@ import { Spinner } from '@/components/ui/Spinner';
 import type { WhiteboardCardElement } from '@/types/whiteboard';
 import { useNode } from '@/hooks/useNodes';
 import { NodeCard } from './KanbanCard';
-import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
+
 import { apiNodesToGraphNodes } from '@/hooks/useRuntimeSync';
 import type { Node } from '@/types/api';
+import { upsertNodes } from '@/runtime/eventBus';
+
 
 interface Props {
   element: WhiteboardCardElement;
@@ -26,7 +28,7 @@ interface Props {
 const WhiteboardNodeCard: React.FC<{ nodeId: number; element: WhiteboardCardElement; zoom: number }> = ({ nodeId, element, zoom }) => {
   const { data: node } = useNode(nodeId, { include_children: true });
 
-  // Sync node + children into the NodeGraphRuntime so BlockEditor can find their content.
+  // Sync node + children into OperationRuntime so BlockEditor can find their content.
   // Mirrors the same useMemo pattern used by CardView.
   useMemo(() => {
     if (!node) return;
@@ -38,9 +40,8 @@ const WhiteboardNodeCard: React.FC<{ nodeId: number; element: WhiteboardCardElem
       }
     };
     collect(node);
-    const runtime = getNodeGraphRuntime();
     const { graphNodes } = apiNodesToGraphNodes(allNodes);
-    runtime.upsertNodes(graphNodes);
+    upsertNodes(graphNodes);
   }, [node]);
 
   // Stop pointer events from reaching the whiteboard canvas ONLY when the
