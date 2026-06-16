@@ -27,9 +27,18 @@ import {
 } from 'lexical';
 import { $createInlineLinkNode } from '@/features/content/editor/nodes/InlineLinkNode';
 import { TriggerPopup, type TriggerPopupType } from './TriggerPopup';
-import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
 import { useInputContext } from '@/stores/inputContext';
 import type { Node } from '@/types/api';
+import { getOperationRuntime } from '@/runtime';
+import { getNode } from '@/runtime/graphHelpers';
+import { getRuntimeEventBus } from '@/runtime/eventBus';
+import { getUndoEngine } from '@/stores/undoEngine';
+import type { MutationIntent } from '@/runtime/types';
+import { useEditorFocusStore } from '@/stores/editorFocusStore';
+
+function applyRuntimeIntent(intent: MutationIntent): void {
+  getUndoEngine().applyIntent(intent, intent.type === 'update_content' ? { sourceEditorId: intent.sourceEditorId } : undefined);
+}
 
 // ─── Types ────────────────────────────────────────────────────────
 
@@ -143,8 +152,8 @@ export function TriggerPlugin({
               char: key,
             };
 
-            const runtime = getNodeGraphRuntime();
-            const graphNode = runtime.getNode(blockIdProp);
+            const runtime = getOperationRuntime();
+            const graphNode = getNode(runtime, blockIdProp);
             blockServerIdRef.current = graphNode?.serverId;
           }
         });
@@ -230,8 +239,8 @@ export function TriggerPlugin({
           char: insertedText,
         };
 
-        const runtime = getNodeGraphRuntime();
-        const graphNode = runtime.getNode(blockIdProp);
+        const runtime = getOperationRuntime();
+        const graphNode = getNode(runtime, blockIdProp);
         blockServerIdRef.current = graphNode?.serverId;
 
         let triggerType: TriggerPopupType;
@@ -393,13 +402,13 @@ export function TriggerPlugin({
         if (!node) return;
         if (!blockIdProp) return;
 
-        const runtime = getNodeGraphRuntime();
-        const hostNode = runtime.getNode(blockIdProp);
+        const runtime = getOperationRuntime();
+        const hostNode = getNode(runtime, blockIdProp);
         if (!hostNode?.parentId) return;
 
         const newBlockId = crypto.randomUUID();
-        runtime.requestFocus(newBlockId);
-        runtime.applyIntent({
+        useEditorFocusStore.getState().setPendingFocus(newBlockId);
+        applyRuntimeIntent({
           type: 'create_block',
           parentId: hostNode.parentId,
           afterBlockId: blockIdProp,
@@ -411,7 +420,7 @@ export function TriggerPlugin({
             },
           ],
         });
-        runtime.flushEvents();
+        getRuntimeEventBus().flushEvents();
       });
     },
     [editor, blockIdProp]

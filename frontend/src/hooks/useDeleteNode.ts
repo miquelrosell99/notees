@@ -8,7 +8,9 @@ import * as nodesApi from '@/api/nodes';
 import type { Node } from '@/types/api';
 import { nodeKeys } from './queryKeys';
 import { nodeViewKeys } from './useNodeViews';
-import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
+import { getOperationRuntime } from '@/runtime';
+import { getNodeByServerId, getDescendants } from '@/runtime/graphHelpers';
+import { removeNodes } from '@/runtime/eventBus';
 import { removeFavorite, isFavorite } from './useFavorites';
 import { removeRecent } from './useRecents';
 import { useNavigationStore } from '@/stores/navigationStore';
@@ -89,11 +91,11 @@ export function useDeleteNode() {
       removeNodeFromPropertyBacklinkCaches(queryClient, deletedId);
 
       // Immediately remove from runtime
-      const runtime = getNodeGraphRuntime();
-      const graphNode = runtime.getNodeByServerId(deletedId);
+      const runtime = getOperationRuntime();
+      const graphNode = getNodeByServerId(runtime, deletedId);
       if (graphNode) {
-        const descendants = runtime.getDescendants(graphNode.blockId);
-        runtime.removeNodes([
+        const descendants = getDescendants(runtime, graphNode.blockId);
+        removeNodes([
           graphNode.blockId,
           ...descendants.map(d => d.blockId),
         ]);

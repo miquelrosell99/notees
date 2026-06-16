@@ -3,7 +3,8 @@
  */
 
 import { type RefObject } from 'react';
-import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
+import { getOperationRuntime } from '@/runtime';
+import { getSiblings } from '@/runtime/graphHelpers';
 
 // ─── Types ────────────────────────────────────────────────────────
 
@@ -116,8 +117,8 @@ export function updateSelectionOverlay(rootEl: HTMLElement, selectedEls: HTMLEle
 }
 
 export function getSiblingIds(blockId: string): string[] {
-  const runtime = getNodeGraphRuntime();
-  return runtime.getSiblings(blockId).map((s) => s.blockId);
+  const runtime = getOperationRuntime();
+  return getSiblings(runtime, blockId).map((s) => s.blockId);
 }
 
 // ─── Hook ─────────────────────────────────────────────────────────

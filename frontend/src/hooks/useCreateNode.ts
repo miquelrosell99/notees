@@ -17,7 +17,12 @@ import * as nodesApi from '@/api/nodes';
 import type { NodeCreate, Node } from '@/types/api';
 import { nodeKeys } from './queryKeys';
 import { nodeViewKeys } from './useNodeViews';
-import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
+import { getOperationRuntime } from '@/runtime';
+import { getNodeByServerId } from '@/runtime/graphHelpers';
+import { removeNodes } from '@/runtime/eventBus';
+import { setServerId, remapBlockId } from '@/runtime/serverIdMap';
+import { getUndoEngine } from '@/stores/undoEngine';
+import { getRuntimeEventBus } from '@/runtime/eventBus';
 import { invalidateNodeCaches } from './useNodeMutations.utils';
 import { insertChildIntoTreeCaches } from './cacheUtils';
 import { inFlightBlocks } from './useBlockPersist.utils';
@@ -33,10 +38,10 @@ export function useCreateNode() {
       }
 
       const parentId = variables.parent_id;
-      const runtime = getNodeGraphRuntime();
+      const runtime = getOperationRuntime();
 
       // Look up parent's UUID in the runtime
-      const parentGraphNode = runtime.getNodeByServerId(parentId);
+      const parentGraphNode = getNodeByServerId(runtime, parentId);
       const parentUuid = parentGraphNode?.blockId;
       if (!parentUuid) {
         // Parent not in runtime — fall back to direct API without optimistic state
@@ -53,27 +58,27 @@ export function useCreateNode() {
       const contentAST = variables.name
         ? [{ type: 'paragraph' as const, children: [{ type: 'text' as const, text: variables.name }] }]
         : [{ type: 'paragraph' as const, children: [{ type: 'text' as const, text: '' }] }];
-      const undoEntry = runtime.applyIntent({
+      getUndoEngine().applyIntent({
         type: 'create_block',
         parentId: parentUuid,
         afterBlockId: null,
         blockId,
         contentAST,
       });
-      runtime.flushEvents();
+      getRuntimeEventBus().flushEvents();
 
-      // Find the mutationKey that applyIntent generated
-      const pending = runtime.getPendingIntentsForBlock(blockId);
-      const mutationKey = pending.find(p => p.intent.type === 'create_block')?.mutationKey ?? null;
-      if (mutationKey) {
-        runtime.markMutationInFlight(mutationKey);
-      }
+      // Capture the create operation id so we can acknowledge it after the
+      // direct API call succeeds. This prevents SyncManager from dispatching
+      // the same create a second time.
+      const operationId = getOperationRuntime()
+        .getOperationsForBlock(blockId)
+        .find((op) => op.type === 'create')?.id;
       inFlightBlocks.add(blockId);
 
-      return { optimisticNode: null, runtimeBlockId: blockId, mutationKey, undoEntry };
+      return { optimisticNode: null, runtimeBlockId: blockId, operationId };
     },
     onSuccess: (newNode, variables, context) => {
-      const { runtimeBlockId, mutationKey } = context || {};
+      const { runtimeBlockId, operationId } = context || {};
 
       if (runtimeBlockId) {
         inFlightBlocks.delete(runtimeBlockId);
@@ -85,11 +90,15 @@ export function useCreateNode() {
         () => newNode
       );
 
-      if (variables.parent_id && runtimeBlockId && mutationKey) {
-        const runtime = getNodeGraphRuntime();
-        runtime.setServerId(runtimeBlockId, newNode.id);
-        runtime.remapBlockId(runtimeBlockId, newNode.uuid);
-        runtime.consumePendingIntents(mutationKey);
+      if (variables.parent_id && runtimeBlockId) {
+        const runtime = getOperationRuntime();
+        setServerId(runtime, runtimeBlockId, newNode.id);
+        remapBlockId(runtimeBlockId, newNode.uuid);
+        // Acknowledge the runtime create operation so SyncManager does not
+        // dispatch a duplicate create request.
+        if (operationId) {
+          getOperationRuntime().acknowledgeOperation(operationId);
+        }
       } else if (variables.parent_id) {
         // No runtime optimistic state — insert into caches directly
         insertChildIntoTreeCaches(queryClient, variables.parent_id, newNode);
@@ -127,19 +136,15 @@ export function useCreateNode() {
       }
     },
     onError: (_error, variables, context) => {
-      const { runtimeBlockId, mutationKey } = context || {};
+      const { runtimeBlockId } = context || {};
 
       if (runtimeBlockId) {
         inFlightBlocks.delete(runtimeBlockId);
       }
 
       if (variables.parent_id && runtimeBlockId) {
-        const runtime = getNodeGraphRuntime();
-        if (mutationKey) {
-          runtime.unmarkMutationInFlight(mutationKey);
-        }
         // Roll back the optimistic block from the runtime
-        runtime.removeNodes([runtimeBlockId]);
+        removeNodes([runtimeBlockId]);
       }
     },
   });

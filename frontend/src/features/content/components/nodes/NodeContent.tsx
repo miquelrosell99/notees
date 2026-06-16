@@ -14,10 +14,8 @@
  */
 import { useRef, useCallback, useState, useMemo } from 'react';
 import { useContentSave, useNodeNavigation, useAddClass, useRemoveClass, useClasses, useUpdateNode, useSetNodeProperty, useProperties } from '@/hooks';
-
-import { useBlockPersist } from '@/hooks/useBlockPersist';
 import { useLazyChildren } from '@/hooks/useLazyChildren';
-import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
+
 import type { Node } from '@/types';
 // GraphNode type no longer needed here — projection moved to useBlockTree
 import type { NodeCollectionViewMode } from '@/types/nodeCollection';
@@ -31,6 +29,10 @@ import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from '@/constants/systemPro
 import { TableCreationModal, type TableGridSize } from '@/components/ui/TableCreationModal';
 
 import './NodeContent.css';
+import { getOperationRuntime } from '@/runtime';
+import { getAllNodes } from '@/runtime/graphHelpers';
+import { upsertNodes } from '@/runtime/eventBus';
+
 
 interface NodeContentProps {
   /** The parent node whose children to display */
@@ -107,13 +109,13 @@ export function NodeContent({
   const handleAddClass = useCallback((blockId: number, classId: number) => {
     // Optimistically update the runtime so the block's color/icon change
     // immediately, without waiting for the API round-trip + cache sync.
-    const runtime = getNodeGraphRuntime();
-    const graphNode = runtime.getAllNodes().find(n => n.serverId === blockId);
+    const runtime = getOperationRuntime();
+    const graphNode = getAllNodes(runtime).find(n => n.serverId === blockId);
     if (graphNode && allClasses) {
       const classStrId = String(classId);
       if (!graphNode.classIds.includes(classStrId)) {
         const classNode = allClasses.find(c => c.id === classId);
-        runtime.upsertNodes([{
+        upsertNodes([{
           ...graphNode,
           classIds: [...graphNode.classIds, classStrId],
           icon: classNode?.icon ?? graphNode.icon,
@@ -157,14 +159,14 @@ export function NodeContent({
   const handleTemplateInstantiate = useCallback(async (templateNodeId: number, blockServerId: number | undefined) => {
     try {
       const { instantiateTemplate } = await import('@/api/nodes');
-      const { getNodeGraphRuntime } = await import('@/runtime/NodeGraphRuntime');
-      const runtime = getNodeGraphRuntime();
+
+      const runtime = getOperationRuntime();
 
       // Insert template children as children of the block where /template was typed
       const parentId = blockServerId ?? node.id;
       let parentUuid = node.uuid;
       if (blockServerId != null) {
-        const allRuntimeNodes = runtime.getAllNodes();
+        const allRuntimeNodes = getAllNodes(runtime);
         const blockNode = allRuntimeNodes.find(n => n.serverId === blockServerId);
         if (blockNode) {
           parentUuid = blockNode.blockId;
@@ -178,7 +180,7 @@ export function NodeContent({
       if (result.blocks.length > 0) {
         const { apiNodesToGraphNodes } = await import('@/hooks/useRuntimeSync');
         const { graphNodes } = apiNodesToGraphNodes(result.blocks, parentId, parentUuid);
-        runtime.upsertNodes(graphNodes);
+        upsertNodes(graphNodes);
 
         // Optimistically update the TanStack query cache so that BlockEditor's
         // stale-cleanup sees the new blocks in the `nodes` prop immediately,
@@ -327,10 +329,6 @@ export function NodeContent({
         break;
     }
   }, [systemClassMap, addClass, node.id, allProperties, setNodeProperty]);
-
-  // Ensure blocks created via the Add Block button get persisted even when
-  // no BlockEditor (which normally hosts useBlockPersist) is mounted yet.
-  useBlockPersist();
 
   // Handle table creation from modal — new table with selected dimensions
   const handleTableConfirm = useCallback(async (size: TableGridSize) => {

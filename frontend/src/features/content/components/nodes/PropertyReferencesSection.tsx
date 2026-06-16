@@ -14,7 +14,8 @@ import { useMemo, useCallback } from 'react';
 import type { Node, LinkedReference } from '@/types';
 import { BlockList } from '@/features/content/components/blocks/BlockList';
 import { useSettingsStore } from '@/stores';
-import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
+import { getOperationRuntime } from '@/runtime';
+import { getNode } from '@/runtime/graphHelpers';
 import { useContentSave } from '@/hooks';
 import { NodeBreadcrumbs } from './NodeBreadcrumbs';
 import './PropertyReferencesSection.css';
@@ -150,8 +151,8 @@ export function PropertyReferencesSection({
 
   // Handle shift-click (open in sidebar)
   const handleOpenInSidebar = useCallback((blockId: string) => {
-    const runtime = getNodeGraphRuntime();
-    const graphNode = runtime.getNode(blockId);
+    const runtime = getOperationRuntime();
+    const graphNode = getNode(runtime, blockId);
     if (graphNode?.serverId) {
       const targetNode = allNodes.find(n => n.id === graphNode.serverId);
       if (targetNode) {
@@ -170,8 +171,8 @@ export function PropertyReferencesSection({
 
   // Handle content changes (bridge from UUID to serverId for persistence)
   const handleContentChange = useCallback((blockId: string, content: string) => {
-    const runtime = getNodeGraphRuntime();
-    const graphNode = runtime.getNode(blockId);
+    const runtime = getOperationRuntime();
+    const graphNode = getNode(runtime, blockId);
     const serverId = graphNode?.serverId;
     if (serverId != null) {
       saveContent(serverId, content);

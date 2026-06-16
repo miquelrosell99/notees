@@ -3,7 +3,8 @@ import { type QueryClient } from '@tanstack/react-query';
 import * as undoApi from '@/api/undo';
 import type { UndoStackEntry } from '@/api/undo';
 import type { UndoEntry } from '@/runtime/types';
-import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
+import { getUndoEngine } from './undoEngine';
+import { awaitAllContentSaves } from '@/hooks/contentSaveTracker';
 import { nodeKeys, propertyKeys } from '@/hooks/queryKeys';
 import { useNotificationStore } from '@/stores/notificationStore';
 
@@ -69,7 +70,7 @@ export const useUndoStore = create<UndoState>()((set, get) => ({
   runtimeVersion: 0,
 
   refreshStack: async () => {
-    const runtime = getNodeGraphRuntime();
+    const engine = getUndoEngine();
     let backendStack: undoApi.UndoStack | null = null;
     try {
       backendStack = await undoApi.getUndoStack();
@@ -78,9 +79,9 @@ export const useUndoStore = create<UndoState>()((set, get) => ({
     }
 
     // Undo stack: newest first for display (reverse of internal storage)
-    const runtimeUndo = buildRuntimeEntries([...runtime.getUndoStack()].reverse());
+    const runtimeUndo = buildRuntimeEntries([...engine.getUndoStack()].reverse());
     // Redo stack: oldest first for display (same as internal storage)
-    const runtimeRedo = buildRuntimeEntries(runtime.getRedoStack());
+    const runtimeRedo = buildRuntimeEntries(engine.getRedoStack());
 
     const undoEntries: UnifiedUndoEntry[] = [
       ...runtimeUndo,
@@ -101,13 +102,13 @@ export const useUndoStore = create<UndoState>()((set, get) => ({
   },
 
   syncRuntimeState: () => {
-    const runtime = getNodeGraphRuntime();
+    const engine = getUndoEngine();
     // Preserve backend entries that are already in state
     const backendUndoEntries = get().undoEntries.filter(e => e.id > 0);
     const backendRedoEntries = get().redoEntries.filter(e => e.id > 0);
 
-    const runtimeUndo = buildRuntimeEntries([...runtime.getUndoStack()].reverse());
-    const runtimeRedo = buildRuntimeEntries(runtime.getRedoStack());
+    const runtimeUndo = buildRuntimeEntries([...engine.getUndoStack()].reverse());
+    const runtimeRedo = buildRuntimeEntries(engine.getRedoStack());
 
     const undoEntries: UnifiedUndoEntry[] = [...runtimeUndo, ...backendUndoEntries];
     const redoEntries: UnifiedUndoEntry[] = [...runtimeRedo, ...backendRedoEntries];
@@ -122,16 +123,16 @@ export const useUndoStore = create<UndoState>()((set, get) => ({
   },
 
   performUndo: async (queryClient: QueryClient) => {
-    const runtime = getNodeGraphRuntime();
+    const engine = getUndoEngine();
 
     try {
-      await runtime.flushPendingIntents();
+      await awaitAllContentSaves();
     } catch {
       // Proceed with undo even if flush times out; local state is still valid.
     }
 
     // 1. Try runtime first (local block operations are always more recent)
-    const localEntry = runtime.undo();
+    const localEntry = engine.undo();
     if (localEntry) {
       notifyUndo(runtimeEntryDescription(localEntry));
       await queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
@@ -152,10 +153,10 @@ export const useUndoStore = create<UndoState>()((set, get) => ({
   },
 
   performRedo: async (queryClient: QueryClient) => {
-    const runtime = getNodeGraphRuntime();
+    const engine = getUndoEngine();
 
     try {
-      await runtime.flushPendingIntents();
+      await awaitAllContentSaves();
     } catch {
       // Proceed even if flush times out.
     }
@@ -178,7 +179,7 @@ export const useUndoStore = create<UndoState>()((set, get) => ({
     }
 
     // 2. Fall back to runtime redo stack
-    const localEntry = runtime.redo();
+    const localEntry = engine.redo();
     if (localEntry) {
       notifyRedo(runtimeEntryDescription(localEntry));
       await queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
@@ -189,10 +190,10 @@ export const useUndoStore = create<UndoState>()((set, get) => ({
   },
 
   performUndoTo: async (queryClient: QueryClient, entryId: number) => {
-    const runtime = getNodeGraphRuntime();
+    const engine = getUndoEngine();
 
     try {
-      await runtime.flushPendingIntents();
+      await awaitAllContentSaves();
     } catch {
       // Proceed even if flush times out.
     }
@@ -202,7 +203,7 @@ export const useUndoStore = create<UndoState>()((set, get) => ({
       const steps = Math.abs(entryId);
       let lastDescription = '';
       for (let i = 0; i < steps; i++) {
-        const entry = runtime.undo();
+        const entry = engine.undo();
         if (entry) lastDescription = runtimeEntryDescription(entry);
       }
       if (lastDescription) notifyUndo(lastDescription);
@@ -228,10 +229,10 @@ export const useUndoStore = create<UndoState>()((set, get) => ({
   },
 
   performRedoTo: async (queryClient: QueryClient, entryId: number) => {
-    const runtime = getNodeGraphRuntime();
+    const engine = getUndoEngine();
 
     try {
-      await runtime.flushPendingIntents();
+      await awaitAllContentSaves();
     } catch {
       // Proceed even if flush times out.
     }
@@ -241,7 +242,7 @@ export const useUndoStore = create<UndoState>()((set, get) => ({
       const steps = Math.abs(entryId);
       let lastDescription = '';
       for (let i = 0; i < steps; i++) {
-        const entry = runtime.redo();
+        const entry = engine.redo();
         if (entry) lastDescription = runtimeEntryDescription(entry);
       }
       if (lastDescription) notifyRedo(lastDescription);
@@ -267,8 +268,8 @@ export const useUndoStore = create<UndoState>()((set, get) => ({
   },
 
   clearHistory: async () => {
-    const runtime = getNodeGraphRuntime();
-    runtime.clearUndoRedo();
+    const engine = getUndoEngine();
+    engine.clearUndoRedo();
     try {
       await undoApi.clearHistory();
       useNotificationStore.getState().success('History cleared', 'Undo/redo history has been cleared.');

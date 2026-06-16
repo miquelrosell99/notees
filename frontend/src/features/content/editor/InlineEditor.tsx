@@ -31,7 +31,6 @@ import {
   $getRoot,
   $getSelection,
   $isRangeSelection,
-  $createParagraphNode,
   $isTextNode,
   $isLineBreakNode,
   type LexicalEditor,
@@ -42,7 +41,7 @@ import './InlineEditor.css';
 import '@/styles/inline-link.css';
 import { InlineLinkNode, $isInlineLinkNode } from './nodes/InlineLinkNode';
 import { MathNode, $isMathNode } from './nodes/MathNode';
-import { populateInlineContent, extractInlineContent } from './inlineContentPopulation';
+import { extractInlineContent } from './inlineContentPopulation';
 import { serializeContentAST } from './editorConfig';
 import { useEditorFocusStore } from '@/stores/editorFocusStore';
 import { useInlineEditorRegistry } from '@/stores/inlineEditorRegistry';
@@ -55,6 +54,7 @@ import { InlineEditorKeysPlugin } from './plugins/InlineEditorKeysPlugin';
 import { FloatingToolbarPlugin } from './plugins/FloatingToolbarPlugin';
 import { InlineCopyPastePlugin } from './plugins/InlineCopyPastePlugin';
 import { EditablePlugin } from './plugins/EditablePlugin';
+import { SyncedContentPlugin } from './plugins/SyncedContentPlugin';
 import type { ContentAST } from '@/runtime/types';
 import type { EditorState } from 'lexical';
 
@@ -140,6 +140,9 @@ export const InlineEditor = memo(
     const focusBlock = useEditorFocusStore((s) => s.focusBlock);
     const blurBlock = useEditorFocusStore((s) => s.blurBlock);
 
+    // Stable Lexical configuration: content is hydrated imperatively by
+    // SyncedContentPlugin so that TanStack Query refetches never remount the
+    // composer and wipe focus / selection / undo state.
     const initialConfig = useMemo(
       () => ({
         namespace: `InlineEditor-${blockId}`,
@@ -149,15 +152,8 @@ export const InlineEditor = memo(
           console.error(`[InlineEditor ${blockId}] Lexical error:`, error);
         },
         editable: !readOnly,
-        editorState: () => {
-          const root = $getRoot();
-          root.clear();
-          const paragraph = $createParagraphNode();
-          populateInlineContent(paragraph, initialContentAST);
-          root.append(paragraph);
-        },
       }),
-      [blockId, readOnly, initialContentAST],
+      [blockId, readOnly],
     );
 
     // ─── Change handler ───────────────────────────────────────────
@@ -351,6 +347,7 @@ export const InlineEditor = memo(
       <LexicalComposer initialConfig={initialConfig}>
         <InlineEditorInner
           blockId={blockId}
+          initialContentAST={initialContentAST}
           readOnly={readOnly}
           placeholder={placeholder}
           onChange={handleChange}
@@ -380,6 +377,7 @@ export const InlineEditor = memo(
 
 interface InlineEditorInnerProps {
   blockId: string;
+  initialContentAST: ContentAST;
   readOnly: boolean;
   placeholder: string;
   onChange: (editorState: EditorState, editor: LexicalEditor) => void;
@@ -403,6 +401,7 @@ interface InlineEditorInnerProps {
 
 function InlineEditorInner({
   blockId,
+  initialContentAST,
   readOnly,
   placeholder,
   onChange,
@@ -440,6 +439,7 @@ function InlineEditorInner({
 
   return (
     <div className="inline-editor" data-block-id={blockId}>
+      <SyncedContentPlugin contentAST={initialContentAST} />
       <RichTextPlugin
         contentEditable={
           <ContentEditable

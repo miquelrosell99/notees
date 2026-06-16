@@ -28,7 +28,7 @@ import { useClasses, useLinkedReferences } from '@/hooks/useNodeQueries';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 
 import { useContentSave } from '@/hooks';
-import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
+
 import type { NodeView, NodeViewType } from '@/types/nodeView';
 import type { QueryAST, ValidationResult } from '@/types/queryAST';
 import { createEmptyQueryAST, countConditions, isEmptyQuery } from '@/types/queryAST';
@@ -47,6 +47,10 @@ import { useNavigationStore, useAppStore, useSettingsStore } from '@/stores';
 import './QueryNodeCollection.css';
 
 import { applyCollapseLevelToChildren, extractUuidsFromAST } from './QueryNodeCollection/helpers';
+import { getOperationRuntime } from '@/runtime';
+import { getAllNodes } from '@/runtime/graphHelpers';
+import { upsertNodes } from '@/runtime/eventBus';
+
 
 // ==================== Types ====================
 
@@ -249,12 +253,12 @@ export function QueryNodeCollection({
   const addClass = useAddClass();
   const handleAddClass = useCallback((blockId: number, classId: number) => {
     // Optimistically update the runtime for immediate visual feedback
-    const runtime = getNodeGraphRuntime();
-    const graphNode = runtime.getAllNodes().find(n => n.serverId === blockId);
+    const runtime = getOperationRuntime();
+    const graphNode = getAllNodes(runtime).find(n => n.serverId === blockId);
     if (graphNode) {
       const classStrId = String(classId);
       if (!graphNode.classIds.includes(classStrId)) {
-        runtime.upsertNodes([{
+        upsertNodes([{
           ...graphNode,
           classIds: [...graphNode.classIds, classStrId],
         }]);

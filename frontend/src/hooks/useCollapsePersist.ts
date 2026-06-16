@@ -12,7 +12,7 @@
  */
 import { useEffect, useRef } from 'react';
 import { updateNode as updateNodeApi } from '@/api/nodes';
-import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
+import { getRuntimeEventBus } from '@/runtime/eventBus';
 
 // ─── Singleton state ──────────────────────────────────────────────
 
@@ -66,9 +66,7 @@ export function useCollapsePersist(options: UseCollapsePersistOptions = {}): voi
     }
     if (activeInstanceId !== instanceId) return;
 
-    const runtime = getNodeGraphRuntime();
-
-    const unsubscribe = runtime.subscribe((event) => {
+    const unsubscribe = getRuntimeEventBus().subscribe((event) => {
       if (event.type !== 'collapse_changed') return;
       if (event.serverId == null) return; // Not persisted yet, skip
 

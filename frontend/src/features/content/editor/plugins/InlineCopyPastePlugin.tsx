@@ -19,7 +19,6 @@ import {
   $isTextNode,
 } from 'lexical';
 
-import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
 import { generateUUID } from '@/utils/uuid';
 import {
   copyToClipboard,
@@ -30,6 +29,16 @@ import type { ASTDocument, ASTParagraph, ASTInlineNode } from '@/types/ast';
 import { useClipboardStore } from '@/stores/clipboardStore';
 import { paragraph, text as astText, buildLinkId, nodeLink } from '@/lib/astBuilder';
 import { serializeContentAST } from '@/features/content/editor/editorConfig';
+import { getOperationRuntime } from '@/runtime';
+import { getNode } from '@/runtime/graphHelpers';
+import { getRuntimeEventBus } from '@/runtime/eventBus';
+import { getUndoEngine } from '@/stores/undoEngine';
+import type { MutationIntent } from '@/runtime/types';
+import { useEditorFocusStore } from '@/stores/editorFocusStore';
+
+function applyRuntimeIntent(intent: MutationIntent): void {
+  getUndoEngine().applyIntent(intent, intent.type === 'update_content' ? { sourceEditorId: intent.sourceEditorId } : undefined);
+}
 
 interface InlineCopyPastePluginProps {
   blockId: string;
@@ -69,8 +78,8 @@ function insertLinkPillAtOffset(
   cursorOffset: number,
   onContentChange?: (blockId: string, content: string) => void,
 ): void {
-  const runtime = getNodeGraphRuntime();
-  const graphNode = runtime.getNode(blockId);
+  const runtime = getOperationRuntime();
+  const graphNode = getNode(runtime, blockId);
   if (!graphNode) return;
 
   const link = nodeLink(buildLinkId(targetUuid, generateUUID()), 'node');
@@ -124,10 +133,10 @@ function insertLinkPillAtOffset(
       : paragraph(...before, link, ...after);
 
   const newAST: ASTDocument = [newPara];
-  runtime.applyIntent({ type: 'update_content', blockId, contentAST: newAST });
+  applyRuntimeIntent({ type: 'update_content', blockId, contentAST: newAST });
   onContentChange?.(blockId, serializeContentAST(newAST));
-  runtime.requestFocus(blockId, cursorOffset + 1);
-  runtime.flushEvents();
+  useEditorFocusStore.getState().setPendingFocus(blockId, cursorOffset + 1);
+  getRuntimeEventBus().flushEvents();
 }
 
 interface PasteBlock {
@@ -141,7 +150,6 @@ function pasteBlockTree(
   afterBlockId: string | null,
   onContentChange?: (blockId: string, content: string) => void,
 ): string[] {
-  const runtime = getNodeGraphRuntime();
   const createdIds: string[] = [];
   let lastAfter = afterBlockId;
 
@@ -150,7 +158,7 @@ function pasteBlockTree(
     const newId = generateUUID();
     createdIds.push(newId);
 
-    runtime.applyIntent({
+    applyRuntimeIntent({
       type: 'create_block',
       parentId,
       afterBlockId: lastAfter,
@@ -213,8 +221,8 @@ export function InlineCopyPastePlugin({ blockId, onContentChange, onPasteImage }
         const analysis = analyzeClipboard(clipboardData);
         if (analysis.type === 'image' || analysis.type === 'audio' || analysis.type === 'file') {
           if (analysis.file) {
-            const runtime = getNodeGraphRuntime();
-            const graphNode = runtime.getNode(blockId);
+            const runtime = getOperationRuntime();
+            const graphNode = getNode(runtime, blockId);
             const blockServerId = graphNode?.serverId;
             if (blockServerId != null && onPasteImageRef.current) {
               const hasContent = !isBlockEmpty(graphNode?.contentAST);
@@ -253,8 +261,8 @@ export function InlineCopyPastePlugin({ blockId, onContentChange, onPasteImage }
         const blockData = tryParseInternalFormat(text);
         if (!blockData || blockData.blocks.length === 0) return false;
 
-        const runtime = getNodeGraphRuntime();
-        const currentNode = runtime.getNode(blockId);
+        const runtime = getOperationRuntime();
+        const currentNode = getNode(runtime, blockId);
         if (!currentNode?.parentId) return false;
 
         event.preventDefault();
@@ -264,7 +272,7 @@ export function InlineCopyPastePlugin({ blockId, onContentChange, onPasteImage }
         if (isBlockEmpty(currentNode.contentAST)) {
           const [firstBlock, ...restBlocks] = blockData.blocks;
           const firstAST = parseBlockName(firstBlock.name);
-          runtime.applyIntent({ type: 'update_content', blockId, contentAST: firstAST });
+          applyRuntimeIntent({ type: 'update_content', blockId, contentAST: firstAST });
           ocRef?.(blockId, serializeContentAST(firstAST));
 
           if (firstBlock.children && firstBlock.children.length > 0) {
@@ -273,23 +281,23 @@ export function InlineCopyPastePlugin({ blockId, onContentChange, onPasteImage }
 
           if (restBlocks.length > 0) {
             const created = pasteBlockTree(restBlocks, parentId, blockId, ocRef);
-            runtime.flushEvents();
+            getRuntimeEventBus().flushEvents();
             if (created.length > 0) {
-              runtime.requestFocus(created[created.length - 1]);
+              useEditorFocusStore.getState().setPendingFocus(created[created.length - 1]);
             }
           } else {
-            runtime.flushEvents();
-            runtime.requestFocus(blockId);
+            getRuntimeEventBus().flushEvents();
+            useEditorFocusStore.getState().setPendingFocus(blockId);
           }
         } else {
           const created = pasteBlockTree(blockData.blocks, parentId, blockId, ocRef);
-          runtime.flushEvents();
+          getRuntimeEventBus().flushEvents();
           if (created.length > 0) {
-            runtime.requestFocus(created[created.length - 1]);
+            useEditorFocusStore.getState().setPendingFocus(created[created.length - 1]);
           }
         }
 
-        runtime.flushEvents();
+        getRuntimeEventBus().flushEvents();
         return true;
       },
       COMMAND_PRIORITY_HIGH,

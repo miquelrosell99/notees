@@ -18,7 +18,6 @@
  */
 
 import { useMemo, useState, useEffect, useRef } from 'react';
-import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
 import {
   SYSTEM_CLASS_UUIDS,
   TASK_STATUSES,
@@ -39,6 +38,8 @@ import { parseAST, parseLinkId } from '@/lib/astBuilder';
 import { NodeRef } from '@/features/content/components/nodes/NodeRef';
 import type { JSX } from 'react';
 import './BlockAfterContent.css';
+import { getOperationRuntime } from '@/runtime';
+import { getNode } from '@/runtime/graphHelpers';
 
 interface BlockAfterContentProps {
   node: Node;
@@ -144,8 +145,8 @@ const TASK_BADGE_CLASS: Record<TaskStatus, string> = {
 };
 
 function TaskBadges({ node }: { node: Node }): JSX.Element | null {
-  const runtime = getNodeGraphRuntime();
-  const graphNode = runtime.getNode(node.uuid);
+  const runtime = getOperationRuntime();
+  const graphNode = getNode(runtime, node.uuid);
   const taskStatus = graphNode?.taskStatus;
 
   if (!taskStatus || !TASK_STATUSES.includes(taskStatus as TaskStatus)) {
@@ -319,8 +320,8 @@ function BacklinkPreview({ node, expanded }: { node: Node; expanded?: boolean })
 function QueryPreview({ node }: { node: Node }): JSX.Element | null {
   const openNode = useNavigationStore((s) => s.openNode);
   const addSidebarCard = useNavigationStore((s) => s.addSidebarCard);
-  const runtime = getNodeGraphRuntime();
-  const graphNode = runtime.getNode(node.uuid);
+  const runtime = getOperationRuntime();
+  const graphNode = getNode(runtime, node.uuid);
   const { queryAST, saveQueryAST } = useQueryBlock(node.id);
 
   return (
@@ -419,8 +420,8 @@ function TablePreview({ node }: { node: Node }): JSX.Element | null {
 // ─── Main Component ──────────────────────────────────────────────
 
 export function BlockAfterContent({ node, backlinkExpanded }: BlockAfterContentProps): JSX.Element {
-  const runtime = getNodeGraphRuntime();
-  const graphNode = runtime.getNode(node.uuid);
+  const runtime = getOperationRuntime();
+  const graphNode = getNode(runtime, node.uuid);
   const classIds = graphNode?.classIds ?? [];
 
   const isAsset = classIds.includes(SYSTEM_CLASS_UUIDS.asset);
