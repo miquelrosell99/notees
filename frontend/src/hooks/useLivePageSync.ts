@@ -14,6 +14,8 @@ import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { liveSyncManager } from '@/collab/LiveSyncManager';
 import { useLivePresenceStore, type PresenceUser } from '@/stores/livePresenceStore';
+import { useEditorFocusStore } from '@/stores/editorFocusStore';
+import { useNotificationStore } from '@/stores/notificationStore';
 import type { Node } from '@/types';
 import { updateNodeInTreeCaches, updateNodeInFlatCaches, updateNodeInListCaches } from '@/hooks/cacheUtils';
 
@@ -61,6 +63,8 @@ export function useLivePageSync({ nodeUuid, enabled = true }: UseLivePageSyncOpt
 
     const presence = useLivePresenceStore.getState();
 
+    const notifications = useNotificationStore.getState();
+
     const unsub = liveSyncManager.onMessage((msg) => {
       try {
         switch (msg.type) {
@@ -70,6 +74,11 @@ export function useLivePageSync({ nodeUuid, enabled = true }: UseLivePageSyncOpt
           }
           case 'user_blur': {
             presence.removeUserFocus(nodeUuid, msg.block_uuid, msg.user_id);
+            presence.clearUserTyping(nodeUuid, msg.block_uuid, msg.user_id);
+            break;
+          }
+          case 'user_typing': {
+            presence.setUserTyping(nodeUuid, msg.block_uuid, msg.user, 3000);
             break;
           }
           case 'block_locked': {
@@ -85,15 +94,52 @@ export function useLivePageSync({ nodeUuid, enabled = true }: UseLivePageSyncOpt
               user.color = existing.color;
             }
             presence.setLockOwner(nodeUuid, msg.block_uuid, user);
+            // If the local user was queued, they now hold the lock.
+            presence.setQueued(nodeUuid, msg.block_uuid, false);
+            presence.setConflict(nodeUuid, msg.block_uuid, null);
+            break;
+          }
+          case 'lock_granted': {
+            presence.setQueued(nodeUuid, msg.block_uuid, false);
+            presence.setConflict(nodeUuid, msg.block_uuid, null);
+            useEditorFocusStore.getState().setPendingFocus(msg.block_uuid);
+            notifications.success('Lock available', 'You can now edit this block.');
             break;
           }
           case 'block_lock_denied': {
+            if (msg.reason === 'already_locked' && msg.locked_by) {
+              presence.setLockOwner(nodeUuid, msg.block_uuid, msg.locked_by);
+              if (msg.queued) {
+                presence.setQueued(nodeUuid, msg.block_uuid, true);
+                notifications.info(
+                  'Block locked',
+                  `${msg.locked_by.name} is editing this block. You will be notified when it is available.`,
+                );
+              }
+            } else if (msg.reason === 'lock_lost') {
+              presence.setConflict(nodeUuid, msg.block_uuid, { reason: 'lock_lost' });
+              notifications.warning(
+                'Edit conflict',
+                'Your changes could not be saved because the lock was released. Please refresh the block.',
+              );
+            }
             break;
           }
           case 'block_lock_released':
           case 'lock_expired': {
             presence.removeLockOwner(nodeUuid, msg.block_uuid);
             presence.removeUserFocus(nodeUuid, msg.block_uuid, msg.user_id);
+            presence.clearUserTyping(nodeUuid, msg.block_uuid, msg.user_id);
+            if (msg.type === 'lock_expired') {
+              const localFocus = presence.getLocalFocus(nodeUuid);
+              if (localFocus === msg.block_uuid) {
+                presence.setConflict(nodeUuid, msg.block_uuid, { reason: 'lock_expired' });
+                notifications.warning(
+                  'Lock expired',
+                  'Your lock on this block expired due to inactivity. Click to resume editing.',
+                );
+              }
+            }
             break;
           }
           case 'users_list': {
@@ -145,6 +191,8 @@ export function useLivePageSync({ nodeUuid, enabled = true }: UseLivePageSyncOpt
           presence: { ...state.presence, [nodeUuid]: {} },
           locks: { ...state.locks, [nodeUuid]: {} },
           typing: { ...state.typing, [nodeUuid]: {} },
+          queues: { ...state.queues, [nodeUuid]: {} },
+          conflicts: { ...state.conflicts, [nodeUuid]: {} },
           localFocus: { ...state.localFocus, [nodeUuid]: null },
         }));
       }

@@ -10,17 +10,24 @@ Architecture:
 Message protocol (JSON):
   Client -> Server:
     { "type": "focus", "block_uuid": "..." }
+    { "type": "request_lock", "block_uuid": "..." }
     { "type": "blur", "block_uuid": "..." }
+    { "type": "release", "block_uuid": "..." }
     { "type": "block_update", "block_uuid": "...", "block_id": 123, "name": "..." }
+    { "type": "typing", "block_uuid": "..." }
     { "type": "heartbeat" }
 
   Server -> Client:
     { "type": "user_focus", "block_uuid": "...",
       "user": { "id": 1, "name": "Alice", "color": "#ef4444" } }
     { "type": "user_blur", "block_uuid": "...", "user_id": 1 }
+    { "type": "user_typing", "block_uuid": "...",
+      "user": { "id": 1, "name": "Alice", "color": "#ef4444" } }
     { "type": "block_locked", "block_uuid": "...", "user_id": 1 }
     { "type": "block_lock_denied", "block_uuid": "...",
-      "reason": "already_locked", "locked_by": { "id": 2, "name": "Bob" } }
+      "reason": "already_locked", "queued": true,
+      "locked_by": { "id": 2, "name": "Bob" } }
+    { "type": "lock_granted", "block_uuid": "...", "user_id": 1 }
     { "type": "block_lock_released", "block_uuid": "...", "user_id": 1 }
     { "type": "lock_expired", "block_uuid": "...", "user_id": 1 }
     { "type": "block_updated", "block_uuid": "...", "block_id": 123,
@@ -58,7 +65,10 @@ _page_locks: dict[str, dict[str, _LiveSyncConnection]] = {}
 # Lock timeout tasks: page_uuid -> block_uuid -> asyncio.Task
 _lock_timers: dict[str, dict[str, asyncio.Task]] = {}
 
-_LOCK_TIMEOUT_SECONDS = 30
+# Lock wait queues: page_uuid -> block_uuid -> list of connections waiting for the lock
+_lock_queues: dict[str, dict[str, list[_LiveSyncConnection]]] = {}
+
+_LOCK_TIMEOUT_SECONDS = 8
 
 
 def _user_color(user_id: int) -> str:
@@ -142,22 +152,34 @@ def _cancel_lock_timer(page_uuid: str, block_uuid: str) -> None:
 
 
 async def _release_lock(page_uuid: str, block_uuid: str, user_id: int) -> None:
-    """Release a block lock and clean up state."""
+    """Release a block lock and clean up state.
+
+    If there are waiters, the lock is handed off immediately instead of
+    broadcasting a release event.
+    """
     _cancel_lock_timer(page_uuid, block_uuid)
     locks = _page_locks.get(page_uuid, {})
-    if locks.get(block_uuid) is not None:
-        del locks[block_uuid]
-        if not locks:
-            _page_locks.pop(page_uuid, None)
-        await _broadcast(
-            page_uuid,
-            {
-                "type": "block_lock_released",
-                "block_uuid": block_uuid,
-                "user_id": user_id,
-            },
-            user_id,
-        )
+    if locks.get(block_uuid) is None:
+        return
+    del locks[block_uuid]
+    if not locks:
+        _page_locks.pop(page_uuid, None)
+
+    # Hand off to the next waiter if one exists.
+    page_queues = _lock_queues.get(page_uuid, {})
+    if page_queues.get(block_uuid):
+        await _grant_queued_lock(page_uuid, block_uuid)
+        return
+
+    await _broadcast(
+        page_uuid,
+        {
+            "type": "block_lock_released",
+            "block_uuid": block_uuid,
+            "user_id": user_id,
+        },
+        user_id,
+    )
 
 
 async def _expire_lock(page_uuid: str, block_uuid: str, user_id: int) -> None:
@@ -195,6 +217,104 @@ def _schedule_lock_expiration(page_uuid: str, block_uuid: str, user_id: int) -> 
     timers[block_uuid] = asyncio.create_task(
         _run_lock_timer(page_uuid, block_uuid, user_id)
     )
+
+
+def _enqueue_lock_request(
+    connection: _LiveSyncConnection,
+    page_uuid: str,
+    block_uuid: str,
+) -> None:
+    """Add a connection to the wait queue for a block lock."""
+    page_queues = _lock_queues.setdefault(page_uuid, {})
+    queue = page_queues.setdefault(block_uuid, [])
+    # Avoid duplicate entries for the same connection.
+    if connection not in queue:
+        queue.append(connection)
+
+
+def _dequeue_lock_request(
+    connection: _LiveSyncConnection,
+    page_uuid: str,
+    block_uuid: str,
+) -> None:
+    """Remove a connection from a specific wait queue."""
+    page_queues = _lock_queues.get(page_uuid)
+    if not page_queues:
+        return
+    queue = page_queues.get(block_uuid)
+    if not queue:
+        return
+    with contextlib.suppress(ValueError):
+        queue.remove(connection)
+    if not queue:
+        page_queues.pop(block_uuid, None)
+    if not page_queues:
+        _lock_queues.pop(page_uuid, None)
+
+
+def _clear_connection_lock_requests(
+    connection: _LiveSyncConnection,
+    page_uuid: str,
+) -> None:
+    """Remove a connection from all wait queues on a page (disconnect/blur)."""
+    page_queues = _lock_queues.get(page_uuid)
+    if not page_queues:
+        return
+    empty_blocks: list[str] = []
+    for block_uuid, queue in page_queues.items():
+        with contextlib.suppress(ValueError):
+            queue.remove(connection)
+        if not queue:
+            empty_blocks.append(block_uuid)
+    for block_uuid in empty_blocks:
+        page_queues.pop(block_uuid, None)
+    if not page_queues:
+        _lock_queues.pop(page_uuid, None)
+
+
+async def _grant_queued_lock(page_uuid: str, block_uuid: str) -> None:
+    """Grant the lock to the next waiter, if any.
+
+    Returns without broadcasting a release event when a waiter takes over.
+    """
+    page_queues = _lock_queues.get(page_uuid, {})
+    queue = page_queues.get(block_uuid, [])
+    while queue:
+        next_conn = queue.pop(0)
+        # Skip waiters that have disconnected.
+        if next_conn not in _page_connections.get(page_uuid, set()):
+            continue
+        locks = _page_locks.setdefault(page_uuid, {})
+        locks[block_uuid] = next_conn
+        next_conn.focused_block = block_uuid
+        _schedule_lock_expiration(page_uuid, block_uuid, next_conn.user_id)
+        await next_conn.send(
+            {
+                "type": "lock_granted",
+                "block_uuid": block_uuid,
+                "user_id": next_conn.user_id,
+            }
+        )
+        await _broadcast(
+            page_uuid,
+            {
+                "type": "block_locked",
+                "block_uuid": block_uuid,
+                "user_id": next_conn.user_id,
+            },
+            next_conn.user_id,
+        )
+        # Clean up the queue entry if this was the last waiter.
+        if not queue:
+            page_queues.pop(block_uuid, None)
+        if not page_queues:
+            _lock_queues.pop(page_uuid, None)
+        return
+    # No valid waiters left; clean up the queue entry.
+    if not queue:
+        page_queues.pop(block_uuid, None)
+    if not page_queues:
+        _lock_queues.pop(page_uuid, None)
 
 
 async def _run_redis_loop(
@@ -242,10 +362,12 @@ async def _try_acquire_lock(
     connection: _LiveSyncConnection,
     page_uuid: str,
     block_uuid: str,
+    queue_on_deny: bool = True,
 ) -> bool:
     """Attempt to acquire a block lock for the connection.
 
-    Returns True if lock granted, False if denied.
+    Returns True if lock granted, False if denied. When denied and
+    ``queue_on_deny`` is True, the connection is added to the wait queue.
     """
     locks = _page_locks.setdefault(page_uuid, {})
     holder = locks.get(block_uuid)
@@ -271,12 +393,15 @@ async def _try_acquire_lock(
         _schedule_lock_expiration(page_uuid, block_uuid, connection.user_id)
         return True
 
-    # Denied — send to requester only
+    # Denied — add to wait queue if requested, then notify requester.
+    if queue_on_deny:
+        _enqueue_lock_request(connection, page_uuid, block_uuid)
     await connection.send(
         {
             "type": "block_lock_denied",
             "block_uuid": block_uuid,
             "reason": "already_locked",
+            "queued": queue_on_deny,
             "locked_by": {
                 "id": holder.user_id,
                 "name": holder.user.get("name", "User"),
@@ -381,7 +506,7 @@ async def live_sync_websocket(
             msg_type = msg.get("type")
             block_uuid = msg.get("block_uuid")
 
-            if msg_type == "focus" and isinstance(block_uuid, str):
+            if msg_type in ("focus", "request_lock") and isinstance(block_uuid, str):
                 # Blur previous block if any
                 if connection.focused_block and connection.focused_block != block_uuid:
                     await _release_lock(page_uuid, connection.focused_block, user_id)
@@ -396,28 +521,34 @@ async def live_sync_websocket(
                         exclude=connection,
                     )
 
-                # Try to acquire lock for new block
+                # Try to acquire lock for new block (queue on denial)
                 lock_granted = await _try_acquire_lock(connection, page_uuid, block_uuid)
                 if lock_granted:
                     connection.focused_block = block_uuid
-                    await _broadcast(
-                        page_uuid,
-                        {
-                            "type": "user_focus",
-                            "block_uuid": block_uuid,
-                            "user": {
-                                "id": user_id,
-                                "name": user.get("name", "User"),
-                                "color": _user_color(user_id),
-                            },
+                    _dequeue_lock_request(connection, page_uuid, block_uuid)
+                else:
+                    # Track presence and queue status even when not granted.
+                    connection.focused_block = block_uuid
+
+                await _broadcast(
+                    page_uuid,
+                    {
+                        "type": "user_focus",
+                        "block_uuid": block_uuid,
+                        "user": {
+                            "id": user_id,
+                            "name": user.get("name", "User"),
+                            "color": _user_color(user_id),
                         },
-                        user_id,
-                        exclude=connection,
-                    )
+                    },
+                    user_id,
+                    exclude=connection,
+                )
 
             elif msg_type == "blur" and isinstance(block_uuid, str):
                 if connection.focused_block == block_uuid:
                     connection.focused_block = None
+                    _dequeue_lock_request(connection, page_uuid, block_uuid)
                     await _release_lock(page_uuid, block_uuid, user_id)
                     await _broadcast(
                         page_uuid,
@@ -429,6 +560,45 @@ async def live_sync_websocket(
                         user_id,
                         exclude=connection,
                     )
+
+            elif msg_type == "release" and isinstance(block_uuid, str):
+                # Explicit early release while keeping focus (cursor stays, lock goes).
+                if connection.focused_block == block_uuid:
+                    locks = _page_locks.get(page_uuid, {})
+                    holder = locks.get(block_uuid)
+                    if holder is not None and holder.user_id == user_id:
+                        await _release_lock(page_uuid, block_uuid, user_id)
+                        await _broadcast(
+                            page_uuid,
+                            {
+                                "type": "user_blur",
+                                "block_uuid": block_uuid,
+                                "user_id": user_id,
+                            },
+                            user_id,
+                            exclude=connection,
+                        )
+
+            elif msg_type == "typing" and isinstance(block_uuid, str):
+                # Refresh lock timer if sender still holds it and forward presence.
+                locks = _page_locks.get(page_uuid, {})
+                holder = locks.get(block_uuid)
+                if holder is not None and holder.user_id == user_id:
+                    _schedule_lock_expiration(page_uuid, block_uuid, user_id)
+                await _broadcast(
+                    page_uuid,
+                    {
+                        "type": "user_typing",
+                        "block_uuid": block_uuid,
+                        "user": {
+                            "id": user_id,
+                            "name": user.get("name", "User"),
+                            "color": _user_color(user_id),
+                        },
+                    },
+                    user_id,
+                    exclude=connection,
+                )
 
             elif msg_type == "block_update":
                 if not can_write:
@@ -497,7 +667,8 @@ async def live_sync_websocket(
         if not _page_connections.get(page_uuid):
             _page_connections.pop(page_uuid, None)
 
-        # Release any held locks
+        # Release any held locks and clear queue state
+        _clear_connection_lock_requests(connection, page_uuid)
         if connection.focused_block:
             await _release_lock(page_uuid, connection.focused_block, user_id)
             await _broadcast(

@@ -35,6 +35,7 @@ import { getRuntimeEventBus } from '@/runtime/eventBus';
 import { getUndoEngine } from '@/stores/undoEngine';
 import type { MutationIntent } from '@/runtime/types';
 import { useEditorFocusStore } from '@/stores/editorFocusStore';
+import { liveSyncManager } from '@/collab/LiveSyncManager';
 
 function applyRuntimeIntent(intent: MutationIntent): void {
   getUndoEngine().applyIntent(intent, intent.type === 'update_content' ? { sourceEditorId: intent.sourceEditorId } : undefined);
@@ -42,7 +43,6 @@ function applyRuntimeIntent(intent: MutationIntent): void {
 
 interface InlineCopyPastePluginProps {
   blockId: string;
-  onContentChange?: (blockId: string, content: string) => void;
   onPasteImage?: (blockServerId: number, file: File, hasContent: boolean) => void;
 }
 
@@ -76,7 +76,6 @@ function insertLinkPillAtOffset(
   targetUuid: string,
   blockId: string,
   cursorOffset: number,
-  onContentChange?: (blockId: string, content: string) => void,
 ): void {
   const runtime = getOperationRuntime();
   const graphNode = getNode(runtime, blockId);
@@ -133,8 +132,11 @@ function insertLinkPillAtOffset(
       : paragraph(...before, link, ...after);
 
   const newAST: ASTDocument = [newPara];
+  const serialized = serializeContentAST(newAST);
   applyRuntimeIntent({ type: 'update_content', blockId, contentAST: newAST });
-  onContentChange?.(blockId, serializeContentAST(newAST));
+  if (graphNode.serverId) {
+    liveSyncManager.sendBlockUpdate(blockId, graphNode.serverId, serialized);
+  }
   useEditorFocusStore.getState().setPendingFocus(blockId, cursorOffset + 1);
   getRuntimeEventBus().flushEvents();
 }
@@ -148,7 +150,6 @@ function pasteBlockTree(
   blocks: PasteBlock[],
   parentId: string,
   afterBlockId: string | null,
-  onContentChange?: (blockId: string, content: string) => void,
 ): string[] {
   const createdIds: string[] = [];
   let lastAfter = afterBlockId;
@@ -166,25 +167,22 @@ function pasteBlockTree(
       contentAST,
     });
 
-    onContentChange?.(newId, serializeContentAST(contentAST));
     lastAfter = newId;
 
     if (block.children && block.children.length > 0) {
-      pasteBlockTree(block.children, newId, null, onContentChange);
+      pasteBlockTree(block.children, newId, null);
     }
   }
 
   return createdIds;
 }
 
-export function InlineCopyPastePlugin({ blockId, onContentChange, onPasteImage }: InlineCopyPastePluginProps): null {
+export function InlineCopyPastePlugin({ blockId, onPasteImage }: InlineCopyPastePluginProps): null {
   const [editor] = useLexicalComposerContext();
-  const onContentChangeRef = useRef(onContentChange);
   const onPasteImageRef = useRef(onPasteImage);
   useEffect(() => {
-    onContentChangeRef.current = onContentChange;
     onPasteImageRef.current = onPasteImage;
-  }, [onContentChange, onPasteImage]);
+  }, [onPasteImage]);
 
   // COPY_COMMAND: copy [[blockUuid]] when no text selected
   useEffect(() => {
@@ -252,7 +250,7 @@ export function InlineCopyPastePlugin({ blockId, onContentChange, onPasteImage }
               }
             }
             event.preventDefault();
-            insertLinkPillAtOffset(targetUuid, blockId, cursorOffset, onContentChangeRef.current);
+            insertLinkPillAtOffset(targetUuid, blockId, cursorOffset);
             return true;
           }
         }
@@ -266,21 +264,23 @@ export function InlineCopyPastePlugin({ blockId, onContentChange, onPasteImage }
         if (!currentNode?.parentId) return false;
 
         event.preventDefault();
-        const ocRef = onContentChangeRef.current;
         const parentId = currentNode.parentId;
 
         if (isBlockEmpty(currentNode.contentAST)) {
           const [firstBlock, ...restBlocks] = blockData.blocks;
           const firstAST = parseBlockName(firstBlock.name);
+          const serializedFirst = serializeContentAST(firstAST);
           applyRuntimeIntent({ type: 'update_content', blockId, contentAST: firstAST });
-          ocRef?.(blockId, serializeContentAST(firstAST));
+          if (currentNode.serverId) {
+            liveSyncManager.sendBlockUpdate(blockId, currentNode.serverId, serializedFirst);
+          }
 
           if (firstBlock.children && firstBlock.children.length > 0) {
-            pasteBlockTree(firstBlock.children, blockId, null, ocRef);
+            pasteBlockTree(firstBlock.children, blockId, null);
           }
 
           if (restBlocks.length > 0) {
-            const created = pasteBlockTree(restBlocks, parentId, blockId, ocRef);
+            const created = pasteBlockTree(restBlocks, parentId, blockId);
             getRuntimeEventBus().flushEvents();
             if (created.length > 0) {
               useEditorFocusStore.getState().setPendingFocus(created[created.length - 1]);
@@ -290,7 +290,7 @@ export function InlineCopyPastePlugin({ blockId, onContentChange, onPasteImage }
             useEditorFocusStore.getState().setPendingFocus(blockId);
           }
         } else {
-          const created = pasteBlockTree(blockData.blocks, parentId, blockId, ocRef);
+          const created = pasteBlockTree(blockData.blocks, parentId, blockId);
           getRuntimeEventBus().flushEvents();
           if (created.length > 0) {
             useEditorFocusStore.getState().setPendingFocus(created[created.length - 1]);
