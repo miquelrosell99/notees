@@ -2,12 +2,18 @@
  * DragCoordinator — Global coordinator for cross-editor drag & drop.
  *
  * All drag/reparent/reorder operations go through DragCoordinator,
- * which delegates structural mutations to NodeGraphRuntime.
+ * which delegates structural mutations to the undo engine / event bus.
  * Lexical editors never move nodes themselves; they emit drag intents.
  */
 
-import { getNodeGraphRuntime } from './NodeGraphRuntime';
 import type { DragPayload, DropTarget, MutationIntent } from './types';
+import { getOperationRuntime } from '@/runtime';
+import { getNode, getChildren, getSiblings, getDescendants } from '@/runtime/graphHelpers';
+import { getUndoEngine } from '@/stores/undoEngine';
+
+function applyRuntimeIntent(intent: MutationIntent): void {
+  getUndoEngine().applyIntent(intent, intent.type === 'update_content' ? { sourceEditorId: intent.sourceEditorId } : undefined);
+}
 
 export type DragState =
   | { status: 'idle' }
@@ -44,7 +50,7 @@ export class DragCoordinator {
     this.state = { status: 'completing' };
     this.notify();
 
-    const runtime = getNodeGraphRuntime();
+    const runtime = getOperationRuntime();
 
     // Compute the actual parent and anchor position for the first (or only) block
     let newParentId: string;
@@ -52,23 +58,23 @@ export class DragCoordinator {
 
     switch (currentTarget.position) {
       case 'before': {
-        const targetNode = runtime.getNode(currentTarget.blockId);
+        const targetNode = getNode(runtime, currentTarget.blockId);
         newParentId = targetNode?.parentId || '';
         // Find the sibling before the target
-        const siblings = runtime.getSiblings(currentTarget.blockId);
+        const siblings = getSiblings(runtime, currentTarget.blockId);
         const targetIdx = siblings.findIndex(s => s.blockId === currentTarget.blockId);
         afterBlockId = targetIdx > 0 ? siblings[targetIdx - 1].blockId : null;
         break;
       }
       case 'after': {
-        const targetNode = runtime.getNode(currentTarget.blockId);
+        const targetNode = getNode(runtime, currentTarget.blockId);
         newParentId = targetNode?.parentId || '';
         afterBlockId = currentTarget.blockId;
         break;
       }
       case 'child': {
         newParentId = currentTarget.blockId;
-        const children = runtime.getChildren(currentTarget.blockId);
+        const children = getChildren(runtime, currentTarget.blockId);
         afterBlockId = children.length > 0 ? children[children.length - 1].blockId : null;
         break;
       }
@@ -81,7 +87,7 @@ export class DragCoordinator {
 
     // Prevent any dragged block from being dropped onto itself or its descendants
     for (const blockId of blockIds) {
-      const descendants = runtime.getDescendants(blockId);
+      const descendants = getDescendants(runtime, blockId);
       const descendantIds = new Set(descendants.map(d => d.blockId));
       if (descendantIds.has(newParentId) || newParentId === blockId) {
         this.cancelDrag();
@@ -105,7 +111,7 @@ export class DragCoordinator {
         newParentId,
         afterBlockId,
       };
-      runtime.applyIntent(intent);
+      applyRuntimeIntent(intent);
     } else {
       // Multi-block — move each top-level block in DOM order, placing each one
       // after the previous so their relative order is preserved.
@@ -117,7 +123,7 @@ export class DragCoordinator {
         // its subtree — the runtime treats afterBlockId as a direct-sibling anchor).
         afterId = blockId;
       }
-      runtime.applyIntent({ type: 'batch', intents });
+      applyRuntimeIntent({ type: 'batch', intents });
     }
 
     this.state = { status: 'idle' };
