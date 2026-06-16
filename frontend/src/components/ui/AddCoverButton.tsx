@@ -46,10 +46,10 @@ export function AddCoverButton({
   
   const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
-    e.stopPropagation();
     setIsDragging(false);
 
     if (!onDrop) return;
+    e.stopPropagation();
 
     try {
       if (processDrop) {
