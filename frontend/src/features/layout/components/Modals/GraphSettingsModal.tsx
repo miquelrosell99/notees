@@ -59,18 +59,11 @@ function parseRetentionValue(
   value: unknown,
   key: keyof typeof DEFAULT_RETENTION,
 ): typeof DEFAULT_RETENTION[keyof typeof DEFAULT_RETENTION] {
-  if (typeof value === 'string') {
-    const lowered = value.trim().toLowerCase();
-    if (lowered === 'true') return true;
-    if (lowered === 'false') return false;
-    const num = parseInt(value, 10);
-    if (Number.isFinite(num) && num >= 0) return num;
-  }
-  if (typeof value === 'boolean' && key.endsWith('_enabled')) {
+  if (key.endsWith('_enabled') && typeof value === 'boolean') {
     return value;
   }
-  if (typeof value === 'number' && !key.endsWith('_enabled')) {
-    return Number.isFinite(value) && value >= 0 ? value : DEFAULT_RETENTION[key];
+  if (!key.endsWith('_enabled') && typeof value === 'number' && Number.isFinite(value) && value >= 0) {
+    return value;
   }
   return DEFAULT_RETENTION[key];
 }

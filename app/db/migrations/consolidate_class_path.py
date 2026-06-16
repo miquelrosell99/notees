@@ -45,7 +45,7 @@ async def _migrate_node_view_queries(conn: asyncpg.Connection) -> None:
         if new_json != query_json:
             await conn.execute(
                 "UPDATE node_view SET query_json = $1::jsonb WHERE id = $2",
-                json.dumps(new_json),
+                new_json,
                 row["id"],
             )
 

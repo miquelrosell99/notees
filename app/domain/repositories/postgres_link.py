@@ -450,15 +450,13 @@ class PostgresLinkRepository(BasePostgresRepository, LinkRepository):
 
     async def bulk_update_classes_path(self, updates: list[tuple[list[int], int]]) -> None:
         """Bulk update classes_path for multiple nodes."""
-        import json
-
         if not updates:
             return
         async with acquire_connection(self._pool) as conn:
             for classes_path, node_id in updates:
                 await conn.execute(
                     "UPDATE node SET classes_path = $1::jsonb WHERE id = $2",
-                    json.dumps(classes_path),
+                    classes_path,
                     node_id,
                 )
 

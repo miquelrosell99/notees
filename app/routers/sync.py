@@ -15,8 +15,6 @@ Sync redesign (v2):
 
 from __future__ import annotations
 
-import json
-
 from fastapi import APIRouter, Depends, HTTPException, Request
 
 from ..dependencies import (
@@ -78,8 +76,7 @@ async def set_setting(
     """Set a user setting."""
     data = await request.json()
     value = data.get("value")
-    json_value = json.dumps(value) if value is not None else "null"
-    await repo.set_user_setting(int(user.id), key, json_value, utc_now())
+    await repo.set_user_setting(int(user.id), key, value, utc_now())
     return {"status": "ok"}
 
 
@@ -115,6 +112,5 @@ async def set_workspace_setting(
     workspace_id = await repo.get_workspace_id_by_uuid(active_uuid)
     if workspace_id is None:
         raise HTTPException(status_code=404, detail="Workspace not found")
-    json_value = json.dumps(value) if value is not None else "null"
-    await repo.set_workspace_setting(workspace_id, key, json_value, utc_now(), user_id)
+    await repo.set_workspace_setting(workspace_id, key, value, utc_now(), user_id)
     return {"status": "ok"}

@@ -184,13 +184,7 @@ class CleanupScheduler:
         key: str,
         default: Any,
     ) -> Any:
-        """Read a single workspace setting, falling back to the env default.
-
-        Values are stored as JSONB, but some legacy paths wrote JSON-encoded
-        strings (e.g. the string "false" instead of the boolean false). This
-        helper normalizes those string-encoded primitives back to native Python
-        values.
-        """
+        """Read a single workspace setting, falling back to the env default."""
         row = await conn.fetchrow(
             "SELECT value FROM setting_workspace WHERE workspace_id = $1 AND key = $2",
             workspace_id,
@@ -198,18 +192,7 @@ class CleanupScheduler:
         )
         if row is None or row["value"] is None:
             return default
-        value = row["value"]
-        if isinstance(value, str):
-            lowered = value.lower()
-            if lowered == "true":
-                return True
-            if lowered == "false":
-                return False
-            try:
-                return int(value)
-            except ValueError:
-                pass
-        return value
+        return row["value"]
 
     async def _cleanup_trash(self):
         """Hard-delete soft-deleted nodes older than the workspace retention setting."""

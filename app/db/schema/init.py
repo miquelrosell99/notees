@@ -14,6 +14,7 @@ import asyncpg
 
 from ...domain.entities import generate_uuid
 from ...domain.stringify_ast import ParseMode, parse_ast, serialize_ast
+from ..connection import setup_jsonb_codec
 from .constants import (
     DEFAULT_PAGES,
     SCHEMA_VERSION,
@@ -30,6 +31,10 @@ from .sql import SCHEMA_SQL
 
 
 async def init_database(conn: asyncpg.Connection) -> None:
+    # Ensure JSONB values are read/written as native Python objects on this
+    # connection as well as on pooled connections.
+    await setup_jsonb_codec(conn)
+
     """Initialize the database with schema.
 
     This creates all tables, indexes, and triggers.
@@ -110,6 +115,8 @@ async def init_database(conn: asyncpg.Connection) -> None:
     await _run_migration("materialize_search_text", conn, _materialize_search_text)
     from app.db.migrations.migrate_task_recurrence_to_table import run as _run_migrate_task_recurrence
     await _run_migration("migrate_task_recurrence_to_table", conn, _run_migrate_task_recurrence)
+    from app.db.migrations.normalize_settings_jsonb import run as _run_normalize_settings_jsonb
+    await _run_migration("normalize_settings_jsonb", conn, _run_normalize_settings_jsonb)
 
 
 
@@ -1263,8 +1270,6 @@ async def get_or_create_user_workspace(
 
 async def _seed_system_settings(conn: asyncpg.Connection) -> None:
     """Seed default system settings if they don't exist."""
-    import json
-
     defaults = {
         "cleanup_interval_seconds": 86400,
         "cleanup_workspace_max_age_days": 30,
@@ -1278,7 +1283,7 @@ async def _seed_system_settings(conn: asyncpg.Connection) -> None:
             ON CONFLICT (key) DO NOTHING
             """,
             key,
-            json.dumps(value),
+            value,
         )
 
 

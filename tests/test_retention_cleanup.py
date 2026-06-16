@@ -21,8 +21,6 @@ pytestmark = pytest.mark.asyncio
 
 async def _set_workspace_setting(db_pool, workspace_id: int, key: str, value):
     """Helper to set a workspace setting directly in the database."""
-    import json
-
     async with db_pool.acquire() as conn:
         await conn.execute(
             """
@@ -32,7 +30,7 @@ async def _set_workspace_setting(db_pool, workspace_id: int, key: str, value):
             """,
             workspace_id,
             key,
-            json.dumps(value),
+            value,
         )
         row = await conn.fetchrow(
             "SELECT value FROM setting_workspace WHERE workspace_id = $1 AND key = $2",

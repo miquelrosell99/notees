@@ -1996,8 +1996,8 @@ class SettingsRepository(ABC):
         pass
 
     @abstractmethod
-    async def set_user_setting(self, user_id: int, key: str, json_value: str, now: Any) -> None:
-        """Upsert a single user setting (json_value is a serialised JSON string)."""
+    async def set_user_setting(self, user_id: int, key: str, value: Any, now: Any) -> None:
+        """Upsert a single user setting (value is a native JSON-serializable value)."""
         pass
 
     @abstractmethod
@@ -2021,8 +2021,8 @@ class SettingsRepository(ABC):
         pass
 
     @abstractmethod
-    async def set_workspace_setting(self, workspace_id: int, key: str, json_value: str, now: Any, user_id: int) -> None:
-        """Upsert a single workspace setting (json_value is a serialised JSON string)."""
+    async def set_workspace_setting(self, workspace_id: int, key: str, value: Any, now: Any, user_id: int) -> None:
+        """Upsert a single workspace setting (value is a native JSON-serializable value)."""
         pass
 
     @abstractmethod
