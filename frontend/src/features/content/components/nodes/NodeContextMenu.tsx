@@ -26,7 +26,7 @@ import { ExportPageModal } from '@/features/workspace/components/ExportPageModal
 import { ShareModal } from './ShareModal';
 import api from '@/api/client';
 import type { Node, NodeUpdate } from '@/types';
-import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
+
 import type { ContentAST } from '@/runtime/types';
 import { adjustMenuPosition } from './NodeContextMenu/adjustMenuPosition';
 import { IconColorPickerRow } from './NodeContextMenu/iconRow';
@@ -37,6 +37,12 @@ import {
   type ActionConfig,
 } from './NodeContextMenu/actions';
 import './NodeContextMenu.css';
+import { getOperationRuntime } from '@/runtime';
+import { getNode } from '@/runtime/graphHelpers';
+import { getRuntimeEventBus } from '@/runtime/eventBus';
+import { getUndoEngine } from '@/stores/undoEngine';
+import type { MutationIntent } from '@/runtime/types';
+
 
 // ==================== Common Context Menu Items ====================
 
@@ -191,15 +197,16 @@ export function NodeContextMenu({
                 // The runtime is the source of truth for contentAST;
                 // going only through the API would be blocked by
                 // upsertNodes preserving the old contentAST.
-                const runtime = getNodeGraphRuntime();
-                const runtimeNode = runtime.getNode(node.uuid);
+                const runtime = getOperationRuntime();
+                const runtimeNode = getNode(runtime, node.uuid);
                 if (runtimeNode) {
-                  runtime.applyIntent({
+                  const intent: MutationIntent = {
                     type: 'update_content',
                     blockId: node.uuid,
                     contentAST: newAst,
-                  });
-                  runtime.flushEvents();
+                  };
+                  getUndoEngine().applyIntent(intent, (intent as { type: string }).type === 'update_content' ? { sourceEditorId: (intent as { sourceEditorId?: string }).sourceEditorId } : undefined);
+                  getRuntimeEventBus().flushEvents();
                 }
 
                 // Also persist to backend

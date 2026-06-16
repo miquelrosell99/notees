@@ -16,14 +16,22 @@ import { useState, useEffect, useCallback, useRef, type JSX } from 'react';
 import { generateUUID } from '@/utils/uuid';
 import { useNodeByUuid } from '@/hooks/useNodeQueries';
 import { useContentSave } from '@/hooks/useContentSave';
-import { useBlockPersist } from '@/hooks/useBlockPersist';
 import { BlockList } from '@/features/content/components/blocks/BlockList';
-import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
 
 import './EmbedBlock.css';
 import { Icon } from '@/components/ui/icons';
 import { Spinner } from '@/components/ui/Spinner';
+import { getOperationRuntime } from '@/runtime';
+import { getNode } from '@/runtime/graphHelpers';
+import { getRuntimeEventBus } from '@/runtime/eventBus';
+import { getUndoEngine } from '@/stores/undoEngine';
+import type { MutationIntent } from '@/runtime/types';
+import { useEditorFocusStore } from '@/stores/editorFocusStore';
+
+function applyRuntimeIntent(intent: MutationIntent): void {
+  getUndoEngine().applyIntent(intent, intent.type === 'update_content' ? { sourceEditorId: intent.sourceEditorId } : undefined);
+}
 
 // ─── Props ───────────────────────────────────────────────────────
 
@@ -56,35 +64,33 @@ export function EmbedBlock({
 
   // Content and block persistence for the inner editor
   const { handleContentChange } = useContentSave();
-  useBlockPersist();
 
   // ─── Border selection keyboard handling ──────────────────────
 
   const handleDeleteHostBlock = useCallback(() => {
-    const runtime = getNodeGraphRuntime();
     // Blur focus first so Lexical doesn't auto-focus the next block in a weird way
     if (document.activeElement instanceof HTMLElement) {
       document.activeElement.blur();
     }
-    runtime.applyIntent({ type: 'delete_block', blockId: hostBlockId });
-    runtime.flushEvents();
+    applyRuntimeIntent({ type: 'delete_block', blockId: hostBlockId });
+    getRuntimeEventBus().flushEvents();
     setBorderSelected(false);
   }, [hostBlockId]);
 
   const handleCreateSiblingAfterHost = useCallback(() => {
-    const runtime = getNodeGraphRuntime();
-    const hostNode = runtime.getNode(hostBlockId);
+    const runtime = getOperationRuntime();
+    const hostNode = getNode(runtime, hostBlockId);
     if (!hostNode?.parentId) return;
     const newBlockId = generateUUID();
-    runtime.requestFocus(newBlockId);
-    runtime.applyIntent({
+    useEditorFocusStore.getState().setPendingFocus(newBlockId);
+    applyRuntimeIntent({
       type: 'create_block',
       parentId: hostNode.parentId,
       afterBlockId: hostBlockId,
       blockId: newBlockId,
       contentAST: [{ type: 'paragraph', children: [{ type: 'text', text: '' }] }],
     });
-    runtime.flushEvents();
+    getRuntimeEventBus().flushEvents();
     setBorderSelected(false);
   }, [hostBlockId]);
 
@@ -150,8 +156,8 @@ export function EmbedBlock({
 
   const handleInnerContentChange = useCallback((blockId: string, content: string) => {
     // BlockList passes UUIDs; look up server ID via runtime
-    const runtime = getNodeGraphRuntime();
-    const graphNode = runtime.getNode(blockId);
+    const runtime = getOperationRuntime();
+    const graphNode = getNode(runtime, blockId);
     const serverId = graphNode?.serverId;
     if (serverId != null) {
       handleContentChange(serverId, content);
@@ -223,5 +229,4 @@ export function EmbedBlock({
     </div>
   );
 }
-
 

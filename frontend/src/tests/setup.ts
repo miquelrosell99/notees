@@ -11,6 +11,22 @@ global.ResizeObserver = class ResizeObserverMock {
   constructor(_callback: ResizeObserverCallback) {}
 };
 
+// matchMedia is not available in jsdom; provide a minimal mock for theme
+// and other media-query consumers.
+Object.defineProperty(global, 'matchMedia', {
+  writable: true,
+  value: vi.fn().mockImplementation((query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  })),
+});
+
 afterEach(() => {
   cleanup();
 });

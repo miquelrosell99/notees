@@ -1,5 +1,6 @@
 import { useMemo, useCallback } from 'react';
-import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
+import { getOperationRuntime } from '@/runtime';
+import { getNode } from '@/runtime/graphHelpers';
 import { useSetNodeProperty, useProperties } from '@/hooks/useProperties';
 import {
   SYSTEM_PROPERTY_UUIDS,
@@ -20,8 +21,8 @@ export type TaskStatus = (typeof TASK_STATUSES)[number];
  */
 function isTaskNode(node: Node | undefined): boolean {
   if (!node) return false;
-  const runtime = getNodeGraphRuntime();
-  const gn = runtime.getNode(node.uuid);
+  const runtime = getOperationRuntime();
+  const gn = getNode(runtime, node.uuid);
   if (!gn) return false;
   return gn.taskStatus != null;
 }
@@ -31,8 +32,8 @@ function isTaskNode(node: Node | undefined): boolean {
  */
 function getTaskStatus(node: Node | undefined): TaskStatus | null {
   if (!node) return null;
-  const runtime = getNodeGraphRuntime();
-  const gn = runtime.getNode(node.uuid);
+  const runtime = getOperationRuntime();
+  const gn = getNode(runtime, node.uuid);
   if (!gn) return null;
   const status = gn.taskStatus;
   if (!status) return null;

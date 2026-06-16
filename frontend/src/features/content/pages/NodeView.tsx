@@ -31,8 +31,7 @@ import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut';
 import { useCommand } from '@/hooks/useCommand';
 import { SHORTCUT_IDS } from '@/stores/keyboardStore';
 import { COMMAND_IDS } from '@/stores/commandRegistry';
-import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
-import { useBlockPersist } from '@/hooks/useBlockPersist';
+
 import { generateUUID } from '@/utils/uuid';
 import type { Node, Property, PropertyCreate } from '@/types';
 import type { ViewMode, NodeViewType } from '@/stores';
@@ -73,6 +72,14 @@ import { getOrCreateDaily } from '@/api/nodes';
 
 import './NodeView.css';
 import { Icon } from '@/components/ui/icons';
+import { getOperationRuntime } from '@/runtime';
+import { getNode, getAllNodes } from '@/runtime/graphHelpers';
+import { upsertNodes, getRuntimeEventBus } from '@/runtime/eventBus';
+import { registerParentServerId } from '@/runtime/serverIdMap';
+import { getUndoEngine } from '@/stores/undoEngine';
+import { useEditorFocusStore } from '@/stores/editorFocusStore';
+import type { MutationIntent } from '@/runtime/types';
+
 
 // Local storage keys for collapse state
 const BANNER_COLLAPSED_KEY = 'notees:banner-collapsed';
@@ -142,12 +149,12 @@ function FocusedBlockContent({ node, onAddSidebarCard, displayMode = 'bullet', e
 
   const handleAddClass = useCallback((blockId: number, classId: number) => {
     // Optimistically update the runtime for immediate visual feedback
-    const runtime = getNodeGraphRuntime();
-    const graphNode = runtime.getAllNodes().find(n => n.serverId === blockId);
+    const runtime = getOperationRuntime();
+    const graphNode = getAllNodes(runtime).find(n => n.serverId === blockId);
     if (graphNode) {
       const classStrId = String(classId);
       if (!graphNode.classIds.includes(classStrId)) {
-        runtime.upsertNodes([{
+        upsertNodes([{
           ...graphNode,
           classIds: [...graphNode.classIds, classStrId],
         }]);
@@ -155,10 +162,6 @@ function FocusedBlockContent({ node, onAddSidebarCard, displayMode = 'bullet', e
     }
     addClass.mutate({ nodeId: blockId, classId });
   }, [addClass]);
-
-  // Ensure blocks created via the Add Block button get persisted even when
-  // no BlockEditor (which normally hosts useBlockPersist) is mounted yet.
-  useBlockPersist();
 
   // Register page-level keyboard commands
   useCommand(COMMAND_IDS.FIND, () => {
@@ -178,28 +181,28 @@ function FocusedBlockContent({ node, onAddSidebarCard, displayMode = 'bullet', e
   // Handle add block (adds child to the focused block)
   const handleAddBlock = useCallback(() => {
     console.log('[NodeView/FocusedBlock] handleAddBlock triggered', { nodeUuid: node.uuid, childrenCount: node.children?.length });
-    // Create via runtime intent so the block appears immediately (no API roundtrip)
-    // and useBlockPersist handles persistence automatically.
-    const runtime = getNodeGraphRuntime();
+    // Create via runtime intent so the block appears immediately (no API roundtrip);
+    // the runtime/SyncManager handles persistence automatically.
     const newBlockId = generateUUID();
 
-    // Register the parent's serverId so useBlockPersist can resolve it
-    runtime.registerParentServerId(node.uuid, node.id);
+    // Register the parent's serverId so the runtime can resolve it
+    registerParentServerId(node.uuid, node.id);
 
     const nodeChildren = node.children ?? [];
     // The API orders children by sequence, so the last array element is the rightmost block.
     const lastChild = nodeChildren.length > 0 ? nodeChildren[nodeChildren.length - 1] : null;
 
     console.log('[NodeView/FocusedBlock] Applying create_block intent', { newBlockId, parentId: node.uuid, afterBlockId: lastChild?.uuid ?? null });
-    runtime.requestFocus(newBlockId);
-    runtime.applyIntent({
+    useEditorFocusStore.getState().setPendingFocus(newBlockId);
+    const intent: MutationIntent = {
       type: 'create_block',
       parentId: node.uuid,
       afterBlockId: lastChild?.uuid ?? null,
       blockId: newBlockId,
       contentAST: [{ type: 'paragraph', children: [{ type: 'text', text: '' }] }],
-    });
-    runtime.flushEvents();
+    };
+    getUndoEngine().applyIntent(intent, (intent as { type: string }).type === 'update_content' ? { sourceEditorId: (intent as { sourceEditorId?: string }).sourceEditorId } : undefined);
+    getRuntimeEventBus().flushEvents();
   }, [node.uuid, node.id, node.children]);
 
   // In card mode, show the focused block as a bullet header (depth 0 only),
@@ -614,8 +617,8 @@ export function NodeView({
       if (blockEl) {
         const blockId = blockEl.dataset.blockId;
         if (blockId) {
-          const runtime = getNodeGraphRuntime();
-          const graphNode = runtime.getNode(blockId);
+          const runtime = getOperationRuntime();
+          const graphNode = getNode(runtime, blockId);
           if (graphNode?.serverId) {
             targetId = graphNode.serverId;
           }
