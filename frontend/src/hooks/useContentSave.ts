@@ -1,36 +1,31 @@
 /**
- * useContentSave - Debounced content save hook for block editing
+ * useContentSave — Debounced content-save bridge to OperationRuntime.
  *
- * Provides a debounced content change handler that batches rapid
- * content updates to reduce API calls. Used in views that contain
- * editable blocks (NodeView, NodeDocumentView, NodeListView, etc.).
+ * This hook no longer talks to the API directly. It simply debounces local
+ * content changes and forwards them to the runtime as `update_content` intents.
+ * The runtime projection updates immediately; SyncManager observes pending
+ * operations and persists them through TanStack Query.
  *
- * Features:
- * - Debounces content changes (500ms default)
- * - Per-block tracking (doesn't interfere across blocks)
- * - Auto-flush on unmount
- * - Manual flush capability
- * - Optimistic UI (content updates immediately)
- * - Offline support via runtime pending intents
+ * Re-exports:
+ * - flushAllContentSaves: flushes every active instance's debounce timers.
+ * - awaitAllContentSaves: waits until the runtime has no pending/in-flight
+ *   content operations (best-effort timeout).
  */
-import { useCallback, useRef, useEffect } from 'react';
-import { useUpdateNode } from './useNodes';
-import { parseAST, convertMarkdownInAST } from '@/lib/astBuilder';
-import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
-import { liveSyncManager } from '@/collab/LiveSyncManager';
-import {
-  flushRegistry,
-  pendingSavePromises,
-  flushAllContentSaves,
-  awaitAllContentSaves,
-} from './contentSaveTracker';
 
-// Re-export so existing imports from '@/hooks/useContentSave' keep working.
-export { flushAllContentSaves, awaitAllContentSaves };
+import { useCallback, useRef, useEffect } from 'react';
+import { parseAST, convertMarkdownInAST } from '@/lib/astBuilder';
+import { getOperationRuntime } from '@/runtime';
+import { getNode, getNodeByServerId } from '@/runtime/graphHelpers';
+import type { MutationIntent } from '@/runtime/types';
+import { getUndoEngine } from '@/stores/undoEngine';
+import { liveSyncManager } from '@/collab/LiveSyncManager';
+import { flushRegistry } from './contentSaveTracker';
+
+export { flushAllContentSaves, awaitAllContentSaves } from './contentSaveTracker';
 
 /** Pending change entry */
 interface PendingChange {
-  blockId: number;
+  blockId: number | string;
   content: string;
   timeoutId: ReturnType<typeof setTimeout>;
 }
@@ -38,78 +33,49 @@ interface PendingChange {
 interface UseContentSaveOptions {
   /** Debounce delay in ms (default: 500) */
   delay?: number;
-  /** Called after successful save */
-  onSaved?: (blockId: number) => void;
-  /** Called on save error */
-  onError?: (blockId: number, error: Error) => void;
 }
 
 /**
- * Hook for debounced content saving
+ * Hook for debounced content saving through the runtime.
  */
 export function useContentSave(options: UseContentSaveOptions = {}) {
-  const { delay = 500, onSaved, onError } = options;
-  const updateNode = useUpdateNode();
-  const mutateRef = useRef(updateNode.mutateAsync);
-  mutateRef.current = updateNode.mutateAsync;
+  const { delay = 500 } = options;
+  const pendingChangesRef = useRef<Map<number | string, PendingChange>>(new Map());
 
-  const pendingChangesRef = useRef<Map<number, PendingChange>>(new Map());
-  const lastSavedContentRef = useRef<Map<number, string>>(new Map());
+  const resolveGraphNode = useCallback((blockId: number | string) => {
+    const runtime = getOperationRuntime();
+    if (typeof blockId === 'number') {
+      return getNodeByServerId(runtime, blockId);
+    }
+    return getNode(runtime, blockId);
+  }, []);
 
-  const saveBlock = useCallback((blockId: number, content: string) => {
+  const saveBlock = useCallback((blockId: number | string, content: string) => {
     const ast = parseAST(content);
     const converted = convertMarkdownInAST(ast);
+
+    const graphNode = resolveGraphNode(blockId);
+    if (!graphNode) return;
+
     const finalContent = converted !== ast ? JSON.stringify(converted) : content;
 
-    if (lastSavedContentRef.current.get(blockId) === finalContent) return;
-    lastSavedContentRef.current.set(blockId, finalContent);
-
-    const runtime = getNodeGraphRuntime();
-    const graphNode = runtime.getNodeByServerId(blockId);
-    const blockUuid = graphNode?.blockId;
-
-    if (blockUuid && typeof navigator !== 'undefined' && navigator.onLine) {
+    if (typeof navigator !== 'undefined' && navigator.onLine) {
       try {
-        liveSyncManager.sendBlockUpdate(blockUuid, blockId, finalContent);
+        liveSyncManager.sendBlockUpdate(graphNode.blockId, graphNode.serverId ?? 0, finalContent);
       } catch {
-        // Ignore broadcast errors — REST save is the source of truth
+        // Ignore broadcast errors — REST save is the source of truth.
       }
     }
 
-    // Record runtime intent for offline support and undo history
-    let mutationKey: string | null = null;
-    if (blockUuid) {
-      runtime.applyIntent({
-        type: 'update_content',
-        blockId: blockUuid,
-        contentAST: converted,
-      }, true);
-      const pending = runtime.getPendingIntentsForBlock(blockUuid);
-      const contentIntent = pending.find(p => p.intent.type === 'update_content');
-      mutationKey = contentIntent?.mutationKey ?? null;
-    }
+    const intent: MutationIntent = {
+      type: 'update_content',
+      blockId: graphNode.blockId,
+      contentAST: converted,
+    };
+    getUndoEngine().applyIntent(intent, { sourceEditorId: intent.sourceEditorId });
+  }, [resolveGraphNode]);
 
-    const promise = mutateRef.current({ id: blockId, data: { name: finalContent } })
-      .then(() => {
-        onSaved?.(blockId);
-        if (blockUuid && mutationKey) {
-          runtime.consumePendingIntents(mutationKey);
-        }
-      })
-      .catch((error) => {
-        if (blockUuid && mutationKey) {
-          runtime.unmarkMutationInFlight(mutationKey);
-        }
-        onError?.(blockId, error as Error);
-      })
-      .finally(() => {
-        pendingSavePromises.delete(promise);
-      });
-
-    pendingSavePromises.add(promise);
-  }, [onSaved, onError]);
-
-  const flushBlock = useCallback((blockId: number) => {
+  const flushBlock = useCallback((blockId: number | string) => {
     const pending = pendingChangesRef.current.get(blockId);
     if (pending) {
       clearTimeout(pending.timeoutId);
@@ -126,7 +92,7 @@ export function useContentSave(options: UseContentSaveOptions = {}) {
     pendingChangesRef.current.clear();
   }, [saveBlock]);
 
-  const cancel = useCallback((blockId: number) => {
+  const cancel = useCallback((blockId: number | string) => {
     const pending = pendingChangesRef.current.get(blockId);
     if (pending) {
       clearTimeout(pending.timeoutId);
@@ -141,7 +107,7 @@ export function useContentSave(options: UseContentSaveOptions = {}) {
     pendingChangesRef.current.clear();
   }, []);
 
-  const handleContentChange = useCallback((blockId: number, content: string) => {
+  const handleContentChange = useCallback((blockId: number | string, content: string) => {
     const existing = pendingChangesRef.current.get(blockId);
     if (existing) {
       clearTimeout(existing.timeoutId);
@@ -159,12 +125,12 @@ export function useContentSave(options: UseContentSaveOptions = {}) {
     });
   }, [delay, saveBlock]);
 
-  const saveImmediate = useCallback((blockId: number, content: string) => {
+  const saveImmediate = useCallback((blockId: number | string, content: string) => {
     cancel(blockId);
     saveBlock(blockId, content);
   }, [cancel, saveBlock]);
 
-  const hasPendingChanges = useCallback((blockId?: number) => {
+  const hasPendingChanges = useCallback((blockId?: number | string) => {
     if (blockId !== undefined) {
       return pendingChangesRef.current.has(blockId);
     }
@@ -204,7 +170,6 @@ export function useContentSave(options: UseContentSaveOptions = {}) {
     cancel,
     cancelAll,
     hasPendingChanges,
-    isSaving: updateNode.isPending,
   };
 }
 

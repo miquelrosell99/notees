@@ -3,7 +3,6 @@ import type { Node } from '@/types';
 import { NodeNameContent } from '@/features/content/components/blocks/NodeNameContent';
 import { NodeCollection } from '@/features/content/components/nodes/NodeCollection';
 import { useContentSave, useNodeNavigation } from '@/hooks';
-import { useBlockPersist } from '@/hooks/useBlockPersist';
 
 interface NodeCellEditableProps {
   node: Node;
@@ -21,8 +20,6 @@ export function NodeCellEditable({ node }: NodeCellEditableProps) {
   const { handleNodeClick } = useNodeNavigation();
   const flushRef = useRef(flushAll);
   flushRef.current = flushAll;
-
-  useBlockPersist();
 
   const closeEditing = useCallback(() => {
     flushRef.current();

@@ -40,7 +40,8 @@ import { InlineLinkNode, $isInlineLinkNode, $createInlineLinkNode } from '@/feat
 import type { InlineLinkRefType } from '@/features/content/editor/nodes/InlineLinkNode';
 import { parseLinkId } from '@/lib/astBuilder';
 import { copyToClipboard } from '@/utils/clipboardManager';
-import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
+import { getOperationRuntime } from '@/runtime';
+import { getNode } from '@/runtime/graphHelpers';
 
 /** Pending update to apply to an InlineLinkNode (from LinkEditModal). */
 export interface PendingPillUpdate {
@@ -609,8 +610,8 @@ export function NodeLinkPlugin({
         displayLabel = customLabel || nodeUuid || '⛓️‍💥';
       } else {
         // node / class / embed
-        const runtime = getNodeGraphRuntime();
-        const targetNode = runtime.getNode(nodeUuid);
+        const runtime = getOperationRuntime();
+        const targetNode = getNode(runtime, nodeUuid);
         displayLabel = customLabel || targetNode?.name || nodeUuid;
       }
 

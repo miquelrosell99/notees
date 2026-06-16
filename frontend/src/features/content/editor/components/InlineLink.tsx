@@ -32,7 +32,8 @@ import { LinkEditModal, type LinkEditResult } from './LinkEditModal';
 import { TransclusionPopover } from '@/features/content/components/transclusion/TransclusionPopover';
 import { useNavigationStore } from '@/stores';
 import { useClasses } from '@/hooks';
-import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
+import { getOperationRuntime } from '@/runtime';
+import { getNode } from '@/runtime/graphHelpers';
 
 export interface InlineLinkProps {
   linkId: string;
@@ -95,8 +96,8 @@ export function InlineLink({ linkId, refType, url, label }: InlineLinkProps) {
     }
     if (!nodeUuid) return;
 
-    const runtime = getNodeGraphRuntime();
-    const graphNode = runtime.getNode(nodeUuid);
+    const runtime = getOperationRuntime();
+    const graphNode = getNode(runtime, nodeUuid);
 
     if (graphNode?.serverId) {
       openNode(graphNode.serverId);
@@ -118,8 +119,8 @@ export function InlineLink({ linkId, refType, url, label }: InlineLinkProps) {
   const handleOpenSidebar = useCallback(async () => {
     if (!nodeUuid) return;
 
-    const runtime = getNodeGraphRuntime();
-    const graphNode = runtime.getNode(nodeUuid);
+    const runtime = getOperationRuntime();
+    const graphNode = getNode(runtime, nodeUuid);
 
     if (graphNode?.serverId) {
       const cardType: SidebarCardType = graphNode.isPage ? 'page' : 'block';

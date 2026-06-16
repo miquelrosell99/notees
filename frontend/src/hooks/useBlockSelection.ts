@@ -8,7 +8,10 @@
 import { useEffect, useRef } from 'react';
 import { useBlockSelectionStore } from '@/stores/blockSelectionStore';
 import { useEditorFocusStore } from '@/stores/editorFocusStore';
-import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
+import { getOperationRuntime } from '@/runtime';
+import { getNode } from '@/runtime/graphHelpers';
+import { getUndoEngine } from '@/stores/undoEngine';
+import { getRuntimeEventBus } from '@/runtime/eventBus';
 import { useInputContext } from '@/stores/inputContext';
 import { copyRuntimeBlocksToClipboard, tryParseInternalFormat } from '@/utils/clipboardManager';
 import { useClipboardStore } from '@/stores/clipboardStore';
@@ -184,19 +187,18 @@ export function useBlockSelection({ containerRef, blockIds, readOnly }: UseBlock
         if (activeEl?.closest('[role="dialog"]') || activeEl?.closest('[role="menu"]')) return;
 
         e.preventDefault();
-        const runtime = getNodeGraphRuntime();
         const anchor = anchorId || [...selectedIds][0];
         if (!anchor) return;
 
         const newBlockId = generateUUID();
-        runtime.applyIntent({
+        getUndoEngine().applyIntent({
           type: 'create_block',
           parentId: anchor,
           afterBlockId: null,
           blockId: newBlockId,
           contentAST: [{ type: 'paragraph', children: [{ type: 'text', text: '' }] }],
         });
-        runtime.flushEvents();
+        getRuntimeEventBus().flushEvents();
         clearSelection();
         useEditorFocusStore.getState().setPendingFocus(newBlockId);
         return;
@@ -251,12 +253,11 @@ export function useBlockSelection({ containerRef, blockIds, readOnly }: UseBlock
         e.preventDefault();
         const ids = [...selectedIds];
         clearSelection();
-        const runtime = getNodeGraphRuntime();
-        runtime.applyIntent({
+        getUndoEngine().applyIntent({
           type: 'batch',
           intents: ids.map((blockId) => ({ type: 'delete_block' as const, blockId })),
         });
-        runtime.flushEvents();
+        getRuntimeEventBus().flushEvents();
         return;
       }
 
@@ -264,25 +265,25 @@ export function useBlockSelection({ containerRef, blockIds, readOnly }: UseBlock
       if (e.altKey && e.shiftKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
         if (selectedIds.size === 0) return;
         e.preventDefault();
-        const runtime = getNodeGraphRuntime();
+        const runtime = getOperationRuntime();
         const blockIdSet = new Set(selectedIds);
         const allSelectedIds = [...selectedIds];
         const topLevelIds = allSelectedIds.filter((id) => {
-          const n = runtime.getNode(id);
+          const n = getNode(runtime, id);
           return n && (!n.parentId || !blockIdSet.has(n.parentId));
         });
         if (e.key === 'ArrowUp') {
-          runtime.applyIntent({
+          getUndoEngine().applyIntent({
             type: 'batch',
             intents: topLevelIds.map((blockId) => ({ type: 'move_up' as const, blockId })),
           });
         } else {
-          runtime.applyIntent({
+          getUndoEngine().applyIntent({
             type: 'batch',
             intents: topLevelIds.reverse().map((blockId) => ({ type: 'move_down' as const, blockId })),
           });
         }
-        runtime.flushEvents();
+        getRuntimeEventBus().flushEvents();
         return;
       }
 
@@ -295,7 +296,7 @@ export function useBlockSelection({ containerRef, blockIds, readOnly }: UseBlock
         if (activeEl && rootEl.contains(activeEl)) return;
         if (activeEl?.closest('[role="dialog"]') || activeEl?.closest('[role="menu"]')) return;
         e.preventDefault();
-        const runtime = getNodeGraphRuntime();
+        const runtime = getOperationRuntime();
         copyRuntimeBlocksToClipboard([...selectedIds], runtime)
           .then((data) => useClipboardStore.getState().setCopied(data))
           .catch(console.error);
@@ -308,10 +309,10 @@ export function useBlockSelection({ containerRef, blockIds, readOnly }: UseBlock
         const activeEl = document.activeElement;
         if (activeEl && rootEl.contains(activeEl)) return;
 
-        const runtime = getNodeGraphRuntime();
+        const runtime = getOperationRuntime();
         const blockIdSet = new Set(selectedIds);
         const topLevelIds = [...selectedIds].filter((id) => {
-          const n = runtime.getNode(id);
+          const n = getNode(runtime, id);
           return n && (!n.parentId || !blockIdSet.has(n.parentId));
         });
         if (topLevelIds.length === 0) return;

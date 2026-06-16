@@ -8,7 +8,11 @@
  */
 
 import { useEffect, useRef } from 'react';
-import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
+import { getOperationRuntime } from '@/runtime';
+import { getNode } from '@/runtime/graphHelpers';
+import { upsertNodes } from '@/runtime/eventBus';
+import { getUndoEngine } from '@/stores/undoEngine';
+import { getRuntimeEventBus } from '@/runtime/eventBus';
 import { apiNodesToGraphNodes } from './useRuntimeSync';
 import * as nodesApi from '@/api/nodes';
 import type { RuntimeEvent } from '@/runtime/types';
@@ -22,7 +26,7 @@ export function useLazyChildren(): void {
   const pendingRef = useRef(new Set<string>());
 
   useEffect(() => {
-    const runtime = getNodeGraphRuntime();
+    const runtime = getOperationRuntime();
 
     const handler = async (event: RuntimeEvent) => {
       if (event.type !== 'expand_children_needed') return;
@@ -42,7 +46,7 @@ export function useLazyChildren(): void {
 
         if (!nodeData?.children?.length) {
           // Server says no children after all — clear the flag
-          const gn = runtime.getNode(blockId);
+          const gn = getNode(runtime, blockId);
           if (gn) gn.hasServerChildren = false;
           return;
         }
@@ -55,21 +59,21 @@ export function useLazyChildren(): void {
         );
 
         // Inject into runtime — this triggers projection update
-        runtime.upsertNodes(graphNodes);
+        upsertNodes(graphNodes);
 
         // Clear hasServerChildren since we've loaded them
-        const gn = runtime.getNode(blockId);
+        const gn = getNode(runtime, blockId);
         if (gn) gn.hasServerChildren = false;
       } catch (err) {
         console.error(`[useLazyChildren] Failed to load children for block ${blockId}:`, err);
         // Re-collapse on error so user can retry
-        runtime.applyIntent({ type: 'set_collapsed', blockId, collapsed: true });
+        getUndoEngine().applyIntent({ type: 'set_collapsed', blockId, collapsed: true });
       } finally {
         pendingRef.current.delete(blockId);
       }
     };
 
-    const unsubscribe = runtime.subscribe(handler);
+    const unsubscribe = getRuntimeEventBus().subscribe(handler);
     return unsubscribe;
   }, []);
 }

@@ -6,8 +6,10 @@
  * as canIndent / canOutdent / canMerge / canDelete callbacks.
  */
 
-import { getNodeGraphRuntime, type NodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
 import type { GraphNode } from '@/runtime/types';
+import { getOperationRuntime } from '@/runtime';
+import { getNode, getChildren } from '@/runtime/graphHelpers';
+import type { OperationRuntime } from '@/runtime';
 
 // ─── Helpers ──────────────────────────────────────────────────────
 
@@ -15,12 +17,12 @@ import type { GraphNode } from '@/runtime/types';
  * Walk up the hierarchy to find the nearest page ancestor.
  * Returns the page's blockId, or null if none found.
  */
-function findPageAncestor(runtime: NodeGraphRuntime, node: GraphNode): string | null {
+function findPageAncestor(runtime: OperationRuntime, node: GraphNode): string | null {
   let current: GraphNode | undefined = node;
   while (current) {
     if (current.isPage || current.nodeType === 'page') return current.blockId;
     if (!current.parentId) return null;
-    current = runtime.getNode(current.parentId);
+    current = getNode(runtime, current.parentId);
   }
   return null;
 }
@@ -33,7 +35,7 @@ function findPageAncestor(runtime: NodeGraphRuntime, node: GraphNode): string | 
  * @param projectionRootIds - Set of blockIds that are projection roots (locked)
  */
 export function createSliceGuards(projectionRootIds: Set<string>) {
-  const runtime = getNodeGraphRuntime();
+  const runtime = getOperationRuntime();
 
   /**
    * Guard: can a block be indented?
@@ -43,11 +45,11 @@ export function createSliceGuards(projectionRootIds: Set<string>) {
   function canIndent(blockId: string): boolean {
     if (projectionRootIds.has(blockId)) return false;
 
-    const node = runtime.getNode(blockId);
+    const node = getNode(runtime, blockId);
     if (!node?.parentId) return false;
 
     // Find previous sibling — that would become the new parent
-    const siblings = runtime.getChildren(node.parentId);
+    const siblings = getChildren(runtime, node.parentId);
     const myIndex = siblings.findIndex(s => s.blockId === blockId);
     if (myIndex <= 0) return false; // Can't indent first child (runtime will also reject)
 
@@ -66,10 +68,10 @@ export function createSliceGuards(projectionRootIds: Set<string>) {
   function canOutdent(blockId: string): boolean {
     if (projectionRootIds.has(blockId)) return false;
 
-    const node = runtime.getNode(blockId);
+    const node = getNode(runtime, blockId);
     if (!node?.parentId) return false;
 
-    const parent = runtime.getNode(node.parentId);
+    const parent = getNode(runtime, node.parentId);
     if (!parent?.parentId) return false;
     // Can't outdent out of a page (page boundary)
     if (parent.isPage || parent.nodeType === 'page') return false;
@@ -104,8 +106,8 @@ export function createSliceGuards(projectionRootIds: Set<string>) {
   function canMove(blockId: string, newParentId: string): boolean {
     if (projectionRootIds.has(blockId)) return false;
 
-    const block = runtime.getNode(blockId);
-    const newParent = runtime.getNode(newParentId);
+    const block = getNode(runtime, blockId);
+    const newParent = getNode(runtime, newParentId);
     if (!block || !newParent) return false;
 
     // Check cross-page: find page ancestor of both block and new parent

@@ -14,7 +14,13 @@
  */
 
 import { useState, useEffect, useMemo, useLayoutEffect } from 'react';
-import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
+import { getOperationRuntime } from '@/runtime';
+import type { OperationRuntime } from '@/runtime';
+import { getNode, getAllNodes } from '@/runtime/graphHelpers';
+import { upsertNodes } from '@/runtime/eventBus';
+import { registerParentServerId } from '@/runtime/serverIdMap';
+import { getUndoEngine } from '@/stores/undoEngine';
+import { getRuntimeEventBus } from '@/runtime/eventBus';
 import { apiNodesToGraphNodes } from './useRuntimeSync';
 import type { Node } from '@/types/api';
 
@@ -121,7 +127,7 @@ function flattenNodesFromRuntime(
   maxDepth: number,
   pagesOnly: boolean,
   skipPages: boolean,
-  runtime: ReturnType<typeof getNodeGraphRuntime>,
+  runtime: OperationRuntime,
   expandAll = false,
   readOnly = false,
   rootUuid?: string,
@@ -136,7 +142,7 @@ function flattenNodesFromRuntime(
   for (const n of nodes) collect(n);
 
   function resolveParentId(node: Node): string {
-    const graphNode = runtime.getNode(node.uuid);
+    const graphNode = getNode(runtime, node.uuid);
     const propParentId = node.parent_id?.toString() || '__root__';
     const runtimeParentId = graphNode?.parentId;
     let parentId = (runtimeParentId && nodeMap.has(runtimeParentId))
@@ -158,7 +164,7 @@ function flattenNodesFromRuntime(
   }
 
   // Include runtime-only nodes whose parent is in the prop tree
-  for (const gn of runtime.getAllNodes()) {
+  for (const gn of getAllNodes(runtime)) {
     if (nodeMap.has(gn.blockId)) continue;
     if (!gn.parentId || !nodeMap.has(gn.parentId)) continue;
     const syntheticNode: Node = {
@@ -189,8 +195,8 @@ function flattenNodesFromRuntime(
 
   for (const [, children] of byParent) {
     children.sort((a, b) => {
-      const ga = runtime.getNode(a.uuid);
-      const gb = runtime.getNode(b.uuid);
+      const ga = getNode(runtime, a.uuid);
+      const gb = getNode(runtime, b.uuid);
       const orderA = ga?.orderIndex ?? a.sequence ?? 0;
       const orderB = gb?.orderIndex ?? b.sequence ?? 0;
       if (orderA !== orderB) return orderA - orderB;
@@ -209,7 +215,7 @@ function flattenNodesFromRuntime(
       if (node.is_comment) continue;
       if (pagesOnly && !node.is_page) continue;
       if (skipPages && node.is_page) continue;
-      const graphNode = runtime.getNode(uuid);
+      const graphNode = getNode(runtime, uuid);
       const effectiveCollapsed = expandAll ? false : (graphNode?.collapsed ?? node.collapsed);
       result.push({ node, depth, effectiveCollapsed });
 
@@ -233,8 +239,8 @@ function flattenNodesFromRuntime(
   }
 
   topLevel.sort((a, b) => {
-    const ga = runtime.getNode(a);
-    const gb = runtime.getNode(b);
+    const ga = getNode(runtime, a);
+    const gb = getNode(runtime, b);
     const na = nodeMap.get(a);
     const nb = nodeMap.get(b);
     const orderA = ga?.orderIndex ?? na?.sequence ?? 0;
@@ -269,7 +275,6 @@ export function useBlockTree(
 
   // Sync prop nodes into the runtime so structural ops have graph data.
   useLayoutEffect(() => {
-    const runtime = getNodeGraphRuntime();
     const allNodes: Node[] = [];
     const collect = (n: Node) => {
       allNodes.push(n);
@@ -279,25 +284,24 @@ export function useBlockTree(
 
     if (allNodes.length > 0) {
       const { graphNodes } = apiNodesToGraphNodes(allNodes, nodeId, nodeUuid);
-      runtime.upsertNodes(graphNodes, { preserveCollapsed: nodeUuid != null });
+      upsertNodes(graphNodes);
       if (expandAll) {
         for (const gn of graphNodes) {
-          runtime.applyIntent({ type: 'set_collapsed', blockId: gn.blockId, collapsed: false });
+          getUndoEngine().applyIntent({ type: 'set_collapsed', blockId: gn.blockId, collapsed: false });
         }
-        runtime.flushEvents();
+        getRuntimeEventBus().flushEvents();
       }
     }
 
     if (nodeId != null && nodeUuid) {
-      runtime.registerParentServerId(nodeUuid, nodeId);
+      registerParentServerId(nodeUuid, nodeId);
     }
   }, [nodes, nodeId, nodeUuid, expandAll]);
 
   // Subscribe to runtime structural changes
   const [structureVersion, setStructureVersion] = useState(0);
   useEffect(() => {
-    const runtime = getNodeGraphRuntime();
-    const unsubscribe = runtime.subscribe((event) => {
+    const unsubscribe = getRuntimeEventBus().subscribe((event) => {
       if (event.type === 'structure_changed' || event.type === 'nodes_changed') {
         setStructureVersion((v) => v + 1);
       }
@@ -306,8 +310,8 @@ export function useBlockTree(
   }, []);
 
   const flatNodes = useMemo(() => {
-    const runtime = getNodeGraphRuntime();
-    const hasRuntimeData = nodeUuid != null || nodes.some((n) => runtime.getNode(n.uuid) != null);
+    const runtime = getOperationRuntime();
+    const hasRuntimeData = nodeUuid != null || nodes.some((n) => getNode(runtime, n.uuid) != null);
     if (!hasRuntimeData) {
       return flattenNodes(nodes, maxDepth, pagesOnly, skipPages, 0, expandAll);
     }
