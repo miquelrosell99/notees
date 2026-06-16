@@ -4,11 +4,20 @@
  * Used by BlockRow and useBlockSelection for context-menu paste operations.
  */
 
-import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
 import { generateUUID } from '@/utils/uuid';
 import { paragraph, text as astText } from '@/lib/astBuilder';
 import type { ASTDocument } from '@/types/ast';
 import type { BlockCopyData, BlockData } from '@/utils/clipboardManager';
+import { getOperationRuntime } from '@/runtime';
+import { getNode } from '@/runtime/graphHelpers';
+import { getRuntimeEventBus } from '@/runtime/eventBus';
+import { getUndoEngine } from '@/stores/undoEngine';
+import type { MutationIntent } from '@/runtime/types';
+import { useEditorFocusStore } from '@/stores/editorFocusStore';
+
+function applyRuntimeIntent(intent: MutationIntent): void {
+  getUndoEngine().applyIntent(intent, intent.type === 'update_content' ? { sourceEditorId: intent.sourceEditorId } : undefined);
+}
 
 function parseBlockName(name: string): ASTDocument {
   try {
@@ -31,7 +40,6 @@ function pasteBlockTree(
   afterBlockId: string | null,
   onContentChange?: (blockId: string, contentAST: ASTDocument) => void,
 ): string[] {
-  const runtime = getNodeGraphRuntime();
   const createdIds: string[] = [];
   let lastAfter = afterBlockId;
 
@@ -40,7 +48,7 @@ function pasteBlockTree(
     const newId = generateUUID();
     createdIds.push(newId);
 
-    runtime.applyIntent({
+    applyRuntimeIntent({
       type: 'create_block',
       parentId,
       afterBlockId: lastAfter,
@@ -68,8 +76,8 @@ export function pasteBlocksAfterBlock(
   afterBlockId: string,
   onContentChange?: (blockId: string, contentAST: ASTDocument) => void,
 ): void {
-  const runtime = getNodeGraphRuntime();
-  const afterNode = runtime.getNode(afterBlockId);
+  const runtime = getOperationRuntime();
+  const afterNode = getNode(runtime, afterBlockId);
   if (!afterNode?.parentId) return;
 
   const createdIds = pasteBlockTree(
@@ -79,9 +87,9 @@ export function pasteBlocksAfterBlock(
     onContentChange,
   );
 
-  runtime.flushEvents();
+  getRuntimeEventBus().flushEvents();
   if (createdIds.length > 0) {
-    runtime.requestFocus(createdIds[createdIds.length - 1]);
-    runtime.flushEvents();
+    useEditorFocusStore.getState().setPendingFocus(createdIds[createdIds.length - 1]);
+    getRuntimeEventBus().flushEvents();
   }
 }
