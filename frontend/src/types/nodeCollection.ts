@@ -97,7 +97,7 @@ export interface NodeCollectionProps {
   onNodeShiftClick?: (node: Node) => void;
   
   /** Called when node content changes (only in edit mode) */
-  onContentChange?: (nodeId: number, content: string) => void;
+  onContentChange?: (nodeId: number | string, content: string) => void;
   
   /** Called when a class is added to a node via + menu (plain Enter) */
   onAddClass?: (nodeId: number, classId: number) => void;
@@ -296,7 +296,7 @@ export interface NodeCollectionViewBaseProps {
   onNodeShiftClick?: (node: Node) => void;
   
   /** Content change handler */
-  onContentChange?: (nodeId: number, content: string) => void;
+  onContentChange?: (nodeId: number | string, content: string) => void;
   
   /** Add class handler (called when + menu adds class via plain Enter) */
   onAddClass?: (nodeId: number, classId: number) => void;
@@ -559,7 +559,7 @@ export interface NodeCollectionContextValue {
   onNodeShiftClick?: (node: Node) => void;
   
   /** Content change handler */
-  onContentChange?: (nodeId: number, content: string) => void;
+  onContentChange?: (nodeId: number | string, content: string) => void;
   
   /** Current depth */
   depth: number;

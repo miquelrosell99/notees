@@ -30,11 +30,8 @@ import {
   useSensors,
 } from '@dnd-kit/core';
 
-import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
 import { apiNodesToGraphNodes } from '@/hooks/useRuntimeSync';
-import { useStructureSync } from '@/hooks/useStructureSync';
 import { useCollapsePersist } from '@/hooks/useCollapsePersist';
-import { useBlockPersist } from '@/hooks/useBlockPersist';
 import type { Node } from '@/types';
 import type { NodeKanbanViewProps } from '@/types/nodeCollection';
 
@@ -50,6 +47,8 @@ import { useInView } from '@/hooks/useInView';
 import './KanbanView.css';
 
 import { registerView } from './registry';
+import { upsertNodes } from '@/runtime/eventBus';
+
 
 /** Lazy wrapper around NodeCard that only mounts the expensive BlockEditor when visible */
 function LazyNodeCard(props: React.ComponentProps<typeof NodeCard>) {
@@ -86,7 +85,7 @@ interface KanbanCardProps {
   allTags?: Node[];
   onNodeClick?: (node: Node) => void;
   onNodeShiftClick?: (node: Node) => void;
-  onContentChange?: (nodeId: number, content: string) => void;
+  onContentChange?: (nodeId: number | string, content: string) => void;
   customContextMenu?: React.ComponentType<{
     node: Node;
     position: { x: number; y: number };
@@ -152,7 +151,7 @@ interface KanbanColumnProps {
   allTags?: Node[];
   onNodeClick?: (node: Node) => void;
   onNodeShiftClick?: (node: Node) => void;
-  onContentChange?: (nodeId: number, content: string) => void;
+  onContentChange?: (nodeId: number | string, content: string) => void;
   customContextMenu?: React.ComponentType<{
     node: Node;
     position: { x: number; y: number };
@@ -258,14 +257,8 @@ export const KanbanView = memo(function KanbanView({
   groupByProperty,
   showBreadcrumbs = false,
 }: NodeKanbanViewProps): JSX.Element {
-  // ─── Sync structural changes to database ───────────────────
-  useStructureSync();
-
   // ─── Persist collapse state to database ─────────────────────
   useCollapsePersist();
-
-  // ─── Persist new blocks to database ────────────────────────
-  useBlockPersist();
 
   // ─── Sync nodes to runtime ──────────────────────────────────
   useMemo(() => {
@@ -279,9 +272,8 @@ export const KanbanView = memo(function KanbanView({
     };
     for (const n of nodes) collect(n);
 
-    const runtime = getNodeGraphRuntime();
     const { graphNodes } = apiNodesToGraphNodes(allNodes);
-    runtime.upsertNodes(graphNodes);
+    upsertNodes(graphNodes);
   }, [nodes]);
 
   // Sort cards by sequence (order field)

@@ -10,16 +10,22 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from '@/components/ui/Button';
 import { NodeSelector } from '@/features/content/components/nodes/NodeSelector';
 import { BlockList } from '@/features/content/components/blocks/BlockList';
-import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
+
 import { useTodayNote, usePages, useNodeByUuid, useMoveNode, useDeleteNode } from '@/hooks';
 import { useContentSave, flushAllContentSaves } from '@/hooks/useContentSave';
-import { queueContentSave } from '@/hooks/useBlockPersist';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
 import { useSettingsStore } from '@/stores';
 import { generateUUID } from '@/utils/uuid';
 import { SYSTEM_PAGE_UUIDS } from '@/constants/systemProperties';
 import type { Node as ApiNode } from '@/types';
 import './Scratchpad.css';
+import { getOperationRuntime } from '@/runtime';
+import { getChildren } from '@/runtime/graphHelpers';
+import { registerParentServerId } from '@/runtime/serverIdMap';
+import { getUndoEngine } from '@/stores/undoEngine';
+import { useEditorFocusStore } from '@/stores/editorFocusStore';
+import type { MutationIntent } from '@/runtime/types';
+
 
 interface ScratchpadProps {
   isOpen: boolean;
@@ -73,7 +79,7 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
 
   // Auto-create an empty block when scratchpad is empty so users can start typing immediately.
   // We create via the runtime (not direct API) so the block appears instantly and is focused.
-  // useBlockPersist (active BlockEditor singleton) handles background persistence.
+  // The runtime/SyncManager handles background persistence.
   const autoCreatedRef = useRef(false);
   const didCheckOnMountRef = useRef(false);
   useEffect(() => {
@@ -84,12 +90,12 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
     }
     if (autoCreatedRef.current) return;
 
-    const runtime = getNodeGraphRuntime();
-    runtime.registerParentServerId(scratchpadPage.uuid, scratchpadPage.id);
+    const runtime = getOperationRuntime();
+    registerParentServerId(scratchpadPage.uuid, scratchpadPage.id);
 
     if (!didCheckOnMountRef.current) {
       didCheckOnMountRef.current = true;
-      if (runtime.getChildren(scratchpadPage.uuid).length > 0) {
+      if (getChildren(runtime, scratchpadPage.uuid).length > 0) {
         autoCreatedRef.current = true;
         return;
       }
@@ -97,14 +103,15 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
 
     autoCreatedRef.current = true;
     const blockId = generateUUID();
-    runtime.applyIntent({
+    const intent: MutationIntent = {
       type: 'create_block',
       parentId: scratchpadPage.uuid,
       afterBlockId: null,
       blockId,
       contentAST: [],
-    });
-    runtime.requestFocus(blockId);
+    };
+    getUndoEngine().applyIntent(intent, (intent as { type: string }).type === 'update_content' ? { sourceEditorId: (intent as { sourceEditorId?: string }).sourceEditorId } : undefined);
+    useEditorFocusStore.getState().setPendingFocus(blockId);
   }, [scratchpadPage, childCount]);
 
   useEffect(() => {
@@ -112,19 +119,14 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
   }, [meaningfulCount, onEntryCountChange]);
 
   const handleContentChange = useCallback((blockId: string, content: string) => {
-    // Bridge block UUID → numeric serverId and persist via useContentSave
-    const runtime = getNodeGraphRuntime();
-    const graphNode = runtime.getNode(blockId);
-    if (graphNode?.serverId != null) {
-      saveContent(graphNode.serverId, content);
-    } else if (graphNode) {
-      // Block not yet persisted — queue for when serverId arrives
-      queueContentSave(blockId, content);
-    }
+    // Persist via useContentSave; it resolves the runtime node and handles
+    // blocks that have not been acknowledged by the server yet.
+    saveContent(blockId, content);
 
     // Update entry count
     if (!scratchpadPage?.uuid) return;
-    const children = runtime.getChildren(scratchpadPage.uuid);
+    const runtime = getOperationRuntime();
+    const children = getChildren(runtime, scratchpadPage.uuid);
     const count = children.length === 1 && !children[0]?.name ? 0 : children.length;
     onEntryCountChange?.(count);
   }, [onEntryCountChange, scratchpadPage, saveContent]);
@@ -188,18 +190,19 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
 
   const handleAddBlock = useCallback(() => {
     if (!scratchpadPage) return;
-    const runtime = getNodeGraphRuntime();
-    runtime.registerParentServerId(scratchpadPage.uuid, scratchpadPage.id);
-    const children = runtime.getChildren(scratchpadPage.uuid);
+    const runtime = getOperationRuntime();
+    registerParentServerId(scratchpadPage.uuid, scratchpadPage.id);
+    const children = getChildren(runtime, scratchpadPage.uuid);
     const blockId = generateUUID();
-    runtime.applyIntent({
+    const intent: MutationIntent = {
       type: 'create_block',
       parentId: scratchpadPage.uuid,
       afterBlockId: children.length > 0 ? children[children.length - 1].blockId : null,
       blockId,
       contentAST: [],
-    });
-    runtime.requestFocus(blockId);
+    };
+    getUndoEngine().applyIntent(intent, (intent as { type: string }).type === 'update_content' ? { sourceEditorId: (intent as { sourceEditorId?: string }).sourceEditorId } : undefined);
+    useEditorFocusStore.getState().setPendingFocus(blockId);
   }, [scratchpadPage]);
 
   const handleDestinationSelect = useCallback((node: ApiNode) => {

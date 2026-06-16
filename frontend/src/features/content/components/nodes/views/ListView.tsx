@@ -17,14 +17,16 @@ import { NodeIcon, ChevronRightIcon, ChevronDownIcon } from '@/components/ui/ico
 
 import { BlockList } from '@/features/content/components/blocks/BlockList';
 import { ListSortable } from '@/components/ui/ListSortable';
-import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
+
 import { getPropertyGroupInfo } from './viewHelpers';
-import { queueContentSave } from '@/hooks/useBlockPersist';
 import { sortBySequence, compareDateFirstAlpha } from '@/utils/nodeSort';
 import { getNodeByUuid } from '@/api/nodes';
 import { NodeBreadcrumbs } from '@/features/content/components/nodes/NodeBreadcrumbs';
 import './ListView.css';
 import { registerView } from './registry';
+import { getOperationRuntime } from '@/runtime';
+import { getNode } from '@/runtime/graphHelpers';
+
 
 // ── Group types ───────────────────────────────────────────────────────────────
 
@@ -225,8 +227,8 @@ export const ListView = memo(function ListView({
   // Handler for navigation from editor
   const handleNavigateToNode = useCallback(async (blockId: string) => {
     // Get runtime to resolve blockId to serverId
-    const runtime = getNodeGraphRuntime();
-    const graphNode = runtime.getNode(blockId);
+    const runtime = getOperationRuntime();
+    const graphNode = getNode(runtime, blockId);
 
     if (graphNode?.serverId) {
       const targetNode = allNodes.find(n => n.id === graphNode.serverId);
@@ -251,8 +253,8 @@ export const ListView = memo(function ListView({
 
   // Handler for shift-click (open in sidebar) from editor
   const handleOpenInSidebar = useCallback((blockId: string) => {
-    const runtime = getNodeGraphRuntime();
-    const graphNode = runtime.getNode(blockId);
+    const runtime = getOperationRuntime();
+    const graphNode = getNode(runtime, blockId);
     if (graphNode?.serverId) {
       const targetNode = allNodes.find(n => n.id === graphNode.serverId);
       if (targetNode) {
@@ -269,17 +271,12 @@ export const ListView = memo(function ListView({
     }
   }, [allNodes, onNodeShiftClick]);
 
-  // Handler for content changes from editor
+  // Handler for content changes from editor.
+  // Pass the runtime block id (UUID) through; useContentSave resolves it to the
+  // runtime node and creates an update_content operation even if the block has
+  // not been persisted yet.
   const handleContentChangeBridge = useCallback((blockId: string, content: string) => {
-    const runtime = getNodeGraphRuntime();
-    const graphNode = runtime.getNode(blockId);
-    const serverId = graphNode?.serverId;
-    if (serverId != null) {
-      onContentChange?.(serverId, content);
-    } else if (graphNode) {
-      // Block not yet persisted — queue for when serverId arrives
-      queueContentSave(blockId, content);
-    }
+    onContentChange?.(blockId, content);
   }, [onContentChange]);
 
   // Resolve grouping levels from groupBy and resolved property objects
