@@ -101,6 +101,7 @@ export function CommandPalette(props: CommandPaletteProps) {
       className={`command-palette__backdrop${isOpen ? '' : ' command-palette__backdrop--hidden'}`}
       onClick={handleBackdropClick}
       onKeyDown={(e) => {
+        if (e.target !== e.currentTarget) return;
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
           handleBackdropClick(e as unknown as React.MouseEvent);
