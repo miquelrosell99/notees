@@ -31,8 +31,14 @@
 }
 
 .card--variant-dashed {
-  border: var(--border-width-default) dashed color-mix(in srgb, var(--color-outline-variant) 50%, transparent);
-  background: color-mix(in srgb, var(--color-surface-variant) 30%, transparent);
+  border: var(--border-width-thick) dashed var(--color-outline-variant);
+  background: transparent;
+}
+
+.card--variant-dashed:hover,
+.card--variant-dashed:focus-within {
+  border-color: var(--color-primary);
+  background: var(--color-surface-container-high);
 }
 
 /* Border radius
