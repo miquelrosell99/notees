@@ -92,6 +92,8 @@ interface SettingsState {
   wideMode: boolean;
   /** Position of the tab bar: top (default) or left (vertical) */
   tabPosition: 'top' | 'left';
+  /** Show the active bullet thread and indentation guide lines in the editor. */
+  showBulletThread: boolean;
   
   // Actions
   setTheme: (theme: ThemePreference) => void;
@@ -108,6 +110,7 @@ interface SettingsState {
   setFirstDayOfWeek: (day: FirstDayOfWeek) => void;
   toggleWideMode: () => void;
   setTabPosition: (position: 'top' | 'left') => void;
+  setShowBulletThread: (show: boolean) => void;
 }
 
 /**
@@ -280,6 +283,7 @@ export const useSettingsStore = create<SettingsState>()(
       firstDayOfWeek: 0,
       wideMode: false,
       tabPosition: 'top',
+      showBulletThread: true,
       
       // Actions
       setTheme: (theme) => {
@@ -340,6 +344,9 @@ export const useSettingsStore = create<SettingsState>()(
       },
       setTabPosition: (tabPosition) => {
         set({ tabPosition });
+      },
+      setShowBulletThread: (showBulletThread) => {
+        set({ showBulletThread });
       },
     }),
     {
