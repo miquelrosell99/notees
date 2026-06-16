@@ -65,8 +65,8 @@ class PostgresUndoRepository(BasePostgresRepository, UndoRepository):
                 operation,
                 entity_type,
                 entity_id,
-                json.dumps(before_state) if before_state is not None else None,
-                json.dumps(after_state) if after_state is not None else None,
+                before_state,
+                after_state,
                 description,
             )
 

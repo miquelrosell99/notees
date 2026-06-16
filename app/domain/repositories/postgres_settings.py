@@ -55,10 +55,9 @@ class PostgresSettingsRepository(SettingsRepository):
     async def set_user_favorites(self, user_id: int, favorites: list[int], now: Any | None = None) -> None:
         if now is None:
             now = utc_now()
-        json_value = json.dumps(favorites)
-        await self.set_user_setting(user_id, "favorites", json_value, now)
+        await self.set_user_setting(user_id, "favorites", favorites, now)
 
-    async def set_user_setting(self, user_id: int, key: str, json_value: str, now: Any) -> None:
+    async def set_user_setting(self, user_id: int, key: str, value: Any, now: Any) -> None:
         async with acquire_connection(self._pool) as conn:
             await conn.execute(
                 """
@@ -70,7 +69,7 @@ class PostgresSettingsRepository(SettingsRepository):
                 """,
                 user_id,
                 key,
-                json_value,
+                value,
                 now,
             )
 
@@ -90,7 +89,7 @@ class PostgresSettingsRepository(SettingsRepository):
             )
         return {row["key"]: row["value"] for row in rows}
 
-    async def set_workspace_setting(self, workspace_id: int, key: str, json_value: str, now: Any, user_id: int) -> None:
+    async def set_workspace_setting(self, workspace_id: int, key: str, value: Any, now: Any, user_id: int) -> None:
         async with acquire_connection(self._pool) as conn:
             await conn.execute(
                 """
@@ -102,7 +101,7 @@ class PostgresSettingsRepository(SettingsRepository):
                 """,
                 workspace_id,
                 key,
-                json_value,
+                value,
                 now,
                 user_id,
             )
