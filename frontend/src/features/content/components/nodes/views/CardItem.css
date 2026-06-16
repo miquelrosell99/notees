@@ -218,14 +218,14 @@
   height: auto;
 }
 
-/* Ensure ImageNode and img scale naturally */
-.node-card__cover .image-node {
+/* Ensure AssetImage and img scale naturally */
+.node-card__cover .asset-image {
   width: 100% !important;
   height: auto !important;
   display: block;
 }
 
-.node-card__cover .image-node__img {
+.node-card__cover .asset-image__img {
   width: 100% !important;
   height: auto !important;
   display: block;
