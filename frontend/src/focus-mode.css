@@ -122,14 +122,10 @@
 }
 
 /* ================================================================
-   ELEMENT BULLETS — hidden, revealed on block hover
+   ELEMENT BULLETS — remain visible so navigation and drag handles
+   stay accessible even with the thread lines hidden.
    ================================================================ */
 
 .focus-mode .block-ui > .bullet-wrapper {
-  opacity: var(--opacity-0);
-  transition: opacity var(--motion-duration-medium) var(--motion-easing-standard);
-}
-
-.focus-mode .node-block:hover > .block-ui > .bullet-wrapper {
   opacity: var(--opacity-100);
 }

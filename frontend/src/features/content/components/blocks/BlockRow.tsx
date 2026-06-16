@@ -9,11 +9,10 @@ import { useRef, useMemo, useEffect, useLayoutEffect, forwardRef, useImperativeH
 import { InlineEditor, type InlineEditorHandle } from '@/features/content/editor/InlineEditor';
 import { BlockUI } from './BlockUI';
 import { BlockAfterContent } from './BlockAfterContent';
-import { ThreadLine } from './ThreadLine';
+import { BulletLine } from './BulletLine';
 import { useEditorFocusStore } from '@/stores/editorFocusStore';
 import { parseAST, parseLinkId } from '@/lib/astBuilder';
 import { nodeNameToText } from '@/hooks/useStringifyAST';
-import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
 import { NodeContextMenu } from '@/features/content/components/nodes/NodeContextMenu';
 import { copyRuntimeBlocksToClipboard } from '@/utils/clipboardManager';
 import { useClipboardStore } from '@/stores/clipboardStore';
@@ -31,6 +30,15 @@ import { Button } from '@/components/ui/Button';
 import './BlockRow.css';
 import type { Node, Property } from '@/types/api';
 import type { JSX } from 'react';
+import { getOperationRuntime } from '@/runtime';
+import { getNode, getChildren } from '@/runtime/graphHelpers';
+import { getRuntimeEventBus } from '@/runtime/eventBus';
+import { getUndoEngine } from '@/stores/undoEngine';
+import type { MutationIntent } from '@/runtime/types';
+
+function applyRuntimeIntent(intent: MutationIntent): void {
+  getUndoEngine().applyIntent(intent, intent.type === 'update_content' ? { sourceEditorId: intent.sourceEditorId } : undefined);
+}
 
 // ─── Types ────────────────────────────────────────────────────────
 
@@ -176,7 +184,6 @@ export const BlockRow = memo(
     const { cycleTaskStatus } = useTaskActions(node);
 
     const [contextMenuPos, setContextMenuPos] = useState<{ x: number; y: number } | null>(null);
-    const [isHovered, setIsHovered] = useState(false);
     const [backlinkExpanded, setBacklinkExpanded] = useState(false);
     const toggleBacklinks = useCallback(() => {
       startTransition(() => setBacklinkExpanded((v) => !v));
@@ -208,17 +215,17 @@ export const BlockRow = memo(
 
     const handleThreadLineClick = useCallback((e?: React.MouseEvent | React.KeyboardEvent) => {
       e?.stopPropagation();
-      const runtime = getNodeGraphRuntime();
-      const graphNode = runtime.getNode(node.uuid);
+      const runtime = getOperationRuntime();
+      const graphNode = getNode(runtime, node.uuid);
       if (!graphNode?.parentId) return;
 
-      const siblings = runtime.getChildren(graphNode.parentId);
+      const siblings = getChildren(runtime, graphNode.parentId);
       if (siblings.length === 0) return;
 
       const anyExpanded = siblings.some((s) => !s.collapsed);
       const targetCollapsed = anyExpanded;
 
-      runtime.applyIntent({
+      applyRuntimeIntent({
         type: 'batch',
         intents: siblings.map((s) => ({
           type: 'set_collapsed',
@@ -226,7 +233,7 @@ export const BlockRow = memo(
           collapsed: targetCollapsed,
         })),
       });
-      runtime.flushEvents();
+      getRuntimeEventBus().flushEvents();
     }, [node.uuid]);
 
     const handleBulletContextMenu = useCallback(
@@ -243,7 +250,7 @@ export const BlockRow = memo(
     }, []);
 
     const handleCopyBlocks = useCallback(() => {
-      const runtime = getNodeGraphRuntime();
+      const runtime = getOperationRuntime();
       copyRuntimeBlocksToClipboard([node.uuid], runtime)
         .then((data) => useClipboardStore.getState().setCopied(data))
         .catch(console.error);
@@ -395,11 +402,9 @@ export const BlockRow = memo(
         data-depth={depth}
         data-ghost={isGhost || undefined}
         style={{ '--block-depth': depth, ...colorStyle } as React.CSSProperties}
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
       >
         {depth > 0 && !isGhost && (
-          <ThreadLine
+          <BulletLine
             depth={Math.min(depth, 8)}
             isActivePath={isActive || isOnActiveTrail}
             onClick={handleThreadLineClick}
@@ -418,7 +423,7 @@ export const BlockRow = memo(
             onNavigate={isGhost ? undefined : onNavigate}
             onOpenInSidebar={isGhost ? undefined : onOpenInSidebar}
             onContextMenu={isGhost ? undefined : handleBulletContextMenu}
-            isHovered={isHovered}
+            isActivePath={isActive || isOnActiveTrail}
             lockedBy={lockedBy}
             presenceUsers={presenceUsers}
             typingUsers={typingUsers}
