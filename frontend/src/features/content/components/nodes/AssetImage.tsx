@@ -12,7 +12,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNode } from '@/hooks';
 import { useNavigationStore } from '@/stores';
 import { getAssetUrlAsync } from '@/api/assets';
-import { Card } from '@/components/ui/Card';
+import { Card, type CardVariant } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { ImageModal } from '@/components/ui/ImageModal';
 import { FloatingButtonArray } from '@/components/ui/FloatingButtonArray';
@@ -30,6 +30,8 @@ interface AssetImageProps {
   showCard?: boolean;
   /** Card elevation level */
   elevation?: 'none' | 'low' | 'medium' | 'high';
+  /** Card visual variant */
+  variant?: CardVariant;
   /** Card border radius */
   radius?: 'none' | 'sm' | 'md' | 'lg';
   /** Whether the image is clickable to open modal (default: true) */
@@ -62,6 +64,7 @@ export function AssetImage({
   className = '',
   showCard = true,
   elevation = 'low',
+  variant = 'default',
   radius = 'md',
   clickable = true,
   showActions = false,
@@ -158,7 +161,7 @@ export function AssetImage({
     return (
       <div className={`asset-image asset-image--empty ${className}`}>
         {showCard ? (
-          <Card padding={false} radius={radius} elevation={elevation}>
+          <Card padding={false} radius={radius} elevation={elevation} variant={variant}>
             {emptyPlaceholder || <div className="asset-image__placeholder" />}
           </Card>
         ) : (
@@ -240,7 +243,7 @@ export function AssetImage({
 
         {/* Image with optional card wrapper */}
         {showCard ? (
-          <Card padding={false} radius={radius} elevation={elevation}>
+          <Card padding={false} radius={radius} elevation={elevation} variant={variant}>
             {imageContent}
           </Card>
         ) : (
