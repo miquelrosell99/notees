@@ -1,12 +1,11 @@
 /**
- * useRuntimeSync — Hook to sync backend API data with NodeGraphRuntime.
+ * useRuntimeSync — Hook to sync backend API data with OperationRuntime.
  *
- * Bridges TanStack Query (server state) with NodeGraphRuntime (client state).
+ * Bridges TanStack Query (server state) with OperationRuntime (client state).
  * Converts API Node objects to GraphNode format and loads them into the runtime.
  */
 
 import { useEffect } from 'react';
-import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
 import type { GraphNode, GraphNodeType, ContentAST } from '@/runtime/types';
 import type { Node } from '@/types/api';
 import { parseAST } from '@/lib/astBuilder';
@@ -16,6 +15,7 @@ import { nodeKeys } from './queryKeys';
 import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from '@/constants';
 import { getEffectiveIcon, getEffectiveColor } from '@/utils/nodeIcon';
 import { propertyKeys } from './queryKeys';
+import { upsertNodes } from '@/runtime/eventBus';
 
 /** Resolve class icon from numeric class IDs using a prebuilt map */
 function resolveClassIcon(classIds: number[] | undefined, iconMap?: Map<number, string>): string | null {
@@ -282,9 +282,8 @@ export function useRuntimeSync(nodes: Node[] | undefined, isLoading: boolean): v
   useEffect(() => {
     if (!nodes || isLoading) return;
 
-    const runtime = getNodeGraphRuntime();
     const graphNodes = convertNodesToGraphNodes(nodes);
-    runtime.upsertNodes(graphNodes);
+    upsertNodes(graphNodes);
   }, [nodes, isLoading]);
 }
 
@@ -299,9 +298,8 @@ export function useRuntimePageSync(
   useEffect(() => {
     if (!page || isLoading) return;
 
-    const runtime = getNodeGraphRuntime();
     const allNodes: Node[] = [page, ...(children || [])];
     const graphNodes = convertNodesToGraphNodes(allNodes);
-    runtime.upsertNodes(graphNodes);
+    upsertNodes(graphNodes);
   }, [page, children, isLoading]);
 }
