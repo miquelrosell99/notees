@@ -18,6 +18,8 @@ interface EditorFocusState {
 
   /** Block ID that should receive focus on next render cycle. */
   pendingFocusBlockId: string | null;
+  /** Optional caret offset for the pending focus. */
+  pendingFocusOffset?: number;
 
   /** Focus a specific block. Clears pending focus if it matches. */
   focusBlock: (blockId: string) => void;
@@ -26,7 +28,7 @@ interface EditorFocusState {
   blurBlock: (blockId: string) => void;
 
   /** Set pending focus (used after split/merge/create to focus a new block). */
-  setPendingFocus: (blockId: string | null) => void;
+  setPendingFocus: (blockId: string | null, offset?: number) => void;
 
   /** Mark that a popup has opened. Prevents blur-on-outside. */
   openPopup: () => void;
@@ -53,16 +55,19 @@ export const useEditorFocusStore = create<EditorFocusState>((set, get) => ({
       activeBlockId: blockId,
       pendingFocusBlockId:
         state.pendingFocusBlockId === blockId ? null : state.pendingFocusBlockId,
+      pendingFocusOffset:
+        state.pendingFocusBlockId === blockId ? undefined : state.pendingFocusOffset,
     })),
 
   blurBlock: (blockId: string) =>
     set((state) => {
       if (state.activeBlockId !== blockId) return state; // Another block took focus
       if (state.popupOpen) return state; // Do not blur while popup is open
-      return { activeBlockId: null, pendingFocusBlockId: null };
+      return { activeBlockId: null, pendingFocusBlockId: null, pendingFocusOffset: undefined };
     }),
 
-  setPendingFocus: (blockId: string | null) => set({ pendingFocusBlockId: blockId }),
+  setPendingFocus: (blockId: string | null, offset?: number) =>
+    set({ pendingFocusBlockId: blockId, pendingFocusOffset: offset }),
 
   openPopup: () => set({ popupOpen: true }),
 

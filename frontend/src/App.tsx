@@ -17,6 +17,7 @@ import { useNotificationStore, type Notification } from './stores/notificationSt
 import { ErrorBoundary } from './components/ui/ErrorBoundary';
 import { KeyboardShortcutsProvider } from './hooks/KeyboardShortcutsProvider';
 import { useGlobalKeyboardListener } from './hooks/useGlobalKeyboardListener';
+import { useWindowFocusActiveBlock } from './hooks/useWindowFocusActiveBlock';
 import { useCommand } from './hooks/useCommand';
 import { useUndoStackPersistence } from './hooks/useUndoStackPersistence';
 import { COMMAND_IDS } from './stores/commandRegistry';
@@ -25,6 +26,7 @@ import { useUndoStore } from './stores';
 import { useAndroidBridge } from './hooks';
 import { AppRoutes } from './features/layout/components/AppRoutes';
 import { CommandRegistrations } from './features/commands';
+import { SyncManager } from './sync';
 import { getLogger } from './utils/logger';
 import './App.css';
 import './focus-mode.css';
@@ -38,6 +40,7 @@ const log = getLogger('App');
 function GlobalKeyboardHandler() {
   useGlobalKeyboardListener();
   useUndoStackPersistence();
+  useWindowFocusActiveBlock();
 
   // Register global commands in the Command Registry
   useCommand(COMMAND_IDS.UNDO, () => {
@@ -164,6 +167,7 @@ function App() {
           <DndProvider>
             <GlobalKeyboardHandler />
             <CommandRegistrations />
+            <SyncManager />
             <BrowserRouter>
               <ErrorBoundary context="App">
                 <AppContent />

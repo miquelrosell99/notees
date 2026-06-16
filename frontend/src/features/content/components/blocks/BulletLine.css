@@ -1,12 +1,12 @@
 /**
- * ThreadLine styles — modular indentation guides and thread lines.
+ * BulletLine styles — per-row indentation guide line fallback.
  *
  * The system is a single absolutely-positioned container that spans the full
  * indentation width to the left of a block row. Inside it, each vertical line
  * is positioned at the bullet-center x-coordinate of one ancestor level.
  */
 
-.thread-line-system {
+.bullet-line-system {
   position: absolute;
   top: calc(var(--block-thread-line-overhang) * -1);
   bottom: calc(var(--block-thread-line-overhang) * -1);
@@ -18,18 +18,18 @@
 }
 
 /* Each line sits at the bullet-center x of an ancestor level. */
-.thread-line {
+.bullet-line {
   position: absolute;
   top: 0;
   bottom: 0;
-  left: calc(var(--thread-line-level) * var(--block-indent-step) + var(--block-thread-line-align));
+  left: calc(var(--bullet-line-level) * var(--block-indent-step) + var(--block-thread-line-align));
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 /* Decorative visual line. */
-.thread-line__visual {
+.bullet-line__visual {
   display: block;
   width: var(--thread-line-visual-width);
   height: 100%;
@@ -42,30 +42,30 @@
 
 /* ─── Idle mode: only the block's own connecting line is visible ─── */
 
-.thread-line--own .thread-line__visual {
+.bullet-line--own .bullet-line__visual {
   opacity: var(--opacity-70);
 }
 
 /* Hover/focus on the hit area brightens the idle line. */
-.thread-line__hit-area:hover + .thread-line__visual,
-.thread-line__hit-area:focus-visible + .thread-line__visual {
+.bullet-line__hit-area:hover + .bullet-line__visual,
+.bullet-line__hit-area:focus-visible + .bullet-line__visual {
   opacity: var(--opacity-100);
   background: var(--color-outline);
 }
 
 /* When a list-level overlay is drawing the guide lines, hide all per-row
    visuals but keep the transparent hit area interactive. */
-.thread-line-system--overlay-guides .thread-line__visual {
+.bullet-line-system--overlay-guides .bullet-line__visual {
   opacity: var(--opacity-0) !important;
 }
 
 /* ─── Editing mode: show faint guide lines for every ancestor level ─ */
 
-.thread-line-system--editing .thread-line__visual {
+.bullet-line-system--editing .bullet-line__visual {
   opacity: var(--opacity-25);
 }
 
-.thread-line-system--editing .thread-line--guide .thread-line__visual {
+.bullet-line-system--editing .bullet-line--guide .bullet-line__visual {
   width: var(--thread-line-guide-width);
   background: var(--color-outline-variant);
   border-radius: var(--thread-line-guide-width);
@@ -73,14 +73,14 @@
 
 /* ─── Active path: highlight this row's lines with primary color ─── */
 
-.thread-line-system--active-path .thread-line__visual {
+.bullet-line-system--active-path .bullet-line__visual {
   opacity: var(--opacity-55);
   background: var(--color-primary);
 }
 
 /* ─── Clickable hit area (idle mode only) ───────────────────────── */
 
-.thread-line__hit-area {
+.bullet-line__hit-area {
   position: absolute;
   top: 0;
   bottom: 0;
@@ -95,7 +95,7 @@
   z-index: var(--z-3);
 }
 
-.thread-line__hit-area:focus-visible {
+.bullet-line__hit-area:focus-visible {
   outline: var(--border-width-thick) solid var(--color-primary);
   outline-offset: var(--spacing-micro);
 }
@@ -105,7 +105,7 @@
    down to the current row's bullet. Only shown on the active editing path,
    layered over the straight vertical guide lines. */
 
-.thread-line__connector {
+.bullet-line__connector {
   position: absolute;
   top: calc(var(--block-thread-line-overhang) * -1);
   bottom: 50%;

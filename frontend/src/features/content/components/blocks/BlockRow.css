@@ -57,7 +57,6 @@
 /* Block bullet specific: right margin for spacing from content */
 .block-ui > .bullet-wrapper {
   margin-right: var(--spacing-1-5);
-  cursor: grab;
 }
 
 /* ─── Editing indicator — subtle bullet scale instead of breathing ring ─ */
@@ -254,10 +253,6 @@ body.notees-dragging-block .node-block--drop-spacing-instant {
 body.notees-dragging-block .bullet-interactive:hover {
   background-color: transparent;
   transform: none;
-}
-
-body.notees-dragging-block .bullet-interactive:hover::after {
-  background-color: transparent;
 }
 
 body.notees-dragging-block .bullet-interactive:hover .bullet-dot {

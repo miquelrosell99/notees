@@ -1,16 +1,18 @@
 /**
- * ThreadLineOverlay — List-level continuous indentation guide lines.
+ * BulletLineOverlay — List-level indentation guide lines and active bullet thread.
  *
- * Renders one continuous SVG line per visible parent-descendant chain.
- * Each line starts slightly below the parent bullet (leaving a small gap)
- * and runs to the last descendant bullet. Active-path L-connectors are
- * drawn with rounded elbows on top of the guide lines.
+ * Renders faint vertical guide lines (BulletLine) for every parent-descendant
+ * chain, plus a continuous primary-colored BulletThread along the active editing
+ * path, connecting bullet to bullet with rounded elbows.
  */
 
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { useEditorFocusStore } from '@/stores/editorFocusStore';
-import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
-import './ThreadLineOverlay.css';
+import { useSettingsStore } from '@/stores/settingsStore';
+import { useNavigationStore } from '@/stores/navigationStore';
+import './BulletLineOverlay.css';
+import { getOperationRuntime } from '@/runtime';
+import { getAncestors } from '@/runtime/graphHelpers';
 
 interface VirtualItemInfo {
   index: number;
@@ -18,7 +20,7 @@ interface VirtualItemInfo {
   end: number;
 }
 
-export interface ThreadLineOverlayProps {
+export interface BulletLineOverlayProps {
   /** Ref to the list container (used for coordinate frames and resize observation). */
   containerRef: React.RefObject<HTMLElement | null>;
   /** Flat list of visible nodes, used to map depths to DOM rows. */
@@ -36,10 +38,14 @@ interface LineSpan {
   yStart: number;
   yEnd: number;
   blockId: string;
-  isActivePath: boolean;
 }
 
 interface Connector {
+  x: number;
+  y: number;
+}
+
+interface Point {
   x: number;
   y: number;
 }
@@ -54,17 +60,49 @@ function getLineStartTrim(): number {
   return Number.isFinite(gap) ? gap : 6;
 }
 
-export const ThreadLineOverlay = memo(function ThreadLineOverlay({
+function buildThreadPath(points: Point[], radius: number): string {
+  if (points.length < 2) return '';
+  const segments: string[] = [];
+  const clampedRadius = Math.max(1, Math.min(radius, 12));
+
+  for (let i = 1; i < points.length; i++) {
+    const prev = points[i - 1];
+    const curr = points[i];
+    const dy = curr.y - prev.y;
+    const r = Math.min(clampedRadius, Math.abs(dy) / 2);
+
+    if (i === 1) {
+      segments.push(`M ${prev.x} ${prev.y}`);
+    }
+
+    if (dy <= r * 2) {
+      // Not enough vertical room for a full elbow; draw a straight diagonal.
+      segments.push(`L ${curr.x} ${curr.y}`);
+    } else {
+      segments.push(`L ${prev.x} ${curr.y - r}`);
+      segments.push(`A ${r} ${r} 0 0 0 ${prev.x + r} ${curr.y}`);
+      segments.push(`L ${curr.x} ${curr.y}`);
+    }
+  }
+
+  return segments.join(' ');
+}
+
+export const BulletLineOverlay = memo(function BulletLineOverlay({
   containerRef,
   flatNodes,
   virtualized = false,
   virtualItems,
   onLineClick,
-}: ThreadLineOverlayProps) {
+}: BulletLineOverlayProps) {
   const activeBlockId = useEditorFocusStore((s) => s.activeBlockId);
+  const showBulletThread = useSettingsStore((s) => s.showBulletThread);
+  const isFocusMode = useNavigationStore((s) => s.viewMode === 'focus');
   const isEditing = activeBlockId != null;
+
   const [spans, setSpans] = useState<LineSpan[]>([]);
   const [connectors, setConnectors] = useState<Connector[]>([]);
+  const [activePathChain, setActivePathChain] = useState<Point[]>([]);
   const [size, setSize] = useState({ width: 0, height: 0 });
   const rafRef = useRef<number>(0);
 
@@ -85,15 +123,10 @@ export const ThreadLineOverlay = memo(function ThreadLineOverlay({
       const containerRect = container.getBoundingClientRect();
 
       // Build active-path set from runtime when a block is being edited.
-      const activePath = new Set<string>();
-      if (activeBlockId) {
-        let current = getNodeGraphRuntime().getNode(activeBlockId);
-        while (current) {
-          activePath.add(current.blockId);
-          if (!current.parentId) break;
-          current = getNodeGraphRuntime().getNode(current.parentId);
-        }
-      }
+      const runtime = getOperationRuntime();
+      const activeAncestors = activeBlockId ? getAncestors(runtime, activeBlockId) : [];
+      const activePath = new Set<string>(activeAncestors.map((n) => n.blockId));
+      if (activeBlockId) activePath.add(activeBlockId);
 
       // Collect visible rows with coordinates.
       const rows: { depth: number; uuid: string; y: number; x: number }[] = [];
@@ -128,6 +161,7 @@ export const ThreadLineOverlay = memo(function ThreadLineOverlay({
       if (rows.length === 0) {
         setSpans([]);
         setConnectors([]);
+        setActivePathChain([]);
         setSize({ width: containerRect.width, height: containerRect.height });
         return;
       }
@@ -163,7 +197,6 @@ export const ThreadLineOverlay = memo(function ThreadLineOverlay({
           yStart,
           yEnd,
           blockId: row.uuid,
-          isActivePath: activePath.has(row.uuid),
         });
       }
 
@@ -182,8 +215,23 @@ export const ThreadLineOverlay = memo(function ThreadLineOverlay({
         }
       }
 
+      // Build the continuous active-path chain from root to active block,
+      // using only the visible rows for coordinates.
+      const newActivePathChain: Point[] = [];
+      if (activeBlockId) {
+        const chain: Point[] = [];
+        for (const ancestor of [...activeAncestors].reverse()) {
+          const row = rows.find((r) => r.uuid === ancestor.blockId);
+          if (row) chain.push({ x: row.x, y: row.y });
+        }
+        const activeRow = rows.find((r) => r.uuid === activeBlockId);
+        if (activeRow) chain.push({ x: activeRow.x, y: activeRow.y });
+        newActivePathChain.push(...chain);
+      }
+
       setSpans(newSpans);
       setConnectors(newConnectors);
+      setActivePathChain(newActivePathChain);
       setSize({ width: containerRect.width, height: containerRect.height });
     });
   }, [containerRef, flatNodes, activeBlockId, virtualized, virtualItems]);
@@ -209,7 +257,7 @@ export const ThreadLineOverlay = memo(function ThreadLineOverlay({
     };
   }, [computeOverlay, containerRef]);
 
-  if (spans.length === 0) return null;
+  if (!showBulletThread || isFocusMode || (spans.length === 0 && activePathChain.length < 2)) return null;
 
   const handleLineClick = (blockId: string) => (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -218,7 +266,7 @@ export const ThreadLineOverlay = memo(function ThreadLineOverlay({
 
   return (
     <svg
-      className={`thread-line-overlay ${isEditing ? 'thread-line-overlay--editing' : ''}`}
+      className={`bullet-line-overlay ${isEditing ? 'bullet-line-overlay--editing' : ''}`}
       width={size.width}
       height={size.height}
       aria-hidden="true"
@@ -226,17 +274,17 @@ export const ThreadLineOverlay = memo(function ThreadLineOverlay({
       {spans.map((span, index) => (
         <g
           key={`span-${index}`}
-          className={`thread-line-overlay__group ${span.isActivePath ? 'thread-line-overlay__group--active' : ''}`}
+          className="bullet-line__group"
         >
           <line
-            className="thread-line-overlay__line"
+            className="bullet-line"
             x1={span.x}
             y1={span.yStart}
             x2={span.x}
             y2={span.yEnd}
           />
           <line
-            className="thread-line-overlay__hit"
+            className="bullet-line__hit"
             x1={span.x}
             y1={span.yStart}
             x2={span.x}
@@ -251,13 +299,21 @@ export const ThreadLineOverlay = memo(function ThreadLineOverlay({
         return (
           <path
             key={`conn-${index}`}
-            className="thread-line-overlay__connector"
+            className="bullet-line__connector"
             d={`M ${connector.x} ${connector.y - r} L ${connector.x} ${connector.y} L ${connector.x + step} ${connector.y}`}
             strokeLinejoin="round"
             strokeLinecap="round"
           />
         );
       })}
+      {activePathChain.length >= 2 && (
+        <path
+          className="bullet-thread"
+          d={buildThreadPath(activePathChain, 5)}
+          fill="none"
+          strokeLinecap="round"
+        />
+      )}
     </svg>
   );
 });
