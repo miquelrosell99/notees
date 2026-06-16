@@ -23,12 +23,9 @@ import {
 } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useBlockTree, parseGhostParentUuid } from '@/hooks/useBlockTree';
-import { useStructureSync } from '@/hooks/useStructureSync';
-import { useBlockPersist } from '@/hooks/useBlockPersist';
 import { BlockRow, type BlockRowHandle } from './BlockRow';
-import { ThreadLineOverlay } from './ThreadLineOverlay';
+import { BulletLineOverlay } from './BulletLineOverlay';
 import { useEditorFocusStore } from '@/stores/editorFocusStore';
-import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
 import { generateUUID } from '@/utils/uuid';
 import type { Node } from '@/types/api';
 import { useBlockDragDrop } from '@/hooks/useBlockDragDrop';
@@ -38,6 +35,15 @@ import { useTouchIndent } from '@/hooks/useTouchIndent';
 import { BlockFindReplacePlugin } from '@/features/content/editor/plugins/BlockFindReplacePlugin';
 import { flushAllContentSaves } from '@/hooks/useContentSave';
 import './BlockList.css';
+import { getOperationRuntime } from '@/runtime';
+import { getNode, getChildren } from '@/runtime/graphHelpers';
+import { getRuntimeEventBus } from '@/runtime/eventBus';
+import { getUndoEngine } from '@/stores/undoEngine';
+import type { MutationIntent } from '@/runtime/types';
+
+function applyRuntimeIntent(intent: MutationIntent): void {
+  getUndoEngine().applyIntent(intent, intent.type === 'update_content' ? { sourceEditorId: intent.sourceEditorId } : undefined);
+}
 
 interface BlockListProps {
   /** Tree of nodes (will be projected through useBlockTree). */
@@ -126,8 +132,6 @@ export function BlockList({
   const rowRefs = useRef<Map<string, BlockRowHandle>>(new Map());
   const containerRef = useRef<HTMLDivElement>(null);
 
-  useStructureSync({ enabled: !readOnly });
-  useBlockPersist({ enabled: !readOnly });
 
   useBlockDragDrop({ containerRef, editorId: 'block-list', readOnly, excludedIds: ghostIds });
   useBlockSelection({ containerRef, blockIds, readOnly });
@@ -135,14 +139,12 @@ export function BlockList({
     containerRef,
     readOnly,
     onIndent: (blockId) => {
-      const runtime = getNodeGraphRuntime();
-      runtime.applyIntent({ type: 'indent_block', blockId });
-      runtime.flushEvents();
+      applyRuntimeIntent({ type: 'indent_block', blockId });
+      getRuntimeEventBus().flushEvents();
     },
     onOutdent: (blockId) => {
-      const runtime = getNodeGraphRuntime();
-      runtime.applyIntent({ type: 'outdent_block', blockId });
-      runtime.flushEvents();
+      applyRuntimeIntent({ type: 'outdent_block', blockId });
+      getRuntimeEventBus().flushEvents();
     },
   });
 
@@ -157,11 +159,11 @@ export function BlockList({
     // a signal that the runtime tree structure changed, so we must re-walk the
     // active block's ancestors.
     void structureVersion;
-    const runtime = getNodeGraphRuntime();
+    const runtime = getOperationRuntime();
     const trail = new Set<string>();
-    let current = runtime.getNode(activeBlockId);
+    let current = getNode(runtime, activeBlockId);
     while (current?.parentId) {
-      const parent = runtime.getNode(current.parentId);
+      const parent = getNode(runtime, current.parentId);
       if (!parent) break;
       trail.add(parent.blockId);
       current = parent;
@@ -183,19 +185,19 @@ export function BlockList({
 
   const canMergeInHierarchy = useCallback(
     (sourceBlockId: string, targetBlockId: string): boolean => {
-      const runtime = getNodeGraphRuntime();
-      const source = runtime.getNode(sourceBlockId);
-      const target = runtime.getNode(targetBlockId);
+      const runtime = getOperationRuntime();
+      const source = getNode(runtime, sourceBlockId);
+      const target = getNode(runtime, targetBlockId);
       if (!source || !target) return false;
 
-      const sourceChildren = runtime.getChildren(sourceBlockId);
+      const sourceChildren = getChildren(runtime, sourceBlockId);
 
       if (source.parentId === target.parentId && sourceChildren.length === 0) {
         return true;
       }
 
       if (source.parentId === targetBlockId) {
-        const targetChildren = runtime.getChildren(targetBlockId);
+        const targetChildren = getChildren(runtime, targetBlockId);
         if (targetChildren.length === 1) {
           return true;
         }
@@ -209,53 +211,53 @@ export function BlockList({
   const handleEnter = useCallback(
     (blockId: string) => {
       flushAllContentSaves();
-      const runtime = getNodeGraphRuntime();
+      const runtime = getOperationRuntime();
       const row = rowRefs.current.get(blockId);
       const cursor = row?.getCursorPosition() ?? 'empty';
 
       if (cursor === 'empty' || cursor === 'end') {
         const newBlockId = generateUUID();
-        const currentRuntimeNode = runtime.getNode(blockId);
+        const currentRuntimeNode = getNode(runtime, blockId);
         let parentId = currentRuntimeNode?.parentId ?? '';
         if (!parentId && nodeUuid) {
           parentId = nodeUuid;
         }
-        runtime.applyIntent({
+        applyRuntimeIntent({
           type: 'create_block',
           parentId,
           afterBlockId: blockId,
           blockId: newBlockId,
           contentAST: [{ type: 'paragraph', children: [{ type: 'text', text: '' }] }],
         });
-        runtime.flushEvents();
+        getRuntimeEventBus().flushEvents();
         setPendingFocus(newBlockId);
       } else if (cursor === 'start') {
-        const currentNode = runtime.getNode(blockId);
+        const currentNode = getNode(runtime, blockId);
         if (!currentNode) return;
         const parentId = currentNode.parentId ?? '';
-        const siblings = runtime.getChildren(parentId);
+        const siblings = getChildren(runtime, parentId);
         const currentIndex = siblings.findIndex((s) => s.blockId === blockId);
         const afterBlockId = currentIndex > 0 ? siblings[currentIndex - 1].blockId : null;
         const newBlockId = generateUUID();
-        runtime.applyIntent({
+        applyRuntimeIntent({
           type: 'create_block',
           parentId,
           afterBlockId,
           blockId: newBlockId,
           contentAST: [{ type: 'paragraph', children: [{ type: 'text', text: '' }] }],
         });
-        runtime.flushEvents();
+        getRuntimeEventBus().flushEvents();
         setPendingFocus(newBlockId);
       } else {
         const offset = row?.getCursorOffset() ?? 0;
         const newBlockId = generateUUID();
-        runtime.applyIntent({
+        applyRuntimeIntent({
           type: 'split_block',
           blockId,
           atOffset: offset,
           newBlockId,
         });
-        runtime.flushEvents();
+        getRuntimeEventBus().flushEvents();
         setPendingFocus(newBlockId);
       }
     },
@@ -273,13 +275,12 @@ export function BlockList({
       }
 
       flushAllContentSaves();
-      const runtime = getNodeGraphRuntime();
-      runtime.applyIntent({
+      applyRuntimeIntent({
         type: 'merge_blocks',
         sourceBlockId: blockId,
         targetBlockId: prevBlockId,
       });
-      runtime.flushEvents();
+      getRuntimeEventBus().flushEvents();
       setPendingFocus(prevBlockId);
     },
     [setPendingFocus, canMergeInHierarchy],
@@ -296,13 +297,12 @@ export function BlockList({
       }
 
       flushAllContentSaves();
-      const runtime = getNodeGraphRuntime();
-      runtime.applyIntent({
+      applyRuntimeIntent({
         type: 'merge_blocks',
         sourceBlockId: nextBlockId,
         targetBlockId: blockId,
       });
-      runtime.flushEvents();
+      getRuntimeEventBus().flushEvents();
       setPendingFocus(blockId);
     },
     [setPendingFocus, canMergeInHierarchy],
@@ -333,15 +333,15 @@ export function BlockList({
   }, []);
 
   const handleCollapseToggle = useCallback((blockId: string) => {
-    const runtime = getNodeGraphRuntime();
-    const node = runtime.getNode(blockId);
+    const runtime = getOperationRuntime();
+    const node = getNode(runtime, blockId);
     if (!node) return;
-    runtime.applyIntent({
+    applyRuntimeIntent({
       type: 'set_collapsed',
       blockId,
       collapsed: !node.collapsed,
     });
-    runtime.flushEvents();
+    getRuntimeEventBus().flushEvents();
   }, []);
 
   const handleOverlayLineClick = useCallback((blockId: string) => {
@@ -354,19 +354,19 @@ export function BlockList({
     if (!parentUuid) return;
 
     flushAllContentSaves();
-    const runtime = getNodeGraphRuntime();
-    const runtimeChildren = runtime.getChildren(parentUuid);
+    const runtime = getOperationRuntime();
+    const runtimeChildren = getChildren(runtime, parentUuid);
     const lastRealChild = runtimeChildren.length > 0 ? runtimeChildren[runtimeChildren.length - 1] : null;
 
     const newBlockId = generateUUID();
-    runtime.applyIntent({
+    applyRuntimeIntent({
       type: 'create_block',
       parentId: parentUuid,
       afterBlockId: lastRealChild?.blockId ?? null,
       blockId: newBlockId,
       contentAST: [{ type: 'paragraph', children: [{ type: 'text', text: '' }] }],
     });
-    runtime.flushEvents();
+    getRuntimeEventBus().flushEvents();
     setPendingFocus(newBlockId);
   }, [setPendingFocus]);
 
@@ -380,12 +380,11 @@ export function BlockList({
         case 'Tab': {
           e.preventDefault();
           flushAllContentSaves();
-          const runtime = getNodeGraphRuntime();
-          runtime.applyIntent({
+          applyRuntimeIntent({
             type: e.shiftKey ? 'outdent_block' : 'indent_block',
             blockId: activeBlockId,
           });
-          runtime.flushEvents();
+          getRuntimeEventBus().flushEvents();
           break;
         }
         case 'ArrowUp': {
@@ -491,7 +490,7 @@ export function BlockList({
     >
       {enableVirtualization ? (
         <>
-          <ThreadLineOverlay
+          <BulletLineOverlay
             containerRef={containerRef}
             flatNodes={flatNodes}
             virtualized
@@ -550,7 +549,7 @@ export function BlockList({
       </>
       ) : (
         <>
-          <ThreadLineOverlay
+          <BulletLineOverlay
             containerRef={containerRef}
             flatNodes={flatNodes}
             virtualized={false}

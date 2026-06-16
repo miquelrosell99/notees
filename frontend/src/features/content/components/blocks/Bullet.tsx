@@ -30,8 +30,10 @@ export interface BulletProps {
   hasChildren?: boolean;
   /** Whether the node is collapsed */
   collapsed?: boolean;
-  /** Whether the block/node is being hovered */
-  isHovered?: boolean;
+  /** Whether this block is on the active editing path. */
+  isActivePath?: boolean;
+  /** If true and an icon is provided, render a small anchor dot for the bullet thread. */
+  showMiniBullet?: boolean;
   /** Click handler (regular click - opens focused view) */
   onClick?: (e: React.MouseEvent) => void;
   /** Shift+click handler (opens in sidebar) */
@@ -59,7 +61,8 @@ export function Bullet({
   interactive = true,
   hasChildren = false,
   collapsed = false,
-  isHovered = false,
+  isActivePath = false,
+  showMiniBullet = false,
   onClick,
   onShiftClick,
   onContextMenu,
@@ -101,18 +104,19 @@ export function Bullet({
     if (interactive) classes.push('bullet-interactive');
     if (collapsed) classes.push('bullet-collapsed');
     if (isDragging) classes.push('bullet-dragging');
-    if (isHovered) classes.push('bullet-hovered');
+    if (isActivePath) classes.push('bullet-active-path');
+    if (showMiniBullet) classes.push('bullet-mini-bullet');
     if (icon) classes.push('bullet-has-icon');
     if (className) classes.push(className);
     return classes.join(' ');
-  }, [size, interactive, collapsed, isDragging, isHovered, icon, className]);
+  }, [size, interactive, collapsed, isDragging, isActivePath, showMiniBullet, icon, className]);
   
   // Compute title
   const computedTitle = useMemo(() => {
     if (title) return title;
     if (!interactive) return undefined;
-    if (hasChildren && collapsed) return 'Click to expand, Shift+click to open in sidebar';
-    return 'Click to focus, Shift+click to open in sidebar';
+    if (hasChildren && collapsed) return 'Drag to move, click to expand, Shift+click to open in sidebar';
+    return 'Drag to move, click to focus, Shift+click to open in sidebar';
   }, [title, interactive, hasChildren, collapsed]);
   
 
@@ -138,6 +142,9 @@ export function Bullet({
       <span className="bullet-container">
         {/* Outer ring - shows only when collapsed with children */}
         {hasChildren && collapsed && <span className="bullet-outer-ring" />}
+
+        {/* Mini bullet anchor for icon bullets on the active editing path. */}
+        {showMiniBullet && icon && <span className="bullet-mini" aria-hidden="true" />}
 
         {/* Icon or dot */}
         {icon ? (

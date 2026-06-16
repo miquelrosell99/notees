@@ -35,14 +35,22 @@
   border-radius: 50%;
   color: var(--color-on-surface-variant);
   cursor: pointer;
-  opacity: var(--opacity-0);
-  transition: opacity var(--motion-duration-short) var(--motion-easing-standard),
-              color var(--motion-duration-short) var(--motion-easing-standard),
-              background-color var(--motion-duration-short) var(--motion-easing-standard),
-              transform var(--motion-duration-short) var(--motion-easing-tactile);
   z-index: var(--z-5);
   user-select: none;
   -webkit-user-select: none;
+}
+
+/* Extend the clickable/hoverable area upward so the arrow can be revealed
+   by hovering where the icon ends up after it floats up. */
+.block-collapse-arrow::before {
+  content: '';
+  position: absolute;
+  top: -0.75rem;
+  left: 0;
+  width: 100%;
+  height: calc(100% + 0.75rem);
+  background: transparent;
+  pointer-events: auto;
 }
 
 .block-collapse-arrow__icon {
@@ -50,26 +58,27 @@
   line-height: 1;
   display: inline-block;
   transform: translateY(-1px);
+  opacity: var(--opacity-0);
+  transition: opacity var(--motion-duration-short) var(--motion-easing-standard),
+              color var(--motion-duration-short) var(--motion-easing-standard),
+              transform var(--motion-duration-short) var(--motion-easing-tactile);
 }
 
-.block-collapse-arrow:hover {
+.block-collapse-arrow:hover .block-collapse-arrow__icon,
+.block-collapse-arrow:focus-visible .block-collapse-arrow__icon,
+.node-block:hover .block-collapse-arrow__icon {
   opacity: var(--opacity-100);
   color: var(--color-on-surface);
+  transform: translateY(calc(-1px - 0.75rem));
 }
 
-.block-collapse-arrow:active {
-  transform: translateY(-50%) scale(var(--tactile-press-scale));
-}
-
-/* Show collapse arrow when hovering the block row */
-.node-block:hover .block-collapse-arrow {
-  opacity: var(--opacity-100);
+.block-collapse-arrow:active .block-collapse-arrow__icon {
+  transform: translateY(calc(-1px - 0.75rem)) scale(var(--tactile-press-scale));
 }
 
 /* Block bullet specific: right margin for spacing from content */
 .block-ui > .bullet-wrapper {
   margin-right: var(--spacing-1-5);
-  cursor: grab;
 }
 
 /* Lock indicator — shown when another user is editing this block */

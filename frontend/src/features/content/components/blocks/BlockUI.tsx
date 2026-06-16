@@ -27,8 +27,8 @@ interface BlockUIProps {
   onContextMenu?: (nodeId: number, event: React.MouseEvent) => void;
   /** Whether the bullet should be interactive (clickable/draggable). */
   interactive?: boolean;
-  /** Whether the block row is being hovered */
-  isHovered?: boolean;
+  /** Whether this block is on the active editing path. */
+  isActivePath?: boolean;
   /** Remote users currently editing this block (for lock indicator). */
   lockedBy?: PresenceUser[];
   /** Remote users currently focused on this block (presence). */
@@ -47,7 +47,7 @@ export function BlockUI({
   onOpenInSidebar,
   onContextMenu,
   interactive = true,
-  isHovered,
+  isActivePath = false,
   lockedBy,
   presenceUsers,
   typingUsers,
@@ -92,7 +92,8 @@ export function BlockUI({
         onClick={handleClick}
         onShiftClick={handleShiftClick}
         onContextMenu={onContextMenu}
-        isHovered={isHovered}
+        isActivePath={isActivePath}
+        showMiniBullet={isActivePath && !!(iconOverride ?? node.icon)}
         size="sm"
       />
       {presenceUsers && presenceUsers.length > 0 && (
