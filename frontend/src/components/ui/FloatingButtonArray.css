@@ -1,8 +1,13 @@
 /**
  * FloatingButtonArray Component Styles
- * 
+ *
  * Container for floating button groups with consistent spacing.
  */
+
+.floating-button-array {
+  width: fit-content;
+  height: fit-content;
+}
 
 .floating-button-array__inner {
   display: flex;
@@ -19,14 +24,19 @@
 }
 
 /* Size variants */
+.floating-button-array--xs .floating-button-array__inner {
+  gap: var(--spacing-hairline);
+  padding: var(--spacing-hairline);
+}
+
 .floating-button-array--sm .floating-button-array__inner {
-  gap: var(--spacing-micro);
-  padding: var(--spacing-micro);
+  gap: var(--spacing-hairline);
+  padding: var(--spacing-hairline);
 }
 
 .floating-button-array--md .floating-button-array__inner {
-  gap: var(--spacing-1);
-  padding: var(--spacing-1);
+  gap: var(--spacing-micro);
+  padding: var(--spacing-micro);
 }
 
 /* ─── ToolbarDivider ─────────────────────────────────────────────── */

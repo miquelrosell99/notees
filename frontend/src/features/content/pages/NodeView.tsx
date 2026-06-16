@@ -82,9 +82,8 @@ import { useEditorFocusStore } from '@/stores/editorFocusStore';
 import type { MutationIntent } from '@/runtime/types';
 
 
-// Local storage keys for collapse state
+// Local storage key for collapse state (banner only; cover derives from image presence)
 const BANNER_COLLAPSED_KEY = 'notees:banner-collapsed';
-const COVER_COLLAPSED_KEY = 'notees:cover-collapsed';
 
 /**
  * Get collapsed state for a specific node from localStorage
@@ -750,7 +749,8 @@ export function NodeView({
   React.useEffect(() => {
     if (node?.id) {
       setIsBannerCollapsed(getCollapsedState(BANNER_COLLAPSED_KEY, node.id, !!bannerImageId));
-      setIsCoverCollapsed(getCollapsedState(COVER_COLLAPSED_KEY, node.id, !!coverImageId));
+      // Cover: derive from whether a cover image is set. No per-node persistence.
+      setIsCoverCollapsed(!coverImageId);
     }
   }, [node?.id, bannerImageId, coverImageId]);
   
@@ -766,11 +766,7 @@ export function NodeView({
   
   const handleToggleCoverCollapse = useCallback(() => {
     if (!node) return;
-    setIsCoverCollapsed(prev => {
-      const newState = !prev;
-      setCollapsedState(COVER_COLLAPSED_KEY, node.id, newState);
-      return newState;
-    });
+    setIsCoverCollapsed(prev => !prev);
   }, [node]);
   
   // Banner remove handler
@@ -863,7 +859,6 @@ export function NodeView({
         });
         if (isCoverCollapsed) {
           setIsCoverCollapsed(false);
-          setCollapsedState(COVER_COLLAPSED_KEY, node.id, false);
         }
       }
     } catch (error) {
@@ -1126,16 +1121,18 @@ export function NodeView({
               onMouseEnter={() => setIsBannerHovered(true)}
               onMouseLeave={() => setIsBannerHovered(false)}
             >
-            <Button
-              variant="ghost"
-              size="xs"
-              icon="mdi mdi-chevron-down"
-              className="node-view__banner-collapse-btn"
-              onClick={handleToggleBannerCollapse}
-              title={isBannerCollapsed ? "Expand banner image" : "Collapse banner"}
-              aria-label={isBannerCollapsed ? "Expand banner image" : "Collapse banner image"}
-              aria-expanded={!isBannerCollapsed}
-            />
+            <div className="node-view__banner-toolbar">
+              <Button
+                variant="ghost"
+                size="xs"
+                icon="mdi mdi-chevron-down"
+                className="node-view__banner-collapse-btn"
+                onClick={handleToggleBannerCollapse}
+                title={isBannerCollapsed ? "Expand banner image" : "Collapse banner"}
+                aria-label={isBannerCollapsed ? "Expand banner image" : "Collapse banner image"}
+                aria-expanded={!isBannerCollapsed}
+              />
+            </div>
             
             <div 
               className={`node-view__banner-content ${isBannerCollapsed ? 'node-view__banner-content--collapsed' : 'node-view__banner-content--expanded'}`}
@@ -1223,7 +1220,7 @@ export function NodeView({
                   showActions={isCoverHovered && !isCoverCollapsed}
                   onEdit={handleSelectCoverImage}
                   onRemove={handleRemoveCover}
-                  actionsDirection="vertical"
+                  actionsDirection="horizontal"
                   isDragging={isCoverDragging}
                   showModalBullet={true}
                   emptyPlaceholder={

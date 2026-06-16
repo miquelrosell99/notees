@@ -12,7 +12,7 @@ import { cn } from '@/utils/cn';
 
 export type CardElevation = 'none' | 'low' | 'medium' | 'high';
 export type CardVariant = 'default' | 'outlined' | 'filled' | 'transparent' | 'dashed';
-export type CardRadius = 'sm' | 'md' | 'lg' | 'xl' | 'none';
+export type CardRadius = 'sm' | 'md' | 'lg' | 'xl' | 'none' | 'floating';
 
 export interface CardProps extends HTMLAttributes<HTMLDivElement> {
   /** Card content */

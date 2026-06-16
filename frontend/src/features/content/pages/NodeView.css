@@ -202,20 +202,16 @@
   opacity: var(--opacity-90);
 }
 
-.node-view__banner-collapse-btn {
+.node-view__banner-toolbar {
   display: flex;
-  align-items: center;
   justify-content: center;
   width: 100%;
-  height: var(--height-xs);
-  padding: 0;
-  background: transparent;
-  border: none;
-  border-radius: var(--shape-small);
-  color: var(--color-on-surface-variant);
-  cursor: pointer;
+  padding: var(--spacing-1) 0;
+}
+
+.node-view__banner-collapse-btn {
   opacity: var(--opacity-40);
-  transition: opacity var(--motion-duration-shorter), color var(--motion-duration-shorter);
+  transition: opacity var(--motion-duration-shorter), color var(--motion-duration-shorter), background-color var(--motion-duration-shorter), border-color var(--motion-duration-shorter);
 }
 
 .node-view__banner:hover .node-view__banner-collapse-btn {
@@ -224,7 +220,6 @@
 
 .node-view__banner-collapse-btn:hover {
   opacity: var(--opacity-100);
-  color: var(--color-on-surface);
 }
 
 .node-view__banner-collapse-btn[aria-expanded="true"] .btn__icon {
@@ -366,8 +361,9 @@
 }
 
 /* Card is the visible container; width scales with the image between
-   4:3 portrait (120px) and 1:1 square (160px) at the fixed 160px height. */
-.node-view__cover-image .card {
+   4:3 portrait (120px) and 1:1 square (160px) at the fixed 160px height.
+   Exclude the floating action-button array card so it hugs its content. */
+.node-view__cover-image > .card:not(.floating-button-array) {
   height: 100%;
   min-width: var(--layout-size-sm);
   max-width: var(--layout-size-xl);
@@ -409,6 +405,13 @@
   width: auto;
   height: 100%;
   object-fit: contain;
+}
+
+/* Cover action buttons sit at the bottom-right to avoid obscuring the top of cover images */
+.node-view__cover-image .asset-image__actions {
+  top: auto;
+  bottom: var(--spacing-2);
+  right: var(--spacing-2);
 }
 
 /* Focused Block Content - renders block as a top-level list item */
