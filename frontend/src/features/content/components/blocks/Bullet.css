@@ -53,23 +53,12 @@
   height: var(--height-lg);
 }
 
-/* Interactive bullet (clickable/draggable) */
-.bullet-interactive {
-  cursor: pointer;
+/* Interactive bullet: single trigger zone for click and drag.
+   The hit area is exactly the bullet wrapper; there is no invisible overlay. */
+.bullet-interactive,
+button.bullet-interactive {
+  cursor: grab;
   border-radius: 50%;
-  /* Prevent text cursor from showing */
-  pointer-events: auto;
-}
-
-/* Invisible minimum hit-area overlay for accessible touch targets */
-.bullet-interactive::after {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: var(--button-icon-only-xs);
-  height: var(--button-icon-only-xs);
   pointer-events: auto;
 }
 
@@ -80,13 +69,12 @@
   box-shadow: none;
 }
 
-.bullet-interactive[draggable="true"] {
-  cursor: grab;
+.bullet-interactive:active {
+  cursor: grabbing;
 }
 
-.bullet-interactive[draggable="true"]:active {
+body.notees-dragging-block .bullet-interactive {
   cursor: grabbing;
-  transform: scale(var(--tactile-press-scale));
 }
 
 /* ==================== Bullet Container ==================== */
@@ -98,6 +86,7 @@
   justify-content: center;
   width: 100%;
   height: 100%;
+  cursor: inherit;
   /* Optical alignment: body text sits on a baseline, so its visual center is
      below the geometric center of the line box. Nudge bullets (dots and icons)
      down so they sit on the same optical line as the surrounding text. */
@@ -112,19 +101,61 @@
   border-radius: 50%;
   background-color: var(--color-on-surface-variant);
   opacity: var(--opacity-55);
+  cursor: inherit;
   transition: opacity var(--motion-duration-short) var(--motion-easing-tactile),
               background-color var(--motion-duration-short) var(--motion-easing-tactile),
               transform var(--motion-duration-short) var(--motion-easing-tactile),
               box-shadow var(--motion-duration-short) var(--motion-easing-tactile);
 }
 
-.bullet-hovered .bullet-dot {
-  opacity: var(--opacity-85);
-}
-
 /* Press: tactile press-in */
 .bullet-interactive:active .bullet-dot {
   opacity: var(--opacity-100);
+}
+
+/* Active editing path: highlight the bullet/dot to match the bullet thread. */
+.bullet-active-path .bullet-dot {
+  background-color: var(--color-primary);
+  opacity: var(--opacity-100);
+  transform: scale(1.2);
+}
+
+.bullet-active-path .bullet-icon {
+  color: var(--color-primary);
+  opacity: var(--opacity-100);
+  transform: scale(1.2);
+}
+
+/* ==================== Mini Bullet (thread anchor for icon bullets) ==================== */
+
+/* A small anchor dot rendered behind an icon bullet when it sits on the
+   active editing path. This gives the bullet thread a clean circular target
+   while the icon floats above it. */
+.bullet-mini {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: var(--bullet-dot-size);
+  height: var(--bullet-dot-size);
+  transform: translate(-50%, -50%) scale(1.2);
+  border-radius: 50%;
+  background-color: var(--color-primary);
+  opacity: var(--opacity-100);
+  pointer-events: none;
+  transition: transform var(--motion-duration-short) var(--motion-easing-tactile),
+              opacity var(--motion-duration-short) var(--motion-easing-tactile);
+}
+
+.bullet-has-icon .bullet-icon {
+  transition: transform var(--motion-duration-short) var(--motion-easing-tactile),
+              color var(--motion-duration-short) var(--motion-easing-tactile),
+              opacity var(--motion-duration-short) var(--motion-easing-tactile);
+}
+
+.bullet-active-path.bullet-has-icon .bullet-icon {
+  transform: translateY(-0.75rem) scale(0.85);
+  color: var(--color-primary);
+  opacity: 1;
 }
 
 /* ==================== Bullet Icon ==================== */
