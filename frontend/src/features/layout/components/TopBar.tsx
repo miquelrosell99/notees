@@ -11,7 +11,7 @@
 import { useRef, useState, useMemo, useCallback, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigationStore, useModalStore, useUndoStore, useSettingsStore } from '@/stores';
-import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
+
 import { useAutoExportStore } from '@/stores/autoExportStore';
 import { useCommentCount, useDailyNote } from '@/hooks';
 import { Icon } from '@/components/ui/Icon';
@@ -26,6 +26,8 @@ import { LiveSyncIndicator } from '@/features/collab/components/LiveSyncIndicato
 import { TabBar } from './TabBar/TabBar';
 
 import './TopBar.css';
+import { getRuntimeEventBus } from '@/runtime/eventBus';
+
 
 function AutoExportIndicator() {
   const status = useAutoExportStore(s => s.status);
@@ -111,8 +113,7 @@ export function TopBar() {
   const syncRuntimeState = useUndoStore(s => s.syncRuntimeState);
   useEffect(() => {
     refreshStack();
-    const runtime = getNodeGraphRuntime();
-    const unsubscribe = runtime.subscribe((event) => {
+    const unsubscribe = getRuntimeEventBus().subscribe((event) => {
       if (event.type === 'undo_stack_changed') {
         syncRuntimeState();
       }

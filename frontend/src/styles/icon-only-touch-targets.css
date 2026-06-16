@@ -23,9 +23,6 @@
 .command-palette__filter-pill-remove,
 .node-selector__filter-pill-remove,
 
-/* ─── Block chrome ───────────────────────────────────────────────────────── */
-.block-collapse-arrow,
-
 /* ─── View headers / sidebars ────────────────────────────────────────────── */
 .node-view-section__toggle,
 .sidebar-card__collapse-btn,
@@ -79,7 +76,6 @@
 .node-tag-chip .remove-btn::after,
 .command-palette__filter-pill-remove::after,
 .node-selector__filter-pill-remove::after,
-.block-collapse-arrow::after,
 .node-view-section__toggle::after,
 .sidebar-card__collapse-btn::after,
 .sidebar-card__open-btn::after,
