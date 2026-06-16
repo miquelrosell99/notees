@@ -80,6 +80,7 @@ export function ImageModal({
       className="image-modal-backdrop"
       onClick={handleBackdropClick}
       onKeyDown={(e) => {
+        if (e.target !== e.currentTarget) return;
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
           onClose();

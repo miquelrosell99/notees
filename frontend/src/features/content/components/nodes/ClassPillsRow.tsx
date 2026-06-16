@@ -137,6 +137,7 @@ export const ClassPillsRow = memo(function ClassPillsRow({
             className="class-pills-popup-backdrop"
             onClick={handleClosePopup}
             onKeyDown={(e) => {
+              if (e.target !== e.currentTarget) return;
               if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();
                 handleClosePopup();
@@ -197,6 +198,7 @@ export const ClassPillsRow = memo(function ClassPillsRow({
             className="class-pills-popup-backdrop"
             onClick={() => setShowAddPopup(false)}
             onKeyDown={(e) => {
+              if (e.target !== e.currentTarget) return;
               if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();
                 setShowAddPopup(false);

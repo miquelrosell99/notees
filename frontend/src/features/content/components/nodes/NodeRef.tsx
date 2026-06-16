@@ -532,6 +532,7 @@ function NodeRefInteractive({
                 }}
                 onClick={handleCloseContextMenu}
                 onKeyDown={(e) => {
+                  if (e.target !== e.currentTarget) return;
                   if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
                     handleCloseContextMenu();
@@ -611,6 +612,7 @@ function PillColorPicker({ position, currentColor, onColorChange, onClose }: Pil
       onClick={handleClickOutside}
       onContextMenu={(e) => e.preventDefault()}
       onKeyDown={(e) => {
+        if (e.target !== e.currentTarget) return;
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
           onClose();
