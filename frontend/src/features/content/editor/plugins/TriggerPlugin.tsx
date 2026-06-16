@@ -188,7 +188,7 @@ export function TriggerPlugin({
     );
   }, [editor, blockIdProp]);
 
-  // ─── Detect triggers on text insertion (Android soft keyboards) ──
+  // ─── Detect triggers on text insertion (Android soft keyboards / IME) ──
 
   useEffect(() => {
     return editor.registerCommand(
@@ -215,21 +215,29 @@ export function TriggerPlugin({
 
         const text = anchorNode.getTextContent();
         const offset = selection.anchor.offset;
-        const triggerOffset = offset - 1;
-        const prevChar = triggerOffset > 0 ? text[triggerOffset - 1] : null;
+        const prevChar = offset > 0 ? text[offset - 1] : null;
 
         let valid = false;
-        if (insertedText === '+' && (triggerOffset === 0 || /[^a-zA-Z0-9]/.test(prevChar || ''))) {
+        if (insertedText === '+' && (offset === 0 || /[^a-zA-Z0-9]/.test(prevChar || ''))) {
           valid = true;
-        } else if (insertedText === '@' && (triggerOffset === 0 || /[^a-zA-Z0-9]/.test(prevChar || ''))) {
+        } else if (insertedText === '@' && (offset === 0 || /[^a-zA-Z0-9]/.test(prevChar || ''))) {
           valid = true;
-        } else if (insertedText === '#' && (triggerOffset === 0 || /[^a-zA-Z0-9]/.test(prevChar || ''))) {
+        } else if (insertedText === '#' && (offset === 0 || /[^a-zA-Z0-9]/.test(prevChar || ''))) {
           valid = true;
-        } else if (insertedText === '/' && (triggerOffset === 0 || /\s/.test(prevChar || ''))) {
+        } else if (insertedText === '/' && (offset === 0 || /\s/.test(prevChar || ''))) {
           valid = true;
         }
 
         if (!valid) return false;
+
+        // Lexical preventDefault'd the native beforeinput event before
+        // dispatching this command, so we must insert the trigger character
+        // ourselves (unlike the KEY_DOWN path where we suppress the browser
+        // insertion and then insert manually).
+        selection.insertText(insertedText);
+
+        const newAnchorNode = selection.anchor.getNode();
+        if (!$isTextNode(newAnchorNode)) return false;
 
         const coords = getCaretCoordinates(editor);
         const rootEl = editor.getRootElement();
@@ -238,8 +246,8 @@ export function TriggerPlugin({
           (rootEl === document.activeElement || rootEl.contains(document.activeElement));
 
         placeholderRef.current = {
-          nodeKey: anchorNode.getKey(),
-          offset: triggerOffset,
+          nodeKey: newAnchorNode.getKey(),
+          offset: selection.anchor.offset - 1,
           char: insertedText,
         };
 
