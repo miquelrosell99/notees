@@ -16,7 +16,7 @@ import './styles/data-colors.css'
 import './index.css'
 import { App } from './App.tsx'
 import { useSettingsStore, applyTheme } from './stores'
-import { restorePendingIntents, savePendingIntents } from './lib/pendingIntentStorage'
+import { restoreOperations, saveOperations } from './lib/operationStorage'
 import { restoreUndoStacks } from './lib/undoStackStorage'
 
 // Apply saved theme on startup — wrapped in try/catch so a corrupt store
@@ -28,17 +28,17 @@ try {
   console.error('[main] Failed to apply saved theme, falling back to default:', e);
 }
 
-// Restore pending intents and undo stacks from previous session (offline support)
-restorePendingIntents().catch((e) => {
-  console.error('[main] Failed to restore pending intents:', e);
+// Restore pending operations and undo stacks from previous session (offline support)
+restoreOperations().catch((e) => {
+  console.error('[main] Failed to restore pending operations:', e);
 });
 restoreUndoStacks().catch((e) => {
   console.error('[main] Failed to restore undo stacks:', e);
 });
 
-// Save pending intents before page unload
+// Save pending operations before page unload
 window.addEventListener('beforeunload', () => {
-  savePendingIntents().catch(() => {});
+  saveOperations().catch(() => {});
 });
 
 // Catch errors that escape React's error boundary (async callbacks, event

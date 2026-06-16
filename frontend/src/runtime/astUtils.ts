@@ -1,7 +1,7 @@
 /**
- * Pure ContentAST helpers used by NodeGraphRuntime.
+ * Pure ContentAST helpers used by the runtime intent engine.
  *
- * Kept separate so the runtime file can focus on graph state and mutations.
+ * Kept separate so the runtime core can focus on graph state and mutations.
  */
 import type { ContentAST } from './types';
 import type { ASTInlineNode } from '@/types/ast';

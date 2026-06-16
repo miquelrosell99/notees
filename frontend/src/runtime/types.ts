@@ -1,5 +1,5 @@
 /**
- * Core types for the NodeGraphRuntime architecture.
+ * Core types for the OperationRuntime graph architecture.
  *
  * Every entity in Notees is a "graph node" managed by the runtime.
  * Lexical editors are projections of subsets of this graph.
@@ -147,7 +147,7 @@ export interface UndoEntry {
 
 export type RuntimeEvent =
   | { type: 'nodes_changed'; blockIds: string[]; source?: 'intent' | 'sync' | 'undo' | 'redo'; sourceEditorId?: string }
-  | { type: 'structure_changed'; parentIds: string[]; source?: 'intent' | 'sync' }
+  | { type: 'structure_changed'; parentIds: string[]; source?: 'intent' | 'sync' | 'undo' | 'redo' }
   | { type: 'block_deleted'; blockId: string; serverId?: number }
   | { type: 'collapse_changed'; blockId: string; serverId?: number; collapsed: boolean }
   | { type: 'projection_invalidated'; projectionId: string }
