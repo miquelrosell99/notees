@@ -29,6 +29,8 @@ interface BlockUIProps {
   interactive?: boolean;
   /** Whether this block is on the active editing path. */
   isActivePath?: boolean;
+  /** Nesting depth of the block (0 = top-level). */
+  depth?: number;
   /** Remote users currently editing this block (for lock indicator). */
   lockedBy?: PresenceUser[];
   /** Remote users currently focused on this block (presence). */
@@ -48,6 +50,7 @@ export function BlockUI({
   onContextMenu,
   interactive = true,
   isActivePath = false,
+  depth = 0,
   lockedBy,
   presenceUsers,
   typingUsers,
@@ -74,7 +77,7 @@ export function BlockUI({
     <div className="block-ui">
       {hasChildren && onCollapseToggle && (
         <button
-          className="block-collapse-arrow"
+          className={`block-collapse-arrow ${(isActivePath && depth > 0) ? 'block-collapse-arrow--thread-overlap' : ''}`}
           onClick={handleCollapseClick}
           title={collapsed ? 'Expand' : 'Collapse'}
           aria-label={collapsed ? 'Expand' : 'Collapse'}

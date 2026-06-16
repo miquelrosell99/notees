@@ -40,19 +40,6 @@
   -webkit-user-select: none;
 }
 
-/* Extend the clickable/hoverable area upward so the arrow can be revealed
-   by hovering where the icon ends up after it floats up. */
-.block-collapse-arrow::before {
-  content: '';
-  position: absolute;
-  top: -0.75rem;
-  left: 0;
-  width: 100%;
-  height: calc(100% + 0.75rem);
-  background: transparent;
-  pointer-events: auto;
-}
-
 .block-collapse-arrow__icon {
   font-size: var(--collapse-arrow-font-size);
   line-height: 1;
@@ -64,16 +51,38 @@
               transform var(--motion-duration-short) var(--motion-easing-tactile);
 }
 
+/* Default hover/focus: show arrow at its normal centered position. */
 .block-collapse-arrow:hover .block-collapse-arrow__icon,
 .block-collapse-arrow:focus-visible .block-collapse-arrow__icon,
 .node-block:hover .block-collapse-arrow__icon {
   opacity: var(--opacity-100);
   color: var(--color-on-surface);
+}
+
+/* When a bullet thread line overlaps the arrow (i.e. this block is the active
+   edited block), float the icon up so the thread remains visible. */
+.block-collapse-arrow--thread-overlap .block-collapse-arrow__icon,
+.block-collapse-arrow--thread-overlap:hover .block-collapse-arrow__icon,
+.block-collapse-arrow--thread-overlap:focus-visible .block-collapse-arrow__icon,
+.node-block:hover .block-collapse-arrow--thread-overlap .block-collapse-arrow__icon {
   transform: translateY(calc(-1px - 0.75rem));
 }
 
-.block-collapse-arrow:active .block-collapse-arrow__icon {
+.block-collapse-arrow--thread-overlap:active .block-collapse-arrow__icon {
   transform: translateY(calc(-1px - 0.75rem)) scale(var(--tactile-press-scale));
+}
+
+/* Extend the clickable/hoverable area upward only when the arrow is floated,
+   so hovering where the icon ends up still reveals it. */
+.block-collapse-arrow--thread-overlap::before {
+  content: '';
+  position: absolute;
+  top: -0.75rem;
+  left: 0;
+  width: 100%;
+  height: calc(100% + 0.75rem);
+  background: transparent;
+  pointer-events: auto;
 }
 
 /* Block bullet specific: right margin for spacing from content */
