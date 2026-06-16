@@ -43,7 +43,7 @@ export interface FloatingButtonArrayProps {
   /** Direction of button layout */
   direction?: 'horizontal' | 'vertical';
   /** Size variant affecting spacing */
-  size?: 'sm' | 'md';
+  size?: 'xs' | 'sm' | 'md';
 }
 
 /**
@@ -56,12 +56,12 @@ export function FloatingButtonArray({
   size = 'md',
 }: FloatingButtonArrayProps) {
   return (
-    <Card 
+    <Card
       className={`floating-button-array floating-button-array--${direction} floating-button-array--${size} ${className}`}
-      elevation="medium"
+      elevation="low"
       variant="filled"
       padding={false}
-      radius="md"
+      radius="floating"
     >
       <div className="floating-button-array__inner">
         {children}

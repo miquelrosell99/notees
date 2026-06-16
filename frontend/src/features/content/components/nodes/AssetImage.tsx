@@ -208,7 +208,7 @@ export function AssetImage({
         <Button aria-label="Change image"
           icon={"mdi mdi-pencil"}
           variant="ghost"
-          size="sm"
+          size="xs"
           onClick={onEdit}
           title="Change image"
         />
@@ -217,7 +217,7 @@ export function AssetImage({
         <Button aria-label="Remove image"
           icon={"mdi mdi-close"}
           variant="ghost"
-          size="sm"
+          size="xs"
           onClick={onRemove}
           title="Remove image"
         />
@@ -235,7 +235,7 @@ export function AssetImage({
           <FloatingButtonArray
             className="asset-image__actions"
             direction={actionsDirection}
-            size="sm"
+            size="xs"
           >
             {actionButtons}
           </FloatingButtonArray>
