@@ -40,7 +40,7 @@ Key features:
 ## Debugging Conventions
 
 - **Race condition triage**: If a bug involves "local change disappears after a network mutation" (e.g., typed text reappears, inline pill vanishes after adding a class/tag), check the **debounced save / query invalidation boundary FIRST** before tracing DOM or editor logic. The frontend debounces content saves (`useContentSave`) while mutations like `addClass` invalidate queries immediately. A refetch can return stale server-side content and overwrite the editor's local state. Always verify whether `flushAllContentSaves()` or an equivalent flush is needed before firing the mutation.
-- **Root causes over local fixes**: When symptoms look like a local editor bug (popup not closing, text not removed, selection wrong), step back and check cross-layer interactions — especially between Lexical editor state, `NodeGraphRuntime` projections, TanStack Query cache updates, and debounced persistence.
+- **Root causes over local fixes**: When symptoms look like a local editor bug (popup not closing, text not removed, selection wrong), step back and check cross-layer interactions — especially between Lexical editor state, `OperationRuntime` projections, TanStack Query cache updates, and debounced persistence.
 
 ---
 
@@ -144,7 +144,8 @@ notees/
 │   │   ├── utils/                # Utility functions
 │   │   ├── views/                # Top-level view components
 │   │   ├── workers/              # Web Workers
-│   │   ├── runtime/              # NodeGraphRuntime
+│   │   ├── runtime/              # OperationRuntime + graph/event/undo helpers
+│   │   ├── sync/                 # SyncManager: OperationRuntime → TanStack Query adapter
 │   │   └── lib/                  # Core libraries (AST builder, query client, stringifyAST)
 │   ├── package.json
 │   ├── vite.config.ts            # Vite config with PWA plugin, proxy, path aliases
@@ -241,35 +242,29 @@ The fleet audit identified a number of drift items. The following have been reso
 - **Canvas Renderers**: `GanttView` and `TimelineView` use extracted imperative canvas renderers (`GanttRenderer.ts`, `TimelineRenderer.ts`) to keep React components focused on state while pure functions/classes handle 2D drawing.
 - **PWA**: Service worker auto-updates; precaches JS/CSS/HTML/ICO/PNG/SVG/WOFF2; network-first API caching; CacheFirst WASM caching; Web Share Target support.
 
-#### Frontend Data Flow Architecture (Deviation from `react-ui-patterns`)
+#### Frontend Data Flow Architecture
 
-We follow the `react-ui-patterns` three-layer model with one intentional deviation:
+The frontend follows the `react-ui-patterns` three-layer model without deviation:
 
 ```
-Backend API ←→ TanStack Query (server state) ←→ NodeGraphRuntime (ephemeral overlay + sync queue) ←→ React UI
+Backend API ←→ TanStack Query (server state) ←→ SyncManager (adapter) ←→ OperationRuntime + helpers (derived state) ←→ React UI
 ```
 
-**Deviation from skill:** The skill states: *"Client Runtime: Owns in-memory graph of domain objects, structural intents, undo stack. No API calls or auth."*
+**Layers:**
 
-We deviate by **allowing the runtime to orchestrate API calls** (via TanStack Query mutations, never direct `fetch()`). The runtime maintains a `pendingIntents` queue that bridge hooks consume to fire mutations. This is necessary because Notees is an **offline-first collaborative block editor** where:
+1. **OperationRuntime** (`frontend/src/runtime/OperationRuntime.ts`): Pure derived-state engine. It owns base nodes (from TanStack Query) + pending operations = projected nodes. It has no React, TanStack Query, or API imports.
+2. **Runtime helpers** (`frontend/src/runtime/graphHelpers.ts`, `eventBus.ts`, `serverIdMap.ts`, plus `frontend/src/stores/undoEngine.ts`): Thin modules around OperationRuntime. They provide graph traversal, typed event emission, server-id mapping, undo/redo, and intent dispatch. None of them call the API.
+3. **SyncManager** (`frontend/src/sync/SyncManager.tsx`): The **sole** React adapter between OperationRuntime and TanStack Query. Mounted once in `App.tsx`, it observes dispatchable operations, fires `useMutation` hooks, applies targeted cache updates, and acknowledges operations on success.
+4. **useContentSave** (`frontend/src/hooks/useContentSave.ts`): Debounces editor content changes and forwards them to the undo engine as `update_content` intents. It no longer calls the API directly.
 
-1. **Ordered intent queueing**: Structural operations (indent → move → create) have causal ordering that must be preserved across server roundtrips.
-2. **Offline operation**: When disconnected, intents queue in the runtime and flush when connectivity returns.
-3. **Undo across acknowledgments**: The undo stack must distinguish between client-side-only operations and operations that have been (or are being) persisted.
+**Boundary rules:**
 
-**What we preserve from the skill:**
-
-- **TanStack Query is the single persistent source of truth** for all node data.
-- **The runtime stores ONLY ephemeral state**: pending intents, undo stack, focus requests, collapse state, selection.
-- **Zustand stores hold ONLY UI state**: navigation, modals, display preferences.
-- **No direct `fetch()` in the runtime** — all API calls go through TanStack Query `useMutation` hooks.
-
-**Consequences of this deviation:**
-
-- Bridge hooks (`useStructureSync`, `useBlockPersist`) are more complex than in a typical CRUD app.
-- Mutation cache invalidation must be coordinated with the runtime's `pendingIntents` queue.
-- New contributors must understand that `NodeGraphRuntime.getNode()` returns an **ephemeral projection**, not persistent state.
-- The runtime's `upsertNodes()` is **intent-aware**: it accepts server state as truth for fields with no pending intents, and preserves locally-mutated fields only when they have active pending intents.
+- The runtime never calls the API or TanStack Query directly.
+- Only SyncManager dispatches API mutations.
+- Cache updates are centralized in `cacheWriter.ts` and `mutationMap.ts`.
+- Offline/ordering is handled by OperationRuntime's operation log and dependency graph; operations dispatch only after their dependencies are acknowledged.
+- Graph helper functions return **ephemeral projections**, not persistent state.
+- Legacy bridge hooks (`useBlockPersist`, `useStructureSync`, `useOfflineQueue`) are no-ops; their responsibilities moved to SyncManager and OperationRuntime.
 
 ### Mobile
 
