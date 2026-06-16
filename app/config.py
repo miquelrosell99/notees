@@ -76,6 +76,13 @@ class Settings(BaseSettings):
     cleanup_workspace_max_age_days: int = 30  # 0 = disabled
     cleanup_user_max_age_days: int = 30  # 0 = disabled
 
+    # Retention (workspace settings override these defaults)
+    default_trash_retention_days: int = 30  # 0 = never auto-delete
+    activity_log_retention_enabled: bool = True
+    activity_log_retention_days: int = 90
+    task_completion_retention_enabled: bool = True
+    task_completion_retention_days: int = 365
+
     # Logging
     log_level: str = "INFO"
     log_file: str | None = None

@@ -107,6 +107,24 @@
   margin-left: var(--spacing-2);
 }
 
+/* ==================== Retention Settings ==================== */
+.retention-toggle-item {
+  flex-wrap: wrap;
+}
+
+.retention-toggle-item .toggle-container {
+  flex: 1;
+}
+
+.retention-days-input {
+  width: var(--spacing-16);
+  flex-shrink: 0;
+}
+
+.retention-days-input input {
+  text-align: center;
+}
+
 /* ==================== Theme Buttons ==================== */
 .settings-theme-buttons {
   display: flex;

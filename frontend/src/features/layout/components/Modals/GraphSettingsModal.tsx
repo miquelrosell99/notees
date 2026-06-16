@@ -17,6 +17,8 @@ import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
 import { Modal } from '@/components/ui/Modal';
 import { Spinner } from '@/components/ui/Spinner';
 import { BooleanToggle } from '@/components/ui/BooleanToggle';
+import { Dropdown } from '@/components/ui/Dropdown';
+import { TextField } from '@/components/ui/TextField';
 import { Tabs } from '@/components/ui/Tabs';
 import { workspaceSettingsKeys } from '@/hooks/queryKeys';
 import './GraphSettingsModal.css';
@@ -36,6 +38,52 @@ const SHORTCUT_CONTEXT_LABELS: Record<ShortcutContext, string> = {
   sidebar: 'Sidebar',
   search: 'Search',
 };
+
+const TRASH_RETENTION_OPTIONS = [
+  { value: 0, label: 'Never' },
+  { value: 7, label: '7 days' },
+  { value: 30, label: '30 days' },
+  { value: 90, label: '90 days' },
+  { value: 365, label: '1 year' },
+];
+
+const DEFAULT_RETENTION = {
+  trash_retention_days: 30,
+  activity_log_retention_enabled: true,
+  activity_log_retention_days: 90,
+  task_completion_retention_enabled: true,
+  task_completion_retention_days: 365,
+};
+
+function parseRetentionValue(
+  value: unknown,
+  key: keyof typeof DEFAULT_RETENTION,
+): typeof DEFAULT_RETENTION[keyof typeof DEFAULT_RETENTION] {
+  if (typeof value === 'string') {
+    const lowered = value.trim().toLowerCase();
+    if (lowered === 'true') return true;
+    if (lowered === 'false') return false;
+    const num = parseInt(value, 10);
+    if (Number.isFinite(num) && num >= 0) return num;
+  }
+  if (typeof value === 'boolean' && key.endsWith('_enabled')) {
+    return value;
+  }
+  if (typeof value === 'number' && !key.endsWith('_enabled')) {
+    return Number.isFinite(value) && value >= 0 ? value : DEFAULT_RETENTION[key];
+  }
+  return DEFAULT_RETENTION[key];
+}
+
+function getRetentionSetting(
+  settings: Record<string, unknown> | undefined,
+  key: keyof typeof DEFAULT_RETENTION,
+): typeof DEFAULT_RETENTION[keyof typeof DEFAULT_RETENTION] {
+  if (settings == null || !(key in settings)) {
+    return DEFAULT_RETENTION[key];
+  }
+  return parseRetentionValue(settings[key], key);
+}
 
 export function GraphSettingsModal({ isOpen, onClose }: GraphSettingsModalProps) {
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
@@ -62,6 +110,13 @@ export function GraphSettingsModal({ isOpen, onClose }: GraphSettingsModalProps)
 
   const handleToggleChange = (key: string, value: boolean) => {
     updateSettingMutation.mutate({ key, value });
+  };
+
+  const handleNumberChange = (key: string, value: string) => {
+    const parsed = parseInt(value, 10);
+    if (Number.isFinite(parsed) && parsed >= 0) {
+      updateSettingMutation.mutate({ key, value: parsed });
+    }
   };
 
   if (!isOpen) return null;
@@ -113,6 +168,12 @@ export function GraphSettingsModal({ isOpen, onClose }: GraphSettingsModalProps)
     acc[label].push(s);
     return acc;
   }, {});
+
+  const trashRetentionDays = getRetentionSetting(workspaceSettings, 'trash_retention_days') as number;
+  const activityLogEnabled = getRetentionSetting(workspaceSettings, 'activity_log_retention_enabled') as boolean;
+  const activityLogDays = getRetentionSetting(workspaceSettings, 'activity_log_retention_days') as number;
+  const taskCompletionEnabled = getRetentionSetting(workspaceSettings, 'task_completion_retention_enabled') as boolean;
+  const taskCompletionDays = getRetentionSetting(workspaceSettings, 'task_completion_retention_days') as number;
 
   return (
     <>
@@ -227,6 +288,70 @@ export function GraphSettingsModal({ isOpen, onClose }: GraphSettingsModalProps)
                     onChange={(e) => handleToggleChange('sidebar_show_tasks', e.target.checked)}
                     labelPosition="left"
                   />
+                </div>
+
+                <h3 className="settings-section__title" style={{ marginTop: 'var(--spacing-6)' }}>Data Retention</h3>
+
+                <div className="settings-item">
+                  <div className="settings-item__info">
+                    <label htmlFor="trash-retention" className="settings-item__label">Trash auto-empty</label>
+                    <p className="settings-item__description">
+                      Automatically and permanently delete items that have been in trash for longer than this period
+                    </p>
+                  </div>
+                  <Dropdown
+                    id="trash-retention"
+                    options={TRASH_RETENTION_OPTIONS}
+                    value={trashRetentionDays}
+                    onChange={(value) => {
+                      if (value !== null) {
+                        updateSettingMutation.mutate({ key: 'trash_retention_days', value });
+                      }
+                    }}
+                    size="sm"
+                  />
+                </div>
+
+                <div className="settings-item retention-toggle-item">
+                  <BooleanToggle
+                    label="Activity log retention"
+                    description="Automatically delete activity log entries older than the selected number of days"
+                    checked={activityLogEnabled}
+                    onChange={(e) => handleToggleChange('activity_log_retention_enabled', e.target.checked)}
+                    labelPosition="left"
+                  />
+                  {activityLogEnabled && (
+                    <TextField
+                      type="number"
+                      min={1}
+                      value={String(activityLogDays)}
+                      onChange={(e) => handleNumberChange('activity_log_retention_days', e.target.value)}
+                      size="sm"
+                      wrapperClassName="retention-days-input"
+                      aria-label="Activity log retention days"
+                    />
+                  )}
+                </div>
+
+                <div className="settings-item retention-toggle-item">
+                  <BooleanToggle
+                    label="Task completion retention"
+                    description="Automatically delete task completion history older than the selected number of days"
+                    checked={taskCompletionEnabled}
+                    onChange={(e) => handleToggleChange('task_completion_retention_enabled', e.target.checked)}
+                    labelPosition="left"
+                  />
+                  {taskCompletionEnabled && (
+                    <TextField
+                      type="number"
+                      min={1}
+                      value={String(taskCompletionDays)}
+                      onChange={(e) => handleNumberChange('task_completion_retention_days', e.target.value)}
+                      size="sm"
+                      wrapperClassName="retention-days-input"
+                      aria-label="Task completion retention days"
+                    />
+                  )}
                 </div>
 
               </div>
