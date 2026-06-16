@@ -43,6 +43,7 @@ export function TabOverflowDropdown({ tabs, activeTabId, onSelect, onClose }: Ta
         className="tab-overflow-backdrop"
         onClick={onClose}
         onKeyDown={(e) => {
+          if (e.target !== e.currentTarget) return;
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
             onClose();
