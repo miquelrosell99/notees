@@ -34,12 +34,10 @@ async def update_date_format(
     pattern = request.new_format
 
     # Also save the user's date format preference
-    import json
-
     from ...utils import utc_now
 
     await settings_repo.set_user_setting(
-        int(user.id), "date_format", json.dumps(pattern), utc_now()
+        int(user.id), "date_format", pattern, utc_now()
     )
 
     updated_count = 0
