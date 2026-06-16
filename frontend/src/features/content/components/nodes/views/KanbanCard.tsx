@@ -15,9 +15,6 @@
 
 import { useCallback, useState, useMemo, memo, type JSX } from 'react';
 
-import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
-import { queueContentSave } from '@/hooks/useBlockPersist';
-
 import type { Node } from '@/types';
 import { getNodeColorStylesAuto } from '@/utils/color';
 import { getEffectiveColor } from '@/utils/nodeIcon';
@@ -59,6 +56,10 @@ import { InlineEditor } from '@/features/content/editor/InlineEditor';
 import { parseAST } from '@/lib/astBuilder';
 import { PropertiesSection } from '@/features/content/components/properties/PropertiesSection';
 import { BlockList } from '@/features/content/components/blocks/BlockList';
+import { getOperationRuntime } from '@/runtime';
+import { getNode, getAllNodes } from '@/runtime/graphHelpers';
+import { upsertNodes } from '@/runtime/eventBus';
+
 
 
 interface CardTitleEditorProps {
@@ -111,7 +112,7 @@ export interface NodeCardProps {
   isSelected?: boolean;
   onNodeClick?: (node: Node) => void;
   onNodeShiftClick?: (node: Node) => void;
-  onContentChange?: (nodeId: number, content: string) => void;
+  onContentChange?: (nodeId: number | string, content: string) => void;
   onDragStart?: (index: number) => void;
   onSelectionChange?: (nodeId: number, selected: boolean) => void;
   customContextMenu?: React.ComponentType<{
@@ -260,7 +261,7 @@ export const NodeCard = memo(function NodeCard({
     addSidebarCard(node.id, node.is_page ? 'page' : 'block');
   }, [node.id, node.is_page, addSidebarCard]);
 
-  const handleContentChange = useCallback((nodeId: number, content: string) => {
+  const handleContentChange = useCallback((nodeId: number | string, content: string) => {
     saveContent(nodeId, content);
     onContentChange?.(nodeId, content);
   }, [saveContent, onContentChange]);
@@ -357,23 +358,17 @@ export const NodeCard = memo(function NodeCard({
     onDragStart?.(index);
   }, [index, sortable, onDragStart]);
 
-  // Bridge: Lexical content change → numeric nodeId
+  // Bridge: Lexical content change → runtime block id.
+  // useContentSave resolves the runtime node and persists even for blocks that
+  // have not been acknowledged by the server yet.
   const handleLexicalContentChange = useCallback((blockId: string, content: string) => {
-    const runtime = getNodeGraphRuntime();
-    const graphNode = runtime.getNode(blockId);
-    const serverId = graphNode?.serverId;
-    if (serverId != null) {
-      handleContentChange(serverId, content);
-    } else if (graphNode) {
-      // Block not yet persisted — queue for when serverId arrives
-      queueContentSave(blockId, content);
-    }
+    handleContentChange(blockId, content);
   }, [handleContentChange]);
 
   // Navigate via pills — redirect aliases to main node
   const handleNavigateToNode = useCallback(async (linkId: string) => {
-    const runtime = getNodeGraphRuntime();
-    const graphNode = runtime.getNode(linkId);
+    const runtime = getOperationRuntime();
+    const graphNode = getNode(runtime, linkId);
     if (graphNode?.serverId) {
       onNodeClick?.({ id: graphNode.serverId, is_page: graphNode.isPage } as Node);
       return;
@@ -396,8 +391,8 @@ export const NodeCard = memo(function NodeCard({
   }, [onNodeClick]);
 
   const handleOpenBlockInSidebar = useCallback((blockId: string) => {
-    const runtime = getNodeGraphRuntime();
-    const graphNode = runtime.getNode(blockId);
+    const runtime = getOperationRuntime();
+    const graphNode = getNode(runtime, blockId);
     if (!graphNode?.serverId) return;
     if (onNodeShiftClick) {
       onNodeShiftClick({ id: graphNode.serverId, is_page: false } as Node);
@@ -413,12 +408,12 @@ export const NodeCard = memo(function NodeCard({
   // Add class to block (uses API mutation)
   const handleAddClass = useCallback((blockId: number, classId: number) => {
     // Optimistically update the runtime for immediate visual feedback
-    const runtime = getNodeGraphRuntime();
-    const graphNode = runtime.getAllNodes().find(n => n.serverId === blockId);
+    const runtime = getOperationRuntime();
+    const graphNode = getAllNodes(runtime).find(n => n.serverId === blockId);
     if (graphNode) {
       const classStrId = String(classId);
       if (!graphNode.classIds.includes(classStrId)) {
-        runtime.upsertNodes([{
+        upsertNodes([{
           ...graphNode,
           classIds: [...graphNode.classIds, classStrId],
         }]);

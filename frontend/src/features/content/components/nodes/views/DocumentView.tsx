@@ -7,8 +7,7 @@
 
 import { useMemo, useCallback, type JSX, memo } from 'react';
 import { BlockList } from '@/features/content/components/blocks/BlockList';
-import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
-import { queueContentSave } from '@/hooks/useBlockPersist';
+
 import { getNodeByUuid } from '@/api/nodes';
 import { uploadAsset } from '@/api/assets';
 import { generateUUID } from '@/utils/uuid';
@@ -16,6 +15,13 @@ import type { Node } from '@/types';
 import type { NodeDocumentViewProps } from '@/types/nodeCollection';
 import './DocumentView.css';
 import { registerView } from './registry';
+import { getOperationRuntime } from '@/runtime';
+import { getNode } from '@/runtime/graphHelpers';
+import { upsertNodes, getRuntimeEventBus } from '@/runtime/eventBus';
+import { registerParentServerId } from '@/runtime/serverIdMap';
+import { getUndoEngine } from '@/stores/undoEngine';
+import type { MutationIntent } from '@/runtime/types';
+
 /**
  * DocumentView - Document view using Lexical editor
  *
@@ -68,8 +74,8 @@ export const DocumentView = memo(function DocumentView({
 
   // Handler for navigation from editor
   const handleNavigateToNode = useCallback(async (linkId: string) => {
-    const runtime = getNodeGraphRuntime();
-    const graphNode = runtime.getNode(linkId);
+    const runtime = getOperationRuntime();
+    const graphNode = getNode(runtime, linkId);
     if (graphNode?.serverId) {
       const targetNode = allNodes.find(n => n.id === graphNode.serverId);
       if (targetNode) {
@@ -90,24 +96,18 @@ export const DocumentView = memo(function DocumentView({
     }
   }, [allNodes, onNodeClick, resolveAlias]);
 
-  // Handler for content changes from editor
+  // Handler for content changes from editor.
+  // Pass the runtime block id (UUID) through; useContentSave resolves it to the
+  // runtime node and creates an update_content operation even if the block has
+  // not been persisted yet.
   const handleContentChangeBridge = useCallback((blockId: string, content: string) => {
-    const runtime = getNodeGraphRuntime();
-    const graphNode = runtime.getNode(blockId);
-    const serverId = graphNode?.serverId;
-    if (serverId != null) {
-      onContentChange?.(serverId, content);
-    } else if (graphNode) {
-      // Block not yet persisted — queue for when serverId arrives
-      queueContentSave(blockId, content);
-    }
+    onContentChange?.(blockId, content);
   }, [onContentChange]);
 
   // Handler for external file drops — creates asset blocks
   const handleDropFiles = useCallback(async (files: File[]) => {
     if (!_pageId) return;
-    const runtime = getNodeGraphRuntime();
-    runtime.registerParentServerId(_nodeUuid ?? '', _pageId);
+    registerParentServerId(_nodeUuid ?? '', _pageId);
 
     for (const file of files) {
       try {
@@ -116,16 +116,17 @@ export const DocumentView = memo(function DocumentView({
         const nodeChildren = allNodes;
         const lastChild = nodeChildren.length > 0 ? nodeChildren[nodeChildren.length - 1] : null;
 
-        runtime.applyIntent({
+        const intent: MutationIntent = {
           type: 'create_block',
           parentId: _nodeUuid ?? '',
           afterBlockId: lastChild?.uuid ?? null,
           blockId: newBlockId,
           contentAST: [{ type: 'paragraph', children: [{ type: 'text', text: '' }] }],
-        });
+        };
+        getUndoEngine().applyIntent(intent, (intent as { type: string }).type === 'update_content' ? { sourceEditorId: (intent as { sourceEditorId?: string }).sourceEditorId } : undefined);
         // Immediately convert the new empty block to an asset
         if (asset.node_id) {
-          runtime.upsertNodes([{
+          upsertNodes([{
             blockId: newBlockId,
             serverId: asset.node_id,
             parentId: _nodeUuid ?? '',
@@ -142,7 +143,7 @@ export const DocumentView = memo(function DocumentView({
             version: 1,
           }]);
         }
-        runtime.flushEvents();
+        getRuntimeEventBus().flushEvents();
       } catch (err) {
         console.error('[DocumentView] Failed to upload dropped file:', err);
       }

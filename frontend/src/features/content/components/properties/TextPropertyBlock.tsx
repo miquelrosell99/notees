@@ -24,14 +24,15 @@ import {
   useContentSave,
   useNodeNavigation,
 } from '@/hooks';
-import { useBlockPersist } from '@/hooks/useBlockPersist';
 import { isApiError } from '@/api/client';
 import type { Property } from '@/types/api';
 import type { Node } from '@/types/api';
 import { NodeCollection } from '@/features/content/components/nodes/NodeCollection';
 import { Button } from '@/components/ui/Button';
 import { getDragCoordinator } from '@/runtime/DragCoordinator';
-import { getNodeGraphRuntime } from '@/runtime/NodeGraphRuntime';
+import { getOperationRuntime } from '@/runtime';
+import { getNode } from '@/runtime/graphHelpers';
+
 
 interface TextPropertyBlockProps {
   /** The property definition */
@@ -82,7 +83,6 @@ function SingleTextBlock({
   }, [error, blockNodeId, onMissing]);
   const { handleNodeClick } = useNodeNavigation();
   const { handleContentChange } = useContentSave();
-  useBlockPersist();
 
   const handleNodeShiftClick = useCallback((clickedNode: Node) => {
     onOpenInSidebar?.(clickedNode.id);
@@ -189,7 +189,6 @@ export function TextPropertyBlock({
   const createNode = useCreateNode();
   const moveNode = useMoveNode();
   const { handleNodeClick } = useNodeNavigation();
-  useBlockPersist();
   
   // Handle creating a new text block
   const handleAddText = useCallback(async () => {
@@ -263,8 +262,8 @@ export function TextPropertyBlock({
       if (!payload) return;
 
       // Resolve the dragged block's server ID from the runtime
-      const runtime = getNodeGraphRuntime();
-      const graphNode = runtime.getNode(payload.blockId);
+      const runtime = getOperationRuntime();
+      const graphNode = getNode(runtime, payload.blockId);
       const serverId = graphNode?.serverId;
       if (!serverId) return;
 
