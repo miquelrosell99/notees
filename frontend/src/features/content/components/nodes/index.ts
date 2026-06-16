@@ -40,7 +40,7 @@ export { NodeSelector } from './NodeSelector';
 export { SuggestionPopup } from './SuggestionPopup';
 export type { SuggestionPopupProps, SuggestionType } from './SuggestionPopup';
 export { ASTViewerModal } from './ASTViewerModal';
-export { ImageNode } from './ImageNode';
+export { AssetImage } from './AssetImage';
 export { PropertyReferencesSection } from './PropertyReferencesSection';
 export { NodeCellEditable } from './NodeCellEditable';
 export { ArchivedNodeContextMenu } from './ArchivedNodeContextMenu';

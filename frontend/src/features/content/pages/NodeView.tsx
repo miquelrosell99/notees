@@ -39,7 +39,8 @@ import type { ViewMode, NodeViewType } from '@/stores';
 // Components
 import { MainContentTopbar } from '@/features/layout/components/MainContentTopbar';
 import { PageHeader } from '@/features/content/components/nodes/PageHeader';
-import { ImageNode } from '@/features/content/components/nodes/ImageNode';
+import { AssetImage } from '@/features/content/components/nodes/AssetImage';
+import { AddCoverButton } from '@/components/ui/AddCoverButton';
 import { AssetUploadModal } from '@/features/assets/components/AssetUploadModal';
 import { NodeContent } from '@/features/content/components/nodes/NodeContent';
 import { NodeCollection } from '@/features/content/components/nodes/NodeCollection';
@@ -1143,7 +1144,7 @@ export function NodeView({
               onDrop={handleBannerDrop}
             >
               {bannerImageId ? (
-                <ImageNode
+                <AssetImage
                   assetNodeId={bannerImageId}
                   alt="Banner"
                   className="node-view__banner-image"
@@ -1210,32 +1211,28 @@ export function NodeView({
                 onDragLeave={handleCoverDragLeave}
                 onDrop={handleCoverDrop}
               >
-                {coverImageId ? (
-                  <ImageNode
-                    assetNodeId={coverImageId}
-                    alt="Cover"
-                    className="node-view__cover-image"
-                    showCard={true}
-                    elevation="low"
-                    radius="md"
-                    clickable={true}
-                    showActions={isCoverHovered && !isCoverCollapsed}
-                    onEdit={handleSelectCoverImage}
-                    onRemove={handleRemoveCover}
-                    actionsDirection="vertical"
-                    isDragging={isCoverDragging}
-                    showModalBullet={true}
-                  />
-                ) : (
-                  <Button aria-label="Add cover image"
-                    variant="ghost"
-                    size="sm"
-                    icon="mdi mdi-image-outline"
-                    className="node-view__cover-add-btn"
-                    onClick={handleSelectCoverImage}
-                    title="Add cover image"
-                  />
-                )}
+                <AssetImage
+                  assetNodeId={coverImageId}
+                  alt="Cover"
+                  className="node-view__cover-image"
+                  showCard={true}
+                  elevation="low"
+                  radius="md"
+                  clickable={true}
+                  showActions={isCoverHovered && !isCoverCollapsed}
+                  onEdit={handleSelectCoverImage}
+                  onRemove={handleRemoveCover}
+                  actionsDirection="vertical"
+                  isDragging={isCoverDragging}
+                  showModalBullet={true}
+                  emptyPlaceholder={
+                    <AddCoverButton
+                      onClick={handleSelectCoverImage}
+                      className="node-view__cover-add-btn"
+                      size="lg"
+                    />
+                  }
+                />
               </div>
             </div>
           </div>

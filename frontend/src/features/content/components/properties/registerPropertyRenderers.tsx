@@ -186,7 +186,7 @@ registerPropertyValueRenderer({
   label: 'Image',
   icon: 'image',
   component: function ImageRenderer({ value }: PropertyValueProps) {
-    // Image properties are rendered via PropertyCell/ImageNode
+    // Image properties are rendered via PropertyCell/AssetImage
     // Inline rendering falls back to unknown value display
     return <span className="property-value-unknown">{String(value ?? '')}</span>;
   },

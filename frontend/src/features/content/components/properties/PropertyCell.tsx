@@ -21,7 +21,7 @@ import { SelectionPropertyCell } from './SelectionPropertyCell';
 import { UrlPropertyCell } from './UrlPropertyCell';
 import { EmailPropertyCell } from './EmailPropertyCell';
 import { DatePropertyCell } from './DatePropertyCell';
-import { ImageNode } from '@/features/content/components/nodes/ImageNode';
+import { AssetImage } from '@/features/content/components/nodes/AssetImage';
 import { getPropertyValueRenderer } from './propertyValueRegistry';
 import './registerPropertyRenderers';
 import './PropertyCell.css';
@@ -176,7 +176,7 @@ export function PropertyCell({
     return <InlineBlock nodeId={value} />;
   }
 
-  // Image-type property: always render with ImageNode
+  // Image-type property: always render with AssetImage
   if (property.type === 'image') {
     const imageId = typeof value === 'number' ? value : null;
     if (!imageId) {
@@ -188,7 +188,7 @@ export function PropertyCell({
     }
     return (
       <div className="property-cell property-cell--image">
-        <ImageNode
+        <AssetImage
           assetNodeId={imageId}
           showCard={false}
           clickable={true}

@@ -34,7 +34,7 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Checkbox } from '@/components/ui/Checkbox';
 import { NodeRef } from '@/features/content/components/nodes/NodeRef';
-import { ImageNode } from '@/features/content/components/nodes/ImageNode';
+import { AssetImage } from '@/features/content/components/nodes/AssetImage';
 import { AddCoverButton } from '@/components/ui/AddCoverButton';
 import { AssetUploadModal } from '@/features/assets/components/AssetUploadModal';
 import { PageContextMenu, BlockContextMenu } from '@/features/content/components/nodes/NodeContextMenu';
@@ -555,7 +555,7 @@ export const NodeCard = memo(function NodeCard({
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
       >
-        <ImageNode
+        <AssetImage
           assetNodeId={coverImageId}
           alt={`Cover image for ${nodeNameToText(node.name) || 'Untitled'}`}
           className="node-card__cover-image"

@@ -1,18 +1,18 @@
 /**
- * Styles for ImageNode component
+ * Styles for AssetImage component
  */
 
 
 
 
-.image-node {
+.asset-image {
   position: relative;
   display: block;
   width: 100%;
   height: 100%;
 }
 
-.image-node__button {
+.asset-image__button {
   display: block;
   width: 100%;
   height: 100%;
@@ -23,12 +23,12 @@
   border-radius: inherit;
 }
 
-.image-node__button:focus-visible {
+.asset-image__button:focus-visible {
   outline: var(--border-width-thick) solid var(--color-primary);
   outline-offset: var(--focus-outline-offset);
 }
 
-.image-node__img {
+.asset-image__img {
   display: block;
   width: 100%;
   height: 100%;
@@ -36,11 +36,11 @@
   border-radius: inherit;
 }
 
-.image-node--loading {
+.asset-image--loading {
   display: block;
 }
 
-.image-node__placeholder {
+.asset-image__placeholder {
   width: 100%;
   height: 100%;
   min-height: var(--layout-size-sm);
@@ -63,7 +63,7 @@
   }
 }
 
-.image-node__actions {
+.asset-image__actions {
   position: absolute;
   top: var(--spacing-2);
   right: var(--spacing-2);
