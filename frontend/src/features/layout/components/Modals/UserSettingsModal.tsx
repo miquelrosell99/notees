@@ -46,7 +46,7 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [passwordSuccess, setPasswordSuccess] = useState(false);
   const navigate = useNavigate();
-  const { theme, oledMode, accentColor, customAccentHex, dateFormat, hashtagPasteMode, defaultView, quickAddDestination, linkedRefsCollapseLevel, showDevOptions, firstDayOfWeek, setTheme, setOledMode, setAccentColor, setCustomAccentHex, setDateFormat, setHashtagPasteMode, setDefaultView, setQuickAddDestination, setLinkedRefsCollapseLevel, setShowDevOptions, setFirstDayOfWeek } = useSettingsStore();
+  const { theme, oledMode, accentColor, customAccentHex, dateFormat, hashtagPasteMode, defaultView, quickAddDestination, linkedRefsCollapseLevel, showDevOptions, firstDayOfWeek, showBulletThread, setTheme, setOledMode, setAccentColor, setCustomAccentHex, setDateFormat, setHashtagPasteMode, setDefaultView, setQuickAddDestination, setLinkedRefsCollapseLevel, setShowDevOptions, setFirstDayOfWeek, setShowBulletThread } = useSettingsStore();
   const [customHexInput, setCustomHexInput] = useState(customAccentHex);
 
   // Keep the custom hex text input in sync with the persisted value.
@@ -221,6 +221,10 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
   const handleLinkedRefsCollapseLevelChange = (level: number) => {
     setLinkedRefsCollapseLevel(level);
     setSetting('linked_refs_collapse_level', level).catch(console.error);
+  };
+
+  const handleShowBulletThreadChange = (show: boolean) => {
+    setShowBulletThread(show);
   };
 
   const tabs: { id: UserSettingsTab; label: string }[] = [
@@ -404,6 +408,21 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
                   ]}
                   value={hashtagPasteMode}
                   onChange={(value) => handleHashtagPasteModeChange(value as HashtagPasteMode)}
+                  size="sm"
+                />
+              </div>
+
+              <div className="settings-item">
+                <div className="settings-item__info">
+                  <label htmlFor="user-bullet-thread" className="settings-item__label">Bullet thread</label>
+                  <p className="settings-item__description">
+                    Highlight the active editing path with guide lines and a connecting thread
+                  </p>
+                </div>
+                <BooleanToggle
+                  id="user-bullet-thread"
+                  checked={showBulletThread}
+                  onChange={(e) => handleShowBulletThreadChange(e.target.checked)}
                   size="sm"
                 />
               </div>
