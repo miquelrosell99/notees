@@ -168,4 +168,5 @@
 
 .public-share-view__block {
   padding: var(--spacing-2) 0;
+  padding-left: calc(var(--outline-depth, 0) * var(--spacing-6));
 }

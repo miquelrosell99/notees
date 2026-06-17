@@ -21,7 +21,7 @@ import { COMMAND_IDS } from '@/stores/commandRegistry';
 import { useCreateNode, useNode, useIsMobile, useDocumentTitle } from '@/hooks';
 import { RouteAdapter } from './RouteAdapter';
 import { NavigationUrlSync } from './NavigationUrlSync';
-import { useSettingsQuery } from '@/hooks/useSettings';
+import { useSettingsQuery } from '@/features/workspace';
 import { recentKeys } from '@/hooks/queryKeys';
 import { markPageOpened, fixLinksForUuid } from '@/api/nodes';
 import type { BlockData } from '@/utils/clipboardManager';
@@ -31,7 +31,7 @@ import { TopBar } from './TopBar';
 import { TabBar } from './TabBar/TabBar';
 import { OfflineBanner } from './OfflineBanner';
 import { MobileLayout } from './MobileLayout';
-import { RightSidebarCards } from '@/features/sidebar/components/RightSidebarCards';
+import { RightSidebarCards } from '@/features/sidebar';
 import { GraphMinimap } from './GraphMinimap';
 import { CommandPalette } from './CommandPalette';
 import { BrokenLinkFixContext } from '@/contexts/BrokenLinkFixContext';
@@ -47,7 +47,7 @@ const MergePagesModal = React.lazy(() => import('./Modals').then(m => ({ default
 const CreatePageWithUuidModal = React.lazy(() => import('@/features/layout/components/Modals').then(m => ({ default: m.CreatePageWithUuidModal })));
 const AutoExportProgressModal = React.lazy(() => import('@/features/workspace/components/AutoExportProgressModal').then(m => ({ default: m.AutoExportProgressModal })));
 import { Card } from '@/components/ui/Card';
-import { PresentationModal } from '@/features/content/components/PresentationModal';
+import { PresentationModal } from '@/features/content';
 import './Layout.css';
 
 export function Layout() {

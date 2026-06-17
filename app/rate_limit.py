@@ -24,11 +24,14 @@ class PerKeyBucketFactory(BucketFactory):
     another and giving each key its own independent budget.
     """
 
+    _instances: list["PerKeyBucketFactory"] = []
+
     def __init__(self, rates: list[Rate]) -> None:
         super().__init__()
         self._rates = rates
         self._buckets: dict[str, InMemoryBucket] = {}
         self._clock = MonotonicClock()
+        PerKeyBucketFactory._instances.append(self)
 
     def wrap_item(self, name: str, weight: int = 1) -> RateItem:
         return RateItem(name, self._clock.now(), weight=weight)
@@ -40,6 +43,19 @@ class PerKeyBucketFactory(BucketFactory):
             self._buckets[key] = bucket
             self.schedule_leak(bucket)
         return self._buckets[key]
+
+    def reset(self) -> None:
+        """Drop all in-memory buckets and stop the background leaker."""
+        self._buckets.clear()
+        if self._leaker is not None:
+            self._leaker.close()
+            self._leaker = None
+
+    @classmethod
+    def reset_all(cls) -> None:
+        """Reset every registered factory. Useful for test isolation."""
+        for instance in list(cls._instances):
+            instance.reset()
 
 
 async def ip_only_identifier(request: Request) -> str:

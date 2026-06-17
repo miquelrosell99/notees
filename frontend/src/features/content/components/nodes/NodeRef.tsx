@@ -18,9 +18,9 @@ import { NodeIcon, CloseIcon } from '@/components/ui/icons';
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/ContextMenu';
 import { ColorPickerRow } from './ColorPickerRow';
 import { useBatchedNode } from '@/hooks';
-import { useNodeDisplay } from '@/hooks/useNodeDisplay';
+import { useNodeDisplay } from '@/features/content/hooks/useNodeDisplay';
 import { useReferencedNode } from '@/contexts/useReferencedNode';
-import { useNodeByUuid } from '@/hooks/useNodeQueries';
+import { useNodeByUuid } from '@/features/content/hooks/useNodeQueries';
 import { useNavigationStore } from '@/stores';
 import { parseAST, parseLinkId } from '@/lib/astBuilder';
 import type { ASTInlineNode } from '@/types/ast';
@@ -517,10 +517,8 @@ function NodeRefInteractive({
           {onColorChange && !readOnly && (
             <>
               {/* Backdrop to catch clicks outside */}
+              {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- backdrop closes on click */}
               <div
-                role="button"
-                tabIndex={-1}
-                aria-label="Close context menu"
                 className="node-pill-context-menu-backdrop"
                 style={{
                   position: 'fixed',
@@ -531,13 +529,6 @@ function NodeRefInteractive({
                   zIndex: 'var(--z-9998)',
                 }}
                 onClick={handleCloseContextMenu}
-                onKeyDown={(e) => {
-                  if (e.target !== e.currentTarget) return;
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    handleCloseContextMenu();
-                  }
-                }}
               />
               <div
                 ref={contextMenuWrapperRef}
@@ -604,20 +595,11 @@ function PillColorPicker({ position, currentColor, onColorChange, onClose }: Pil
   }, []);
 
   return (
+    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- backdrop closes on click
     <div
-      role="button"
-      tabIndex={-1}
-      aria-label="Close color picker"
       className="pill-color-picker-overlay"
       onClick={handleClickOutside}
       onContextMenu={(e) => e.preventDefault()}
-      onKeyDown={(e) => {
-        if (e.target !== e.currentTarget) return;
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          onClose();
-        }
-      }}
     >
       <div
         className="pill-color-picker"

@@ -13,6 +13,7 @@ from app import auth
 from app.db.connection import get_data_dir
 from app.domain.entities import NodeUpdateData
 from app.domain.permissions import PermissionChecker, Permissions
+from app.domain.repositories import PostgresPermissionRepository
 from app.node_export import get_static_share_path
 
 
@@ -286,7 +287,10 @@ class TestPermissionCheckerPrivacy:
 
         # Create a PermissionChecker for a different user
         other_user = await auth.create_user("permission_checker@example.com", "password123")
-        checker = PermissionChecker(int(other_user["id"]))
+        permission_repo = PostgresPermissionRepository(
+            db_pool, test_user["workspace_id"], int(other_user["id"])
+        )
+        checker = PermissionChecker(int(other_user["id"]), permission_repo)
 
         perms = await checker.get_node_permissions(page.id)
         assert perms == Permissions.none()
@@ -323,7 +327,10 @@ class TestPermissionCheckerPrivacy:
                 int(test_user["id"]),
             )
 
-        checker = PermissionChecker(int(other_user["id"]))
+        permission_repo = PostgresPermissionRepository(
+            db_pool, test_user["workspace_id"], int(other_user["id"])
+        )
+        checker = PermissionChecker(int(other_user["id"]), permission_repo)
         perms = await checker.get_node_permissions(page.id)
         assert perms.can_read is True
         assert perms.can_write is False
@@ -341,7 +348,10 @@ class TestPermissionCheckerPrivacy:
 
         await node_service._node_repo.update(page.id, NodeUpdateData(is_private=True))
 
-        checker = PermissionChecker(int(test_user["id"]))
+        permission_repo = PostgresPermissionRepository(
+            db_pool, test_user["workspace_id"], int(test_user["id"])
+        )
+        checker = PermissionChecker(int(test_user["id"]), permission_repo)
         perms = await checker.get_node_permissions(page.id)
         assert perms == Permissions.owner()
         assert perms.can_read

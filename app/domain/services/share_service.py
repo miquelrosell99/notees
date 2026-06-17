@@ -76,6 +76,10 @@ class ShareService:
         """Get share metadata by UUID."""
         return await self._share_repo.get_share_by_uuid(share_uuid)
 
+    async def get_node_by_id(self, node_id: int) -> Node | None:
+        """Get a node by internal ID."""
+        return await self._node_repo.get_by_id(node_id)
+
     async def regenerate_share_html_for_node(self, node: Node) -> None:
         """Regenerate static share HTML for all active shares of a node."""
         from ...node_export import write_share_html

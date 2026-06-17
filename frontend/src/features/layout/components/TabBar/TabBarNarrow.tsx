@@ -2,7 +2,8 @@
  * TabBarNarrow — collapsible tab list for narrow screens.
  */
 import { useState, useRef, useCallback } from 'react';
-import { useNavigationStore, type Tab } from '@/stores/navigationStore';
+import { type Tab } from '@/stores/navigationStore';
+import { useTabActions } from '@/features/layout/hooks/useTabActions';
 import { Icon } from '@/components/ui/Icon';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -17,7 +18,7 @@ interface TabBarNarrowProps {
 
 export function TabBarNarrow({ tabs, activeTabId }: TabBarNarrowProps) {
   const [open, setOpen] = useState(false);
-  const { activateTab, closeTab, reorderTabs, pinTab, unpinTab } = useNavigationStore();
+  const { activateTab, closeTab, reorderTabs, pinTab, unpinTab } = useTabActions();
   const activeTab = tabs.find((t) => t.id === activeTabId);
   const popupRef = useRef<HTMLDivElement>(null);
 

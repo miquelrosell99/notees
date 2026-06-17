@@ -4,7 +4,7 @@
  * Usage:
  *   <LoadingSkeleton rows={3} />
  *   <Skeleton shape="heading" width="3-4" />
- *   <Skeleton shape="circle" style={{ width: 'var(--icon-size-xl)', height: 'var(--icon-size-xl)' }} />
+ *   <Skeleton shape="circle" className="skeleton-row__avatar" />
  */
 import type { CSSProperties } from 'react';
 import './LoadingSkeleton.css';
@@ -62,17 +62,17 @@ export function LoadingSkeleton({
   return (
     <div className={`skeleton-group ${className}`} role="status" aria-label="Loading…">
       {showHeading && (
-        <Skeleton shape="heading" width="half" style={{ marginBottom: 'var(--spacing-2)' }} />
+        <Skeleton shape="heading" width="half" className="skeleton-group__heading" />
       )}
       {Array.from({ length: rows }).map((_, i) => (
         <div key={i} className="skeleton-row">
           {showAvatar && (
             <Skeleton
               shape="circle"
-              style={{ width: 'var(--icon-size-xl)', height: 'var(--icon-size-xl)', flexShrink: 0 }}
+              className="skeleton-row__avatar"
             />
           )}
-          <div className="skeleton-group" style={{ flex: 1 }}>
+          <div className="skeleton-row__content skeleton-group">
             <Skeleton shape="text" width={i % 3 === 2 ? '2-3' : 'full'} />
           </div>
         </div>

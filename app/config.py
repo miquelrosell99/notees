@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     algorithm: str = "HS256"
     access_token_expire_hours: float = 0.25  # 15 minutes
     refresh_token_expire_days: int = 7  # 7 days
+    refresh_token_remember_me_days: int = 90  # 90 days for "keep me signed in"
     registration_enabled: bool = False  # Disabled by default; set REGISTRATION_ENABLED=true to allow open registration
 
     @field_validator("algorithm", mode="after")

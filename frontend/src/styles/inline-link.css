@@ -12,6 +12,17 @@
   color: inherit;
 }
 
+/* Reset native <button> defaults when an inline link is rendered as a button. */
+button.inline-link-inner {
+  appearance: none;
+  border: none;
+  background: none;
+  margin: 0;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+}
+
 .inline-link-wrapper .inline-link-inner {
   display: inline;
   color: var(--color-on-surface);

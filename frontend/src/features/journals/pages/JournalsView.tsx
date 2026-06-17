@@ -5,7 +5,8 @@
  * Uses NodeView component for each daily page for consistent editing experience.
  */
 import { useState, useMemo, useCallback } from 'react';
-import { useExistingDailyPages, useNode, useDailyNote } from '@/hooks';
+import { useJournals } from '@/features/journals';
+import { useNode, useDailyNote } from '@/hooks';
 import './JournalsView.css';
 import { useNavigationStore } from '@/stores';
 import { NodeViewContent } from '@/features/content';
@@ -59,7 +60,7 @@ interface JournalsViewProps {
 }
 
 export function JournalsView({ className = '' }: JournalsViewProps) {
-  const { data: dailyPages, isLoading, error, refetch } = useExistingDailyPages();
+  const { data: dailyPages, isLoading, error, refetch } = useJournals();
   const [visibleCount, setVisibleCount] = useState(10);
   const { openNode } = useNavigationStore();
   const { refetch: refetchToday } = useDailyNote(new Date());

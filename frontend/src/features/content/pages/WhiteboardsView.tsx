@@ -10,8 +10,8 @@ import { NodeCollection } from '@/features/content/components/nodes/NodeCollecti
 import { Button } from '@/components/ui/Button';
 import { DataStateView } from '@/components/ui/DataStateView';
 import { useNavigationStore } from '@/stores';
-import { useSystemClasses } from '@/hooks/usePageClass';
-import { useNodesWithClass, useCreateNode } from '@/hooks/useNodes';
+import { useSystemClasses } from '@/features/content/hooks/usePageClass';
+import { useNodesWithClass, useCreateNode } from '@/features/content/hooks/useNodes';
 import { nodeKeys } from '@/hooks/queryKeys';
 import type { NodeCollectionViewMode } from '@/types/nodeCollection';
 import type { Node } from '@/types';

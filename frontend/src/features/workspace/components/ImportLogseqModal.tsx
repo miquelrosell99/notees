@@ -15,8 +15,8 @@ import { TaskReport } from '@/components/ui/TaskReport';
 import { AlertIcon } from '@/components/ui/icons';
 import { type LogseqExport } from '@/utils/ednParser';
 import { parseEdnInWorker, parseSqliteInWorker } from '@/utils/logseqParserClient';
-import { useLogseqImporter, countBlocks } from '@/hooks/useLogseqImporter';
-import type { ImportMode } from '@/hooks/useLogseqImporter';
+import { useLogseqImporter, countBlocks } from '@/features/workspace/hooks/useLogseqImporter';
+import type { ImportMode } from '@/features/workspace/hooks/useLogseqImporter';
 import './ImportLogseqModal.css';
 
 /** Input source: EDN text paste or SQLite file upload */

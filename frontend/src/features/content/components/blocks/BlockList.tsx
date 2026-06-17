@@ -22,18 +22,18 @@ import {
   type JSX,
 } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { useBlockTree, parseGhostParentUuid } from '@/hooks/useBlockTree';
+import { useBlockTree, parseGhostParentUuid } from '@/features/content/hooks/useBlockTree';
 import { BlockRow, type BlockRowHandle } from './BlockRow';
 import { BulletLineOverlay } from './BulletLineOverlay';
 import { useEditorFocusStore } from '@/stores/editorFocusStore';
 import { generateUUID } from '@/utils/uuid';
 import type { Node } from '@/types/api';
-import { useBlockDragDrop } from '@/hooks/useBlockDragDrop';
-import { useBlockSelection } from '@/hooks/useBlockSelection';
+import { useBlockDragDrop } from '@/features/content/hooks/useBlockDragDrop';
+import { useBlockSelection } from '@/features/content/hooks/useBlockSelection';
 import { useBlockSelectionStore } from '@/stores/blockSelectionStore';
-import { useTouchIndent } from '@/hooks/useTouchIndent';
+import { useTouchIndent } from '@/features/content/hooks/useTouchIndent';
 import { BlockFindReplacePlugin } from '@/features/content/editor/plugins/BlockFindReplacePlugin';
-import { flushAllContentSaves } from '@/hooks/useContentSave';
+import { flushAllContentSaves } from '@/features/content/hooks/useContentSave';
 import './BlockList.css';
 import { getOperationRuntime } from '@/runtime';
 import { getNode, getChildren } from '@/runtime/graphHelpers';

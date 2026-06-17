@@ -5,7 +5,7 @@
  * Shows all workspace pages as a force-directed graph.
  */
 import { useGraphNodes } from '@/hooks';
-import { GraphView } from '@/features/content/components/nodes/views/GraphView';
+import { GraphView } from '@/features/content';
 import { Button } from '@/components/ui/Button';
 import './GraphMinimap.css';
 

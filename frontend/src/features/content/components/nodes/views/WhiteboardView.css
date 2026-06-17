@@ -496,6 +496,24 @@
 /*  ZOOM LEVEL INDICATOR                                          */
 /* ────────────────────────────────────────────────────────────── */
 
+.whiteboard-toolbar__panel {
+  display: flex;
+  flex-direction: column;
+  padding: var(--spacing-2);
+  gap: var(--spacing-2);
+}
+
+.whiteboard-toolbar__panel--compact {
+  gap: var(--spacing-1);
+  min-width: var(--whiteboard-toolbar-min-width);
+}
+
+.whiteboard-toolbar__divider {
+  height: var(--spacing-hairline);
+  background: var(--color-outline-variant);
+  margin: 0 var(--spacing-1);
+}
+
 .whiteboard-zoom__level {
   display: flex;
   align-items: center;
@@ -571,9 +589,10 @@
 
 /* Pen/shape properties panel — matches graph view panel style */
 .whiteboard-properties {
-  padding: var(--spacing-1) 0;
+  padding: var(--spacing-2-5) var(--spacing-3);
   display: flex;
   flex-direction: column;
+  gap: var(--spacing-2-5);
 }
 
 .whiteboard-properties__section {

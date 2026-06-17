@@ -21,7 +21,7 @@ from ..stringify_ast import ParseMode, parse_ast, serialize_ast
 from .base import BasePostgresRepository, normalize_timestamp
 
 if TYPE_CHECKING:
-    pass
+    from ..repositories.interfaces import PermissionRepository
 
 ConnectionType = Connection | PoolConnectionProxy
 
@@ -49,15 +49,27 @@ class _PostgresNodeBase(BasePostgresRepository):
         workspace_id: int,
         page_type_id: int,
         user_id: int | None = None,
+        permission_repository: PermissionRepository | None = None,
     ):
         super().__init__(pool, workspace_id, user_id)
         self._page_class_id = page_type_id
+        self._permission_repo = permission_repository
         self._permissions: PermissionChecker | None = None
 
     @property
     def permissions(self) -> PermissionChecker:
         if self._permissions is None and self._user_id is not None:
-            self._permissions = PermissionChecker(self._user_id)
+            if self._permission_repo is None:
+                # Lazy fallback: create a concrete permission repository from the
+                # pool so existing callers that don't inject one still work.
+                from .postgres_permission import PostgresPermissionRepository
+
+                self._permission_repo = PostgresPermissionRepository(
+                    self._pool, self._workspace_id, self._user_id
+                )
+            self._permissions = PermissionChecker(
+                self._user_id, self._permission_repo
+            )
         elif self._permissions is None:
             raise RuntimeError("User ID required for permission checks")
         return self._permissions
@@ -115,6 +127,7 @@ class _PostgresNodeBase(BasePostgresRepository):
             is_template=row.get("is_template", False),
             is_comment=row.get("is_comment", False),
             is_task=row.get("is_task", False),
+            is_table=row.get("is_table", False),
             parent_locked=row.get("parent_locked", False),
             open_date=open_date,
             create_date=create_date,

@@ -24,7 +24,7 @@ import { GroupBySelector } from '@/features/content/components/properties/GroupB
 import { GanttPropertySelector } from '@/features/content/components/properties/GanttPropertySelector';
 import type { GanttTimeScale } from '@/features/content/components/properties/GanttPropertySelector';
 import type { Property } from '@/types/api';
-import { useProperties } from '@/hooks/useProperties';
+import { useProperties } from '@/features/content/hooks/useProperties';
 import './NodeCollectionToolbar.css';
 import { Icon, DragVerticalIcon } from '@/components/ui/icons';
 import type { SortEntry } from '@/features/content/components/nodes/views/NodeTable';

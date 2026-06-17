@@ -17,12 +17,12 @@ import { useCommentCount, useDailyNote } from '@/hooks';
 import { Icon } from '@/components/ui/Icon';
 import { Button } from '@/components/ui/Button';
 import type { ButtonBadge } from '@/components/ui/Button';
-import { CalendarPopup } from '@/features/content/components/CalendarPopup';
+import { CalendarPopup } from '@/features/content';
 import { Card } from '@/components/ui/Card';
 import { ContextMenu } from '@/components/ui/ContextMenu';
 import type { ContextMenuItem } from '@/components/ui/ContextMenu';
 import { Scratchpad } from './Scratchpad';
-import { LiveSyncIndicator } from '@/features/collab/components/LiveSyncIndicator';
+import { LiveSyncIndicator } from '@/features/collab';
 import { TabBar } from './TabBar/TabBar';
 
 import './TopBar.css';

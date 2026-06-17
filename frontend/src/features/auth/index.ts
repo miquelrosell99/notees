@@ -4,3 +4,7 @@ export { EnrollmentView } from './pages/EnrollmentView';
 export { InviteAcceptView } from './pages/InviteAcceptView';
 export * from './api/auth';
 export * from './stores/authStore';
+export * from './hooks/useAuthStatus';
+export * from './hooks/useAdminUsers';
+export * from './hooks/useSystemMetrics';
+export * from './hooks/useUserManagementMutations';

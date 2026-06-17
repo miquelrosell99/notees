@@ -8,8 +8,7 @@
   background: var(--color-surface);
   color: var(--color-on-surface);
   border: 1px solid var(--color-outline-variant);
-  border-radius: var(--spacing-5);
-  box-shadow: 0 8px 24px var(--color-shadow);
+  border-radius: var(--shape-card);
   overflow: hidden;
 }
 

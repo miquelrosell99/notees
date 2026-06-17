@@ -241,10 +241,10 @@
   --shape-medium: 6px;
   --shape-large: 8px;
   --shape-extra-large: 12px;
-  --shape-card: 16px;
+  --shape-card: 20px;
   --shape-button-large: 16px;
   --shape-button-small: 12px;
-  --shape-sheet: 20px;
+  --shape-sheet: 28px;
   --shape-button-compact: 10px;
   --shape-floating-panel: var(--shape-large);  /* 8px — small floating surfaces (menus, popovers) */
   --shape-full: 9999px;
@@ -590,21 +590,21 @@
   --color-inverse-primary: #52504a;
 
   /* Outline & Utility */
-  --color-outline: #52504a;
+  --color-outline: #6b6962;
   --color-outline-variant: #2a2926;
   --color-shadow: rgba(0, 0, 0, 0.5);
   --color-scrim: rgba(0, 0, 0, 0.7);
 
   /* State */
   --color-disabled: #404040;
-  --color-on-disabled: #525252;
+  --color-on-disabled: #9ca3af;
   --color-hover-overlay: rgba(255, 255, 255, 0.05);
   --color-focus-overlay: rgba(255, 255, 255, 0.08);
   --color-pressed-overlay: rgba(255, 255, 255, 0.12);
 
-  /* Accent */
-  --color-accent: #d4d4d4;
-  --color-accent-subtle: #737373;
+  /* Accent — default to sage in dark mode so primary actions stay readable */
+  --color-accent: #7FB285;
+  --color-accent-subtle: #8BA88B;
   --color-on-accent: #121211;
 
   /* Graph view tokens */
@@ -803,6 +803,7 @@
   --shadow-outline-ring: 0 0 0 1px var(--color-outline);
   --shadow-inset-outline-ring: inset 0 0 0 2px var(--color-outline);
   --shadow-inset-primary-ring: inset 0 0 0 2px var(--color-primary);
+  --shadow-inset-accent-ring: inset 0 0 0 2px var(--color-accent);
   --shadow-focus-ring-primary-thin: 0 0 0 1px var(--color-primary);
   --shadow-success-ring-subtle: 0 0 0 2px color-mix(in srgb, var(--color-success) 20%, transparent);
   --shadow-error-ring-ghost: 0 0 0 0 color-mix(in srgb, var(--color-error) 40%, transparent);

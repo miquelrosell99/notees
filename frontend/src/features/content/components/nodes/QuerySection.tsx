@@ -76,18 +76,12 @@ export function QuerySection({
   }, []);
 
   const renderHeader = useCallback((count?: number) => (
-    <div
-      role="button"
-      tabIndex={0}
-      className="node-view-section__header-content"
-      onClick={handleToggle}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          handleToggle();
-        }
-      }}
-    >
+    <>
+      {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events -- Pointer-only header toggle; keyboard users can use the visible expand/collapse button inside it. */}
+      <div
+        className="node-view-section__header-content"
+        onClick={handleToggle}
+      >
       <Button
         variant="ghost"
         size="xs"
@@ -106,6 +100,7 @@ export function QuerySection({
         )}
       </div>
     </div>
+    </>
   ), [isExpanded, handleToggle, icon, title]);
 
   return (

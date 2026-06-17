@@ -11,14 +11,13 @@
  */
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { Spinner } from '@/components/ui/Spinner';
-import { useQuery } from '@tanstack/react-query';
-import { useAvailableProperties } from '@/hooks';
+import { useAvailableProperties, usePropertySuggestions } from '@/features/content';
 import { useKeyboardListNav } from '@/hooks/useKeyboardListNav';
 import type { Property, PropertyType, PropertyCreate, PropertyScope } from '@/types/api';
 import { SYSTEM_PROPERTY_UUIDS } from '@/constants';
-import { getPropertySuggestions } from '@/api/properties';
 import { AddIcon, NodeIcon } from '@/components/ui/icons';
 import { PropertyCreateModal } from './PropertyCreateModal';
+
 
 /** Default MDI icons for each property type (used when no custom icon is set) */
 const PROPERTY_TYPE_ICONS: Record<PropertyType, string> = {
@@ -91,12 +90,7 @@ export function PropertySuggestionPopup({
   );
 
   // Fetch usage-ranked suggestions to sort properties by popularity
-  const { data: suggestions } = useQuery({
-    queryKey: ['property-suggestions', contextNodeId],
-    queryFn: () => getPropertySuggestions(contextNodeId ?? undefined),
-    enabled: isOpen,
-    staleTime: 30_000,
-  });
+  const { data: suggestions } = usePropertySuggestions(contextNodeId, { enabled: isOpen });
   
   // Filter properties based on search and exclusions, sorted by usage
   const filteredProperties = useMemo(() => {

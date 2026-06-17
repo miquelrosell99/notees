@@ -45,17 +45,10 @@ export function UnlinkedMentionsSection({
 
   return (
     <section className={`node-view-section ${isExpanded ? '' : 'collapsed'}`}>
+      {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events -- Pointer-only header toggle; keyboard users can use the visible expand/collapse button inside it. */}
       <div
-        role="button"
-        tabIndex={0}
         className="node-view-section__header"
         onClick={handleToggle}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            handleToggle();
-          }
-        }}
         aria-expanded={isExpanded}
       >
         <div className="node-view-section__header-content">

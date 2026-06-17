@@ -12,7 +12,7 @@
  */
 import { useMemo } from 'react';
 import type { Node } from '@/types';
-import { nodeNameToText } from '@/hooks/useStringifyAST';
+import { nodeNameToText } from '@/features/queries/hooks/useStringifyAST';
 import { Button } from '@/components/ui/Button';
 import { ColorButton } from '@/components/ui/ColorButton';
 import { ListSortable } from '@/components/ui/ListSortable';

@@ -52,6 +52,7 @@ ALLOWED_FLAG_NAMES = {
     "is_template",
     "is_comment",
     "is_task",
+    "is_table",
     "is_private",
     "is_favorite",
     "active",

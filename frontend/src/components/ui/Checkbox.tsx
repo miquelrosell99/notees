@@ -9,12 +9,15 @@ import { cn } from '@/utils/cn';
 
 export type CheckboxSize = 'sm' | 'md' | 'lg';
 export type CheckboxVariant = 'check' | 'dot';
+export type CheckboxDensity = 'default' | 'minimal';
 
 export interface CheckboxProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'size' | 'type'> {
   /** Checkbox size */
   size?: CheckboxSize;
   /** Checkbox icon variant: 'check' for checkmark, 'dot' for filled circle */
   variant?: CheckboxVariant;
+  /** Visual density: 'default' for the standard checkbox, 'minimal' for a smaller, thinner variant */
+  density?: CheckboxDensity;
   /** Label text */
   label?: string;
   /** Description text below label */
@@ -34,6 +37,7 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(function Che
   {
     size = 'md',
     variant = 'check',
+    density = 'default',
     label,
     description,
     indeterminate = false,
@@ -47,10 +51,11 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(function Che
 ) {
   const generatedId = useId();
   const checkboxId = id || `checkbox-${generatedId}`;
-  
+
   const containerClasses = cn(
     'checkbox-container',
     `checkbox-container--${size}`,
+    `checkbox-container--${density}`,
     error ? 'checkbox-container--error' : '',
     disabled ? 'checkbox-container--disabled' : '',
     className,
@@ -80,7 +85,7 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(function Che
         <path
           d="M3.5 8.5L6.5 11.5L12.5 4.5"
           stroke="currentColor"
-          strokeWidth="2"
+          strokeWidth={density === 'minimal' ? 1.5 : 2}
           strokeLinecap="round"
           strokeLinejoin="round"
         />

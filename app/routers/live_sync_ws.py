@@ -47,7 +47,6 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from ..auth import authenticate_api_key, decode_token, get_user_by_id
 from ..db.connection import clear_request_conn
 from ..dependencies import _get_node_service
-from ..domain.permissions import PermissionChecker
 from ..infrastructure.redis_pubsub import collab_pubsub
 from ..logging_config import get_logger
 from ..models import User
@@ -112,6 +111,8 @@ async def _authenticate_ws(token: str, api_key: str | None = None) -> dict[str, 
         return None
 
     # Fall back to JWT token
+    if not token:
+        return None
     payload = decode_token(token)
     if not payload:
         return None
@@ -441,14 +442,17 @@ async def live_sync_websocket(
     """WebSocket endpoint for lightweight live block sync with locking.
 
     Authentication:
+      - JWT: HTTPOnly `access_token` cookie (preferred)
       - JWT: pass `token` query parameter
       - API Key: pass `api_key` query parameter
     """
     # Clear any inherited request-scoped connection (AGENTS.md rule)
     clear_request_conn()
 
-    # 1. Authenticate
-    user = await _authenticate_ws(token, api_key=api_key or None)
+    # 1. Authenticate — prefer access token cookie, fall back to query params
+    cookie_token = websocket.cookies.get("access_token", "")
+    effective_token = cookie_token or token
+    user = await _authenticate_ws(effective_token, api_key=api_key or None)
     if not user:
         await websocket.close(code=4001, reason="Unauthorized")
         return
@@ -457,10 +461,9 @@ async def live_sync_websocket(
 
     # 2. Resolve page node ID and check permissions
     service = await _get_node_service(User(**user))
-    checker = PermissionChecker(user_id)
 
     try:
-        node_id = await service._node_repo.get_page_id_by_uuid(page_uuid)
+        node_id = await service.get_page_id_by_uuid(page_uuid)
     except (LookupError, ValueError):
         logger.exception(f"Failed to resolve page {page_uuid}")
         await websocket.close(code=4002, reason="Internal error")
@@ -470,13 +473,13 @@ async def live_sync_websocket(
         await websocket.close(code=4004, reason="Page not found")
         return
 
-    # 3. Authorize
-    can_read = await checker.can_read_node(node_id)
+    # 3. Authorize (permission repository is injected into the NodeService)
+    can_read = await service.permissions.can_read_node(node_id)
     if not can_read:
         await websocket.close(code=4003, reason="Forbidden")
         return
 
-    can_write = await checker.can_write_node(node_id)
+    can_write = await service.permissions.can_write_node(node_id)
 
     # 4. Accept WebSocket
     await websocket.accept()

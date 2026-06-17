@@ -5,7 +5,7 @@
  */
 import { useCallback, useState } from 'react';
 import { useUnarchiveNode, useDeleteNode, useLinkedReferencesCount } from '@/hooks';
-import { nodeNameToText } from '@/hooks/useStringifyAST';
+import { nodeNameToText } from '@/features/queries/hooks/useStringifyAST';
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/ContextMenu';
 import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
 import { useNavigationStore } from '@/stores';
