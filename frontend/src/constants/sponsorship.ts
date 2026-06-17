@@ -6,15 +6,19 @@
  */
 
 /** Primary GitHub Sponsors profile URL */
+// TODO: replace with the real GitHub Sponsors URL before release.
 export const GITHUB_SPONSORS_URL = 'https://github.com/sponsors/notees';
 
 /** Ko-fi / Buy Me a Coffee one-time tip URL */
+// TODO: replace with the real Ko-fi / Buy Me a Coffee URL before release.
 export const KO_FI_URL = 'https://ko-fi.com/notees';
 
 /** Open Collective organization backing URL */
+// TODO: replace with the real Open Collective URL before release.
 export const OPEN_COLLECTIVE_URL = 'https://opencollective.com/notees';
 
 /** Contact email for sponsorship or invoicing inquiries */
+// TODO: replace with the real sponsorship contact email before release.
 export const SPONSORSHIP_EMAIL = 'sponsors@notees.app';
 
 export interface SponsorshipChannel {
