@@ -247,6 +247,20 @@
   user-select: none;
 }
 
+/* Reset native <button> defaults for sidebar item rows. */
+button.sidebar-favorite-item,
+button.sidebar-recent-item {
+  appearance: none;
+  border: none;
+  background: none;
+  margin: 0;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  width: auto;
+}
+
 .sidebar-favorite-item {
   display: flex;
   align-items: center;

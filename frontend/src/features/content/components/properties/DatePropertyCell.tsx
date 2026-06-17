@@ -3,7 +3,7 @@ import type { Property, Node } from '@/types/api';
 import { useSetNodeProperty, useNode } from '@/hooks';
 import { getOrCreateDaily } from '@/api/nodes';
 import { DatePickerPopup } from '@/features/content/components/DatePickerPopup';
-import { nodeNameToText } from '@/hooks/useStringifyAST';
+import { nodeNameToText } from '@/features/queries/hooks/useStringifyAST';
 import './PropertyCell.css';
 
 interface DatePropertyCellProps {

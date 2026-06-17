@@ -8,11 +8,10 @@
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from '@/components/ui/Button';
-import { NodeSelector } from '@/features/content/components/nodes/NodeSelector';
-import { BlockList } from '@/features/content/components/blocks/BlockList';
+import { NodeSelector, BlockList } from '@/features/content';
 
 import { useTodayNote, usePages, useNodeByUuid, useMoveNode, useDeleteNode } from '@/hooks';
-import { useContentSave, flushAllContentSaves } from '@/hooks/useContentSave';
+import { useContentSave, flushAllContentSaves } from '@/features/content';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
 import { useSettingsStore } from '@/stores';
 import { generateUUID } from '@/utils/uuid';

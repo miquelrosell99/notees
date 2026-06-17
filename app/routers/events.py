@@ -13,7 +13,7 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
 from starlette.status import HTTP_404_NOT_FOUND
 
-from ..dependencies import get_current_user, get_workspace_id
+from ..dependencies import get_current_user, get_permission_checker, get_workspace_id
 from ..domain.permissions import PermissionChecker
 from ..infrastructure.redis_pubsub import collab_pubsub
 from ..logging_config import get_logger
@@ -62,6 +62,7 @@ async def workspace_events(
     request: Request,
     user: User = Depends(get_current_user),
     workspace_id: int = Depends(get_workspace_id),
+    permission_checker: PermissionChecker = Depends(get_permission_checker),
 ):
     """Subscribe to workspace-level events via Server-Sent Events.
 
@@ -80,9 +81,8 @@ async def workspace_events(
         raise HTTPException(status_code=HTTP_404_NOT_FOUND, detail="No active workspace")
 
     # Verify read permission
-    checker = PermissionChecker(user_id)
     # Workspace-level permission check (any node in workspace)
-    can_read = await checker.can_read_workspace(workspace_id)
+    can_read = await permission_checker.can_read_workspace(workspace_id)
     if not can_read:
         from fastapi import HTTPException
         raise HTTPException(status_code=403, detail="Access denied")

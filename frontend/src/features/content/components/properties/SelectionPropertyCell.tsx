@@ -91,14 +91,18 @@ export function SelectionPropertyCell({
     return (
       <div
         ref={cellRef}
-        role="button"
-        tabIndex={editable ? 0 : -1}
-        className={`property-cell ${editable ? 'property-cell--editable' : ''} property-cell--empty`}
-        onClick={() => editable && setIsPickerOpen((prev) => !prev)}
-        onKeyDown={handleKeyDown}
-        title={editable ? 'Click to select' : undefined}
+        className={`property-cell property-cell--empty-wrapper ${editable ? 'property-cell--editable' : ''}`}
       >
-        <span className="property-placeholder">Empty</span>
+        <button
+          type="button"
+          className="property-cell property-cell--empty"
+          onClick={() => editable && setIsPickerOpen((prev) => !prev)}
+          onKeyDown={handleKeyDown}
+          title={editable ? 'Click to select' : undefined}
+          disabled={!editable}
+        >
+          <span className="property-placeholder">Empty</span>
+        </button>
         {isPickerOpen && (
           <div className="property-cell__picker">
             {options.map(option => {

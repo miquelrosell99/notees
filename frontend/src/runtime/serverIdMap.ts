@@ -71,11 +71,22 @@ export function registerParentServerId(parentBlockId: string, serverId: number):
 
 /**
  * Resolve a parent serverId from the runtime or the fallback map.
+ *
+ * The runtime stores parent references as block UUIDs, so this helper first
+ * looks up the associated numeric server id. As a fallback, it also accepts
+ * parent ids that are already numeric strings (used in some tests and legacy
+ * flows). Pure UUIDs that cannot be resolved return `null` instead of being
+ * incorrectly parsed into a random integer.
  */
 export function resolveParentServerId(runtime: OperationRuntime, parentBlockId: string): number | null {
   const node = runtime.getNode(parentBlockId);
   if (node?.serverId != null) return node.serverId;
-  return getServerId(parentBlockId);
+  const mapped = getServerId(parentBlockId);
+  if (mapped != null) return mapped;
+  if (/^\d+$/.test(parentBlockId)) {
+    return parseInt(parentBlockId, 10);
+  }
+  return null;
 }
 
 /**

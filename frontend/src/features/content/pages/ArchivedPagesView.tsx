@@ -4,16 +4,12 @@
  * Displays pages that have been archived (active = false).
  * Fetches directly from the /archived endpoint instead of using query system.
  */
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { NodeCollection } from '@/features/content/components/nodes/NodeCollection';
 import { NodeCollectionToolbar } from '@/features/content/components/nodes/NodeCollectionToolbar';
 import { ArchivedNodeContextMenu } from '@/features/content/components/nodes/ArchivedNodeContextMenu';
 import { ArchiveIcon } from '@/components/ui/icons';
 import { useNavigationStore } from '@/stores';
-import api from '@/api/client';
-import { isFavorite, removeFavorite } from '@/hooks/useFavorites';
-import { removeRecent } from '@/hooks/useRecents';
-import { unarchiveNode, deleteNode, batchDeleteNodes } from '@/api/nodes';
+import { useArchivedPages, useArchivedPagesMutations } from '@/features/content';
 import type { Node } from '@/types/api';
 import type { NodeCollectionViewMode } from '@/types/nodeCollection';
 import type { ContextMenuItem } from '@/components/ui/ContextMenu';
@@ -21,6 +17,7 @@ import { useState, useCallback } from 'react';
 import { Button } from '@/components/ui/Button';
 import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
 import { DataStateView } from '@/components/ui/DataStateView';
+
 import './ArchivedPagesView.css';
 
 interface ArchivedPagesViewProps {
@@ -31,55 +28,10 @@ export function ArchivedPagesView({ className = '' }: ArchivedPagesViewProps) {
   const { openNode } = useNavigationStore();
   const [viewMode, setViewMode] = useState<NodeCollectionViewMode>('list');
   const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
-  const queryClient = useQueryClient();
-  
-  // Mutation for unarchiving nodes
-  const unarchiveMutation = useMutation({
-    mutationFn: unarchiveNode,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['archived-pages'] });
-      queryClient.invalidateQueries({ queryKey: ['nodes', 'linked-refs'], refetchType: 'active' });
-      queryClient.invalidateQueries({ queryKey: ['nodes', 'property-backlinks'], refetchType: 'active' });
-      queryClient.invalidateQueries({ queryKey: ['nodes', 'backlinks'], refetchType: 'active' });
-    },
-  });
-  
-  // Mutation for deleting nodes
-  const deleteMutation = useMutation({
-    mutationFn: deleteNode,
-    onSuccess: (_data, nodeId) => {
-      queryClient.invalidateQueries({ queryKey: ['archived-pages'] });
-      queryClient.invalidateQueries({ queryKey: ['nodes', 'linked-refs'], refetchType: 'active' });
-      queryClient.invalidateQueries({ queryKey: ['nodes', 'property-backlinks'], refetchType: 'active' });
-      queryClient.invalidateQueries({ queryKey: ['nodes', 'backlinks'], refetchType: 'active' });
-      if (isFavorite(nodeId)) {
-        removeFavorite(nodeId).catch(() => {});
-      }
-      removeRecent(nodeId);
-    },
-  });
 
-  // Mutation for deleting all archived nodes
-  const deleteAllMutation = useMutation({
-    mutationFn: () => {
-      const uuids = (nodes ?? []).map(n => n.uuid);
-      return batchDeleteNodes({ uuids });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['archived-pages'] });
-      queryClient.invalidateQueries({ queryKey: ['nodes', 'linked-refs'], refetchType: 'active' });
-      queryClient.invalidateQueries({ queryKey: ['nodes', 'property-backlinks'], refetchType: 'active' });
-      queryClient.invalidateQueries({ queryKey: ['nodes', 'backlinks'], refetchType: 'active' });
-      setShowDeleteAllConfirm(false);
-      for (const node of nodes ?? []) {
-        if (isFavorite(node.id)) {
-          removeFavorite(node.id).catch(() => {});
-        }
-        removeRecent(node.id);
-      }
-    },
-  });
-  
+  const { data: nodes, isLoading, error, refetch } = useArchivedPages();
+  const { unarchive: unarchiveMutation, deleteNode: deleteMutation, deleteAll: deleteAllMutation } = useArchivedPagesMutations();
+
   // Generate context menu items for archived nodes
   const generateContextMenuItems = useCallback((node: Node, closeMenu: () => void): ContextMenuItem[] => {
     return [
@@ -108,15 +60,6 @@ export function ArchivedPagesView({ className = '' }: ArchivedPagesViewProps) {
       },
     ];
   }, [unarchiveMutation, deleteMutation]);
-  
-  // Fetch archived pages directly from API
-  const { data: nodes, isLoading, error, refetch } = useQuery({
-    queryKey: ['archived-pages'],
-    queryFn: async () => {
-      const response = await api.get<{ pages: Node[] }>('/nodes/archived');
-      return response.data.pages;
-    },
-  });
   
   return (
     <article className={`node-view node-view--page archived-pages-view ${className}`}>
@@ -188,7 +131,11 @@ export function ArchivedPagesView({ className = '' }: ArchivedPagesViewProps) {
         confirmLabel="Delete All"
         cancelLabel="Cancel"
         variant="danger"
-        onConfirm={() => deleteAllMutation.mutate()}
+        onConfirm={() =>
+          deleteAllMutation.mutate((nodes ?? []).map((n) => n.uuid), {
+            onSuccess: () => setShowDeleteAllConfirm(false),
+          })
+        }
         onCancel={() => setShowDeleteAllConfirm(false)}
       />
     </article>

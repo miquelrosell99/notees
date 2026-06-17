@@ -69,7 +69,7 @@
 .node-view-section__icon {
   display: flex;
   align-items: center;
-  color: var(--color-primary);
+  color: var(--color-accent);
   flex-shrink: 0;
 }
 

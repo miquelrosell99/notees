@@ -8,8 +8,8 @@ import { useState } from 'react';
 import { useSettingsStore, DATE_FORMAT_OPTIONS } from '@/stores';
 import type { DateFormat } from '@/stores';
 import { updateDateFormat } from '@/api/nodes';
-import { getWorkspaceSettings, setWorkspaceSetting } from '@/features/workspace/api/workspaces';
-import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
+import { useGraphSettings } from '@/features/workspace';
+import { useQueryClient } from '@tanstack/react-query';
 import { useNotifications } from '@/stores/notificationStore';
 import { DEFAULT_SHORTCUTS, formatShortcutKey } from '@/stores/keyboardStore';
 import type { ShortcutContext } from '@/stores/commandRegistry';
@@ -20,7 +20,7 @@ import { BooleanToggle } from '@/components/ui/BooleanToggle';
 import { Dropdown } from '@/components/ui/Dropdown';
 import { TextField } from '@/components/ui/TextField';
 import { Tabs } from '@/components/ui/Tabs';
-import { workspaceSettingsKeys } from '@/hooks/queryKeys';
+import { nodeKeys } from '@/hooks/queryKeys';
 import './GraphSettingsModal.css';
 
 interface GraphSettingsModalProps {
@@ -88,18 +88,7 @@ export function GraphSettingsModal({ isOpen, onClose }: GraphSettingsModalProps)
   const { success, error: notifyError, warning } = useNotifications();
 
   // Workspace settings for sidebar visibility toggles
-  const { data: workspaceSettings } = useQuery({
-    queryKey: workspaceSettingsKeys.all,
-    queryFn: getWorkspaceSettings,
-    staleTime: 1000 * 60 * 5,
-  });
-
-  const updateSettingMutation = useMutation({
-    mutationFn: ({ key, value }: { key: string; value: unknown }) => setWorkspaceSetting(key, value),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: workspaceSettingsKeys.all });
-    },
-  });
+  const { settings: workspaceSettings, updateSetting: updateSettingMutation } = useGraphSettings();
 
   const handleToggleChange = (key: string, value: boolean) => {
     updateSettingMutation.mutate({ key, value });
@@ -130,8 +119,8 @@ export function GraphSettingsModal({ isOpen, onClose }: GraphSettingsModalProps)
       const result = await updateDateFormat(pendingDateFormat);
       if (result.status === 'success') {
         setDateFormat(pendingDateFormat);
-        queryClient.invalidateQueries({ queryKey: ['nodes'] });
-        queryClient.invalidateQueries({ queryKey: ['page'] });
+        queryClient.invalidateQueries({ queryKey: nodeKeys.all });
+        queryClient.invalidateQueries({ queryKey: nodeKeys.allPages() });
         success('Date format updated', 'Daily and monthly notes now use the new format.');
       }
       if (result.errors.length > 0) {
@@ -241,7 +230,7 @@ export function GraphSettingsModal({ isOpen, onClose }: GraphSettingsModalProps)
                   )}
                 </div>
 
-                <h3 className="settings-section__title" style={{ marginTop: 'var(--spacing-6)' }}>Sidebar Visibility</h3>
+                <h3 className="settings-section__title settings-section__title--spaced">Sidebar Visibility</h3>
 
                 <div className="settings-item">
                   <BooleanToggle
@@ -283,7 +272,7 @@ export function GraphSettingsModal({ isOpen, onClose }: GraphSettingsModalProps)
                   />
                 </div>
 
-                <h3 className="settings-section__title" style={{ marginTop: 'var(--spacing-6)' }}>Data Retention</h3>
+                <h3 className="settings-section__title settings-section__title--spaced">Data Retention</h3>
 
                 <div className="settings-item">
                   <div className="settings-item__info">

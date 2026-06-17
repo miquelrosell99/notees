@@ -262,28 +262,21 @@ export function PropertyCell({
   // Handle boolean toggle
   if (property.type === 'boolean' && !isEditing) {
     return (
-      <div
-        role="button"
-        tabIndex={editable ? 0 : -1}
+      <button
+        type="button"
         aria-pressed={Boolean(value)}
         className="property-cell property-cell--boolean"
         onClick={handleClick}
-        onKeyDown={(e) => {
-          if (!editable) return;
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            handleClick();
-          }
-        }}
       >
         <input
           type="checkbox"
           checked={Boolean(value)}
           readOnly
           tabIndex={-1}
+          aria-hidden="true"
           className="property-cell__checkbox"
         />
-      </div>
+      </button>
     );
   }
 

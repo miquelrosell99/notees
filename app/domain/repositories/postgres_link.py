@@ -559,10 +559,10 @@ class PostgresLinkRepository(BasePostgresRepository, LinkRepository):
             )
             return date_rows, node_rows
 
-    async def set_alias(self, target_node_id: int, alias_node_id: int) -> None:
+    async def set_alias(self, target_node_id: int, alias_node_id: int) -> str:
         """Set aliased_id on alias_node_id to target_node_id."""
         async with acquire_connection(self._pool) as conn:
-            await conn.execute("UPDATE node SET aliased_id = $1 WHERE id = $2", target_node_id, alias_node_id)
+            return await conn.execute("UPDATE node SET aliased_id = $1 WHERE id = $2", target_node_id, alias_node_id)
 
     async def remove_alias(self, target_node_id: int, alias_node_id: int) -> bool:
         """Clear aliased_id for an alias of target_node_id."""

@@ -24,7 +24,7 @@ import { executeNodeViewQuery, executeQuery as executeAdHocQuery } from '@/api/n
 import { autoFixSystemQuery } from '@/lib/systemQueryAutoFix';
 import { normalizeAST } from '@/lib/astNormalizer';
 import { useDebouncedValue } from './useDebouncedValue';
-import { nodeViewKeys } from './useNodeViews';
+import { nodeViewKeys } from '@/features/content/hooks/useNodeViews';
 import type { QueryAST } from '@/types/queryAST';
 import type { QueryExecuteResponse, QueryExecutionMetrics } from '@/types/nodeView';
 import type { Node } from '@/types/api';

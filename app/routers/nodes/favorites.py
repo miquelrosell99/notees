@@ -1,12 +1,12 @@
 """Favorites management endpoints."""
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from ...dependencies import get_current_user, get_node_repository, get_settings_repository
 from ...domain.repositories.interfaces import NodeRepository, SettingsRepository
 from ...models import PaginatedResponse, User
 from .helpers import _get_class_ids_batch, _get_node_service, _node_to_response
-from .models import NodeResponse
+from .models import NodeResponse, ReorderFavoritesRequest, SetFavoritesRequest
 
 router = APIRouter()
 
@@ -69,7 +69,7 @@ async def get_favorites(
 
 @router.put("/favorites")
 async def set_favorites(
-    request: Request,
+    body: SetFavoritesRequest,
     user: User = Depends(get_current_user),
     settings_repo: SettingsRepository = Depends(get_settings_repository),
 ):
@@ -77,24 +77,14 @@ async def set_favorites(
 
     Expects JSON body: { "favorites": [nodeId1, nodeId2, ...] }
     """
-    data = await request.json()
-    favorites = data.get("favorites", [])
+    await settings_repo.set_user_favorites(int(user.id), body.favorites)
 
-    if not isinstance(favorites, list):
-        raise HTTPException(status_code=400, detail="favorites must be a list")
-
-    # Validate all items are integers
-    if not all(isinstance(f, int) for f in favorites):
-        raise HTTPException(status_code=400, detail="favorites must be a list of integers")
-
-    await settings_repo.set_user_favorites(int(user.id), favorites)
-
-    return {"status": "ok", "favorites": favorites}
+    return {"status": "ok", "favorites": body.favorites}
 
 
 @router.put("/favorites/reorder")
 async def reorder_favorites(
-    request: Request,
+    body: ReorderFavoritesRequest,
     user: User = Depends(get_current_user),
     settings_repo: SettingsRepository = Depends(get_settings_repository),
 ):
@@ -102,24 +92,17 @@ async def reorder_favorites(
 
     Expects JSON body: { "from_index": number, "to_index": number }
     """
-    data = await request.json()
-    from_index = data.get("from_index")
-    to_index = data.get("to_index")
-
-    if from_index is None or to_index is None:
-        raise HTTPException(status_code=400, detail="from_index and to_index are required")
-
     favorites = await settings_repo.get_user_favorites(int(user.id))
 
     # Validate indices
-    if from_index < 0 or from_index >= len(favorites):
+    if body.from_index >= len(favorites):
         raise HTTPException(status_code=400, detail="from_index out of bounds")
-    if to_index < 0 or to_index >= len(favorites):
+    if body.to_index >= len(favorites):
         raise HTTPException(status_code=400, detail="to_index out of bounds")
 
     # Reorder
-    item = favorites.pop(from_index)
-    favorites.insert(to_index, item)
+    item = favorites.pop(body.from_index)
+    favorites.insert(body.to_index, item)
 
     await settings_repo.set_user_favorites(int(user.id), favorites)
 

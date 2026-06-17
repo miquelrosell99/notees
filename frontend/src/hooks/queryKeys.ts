@@ -36,13 +36,19 @@ export const nodeKeys = {
   mentions: (id: number) => [...nodeKeys.all, 'mentions', id] as const,
   allMentions: () => [...nodeKeys.all, 'mentions'] as const,
   propertyBacklinks: (id: number) => [...nodeKeys.all, 'property-backlinks', id] as const,
+  allPropertyBacklinks: () => [...nodeKeys.all, 'property-backlinks'] as const,
   dailyList: () => [...nodeKeys.all, 'daily-list'] as const,
   daily: (date: string) => [...nodeKeys.all, 'daily', date] as const,
   monthly: (year: number, month: number) => [...nodeKeys.all, 'monthly', year, month] as const,
   yearly: (year: number) => [...nodeKeys.all, 'yearly', year] as const,
   search: (query: string, filters?: Record<string, string | boolean | undefined>) => [...nodeKeys.all, 'search', query, filters ?? {}] as const,
+  searchAll: () => [...nodeKeys.all, 'search'] as const,
+  breadcrumbsAll: () => [...nodeKeys.all, 'breadcrumbs'] as const,
+  classSearch: (query: string) => [...nodeKeys.classes(), 'search', query] as const,
   pages: (options?: { includeChildren?: boolean; rootOnly?: boolean }) => 
     [...nodeKeys.all, 'pages', options ?? {}] as const,
+  allPages: () => [...nodeKeys.all, 'pages'] as const,
+  filteredPages: (classFiltersParam?: string) => [...nodeKeys.all, 'filtered-pages', classFiltersParam] as const,
   tags: () => [...nodeKeys.all, 'tags'] as const,
   classes: () => [...nodeKeys.all, 'classes'] as const,
   tasks: (includeComplete?: boolean) => [...nodeKeys.all, 'tasks', { includeComplete }] as const,
@@ -62,13 +68,36 @@ export const nodeKeys = {
   // Prefix keys for cache-wide invalidation (match all regardless of ID)
   archived: () => [...nodeKeys.all, 'archived'] as const,
   byClass: (classId: number) => [...nodeKeys.all, 'by-class', classId] as const,
+  byTag: (tagId: number) => [...nodeKeys.all, 'by-tag', tagId] as const,
   textLinks: (nodeId: number) => ['textLinks', nodeId] as const,
   inlineClasses: (nodeId: number) => ['inlineClasses', nodeId] as const,
   pageContents: () => [...nodeKeys.all, 'page-content'] as const,
   uuids: () => [...nodeKeys.all, 'uuid'] as const,
   pseudoNodeQuery: () => ['pseudo-node-query'] as const,
   inlineQuery: () => ['inline-query'] as const,
+  tabBatch: (nodeIds: number[]) => [...nodeKeys.all, 'tab-batch', ...nodeIds.sort((a, b) => a - b)] as const,
   ganttDayNodes: (ids: number[]) => [...nodeKeys.all, 'gantt-day-nodes', hashNumberArray(ids)] as const,
+};
+
+// ==================== NodeView Query Keys ====================
+
+export const nodeViewKeys = {
+  all: ['nodeViews'] as const,
+  lists: () => [...nodeViewKeys.all, 'list'] as const,
+  list: (nodeId: number, viewType?: string) =>
+    [...nodeViewKeys.lists(), nodeId, viewType] as const,
+  byType: (nodeId: number) => [...nodeViewKeys.all, 'byType', nodeId] as const,
+  details: () => [...nodeViewKeys.all, 'detail'] as const,
+  detail: (viewId: number) => [...nodeViewKeys.details(), viewId] as const,
+  default: (nodeId: number, viewType: string) =>
+    [...nodeViewKeys.all, 'default', nodeId, viewType] as const,
+  queryResults: () => [...nodeViewKeys.all, 'queryResults'] as const,
+  queryResult: (viewId: number, params?: Record<string, unknown>) =>
+    [...nodeViewKeys.queryResults(), viewId, params] as const,
+  count: (viewId?: number | null, request?: unknown) =>
+    [...nodeViewKeys.queryResults(), 'count', viewId ?? 'all', request ?? {}] as const,
+  aggregate: (viewId: number | null | undefined, aggregation: unknown, nodeUuid?: string) =>
+    ['node-view-aggregate', viewId, aggregation, nodeUuid ?? ''] as const,
 };
 
 // ==================== Property Query Keys ====================
@@ -88,6 +117,7 @@ export const propertyKeys = {
     [...propertyKeys.all, 'available', opts] as const,
   nodes: (propertyId: number) => ['property-nodes', propertyId] as const,
   allNodes: () => ['property-nodes'] as const,
+  suggestions: (contextNodeId?: number) => ['property-suggestions', contextNodeId] as const,
 };
 
 // ==================== Comment Query Keys ====================
@@ -140,4 +170,58 @@ export const taskKeys = {
   recurrence: (nodeId: number) => [...taskKeys.all, 'recurrence', nodeId] as const,
   completions: (nodeId: number, limit?: number, offset?: number) =>
     [...taskKeys.all, 'completions', nodeId, { limit: limit ?? 50, offset: offset ?? 0 }] as const,
+  view: (activeTab?: string) => ['tasks-view', activeTab] as const,
+};
+
+// ==================== Trash Query Keys ====================
+
+export const trashKeys = {
+  all: ['trash'] as const,
+  list: () => [...trashKeys.all, 'list'] as const,
+};
+
+// ==================== Archived Pages Query Keys ====================
+
+export const archivedPagesKeys = {
+  all: ['archived-pages'] as const,
+  list: () => [...archivedPagesKeys.all, 'list'] as const,
+};
+
+// ==================== Workspace Query Keys ====================
+
+export const workspaceKeys = {
+  all: ['workspaces'] as const,
+  list: () => [...workspaceKeys.all, 'list'] as const,
+  exportJob: (jobId: string | number | null | undefined) => ['export-job', jobId] as const,
+  nameCheck: (name: string) => ['workspace-name-check', name] as const,
+};
+
+// ==================== Auth Query Keys ====================
+
+export const authKeys = {
+  status: () => ['auth', 'status'] as const,
+};
+
+// ==================== Admin Query Keys ====================
+
+export const adminKeys = {
+  users: () => ['admin', 'users'] as const,
+  metrics: () => ['admin', 'metrics'] as const,
+};
+
+// ==================== Search Query Keys ====================
+
+export const searchKeys = {
+  nodeSearchBox: (query: string) => ['node-search-box-custom', query] as const,
+};
+
+// ==================== Ad-hoc Query Keys ====================
+
+export const queryKeys = {
+  pseudoNodeQuery: (viewType: string, nodeId: number, viewMode: string) =>
+    ['pseudo-node-query', viewType, nodeId, viewMode] as const,
+  inlineQuery: (nodeId: number, ast: unknown, viewMode: string) =>
+    ['inline-query', nodeId, ast, viewMode] as const,
+  previewQuery: (nodeId: number, ast: unknown, viewMode: string) =>
+    ['preview-query', nodeId, ast, viewMode] as const,
 };

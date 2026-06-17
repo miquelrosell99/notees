@@ -21,9 +21,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from ..db.connection import clear_request_conn, get_pool, get_workspace_dir, get_workspace_uuid
-from ..dependencies import get_current_user, get_export_repository, get_workspace_id
-from ..domain.repositories import PostgresExportRepository
+from ..db.connection import clear_request_conn, get_workspace_dir, get_workspace_uuid
+from ..dependencies import _make_export_repository, get_current_user, get_export_repository, get_workspace_id
 from ..domain.repositories.interfaces import ExportRepository
 from ..domain.stringify_ast import StringifyMode, StringifyOptions, parse_ast, stringify_ast
 from ..logging_config import get_logger
@@ -300,8 +299,7 @@ async def _run_batch_export(
     # race with the middleware releasing the connection back to the pool.
     clear_request_conn()
     try:
-        pool = await get_pool()
-        export_repo = PostgresExportRepository(pool, workspace_id)
+        export_repo = await _make_export_repository(workspace_id)
 
         rows = await export_repo.list_exportable_pages(workspace_id)
 

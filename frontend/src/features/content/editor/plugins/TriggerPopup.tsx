@@ -15,12 +15,12 @@ import { useState, useRef, useEffect, useMemo, useCallback, useLayoutEffect } fr
 import { createPortal } from 'react-dom';
 import type { Node } from '@/types';
 import { useNodeSearch, type NodeSearchItem } from '@/hooks';
-import { nodeNameToText } from '@/hooks/useStringifyAST';
-import { useClasses } from '@/hooks/useNodeQueries';
+import { nodeNameToText } from '@/features/queries/hooks/useStringifyAST';
+import { useClasses } from '@/features/content/hooks/useNodeQueries';
 import { SYSTEM_CLASS_UUIDS } from '@/constants';
 import { NodeResultItem } from '@/features/content/components/nodes/NodeResultItem';
-import { useCreateNode } from '@/hooks/useNodes';
-import { usePageClass, useClassClass } from '@/hooks/usePageClass';
+import { useCreateNode } from '@/features/content/hooks/useNodes';
+import { usePageClass, useClassClass } from '@/features/content/hooks/usePageClass';
 import { Button } from '@/components/ui/Button';
 import { Spinner } from '@/components/ui/Spinner';
 import { AddIcon } from '@/components/ui/icons';

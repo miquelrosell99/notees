@@ -14,10 +14,10 @@
 import { useState, useEffect, useCallback, useRef, type JSX } from 'react';
 
 import { generateUUID } from '@/utils/uuid';
-import { useNodeByUuid } from '@/hooks/useNodeQueries';
-import { useContentSave } from '@/hooks/useContentSave';
+import { useNodeByUuid } from '@/features/content/hooks/useNodeQueries';
+import { useContentSave } from '@/features/content/hooks/useContentSave';
 import { BlockList } from '@/features/content/components/blocks/BlockList';
-import { nodeNameToText } from '@/hooks/useStringifyAST';
+import { nodeNameToText } from '@/features/queries/hooks/useStringifyAST';
 
 import './EmbedBlock.css';
 import { Icon } from '@/components/ui/icons';

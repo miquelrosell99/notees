@@ -14,9 +14,10 @@ import { createPortal } from 'react-dom';
 import { useNode } from '@/hooks';
 import { useSettingsStore } from '@/stores';
 import { usePresentationStore } from '@/stores/presentationStore';
-import { nodeNameToText } from '@/hooks/useStringifyAST';
+import { nodeNameToText } from '@/features/queries/hooks/useStringifyAST';
 import { BlockList } from '@/features/content/components/blocks/BlockList';
 import { Button } from '@/components/ui/Button';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
 import type { Node } from '@/types';
 import './PresentationModal.css';
 
@@ -46,14 +47,18 @@ export function PresentationModal() {
     setCurrentIndex((prev) => Math.min(prev + 1, Math.max(slides.length - 1, 0)));
   }, [slides.length]);
 
+  // Trap focus inside the modal while it is open.
+  useFocusTrap(containerRef, {
+    enabled: isOpen,
+    onEscape: closePresentation,
+  });
+
   // Keyboard navigation
   useEffect(() => {
     if (!isOpen) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        closePresentation();
-      } else if (e.key === 'ArrowLeft') {
+      if (e.key === 'ArrowLeft') {
         e.preventDefault();
         goToPrev();
       } else if (e.key === 'ArrowRight') {
@@ -64,7 +69,7 @@ export function PresentationModal() {
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, closePresentation, goToPrev, goToNext]);
+  }, [isOpen, goToPrev, goToNext]);
 
   // Fullscreen toggle
   const toggleFullscreen = useCallback(() => {
@@ -80,7 +85,13 @@ export function PresentationModal() {
   const slideNode = slides[currentIndex];
 
   const modalContent = (
-    <div ref={containerRef} className="presentation-modal-backdrop">
+    <div
+      ref={containerRef}
+      className="presentation-modal-backdrop"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="presentation-dialog-title"
+    >
       {/* Top-right actions */}
       <div className="presentation-modal-actions">
         <Button aria-label="Toggle fullscreen"
@@ -127,12 +138,17 @@ export function PresentationModal() {
 
       {/* Slide content */}
       {slides.length === 0 ? (
-        <div className="presentation-modal-empty">No slides to present</div>
+        <>
+          <h2 id="presentation-dialog-title" className="visually-hidden">
+            Presentation
+          </h2>
+          <div className="presentation-modal-empty">No slides to present</div>
+        </>
       ) : slideNode ? (
         <div className="presentation-modal-slide">
-          <div className="presentation-modal-slide-title">
+          <h2 id="presentation-dialog-title" className="presentation-modal-slide-title">
             {getSlideTitle(slideNode)}
-          </div>
+          </h2>
           <div className="presentation-modal-slide-content">
             {slideNode.children && slideNode.children.length > 0 ? (
               <BlockList

@@ -30,6 +30,7 @@ if TYPE_CHECKING:
         UserCreateData,
     )
     from ..entities.share import PublicShare
+    from ..permissions import Permissions
 
 
 class NodeCrudRepository(ABC):
@@ -305,6 +306,25 @@ class NodeSearchRepository(ABC):
         order: str = "desc",
     ) -> list[Node]:
         """Search nodes by name with optional filters, sorting and pagination."""
+        pass
+
+    @abstractmethod
+    async def list_nodes(
+        self,
+        pages_only: bool = False,
+        parent_id: int | None = None,
+        type_id: int | None = None,
+        class_ids: list[int] | None = None,
+        root_only: bool = False,
+        sort_by: str = "sequence",
+        order: str = "asc",
+        page: int = 1,
+        page_size: int = 1000,
+    ) -> tuple[list[Node], int]:
+        """List nodes with server-side filtering, sorting, and pagination.
+
+        Returns a tuple of (nodes, total_count).
+        """
         pass
 
     @abstractmethod
@@ -1411,7 +1431,7 @@ class UserRepository(ABC):
 
     @abstractmethod
     async def create_refresh_token(
-        self, user_id: int, token_hash: str, expires_at: datetime, family_id: str
+        self, user_id: int, token_hash: str, expires_at: datetime, family_id: str, remember_me: bool = False
     ) -> dict:
         """Store a refresh token and return the persisted record."""
         pass
@@ -1427,7 +1447,9 @@ class UserRepository(ABC):
         pass
 
     @abstractmethod
-    async def rotate_refresh_token(self, old_token_id: int, token_hash: str, expires_at: datetime) -> dict:
+    async def rotate_refresh_token(
+        self, old_token_id: int, token_hash: str, expires_at: datetime, remember_me: bool = False
+    ) -> dict:
         """Rotate a refresh token: revoke old, create new, link them."""
         pass
 
@@ -1866,6 +1888,48 @@ class ExportRepository(ABC):
         pass
 
 
+class PermissionRepository(ABC):
+    """Repository interface for permission-related database queries."""
+
+    @abstractmethod
+    async def get_workspace_owner(self, workspace_id: int) -> int | None:
+        """Return the create_uid of the active workspace, or None if not found."""
+        pass
+
+    @abstractmethod
+    async def get_workspace_share(
+        self, workspace_id: int, user_id: int
+    ) -> Permissions | None:
+        """Return workspace-level share permissions for a user, or None."""
+        pass
+
+    @abstractmethod
+    async def get_node_info(
+        self, node_id: int, active_only: bool
+    ) -> dict[str, Any] | None:
+        """Return node workspace_id, create_uid, is_private (and is_shared) row."""
+        pass
+
+    @abstractmethod
+    async def get_node_share(
+        self, node_id: int, user_id: int
+    ) -> Permissions | None:
+        """Return explicit node_share permissions for a user, or None."""
+        pass
+
+    @abstractmethod
+    async def get_ancestor_node_share(
+        self, node_id: int, user_id: int
+    ) -> Permissions | None:
+        """Return inherited share permissions from the closest ancestor page."""
+        pass
+
+    @abstractmethod
+    async def get_accessible_workspace_ids(self, user_id: int) -> list[int]:
+        """Return all workspace IDs the user can read (owned + shared)."""
+        pass
+
+
 class WorkspaceRepository(ABC):
     """Repository interface for workspace lifecycle, membership, and invite operations."""
 
@@ -1982,6 +2046,60 @@ class WorkspaceRepository(ABC):
         pass
 
 
+class WorkspaceIORepository(ABC):
+    """Repository interface for workspace import/export and restore operations."""
+
+    @abstractmethod
+    async def export_workspace_full(self, workspace_id: int) -> dict:
+        """Create a comprehensive dump of all workspace data."""
+        pass
+
+    @abstractmethod
+    async def create_workspace_for_import(self, name: str, owner_id: int) -> dict:
+        """Insert a workspace for import and return row dict with id/uuid/name/create_date."""
+        pass
+
+    @abstractmethod
+    async def get_workspace_by_name_for_user(self, name: str, user_id: int) -> dict | None:
+        """Get workspace row with id/uuid/name by name for a user."""
+        pass
+
+    @abstractmethod
+    async def get_workspace_by_uuid_for_user(self, uuid: str, user_id: int) -> dict | None:
+        """Get workspace row with id/uuid/name by uuid for a user."""
+        pass
+
+    @abstractmethod
+    async def import_dump(
+        self, workspace_id: int, user_id: int, dump_data: dict, remap_uuids: bool
+    ) -> tuple[dict, dict[str, str]]:
+        """Run the entire multi-phase import inside a single DB transaction.
+
+        Returns (stats, uuid_map).
+        """
+        pass
+
+    @abstractmethod
+    async def delete_all_workspace_data(self, workspace_id: int) -> None:
+        """Delete node_view, node_link, setting_workspace, node, property rows."""
+        pass
+
+    @abstractmethod
+    async def restore_workspace(self, workspace_id: int, user_id: int, dump_data: dict) -> dict:
+        """Delete all data then import with remap_uuids=False."""
+        pass
+
+    @abstractmethod
+    async def list_page_uuids(self, workspace_id: int) -> list[dict]:
+        """List active page UUIDs and names."""
+        pass
+
+    @abstractmethod
+    async def list_asset_uuids(self, workspace_id: int) -> list[dict]:
+        """List active asset UUIDs and names."""
+        pass
+
+
 class SettingsRepository(ABC):
     """Repository interface for user and workspace settings."""
 
@@ -2028,6 +2146,25 @@ class SettingsRepository(ABC):
     @abstractmethod
     async def remove_node_from_favorites(self, node_id: int) -> None:
         """Remove a node ID from all users' favorites lists."""
+        pass
+
+
+class SystemSettingsRepository(ABC):
+    """Repository interface for global system settings (setting_system table)."""
+
+    @abstractmethod
+    async def get(self, key: str, default: Any = None) -> Any:
+        """Return the JSONB value for a system setting, or the default."""
+        pass
+
+    @abstractmethod
+    async def set(self, key: str, value: Any) -> None:
+        """Upsert a system setting value."""
+        pass
+
+    @abstractmethod
+    async def get_all(self) -> dict[str, Any]:
+        """Return all system settings as a key→value dict."""
         pass
 
 

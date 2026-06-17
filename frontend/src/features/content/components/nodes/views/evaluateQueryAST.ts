@@ -17,7 +17,7 @@ import type {
   PropertyOperator,
 } from '@/types/queryAST';
 import type { GraphNode as ApiGraphNode, GraphLink } from '@/api/nodes';
-import { nodeNameToText } from '@/hooks/useStringifyAST';
+import { nodeNameToText } from '@/features/queries/hooks/useStringifyAST';
 import type { Node } from '@/types';
 
 // ==================== Types ====================

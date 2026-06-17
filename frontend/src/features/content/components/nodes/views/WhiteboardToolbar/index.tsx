@@ -10,9 +10,9 @@ import { Button } from '@/components/ui/Button';
 import { ButtonWithPanel } from '@/components/ui/ButtonWithPanel';
 import { SelectionButton } from '@/components/ui/SelectionButton';
 import type { WhiteboardTool } from '@/types/whiteboard';
-import type { UseWhiteboardReturn } from '@/hooks/useWhiteboard';
+import type { UseWhiteboardReturn } from '@/features/content/hooks/useWhiteboard';
 import { useReducedMotion } from '@/hooks';
-import { useWhiteboardStore } from '@/stores/whiteboardStore';
+import { useWhiteboardToolbarSettings } from '@/features/content/hooks/useWhiteboardSelectors';
 import {
   getShapeIcon,
   isShapeTool,
@@ -49,8 +49,7 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
   });
 
   const { interaction, data, settings } = wb;
-  const { gridVisible, gridSnap, minimapVisible } = useWhiteboardStore();
-  const { toggleMinimap } = useWhiteboardStore();
+  const { gridVisible, gridSnap, minimapVisible, toggleMinimap } = useWhiteboardToolbarSettings();
   const activeTool = interaction.tool;
   const reducedMotion = useReducedMotion();
 
@@ -136,14 +135,14 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
             }}
           >
             {(closePanel) => (
-              <div style={{ padding: 'var(--spacing-2)', display: 'flex', flexDirection: 'column', gap: 'var(--spacing-2)' }}>
+              <div className="whiteboard-toolbar__panel">
                 <SelectionButton
                   options={SHAPE_TOOL_OPTIONS}
                   value={isShapeTool(activeTool) ? activeTool : lastShapeTool}
                   onChange={(v) => { handleShapeSelect(v as WhiteboardTool); closePanel(); }}
                   size="sm"
                 />
-                <div style={{ height: 'var(--spacing-hairline)', background: 'var(--color-outline-variant)', margin: '0 var(--spacing-1)' }} />
+                <div className="whiteboard-toolbar__divider" />
                 <ShapeSettingsPanel
                   settings={settings.shape}
                   onChange={(s) => wb.setSettings(prev => ({ ...prev, shape: s }))}
@@ -283,7 +282,7 @@ export const WhiteboardToolbar: React.FC<WhiteboardToolbarProps> = ({
             usePortal
           >
             {(closePanel) => (
-              <div style={{ padding: 'var(--spacing-2)', display: 'flex', flexDirection: 'column', gap: 'var(--spacing-1)', minWidth: 'var(--whiteboard-toolbar-min-width)' }}>
+              <div className="whiteboard-toolbar__panel whiteboard-toolbar__panel--compact">
                 <ToolButton
                   icon={"mdi mdi-card-plus-outline"}
                   label="New Block"

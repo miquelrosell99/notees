@@ -80,6 +80,7 @@ class Node:
     is_template: bool = False  # Template page
     is_comment: bool = False  # Comment block
     is_task: bool = False  # Task item (synchronized with task class assignment)
+    is_table: bool = False  # Table block (synchronized with table class assignment)
 
     # Parent lock - prevents parent_id from being changed
     parent_locked: bool = False

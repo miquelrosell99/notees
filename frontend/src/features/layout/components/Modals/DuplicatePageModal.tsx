@@ -7,10 +7,10 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
-import { useClasses, useCreateNode, useClassClass, usePageClass } from '@/hooks';
+import { useClasses, useCreateNode, useClassClass, usePageClass } from '@/features/content';
 import type { Node } from '@/types';
 import { NodeIcon } from '@/components/ui/icons';
-import { nodeNameToText } from '@/hooks/useStringifyAST';
+import { nodeNameToText } from '@/features/queries';
 import './DuplicatePageModal.css';
 
 export interface DuplicatePageModalProps {

@@ -9,6 +9,10 @@ import { TextField } from '@/components/ui/TextField';
 import { Dropdown } from '@/components/ui/Dropdown';
 import { Badge } from '@/components/ui/Badge';
 import { Icon, LinkIcon } from '@/components/ui/icons';
+// Kept as a deep import to avoid a circular dependency: the shares barrel
+// exports PublicShareView/ShareInboxView/SharesUnifiedView, which import the
+// content barrel. If this content component also imported the shares barrel,
+// we would get content -> shares -> content.
 import {
   useNodeShares,
   useCreateShare,

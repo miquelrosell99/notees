@@ -5,12 +5,12 @@ import { useState, useCallback } from 'react';
 import { Spinner } from '@/components/ui/Spinner';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { useNavigationStore } from '@/stores';
-import { useWorkspaceShares, useDeleteShare, useShareInbox } from '@/features/shares/hooks/useShares';
-import { switchWorkspace } from '@/features/workspace/api/workspaces';
+import { useWorkspaceShares, useDeleteShare, useShareInbox } from '@/features/shares';
+import { switchWorkspace } from '@/features/workspace';
 import { Button } from '@/components/ui/Button';
 import { Tabs } from '@/components/ui/Tabs';
 import { Icon } from '@/components/ui/icons';
-import { NodeInline } from '@/features/content/components/blocks/NodeInline';
+import { NodeInline } from '@/features/content';
 import { copyToClipboard } from '@/utils/clipboardManager';
 import './SharesUnifiedView.css';
 

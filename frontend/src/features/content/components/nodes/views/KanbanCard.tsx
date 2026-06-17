@@ -27,8 +27,8 @@ import {
   useUpdateNode,
   useResolvedClassDetails,
 } from '@/hooks';
-import { useContentSave } from '@/hooks/useContentSave';
-import { nodeNameToText } from '@/hooks/useStringifyAST';
+import { useContentSave } from '@/features/content/hooks/useContentSave';
+import { nodeNameToText } from '@/features/queries/hooks/useStringifyAST';
 import { useNavigationStore } from '@/stores';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -42,10 +42,10 @@ import { NodeBreadcrumbs } from '@/features/content/components/nodes/NodeBreadcr
 import { SYSTEM_PROPERTY_UUIDS, SYSTEM_CLASS_UUIDS, isNonRemovableClass } from '@/constants';
 import { useQueryClient } from '@tanstack/react-query';
 import { nodeKeys } from '@/hooks/queryKeys';
-import { nodeViewKeys } from '@/hooks/useNodeViews';
+import { nodeViewKeys } from '@/features/content/hooks/useNodeViews';
 import { uploadAsset } from '@/api/assets';
 import type { Asset } from '@/api/assets';
-import { extractImageFromDragEvent } from '@/hooks/useDragDropImage';
+import { extractImageFromDragEvent } from '@/features/content/hooks/useDragDropImage';
 import { TableCreationModal, type TableGridSize } from '@/components/ui/TableCreationModal';
 
 import './CardItem.css';

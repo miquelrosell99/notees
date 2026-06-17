@@ -358,20 +358,21 @@ class PostgresUserRepository(UserRepository):
     # ============== Refresh Tokens ==============
 
     async def create_refresh_token(
-        self, user_id: int, token_hash: str, expires_at: datetime, family_id: str
+        self, user_id: int, token_hash: str, expires_at: datetime, family_id: str, remember_me: bool = False
     ) -> dict:
         """Store a refresh token in the database."""
         async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow(
                 """
-                INSERT INTO refresh_token (user_id, token_hash, expires_at, family_id)
-                VALUES ($1, $2, $3, $4)
-                RETURNING id, user_id, family_id, expires_at, created_at
+                INSERT INTO refresh_token (user_id, token_hash, expires_at, family_id, remember_me)
+                VALUES ($1, $2, $3, $4, $5)
+                RETURNING id, user_id, family_id, expires_at, created_at, remember_me
                 """,
                 user_id,
                 token_hash,
                 expires_at,
                 family_id,
+                remember_me,
             )
             return dict(row) if row else {}
 
@@ -380,7 +381,7 @@ class PostgresUserRepository(UserRepository):
         async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch(
                 """
-                SELECT id, user_id, token_hash, family_id, expires_at, revoked_at, replaced_by
+                SELECT id, user_id, token_hash, family_id, expires_at, revoked_at, replaced_by, remember_me
                 FROM refresh_token
                 WHERE revoked_at IS NULL AND expires_at > NOW()
                 """
@@ -395,7 +396,9 @@ class PostgresUserRepository(UserRepository):
                 token_id,
             )
 
-    async def rotate_refresh_token(self, old_token_id: int, token_hash: str, expires_at: datetime) -> dict:
+    async def rotate_refresh_token(
+        self, old_token_id: int, token_hash: str, expires_at: datetime, remember_me: bool = False
+    ) -> dict:
         """Rotate a refresh token: revoke old, create new, link them."""
         async with acquire_connection(self._pool) as conn, conn.transaction():
             old_row = await conn.fetchrow(
@@ -407,14 +410,15 @@ class PostgresUserRepository(UserRepository):
 
             new_row = await conn.fetchrow(
                 """
-                INSERT INTO refresh_token (user_id, token_hash, expires_at, family_id)
-                VALUES ($1, $2, $3, $4)
-                RETURNING id, user_id, family_id, expires_at, created_at
+                INSERT INTO refresh_token (user_id, token_hash, expires_at, family_id, remember_me)
+                VALUES ($1, $2, $3, $4, $5)
+                RETURNING id, user_id, family_id, expires_at, created_at, remember_me
                 """,
                 old_row["user_id"],
                 token_hash,
                 expires_at,
                 old_row["family_id"],
+                remember_me,
             )
 
             await conn.execute(

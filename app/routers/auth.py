@@ -15,6 +15,7 @@ from pyrate_limiter import Duration
 from .. import auth
 from ..config import settings
 from ..dependencies import get_current_user, get_invite_repository
+from ..domain.errors import PasswordRequiredError, RegistrationDisabledError
 from ..domain.repositories.interfaces import InviteRepository
 from ..logging_config import get_logger
 from ..models import (
@@ -165,9 +166,10 @@ async def auth_status():
     }
 
 
-def _set_refresh_cookie(response: Response, token: str) -> None:
+def _set_refresh_cookie(response: Response, token: str, remember_me: bool = False) -> None:
     """Set the refresh token HTTPOnly cookie."""
-    max_age = settings.refresh_token_expire_days * 24 * 60 * 60
+    lifetime_days = settings.refresh_token_remember_me_days if remember_me else settings.refresh_token_expire_days
+    max_age = lifetime_days * 24 * 60 * 60
     # In production, require HTTPS for the refresh token cookie regardless of
     # PUBLIC_URL configuration, and use Strict SameSite to prevent CSRF.
     is_production = settings.environment.lower() == "production"
@@ -180,6 +182,27 @@ def _set_refresh_cookie(response: Response, token: str) -> None:
         max_age=max_age,
         path="/api/auth/refresh",
     )
+
+
+def _set_access_cookie(response: Response, token: str) -> None:
+    """Set the short-lived access token HTTPOnly cookie."""
+    max_age = int(settings.access_token_expire_hours * 60 * 60)
+    is_production = settings.environment.lower() == "production"
+    response.set_cookie(
+        key="access_token",
+        value=token,
+        httponly=True,
+        secure=is_production or settings.public_url.startswith("https://"),
+        samesite="strict",
+        max_age=max_age,
+        path="/api",
+    )
+
+
+def _clear_auth_cookies(response: Response) -> None:
+    """Clear authentication cookies on logout."""
+    response.delete_cookie(key="access_token", path="/api")
+    response.delete_cookie(key="refresh_token", path="/api/auth/refresh")
 
 
 @router.post(
@@ -214,8 +237,9 @@ async def register(request: Request, response: Response, user_data: UserCreate):
 
     access_token = auth.create_token(user["id"], user["email"], user["role"])
     refresh_token = auth.generate_refresh_token()
-    await auth.create_refresh_token_db(int(user["id"]), refresh_token)
-    _set_refresh_cookie(response, refresh_token)
+    await auth.create_refresh_token_db(int(user["id"]), refresh_token, remember_me=user_data.remember_me)
+    _set_refresh_cookie(response, refresh_token, remember_me=user_data.remember_me)
+    _set_access_cookie(response, access_token)
 
     return {"access_token": access_token, "refresh_token": refresh_token, "token_type": "bearer", "user": user}
 
@@ -253,8 +277,9 @@ async def login(request: Request, response: Response, credentials: UserLogin):
     logger.info(f"Login successful (user_id={user.get('id')})")
     access_token = auth.create_token(user["id"], user["email"], user["role"])
     refresh_token = auth.generate_refresh_token()
-    await auth.create_refresh_token_db(int(user["id"]), refresh_token)
-    _set_refresh_cookie(response, refresh_token)
+    await auth.create_refresh_token_db(int(user["id"]), refresh_token, remember_me=credentials.remember_me)
+    _set_refresh_cookie(response, refresh_token, remember_me=credentials.remember_me)
+    _set_access_cookie(response, access_token)
 
     return {"access_token": access_token, "refresh_token": refresh_token, "token_type": "bearer", "user": user}
 
@@ -284,9 +309,11 @@ async def refresh_access_token(request: Request, response: Response):
         await auth.revoke_refresh_token_family(token_row["family_id"])
         raise HTTPException(status_code=401, detail="Refresh token reuse detected")
 
+    remember_me = token_row.get("remember_me", False)
+
     # Rotate refresh token
     new_refresh_token = auth.generate_refresh_token()
-    await auth.rotate_refresh_token(token_row["id"], new_refresh_token)
+    await auth.rotate_refresh_token(token_row["id"], new_refresh_token, remember_me=remember_me)
 
     # Get user and create new access token
     user = await auth.get_user_by_id(str(token_row["user_id"]))
@@ -300,7 +327,8 @@ async def refresh_access_token(request: Request, response: Response):
     )
 
     # Set new refresh token cookie
-    _set_refresh_cookie(response, new_refresh_token)
+    _set_refresh_cookie(response, new_refresh_token, remember_me=remember_me)
+    _set_access_cookie(response, access_token)
 
     return {"access_token": access_token, "token_type": "bearer"}
 
@@ -338,13 +366,25 @@ async def accept_invite(
         if "expired" in detail.lower():
             raise HTTPException(status_code=410, detail=detail) from e
         raise HTTPException(status_code=404, detail=detail) from e
+    except RegistrationDisabledError as e:
+        raise HTTPException(status_code=403, detail=e.message) from e
+    except PasswordRequiredError as e:
+        raise HTTPException(status_code=400, detail=e.message) from e
 
     access_token = auth.create_token(user_record["id"], user_record["email"], user_record["role"])
     refresh_token = auth.generate_refresh_token()
-    await auth.create_refresh_token_db(int(user_record["id"]), refresh_token)
-    _set_refresh_cookie(response, refresh_token)
+    await auth.create_refresh_token_db(int(user_record["id"]), refresh_token, remember_me=body.remember_me)
+    _set_refresh_cookie(response, refresh_token, remember_me=body.remember_me)
+    _set_access_cookie(response, access_token)
 
     return {"access_token": access_token, "refresh_token": refresh_token, "token_type": "bearer", "user": user_record}
+
+
+@router.post("/logout")
+async def logout(response: Response) -> dict[str, bool]:
+    """Log out by clearing authentication cookies."""
+    _clear_auth_cookies(response)
+    return {"success": True}
 
 
 @router.get("/me", response_model=User)

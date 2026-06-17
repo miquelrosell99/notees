@@ -17,11 +17,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from ..db.connection import get_connection
 from ..domain.errors import PermissionDeniedError
 
 if TYPE_CHECKING:
-    pass
+    from ..domain.repositories.interfaces import PermissionRepository
 
 
 @dataclass
@@ -79,13 +78,15 @@ class PermissionChecker:
     3. Check node_share for node-level permissions (can override workspace)
     """
 
-    def __init__(self, user_id: int):
-        """Initialize with current user.
+    def __init__(self, user_id: int, repo: PermissionRepository):
+        """Initialize with current user and permission repository.
 
         Args:
             user_id: Current authenticated user ID
+            repo: Repository that executes permission-related SQL
         """
         self._user_id = user_id
+        self._repo = repo
         # Cache for workspace permissions
         self._workspace_cache: dict[int, Permissions] = {}
         # Cache for node permissions
@@ -105,43 +106,29 @@ class PermissionChecker:
         if workspace_id in self._workspace_cache:
             return self._workspace_cache[workspace_id]
 
-        async with get_connection() as conn:
-            # Check if user is owner
-            row = await conn.fetchrow(
-                """
-                SELECT create_uid FROM workspace
-                WHERE id = $1 AND active = TRUE
-            """,
-                workspace_id,
-            )
+        # Check if user is owner
+        owner_id = await self._repo.get_workspace_owner(workspace_id)
 
-            if not row:
-                # Workspace doesn't exist or is inactive
-                perms = Permissions.none()
-            elif row["create_uid"] == self._user_id:
-                # User is owner
-                perms = Permissions.owner()
-            else:
-                # Check workspace_share
-                share_row = await conn.fetchrow(
-                    """
-                    SELECT can_read, can_write, can_create, can_delete, can_comment
-                    FROM workspace_share
-                    WHERE workspace_id = $1 AND user_id = $2 AND active = TRUE
-                """,
-                    workspace_id,
-                    self._user_id,
+        if owner_id is None:
+            # Workspace doesn't exist or is inactive
+            perms = Permissions.none()
+        elif owner_id == self._user_id:
+            # User is owner
+            perms = Permissions.owner()
+        else:
+            # Check workspace_share
+            share = await self._repo.get_workspace_share(workspace_id, self._user_id)
+
+            if share:
+                # Workspace-level shares intentionally do not grant can_comment
+                perms = Permissions(
+                    can_read=share.can_read,
+                    can_write=share.can_write,
+                    can_create=share.can_create,
+                    can_delete=share.can_delete,
                 )
-
-                if share_row:
-                    perms = Permissions(
-                        can_read=share_row["can_read"],
-                        can_write=share_row["can_write"],
-                        can_create=share_row["can_create"],
-                        can_delete=share_row["can_delete"],
-                    )
-                else:
-                    perms = Permissions.none()
+            else:
+                perms = Permissions.none()
 
         self._workspace_cache[workspace_id] = perms
         return perms
@@ -171,112 +158,54 @@ class PermissionChecker:
         if active_only and node_id in self._node_cache:
             return self._node_cache[node_id]
 
-        async with get_connection() as conn:
-            # Get node info including workspace_id and create_uid
+        # Get node info including workspace_id and create_uid
+        row = await self._repo.get_node_info(node_id, active_only)
+
+        if not row:
+            # Node doesn't exist or is inactive
+            perms = Permissions.none()
             if active_only:
-                row = await conn.fetchrow(
-                    """
-                    SELECT workspace_id, create_uid, is_shared, is_private FROM node
-                    WHERE id = $1 AND active = TRUE
-                """,
-                    node_id,
-                )
-            else:
-                row = await conn.fetchrow(
-                    """
-                    SELECT workspace_id, create_uid, is_shared, is_private FROM node
-                    WHERE id = $1
-                """,
-                    node_id,
-                )
-
-            if not row:
-                # Node doesn't exist or is inactive
-                perms = Permissions.none()
-                if active_only:
-                    self._node_cache[node_id] = perms
-                return perms
-
-            workspace_id = row["workspace_id"]
-            is_private = row.get("is_private", False)
-
-            # Check if user is node owner
-            if row["create_uid"] == self._user_id:
-                perms = Permissions.owner()
-                if active_only:
-                    self._node_cache[node_id] = perms
-                return perms
-
-            # Private nodes are only visible to their owner
-            if is_private:
-                perms = Permissions.none()
-                if active_only:
-                    self._node_cache[node_id] = perms
-                return perms
-
-            # Check node_share for explicit permissions on this node
-            share_row = await conn.fetchrow(
-                """
-                SELECT can_read, can_write, can_create, can_delete, can_comment
-                FROM node_share
-                WHERE node_id = $1 AND user_id = $2 AND active = TRUE
-            """,
-                node_id,
-                self._user_id,
-            )
-
-            if share_row:
-                perms = Permissions(
-                    can_read=share_row["can_read"],
-                    can_write=share_row["can_write"],
-                    can_create=share_row["can_create"],
-                    can_delete=share_row["can_delete"],
-                    can_comment=share_row["can_comment"],
-                )
                 self._node_cache[node_id] = perms
-                return perms
+            return perms
 
-            # Check ancestor page shares — child blocks inherit permissions
-            # from their closest parent page that has an explicit share
-            ancestor_share_row = await conn.fetchrow(
-                """
-                WITH RECURSIVE ancestors AS (
-                    SELECT id, parent_id, 0 AS depth
-                    FROM node
-                    WHERE id = $1
-                    UNION ALL
-                    SELECT n.id, n.parent_id, a.depth + 1
-                    FROM node n
-                    INNER JOIN ancestors a ON n.id = a.parent_id
-                )
-                SELECT ns.can_read, ns.can_write, ns.can_create, ns.can_delete, ns.can_comment
-                FROM ancestors a
-                JOIN node n ON n.id = a.id
-                JOIN node_share ns ON ns.node_id = n.id
-                WHERE a.depth > 0
-                  AND n.is_page = TRUE
-                  AND ns.user_id = $2
-                  AND ns.active = TRUE
-                ORDER BY a.depth ASC
-                LIMIT 1
-            """,
-                node_id,
-                self._user_id,
-            )
+        workspace_id = row["workspace_id"]
+        is_private = row.get("is_private", False)
 
-            if ancestor_share_row:
-                perms = Permissions(
-                    can_read=ancestor_share_row["can_read"],
-                    can_write=ancestor_share_row["can_write"],
-                    can_create=ancestor_share_row["can_create"],
-                    can_delete=ancestor_share_row["can_delete"],
-                    can_comment=ancestor_share_row["can_comment"],
-                )
+        # Check if user is node owner
+        if row["create_uid"] == self._user_id:
+            perms = Permissions.owner()
+            if active_only:
                 self._node_cache[node_id] = perms
-                return perms
+            return perms
 
-            # Fall back to workspace permissions
-            perms = await self.get_workspace_permissions(workspace_id)
+        # Private nodes are only visible to their owner
+        if is_private:
+            perms = Permissions.none()
+            if active_only:
+                self._node_cache[node_id] = perms
+            return perms
+
+        # Check node_share for explicit permissions on this node
+        share = await self._repo.get_node_share(node_id, self._user_id)
+
+        if share:
+            perms = share
+            self._node_cache[node_id] = perms
+            return perms
+
+        # Check ancestor page shares — child blocks inherit permissions
+        # from their closest parent page that has an explicit share
+        ancestor_share = await self._repo.get_ancestor_node_share(
+            node_id, self._user_id
+        )
+
+        if ancestor_share:
+            perms = ancestor_share
+            self._node_cache[node_id] = perms
+            return perms
+
+        # Fall back to workspace permissions
+        perms = await self.get_workspace_permissions(workspace_id)
 
         if active_only:
             self._node_cache[node_id] = perms
@@ -337,23 +266,7 @@ class PermissionChecker:
 
         Returns workspaces owned by the user plus workspaces shared with them.
         """
-        async with get_connection() as conn:
-            rows = await conn.fetch(
-                """
-                SELECT DISTINCT id FROM (
-                    -- Workspaces owned by user
-                    SELECT id FROM workspace WHERE create_uid = $1 AND active = TRUE
-                    UNION
-                    -- Workspaces shared with user (with read permission)
-                    SELECT g.id FROM workspace g
-                    JOIN workspace_share gs ON g.id = gs.workspace_id
-                    WHERE gs.user_id = $1 AND gs.can_read = TRUE AND gs.active = TRUE AND g.active = TRUE
-                ) AS accessible_workspaces
-                ORDER BY id
-            """,
-                self._user_id,
-            )
-            return [row["id"] for row in rows]
+        return await self._repo.get_accessible_workspace_ids(self._user_id)
 
     async def require_workspace_read(self, workspace_id: int) -> None:
         """Require read permission on a workspace, raise if not allowed."""
@@ -396,13 +309,16 @@ class PermissionChecker:
             raise PermissionDeniedError(f"User {self._user_id} cannot delete node {node_id}")
 
 
-async def get_permission_checker(user_id: int) -> PermissionChecker:
+async def get_permission_checker(
+    user_id: int, repo: PermissionRepository
+) -> PermissionChecker:
     """Factory function to create a permission checker.
 
     Args:
         user_id: Current authenticated user ID
+        repo: Repository that executes permission-related SQL
 
     Returns:
         PermissionChecker instance
     """
-    return PermissionChecker(user_id)
+    return PermissionChecker(user_id, repo)

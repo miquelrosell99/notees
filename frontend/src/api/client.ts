@@ -5,15 +5,17 @@
  */
 import axios, { type AxiosError, type AxiosRequestConfig } from 'axios';
 import { getLogger } from '@/utils/logger';
-import { getAuthToken, clearAuthToken, setAuthToken, getApiKey } from '@/utils/auth';
+import { clearUserData, getApiKey } from '@/utils/auth';
 
 const log = getLogger('api');
 
 let isRefreshing = false;
-let refreshPromise: Promise<string | null> | null = null;
+let refreshPromise: Promise<boolean> | null = null;
 
-async function doRefresh(): Promise<string | null> {
+async function doRefresh(): Promise<boolean> {
   try {
+    // The backend sets the access token as an HTTPOnly cookie; the frontend
+    // just needs to make the request with credentials included.
     const resp = await fetch('/api/auth/refresh', {
       method: 'POST',
       credentials: 'same-origin',
@@ -21,19 +23,14 @@ async function doRefresh(): Promise<string | null> {
     if (!resp.ok) {
       throw new Error(`Refresh failed: ${resp.status}`);
     }
-    const data = await resp.json();
-    if (data.access_token) {
-      setAuthToken(data.access_token);
-      return data.access_token;
-    }
-    throw new Error('No access_token in refresh response');
+    return true;
   } catch (err) {
     log.error('Token refresh failed', err);
-    return null;
+    return false;
   }
 }
 
-async function refreshAccessToken(): Promise<string | null> {
+async function refreshAccessToken(): Promise<boolean> {
   if (isRefreshing && refreshPromise) {
     return refreshPromise;
   }
@@ -46,7 +43,7 @@ async function refreshAccessToken(): Promise<string | null> {
 }
 
 function handleAuthFailure() {
-  clearAuthToken();
+  clearUserData();
   localStorage.removeItem('auth-storage');
   window.dispatchEvent(new CustomEvent('auth:unauthorized'));
   // This module is not a React component, so we fall back to a full-page
@@ -84,14 +81,12 @@ export interface RequestOptions {
 const axiosClient = axios.create({
   baseURL: '/api',
   timeout: 30000,
+  withCredentials: true,
 });
 
 axiosClient.interceptors.request.use((config) => {
-  const token = getAuthToken();
-  if (token) {
-    config.headers.set('Authorization', `Bearer ${token}`);
-  }
-
+  // Access token is sent automatically as an HTTPOnly cookie.
+  // Only attach the API key header when one has been configured.
   const apiKey = getApiKey();
   if (apiKey) {
     config.headers.set('X-API-Key', apiKey);
@@ -173,10 +168,10 @@ async function exec<T = any>(
       !isRetry &&
       !url.includes('/auth/refresh')
     ) {
-      // Attempt silent token refresh
-      const newToken = await refreshAccessToken();
-      if (newToken) {
-        // Retry the original request with the new token
+      // Attempt silent token refresh; the backend will set a new access cookie
+      const refreshed = await refreshAccessToken();
+      if (refreshed) {
+        // Retry the original request; the new cookie is sent automatically
         return exec<T>(method, url, options, true);
       }
       // Refresh failed — handle auth failure

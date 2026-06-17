@@ -5,7 +5,7 @@
  * Shows the page name as the card title and renders SidebarLocalGraph in the content.
  */
 import { useNode } from '@/hooks';
-import { nodeNameToText } from '@/hooks/useStringifyAST';
+import { nodeNameToText } from '@/features/queries/hooks/useStringifyAST';
 import { SidebarCard } from './SidebarCard';
 import { SidebarLocalGraph } from './SidebarLocalGraph';
 import './SidebarCardLocalGraph.css';

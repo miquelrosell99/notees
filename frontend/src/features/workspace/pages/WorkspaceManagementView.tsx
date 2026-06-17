@@ -5,19 +5,12 @@
  * or accessed through settings. Allows creating, importing, and managing workspaces.
  */
 import { useState, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { Spinner } from '@/components/ui/Spinner';
 import { DataStateView } from '@/components/ui/DataStateView';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { 
-  listWorkspaces, 
-  switchWorkspace,
-  deleteWorkspace,
-  renameWorkspace,
-  restoreWorkspace,
-  type WorkspaceInfo,
-} from '@/features/workspace/api/workspaces';
-import { useNavigationStore, useModalStore } from '@/stores';
+import { useWorkspaces, useWorkspaceMutations } from '@/features/workspace';
+import type { WorkspaceInfo } from '@/features/workspace/api/workspaces';
+import { useModalStore } from '@/stores';
 import { WorkspaceModal } from '@/features/workspace/components/WorkspaceModal';
 import { ImportOptionsModal, type ImportResult } from '@/features/workspace/components/ImportOptionsModal';
 import { ImportLogseqModal } from '@/features/workspace/components/ImportLogseqModal';
@@ -34,7 +27,7 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Pill } from '@/components/ui/Pill';
 import { formatDate, formatRelativeTime } from '@/utils/dateFormat';
-import { favoriteKeys, recentKeys } from '@/hooks/queryKeys';
+import { workspaceKeys } from '@/hooks/queryKeys';
 import './WorkspaceManagementView.css';
 
 interface WorkspaceManagementViewProps {
@@ -72,13 +65,10 @@ export function WorkspaceManagementView({
   const restoreInputRef = useRef<HTMLInputElement>(null);
   const restoreTargetRef = useRef<string | null>(null);
   const queryClient = useQueryClient();
-  const navigate = useNavigate();
   const { isImportLogseqModalOpen, setImportLogseqModalOpen } = useModalStore();
 
   // Fetch workspaces
-  const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ['workspaces'],
-    queryFn: () => listWorkspaces(),
+  const { data, isLoading, error, refetch } = useWorkspaces({
     staleTime: 10000,
     select: (d) => ({
       workspaces: d.items,
@@ -86,80 +76,12 @@ export function WorkspaceManagementView({
     }),
   });
 
-  // Switch database mutation
-  const switchMutation = useMutation({
-    mutationFn: switchWorkspace,
-    onMutate: () => {
-      useNavigationStore.setState({ isSwitchingWorkspace: true });
-    },
-    onSuccess: (_data, switchedUuid) => {
-      // Reset node state to prevent showing stale data from previous database
-      useNavigationStore.setState({
-        currentNodeId: null,
-        activeNodeId: null,
-        sidebarNode: null,
-        localGraphNodeId: null,
-        mainViewType: 'node',
-      });
-      
-      // Clear favorites/recents so stale data from the previous workspace is not shown
-      queryClient.removeQueries({ queryKey: favoriteKeys.all });
-      queryClient.removeQueries({ queryKey: recentKeys.all });
-      
-      // Navigate to new workspace home
-      navigate(`/${switchedUuid}`, { replace: true });
-      
-      // Clear ALL cached data to prevent any stale data from previous workspace
-      queryClient.clear();
-      onWorkspaceSelected?.();
-      useNavigationStore.setState({ isSwitchingWorkspace: false });
-    },
-    onError: () => {
-      useNavigationStore.setState({ isSwitchingWorkspace: false });
-    },
-  });
-
-  // Delete mutation
-  const deleteMutation = useMutation({
-    mutationFn: deleteWorkspace,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['workspaces'] });
-      setDeleteConfirm(null);
-    },
-    onError: (err: Error) => {
-      console.error('Failed to delete workspace:', err.message);
-      setDeleteConfirm(null);
-    },
-  });
-
-  // Rename mutation
-  const renameMutation = useMutation({
-    mutationFn: ({ oldName, newName }: { oldName: string; newName: string }) => 
-      renameWorkspace(oldName, newName),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['workspaces'] });
-      setRenameModalState({ isOpen: false, workspaceName: null });
-      setRenameError(null);
-    },
-    onError: (err: Error) => {
-      setRenameError(err.message || 'Failed to rename workspace');
-    },
-  });
-
-  // Restore mutation
-  const restoreMutation = useMutation({
-    mutationFn: ({ uuid, file }: { uuid: string; file: File }) => restoreWorkspace(uuid, file),
-    onSuccess: () => {
-      // Clear ALL cached data since workspace content has changed
-      queryClient.clear();
-      setRestoreState({ confirming: null, file: null });
-      setRestoreError(null);
-    },
-    onError: (err: Error) => {
-      setRestoreError(err.message || 'Failed to restore workspace');
-      setRestoreState({ confirming: null, file: null });
-    },
-  });
+  const {
+    switchWorkspace: switchMutation,
+    deleteWorkspace: deleteMutation,
+    renameWorkspace: renameMutation,
+    restoreWorkspace: restoreMutation,
+  } = useWorkspaceMutations();
 
   // Handle successful workspace creation from modal
   const handleWorkspaceCreated = async (newWorkspace: WorkspaceInfo) => {
@@ -175,14 +97,14 @@ export function WorkspaceManagementView({
   const handleImportSuccess = async ({ workspace, type }: ImportResult) => {
     if (type === 'markdown') {
       setIsImportOptionsOpen(false);
-      queryClient.invalidateQueries({ queryKey: ['workspaces'] });
+      queryClient.invalidateQueries({ queryKey: workspaceKeys.all });
       useModalStore.getState().setImportMarkdownModalOpen(true);
       await switchMutation.mutateAsync(workspace.uuid);
       onWorkspaceSelected?.();
     } else {
       // JSON — already fully imported by the API call; just switch and navigate
       setIsImportOptionsOpen(false);
-      queryClient.invalidateQueries({ queryKey: ['workspaces'] });
+      queryClient.invalidateQueries({ queryKey: workspaceKeys.all });
       await switchMutation.mutateAsync(workspace.uuid);
       onWorkspaceSelected?.();
     }
@@ -197,7 +119,18 @@ export function WorkspaceManagementView({
   // Handle rename submission
   const handleRenameSubmit = (newName: string) => {
     if (renameModalState.workspaceName) {
-      renameMutation.mutate({ oldName: renameModalState.workspaceName, newName });
+      renameMutation.mutate(
+        { oldName: renameModalState.workspaceName, newName },
+        {
+          onSuccess: () => {
+            setRenameModalState({ isOpen: false, workspaceName: null });
+            setRenameError(null);
+          },
+          onError: (err: Error) => {
+            setRenameError(err.message || 'Failed to rename workspace');
+          },
+        }
+      );
     }
   };
 
@@ -245,7 +178,19 @@ export function WorkspaceManagementView({
   // Confirm restore
   const handleRestoreConfirm = () => {
     if (restoreState.confirming && restoreState.file) {
-      restoreMutation.mutate({ uuid: restoreState.confirming, file: restoreState.file });
+      restoreMutation.mutate(
+        { uuid: restoreState.confirming, file: restoreState.file },
+        {
+          onSuccess: () => {
+            setRestoreState({ confirming: null, file: null });
+            setRestoreError(null);
+          },
+          onError: (err: Error) => {
+            setRestoreError(err.message || 'Failed to restore workspace');
+            setRestoreState({ confirming: null, file: null });
+          },
+        }
+      );
     }
   };
 
@@ -352,7 +297,12 @@ export function WorkspaceManagementView({
                               variant="danger"
                               size="sm"
                               hapticIntensity="medium"
-                              onClick={() => deleteMutation.mutate(workspace.uuid)}
+                              onClick={() =>
+                                deleteMutation.mutate(workspace.uuid, {
+                                  onSuccess: () => setDeleteConfirm(null),
+                                  onError: () => setDeleteConfirm(null),
+                                })
+                              }
                               title="Confirm delete"
                               disabled={deleteMutation.isPending}
                               icon="mdi mdi-check"

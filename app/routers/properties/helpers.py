@@ -6,13 +6,15 @@ Updated for workspace-based schema:
 - Repositories now take user_id for audit trails
 """
 
-from ...dependencies import _get_property_repo as _get_property_repo
+from ...dependencies import get_property_repository
 from ...domain.entities import (
     Property,
     PropertyValueRelation,
     PropertyValueScalar,
     PropertyValueSelection,
 )
+from ...domain.repositories.interfaces import PropertyRepository
+from ...models import User
 from .models import (
     PropertyResponse,
     RelationValueResponse,
@@ -20,6 +22,15 @@ from .models import (
     SelectionLineResponse,
     SelectionValueResponse,
 )
+
+
+async def _get_property_repo(user: User) -> PropertyRepository:
+    """Get a PropertyRepository for the current user via the FastAPI dependency."""
+    gen = get_property_repository(user)
+    try:
+        return await gen.__anext__()
+    finally:
+        await gen.aclose()
 
 
 def _property_to_response(prop: Property) -> PropertyResponse:

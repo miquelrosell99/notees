@@ -5,13 +5,14 @@
  * new workspaces and naming imported workspaces.
  */
 import { useState, useEffect, useRef } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { checkWorkspaceName } from '@/features/workspace/api/workspaces';
+import { useWorkspaceNameCheck } from '@/features/workspace';
 import { Icon, AlertIcon, SyncIcon } from '@/components/ui/icons';
 
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { TextField } from '@/components/ui/TextField';
+import './WorkspaceNameModal.css';
+
 
 interface WorkspaceNameModalProps {
   isOpen: boolean;
@@ -56,12 +57,7 @@ export function WorkspaceNameModal({
   }, [externalError]);
 
   // Debounced name check
-  const { data: nameCheck, isLoading: isCheckingName } = useQuery({
-    queryKey: ['workspace-name-check', name],
-    queryFn: () => checkWorkspaceName(name),
-    enabled: name.length >= 2,
-    staleTime: 5000,
-  });
+  const { data: nameCheck, isLoading: isCheckingName } = useWorkspaceNameCheck(name);
 
   const handleClose = () => {
     setName('');
@@ -137,7 +133,7 @@ export function WorkspaceNameModal({
         />
 
         {error && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-2)', padding: 'var(--spacing-3)', background: 'var(--color-error-container)', borderRadius: 'var(--radius-sm)', color: 'var(--color-error)', fontSize: 'var(--font-size-base)', marginTop: 'var(--spacing-3)' }}>
+          <div className="workspace-name-modal__error">
             <AlertIcon size="sm" /> {error}
           </div>
         )}

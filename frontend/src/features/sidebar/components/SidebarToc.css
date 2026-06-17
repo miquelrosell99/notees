@@ -1,0 +1,3 @@
+.sidebar-toc-item {
+  padding-left: calc(var(--toc-level, 0) * var(--spacing-3));
+}

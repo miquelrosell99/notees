@@ -23,12 +23,12 @@ import {
   TASK_STATUSES,
   TASK_CLOSED_STATUSES,
 } from '@/constants/systemProperties';
-import type { TaskStatus } from '@/hooks/useTaskActions';
-import { nodeNameToText } from '@/hooks/useStringifyAST';
+import type { TaskStatus } from '@/features/tasks/hooks/useTaskActions';
+import { nodeNameToText } from '@/features/queries/hooks/useStringifyAST';
 import { AssetImage } from '@/features/content/components/nodes/AssetImage';
 import { QuerySection } from '@/features/content/components/nodes/QuerySection';
 import { QueryNodeCollection } from '@/features/content/components/nodes/QueryNodeCollection';
-import { useQueryBlock } from '@/hooks/useQueryBlock';
+import { useQueryBlock } from '@/features/queries/hooks/useQueryBlock';
 import { Card } from '@/components/ui/Card';
 import { useNavigationStore } from '@/stores';
 import { useNode } from '@/hooks';

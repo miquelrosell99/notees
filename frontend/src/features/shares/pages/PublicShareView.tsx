@@ -7,10 +7,10 @@ import { useState, useEffect, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { Spinner } from '@/components/ui/Spinner';
 import { Icon } from '@/components/ui/Icon';
-import { getPublicSharedNode } from '@/features/shares/api/shares';
-import { NodeInline } from '@/features/content/components/blocks/NodeInline';
-import { getPropertyValueRenderer } from '@/features/content/components/properties/propertyValueRegistry';
+import { usePublicShare, useSubmitPublicSharePassword } from '@/features/shares';
+import { NodeInline, getPropertyValueRenderer } from '@/features/content';
 import '@/features/content/components/properties/registerPropertyRenderers';
+import type { CSSProperties } from 'react';
 import type { PublicSharedNode } from '@/features/shares/api/shares';
 import './PublicShareView.css';
 
@@ -151,69 +151,65 @@ function PublicPropertiesSection({
   );
 }
 
+function getShareErrorDetail(err: unknown): string {
+  return (
+    (err as { response?: { data?: { detail?: string } } })?.response?.data
+      ?.detail ||
+    (err instanceof Error ? err.message : 'Share not found or expired')
+  );
+}
+
 export function PublicShareView() {
   const [data, setData] = useState<PublicSharedNode | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
   const { shareUuid } = useParams<{ shareUuid: string }>();
   const [needsPassword, setNeedsPassword] = useState(false);
   const [password, setPassword] = useState('');
 
+  const {
+    data: queryData,
+    error: queryError,
+    isLoading: queryLoading,
+  } = usePublicShare(shareUuid);
+  const submitPassword = useSubmitPublicSharePassword();
+
   useEffect(() => {
-    let cancelled = false;
-
-    async function load() {
-      const uuid = shareUuid;
-      if (!uuid) {
-        if (!cancelled) {
-          setError('Invalid share link');
-          setLoading(false);
-        }
-        return;
-      }
-      try {
-        const res = await getPublicSharedNode(uuid);
-        if (!cancelled) {
-          setData(res);
-        }
-      } catch (err: unknown) {
-        if (!cancelled) {
-          const detail =
-            (err as { response?: { data?: { detail?: string } } })?.response?.data
-              ?.detail || 'Share not found or expired';
-          if (detail === 'password_required') {
-            setNeedsPassword(true);
-          } else {
-            setError(detail);
-          }
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
+    if (queryData) {
+      setData(queryData);
     }
+  }, [queryData]);
 
-    load();
-    return () => { cancelled = true; };
-  }, [shareUuid]);
+  useEffect(() => {
+    if (!queryError) {
+      setError(null);
+      return;
+    }
+    const detail = getShareErrorDetail(queryError);
+    if (detail === 'password_required') {
+      setNeedsPassword(true);
+    } else {
+      setError(detail);
+    }
+  }, [queryError]);
 
-  const handleSubmitPassword = async () => {
+  const loading = queryLoading || submitPassword.isPending;
+
+  const handleSubmitPassword = () => {
     if (!shareUuid || !password) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await getPublicSharedNode(shareUuid, password);
-      setData(res);
-      setNeedsPassword(false);
-    } catch (err: unknown) {
-      const detail =
-        (err as { response?: { data?: { detail?: string } } })?.response?.data
-          ?.detail || 'Incorrect password';
-      setError(detail === 'password_required' ? 'Incorrect password' : detail);
-    } finally {
-      setLoading(false);
-    }
+    submitPassword.mutate(
+      { shareUuid, password },
+      {
+        onSuccess: (res) => {
+          setData(res);
+          setNeedsPassword(false);
+          setError(null);
+        },
+        onError: (err) => {
+          const detail = getShareErrorDetail(err);
+          setError(detail === 'password_required' ? 'Incorrect password' : detail);
+        },
+      }
+    );
   };
 
   if (loading) {
@@ -297,7 +293,7 @@ export function PublicShareView() {
             <div
               key={child.id}
               className="public-share-view__block"
-              style={{ paddingLeft: `${child.depth * 1.5}rem` }}
+              style={{ '--outline-depth': child.depth } as CSSProperties}
             >
               <NodeInline
                 name={child.name}

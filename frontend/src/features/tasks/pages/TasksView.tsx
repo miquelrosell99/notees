@@ -12,18 +12,13 @@ import { Button } from '@/components/ui/Button';
 import { Tabs } from '@/components/ui/Tabs';
 import { DataStateView } from '@/components/ui/DataStateView';
 import { useNavigationStore } from '@/stores';
-import { useSystemClasses } from '@/hooks/usePageClass';
-import { useCreateNode } from '@/hooks/useNodes';
-import { useQuery_ } from '@/hooks/useNodeViews';
-
-import {
-  buildTasksQueryAST,
-  buildTodayOverdueQueryAST,
-  buildFutureQueryAST,
-} from '@/utils/taskQueries';
+import { useSystemClasses } from '@/features/content/hooks/usePageClass';
+import { useCreateNode } from '@/features/content/hooks/useNodes';
+import { useTasks } from '@/features/tasks';
 import type { NodeCollectionViewMode } from '@/types/nodeCollection';
 import type { Node } from '@/types';
-import type { QueryExecuteRequest } from '@/types/nodeView';
+import { taskKeys } from '@/hooks/queryKeys';
+
 import './TasksView.css';
 
 type TaskTab = 'all' | 'today' | 'future';
@@ -40,17 +35,6 @@ const TABS: TabDef[] = [
   { key: 'future', label: 'Future', icon: 'mdi mdi-calendar-arrow-right' },
 ];
 
-function getQueryForTab(tab: TaskTab): QueryExecuteRequest {
-  switch (tab) {
-    case 'all':
-      return { query_ast: buildTasksQueryAST() };
-    case 'today':
-      return { query_ast: buildTodayOverdueQueryAST() };
-    case 'future':
-      return { query_ast: buildFutureQueryAST() };
-  }
-}
-
 export function TasksView() {
   const [activeTab, setActiveTab] = useState<TaskTab>('all');
   const [viewMode, setViewMode] = useState<NodeCollectionViewMode>('list');
@@ -61,16 +45,11 @@ export function TasksView() {
   const taskClassId = systemClassIds?.task ?? null;
   const createNode = useCreateNode();
 
-  const queryRequest = useMemo(() => getQueryForTab(activeTab), [activeTab]);
-
   const {
     data: tasks = [],
     isLoading: tasksLoading,
     error,
-  } = useQuery_(queryRequest, {
-    enabled: !classesLoading,
-    queryKey: ['tasks-view', activeTab],
-  });
+  } = useTasks(activeTab, { enabled: !classesLoading });
 
   const handleCreateTask = useCallback(async () => {
     if (!pageClassId || !taskClassId) return;
@@ -86,7 +65,7 @@ export function TasksView() {
     });
 
     // Invalidate all task-view caches so the new task appears
-    queryClient.invalidateQueries({ queryKey: ['tasks-view'] });
+    queryClient.invalidateQueries({ queryKey: taskKeys.view() });
 
     openNode(newNode.id);
   }, [pageClassId, taskClassId, createNode, queryClient, openNode]);
