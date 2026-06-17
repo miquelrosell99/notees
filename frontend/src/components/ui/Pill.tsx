@@ -24,14 +24,6 @@ export const Pill: React.FC<PillProps> = ({
     onRightIconClick?.();
   };
 
-  const handleRightIconKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      e.stopPropagation();
-      onRightIconClick?.();
-    }
-  };
-
   const pillStyle = color
     // Intentionally hardcoded black/white: these are contrast-math results
     // against arbitrary user-chosen tag/property colors, not theme surfaces.
@@ -54,16 +46,14 @@ export const Pill: React.FC<PillProps> = ({
       </span>
       
       {rightIcon && (
-        <span
+        <button
+          type="button"
           className="pill__right-button"
-          role="button"
-          tabIndex={0}
           onClick={handleRightIconClick}
-          onKeyDown={handleRightIconKeyDown}
           aria-label="Remove"
         >
           {rightIcon}
-        </span>
+        </button>
       )}
     </div>
   );

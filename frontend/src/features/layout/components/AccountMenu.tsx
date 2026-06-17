@@ -15,7 +15,7 @@ import { Button } from '@/components/ui/Button';
 import { useClickOutside } from '@/hooks/useClickOutside';
 import { useEscapeKey } from '@/hooks/useEscapeKey';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
-import { isAndroidApp } from '@/hooks/useAndroidBridge';
+import { isAndroidApp } from '@/features/layout/hooks/useAndroidBridge';
 import { cn } from '@/utils/cn';
 import './AccountMenu.css';
 import { Icon } from '@/components/ui/icons';
@@ -184,7 +184,6 @@ export function AccountMenu({
           elevation="high"
           padding={false}
           style={{
-            position: 'fixed',
             ...(menuPos.top !== undefined ? { top: `${menuPos.top}px` } : { bottom: `${menuPos.bottom}px` }),
             ...(menuPos.left !== undefined ? { left: `${menuPos.left}px` } : { right: `${menuPos.right}px` }),
           }}
@@ -251,7 +250,6 @@ export function AccountMenu({
           ref={notifRef}
           className="account-menu__notification-panel"
           style={{
-            position: 'fixed',
             ...(menuPos.top !== undefined ? { top: `${menuPos.top}px` } : { bottom: `${menuPos.bottom}px` }),
             ...(menuPos.left !== undefined ? { left: `${menuPos.left}px` } : { right: `${menuPos.right}px` }),
           }}

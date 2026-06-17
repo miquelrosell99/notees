@@ -10,9 +10,11 @@ import { useQuery } from '@tanstack/react-query';
 import { SearchBox } from '@/components/ui/SearchBox';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useSearch } from '@/hooks';
-import { nodeNameToText } from '@/hooks/useStringifyAST';
+import { nodeNameToText } from '@/features/queries/hooks/useStringifyAST';
 import { NodeIcon } from '@/components/ui/icons';
 import type { Node } from '@/types';
+import { searchKeys } from '@/hooks/queryKeys';
+
 
 export interface NodeSearchBoxProps<T = Node> {
   placeholder?: string;
@@ -78,7 +80,7 @@ export function NodeSearchBox<T = Node>({
 
   const defaultSearch = useSearch(debouncedQuery);
   const customSearch = useQuery({
-    queryKey: ['node-search-box-custom', debouncedQuery],
+    queryKey: searchKeys.nodeSearchBox(debouncedQuery),
     queryFn: () => searchFn!(debouncedQuery),
     enabled: !!searchFn && debouncedQuery.length > 0,
   });

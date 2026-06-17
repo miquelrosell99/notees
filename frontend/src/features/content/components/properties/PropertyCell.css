@@ -10,8 +10,7 @@
 }
 
 /* Reset native <button> defaults when a cell is made interactive. */
-button.property-cell,
-[role="button"].property-cell {
+button.property-cell {
   appearance: none;
   border: none;
   background: none;
@@ -39,6 +38,18 @@ button.property-cell,
 .property-cell--empty {
   color: var(--color-on-surface-variant);
   font-style: italic;
+}
+
+.property-cell--empty-wrapper {
+  position: relative;
+  padding: 0;
+}
+
+.property-cell--empty-wrapper > button.property-cell {
+  width: 100%;
+  min-height: var(--height-md);
+  padding: var(--spacing-2) var(--spacing-3);
+  text-align: left;
 }
 
 

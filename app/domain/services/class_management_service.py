@@ -16,6 +16,7 @@ from ..entities import Node, NodeCreateData, NodeUpdateData
 from ..errors import SystemClassConstraintError
 from ..node_flags import CLASS_UUID_TO_FLAG, compute_node_flags
 from ..stringify_ast import ParseMode, parse_ast, serialize_ast
+from .class_extension_service import ClassExtensionService
 
 if TYPE_CHECKING:
     from ..repositories import ClassExtendRepository, NodeRepository, PropertyRepository
@@ -110,8 +111,6 @@ class ClassManagementService:
 
     async def get_nodes_with_class(self, class_id: int, limit: int | None = None, offset: int | None = None) -> list[Node]:
         """Return all nodes that carry the given class (or any of its subclasses)."""
-        from .class_extension_service import ClassExtensionService
-
         extension_service = ClassExtensionService(
             self._workspace_id, self._property_repo, self._class_extend_repo, self._node_repo
         )
@@ -121,8 +120,6 @@ class ClassManagementService:
 
     async def count_nodes_with_class(self, class_id: int) -> int:
         """Count nodes that carry the given class (or any of its subclasses)."""
-        from .class_extension_service import ClassExtensionService
-
         extension_service = ClassExtensionService(
             self._workspace_id, self._property_repo, self._class_extend_repo, self._node_repo
         )
@@ -245,6 +242,41 @@ class ClassManagementService:
         await self.update_flags_from_classes(node_id, new_class_ids)
 
         return True
+
+    # ------------------------------------------------------------------
+    # Class extension helpers exposed for collaborators
+    # ------------------------------------------------------------------
+
+    async def expand_class_hierarchy(self, class_ids: list[int]) -> set[int]:
+        """Expand a list of class IDs to include all subclasses recursively."""
+        if self._class_extend_repo is None:
+            return set(class_ids)
+        return await self._class_extend_repo.expand_class_hierarchy(class_ids)
+
+    async def get_extended_classes_batch(self, node_ids: list[int]) -> dict[int, list[int]]:
+        """Get parent class IDs for multiple class nodes."""
+        if self._class_extend_repo is None:
+            return {}
+        return await self._class_extend_repo.get_extended_classes_batch(node_ids)
+
+    def get_class_extension_service(
+        self,
+        workspace_id: int,
+        property_repo: PropertyRepository,
+        node_repo: NodeRepository,
+    ) -> ClassExtensionService | None:
+        """Return a ClassExtensionService backed by this service's extend repo.
+
+        Returns ``None`` when the extend repository is not configured.
+        """
+        if self._class_extend_repo is None:
+            return None
+        return ClassExtensionService(
+            workspace_id,
+            property_repo,
+            self._class_extend_repo,
+            node_repo,
+        )
 
     # ------------------------------------------------------------------
     # Internal helpers

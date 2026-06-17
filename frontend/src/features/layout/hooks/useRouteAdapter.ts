@@ -10,14 +10,14 @@ import { useEffect, useCallback, type MutableRefObject } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigationStore, useSettingsStore, type MainViewType, type DefaultView } from '@/stores';
-import { useTodayNote } from '@/hooks';
+import { useTodayNote } from '@/features/content';
 import { useNavigationHistoryStore } from '@/stores/navigationHistoryStore';
-import { listWorkspaces, switchWorkspace } from '@/features/workspace/api/workspaces';
+import { listWorkspaces, switchWorkspace } from '@/features/workspace';
 import { getNodeByUuid } from '@/api/nodes';
 import { getPropertyByUuid } from '@/api/properties';
 import { SPECIAL_VIEWS, parseSplitParams } from './url';
 import { isUuid } from '@/utils/uuid';
-import { favoriteKeys, recentKeys } from '@/hooks/queryKeys';
+import { favoriteKeys, recentKeys, workspaceKeys } from '@/hooks/queryKeys';
 import { getLogger } from '@/utils/logger';
 import { isDayUuid, isMonthUuid, isYearUuid } from '@/utils/dateUuid';
 
@@ -52,7 +52,7 @@ export function useRouteAdapter({ hasInitialized, isProcessingUrl }: RouteAdapte
   const { data: todayNote } = useTodayNote();
 
   const { data: dbData, isLoading: isLoadingDbs } = useQuery({
-    queryKey: ['workspaces'],
+    queryKey: workspaceKeys.all,
     queryFn: () => listWorkspaces(),
     staleTime: 30000,
     select: (data) => ({
@@ -90,7 +90,7 @@ export function useRouteAdapter({ hasInitialized, isProcessingUrl }: RouteAdapte
         queryClient.clear();
 
         await queryClient.fetchQuery({
-          queryKey: ['workspaces'],
+          queryKey: workspaceKeys.all,
           queryFn: () => listWorkspaces(),
         });
 

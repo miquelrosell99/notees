@@ -4,7 +4,6 @@
  * Admin-only modal for system-level settings: user management, metrics.
  */
 import { useState, useRef, useCallback } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Modal } from '@/components/ui/Modal';
 import { Spinner } from '@/components/ui/Spinner';
 import { Button } from '@/components/ui/Button';
@@ -15,8 +14,13 @@ import { Icon } from '@/components/ui/Icon';
 import { Separator } from '@/components/ui/Separator';
 import { useAuthStore } from '@/stores';
 import { useClickOutside } from '@/hooks/useClickOutside';
-import { listUsers, createAdminUser, updateAdminUser, deactivateAdminUser, getAdminMetrics } from '@/api/admin';
+import {
+  useAdminUsers,
+  useSystemMetrics,
+  useUserManagementMutations,
+} from '@/features/auth';
 import type { AdminUserCreate } from '@/types';
+
 import './SystemSettingsModal.css';
 
 interface SystemSettingsModalProps {
@@ -85,40 +89,16 @@ function RowActionsMenu({
 export function SystemSettingsModal({ isOpen, onClose }: SystemSettingsModalProps) {
   const [activeTab, setActiveTab] = useState<SystemTab>('users');
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const queryClient = useQueryClient();
   const currentUser = useAuthStore((s) => s.user);
 
-  const { data: usersData, isLoading: usersLoading } = useQuery({
-    queryKey: ['admin', 'users'],
-    queryFn: () => listUsers(),
-    enabled: isOpen,
-    select: (data) => ({ users: data.items }),
-  });
+  const { data: usersData, isLoading: usersLoading } = useAdminUsers({ enabled: isOpen });
+  const { data: metricsData } = useSystemMetrics({ enabled: isOpen && activeTab === 'metrics' });
 
-  const { data: metricsData } = useQuery({
-    queryKey: ['admin', 'metrics'],
-    queryFn: getAdminMetrics,
-    enabled: isOpen && activeTab === 'metrics',
-  });
-
-  const createUserMutation = useMutation({
-    mutationFn: createAdminUser,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
-      setShowCreateModal(false);
-      setNewUser({ email: '', password: '', name: '', role: 'user' });
-    },
-  });
-
-  const updateUserMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Partial<AdminUserCreate> }) => updateAdminUser(id, data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'users'] }),
-  });
-
-  const deactivateUserMutation = useMutation({
-    mutationFn: deactivateAdminUser,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['admin', 'users'] }),
-  });
+  const {
+    createUser: createUserMutation,
+    updateUser: updateUserMutation,
+    deactivateUser: deactivateUserMutation,
+  } = useUserManagementMutations();
 
   const [newUser, setNewUser] = useState<AdminUserCreate>({
     email: '',
@@ -131,7 +111,12 @@ export function SystemSettingsModal({ isOpen, onClose }: SystemSettingsModalProp
 
   const handleCreateUser = (e: React.FormEvent) => {
     e.preventDefault();
-    createUserMutation.mutate(newUser);
+    createUserMutation.mutate(newUser, {
+      onSuccess: () => {
+        setShowCreateModal(false);
+        setNewUser({ email: '', password: '', name: '', role: 'user' });
+      },
+    });
   };
 
   const handleRoleChange = (userId: string, newRole: string | null) => {

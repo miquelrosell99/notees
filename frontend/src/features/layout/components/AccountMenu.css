@@ -42,6 +42,7 @@
 
 /* ==================== Dropdown Menu ==================== */
 .account-menu__dropdown {
+  position: fixed;
   min-width: var(--layout-size-2xl);
   z-index: var(--z-modal-backdrop);
   border: var(--border-width-default) solid var(--color-outline-variant);
@@ -136,6 +137,7 @@
 
 /* ==================== Notification Panel ==================== */
 .account-menu__notification-panel {
+  position: fixed;
   z-index: var(--z-modal-backdrop);
   width: var(--modal-width-sm);
   max-height: var(--layout-size-9xl);

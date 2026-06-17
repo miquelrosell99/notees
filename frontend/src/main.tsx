@@ -15,17 +15,18 @@ import './variables.css'
 import './styles/data-colors.css'
 import './index.css'
 import { App } from './App.tsx'
-import { useSettingsStore, applyTheme } from './stores'
+import { useSettingsStore, applyTheme, applyAccentColor } from './stores'
 import { restoreOperations, saveOperations } from './lib/operationStorage'
 import { restoreUndoStacks } from './lib/undoStackStorage'
 
-// Apply saved theme on startup — wrapped in try/catch so a corrupt store
-// never prevents the app from mounting at all.
+// Apply saved theme and accent on startup — wrapped in try/catch so a corrupt
+// store never prevents the app from mounting at all.
 try {
-  const savedTheme = useSettingsStore.getState().theme;
-  applyTheme(savedTheme);
+  const { theme, accentColor, customAccentHex } = useSettingsStore.getState();
+  applyTheme(theme);
+  applyAccentColor(accentColor, customAccentHex);
 } catch (e) {
-  console.error('[main] Failed to apply saved theme, falling back to default:', e);
+  console.error('[main] Failed to apply saved theme/accent, falling back to default:', e);
 }
 
 // Restore pending operations and undo stacks from previous session (offline support)

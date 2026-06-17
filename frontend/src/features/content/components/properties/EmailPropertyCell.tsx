@@ -86,31 +86,27 @@ export function EmailPropertyCell({
     );
   }
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (!editable) return;
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      handleClick();
-    }
-  };
-
-  return (
-    <div
-      role="button"
-      tabIndex={editable ? 0 : -1}
-      aria-label={emailValue}
-      className="property-cell property-cell--email"
-      onClick={editable ? handleClick : undefined}
-      onKeyDown={handleKeyDown}
-    >
+  if (!editable) {
+    return (
       <a
         href={`mailto:${emailValue}`}
-        className="property-cell__link"
-        tabIndex={editable ? -1 : 0}
-        onClick={(e) => { if (editable) e.preventDefault(); }}
+        className="property-cell property-cell--email property-cell__link"
       >
         {emailValue}
       </a>
-    </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      aria-label={emailValue}
+      className="property-cell property-cell--email"
+      onClick={handleClick}
+    >
+      <span className="property-cell__link">
+        {emailValue}
+      </span>
+    </button>
   );
 }

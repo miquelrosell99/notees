@@ -405,13 +405,16 @@ def verify_refresh_token(token: str, hashed: str) -> bool:
         return False
 
 
-async def create_refresh_token_db(user_id: int, token: str, family_id: str | None = None) -> dict:
+async def create_refresh_token_db(
+    user_id: int, token: str, family_id: str | None = None, remember_me: bool = False
+) -> dict:
     """Store a refresh token in the database. Returns the DB row dict."""
     repo = await _get_user_repo()
     token_hash = hash_refresh_token(token)
-    expires_at = datetime.now(UTC) + timedelta(days=settings.refresh_token_expire_days)
+    lifetime_days = settings.refresh_token_remember_me_days if remember_me else settings.refresh_token_expire_days
+    expires_at = datetime.now(UTC) + timedelta(days=lifetime_days)
     family = family_id or str(uuid.uuid4())
-    return await repo.create_refresh_token(user_id, token_hash, expires_at, family)
+    return await repo.create_refresh_token(user_id, token_hash, expires_at, family, remember_me)
 
 
 async def verify_refresh_token_db(token: str) -> dict | None:
@@ -435,15 +438,16 @@ async def is_refresh_token_reused(token_id: int) -> bool:
     return replaced is not None
 
 
-async def rotate_refresh_token(old_token_id: int, new_token: str) -> dict:
+async def rotate_refresh_token(old_token_id: int, new_token: str, remember_me: bool = False) -> dict:
     """Rotate a refresh token: revoke old, create new, link them.
 
     Returns the new token row dict.
     """
     repo = await _get_user_repo()
     token_hash = hash_refresh_token(new_token)
-    expires_at = datetime.now(UTC) + timedelta(days=settings.refresh_token_expire_days)
-    return await repo.rotate_refresh_token(old_token_id, token_hash, expires_at)
+    lifetime_days = settings.refresh_token_remember_me_days if remember_me else settings.refresh_token_expire_days
+    expires_at = datetime.now(UTC) + timedelta(days=lifetime_days)
+    return await repo.rotate_refresh_token(old_token_id, token_hash, expires_at, remember_me)
 
 
 async def revoke_refresh_token_family(family_id: str) -> None:

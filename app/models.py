@@ -77,6 +77,7 @@ class UserCreate(UserBase):
     name: str | None = None
     surnames: str | None = None
     profile_pic: str | None = None
+    remember_me: bool = False
 
     @field_validator("email")
     @classmethod
@@ -99,6 +100,7 @@ class UserLogin(UserBase):
     """User login model."""
 
     password: str
+    remember_me: bool = False
 
 
 class UserUpdate(BaseModel):
@@ -429,6 +431,12 @@ class InviteAcceptRequest(BaseModel):
     token: str
     password: str | None = None
     name: str | None = None
+    remember_me: bool = False
+
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, v):
+        return _validate_password_strength(v)
 
 
 class NotificationResponse(BaseModel):

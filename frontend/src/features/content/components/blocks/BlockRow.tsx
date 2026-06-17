@@ -13,15 +13,18 @@ import { BulletLine } from './BulletLine';
 import { useEditorFocusStore } from '@/stores/editorFocusStore';
 import { liveSyncManager } from '@/collab/LiveSyncManager';
 import { parseAST, parseLinkId } from '@/lib/astBuilder';
-import { nodeNameToText } from '@/hooks/useStringifyAST';
+import { nodeNameToText } from '@/features/queries';
 import { NodeContextMenu } from '@/features/content/components/nodes/NodeContextMenu';
 import { copyRuntimeBlocksToClipboard } from '@/utils/clipboardManager';
 import { useClipboardStore } from '@/stores/clipboardStore';
-import { useAuthStore } from '@/features/auth/stores/authStore';
+import { useAuthStore } from '@/features/auth';
 import { pasteBlocksAfterBlock } from '@/features/content/editor/utils/pasteBlocks';
 import { useLivePresenceStore } from '@/stores/livePresenceStore';
 import { useShallow } from 'zustand/react/shallow';
-import { useTaskActions } from '@/hooks/useTaskActions';
+// Kept as a deep import to avoid a circular dependency: useTaskActions imports
+// the content barrel, and the content barrel exports BlockRow. Using the tasks
+// barrel here would close the cycle content -> tasks -> content.
+import { useTaskActions } from '@/features/tasks/hooks/useTaskActions';
 import { useResolvedClassDetails, useProperties, useClasses } from '@/hooks';
 import { ClassPillsRow } from '@/features/content/components/nodes/ClassPillsRow';
 import { PropertyIconButton } from '@/features/content/components/properties/PropertyIconButton';

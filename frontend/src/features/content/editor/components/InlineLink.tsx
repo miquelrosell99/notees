@@ -49,7 +49,7 @@ export function InlineLink({ linkId, refType, url, label }: InlineLinkProps) {
   const [menuPos, setMenuPos] = useState<{ x: number; y: number } | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isEmbedOpen, setIsEmbedOpen] = useState(false);
-  const embedAnchorRef = useRef<HTMLSpanElement>(null);
+  const embedAnchorRef = useRef<HTMLButtonElement>(null);
   const embedHoverTimer = useRef<number | null>(null);
 
   const { nodeUuid } = parseLinkId(linkId);
@@ -443,7 +443,8 @@ export function InlineLink({ linkId, refType, url, label }: InlineLinkProps) {
   if (refType === 'embed' && nodeUuid) {
     return (
       <>
-        <span
+        <button
+          type="button"
           ref={embedAnchorRef}
           className="inline-link-inner inline-link-inner--embed"
           data-ref-type="embed"
@@ -451,22 +452,14 @@ export function InlineLink({ linkId, refType, url, label }: InlineLinkProps) {
           onMouseEnter={handleEmbedMouseEnter}
           onMouseLeave={handleEmbedMouseLeave}
           onContextMenu={handleContextMenu}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
-              setIsEmbedOpen(true);
-            }
-          }}
-          role="button"
           aria-haspopup="dialog"
           aria-expanded={isEmbedOpen}
-          tabIndex={0}
         >
           <span className="inline-link-icon">
             <Icon path="mdi-cube-outline" size="14px" />
           </span>
           <NodeRef variant="inline" nodeUuid={nodeUuid} refType="node" customName={label} />
-        </span>
+        </button>
         {isEmbedOpen && embedAnchorRef.current && (
           <TransclusionPopover
             nodeUuid={nodeUuid}

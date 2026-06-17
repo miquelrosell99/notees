@@ -8,6 +8,8 @@ import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { createWorkspace, type WorkspaceInfo } from '@/features/workspace/api/workspaces';
 import { WorkspaceNameModal } from './WorkspaceNameModal';
+import { workspaceKeys } from '@/hooks/queryKeys';
+
 
 interface WorkspaceModalProps {
   isOpen: boolean;
@@ -23,7 +25,7 @@ export function WorkspaceModal({ isOpen, onClose, onSuccess }: WorkspaceModalPro
   const createMutation = useMutation({
     mutationFn: createWorkspace,
     onSuccess: (newWorkspace) => {
-      queryClient.invalidateQueries({ queryKey: ['workspaces'] });
+      queryClient.invalidateQueries({ queryKey: workspaceKeys.all });
       onSuccess?.(newWorkspace);
       onClose();
     },

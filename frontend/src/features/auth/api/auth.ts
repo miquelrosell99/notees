@@ -2,7 +2,7 @@
  * Authentication API functions
  */
 import api from '@/api/client';
-import { getAuthToken, setAuthToken, clearAuthToken, isAuthenticated as checkAuth, setUserData, getUserData } from '@/utils/auth';
+import { clearUserData, setUserData, getUserData, isAuthenticated as checkAuth } from '@/utils/auth';
 import type { Token, UserCreate, UserLogin, User, AuthStatus, UserUpdate, PasswordChangeRequest, ApiKey, ApiKeyCreate, ApiKeyWithSecret } from '@/types';
 
 /**
@@ -57,31 +57,31 @@ export async function changePassword(data: PasswordChangeRequest): Promise<{ suc
 }
 
 /**
- * Logout (client-side only for JWT)
+ * Log out and clear authentication cookies on the backend.
  */
-export function logout(): void {
-  clearAuthToken();
+export async function logout(): Promise<void> {
+  try {
+    await api.post('/auth/logout');
+  } finally {
+    clearUserData();
+  }
 }
 
 /**
- * Check if user is authenticated
+ * Check if user data exists locally. This does not verify the session is still
+ * valid on the server; use /api/auth/me for that.
  */
 export function isAuthenticated(): boolean {
   return checkAuth();
 }
 
 /**
- * Get stored token
- */
-export function getToken(): string | null {
-  return getAuthToken();
-}
-
-/**
- * Store auth data after login/register
+ * Store auth data after login/register.
+ *
+ * The access token lives in an HTTPOnly cookie set by the backend; only the
+ * user profile is persisted locally.
  */
 export function storeAuth(token: Token): void {
-  setAuthToken(token.access_token);
   setUserData(token.user);
 }
 
@@ -119,7 +119,7 @@ export async function revokeApiKey(keyId: string): Promise<{ success: boolean }>
 /**
  * Accept a pending invitation
  */
-export async function acceptInvite(data: { token: string; password?: string; name?: string }): Promise<Token> {
+export async function acceptInvite(data: { token: string; password?: string; name?: string; remember_me?: boolean }): Promise<Token> {
   const response = await api.post<Token>('/auth/invites/accept', data);
   return response.data;
 }

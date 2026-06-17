@@ -6,12 +6,13 @@
 import { useCallback, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { restoreNode, permanentlyDeleteNode } from '@/api/nodes';
-import { nodeNameToText } from '@/hooks/useStringifyAST';
-import { nodeKeys } from '@/hooks/useNodes';
+import { nodeNameToText } from '@/features/queries/hooks/useStringifyAST';
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/ContextMenu';
 import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
 import type { Node } from '@/types';
 import { copyToClipboard } from '@/utils/clipboardManager';
+import { nodeKeys, trashKeys } from '@/hooks/queryKeys';
+
 import './NodeContextMenu.css';
 
 interface TrashNodeContextMenuProps {
@@ -40,11 +41,11 @@ export function TrashNodeContextMenu({ node, position, onClose }: TrashNodeConte
       onClose();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['trash'] });
+      queryClient.invalidateQueries({ queryKey: trashKeys.all });
       queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
-      queryClient.invalidateQueries({ queryKey: ['nodes', 'linked-refs'], refetchType: 'active' });
-      queryClient.invalidateQueries({ queryKey: ['nodes', 'property-backlinks'], refetchType: 'active' });
-      queryClient.invalidateQueries({ queryKey: ['nodes', 'backlinks'], refetchType: 'active' });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.allLinkedRefs(), refetchType: 'active' });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.allPropertyBacklinks(), refetchType: 'active' });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.allBacklinks(), refetchType: 'active' });
     },
   });
 
@@ -55,11 +56,11 @@ export function TrashNodeContextMenu({ node, position, onClose }: TrashNodeConte
       onClose();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['trash'] });
+      queryClient.invalidateQueries({ queryKey: trashKeys.all });
       queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
-      queryClient.invalidateQueries({ queryKey: ['nodes', 'linked-refs'], refetchType: 'active' });
-      queryClient.invalidateQueries({ queryKey: ['nodes', 'property-backlinks'], refetchType: 'active' });
-      queryClient.invalidateQueries({ queryKey: ['nodes', 'backlinks'], refetchType: 'active' });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.allLinkedRefs(), refetchType: 'active' });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.allPropertyBacklinks(), refetchType: 'active' });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.allBacklinks(), refetchType: 'active' });
     },
   });
   

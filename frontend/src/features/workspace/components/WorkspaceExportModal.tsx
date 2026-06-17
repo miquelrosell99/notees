@@ -17,6 +17,8 @@ import {
   type ExportJob,
 } from '@/features/workspace/api/workspaces';
 import { downloadBlob } from '@/utils/download';
+import { workspaceKeys } from '@/hooks/queryKeys';
+
 import './WorkspaceExportModal.css';
 
 export interface WorkspaceExportModalProps {
@@ -113,7 +115,7 @@ export function WorkspaceExportModal({
 
   // Poll job status when we have an active job
   const { data: job } = useQuery<ExportJob>({
-    queryKey: ['export-job', jobId],
+    queryKey: workspaceKeys.exportJob(jobId),
     queryFn: () => getExportJob(jobId!),
     enabled: !!jobId,
     refetchInterval: (query) => {

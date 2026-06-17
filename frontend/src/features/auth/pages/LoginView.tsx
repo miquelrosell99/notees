@@ -7,6 +7,7 @@ import './LoginView.css';
 import { useAuthStore } from '@/stores';
 import { Button } from '@/components/ui/Button';
 import { TextField } from '@/components/ui/TextField';
+import { Checkbox } from '@/components/ui/Checkbox';
 
 interface LoginViewProps {
   registrationEnabled?: boolean;
@@ -28,8 +29,13 @@ export function LoginView({ registrationEnabled = false }: LoginViewProps) {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isRegister, setIsRegister] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
   const [localError, setLocalError] = useState<string | null>(null);
-  const { login, register, isLoading, error, clearError } = useAuthStore();
+  const login = useAuthStore((s) => s.login);
+  const register = useAuthStore((s) => s.register);
+  const isLoading = useAuthStore((s) => s.isLoading);
+  const error = useAuthStore((s) => s.error);
+  const clearError = useAuthStore((s) => s.clearError);
 
   const passwordError = useMemo(() => {
     if (!isRegister || !password) return null;
@@ -55,9 +61,9 @@ export function LoginView({ registrationEnabled = false }: LoginViewProps) {
 
     try {
       if (isRegister) {
-        await register(email, password);
+        await register(email, password, undefined, rememberMe);
       } else {
-        await login(email, password);
+        await login(email, password, rememberMe);
       }
     } catch {
       // Error is handled by store
@@ -121,6 +127,17 @@ export function LoginView({ registrationEnabled = false }: LoginViewProps) {
 
           {isRegister && passwordError && (
             <div className="error-message" role="alert">{passwordError}</div>
+          )}
+
+          {!isRegister && (
+            <Checkbox
+              id="remember-me"
+              name="remember-me"
+              label="Keep me signed in"
+              density="minimal"
+              checked={rememberMe}
+              onChange={(e) => setRememberMe(e.target.checked)}
+            />
           )}
 
           {displayError && <div id={formErrorId} className="error-message" role="alert">{displayError}</div>}

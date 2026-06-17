@@ -17,23 +17,17 @@ from pydantic import BaseModel
 
 from .. import workspace_manager as wm
 from ..dependencies import (
+    _get_workspace_io_service,
     get_current_user,
+    get_workspace_io_service,
     get_workspace_service,
     invalidate_workspace_cache,
 )
+from ..domain.services.workspace_io_service import WorkspaceIOService
 from ..domain.services.workspace_service import WorkspaceService
 from ..export_jobs import create_job, get_job, update_job
 from ..logging_config import get_logger
 from ..models import PaginatedResponse, User, WorkspaceCreate
-from ..workspace_io import (
-    export_workspace_by_uuid,
-    export_workspace_formatted_zip,
-    export_workspace_to_file,
-    export_workspace_zip,
-    import_dump_to_new_workspace,
-    import_workspace_from_zip,
-    restore_workspace_from_dump,
-)
 
 router = APIRouter(prefix="/workspaces", tags=["Workspaces"])
 logger = get_logger(__name__)
@@ -128,6 +122,7 @@ async def export_workspace(
     format: str = "dump",
     include_assets: bool = False,
     workspace_service: WorkspaceService = Depends(get_workspace_service),
+    workspace_io_service: WorkspaceIOService = Depends(get_workspace_io_service),
     user: User = Depends(get_current_user),
 ):
     """Export a workspace.
@@ -140,7 +135,7 @@ async def export_workspace(
     """
     try:
         if format == "dump":
-            export_path = await export_workspace_to_file(user.id, name)
+            export_path = await workspace_io_service.export_workspace_to_file(user.id, name)
             return FileResponse(
                 export_path,
                 filename=export_path.name,
@@ -154,7 +149,7 @@ async def export_workspace(
         if not ws_uuid:
             raise ValueError(f"Workspace '{name}' not found")
 
-        zip_path = await export_workspace_formatted_zip(
+        zip_path = await workspace_io_service.export_workspace_formatted_zip(
             user.id, ws_uuid, format, include_assets=include_assets
         )
         return FileResponse(
@@ -171,12 +166,13 @@ async def export_workspace_by_id(
     workspace_id: str,
     format: str = "dump",
     include_assets: bool = False,
+    workspace_io_service: WorkspaceIOService = Depends(get_workspace_io_service),
     user: User = Depends(get_current_user),
 ):
     """Export a workspace by UUID."""
     try:
         if format == "dump":
-            export_path = await export_workspace_by_uuid(user.id, workspace_id)
+            export_path = await workspace_io_service.export_workspace_by_uuid(user.id, workspace_id)
             return FileResponse(
                 export_path,
                 filename=export_path.name,
@@ -186,7 +182,7 @@ async def export_workspace_by_id(
         if format not in ("markdown", "text", "json"):
             raise HTTPException(status_code=400, detail=f"Invalid format: {format}")
 
-        zip_path = await export_workspace_formatted_zip(
+        zip_path = await workspace_io_service.export_workspace_formatted_zip(
             user.id, workspace_id, format, include_assets=include_assets
         )
         return FileResponse(
@@ -199,10 +195,14 @@ async def export_workspace_by_id(
 
 
 @router.get("/{workspace_id}/export-zip")
-async def export_workspace_zip_endpoint(workspace_id: str, user: User = Depends(get_current_user)):
+async def export_workspace_zip_endpoint(
+    workspace_id: str,
+    workspace_io_service: WorkspaceIOService = Depends(get_workspace_io_service),
+    user: User = Depends(get_current_user),
+):
     """Export a workspace as a ZIP containing the JSON dump and all asset files."""
     try:
-        zip_path = await export_workspace_zip(user.id, workspace_id)
+        zip_path = await workspace_io_service.export_workspace_zip(user.id, workspace_id)
         return FileResponse(zip_path, filename=zip_path.name, media_type="application/zip")
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
@@ -226,16 +226,23 @@ async def _run_export_job(
 
         callback = make_progress_callback(job_id)
 
+        # Build a fresh service instance; request-scoped dependencies must not
+        # be passed into background tasks.
+        from ..models import User
+
+        user = User(id=user_id, email="")
+        workspace_io_service = await _get_workspace_io_service(user)
+
         if format == "dump":
             if include_assets:
-                path = await export_workspace_zip(
+                path = await workspace_io_service.export_workspace_zip(
                     user_id, workspace_id, progress_callback=callback
                 )
             else:
-                path = await export_workspace_by_uuid(user_id, workspace_id)
+                path = await workspace_io_service.export_workspace_by_uuid(user_id, workspace_id)
                 update_job(job_id, progress=100, status_text="Export complete")
         elif format in ("markdown", "text", "json"):
-            path = await export_workspace_formatted_zip(
+            path = await workspace_io_service.export_workspace_formatted_zip(
                 user_id, workspace_id, format, include_assets, progress_callback=callback
             )
         else:
@@ -324,6 +331,7 @@ async def download_workspace_export_job(job_id: str, user: User = Depends(get_cu
 async def import_workspace(
     file: UploadFile = File(...),
     name: str = Form(...),
+    workspace_io_service: WorkspaceIOService = Depends(get_workspace_io_service),
     user: User = Depends(get_current_user),
 ):
     """Import a workspace from a dump file (JSON) or full export (ZIP)."""
@@ -337,7 +345,7 @@ async def import_workspace(
 
     try:
         if is_zip:
-            result = await import_workspace_from_zip(
+            result = await workspace_io_service.import_workspace_from_zip(
                 user_id_str=user.id,
                 zip_path=tmp_path,
                 workspace_name=name,
@@ -346,7 +354,7 @@ async def import_workspace(
             with open(tmp_path, encoding="utf-8") as f:
                 dump_data = json.load(f)
 
-            result = await import_dump_to_new_workspace(
+            result = await workspace_io_service.import_dump_to_new_workspace(
                 user_id_str=user.id,
                 dump_data=dump_data,
                 workspace_name=name,
@@ -367,6 +375,7 @@ async def import_workspace(
 async def restore_workspace(
     workspace_id: str,
     file: UploadFile = File(...),
+    workspace_io_service: WorkspaceIOService = Depends(get_workspace_io_service),
     user: User = Depends(get_current_user),
 ):
     """Restore an existing workspace to a previous state from a dump file."""
@@ -378,7 +387,7 @@ async def restore_workspace(
         with open(tmp_path, encoding="utf-8") as f:
             dump_data = json.load(f)
 
-        result = await restore_workspace_from_dump(
+        result = await workspace_io_service.restore_workspace_from_dump(
             user_id_str=user.id,
             workspace_uuid=workspace_id,
             dump_data=dump_data,

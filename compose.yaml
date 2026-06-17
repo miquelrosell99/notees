@@ -51,6 +51,8 @@ services:
     restart: unless-stopped
     volumes:
       - ./app:/app/app                           # source code (hot reload)
+      - ./tests:/app/tests                       # test suite (hot reload)
+      - ./pytest.ini:/app/pytest.ini             # pytest config (hot reload)
       - ./scripts:/app/scripts                   # utility scripts
       - ./.config/notees-backend-dev/data:/app/data    # assets, backups, exports
       - ./.config/notees-backend-dev/logs:/app/logs    # logs

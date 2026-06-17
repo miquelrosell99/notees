@@ -8,7 +8,7 @@
  */
 import { useCallback } from 'react';
 import { useNode } from '@/hooks';
-import { nodeNameToText } from '@/hooks/useStringifyAST';
+import { nodeNameToText } from '@/features/queries/hooks/useStringifyAST';
 import { useNavigationStore } from '@/stores';
 import { Spinner } from '@/components/ui/Spinner';
 import type { SidebarNodeType } from '@/stores';

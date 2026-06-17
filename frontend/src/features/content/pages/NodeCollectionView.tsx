@@ -7,7 +7,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { QueryNodeCollection } from '@/features/content/components/nodes/QueryNodeCollection';
 import { NodeCollection } from '@/features/content/components/nodes/NodeCollection';
-import { useNavigationStore } from '@/stores';
+import { useCollectionNavigation } from '@/features/layout/hooks/useNavigationSelectors';
 import { Button } from '@/components/ui/Button';
 import type { QueryAST } from '@/types/queryAST';
 import type { Node } from '@/types';
@@ -32,7 +32,7 @@ interface NodeCollectionViewProps {
 }
 
 export function NodeCollectionView({ title, queryAST, nodes }: NodeCollectionViewProps) {
-  const { openNode, closeNodeCollection, addSidebarCard } = useNavigationStore();
+  const { openNode, closeNodeCollection, addSidebarCard } = useCollectionNavigation();
   const [viewMode, setViewMode] = useState<NodeCollectionViewMode>('list');
   const [resultCount, setResultCount] = useState<number | null>(null);
 

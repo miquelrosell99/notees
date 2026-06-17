@@ -1,5 +1,9 @@
 /**
  * Checkbox Component Styles
+ *
+ * Supports two densities:
+ * - default: standard-sized checkbox with a thick border (original design)
+ * - minimal: smaller, thinner checkbox for dense UIs
  */
 
 .checkbox-container {
@@ -42,7 +46,7 @@
   border-radius: var(--shape-small);
   background: var(--color-surface);
   pointer-events: none;
-  transition: 
+  transition:
     background-color var(--motion-duration-short) var(--motion-easing-standard),
     border-color var(--motion-duration-short) var(--motion-easing-standard);
 }
@@ -67,28 +71,28 @@
 .checkbox-icon {
   width: 100%;
   height: 100%;
-  color: var(--color-on-primary);
+  color: var(--color-on-accent);
   opacity: var(--opacity-0);
   transform: scale(0.75);
-  transition: 
+  transition:
     opacity var(--motion-duration-short) var(--motion-easing-standard),
     transform var(--motion-duration-short) var(--motion-easing-tactile);
 }
 
 /* States */
 .checkbox-input:hover + .checkbox-checkmark {
-  border-color: var(--color-primary);
+  border-color: var(--color-accent);
 }
 
 .checkbox-input:focus-visible + .checkbox-checkmark {
-  outline: var(--border-width-thick) solid var(--color-primary);
+  outline: var(--border-width-thick) solid var(--color-accent);
   outline-offset: var(--spacing-micro);
 }
 
 .checkbox-input:checked + .checkbox-checkmark,
 .checkbox-input[data-indeterminate="true"] + .checkbox-checkmark {
-  background: var(--color-primary);
-  border-color: var(--color-primary);
+  background: var(--color-accent);
+  border-color: var(--color-accent);
 }
 
 .checkbox-input:checked + .checkbox-checkmark .checkbox-icon,
@@ -136,5 +140,62 @@
 }
 
 .checkbox-container--lg .checkbox-label {
+  font-size: var(--font-size-base);
+}
+
+/* ==================== Minimal density ==================== */
+.checkbox-container--minimal {
+  align-items: center;
+  gap: var(--spacing-1);
+}
+
+.checkbox-container--minimal .checkbox-checkmark {
+  border: var(--border-width-default) solid var(--color-outline);
+  border-radius: var(--shape-extra-small);
+}
+
+.checkbox-container--minimal .checkbox-checkmark--sm {
+  width: var(--icon-size-xs);
+  height: var(--icon-size-xs);
+}
+
+.checkbox-container--minimal .checkbox-checkmark--md {
+  width: var(--spacing-4);
+  height: var(--spacing-4);
+}
+
+.checkbox-container--minimal .checkbox-checkmark--lg {
+  width: var(--spacing-4-5);
+  height: var(--spacing-4-5);
+}
+
+.checkbox-container--minimal .checkbox-icon {
+  width: 85%;
+  height: 85%;
+  transform: scale(0.8);
+}
+
+.checkbox-container--minimal .checkbox-input:focus-visible + .checkbox-checkmark {
+  outline: var(--border-width-default) solid var(--color-accent);
+  outline-offset: 1px;
+}
+
+.checkbox-container--minimal .checkbox-label-wrapper {
+  gap: 0;
+}
+
+.checkbox-container--minimal .checkbox-label {
+  font-size: var(--font-size-xs);
+}
+
+.checkbox-container--minimal .checkbox-description {
+  font-size: var(--font-size-2xs);
+}
+
+.checkbox-container--minimal.checkbox-container--md .checkbox-label {
+  font-size: var(--font-size-sm);
+}
+
+.checkbox-container--minimal.checkbox-container--lg .checkbox-label {
   font-size: var(--font-size-base);
 }

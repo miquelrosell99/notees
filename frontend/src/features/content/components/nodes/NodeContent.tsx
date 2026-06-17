@@ -14,7 +14,7 @@
  */
 import { useRef, useCallback, useState, useMemo } from 'react';
 import { useContentSave, useNodeNavigation, useAddClass, useRemoveClass, useClasses, useUpdateNode, useSetNodeProperty, useProperties } from '@/hooks';
-import { useLazyChildren } from '@/hooks/useLazyChildren';
+import { useLazyChildren } from '@/features/content/hooks/useLazyChildren';
 
 import type { Node } from '@/types';
 // GraphNode type no longer needed here — projection moved to useBlockTree
@@ -178,7 +178,7 @@ export function NodeContent({
         variables: {},
       });
       if (result.blocks.length > 0) {
-        const { apiNodesToGraphNodes } = await import('@/hooks/useRuntimeSync');
+        const { apiNodesToGraphNodes } = await import('@/features/content/hooks/useRuntimeSync');
         const { graphNodes } = apiNodesToGraphNodes(result.blocks, parentId, parentUuid);
         upsertNodes(graphNodes);
 

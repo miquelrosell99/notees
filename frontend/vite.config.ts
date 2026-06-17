@@ -37,6 +37,15 @@ export default defineConfig({
               expiration: { maxEntries: 1, maxAgeSeconds: 30 * 24 * 60 * 60 },
             },
           },
+          {
+            // Cache uploaded asset files (images, PDFs, etc.)
+            urlPattern: /\/api\/assets\//,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'assets-cache',
+              expiration: { maxEntries: 200, maxAgeSeconds: 30 * 24 * 60 * 60 },
+            },
+          },
         ],
       },
       manifest: {

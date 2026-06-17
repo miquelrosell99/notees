@@ -94,7 +94,6 @@ from .services import (
     NodeService,
     NodeViewService,
     QueryASTToSQL,
-    QueryExecutor,
 )
 
 __all__ = [
@@ -169,7 +168,6 @@ __all__ = [
     "NodeService",
     "LinkParsingService",
     "HierarchyService",
-    "QueryExecutor",
     "QueryASTToSQL",
     "NodeViewService",
     "ClassManagementService",

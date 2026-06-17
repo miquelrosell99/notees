@@ -15,7 +15,7 @@ import { SelectionButton } from '@/components/ui/SelectionButton';
 import { TextField } from '@/components/ui/TextField';
 import { NodeSelector } from '@/features/content/components/nodes/NodeSelector';
 import { useReferencedNode } from '@/contexts/useReferencedNode';
-import { useNodeByUuid } from '@/hooks/useNodeQueries';
+import { useNodeByUuid } from '@/features/content/hooks/useNodeQueries';
 import { parseLinkId } from '@/lib/astBuilder';
 import type { InlineLinkRefType } from '@/features/content/editor/nodes/InlineLinkNode';
 import type { Node } from '@/types/api';

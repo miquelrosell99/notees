@@ -371,11 +371,21 @@ class LinkParsingService:
         # Parse new links from AST (link_id format: "nodeUuid:linkUuid")
         parsed = self.parse_links(content)
 
+        # Batch-resolve all link and embed target UUIDs in a single query.
+        all_link_uuids = {node_identifier for node_identifier, _position, _link_uuid, _label in parsed}
+        parsed_embeds = _parse_embeds_from_ast(content) or []
+        all_embed_uuids = {node_identifier for node_identifier, _position, _link_uuid in parsed_embeds}
+        all_target_uuids = list(all_link_uuids | all_embed_uuids)
+        uuid_to_node: dict[str, Node] = {}
+        if all_target_uuids:
+            resolved_nodes = await self._node_repo.get_by_uuids(all_target_uuids)
+            uuid_to_node = {n.uuid: n for n in resolved_nodes if n.uuid}
+
         created_links = []
         seen_target_ids: set[int] = set()
 
         for node_identifier, position, link_uuid, _label in parsed:
-            target_node = await self._node_repo.get_by_uuid(node_identifier)
+            target_node = uuid_to_node.get(node_identifier)
             if not target_node:
                 continue
 
@@ -402,10 +412,9 @@ class LinkParsingService:
 
         # Parse and persist embed references (ref_type='embed') as node_link rows.
         # They are tracked separately from regular links via the is_embed flag.
-        parsed_embeds = _parse_embeds_from_ast(content) or []
         seen_embed_target_ids: set[int] = set()
         for node_identifier, position, link_uuid in parsed_embeds:
-            target_node = await self._node_repo.get_by_uuid(node_identifier)
+            target_node = uuid_to_node.get(node_identifier)
             if not target_node:
                 continue
 
@@ -453,11 +462,18 @@ class LinkParsingService:
         # Parse new inline classes from AST
         parsed = self.parse_inline_classes(content)
 
+        # Batch-resolve all inline class UUIDs in a single query.
+        inline_class_uuids = list({node_identifier for node_identifier, _position, _link_uuid in parsed})
+        uuid_to_node: dict[str, Node] = {}
+        if inline_class_uuids:
+            resolved_nodes = await self._node_repo.get_by_uuids(inline_class_uuids)
+            uuid_to_node = {n.uuid: n for n in resolved_nodes if n.uuid}
+
         created_links = []
         new_inline_class_ids = []
 
         for node_identifier, position, link_uuid in parsed:
-            class_node = await self._node_repo.get_by_uuid(node_identifier)
+            class_node = uuid_to_node.get(node_identifier)
             if not class_node:
                 continue
 
@@ -516,12 +532,17 @@ class LinkParsingService:
         # Delete existing links for this property
         await self._delete_property_links(node_id, property_id)
 
+        # Batch-resolve all target nodes in a single query.
+        id_to_node: dict[int, Node] = {}
+        if target_node_ids:
+            resolved_nodes = await self._node_repo.get_by_ids(target_node_ids)
+            id_to_node = {n.id: n for n in resolved_nodes if n.id is not None}
+
         created_links = []
 
         for target_id in target_node_ids:
             # Verify target exists
-            target_node = await self._node_repo.get_by_id(target_id)
-            if not target_node:
+            if target_id not in id_to_node:
                 continue
 
             link = NodeLink(
@@ -896,6 +917,42 @@ class LinkParsingService:
         """Delete all links from a source node."""
         return await self._link_repo.delete_source_links(source_node_id)
 
+    async def get_links_for_nodes(
+        self,
+        node_ids: list[int],
+        scope: str,
+        cooccurrence: bool,
+        context_node_id: int | None,
+    ) -> list[dict[str, Any]]:
+        """Get links for a set of nodes."""
+        return await self._link_repo.get_links_for_nodes(
+            node_ids, scope, cooccurrence, context_node_id
+        )
+
+    async def get_alias_node_ids(self, target_node_id: int) -> list[int]:
+        """Get IDs of nodes that alias the target node."""
+        return await self._link_repo.get_alias_node_ids(target_node_id)
+
+    async def get_alias_node_ids_batch(self, target_node_ids: list[int]) -> dict[int, list[int]]:
+        """Get alias node IDs for multiple target nodes."""
+        return await self._link_repo.get_alias_node_ids_batch(target_node_ids)
+
+    async def get_inline_class_targets(self, node_id: int) -> list[int]:
+        """Get target IDs of inline class links from a source node."""
+        return await self._link_repo.get_inline_class_targets(node_id)
+
+    async def get_inline_class_references(self, target_node_id: int) -> list[NodeLink]:
+        """Get all inline class links pointing to a target node."""
+        return await self._link_repo.get_inline_class_references(target_node_id)
+
+    async def get_backlink_counts(self, target_ids: list[int]) -> dict[int, int]:
+        """Get backlink counts for multiple target nodes."""
+        return await self._link_repo.get_backlink_counts(target_ids)
+
+    async def get_text_link_targets_batch(self, source_ids: list[int]) -> list[int]:
+        """Get distinct target IDs of text links from source nodes."""
+        return await self._link_repo.get_text_link_targets_batch(source_ids)
+
     async def get_text_links(self, source_node_id: int) -> list[NodeLink]:
         """Get all text links (property_id IS NULL) from a source node."""
         return await self._link_repo.get_text_links(source_node_id)
@@ -932,16 +989,23 @@ class LinkParsingService:
         result: list[tuple[Any, int, str]] = []
         seen_page_ids: set[int] = set()
 
+        # Batch-resolve all source nodes and their containing pages.
+        source_node_ids = list({row["node_id"] for row in rows})
+        source_nodes = await self._node_repo.get_by_ids(source_node_ids)
+        source_node_map: dict[int, Node] = {n.id: n for n in source_nodes if n.id is not None}
+
+        page_ids = list({sn.page_id for sn in source_nodes if sn.page_id})
+        pages = await self._node_repo.get_by_ids(page_ids)
+        page_map: dict[int, Node] = {p.id: p for p in pages if p.id is not None}
+
         for row in rows:
-            source_node = await self._node_repo.get_by_id(row["node_id"])
+            source_node = source_node_map.get(row["node_id"])
             if not source_node:
                 continue
 
             page = source_node
             if source_node.page_id:
-                page = await self._node_repo.get_by_id(source_node.page_id)
-                if not page:
-                    page = source_node
+                page = page_map.get(source_node.page_id, source_node)
 
             if page.id is None or page.id in seen_page_ids:
                 continue

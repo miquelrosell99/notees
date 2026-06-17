@@ -12,7 +12,7 @@ export interface PenSettingsPanelProps {
 }
 
 export const PenSettingsPanel: React.FC<PenSettingsPanelProps> = ({ settings, onChange, widthOptions }) => (
-  <div className="whiteboard-properties" style={{ padding: 'var(--spacing-2-5) var(--spacing-3)', display: 'flex', flexDirection: 'column', gap: 'var(--spacing-2-5)' }}>
+  <div className="whiteboard-properties">
     <div className="whiteboard-properties__section">
       <div className="whiteboard-properties__label">Color</div>
       <ColorButton

@@ -45,8 +45,12 @@ async def init_database(conn: asyncpg.Connection) -> None:
     # when CREATE EXTENSION IF NOT EXISTS is embedded in a multi-statement string.
     await conn.execute('CREATE EXTENSION IF NOT EXISTS "uuid-ossp"')
 
-    # Execute schema (creates tables if they don't exist)
-    await conn.execute(SCHEMA_SQL)
+    # Execute the schema DDL inside an explicit transaction.  Wrapping the
+    # script guarantees it is committed atomically and avoids the subtle
+    # uvloop/pytest-asyncio behaviour where a large implicit-transaction
+    # multi-statement string is not always persisted.
+    async with conn.transaction():
+        await conn.execute(SCHEMA_SQL)
 
     # Clean up legacy node_path closure table artifacts if they still exist
     # from a previous schema version. The closure table has been replaced by
@@ -99,6 +103,7 @@ async def init_database(conn: asyncpg.Connection) -> None:
     await _run_migration("migrate_mdi_prefix_icons", conn, _migrate_mdi_prefix_icons)
     await _run_migration("migrate_non_system_task_statuses", conn, _migrate_non_system_task_statuses)
     await _run_migration("backfill_is_task_flags", conn, _backfill_is_task_flags)
+    await _run_migration("backfill_is_table_flags", conn, _backfill_is_table_flags)
     await _run_migration("migrate_collaboration_schema", conn, _migrate_collaboration_schema)
     await _run_migration("cleanup_self_referencing_aliases", conn, _cleanup_self_referencing_aliases)
     await _run_migration("seed_system_settings", conn, _seed_system_settings)
@@ -547,6 +552,52 @@ async def _backfill_is_task_flags(conn: asyncpg.Connection) -> None:
 
     if total_updated > 0:
         logger.info(f"Backfilled is_task flag for {total_updated} task node(s)")
+
+
+async def _backfill_is_table_flags(conn: asyncpg.Connection) -> None:
+    """Set node.is_table for nodes that already have the table class assigned.
+
+    is_table is kept in sync with class assignments by the node repository, but
+    existing databases created before the flag was introduced need a one-time
+    backfill from class_ids.
+    """
+    from ...logging_config import get_logger
+
+    logger = get_logger(__name__)
+
+    table_uuid = SYSTEM_CLASS_UUIDS["table"]
+    table_class_rows = await conn.fetch(
+        """
+        SELECT id, workspace_id FROM node
+        WHERE uuid = $1 AND is_class = TRUE AND active = TRUE
+    """,
+        table_uuid,
+    )
+
+    if not table_class_rows:
+        return
+
+    total_updated = 0
+    for row in table_class_rows:
+        table_class_id = row["id"]
+        result = await conn.execute(
+            """
+            UPDATE node
+            SET is_table = TRUE
+            WHERE workspace_id = $1
+              AND is_table = FALSE
+              AND active = TRUE
+              AND is_deleted = FALSE
+              AND $2 = ANY(class_ids)
+        """,
+            row["workspace_id"],
+            table_class_id,
+        )
+        count = int(result.split()[-1]) if result else 0
+        total_updated += count
+
+    if total_updated > 0:
+        logger.info(f"Backfilled is_table flag for {total_updated} table node(s)")
 
 
 async def _migrate_mdi_prefix_icons(conn: asyncpg.Connection) -> None:

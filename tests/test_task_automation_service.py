@@ -129,13 +129,15 @@ async def _get_node_properties_raw(property_repository, node_id: int) -> dict:
 
 
 @pytest_asyncio.fixture
-async def task_automation_service(node_service):
+async def task_automation_service(node_service, property_repository, test_user):
     """Create a TaskAutomationService for the test user's workspace."""
     from app.domain.services.task_automation_service import TaskAutomationService
     return TaskAutomationService(
         node_service,
+        property_repository,
         FakeTaskRecurrenceRepository(),
         FakeTaskCompletionRepository(),
+        user_id=int(test_user["id"]),
     )
 
 

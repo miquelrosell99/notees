@@ -15,16 +15,24 @@ import { copyToClipboard } from '@/utils/clipboardManager';
 import { useClipboardStore } from '@/stores/clipboardStore';
 import { createPortal } from 'react-dom';
 import { useArchiveNode, useUnarchiveNode, useDeleteNode, useUpdateNode, useLinkedReferencesCount } from '@/hooks';
-import { nodeNameToText } from '@/hooks/useStringifyAST';
-import { useNavigationStore, useSettingsStore, usePresentationStore } from '@/stores';
-import { useFavorites, useAddFavoriteMutation, useRemoveFavoriteMutation } from '@/hooks/useFavorites';
+import { nodeNameToText } from '@/features/queries';
+import { useSettingsStore, usePresentationStore } from '@/stores';
+import {
+  useCurrentNodeId,
+  useOpenNodeAction,
+  useOpenLocalGraphAction,
+  useSidebarCards,
+  useAddSidebarCardAction,
+  useFlashSidebarCardAction,
+} from '@/features/layout/hooks/useNavigationSelectors';
+import { useFavorites, useAddFavoriteMutation, useRemoveFavoriteMutation } from '@/features/content';
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/ContextMenu';
 import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
 
 import { ASTViewerModal } from './ASTViewerModal';
-import { ExportPageModal } from '@/features/workspace/components/ExportPageModal';
+import { ExportPageModal } from '@/features/workspace';
 import { ShareModal } from './ShareModal';
-import api from '@/api/client';
+import { startSingleExportJob, pollExportJob, fetchExportResult } from '@/api/exportJobs';
 import type { Node, NodeUpdate } from '@/types';
 
 import type { ContentAST } from '@/runtime/types';
@@ -95,7 +103,12 @@ export function NodeContextMenu({
   const archiveNode = useArchiveNode();
   const unarchiveNode = useUnarchiveNode();
   const updateNode = useUpdateNode();
-  const { addSidebarCard, openLocalGraph, openNode, currentNodeId, sidebarCards, flashSidebarCard } = useNavigationStore();
+  const currentNodeId = useCurrentNodeId();
+  const openNode = useOpenNodeAction();
+  const openLocalGraph = useOpenLocalGraphAction();
+  const sidebarCards = useSidebarCards();
+  const addSidebarCard = useAddSidebarCardAction();
+  const flashSidebarCard = useFlashSidebarCardAction();
   const { showDevOptions } = useSettingsStore();
   const { data: favoriteIds } = useFavorites();
   const favorites = favoriteIds ?? [];
@@ -335,23 +348,23 @@ export function NodeContextMenu({
             id: 'copy-text',
             label: 'Copy as text',
             icon: 'mdi-text-box-outline',
-            onClick: (event?) => {
+            onClick: async (event?) => {
               const flat = event?.shiftKey ?? false;
-              api
-                .get(`/export/${node.uuid}`, {
-                  params: {
-                    format: 'markdown',
-                    include_children: true,
-                    formatting: false,
-                    link_style: 'text',
-                    layout: flat ? 'flat' : 'outline',
-                    properties: 'none',
-                  },
-                  responseType: 'text',
-                })
-                .then((response) => {
-                  copyToClipboard(response.data as string);
+              try {
+                const jobId = await startSingleExportJob(node.uuid, {
+                  format: 'markdown',
+                  include_children: true,
+                  formatting: false,
+                  link_style: 'text',
+                  layout: flat ? 'flat' : 'outline',
+                  properties: 'none',
                 });
+                const job = await pollExportJob(jobId);
+                const { data } = await fetchExportResult<string>(job.id, 'text');
+                copyToClipboard(data as string);
+              } catch {
+                // Silently ignore — this is a quick-action convenience.
+              }
               onClose();
             },
           });

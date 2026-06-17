@@ -10,7 +10,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { listWorkspaces, switchWorkspace } from '@/features/workspace/api/workspaces';
 import { useNavigationStore, useModalStore } from '@/stores';
-import { favoriteKeys, recentKeys } from '@/hooks/queryKeys';
+import { favoriteKeys, recentKeys, workspaceKeys } from '@/hooks/queryKeys';
 import { Button } from '@/components/ui/Button';
 import { Dropdown, type DropdownOption } from '@/components/ui/Dropdown';
 import './WorkspaceSwitcher.css';
@@ -22,7 +22,7 @@ export function WorkspaceSwitcher() {
   const { setShowWorkspaceManager } = useModalStore();
 
   const { data } = useQuery({
-    queryKey: ['workspaces'],
+    queryKey: workspaceKeys.all,
     queryFn: () => listWorkspaces(),
     staleTime: 30000,
     select: (d) => ({

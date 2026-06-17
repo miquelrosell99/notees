@@ -7,18 +7,18 @@
  */
 import { useMemo, useState, useCallback, memo } from 'react';
 import type { JSX } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import type { Node, Property } from '@/types';
 import type { NodePivotViewProps } from '@/types/nodeCollection';
 import type { QueryGroupResult } from '@/types/nodeView';
 import type { QueryAST, PropertyCondition, ConditionNode } from '@/types/queryAST';
-import { useProperties } from '@/hooks';
-import { executeNodeViewQuery, executeQuery } from '@/api/nodeViews';
+import { useProperties, usePivotAggregate } from '@/features/content';
+import { executeQuery } from '@/api/nodeViews';
 import { Modal } from '@/components/ui/Modal';
 import { Spinner } from '@/components/ui/Spinner';
 import { Icon } from '@/components/ui/icons';
 import { NodeCollection } from '../NodeCollection';
 import { registerView } from './registry';
+
 import './PivotView.css';
 
 // ==================== Types ====================
@@ -277,20 +277,11 @@ export const PivotView = memo(function PivotView({
     },
   }), [rowDimensions, colDimensions, measure]);
 
-  const hasBackendAggregation = viewId != null && viewId > 0;
-
-  const { data: aggregateResult, isLoading: isAggregateLoading } = useQuery({
-    queryKey: ['node-view-aggregate', viewId, aggregation, nodeUuid],
-    queryFn: async () => {
-      if (!viewId) return null;
-      return executeNodeViewQuery(viewId, {
-        runtime_params: { current_node_uuid: nodeUuid },
-        aggregation,
-      });
-    },
-    enabled: hasBackendAggregation,
-    staleTime: 30_000,
-  });
+  const { data: aggregateResult, isLoading: isAggregateLoading } = usePivotAggregate(
+    viewId,
+    aggregation,
+    nodeUuid
+  );
 
   const { tree, colKeys } = useMemo(() => {
     const g = aggregateResult?.groups ? parseGroups(aggregateResult.groups, rowDimensions.length, colDimensions.length) : [];

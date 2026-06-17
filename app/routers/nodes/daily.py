@@ -55,7 +55,7 @@ async def list_daily_pages(
 ):
     """List all existing daily pages ordered by date descending."""
     service = await _get_node_service(user)
-    total, rows = await service._node_repo.list_daily_pages_paginated(page, page_size)
+    total, rows = await service.list_daily_pages_paginated(page, page_size)
 
     # Get node IDs for batch type lookup
     nodes = [service.row_to_node(row) for row in rows]

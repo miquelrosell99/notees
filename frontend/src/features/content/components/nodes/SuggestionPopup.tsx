@@ -39,7 +39,7 @@ import { parseDate, generateDateUuid } from '@/utils/dateParser';
 import { getOrCreateDaily, getOrCreateMonthly, getOrCreateYearly } from '@/api/nodes';
 import { useQueryClient } from '@tanstack/react-query';
 import { nodeKeys } from '@/hooks/queryKeys';
-import { nodeNameToText } from '@/hooks/useStringifyAST';
+import { nodeNameToText } from '@/features/queries/hooks/useStringifyAST';
 import { SYSTEM_CLASS_UUIDS } from '@/constants';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
 

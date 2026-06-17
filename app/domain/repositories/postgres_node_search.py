@@ -5,12 +5,17 @@ Extracted from postgres_node.py to keep that file focused on pure CRUD.
 
 from __future__ import annotations
 
+from typing import Any
+
 from ...db.connection import acquire_connection
+from ..entities import Node
 from .postgres_node_base import _PostgresNodeBase
 
 
 class PostgresNodeSearchMixin(_PostgresNodeBase):
-    """Search and listing operations: search, get_typed_with, get_all_pages, get_archived_pages."""
+    """Search and listing operations: search, list_nodes, get_typed_with, get_all_pages, get_archived_pages."""
+
+    _LIST_NODES_MAX_PAGE_SIZE = 5000
 
     @staticmethod
     def _plain_text_expr(alias: str) -> str:
@@ -161,6 +166,94 @@ class PostgresNodeSearchMixin(_PostgresNodeBase):
                 rows = await conn.fetch(sql, *params)
 
             return [self._row_to_node(row) for row in rows]
+
+    async def list_nodes(
+        self,
+        pages_only: bool = False,
+        parent_id: int | None = None,
+        type_id: int | None = None,
+        class_ids: list[int] | None = None,
+        root_only: bool = False,
+        sort_by: str = "sequence",
+        order: str = "asc",
+        page: int = 1,
+        page_size: int = 1000,
+    ) -> tuple[list[Node], int]:
+        """List nodes with server-side filtering, sorting, and pagination.
+
+        Applies all filters directly in PostgreSQL and returns both the
+        paginated node list and the total matching count.
+        """
+        page_size = max(1, min(page_size, self._LIST_NODES_MAX_PAGE_SIZE))
+        page = max(1, page)
+        offset = (page - 1) * page_size
+
+        conditions = ["n.workspace_id = $1", "n.active = TRUE", "n.is_deleted = FALSE"]
+        params: list[Any] = [self._workspace_id]
+        param_idx = 2
+
+        if pages_only:
+            from ...db.schema.constants import SYSTEM_PAGE_UUIDS
+
+            excluded_uuids = list(SYSTEM_PAGE_UUIDS.values())
+            conditions.append(
+                f"n.is_page = TRUE AND n.aliased_id IS NULL AND n.uuid NOT IN (SELECT unnest(${param_idx}::uuid[]))"
+            )
+            params.append(excluded_uuids)
+            param_idx += 1
+
+        if parent_id is not None:
+            conditions.append(f"n.parent_id = ${param_idx}")
+            params.append(parent_id)
+            param_idx += 1
+            # Match get_node_children behaviour: exclude comments.
+            conditions.append("n.is_comment = FALSE")
+
+        if type_id is not None:
+            conditions.append(f"${param_idx} = ANY(n.class_ids)")
+            params.append(type_id)
+            param_idx += 1
+
+        if class_ids:
+            conditions.append(f"n.class_ids && ${param_idx}::int[]")
+            params.append(class_ids)
+            param_idx += 1
+
+        if root_only:
+            conditions.append("n.parent_id IS NULL")
+
+        where_clause = " AND ".join(conditions)
+
+        order_dir = "DESC" if order == "desc" else "ASC"
+        pt_n = self._plain_text_expr("n")
+        if sort_by == "name":
+            order_clause = f"ORDER BY LOWER({pt_n}) {order_dir} NULLS LAST"
+        elif sort_by == "create_date":
+            order_clause = f"ORDER BY n.create_date {order_dir} NULLS LAST"
+        elif sort_by == "write_date":
+            order_clause = f"ORDER BY n.write_date {order_dir} NULLS LAST"
+        else:
+            order_clause = f"ORDER BY COALESCE(n.sequence, 0) {order_dir} NULLS LAST"
+
+        async with acquire_connection(self._pool) as conn:
+            count_row = await conn.fetchrow(
+                f"SELECT COUNT(*) AS total FROM node n WHERE {where_clause}",
+                *params,
+            )
+            total = count_row["total"] if count_row else 0
+
+            rows = await conn.fetch(
+                f"""
+                SELECT n.* FROM node n
+                WHERE {where_clause}
+                {order_clause}
+                LIMIT ${param_idx} OFFSET ${param_idx + 1}
+                """,
+                *params,
+                page_size,
+                offset,
+            )
+            return [self._row_to_node(row) for row in rows], total
 
     async def get_typed_with(
         self, type_node_id: int, limit: int = 1000, offset: int = 0

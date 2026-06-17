@@ -6,7 +6,7 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
-import { useQuickAdd } from '@/hooks/useQuickAdd';
+import { useQuickAdd } from '@/features/layout/hooks/useQuickAdd';
 import { useTodayNote, usePages } from '@/hooks';
 import { useSettingsStore } from '@/stores';
 import './QuickAddModal.css';

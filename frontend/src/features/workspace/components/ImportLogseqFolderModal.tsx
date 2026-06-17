@@ -18,7 +18,7 @@ import {
   countMdBlocks,
   type LogseqFolderResult,
 } from '@/utils/logseqMdParser';
-import { useLogseqFolderImporter } from '@/hooks/useLogseqFolderImporter';
+import { useLogseqFolderImporter } from '@/features/workspace/hooks/useLogseqFolderImporter';
 import './ImportLogseqFolderModal.css';
 
 interface ImportLogseqFolderModalProps {

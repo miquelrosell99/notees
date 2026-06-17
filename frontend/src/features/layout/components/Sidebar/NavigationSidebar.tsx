@@ -9,17 +9,11 @@
  */
 import { useState, useCallback, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigationStore } from '@/stores';
 import type { MainViewType } from '@/stores';
 import { useNode, useIsMobile, useNodeByUuid } from '@/hooks';
 
-import { nodeKeys } from '@/hooks/useNodes';
-import { workspaceSettingsKeys } from '@/hooks/queryKeys';
-import { emptyTrash } from '@/api/nodes';
-import { getWorkspaceSettings } from '@/features/workspace/api/workspaces';
-import { WorkspaceSwitcher } from '@/features/workspace/components/WorkspaceSwitcher';
-import { WorkspaceModal } from '@/features/workspace/components/WorkspaceModal';
+import { WorkspaceSwitcher, WorkspaceModal, useWorkspaceSettings, useEmptyTrash } from '@/features/workspace';
 import { GraphSettingsModal, UserSettingsModal, SystemSettingsModal } from '@/features/layout/components/Modals';
 import { AccountMenu } from '@/features/layout/components/AccountMenu';
 import { Card } from '@/components/ui/Card';
@@ -382,7 +376,6 @@ export function Sidebar({ collapsed }: SidebarProps) {
   const [showEmptyTrashConfirm, setShowEmptyTrashConfirm] = useState(false);
   const [topExpanded, toggleTopExpanded] = useSidebarSectionState(SIDEBAR_TOP_EXPANDED_KEY, true);
   const [bottomExpanded, toggleBottomExpanded] = useSidebarSectionState(SIDEBAR_BOTTOM_EXPANDED_KEY, true);
-  const queryClient = useQueryClient();
 
   const {
     mainViewType,
@@ -394,11 +387,7 @@ export function Sidebar({ collapsed }: SidebarProps) {
   } = useNavigationStore();
 
   // Fetch workspace settings for sidebar visibility toggles
-  const { data: workspaceSettings } = useQuery({
-    queryKey: workspaceSettingsKeys.all,
-    queryFn: getWorkspaceSettings,
-    staleTime: 1000 * 60 * 5,
-  });
+  const { data: workspaceSettings } = useWorkspaceSettings();
 
   const showJournals = (workspaceSettings?.sidebar_show_journals as boolean | undefined) ?? true;
   const showInbox = (workspaceSettings?.sidebar_show_inbox as boolean | undefined) ?? true;
@@ -476,17 +465,7 @@ export function Sidebar({ collapsed }: SidebarProps) {
     }
   }, [inboxNode, openNode, openNodeInNewTab, closeMobileDrawer]);
 
-  const emptyTrashMutation = useMutation({
-    mutationFn: emptyTrash,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['trash'] });
-      queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
-      queryClient.invalidateQueries({ queryKey: ['nodes', 'linked-refs'], refetchType: 'active' });
-      queryClient.invalidateQueries({ queryKey: ['nodes', 'property-backlinks'], refetchType: 'active' });
-      queryClient.invalidateQueries({ queryKey: ['nodes', 'backlinks'], refetchType: 'active' });
-      setShowEmptyTrashConfirm(false);
-    },
-  });
+  const emptyTrashMutation = useEmptyTrash();
 
   const trashContextMenuItems: ContextMenuItem[] = useMemo(() => [
     {
@@ -743,7 +722,11 @@ export function Sidebar({ collapsed }: SidebarProps) {
       <ConfirmationModal
         isOpen={showEmptyTrashConfirm}
         onCancel={() => setShowEmptyTrashConfirm(false)}
-        onConfirm={() => emptyTrashMutation.mutate()}
+        onConfirm={() =>
+          emptyTrashMutation.mutate(undefined, {
+            onSuccess: () => setShowEmptyTrashConfirm(false),
+          })
+        }
         title="Empty Trash"
         message="This will permanently delete all items in the trash. This action cannot be undone."
         confirmLabel="Empty Trash"

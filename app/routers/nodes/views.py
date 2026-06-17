@@ -8,11 +8,11 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from ...dependencies import _get_node_view_repo, get_current_user, get_query_executor
+from ...dependencies import _get_node_view_repo, get_current_user, get_property_repository, get_query_executor
 from ...domain.entities.query_ast import QueryAST, create_default_query_ast
+from ...domain.repositories.interfaces import PropertyRepository, QueryRepository
 from ...domain.services.query_ast_validation import can_save_query, validate_query_ast
 from ...domain.services.query_language import QueryLanguageError, parse_query_language
-from ...domain.services.query_service import QueryExecutor
 from ...logging_config import get_logger
 from ...models import User
 from .helpers import _get_node_service, _resolve_referenced_display_names, extract_properties_dict
@@ -141,12 +141,6 @@ async def _resolve_display_names_for_results(user: User, results: list[dict[str,
             node["display_name"] = resolved_map[node_uuid]
 
     return results
-
-
-async def _get_property_repo(user: User):
-    """Get property repository for the current user."""
-    service = await _get_node_service(user)
-    return service.property_repo
 
 
 async def _include_classes_for_results(user: User, results: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -291,7 +285,10 @@ async def _include_children_for_results(
     return results
 
 
-async def _include_properties_for_results(user: User, results: list[dict[str, Any]]) -> list[dict[str, Any]]:
+async def _include_properties_for_results(
+    property_repo: PropertyRepository,
+    results: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
     """Fetch and attach properties for each node in results.
 
     This adds 'properties' to each node dict, populated with their property values.
@@ -301,8 +298,6 @@ async def _include_properties_for_results(user: User, results: list[dict[str, An
     """
     if not results:
         return results
-
-    property_repo = await _get_property_repo(user)
 
     # Collect all node IDs (including nested children) for batch fetching
     def _collect_node_ids(nodes: list[dict[str, Any]], ids: list[int]):
@@ -671,7 +666,8 @@ async def execute_node_view_query(
     view_id: int,
     request: QueryExecuteRequest | None = None,
     user: User = Depends(get_current_user),
-    executor: QueryExecutor = Depends(get_query_executor),
+    executor: QueryRepository = Depends(get_query_executor),
+    property_repo: PropertyRepository = Depends(get_property_repository),
 ) -> dict[str, Any]:
     """Execute a NodeView's query and return results.
 
@@ -764,7 +760,7 @@ async def execute_node_view_query(
         results = await _include_classes_for_results(user, results)
 
     if should_include_properties:
-        results = await _include_properties_for_results(user, results)
+        results = await _include_properties_for_results(property_repo, results)
 
     results = await _resolve_display_names_for_results(user, results)
 
@@ -785,7 +781,8 @@ async def execute_node_view_query(
 async def execute_query(
     request: QueryExecuteRequest,
     user: User = Depends(get_current_user),
-    executor: QueryExecutor = Depends(get_query_executor),
+    executor: QueryRepository = Depends(get_query_executor),
+    property_repo: PropertyRepository = Depends(get_property_repository),
 ) -> dict[str, Any]:
     """Execute a query directly (without saving).
 
@@ -842,7 +839,7 @@ async def execute_query(
         results = await _include_classes_for_results(user, results)
 
     if should_include_properties:
-        results = await _include_properties_for_results(user, results)
+        results = await _include_properties_for_results(property_repo, results)
 
     results = await _resolve_display_names_for_results(user, results)
 
@@ -872,7 +869,7 @@ async def parse_query_language_endpoint(
 async def count_query_results(
     request: QueryExecuteRequest,
     user: User = Depends(get_current_user),
-    executor: QueryExecutor = Depends(get_query_executor),
+    executor: QueryRepository = Depends(get_query_executor),
 ) -> dict[str, int]:
     """Count results for a query without fetching all data.
 

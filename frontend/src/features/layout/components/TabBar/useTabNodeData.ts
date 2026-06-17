@@ -2,12 +2,9 @@
  * useTabNodeData — fetch display data (icon, color, text) for tab nodes.
  */
 import { useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { useClasses } from '@/hooks/useNodes';
-import { nodeNameToText } from '@/hooks/useStringifyAST';
+import { useBatchNodes, useClasses } from '@/features/content';
+import { nodeNameToText } from '@/features/queries';
 import { getEffectiveIcon, getEffectiveColor } from '@/utils/nodeIcon';
-import { batchGetNodes } from '@/api/nodes';
-import { nodeKeys } from '@/hooks/queryKeys';
 import type { Node } from '@/types';
 
 export interface TabNodeDisplayData {
@@ -17,15 +14,7 @@ export interface TabNodeDisplayData {
 }
 
 export function useNodesDisplayData(nodeIds: number[]): Record<number, TabNodeDisplayData> {
-  const { data: batchResult } = useQuery({
-    queryKey: [...nodeKeys.all, 'tab-batch', ...nodeIds.sort((a, b) => a - b)],
-    queryFn: async () => {
-      if (nodeIds.length === 0) return { nodes: {} };
-      return batchGetNodes({ ids: nodeIds });
-    },
-    enabled: nodeIds.length > 0,
-    staleTime: 1000 * 60 * 5,
-  });
+  const { data: batchResult } = useBatchNodes(nodeIds);
 
   const { data: allClasses } = useClasses();
 

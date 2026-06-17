@@ -4,7 +4,7 @@ import type { SearchResult } from './CommandPalette.types';
 import { HighlightText } from './CommandPalette.utils';
 import { NodeIcon, BulletIcon, PropertiesIcon } from '@/components/ui/icons';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
-import { nodeNameToText } from '@/hooks/useStringifyAST';
+import { nodeNameToText } from '@/features/queries';
 import './CommandPalette.css';
 
 interface ResultItemProps {

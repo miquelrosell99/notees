@@ -102,19 +102,10 @@ export function TableSizeSelector({
     : hintText;
 
   return (
+    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- backdrop closes on click; grid buttons handle selection
     <div
-      role="button"
-      tabIndex={-1}
-      aria-label="Cancel table size selection"
       className="table-size-selector"
       onClick={handleBackdropClick}
-      onKeyDown={(e) => {
-        if (e.target !== e.currentTarget) return;
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          onCancel?.();
-        }
-      }}
     >
       <div className="table-size-selector__content">
         <div 

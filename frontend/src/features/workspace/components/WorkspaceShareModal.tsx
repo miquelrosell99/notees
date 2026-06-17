@@ -10,6 +10,10 @@ import { Dropdown } from '@/components/ui/Dropdown';
 import { Badge } from '@/components/ui/Badge';
 import { Icon } from '@/components/ui/icons';
 import { useAuthStore } from '@/stores';
+// Kept as a deep import to avoid a circular dependency: workspace exports
+// WorkspaceManagementView which uses this modal; shares pages import the content
+// barrel, and content imports the workspace barrel (ExportPageModal). Using the
+// shares barrel here would close the cycle workspace -> shares -> content -> workspace.
 import {
   useWorkspaceMembers,
   useInviteWorkspaceMember,

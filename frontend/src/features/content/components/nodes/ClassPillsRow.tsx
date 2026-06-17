@@ -130,19 +130,10 @@ export const ClassPillsRow = memo(function ClassPillsRow({
 
       {showPopup && (
         <>
+          {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- backdrop closes on click; explicit close button provided */}
           <div
-            role="button"
-            tabIndex={-1}
-            aria-label="Close classes popup"
             className="class-pills-popup-backdrop"
             onClick={handleClosePopup}
-            onKeyDown={(e) => {
-              if (e.target !== e.currentTarget) return;
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                handleClosePopup();
-              }
-            }}
           />
           <div
             className="class-pills-popup"
@@ -191,19 +182,10 @@ export const ClassPillsRow = memo(function ClassPillsRow({
 
       {showAddPopup && (
         <>
+          {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- backdrop closes on click; explicit close button provided */}
           <div
-            role="button"
-            tabIndex={-1}
-            aria-label="Close add class popup"
             className="class-pills-popup-backdrop"
             onClick={() => setShowAddPopup(false)}
-            onKeyDown={(e) => {
-              if (e.target !== e.currentTarget) return;
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                setShowAddPopup(false);
-              }
-            }}
           />
           <div
             className="class-pills-popup"

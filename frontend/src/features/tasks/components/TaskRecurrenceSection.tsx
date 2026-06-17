@@ -5,6 +5,9 @@
  * to the standard PropertiesSection so the legacy task_recurrence property
  * (kept for QueryAST filters) is no longer the only UI for recurrence.
  */
+// Kept as a deep import to avoid a circular dependency: the content barrel
+// exports NodeView, which renders TaskRecurrenceSection. If this component
+// imported the content barrel, we would get tasks -> content -> tasks.
 import { NodeViewSection } from '@/features/content/components/nodes/NodeViewSection';
 import { useDeleteTaskRecurrence, useSetTaskRecurrence, useTaskRecurrence } from '@/hooks';
 import { useNotifications } from '@/stores/notificationStore';

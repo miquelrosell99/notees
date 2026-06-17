@@ -6,7 +6,7 @@
  * send focus/blur/block-update events without prop-drilling.
  */
 
-import { getAuthToken } from '@/utils/auth';
+
 
 export interface LiveSyncUser {
   id: number;
@@ -123,11 +123,15 @@ export class LiveSyncManager {
     const nodeUuid = this.nodeUuid;
     if (!nodeUuid) return;
 
-    const token = getAuthToken();
-    if (!token) return;
-
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const url = `${protocol}//${window.location.host}/api/ws/live/${nodeUuid}?token=${encodeURIComponent(token)}`;
+    // Optional VITE_WS_URL lets deployments bypass the Vite dev proxy and
+    // connect directly to the backend WebSocket (e.g. ws://atlas:8000).
+    // Authentication is provided by the HTTPOnly access_token cookie, which
+    // is sent automatically for same-origin WebSocket handshakes.
+    const configuredUrl = import.meta.env.VITE_WS_URL as string | undefined;
+    const url = configuredUrl
+      ? `${configuredUrl}/api/ws/live/${nodeUuid}`
+      : `${protocol}//${window.location.host}/api/ws/live/${nodeUuid}`;
 
     let ws: WebSocket;
     try {

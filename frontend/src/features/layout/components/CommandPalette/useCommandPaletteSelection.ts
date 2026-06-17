@@ -76,7 +76,7 @@ export function useCommandPaletteSelection(params: UseCommandPaletteSelectionPar
             } else {
               dateNode = await getOrCreateYearly(pd.year);
             }
-            queryClient.invalidateQueries({ queryKey: [...nodeKeys.all, 'pages'] });
+            queryClient.invalidateQueries({ queryKey: nodeKeys.allPages() });
             queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
             queryClient.invalidateQueries({ queryKey: nodeKeys.dailyList() });
           }

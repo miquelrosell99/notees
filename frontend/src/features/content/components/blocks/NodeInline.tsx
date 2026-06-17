@@ -8,7 +8,7 @@
  * No editing, no stores, no legacy code.
  */
 import { useCallback } from 'react';
-import { nodeNameToText } from '@/hooks/useStringifyAST';
+import { nodeNameToText } from '@/features/queries/hooks/useStringifyAST';
 import { Bullet } from './Bullet';
 import { NodeIcon } from '@/components/ui/icons';
 import './NodeInline.css';

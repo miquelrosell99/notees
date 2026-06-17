@@ -63,7 +63,7 @@ async def create_share(
 
     # Generate static HTML for the share
     try:
-        node = await service._node_repo.get_by_id(node_id)
+        node = await service.get_node_by_id(node_id)
         if node is not None:
             await write_share_html(share.uuid, share.workspace_id, node.uuid)
     except (OSError, ValueError):

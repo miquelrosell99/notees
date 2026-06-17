@@ -22,6 +22,7 @@ from .recurrence_engine import has_ended, next_occurrence
 
 if TYPE_CHECKING:
     from ..repositories.interfaces import (
+        PropertyRepository,
         TaskCompletionRepository,
         TaskRecurrenceRepository,
     )
@@ -34,13 +35,16 @@ class TaskAutomationService:
     def __init__(
         self,
         node_service: NodeService,
+        property_repository: PropertyRepository,
         recurrence_repo: TaskRecurrenceRepository,
         completion_repo: TaskCompletionRepository,
+        user_id: int | None = None,
     ) -> None:
         self._node_service = node_service
-        self._prop_repo = node_service.property_repo
+        self._prop_repo = property_repository
         self._recurrence_repo = recurrence_repo
         self._completion_repo = completion_repo
+        self._user_id = user_id
 
     @property
     def node_service(self) -> NodeService:
@@ -137,7 +141,7 @@ class TaskAutomationService:
             scheduled_date=scheduled_info,
             deadline_date=deadline_info,
             status=status_name.lower(),
-            completed_by=self._prop_repo.user_id,
+            completed_by=self._user_id,
         )
         await self._completion_repo.create(completion)
 

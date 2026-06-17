@@ -1,11 +1,8 @@
 import { useState, useCallback, memo } from 'react';
 import { useNavigationStore } from '@/stores';
 import { useNode, useIsMobile } from '@/hooks';
-import { nodeNameToText } from '@/hooks/useStringifyAST';
-import { useRecents } from '@/hooks/useRecents';
-import { useNodeDisplay } from '@/hooks/useNodeDisplay';
-import { NodeInline } from '@/features/content/components/blocks/NodeInline';
-import { NodeBreadcrumbs } from '@/features/content/components/nodes/NodeBreadcrumbs';
+import { nodeNameToText } from '@/features/queries';
+import { useRecents, useNodeDisplay, NodeInline, NodeBreadcrumbs } from '@/features/content';
 import {
   ClockIcon,
   ChevronDownIcon,
@@ -33,23 +30,14 @@ const RecentItem = memo(function RecentItem({ nodeId, isActive, onClick, onNavig
     onClick(e as React.MouseEvent);
   }, [onClick]);
 
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      handleClick({} as React.MouseEvent);
-    }
-  }, [handleClick]);
-
   if (!node) return <div className="sidebar-item-skeleton" />;
 
   return (
-    <div
-      role="button"
-      tabIndex={0}
+    <button
+      type="button"
       aria-label={node ? nodeNameToText(node.name) || 'Untitled' : 'Loading recent'}
       onClick={handleClick}
       onContextMenu={onContextMenu}
-      onKeyDown={handleKeyDown}
       className={`sidebar-recent-item ${isActive ? 'active' : ''}`}
     >
       <div className="sidebar-recent-block">
@@ -72,7 +60,7 @@ const RecentItem = memo(function RecentItem({ nodeId, isActive, onClick, onNavig
           draggable={true}
         />
       </div>
-    </div>
+    </button>
   );
 });
 

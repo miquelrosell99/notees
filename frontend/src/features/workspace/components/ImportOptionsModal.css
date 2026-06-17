@@ -239,3 +239,18 @@
   align-items: center;
   flex-shrink: 0;
 }
+
+.import-unified__progress {
+  padding: var(--spacing-2) 0;
+}
+
+.import-unified__report-message {
+  padding: var(--spacing-4) 0;
+  text-align: center;
+}
+
+.import-unified__report-success {
+  font-size: var(--font-size-body-xl);
+  color: var(--color-success);
+  margin: 0;
+}

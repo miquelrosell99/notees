@@ -8,7 +8,7 @@
  * world position.
  */
 import React, { useMemo, useCallback, useRef, useState, useEffect } from 'react';
-import type { UseWhiteboardReturn } from '@/hooks/useWhiteboard';
+import type { UseWhiteboardReturn } from '@/features/content/hooks/useWhiteboard';
 import type {
   Bounds,
   WhiteboardElement,

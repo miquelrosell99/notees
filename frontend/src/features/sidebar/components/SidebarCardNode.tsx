@@ -7,7 +7,7 @@
  */
 import { useCallback } from 'react';
 import { useNode } from '@/hooks';
-import { nodeNameToText } from '@/hooks/useStringifyAST';
+import { nodeNameToText } from '@/features/queries/hooks/useStringifyAST';
 import { useNavigationStore } from '@/stores';
 import { SidebarCard } from './SidebarCard';
 import { SidebarNodeView } from './SidebarNodeView';

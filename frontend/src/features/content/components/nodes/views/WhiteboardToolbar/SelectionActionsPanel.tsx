@@ -3,7 +3,7 @@ import { FloatingButtonArray, ToolbarDivider } from '@/components/ui/FloatingBut
 import { Button } from '@/components/ui/Button';
 import { SelectionButton } from '@/components/ui/SelectionButton';
 import type { StrokeStyle, WhiteboardConnectorElement } from '@/types/whiteboard';
-import type { UseWhiteboardReturn } from '@/hooks/useWhiteboard';
+import type { UseWhiteboardReturn } from '@/features/content/hooks/useWhiteboard';
 import { STROKE_STYLE_OPTIONS } from './constants';
 
 export interface SelectionActionsPanelProps {

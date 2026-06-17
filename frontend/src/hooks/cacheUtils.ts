@@ -12,7 +12,8 @@
 import type { Query, QueryClient, QueryCache } from '@tanstack/react-query';
 import type { Node, LinkedReference, PropertyBacklink } from '@/types/api';
 import { nodeKeys } from './queryKeys';
-import { nodeViewKeys } from './useNodeViews';
+import { nodeViewKeys } from '@/features/content/hooks/useNodeViews';
+
 
 // =============================================================================
 // Cache Finders
@@ -75,7 +76,7 @@ export function findLinkedRefCaches(queryCache: QueryCache): Query[] {
  * Find all property-backlinks caches.
  */
 export function findPropertyBacklinkCaches(queryCache: QueryCache): Query[] {
-  return queryCache.findAll({ queryKey: ['nodes', 'property-backlinks'] });
+  return queryCache.findAll({ queryKey: nodeKeys.allPropertyBacklinks() });
 }
 
 // =============================================================================

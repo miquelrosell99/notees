@@ -26,7 +26,7 @@ import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import { useBreadcrumbs, useUpdateNode } from '@/hooks';
 import { useQueryClient } from '@tanstack/react-query';
 import { nodeKeys } from '@/hooks/queryKeys';
-import { nodeNameToText } from '@/hooks/useStringifyAST';
+import { nodeNameToText } from '@/features/queries/hooks/useStringifyAST';
 import { useClickOutside } from '@/hooks/useClickOutside';
 import { ChevronRightIcon, NodeIcon } from '@/components/ui/icons';
 import { Button } from '@/components/ui/Button';
@@ -350,7 +350,7 @@ export function NodeBreadcrumbs({
   // ─── Parent editing handlers ──────────────────────────────────────────
   /** Broad breadcrumb cache invalidation — all ancestors of any node may be stale */
   const invalidateBreadcrumbs = useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: [...nodeKeys.all, 'breadcrumbs'], refetchType: 'active' });
+    queryClient.invalidateQueries({ queryKey: nodeKeys.breadcrumbsAll(), refetchType: 'active' });
   }, [queryClient]);
 
   /**

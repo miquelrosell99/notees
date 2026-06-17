@@ -9,8 +9,9 @@ import './OnboardingView.css';
 import { Button } from '@/components/ui/Button';
 import { Spinner } from '@/components/ui/Spinner';
 import { TextField } from '@/components/ui/TextField';
+import { Checkbox } from '@/components/ui/Checkbox';
 import { register } from '@/features/auth/api/auth';
-import { setAuthToken, setUserData } from '@/utils/auth';
+import { setUserData } from '@/utils/auth';
 import { useAuthStore } from '@/stores';
 
 interface OnboardingViewProps {
@@ -33,6 +34,7 @@ export function OnboardingView({ onComplete }: OnboardingViewProps) {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [name, setName] = useState('');
+  const [rememberMe, setRememberMe] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -58,8 +60,7 @@ export function OnboardingView({ onComplete }: OnboardingViewProps) {
     setIsLoading(true);
 
     try {
-      const response = await register({ email, password, name });
-      setAuthToken(response.access_token);
+      const response = await register({ email, password, name, remember_me: rememberMe });
       setUserData(response.user);
       useAuthStore.getState().setUser(response.user);
       onComplete();
@@ -125,6 +126,14 @@ export function OnboardingView({ onComplete }: OnboardingViewProps) {
             placeholder="Re-enter password"
             required
             autoComplete="new-password"
+          />
+
+          <Checkbox
+            id="onboarding-remember-me"
+            name="remember-me"
+            label="Keep me signed in"
+            checked={rememberMe}
+            onChange={(e) => setRememberMe(e.target.checked)}
           />
 
           {passwordError && <div className="error-message">{passwordError}</div>}

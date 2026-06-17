@@ -15,7 +15,10 @@ Sync redesign (v2):
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from typing import Any
+
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 
 from ..dependencies import (
     get_current_user,
@@ -31,6 +34,12 @@ from ..models import (
 )
 from ..utils import utc_now
 from ..workspace_manager import get_active_workspace_id
+
+
+class SettingValueRequest(BaseModel):
+    """Request body for setting a user or workspace setting value."""
+
+    value: Any
 
 router = APIRouter(tags=["Sync & Settings"])
 logger = get_logger(__name__)
@@ -69,14 +78,12 @@ async def get_settings(
 @router.put("/settings/{key}")
 async def set_setting(
     key: str,
-    request: Request,
+    body: SettingValueRequest,
     user: User = Depends(get_current_user),
     repo: SettingsRepository = Depends(get_settings_repository),
 ):
     """Set a user setting."""
-    data = await request.json()
-    value = data.get("value")
-    await repo.set_user_setting(int(user.id), key, value, utc_now())
+    await repo.set_user_setting(int(user.id), key, body.value, utc_now())
     return {"status": "ok"}
 
 
@@ -98,13 +105,11 @@ async def get_workspace_settings(
 @router.put("/workspace-settings/{key}")
 async def set_workspace_setting(
     key: str,
-    request: Request,
+    body: SettingValueRequest,
     user: User = Depends(get_current_user),
     repo: SettingsRepository = Depends(get_settings_repository),
 ):
     """Set a workspace setting."""
-    data = await request.json()
-    value = data.get("value")
     user_id = int(user.id)
     active_uuid = get_active_workspace_id(str(user_id))
     if not active_uuid:
@@ -112,5 +117,5 @@ async def set_workspace_setting(
     workspace_id = await repo.get_workspace_id_by_uuid(active_uuid)
     if workspace_id is None:
         raise HTTPException(status_code=404, detail="Workspace not found")
-    await repo.set_workspace_setting(workspace_id, key, value, utc_now(), user_id)
+    await repo.set_workspace_setting(workspace_id, key, body.value, utc_now(), user_id)
     return {"status": "ok"}

@@ -10,10 +10,10 @@
 import React, { useMemo, useCallback } from 'react';
 import { Spinner } from '@/components/ui/Spinner';
 import type { WhiteboardCardElement } from '@/types/whiteboard';
-import { useNode } from '@/hooks/useNodes';
+import { useNode } from '@/features/content/hooks/useNodes';
 import { NodeCard } from './KanbanCard';
 
-import { apiNodesToGraphNodes } from '@/hooks/useRuntimeSync';
+import { apiNodesToGraphNodes } from '@/features/content/hooks/useRuntimeSync';
 import type { Node } from '@/types/api';
 import { upsertNodes } from '@/runtime/eventBus';
 

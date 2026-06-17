@@ -18,7 +18,6 @@ export interface WorkerRequest {
   /** Absolute path, e.g. /api/nodes/42/linked-references */
   url: string;
   body?: unknown;
-  token: string | null;
 }
 
 export interface WorkerResponse {
@@ -35,19 +34,17 @@ export interface WorkerResponse {
 // ─── Request handler ────────────────────────────────────────────────────────
 
 self.onmessage = async (event: MessageEvent<WorkerRequest>) => {
-  const { id, method, url, body, token } = event.data;
+  const { id, method, url, body } = event.data;
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
 
   try {
     const response = await fetch(url, {
       method,
       headers,
+      credentials: 'same-origin',
       body: body !== undefined ? JSON.stringify(body) : undefined,
     });
 

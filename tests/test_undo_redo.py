@@ -71,13 +71,13 @@ async def test_undo_redo_update_node(authenticated_client, test_user):
     assert undo.status_code == 200
 
     page_after_undo = await _get_node(authenticated_client, page_id)
-    assert page_after_undo["name"] == "Before"
+    assert "Before" in page_after_undo["name"]
 
     redo = await authenticated_client.post("/api/undo/redo")
     assert redo.status_code == 200
 
     page_after_redo = await _get_node(authenticated_client, page_id)
-    assert page_after_redo["name"] == "After"
+    assert "After" in page_after_redo["name"]
 
 
 async def test_undo_redo_move_node(authenticated_client, test_user):

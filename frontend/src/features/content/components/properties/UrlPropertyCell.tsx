@@ -86,33 +86,29 @@ export function UrlPropertyCell({
     );
   }
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (!editable) return;
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      handleClick();
-    }
-  };
-
-  return (
-    <div
-      role="button"
-      tabIndex={editable ? 0 : -1}
-      aria-label={urlValue}
-      className="property-cell property-cell--url"
-      onClick={editable ? handleClick : undefined}
-      onKeyDown={handleKeyDown}
-    >
+  if (!editable) {
+    return (
       <a
         href={urlValue}
         target="_blank"
         rel="noopener noreferrer"
-        className="property-cell__link"
-        tabIndex={editable ? -1 : 0}
-        onClick={(e) => { if (editable) e.preventDefault(); }}
+        className="property-cell property-cell--url property-cell__link"
       >
         {urlValue}
       </a>
-    </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      aria-label={urlValue}
+      className="property-cell property-cell--url"
+      onClick={handleClick}
+    >
+      <span className="property-cell__link">
+        {urlValue}
+      </span>
+    </button>
   );
 }

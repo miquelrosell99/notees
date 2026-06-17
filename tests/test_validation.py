@@ -1,8 +1,10 @@
 """Tests for input validation on node create and update operations."""
 import pytest
+from pydantic import ValidationError as PydanticValidationError
 
 from app.domain.entities import NodeCreateData, NodeUpdateData
 from app.domain.validation import ValidationError
+from app.models import InviteAcceptRequest
 
 
 class TestInputValidation:
@@ -62,3 +64,31 @@ class TestInputValidation:
 
         with pytest.raises(ValidationError):
             await node_service.update_node(node.id, update_data)
+
+
+class TestInviteAcceptPasswordValidation:
+    """Test password complexity validation on invite acceptance."""
+
+    def test_invite_accept_allows_none_password(self):
+        """Existing users accepting an invite do not supply a password."""
+        request = InviteAcceptRequest(token="abc", password=None, name="Test")
+        assert request.password is None
+
+    def test_invite_accept_rejects_weak_password(self):
+        """New accounts must provide a password meeting complexity rules."""
+        with pytest.raises(PydanticValidationError) as exc_info:
+            InviteAcceptRequest(token="abc", password="weak", name="Test")
+
+        assert "at least 8 characters" in str(exc_info.value)
+
+    def test_invite_accept_rejects_password_without_uppercase(self):
+        """Passwords must contain an uppercase letter."""
+        with pytest.raises(PydanticValidationError) as exc_info:
+            InviteAcceptRequest(token="abc", password="lowercase1!", name="Test")
+
+        assert "uppercase" in str(exc_info.value).lower()
+
+    def test_invite_accept_accepts_strong_password(self):
+        """A valid complex password is accepted."""
+        request = InviteAcceptRequest(token="abc", password="Strong1!Pass", name="Test")
+        assert request.password == "Strong1!Pass"

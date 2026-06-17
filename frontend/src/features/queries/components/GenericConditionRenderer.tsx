@@ -12,8 +12,8 @@ import { SelectionButton } from '@/components/ui/SelectionButton';
 import { NodeSelector } from '@/features/content/components/nodes/NodeSelector';
 
 import { useNode, useProperties } from '@/hooks';
-import { useNodeByUuid } from '@/hooks/useNodeQueries';
-import { useCurrentNodeUuid } from '@/hooks/useCurrentNodeUuid';
+import { useNodeByUuid } from '@/features/content/hooks/useNodeQueries';
+import { useCurrentNodeUuid } from '@/features/content/hooks/useCurrentNodeUuid';
 import type { ConditionNode, StyleType } from '@/types/queryAST';
 import { 
   getConditionConfig, 

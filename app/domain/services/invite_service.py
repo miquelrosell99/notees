@@ -37,11 +37,14 @@ class InviteService:
         """Accept a pending invitation and return the user record.
 
         Raises:
-            ValueError: If the invite is not found.
-            HTTPException-friendly errors are not raised here; callers in the
-            router translate domain errors to HTTP responses.
+            ValueError: If the invite is not found or expired.
+            RegistrationDisabledError: If registration is disabled and the user
+                does not already exist.
+            PasswordRequiredError: If a password is required to create the
+                account.
         """
-        from fastapi import HTTPException
+        from ...models import _validate_password_strength
+        from ..errors import PasswordRequiredError, RegistrationDisabledError
 
         invite = await self._invite_repo.get_pending_invite(token)
         if not invite:
@@ -59,10 +62,12 @@ class InviteService:
         else:
             is_first = await self._auth.is_first_boot()
             if not self._auth.settings.registration_enabled and not is_first:
-                raise HTTPException(status_code=403, detail="Registration is disabled")
+                raise RegistrationDisabledError()
 
             if not password:
-                raise HTTPException(status_code=400, detail="Password is required to create account")
+                raise PasswordRequiredError()
+
+            _validate_password_strength(password)
 
             role = "admin" if is_first else "user"
             user = await self._auth.create_user(

@@ -1,7 +1,8 @@
-import { Bullet } from '@/features/content/components/blocks/Bullet';
-import { NodeViewSection } from '@/features/content/components/nodes/NodeViewSection';
+import type { CSSProperties } from 'react';
+import { Bullet, NodeViewSection } from '@/features/content';
 import { Icon } from '@/components/ui/icons';
 import { useNavigationStore } from '@/stores';
+import './SidebarToc.css';
 
 interface TocEntry {
   id: number;
@@ -32,7 +33,7 @@ export function SidebarToc({ entries, onTocClick }: SidebarTocProps) {
           <div
             key={entry.id}
             className="sidebar-toc-item"
-            style={{ paddingLeft: `${(entry.level - 1) * 12}px` }}
+            style={{ '--toc-level': entry.level - 1 } as CSSProperties}
           >
             <Bullet
               nodeId={entry.id}

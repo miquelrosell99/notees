@@ -7,6 +7,7 @@ import { copyToClipboard } from '@/utils/clipboardManager';
 import { renderProseWithLinks } from './helpers';
 import type { QueryAST } from '@/types/queryAST';
 import type { Node } from '@/types';
+import './QueryPreviewModal.css';
 
 export interface QueryPreviewModalProps {
   isOpen: boolean;
@@ -37,46 +38,21 @@ export function QueryPreviewModal({ isOpen, editAST, nodesMap, onClose, onNodeLi
       className="query-preview-modal"
     >
       {editAST && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-6)' }}>
+        <div className="query-preview-modal__content">
           {/* Prose description */}
-          <div>
-            <h4 style={{
-              fontSize: 'var(--font-size-button)',
-              fontWeight: 600,
-              color: 'var(--text-secondary)',
-              marginBottom: 'var(--spacing-3)',
-              textTransform: 'uppercase',
-              letterSpacing: '0.5px',
-            }}>
+          <div className="query-preview-modal__section">
+            <h4 className="query-preview-modal__section-title">
               Natural Language
             </h4>
-            <div style={{
-              padding: 'var(--spacing-4)',
-              fontSize: 'var(--font-size-body-lg)',
-              lineHeight: '1.6',
-              color: 'var(--text-primary)',
-              backgroundColor: 'var(--bg-secondary)',
-              borderRadius: 'var(--shape-small)',
-            }}>
+            <div className="query-preview-modal__prose">
               {renderProseWithLinks(getQueryIntent(editAST, nodesMap), onNodeLinkClick)}
             </div>
           </div>
 
           {/* AST Section */}
-          <div>
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              marginBottom: 'var(--spacing-3)',
-            }}>
-              <h4 style={{
-                fontSize: 'var(--font-size-button)',
-                fontWeight: 600,
-                color: 'var(--text-secondary)',
-                textTransform: 'uppercase',
-                letterSpacing: '0.5px',
-              }}>
+          <div className="query-preview-modal__section">
+            <div className="query-preview-modal__section-header">
+              <h4 className="query-preview-modal__section-title">
                 Query Structure
               </h4>
               <Button
@@ -88,60 +64,28 @@ export function QueryPreviewModal({ isOpen, editAST, nodesMap, onClose, onNodeLi
                 Copy
               </Button>
             </div>
-            <pre style={{
-              padding: 'var(--spacing-4)',
-              fontSize: 'var(--font-size-button)',
-              lineHeight: '1.5',
-              backgroundColor: 'var(--bg-tertiary)',
-              borderRadius: 'var(--shape-small)',
-              overflow: 'auto',
-              maxHeight: '18.75rem',
-              color: 'var(--text-primary)',
-            }}>
+            <pre className="query-preview-modal__code">
               {JSON.stringify(editAST, null, 2)}
             </pre>
           </div>
 
           {/* SQL Section */}
-          <div>
+          <div className="query-preview-modal__section">
             {!showSQL ? (
               <button
                 type="button"
                 onClick={() => setShowSQL(true)}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  padding: 'var(--spacing-2) 0',
-                  fontSize: 'var(--font-size-button)',
-                  color: 'var(--text-tertiary)',
-                  cursor: 'pointer',
-                  textDecoration: 'underline',
-                }}
+                className="query-preview-modal__toggle"
               >
                 Show SQL preview
               </button>
             ) : (
               <>
-                <div style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 'var(--spacing-1)',
-                  marginBottom: 'var(--spacing-3)',
-                }}>
-                  <h4 style={{
-                    fontSize: 'var(--font-size-button)',
-                    fontWeight: 600,
-                    color: 'var(--text-secondary)',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.5px',
-                  }}>
+                <div className="query-preview-modal__sql-header">
+                  <h4 className="query-preview-modal__section-title">
                     Execution Preview
                   </h4>
-                  <span style={{
-                    fontSize: 'var(--font-size-sm)',
-                    color: 'var(--text-tertiary)',
-                    fontStyle: 'italic',
-                  }}>
+                  <span className="query-preview-modal__metric">
                     (informational only)
                   </span>
                 </div>
@@ -149,16 +93,7 @@ export function QueryPreviewModal({ isOpen, editAST, nodesMap, onClose, onNodeLi
                 <button
                   type="button"
                   onClick={() => setShowSQL(false)}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    padding: 'var(--spacing-2) 0',
-                    marginTop: 'var(--spacing-2)',
-                    fontSize: 'var(--font-size-button)',
-                    color: 'var(--text-tertiary)',
-                    cursor: 'pointer',
-                    textDecoration: 'underline',
-                  }}
+                  className="query-preview-modal__toggle"
                 >
                   Hide
                 </button>

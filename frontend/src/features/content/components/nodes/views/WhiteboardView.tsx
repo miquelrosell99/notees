@@ -16,10 +16,10 @@ import { WhiteboardCanvas } from './WhiteboardCanvas';
 import { WhiteboardToolbar } from './WhiteboardToolbar';
 import { WhiteboardContextMenu } from './WhiteboardContextMenu';
 import { WhiteboardMinimap } from './WhiteboardMinimap';
-import { useWhiteboard } from '@/hooks/useWhiteboard';
-import { useCreateNode, useDeleteNode } from '@/hooks/useNodes';
+import { useWhiteboard } from '@/features/content/hooks/useWhiteboard';
+import { useCreateNode, useDeleteNode } from '@/features/content/hooks/useNodes';
 import { useNavigationStore } from '@/stores';
-import { useWhiteboardStore } from '@/stores/whiteboardStore';
+import { useWhiteboardViewSettings } from '@/features/content/hooks/useWhiteboardSelectors';
 import { LinkEditModal, type LinkEditResult } from '@/features/content/editor/components/LinkEditModal';
 import type { WhiteboardCardElement } from '@/types/whiteboard';
 import { createElementId } from '@/types/whiteboard';
@@ -37,7 +37,7 @@ export const WhiteboardView: React.FC<WhiteboardViewProps> = ({ nodeId }) => {
   const createNode = useCreateNode();
   const deleteNode = useDeleteNode();
   const openNode = useNavigationStore(s => s.openNode);
-  const { gridVisible, gridSize, minimapVisible } = useWhiteboardStore();
+  const { gridVisible, gridSize, minimapVisible } = useWhiteboardViewSettings();
 
   // Context menu state
   const [contextMenu, setContextMenu] = useState<{

@@ -3,18 +3,13 @@
  * 
  * Fetches directly from the /trash endpoint instead of using query system.
  */
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { nodeNameToText } from '@/hooks/useStringifyAST';
+import { nodeNameToText } from '@/features/queries/hooks/useStringifyAST';
 import { NodeCollection } from '@/features/content/components/nodes/NodeCollection';
 import { NodeCollectionToolbar } from '@/features/content/components/nodes/NodeCollectionToolbar';
 import { TrashIcon } from '@/components/ui/icons';
 import { TrashNodeContextMenu } from '@/features/content/components/nodes/TrashNodeContextMenu';
 import { useNavigationStore } from '@/stores';
-import { getTrash, restoreNode, permanentlyDeleteNode, emptyTrash, batchPermanentlyDeleteNodes } from '@/api/nodes';
-import { nodeKeys } from '@/hooks/useNodes';
-import { favoriteKeys, recentKeys } from '@/hooks/queryKeys';
-import { isFavorite, removeFavorite } from '@/hooks/useFavorites';
-import { removeRecent } from '@/hooks/useRecents';
+import { useTrash, useTrashMutations } from '@/features/content';
 import type { Node } from '@/types';
 import { copyToClipboard } from '@/utils/clipboardManager';
 import type { NodeCollectionViewMode } from '@/types/nodeCollection';
@@ -35,78 +30,15 @@ export function TrashView({ className = '' }: TrashViewProps) {
   const [showEmptyConfirm, setShowEmptyConfirm] = useState(false);
   const [showDeleteSelectedConfirm, setShowDeleteSelectedConfirm] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
-  const queryClient = useQueryClient();
-  
-  // Fetch trash directly from API
-  const { data: nodes, isLoading, error, refetch } = useQuery({
-    queryKey: ['trash'],
-    queryFn: () => getTrash(),
-    select: (data) => data.items,
-  });
-  
-  // Mutations for restore and delete
-  const restoreMutation = useMutation({
-    mutationFn: restoreNode,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['trash'] });
-      queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
-      queryClient.invalidateQueries({ queryKey: ['nodes', 'linked-refs'], refetchType: 'active' });
-      queryClient.invalidateQueries({ queryKey: ['nodes', 'property-backlinks'], refetchType: 'active' });
-      queryClient.invalidateQueries({ queryKey: ['nodes', 'backlinks'], refetchType: 'active' });
-    },
-  });
-  
-  const permanentDeleteMutation = useMutation({
-    mutationFn: permanentlyDeleteNode,
-    onSuccess: (_data, nodeId) => {
-      queryClient.invalidateQueries({ queryKey: ['trash'] });
-      queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
-      queryClient.invalidateQueries({ queryKey: ['nodes', 'linked-refs'], refetchType: 'active' });
-      queryClient.invalidateQueries({ queryKey: ['nodes', 'property-backlinks'], refetchType: 'active' });
-      queryClient.invalidateQueries({ queryKey: ['nodes', 'backlinks'], refetchType: 'active' });
-      if (isFavorite(nodeId)) {
-        removeFavorite(nodeId).catch(() => {});
-      }
-      removeRecent(nodeId);
-    },
-  });
 
-  const emptyTrashMutation = useMutation({
-    mutationFn: emptyTrash,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['trash'] });
-      queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
-      queryClient.invalidateQueries({ queryKey: ['nodes', 'linked-refs'], refetchType: 'active' });
-      queryClient.invalidateQueries({ queryKey: ['nodes', 'property-backlinks'], refetchType: 'active' });
-      queryClient.invalidateQueries({ queryKey: ['nodes', 'backlinks'], refetchType: 'active' });
-      setShowEmptyConfirm(false);
-      queryClient.invalidateQueries({ queryKey: favoriteKeys.all });
-      queryClient.invalidateQueries({ queryKey: recentKeys.all });
-    },
-  });
+  const { data: nodes, isLoading, error, refetch } = useTrash();
+  const { restore, permanentDelete, emptyTrash: emptyTrashMutation, batchDelete: batchDeleteMutation } = useTrashMutations();
 
-  const batchDeleteMutation = useMutation({
-    mutationFn: (ids: number[]) => batchPermanentlyDeleteNodes({ ids }),
-    onSuccess: (_data, ids) => {
-      queryClient.invalidateQueries({ queryKey: ['trash'] });
-      queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
-      queryClient.invalidateQueries({ queryKey: ['nodes', 'linked-refs'], refetchType: 'active' });
-      queryClient.invalidateQueries({ queryKey: ['nodes', 'property-backlinks'], refetchType: 'active' });
-      queryClient.invalidateQueries({ queryKey: ['nodes', 'backlinks'], refetchType: 'active' });
-      setSelectedIds(new Set());
-      setShowDeleteSelectedConfirm(false);
-      for (const nodeId of ids) {
-        if (isFavorite(nodeId)) {
-          removeFavorite(nodeId).catch(() => {});
-        }
-        removeRecent(nodeId);
-      }
-    },
-  });
-  
   // Handle empty trash confirmation
   const handleEmptyTrashConfirm = useCallback(() => {
-    emptyTrashMutation.mutate();
+    emptyTrashMutation.mutate(undefined, {
+      onSuccess: () => setShowEmptyConfirm(false),
+    });
   }, [emptyTrashMutation]);
   
   // Toggle node selection (shift+click)
@@ -152,7 +84,7 @@ export function TrashView({ className = '' }: TrashViewProps) {
         id: 'restore',
         label: 'Restore',
         onClick: () => {
-          restoreMutation.mutate(node.id);
+          restore.mutate(node.id);
           closeMenu();
         },
       },
@@ -171,13 +103,13 @@ export function TrashView({ className = '' }: TrashViewProps) {
         danger: true,
         onClick: () => {
           if (confirm(`Permanently delete "${nodeNameToText(node.name) || 'Untitled'}"? This cannot be undone.`)) {
-            permanentDeleteMutation.mutate(node.id);
+            permanentDelete.mutate(node.id);
           }
           closeMenu();
         },
       },
     ];
-  }, [restoreMutation, permanentDeleteMutation, selectedIds, handleNodeShiftClick]);
+  }, [restore, permanentDelete, selectedIds, handleNodeShiftClick]);
   
   return (
     <article className={`node-view node-view--page trash-view ${className}`}>
@@ -282,7 +214,14 @@ export function TrashView({ className = '' }: TrashViewProps) {
         confirmLabel="Delete Selected"
         cancelLabel="Cancel"
         variant="danger"
-        onConfirm={() => batchDeleteMutation.mutate([...selectedIds])}
+        onConfirm={() =>
+          batchDeleteMutation.mutate([...selectedIds], {
+            onSuccess: () => {
+              setSelectedIds(new Set());
+              setShowDeleteSelectedConfirm(false);
+            },
+          })
+        }
         onCancel={() => setShowDeleteSelectedConfirm(false)}
       />
     </article>

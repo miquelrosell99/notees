@@ -1,0 +1,11 @@
+.table-creation-modal__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  gap: var(--spacing-3);
+}
+
+.table-creation-modal__spacer {
+  margin-left: auto;
+}

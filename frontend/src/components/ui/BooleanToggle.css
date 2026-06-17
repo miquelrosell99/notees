@@ -116,7 +116,7 @@
 
 .toggle-on-text {
   left: var(--spacing-1);
-  color: var(--color-on-primary);
+  color: var(--color-on-accent);
   opacity: var(--opacity-0);
 }
 
@@ -133,21 +133,21 @@
 
 /* States */
 .toggle-input:hover + .toggle-track {
-  box-shadow: var(--shadow-inset-primary-ring);
+  box-shadow: var(--shadow-inset-accent-ring);
 }
 
 .toggle-input:focus-visible + .toggle-track {
-  outline: var(--border-width-thick) solid var(--color-primary);
+  outline: var(--border-width-thick) solid var(--color-accent);
   outline-offset: var(--spacing-micro);
 }
 
 .toggle-input:checked + .toggle-track {
-  background: var(--color-primary);
+  background: var(--color-accent);
   box-shadow: none;
 }
 
 .toggle-input:checked + .toggle-track .toggle-thumb {
-  background: var(--color-on-primary);
+  background: var(--color-on-accent);
   box-shadow: none;
 }
 

@@ -14,12 +14,12 @@
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import { copyToClipboard } from '@/utils/clipboardManager';
 import { useUpdateNode, useClasses, useCreateNode, usePageClass, useClassClass, useAddClass } from '@/hooks';
-import { nodeNameToText } from '@/hooks/useStringifyAST';
+import { nodeNameToText } from '@/features/queries';
 import { listNodes } from '@/api/nodes';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
 import { parseIconField, formatIconField } from '@/utils/iconDom';
 import { useNavigationStore } from '@/stores';
-import { useAuthStore } from '@/features/auth/stores/authStore';
+import { useAuthStore } from '@/features/auth';
 import { useLivePresenceStore } from '@/stores/livePresenceStore';
 import { liveSyncManager } from '@/collab/LiveSyncManager';
 import type { Node, NodeUpdate } from '@/types';

@@ -7,20 +7,13 @@
 import React, { useMemo, Suspense } from 'react';
 import { LoadingScreen } from '@/components/ui/LoadingScreen';
 import { useNode, useClasses } from '@/hooks';
-import { useSystemClasses } from '@/hooks/usePageClass';
+import { useSystemClasses, NodeViewWrapper, NodeViewContent, PagesView, ArchivedPagesView, TrashView, WhiteboardsView } from '@/features/content';
 import { useNavigationStore } from '@/stores';
 import { getEffectiveColor } from '@/utils/nodeIcon';
-import {
-  NodeViewWrapper,
-  NodeViewContent,
-  PagesView,
-  ArchivedPagesView,
-  TrashView,
-  WhiteboardsView,
-} from '@/features/content';
 import { JournalsView } from '@/features/journals/pages/JournalsView';
-import { TasksView } from '@/features/tasks/pages/TasksView';
+import { TasksView } from '@/features/tasks';
 import type { Tab } from '@/stores/navigationStore';
+import './MainContentPane.css';
 
 const PropertyViewFull = React.lazy(() => import('@/features/content/pages/PropertyView').then(m => ({ default: m.PropertyViewFull })));
 const WhiteboardView = React.lazy(() => import('@/features/content/components/nodes/views/WhiteboardView').then(m => ({ default: m.WhiteboardView })));
@@ -160,7 +153,7 @@ export function MainContentPane({ tab, onNavigateToNode }: MainContentPaneProps)
 
   if (isWhiteboard && currentNode) {
     return (
-      <main className="main-content" style={{ padding: 0, overflow: 'hidden' }}>
+      <main className="main-content main-content--whiteboard">
         <Suspense fallback={<LoadingScreen fullscreen={false} label="Loading…" />}>
           <WhiteboardView nodeId={currentNode.id} nodeUuid={currentNode.uuid} />
         </Suspense>

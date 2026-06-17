@@ -4,15 +4,16 @@
  * Renders the active tab (or split pane with two tabs).
  */
 import { useMemo, useEffect, useRef } from 'react';
-import { useNavigationStore } from '@/stores';
+import { useTabState, useOpenNode } from '@/features/layout/hooks/useNavigationSelectors';
 import { useQueryClient } from '@tanstack/react-query';
 import { nodeKeys } from '@/hooks/queryKeys';
-import { nodeViewKeys } from '@/hooks/useNodeViews';
+import { nodeViewKeys } from '@/features/content';
 import { MainContentPane } from './MainContentPane';
 import { SplitPane } from './SplitPane';
 
 export function MainContent() {
-  const { tabs, activeTabId, secondaryTabId, splitOrientation, openNode } = useNavigationStore();
+  const { tabs, activeTabId, secondaryTabId, splitOrientation } = useTabState();
+  const openNode = useOpenNode();
   const queryClient = useQueryClient();
   const activeTab = tabs.find((t) => t.id === activeTabId);
   const secondaryTab = tabs.find((t) => t.id === secondaryTabId);
@@ -24,8 +25,8 @@ export function MainContent() {
     prevViewRef.current = activeTab?.type;
     if (prevView !== activeTab?.type && prevView === 'journals') {
       queryClient.cancelQueries({ queryKey: nodeKeys.details() });
-      queryClient.cancelQueries({ queryKey: [...nodeKeys.all, 'linked-refs'] });
-      queryClient.cancelQueries({ queryKey: [...nodeKeys.all, 'property-backlinks'] });
+      queryClient.cancelQueries({ queryKey: nodeKeys.allLinkedRefs() });
+      queryClient.cancelQueries({ queryKey: nodeKeys.allPropertyBacklinks() });
       queryClient.cancelQueries({ queryKey: nodeViewKeys.lists() });
       queryClient.cancelQueries({ queryKey: nodeViewKeys.queryResults() });
     }

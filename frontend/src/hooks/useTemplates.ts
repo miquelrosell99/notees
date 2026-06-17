@@ -4,6 +4,8 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as nodesApi from '@/api/nodes';
 import type { TemplateInstantiateOptions } from '@/api/nodes';
+import { nodeKeys } from '@/hooks/queryKeys';
+
 
 export const templateKeys = {
   all: ['templates'] as const,
@@ -34,7 +36,7 @@ export function useInstantiateTemplate() {
     mutationFn: ({ nodeId, options }: { nodeId: number; options: TemplateInstantiateOptions }) =>
       nodesApi.instantiateTemplate(nodeId, options),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['nodes'] });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.all });
     },
   });
 }

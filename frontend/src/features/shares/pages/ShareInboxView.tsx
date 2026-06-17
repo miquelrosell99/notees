@@ -3,11 +3,11 @@
  */
 import { useCallback } from 'react';
 import { Spinner } from '@/components/ui/Spinner';
-import { useShareInbox } from '@/features/shares/hooks/useShares';
+import { useShareInbox } from '@/features/shares';
 import { useNavigationStore } from '@/stores';
-import { switchWorkspace } from '@/features/workspace/api/workspaces';
+import { switchWorkspace } from '@/features/workspace';
 import { Button } from '@/components/ui/Button';
-import { NodeInline } from '@/features/content/components/blocks/NodeInline';
+import { NodeInline } from '@/features/content';
 import './ShareInboxView.css';
 
 export function ShareInboxView() {

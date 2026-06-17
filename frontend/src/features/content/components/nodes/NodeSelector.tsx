@@ -27,7 +27,7 @@ import { SelectTrigger, type SelectTriggerSize } from '@/components/ui/SelectTri
 import { useNodeSearch, usePages, useClasses, useCreateNode, usePageClass, useClassClass, type NodeSearchMode, nodeKeys } from '@/hooks';
 import { parseQueryWithFilters, type AppliedFilter } from '@/utils/searchFilters';
 import * as nodesApi from '@/api/nodes';
-import { nodeNameToText } from '@/hooks/useStringifyAST';
+import { nodeNameToText } from '@/features/queries/hooks/useStringifyAST';
 import { SYSTEM_CLASS_UUIDS } from '@/constants';
 import type { Node } from '@/types';
 import './NodeSelector.css';
@@ -1041,9 +1041,8 @@ export function NodeSelector({
               }
             }}
             title={emptyText}
-          >
-            {nodes.length === 0 ? emptyText : ''}
-          </Button>
+            aria-label={emptyText || 'Add'}
+          />
           
           {isPickerOpen && pickerPos && (
             <div

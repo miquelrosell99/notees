@@ -20,10 +20,16 @@ import { ButtonWithPanel } from '@/components/ui/ButtonWithPanel';
 import { BooleanToggle } from '@/components/ui/BooleanToggle';
 import { Icon } from '@/components/ui/Icon';
 import api from '@/api/client';
-import { nodeNameToText } from '@/hooks/useStringifyAST';
+import { nodeNameToText } from '@/features/queries/hooks/useStringifyAST';
 import { downloadBlob } from '@/utils/download';
 import QRCode from 'qrcode';
 import { getExportFormat, formatHasHtmlOptions, getExportExtension, getRegisteredExportFormats } from './exportFormatRegistry';
+import {
+  startExportJob,
+  startSingleExportJob,
+  pollExportJob,
+  fetchExportResult,
+} from '@/api/exportJobs';
 import './registerExportFormats';
 import './ExportPageModal.css';
 
@@ -107,78 +113,81 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid, nodeUuids, nodeName
   }, [setFormat]);
 
   // Fetch preview whenever settings change.
-  // For PDF we request the real PDF bytes; for other formats we request HTML/text.
+  // Exports are asynchronous: we start a job, poll until completion, then
+  // download the result from the job's download endpoint.
   useEffect(() => {
     if (!isOpen || effectiveNodeUuids.length === 0) {
       return;
     }
 
     let cancelled = false;
-    setLoading(true);
-    setError(null);
+    const debounceTimer = window.setTimeout(async () => {
+      if (cancelled) return;
+      setLoading(true);
+      setError(null);
 
-    const params: Record<string, unknown> = {
-      include_children: true,
-      layout,
-      formatting,
-      style,
-      properties,
-      density,
-      numbering,
-      measure,
-      doctype,
-      section_break: sectionBreak,
-      show_uuid: showUuid,
-      link_style: linkStyle,
-      theme_mode: themeMode,
-      cover_page: coverPage,
-      page_size: pageSize,
-      include_child_pages: includeChildPages,
-    };
+      const params: Record<string, unknown> = {
+        include_children: true,
+        layout,
+        formatting,
+        style,
+        properties,
+        density,
+        numbering,
+        measure,
+        doctype,
+        section_break: sectionBreak,
+        show_uuid: showUuid,
+        link_style: linkStyle,
+        theme_mode: themeMode,
+        cover_page: coverPage,
+        page_size: pageSize,
+        include_child_pages: includeChildPages,
+      };
 
-    if (format === 'pdf') {
-      const request = isBatch
-        ? api.post('/export', { node_ids: effectiveNodeUuids, ...params, format }, { responseType: 'blob' })
-        : api.get(`/export/${effectiveNodeUuids[0]}`, { params: { ...params, format }, responseType: 'blob' });
+      try {
+        const previewFormat = format === 'pdf' ? 'pdf' : formatHasHtmlOptions(format) ? 'html' : format;
+        const jobId = isBatch
+          ? await startExportJob({ nodeUuids: effectiveNodeUuids, params: { ...params, format: previewFormat } })
+          : await startSingleExportJob(effectiveNodeUuids[0], { ...params, format: previewFormat });
 
-      request
-        .then((response) => {
-          if (cancelled) return;
-          const blob = new Blob([response.data as BlobPart], { type: 'application/pdf' });
+        const job = await pollExportJob(jobId, {
+          onStatus: (j) => {
+            if (!cancelled) {
+              // Surface user-visible progress text only when it changes.
+              if (j.status_text) {
+                setError((prev) => (prev?.startsWith(j.status_text) ? prev : null));
+              }
+            }
+          },
+        });
+
+        if (cancelled) return;
+
+        if (format === 'pdf') {
+          const { data } = await fetchExportResult<Blob>(job.id, 'blob');
+          const blob = data instanceof Blob ? data : new Blob([data as BlobPart], { type: 'application/pdf' });
           const url = URL.createObjectURL(blob);
           setPdfPreviewUrl((prev) => {
             if (prev) URL.revokeObjectURL(prev);
             return url;
           });
-        })
-        .catch((e: unknown) => {
-          if (!cancelled)
-            setError(e instanceof Error ? e.message : 'Failed to load PDF preview');
-        })
-        .finally(() => {
-          if (!cancelled) setLoading(false);
-        });
-    } else {
-      const previewFormat = formatHasHtmlOptions(format) ? 'html' : format;
-      const request = isBatch
-        ? api.post('/export', { node_ids: effectiveNodeUuids, ...params, format: previewFormat }, { responseType: 'text' })
-        : api.get(`/export/${effectiveNodeUuids[0]}`, { params: { ...params, format: previewFormat }, responseType: 'text' });
-
-      request
-        .then((response) => {
-          if (!cancelled) setPreviewContent(response.data as string);
-        })
-        .catch((e: unknown) => {
-          if (!cancelled)
-            setError(e instanceof Error ? e.message : 'Failed to load preview');
-        })
-        .finally(() => {
-          if (!cancelled) setLoading(false);
-        });
-    }
+        } else {
+          const { data } = await fetchExportResult<string>(job.id, 'text');
+          setPreviewContent(data as string);
+        }
+      } catch (e: unknown) {
+        if (!cancelled) {
+          setError(e instanceof Error ? e.message : 'Failed to load preview');
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }, 300);
 
     return () => {
       cancelled = true;
+      window.clearTimeout(debounceTimer);
     };
   }, [isOpen, format, layout, formatting, style, properties, density, numbering, measure, doctype, sectionBreak, showUuid, linkStyle, themeMode, coverPage, pageSize, includeChildPages, effectiveNodeUuids, isBatch]);
 
@@ -240,55 +249,38 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid, nodeUuids, nodeName
         include_child_pages: includeChildPages,
       };
 
-      if (getExportFormat(format)?.format === 'pdf') {
-        if (cssOverrides.trim()) {
-          // Preserve custom-CSS path: fetch HTML, inject overrides, render PDF.
-          const htmlParams = { ...baseParams, format: 'html' };
-          let html: string;
-          if (isBatch) {
-            const htmlResponse = await api.post('/export', { node_ids: effectiveNodeUuids, ...htmlParams }, { responseType: 'text' });
-            html = htmlResponse.data as string;
-          } else {
-            const htmlResponse = await api.get(`/export/${effectiveNodeUuids[0]}`, { params: htmlParams, responseType: 'text' });
-            html = htmlResponse.data as string;
-          }
-          const styleTag = `<style>\n${cssOverrides.trim()}\n</style>`;
-          html = html.includes('</head>')
-            ? html.replace('</head>', `${styleTag}\n</head>`)
-            : styleTag + '\n' + html;
-          const pdfResponse = await api.post(`/export/render-pdf`, { html }, { responseType: 'blob' });
-          downloadBlob(pdfResponse.data as Blob, 'export.pdf');
-        } else {
-          // Fast path: server generates PDF directly from the export options.
-          let response;
-          if (isBatch) {
-            response = await api.post('/export', { node_ids: effectiveNodeUuids, ...baseParams }, { responseType: 'blob' });
-          } else {
-            response = await api.get(`/export/${effectiveNodeUuids[0]}`, { params: baseParams, responseType: 'blob' });
-          }
-          const disposition = response.headers['content-disposition'] ?? undefined;
-          let filename = 'export.pdf';
-          if (disposition) {
-            const match = disposition.match(/filename="?([^"]+)"?/);
-            if (match) filename = match[1];
-          }
-          downloadBlob(response.data as Blob, filename);
-        }
-      } else {
-        let response;
-        if (isBatch) {
-          response = await api.post('/export', { node_ids: effectiveNodeUuids, ...baseParams }, { responseType: 'blob' });
-        } else {
-          response = await api.get(`/export/${effectiveNodeUuids[0]}`, { params: baseParams, responseType: 'blob' });
-        }
-        const disposition = response.headers['content-disposition'] ?? undefined;
-        let filename = `export.${getExportExtension(format)}`;
-        if (disposition) {
-          const match = disposition.match(/filename="?([^"]+)"?/);
-          if (match) filename = match[1];
-        }
-        downloadBlob(response.data as Blob, filename);
+      if (getExportFormat(format)?.format === 'pdf' && cssOverrides.trim()) {
+        // Preserve custom-CSS path: fetch HTML via async job, inject overrides,
+        // then render PDF through the direct render endpoint.
+        const htmlParams = { ...baseParams, format: 'html' };
+        const htmlJobId = isBatch
+          ? await startExportJob({ nodeUuids: effectiveNodeUuids, params: htmlParams })
+          : await startSingleExportJob(effectiveNodeUuids[0], htmlParams);
+        const htmlJob = await pollExportJob(htmlJobId);
+        const { data: html } = await fetchExportResult<string>(htmlJob.id, 'text');
+        const styleTag = `<style>\n${cssOverrides.trim()}\n</style>`;
+        const htmlWithCss = html.includes('</head>')
+          ? html.replace('</head>', `${styleTag}\n</head>`)
+          : styleTag + '\n' + html;
+        const pdfResponse = await api.post('/export/render-pdf', { html: htmlWithCss }, { responseType: 'blob' });
+        downloadBlob(pdfResponse.data as Blob, 'export.pdf');
+        return;
       }
+
+      const jobId = isBatch
+        ? await startExportJob({ nodeUuids: effectiveNodeUuids, params: baseParams })
+        : await startSingleExportJob(effectiveNodeUuids[0], baseParams);
+      const job = await pollExportJob(jobId);
+      const { data, headers } = await fetchExportResult<Blob>(job.id, 'blob');
+      const blob = data instanceof Blob ? data : new Blob([data as BlobPart], { type: getExportFormat(format)?.mimeType ?? 'application/octet-stream' });
+
+      const disposition = headers['content-disposition'] ?? undefined;
+      let filename = format === 'pdf' ? 'export.pdf' : `export.${getExportExtension(format)}`;
+      if (disposition) {
+        const match = disposition.match(/filename="?([^"]+)"?/);
+        if (match) filename = match[1];
+      }
+      downloadBlob(blob, filename);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Download failed');
     } finally {

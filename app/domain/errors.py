@@ -144,6 +144,20 @@ class DuplicateEmailError(UserError):
         super().__init__(message=f"Email already exists: {email}", code="DUPLICATE_EMAIL")
 
 
+class RegistrationDisabledError(UserError):
+    """Raised when registration is disabled and the user does not exist."""
+
+    def __init__(self):
+        super().__init__(message="Registration is disabled", code="REGISTRATION_DISABLED")
+
+
+class PasswordRequiredError(UserError):
+    """Raised when a password is required to create a new account."""
+
+    def __init__(self):
+        super().__init__(message="Password is required to create account", code="PASSWORD_REQUIRED")
+
+
 class InvalidCredentialsError(UserError):
     """Raised when authentication fails."""
 

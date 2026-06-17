@@ -6,16 +6,15 @@
  * is available, otherwise it falls back to client-side grouping by property.
  */
 import { useMemo, useState, useCallback, memo } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import type { Node } from '@/types';
 import type { Property } from '@/types/api';
 import type { NodeChartViewProps } from '@/types/nodeCollection';
 import type { QueryGroupResult } from '@/types/nodeView';
-import { useProperties } from '@/hooks';
-import { executeNodeViewQuery } from '@/api/nodeViews';
+import { useProperties, useChartAggregate } from '@/features/content';
 import { Icon } from '@/components/ui/icons';
 import { Spinner } from '@/components/ui/Spinner';
 import { registerView } from './registry';
+
 import './ChartView.css';
 
 // ==================== Pure helpers ====================
@@ -365,20 +364,11 @@ export const ChartView = memo(function ChartView({
     };
   }, [groupByField, measure, allProperties]);
 
-  const hasBackendAggregation = viewId != null && viewId > 0;
-
-  const { data: aggregateResult, isLoading: isAggregateLoading } = useQuery({
-    queryKey: ['node-view-aggregate', viewId, aggregation, nodeUuid],
-    queryFn: async () => {
-      if (!viewId) return null;
-      return executeNodeViewQuery(viewId, {
-        runtime_params: { current_node_uuid: nodeUuid },
-        aggregation,
-      });
-    },
-    enabled: hasBackendAggregation,
-    staleTime: 30_000,
-  });
+  const { data: aggregateResult, isLoading: isAggregateLoading } = useChartAggregate(
+    viewId,
+    aggregation,
+    nodeUuid
+  );
 
   const chartData = useMemo(() => {
     if (aggregateResult?.groups) {

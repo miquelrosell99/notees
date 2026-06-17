@@ -16,6 +16,7 @@ import { Button } from './Button';
 import { Modal } from './Modal';
 import { SelectionButton } from './SelectionButton';
 import './TableSizeSelector.css';
+import './TableCreationModal.css';
 
 export interface TableCreationModalProps {
   /** Whether the modal is open */
@@ -88,7 +89,7 @@ export function TableCreationModal({
       closeOnEscape={true}
       showCloseButton={true}
       footer={
-        <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
+        <div className="table-creation-modal__row">
           {existingChildCount > 0 && (
             <SelectionButton
               value={mode}
@@ -105,7 +106,7 @@ export function TableCreationModal({
               variant="primary"
               size="sm"
               onClick={handleAdaptConfirm}
-              style={{ marginLeft: 'auto' }}
+              className="table-creation-modal__spacer"
             >
               Convert
             </Button>

@@ -261,37 +261,34 @@ export function PropertyColumnSelector({
             )}
             {filteredProperties
               .filter(prop => !selectedPropertyUuids.includes(prop.uuid))
-              .map(property => (
-                <div
-                  key={property.uuid}
-                  role="button"
-                  tabIndex={0}
-                  className="property-column-selector__item"
-                  onClick={(e) => {
-                    if ((e.target as HTMLElement).closest('input, label')) return;
-                    handleToggle(property.uuid);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      handleToggle(property.uuid);
-                    }
-                  }}
-                >
-                  <Checkbox
-                    checked={false}
-                    onChange={() => handleToggle(property.uuid)}
-                  />
-                  <span className="property-column-selector__item-content">
-                    <span className="property-column-selector__item-name">
-                      {property.name}
-                    </span>
-                    <span className="property-column-selector__item-type">
-                      {property.type.toUpperCase()}
-                    </span>
-                  </span>
-                </div>
-              ))}
+              .map(property => {
+                return (
+                  <>
+                    {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events -- Row click toggles the checkbox for pointer users; keyboard users can focus the Checkbox directly. */}
+                    <div
+                      key={property.uuid}
+                      className="property-column-selector__item"
+                      onClick={(e) => {
+                        if ((e.target as HTMLElement).closest('input, label')) return;
+                        handleToggle(property.uuid);
+                      }}
+                    >
+                      <Checkbox
+                        checked={false}
+                        onChange={() => handleToggle(property.uuid)}
+                      />
+                      <span className="property-column-selector__item-content">
+                        <span className="property-column-selector__item-name">
+                          {property.name}
+                        </span>
+                        <span className="property-column-selector__item-type">
+                          {property.type.toUpperCase()}
+                        </span>
+                      </span>
+                    </div>
+                  </>
+                );
+              })}
           </div>
         )}
         

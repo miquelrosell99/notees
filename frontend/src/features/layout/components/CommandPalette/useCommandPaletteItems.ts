@@ -5,7 +5,7 @@ import type { Command } from '@/stores/commandRegistry';
 import type { ItemEntry, AppliedFilter, FilterPrefixConfig } from './CommandPalette.types';
 import type { Property } from '@/types';
 
-import { nodeNameToText } from '@/hooks/useStringifyAST';
+import { nodeNameToText } from '@/features/queries';
 import type { ParsedDate } from '@/utils/dateParser';
 
 interface UseCommandPaletteItemsParams {

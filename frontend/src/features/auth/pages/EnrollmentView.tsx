@@ -24,7 +24,12 @@ type AnimationPhase = 'entering' | 'active' | 'exiting';
 export function EnrollmentView({ onComplete }: EnrollmentViewProps) {
   const [step, setStep] = useState<Step>('welcome');
   const [animationPhase, setAnimationPhase] = useState<AnimationPhase>('entering');
-  const { theme, dateFormat, setTheme, setDateFormat } = useSettingsStore();
+  // State
+  const theme = useSettingsStore((s) => s.theme);
+  const dateFormat = useSettingsStore((s) => s.dateFormat);
+  // Actions
+  const setTheme = useSettingsStore((s) => s.setTheme);
+  const setDateFormat = useSettingsStore((s) => s.setDateFormat);
   const [selectedTheme, setSelectedTheme] = useState<ThemePreference>(theme);
   const [selectedDateFormat, setSelectedDateFormat] = useState<DateFormat>(dateFormat);
   const [isSaving, setIsSaving] = useState(false);

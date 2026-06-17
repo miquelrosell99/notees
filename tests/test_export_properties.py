@@ -3,8 +3,35 @@
 Verifies that the markdown exporter correctly respects the `properties`
 export setting for both YAML frontmatter and inline body properties.
 """
+import asyncio
+
 import pytest
 from httpx import AsyncClient
+
+
+async def _export_single_node_and_download(
+    auth_client: AsyncClient, page_uuid: str, params: dict
+) -> str:
+    """Start a single-node export job, wait for completion, and return the downloaded text."""
+    export_resp = await auth_client.get(f"/api/export/{page_uuid}", params=params)
+    assert export_resp.status_code == 200, export_resp.text
+    job_id = export_resp.json()["job_id"]
+
+    status = None
+    for _ in range(50):
+        status_resp = await auth_client.get(f"/api/export/jobs/{job_id}")
+        assert status_resp.status_code == 200, status_resp.text
+        status = status_resp.json()
+        if status["status"] in ("completed", "failed"):
+            break
+        await asyncio.sleep(0.05)
+
+    assert status is not None
+    assert status["status"] == "completed", status.get("error", "unknown error")
+
+    download_resp = await auth_client.get(f"/api/export/jobs/{job_id}/download")
+    assert download_resp.status_code == 200, download_resp.text
+    return download_resp.text
 
 
 class TestMarkdownExportProperties:
@@ -54,12 +81,11 @@ class TestMarkdownExportProperties:
         )
 
         # Export with properties=none
-        export_resp = await auth_client.get(
-            f"/api/export/{page_uuid}",
+        content = await _export_single_node_and_download(
+            auth_client,
+            page_uuid,
             params={"format": "markdown", "properties": "none"},
         )
-        assert export_resp.status_code == 200, export_resp.text
-        content = export_resp.text
 
         # Frontmatter should NOT contain properties
         assert "properties:" not in content
@@ -116,12 +142,11 @@ class TestMarkdownExportProperties:
         )
 
         # Export with properties=main
-        export_resp = await auth_client.get(
-            f"/api/export/{page_uuid}",
+        content = await _export_single_node_and_download(
+            auth_client,
+            page_uuid,
             params={"format": "markdown", "properties": "main"},
         )
-        assert export_resp.status_code == 200, export_resp.text
-        content = export_resp.text
 
         # Frontmatter SHOULD contain page properties
         assert "properties:" in content
@@ -181,12 +206,11 @@ class TestMarkdownExportProperties:
             )
 
         # Export with properties=all
-        export_resp = await auth_client.get(
-            f"/api/export/{page_uuid}",
+        content = await _export_single_node_and_download(
+            auth_client,
+            page_uuid,
             params={"format": "markdown", "properties": "all"},
         )
-        assert export_resp.status_code == 200, export_resp.text
-        content = export_resp.text
 
         # Frontmatter should have page properties
         assert "properties:" in content
@@ -234,12 +258,11 @@ class TestMarkdownExportProperties:
         )
 
         # Export with properties=none
-        export_resp = await auth_client.get(
-            f"/api/export/{page_uuid}",
+        content = await _export_single_node_and_download(
+            auth_client,
+            page_uuid,
             params={"format": "markdown", "properties": "none"},
         )
-        assert export_resp.status_code == 200, export_resp.text
-        content = export_resp.text
 
         assert "Priority::" not in content
         assert "properties:" not in content

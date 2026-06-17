@@ -12,8 +12,8 @@ import {
   useClassClass,
   useProperties,
   useClasses,
-} from '@/hooks';
-import { nodeNameToText } from '@/hooks/useStringifyAST';
+} from '@/features/content';
+import { nodeNameToText } from '@/features/queries';
 import { useCommandPaletteSearch } from '@/hooks/useCommandPaletteSearch';
 import {
   getRecentPages,
@@ -210,7 +210,7 @@ export function useCommandPaletteState({ isOpen, onClose }: UseCommandPaletteSta
         setMaxBlocks(INITIAL_MAX_BLOCKS);
         setMaxProperties(INITIAL_MAX_PROPERTIES);;
       inputRef.current?.focus();
-      queryClient.invalidateQueries({ queryKey: [...nodeKeys.all, 'pages'] });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.allPages() });
       queryClient.invalidateQueries({ queryKey: nodeKeys.classes() });
       // Fetch empty-state sections
       getRecentPages(5).then(setRecentAccessedPages).catch(() => {});

@@ -18,11 +18,10 @@
  */
 import { useState, useCallback, useMemo, useRef, useEffect, useDeferredValue } from 'react';
 import { useClasses, useGraphLinks, useReducedMotion } from '@/hooks';
-import { useSettingsQuery } from '@/hooks/useSettings';
+import { useSettingsQuery, setSetting } from '@/features/workspace';
 import { useNavigationStore } from '@/stores';
-import { nodeNameToText } from '@/hooks/useStringifyAST';
+import { nodeNameToText } from '@/features/queries';
 import { NodeIcon } from '@/components/ui/icons';
-import { setSetting } from '@/features/workspace/api/workspaces';
 import type { GraphNode as ApiGraphNode } from '@/api/nodes';
 import { GraphRenderer, type GraphRendererRef } from './GraphRenderer';
 import type {

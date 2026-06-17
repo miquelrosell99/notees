@@ -3,7 +3,7 @@
  */
 import React from 'react';
 import { ContextMenu } from '@/components/ui/ContextMenu';
-import type { UseWhiteboardReturn } from '@/hooks/useWhiteboard';
+import type { UseWhiteboardReturn } from '@/features/content/hooks/useWhiteboard';
 import type { WhiteboardCardElement } from '@/types/whiteboard';
 import { useWhiteboardStore } from '@/stores/whiteboardStore';
 

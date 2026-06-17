@@ -1,19 +1,19 @@
 import { useState, useCallback, memo, useEffect } from 'react';
 import { useNavigationStore } from '@/stores';
 import { useNode, useIsMobile } from '@/hooks';
-import { nodeNameToText } from '@/hooks/useStringifyAST';
+import { nodeNameToText } from '@/features/queries';
 import {
   useFavorites,
   useRemoveFavoriteMutation,
   useReorderFavoritesMutation,
   removeFavorite,
-} from '@/hooks/useFavorites';
+  useNodeDisplay,
+  useListDragSort,
+  NodeInline,
+  NodeBreadcrumbs,
+} from '@/features/content';
 import { isApiError } from '@/api/client';
-import { useNodeDisplay } from '@/hooks/useNodeDisplay';
-import { useListDragSort } from '@/hooks/useListDragSort';
 import { Button } from '@/components/ui/Button';
-import { NodeInline } from '@/features/content/components/blocks/NodeInline';
-import { NodeBreadcrumbs } from '@/features/content/components/nodes/NodeBreadcrumbs';
 import {
   StarIcon,
   ChevronDownIcon,
@@ -79,13 +79,6 @@ const SortableFavoriteItem = memo(function SortableFavoriteItem({
     onDragStart(index, e);
   }, [index, onDragStart]);
 
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      handleClick({} as React.MouseEvent);
-    }
-  }, [handleClick]);
-
   // Deleted node — render nothing so it auto-removes from the list
   if (error && isApiError(error) && error.response?.status === 404) {
     return null;
@@ -98,15 +91,13 @@ const SortableFavoriteItem = memo(function SortableFavoriteItem({
   );
 
   return (
-    <div
-      role="button"
-      tabIndex={0}
+    <button
+      type="button"
       aria-label={node ? nodeNameToText(node.name) || 'Untitled' : 'Loading favorite'}
       className={`sidebar-favorite-item ${isActive ? 'active' : ''} ${isDragging ? 'dragging' : ''}`}
       style={style}
       onClick={handleClick}
       onContextMenu={handleContextMenu}
-      onKeyDown={handleKeyDown}
     >
       {/* Drag handle */}
       <button
@@ -153,7 +144,7 @@ const SortableFavoriteItem = memo(function SortableFavoriteItem({
         }}
         title="Remove from favorites"
       />
-    </div>
+    </button>
   );
 });
 

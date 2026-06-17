@@ -1,3 +1,18 @@
 export * from './components';
 export { WorkspaceManagementView } from './pages/WorkspaceManagementView';
 export * from './api/workspaces';
+export * from './hooks/useSettings';
+export { useSettingsQuery as useSettings } from './hooks/useSettings';
+export * from './hooks/useViewSettings';
+export * from './hooks/useWorkspaceRole';
+export * from './hooks/useLogseqImporter';
+export * from './hooks/useLogseqFolderImporter';
+export * from './hooks/useWorkspaces';
+export * from './hooks/useSwitchWorkspace';
+export * from './hooks/useCreateWorkspace';
+export * from './hooks/useWorkspaceMutations';
+export * from './hooks/useWorkspaceSettings';
+export * from './hooks/useEmptyTrash';
+export * from './hooks/useGraphSettings';
+export * from './hooks/useWorkspaceImport';
+export * from './hooks/useWorkspaceNameCheck';

@@ -20,11 +20,9 @@
  *   2. LinkedReferences
  */
 import React, { useState, useMemo, useCallback, useRef } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { useNode, useClasses, useNodesWithClass, useUpdateNode, useAddTag, useAddClass, useCreateNode, useProperties, useSetNodeProperty, useRemoveClass, useRemoveTag, useTags, useContentSave, useLinkedReferencesCount, usePageClass, useClassExtends, useAddClassExtends, useRemoveClassExtends, useCreateProperty, useResolvedClassDetails, useNodeNavigation, useAddAlias, useRemoveAlias, useLivePageSync, useEffectiveNodePermissions, nodeNameToText } from '@/hooks';
 import { useIsMobile } from '@/hooks/useIsMobile';
-import { nodeKeys } from '@/hooks/queryKeys';
-import * as nodesApi from '@/api/nodes';
+import { usePageAliases } from '@/features/content';
 import { useNavigationStore, useAppStore, useSettingsStore, formatDate } from '@/stores';
 import { useFindReplaceStore } from '@/stores/findReplaceStore';
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut';
@@ -50,6 +48,9 @@ import { QuerySection, NodeActivityLogSection, UnlinkedMentionsSection } from '@
 import { PropertiesSection } from '@/features/content/components/properties/PropertiesSection';
 import { PropertySuggestionPopup } from '@/features/content/components/properties/PropertySuggestionPopup';
 import { ClassPropertiesEditor } from '@/features/content/components/properties/ClassPropertiesEditor';
+// Kept as a deep import to avoid a circular dependency: the tasks barrel exports
+// TaskRecurrenceSection, and the content barrel exports NodeView (this page).
+// Using the tasks barrel here would close the cycle content -> tasks -> content.
 import { TaskRecurrenceSection } from '@/features/tasks/components/TaskRecurrenceSection';
 import { NodeMetadataSection } from '@/features/content/components/nodes/NodeMetadataSection';
 import { Modal } from '@/components/ui/Modal';
@@ -57,7 +58,7 @@ import { TableIcon, PageIcon, LinkIcon } from '@/components/ui/icons';
 import { Button } from '@/components/ui/Button';
 import { getPropertyValueRenderer } from '@/features/content/components/properties/propertyValueRegistry';
 import '@/features/content/components/properties/registerPropertyRenderers';
-import { BlockPresenceOverlay } from '@/features/collab/components/BlockPresenceOverlay';
+import { BlockPresenceOverlay } from '@/features/collab';
 
 import { NodeBreadcrumbs } from '@/features/content/components/nodes/NodeBreadcrumbs';
 import { SelectionButton } from '@/components/ui/SelectionButton';
@@ -67,7 +68,7 @@ import { buildScheduledForDayQueryAST, buildOverdueQueryAST } from '@/utils/task
 import { isDayUuid, getTodayDayUuid } from '@/utils/dateUuid';
 import { ReferencedNodesProvider } from '@/contexts/ReferencedNodesProvider';
 import type { Asset } from '@/api/assets';
-import { extractImageFromDragEvent } from '@/hooks/useDragDropImage';
+import { extractImageFromDragEvent } from '@/features/content/hooks/useDragDropImage';
 import { uploadAsset } from '@/api/assets';
 import { getOrCreateDaily } from '@/api/nodes';
 
@@ -516,9 +517,7 @@ export function NodeView({
   const removeAlias = useRemoveAlias();
   
   // Fetch alias nodes directly (allNodes excludes aliased pages)
-  const { data: pageAliasDetailsRaw = [] } = useQuery({
-    queryKey: nodeKeys.aliases(nodeId ?? 0),
-    queryFn: () => nodesApi.getAliases(nodeId!),
+  const { data: pageAliasDetailsRaw = [] } = usePageAliases(nodeId, {
     // Always fetch for main pages — don't gate on node.aliases because it can
     // be stale (default staleTime is 5 min) and miss recently-added aliases.
     enabled: !!nodeId && node?.is_page === true && !node?.aliased_id,
