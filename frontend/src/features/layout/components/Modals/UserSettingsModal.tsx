@@ -11,6 +11,7 @@ import { useAuthUser, useAuthActions } from '@/features/layout/hooks/useAuthSele
 import type { ThemePreference, DateFormat, HashtagPasteMode, DefaultView, QuickAddDestination, FirstDayOfWeek, AccentColor } from '@/stores';
 import { setSetting } from '@/features/workspace';
 import { updateMe, createApiKey, listApiKeys, revokeApiKey } from '@/features/auth';
+import { SPONSORSHIP_CHANNELS } from '@/constants/sponsorship';
 import { TextField } from '@/components/ui/TextField';
 import type { ApiKey } from '@/types';
 import { Modal } from '@/components/ui/Modal';
@@ -26,7 +27,7 @@ interface UserSettingsModalProps {
   onClose: () => void;
 }
 
-type UserSettingsTab = 'appearance' | 'editor' | 'general' | 'account' | 'about';
+type UserSettingsTab = 'appearance' | 'editor' | 'general' | 'account' | 'support' | 'about';
 
 export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
   const [activeTab, setActiveTab] = useState<UserSettingsTab>('appearance');
@@ -60,6 +61,7 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
   const showDevOptions = useSettingsStore((s) => s.showDevOptions);
   const firstDayOfWeek = useSettingsStore((s) => s.firstDayOfWeek);
   const showBulletThread = useSettingsStore((s) => s.showBulletThread);
+  const supportBadgeHidden = useSettingsStore((s) => s.supportBadgeHidden);
   const setTheme = useSettingsStore((s) => s.setTheme);
   const setOledMode = useSettingsStore((s) => s.setOledMode);
   const setAccentColor = useSettingsStore((s) => s.setAccentColor);
@@ -72,6 +74,7 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
   const setShowDevOptions = useSettingsStore((s) => s.setShowDevOptions);
   const setFirstDayOfWeek = useSettingsStore((s) => s.setFirstDayOfWeek);
   const setShowBulletThread = useSettingsStore((s) => s.setShowBulletThread);
+  const setSupportBadgeHidden = useSettingsStore((s) => s.setSupportBadgeHidden);
   const [customHexInput, setCustomHexInput] = useState(customAccentHex);
 
   // Keep the custom hex text input in sync with the persisted value.
@@ -257,6 +260,7 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
     { id: 'editor', label: 'Editor' },
     { id: 'general', label: 'General' },
     { id: 'account', label: 'Account' },
+    { id: 'support', label: 'Support' },
     { id: 'about', label: 'About' },
   ];
 
@@ -739,6 +743,54 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
                 <Button className="settings-btn settings-btn--logout" variant="danger" size="md" onClick={handleLogout}>
                   Log out
                 </Button>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'support' && (
+            <div className="settings-section">
+              <h3 className="settings-section__title">Support the Project</h3>
+              <p className="settings-section__subtitle">
+                Notees is free, open source, and funded by people like you. If you
+                find it useful, consider sponsoring development.
+              </p>
+
+              <div className="settings-item">
+                <div className="settings-item__info">
+                  <label htmlFor="support-badge-toggle" className="settings-item__label">
+                    Show support badge
+                  </label>
+                  <p className="settings-item__description">
+                    Display a small "Support Notees" reminder in the sidebar.
+                  </p>
+                </div>
+                <BooleanToggle
+                  id="support-badge-toggle"
+                  checked={!supportBadgeHidden}
+                  onChange={(e) => setSupportBadgeHidden(!e.target.checked)}
+                  size="md"
+                />
+              </div>
+
+              <Separator orientation="horizontal" size="lg" spacing="lg" />
+
+              <div className="settings-support-channels">
+                {SPONSORSHIP_CHANNELS.map((channel) => (
+                  <a
+                    key={channel.id}
+                    href={channel.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="settings-support-channel"
+                  >
+                    <span className={`settings-support-channel__icon ${channel.icon}`} aria-hidden="true" />
+                    <div className="settings-support-channel__info">
+                      <span className="settings-support-channel__name">{channel.name}</span>
+                      <span className="settings-support-channel__description">{channel.description}</span>
+                    </div>
+                    <span className="settings-support-channel__arrow mdi mdi-open-in-new" aria-hidden="true" />
+                  </a>
+                ))}
               </div>
             </div>
           )}

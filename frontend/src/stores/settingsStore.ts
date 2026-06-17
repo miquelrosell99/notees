@@ -94,7 +94,9 @@ interface SettingsState {
   tabPosition: 'top' | 'left';
   /** Show the active bullet thread and indentation guide lines in the editor. */
   showBulletThread: boolean;
-  
+  /** Whether the "Support Notees" sidebar badge is hidden. */
+  supportBadgeHidden: boolean;
+
   // Actions
   setTheme: (theme: ThemePreference) => void;
   setOledMode: (enabled: boolean) => void;
@@ -111,6 +113,7 @@ interface SettingsState {
   toggleWideMode: () => void;
   setTabPosition: (position: 'top' | 'left') => void;
   setShowBulletThread: (show: boolean) => void;
+  setSupportBadgeHidden: (hidden: boolean) => void;
 }
 
 /**
@@ -284,7 +287,8 @@ export const useSettingsStore = create<SettingsState>()(
       wideMode: false,
       tabPosition: 'top',
       showBulletThread: true,
-      
+      supportBadgeHidden: false,
+
       // Actions
       setTheme: (theme) => {
         set({ theme });
@@ -347,6 +351,9 @@ export const useSettingsStore = create<SettingsState>()(
       },
       setShowBulletThread: (showBulletThread) => {
         set({ showBulletThread });
+      },
+      setSupportBadgeHidden: (hidden) => {
+        set({ supportBadgeHidden: hidden });
       },
     }),
     {

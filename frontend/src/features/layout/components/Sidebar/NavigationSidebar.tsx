@@ -24,6 +24,7 @@ import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
 import { useClickOutside } from '@/hooks/useClickOutside';
 import { SidebarFavorites } from './SidebarFavorites';
 import { SidebarRecents } from './SidebarRecents';
+import { SupportBadge } from '@/features/support';
 import { ChevronDownIcon, ChevronRightIcon } from '@/components/ui/icons';
 import { SYSTEM_PAGE_UUIDS } from '@/constants/systemProperties';
 import './NavigationSidebar.css';
@@ -339,6 +340,7 @@ function CollapsedSidebarView({
             />
           )}
         />
+        <SupportBadge compact className="sidebar-collapsed__support" />
       </div>
 
       <SidebarPopup
@@ -678,6 +680,8 @@ export function Sidebar({ collapsed }: SidebarProps) {
                 </div>
               )}
             </div>
+
+            <SupportBadge className="sidebar-support-badge" />
           </>
         )}
       </Card>
