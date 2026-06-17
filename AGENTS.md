@@ -24,7 +24,12 @@ Key features:
 
 - **Architecture**: Backend uses strict hexagonal architecture. Domain services must only use repository interfaces, never FastAPI or asyncpg directly.
 - **DB Connections**: Never call `pool.acquire()` directly. Use `app.db.connection.get_connection()` or `get_transaction()`.
+- **DI Factories**: `app/dependencies.py` factory functions return repository port interfaces from `app/domain/repositories/interfaces.py`, not concrete PostgreSQL implementations.
 - **Frontend Imports**: Always use path aliases (e.g., `@/components/ui/Button`, `@/features/auth/api/auth`). Never use relative `../../../` paths. CSS is co-located with components.
+- **Feature Barrels**: Cross-feature imports go through `frontend/src/features/<name>/index.ts` barrels. Do not import from another feature's internal subdirectories.
+- **Feature Hooks**: Domain-specific hooks live in `frontend/src/features/<feature>/hooks/` (or `api/`). Generic hooks stay in `frontend/src/hooks/`.
+- **Query Keys**: All TanStack Query keys are created through factories in `frontend/src/hooks/queryKeys.ts`. No literal query keys in components.
+- **Zustand Selectors**: Avoid large store destructurings. Use per-field selectors or focused selector hooks (e.g., `features/layout/hooks/useNavigationSelectors.ts`).
 - **Secret Key**: `SECRET_KEY` is mandatory (>= 32 chars). The app will not start without it.
 - **Node Model**: Everything is a `node` (pages, blocks, tags, properties, journals, tasks). Differentiation is via boolean flags (`is_page`, `is_task`, etc.) that are kept in sync with system class assignments.
 - **Dev vs. Prod**: Dev PostgreSQL settings (`fsync=off`, etc.) in `compose.yaml` must never be used in production.
@@ -227,6 +232,11 @@ The fleet audit identified a number of drift items. The following have been reso
 - **Block bullet**: Block bullets remain **circular** per the product-owner decision; the design language documents this signature element.
 - **Accessibility gaps**: Touch targets were increased to at least 44×44 px, `div role="button"` controls were converted to real `<button>` elements, visible `:focus-visible` rings were restored, form labels were associated with inputs, toast notifications were given `aria-live` regions, modal-like surfaces trap focus, and hover-only actions also reveal on `:focus-within`/`:focus-visible`.
 - **Mobile hardening**: Hardcoded English strings were externalized to `strings.xml`, WebView cookie/third-party settings were tightened, origin handling was improved, `android:allowBackup` was set to `false`, and the debug keystore is tracked.
+- **Feature-first frontend structure**: Domain-specific hooks moved from `frontend/src/hooks/` into `frontend/src/features/<feature>/hooks/`, feature barrels were curated, cross-feature deep imports were replaced with barrel imports, and large Zustand destructurings were converted to focused selectors.
+- **DI ports**: `app/dependencies.py` factories now return repository port interfaces instead of concrete `Postgres*` implementations.
+- **Invite password validation**: `InviteAcceptRequest` enforces the same password-complexity rules as other account endpoints.
+- **Pydantic request bodies**: Raw `request.json()` calls in `app/routers/sync.py` and `app/routers/nodes/favorites.py` were replaced with Pydantic models.
+- **Asset caching**: The service worker caches `/api/assets/` responses with a CacheFirst strategy.
 
 ### Frontend: React SPA
 
@@ -277,6 +287,18 @@ The `mobile/` directory contains a minimal Android Kotlin app (API 26–36, minS
 - File chooser for uploads, custom User-Agent, back button handling.
 
 For build instructions and full mobile details, see `mobile/README.md`. For agent context when modifying the mobile app, see `mobile/AGENTS.md`.
+
+---
+
+## Performance Notes & Accepted Tech Debt
+
+The fleet migration resolved the high-severity performance issues. The remaining shortcuts below are intentional and documented; do not paper over them with defensive code.
+
+- **Immersive views are client-side capped**: `NodeCollection` feeds at most `IMMERSIVE_VIEW_NODE_LIMIT = 500` nodes to `graph`, `timeline`, `gantt`, `calendar`, `chart`, and `pivot` views. A real fix requires server-side aggregation/pagination for each view mode; until then, the cap prevents UI lockups.
+- **Gantt label pane is virtualized**: Only visible label rows are rendered in the DOM. The canvas right pane still draws every bar; with the 500-node cap this is acceptable.
+- **Timeline is event-driven**: The permanent `requestAnimationFrame` loop was removed; canvas renders are triggered by dependency changes. Event hit-testing uses an x-sorted spatial index for O(log n) lookups.
+- **Exports are asynchronous jobs**: `POST /export` and `GET /export/{uuid}` return `{job_id}`. Callers must poll `GET /export/jobs/{job_id}` and download from `GET /export/jobs/{job_id}/download`. Jobs are stored in memory and results are written to `data/exports`; they do not survive a backend restart.
+- **Tests are bind-mounted in development**: `compose.yaml` mounts `./tests:/app/tests` and `./pytest.ini:/app/pytest.ini`, so tests can be run without `docker cp`.
 
 ---
 
@@ -363,7 +385,7 @@ The debug keystore is checked into the repo intentionally (it is not a secret).
 Tests are in `tests/` and use **pytest** with async support. Because the backend depends on `y-py` and other native extensions, tests **must be run inside the backend Docker container** against the existing PostgreSQL service.
 
 ```bash
-# 1. Ensure the dev stack is running
+# 1. Ensure the dev stack is running (bind-mounts tests/ and pytest.ini)
 docker compose up -d
 
 # 2. Create the test database (one-time setup)
@@ -372,11 +394,8 @@ docker exec notees-postgres-dev psql -U notees -c "CREATE DATABASE notees_test;"
 # 3. Install test dependencies inside the backend container
 docker exec notees-backend-dev pip install pytest==7.4.4 pytest-asyncio==0.23.3 pytest-cov httpx==0.26.0 testcontainers
 
-# 4. Run all tests using the existing postgres container
-docker exec -e TEST_DATABASE_URL=postgresql://notees:change_me_dev_password@postgres:5432/notees_test notees-backend-dev pytest tests/ -v
-
-# Run without slow tests
-docker exec -e TEST_DATABASE_URL=postgresql://notees:change_me_dev_password@postgres:5432/notees_test notees-backend-dev pytest tests/ -v -m "not slow"
+# 4. Run all tests using the existing postgres container (use --no-cov to avoid coverage overhead)
+docker exec -e TEST_DATABASE_URL=postgresql://notees:change_me_dev_password@postgres:5432/notees_test notees-backend-dev pytest tests/ -m "not slow" -p no:cacheprovider --no-cov -v
 ```
 
 **Test configuration (`pytest.ini`):**
@@ -386,7 +405,8 @@ docker exec -e TEST_DATABASE_URL=postgresql://notees:change_me_dev_password@post
 - Markers: `slow`, `integration`
 
 **Fixtures (`tests/conftest.py`):**
-- `db_pool`: Initializes asyncpg pool, drops all tables, and re-creates schema before every test.
+- `db_pool`: Initializes asyncpg pool, drops and recreates the `public` schema, and re-creates extensions + schema before every test. Explicitly drops `uuid-ossp` before the schema drop to avoid stale extension catalog entries; does **not** drop `pg_trgm` because that can segfault Postgres 17-alpine.
+- `db_pool` also resets per-key rate-limit buckets (`PerKeyBucketFactory.reset_all()`) and clears the auth cache so tests do not inherit leftover request budgets or stale user data.
 - `test_user`: Creates a unique test user + workspace and returns auth token.
 - `client` / `authenticated_client`: `httpx.AsyncClient` against the FastAPI ASGI app.
 - `node_repository`, `property_repository`, `link_repository`, `node_service`: Domain-layer fixtures wired to the test DB.
