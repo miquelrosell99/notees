@@ -8,7 +8,6 @@ from ...dependencies import get_current_user
 from ...models import PaginatedResponse, User
 from .helpers import (
     _build_children_tree,
-    _get_class_ids_batch,
     _get_node_service,
     _node_to_response,
 )
@@ -36,7 +35,7 @@ async def get_workspace_data_endpoint(
     Returns all pages as nodes and links between them based on node_link table.
     """
     service = await _get_node_service(user)
-    total, node_dicts, link_dicts = await service._node_repo.get_workspace_data(page, page_size)
+    total, node_dicts, link_dicts = await service.get_workspace_data(page, page_size)
 
     nodes = [
         WorkspaceNodeResponse(
@@ -89,7 +88,7 @@ async def get_workspace_nodes_endpoint(
         page_size = 100
     service = await _get_node_service(user)
 
-    total, node_dicts = await service._node_repo.get_workspace_nodes(page, page_size)
+    total, node_dicts = await service.get_workspace_nodes(page, page_size)
 
     nodes = [
         WorkspaceNodeResponse(
@@ -147,7 +146,7 @@ async def get_links_for_nodes(
         raise HTTPException(status_code=400, detail="scope must be 'between' or 'touching'")
 
     service = await _get_node_service(user)
-    links = await service._link_service._link_repo.get_links_for_nodes(
+    links = await service.get_links_for_nodes(
         node_ids, scope, cooccurrence, body.context_node_id
     )
 
@@ -205,7 +204,7 @@ async def search_nodes(
 
             # Fall back to prefix match (uuid starts with the search term)
             if len(uuid) >= 4:  # Require at least 4 chars for prefix search
-                nodes = await service._node_repo.search_by_uuid_prefix(uuid, min(limit, 20))
+                nodes = await service.search_by_uuid_prefix(uuid, min(limit, 20))
                 result = []
                 for node_obj in nodes:
                     node_class_ids = node_obj.class_ids or []
@@ -285,73 +284,44 @@ async def list_nodes(
 
     service = await _get_node_service(user)
 
-    if parent_id:
-        nodes = await service.get_node_children(parent_id)
-    elif type_id:
-        nodes = await service.get_nodes_typed_with(type_id)
-    elif pages_only:
-        # Fetch up to the endpoint maximum so in-memory pagination works.
-        nodes = await service.get_all_pages(limit=5000)
-    else:
-        nodes = await service.search("", limit=5000)
-
-    # Parse class filters if provided
-    filter_class_ids: set | None = None
+    # Parse class filters if provided and expand them to include subclasses.
+    expanded_class_ids: list[int] | None = None
     if class_filters:
         with contextlib.suppress(ValueError):
-            filter_class_ids = {int(cid.strip()) for cid in class_filters.split(",") if cid.strip()}
+            parsed = {int(cid.strip()) for cid in class_filters.split(",") if cid.strip()}
+            if parsed:
+                expanded_class_ids = list(await service.expand_class_hierarchy(list(parsed)))
 
-    # Expand class filters to include all subclasses (inheritance)
-    if filter_class_ids and service._class_service._class_extend_repo is not None:
-        filter_class_ids = await service._class_service._class_extend_repo.expand_class_hierarchy(
-            list(filter_class_ids)
-        )
+    nodes, total = await service.list_nodes(
+        pages_only=pages_only,
+        parent_id=parent_id,
+        type_id=type_id,
+        class_ids=expanded_class_ids,
+        root_only=root_only,
+        sort_by=sort_by,
+        order=order,
+        page=page,
+        page_size=effective_page_size,
+    )
 
-    # Batch fetch class_ids for all nodes
-    node_ids = [n.id for n in nodes if n.id is not None]
-    class_ids_map = await _get_class_ids_batch(service, node_ids)
+    # Build the response; class_ids are already populated on the Node entities.
+    class_ids_map = {n.id: list(n.class_ids) for n in nodes if n.id is not None}
+    result = [
+        _node_to_response(n, classes=class_ids_map.get(n.id, []))
+        for n in nodes
+        if n.id is not None
+    ]
 
-    # Filter to root nodes if requested
-    if root_only:
-        nodes = [n for n in nodes if n.parent_id is None]
-
-    # Build response, optionally filtering by classes
-    result = []
-    for n in nodes:
-        if n.id is None:
-            continue
-        node_class_ids = class_ids_map.get(n.id, [])
-
-        # Apply class filter if specified
-        if filter_class_ids and not filter_class_ids.intersection(node_class_ids):
-            continue
-
-        result.append(_node_to_response(n, classes=node_class_ids))
-
-    # Sort results
-    reverse = order == "desc"
-    if sort_by == "name":
-        result.sort(key=lambda x: (x.name or "").lower(), reverse=reverse)
-    elif sort_by == "create_date":
-        result.sort(key=lambda x: x.create_date or "", reverse=reverse)
-    elif sort_by == "write_date":
-        result.sort(key=lambda x: x.write_date or "", reverse=reverse)
-    else:
-        result.sort(key=lambda x: x.sequence or 0, reverse=reverse)
-
-    # Include children if requested (recursive tree building)
+    # Include children if requested; descendant lookup is batched via
+    # get_node_descendants_batch inside _build_children_tree.
     if include_children and result:
         result = await _build_children_tree(service, result, class_ids_map)
 
-    # Apply pagination using the bounded page_size.
-    total = len(result)
-    offset = (page - 1) * effective_page_size
-    paginated_items = result[offset : offset + effective_page_size]
     has_next = (page * effective_page_size) < total
     has_prev = page > 1
 
     return PaginatedResponse[NodeResponse](
-        items=paginated_items,
+        items=result,
         total=total,
         page=page,
         page_size=effective_page_size,

@@ -30,13 +30,13 @@ import {
   useSensors,
 } from '@dnd-kit/core';
 
-import { apiNodesToGraphNodes } from '@/hooks/useRuntimeSync';
-import { useCollapsePersist } from '@/hooks/useCollapsePersist';
+import { apiNodesToGraphNodes } from '@/features/content/hooks/useRuntimeSync';
+import { useCollapsePersist } from '@/features/content/hooks/useCollapsePersist';
 import type { Node } from '@/types';
 import type { NodeKanbanViewProps } from '@/types/nodeCollection';
 
 import { useClasses, useNodes, useTags } from '@/hooks';
-import { useSetNodeProperty } from '@/hooks/useProperties';
+import { useSetNodeProperty } from '@/features/content/hooks/useProperties';
 import { NodeCard } from './KanbanCard';
 import { getPropertyGroupInfo } from './viewHelpers';
 import { NodeIcon } from '@/components/ui/icons';
@@ -58,7 +58,7 @@ function LazyNodeCard(props: React.ComponentProps<typeof NodeCard>) {
       {inView ? (
         <NodeCard {...props} />
       ) : (
-        <div className="node-card-placeholder" style={{ minHeight: '7.5rem' }} />
+        <div className="node-card-placeholder" />
       )}
     </div>
   );
@@ -188,17 +188,10 @@ function KanbanColumn({
       className={`node-kanban-view__kanban-column ${isOver ? 'node-kanban-view__kanban-column--over' : ''} ${collapsed ? 'node-kanban-view__kanban-column--collapsed' : ''}`}
       data-column-id={column.id}
     >
+      {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events -- Pointer-only column header toggle; keyboard users can use the visible expand/collapse button inside it. */}
       <div
-        role="button"
-        tabIndex={0}
         className="node-kanban-view__kanban-header"
         onClick={onToggleCollapse}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            onToggleCollapse();
-          }
-        }}
       >
         {column.icon && <NodeIcon icon={column.icon} size="xs" className="node-kanban-view__kanban-icon" />}
         <span className="node-kanban-view__kanban-title">{column.label}</span>

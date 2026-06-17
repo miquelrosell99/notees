@@ -21,6 +21,7 @@ import type {
 } from '@/runtime';
 import { writeCreate, writeUpdate, writeDelete, writeMove } from './cacheWriter';
 import { getOperationRuntime } from '@/runtime';
+import { resolveParentServerId } from '@/runtime/serverIdMap';
 
 export interface SyncApi {
   createNode: (data: NodeCreate) => Promise<Node>;
@@ -70,8 +71,9 @@ export function operationToApiRequest(operation: Operation):
   | { type: 'update'; id: number; data: NodeUpdate }
   | { type: 'delete'; id: number }
   | { type: 'unsupported' } {
+  const runtime = getOperationRuntime();
   const runtimeServerId =
-    operation.serverId ?? getOperationRuntime().getNode(operation.blockId)?.serverId;
+    operation.serverId ?? runtime.getNode(operation.blockId)?.serverId;
 
   switch (operation.type) {
     case 'create': {
@@ -80,7 +82,7 @@ export function operationToApiRequest(operation: Operation):
         type: 'create',
         data: {
           name: serializeContentAST(payload.contentAST),
-          parent_id: payload.parentId ? parseInt(payload.parentId, 10) : null,
+          parent_id: payload.parentId ? resolveParentServerId(runtime, payload.parentId) : null,
           sequence: 0, // computed server-side from parent/after
           uuid: operation.blockId,
         },
@@ -101,7 +103,7 @@ export function operationToApiRequest(operation: Operation):
         type: 'update',
         id: runtimeServerId,
         data: {
-          parent_id: payload.parentId ? parseInt(payload.parentId, 10) : null,
+          parent_id: payload.parentId ? resolveParentServerId(runtime, payload.parentId) : null,
           sequence: 0, // computed server-side from parent/after
         },
       };
@@ -176,10 +178,10 @@ export function applyCacheUpdate(
 
   switch (operation.type) {
     case 'create': {
-      const payload = operation.payload as CreatePayload;
-      const parentId = payload.parentId ? parseInt(payload.parentId, 10) : null;
-      if (parentId != null && node.id > 0) {
-        writeCreate(queryClient, parentId, node);
+      // Use the server-returned parent_id rather than parsing the runtime
+      // payload parent UUID, which could be mistaken for a numeric id.
+      if (node.parent_id != null && node.id > 0) {
+        writeCreate(queryClient, node.parent_id, node);
       }
       break;
     }

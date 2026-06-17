@@ -22,10 +22,10 @@ import {
   useDeleteNodeView,
   useResetNodeViews,
   batchEnsureDefaults,
-} from '@/hooks/useNodeViews';
-import { useCreateNode, usePageClass, useAddClass } from '@/hooks/useNodes';
-import { useClasses, useLinkedReferences } from '@/hooks/useNodeQueries';
-import { nodeNameToText } from '@/hooks/useStringifyAST';
+} from '@/features/content/hooks/useNodeViews';
+import { useCreateNode, usePageClass, useAddClass } from '@/features/content/hooks/useNodes';
+import { useClasses, useLinkedReferences } from '@/features/content/hooks/useNodeQueries';
+import { nodeNameToText } from '@/features/queries/hooks/useStringifyAST';
 
 import { useContentSave } from '@/hooks';
 
@@ -50,6 +50,8 @@ import { applyCollapseLevelToChildren, extractUuidsFromAST } from './QueryNodeCo
 import { getOperationRuntime } from '@/runtime';
 import { getAllNodes } from '@/runtime/graphHelpers';
 import { upsertNodes } from '@/runtime/eventBus';
+import { queryKeys } from '@/hooks/queryKeys';
+
 
 
 // ==================== Types ====================
@@ -538,7 +540,7 @@ export function QueryNodeCollection({
     },
     {
       enabled: isPseudoNode && !!pseudoNodeAST,
-      queryKey: ['pseudo-node-query', viewType, nodeId, collectionViewMode],
+      queryKey: queryKeys.pseudoNodeQuery(viewType, nodeId, collectionViewMode),
     }
   );
 
@@ -561,7 +563,7 @@ export function QueryNodeCollection({
     },
     {
       enabled: isInlineMode && !!inlineQueryAST,
-      queryKey: ['inline-query', nodeId, inlineQueryAST, collectionViewMode],
+      queryKey: queryKeys.inlineQuery(nodeId, inlineQueryAST, collectionViewMode),
     }
   );
 
@@ -687,7 +689,7 @@ export function QueryNodeCollection({
     },
     {
       enabled: !!debouncedPreviewAST,
-      queryKey: ['preview-query', nodeId, debouncedPreviewAST, collectionViewMode],
+      queryKey: queryKeys.previewQuery(nodeId, debouncedPreviewAST, collectionViewMode),
     }
   );
 

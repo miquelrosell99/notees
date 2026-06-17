@@ -8,8 +8,7 @@
  
 
 import { useState, useCallback, useMemo, useRef, useEffect, memo } from 'react';
-import { setSetting } from '@/features/workspace/api/workspaces';
-import { useSettingsQuery } from '@/hooks/useSettings';
+import { setSetting, useSettingsQuery } from '@/features/workspace';
 import * as nodesApi from '@/api/nodes';
 import { useNavigationStore } from '@/stores';
 import type { Node } from '@/types';
@@ -42,13 +41,71 @@ import './DatePropertiesPanel.css';
 import { registerView } from './registry';
 const rendererRef = new TimelineRenderer();
 
+interface SpatialEntry {
+  event: TimeEvent;
+  x: number;
+  y: number;
+  radius: number;
+}
+
+/** Build an x-sorted spatial index of timeline events for O(log n) hit-tests. */
+function buildSpatialIndex(
+  timeEvents: TimeEvent[],
+  eventSizes: Map<string, number>,
+  width: number,
+  height: number,
+  scale: number,
+  panX: number
+): SpatialEntry[] {
+  const centerY = height / 2;
+  return timeEvents
+    .map((event) => {
+      const x = event.position * width * scale + panX;
+      const radius = eventSizes.get(event.id) ?? EVENT_RADIUS_MIN;
+      const yOffset = EVENT_OFFSET + event.stackIndex * EVENT_STACK_SPACING;
+      const y = centerY - yOffset;
+      return { event, x, y, radius };
+    })
+    .sort((a, b) => a.x - b.x);
+}
+
+function findNearestEvent(
+  entries: SpatialEntry[],
+  mouseX: number,
+  mouseY: number
+): TimeEvent | null {
+  if (entries.length === 0) return null;
+  const searchRadius = EVENT_RADIUS_MAX + EVENT_STACK_SPACING + 3;
+  let left = 0;
+  let right = entries.length;
+  while (left < right) {
+    const mid = Math.floor((left + right) / 2);
+    if (entries[mid].x < mouseX - searchRadius) {
+      left = mid + 1;
+    } else {
+      right = mid;
+    }
+  }
+  let nearest: TimeEvent | null = null;
+  let nearestDist = Infinity;
+  for (let i = left; i < entries.length; i++) {
+    const entry = entries[i];
+    if (entry.x > mouseX + searchRadius) break;
+    const dist = Math.sqrt((mouseX - entry.x) ** 2 + (mouseY - entry.y) ** 2);
+    if (dist <= entry.radius + 3 && dist < nearestDist) {
+      nearestDist = dist;
+      nearest = entry.event;
+    }
+  }
+  return nearest;
+}
+
 export const TimelineView = memo(function TimelineView({
   nodes,
   className = '',
 }: NodeTimelineRendererProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const animationRef = useRef<number>(0);
   
   const [dateProperties, setDateProperties] = useState<DatePropertyConfig[]>(() => {
     const palette = getDateLanePalette();
@@ -148,20 +205,26 @@ export const TimelineView = memo(function TimelineView({
   // Calculate event sizes (normalized by node count)
   const eventSizes = useMemo(() => {
     if (timeEvents.length === 0) return new Map<string, number>();
-    
+
     const minNodes = Math.min(...timeEvents.map(e => e.nodes.length));
     const maxNodes = Math.max(...timeEvents.map(e => e.nodes.length));
     const range = maxNodes - minNodes || 1;
-    
+
     const sizes = new Map<string, number>();
     timeEvents.forEach(event => {
       const normalized = (event.nodes.length - minNodes) / range;
       const radius = EVENT_RADIUS_MIN + (normalized * (EVENT_RADIUS_MAX - EVENT_RADIUS_MIN));
       sizes.set(event.id, radius);
     });
-    
+
     return sizes;
   }, [timeEvents]);
+
+  // Spatial index for O(log n) event hit-testing.
+  const spatialIndex = useMemo(
+    () => buildSpatialIndex(timeEvents, eventSizes, dimensions.width, dimensions.height, transform.scale, transform.panX),
+    [timeEvents, eventSizes, dimensions.width, dimensions.height, transform.scale, transform.panX]
+  );
   
   // Initial zoom to year and center on today
   useEffect(() => {
@@ -244,18 +307,7 @@ export const TimelineView = memo(function TimelineView({
     });
 
     markersRef.current = result.markers;
-
-    // Fade markers when zoom changes significantly
-    const daysDiff = Math.abs(result.visibleDays - prevVisibleDays);
-    const thresholdChange = Math.max(10, prevVisibleDays * 0.3);
-
-    if (daysDiff > thresholdChange && prevVisibleDays !== 365) {
-      if (markerOpacity === 1) setMarkerOpacity(0.3);
-      setPrevVisibleDays(result.visibleDays);
-    } else if (markerOpacity < 1) {
-      setMarkerOpacity(Math.min(1, markerOpacity + 0.2));
-    }
-  }, [dimensions, transform, timeEvents, eventSizes, hoveredEvent, selectedEvent, dateRange, markerOpacity, prevVisibleDays]);
+  }, [dimensions, transform, timeEvents, eventSizes, hoveredEvent, selectedEvent, dateRange, markerOpacity]);
 
   // Render minimap
   const renderMinimap = useCallback(() => {
@@ -269,41 +321,44 @@ export const TimelineView = memo(function TimelineView({
     });
   }, [dimensions, transform, timeEvents]);
   
-  // Animation loop for minimap
+  // Render minimap whenever the data or viewport changes.
   useEffect(() => {
     renderMinimap();
   }, [renderMinimap]);
-  
-  // Animation loop
+
+  // Render main canvas whenever dependencies change.
   useEffect(() => {
-    const loop = () => {
-      render();
-      animationRef.current = requestAnimationFrame(loop);
-    };
-    animationRef.current = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(animationRef.current);
+    render();
   }, [render]);
+
+  // Fade markers briefly when the zoom level jumps enough to change marker density.
+  useEffect(() => {
+    const totalMs = dateRange.end.getTime() - dateRange.start.getTime();
+    const totalDays = totalMs / (24 * 60 * 60 * 1000);
+    if (totalDays <= 0) return;
+    const visibleDays = totalDays / transform.scale;
+    const daysDiff = Math.abs(visibleDays - prevVisibleDays);
+    const thresholdChange = Math.max(10, prevVisibleDays * 0.3);
+
+    if (daysDiff > thresholdChange && prevVisibleDays !== 365) {
+      setPrevVisibleDays(visibleDays);
+      setMarkerOpacity(0.3);
+    } else if (markerOpacity < 1) {
+      setMarkerOpacity((prev) => Math.min(1, prev + 0.2));
+    }
+  }, [dimensions, transform, dateRange, prevVisibleDays, markerOpacity]);
   
   // Mouse handlers
   const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return;
-    
+
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
-    const centerY = dimensions.height / 2;
-    
-    const hovered = timeEvents.find(event => {
-      const x = event.position * dimensions.width * transform.scale + transform.panX;
-      const radius = eventSizes.get(event.id) || EVENT_RADIUS_MIN;
-      const yOffset = EVENT_OFFSET + (event.stackIndex * EVENT_STACK_SPACING);
-      const y = centerY - yOffset;
-      const dist = Math.sqrt((mouseX - x) ** 2 + (mouseY - y) ** 2);
-      return dist < radius + 3;
-    });
-    
+    const hovered = findNearestEvent(spatialIndex, mouseX, mouseY);
+
     setHoveredEvent(hovered || null);
-  }, [dimensions, transform, timeEvents, eventSizes]);
+  }, [spatialIndex]);
   
   const handleClick = useCallback(async (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (isPanningRef.current) return;
@@ -359,15 +414,8 @@ export const TimelineView = memo(function TimelineView({
     }
     
     // Check if clicked on an event
-    const clicked = timeEvents.find(event => {
-      const x = event.position * dimensions.width * transform.scale + transform.panX;
-      const radius = eventSizes.get(event.id) || EVENT_RADIUS_MIN;
-      const yOffset = EVENT_OFFSET + (event.stackIndex * EVENT_STACK_SPACING);
-      const y = centerY - yOffset;
-      const dist = Math.sqrt((mouseX - x) ** 2 + (mouseY - y) ** 2);
-      return dist < radius + 3;
-    });
-    
+    const clicked = findNearestEvent(spatialIndex, mouseX, mouseY);
+
     if (clicked) {
       setSelectedEvent(clicked);
       const x = clicked.position * dimensions.width * transform.scale + transform.panX;
@@ -392,7 +440,7 @@ export const TimelineView = memo(function TimelineView({
       setSelectedEvent(null);
       setCardPosition(null);
     }
-  }, [dimensions, transform, timeEvents, eventSizes, openNode, addSidebarCard]);
+  }, [spatialIndex, dimensions.width, dimensions.height, transform.scale, transform.panX, openNode, addSidebarCard]);
   
   const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     isPanningRef.current = true;

@@ -5,9 +5,10 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 
 from ...db.connection import get_transaction
-from ...dependencies import get_current_user
+from ...dependencies import get_current_user, get_property_repository
 from ...domain.entities import BacklinkInfo
 from ...domain.errors import NodeNotFoundError, NodeValidationError
+from ...domain.repositories.interfaces import PropertyRepository
 from ...domain.services.link_service import LinkParsingService
 from ...models import User
 from .helpers import (
@@ -184,12 +185,13 @@ async def set_property(
     node_id: int,
     request: PropertyRequest,
     user: User = Depends(get_current_user),
+    property_repo: PropertyRepository = Depends(get_property_repository),
 ):
     """Set a property value on a node."""
     service = await _get_node_service(user)
 
     # Get property to determine its type
-    prop = await service.property_repo.get_by_id(request.property_id)
+    prop = await property_repo.get_by_id(request.property_id)
     if not prop:
         raise HTTPException(404, "Property not found")
 
@@ -199,14 +201,14 @@ async def set_property(
     old_values: list[Any] = []
     had_assignment = False
     try:
-        np = await service.property_repo.get_node_property(node_id, request.property_id)
+        np = await property_repo.get_node_property(node_id, request.property_id)
         had_assignment = np is not None
         if prop.type in SCALAR_TYPES:
-            old_values = [v.value for v in await service.property_repo.get_scalar_values(node_id, request.property_id)]
+            old_values = [v.value for v in await property_repo.get_scalar_values(node_id, request.property_id)]
         elif prop.type in RELATION_TYPES:
-            old_values = [v.target_id for v in await service.property_repo.get_relation_values(node_id, request.property_id)]
+            old_values = [v.target_id for v in await property_repo.get_relation_values(node_id, request.property_id)]
         elif prop.type == PropertyType.SELECTION:
-            old_values = [v.selection_line_id for v in await service.property_repo.get_selection_values(node_id, request.property_id)]
+            old_values = [v.selection_line_id for v in await property_repo.get_selection_values(node_id, request.property_id)]
     except LookupError:
         pass
 
@@ -215,13 +217,13 @@ async def set_property(
     async with get_transaction():
         # Set value based on property type
         if prop.type in SCALAR_TYPES:
-            await service.property_repo.set_scalar_value(node_id, request.property_id, request.value)
+            await property_repo.set_scalar_value(node_id, request.property_id, request.value)
         elif prop.type in RELATION_TYPES:
             # For relation types, value should be a target_node_id
-            await service.property_repo.set_relation_value(node_id, request.property_id, request.value)
+            await property_repo.set_relation_value(node_id, request.property_id, request.value)
         elif prop.type == PropertyType.SELECTION:
             # For selection types, value should be a selection_line_id
-            await service.property_repo.set_selection_value(node_id, request.property_id, request.value)
+            await property_repo.set_selection_value(node_id, request.property_id, request.value)
 
         # Record for undo
         try:
@@ -260,6 +262,7 @@ async def remove_property(
     node_id: int,
     property_id: int,
     user: User = Depends(get_current_user),
+    property_repo: PropertyRepository = Depends(get_property_repository),
 ):
     """Remove a property value from a node."""
     service = await _get_node_service(user)
@@ -270,14 +273,14 @@ async def remove_property(
     old_values: list[Any] = []
     prop = None
     try:
-        prop = await service.property_repo.get_by_id(property_id)
+        prop = await property_repo.get_by_id(property_id)
         if prop:
             if prop.type in SCALAR_TYPES:
-                old_values = [v.value for v in await service.property_repo.get_scalar_values(node_id, property_id)]
+                old_values = [v.value for v in await property_repo.get_scalar_values(node_id, property_id)]
             elif prop.type in RELATION_TYPES:
-                old_values = [v.target_id for v in await service.property_repo.get_relation_values(node_id, property_id)]
+                old_values = [v.target_id for v in await property_repo.get_relation_values(node_id, property_id)]
             elif prop.type == PropertyType.SELECTION:
-                old_values = [v.selection_line_id for v in await service.property_repo.get_selection_values(node_id, property_id)]
+                old_values = [v.selection_line_id for v in await property_repo.get_selection_values(node_id, property_id)]
     except LookupError:
         pass
 
@@ -290,7 +293,7 @@ async def remove_property(
     )
 
     async with get_transaction():
-        await service.property_repo.remove_property_from_node(node_id, property_id)
+        await property_repo.remove_property_from_node(node_id, property_id)
 
         # Record for undo
         try:
@@ -366,6 +369,7 @@ async def get_linked_references(
     offset: int = 0,
     count: bool = False,
     user: User = Depends(get_current_user),
+    property_repo: PropertyRepository = Depends(get_property_repository),
 ):
     """Get linked references to a node with context, including children hierarchy.
 
@@ -389,7 +393,7 @@ async def get_linked_references(
     # Block B should appear only as a child under Block A, not as a separate entry.
     source_ids = [link.source_node_id for link in backlinks]
     if source_ids:
-        ancestors_map = await service._node_repo.get_ancestors_batch(source_ids, include_self=False)
+        ancestors_map = await service.get_ancestors_batch(source_ids, include_self=False)
         source_id_set = set(source_ids)
         filtered_backlinks = []
         for link in backlinks:
@@ -434,7 +438,7 @@ async def get_linked_references(
     # Batch fetch properties for all source nodes
     node_properties_map = {}
     if source_node_ids:
-        batch_result = await service.property_repo.get_all_property_values_batch(source_node_ids)
+        batch_result = await property_repo.get_all_property_values_batch(source_node_ids)
         for nid, prop_data in batch_result.items():
             node_properties_map[nid] = extract_properties_dict(prop_data)
 
@@ -516,6 +520,7 @@ async def get_inline_classes(
 async def get_property_backlinks(
     node_id: int,
     user: User = Depends(get_current_user),
+    property_repo: PropertyRepository = Depends(get_property_repository),
 ):
     """Get pages that reference this node via date or node properties.
 
@@ -534,7 +539,7 @@ async def get_property_backlinks(
     # Batch fetch properties for all pages
     node_properties_map = {}
     if page_ids:
-        batch_result = await service.property_repo.get_all_property_values_batch(page_ids)
+        batch_result = await property_repo.get_all_property_values_batch(page_ids)
         for page_id, prop_data in batch_result.items():
             node_properties_map[page_id] = extract_properties_dict(prop_data)
 
@@ -571,10 +576,10 @@ async def get_aliases(
 
     alias_ids = await service.get_alias_ids(node_id)
 
-    # Fetch full node data for each alias
+    # Fetch full node data for each alias (raw alias records, not resolved targets)
     aliases = []
     for alias_id in alias_ids:
-        alias_node = await service.get_node(alias_id)
+        alias_node = await service.get_node_by_id(alias_id)
         if alias_node:
             aliases.append(_node_to_response(alias_node))
 
@@ -597,35 +602,35 @@ async def add_alias(
     """
     service = await _get_node_service(user)
 
-    alias_node = await service.get_node(request.alias_node_id)
+    alias_node = await service.get_node_by_id(request.alias_node_id)
     if not alias_node:
         raise HTTPException(404, "Alias node not found")
     before_aliased_id = alias_node.aliased_id
 
-    try:
-        async with get_transaction():
+    async with get_transaction():
+        try:
             await service.add_alias(node_id, request.alias_node_id)
+        except NodeNotFoundError as e:
+            raise HTTPException(404, str(e)) from e
+        except NodeValidationError as e:
+            raise HTTPException(400, str(e)) from e
 
-            # Record for undo
-            try:
-                undo = await _get_undo_service(user)
-                await undo.record(
-                    "add_alias",
-                    "node",
-                    node_id,
-                    before_state={"alias_node_id": request.alias_node_id, "aliased_id": before_aliased_id},
-                    after_state={"alias_node_id": request.alias_node_id, "aliased_id": node_id},
-                    description=f"Added alias to node {node_id}",
-                )
-            except (ValueError, TypeError, LookupError):
-                pass
-    except NodeNotFoundError as e:
-        raise HTTPException(404, str(e)) from e
-    except NodeValidationError as e:
-        raise HTTPException(400, str(e)) from e
+        # Record for undo
+        try:
+            undo = await _get_undo_service(user)
+            await undo.record(
+                "add_alias",
+                "node",
+                node_id,
+                before_state={"alias_node_id": request.alias_node_id, "aliased_id": before_aliased_id},
+                after_state={"alias_node_id": request.alias_node_id, "aliased_id": node_id},
+                description=f"Added alias {request.alias_node_id} to node {node_id}",
+            )
+        except (ValueError, TypeError, LookupError):
+            pass
 
     # Return updated target node with aliases
-    node = await service.get_node(node_id)
+    node = await service.get_node_by_id(node_id)
     alias_ids = await service.get_alias_ids(node_id)
     return _node_to_response(node, aliases=alias_ids)
 
@@ -639,7 +644,7 @@ async def remove_alias(
     """Remove an alias from a node (clears aliased_id on the alias node)."""
     service = await _get_node_service(user)
 
-    alias_node = await service.get_node(alias_id)
+    alias_node = await service.get_node_by_id(alias_id)
     if not alias_node:
         raise HTTPException(404, "Alias node not found")
     before_aliased_id = alias_node.aliased_id
@@ -755,11 +760,7 @@ async def get_unlinked_mentions(
 ):
     """Get unlinked mention candidates for a node."""
     service = await _get_node_service(user)
-    mention_service = service._mention_service
-    if mention_service is None:
-        return {"mentions": []}
-
-    rows = await mention_service.list_unlinked_mentions(node_id)
+    rows = await service.list_unlinked_mentions(node_id)
     return {
         "mentions": [
             MentionResponse(

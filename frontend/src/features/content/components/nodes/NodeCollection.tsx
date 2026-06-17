@@ -25,7 +25,7 @@
 import { useMemo, useCallback, useState, useEffect, memo, Suspense } from 'react';
 import type { ReactNode } from 'react';
 import { useAppStore } from '@/stores';
-import { useUpdateNodeView } from '@/hooks/useNodeViews';
+import { useUpdateNodeView } from '@/features/content/hooks/useNodeViews';
 import { useProperties } from '@/hooks';
 import type {
   NodeCollectionProps,
@@ -43,6 +43,10 @@ import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import './NodeCollection.css';
 
 import { NodeCollectionContext } from './NodeCollectionContext';
+
+// Immersive canvas/aggregation views choke when fed huge node lists.
+// Cap them until real server-side pagination is implemented.
+const IMMERSIVE_VIEW_NODE_LIMIT = 500;
 
 // ==================== Group-by helpers ====================
 
@@ -464,12 +468,13 @@ export const NodeCollection = memo(function NodeCollection({
         };
 
       case 'gantt': {
-        const ganttNodes = ganttStartDateProperty
+        const ganttNodes = (ganttStartDateProperty
           ? nodes.filter((n) => {
               const val = (n.properties as Record<number, unknown> | undefined)?.[ganttStartDateProperty.id];
               return val != null;
             })
-          : nodes;
+          : nodes
+        ).slice(0, IMMERSIVE_VIEW_NODE_LIMIT);
         return {
           ...commonViewProps,
           nodes: ganttNodes,
@@ -482,12 +487,13 @@ export const NodeCollection = memo(function NodeCollection({
       }
 
       case 'calendar': {
-        const calendarNodes = ganttStartDateProperty
+        const calendarNodes = (ganttStartDateProperty
           ? nodes.filter((n) => {
               const val = (n.properties as Record<number, unknown> | undefined)?.[ganttStartDateProperty.id];
               return val != null;
             })
-          : nodes;
+          : nodes
+        ).slice(0, IMMERSIVE_VIEW_NODE_LIMIT);
         return {
           ...commonViewProps,
           nodes: calendarNodes,
@@ -500,7 +506,7 @@ export const NodeCollection = memo(function NodeCollection({
       case 'chart':
         return {
           ...commonViewProps,
-          nodes,
+          nodes: nodes.slice(0, IMMERSIVE_VIEW_NODE_LIMIT),
           groupByProperty,
           queryAst,
           viewId,
@@ -509,16 +515,16 @@ export const NodeCollection = memo(function NodeCollection({
       case 'pivot':
         return {
           ...commonViewProps,
-          nodes,
+          nodes: nodes.slice(0, IMMERSIVE_VIEW_NODE_LIMIT),
           queryAst,
           viewId,
         };
 
       case 'timeline':
-        return { nodes, className: 'node-collection__timeline' };
+        return { nodes: nodes.slice(0, IMMERSIVE_VIEW_NODE_LIMIT), className: 'node-collection__timeline' };
 
       case 'graph': {
-        const graphNodes = nodes.map((n) => ({
+        const graphNodes = nodes.slice(0, IMMERSIVE_VIEW_NODE_LIMIT).map((n) => ({
           id: n.id,
           uuid: n.uuid || '',
           name: n.name || 'Untitled',

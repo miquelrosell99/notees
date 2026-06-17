@@ -10,7 +10,7 @@ export interface ShapeSettingsPanelProps {
 }
 
 export const ShapeSettingsPanel: React.FC<ShapeSettingsPanelProps> = ({ settings, onChange }) => (
-  <div className="whiteboard-properties" style={{ padding: 'var(--spacing-1) var(--spacing-2) var(--spacing-2)', display: 'flex', flexDirection: 'column', gap: 'var(--spacing-2-5)' }}>
+  <div className="whiteboard-properties">
     <div className="whiteboard-properties__section">
       <div className="whiteboard-properties__label">Fill</div>
       <ColorButton

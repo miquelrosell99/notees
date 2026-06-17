@@ -26,7 +26,7 @@ import {
   type DropAnimation,
   type UniqueIdentifier,
 } from '@dnd-kit/core';
-import { useDndSensors } from '@/hooks/dnd/useDndSensors';
+import { useDndSensors } from '@/features/content/hooks/dnd/useDndSensors';
 import { useMoveNode } from '@/hooks';
 
 // ==================== Types ====================

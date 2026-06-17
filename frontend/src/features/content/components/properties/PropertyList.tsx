@@ -310,17 +310,10 @@ function PropertyRow({
   return (
     <>
       <div ref={rowRef} className={`property-row${hideLabel ? ' property-row--continuation' : ''}`} onContextMenu={handleContextMenu}>
+        {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events -- Pointer-only trigger for property name editing; the nested NodeInline remains keyboard focusable. */}
         <div
-          role="button"
-          tabIndex={0}
           className="property-row__label"
           onClick={handleNameClick}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
-              handleNameClick(e as unknown as React.MouseEvent);
-            }
-          }}
         >
           {!hideLabel && (
             <>

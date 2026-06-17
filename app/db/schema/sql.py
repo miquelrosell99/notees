@@ -149,6 +149,7 @@ CREATE TABLE IF NOT EXISTS node (
     is_template BOOLEAN NOT NULL DEFAULT FALSE,
     is_comment BOOLEAN NOT NULL DEFAULT FALSE,
     is_task BOOLEAN NOT NULL DEFAULT FALSE,
+    is_table BOOLEAN NOT NULL DEFAULT FALSE,
     -- Parent lock flag
     parent_locked BOOLEAN NOT NULL DEFAULT FALSE,
     -- Privacy: if true, only the owner can access this node
@@ -184,6 +185,13 @@ BEGIN
         WHERE table_name = 'node' AND column_name = 'is_task'
     ) THEN
         ALTER TABLE node ADD COLUMN is_task BOOLEAN NOT NULL DEFAULT FALSE;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'node' AND column_name = 'is_table'
+    ) THEN
+        ALTER TABLE node ADD COLUMN is_table BOOLEAN NOT NULL DEFAULT FALSE;
     END IF;
 
     IF NOT EXISTS (
@@ -227,6 +235,9 @@ CREATE INDEX IF NOT EXISTS idx_node_is_deleted ON node(is_deleted) WHERE is_dele
 CREATE INDEX IF NOT EXISTS idx_node_is_task ON node(is_task) WHERE is_task = TRUE;
 -- Composite: fast task lookups scoped to a specific workspace
 CREATE INDEX IF NOT EXISTS idx_node_workspace_is_task ON node(workspace_id, is_task) WHERE active = TRUE AND is_deleted = FALSE;
+CREATE INDEX IF NOT EXISTS idx_node_is_table ON node(is_table) WHERE is_table = TRUE;
+-- Composite: fast table lookups scoped to a specific workspace
+CREATE INDEX IF NOT EXISTS idx_node_workspace_is_table ON node(workspace_id, is_table) WHERE active = TRUE AND is_deleted = FALSE;
 -- Partial index covering all live (active, non-deleted) nodes - matches the most common query predicate.
 -- Enables fast index-only scans when filtering out soft-deleted rows without a full table scan.
 CREATE INDEX IF NOT EXISTS idx_node_live ON node(workspace_id, id) WHERE active = TRUE AND is_deleted = FALSE;
@@ -822,6 +833,14 @@ DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'node' AND column_name = 'is_task') THEN
         ALTER TABLE node ADD COLUMN is_task BOOLEAN NOT NULL DEFAULT FALSE;
+    END IF;
+END $$;
+
+-- Migration: Add is_table column to node table if missing
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'node' AND column_name = 'is_table') THEN
+        ALTER TABLE node ADD COLUMN is_table BOOLEAN NOT NULL DEFAULT FALSE;
     END IF;
 END $$;
 
@@ -1623,12 +1642,26 @@ CREATE TABLE IF NOT EXISTS refresh_token (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     revoked_at TIMESTAMPTZ,
     replaced_by INTEGER REFERENCES refresh_token(id) ON DELETE SET NULL,
-    family_id UUID NOT NULL DEFAULT uuid_generate_v4()
+    family_id UUID NOT NULL DEFAULT uuid_generate_v4(),
+    remember_me BOOLEAN NOT NULL DEFAULT FALSE
 );
 
 CREATE INDEX IF NOT EXISTS idx_refresh_token_user ON refresh_token(user_id);
 CREATE INDEX IF NOT EXISTS idx_refresh_token_hash ON refresh_token(token_hash);
 CREATE INDEX IF NOT EXISTS idx_refresh_token_family ON refresh_token(family_id);
+
+-- Migration: Add remember_me column to refresh_token for existing databases
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'refresh_token' AND column_name = 'remember_me'
+    ) THEN
+        ALTER TABLE refresh_token ADD COLUMN remember_me BOOLEAN NOT NULL DEFAULT FALSE;
+    END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_refresh_token_remember_me ON refresh_token(remember_me) WHERE remember_me = TRUE;
 
 -- Migration: Change node.sequence from INTEGER to DOUBLE PRECISION for fractional ordering
 DO $$

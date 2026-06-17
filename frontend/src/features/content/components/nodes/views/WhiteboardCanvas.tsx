@@ -28,7 +28,7 @@ import type {
   StrokeStyle,
 } from '@/types/whiteboard';
 import { boundsOverlap, isPointInBounds, getBounds } from '@/types/whiteboard';
-import type { UseWhiteboardReturn } from '@/hooks/useWhiteboard';
+import type { UseWhiteboardReturn } from '@/features/content/hooks/useWhiteboard';
 
 function ShortcutRow({ keys, action }: { keys: string; action: string }) {
   return (

@@ -12,7 +12,7 @@
  */
 import { useCallback } from 'react';
 import type { ReactNode } from 'react';
-import { useListDragSort, type DragState } from '@/hooks/useListDragSort';
+import { useListDragSort, type DragState } from '@/features/content/hooks/useListDragSort';
 import './ListSortable.css';
 
 export interface ListSortableItem {
@@ -107,20 +107,13 @@ export function ListSortable<T extends ListSortableItem>({
         const style = getItemStyle(index);
 
         return (
-          <div
+          <button
             key={item.id}
-            role="button"
-            tabIndex={0}
+            type="button"
             className={`list-sortable__item ${itemClassName} ${isDragging ? 'list-sortable__item--dragging' : ''} ${isSettling ? 'list-sortable__item--settling' : ''}`}
             style={style}
             onClick={() => handleItemClick(item, index)}
             onContextMenu={(e) => handleItemContextMenu(item, e)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault();
-                handleItemClick(item, index);
-              }
-            }}
           >
             {/* Drag handle */}
             {showDragHandle && (
@@ -164,7 +157,7 @@ export function ListSortable<T extends ListSortableItem>({
                 }
               </div>
             )}
-          </div>
+          </button>
         );
       })}
     </div>

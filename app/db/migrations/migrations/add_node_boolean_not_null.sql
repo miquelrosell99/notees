@@ -16,6 +16,7 @@ UPDATE node SET is_year        = FALSE WHERE is_year IS NULL;
 UPDATE node SET is_asset       = FALSE WHERE is_asset IS NULL;
 UPDATE node SET is_template    = FALSE WHERE is_template IS NULL;
 UPDATE node SET is_comment     = FALSE WHERE is_comment IS NULL;
+UPDATE node SET is_table       = FALSE WHERE is_table IS NULL;
 UPDATE node SET parent_locked  = FALSE WHERE parent_locked IS NULL;
 UPDATE node SET is_private     = FALSE WHERE is_private IS NULL;
 
@@ -32,5 +33,6 @@ ALTER TABLE node ALTER COLUMN is_year       SET NOT NULL;
 ALTER TABLE node ALTER COLUMN is_asset      SET NOT NULL;
 ALTER TABLE node ALTER COLUMN is_template   SET NOT NULL;
 ALTER TABLE node ALTER COLUMN is_comment    SET NOT NULL;
+ALTER TABLE node ALTER COLUMN is_table      SET NOT NULL;
 ALTER TABLE node ALTER COLUMN parent_locked SET NOT NULL;
 ALTER TABLE node ALTER COLUMN is_private    SET NOT NULL;

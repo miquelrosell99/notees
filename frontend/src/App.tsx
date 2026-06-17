@@ -19,7 +19,7 @@ import { KeyboardShortcutsProvider } from './hooks/KeyboardShortcutsProvider';
 import { useGlobalKeyboardListener } from './hooks/useGlobalKeyboardListener';
 import { useWindowFocusActiveBlock } from './hooks/useWindowFocusActiveBlock';
 import { useCommand } from './hooks/useCommand';
-import { useUndoStackPersistence } from './hooks/useUndoStackPersistence';
+import { useUndoStackPersistence } from '@/features/layout/hooks/useUndoStackPersistence';
 import { COMMAND_IDS } from './stores/commandRegistry';
 import { DndProvider } from './providers/DndProvider';
 import { useUndoStore } from './stores';

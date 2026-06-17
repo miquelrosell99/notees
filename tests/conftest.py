@@ -145,6 +145,13 @@ async def db_pool(database_url: str, temp_data_dir: Path):
     # any pool connections.
     setup_conn = await asyncpg.connect(database_url)
     try:
+        # uuid-ossp lives in schema public; drop it first so that a stale
+        # extension catalog entry does not survive the schema drop and block
+        # re-creation of the uuid_generate_v4() function on the next test run.
+        # Note: dropping pg_trgm here can segfault Postgres 17-alpine, so we
+        # leave it alone and only re-create it below.
+        await setup_conn.execute('DROP EXTENSION IF EXISTS "uuid-ossp" CASCADE')
+
         # Forcibly terminate any other backends still connected to this test
         # database. Leaked connections from background tasks or aborted tests
         # would otherwise block DROP SCHEMA or cause deadlocks. We re-try the
@@ -171,10 +178,9 @@ async def db_pool(database_url: str, temp_data_dir: Path):
         await setup_conn.execute("SET search_path TO public")
 
         # Re-create required extensions in the fresh public schema.
-        # pg_trgm is used for full-text-ish substring matching. uuid-ossp is
-        # created by init_database itself because running CREATE EXTENSION IF
-        # NOT EXISTS twice in the same connection before SCHEMA_SQL triggers an
-        # asyncpg/PostgreSQL unique-violation on pg_extension_name_index.
+        # uuid-ossp is created by init_database itself because running CREATE
+        # EXTENSION IF NOT EXISTS twice in the same connection before SCHEMA_SQL
+        # triggers an asyncpg/PostgreSQL unique-violation on pg_extension_name_index.
         await setup_conn.execute("CREATE EXTENSION IF NOT EXISTS pg_trgm")
 
         # Initialize fresh schema on the same connection
@@ -189,6 +195,11 @@ async def db_pool(database_url: str, temp_data_dir: Path):
     # Clear in-memory auth cache so tests don't see stale user data
     from app import auth
     auth._user_cache.clear()
+
+    # Reset per-key rate-limit buckets so leftover request budgets from a
+    # previous test do not cause 429 failures on the next test.
+    from app.rate_limit import PerKeyBucketFactory
+    PerKeyBucketFactory.reset_all()
 
     yield pool
 
@@ -208,6 +219,7 @@ async def db_pool(database_url: str, temp_data_dir: Path):
         "_run_export_job",
         "_run_lock_timer",
         "_run_redis_loop",
+        "_run_node_export_job",
     }
     current_task = asyncio.current_task()
     pending = [

@@ -2,13 +2,26 @@
 
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class BatchTextLinksRequest(BaseModel):
     """Request body for batch text-link resolution."""
 
     node_ids: list[int]
+
+
+class SetFavoritesRequest(BaseModel):
+    """Request body for replacing the favorites list."""
+
+    favorites: list[int]
+
+
+class ReorderFavoritesRequest(BaseModel):
+    """Request body for reordering favorites."""
+
+    from_index: int = Field(..., ge=0)
+    to_index: int = Field(..., ge=0)
 
 
 class NodeResponse(BaseModel):
@@ -30,6 +43,7 @@ class NodeResponse(BaseModel):
     is_monthly: bool = False  # Monthly journal page
     is_yearly: bool = False  # Yearly journal page
     is_task: bool = False  # Task item (synchronized with task class assignment)
+    is_table: bool = False  # Table block (synchronized with table class assignment)
     is_comment: bool = False  # Whether this node is a comment
     parent_locked: bool = False  # Whether this node's parent is locked
     is_private: bool = False  # If true, only the owner can access this node

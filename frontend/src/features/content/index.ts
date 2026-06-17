@@ -28,6 +28,8 @@ export { NodeNameContent } from './components/blocks/NodeNameContent';
 export { NodeRef } from './components/nodes/NodeRef';
 export { NodeBreadcrumbs } from './components/nodes/NodeBreadcrumbs';
 export { NodeSelector } from './components/nodes/NodeSelector';
+export { SuggestionPopup } from './components/nodes/SuggestionPopup';
+export { NodeSearchBox } from './components/nodes/NodeSearchBox';
 export { NodeCellEditable } from './components/nodes/NodeCellEditable';
 
 // Block editor
@@ -49,6 +51,41 @@ export { TimelineView } from './components/nodes/views/TimelineView';
 
 // Presentation
 export { PresentationModal } from './components/PresentationModal';
+
+// Calendar / date pickers
+export { CalendarPopup } from './components/CalendarPopup';
+
+// Node sections
+export { NodeViewSection } from './components/nodes/NodeViewSection';
+
+// Hooks consumed by other features
+export * from './hooks/useNodes';
+export * from './hooks/useNodeSearch';
+export * from './hooks/useProperties';
+export * from './hooks/useFavorites';
+export * from './hooks/useRecents';
+export * from './hooks/useNodeDisplay';
+export * from './hooks/useContentSave';
+export * from './hooks/usePageClass';
+export * from './hooks/useListDragSort';
+export * from './hooks/useNodeViews';
+export * from './hooks/useComments';
+export * from './hooks/useLinkedReferencesCount';
+export * from './hooks/useResolvedClassDetails';
+export * from './hooks/useHierarchicalPath';
+export * from './hooks/useNodeNavigation';
+export * from './hooks/useLivePageSync';
+export * from './hooks/useWhiteboard';
+export * from './hooks/useTrash';
+export * from './hooks/useArchivedPages';
+export * from './hooks/usePageAliases';
+export * from './hooks/usePropertySuggestions';
+export * from './hooks/useGanttDateMutation';
+export * from './hooks/useCalendarData';
+export * from './hooks/useCalendarDateMutation';
+export * from './hooks/useChartAggregate';
+export * from './hooks/usePivotAggregate';
+export * from './hooks/useBatchNodes';
 
 // Stores
 export { usePresentationStore } from '@/stores/presentationStore';

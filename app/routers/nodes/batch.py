@@ -12,7 +12,6 @@ from ...domain.repositories.interfaces import LinkRepository
 from ...logging_config import get_logger
 from ...models import User
 from .helpers import (
-    _apply_node_extras,
     _get_class_ids_batch,
     _get_node_service,
     _get_related_ids_batch,
@@ -241,7 +240,7 @@ async def batch_update_nodes(
             # Apply class reconciliation and property values if provided
             if item_classes is not None or item_properties:
                 try:
-                    await _apply_node_extras(service, node_id, item_classes, item_properties)
+                    await service.apply_node_extras(node_id, item_classes, item_properties)
                 except Exception as extras_err:
                     logger.warning(f"[BATCH_UPDATE] extras failed for node {node_id}: {extras_err}")
             updated += 1

@@ -17,21 +17,19 @@
  *   The report phase shows TaskReport with a working close button.
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 
 import {
-  checkWorkspaceName,
-  importWorkspace as importWorkspaceApi,
-  createWorkspace,
   deleteWorkspace,
   switchWorkspace,
   type WorkspaceInfo,
 } from '@/features/workspace/api/workspaces';
+import { useWorkspaceImport, useWorkspaceNameCheck } from '@/features/workspace';
 import { useNavigationStore, useModalStore } from '@/stores';
 import type { LogseqExport } from '@/utils/ednParser';
 import { parseEdnInWorker, parseSqliteInWorker } from '@/utils/logseqParserClient';
-import { useLogseqImporter, countBlocks } from '@/hooks/useLogseqImporter';
+import { useLogseqImporter, countBlocks } from '@/features/workspace/hooks/useLogseqImporter';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { TextField } from '@/components/ui/TextField';
@@ -46,8 +44,8 @@ import {
   countMdBlocks,
   type LogseqFolderResult,
 } from '@/utils/logseqMdParser';
-import { useLogseqFolderImporter } from '@/hooks/useLogseqFolderImporter';
-import { favoriteKeys, recentKeys } from '@/hooks/queryKeys';
+import { useLogseqFolderImporter } from '@/features/workspace/hooks/useLogseqFolderImporter';
+import { favoriteKeys, recentKeys, workspaceKeys } from '@/hooks/queryKeys';
 import './ImportOptionsModal.css';
 import './ImportLogseqFolderModal.css';
 
@@ -228,7 +226,7 @@ export function ImportOptionsModal({
     async function prepare() {
       workspaceUuidRef.current = workspace!.uuid;
       useModalStore.getState().setShowWorkspaceManager(true);
-      queryClient.invalidateQueries({ queryKey: ['workspaces'] });
+      queryClient.invalidateQueries({ queryKey: workspaceKeys.all });
       useNavigationStore.setState({ isSwitchingWorkspace: true });
       try {
         await switchWorkspace(workspace!.uuid);
@@ -357,56 +355,14 @@ export function ImportOptionsModal({
   }, []);
 
   // -- Live name availability check --------------------------------------
-  const { data: nameCheck, isLoading: isCheckingName } = useQuery({
-    queryKey: ['workspace-name-check', name],
-    queryFn: () => checkWorkspaceName(name),
-    enabled: name.length >= 2,
-    staleTime: 5000,
-  });
+  const { data: nameCheck, isLoading: isCheckingName } = useWorkspaceNameCheck(name);
 
   const nameIsValid = name.length >= 2 && nameCheck?.available !== false;
 
-  // -- JSON import mutation ----------------------------------------------
-  const importMutation = useMutation({
-    mutationFn: ({ n, file }: { n: string; file: File }) =>
-      importWorkspaceApi(n, file),
-    onSuccess: (workspace) => {
-      onSuccess({ workspace, type: 'json' });
-    },
-    onError: (err: Error) => {
-      setSubmitError(err.message || 'Failed to import workspace');
-    },
-  });
+  // -- Workspace import / creation mutations -------------------------------
+  const { importWorkspace, createWorkspace } = useWorkspaceImport();
 
-  // -- Workspace creation mutation (logseq / markdown) -------------------
-  const createMutation = useMutation({
-    mutationFn: (n: string) => createWorkspace(n),
-    onSuccess: (workspace) => {
-      const type = selectedType;
-      workspaceUuidRef.current = workspace.uuid;
-      if (type === 'logseq-edn' || type === 'logseq-sqlite') {
-        // Store parsed data for the import step
-        pendingParsedRef.current = parsedExport;
-        pendingWorkspaceRef.current = workspace;
-        // Switch workspace first, then import  ImportOptionsModal handles everything
-        setPhase('preparing');
-        return;
-      }
-      if (type === 'logseq-folder') {
-        pendingFolderRef.current = folderResult;
-        pendingWorkspaceRef.current = workspace;
-        setPhase('preparing');
-        return;
-      }
-      // markdown / other non-logseq: let parent handle navigation
-      onSuccess({ workspace, type });
-    },
-    onError: (err: Error) => {
-      setSubmitError(err.message || 'Failed to create workspace');
-    },
-  });
-
-  const isPending = importMutation.isPending || createMutation.isPending;
+  const isPending = importWorkspace.isPending || createWorkspace.isPending;
 
   const isSubmitEnabled = (() => {
     if (!nameIsValid || isCheckingName || isPending) return false;
@@ -423,11 +379,42 @@ export function ImportOptionsModal({
     setSubmitError(null);
     const trimmedName = name.trim();
     if (selectedType === 'json' && jsonFile) {
-      importMutation.mutate({ n: trimmedName, file: jsonFile });
+      importWorkspace.mutate(
+        { name: trimmedName, file: jsonFile },
+        {
+          onSuccess: (workspace) => {
+            onSuccess({ workspace, type: 'json' });
+          },
+          onError: (err: Error) => {
+            setSubmitError(err.message || 'Failed to import workspace');
+          },
+        }
+      );
     } else {
-      createMutation.mutate(trimmedName);
+      createWorkspace.mutate(trimmedName, {
+        onSuccess: (workspace) => {
+          const type = selectedType;
+          workspaceUuidRef.current = workspace.uuid;
+          if (type === 'logseq-edn' || type === 'logseq-sqlite') {
+            pendingParsedRef.current = parsedExport;
+            pendingWorkspaceRef.current = workspace;
+            setPhase('preparing');
+            return;
+          }
+          if (type === 'logseq-folder') {
+            pendingFolderRef.current = folderResult;
+            pendingWorkspaceRef.current = workspace;
+            setPhase('preparing');
+            return;
+          }
+          onSuccess({ workspace, type });
+        },
+        onError: (err: Error) => {
+          setSubmitError(err.message || 'Failed to create workspace');
+        },
+      });
     }
-  }, [isSubmitEnabled, name, selectedType, jsonFile, importMutation, createMutation]);
+  }, [isSubmitEnabled, name, selectedType, jsonFile, importWorkspace, createWorkspace, parsedExport, folderResult, onSuccess]);
 
   // Enter anywhere inside the modal = submit (capture phase)
   useEffect(() => {
@@ -527,7 +514,7 @@ export function ImportOptionsModal({
           </Button>
         }
       >
-        <div style={{ padding: 'var(--spacing-2) 0' }}>
+        <div className="import-unified__progress">
           <TaskProgress
             progress={isFolderType ? folderProgress : importProgress}
             statusText={isFolderType ? folderStatusText : importStatus}
@@ -574,8 +561,8 @@ export function ImportOptionsModal({
             </Button>
           }
         >
-          <div style={{ padding: 'var(--spacing-4) 0', textAlign: 'center' }}>
-            <p style={{ fontSize: 'var(--font-size-body-xl)', color: 'var(--color-success)' }}>
+          <div className="import-unified__report-message">
+            <p className="import-unified__report-success">
               Import completed successfully
             </p>
           </div>

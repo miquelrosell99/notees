@@ -646,6 +646,7 @@ export interface UserCreate {
   name?: string;
   surnames?: string;
   profile_pic?: string;
+  remember_me?: boolean;
 }
 
 /**
@@ -654,6 +655,7 @@ export interface UserCreate {
 export interface UserLogin {
   email: string;
   password: string;
+  remember_me?: boolean;
 }
 
 /**
@@ -671,6 +673,16 @@ export interface UserUpdate {
 export interface PasswordChangeRequest {
   current_password: string;
   new_password: string;
+}
+
+/**
+ * Pending invitation acceptance request
+ */
+export interface InviteAcceptRequest {
+  token: string;
+  password?: string;
+  name?: string;
+  remember_me?: boolean;
 }
 
 /**

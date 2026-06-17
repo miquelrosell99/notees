@@ -47,7 +47,7 @@
 }
 
 .settings-accent-swatch--active {
-  border-color: var(--color-primary);
+  border-color: var(--color-accent);
   box-shadow: var(--shadow-focus-ring-primary-container);
 }
 

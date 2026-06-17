@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/Button';
 import { TaskReport, type TaskPhaseResult } from '@/components/ui/TaskReport';
 import { rebuildAllLinks, type RebuildLinksResponse } from '@/api/nodes';
 import { nodeKeys } from '@/hooks/queryKeys';
-import { nodeViewKeys } from '@/hooks/useNodeViews';
+import { nodeViewKeys } from '@/features/content/hooks/useNodeViews';
 import './RebuildLinksModal.css';
 import { Icon } from '@/components/ui/icons';
 

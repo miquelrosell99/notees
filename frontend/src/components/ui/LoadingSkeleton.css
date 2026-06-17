@@ -66,3 +66,17 @@
   gap: var(--spacing-2);
   width: 100%;
 }
+
+.skeleton-row__avatar {
+  width: var(--icon-size-xl);
+  height: var(--icon-size-xl);
+  flex-shrink: 0;
+}
+
+.skeleton-row__content {
+  flex: 1;
+}
+
+.skeleton-group__heading {
+  margin-bottom: var(--spacing-2);
+}

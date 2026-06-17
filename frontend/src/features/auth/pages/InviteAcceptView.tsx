@@ -10,7 +10,8 @@ import { acceptInvite, getAuthStatus, register, login } from '@/features/auth/ap
 import { TextField } from '@/components/ui/TextField';
 import { Button } from '@/components/ui/Button';
 import { Spinner } from '@/components/ui/Spinner';
-import { setAuthToken } from '@/utils/auth';
+import { Checkbox } from '@/components/ui/Checkbox';
+import { getUserData } from '@/utils/auth';
 import './EnrollmentView.css';
 
 export function InviteAcceptView() {
@@ -27,13 +28,14 @@ export function InviteAcceptView() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [email, setEmail] = useState('');
+  const [rememberMe, setRememberMe] = useState(true);
 
   useEffect(() => {
     getAuthStatus().then((status) => {
       setRegistrationEnabled(status.registration_enabled || status.needs_onboarding);
-      // Try to auto-accept if user is already logged in
-      const existingToken = localStorage.getItem('auth_token');
-      if (existingToken && token) {
+      // Try to auto-accept if user data exists locally (session cookie is present)
+      const existingUser = getUserData();
+      if (existingUser && token) {
         setStep('accepting');
         acceptInvite({ token })
           .then(() => setStep('done'))
@@ -59,9 +61,8 @@ export function InviteAcceptView() {
     setStep('accepting');
     setError(null);
     try {
-      const res = await register({ email, password, name: name || undefined });
-      setAuthToken(res.access_token);
-      await acceptInvite({ token });
+      await register({ email, password, name: name || undefined, remember_me: rememberMe });
+      await acceptInvite({ token, remember_me: rememberMe });
       setStep('done');
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Registration failed';
@@ -74,9 +75,8 @@ export function InviteAcceptView() {
     setStep('accepting');
     setError(null);
     try {
-      const res = await login({ email, password: loginPassword });
-      setAuthToken(res.access_token);
-      await acceptInvite({ token });
+      await login({ email, password: loginPassword, remember_me: rememberMe });
+      await acceptInvite({ token, remember_me: rememberMe });
       setStep('done');
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Login failed';
@@ -171,6 +171,13 @@ export function InviteAcceptView() {
               onChange={(e) => setConfirmPassword(e.target.value)}
               placeholder="Repeat password"
             />
+            <Checkbox
+              id="invite-remember-me"
+              name="remember-me"
+              label="Keep me signed in"
+              checked={rememberMe}
+              onChange={(e) => setRememberMe(e.target.checked)}
+            />
             <Button
               variant="primary"
               onClick={handleRegister}
@@ -200,6 +207,13 @@ export function InviteAcceptView() {
               value={loginPassword}
               onChange={(e) => setLoginPassword(e.target.value)}
               placeholder="Your password"
+            />
+            <Checkbox
+              id="invite-remember-me-login"
+              name="remember-me"
+              label="Keep me signed in"
+              checked={rememberMe}
+              onChange={(e) => setRememberMe(e.target.checked)}
             />
             <Button
               variant="primary"

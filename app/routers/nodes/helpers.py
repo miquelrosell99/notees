@@ -37,7 +37,6 @@ __all__ = [
     "_format_date_with_pattern",
     "_format_month_with_pattern",
     "_format_year",
-    "_apply_node_extras",
 ]
 
 
@@ -127,6 +126,7 @@ def _node_to_response(
         is_monthly=node.is_month,
         is_yearly=node.is_year,
         is_task=node.is_task,
+        is_table=node.is_table,
         is_comment=node.is_comment,
         parent_locked=node.parent_locked,
         is_private=node.is_private,
@@ -489,49 +489,3 @@ def _format_year(year: int) -> str:
     return serialize_ast(parse_ast(str(year), ParseMode.PLAIN))
 
 
-async def _apply_node_extras(service, node_id: int, classes, properties) -> None:
-    """Reconcile classes and apply property values alongside a core node update.
-
-    - ``classes``: when not None, the node's classes are set to exactly this list
-      (adds missing, removes extras).
-    - ``properties``: dict of {property_id: value}; each pair is applied using
-      the same dispatch logic as the ``POST /{node_id}/properties`` endpoint.
-    """
-    if classes is not None:
-        current = set(await service._node_repo.get_node_class_ids(node_id))
-        want = set(classes)
-        for cls_id in want - current:
-            await service.add_class(node_id, cls_id)
-        for cls_id in current - want:
-            await service.remove_class(node_id, cls_id)
-
-    if properties:
-        from ...domain.entities.property import RELATION_TYPES, SCALAR_TYPES
-
-        repo = service.property_repo
-        for prop_id, value in properties.items():
-            prop = await repo.get_by_id(prop_id)
-            if not prop:
-                continue
-            if prop.type in SCALAR_TYPES:
-                await repo.set_scalar_value(node_id, prop_id, value)
-            elif prop.type in RELATION_TYPES:
-                if value == "" or value is None:
-                    await repo.assign_property_to_node(node_id, prop_id)
-                elif isinstance(value, list):
-                    unique_vals = list(dict.fromkeys(value))
-                    await repo.clear_relation_values(node_id, prop_id)
-                    for target_id in unique_vals:
-                        await repo.set_relation_value(node_id, prop_id, int(target_id))
-                else:
-                    await repo.set_relation_value(node_id, prop_id, int(value))
-            else:  # SELECTION
-                if value == "" or value is None:
-                    await repo.assign_property_to_node(node_id, prop_id)
-                elif isinstance(value, list):
-                    unique_vals = list(dict.fromkeys(value))
-                    await repo.clear_selection_values(node_id, prop_id)
-                    for sel_id in unique_vals:
-                        await repo.set_selection_value(node_id, prop_id, int(sel_id))
-                else:
-                    await repo.set_selection_value(node_id, prop_id, int(value))

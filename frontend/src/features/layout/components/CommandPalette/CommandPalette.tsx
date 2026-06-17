@@ -14,8 +14,7 @@ import './CommandPalette.css';
 import { useCommandPalette } from './useCommandPalette';
 import { ResultItem } from './CommandPaletteResult';
 import { FilterPrefixPopup } from './FilterPrefixPopup';
-import { SuggestionPopup } from '@/features/content/components/nodes/SuggestionPopup';
-import { NodeRef } from '@/features/content/components/nodes/NodeRef';
+import { SuggestionPopup, NodeRef } from '@/features/content';
 import { DuplicatePageModal } from '@/features/layout/components/Modals';
 import { Button } from '@/components/ui/Button';
 import { Icon, AddIcon, CalendarIcon, CheckIcon, ChevronRightIcon } from '@/components/ui/icons';
@@ -94,19 +93,10 @@ export function CommandPalette(props: CommandPaletteProps) {
 
   return (
     <>
+    {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- backdrop closes on click; Esc hint shown */}
     <div
-      role="button"
-      tabIndex={-1}
-      aria-label="Close command palette"
       className={`command-palette__backdrop${isOpen ? '' : ' command-palette__backdrop--hidden'}`}
       onClick={handleBackdropClick}
-      onKeyDown={(e) => {
-        if (e.target !== e.currentTarget) return;
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          handleBackdropClick(e as unknown as React.MouseEvent);
-        }
-      }}
     >
       <div ref={containerRef} className="command-palette">
         <div className="command-palette__input-container">

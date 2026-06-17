@@ -30,11 +30,10 @@ import {
 } from '@/stores';
 import { COMMAND_IDS } from '@/stores/commandRegistry';
 import { useCommand } from '@/hooks/useCommand';
-import { getAuthStatus } from '@/features/auth/api/auth';
-import { listWorkspaces } from '@/features/workspace/api/workspaces';
-import { getSettings } from '@/features/workspace/api/workspaces';
-import { settingsKeys } from '@/hooks/queryKeys';
-import { getAuthToken, getUserData } from '@/utils/auth';
+import { useAuthStatus } from '@/features/auth';
+import { listWorkspaces, getSettings } from '@/features/workspace';
+import { authKeys, settingsKeys, workspaceKeys } from '@/hooks/queryKeys';
+import { getUserData } from '@/utils/auth';
 import { LoadingScreen } from '@/components/ui/LoadingScreen';
 import { useDelayedOverlay } from '@/hooks/useDelayedOverlay';
 import type { User } from '@/types';
@@ -126,11 +125,7 @@ function OnboardingRoute() {
 
 function LoginRoute() {
   const { isAuthenticated } = useAuthStore();
-  const { data: authStatus } = useQuery({
-    queryKey: ['auth', 'status'],
-    queryFn: () => getAuthStatus(),
-    staleTime: Infinity,
-  });
+  const { data: authStatus } = useAuthStatus();
 
   if (authStatus?.needs_onboarding) {
     return <Navigate to="/onboarding" replace />;
@@ -152,7 +147,7 @@ function LoginRoute() {
 function WorkspaceRedirect() {
   const navigate = useNavigate();
   const { data: dbData, isLoading } = useQuery({
-    queryKey: ['workspaces'],
+    queryKey: workspaceKeys.all,
     queryFn: () => listWorkspaces(),
     staleTime: 10000,
     select: (data) => ({
@@ -191,27 +186,24 @@ function AuthenticatedShell() {
     setIsQuickAddOpen((prev) => !prev);
   }, { enabled: isAuthenticated, label: 'Open Quick Add' });
 
-  // Restore persisted auth token/user into the store on first mount.
+  // Restore persisted user into the store on first mount. The access token
+  // is stored in an HTTPOnly cookie, so we only need to restore the profile.
   useEffect(() => {
-    const token = getAuthToken();
     const user = getUserData();
-    if (token && user) {
+    if (user) {
       setUser(user as User);
     }
     setAuthRestored(true);
   }, [setUser]);
 
-  const { data: authStatus, isLoading: isLoadingAuthStatus } = useQuery({
-    queryKey: ['auth', 'status'],
-    queryFn: () => getAuthStatus(),
+  const { data: authStatus, isLoading: isLoadingAuthStatus } = useAuthStatus({
     enabled: authRestored,
-    staleTime: Infinity,
   });
 
   const needsOnboarding = authStatus?.needs_onboarding ?? false;
 
   const { data: dbData, isLoading: isLoadingWorkspaces } = useQuery({
-    queryKey: ['workspaces'],
+    queryKey: workspaceKeys.all,
     queryFn: () => listWorkspaces(),
     enabled: isAuthenticated && !needsOnboarding,
     staleTime: 10000,
@@ -290,7 +282,7 @@ function AuthenticatedShell() {
     return (
       <Suspense fallback={<LoadingScreen label="Loading…" />}>
         <OnboardingView
-          onComplete={() => queryClient.invalidateQueries({ queryKey: ['auth', 'status'] })}
+          onComplete={() => queryClient.invalidateQueries({ queryKey: authKeys.status() })}
         />
       </Suspense>
     );
@@ -313,7 +305,7 @@ function AuthenticatedShell() {
         <WorkspaceManagementView
           onWorkspaceSelected={() => {
             setShowWorkspaceManager(false);
-            queryClient.invalidateQueries({ queryKey: ['workspaces'] });
+            queryClient.invalidateQueries({ queryKey: workspaceKeys.all });
           }}
         />
       </Suspense>

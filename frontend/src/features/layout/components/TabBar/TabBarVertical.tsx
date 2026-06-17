@@ -4,7 +4,7 @@
 import { useCallback, useRef, useState, useEffect, useMemo } from 'react';
 import { useNavigationStore, type Tab, type SplitOrientation } from '@/stores/navigationStore';
 import { Button } from '@/components/ui/Button';
-import { NodeSelector } from '@/features/content/components/nodes/NodeSelector';
+import { NodeSelector } from '@/features/content';
 import { TabOverflowDropdown } from './TabOverflowDropdown';
 import type { Node } from '@/types';
 import { TabItem } from './TabItem';

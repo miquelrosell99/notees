@@ -7,7 +7,8 @@
 import { Modal } from '@/components/ui/Modal';
 import { copyToClipboard } from '@/utils/clipboardManager';
 import { useNode } from '@/hooks';
-import { nodeNameToText } from '@/hooks/useStringifyAST';
+import { nodeNameToText } from '@/features/queries/hooks/useStringifyAST';
+import type { CSSProperties } from 'react';
 import type { Node } from '@/types';
 import './ASTViewerModal.css';
 
@@ -51,7 +52,7 @@ function ASTBlock({ node, depth = 0 }: { node: Node; depth?: number }) {
   const displayText = nodeNameToText(node.name) || '(empty)';
   
   return (
-    <div className="ast-viewer-block" style={{ marginLeft: depth * 16 }}>
+    <div className="ast-viewer-block" style={{ '--ast-depth': depth } as CSSProperties}>
       <div className="ast-viewer-block-header">
         <span className="ast-viewer-block-depth">{depth > 0 ? '└─' : ''}</span>
         <span className="ast-viewer-block-type">{node.is_page ? 'Page' : 'Block'}</span>

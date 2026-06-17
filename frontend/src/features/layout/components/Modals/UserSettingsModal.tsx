@@ -6,10 +6,11 @@
  */
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuthStore, useSettingsStore, applyTheme, DATE_FORMAT_OPTIONS, FIRST_DAY_OF_WEEK_OPTIONS, ACCENT_COLOR_OPTIONS, isValidHexColor, getContrastColor } from '@/stores';
+import { useSettingsStore, applyTheme, DATE_FORMAT_OPTIONS, FIRST_DAY_OF_WEEK_OPTIONS, ACCENT_COLOR_OPTIONS, isValidHexColor, getContrastColor } from '@/stores';
+import { useAuthUser, useAuthActions } from '@/features/layout/hooks/useAuthSelectors';
 import type { ThemePreference, DateFormat, HashtagPasteMode, DefaultView, QuickAddDestination, FirstDayOfWeek, AccentColor } from '@/stores';
-import { setSetting } from '@/features/workspace/api/workspaces';
-import { updateMe, createApiKey, listApiKeys, revokeApiKey } from '@/features/auth/api/auth';
+import { setSetting } from '@/features/workspace';
+import { updateMe, createApiKey, listApiKeys, revokeApiKey } from '@/features/auth';
 import { TextField } from '@/components/ui/TextField';
 import type { ApiKey } from '@/types';
 import { Modal } from '@/components/ui/Modal';
@@ -29,7 +30,8 @@ type UserSettingsTab = 'appearance' | 'editor' | 'general' | 'account' | 'about'
 
 export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
   const [activeTab, setActiveTab] = useState<UserSettingsTab>('appearance');
-  const { user, logout, setUser, changePassword } = useAuthStore();
+  const user = useAuthUser();
+  const { logout, setUser, changePassword } = useAuthActions();
   const [editName, setEditName] = useState(user?.name ?? '');
   const [editSurnames, setEditSurnames] = useState(user?.surnames ?? '');
   const [isSavingProfile, setIsSavingProfile] = useState(false);
@@ -46,7 +48,30 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [passwordSuccess, setPasswordSuccess] = useState(false);
   const navigate = useNavigate();
-  const { theme, oledMode, accentColor, customAccentHex, dateFormat, hashtagPasteMode, defaultView, quickAddDestination, linkedRefsCollapseLevel, showDevOptions, firstDayOfWeek, showBulletThread, setTheme, setOledMode, setAccentColor, setCustomAccentHex, setDateFormat, setHashtagPasteMode, setDefaultView, setQuickAddDestination, setLinkedRefsCollapseLevel, setShowDevOptions, setFirstDayOfWeek, setShowBulletThread } = useSettingsStore();
+  const theme = useSettingsStore((s) => s.theme);
+  const oledMode = useSettingsStore((s) => s.oledMode);
+  const accentColor = useSettingsStore((s) => s.accentColor);
+  const customAccentHex = useSettingsStore((s) => s.customAccentHex);
+  const dateFormat = useSettingsStore((s) => s.dateFormat);
+  const hashtagPasteMode = useSettingsStore((s) => s.hashtagPasteMode);
+  const defaultView = useSettingsStore((s) => s.defaultView);
+  const quickAddDestination = useSettingsStore((s) => s.quickAddDestination);
+  const linkedRefsCollapseLevel = useSettingsStore((s) => s.linkedRefsCollapseLevel);
+  const showDevOptions = useSettingsStore((s) => s.showDevOptions);
+  const firstDayOfWeek = useSettingsStore((s) => s.firstDayOfWeek);
+  const showBulletThread = useSettingsStore((s) => s.showBulletThread);
+  const setTheme = useSettingsStore((s) => s.setTheme);
+  const setOledMode = useSettingsStore((s) => s.setOledMode);
+  const setAccentColor = useSettingsStore((s) => s.setAccentColor);
+  const setCustomAccentHex = useSettingsStore((s) => s.setCustomAccentHex);
+  const setDateFormat = useSettingsStore((s) => s.setDateFormat);
+  const setHashtagPasteMode = useSettingsStore((s) => s.setHashtagPasteMode);
+  const setDefaultView = useSettingsStore((s) => s.setDefaultView);
+  const setQuickAddDestination = useSettingsStore((s) => s.setQuickAddDestination);
+  const setLinkedRefsCollapseLevel = useSettingsStore((s) => s.setLinkedRefsCollapseLevel);
+  const setShowDevOptions = useSettingsStore((s) => s.setShowDevOptions);
+  const setFirstDayOfWeek = useSettingsStore((s) => s.setFirstDayOfWeek);
+  const setShowBulletThread = useSettingsStore((s) => s.setShowBulletThread);
   const [customHexInput, setCustomHexInput] = useState(customAccentHex);
 
   // Keep the custom hex text input in sync with the persisted value.
@@ -652,7 +677,7 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
                 </p>
 
                 {newKeySecret && (
-                  <div className="settings-api-key-secret">
+                  <div className="settings-api-key-secret" aria-live="polite">
                     <p className="settings-api-key-secret__label">Your new API key (copy it now — it won't be shown again):</p>
                     <code className="settings-api-key-secret__value">{newKeySecret}</code>
                     <Button variant="default" size="sm" onClick={() => { navigator.clipboard.writeText(newKeySecret); }}>
@@ -665,7 +690,11 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
                 )}
 
                 <div className="settings-form-row">
+                  <label className="settings-form-label" htmlFor="api-key-name">
+                    API key name
+                  </label>
                   <input
+                    id="api-key-name"
                     type="text"
                     className="settings-form-input"
                     value={newKeyName}

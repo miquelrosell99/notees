@@ -36,19 +36,10 @@ export function TabOverflowDropdown({ tabs, activeTabId, onSelect, onClose }: Ta
 
   return (
     <>
+      {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- backdrop closes on click; explicit close button provided */}
       <div
-        role="button"
-        tabIndex={-1}
-        aria-label="Close tab list"
         className="tab-overflow-backdrop"
         onClick={onClose}
-        onKeyDown={(e) => {
-          if (e.target !== e.currentTarget) return;
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            onClose();
-          }
-        }}
       />
       <div ref={panelRef} className="tab-overflow-dropdown">
         <div className="tab-overflow-dropdown__header">

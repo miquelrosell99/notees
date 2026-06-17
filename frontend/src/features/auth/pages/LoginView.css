@@ -45,22 +45,6 @@
   font-size: var(--font-size-base);
 }
 
-.login-form input {
-  padding: var(--spacing-3);
-  border: var(--border-width-default) solid var(--color-outline-variant);
-  border-radius: var(--shape-large);
-  font-size: var(--font-size-md);
-  background: var(--color-surface);
-  color: var(--color-on-surface);
-  transition: border-color var(--motion-duration-short) var(--motion-easing-standard);
-}
-
-.login-form input:focus {
-  outline: var(--border-width-thick) solid var(--color-primary);
-  outline-offset: var(--spacing-micro);
-  border-color: var(--color-primary);
-}
-
 .login-form .error-message {
   color: var(--color-error);
   font-size: var(--font-size-base);

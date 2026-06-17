@@ -28,7 +28,7 @@ import type {
   ChildPathCondition,
 } from '@/types/queryAST';
 import type { Node } from '@/types/api';
-import { nodeNameToText } from '@/hooks/useStringifyAST';
+import { nodeNameToText } from '@/features/queries/hooks/useStringifyAST';
 
 // ==================== Types ====================
 

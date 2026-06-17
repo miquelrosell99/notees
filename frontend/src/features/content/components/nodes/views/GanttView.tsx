@@ -14,14 +14,11 @@
  *  - Right-click bar    → context menu
  */
 import { useRef, useEffect, useCallback, useMemo, useState, memo } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { Node } from '@/types';
 
 import type { NodeGanttViewProps } from '@/types/nodeCollection';
 
-import { setProperty, getOrCreateDaily } from '@/api/nodes';
-import { nodeKeys } from '@/hooks/queryKeys';
-import { nodeViewKeys } from '@/hooks/useNodeViews';
+import { useGanttDateMutation } from '@/features/content';
 import { NodeInline } from '@/features/content/components/blocks/NodeInline';
 import { NodeIcon } from '@/components/ui/icons';
 import { PageContextMenu, BlockContextMenu } from '@/features/content/components/nodes/NodeContextMenu';
@@ -37,7 +34,6 @@ import {
   GanttRenderer,
   addDays,
   daysBetween,
-  formatDateForApi,
   getHeaderTier,
   readColors,
 } from './GanttRenderer';
@@ -71,6 +67,29 @@ export const GanttView = memo(function GanttView({
     setOptimisticOverride,
   } = useGanttData(nodes, startDateProperty, endDateProperty, groupBy, groupByProperty);
 
+  // ── DOM refs (declared early so virtualization can measure the left pane) ─
+  const canvasRef      = useRef<HTMLCanvasElement>(null);
+  const rightPaneRef   = useRef<HTMLDivElement>(null);
+  const leftPaneRef    = useRef<HTMLDivElement>(null);
+  const leftInnerRef   = useRef<HTMLDivElement>(null);
+  const headerInnerRef = useRef<HTMLDivElement>(null);
+  const extentRef      = useRef<HTMLDivElement>(null);
+  const rendererRef    = useRef(new GanttRenderer());
+
+  // ── Left label pane virtualization ──────────────────────────────────────
+  const [virtualScrollTop, setVirtualScrollTop] = useState(0);
+  const [leftPaneHeight, setLeftPaneHeight] = useState(0);
+
+  useEffect(() => {
+    const el = leftPaneRef.current;
+    if (!el) return;
+    const sync = () => setLeftPaneHeight(el.clientHeight);
+    const ro = new ResizeObserver(sync);
+    ro.observe(el);
+    sync();
+    return () => ro.disconnect();
+  }, []);
+
   // ── Continuous zoom (px per day) ────────────────────────────────────────
   const [pxPerDay, setPxPerDay] = useState(() => PX_PER_DAY_INITIAL[timeScale]);
   const pxPerDayRef = useRef(PX_PER_DAY_INITIAL[timeScale]);
@@ -82,6 +101,37 @@ export const GanttView = memo(function GanttView({
   }, [timeScale]);
 
   const totalTimelineWidth = Math.max((daysBetween(dateRange.start, dateRange.end) + 1) * pxPerDay, 600);
+
+  // Offsets for each row in the left label pane (used for virtualization).
+  const { rowOffsets, totalRowHeight } = useMemo(() => {
+    const offsets: number[] = [0];
+    let total = 0;
+    for (const row of rows) {
+      total += row.type === 'group-header' ? GROUP_HEADER_HEIGHT : ROW_HEIGHT;
+      offsets.push(total);
+    }
+    return { rowOffsets: offsets, totalRowHeight: total };
+  }, [rows]);
+
+  const { visibleStartIndex, visibleEndIndex, topSpacerHeight } = useMemo(() => {
+    if (leftPaneHeight <= 0) {
+      return { visibleStartIndex: 0, visibleEndIndex: rows.length, topSpacerHeight: 0 };
+    }
+    const overscan = 5;
+    let start = 0;
+    while (start < rows.length && rowOffsets[start + 1] <= virtualScrollTop) {
+      start++;
+    }
+    let end = start;
+    while (end < rows.length && rowOffsets[end] < virtualScrollTop + leftPaneHeight) {
+      end++;
+    }
+    return {
+      visibleStartIndex: Math.max(0, start - overscan),
+      visibleEndIndex: Math.min(rows.length, end + overscan),
+      topSpacerHeight: rowOffsets[Math.max(0, start - overscan)],
+    };
+  }, [rows.length, rowOffsets, virtualScrollTop, leftPaneHeight]);
 
   const today = useMemo(() => {
     const d = new Date();
@@ -174,47 +224,24 @@ export const GanttView = memo(function GanttView({
   // ── Context menu ────────────────────────────────────────────────────────
   const [contextMenu, setContextMenu] = useState<{ node: Node; x: number; y: number } | null>(null);
 
-  // ── DOM refs ────────────────────────────────────────────────────────────
-  const canvasRef      = useRef<HTMLCanvasElement>(null);
-  const rightPaneRef   = useRef<HTMLDivElement>(null);
-  const leftInnerRef   = useRef<HTMLDivElement>(null);
-  const headerInnerRef = useRef<HTMLDivElement>(null);
-  const extentRef      = useRef<HTMLDivElement>(null);
-  const rendererRef    = useRef(new GanttRenderer());
-
   // Stable refs so the wheel handler always has the latest draw + dateRange
   const drawRef      = useRef<() => void>(() => {});
   const dateRangeRef = useRef(dateRange);
   dateRangeRef.current = dateRange;
 
   // ── Persist bar dates after drag ────────────────────────────────────────
-  const queryClient = useQueryClient();
-  const { mutate: persistDates } = useMutation({
-    mutationFn: async ({
-      nodeId, mode, newStart, newEnd,
-    }: { nodeId: number; mode: 'move' | 'resize-end'; newStart: Date; newEnd: Date | null }) => {
-      if (!startDateProperty) return;
-      if (mode === 'move') {
-        const startDayNode = await getOrCreateDaily(formatDateForApi(newStart));
-        await setProperty(nodeId, startDateProperty.id, startDayNode.id);
-      }
-      if (newEnd && endDateProperty) {
-        const endDayNode = await getOrCreateDaily(formatDateForApi(newEnd));
-        await setProperty(nodeId, endDateProperty.id, endDayNode.id);
-      }
-    },
-    onMutate: ({ nodeId, newStart, newEnd }) => {
-      setOptimisticOverride(nodeId, { startDate: newStart, endDate: newEnd });
-    },
-    onSuccess: async (_, { nodeId }) => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(nodeId) }),
-        queryClient.invalidateQueries({ queryKey: nodeKeys.ganttDayNodes([]) }),
-        queryClient.invalidateQueries({ queryKey: nodeViewKeys.queryResults() }),
-      ]);
-      setOptimisticOverride(nodeId, null);
-    },
-  });
+  const { mutate: persistDates } = useGanttDateMutation(
+    startDateProperty,
+    endDateProperty,
+    {
+      onMutate: ({ nodeId, newStart, newEnd }) => {
+        setOptimisticOverride(nodeId, { startDate: newStart, endDate: newEnd });
+      },
+      onSettled: (nodeId) => {
+        setOptimisticOverride(nodeId, null);
+      },
+    }
+  );
 
   // ── Canvas draw ─────────────────────────────────────────────────────────
   const draw = useCallback(() => {
@@ -259,6 +286,7 @@ export const GanttView = memo(function GanttView({
     if (!el) return;
     scrollLeftRef.current = el.scrollLeft;
     scrollTopRef.current  = el.scrollTop;
+    setVirtualScrollTop(el.scrollTop);
 
     if (leftInnerRef.current) {
       leftInnerRef.current.style.transform = `translateY(${-el.scrollTop}px)`;
@@ -443,21 +471,23 @@ export const GanttView = memo(function GanttView({
       <div className="gantt-body">
 
         {/* Left label pane – overflow hidden, scrolled via CSS transform */}
-        <div className="gantt-left-pane">
+        <div ref={leftPaneRef} className="gantt-left-pane">
           <div
             ref={leftInnerRef}
             className="gantt-left-pane__inner"
-            style={{ height: totalContentHeight }}
+            style={{ height: totalRowHeight }}
           >
-            {rows.map((row, i) =>
-              row.type === 'group-header' ? (
-                <div key={i} className="gantt-group-header" style={{ height: GROUP_HEADER_HEIGHT }}>
+            <div style={{ height: topSpacerHeight }} />
+            {rows.slice(visibleStartIndex, visibleEndIndex).map((row, i) => {
+              const index = visibleStartIndex + i;
+              return row.type === 'group-header' ? (
+                <div key={`gh-${index}`} className="gantt-group-header" style={{ height: GROUP_HEADER_HEIGHT }}>
                   {row.icon && <NodeIcon icon={row.icon} isPage={false} size="sm" />}
                   <span className="gantt-group-header__label">{row.label}</span>
                   <span className="gantt-group-header__count">{row.count}</span>
                 </div>
               ) : (
-                <div key={i} className="gantt-label-row" style={{ height: ROW_HEIGHT }}>
+                <div key={`row-${index}`} className="gantt-label-row" style={{ height: ROW_HEIGHT }}>
                   <NodeInline
                     name={row.item.node.name}
                     icon={row.item.node.icon}
@@ -469,8 +499,9 @@ export const GanttView = memo(function GanttView({
                     className="gantt-label-row__inline"
                   />
                 </div>
-              )
-            )}
+              );
+            })}
+            <div style={{ height: totalRowHeight - rowOffsets[visibleEndIndex] }} />
           </div>
         </div>
 

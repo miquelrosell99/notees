@@ -3,7 +3,7 @@ import { useNode } from '@/hooks';
 import { DatePickerPopup } from '@/features/content/components/DatePickerPopup';
 import { Button } from '@/components/ui/Button';
 import { getOrCreateDaily } from '@/api/nodes';
-import { nodeNameToText } from '@/hooks/useStringifyAST';
+import { nodeNameToText } from '@/features/queries/hooks/useStringifyAST';
 import './DatePropertyValue.css';
 
 interface DatePropertyValueProps {

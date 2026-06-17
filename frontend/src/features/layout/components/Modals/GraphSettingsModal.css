@@ -58,6 +58,10 @@
   margin: 0 0 var(--spacing-4) 0;
 }
 
+.settings-section__title--spaced {
+  margin-top: var(--spacing-6);
+}
+
 /* ==================== Settings Item ==================== */
 .settings-item {
   display: flex;

@@ -72,17 +72,10 @@ export function NodeViewSection({
   
   return (
     <section className={`node-view-section ${isExpanded ? 'expanded' : 'collapsed'} ${className}`}>
+      {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events -- The header is a pointer-only toggle; keyboard users can use the visible expand/collapse button inside it. */}
       <header
-        role="button"
-        tabIndex={0}
         className="node-view-section__header"
         onClick={handleToggle}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            handleToggle();
-          }
-        }}
       >
         <Button
           variant="ghost"

@@ -12,7 +12,7 @@
  */
 import { useGraphNodes } from '@/hooks';
 import { Spinner } from '@/components/ui/Spinner';
-import { GraphView } from '@/features/content/components/nodes/views/GraphView';
+import { GraphView } from '@/features/content';
 import './SidebarLocalGraph.css';
 
 export interface SidebarLocalGraphProps {

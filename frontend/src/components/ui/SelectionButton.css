@@ -34,7 +34,7 @@
   position: absolute;
   top: var(--spacing-1); /* Match container padding */
   left: var(--spacing-1); /* Match container padding */
-  background: var(--color-primary);
+  background: var(--color-accent);
   border-radius: var(--shape-medium);
   transition: transform var(--motion-duration-medium) var(--motion-easing-collapse),
               width var(--motion-duration-shorter) var(--motion-easing-collapse),
@@ -65,12 +65,12 @@
 }
 
 .selection-button__option:focus-visible {
-  outline: var(--border-width-thick) solid var(--color-primary);
+  outline: var(--border-width-thick) solid var(--color-accent);
   outline-offset: calc(var(--spacing-micro) * -1);
 }
 
 .selection-button__option--selected {
-  color: var(--color-on-primary);
+  color: var(--color-on-accent);
 }
 
 /* Ensure SVG icons are perfectly centered inside flex button */
@@ -105,12 +105,12 @@
 }
 
 .selection-button__overflow-toggle:focus-visible {
-  outline: var(--border-width-thick) solid var(--color-primary);
+  outline: var(--border-width-thick) solid var(--color-accent);
   outline-offset: calc(var(--spacing-micro) * -1);
 }
 
 .selection-button__overflow-toggle--open {
-  color: var(--color-primary);
+  color: var(--color-accent);
   background: var(--color-surface-container-highest);
 }
 
@@ -152,12 +152,12 @@
 }
 
 .selection-button__overflow-item:focus-visible {
-  outline: var(--border-width-thick) solid var(--color-primary);
+  outline: var(--border-width-thick) solid var(--color-accent);
   outline-offset: calc(var(--spacing-micro) * -1);
 }
 
 .selection-button__overflow-item--active {
-  color: var(--color-primary);
+  color: var(--color-accent);
 }
 
 /* Size variants */
