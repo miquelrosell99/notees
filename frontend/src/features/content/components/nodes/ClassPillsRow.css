@@ -144,9 +144,17 @@
 }
 
 .class-pills-row:hover .class-pills-row__add,
+.class-pills-row:focus-within .class-pills-row__add,
 .block-row:hover .class-pills-row__add,
-.node-block:hover .class-pills-row__add {
+.block-row:focus-within .class-pills-row__add,
+.node-block:hover .class-pills-row__add,
+.node-block:focus-within .class-pills-row__add,
+.class-pills-row__add:focus-visible {
   opacity: var(--opacity-60);
+}
+
+.class-pills-row__add:focus-visible {
+  opacity: var(--opacity-100) !important;
 }
 
 .class-pills-row__add:hover {

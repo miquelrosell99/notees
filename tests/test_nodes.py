@@ -5,13 +5,15 @@ These tests verify node creation, reading, updating, and deletion.
 import pytest
 from httpx import AsyncClient
 
+pytestmark = pytest.mark.integration
+
 
 class TestNodeCreation:
     """Test node creation operations."""
 
     @pytest.mark.asyncio
     async def test_create_page(
-        self, 
+        self,
         authenticated_client: AsyncClient,
         sample_node_data: dict
     ):
@@ -21,7 +23,7 @@ class TestNodeCreation:
             json=sample_node_data
         )
         assert response.status_code == 200
-        
+
         data = response.json()
         assert "id" in data
         assert "uuid" in data
@@ -42,7 +44,7 @@ class TestNodeCreation:
             json=sample_node_data
         )
         page = page_response.json()
-        
+
         # Then create a block under it
         sample_block_data["parent_id"] = page["id"]
         block_response = await authenticated_client.post(
@@ -50,7 +52,7 @@ class TestNodeCreation:
             json=sample_block_data
         )
         assert block_response.status_code == 200
-        
+
         block = block_response.json()
         assert block["parent_id"] == page["id"]
 
@@ -66,9 +68,9 @@ class TestNodeCreation:
             params={"date": "2026-01-15"}
         )
         assert response.status_code == 200
-        
+
         data = response.json()
-        assert data.get("is_daily") == True
+        assert data.get("is_daily")
 
 
 class TestNodeRetrieval:
@@ -87,11 +89,11 @@ class TestNodeRetrieval:
             json=sample_node_data
         )
         node = create_response.json()
-        
+
         # Retrieve it
         get_response = await authenticated_client.get(f"/api/nodes/{node['id']}")
         assert get_response.status_code == 200
-        
+
         retrieved = get_response.json()
         assert retrieved["id"] == node["id"]
 
@@ -149,19 +151,19 @@ class TestNodeRetrieval:
         assert page1.status_code == 200
         data1 = page1.json()
         our1 = _our(data1["items"])
-        assert [name in item["name"] for item, name in zip(our1, ["PgTest-E", "PgTest-D"])]
+        assert [name in item["name"] for item, name in zip(our1, ["PgTest-E", "PgTest-D"], strict=False)]
 
         page2 = await authenticated_client.get("/api/nodes/", params={**params, "page": 2})
         assert page2.status_code == 200
         data2 = page2.json()
         our2 = _our(data2["items"])
-        assert [name in item["name"] for item, name in zip(our2, ["PgTest-C", "PgTest-B"])]
+        assert [name in item["name"] for item, name in zip(our2, ["PgTest-C", "PgTest-B"], strict=False)]
 
         page3 = await authenticated_client.get("/api/nodes/", params={**params, "page": 3})
         assert page3.status_code == 200
         data3 = page3.json()
         our3 = _our(data3["items"])
-        assert [name in item["name"] for item, name in zip(our3, ["PgTest-A"])]
+        assert [name in item["name"] for item, name in zip(our3, ["PgTest-A"], strict=False)]
 
     @pytest.mark.asyncio
     async def test_list_nodes_pages_only_caps_page_size(
@@ -237,14 +239,14 @@ class TestNodeUpdate:
             json=sample_node_data
         )
         node = create_response.json()
-        
+
         # Update it - use name field
         update_response = await authenticated_client.put(
             f"/api/nodes/{node['id']}",
             json={"name": "Updated content"}
         )
         assert update_response.status_code == 200
-        
+
         updated = update_response.json()
         # name is stored as AST JSON; the input text should appear within it
         assert "Updated content" in updated.get("name", "")
@@ -266,11 +268,11 @@ class TestNodeDeletion:
             json=sample_node_data
         )
         node = create_response.json()
-        
+
         # Delete it
         delete_response = await authenticated_client.delete(f"/api/nodes/{node['id']}")
         assert delete_response.status_code == 200
-        
+
         # Verify it's gone
         get_response = await authenticated_client.get(f"/api/nodes/{node['id']}")
         assert get_response.status_code == 404

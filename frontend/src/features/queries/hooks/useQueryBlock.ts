@@ -1,5 +1,5 @@
 import { useCallback, useRef, useEffect, useMemo } from 'react';
-import { useNode, useUpdateNode } from '@/features/content/hooks/useNodes';
+import { useNode, useUpdateNode } from '@/features/content';
 import type { Node } from '@/types/api';
 import type { ASTQuery } from '@/types/ast';
 import { parseAST } from '@/lib/astBuilder';

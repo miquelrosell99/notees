@@ -7,7 +7,7 @@ import pytest
 
 from app.db.schema.constants import SYSTEM_CLASS_UUIDS
 
-pytestmark = pytest.mark.asyncio
+pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
 
 
 async def _create_page(client, page_class_id: int, name: str, extra_classes: list[int] | None = None):

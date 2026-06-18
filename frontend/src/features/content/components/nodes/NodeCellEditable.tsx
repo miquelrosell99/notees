@@ -2,7 +2,8 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import type { Node } from '@/types';
 import { NodeNameContent } from '@/features/content/components/blocks/NodeNameContent';
 import { NodeCollection } from '@/features/content/components/nodes/NodeCollection';
-import { useContentSave, useNodeNavigation } from '@/hooks';
+import { useNodeNavigation } from '@/features/content';
+import { useContentSave } from '@/features/editor';
 
 interface NodeCellEditableProps {
   node: Node;

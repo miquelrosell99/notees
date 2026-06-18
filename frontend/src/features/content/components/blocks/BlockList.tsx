@@ -32,8 +32,8 @@ import { useBlockDragDrop } from '@/features/content/hooks/useBlockDragDrop';
 import { useBlockSelection } from '@/features/content/hooks/useBlockSelection';
 import { useBlockSelectionStore } from '@/stores/blockSelectionStore';
 import { useTouchIndent } from '@/features/content/hooks/useTouchIndent';
-import { BlockFindReplacePlugin } from '@/features/content/editor/plugins/BlockFindReplacePlugin';
-import { flushAllContentSaves } from '@/features/content/hooks/useContentSave';
+import { BlockFindReplacePlugin } from '@/features/editor';
+import { flushAllContentSaves } from '@/features/editor';
 import './BlockList.css';
 import { getOperationRuntime } from '@/runtime';
 import { getNode, getChildren } from '@/runtime/graphHelpers';
@@ -88,6 +88,16 @@ interface BlockListProps {
   showClasses?: boolean;
   /** Force all nodes to be expanded, ignoring stored collapsed state. */
   expandAll?: boolean;
+  /** Whether this list is rendered inside a card context. */
+  inCard?: boolean;
+  /** Compact list-view size context (e.g. 'sm' for small list view). */
+  listSize?: 'sm' | 'md';
+  /** Whether this list is rendered inside a property text block editor. */
+  inPropertyEditor?: boolean;
+  /** Document mode: hide bullets and flatten chrome. */
+  documentMode?: boolean;
+  /** When true, removes vertical padding so the list sits flush in a container. */
+  flush?: boolean;
 }
 
 export function BlockList({
@@ -112,6 +122,11 @@ export function BlockList({
   nodeId,
   showClasses = false,
   expandAll = false,
+  inCard = false,
+  listSize,
+  inPropertyEditor = false,
+  documentMode = false,
+  flush = false,
 }: BlockListProps): JSX.Element {
   const { flatNodes, structureVersion } = useBlockTree(nodes, {
     maxDepth,
@@ -480,6 +495,8 @@ export function BlockList({
     <div
       ref={containerRef}
       className={`block-list notees-editor ${isDragOver ? 'drag-over' : ''}`}
+      data-document-mode={documentMode || undefined}
+      data-flush={flush || undefined}
       onKeyDown={handleKeyDown}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
@@ -536,6 +553,10 @@ export function BlockList({
                   templateClassFilters={templateClassFilters}
                   nodeUuid={nodeUuid}
                   showClasses={showClasses}
+                  inCard={inCard}
+                  listSize={listSize}
+                  inPropertyEditor={inPropertyEditor}
+                  documentMode={documentMode}
                   onEnter={handleEnter}
                   onBackspaceAtStart={handleBackspaceAtStart}
                   onDeleteAtEnd={handleDeleteAtEnd}
@@ -580,6 +601,10 @@ export function BlockList({
             templateClassFilters={templateClassFilters}
             nodeUuid={nodeUuid}
             showClasses={showClasses}
+            inCard={inCard}
+            listSize={listSize}
+            inPropertyEditor={inPropertyEditor}
+            documentMode={documentMode}
             onEnter={handleEnter}
             onBackspaceAtStart={handleBackspaceAtStart}
             onDeleteAtEnd={handleDeleteAtEnd}

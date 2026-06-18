@@ -7,6 +7,7 @@ from app.domain.validation import ValidationError
 from app.models import InviteAcceptRequest
 
 
+@pytest.mark.integration
 class TestInputValidation:
     """Test input validation for node create/update operations."""
 

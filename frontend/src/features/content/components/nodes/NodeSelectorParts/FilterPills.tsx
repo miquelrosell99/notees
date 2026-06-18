@@ -1,5 +1,5 @@
 import { Button } from '@/components/ui/Button';
-import { nodeNameToText } from '@/features/queries/hooks/useStringifyAST';
+import { nodeNameToText } from '@/features/queries';
 import type { AppliedFilter } from '@/utils/searchFilters';
 
 interface FilterPillsProps {

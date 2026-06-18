@@ -8,7 +8,7 @@
  * No editing, no stores, no legacy code.
  */
 import { useCallback } from 'react';
-import { nodeNameToText } from '@/features/queries/hooks/useStringifyAST';
+import { nodeNameToText } from '@/features/queries';
 import { Bullet } from './Bullet';
 import { NodeIcon } from '@/components/ui/icons';
 import './NodeInline.css';
@@ -44,6 +44,8 @@ export interface NodeInlineProps {
   title?: string;
   /** Make the element draggable */
   draggable?: boolean;
+  /** Visual variant (e.g. group-link uses dotted underline). */
+  variant?: 'default' | 'group-link';
 }
 
 /**
@@ -65,6 +67,7 @@ export function NodeInline({
   displayText: providedDisplayText,
   title,
   draggable = false,
+  variant = 'default',
 }: NodeInlineProps) {
   const displayText = providedDisplayText || propertyName || nodeNameToText(name) || 'Untitled';
 
@@ -92,6 +95,7 @@ export function NodeInline({
   return (
     <Tag
       className={`node-inline ${onClick ? 'node-inline--clickable' : ''} ${className}`}
+      data-variant={variant}
       onClick={onClick ? handleClick : undefined}
       draggable={draggable}
       onDragStart={handleDragStart}

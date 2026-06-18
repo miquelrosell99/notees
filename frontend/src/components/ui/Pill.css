@@ -18,6 +18,12 @@
   border-color: var(--color-outline-variant);
 }
 
+.pill:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus-ring);
+  border-color: var(--color-accent);
+}
+
 .pill:active {
   transform: scale(0.96);
   box-shadow: none;
@@ -62,4 +68,85 @@
   outline: var(--border-width-thick) solid var(--color-primary);
   outline-offset: var(--spacing-micro);
   border-radius: var(--shape-small);
+}
+
+/* Link variant - inline text style with subtle underline + micro-tint */
+.pill--link,
+.pill--link-page,
+.pill--link-block,
+.pill--link-class {
+  display: inline;
+  padding: 0 var(--spacing-tiny);
+  margin: 0 var(--spacing-hairline);
+  background: color-mix(in srgb, var(--color-on-surface) 5%, transparent);
+  border-radius: var(--shape-small);
+  border-bottom: var(--border-width-medium) dotted var(--color-outline);
+  color: var(--color-on-surface);
+  font: inherit;
+  line-height: inherit;
+  gap: var(--spacing-micro);
+  transition: background var(--motion-duration-short) var(--motion-easing-standard),
+              border-color var(--motion-duration-short) var(--motion-easing-standard),
+              border-bottom-style var(--motion-duration-short) var(--motion-easing-standard),
+              box-shadow var(--motion-duration-short) var(--motion-easing-standard),
+              transform var(--motion-duration-short) var(--motion-easing-tactile);
+}
+
+.pill--link:hover,
+.pill--link-page:hover,
+.pill--link-block:hover,
+.pill--link-class:hover {
+  background: color-mix(in srgb, var(--color-on-surface) 10%, transparent);
+  border-bottom-style: solid;
+  border-bottom-color: var(--color-on-surface-variant);
+  filter: none;
+}
+
+.pill--link:active,
+.pill--link-page:active,
+.pill--link-block:active,
+.pill--link-class:active {
+  transform: scale(0.97);
+  box-shadow: none;
+}
+
+.pill--link-page:not([style*="background"]) {
+  background: color-mix(in srgb, var(--color-on-surface) 5%, transparent);
+  color: var(--color-on-surface);
+}
+
+.pill--link-block:not([style*="background"]) {
+  background: color-mix(in srgb, var(--color-on-surface) 3%, transparent);
+  color: var(--color-on-surface-variant);
+}
+
+.pill--link-class:not([style*="background"]) {
+  background: color-mix(in srgb, var(--color-on-surface) 3%, transparent);
+  color: var(--color-on-surface-variant);
+}
+
+/* When pill has a custom color, keep compact radius/padding */
+.pill--link[style*="background"],
+.pill--link-page[style*="background"],
+.pill--link-block[style*="background"],
+.pill--link-class[style*="background"] {
+  border-radius: var(--shape-small);
+  padding: 0 var(--spacing-tiny);
+}
+
+/* Hide icon in link pills for cleaner inline look */
+.pill--link .pill__left-icon,
+.pill--link-page .pill__left-icon,
+.pill--link-block .pill__left-icon,
+.pill--link-class .pill__left-icon {
+  display: none;
+}
+
+/* Allow natural text flow in link pills */
+.pill--link .pill__text,
+.pill--link-page .pill__text,
+.pill--link-block .pill__text,
+.pill--link-class .pill__text {
+  white-space: normal;
+  overflow: visible;
 }

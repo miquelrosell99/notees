@@ -4,7 +4,7 @@
  * React Query hooks for activity tracking and link click analytics.
  */
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import * as activityApi from '@/api/activity';
+import * as activityApi from '../api/activity';
 import { activityKeys } from '@/hooks/queryKeys';
 
 // ==================== Activity Queries ====================

@@ -20,7 +20,12 @@
  *   2. LinkedReferences
  */
 import React, { useState, useMemo, useCallback, useRef } from 'react';
-import { useNode, useClasses, useNodesWithClass, useUpdateNode, useAddTag, useAddClass, useCreateNode, useProperties, useSetNodeProperty, useRemoveClass, useRemoveTag, useTags, useContentSave, useLinkedReferencesCount, usePageClass, useClassExtends, useAddClassExtends, useRemoveClassExtends, useCreateProperty, useResolvedClassDetails, useNodeNavigation, useAddAlias, useRemoveAlias, useLivePageSync, useEffectiveNodePermissions, nodeNameToText } from '@/hooks';
+import { useShallow } from 'zustand/react/shallow';
+import { useEffectiveNodePermissions } from '@/hooks';
+import { useProperties, useSetNodeProperty, useClassExtends, useAddClassExtends, useRemoveClassExtends, useCreateProperty } from '@/features/properties';
+import { useNode, useClasses, useNodesWithClass, useUpdateNode, useAddTag, useAddClass, useCreateNode, useRemoveClass, useRemoveTag, useTags, useLinkedReferencesCount, usePageClass, useResolvedClassDetails, useNodeNavigation, useAddAlias, useRemoveAlias, useLivePageSync } from '@/features/content';
+import { useContentSave } from '@/features/editor';
+import { nodeNameToText } from '@/features/queries';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { usePageAliases } from '@/features/content';
 import { useNavigationStore, useAppStore, useSettingsStore, formatDate } from '@/stores';
@@ -35,29 +40,29 @@ import type { Node, Property, PropertyCreate } from '@/types';
 import type { ViewMode, NodeViewType } from '@/stores';
 
 // Components
-import { MainContentTopbar } from '@/features/layout/components/MainContentTopbar';
+import { MainContentTopbar } from '@/features/layout';
 import { PageHeader } from '@/features/content/components/nodes/PageHeader';
 import { AssetImage } from '@/features/content/components/nodes/AssetImage';
 
-import { AssetUploadModal } from '@/features/assets/components/AssetUploadModal';
+import { AssetUploadModal } from '@/features/assets';
 import { NodeContent } from '@/features/content/components/nodes/NodeContent';
 import { NodeCollection } from '@/features/content/components/nodes/NodeCollection';
 
 import { PageContextMenu, BlockContextMenu } from '@/features/content/components/nodes/NodeContextMenu';
 import { QuerySection, NodeActivityLogSection, UnlinkedMentionsSection } from '@/features/content/components/nodes';
-import { PropertiesSection } from '@/features/content/components/properties/PropertiesSection';
-import { PropertySuggestionPopup } from '@/features/content/components/properties/PropertySuggestionPopup';
-import { ClassPropertiesEditor } from '@/features/content/components/properties/ClassPropertiesEditor';
+import { PropertiesSection } from '@/features/properties';
+import { PropertySuggestionPopup } from '@/features/properties';
+import { ClassPropertiesEditor } from '@/features/properties';
 // Kept as a deep import to avoid a circular dependency: the tasks barrel exports
 // TaskRecurrenceSection, and the content barrel exports NodeView (this page).
 // Using the tasks barrel here would close the cycle content -> tasks -> content.
-import { TaskRecurrenceSection } from '@/features/tasks/components/TaskRecurrenceSection';
+import { TaskRecurrenceSection } from '@/features/tasks';
 import { NodeMetadataSection } from '@/features/content/components/nodes/NodeMetadataSection';
 import { Modal } from '@/components/ui/Modal';
 import { TableIcon, PageIcon, LinkIcon } from '@/components/ui/icons';
 import { Button } from '@/components/ui/Button';
-import { getPropertyValueRenderer } from '@/features/content/components/properties/propertyValueRegistry';
-import '@/features/content/components/properties/registerPropertyRenderers';
+import { getPropertyValueRenderer } from '@/features/properties';
+import '@/features/properties';
 import { BlockPresenceOverlay } from '@/features/collab';
 
 import { NodeBreadcrumbs } from '@/features/content/components/nodes/NodeBreadcrumbs';
@@ -66,10 +71,10 @@ import { SelectionButton } from '@/components/ui/SelectionButton';
 import { SYSTEM_PROPERTY_UUIDS, SYSTEM_CLASS_UUIDS, isNonRemovableClass, isBlockOnlyClass } from '@/constants';
 import { buildScheduledForDayQueryAST, buildOverdueQueryAST } from '@/utils/taskQueries';
 import { isDayUuid, getTodayDayUuid } from '@/utils/dateUuid';
-import { ReferencedNodesProvider } from '@/contexts/ReferencedNodesProvider';
-import type { Asset } from '@/api/assets';
+import { ReferencedNodesProvider } from '@/features/content';
+import type { Asset } from '@/features/assets';
 import { extractImageFromDragEvent } from '@/features/content/hooks/useDragDropImage';
-import { uploadAsset } from '@/api/assets';
+import { uploadAsset } from '@/features/assets';
 import { getOrCreateDaily } from '@/api/nodes';
 
 import './NodeView.css';
@@ -215,36 +220,38 @@ function FocusedBlockContent({ node, onAddSidebarCard, displayMode = 'bullet', e
   if (isCardMode) {
     return (
       <div className="focused-block-content">
-        {/* The focused block itself — always shown as a bullet */}
-        <NodeCollection
-          key="focused-block-bullet"
-          nodes={[node]}
-          viewMode="list"
-          availableViewModes={['list']}
-          editable={editable}
-          onNodeClick={handleNodeClick}
-          onNodeShiftClick={handleNodeShiftClick}
-          onContentChange={handleContentChange}
-          showClasses={true}
-          pageId={node.id}
-          nodeUuid={node.uuid}
-          maxDepth={0}
-          onAddClass={handleAddClass}
-        />
-        {/* Children shown as cards */}
-        <NodeCollection
-          nodes={node.children ?? []}
-          viewMode="kanban"
-          availableViewModes={['list', 'kanban']}
-          editable={editable}
-          onNodeClick={handleNodeClick}
-          onNodeShiftClick={handleNodeShiftClick}
-          onContentChange={handleContentChange}
-          showClasses={true}
-          pageId={node.id}
-          nodeUuid={node.uuid}
-          onAddClass={handleAddClass}
-        />
+        <div className="focused-block-content__collections">
+          {/* The focused block itself — always shown as a bullet */}
+          <NodeCollection
+            key="focused-block-bullet"
+            nodes={[node]}
+            viewMode="list"
+            availableViewModes={['list']}
+            editable={editable}
+            onNodeClick={handleNodeClick}
+            onNodeShiftClick={handleNodeShiftClick}
+            onContentChange={handleContentChange}
+            showClasses={true}
+            pageId={node.id}
+            nodeUuid={node.uuid}
+            maxDepth={0}
+            onAddClass={handleAddClass}
+          />
+          {/* Children shown as cards */}
+          <NodeCollection
+            nodes={node.children ?? []}
+            viewMode="kanban"
+            availableViewModes={['list', 'kanban']}
+            editable={editable}
+            onNodeClick={handleNodeClick}
+            onNodeShiftClick={handleNodeShiftClick}
+            onContentChange={handleContentChange}
+            showClasses={true}
+            pageId={node.id}
+            nodeUuid={node.uuid}
+            onAddClass={handleAddClass}
+          />
+        </div>
         <div className="focused-block-content-add hover-reveal">
           {canCreate && (
             <Button icon={"mdi mdi-plus"} onClick={handleAddBlock} className="add-block-btn" title="Add block" size="sm" variant="ghost">
@@ -310,6 +317,12 @@ interface NodeViewProps {
   linkedRefsCollapsed?: boolean;
   /** If true, enables WebSocket live-sync for this page. Should only be enabled for the main content view. */
   liveSync?: boolean;
+  /** Additional CSS class applied to the root <article>. */
+  className?: string;
+  /** Additional CSS class passed to the embedded PageHeader. */
+  pageHeaderClassName?: string;
+  /** Additional CSS class appended to the top-bar NodeBreadcrumbs. */
+  breadcrumbsClassName?: string;
 }
 
 export interface NodeViewResult {
@@ -367,6 +380,9 @@ export function NodeView({
   propertiesCollapsed = false, 
   linkedRefsCollapsed = false,
   liveSync = false,
+  className = '',
+  pageHeaderClassName = '',
+  breadcrumbsClassName = '',
 }: NodeViewProps): NodeViewResult {
   // Compute section visibility from mode flags and explicit overrides
   const showBanner = hideBanner !== undefined ? !hideBanner : !sidebarMode;
@@ -391,8 +407,10 @@ export function NodeView({
   const { data: aliasedNodeData } = useNode(node?.aliased_id ?? null);
   const { data: allProperties } = useProperties();
   const { pageClassId } = usePageClass();
-  const { addSidebarCard, openNode } = useNavigationStore();
-  const { contentDisplayMode } = useAppStore();
+  const { addSidebarCard, openNode } = useNavigationStore(
+    useShallow((state) => ({ addSidebarCard: state.addSidebarCard, openNode: state.openNode })),
+  );
+  const contentDisplayMode = useAppStore((state) => state.contentDisplayMode);
   const isMobile = useIsMobile();
   const { canWrite: workspaceCanWrite, canCreate: workspaceCanCreate, isOwner } = useEffectiveNodePermissions(node);
   const { navigateToNode } = useNodeNavigation();
@@ -974,10 +992,13 @@ export function NodeView({
     }
   }, [node, bannerProperty, setPropertyMutation]);
   
+  const isFocusMode = viewMode === 'focus';
+  const sectionVariant = sidebarMode ? ('sidebar-node' as const) : undefined;
+
   // Loading state
   if (isLoading) {
     return {
-      header: <MainContentTopbar />,
+      header: <MainContentTopbar focusMode={isFocusMode} />,
       content: (
         <article className={`node-view node-view--loading ${viewMode}`}>
           <div className="loading-state"><div className="loading-state__spinner" /></div>
@@ -989,7 +1010,7 @@ export function NodeView({
   // Error state
   if (error || !node) {
     return {
-      header: <MainContentTopbar />,
+      header: <MainContentTopbar focusMode={isFocusMode} />,
       content: (
         <article className={`node-view node-view--error ${viewMode}`}>
           <div className="error-state">Node not found</div>
@@ -1001,6 +1022,7 @@ export function NodeView({
   // Build header content
   const baseHeaderContent = (
     <MainContentTopbar
+      focusMode={isFocusMode}
       left={
         <NodeBreadcrumbs
           nodeId={nodeId}
@@ -1009,7 +1031,8 @@ export function NodeView({
           propertyContext={undefined}
           parentLocked={node.parent_locked}
           editable={!isAlias}
-          className="node-view-breadcrumbs"
+          inHeader
+          className={`node-view-breadcrumbs ${breadcrumbsClassName}`}
         />
       }
       right={
@@ -1089,6 +1112,7 @@ export function NodeView({
         node={node}
         anchorEl={topBarMenuBtnRef.current}
         onClose={handleCloseTopBarMenu}
+        onAddBanner={handleSelectBannerImage}
       />
     ) : (
       <BlockContextMenu
@@ -1114,7 +1138,8 @@ export function NodeView({
       {resolvedType === 'page' ? (
         <>
           {/* Banner Image - before entire header section */}
-          {showBanner && (
+          {/* Hidden when collapsed and empty so the chevron doesn't create a permanent gap */}
+          {showBanner && (bannerImageId || !isBannerCollapsed) && (
             <div 
               className={`node-view__banner ${isBannerDragging ? 'node-view__banner--dragging' : ''}`}
               onMouseEnter={() => setIsBannerHovered(true)}
@@ -1130,6 +1155,7 @@ export function NodeView({
                 title={isBannerCollapsed ? "Expand banner image" : "Collapse banner"}
                 aria-label={isBannerCollapsed ? "Expand banner image" : "Collapse banner image"}
                 aria-expanded={!isBannerCollapsed}
+                data-expanded={!isBannerCollapsed || undefined}
               />
             </div>
             
@@ -1143,6 +1169,7 @@ export function NodeView({
                 assetNodeId={bannerImageId}
                 alt="Banner"
                 className="node-view__banner-image"
+                assetVariant="banner"
                 showCard={true}
                 elevation="low"
                 variant={bannerImageId ? 'default' : 'dashed'}
@@ -1181,6 +1208,9 @@ export function NodeView({
                 effectiveClasses={effectiveClasses}
                 aliasedNode={aliasedNode}
                 onContextMenu={handleContextMenu}
+                embedded
+                focusMode={isFocusMode}
+                className={pageHeaderClassName}
               />
             </div>
             
@@ -1199,6 +1229,7 @@ export function NodeView({
                 title={isCoverCollapsed ? "Expand cover image" : "Collapse cover"}
                 aria-label={isCoverCollapsed ? "Expand cover image" : "Collapse cover image"}
                 aria-expanded={!isCoverCollapsed}
+                data-expanded={!isCoverCollapsed || undefined}
               />
               
               <div 
@@ -1211,6 +1242,7 @@ export function NodeView({
                   assetNodeId={coverImageId}
                   alt="Cover"
                   className="node-view__cover-image"
+                  assetVariant="cover"
                   showCard={true}
                   elevation="low"
                   variant={coverImageId ? 'default' : 'dashed'}
@@ -1265,6 +1297,8 @@ export function NodeView({
             onAddExtends={handleAddExtends}
             onCreateExtends={handleCreateExtends}
             defaultExpanded={!isMobile}
+            focusMode={isFocusMode}
+            variant={sectionVariant}
           />
           </>)}
           
@@ -1362,6 +1396,8 @@ export function NodeView({
               hideViewManagement={true}
               can_create={false}
               showClasses={false}
+              variant={sectionVariant}
+              focusMode={isFocusMode}
             />
           )}
 
@@ -1379,6 +1415,8 @@ export function NodeView({
               onNodeClick={(targetNodeId) => openNode(targetNodeId)}
               onBlockCreated={(targetNodeId) => addSidebarCard(targetNodeId, 'block')}
               can_create={workspaceCanCreate}
+              variant={sectionVariant}
+              focusMode={isFocusMode}
             />
           )}
           
@@ -1397,6 +1435,8 @@ export function NodeView({
               onBlockCreated={(targetNodeId) => addSidebarCard(targetNodeId, 'block')}
               hideViewManagement={true}
               can_create={workspaceCanCreate}
+              variant={sectionVariant}
+              focusMode={isFocusMode}
             />
           )}
           
@@ -1417,6 +1457,8 @@ export function NodeView({
                 onNodeClick={(targetNodeId) => openNode(targetNodeId)}
                 onBlockCreated={(targetNodeId) => addSidebarCard(targetNodeId, 'block')}
                 can_create={workspaceCanCreate}
+                variant={sectionVariant}
+                focusMode={isFocusMode}
               />
               {node.uuid === getTodayDayUuid() && (
                 <QuerySection
@@ -1433,6 +1475,8 @@ export function NodeView({
                   onNodeClick={(targetNodeId) => openNode(targetNodeId)}
                   onBlockCreated={(targetNodeId) => addSidebarCard(targetNodeId, 'block')}
                   can_create={workspaceCanCreate}
+                  variant={sectionVariant}
+                  focusMode={isFocusMode}
                 />
               )}
             </>
@@ -1450,6 +1494,8 @@ export function NodeView({
             hideWhenEmpty={true}
             onNodeClick={(targetNodeId) => openNode(targetNodeId)}
             onBlockCreated={(targetNodeId) => addSidebarCard(targetNodeId, 'block')}
+            variant={sectionVariant}
+            focusMode={isFocusMode}
           />
           
           {/* Unlinked Mentions - occurrences of this page's name that are not yet links */}
@@ -1465,6 +1511,8 @@ export function NodeView({
           <NodeActivityLogSection
             nodeId={node.id}
             defaultExpanded={false}
+            variant={sectionVariant}
+            focusMode={isFocusMode}
           />
         </>
       )}
@@ -1492,6 +1540,7 @@ export function NodeView({
             node={node}
             position={contextMenuPos}
             onClose={handleCloseContextMenu}
+            onAddBanner={handleSelectBannerImage}
           />
         ) : (
           <BlockContextMenu
@@ -1524,8 +1573,9 @@ export function NodeView({
 
   const mainContent = (
     <ReferencedNodesProvider referencedNodes={node?.referenced_nodes}>
-      <article 
-        className={`node-view node-view--${resolvedType} ${viewMode}`}
+      <article
+        className={`node-view node-view--${resolvedType} ${viewMode} ${className}`}
+        data-focus-mode={isFocusMode || undefined}
       >
         {mainContentInner}
       </article>

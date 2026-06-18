@@ -16,7 +16,7 @@ import { BlockList } from '@/features/content/components/blocks/BlockList';
 import { useSettingsStore } from '@/stores';
 import { getOperationRuntime } from '@/runtime';
 import { getNode } from '@/runtime/graphHelpers';
-import { useContentSave } from '@/hooks';
+import { useContentSave } from '@/features/editor';
 import { NodeBreadcrumbs } from './NodeBreadcrumbs';
 import './PropertyReferencesSection.css';
 

@@ -10,7 +10,7 @@
  * - Focus trapping (optional)
  * - Consistent header/footer structure
  */
-import { useEffect, useCallback, useRef, type ReactNode } from 'react';
+import { useEffect, useCallback, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Card } from './Card';
 import { Button } from './Button';
@@ -18,6 +18,7 @@ import { useFocusTrap } from '@/hooks/useFocusTrap';
 import './Modal.css';
 
 export type ModalSize = 'sm' | 'md' | 'lg' | 'xl';
+export type ModalVariant = 'dialog' | 'sheet' | 'auto';
 
 export interface ModalProps {
   /** Whether the modal is open */
@@ -30,6 +31,8 @@ export interface ModalProps {
   headerLeftElement?: ReactNode;
   /** Modal size */
   size?: ModalSize;
+  /** Modal presentation variant. `auto` renders as a bottom-sheet on mobile. */
+  variant?: ModalVariant;
   /** Modal content */
   children: ReactNode;
   /** Footer content (typically buttons) */
@@ -50,12 +53,49 @@ export interface ModalProps {
  * Modal component for dialogs, forms, and confirmations.
  * Provides consistent backdrop, escape handling, and layout.
  */
+function useIsMobileViewport(enabled: boolean) {
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    if (!enabled || typeof window === 'undefined') return;
+
+    const getMobileBreakpoint = () => {
+      const raw = getComputedStyle(document.documentElement)
+        .getPropertyValue('--breakpoint-mobile')
+        .trim();
+      const value = parseInt(raw, 10);
+      return Number.isFinite(value) ? value : 480;
+    };
+
+    let mq = window.matchMedia(`(max-width: ${getMobileBreakpoint()}px)`);
+    const update = () => setIsMobile(mq.matches);
+
+    update();
+
+    const handleChange = () => {
+      // Re-read the breakpoint in case the token changed at runtime.
+      mq = window.matchMedia(`(max-width: ${getMobileBreakpoint()}px)`);
+      update();
+    };
+
+    window.addEventListener('resize', handleChange);
+    mq.addEventListener?.('change', update);
+    return () => {
+      window.removeEventListener('resize', handleChange);
+      mq.removeEventListener?.('change', update);
+    };
+  }, [enabled]);
+
+  return isMobile;
+}
+
 export function Modal({
   isOpen,
   onClose,
   title,
   headerLeftElement,
   size = 'md',
+  variant = 'auto',
   children,
   footer,
   showCloseButton = true,
@@ -65,7 +105,9 @@ export function Modal({
   contentClassName = '',
 }: ModalProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  
+  const isMobile = useIsMobileViewport(variant === 'auto');
+  const isSheet = variant === 'sheet' || (variant === 'auto' && isMobile);
+
   // Enable focus trap for accessibility
   useFocusTrap(containerRef, {
     enabled: isOpen,
@@ -106,15 +148,18 @@ export function Modal({
     >
       <Card
         ref={containerRef}
-        className={`modal modal--${size} ${className}`}
+        className={`modal modal--${size} ${isSheet ? 'modal--sheet' : ''} ${className}`}
         elevation="high"
         padding={false}
-        radius="xl"
+        radius={isSheet ? 'none' : 'xl'}
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
         aria-labelledby={title ? 'modal-title' : undefined}
       >
+        {isSheet && (
+          <div className="modal__drag-handle" aria-hidden="true" />
+        )}
         {(title || headerLeftElement || showCloseButton) && (
           <div className="modal__header">
             {headerLeftElement && (

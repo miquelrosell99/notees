@@ -23,10 +23,11 @@
  *   broadly invalidate all breadcrumb caches after any parent change.
  */
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
-import { useBreadcrumbs, useUpdateNode } from '@/hooks';
+import { useBreadcrumbs } from '@/hooks';
+import { useUpdateNode } from '@/features/content';
 import { useQueryClient } from '@tanstack/react-query';
 import { nodeKeys } from '@/hooks/queryKeys';
-import { nodeNameToText } from '@/features/queries/hooks/useStringifyAST';
+import { nodeNameToText } from '@/features/queries';
 import { useClickOutside } from '@/hooks/useClickOutside';
 import { ChevronRightIcon, NodeIcon } from '@/components/ui/icons';
 import { Button } from '@/components/ui/Button';
@@ -229,6 +230,10 @@ interface NodeBreadcrumbsProps {
   editable?: boolean;
   /** When true, renders a compact read-only inline variant (no editing, smaller gaps/padding). */
   compact?: boolean;
+  /** When true, adjusts margins/padding for use inside a header bar. */
+  inHeader?: boolean;
+  /** When true, applies list-view spacing (e.g. inside ListView breadcrumb groups). */
+  listView?: boolean;
 }
 
 /** How many items to keep visible at each end when collapsing */
@@ -246,6 +251,8 @@ export function NodeBreadcrumbs({
   parentLocked = false,
   editable = false,
   compact = false,
+  inHeader = false,
+  listView = false,
 }: NodeBreadcrumbsProps) {
   const isEditable = editable && !compact;
   const [isOverflowing, setIsOverflowing] = useState(false);
@@ -471,7 +478,8 @@ export function NodeBreadcrumbs({
     <>
       <nav
         ref={containerRef}
-        className={`node-breadcrumbs ${compact ? 'node-breadcrumbs--inline node-breadcrumbs--compact' : ''} ${className}`}
+        className={`node-breadcrumbs ${compact ? 'node-breadcrumbs--inline node-breadcrumbs--compact' : ''} ${listView ? 'node-breadcrumbs--list-view' : ''} ${className}`}
+        data-in-header={inHeader || undefined}
         aria-label={nodeType === 'page' ? 'Page hierarchy' : 'Block path'}
       >
         {/* Start items (always visible) */}

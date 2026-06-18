@@ -11,11 +11,11 @@
 import { useRef, useState, useMemo, useCallback, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigationStore, useModalStore, useUndoStore, useSettingsStore } from '@/stores';
+import { useShallow } from 'zustand/react/shallow';
 
 import { useAutoExportStore } from '@/stores/autoExportStore';
-import { useCommentCount, useDailyNote } from '@/hooks';
-import { Icon } from '@/components/ui/Icon';
-import { Button } from '@/components/ui/Button';
+import { useCommentCount, useDailyNote } from '@/features/content';
+import { Icon, Button } from '@/components/ui';
 import type { ButtonBadge } from '@/components/ui/Button';
 import { CalendarPopup } from '@/features/content';
 import { Card } from '@/components/ui/Card';
@@ -60,22 +60,40 @@ function AutoExportIndicator() {
 }
 
 export function TopBar() {
-  const { 
+  const {
     toggleSidebar,
     openNode,
     toggleRightSidebar,
     rightSidebarOpen,
     toggleFocusMode,
     viewMode,
-  } = useNavigationStore();
+  } = useNavigationStore(
+    useShallow((s) => ({
+      toggleSidebar: s.toggleSidebar,
+      openNode: s.openNode,
+      toggleRightSidebar: s.toggleRightSidebar,
+      rightSidebarOpen: s.rightSidebarOpen,
+      toggleFocusMode: s.toggleFocusMode,
+      viewMode: s.viewMode,
+    }))
+  );
   const {
-    isCalendarOpen, 
-    toggleCalendar, 
+    isCalendarOpen,
+    toggleCalendar,
     setCalendarOpen,
     isScratchpadOpen,
     toggleScratchpad,
     setScratchpadOpen,
-  } = useModalStore();
+  } = useModalStore(
+    useShallow((s) => ({
+      isCalendarOpen: s.isCalendarOpen,
+      toggleCalendar: s.toggleCalendar,
+      setCalendarOpen: s.setCalendarOpen,
+      isScratchpadOpen: s.isScratchpadOpen,
+      toggleScratchpad: s.toggleScratchpad,
+      setScratchpadOpen: s.setScratchpadOpen,
+    }))
+  );
   const calendarBtnRef = useRef<HTMLButtonElement>(null);
   const scratchpadBtnRef = useRef<HTMLButtonElement>(null);
   const undoBtnRef = useRef<HTMLButtonElement>(null);
@@ -184,12 +202,13 @@ export function TopBar() {
   
 
   return (
-    <Card 
-      variant="filled" 
-      elevation="none" 
-      radius="md" 
+    <Card
+      variant="filled"
+      elevation="none"
+      radius="md"
       padding={false}
       className="top-bar-card"
+      data-focus-mode={viewMode === 'focus' || undefined}
     >
       <header className="top-bar">
         <div className="top-bar-left">

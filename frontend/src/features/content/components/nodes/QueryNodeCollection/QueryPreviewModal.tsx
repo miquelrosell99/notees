@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
-import { QuerySQLPreview } from '@/features/queries/components/QuerySQLPreview';
+import { QuerySQLPreview } from '@/features/queries';
 import { getQueryIntent } from '@/lib/astProseRenderer';
 import { copyToClipboard } from '@/utils/clipboardManager';
 import { renderProseWithLinks } from './helpers';

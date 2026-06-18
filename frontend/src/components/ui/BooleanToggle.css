@@ -82,7 +82,7 @@
 .toggle-track--lg {
   --_width: var(--toggle-track-width-lg);
   --_height: var(--toggle-track-height-lg);
-  --_thumb: 22px;
+  --_thumb: var(--bullet-wrapper-size);
   --_pad: var(--shape-small);
   width: var(--_width);
   height: var(--_height);

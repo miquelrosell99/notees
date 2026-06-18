@@ -265,6 +265,7 @@ export function DatePickerPopup({
           className="date-picker-text-input"
           type="text"
           placeholder='Type a date… "today", "Feb 14", "next week"'
+          aria-label="Type a date"
           value={textInput}
           onChange={handleTextChange}
           onKeyDown={handleTextKeyDown}
@@ -322,7 +323,7 @@ export function DatePickerPopup({
 
       {/* Footer: Today button */}
       <div className="calendar-footer">
-        <button className="calendar-today-btn" type="button" onClick={handleGoToToday}>
+        <button className="calendar-today-btn" type="button" onClick={handleGoToToday} aria-label="Go to today">
           Today
         </button>
       </div>

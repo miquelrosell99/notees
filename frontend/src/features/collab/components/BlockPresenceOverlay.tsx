@@ -7,7 +7,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { useLivePresenceStore, type PresenceUser } from '@/stores/livePresenceStore';
+import { useLivePresenceStore, type PresenceUser } from '@/features/collab';
 import './BlockPresenceOverlay.css';
 
 interface PositionedBlock {

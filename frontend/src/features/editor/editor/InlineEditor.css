@@ -1,0 +1,192 @@
+/**
+ * InlineEditor styles — minimal Lexical instance for single block content.
+ * Mirrors the old .node-block-content from BlockEditor.css.
+ */
+
+.inline-editor {
+  position: relative;
+  width: 100%;
+}
+
+.inline-editor__content {
+  flex: 1;
+  min-width: 2em;
+  min-height: 1.5em;
+  outline: none;
+  margin: 0;
+  font: var(--font-body-medium);
+  overflow-wrap: break-word;
+  caret-color: transparent !important;
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  cursor: text;
+}
+
+/* Page blocks — title styling */
+.inline-editor[data-page="true"] .inline-editor__content {
+  font: var(--font-label-large);
+}
+
+/* Colored block backgrounds — driven by the parent block row via data attribute */
+.inline-editor[data-has-node-color="true"] .inline-editor__content {
+  background-color: rgba(var(--node-color-rgb, var(--color-node-default-rgb)), 0.08);
+  padding: var(--spacing-micro) var(--spacing-2);
+  border-radius: var(--shape-small);
+}
+
+@media (max-width: 768px) {
+  .inline-editor[data-has-node-color="true"] .inline-editor__content {
+    padding: var(--spacing-micro) var(--spacing-1);
+  }
+}
+
+.inline-editor__content:focus-visible {
+  outline: none;
+}
+
+.inline-editor__placeholder {
+  color: var(--color-on-surface-variant);
+  opacity: var(--opacity-45);
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+  user-select: none;
+  font-size: inherit;
+}
+
+/* Text selection — transparent in edit mode, custom caret overlay provides highlight */
+.inline-editor__content ::selection {
+  background: transparent;
+  color: inherit;
+}
+
+/* Ensure the sole text span in empty blocks has minimum width for caret visibility.
+   Only apply inline-block when the span is the only child — otherwise text spans
+   must stay display:inline so that wrapped text flows from the container's left edge
+   rather than the span's left edge. */
+.inline-editor__content > span[data-lexical-text="true"]:only-child {
+  display: inline-block;
+  min-width: 1px;
+}
+
+/* Ensure empty content wrapper has space for cursor */
+.inline-editor__content:empty::before {
+  content: '\200B';
+  display: inline;
+}
+
+/* ─── Card title block variant ─────────────────────────────────── */
+
+.inline-editor[data-card-title="true"] {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+}
+
+.inline-editor[data-card-title="true"] .inline-editor__content {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+  font-size: var(--font-size-body-lg);
+  line-height: 1.4;
+  padding: 0;
+  min-height: unset;
+}
+
+.inline-editor[data-card-title="true"] .inline-editor__placeholder {
+  font-weight: 600;
+  font-size: var(--font-size-body-lg);
+  top: 50%;
+  left: 0;
+  transform: translateY(-50%);
+}
+
+.inline-editor[data-card-title="true"] .notees-editor-paragraph {
+  min-height: unset;
+  line-height: 1.4;
+}
+
+/* Suppress colored content backgrounds inside cards — the card surface
+   already communicates the node color. */
+.inline-editor[data-in-card="true"][data-has-node-color="true"] .inline-editor__content {
+  background: transparent;
+  padding: 0;
+}
+
+.inline-editor[data-in-card="true"][data-has-node-color="true"] .notees-editor-paragraph {
+  background: transparent;
+  padding: 0;
+}
+
+/* Small list-view sizing. */
+.inline-editor[data-list-size="sm"] .inline-editor__content {
+  min-height: 1.3em;
+  line-height: 1.4;
+}
+
+/* Property editor context — rendered as a compact inline block inside a
+   property table cell. Remove default min-heights so the row stays tight. */
+.inline-editor[data-property-editor="true"] {
+  min-height: 0;
+}
+
+.inline-editor[data-property-editor="true"] .inline-editor__content {
+  min-height: 0;
+  padding: 0;
+}
+
+/* ─── Headings ─────────────────────────────────────────────────── */
+
+.notees-heading-h1,
+.notees-heading-h2,
+.notees-heading-h3 {
+  color: var(--color-on-surface);
+  margin: 0;
+}
+
+.notees-heading-h1 {
+  font: var(--font-headline-large);
+}
+
+.notees-heading-h2 {
+  font: var(--font-headline-small);
+}
+
+.notees-heading-h3 {
+  font: var(--font-title-large);
+}
+
+/* ─── Inline text formatting ───────────────────────────────────── */
+
+.notees-text-bold {
+  font-weight: 600;
+}
+
+.notees-text-italic {
+  font-style: italic;
+}
+
+.notees-text-underline {
+  text-decoration: underline;
+}
+
+.notees-text-strikethrough {
+  text-decoration: line-through;
+}
+
+.notees-text-underline-strikethrough {
+  text-decoration: underline line-through;
+}
+
+.notees-text-code {
+  background: var(--color-surface-container-high);
+  border-radius: var(--shape-tiny);
+  padding: var(--spacing-hairline) var(--spacing-1);
+  font-family: var(--font-family-mono);
+  font-size: 0.9em;
+}

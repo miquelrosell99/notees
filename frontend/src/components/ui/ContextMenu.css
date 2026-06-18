@@ -13,7 +13,7 @@
   min-width: 11.25rem;
   max-width: var(--layout-size-6xl);
   padding: var(--spacing-1);
-  animation: panelFadeIn var(--motion-duration-short) var(--motion-easing-standard);
+  animation: panelFadeIn var(--motion-duration-long) var(--motion-easing-standard);
 }
 
 .context-menu-title {
@@ -130,11 +130,11 @@ button.context-menu-item:hover:not(.disabled) {
   border-top: var(--border-width-default) solid var(--color-outline-variant);
   border-bottom: var(--border-width-default) solid var(--color-outline-variant);
   overflow: hidden;
-  animation: submenu-expand var(--motion-duration-short) var(--motion-easing-standard);
+  animation: submenu-expand var(--motion-duration-long) var(--motion-easing-standard);
 }
 
 .context-menu-submenu-inline--closing {
-  animation: submenu-collapse var(--motion-duration-short) var(--motion-easing-standard) forwards;
+  animation: submenu-collapse var(--motion-duration-long) var(--motion-easing-standard) forwards;
 }
 
 /* Arrow chevron rotates when submenu is open */

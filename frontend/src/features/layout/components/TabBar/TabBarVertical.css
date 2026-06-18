@@ -13,6 +13,17 @@
   overflow: hidden;
 }
 
+/* Focus mode — dim the vertical tab bar, reveal on hover.
+   Driven by data-focus-mode on the root. */
+.tab-bar-vertical[data-focus-mode="true"] {
+  opacity: var(--opacity-10);
+  transition: opacity var(--motion-duration-medium) var(--motion-easing-standard);
+}
+
+.tab-bar-vertical[data-focus-mode="true"]:hover {
+  opacity: var(--opacity-100);
+}
+
 .tab-bar-vertical__strip {
   display: flex;
   flex-direction: column;

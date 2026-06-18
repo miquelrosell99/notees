@@ -92,7 +92,7 @@
 }
 
 .public-share-view__property-name {
-  flex: 0 0 140px;
+  flex: 0 0 var(--layout-size-md);
   font: var(--font-label-medium);
   color: var(--color-on-surface-variant);
   display: flex;
@@ -169,4 +169,13 @@
 .public-share-view__block {
   padding: var(--spacing-2) 0;
   padding-left: calc(var(--outline-depth, 0) * var(--spacing-6));
+}
+
+.public-share-view__password-input,
+.public-share-view__password-btn {
+  min-height: var(--button-min-height);
+}
+
+.public-share-view__password-btn {
+  min-width: var(--button-min-height);
 }

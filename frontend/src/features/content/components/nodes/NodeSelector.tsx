@@ -24,10 +24,10 @@ import { ResultsList, type FilterSuggestionItem } from './NodeSelectorParts/Resu
 import { Card } from '@/components/ui/Card';
 import { SelectTrigger, type SelectTriggerSize } from '@/components/ui/SelectTrigger';
 
-import { useNodeSearch, usePages, useClasses, useCreateNode, usePageClass, useClassClass, type NodeSearchMode, nodeKeys } from '@/hooks';
+import { useNodeSearch, usePages, useClasses, useCreateNode, usePageClass, useClassClass, type NodeSearchMode, nodeKeys } from '@/features/content';
 import { parseQueryWithFilters, type AppliedFilter } from '@/utils/searchFilters';
 import * as nodesApi from '@/api/nodes';
-import { nodeNameToText } from '@/features/queries/hooks/useStringifyAST';
+import { nodeNameToText } from '@/features/queries';
 import { SYSTEM_CLASS_UUIDS } from '@/constants';
 import type { Node } from '@/types';
 import './NodeSelector.css';

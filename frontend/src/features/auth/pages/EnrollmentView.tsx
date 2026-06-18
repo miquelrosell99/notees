@@ -7,7 +7,7 @@
 import { useState, useEffect } from 'react';
 import { useSettingsStore, applyTheme, DATE_FORMAT_OPTIONS } from '@/stores';
 import type { ThemePreference, DateFormat } from '@/stores';
-import { setSetting } from '@/features/workspace/api/workspaces';
+import { setSetting } from '@/features/workspace';
 import { useNotifications } from '@/stores/notificationStore';
 import { useReducedMotion } from '@/hooks';
 import { Button } from '@/components/ui/Button';

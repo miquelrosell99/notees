@@ -234,6 +234,7 @@ export const SelectionButton = forwardRef<HTMLDivElement, SelectionButtonProps>(
             className={`selection-button__overflow-toggle ${overflowOpen ? 'selection-button__overflow-toggle--open' : ''}`}
             onClick={() => setOverflowOpen((prev) => !prev)}
             disabled={disabled}
+            aria-label="More options"
             title="More options"
             aria-haspopup="menu"
             aria-expanded={overflowOpen}

@@ -2,12 +2,8 @@
  * Hooks for notification operations
  */
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { listNotifications, markNotificationRead, markAllNotificationsRead } from '@/api/notifications';
-
-const notificationKeys = {
-  all: ['notifications'] as const,
-  list: (includeRead: boolean) => [...notificationKeys.all, 'list', includeRead] as const,
-};
+import { notificationKeys } from '@/hooks/queryKeys';
+import { listNotifications, markNotificationRead, markAllNotificationsRead } from '@/features/layout';
 
 export function useNotifications(includeRead = false) {
   return useQuery({

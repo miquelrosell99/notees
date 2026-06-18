@@ -25,7 +25,7 @@
  */
 import { useCallback } from 'react';
 import { useNavigationStore } from '@/stores';
-import { flushAllContentSaves } from '@/features/content/hooks/useContentSave';
+import { flushAllContentSaves } from '@/features/editor';
 import type { Node } from '@/types';
 import type { SidebarCardType } from '@/stores';
 

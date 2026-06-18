@@ -1,5 +1,5 @@
 import { batchUpdateNodes, createNode as createNodeApi, getNode, getOrCreateDaily } from '@/api/nodes';
-import { nodeNameToText } from '@/features/queries/hooks/useStringifyAST';
+import { nodeNameToText } from '@/features/queries';
 import { useNavigationStore } from '@/stores';
 import type { BatchNodeUpdateItem } from '@/types/api';
 import type { PhaseResult, ImportContext } from './useLogseqImporter.types';

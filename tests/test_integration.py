@@ -6,6 +6,8 @@ testing that all layers work together correctly.
 import pytest
 from httpx import AsyncClient
 
+pytestmark = pytest.mark.integration
+
 
 class TestAuthFlow:
     """Test complete authentication flow."""
@@ -17,20 +19,21 @@ class TestAuthFlow:
         email = f"testuser_{secrets.token_hex(4)}@example.com"
         password = "Testpass123!"
 
-        # Register
+        # Register (first boot creates admin with ADMIN_PASSWORD)
+        admin_password = "TestAdminPass123!"
         response = await client.post(
             "/api/auth/register",
-            json={"email": email, "password": password}
+            json={"email": email, "password": password, "admin_password": admin_password}
         )
         assert response.status_code == 200
         data = response.json()
         assert "access_token" in data
         assert data["user"]["email"] == email
 
-        # Login with same credentials
+        # Login with ADMIN_PASSWORD (the actual initial admin password)
         response = await client.post(
             "/api/auth/login",
-            json={"email": email, "password": password}
+            json={"email": email, "password": admin_password}
         )
         assert response.status_code == 200
         data = response.json()
@@ -59,17 +62,18 @@ class TestAuthFlow:
             match = re.search(r"refresh_token=[^;]*;.*?Max-Age=(\d+)", set_cookie, re.IGNORECASE)
             return int(match.group(1)) if match else None
 
-        # Register first
+        # Register first (first boot creates admin with ADMIN_PASSWORD)
+        admin_password = "TestAdminPass123!"
         response = await client.post(
             "/api/auth/register",
-            json={"email": email, "password": password}
+            json={"email": email, "password": password, "admin_password": admin_password}
         )
         assert response.status_code == 200
 
-        # Login with remember_me=True
+        # Login with ADMIN_PASSWORD and remember_me=True
         response = await client.post(
             "/api/auth/login",
-            json={"email": email, "password": password, "remember_me": True}
+            json={"email": email, "password": admin_password, "remember_me": True}
         )
         assert response.status_code == 200
 
@@ -99,17 +103,18 @@ class TestAuthFlow:
             match = re.search(r"refresh_token=[^;]*;.*?Max-Age=(\d+)", set_cookie, re.IGNORECASE)
             return int(match.group(1)) if match else None
 
-        # Register first
+        # Register first (first boot creates admin with ADMIN_PASSWORD)
+        admin_password = "TestAdminPass123!"
         response = await client.post(
             "/api/auth/register",
-            json={"email": email, "password": password}
+            json={"email": email, "password": password, "admin_password": admin_password}
         )
         assert response.status_code == 200
 
-        # Login with remember_me=False
+        # Login with ADMIN_PASSWORD and remember_me=False
         response = await client.post(
             "/api/auth/login",
-            json={"email": email, "password": password, "remember_me": False}
+            json={"email": email, "password": admin_password, "remember_me": False}
         )
         assert response.status_code == 200
 

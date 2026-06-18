@@ -16,11 +16,13 @@ interface MainContentTopbarProps {
   right?: ReactNode;
   /** Additional CSS class name */
   className?: string;
+  /** Whether focus mode is active. */
+  focusMode?: boolean;
 }
 
-export function MainContentTopbar({ left, center, right, className = '' }: MainContentTopbarProps) {
+export function MainContentTopbar({ left, center, right, className = '', focusMode }: MainContentTopbarProps) {
   return (
-    <div className={`main-content-header ${className}`}>
+    <div className={`main-content-header ${className}`} data-focus-mode={focusMode || undefined}>
       <div className="node-view-header-content">
         <div className="node-view-header-left">
           {left}

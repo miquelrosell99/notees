@@ -18,6 +18,7 @@ export type ActionName =
   | 'share'
   | 'view-ast'
   | 'toggle-private'
+  | 'add-banner'
   | 'archive'
   | 'delete';
 
@@ -43,6 +44,7 @@ export const DEFAULT_ACTIONS: ActionConfig[] = [
   ['view-ast',        'both'],
   ['archive',         'both'],
   ['toggle-private',  'page'],
+  ['add-banner',      'page'],
   ['delete',          'both'],
 ];
 

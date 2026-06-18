@@ -121,7 +121,7 @@
   background-color: var(--color-surface-container-low);
   border: var(--border-width-default) solid var(--color-outline-variant);
   overflow: hidden;
-  font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', Monaco, Consolas, monospace;
+  font-family: var(--font-family-mono);
   font-size: var(--font-size-button);
   line-height: 1.5;
   user-select: text;
@@ -250,7 +250,7 @@
   min-height: 0;
 }
 
-.backlink-preview .card {
+.backlink-preview__card {
   max-width: 100%;
   overflow-x: hidden;
 }
@@ -258,20 +258,6 @@
 /* Lightweight placeholder while the query section is deferred by one frame */
 .backlink-loading {
   min-height: var(--spacing-10);
-}
-
-/* Remove extra left padding inside backlink previews — the container is already
-   indented within the block body, so the nested section padding causes overflow. */
-.backlink-preview .node-view-section__content {
-  padding-left: 0;
-}
-
-/* Remove top border from node-view-section when nested inside a backlink card
-   — the card itself provides the visual container. */
-.backlink-preview .node-view-section {
-  margin-top: 0;
-  border-top: none;
-  padding-top: 0;
 }
 
 /* ==================== Query Preview ==================== */

@@ -4,8 +4,8 @@
  * Pseudo-page that fetches all graph data and passes it to GraphView.
  * Similar to AllPagesView but for graph visualization.
  */
-import { useGraphNodes } from '@/hooks';
-import { GraphView } from '@/features/content/components/nodes/views/GraphView';
+import { useGraphNodes } from '@/features/content';
+import { GraphView } from '@/features/views';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { DataStateView } from '@/components/ui/DataStateView';
 import './AllPagesGraphView.css';

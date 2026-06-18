@@ -2,6 +2,7 @@
  * Hooks for share operations (public shares, user shares, inbox)
  */
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { sharesKeys } from '@/hooks/queryKeys';
 import {
   createShare,
   listNodeShares,
@@ -18,16 +19,6 @@ import {
   removeWorkspaceMember,
   removePendingInvite,
 } from '@/features/shares/api/shares';
-
-const sharesKeys = {
-  all: ['shares'] as const,
-  node: (nodeId: number) => [...sharesKeys.all, 'node', nodeId] as const,
-  workspace: () => [...sharesKeys.all, 'workspace'] as const,
-  public: (shareUuid: string) => ['public-share', shareUuid] as const,
-  userShares: (nodeId: number) => [...sharesKeys.all, 'user-shares', nodeId] as const,
-  inbox: () => [...sharesKeys.all, 'inbox'] as const,
-  workspaceMembers: (workspaceUuid: string) => ['workspace-members', workspaceUuid] as const,
-};
 
 // ============ Public Shares ============
 

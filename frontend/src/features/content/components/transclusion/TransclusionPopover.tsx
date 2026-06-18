@@ -7,7 +7,7 @@
 
 import { useEffect, useRef, useState, type JSX } from 'react';
 import { useNodeByUuid } from '@/features/content/hooks/useNodeQueries';
-import { nodeNameToText } from '@/features/queries/hooks/useStringifyAST';
+import { nodeNameToText } from '@/features/queries';
 import { parseAST } from '@/lib/astBuilder';
 import { Icon } from '@/components/ui/icons';
 import type { Node as ApiNode } from '@/types';

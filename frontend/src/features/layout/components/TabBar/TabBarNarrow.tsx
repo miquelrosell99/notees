@@ -4,7 +4,7 @@
 import { useState, useRef, useCallback } from 'react';
 import { type Tab } from '@/stores/navigationStore';
 import { useTabActions } from '@/features/layout/hooks/useTabActions';
-import { Icon } from '@/components/ui/Icon';
+import { Icon } from '@/components/ui';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { ListSortable } from '@/components/ui/ListSortable';

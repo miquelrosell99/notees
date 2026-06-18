@@ -6,3 +6,16 @@
  */
 
 /* Component-specific overrides can go here if needed */
+
+/* Focus mode — dim the header chrome, reveal on hover.
+   Driven by data-focus-mode on the root (set by consumers). */
+.main-content-header[data-focus-mode="true"] {
+  opacity: var(--opacity-10);
+  background: color-mix(in srgb, var(--color-background) 80%, transparent);
+  backdrop-filter: blur(2px);
+  transition: opacity var(--motion-duration-medium) var(--motion-easing-standard);
+}
+
+.main-content-header[data-focus-mode="true"]:hover {
+  opacity: var(--opacity-100);
+}

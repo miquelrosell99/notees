@@ -18,7 +18,7 @@ import {
   type LogseqMdPage,
   type LogseqMdBlock,
 } from '@/utils/logseqMdParser';
-import { useCreateNode, usePageClass } from '@/hooks';
+import { useCreateNode, usePageClass } from '@/features/content';
 import './ImportMarkdownModal.css';
 
 type MdSource = 'logseq' | 'obsidian';

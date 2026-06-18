@@ -80,6 +80,7 @@
   justify-content: flex-start;
   gap: var(--spacing-2);
   min-width: 0;
+  pointer-events: auto;
 }
 
 /* Center section - empty for now */
@@ -95,26 +96,6 @@
   align-items: center;
   justify-content: flex-end;
   gap: var(--spacing-2);
-}
-
-/* Enable pointer events for interactive elements in header */
-.main-content-header .btn,
-.main-content-header .toggle-switch,
-.node-view-header-right .btn,
-.node-view-header-right .toggle-switch,
-.node-view-header-left .btn {
-  pointer-events: auto;
-}
-
-/* Breadcrumbs within header */
-.main-content .node-view-sticky-header .node-view-breadcrumbs,
-.main-content-wrapper .node-view-sticky-header .node-view-breadcrumbs,
-.main-content-wrapper .main-content-header .node-view-breadcrumbs {
-  margin-bottom: 0;
-  margin-top: 0;
-  padding: 0;
-  flex: 0 1 auto;
-  min-width: 0;
   pointer-events: auto;
 }
 
@@ -254,6 +235,19 @@
    the layout gap. The right sidebar is fully hidden when collapsed. */
 .sidebar-wrapper--right.sidebar-wrapper--collapsed {
   margin-left: calc(-1 * var(--container-gap));
+}
+
+/* Focus mode — dim the right sidebar chrome, reveal on hover.
+   Driven by data-focus-mode on the wrapper (set by Layout.tsx). */
+.sidebar-wrapper--right[data-focus-mode="true"] {
+  opacity: var(--opacity-10);
+  background: color-mix(in srgb, var(--color-background) 80%, transparent);
+  backdrop-filter: blur(2px);
+  transition: opacity var(--motion-duration-medium) var(--motion-easing-standard);
+}
+
+.sidebar-wrapper--right[data-focus-mode="true"]:hover {
+  opacity: var(--opacity-100);
 }
 
 /* ==================== Sidebar Resize Handles ==================== */

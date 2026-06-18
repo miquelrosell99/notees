@@ -1,17 +1,11 @@
 import { useState, useCallback, memo, useEffect } from 'react';
 import { useNavigationStore } from '@/stores';
-import { useNode, useIsMobile } from '@/hooks';
+import { useShallow } from 'zustand/react/shallow';
+import { useIsMobile } from '@/hooks';
+import { useNode } from '@/features/content';
 import { nodeNameToText } from '@/features/queries';
-import {
-  useFavorites,
-  useRemoveFavoriteMutation,
-  useReorderFavoritesMutation,
-  removeFavorite,
-  useNodeDisplay,
-  useListDragSort,
-  NodeInline,
-  NodeBreadcrumbs,
-} from '@/features/content';
+import { useListDragSort } from '@/hooks/useListDragSort';
+import { useFavorites, useRemoveFavoriteMutation, useReorderFavoritesMutation, removeFavorite, useNodeDisplay, NodeInline, NodeBreadcrumbs } from '@/features/content';
 import { isApiError } from '@/api/client';
 import { Button } from '@/components/ui/Button';
 import {
@@ -164,7 +158,16 @@ export function SidebarFavorites({ onContextMenu, onItemClick }: SidebarFavorite
     openNodeInNewTab,
     isSidebarCollapsed,
     toggleSidebar,
-  } = useNavigationStore();
+  } = useNavigationStore(
+    useShallow((s) => ({
+      mainViewType: s.mainViewType,
+      currentNodeId: s.currentNodeId,
+      openNode: s.openNode,
+      openNodeInNewTab: s.openNodeInNewTab,
+      isSidebarCollapsed: s.isSidebarCollapsed,
+      toggleSidebar: s.toggleSidebar,
+    }))
+  );
   const isMobile = useIsMobile();
 
   const closeMobileDrawer = useCallback(() => {

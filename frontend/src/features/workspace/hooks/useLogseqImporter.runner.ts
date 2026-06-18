@@ -1,5 +1,5 @@
 import { listClasses } from '@/api/nodes';
-import { nodeNameToText } from '@/features/queries/hooks/useStringifyAST';
+import { nodeNameToText } from '@/features/queries';
 import { SYSTEM_CLASS_UUIDS } from '@/constants';
 import { nodeKeys, propertyKeys } from '@/hooks/queryKeys';
 import type { QueryClient } from '@tanstack/react-query';

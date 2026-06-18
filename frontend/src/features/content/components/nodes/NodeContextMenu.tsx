@@ -14,7 +14,7 @@ import { useMemo, useCallback, useState, useRef } from 'react';
 import { copyToClipboard } from '@/utils/clipboardManager';
 import { useClipboardStore } from '@/stores/clipboardStore';
 import { createPortal } from 'react-dom';
-import { useArchiveNode, useUnarchiveNode, useDeleteNode, useUpdateNode, useLinkedReferencesCount } from '@/hooks';
+import { useArchiveNode, useUnarchiveNode, useDeleteNode, useUpdateNode, useLinkedReferencesCount } from '@/features/content';
 import { nodeNameToText } from '@/features/queries';
 import { useSettingsStore, usePresentationStore } from '@/stores';
 import {
@@ -24,7 +24,7 @@ import {
   useSidebarCards,
   useAddSidebarCardAction,
   useFlashSidebarCardAction,
-} from '@/features/layout/hooks/useNavigationSelectors';
+} from '@/features/layout';
 import { useFavorites, useAddFavoriteMutation, useRemoveFavoriteMutation } from '@/features/content';
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/ContextMenu';
 import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
@@ -75,6 +75,8 @@ export interface NodeContextMenuProps extends BaseContextMenuProps {
   onParentChange?: (parentId: number | null) => void;
   /** Enables 'convert-to-page' action (block-scoped) */
   onConvertToPage?: () => void;
+  /** Called by 'add-banner' action (page-scoped) */
+  onAddBanner?: () => void;
   /** Called by 'copy-blocks' action — caller should copy the block to clipboard */
   onCopyBlocks?: () => void;
   /** Called by 'paste-blocks' action — caller should paste clipboard blocks after this block */
@@ -89,6 +91,7 @@ export function NodeContextMenu({
   actions = DEFAULT_ACTIONS,
   onParentChange,
   onConvertToPage,
+  onAddBanner,
   onCopyBlocks,
   onPasteBlocks,
 }: NodeContextMenuProps) {
@@ -109,7 +112,7 @@ export function NodeContextMenu({
   const sidebarCards = useSidebarCards();
   const addSidebarCard = useAddSidebarCardAction();
   const flashSidebarCard = useFlashSidebarCardAction();
-  const { showDevOptions } = useSettingsStore();
+  const showDevOptions = useSettingsStore((s) => s.showDevOptions);
   const { data: favoriteIds } = useFavorites();
   const favorites = favoriteIds ?? [];
   const isPageFavorited = favorites.some((id) => id === node.id);
@@ -394,6 +397,19 @@ export function NodeContextMenu({
           });
           break;
 
+        case 'add-banner':
+          if (!onAddBanner) break;
+          items.push({
+            id: 'add-banner',
+            label: 'Add banner',
+            icon: 'mdi-image-outline',
+            onClick: () => {
+              onAddBanner();
+              onClose();
+            },
+          });
+          break;
+
         case 'archive':
           if (node.active !== false) {
             items.push({
@@ -429,7 +445,7 @@ export function NodeContextMenu({
     return items;
   }, [
     actions, nodeScope, node, isPageFavorited, isHeader, clipboardMode,
-    onConvertToPage, onCopyBlocks, onPasteBlocks, onClose, onParentChange,
+    onConvertToPage, onAddBanner, onCopyBlocks, onPasteBlocks, onClose, onParentChange,
     addSidebarCard, openLocalGraph, openNode, updateNode, unarchiveNode,
     showDevOptions, handleDeleteClick, handleArchiveClick, setShowShareModal,
     addFavoriteMutation, removeFavoriteMutation, currentNodeId, sidebarCards,
@@ -468,7 +484,7 @@ export function NodeContextMenu({
             onIconChange={handleIconChange}
             onColorChange={handleColorChange}
           />
-          <ContextMenu items={menuItems} position={{ x: 0, y: 0 }} onClose={onClose} containerRef={wrapperRef} inline />
+          <ContextMenu items={menuItems} position={{ x: 0, y: 0 }} onClose={onClose} containerRef={wrapperRef} inline className="node-context-menu" />
         </div>,
         document.body
       )}

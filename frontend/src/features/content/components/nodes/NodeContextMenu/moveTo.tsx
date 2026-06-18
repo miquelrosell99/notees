@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { useUpdateNode } from '@/hooks';
+import { useUpdateNode } from '@/features/content';
 import { NodeSelector } from '../NodeSelector';
 import type { Node } from '@/types';
 
