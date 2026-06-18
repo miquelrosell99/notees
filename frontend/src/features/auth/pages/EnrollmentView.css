@@ -269,7 +269,7 @@
 .enrollment__date-example {
   font: var(--font-title-medium);
   color: var(--color-on-surface);
-  font-family: monospace;
+  font-family: var(--font-family-mono);
 }
 
 .enrollment__date-label {

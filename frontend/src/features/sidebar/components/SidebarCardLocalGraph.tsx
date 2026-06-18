@@ -4,8 +4,8 @@
  * A sidebar card that displays the local graph for a specific node.
  * Shows the page name as the card title and renders SidebarLocalGraph in the content.
  */
-import { useNode } from '@/hooks';
-import { nodeNameToText } from '@/features/queries/hooks/useStringifyAST';
+import { useNode } from '@/features/content';
+import { nodeNameToText } from '@/features/queries';
 import { SidebarCard } from './SidebarCard';
 import { SidebarLocalGraph } from './SidebarLocalGraph';
 import './SidebarCardLocalGraph.css';

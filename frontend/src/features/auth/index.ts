@@ -3,6 +3,7 @@ export { OnboardingView } from './pages/OnboardingView';
 export { EnrollmentView } from './pages/EnrollmentView';
 export { InviteAcceptView } from './pages/InviteAcceptView';
 export * from './api/auth';
+export * from './api/admin';
 export * from './stores/authStore';
 export * from './hooks/useAuthStatus';
 export * from './hooks/useAdminUsers';

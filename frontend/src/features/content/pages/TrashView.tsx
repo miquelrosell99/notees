@@ -3,9 +3,10 @@
  * 
  * Fetches directly from the /trash endpoint instead of using query system.
  */
-import { nodeNameToText } from '@/features/queries/hooks/useStringifyAST';
+import { nodeNameToText } from '@/features/queries';
 import { NodeCollection } from '@/features/content/components/nodes/NodeCollection';
 import { NodeCollectionToolbar } from '@/features/content/components/nodes/NodeCollectionToolbar';
+import { PageViewHeader } from '@/features/content/components/nodes/PageViewHeader';
 import { TrashIcon } from '@/components/ui/icons';
 import { TrashNodeContextMenu } from '@/features/content/components/nodes/TrashNodeContextMenu';
 import { useNavigationStore } from '@/stores';
@@ -25,7 +26,7 @@ interface TrashViewProps {
 }
 
 export function TrashView({ className = '' }: TrashViewProps) {
-  const { openNode } = useNavigationStore();
+  const openNode = useNavigationStore((state) => state.openNode);
   const [viewMode, setViewMode] = useState<NodeCollectionViewMode>('table');
   const [showEmptyConfirm, setShowEmptyConfirm] = useState(false);
   const [showDeleteSelectedConfirm, setShowDeleteSelectedConfirm] = useState(false);
@@ -113,47 +114,43 @@ export function TrashView({ className = '' }: TrashViewProps) {
   
   return (
     <article className={`node-view node-view--page trash-view ${className}`}>
-      {/* Page Header */}
-      <div className="page-header-section">
-        <div className="page-header-section__header">
-          <div className="page-header">
-            <h1 className="page-header__title">
-              Trash
-            </h1>
-            <div className="page-header__actions">
-              {!isLoading && nodes && nodes.length > 0 && selectedIds.size > 0 && (
+      <PageViewHeader
+        className="trash-view__header"
+        title={<h1>Trash</h1>}
+        actions={
+          <>
+            {!isLoading && nodes && nodes.length > 0 && selectedIds.size > 0 && (
+              <Button
+                variant="danger"
+                size="sm"
+                onClick={() => setShowDeleteSelectedConfirm(true)}
+                disabled={batchDeleteMutation.isPending}
+              >
+                {batchDeleteMutation.isPending ? 'Deleting...' : `Delete Selected (${selectedIds.size})`}
+              </Button>
+            )}
+            {!isLoading && nodes && nodes.length > 0 && (
+              <>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleToggleSelectAll}
+                >
+                  {allSelected ? 'Deselect All' : 'Select All'}
+                </Button>
                 <Button
                   variant="danger"
                   size="sm"
-                  onClick={() => setShowDeleteSelectedConfirm(true)}
-                  disabled={batchDeleteMutation.isPending}
+                  onClick={() => setShowEmptyConfirm(true)}
+                  disabled={emptyTrashMutation.isPending}
                 >
-                  {batchDeleteMutation.isPending ? 'Deleting...' : `Delete Selected (${selectedIds.size})`}
+                  {emptyTrashMutation.isPending ? 'Emptying...' : 'Empty Trash'}
                 </Button>
-              )}
-              {!isLoading && nodes && nodes.length > 0 && (
-                <>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleToggleSelectAll}
-                  >
-                    {allSelected ? 'Deselect All' : 'Select All'}
-                  </Button>
-                  <Button
-                    variant="danger"
-                    size="sm"
-                    onClick={() => setShowEmptyConfirm(true)}
-                    disabled={emptyTrashMutation.isPending}
-                  >
-                    {emptyTrashMutation.isPending ? 'Emptying...' : 'Empty Trash'}
-                  </Button>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
+              </>
+            )}
+          </>
+        }
+      />
       
       {/* Trash Collection */}
       <div className="trash-view__content">

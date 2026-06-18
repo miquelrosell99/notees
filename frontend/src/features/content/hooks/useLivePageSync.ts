@@ -12,8 +12,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { liveSyncManager } from '@/collab/LiveSyncManager';
-import { useLivePresenceStore, type PresenceUser } from '@/stores/livePresenceStore';
+import { liveSyncManager, useLivePresenceStore, type PresenceUser } from '@/features/collab';
 import { useEditorFocusStore } from '@/stores/editorFocusStore';
 import { useNotificationStore } from '@/stores/notificationStore';
 import type { Node } from '@/types';

@@ -154,6 +154,24 @@
   color: var(--color-on-primary);
 }
 
+/* Selected day (used by DatePickerPopup) */
+.calendar-day.btn.selected {
+  background: var(--color-secondary-container);
+  color: var(--color-on-secondary-container);
+  font-weight: 600;
+}
+
+.calendar-day.btn.selected:hover {
+  background: var(--color-secondary-container);
+  color: var(--color-on-secondary-container);
+}
+
+/* Today + selected: primary wins */
+.calendar-day.btn.today.selected {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
 /* Accent pulse when navigating to today */
 .calendar-day.btn.today.accent-pulse {
   animation: today-accent-pulse 1.2s var(--motion-easing-ease-out);

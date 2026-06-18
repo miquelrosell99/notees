@@ -195,7 +195,7 @@
 }
 
 .btn-panel {
-  animation: panel-fade-in var(--motion-duration-short) var(--motion-easing-standard);
+  animation: panel-fade-in var(--motion-duration-long) var(--motion-easing-standard);
 }
 
 /* Adjust transform origin based on position */
@@ -218,12 +218,12 @@
 /* Keep alignment transforms when animating */
 .btn-panel--right.btn-panel--align-center,
 .btn-panel--left.btn-panel--align-center {
-  animation: panel-fade-in-y var(--motion-duration-short) var(--motion-easing-standard);
+  animation: panel-fade-in-y var(--motion-duration-long) var(--motion-easing-standard);
 }
 
 .btn-panel--bottom.btn-panel--align-center,
 .btn-panel--top.btn-panel--align-center {
-  animation: panel-fade-in-x var(--motion-duration-short) var(--motion-easing-standard);
+  animation: panel-fade-in-x var(--motion-duration-long) var(--motion-easing-standard);
 }
 
 @keyframes panel-fade-in-y {

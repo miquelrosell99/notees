@@ -6,6 +6,8 @@ node creation and updating — useful for Logseq / EDN imports.
 import pytest
 from httpx import AsyncClient
 
+pytestmark = pytest.mark.integration
+
 
 class TestBatchCreate:
     """Test batch node creation."""

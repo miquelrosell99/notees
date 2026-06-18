@@ -7,8 +7,8 @@
  */
 import { useCallback } from 'react';
 import * as nodesApi from '@/api/nodes';
-import { CalendarPopup as CalendarPopupBase } from '@/components/ui/CalendarPopup';
-import { useExistingDailyPages } from '@/hooks';
+import { CalendarPopup as CalendarPopupBase } from '@/components/ui';
+import { useExistingDailyPages } from '@/features/content';
 import { useNavigationStore, useSettingsStore } from '@/stores';
 
 export interface CalendarPopupProps {
@@ -27,8 +27,8 @@ function toIsoLocal(date: Date): string {
 }
 
 export function CalendarPopup({ isOpen, onClose, anchorRef, goToTodaySignal }: CalendarPopupProps) {
-  const { openNode } = useNavigationStore();
-  const { firstDayOfWeek } = useSettingsStore();
+  const openNode = useNavigationStore((state) => state.openNode);
+  const firstDayOfWeek = useSettingsStore((state) => state.firstDayOfWeek);
   const { data: dailyPages = [] } = useExistingDailyPages();
 
   const handleSelectDay = useCallback(async (date: Date) => {

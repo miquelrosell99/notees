@@ -14,30 +14,7 @@
 }
 
 .pages-view__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--spacing-4);
-  flex-wrap: wrap;
-}
-
-.pages-view .page-header__title {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-2);
-  flex-shrink: 0;
-}
-
-.pages-view__title-icon {
-  color: var(--color-primary);
-  flex-shrink: 0;
-}
-
-.pages-view__header-actions {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-2);
-  flex-shrink: 0;
+  padding: var(--spacing-2) var(--spacing-6);
 }
 
 .pages-view__content {
@@ -68,41 +45,24 @@
 }
 
 /* Header: generous padding so controls don't hug the edge */
-.pages-view .page-header-section {
+.pages-view__header {
   padding: var(--spacing-2) var(--spacing-6);
   margin-bottom: 0;
 }
 
-.pages-view__search {
-  flex: 1;
-  max-width: var(--layout-size-9xl);
-  margin: 0 auto;
-}
-
-/* Prevent toolbar from expanding and pushing the button against the edge */
-.pages-view__header-actions .node-collection-toolbar {
-  width: auto;
-}
-
-/* Prevent button text clipping caused by btn--icon-text grid + overflow:hidden */
-.pages-view__header-actions .btn__text {
-  min-width: max-content;
-  overflow: visible;
-}
-
-.pages-view .pages-view__content {
+.pages-view__content {
   padding: 0;
 }
 
 @media (max-width: 768px) {
-  .pages-view .page-header-section {
+  .pages-view__header {
     padding-left: var(--spacing-4);
     padding-right: var(--spacing-4);
   }
 }
 
 @media (max-width: 480px) {
-  .pages-view .page-header-section {
+  .pages-view__header {
     padding-left: var(--spacing-3);
     padding-right: var(--spacing-3);
   }

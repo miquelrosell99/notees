@@ -274,7 +274,7 @@ export const ColorButton = forwardRef<HTMLButtonElement, ColorButtonProps>(funct
               placeholder="3b82f6"
               maxLength={6}
               error={hexInput.length > 0 && !isHexValid}
-              style={{ fontFamily: "'Consolas', 'Monaco', monospace" }}
+              style={{ fontFamily: 'var(--font-family-mono)' }}
             />
             <ColorSwatch
               color={previewColor}

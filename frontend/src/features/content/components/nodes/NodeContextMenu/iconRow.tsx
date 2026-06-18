@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/Button';
 import { ColorButton } from '@/components/ui/ColorButton';
 import { EmojiPicker } from '@/components/ui/EmojiPicker';
 import { getMdiClass } from '@/utils/iconDom';
+import './iconRow.css';
 
 interface IconColorPickerRowProps {
   currentIcon: string | null;
@@ -70,6 +71,7 @@ export function IconColorPickerRow({
         onClick={handleIconClick}
         type="button"
         title="Change icon"
+        aria-label="Change icon"
       >
         {renderTriggerValue()}
       </button>
@@ -94,6 +96,7 @@ export function IconColorPickerRow({
         showPicker
         showNoneOption
         onColorChange={onColorChange}
+        aria-label="Change color"
       />
       {showPicker &&
         createPortal(

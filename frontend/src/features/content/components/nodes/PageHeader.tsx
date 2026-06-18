@@ -13,15 +13,14 @@
  */
 import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import { copyToClipboard } from '@/utils/clipboardManager';
-import { useUpdateNode, useClasses, useCreateNode, usePageClass, useClassClass, useAddClass } from '@/hooks';
+import { useUpdateNode, useClasses, useCreateNode, usePageClass, useClassClass, useAddClass } from '@/features/content';
 import { nodeNameToText } from '@/features/queries';
 import { listNodes } from '@/api/nodes';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
 import { parseIconField, formatIconField } from '@/utils/iconDom';
 import { useNavigationStore } from '@/stores';
 import { useAuthStore } from '@/features/auth';
-import { useLivePresenceStore } from '@/stores/livePresenceStore';
-import { liveSyncManager } from '@/collab/LiveSyncManager';
+import { useLivePresenceStore, liveSyncManager } from '@/features/collab';
 import type { Node, NodeUpdate } from '@/types';
 import { NodeIcon, Icon } from '@/components/ui/icons';
 import { EmojiPicker } from '@/components/ui/EmojiPicker';
@@ -43,15 +42,24 @@ interface PageHeaderProps {
   onNameChange?: (name: string) => void;
   /** Custom handler for icon changes (overrides default node update) */
   onIconChange?: (icon: string) => void;
+  /** When true, removes outer spacing so the header sits flush in an embedded grid. */
+  embedded?: boolean;
+  /** When true, fades non-essential chrome for focus mode. */
+  focusMode?: boolean;
+  /** Additional CSS class for the header root. */
+  className?: string;
 }
 
-export function PageHeader({ 
-  page, 
+export function PageHeader({
+  page,
   effectiveClasses,
   aliasedNode,
   onContextMenu,
   onNameChange,
   onIconChange,
+  embedded = false,
+  focusMode = false,
+  className = '',
 }: PageHeaderProps) {
   const currentUserId = useAuthStore((s) => s.user?.id ?? 0);
   const titleUsers = useLivePresenceStore((s) => s.presence[page.uuid]?.[page.uuid]);
@@ -67,7 +75,7 @@ export function PageHeader({
   const addClass = useAddClass();
   const { pageClassId } = usePageClass();
   const { classClassId } = useClassClass();
-  const { addSidebarCard } = useNavigationStore();
+  const addSidebarCard = useNavigationStore((state) => state.addSidebarCard);
   
   // Icon picker state
   const [showIconPicker, setShowIconPicker] = useState(false);
@@ -423,7 +431,9 @@ export function PageHeader({
   return (
     <>
       <header
-        className="page-header"
+        className={`page-header ${className}`}
+        data-embedded={embedded || undefined}
+        data-focus-mode={focusMode || undefined}
         onClickCapture={handleHeaderClick}
         onContextMenu={onContextMenu}
       >
@@ -434,6 +444,7 @@ export function PageHeader({
             className="page-icon-btn"
             onClick={handleIconClick}
             title="Change icon"
+            aria-label="Change icon"
           >
             {effectiveIcon || page.is_daily || page.is_monthly || page.is_yearly ? (
               <NodeIcon 

@@ -28,8 +28,9 @@ import {
   type LexicalEditor,
 } from 'lexical';
 import { Spinner } from '@/components/ui/Spinner';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
 import './SuggestionPopup.css';
-import { useNodeSearch, usePages, useClasses, type NodeSearchMode } from '@/hooks';
+import { useNodeSearch, usePages, useClasses, type NodeSearchMode } from '@/features/content';
 import { parseQueryWithFilters } from '@/utils/searchFilters';
 import type { Node } from '@/types';
 import { NodeIcon, TagIcon, AddIcon, BulletIcon, CalendarIcon } from '@/components/ui/icons';
@@ -39,7 +40,7 @@ import { parseDate, generateDateUuid } from '@/utils/dateParser';
 import { getOrCreateDaily, getOrCreateMonthly, getOrCreateYearly } from '@/api/nodes';
 import { useQueryClient } from '@tanstack/react-query';
 import { nodeKeys } from '@/hooks/queryKeys';
-import { nodeNameToText } from '@/features/queries/hooks/useStringifyAST';
+import { nodeNameToText } from '@/features/queries';
 import { SYSTEM_CLASS_UUIDS } from '@/constants';
 import { getEffectiveIcon } from '@/utils/nodeIcon';
 
@@ -117,6 +118,15 @@ export function SuggestionPopup({
   const containerRef = useRef<HTMLDivElement>(null);
   const [adjustedPosition, setAdjustedPosition] = useState(position);
   const [displayLimit, setDisplayLimit] = useState(10);
+
+  // Trap focus (Tab/Escape) while the popup is presented as a modal, but do not
+  // auto-focus so the user can keep typing in the editor input.
+  useFocusTrap(containerRef, {
+    enabled: isOpen,
+    onEscape: onClose,
+    autoFocus: false,
+    restoreFocus: false,
+  });
   
   // Map SuggestionType to NodeSearchMode
   const searchMode: NodeSearchMode = (type === 'type' || type === 'class') ? 'classes' : type === 'tag' ? 'tags' : 'all';
@@ -523,6 +533,7 @@ export function SuggestionPopup({
       ref={containerRef}
       role="dialog"
       aria-modal="true"
+      aria-label="Suggestions"
       className={`suggestion-popup ${multiSelect ? 'suggestion-popup--multi-select' : ''}`}
       style={{
         position: 'fixed',

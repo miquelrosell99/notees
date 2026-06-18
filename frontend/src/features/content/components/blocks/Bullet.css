@@ -26,6 +26,20 @@
   -ms-user-select: none;
 }
 
+/* Document mode: hide bullets entirely */
+.bullet-wrapper[data-document-mode="true"] {
+  display: none;
+}
+
+/* Focus mode: keep bullets fully visible. */
+.bullet-wrapper[data-focus-mode="true"] {
+  opacity: var(--opacity-100);
+}
+
+.bullet-wrapper[data-focus-mode="true"] .bullet-dot {
+  opacity: var(--opacity-100);
+}
+
 /* Cover indicator - small dot to the left */
 .bullet-cover-indicator {
   position: absolute;
@@ -35,6 +49,15 @@
   border-radius: 50%;
   background-color: var(--color-primary);
   opacity: var(--opacity-70);
+}
+
+/* Spacing to the right of the bullet. */
+.bullet-wrapper[data-spacing="default"] {
+  margin-right: var(--spacing-1-5);
+}
+
+.bullet-wrapper[data-spacing="default"][data-list-size="sm"] {
+  margin-right: var(--spacing-1);
 }
 
 /* Size variants */
@@ -51,6 +74,11 @@
 .bullet-md {
   width: var(--height-lg);
   height: var(--height-lg);
+}
+
+.bullet-wrapper[data-list-size="sm"] {
+  width: var(--icon-size-sm);
+  height: var(--icon-size-sm);
 }
 
 /* Interactive bullet: single trigger zone for click and drag.
@@ -93,6 +121,21 @@ body.notees-dragging-block .bullet-interactive {
   transform: translateY(var(--bullet-optical-offset, 0.2em));
 }
 
+.bullet-wrapper[data-optical-offset="false"] .bullet-container {
+  transform: none;
+}
+
+/* Ghost pseudo-block bullets */
+.bullet-wrapper[data-ghost="true"] .bullet-dot {
+  opacity: var(--opacity-40);
+  background-color: var(--color-outline);
+}
+
+.bullet-wrapper[data-ghost="true"]:hover .bullet-dot {
+  opacity: var(--opacity-55);
+  background-color: var(--color-on-surface-variant);
+}
+
 /* ==================== Bullet Dot ==================== */
 
 .bullet-dot {
@@ -111,6 +154,80 @@ body.notees-dragging-block .bullet-interactive {
 /* Press: tactile press-in */
 .bullet-interactive:active .bullet-dot {
   opacity: var(--opacity-100);
+}
+
+/* Dimmed variant: de-emphasised until hovered. */
+.bullet-wrapper[data-dimmed="true"] .bullet-dot {
+  opacity: var(--opacity-50);
+}
+
+.bullet-wrapper[data-dimmed="true"]:hover .bullet-dot,
+.bullet-wrapper[data-dimmed="true"]:focus-within .bullet-dot {
+  opacity: var(--opacity-100);
+}
+
+/* Editing state — subtle bullet scale instead of breathing ring. */
+.bullet-wrapper[data-editing="true"] .bullet-dot {
+  transform: scale(1.2);
+  background-color: var(--color-primary);
+  opacity: var(--opacity-90);
+}
+
+/* Selected state (block selection via Escape / keyboard / drag). */
+.bullet-wrapper[data-selected="true"],
+.bullet-wrapper[data-selected="child"] {
+  opacity: var(--opacity-100);
+}
+
+.bullet-wrapper[data-selected="true"] .bullet-dot,
+.bullet-wrapper[data-selected="child"] .bullet-dot {
+  opacity: var(--opacity-90);
+  background-color: var(--color-accent);
+}
+
+/* Suppress hover effects on bullets while dragging a block. */
+body.notees-dragging-block .bullet-interactive:hover {
+  background-color: transparent;
+  transform: none;
+}
+
+body.notees-dragging-block .bullet-interactive:hover .bullet-dot {
+  opacity: var(--opacity-55);
+  background-color: var(--color-on-surface-variant);
+  transform: none;
+  box-shadow: none;
+}
+
+/* Touch-swipe indent / outdent — bullet is transformed by the gesture. */
+.bullet-wrapper[data-swipe="indent"],
+.bullet-wrapper[data-swipe="outdent"] {
+  transition: none;
+}
+
+.bullet-wrapper[data-swipe="indent"] {
+  transform: translateX(calc(var(--swipe-progress, 0) * var(--spacing-3)));
+}
+
+.bullet-wrapper[data-swipe="outdent"] {
+  transform: translateX(calc(var(--swipe-progress, 0) * -1 * var(--spacing-3)));
+}
+
+.bullet-wrapper[data-swipe="indent"] .bullet-dot,
+.bullet-wrapper[data-swipe="outdent"] .bullet-dot {
+  opacity: var(--opacity-100);
+  transform: scale(calc(1 + var(--swipe-progress, 0) * 0.3));
+  transition: none;
+}
+
+/* Small list-view sizing. */
+.bullet-wrapper[data-list-size="sm"] .bullet-dot {
+  width: var(--bullet-size-xs);
+  height: var(--bullet-size-xs);
+}
+
+.bullet-wrapper[data-list-size="sm"] .bullet-outer-ring {
+  width: var(--spacing-3);
+  height: var(--spacing-3);
 }
 
 /* Active editing path: highlight the bullet/dot to match the bullet thread. */
@@ -195,19 +312,6 @@ body.notees-dragging-block .bullet-interactive {
   opacity: var(--opacity-100);
   background-color: color-mix(in srgb, var(--color-primary) 20%, transparent);
 }
-
-/* Hover ring for interactive bullets - disabled for cleaner look */
-/*
-.bullet-interactive:hover .bullet-outer-ring {
-  opacity: 0.2;
-  transform: scale(1.08);
-}
-
-.bullet-interactive.bullet-collapsed:hover .bullet-outer-ring {
-  opacity: 0.5;
-  transform: scale(1.08);
-}
-*/
 
 /* ==================== Dragging State ==================== */
 

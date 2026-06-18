@@ -51,6 +51,13 @@ from .query import (
     ReferencePathBlock,
     UuidBlock,
 )
+from .sync import (
+    ClientNodeState,
+    ServerNodeState,
+    SyncConflict,
+    SyncRequest,
+    SyncResponse,
+)
 from .task_completion import TaskCompletion
 from .task_recurrence import TaskRecurrence
 from .user import (
@@ -112,6 +119,12 @@ __all__ = [
     "QueryAST",
     "NodeView",
     "QUERY_PLACEHOLDERS",
+    # Sync
+    "ClientNodeState",
+    "ServerNodeState",
+    "SyncConflict",
+    "SyncRequest",
+    "SyncResponse",
     # Task recurrence
     "TaskRecurrence",
     "TaskCompletion",

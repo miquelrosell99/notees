@@ -4,8 +4,8 @@
  * Wires the controlled `DatePickerPopup` base component to Notees settings and
  * daily-page data. Used by date property editors.
  */
-import { DatePickerPopup as DatePickerPopupBase } from '@/components/ui/DatePickerPopup';
-import { useExistingDailyPages } from '@/hooks';
+import { DatePickerPopup as DatePickerPopupBase } from '@/components/ui';
+import { useExistingDailyPages } from '@/features/content';
 import { useSettingsStore } from '@/stores';
 
 export interface DatePickerPopupProps {
@@ -20,7 +20,7 @@ export interface DatePickerPopupProps {
 }
 
 export function DatePickerPopup({ value, onSelect, onClose, anchorRef }: DatePickerPopupProps) {
-  const { firstDayOfWeek } = useSettingsStore();
+  const firstDayOfWeek = useSettingsStore((s) => s.firstDayOfWeek);
   const { data: dailyPages = [] } = useExistingDailyPages();
 
   return (

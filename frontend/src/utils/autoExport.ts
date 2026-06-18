@@ -3,7 +3,7 @@
  *
  * Debounced per-page auto-export triggered after successful block/page saves.
  */
-import { autoExportPage } from '@/api/autoExport';
+import { autoExportPage } from '@/features/workspace';
 import { useAutoExportStore } from '@/stores/autoExportStore';
 
 const EXPORT_DEBOUNCE_MS = 2000;

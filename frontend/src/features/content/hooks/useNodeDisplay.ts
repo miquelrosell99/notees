@@ -12,7 +12,7 @@
 import { useMemo } from 'react';
 import { useBatchedNode } from '@/hooks/useBatchedNode';
 import { useClasses } from '@/features/content/hooks/useNodes';
-import { nodeNameToText } from '@/features/queries/hooks/useStringifyAST';
+import { nodeNameToText } from '@/features/queries';
 import { getEffectiveIcon, getEffectiveColor } from '@/utils/nodeIcon';
 import type { Node } from '@/types';
 

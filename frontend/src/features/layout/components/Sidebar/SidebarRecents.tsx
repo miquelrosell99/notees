@@ -1,6 +1,8 @@
 import { useState, useCallback, memo } from 'react';
 import { useNavigationStore } from '@/stores';
-import { useNode, useIsMobile } from '@/hooks';
+import { useShallow } from 'zustand/react/shallow';
+import { useIsMobile } from '@/hooks';
+import { useNode } from '@/features/content';
 import { nodeNameToText } from '@/features/queries';
 import { useRecents, useNodeDisplay, NodeInline, NodeBreadcrumbs } from '@/features/content';
 import {
@@ -80,7 +82,16 @@ export function SidebarRecents({ onContextMenu, onItemClick }: SidebarRecentsPro
     openNodeInNewTab,
     isSidebarCollapsed,
     toggleSidebar,
-  } = useNavigationStore();
+  } = useNavigationStore(
+    useShallow((s) => ({
+      mainViewType: s.mainViewType,
+      currentNodeId: s.currentNodeId,
+      openNode: s.openNode,
+      openNodeInNewTab: s.openNodeInNewTab,
+      isSidebarCollapsed: s.isSidebarCollapsed,
+      toggleSidebar: s.toggleSidebar,
+    }))
+  );
   const isMobile = useIsMobile();
 
   const closeMobileDrawer = useCallback(() => {

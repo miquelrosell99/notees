@@ -7,7 +7,7 @@ import { useEffect, useRef, useCallback } from 'react';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { useQuickAdd } from '@/features/layout/hooks/useQuickAdd';
-import { useTodayNote, usePages } from '@/hooks';
+import { useTodayNote, usePages } from '@/features/content';
 import { useSettingsStore } from '@/stores';
 import './QuickAddModal.css';
 
@@ -17,7 +17,8 @@ interface QuickAddModalProps {
 }
 
 export function QuickAddModal({ isOpen, onClose }: QuickAddModalProps) {
-  const { quickAddDestination, setQuickAddDestination } = useSettingsStore();
+  const quickAddDestination = useSettingsStore((s) => s.quickAddDestination);
+  const setQuickAddDestination = useSettingsStore((s) => s.setQuickAddDestination);
   const { data: todayNote } = useTodayNote();
   const { data: allPages } = usePages();
   const inboxPage = allPages?.find((p) => p.name === 'Inbox');

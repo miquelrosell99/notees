@@ -1,5 +1,5 @@
 import { batchCreateNodes, getNodeByUuid, updateNode } from '@/api/nodes';
-import { nodeNameToText } from '@/features/queries/hooks/useStringifyAST';
+import { nodeNameToText } from '@/features/queries';
 import type { LogseqBlock } from '@/utils/ednParser';
 import type { NodeInfo, PhaseResult } from './useLogseqImporter.types';
 

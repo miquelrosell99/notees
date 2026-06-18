@@ -1,0 +1,266 @@
+/**
+ * NodeListView CSS
+ * 
+ * Styles for list/outline view mode
+ */
+
+
+
+
+.node-list-view {
+  width: 100%;
+  max-width: var(--layout-size-14xl);
+  margin: 0 auto;
+}
+
+.node-list-item {
+  position: relative;
+}
+
+.node-list-item-wrapper {
+  position: relative;
+  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
+}
+
+/* Sortable mode */
+.node-list-view--sortable {
+  width: 100%;
+  max-width: var(--layout-size-14xl);
+  margin: 0 auto;
+}
+
+.node-list-view__sortable-item {
+  padding: var(--spacing-1) var(--spacing-2);
+}
+
+.node-list-view__item-name {
+  font-size: var(--font-size-base);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ==================== Grouped View ==================== */
+
+.node-list-view--grouped {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-6);
+}
+
+@media (max-width: 768px) {
+  .node-list-view--grouped {
+    gap: var(--spacing-4);
+  }
+
+  .node-list-view__group-content {
+    padding-left: 0;
+  }
+}
+
+.node-list-view__group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.node-list-view__group--collapsed {
+  gap: 0;
+}
+
+.node-list-view__group-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  padding: var(--spacing-1) 0;
+}
+
+/* Collapse arrow button */
+.node-list-view__group-collapse {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--icon-size-md);
+  height: var(--icon-size-md);
+  padding: 0;
+  border: none;
+  background: none;
+  border-radius: var(--shape-small);
+  cursor: pointer;
+  color: var(--color-on-surface-variant);
+  flex-shrink: 0;
+  transition: color var(--motion-duration-short) var(--motion-easing-standard), background-color var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.node-list-view__group-collapse:hover {
+  color: var(--color-on-surface);
+  background-color: var(--color-hover-overlay);
+}
+
+/* Property-value group label (used when groupBy is a property UUID) */
+.node-list-view__group-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  font-size: var(--font-size-button);
+  font-weight: 600;
+  color: var(--color-on-surface-variant);
+  padding: 0 var(--spacing-1);
+}
+
+.node-list-view__group-content {
+  padding-left: var(--spacing-2);
+}
+
+.node-list-view__group-content > .node-list-view__group {
+  margin-left: var(--spacing-2);
+}
+
+/* Ungrouped section — nodes that don't belong to any group */
+.node-list-view__ungrouped {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+  border-top: var(--border-width-default) solid var(--color-outline-variant);
+  padding-top: var(--spacing-4);
+}
+
+.node-list-view__ungrouped-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  padding: var(--spacing-1) 0;
+}
+
+.node-list-view__ungrouped-content {
+  /* No left padding — flat list, not indented under a group */
+}
+
+/* Group page wrapper — contains ancestors breadcrumbs + page NodeInline */
+.node-list-view__group-page {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+}
+
+/* ==================== Non-grouped breadcrumb mode ==================== */
+
+.node-list-view--breadcrumbs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+}
+
+.node-list-view__breadcrumb-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+/* Per-block breadcrumbs within grouped view (compact, below page level) */
+.node-list-view__block-breadcrumbs {
+  padding-left: var(--spacing-2);
+  font: var(--font-label-small);
+}
+
+/* ==================== Small size variant ==================== */
+/* Small list-view sizing is driven by data-list-size on BlockRow, BlockUI,
+   Bullet, and InlineEditor. See BlockRow.css, BlockUI.css, Bullet.css, and
+   InlineEditor.css for the actual rules. */
+
+
+.node-list-view__pages-section {
+  margin-bottom: var(--spacing-2);
+}
+
+/* Group container */
+.node-list-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.node-list-group--collapsed .node-list-group__children {
+  display: none;
+}
+
+/* Group header - page with collapse arrow */
+.node-list-group__header {
+  display: flex;
+  align-items: center;
+  position: relative;
+  padding: var(--spacing-1) 0;
+  gap: var(--spacing-2);
+}
+
+/* Make the page header clickable */
+.node-list-group__page-header {
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: var(--shape-small);
+  transition: background-color var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.node-list-group__page-header:hover {
+  background-color: var(--color-hover-overlay);
+}
+
+/* Navigation actions - hidden by default, shown on hover */
+.node-list-group__actions {
+  display: flex;
+  gap: var(--spacing-1);
+  opacity: var(--opacity-0);
+  transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.node-list-group__header:hover .node-list-group__actions {
+  opacity: var(--opacity-100);
+}
+
+/* Collapse arrow button - positioned to the left of the header */
+.node-list-group__collapse-arrow {
+  position: absolute;
+  left: calc(var(--bullet-wrapper-size) * -1); /* Position arrow to the left of header */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--icon-size-md);
+  height: var(--icon-size-md);
+  padding: 0;
+  border: none;
+  background: none;
+  border-radius: var(--shape-small);
+  cursor: pointer;
+  color: var(--color-on-surface-variant);
+  flex-shrink: 0;
+  transition: color var(--motion-duration-short) var(--motion-easing-standard), background-color var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.node-list-group__collapse-arrow:hover {
+  color: var(--color-on-surface);
+  background-color: var(--color-hover-overlay);
+}
+
+/* No page fallback */
+.node-list-group__no-page-label {
+  font-size: var(--font-size-sm);
+  color: var(--color-on-surface-variant);
+  font-style: italic;
+}
+
+/* Group children - blocks indented from the header */
+.node-list-group__children {
+  padding-left: var(--spacing-1); /* Minimal indent, bullets provide visual hierarchy */
+}
+
+/* Ensure proper padding for items within groups */
+.node-list-group__children .node-list-item {
+  padding-left: 0;
+}
+
+/* ==================== Property editor context ==================== */
+/* Text property blocks embed a mini list editor; keep a small minimum height
+   so the cell is tappable, but let the inline editor collapse when empty. */
+
+.node-list-view[data-property-editor="true"] {
+  min-height: var(--height-xs);
+}

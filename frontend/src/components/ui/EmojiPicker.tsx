@@ -25,6 +25,7 @@ import { ColorButton } from './ColorButton';
 import { Tabs } from './Tabs';
 import './EmojiPicker.css';
 import { Icon } from '@/components/ui/icons';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
 
 // Common emoji categories
 const EMOJI_CATEGORIES = {
@@ -356,6 +357,13 @@ export function EmojiPicker({
 
   useEffect(() => { searchRef.current?.focus(); }, []);
 
+  useFocusTrap(pickerRef, {
+    enabled: asPopup,
+    onEscape: onClose,
+    autoFocus: false,
+    restoreFocus: true,
+  });
+
   useEffect(() => {
     if (!asPopup) return;
     const handle = (e: MouseEvent) => {
@@ -364,12 +372,6 @@ export function EmojiPicker({
     document.addEventListener('mousedown', handle);
     return () => document.removeEventListener('mousedown', handle);
   }, [asPopup, onClose]);
-
-  useEffect(() => {
-    const handle = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    document.addEventListener('keydown', handle);
-    return () => document.removeEventListener('keydown', handle);
-  }, [onClose]);
 
   const allMdiNames = useMemo(
     () => MDI_ICON_LIST.filter((k) => k.startsWith('mdi')).sort(),
@@ -423,6 +425,9 @@ const popupStyle: React.CSSProperties =
       ref={pickerRef}
       className={`ep ${asPopup ? 'ep--popup' : 'ep--inline'}`}
       style={popupStyle}
+      role={asPopup ? 'dialog' : undefined}
+      aria-modal={asPopup ? 'true' : undefined}
+      aria-label={asPopup ? 'Icon picker' : undefined}
     >
       {/* Header: tabs + actions */}
       <div className="ep-header">
@@ -454,6 +459,7 @@ const popupStyle: React.CSSProperties =
           type="text"
           className="ep-search-input"
           placeholder="Search&#8230;"
+          aria-label="Search icons and emojis"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
@@ -601,9 +607,10 @@ export function EmojiPickerTrigger({
     <>
       <button
         ref={triggerRef}
-        className={`ep-trigger ${className} ${value ? 'ep-trigger--has-value' : ''}`}
+        className={`ep-trigger icon-only-touch-target ${className} ${value ? 'ep-trigger--has-value' : ''}`}
         onClick={handleClick}
         type="button"
+        aria-label={value ? 'Change icon' : placeholder}
       >
         {renderValue()}
       </button>

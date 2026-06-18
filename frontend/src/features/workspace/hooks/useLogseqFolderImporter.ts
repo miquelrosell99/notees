@@ -12,13 +12,13 @@
  */
 import { useState, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { usePageClass } from '@/features/content/hooks/usePageClass';
+import { usePageClass } from '@/features/content';
 import { nodeKeys } from '@/hooks/queryKeys';
 import {
   batchCreateNodes,
   batchGetOrCreateDaily,
 } from '@/api/nodes';
-import { uploadAsset } from '@/api/assets';
+import { uploadAsset } from '@/features/assets';
 import {
   countMdBlocks,
   type LogseqFolderResult,

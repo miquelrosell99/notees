@@ -10,7 +10,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from typing import TYPE_CHECKING
 
-from ..db.schema.constants import SYSTEM_CLASS_UUIDS
+from .entities.constants import SYSTEM_CLASS_UUIDS
 
 if TYPE_CHECKING:
     from .entities import Node

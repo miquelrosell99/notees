@@ -14,6 +14,8 @@ import { forwardRef, useCallback, type ButtonHTMLAttributes, type ReactNode } fr
 
 import './Button.css';
 import { Icon } from '@/components/ui/icons';
+import { Spinner } from '@/components/ui/Spinner';
+import { useReducedMotion } from '@/hooks';
 import { cn } from '@/utils/cn';
 
 export type ButtonVariant = 'default' | 'primary' | 'ghost' | 'danger';
@@ -50,6 +52,8 @@ type ButtonBaseProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'aria-label
   fullWidth?: boolean;
   /** Whether the button is in an active/pressed state */
   active?: boolean;
+  /** Whether the button is in a loading state (disables the button and shows a spinner). */
+  loading?: boolean;
   /** Haptic feedback intensity. Light (10ms) for normal taps; medium (25ms) for destructive or confirm actions. */
   hapticIntensity?: ButtonHapticIntensity;
   /** Badges to display on the button */
@@ -77,6 +81,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
     size = 'md',
     fullWidth = false,
     active = false,
+    loading = false,
     hapticIntensity = 'light',
     children,
     className = '',
@@ -88,14 +93,17 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
   },
   ref
 ) {
+  const prefersReducedMotion = useReducedMotion();
+
   const handleClick = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
-    // Tactile feedback on mobile — design-system haptic map
+    // Tactile feedback on mobile — design-system haptic map.
+    // Skip haptics when the user prefers reduced motion.
     const duration = HAPTIC_DURATIONS[hapticIntensity];
-    if (duration && typeof navigator !== 'undefined' && navigator.vibrate) {
+    if (duration && !prefersReducedMotion && typeof navigator !== 'undefined' && navigator.vibrate) {
       navigator.vibrate(duration);
     }
     onClick?.(e);
-  }, [onClick, hapticIntensity]);
+  }, [onClick, hapticIntensity, prefersReducedMotion]);
 
   const hasText = !!children;
   const isIconOnly = icon && !hasText;
@@ -111,27 +119,35 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
     hasIconAndText && 'btn--icon-text',
     fullWidth && 'btn--full-width',
     active && 'btn--active',
-    disabled && 'btn--disabled',
+    (disabled || loading) && 'btn--disabled',
+    loading && 'btn--loading',
     hasBadges && 'btn--has-badge',
     className,
   );
 
   const resolvedIconSize = iconSize ?? ICON_SIZES[size];
 
+  const spinnerSize = size === 'xs' || size === 'sm' ? 'sm' : 'md';
+
   return (
     <button
       ref={ref}
       type={type}
       className={classNames}
-      disabled={disabled}
+      disabled={disabled || loading}
       onClick={handleClick}
+      aria-busy={loading || undefined}
       {...props}
     >
-      {icon && iconPosition === 'left' && (
-        <Icon path={icon} size={resolvedIconSize} className="btn__icon btn__icon--left" />
+      {loading ? (
+        <Spinner size={spinnerSize} className="btn__icon btn__icon--left" />
+      ) : (
+        icon && iconPosition === 'left' && (
+          <Icon path={icon} size={resolvedIconSize} className="btn__icon btn__icon--left" />
+        )
       )}
       {hasText && <span className="btn__text">{children}</span>}
-      {icon && iconPosition === 'right' && (
+      {!loading && icon && iconPosition === 'right' && (
         <Icon path={icon} size={resolvedIconSize} className="btn__icon btn__icon--right" />
       )}
       {hasBadges && badges.map((badge, i) => {

@@ -57,7 +57,8 @@ export function AccountMenu({
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
-  const { user, logout } = useAuthStore();
+  const user = useAuthStore((s) => s.user);
+  const logout = useAuthStore((s) => s.logout);
   const { data: notificationsData } = useNotifications(false);
 
   // Trap focus inside the account dropdown while it is open and return focus on close

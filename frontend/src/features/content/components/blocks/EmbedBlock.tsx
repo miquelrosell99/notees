@@ -15,9 +15,9 @@ import { useState, useEffect, useCallback, useRef, type JSX } from 'react';
 
 import { generateUUID } from '@/utils/uuid';
 import { useNodeByUuid } from '@/features/content/hooks/useNodeQueries';
-import { useContentSave } from '@/features/content/hooks/useContentSave';
+import { useContentSave } from '@/features/editor';
 import { BlockList } from '@/features/content/components/blocks/BlockList';
-import { nodeNameToText } from '@/features/queries/hooks/useStringifyAST';
+import { nodeNameToText } from '@/features/queries';
 
 import './EmbedBlock.css';
 import { Icon } from '@/components/ui/icons';
@@ -224,6 +224,7 @@ export function EmbedBlock({
           onContentChange={handleInnerContentChange}
           onNavigateToNode={onNavigateToNode}
           nodeUuid={embeddedNode.uuid}
+          flush
         />
       </div>
     </div>

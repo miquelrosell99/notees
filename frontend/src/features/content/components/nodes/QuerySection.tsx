@@ -49,6 +49,10 @@ export interface QuerySectionProps {
   queryAST?: QueryAST;
   /** Called when the user modifies the inline query AST */
   onQueryASTChange?: (ast: QueryAST) => void;
+  /** Visual variant passed to the underlying section chrome. */
+  variant?: 'default' | 'sidebar-node' | 'backlink';
+  /** When true, hides the entire section (used by focus mode). */
+  focusMode?: boolean;
 }
 
 export function QuerySection({
@@ -68,6 +72,8 @@ export function QuerySection({
   showClasses = true,
   queryAST,
   onQueryASTChange,
+  variant = 'default',
+  focusMode = false,
 }: QuerySectionProps): React.JSX.Element | null {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
   
@@ -80,6 +86,7 @@ export function QuerySection({
       {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events -- Pointer-only header toggle; keyboard users can use the visible expand/collapse button inside it. */}
       <div
         className="node-view-section__header-content"
+        data-toolbar="true"
         onClick={handleToggle}
       >
       <Button
@@ -130,19 +137,27 @@ export function QuerySection({
         // Show header + skeleton while views/query are initializing (results not yet available)
         if (isLoading && !results) {
           return (
-            <section className={`node-view-section ${isExpanded ? 'expanded' : 'collapsed'} query-section ${className}`}>
-              {renderHeader()}
-              <LoadingSkeleton rows={2} className="query-section__skeleton" />
-            </section>
-          );
-        }
-
-        return (
-          <section className={`node-view-section ${isExpanded ? 'expanded' : 'collapsed'} query-section ${className}`}>
-            {/* Always render results (includes toolbar with header) */}
-            {results}
+            <section
+            className={`node-view-section ${isExpanded ? 'expanded' : 'collapsed'} query-section ${className}`}
+            data-variant={variant}
+            data-focus-mode={focusMode || undefined}
+          >
+            {renderHeader()}
+            <LoadingSkeleton rows={2} className="query-section__skeleton" />
           </section>
         );
+      }
+
+      return (
+        <section
+          className={`node-view-section ${isExpanded ? 'expanded' : 'collapsed'} query-section ${className}`}
+          data-variant={variant}
+          data-focus-mode={focusMode || undefined}
+        >
+          {/* Always render results (includes toolbar with header) */}
+          {results}
+        </section>
+      );
       }}
     </QueryNodeCollection>
   );

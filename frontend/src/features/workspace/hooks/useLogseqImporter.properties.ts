@@ -1,5 +1,5 @@
 import { getOrCreateDaily, searchNodes, getNodeByUuid, createNode as createNodeApi, getNode, removeProperty } from '@/api/nodes';
-import { nodeNameToText } from '@/features/queries/hooks/useStringifyAST';
+import { nodeNameToText } from '@/features/queries';
 import type { NodeInfo, PhaseResult } from './useLogseqImporter.types';
 import { buildAstFromLogseqText } from './useLogseqImporter.ast';
 import { errorMessage } from './useLogseqImporter.utils';

@@ -26,6 +26,7 @@ export function SidebarToc({ entries, onTocClick }: SidebarTocProps) {
       icon={<Icon path={"mdi mdi-table-of-contents"} size={0.6} />}
       count={entries.length}
       className="sidebar-context-section sidebar-context-section--toc"
+      variant="sidebar"
       defaultExpanded={false}
     >
       <nav className="sidebar-toc-list">

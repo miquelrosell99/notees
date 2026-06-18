@@ -12,7 +12,7 @@
  */
 import { useCallback } from 'react';
 import type { ReactNode } from 'react';
-import { useListDragSort, type DragState } from '@/features/content/hooks/useListDragSort';
+import { useListDragSort, type DragState } from '@/hooks/useListDragSort';
 import './ListSortable.css';
 
 export interface ListSortableItem {

@@ -40,6 +40,14 @@ from pyrate_limiter import Duration, Limiter, Rate
 from starlette.responses import RedirectResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
+from app.features.collab import live_sync_ws_router
+from app.features.collab import router as events_router
+from app.features.export import auto_export_router
+from app.features.export.router import router as export_router
+from app.features.properties.router import router as properties_router
+from app.features.shares import public_router
+from app.features.shares.router import workspace_shares_router as shares_router
+
 from .backup import get_backup_scheduler
 from .cleanup import get_cleanup_scheduler
 from .config import ensure_directories, settings
@@ -51,29 +59,23 @@ from .domain.errors import (
     NodeNotFoundError,
     PermissionDeniedError,
 )
-from .domain.repositories import PostgresUserRepository
+from .domain.repositories.factories import make_user_repository
+from .features.auth import is_strong_admin_password
+from .features.nodes.router import router as nodes_router
+from .features.sync.router import router as sync_router
+from .infrastructure.export.share_files import get_static_share_path
 from .logging_config import get_logger, setup_logging
-from .node_export import get_static_share_path
 from .rate_limit import PerKeyBucketFactory, ip_only_identifier
 from .routers import (
+    activity_router,
+    admin_router,
     assets_router,
     auth_router,
-    auto_export_router,
-    export_router,
-    live_sync_ws_router,
-    nodes_router,
-    properties_router,
-    sync_router,
+    notifications_router,
     tasks_router,
     undo_router,
     workspaces_router,
 )
-from .routers.activity import router as activity_router
-from .routers.admin import router as admin_router
-from .routers.events import router as events_router
-from .routers.notifications import router as notifications_router
-from .routers.public import router as public_router
-from .routers.shares import router as shares_router
 
 # Initialize logging
 setup_logging(level=settings.log_level, log_file=settings.log_file)
@@ -101,24 +103,33 @@ async def lifespan(app: FastAPI):
         logger.info("Database schema initialized")
 
         # Ensure an admin exists. If ADMIN_PASSWORD is set and no admin exists,
-        # create the initial admin automatically. Otherwise warn so the operator
-        # knows to run the promotion script.
-        admin_password = os.environ.get("ADMIN_PASSWORD", "").strip()
-        user_repo = PostgresUserRepository(pool)
+        # create the initial admin automatically. Otherwise log an error so the
+        # operator knows the instance cannot be onboarded until ADMIN_PASSWORD is set.
+        admin_password = settings.admin_password
+        user_repo = make_user_repository(pool)
         if admin_password:
-            try:
-                created = await user_repo.ensure_initial_admin(
-                    "admin@notees.local", admin_password
+            if not is_strong_admin_password(admin_password):
+                logger.error(
+                    "ADMIN_PASSWORD does not meet complexity requirements "
+                    "(minimum 12 characters, mixed case, digit, special character). "
+                    "Initial admin creation aborted. Set a stronger ADMIN_PASSWORD and restart."
                 )
-                if created:
-                    logger.info("Created initial admin user from ADMIN_PASSWORD")
-            except Exception as e:
-                logger.error(f"Failed to create initial admin user: {e}")
+            else:
+                try:
+                    created = await user_repo.ensure_initial_admin(
+                        "admin@notees.local", admin_password
+                    )
+                    if created:
+                        logger.info("Created initial admin user from ADMIN_PASSWORD")
+                except Exception as e:
+                    logger.error(f"Failed to create initial admin user: {e}")
         else:
             admin_count = await user_repo.count_active_admins()
             if admin_count == 0:
-                logger.warning(
-                    "No admin user found. To create an admin, run: python scripts/promote_user_to_admin.py <email>"
+                logger.error(
+                    "No admin user found and ADMIN_PASSWORD is not set. "
+                    "Registration is disabled. Set ADMIN_PASSWORD and restart to create the initial admin, "
+                    "or run: python scripts/promote_user_to_admin.py <email>"
                 )
     else:
         logger.info("Skipping schema initialization under pytest (handled by db_pool fixture)")
@@ -258,12 +269,6 @@ if cors_origins:
         max_age=600,
     )
     logger.info(f"CORS enabled for origins: {cors_origins}")
-    if settings.environment.lower() == "production":
-        logger.warning(
-            "CORS is enabled with allow_credentials=True in production. "
-            "Ensure CORS_ORIGINS is restricted to trusted origins; allowing credentials "
-            "with broad origins can expose authenticated requests to CSRF-like attacks."
-        )
 
 
 # Security headers middleware
@@ -284,6 +289,13 @@ async def add_security_headers(request, call_next):
     # Content Security Policy — permissive enough for the React SPA while blocking
     # obvious injection vectors. Self-hosted apps may run on arbitrary origins so
     # we do not hardcode a domain.
+    #
+    # 'unsafe-inline' is required by the current SPA architecture (inline scripts
+    # injected by the build process and inline styles for dynamic theming). A
+    # nonce- or hash-based CSP would need build-time nonce injection and a style
+    # runtime, which is out of scope for this migration. Inline script injection
+    # is prevented by the fact that all rendered HTML is produced by the compiled
+    # React application and FastAPI templates, not from raw user input.
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; "
         "script-src 'self' 'unsafe-inline' blob:; "

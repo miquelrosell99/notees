@@ -1,12 +1,12 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
-import { NodeViewSection } from '@/features/content/components/nodes/NodeViewSection';
+import { NodeViewSection } from '@/features/content';
 import { useNavigationStore } from '@/stores';
 import { Button } from '@/components/ui/Button';
 import { Spinner } from '@/components/ui/Spinner';
 import { TextField } from '@/components/ui/TextField';
-import { NodeCollection } from '@/features/content/components/nodes/NodeCollection';
+import { NodeCollection } from '@/features/content';
 import { CommentIcon, AddIcon } from '@/components/ui/icons';
-import { useCreateComment } from '@/hooks';
+import { useCreateComment } from '@/features/content';
 import type { Node } from '@/types/api';
 
 interface CommentsListProps {
@@ -30,16 +30,18 @@ function CommentsList({ comments }: CommentsListProps) {
   }
 
   return (
-    <NodeCollection
-      nodes={collapsedComments}
-      viewMode="list"
-      editable={false}
-      sortable={false}
-      hideToolbar
-      showEmpty={false}
-      size="sm"
-      onNodeClick={(node) => openNode(node.id)}
-    />
+    <div className="sidebar-comments-list">
+      <NodeCollection
+        nodes={collapsedComments}
+        viewMode="list"
+        editable={false}
+        sortable={false}
+        hideToolbar
+        showEmpty={false}
+        size="sm"
+        onNodeClick={(node) => openNode(node.id)}
+      />
+    </div>
   );
 }
 
@@ -79,6 +81,7 @@ function QuickAddComment({ nodeId, onClose }: QuickAddCommentProps) {
     <div className="sidebar-quick-add-comment">
       <TextField
         size="sm"
+        containerClassName="sidebar-quick-add-comment__field"
         value={text}
         onChange={(e) => setText(e.target.value)}
         onKeyDown={handleKeyDown}
@@ -120,6 +123,7 @@ export function SidebarComments({ nodeId, comments, count, loading }: SidebarCom
       expanded={expanded}
       onExpandedChange={setExpanded}
       className="sidebar-context-section sidebar-context-section--comments"
+      variant="sidebar"
       hideWhenEmpty={false}
       headerActions={
         <div className="sidebar-comments-header-actions">

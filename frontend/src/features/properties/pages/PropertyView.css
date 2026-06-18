@@ -1,0 +1,189 @@
+/**
+ * PropertyView Styles
+ * 
+ * Styling for the property detail view page.
+ */
+
+
+
+
+.property-view {
+  max-width: var(--layout-size-13xl);
+  margin: 0 auto;
+  padding: 0 var(--spacing-4) var(--spacing-6);
+}
+
+.property-view.loading,
+.property-view.error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--layout-size-2xl);
+  color: var(--color-on-surface-variant);
+}
+
+.property-view-skeleton {
+  font: var(--font-body-medium);
+}
+
+/* ==================== Header Bar ==================== */
+
+.property-view-header {
+  /* Inherits from main-content-header */
+}
+
+.property-view-breadcrumb {
+  display: inline-flex;
+  align-items: center;
+  line-height: 1;
+}
+
+.property-view__type-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  color: var(--color-on-surface-variant);
+  opacity: var(--opacity-50);
+  padding: var(--spacing-1) var(--spacing-2);
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+/* ==================== Header (using PageHeader component) ====================  */
+
+/* Reuse page header section styles from NodeView */
+.property-view__header-section {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--spacing-1);
+  margin-bottom: var(--spacing-4);
+}
+
+/* ==================== Meta Info ====================  */
+
+.property-view-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  padding: var(--spacing-2) 0;
+  margin-bottom: var(--spacing-2);
+}
+
+.property-view-type {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  font: var(--font-body-medium);
+  color: var(--color-on-surface-variant);
+}
+
+.property-view-badge {
+  padding: var(--spacing-1) var(--spacing-2);
+  background: var(--color-surface-container);
+  color: var(--color-on-surface-variant);
+  font: var(--font-label-small);
+  border-radius: var(--shape-extra-small);
+}
+
+.property-view-badge.system {
+  background: var(--color-primary-container);
+  color: var(--color-on-primary-container);
+}
+
+/* ==================== Options ====================  */
+
+.property-view-options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+  padding: var(--spacing-4);
+  background: var(--color-surface-container-low);
+  border-radius: var(--shape-medium);
+  margin-bottom: var(--spacing-4);
+}
+
+.property-view-options-title {
+  margin: 0;
+  font: var(--font-label-large);
+  color: var(--color-on-surface-variant);
+}
+
+.property-view-options-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-2);
+}
+
+.property-view-option {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  padding: var(--spacing-1) var(--spacing-3);
+  background: var(--color-surface);
+  border: var(--border-width-default) solid var(--color-outline-variant);
+  border-radius: var(--shape-small);
+  font: var(--font-body-medium);
+  color: var(--color-on-surface);
+}
+
+.property-view-option-icon {
+  font-size: var(--font-size-base);
+}
+
+/* ==================== Empty/Loading States ====================  */
+
+.property-view-empty,
+.property-view-loading {
+  padding: var(--spacing-6);
+  text-align: center;
+  color: var(--color-on-surface-variant);
+  font: var(--font-body-medium);
+}
+
+/* ==================== Value Display ====================  */
+
+.property-view-value-empty {
+  color: var(--color-on-surface-variant);
+  opacity: var(--opacity-50);
+}
+
+.property-view-value-boolean {
+  font-weight: 600;
+}
+
+.property-view-value-number {
+  font-variant-numeric: tabular-nums;
+}
+
+.property-view-value-date {
+  color: var(--color-on-surface-variant);
+}
+
+.property-view-value-selection {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  padding: var(--spacing-1) var(--spacing-2);
+  background: var(--color-surface-container);
+  border-radius: var(--shape-extra-small);
+}
+
+.property-view-value-icon {
+  font-size: var(--font-size-base);
+}
+
+.property-view-value-node {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  color: var(--color-primary);
+}
+
+.property-view-value-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: var(--layout-size-7xl);
+}

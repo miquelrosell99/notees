@@ -1,0 +1,40 @@
+/**
+ * PageViewHeader styles — shared chrome for pseudo-page hub views.
+ */
+
+.page-view-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-4);
+  flex-wrap: wrap;
+}
+
+.page-view-header__title {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  margin: 0;
+  font: var(--font-headline-medium);
+  color: var(--color-on-surface);
+  flex-shrink: 0;
+}
+
+.page-view-header__title h1 {
+  margin: 0;
+  font: inherit;
+}
+
+.page-view-header__middle {
+  flex: 1;
+  min-width: 0;
+  max-width: var(--layout-size-9xl);
+  margin: 0 auto;
+}
+
+.page-view-header__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  flex-shrink: 0;
+}

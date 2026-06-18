@@ -7,13 +7,13 @@
  */
 import { useState, useCallback, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { NodeCollection } from '@/features/content';
+import { NodeCollection, PageViewHeader } from '@/features/content';
 import { Button } from '@/components/ui/Button';
 import { Tabs } from '@/components/ui/Tabs';
 import { DataStateView } from '@/components/ui/DataStateView';
 import { useNavigationStore } from '@/stores';
-import { useSystemClasses } from '@/features/content/hooks/usePageClass';
-import { useCreateNode } from '@/features/content/hooks/useNodes';
+import { useSystemClasses } from '@/features/content';
+import { useCreateNode } from '@/features/content';
 import { useTasks } from '@/features/tasks';
 import type { NodeCollectionViewMode } from '@/types/nodeCollection';
 import type { Node } from '@/types';
@@ -38,7 +38,7 @@ const TABS: TabDef[] = [
 export function TasksView() {
   const [activeTab, setActiveTab] = useState<TaskTab>('all');
   const [viewMode, setViewMode] = useState<NodeCollectionViewMode>('list');
-  const { openNode } = useNavigationStore();
+  const openNode = useNavigationStore((state) => state.openNode);
   const queryClient = useQueryClient();
   const { systemClassIds, isLoading: classesLoading } = useSystemClasses();
   const pageClassId = systemClassIds?.page ?? null;
@@ -99,24 +99,22 @@ export function TasksView() {
 
   return (
     <article className="tasks-view">
-      {/* Header */}
-      <div className="page-header-section">
-        <div className="page-header-section__header">
-          <div className="page-header tasks-view__header">
-            <h1 className="page-header__title">Tasks</h1>
-            <Button
-              variant="primary"
-              size="sm"
-              icon="mdi mdi-plus"
-              onClick={handleCreateTask}
-              disabled={!taskClassId || createNode.isPending}
-              title="New task"
-            >
-              New task
-            </Button>
-          </div>
-        </div>
-      </div>
+      <PageViewHeader
+        className="tasks-view__header"
+        title={<h1>Tasks</h1>}
+        actions={
+          <Button
+            variant="primary"
+            size="sm"
+            icon="mdi mdi-plus"
+            onClick={handleCreateTask}
+            disabled={!taskClassId || createNode.isPending}
+            title="New task"
+          >
+            New task
+          </Button>
+        }
+      />
 
       {/* Tabs */}
       <div className="tasks-view__tabs">

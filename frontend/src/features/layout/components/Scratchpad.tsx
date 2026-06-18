@@ -10,8 +10,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from '@/components/ui/Button';
 import { NodeSelector, BlockList } from '@/features/content';
 
-import { useTodayNote, usePages, useNodeByUuid, useMoveNode, useDeleteNode } from '@/hooks';
-import { useContentSave, flushAllContentSaves } from '@/features/content';
+import { useTodayNote, usePages, useNodeByUuid, useMoveNode, useDeleteNode } from '@/features/content';
+import { useContentSave, flushAllContentSaves } from '@/features/editor';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
 import { useSettingsStore } from '@/stores';
 import { generateUUID } from '@/utils/uuid';
@@ -49,7 +49,7 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
     restoreFocus: true,
   });
 
-  const { quickAddDestination } = useSettingsStore();
+  const quickAddDestination = useSettingsStore((s) => s.quickAddDestination);
   const moveNodeMutation = useMoveNode();
   const deleteNode = useDeleteNode();
   const { handleContentChange: saveContent } = useContentSave();
@@ -355,7 +355,7 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
           />
         )}
         <div className="scratchpad-add-block hover-reveal">
-          <Button icon={"mdi mdi-plus"} onClick={handleAddBlock} className="add-block-btn" title="Add block" size="sm" variant="ghost">
+          <Button icon={"mdi mdi-plus"} onClick={handleAddBlock} className="add-block-btn" aria-label="Add block" title="Add block" size="sm" variant="ghost">
             Add block
           </Button>
         </div>

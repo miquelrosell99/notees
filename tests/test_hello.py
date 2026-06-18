@@ -5,6 +5,8 @@ These tests verify the application can start and basic endpoints work.
 import pytest
 from httpx import AsyncClient
 
+pytestmark = pytest.mark.integration
+
 
 class TestAppHealth:
     """Test basic application health."""

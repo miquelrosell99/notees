@@ -19,8 +19,8 @@ import { WorkspaceNameModal } from '@/features/workspace/components/WorkspaceNam
 import { WorkspaceActionsMenu } from '@/features/workspace/components/WorkspaceActionsMenu';
 import { WorkspaceShareModal } from '@/features/workspace/components/WorkspaceShareModal';
 import { WorkspaceExportModal } from '@/features/workspace/components/WorkspaceExportModal';
-import { UserSettingsModal, SystemSettingsModal } from '@/features/layout/components/Modals';
-import { AccountMenu } from '@/features/layout/components/AccountMenu';
+import { UserSettingsModal, SystemSettingsModal } from '@/features/layout';
+import { AccountMenu } from '@/features/layout';
 
 
 import { Button } from '@/components/ui/Button';
@@ -65,7 +65,8 @@ export function WorkspaceManagementView({
   const restoreInputRef = useRef<HTMLInputElement>(null);
   const restoreTargetRef = useRef<string | null>(null);
   const queryClient = useQueryClient();
-  const { isImportLogseqModalOpen, setImportLogseqModalOpen } = useModalStore();
+  const isImportLogseqModalOpen = useModalStore((s) => s.isImportLogseqModalOpen);
+  const setImportLogseqModalOpen = useModalStore((s) => s.setImportLogseqModalOpen);
 
   // Fetch workspaces
   const { data, isLoading, error, refetch } = useWorkspaces({

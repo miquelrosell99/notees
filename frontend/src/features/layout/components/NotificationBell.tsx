@@ -3,8 +3,7 @@
  */
 import { useState, useRef, useEffect } from 'react';
 import { useNotifications, useMarkNotificationRead, useMarkAllNotificationsRead } from '@/hooks/useNotifications';
-import { Icon } from '@/components/ui/Icon';
-import { Button } from '@/components/ui/Button';
+import { Icon, Button } from '@/components/ui';
 import './NotificationBell.css';
 
 export interface NotificationPanelProps {

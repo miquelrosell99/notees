@@ -1,6 +1,8 @@
 """Security tests for QueryAST execution."""
 import pytest
 
+pytestmark = pytest.mark.integration
+
 
 class TestQueryAstFlagNameSecurity:
     """Tests for the QueryAST flag_name SQL-injection whitelist."""

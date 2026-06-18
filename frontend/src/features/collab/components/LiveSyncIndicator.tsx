@@ -9,7 +9,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { liveSyncManager } from '@/collab/LiveSyncManager';
+import { liveSyncManager } from '@/features/collab';
 import './LiveSyncIndicator.css';
 
 export function LiveSyncIndicator() {

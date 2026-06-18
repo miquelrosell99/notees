@@ -7,6 +7,8 @@ from httpx import AsyncClient
 
 from app.db.schema import SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS
 
+pytestmark = pytest.mark.integration
+
 
 async def _get_task_class_id(authenticated_client: AsyncClient) -> int:
     """Look up the task system class node ID."""

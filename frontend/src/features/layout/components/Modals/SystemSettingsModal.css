@@ -19,6 +19,7 @@
   font-size: var(--font-size-base);
   cursor: pointer;
   border-radius: var(--shape-medium);
+  min-height: var(--button-min-height);
   transition: background var(--motion-duration-short) var(--motion-easing-standard),
               color var(--motion-duration-short) var(--motion-easing-standard);
 }
@@ -129,6 +130,7 @@
   font-size: var(--font-size-base);
   text-align: left;
   cursor: pointer;
+  min-height: var(--button-min-height);
   transition: background var(--motion-duration-short) var(--motion-easing-standard);
 }
 

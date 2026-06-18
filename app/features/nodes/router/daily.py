@@ -1,0 +1,345 @@
+"""Daily, monthly, and yearly date page endpoints."""
+
+from datetime import datetime
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+
+from app.dependencies import get_current_user, get_settings_repository
+from app.domain.entities import NodeCreateData, NodeUpdateData
+from app.domain.entities.constants import (
+    SYSTEM_CLASS_UUIDS,
+    generate_day_uuid,
+    generate_month_uuid,
+    generate_year_uuid,
+)
+from app.domain.repositories.interfaces import SettingsRepository
+from app.models import PaginatedResponse, User
+
+from .helpers import (
+    _format_date_with_pattern,
+    _format_month_with_pattern,
+    _format_year,
+    _get_class_ids,
+    _get_class_ids_batch,
+    _get_node_service,
+    _node_to_response,
+)
+from .models import BatchNodeDailyRequest, BatchNodeDailyResponse, BatchNodeDailyResultItem, NodeResponse
+
+router = APIRouter()
+
+
+async def _get_user_date_format(
+    user_id: int, settings_repo: SettingsRepository
+) -> str:
+    """Fetch the user's date format preference."""
+    value = await settings_repo.get_user_setting(user_id, "date_format")
+    if isinstance(value, str):
+        return value
+    if value is not None:
+        import json
+
+        try:
+            parsed = json.loads(value)
+            if isinstance(parsed, str):
+                return parsed
+        except (json.JSONDecodeError, TypeError):
+            pass
+    return "YYYY/MM/DD"
+
+
+@router.get("/daily/list")
+async def list_daily_pages(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=500),
+    user: User = Depends(get_current_user),
+):
+    """List all existing daily pages ordered by date descending."""
+    service = await _get_node_service(user)
+    total, rows = await service.list_daily_pages_paginated(page, page_size)
+
+    # Get node IDs for batch type lookup
+    nodes = [service.row_to_node(row) for row in rows]
+    node_ids = [n.id for n in nodes if n.id is not None]
+
+    # Batch fetch types for all nodes
+    class_ids_map = await _get_class_ids_batch(service, node_ids)
+
+    result = []
+    for node in nodes:
+        class_ids = class_ids_map.get(node.id, []) if node.id else []
+        result.append(_node_to_response(node, classes=class_ids))
+
+    return PaginatedResponse[NodeResponse](
+        items=result,
+        total=total,
+        page=page,
+        page_size=page_size,
+        has_next=(page * page_size) < total,
+        has_prev=page > 1,
+    )
+
+
+@router.post("/daily")
+async def get_or_create_daily(
+    date: str = Query(..., description="Date in YYYY-MM-DD format"),
+    user: User = Depends(get_current_user),
+    settings_repo: SettingsRepository = Depends(get_settings_repository),
+):
+    """Get or create a daily note.
+
+    Uses UUID format YYYYMMDD for easy parsing.
+    Automatically creates year and month pages with proper parent hierarchy:
+    - Year page (parent: none)
+    - Month page (parent: year)
+    - Day page (parent: month)
+    """
+    import logging
+    import traceback
+
+    logger = logging.getLogger(__name__)
+
+    try:
+        service = await _get_node_service(user)
+    except Exception as e:
+        logger.error(f"DAILY ERROR getting node service: {e}")
+        logger.error(traceback.format_exc())
+        raise
+
+    # Parse date
+    try:
+        d = datetime.strptime(date, "%Y-%m-%d").date()
+    except ValueError:
+        raise HTTPException(400, "Invalid date format. Use YYYY-MM-DD") from None
+
+    try:
+        # Generate date UUID
+        uuid = generate_day_uuid(d)
+
+        # Get type IDs by UUID (needed for both existing and new pages)
+        day_type = await service.get_node_by_uuid(SYSTEM_CLASS_UUIDS["day"])
+        if not day_type:
+            raise HTTPException(500, "Day type not found")
+        day_type_id = day_type.id
+        if day_type_id is None:
+            raise HTTPException(500, "Day type has no ID")
+
+        page_type_id = service.page_class_id
+        if page_type_id is None:
+            raise HTTPException(500, "Page type not configured")
+
+        month_type = await service.get_node_by_uuid(SYSTEM_CLASS_UUIDS["month"])
+        if not month_type:
+            raise HTTPException(500, "Month type not found")
+        month_type_id = month_type.id
+        if month_type_id is None:
+            raise HTTPException(500, "Month type has no ID")
+
+        year_type = await service.get_node_by_uuid(SYSTEM_CLASS_UUIDS["year"])
+        if not year_type:
+            raise HTTPException(500, "Year type not found")
+        year_type_id = year_type.id
+        if year_type_id is None:
+            raise HTTPException(500, "Year type has no ID")
+
+        # Get user's date format preference
+        date_format = await _get_user_date_format(int(user.id), settings_repo)
+
+        # 1. Ensure year page exists (always, even for existing day pages)
+        year_uuid = generate_year_uuid(d.year)
+        year_node = await service.get_node_by_uuid(year_uuid)
+        if not year_node:
+            year_data = NodeCreateData(
+                name=_format_year(d.year),
+                classes=[page_type_id, year_type_id],
+            )
+            try:
+                year_node = await service.create_raw_node(year_data, uuid=year_uuid)
+            except Exception as e:
+                # Handle race condition - another request may have created it
+                if "duplicate key" in str(e).lower() or "unique" in str(e).lower():
+                    year_node = await service.get_node_by_uuid(year_uuid)
+                    if not year_node:
+                        raise
+                else:
+                    raise
+
+        # 2. Ensure month page exists (always, even for existing day pages)
+        month_uuid = generate_month_uuid(d.year, d.month)
+        month_node = await service.get_node_by_uuid(month_uuid)
+        if not month_node:
+            month_data = NodeCreateData(
+                name=_format_month_with_pattern(d.year, d.month, date_format),
+                classes=[page_type_id, month_type_id],
+                parent_id=year_node.id,
+            )
+            try:
+                month_node = await service.create_raw_node(month_data, uuid=month_uuid)
+            except Exception as e:
+                # Handle race condition - another request may have created it
+                if "duplicate key" in str(e).lower() or "unique" in str(e).lower():
+                    month_node = await service.get_node_by_uuid(month_uuid)
+                    if not month_node:
+                        raise
+                else:
+                    raise
+        elif month_node.parent_id != year_node.id and month_node.id is not None:
+            # Update parent_id if not set correctly
+            await service.update_node(month_node.id, NodeUpdateData(parent_id=year_node.id))
+            month_node = await service.get_node_by_uuid(month_uuid)
+
+        # Check if day page exists
+        existing = await service.get_node_by_uuid(uuid)
+        if existing:
+            class_ids = await _get_class_ids(service, existing.id) if existing.id else []
+            return _node_to_response(existing, classes=class_ids)
+
+        # 3. Create day page with month as parent
+        day_data = NodeCreateData(
+            name=_format_date_with_pattern(d.year, d.month, d.day, date_format),
+            classes=[page_type_id, day_type_id],
+            parent_id=month_node.id if month_node else None,
+        )
+        node = await service.create_raw_node(day_data, uuid=uuid)
+        # Return with types (page and day)
+        return _node_to_response(node, classes=[page_type_id, day_type_id])
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"DAILY ERROR creating daily page: {e}")
+        logger.error(traceback.format_exc())
+        raise
+
+
+@router.post("/daily/batch")
+async def batch_get_or_create_daily(
+    body: BatchNodeDailyRequest,
+    user: User = Depends(get_current_user),
+):
+    """Get or create multiple daily notes in a single request.
+
+    Processes all dates concurrently. Race conditions on year/month creation
+    are handled via duplicate-key recovery (same as the single endpoint).
+    """
+    import logging
+
+    logger = logging.getLogger(__name__)
+
+    async def _one(date_str: str) -> BatchNodeDailyResultItem:
+        try:
+            result = await get_or_create_daily(date=date_str, user=user)
+            return BatchNodeDailyResultItem(date=date_str, success=True, node=result)
+        except Exception as e:
+            logger.error(f"batch daily error for {date_str}: {e}")
+            return BatchNodeDailyResultItem(date=date_str, success=False, error=str(e))
+
+    results = []
+    for d in body.dates:
+        results.append(await _one(d))
+    return BatchNodeDailyResponse(results=results)
+
+
+@router.post("/monthly")
+async def get_or_create_monthly(
+    year: int,
+    month: int,
+    user: User = Depends(get_current_user),
+    settings_repo: SettingsRepository = Depends(get_settings_repository),
+):
+    """Get or create a monthly note.
+
+    Uses UUID format YYYYMM00 for easy parsing.
+    Automatically creates year page as parent.
+    """
+    service = await _get_node_service(user)
+
+    if not (1 <= month <= 12):
+        raise HTTPException(400, "Month must be 1-12")
+
+    uuid = generate_month_uuid(year, month)
+
+    # Get type IDs by UUID (needed for both existing and new pages)
+    month_type = await service.get_node_by_uuid(SYSTEM_CLASS_UUIDS["month"])
+    if not month_type:
+        raise HTTPException(500, "Month type not found")
+    month_type_id = month_type.id
+    if month_type_id is None:
+        raise HTTPException(500, "Month type has no ID")
+
+    page_type_id = service.page_class_id
+    if page_type_id is None:
+        raise HTTPException(500, "Page type not configured")
+
+    year_type = await service.get_node_by_uuid(SYSTEM_CLASS_UUIDS["year"])
+    if not year_type:
+        raise HTTPException(500, "Year type not found")
+    year_type_id = year_type.id
+    if year_type_id is None:
+        raise HTTPException(500, "Year type has no ID")
+
+    # 1. Ensure year page exists (always, even for existing month pages)
+    year_uuid = generate_year_uuid(year)
+    year_node = await service.get_node_by_uuid(year_uuid)
+    if not year_node:
+        year_data = NodeCreateData(
+            name=_format_year(year),
+            classes=[page_type_id, year_type_id],
+        )
+        year_node = await service.create_raw_node(year_data, uuid=year_uuid)
+
+    # Check if month page exists
+    existing = await service.get_node_by_uuid(uuid)
+    if existing:
+        class_ids = await _get_class_ids(service, existing.id) if existing.id else []
+        return _node_to_response(existing, classes=class_ids)
+
+    # 2. Create month page with year as parent
+    # Get user's date format preference
+    date_format = await _get_user_date_format(int(user.id), settings_repo)
+
+    data = NodeCreateData(
+        name=_format_month_with_pattern(year, month, date_format),
+        classes=[page_type_id, month_type_id],
+        parent_id=year_node.id if year_node else None,
+    )
+    node = await service.create_raw_node(data, uuid=uuid)
+    return _node_to_response(node)
+
+
+@router.post("/yearly")
+async def get_or_create_yearly(
+    year: int,
+    user: User = Depends(get_current_user),
+):
+    """Get or create a yearly note.
+
+    Uses UUID format YYYY0000 for easy parsing.
+    """
+    service = await _get_node_service(user)
+
+    uuid = generate_year_uuid(year)
+
+    # Get year type by UUID (needed for both existing and new pages)
+    year_type = await service.get_node_by_uuid(SYSTEM_CLASS_UUIDS["year"])
+    if not year_type:
+        raise HTTPException(500, "Year type not found")
+
+    year_type_id = year_type.id
+    if year_type_id is None:
+        raise HTTPException(500, "Year type has no ID")
+
+    page_type_id = service.page_class_id
+    if page_type_id is None:
+        raise HTTPException(500, "Page type not configured")
+
+    existing = await service.get_node_by_uuid(uuid)
+    if existing:
+        class_ids = await _get_class_ids(service, existing.id) if existing.id else []
+        return _node_to_response(existing, classes=class_ids)
+
+    data = NodeCreateData(
+        name=_format_year(year),
+        classes=[page_type_id, year_type_id],
+    )
+    node = await service.create_raw_node(data, uuid=uuid)
+    return _node_to_response(node)

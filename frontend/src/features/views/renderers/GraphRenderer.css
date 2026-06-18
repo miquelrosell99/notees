@@ -1,0 +1,142 @@
+/* SGEGraphView.css */
+
+
+
+
+/* ── Container ────────────────────────────────────────────────────────────── */
+
+.sge-graph-view {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: transparent;
+  /* Prevent text selection during drag */
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* ── Canvas ───────────────────────────────────────────────────────────────── */
+
+.sge-graph-view__canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+  touch-action: none; /* disable browser pan/zoom so we own all pointer events */
+  /* Compositing hints: tell the browser this element repaints frequently
+     and should be on its own GPU layer, isolated from the rest of the DOM. */
+  will-change: contents;
+  contain: strict;
+}
+
+.sge-graph-view__canvas:active {
+  cursor: grabbing;
+}
+
+/* ── Toolbar ──────────────────────────────────────────────────────────────── */
+
+.sge-graph-view__toolbar {
+  position: absolute;
+  top: var(--spacing-tight);
+  right: var(--spacing-tight);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1-5);
+  z-index: var(--z-10);
+}
+
+.sge-graph-view__btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--icon-size-xl);
+  height: var(--height-md);
+  border: var(--border-width-default) solid var(--graph-btn-border);
+  border-radius: var(--shape-medium);
+  background: var(--graph-btn-bg);
+  color: var(--graph-btn-color);
+  font-size: var(--font-size-lead);
+  line-height: 1;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  transition: background var(--motion-duration-shorter), color var(--motion-duration-shorter);
+}
+
+.sge-graph-view__btn:hover {
+  background: var(--graph-btn-hover-bg);
+  color: var(--graph-btn-hover-color);
+}
+
+.sge-graph-view__btn:active {
+  transform: scale(0.93);
+}
+
+/* ── Stats overlay ────────────────────────────────────────────────────────── */
+
+.sge-stats {
+  position: absolute;
+  bottom: var(--spacing-tight);
+  left: var(--spacing-tight);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-1-5) var(--spacing-3);
+  padding: var(--spacing-xxs) var(--spacing-tight);
+  border-radius: var(--shape-medium);
+  background: var(--graph-stats-bg);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  color: var(--graph-stats-color);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-xs);
+  line-height: 1.6;
+  pointer-events: none;
+  z-index: var(--z-10);
+}
+
+/* ── Hover tooltip ────────────────────────────────────────────────────────── */
+
+.sge-graph-tooltip {
+  position: absolute;
+  z-index: var(--z-20);
+  pointer-events: none;
+  padding: var(--spacing-1-5) var(--spacing-2-5);
+  border-radius: var(--shape-medium);
+  background: var(--graph-tooltip-bg);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  border: var(--border-width-default) solid var(--graph-tooltip-border);
+  /* Design system: zero visual noise — no elevation shadows */
+  color: var(--graph-tooltip-color);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  max-width: var(--layout-size-3xl);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: opacity 0.08s var(--motion-easing-ease);
+}
+
+.sge-graph-tooltip--edge {
+  font-size: var(--font-size-xs);
+  text-transform: capitalize;
+  color: var(--graph-tooltip-edge-color);
+}
+
+/* ── No-WebGL fallback ────────────────────────────────────────────────────── */
+
+.sge-graph-view--no-webgl {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sge-graph-view__no-webgl-msg {
+  max-width: 21.25rem;
+  padding: var(--spacing-5);
+  text-align: center;
+  color: var(--graph-fallback-msg-color);
+  font-size: var(--font-size-base);
+  line-height: 1.5;
+}

@@ -40,6 +40,12 @@
   outline-offset: var(--focus-outline-offset);
 }
 
+/* Expanded state: rotate the chevron icon (used by collapse toggles). */
+.btn[data-expanded="true"] .btn__icon {
+  transform: rotate(180deg);
+  transition: transform var(--motion-duration-short) var(--motion-easing-standard);
+}
+
 /* ==================== Sizes ==================== */
 .btn--xs {
   height: var(--height-button-xs);
@@ -271,6 +277,12 @@
 
 .btn--full-width {
   width: 100%;
+}
+
+/* ==================== Loading State ==================== */
+.btn--loading .btn__icon .spinner {
+  /* Keep the spinner fully visible even though the disabled state lowers opacity. */
+  opacity: var(--opacity-100);
 }
 
 /* ==================== Icon Styles ==================== */

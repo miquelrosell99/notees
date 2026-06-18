@@ -26,17 +26,17 @@ import { useMemo, useCallback, useState, useEffect, memo, Suspense } from 'react
 import type { ReactNode } from 'react';
 import { useAppStore } from '@/stores';
 import { useUpdateNodeView } from '@/features/content/hooks/useNodeViews';
-import { useProperties } from '@/hooks';
+import { useProperties } from '@/features/properties';
 import type {
   NodeCollectionProps,
   NodeCollectionContextValue,
   NodeCollectionGroupBy,
+  SortEntry,
 } from '@/types/nodeCollection';
 import type { Property } from '@/types';
 import { DEFAULT_VIEW_MODES_ORDER } from '@/constants/viewModes';
-import type { SortEntry } from '@/features/content/components/nodes/views/NodeTable';
 import { sortNodesByEntries } from '@/utils/nodeSort';
-import { getViewDefinition } from './views';
+import { getViewDefinition } from '@/features/views';
 import { NodeCollectionToolbar } from './NodeCollectionToolbar';
 import { Card } from '@/components/ui/Card';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
@@ -138,6 +138,7 @@ export const NodeCollection = memo(function NodeCollection({
   showClasses = false,
   queryAst,
   isTransient = false,
+  inPropertyEditor = false,
 }: NodeCollectionProps) {
   // Use store for card layout unless transient or controlled
   const storeCardLayout = useAppStore((state) => state.cardLayout);
@@ -334,7 +335,8 @@ export const NodeCollection = memo(function NodeCollection({
     onContentChange,
     depth: 0,
     maxDepth,
-  }), [editable, onNodeClick, onNodeShiftClick, onContentChange, maxDepth]);
+    inPropertyEditor,
+  }), [editable, onNodeClick, onNodeShiftClick, onContentChange, maxDepth, inPropertyEditor]);
 
   // Memoize callbacks so React.memo on view components is effective
   const stableOnNodeClick = useCallback(
@@ -350,8 +352,9 @@ export const NodeCollection = memo(function NodeCollection({
     [onContentChange]
   );
 
-  // Common props for all view components
-  const commonViewProps = {
+  // Common props for all view components — memoized so React.memo views can skip
+  // re-renders when only unrelated NodeCollection state changes.
+  const commonViewProps = useMemo(() => ({
     nodes,
     editable,
     onNodeClick: stableOnNodeClick,
@@ -365,11 +368,10 @@ export const NodeCollection = memo(function NodeCollection({
     customContextMenu,
     customContextMenuItems,
     autoCollapse,
-  };
+  }), [nodes, editable, stableOnNodeClick, stableOnNodeShiftClick, stableOnContentChange, renderNode, maxDepth, isolatedBlockState, suppressRootColor, customContextMenu, customContextMenuItems, autoCollapse]);
 
-  // View-specific props derived from mode (computed inline to avoid React Compiler
-  // memoization issues with large dependency arrays)
-  const getViewSpecificProps = () => {
+  // View-specific props derived from mode — memoized by the values actually used.
+  const viewSpecificProps = useMemo(() => {
     switch (viewMode) {
       case 'list':
         return {
@@ -577,7 +579,53 @@ export const NodeCollection = memo(function NodeCollection({
           onAddClass,
         };
     }
-  };
+  }, [
+    viewMode,
+    commonViewProps,
+    sortedNodes,
+    editable,
+    pagesOnly,
+    sortable,
+    onReorder,
+    renderItemAction,
+    pageId,
+    nodeUuid,
+    groupBy,
+    groupByProperty,
+    groupByProperties,
+    expandAll,
+    enableGrouping,
+    showBreadcrumbs,
+    onAddClass,
+    onSlashCommand,
+    onPasteImage,
+    onTemplateInstantiate,
+    templateClassFilters,
+    onEnterAtRoot,
+    hideProperties,
+    size,
+    maxDepth,
+    showClasses,
+    nodes,
+    tableColumns,
+    selectedPropertyUuids,
+    stableOnNodeClick,
+    stableOnNodeShiftClick,
+    stableOnContentChange,
+    customContextMenu,
+    effectiveCardLayout,
+    onAdd,
+    onNodeClick,
+    onContentChange,
+    ganttStartDateProperty,
+    ganttEndDateProperty,
+    ganttTimeScale,
+    queryAst,
+    viewId,
+    activeNode,
+    sortColumns,
+    setSortColumns,
+  ]);
 
   // Check if empty
   const isEmpty = nodes.length === 0 && showEmpty;
@@ -600,7 +648,7 @@ export const NodeCollection = memo(function NodeCollection({
     const ViewComponent = viewDef.component;
     let content = (
       <Suspense fallback={<div className="node-collection__skeleton">Loading view…</div>}>
-        <ViewComponent {...getViewSpecificProps()} />
+        <ViewComponent {...viewSpecificProps} />
       </Suspense>
     );
 
@@ -614,7 +662,7 @@ export const NodeCollection = memo(function NodeCollection({
 
     if (containerCard && capabilities.containerCard) {
       content = (
-        <Card variant="default" padding paddingSize="sm" radius="md">
+        <Card variant="default" padding paddingSize="sm" radius="md" className="node-collection__card">
           {content}
         </Card>
       );

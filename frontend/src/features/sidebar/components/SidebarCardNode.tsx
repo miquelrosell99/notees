@@ -6,8 +6,8 @@
  * - Blocks: Show block name as the card title
  */
 import { useCallback } from 'react';
-import { useNode } from '@/hooks';
-import { nodeNameToText } from '@/features/queries/hooks/useStringifyAST';
+import { useNode } from '@/features/content';
+import { nodeNameToText } from '@/features/queries';
 import { useNavigationStore } from '@/stores';
 import { SidebarCard } from './SidebarCard';
 import { SidebarNodeView } from './SidebarNodeView';
@@ -24,7 +24,7 @@ interface SidebarCardNodeProps {
 
 export function SidebarCardNode({ nodeId, cardType, onClose }: SidebarCardNodeProps) {
   const { data: node, isLoading, error } = useNode(nodeId);
-  const { openNode } = useNavigationStore();
+  const openNode = useNavigationStore((state) => state.openNode);
 
   const handleOpen = useCallback(() => {
     if (node) openNode(node.id);

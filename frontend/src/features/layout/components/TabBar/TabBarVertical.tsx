@@ -3,6 +3,7 @@
  */
 import { useCallback, useRef, useState, useEffect, useMemo } from 'react';
 import { useNavigationStore, type Tab, type SplitOrientation } from '@/stores/navigationStore';
+import { useShallow } from 'zustand/react/shallow';
 import { Button } from '@/components/ui/Button';
 import { NodeSelector } from '@/features/content';
 import { TabOverflowDropdown } from './TabOverflowDropdown';
@@ -18,6 +19,8 @@ interface TabBarVerticalProps {
 }
 
 export function TabBarVertical({ tabs, activeTabId, secondaryTabId, splitOrientation }: TabBarVerticalProps) {
+  const viewMode = useNavigationStore((s) => s.viewMode);
+  const isFocusMode = viewMode === 'focus';
   const {
     activateTab,
     closeTab,
@@ -30,7 +33,21 @@ export function TabBarVertical({ tabs, activeTabId, secondaryTabId, splitOrienta
     replaceTabContent,
     splitTab,
     unsplit,
-  } = useNavigationStore();
+  } = useNavigationStore(
+    useShallow((s) => ({
+      activateTab: s.activateTab,
+      closeTab: s.closeTab,
+      closeOtherTabs: s.closeOtherTabs,
+      closeTabsToRight: s.closeTabsToRight,
+      pinTab: s.pinTab,
+      unpinTab: s.unpinTab,
+      reorderTabs: s.reorderTabs,
+      openNodeInNewTab: s.openNodeInNewTab,
+      replaceTabContent: s.replaceTabContent,
+      splitTab: s.splitTab,
+      unsplit: s.unsplit,
+    }))
+  );
 
   const stripRef = useRef<HTMLDivElement>(null);
   const addBtnRef = useRef<HTMLButtonElement>(null);
@@ -270,7 +287,7 @@ export function TabBarVertical({ tabs, activeTabId, secondaryTabId, splitOrienta
   );
 
   return (
-    <div className="tab-bar-vertical">
+    <div className="tab-bar-vertical" data-focus-mode={isFocusMode || undefined}>
       <div
         className="tab-bar-vertical__strip"
         ref={stripRef}
