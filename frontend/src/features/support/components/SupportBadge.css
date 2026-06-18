@@ -111,3 +111,31 @@
   font-size: var(--font-size-lg);
   color: inherit;
 }
+
+/* Confirmation modal */
+.support-badge__confirm-text {
+  margin: 0;
+  font: var(--font-body-medium);
+  color: var(--color-on-surface-variant);
+  line-height: 1.5;
+}
+
+.support-badge__confirm-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--spacing-2);
+  width: 100%;
+}
+
+.support-badge__confirm-footer .btn {
+  flex: 1 1 auto;
+  min-width: fit-content;
+}
+
+@media (min-width: 480px) {
+  .support-badge__confirm-footer .btn {
+    flex: 0 0 auto;
+  }
+}

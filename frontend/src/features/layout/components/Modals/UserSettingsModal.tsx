@@ -6,7 +6,7 @@
  */
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useSettingsStore, applyTheme, DATE_FORMAT_OPTIONS, FIRST_DAY_OF_WEEK_OPTIONS, ACCENT_COLOR_OPTIONS, isValidHexColor, getContrastColor } from '@/stores';
+import { useSettingsStore, applyTheme, DATE_FORMAT_OPTIONS, FIRST_DAY_OF_WEEK_OPTIONS, ACCENT_COLOR_OPTIONS, isValidHexColor, getContrastColor, isSupportBadgeVisible } from '@/stores';
 import { useAuthUser, useAuthActions } from '@/features/layout/hooks/useAuthSelectors';
 import type { ThemePreference, DateFormat, HashtagPasteMode, DefaultView, QuickAddDestination, FirstDayOfWeek, AccentColor } from '@/stores';
 import { setSetting } from '@/features/workspace';
@@ -62,6 +62,7 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
   const firstDayOfWeek = useSettingsStore((s) => s.firstDayOfWeek);
   const showBulletThread = useSettingsStore((s) => s.showBulletThread);
   const supportBadgeHidden = useSettingsStore((s) => s.supportBadgeHidden);
+  const supportBadgeHiddenUntil = useSettingsStore((s) => s.supportBadgeHiddenUntil);
   const setTheme = useSettingsStore((s) => s.setTheme);
   const setOledMode = useSettingsStore((s) => s.setOledMode);
   const setAccentColor = useSettingsStore((s) => s.setAccentColor);
@@ -75,6 +76,7 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
   const setFirstDayOfWeek = useSettingsStore((s) => s.setFirstDayOfWeek);
   const setShowBulletThread = useSettingsStore((s) => s.setShowBulletThread);
   const setSupportBadgeHidden = useSettingsStore((s) => s.setSupportBadgeHidden);
+  const setSupportBadgeHiddenUntil = useSettingsStore((s) => s.setSupportBadgeHiddenUntil);
   const [customHexInput, setCustomHexInput] = useState(customAccentHex);
 
   // Keep the custom hex text input in sync with the persisted value.
@@ -766,8 +768,14 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
                 </div>
                 <BooleanToggle
                   id="support-badge-toggle"
-                  checked={!supportBadgeHidden}
-                  onChange={(e) => setSupportBadgeHidden(!e.target.checked)}
+                  checked={isSupportBadgeVisible(supportBadgeHidden, supportBadgeHiddenUntil)}
+                  onChange={(e) => {
+                    const show = e.target.checked;
+                    setSupportBadgeHidden(!show);
+                    if (show) {
+                      setSupportBadgeHiddenUntil(null);
+                    }
+                  }}
                   size="md"
                 />
               </div>
