@@ -37,6 +37,14 @@
   margin-bottom: var(--spacing-6);
 }
 
+.confirmation-modal__error {
+  color: var(--color-error);
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+  margin-top: calc(var(--spacing-4) * -1);
+  margin-bottom: var(--spacing-6);
+}
+
 .confirmation-modal__actions {
   display: flex;
   gap: var(--spacing-3);

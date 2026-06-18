@@ -14,13 +14,18 @@ import json
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
-from pathlib import Path
 from typing import cast
 
 import asyncpg
 
 from ..config import settings
 from ..logging_config import get_logger
+from ..utils.paths import (
+    get_data_dir,
+    get_export_dir,
+    get_workspace_assets_dir,
+    get_workspace_dir,
+)
 
 logger = get_logger(__name__)
 
@@ -32,18 +37,26 @@ _pool_lock = asyncio.Lock()
 _request_conn: ContextVar[asyncpg.Connection | None] = ContextVar("_request_conn", default=None)
 
 
-def get_data_dir() -> Path:
-    """Get the base data directory for assets.
-
-    Reads from settings.database_dir so tests can override it.
-    """
-    from ..config import settings
-
-    return settings.database_dir
-
-
-# Backward-compatible alias
+# Backward-compatible aliases
 DATA_DIR = get_data_dir()
+
+__all__ = [
+    "DATA_DIR",
+    "acquire_connection",
+    "clear_request_conn",
+    "close_pool",
+    "get_connection",
+    "get_data_dir",
+    "get_export_dir",
+    "get_pool",
+    "get_pool_stats",
+    "get_request_conn",
+    "get_transaction",
+    "get_workspace_assets_dir",
+    "get_workspace_dir",
+    "get_workspace_uuid",
+    "init_pool",
+]
 
 
 def get_request_conn() -> asyncpg.Connection | None:
@@ -252,38 +265,3 @@ async def get_workspace_uuid(workspace_id: int) -> str | None:
         return str(row["uuid"]) if row else None
 
 
-def get_workspace_assets_dir(workspace_uuid: str) -> Path:
-    """Get the assets directory for a workspace.
-
-    Args:
-        workspace_uuid: The workspace UUID (not the integer ID)
-
-    Assets are stored as files named with their node UUID.
-    Structure: data/workspaces/{workspace_uuid}/assets/
-    """
-    assets_dir = get_data_dir() / "workspaces" / workspace_uuid / "assets"
-    assets_dir.mkdir(parents=True, exist_ok=True)
-    return assets_dir
-
-
-def get_export_dir(workspace_uuid: str) -> Path:
-    """Get the export directory for a workspace.
-
-    Args:
-        workspace_uuid: The workspace UUID (not the integer ID)
-    """
-    export_dir = get_data_dir() / "workspaces" / workspace_uuid / "export"
-    export_dir.mkdir(parents=True, exist_ok=True)
-    return export_dir
-
-
-def get_workspace_dir(workspace_uuid: str) -> Path:
-    """Get the main directory for a workspace.
-
-    Args:
-        workspace_uuid: The workspace UUID (not the integer ID)
-
-    Returns:
-        Path to the workspace directory (data/workspaces/{workspace_uuid})
-    """
-    return get_data_dir() / "workspaces" / workspace_uuid

@@ -11,16 +11,15 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useCopiedState } from '@/hooks/useCopiedState';
 import { useExportSettingsStore } from '@/stores';
+import { useShallow } from 'zustand/react/shallow';
 import { Modal } from '@/components/ui/Modal';
 import { copyToClipboard } from '@/utils/clipboardManager';
 import { Button } from '@/components/ui/Button';
 import { Spinner } from '@/components/ui/Spinner';
 import { SelectionButton } from '@/components/ui/SelectionButton';
-import { ButtonWithPanel } from '@/components/ui/ButtonWithPanel';
-import { BooleanToggle } from '@/components/ui/BooleanToggle';
-import { Icon } from '@/components/ui/Icon';
+import { ButtonWithPanel, BooleanToggle, Icon } from '@/components/ui';
 import api from '@/api/client';
-import { nodeNameToText } from '@/features/queries/hooks/useStringifyAST';
+import { nodeNameToText } from '@/features/queries';
 import { downloadBlob } from '@/utils/download';
 import QRCode from 'qrcode';
 import { getExportFormat, formatHasHtmlOptions, getExportExtension, getRegisteredExportFormats } from './exportFormatRegistry';
@@ -68,7 +67,28 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid, nodeUuids, nodeName
     pageSize, setPageSize,
     includeChildPages, setIncludeChildPages,
     applyPreset,
-  } = useExportSettingsStore();
+  } = useExportSettingsStore(
+    useShallow((s) => ({
+      format: s.format, setFormat: s.setFormat,
+      layout: s.layout, setLayout: s.setLayout,
+      style: s.style, setStyle: s.setStyle,
+      properties: s.properties, setProperties: s.setProperties,
+      density: s.density, setDensity: s.setDensity,
+      numbering: s.numbering, setNumbering: s.setNumbering,
+      measure: s.measure, setMeasure: s.setMeasure,
+      doctype: s.doctype, setDoctype: s.setDoctype,
+      sectionBreak: s.sectionBreak, setSectionBreak: s.setSectionBreak,
+      formatting: s.formatting, setFormatting: s.setFormatting,
+      showUuid: s.showUuid, setShowUuid: s.setShowUuid,
+      linkStyle: s.linkStyle, setLinkStyle: s.setLinkStyle,
+      cssOverrides: s.cssOverrides, setCssOverrides: s.setCssOverrides,
+      themeMode: s.themeMode, setThemeMode: s.setThemeMode,
+      coverPage: s.coverPage, setCoverPage: s.setCoverPage,
+      pageSize: s.pageSize, setPageSize: s.setPageSize,
+      includeChildPages: s.includeChildPages, setIncludeChildPages: s.setIncludeChildPages,
+      applyPreset: s.applyPreset,
+    }))
+  );
 
   const [previewContent, setPreviewContent] = useState<string>('');
   const [loading, setLoading] = useState(false);

@@ -52,6 +52,22 @@ export interface BulletProps {
   title?: string;
   /** Size variant */
   size?: BulletSize;
+  /** Disable the default optical-offset nudge (used when the bullet is vertically centered). */
+  disableOpticalOffset?: boolean;
+  /** Whether this bullet belongs to a ghost pseudo-block. */
+  isGhost?: boolean;
+  /** Compact list-view size context (e.g. 'sm' for small list view). */
+  listSize?: 'sm' | 'md';
+  /** Whether this bullet is rendered inside a property text block editor. */
+  inPropertyEditor?: boolean;
+  /** Document mode: hide the bullet entirely. */
+  documentMode?: boolean;
+  /** When true, the dot is dimmed until the bullet is hovered. */
+  dimmed?: boolean;
+  /** Spacing to the right of the bullet (default gives a standard block gap). */
+  spacing?: 'default' | 'none';
+  /** When true, keeps the bullet fully visible in focus mode. */
+  focusMode?: boolean;
 }
 
 export function Bullet({
@@ -72,6 +88,14 @@ export function Bullet({
   className = '',
   title,
   size = 'sm',
+  disableOpticalOffset = false,
+  isGhost = false,
+  listSize,
+  inPropertyEditor,
+  documentMode,
+  dimmed,
+  spacing = 'default',
+  focusMode,
 }: BulletProps) {
   const bulletRef = useRef<HTMLElement>(null);
 
@@ -136,6 +160,14 @@ export function Bullet({
       {...(activatorListeners || {})}
       title={computedTitle}
       tabIndex={interactive ? 0 : -1}
+      data-optical-offset={disableOpticalOffset ? 'false' : undefined}
+      data-ghost={isGhost || undefined}
+      data-list-size={listSize || undefined}
+      data-property-editor={inPropertyEditor || undefined}
+      data-document-mode={documentMode || undefined}
+      data-dimmed={dimmed || undefined}
+      data-spacing={spacing}
+      data-focus-mode={focusMode || undefined}
       {...buttonProps}
     >
       {/* Bullet container */}

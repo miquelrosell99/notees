@@ -1,8 +1,38 @@
-"""Tests for tag storage in node.tag_ids."""
+"""Tests for tag storage in node.tag_ids using in-memory fakes."""
 
 import pytest
 
-from app.domain.entities import NodeCreateData
+from app.domain.entities import Node, NodeCreateData
+from app.domain.entities.constants import SYSTEM_CLASS_UUIDS
+from app.features.nodes.node_service import NodeService
+from tests.fakes import (
+    FakeClassExtendRepository,
+    FakeLinkParsingService,
+    FakeNodeRepository,
+    FakePropertyRepository,
+)
+
+pytestmark = pytest.mark.unit
+
+
+@pytest.fixture
+def node_service():
+    """Build a NodeService backed by in-memory fakes."""
+    node_repo = FakeNodeRepository()
+    page_class = node_repo.add_node(
+        Node(uuid=SYSTEM_CLASS_UUIDS["page"], name="Page", is_page=True)
+    )
+    property_repo = FakePropertyRepository()
+    link_service = FakeLinkParsingService()
+    class_extend_repo = FakeClassExtendRepository()
+    return NodeService(
+        node_repo,
+        property_repo,
+        link_service,
+        page_class_id=page_class.id,
+        workspace_id=1,
+        class_extend_repo=class_extend_repo,
+    )
 
 
 @pytest.mark.asyncio

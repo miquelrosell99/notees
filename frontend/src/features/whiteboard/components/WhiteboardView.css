@@ -1,0 +1,723 @@
+/* ────────────────────────────────────────────────────────────── */
+/*  WHITEBOARD-SCOPED Z-INDEX LAYERS                             */
+/*  All other tokens come from variables.css                      */
+/* ────────────────────────────────────────────────────────────── */
+
+.whiteboard-view {
+  --grid-dot-radius: var(--border-width-medium);
+  --wb-minimap-height: 170px;
+  --wb-stroke-dashed: 8 4;
+  --wb-stroke-dotted: 2 4;
+  --wb-search-bar-input-width: 11.25rem;
+  --letter-spacing-label: 0.05em;
+  --wb-z-canvas: 0;
+  --wb-z-strokes: var(--z-10);
+  --wb-z-elements: var(--z-20);
+  --wb-z-ui: var(--z-100);
+  --wb-z-overlay: var(--z-1000);
+}
+
+/* ────────────────────────────────────────────────────────────── */
+/*  WHITEBOARD VIEW CONTAINER                                    */
+/* ────────────────────────────────────────────────────────────── */
+
+.whiteboard-view {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background-color: var(--color-background);
+  user-select: none;
+  -webkit-user-select: none;
+  /* Hardware acceleration for smoother panning/zooming */
+  transform: translateZ(0);
+}
+
+/* ────────────────────────────────────────────────────────────── */
+/*  GRID BACKGROUND                                              */
+/* ────────────────────────────────────────────────────────────── */
+
+.whiteboard-view--grid {
+  background-image: radial-gradient(
+    circle,
+    var(--color-outline-variant) var(--grid-dot-radius),
+    transparent var(--grid-dot-radius)
+  );
+  background-position: var(--grid-offset-x, 0px) var(--grid-offset-y, 0px);
+  background-size: var(--grid-size) var(--grid-size);
+}
+
+/* Pan/Zoom cursors */
+.whiteboard-view--panning {
+  cursor: grab;
+}
+
+.whiteboard-view--panning-active {
+  cursor: grabbing;
+}
+
+.whiteboard-view--drawing {
+  cursor: crosshair;
+}
+
+/* Eraser uses a custom SVG circle cursor — hide the system cursor */
+.whiteboard-view--eraser {
+  cursor: none;
+}
+
+.whiteboard-view--drawing .whiteboard-element,
+.whiteboard-view--drawing .whiteboard-element * {
+  cursor: crosshair !important;
+  pointer-events: none !important;
+}
+
+/* ────────────────────────────────────────────────────────────── */
+/*  CANVAS LAYER                                                 */
+/* ────────────────────────────────────────────────────────────── */
+
+.whiteboard-view__canvas {
+  position: absolute;
+  inset: 0;
+  touch-action: none;
+  z-index: var(--wb-z-canvas);
+  transform-origin: 0 0;
+  outline: none;
+}
+
+.whiteboard-view__canvas:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus-ring);
+}
+
+/* SVG Overlays (Strokes, Connectors) — scoped to direct children only
+   so that icons inside card elements are unaffected. */
+.whiteboard-view__canvas > svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.whiteboard-view__strokes-svg {
+  z-index: var(--wb-z-strokes);
+}
+
+/* ────────────────────────────────────────────────────────────── */
+/*  ELEMENTS                                                      */
+/* ────────────────────────────────────────────────────────────── */
+
+.whiteboard-view__elements {
+  position: absolute;
+  inset: 0;
+  z-index: var(--wb-z-elements);
+  pointer-events: none;
+}
+
+.whiteboard-element {
+  position: absolute;
+  pointer-events: auto; /* Re-enable events on elements */
+  cursor: default;
+  transform-origin: center;
+  /* Smoother transforms during interaction */
+  will-change: transform, left, top; 
+  box-sizing: border-box;
+}
+
+.whiteboard-element--search-match {
+  outline: var(--border-width-thick) solid var(--color-tertiary);
+  outline-offset: var(--spacing-micro);
+}
+
+/* Text elements */
+.whiteboard-text {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1.5;
+  user-select: text;
+  cursor: text;
+}
+
+.whiteboard-text--editing textarea {
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  border: none;
+  resize: none;
+  outline: none;
+  font: inherit;
+  color: inherit;
+  padding: 0;
+  margin: 0;
+  overflow: hidden;
+}
+
+.whiteboard-text--editing textarea:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus-ring);
+}
+
+/* Images */
+.whiteboard-image {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border-radius: var(--shape-medium);
+  background: var(--color-surface);
+}
+
+.whiteboard-image img {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* ────────────────────────────────────────────────────────────── */
+/*  SELECTION STYLING                                            */
+/* ────────────────────────────────────────────────────────────── */
+
+.whiteboard-element--locked {
+  cursor: not-allowed;
+  opacity: var(--opacity-80);
+}
+
+.whiteboard-element--dragging {
+  cursor: grabbing;
+  opacity: var(--opacity-95);
+  transition: box-shadow var(--motion-duration-medium) var(--motion-easing-standard);
+  z-index: var(--z-1000) !important;
+}
+
+/* ────────────────────────────────────────────────────────────── */
+/*  GROUP BOUNDING BOXES                                         */
+/* ────────────────────────────────────────────────────────────── */
+
+.whiteboard-group {
+  position: absolute;
+  pointer-events: none; /* Hit detection is canvas-based, not DOM-based */
+  border: var(--border-width-medium) dashed var(--color-outline-variant);
+  border-radius: var(--shape-medium);
+  background: color-mix(in srgb, var(--color-primary) 4%, transparent);
+  box-sizing: border-box;
+  transition:
+    border-color var(--motion-duration-short) var(--motion-easing-standard),
+    background var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.whiteboard-group--selected {
+  border-color: var(--color-primary);
+  border-style: solid;
+  background: color-mix(in srgb, var(--color-primary) 8%, transparent);
+}
+
+/* ────────────────────────────────────────────────────────────── */
+/*  RESIZE & ROTATION HANDLES                                    */
+/* ────────────────────────────────────────────────────────────── */
+
+.whiteboard-element__resize-handles {
+  position: absolute;
+  inset: calc(var(--spacing-2) * -1); /* Slightly larger hit area container */
+  pointer-events: none;
+}
+
+.whiteboard-element__resize-handle {
+  position: absolute;
+  width: var(--spacing-tight);
+  height: var(--spacing-tight);
+  background: var(--color-background);
+  border: var(--border-width-thick) solid var(--color-primary);
+  border-radius: var(--shape-full);
+  pointer-events: auto;
+  z-index: var(--z-20);
+  opacity: var(--opacity-100);
+  transition: transform var(--motion-duration-short) var(--motion-easing-tactile);
+}
+
+.whiteboard-element__resize-handle:hover {
+  background: var(--color-primary);
+  transform: scale(1.3);
+}
+
+/* Handle Positions */
+.whiteboard-element__resize-handle--nw { top: calc(var(--spacing-xxs) * -1); left: calc(var(--spacing-xxs) * -1); cursor: nw-resize; }
+.whiteboard-element__resize-handle--n  { top: calc(var(--spacing-xxs) * -1); left: 50%; transform: translateX(-50%); cursor: n-resize; }
+.whiteboard-element__resize-handle--ne { top: calc(var(--spacing-xxs) * -1); right: calc(var(--spacing-xxs) * -1); cursor: ne-resize; }
+.whiteboard-element__resize-handle--e  { top: 50%; right: calc(var(--spacing-xxs) * -1); transform: translateY(-50%); cursor: e-resize; }
+.whiteboard-element__resize-handle--se { bottom: calc(var(--spacing-xxs) * -1); right: calc(var(--spacing-xxs) * -1); cursor: se-resize; }
+.whiteboard-element__resize-handle--s  { bottom: calc(var(--spacing-xxs) * -1); left: 50%; transform: translateX(-50%); cursor: s-resize; }
+.whiteboard-element__resize-handle--sw { bottom: calc(var(--spacing-xxs) * -1); left: calc(var(--spacing-xxs) * -1); cursor: sw-resize; }
+.whiteboard-element__resize-handle--w  { top: 50%; left: calc(var(--spacing-xxs) * -1); transform: translateY(-50%); cursor: w-resize; }
+
+/* Preserve centering transforms on edge handles when hovered */
+.whiteboard-element__resize-handle--n:hover { transform: translateX(-50%) scale(1.3); }
+.whiteboard-element__resize-handle--s:hover { transform: translateX(-50%) scale(1.3); }
+.whiteboard-element__resize-handle--e:hover { transform: translateY(-50%) scale(1.3); }
+.whiteboard-element__resize-handle--w:hover { transform: translateY(-50%) scale(1.3); }
+
+/* Rotation Handle */
+.whiteboard-element__rotation-handle {
+  position: absolute;
+  top: calc(var(--whiteboard-rotation-handle-offset) * -1);
+  left: 50%;
+  transform: translateX(-50%);
+  width: var(--icon-size-lg);
+  height: var(--height-xs);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  z-index: var(--z-20);
+}
+
+.whiteboard-element__rotation-handle::after {
+  content: '';
+  width: var(--spacing-tight);
+  height: var(--spacing-tight);
+  border-radius: var(--shape-full);
+  background: var(--color-background);
+  border: var(--border-width-thick) solid var(--color-primary);
+  transition: transform var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.whiteboard-element__rotation-handle:hover::after {
+  transform: scale(1.2);
+  background: var(--color-primary);
+}
+
+.whiteboard-element__rotation-handle::before {
+  content: '';
+  position: absolute;
+  top: var(--icon-size-xs);
+  height: var(--icon-size-sm);
+  width: var(--spacing-hairline);
+  background: var(--color-primary);
+}
+
+/* ────────────────────────────────────────────────────────────── */
+/*  CONNECTOR ANCHORS                                            */
+/* ────────────────────────────────────────────────────────────── */
+
+.whiteboard-element__anchor {
+  position: absolute;
+  width: var(--spacing-tight);
+  height: var(--spacing-tight);
+  background: var(--color-primary);
+  border: var(--border-width-thick) solid var(--color-background);
+  border-radius: var(--shape-full);
+  cursor: crosshair;
+  pointer-events: auto;
+  opacity: var(--opacity-0);
+  transform: translate(-50%, -50%) scale(0.5);
+  transition:
+    opacity var(--motion-duration-medium) var(--motion-easing-standard),
+    transform var(--motion-duration-medium) var(--motion-easing-tactile);
+  z-index: var(--z-30);
+}
+
+.whiteboard-element:hover .whiteboard-element__anchor,
+.whiteboard-element--selected .whiteboard-element__anchor {
+  opacity: var(--opacity-100);
+  transform: translate(-50%, -50%) scale(1);
+}
+
+.whiteboard-element__anchor:hover {
+  transform: translate(-50%, -50%) scale(1.4);
+}
+
+.whiteboard-element__anchor--top    { top: 0; left: 50%; }
+.whiteboard-element__anchor--right  { top: 50%; left: 100%; }
+.whiteboard-element__anchor--bottom { top: 100%; left: 50%; }
+.whiteboard-element__anchor--left   { top: 50%; left: 0; }
+
+/* ────────────────────────────────────────────────────────────── */
+/*  CARD COMPONENT                                               */
+/* ────────────────────────────────────────────────────────────── */
+
+.whiteboard-card {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-surface);
+  border: var(--border-width-default) solid var(--color-outline-variant);
+  border-radius: var(--shape-large);
+  overflow: hidden;
+  transition:
+    box-shadow var(--motion-duration-medium) var(--motion-easing-standard),
+    transform var(--motion-duration-medium) var(--motion-easing-standard);
+}
+
+.whiteboard-element:hover .whiteboard-card {
+}
+
+.whiteboard-card__header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-2) var(--spacing-3);
+  background: var(--color-surface-variant);
+  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
+  min-height: var(--spacing-9);
+  cursor: grab;
+}
+
+/* Reference Card Variant */
+.whiteboard-card--reference {
+  border-style: dashed;
+}
+
+.whiteboard-card__header--reference {
+  background: color-mix(in srgb, var(--color-primary) 5%, var(--color-surface-variant));
+}
+
+.whiteboard-card__icon {
+  display: flex;
+  color: var(--color-outline);
+}
+
+.whiteboard-card__title {
+  flex: 1;
+  font-weight: 500;
+  font-size: var(--font-size-base);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--color-on-surface);
+}
+
+.whiteboard-card__badge {
+  color: var(--color-primary);
+  display: flex;
+}
+
+.whiteboard-card__body {
+  flex: 1;
+  padding: var(--spacing-2) var(--spacing-3);
+  overflow-y: auto;
+  font-size: var(--font-size-sm);
+  color: var(--color-on-surface-variant);
+}
+
+.whiteboard-card__body--collapsed {
+  display: none;
+}
+
+.whiteboard-card__children {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+}
+
+.whiteboard-card__child {
+  padding: var(--spacing-1) 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--color-on-surface);
+}
+
+/* ────────────────────────────────────────────────────────────── */
+/*  UI OVERLAYS: MINIMAP                                          */
+/* ────────────────────────────────────────────────────────────── */
+
+.whiteboard-minimap {
+  position: absolute;
+  bottom: var(--spacing-4);
+  right: var(--spacing-4);
+  width: var(--layout-size-5xl);
+  height: var(--wb-minimap-height);
+  background: color-mix(in srgb, var(--color-background) 90%, transparent);
+  border: var(--border-width-default) solid var(--color-outline-variant);
+  border-radius: var(--shape-extra-large);
+  backdrop-filter: blur(8px);
+  z-index: var(--wb-z-ui);
+  overflow: hidden;
+}
+
+.whiteboard-minimap__viewport {
+  position: absolute;
+  border: var(--border-width-thick) solid var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+  border-radius: var(--shape-large);
+  pointer-events: none;
+}
+
+.whiteboard-minimap__canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  filter: blur(1.5px);
+  pointer-events: none;
+}
+
+/* ────────────────────────────────────────────────────────────── */
+/*  UI OVERLAYS: TOOLBAR                                          */
+/* ────────────────────────────────────────────────────────────── */
+
+.whiteboard-toolbar {
+  position: absolute;
+  z-index: var(--wb-z-ui);
+  pointer-events: none;
+  display: flex;
+  gap: var(--spacing-2);
+}
+
+.whiteboard-toolbar--bottom-center {
+  bottom: var(--spacing-4);
+  left: 50%;
+  transform: translateX(-50%);
+  pointer-events: auto;
+}
+
+.whiteboard-toolbar--bottom-right {
+  bottom: var(--spacing-4);
+  right: var(--spacing-4);
+  pointer-events: auto;
+}
+
+.whiteboard-toolbar--top-left {
+  top: var(--spacing-4);
+  left: var(--spacing-4);
+  pointer-events: auto;
+}
+
+.whiteboard-toolbar--top-right {
+  top: var(--spacing-4);
+  right: var(--spacing-4);
+  pointer-events: auto;
+}
+
+/* ────────────────────────────────────────────────────────────── */
+/*  ZOOM LEVEL INDICATOR                                          */
+/* ────────────────────────────────────────────────────────────── */
+
+.whiteboard-toolbar__panel {
+  display: flex;
+  flex-direction: column;
+  padding: var(--spacing-2);
+  gap: var(--spacing-2);
+}
+
+.whiteboard-toolbar__panel--compact {
+  gap: var(--spacing-1);
+  min-width: var(--whiteboard-toolbar-min-width);
+}
+
+.whiteboard-toolbar__divider {
+  height: var(--spacing-hairline);
+  background: var(--color-outline-variant);
+  margin: 0 var(--spacing-1);
+}
+
+.whiteboard-zoom__level {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--button-min-height);
+  min-height: var(--button-min-height);
+  padding: 0 var(--spacing-2);
+  font: var(--font-label-medium);
+  color: var(--color-on-surface-variant);
+  cursor: pointer;
+  border: none;
+  background: none;
+  border-radius: var(--shape-large);
+  transition: background var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.whiteboard-zoom__level:hover {
+  background: var(--color-surface-container-high);
+  color: var(--color-on-surface);
+}
+
+/* ────────────────────────────────────────────────────────────── */
+/*  NODE CARD IN WHITEBOARD                                       */
+/* ────────────────────────────────────────────────────────────── */
+
+
+/* ────────────────────────────────────────────────────────────── */
+/*  SELECTION CARD (bounding box for all selected items)          */
+/* ────────────────────────────────────────────────────────────── */
+
+.whiteboard-view__selection-card {
+  position: absolute;
+  border: var(--border-width-default) dashed color-mix(in srgb, var(--color-primary) 40%, transparent);
+  border-radius: var(--shape-large);
+  background: transparent;
+  pointer-events: none;
+  z-index: var(--z-50); /* above elements (20), below UI (100) */
+  /* Stays crisp during drag/pan transforms */
+  will-change: left, top, width, height;
+}
+
+/* ────────────────────────────────────────────────────────────── */
+/*  UI OVERLAYS: SELECTION BOX                                    */
+/* ────────────────────────────────────────────────────────────── */
+
+.whiteboard-view__selection-box {
+  position: absolute;
+  border: var(--border-width-default) dashed color-mix(in srgb, var(--color-primary) 50%, transparent);
+  background: color-mix(in srgb, var(--color-primary) 3%, transparent);
+  pointer-events: none;
+  z-index: var(--wb-z-overlay);
+  border-radius: var(--shape-large);
+}
+
+/* ────────────────────────────────────────────────────────────── */
+/*  CONTEXT MENU                                                  */
+/* ────────────────────────────────────────────────────────────── */
+
+.whiteboard-context-menu {
+  position: fixed;
+  z-index: var(--z-modal-backdrop);
+  min-width: var(--layout-size-2xl);
+  background: var(--color-surface);
+  border: var(--border-width-default) solid var(--color-outline-variant);
+  border-radius: var(--shape-large);
+  padding: var(--spacing-1);
+}
+
+/* Pen/shape properties panel — matches graph view panel style */
+.whiteboard-properties {
+  padding: var(--spacing-2-5) var(--spacing-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2-5);
+}
+
+.whiteboard-properties__section {
+  padding: var(--spacing-tight) var(--spacing-3);
+  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.whiteboard-properties__section:last-child {
+  border-bottom: none;
+}
+
+.whiteboard-properties__label {
+  font: var(--font-label-small);
+  color: var(--color-on-surface-variant);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-label);
+}
+
+@keyframes wb-pop-in {
+  from { opacity: var(--opacity-0); transform: scale(0.95); }
+  to { opacity: var(--opacity-100); transform: scale(1); }
+}
+
+/* ─── Stroke style utility classes (applied via className on SVG elements) ─── */
+.wb-ss-dashed { stroke-dasharray: var(--wb-stroke-dashed); }
+.wb-ss-dotted { stroke-dasharray: var(--wb-stroke-dotted); }
+
+/* ─── Align / Distribute floating panel ─── */
+.wb-align-panel {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1);
+  padding: var(--spacing-1-5);
+  background: var(--color-surface);
+  border: var(--border-width-default) solid var(--color-outline-variant);
+  border-radius: var(--shape-medium);
+  box-shadow: var(--shadow-2);
+  z-index: var(--wb-z-overlay);
+  animation: wb-pop-in var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.wb-align-panel__row {
+  display: flex;
+  gap: var(--spacing-1);
+}
+
+.wb-align-panel__btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--button-icon-only-xs);
+  height: var(--button-icon-only-xs);
+  padding: 0;
+  border: none;
+  border-radius: var(--shape-small);
+  background: transparent;
+  color: var(--color-on-surface-variant);
+  cursor: pointer;
+  transition: background var(--motion-duration-short);
+}
+
+.wb-align-panel__btn:hover {
+  background: var(--color-surface-variant);
+  color: var(--color-on-surface);
+}
+
+.wb-align-panel__divider {
+  height: var(--spacing-hairline);
+  background: var(--color-outline-variant);
+  margin: var(--spacing-micro) 0;
+}
+
+/* ─── Canvas search bar ─── */
+.wb-search-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  padding: var(--spacing-1-5) var(--spacing-tight);
+  background: var(--color-surface);
+  border: var(--border-width-default) solid var(--color-outline-variant);
+  border-radius: var(--shape-medium);
+  box-shadow: var(--shadow-2);
+  animation: wb-pop-in var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.wb-search-bar__input {
+  width: var(--wb-search-bar-input-width);
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--color-on-surface);
+  font-size: var(--font-size-base);
+}
+
+.wb-search-bar__input:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus-ring);
+}
+
+.wb-search-bar__input::placeholder {
+  color: var(--color-on-surface-variant);
+}
+
+.wb-search-bar__count {
+  font-size: var(--font-size-sm);
+  color: var(--color-on-surface-variant);
+  white-space: nowrap;
+}
+
+/* ─── Keyboard shortcuts modal ─── */
+.wb-shortcuts-modal {
+  animation: wb-fade-in var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+@keyframes wb-fade-in {
+  from { opacity: var(--opacity-0); }
+  to { opacity: var(--opacity-100); }
+}
+
+.wb-shortcuts-modal__content {
+  animation: wb-pop-in var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+/* Mobile: show whiteboard connector anchors at full scale */
+@media (max-width: 768px) {
+  .whiteboard-element__anchor {
+    transform: translate(-50%, -50%) scale(1);
+  }
+}

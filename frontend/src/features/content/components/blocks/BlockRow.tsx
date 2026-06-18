@@ -6,28 +6,28 @@
  */
 
 import { useRef, useMemo, useEffect, useLayoutEffect, forwardRef, useImperativeHandle, useState, useCallback, memo, startTransition } from 'react';
-import { InlineEditor, type InlineEditorHandle } from '@/features/content/editor/InlineEditor';
+import { InlineEditor, type InlineEditorHandle } from '@/features/editor';
 import { BlockUI } from './BlockUI';
 import { BlockAfterContent } from './BlockAfterContent';
 import { BulletLine } from './BulletLine';
 import { useEditorFocusStore } from '@/stores/editorFocusStore';
-import { liveSyncManager } from '@/collab/LiveSyncManager';
+import { liveSyncManager, useLivePresenceStore } from '@/features/collab';
 import { parseAST, parseLinkId } from '@/lib/astBuilder';
 import { nodeNameToText } from '@/features/queries';
 import { NodeContextMenu } from '@/features/content/components/nodes/NodeContextMenu';
 import { copyRuntimeBlocksToClipboard } from '@/utils/clipboardManager';
 import { useClipboardStore } from '@/stores/clipboardStore';
 import { useAuthStore } from '@/features/auth';
-import { pasteBlocksAfterBlock } from '@/features/content/editor/utils/pasteBlocks';
-import { useLivePresenceStore } from '@/stores/livePresenceStore';
+import { pasteBlocksAfterBlock } from '@/features/editor';
 import { useShallow } from 'zustand/react/shallow';
 // Kept as a deep import to avoid a circular dependency: useTaskActions imports
 // the content barrel, and the content barrel exports BlockRow. Using the tasks
 // barrel here would close the cycle content -> tasks -> content.
-import { useTaskActions } from '@/features/tasks/hooks/useTaskActions';
-import { useResolvedClassDetails, useProperties, useClasses } from '@/hooks';
+import { useTaskActions } from '@/features/tasks';
+import { useProperties } from '@/features/properties';
+import { useResolvedClassDetails, useClasses } from '@/features/content';
 import { ClassPillsRow } from '@/features/content/components/nodes/ClassPillsRow';
-import { PropertyIconButton } from '@/features/content/components/properties/PropertyIconButton';
+import { PropertyIconButton } from '@/features/properties';
 import { getNodeColorStylesAuto } from '@/utils/color';
 import { SYSTEM_CLASS_UUIDS } from '@/constants';
 import { Button } from '@/components/ui/Button';
@@ -88,6 +88,14 @@ interface BlockRowProps {
   isOnActiveTrail?: boolean;
   /** If true, the list-level overlay renders guide lines; this row only shows its own thread line. */
   useOverlayForGuides?: boolean;
+  /** Whether this row is rendered inside a card context. */
+  inCard?: boolean;
+  /** Compact list-view size context (e.g. 'sm' for small list view). */
+  listSize?: 'sm' | 'md';
+  /** Whether this row is rendered inside a property text block editor. */
+  inPropertyEditor?: boolean;
+  /** Document mode: hide bullets and flatten chrome. */
+  documentMode?: boolean;
 }
 
 // ─── Component ────────────────────────────────────────────────────
@@ -121,6 +129,10 @@ export const BlockRow = memo(
       onGhostRealize,
       isOnActiveTrail = false,
       useOverlayForGuides = false,
+      inCard = false,
+      listSize,
+      inPropertyEditor,
+      documentMode,
     },
     ref,
   ): JSX.Element {
@@ -195,6 +207,7 @@ export const BlockRow = memo(
 
     const [contextMenuPos, setContextMenuPos] = useState<{ x: number; y: number } | null>(null);
     const [backlinkExpanded, setBacklinkExpanded] = useState(false);
+    const [isRowHovered, setIsRowHovered] = useState(false);
     const toggleBacklinks = useCallback(() => {
       startTransition(() => setBacklinkExpanded((v) => !v));
     }, []);
@@ -389,6 +402,11 @@ export const BlockRow = memo(
         initialContentAST={contentAST}
         readOnly={readOnly || isLocked}
         placeholder={placeholder}
+        isPage={node.is_page}
+        hasNodeColor={!!node.color}
+        inCard={inCard}
+        listSize={listSize}
+        inPropertyEditor={inPropertyEditor}
         onContentChange={onContentChange}
         onPillClick={onPillClick}
         onPillRemove={onPillRemove}
@@ -423,7 +441,13 @@ export const BlockRow = memo(
         data-block-id={node.uuid}
         data-depth={depth}
         data-ghost={isGhost || undefined}
+        data-in-card={inCard || undefined}
+        data-list-size={listSize || undefined}
+        data-property-editor={inPropertyEditor || undefined}
+        data-document-mode={documentMode || undefined}
         style={{ '--block-depth': depth, ...colorStyle } as React.CSSProperties}
+        onMouseEnter={() => setIsRowHovered(true)}
+        onMouseLeave={() => setIsRowHovered(false)}
       >
         {depth > 0 && !isGhost && (
           <BulletLine
@@ -454,6 +478,11 @@ export const BlockRow = memo(
             conflict={conflict}
             onRequestLock={nodeUuid ? handleRequestLock : undefined}
             onResolveConflict={nodeUuid ? handleResolveConflict : undefined}
+            rowHover={isRowHovered}
+            isGhost={isGhost}
+            listSize={listSize}
+            inPropertyEditor={inPropertyEditor}
+            documentMode={documentMode}
           />
           {propertyIcons.afterBullet.length > 0 && (
             <div className="block-property-icons">

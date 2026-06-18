@@ -17,6 +17,15 @@ import { useClickOutside } from '@/hooks/useClickOutside';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
 import './ButtonWithPanel.css';
 
+/** Space between the trigger and the floating panel. */
+const PANEL_GAP = 8;
+/** Minimum clearance from the panel to the viewport edge. */
+const VIEWPORT_MARGIN = 16;
+/** Default panel width when no explicit width is provided. */
+const DEFAULT_PANEL_WIDTH = 280;
+/** Estimated panel height used for viewport collision detection. */
+const ESTIMATED_PANEL_HEIGHT = 300;
+
 export type PanelPosition = 'left' | 'right' | 'top' | 'bottom';
 export type PanelAlignment = 'start' | 'center' | 'end';
 
@@ -39,6 +48,8 @@ export interface ButtonWithPanelProps {
   panelClassName?: string;
   className?: string;
   tooltip?: string;
+  /** Accessible name for the popup dialog. Used when `title` is absent. */
+  'aria-label'?: string;
   disabled?: boolean;
   children?: ReactNode | ((closePanel: () => void) => ReactNode);
   buttonProps?: Partial<ButtonProps>;
@@ -55,7 +66,7 @@ export function ButtonWithPanel({
   size = 'md',
   panelPosition = 'right',
   panelAlignment = 'start',
-  panelWidth = 280,
+  panelWidth = DEFAULT_PANEL_WIDTH,
   panelMaxHeight,
   open: controlledOpen,
   onOpenChange,
@@ -67,6 +78,7 @@ export function ButtonWithPanel({
   panelClassName = '',
   className = '',
   tooltip,
+  'aria-label': ariaLabel,
   disabled,
   children,
   buttonProps = {},
@@ -157,9 +169,8 @@ export function ButtonWithPanel({
     if (!usePortal || !isOpen || !containerRef.current) return;
     
     const rect = containerRef.current.getBoundingClientRect();
-    const gap = 8;
-    const actualWidth = typeof panelWidth === 'number' ? panelWidth : 280;
-    const estimatedHeight = 300; // Estimate for collision detection
+    const actualWidth = typeof panelWidth === 'number' ? panelWidth : DEFAULT_PANEL_WIDTH;
+    const estimatedHeight = ESTIMATED_PANEL_HEIGHT;
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
     
@@ -174,29 +185,29 @@ export function ButtonWithPanel({
       
       switch (pos) {
         case 'right':
-          l = rect.right + gap;
+          l = rect.right + PANEL_GAP;
           t = panelAlignment === 'start' ? rect.top 
               : panelAlignment === 'end' ? rect.bottom - estimatedHeight
               : rect.top + rect.height / 2 - estimatedHeight / 2;
-          return { top: t, left: l, fits: l + actualWidth <= viewportWidth - 16 };
+          return { top: t, left: l, fits: l + actualWidth <= viewportWidth - VIEWPORT_MARGIN };
         case 'left':
-          l = rect.left - gap - actualWidth;
+          l = rect.left - PANEL_GAP - actualWidth;
           t = panelAlignment === 'start' ? rect.top 
               : panelAlignment === 'end' ? rect.bottom - estimatedHeight
               : rect.top + rect.height / 2 - estimatedHeight / 2;
-          return { top: t, left: l, fits: l >= 16 };
+          return { top: t, left: l, fits: l >= VIEWPORT_MARGIN };
         case 'bottom':
-          t = rect.bottom + gap;
+          t = rect.bottom + PANEL_GAP;
           l = panelAlignment === 'start' ? rect.left 
                : panelAlignment === 'end' ? rect.right - actualWidth 
                : rect.left + rect.width / 2 - actualWidth / 2;
-          return { top: t, left: l, fits: t + estimatedHeight <= viewportHeight - 16 };
+          return { top: t, left: l, fits: t + estimatedHeight <= viewportHeight - VIEWPORT_MARGIN };
         case 'top':
-          t = rect.top - gap - estimatedHeight;
+          t = rect.top - PANEL_GAP - estimatedHeight;
           l = panelAlignment === 'start' ? rect.left 
                : panelAlignment === 'end' ? rect.right - actualWidth 
                : rect.left + rect.width / 2 - actualWidth / 2;
-          return { top: t, left: l, fits: rect.top - gap >= estimatedHeight + 16 };
+          return { top: t, left: l, fits: rect.top - PANEL_GAP >= estimatedHeight + VIEWPORT_MARGIN };
       }
     };
     
@@ -219,14 +230,14 @@ export function ButtonWithPanel({
     }
     
     // Clamp horizontal
-    left = Math.max(16, Math.min(result.left, viewportWidth - actualWidth - 16));
+    left = Math.max(VIEWPORT_MARGIN, Math.min(result.left, viewportWidth - actualWidth - VIEWPORT_MARGIN));
 
     if (chosenPosition === 'top') {
       // Anchor bottom edge to button top: panel grows upward, height-independent
-      const bottomAnchor = viewportHeight - (rect.top - gap);
-      setPortalPosition({ bottom: Math.max(16, bottomAnchor), left });
+      const bottomAnchor = viewportHeight - (rect.top - PANEL_GAP);
+      setPortalPosition({ bottom: Math.max(VIEWPORT_MARGIN, bottomAnchor), left });
     } else {
-      top = Math.max(16, Math.min(result.top, viewportHeight - estimatedHeight - 16));
+      top = Math.max(VIEWPORT_MARGIN, Math.min(result.top, viewportHeight - estimatedHeight - VIEWPORT_MARGIN));
       setPortalPosition({ top, left });
     }
   }, [isOpen, usePortal, panelWidth, panelPosition, panelAlignment]);
@@ -275,14 +286,14 @@ export function ButtonWithPanel({
   return (
     <div className={containerClasses} ref={containerRef}>
       {customTrigger ? (
-        <button
-          type="button"
+        <Button
+          variant="ghost"
           className={`btn-panel-custom-trigger ${buttonClassName}`}
           onClick={disabled ? undefined : togglePanel}
           disabled={disabled}
         >
           {customTrigger}
-        </button>
+        </Button>
       ) : (
         <Button
           ref={buttonRef}
@@ -291,6 +302,7 @@ export function ButtonWithPanel({
           active={isOpen}
           className={buttonClassName}
           title={tooltip}
+          aria-label={buttonProps['aria-label'] ?? (!buttonText ? tooltip : undefined)}
           disabled={disabled}
           {...buttonProps}
           icon={buttonProps.icon ?? icon}
@@ -307,12 +319,14 @@ export function ButtonWithPanel({
           style={getPanelStyle()}
           role="dialog"
           aria-modal="true"
+          aria-labelledby={title ? 'btn-panel-title' : undefined}
+          aria-label={!title ? ariaLabel : undefined}
           padding={false}
           elevation="medium"
         >
           {title && (
             <div className="btn-panel__header">
-              <h4 className="btn-panel__title">{title}</h4>
+              <h4 id="btn-panel-title" className="btn-panel__title">{title}</h4>
               {showCloseButton && (
                 <Button
                   variant="ghost"
@@ -346,20 +360,23 @@ export function ButtonWithPanel({
           }}
           role="dialog"
           aria-modal="true"
+          aria-labelledby={title ? 'btn-panel-title' : undefined}
+          aria-label={!title ? ariaLabel : undefined}
           padding={false}
           elevation="medium"
         >
           {title && (
             <div className="btn-panel__header">
-              <h4 className="btn-panel__title">{title}</h4>
+              <h4 id="btn-panel-title" className="btn-panel__title">{title}</h4>
               {showCloseButton && (
-                <button
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  icon="mdi mdi-close"
                   className="btn-panel__close"
                   onClick={closePanel}
                   aria-label="Close panel"
-                >
-                  ×
-                </button>
+                />
               )}
             </div>
           )}

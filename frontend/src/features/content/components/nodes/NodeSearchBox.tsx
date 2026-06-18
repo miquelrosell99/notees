@@ -7,10 +7,10 @@
  */
 import { useState, useMemo, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { SearchBox } from '@/components/ui/SearchBox';
+import { SearchBox } from '@/components/ui';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
-import { useSearch } from '@/hooks';
-import { nodeNameToText } from '@/features/queries/hooks/useStringifyAST';
+import { useSearch } from '@/features/content';
+import { nodeNameToText } from '@/features/queries';
 import { NodeIcon } from '@/components/ui/icons';
 import type { Node } from '@/types';
 import { searchKeys } from '@/hooks/queryKeys';

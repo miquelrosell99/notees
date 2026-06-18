@@ -10,7 +10,8 @@
  */
 import { useMemo, useCallback } from 'react';
 import { useNavigationStore } from '@/stores';
-import { useComments, useNodeActivity, useNode, nodeNameToText } from '@/hooks';
+import { useComments, useNodeActivity, useNode } from '@/features/content';
+import { nodeNameToText } from '@/features/queries';
 import { parseAST } from '@/lib/astBuilder';
 import { isHeadingBlock } from '@/types/ast';
 import type { Node } from '@/types/api';

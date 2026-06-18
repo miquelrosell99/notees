@@ -132,6 +132,7 @@ export function ImportDataModal({
               onChange={(e) => setContent(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder='{"version": 1, "format": "notees-blocks", ...}'
+              aria-label="JSON data to import"
               spellCheck={false}
             />
           </div>

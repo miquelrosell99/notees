@@ -26,10 +26,11 @@ async def test_circular_reference_prevention(node_service, test_workspace_id):
     assert result.parent_id == node_d.id
 
 
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_move_node_exceeds_max_depth(authenticated_client, node_service):
     """Test that moving a node to exceed MAX_HIERARCHY_DEPTH fails."""
-    from app.domain.services.node_service import MAX_HIERARCHY_DEPTH
+    from app.features.nodes.node_service import MAX_HIERARCHY_DEPTH
 
     parent_id = None
     nodes = []
@@ -55,6 +56,7 @@ async def test_move_node_exceeds_max_depth(authenticated_client, node_service):
     assert "maximum hierarchy depth" in str(exc_info.value).lower()
 
 
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_move_node_within_depth_limit_succeeds(authenticated_client, node_service):
     """Test that moves within the depth limit succeed."""

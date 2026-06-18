@@ -150,7 +150,7 @@
 }
 
 /* Ensure Card fills the aspect-ratio container */
-.node-collection--contained.node-collection--graph .node-collection__content .card {
+.node-collection--contained.node-collection--graph .node-collection__card {
   height: 100%;
   box-sizing: border-box;
 }

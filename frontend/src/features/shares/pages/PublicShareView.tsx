@@ -5,11 +5,11 @@
  */
 import { useState, useEffect, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
-import { Spinner } from '@/components/ui/Spinner';
-import { Icon } from '@/components/ui/Icon';
+import { Spinner, Icon } from '@/components/ui';
 import { usePublicShare, useSubmitPublicSharePassword } from '@/features/shares';
-import { NodeInline, getPropertyValueRenderer } from '@/features/content';
-import '@/features/content/components/properties/registerPropertyRenderers';
+import { getPropertyValueRenderer } from '@/features/properties';
+import { NodeInline } from '@/features/content';
+import '@/features/properties';
 import type { CSSProperties } from 'react';
 import type { PublicSharedNode } from '@/features/shares/api/shares';
 import './PublicShareView.css';

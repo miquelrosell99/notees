@@ -5,7 +5,7 @@
  */
 
 export { NodeActivityLogSection } from './NodeActivityLogSection';
-export type { NodeActivity } from '@/api/activity';
+export type { NodeActivity } from '../../api/activity';
 
 export { NodeBreadcrumbs } from './NodeBreadcrumbs';
 export type { BreadcrumbItem } from './NodeBreadcrumbs';
@@ -29,7 +29,7 @@ export { UnlinkedMentionsSection } from './UnlinkedMentionsSection';
 export { NodeCollection } from './NodeCollection';
 export { useNodeCollectionContext } from './NodeCollectionContext';
 export type { NodeCollectionProps, NodeCollectionViewMode } from './NodeCollection';
-export { getViewModeOptions } from './views';
+export { getViewModeOptions } from '@/features/views';
 
 export { NodeCollectionToolbar } from './NodeCollectionToolbar';
 export { NodeMetadataSection } from './NodeMetadataSection';
@@ -55,6 +55,5 @@ export {
   GanttView,
   GraphView,
   TimelineView,
-  WhiteboardView,
-} from './views';
-export type { GraphViewProps } from './views';
+} from '@/features/views';
+export type { GraphViewProps } from '@/features/views';

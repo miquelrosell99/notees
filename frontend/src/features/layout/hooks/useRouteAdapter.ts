@@ -10,6 +10,7 @@ import { useEffect, useCallback, type MutableRefObject } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigationStore, useSettingsStore, type MainViewType, type DefaultView } from '@/stores';
+import { useShallow } from 'zustand/react/shallow';
 import { useTodayNote } from '@/features/content';
 import { useNavigationHistoryStore } from '@/stores/navigationHistoryStore';
 import { listWorkspaces, switchWorkspace } from '@/features/workspace';
@@ -46,7 +47,14 @@ export function useRouteAdapter({ hasInitialized, isProcessingUrl }: RouteAdapte
     openNode,
     openPropertyView,
     openNodeInNewTab,
-  } = useNavigationStore();
+  } = useNavigationStore(
+    useShallow((s) => ({
+      setMainViewType: s.setMainViewType,
+      openNode: s.openNode,
+      openPropertyView: s.openPropertyView,
+      openNodeInNewTab: s.openNodeInNewTab,
+    }))
+  );
 
   const defaultView = useSettingsStore((s) => s.defaultView);
   const { data: todayNote } = useTodayNote();

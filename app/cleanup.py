@@ -5,6 +5,9 @@ Removes:
 - Soft-deleted nodes (trash) older than the workspace retention setting.
 - Old activity log rows when activity-log retention is enabled.
 - Old task completion rows when task-completion retention is enabled.
+
+The scheduler only orchestrates cleanup timing; all SQL and retention business
+logic lives in CleanupRepository.
 """
 
 from __future__ import annotations
@@ -13,11 +16,12 @@ import asyncio
 import shutil
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any
 
 from .config import settings
-from .db.connection import get_connection, get_data_dir
-from .domain.services.asset_service import AssetFileService
+from .db.connection import get_data_dir, get_pool
+from .domain.repositories.factories import make_cleanup_repository
+from .domain.repositories.interfaces import CleanupRepository
+from .features.assets.service import AssetFileService
 from .logging_config import get_logger
 from .system_settings import get_system_setting
 
@@ -43,11 +47,17 @@ class CleanupScheduler:
         workspace_max_age_days: int = 30,
         user_max_age_days: int = 30,
     ):
+        self._cleanup_repo: CleanupRepository | None = None
         self.interval = interval_seconds
         self.workspace_max_age_days = workspace_max_age_days
         self.user_max_age_days = user_max_age_days
         self.running = False
         self.task: asyncio.Task | None = None
+
+    async def _get_repo(self) -> CleanupRepository:
+        if self._cleanup_repo is None:
+            self._cleanup_repo = make_cleanup_repository(await get_pool())
+        return self._cleanup_repo
 
     async def start(self):
         """Start the cleanup scheduler."""
@@ -118,31 +128,27 @@ class CleanupScheduler:
             return
 
         cutoff = datetime.now(UTC) - timedelta(days=max_age_days)
+        active_uuids = {
+            str(ws["uuid"]) for ws in await (await self._get_repo()).list_active_workspaces()
+        }
 
-        async with get_connection() as conn:
-            for entry in workspaces_dir.iterdir():
-                if not entry.is_dir():
-                    continue
+        for entry in workspaces_dir.iterdir():
+            if not entry.is_dir():
+                continue
 
-                workspace_uuid = entry.name
-                # Check if workspace still exists in DB
-                row = await conn.fetchrow(
-                    "SELECT 1 FROM workspace WHERE uuid::text = $1 AND active = TRUE",
-                    workspace_uuid,
-                )
-                if row is not None:
-                    continue  # Workspace still exists
+            workspace_uuid = entry.name
+            if workspace_uuid in active_uuids:
+                continue
 
-                # Check age
-                mtime = datetime.fromtimestamp(entry.stat().st_mtime, tz=UTC)
-                if mtime > cutoff:
-                    continue  # Too recent
+            mtime = datetime.fromtimestamp(entry.stat().st_mtime, tz=UTC)
+            if mtime > cutoff:
+                continue
 
-                logger.info(f"Removing orphaned workspace directory: {entry}")
-                try:
-                    shutil.rmtree(entry)
-                except Exception as e:
-                    logger.error(f"Failed to remove {entry}: {e}")
+            logger.info(f"Removing orphaned workspace directory: {entry}")
+            try:
+                shutil.rmtree(entry)
+            except Exception as e:
+                logger.error(f"Failed to remove {entry}: {e}")
 
     async def _cleanup_users(self, data_dir: Path, max_age_days: int):
         """Remove orphaned user directories."""
@@ -152,227 +158,139 @@ class CleanupScheduler:
 
         cutoff = datetime.now(UTC) - timedelta(days=max_age_days)
 
-        async with get_connection() as conn:
-            for entry in users_dir.iterdir():
-                if not entry.is_dir():
-                    continue
+        for entry in users_dir.iterdir():
+            if not entry.is_dir():
+                continue
 
-                user_id = entry.name
-                # Check if user still exists in DB
-                row = await conn.fetchrow(
-                    'SELECT 1 FROM "user" WHERE id::text = $1 OR uuid::text = $1',
-                    user_id,
-                )
-                if row is not None:
-                    continue  # User still exists
+            user_id = entry.name
+            if await (await self._get_repo()).user_exists(user_id):
+                continue
 
-                # Check age
-                mtime = datetime.fromtimestamp(entry.stat().st_mtime, tz=UTC)
-                if mtime > cutoff:
-                    continue  # Too recent
+            mtime = datetime.fromtimestamp(entry.stat().st_mtime, tz=UTC)
+            if mtime > cutoff:
+                continue
 
-                logger.info(f"Removing orphaned user directory: {entry}")
-                try:
-                    shutil.rmtree(entry)
-                except Exception as e:
-                    logger.error(f"Failed to remove {entry}: {e}")
-
-    async def _get_workspace_setting(
-        self,
-        conn,
-        workspace_id: int,
-        key: str,
-        default: Any,
-    ) -> Any:
-        """Read a single workspace setting, falling back to the env default."""
-        row = await conn.fetchrow(
-            "SELECT value FROM setting_workspace WHERE workspace_id = $1 AND key = $2",
-            workspace_id,
-            key,
-        )
-        if row is None or row["value"] is None:
-            return default
-        return row["value"]
+            logger.info(f"Removing orphaned user directory: {entry}")
+            try:
+                shutil.rmtree(entry)
+            except Exception as e:
+                logger.error(f"Failed to remove {entry}: {e}")
 
     async def _cleanup_trash(self):
         """Hard-delete soft-deleted nodes older than the workspace retention setting."""
-        async with get_connection() as conn:
-            workspaces = await conn.fetch(
-                "SELECT id, uuid FROM workspace WHERE active = TRUE"
+        for ws_row in await (await self._get_repo()).list_active_workspaces():
+            workspace_id = ws_row["id"]
+            workspace_uuid = str(ws_row["uuid"])
+
+            retention_days = await (await self._get_repo()).get_workspace_setting(
+                workspace_id,
+                "trash_retention_days",
+                settings.default_trash_retention_days,
             )
+            try:
+                retention_days = int(retention_days)
+            except (ValueError, TypeError):
+                retention_days = settings.default_trash_retention_days
 
-            for ws_row in workspaces:
-                workspace_id = ws_row["id"]
-                workspace_uuid = str(ws_row["uuid"])
+            if retention_days <= 0:
+                continue
 
-                retention_days = await self._get_workspace_setting(
-                    conn,
-                    workspace_id,
-                    "trash_retention_days",
-                    settings.default_trash_retention_days,
+            cutoff = datetime.now(UTC) - timedelta(days=retention_days)
+            file_service = AssetFileService(workspace_uuid)
+
+            while True:
+                rows = await (await self._get_repo()).hard_delete_trashed_nodes_batch(
+                    workspace_id, cutoff, _TRASH_BATCH_SIZE
                 )
-                try:
-                    retention_days = int(retention_days)
-                except (ValueError, TypeError):
-                    retention_days = settings.default_trash_retention_days
+                if not rows:
+                    break
 
-                if retention_days <= 0:
-                    continue
+                for row in rows:
+                    if row["is_asset"]:
+                        try:
+                            file_service.delete_asset(str(row["uuid"]))
+                        except Exception as e:
+                            logger.error(
+                                f"[TRASH_CLEANUP] Failed to delete asset folder "
+                                f"{row['uuid']} in workspace {workspace_id}: {e}"
+                            )
 
-                cutoff = datetime.now(UTC) - timedelta(days=retention_days)
-
-                while True:
-                    rows = await conn.fetch(
-                        """
-                        SELECT id, uuid, is_asset
-                        FROM node
-                        WHERE workspace_id = $1
-                          AND is_deleted = TRUE
-                          AND deleted_at < $2
-                        ORDER BY id
-                        LIMIT $3
-                        """,
-                        workspace_id,
-                        cutoff,
-                        _TRASH_BATCH_SIZE,
-                    )
-                    if not rows:
-                        break
-
-                    ids_to_delete = [row["id"] for row in rows]
-
-                    # Delete asset folders before the DB rows disappear
-                    file_service = AssetFileService(workspace_uuid)
-                    for row in rows:
-                        if row["is_asset"]:
-                            try:
-                                file_service.delete_asset(str(row["uuid"]))
-                            except Exception as e:
-                                logger.error(
-                                    f"[TRASH_CLEANUP] Failed to delete asset folder "
-                                    f"{row['uuid']} in workspace {workspace_id}: {e}"
-                                )
-
-                    await conn.execute(
-                        "DELETE FROM node WHERE id = ANY($1::integer[]) AND workspace_id = $2",
-                        ids_to_delete,
-                        workspace_id,
-                    )
-
-                    logger.info(
-                        f"[TRASH_CLEANUP] Hard-deleted {len(ids_to_delete)} trashed nodes "
-                        f"in workspace {workspace_id} (retention: {retention_days} days)"
-                    )
+                logger.info(
+                    f"[TRASH_CLEANUP] Hard-deleted {len(rows)} trashed nodes "
+                    f"in workspace {workspace_id} (retention: {retention_days} days)"
+                )
 
     async def _cleanup_activity_logs(self):
         """Delete old activity log rows when retention is enabled."""
-        async with get_connection() as conn:
-            workspaces = await conn.fetch(
-                "SELECT id FROM workspace WHERE active = TRUE"
+        for ws_row in await (await self._get_repo()).list_active_workspaces():
+            workspace_id = ws_row["id"]
+
+            enabled = await (await self._get_repo()).get_workspace_setting(
+                workspace_id,
+                "activity_log_retention_enabled",
+                settings.activity_log_retention_enabled,
             )
+            if not enabled:
+                continue
 
-            for ws_row in workspaces:
-                workspace_id = ws_row["id"]
+            retention_days = await (await self._get_repo()).get_workspace_setting(
+                workspace_id,
+                "activity_log_retention_days",
+                settings.activity_log_retention_days,
+            )
+            try:
+                retention_days = int(retention_days)
+            except (ValueError, TypeError):
+                retention_days = settings.activity_log_retention_days
 
-                enabled = await self._get_workspace_setting(
-                    conn,
-                    workspace_id,
-                    "activity_log_retention_enabled",
-                    settings.activity_log_retention_enabled,
+            if retention_days <= 0:
+                continue
+
+            cutoff = datetime.now(UTC) - timedelta(days=retention_days)
+            deleted = await (await self._get_repo()).delete_activity_logs_older_than(
+                workspace_id, cutoff
+            )
+            if deleted:
+                logger.info(
+                    f"[ACTIVITY_LOG_CLEANUP] Deleted {deleted} old rows "
+                    f"in workspace {workspace_id} (retention: {retention_days} days)"
                 )
-                if not enabled:
-                    continue
-
-                retention_days = await self._get_workspace_setting(
-                    conn,
-                    workspace_id,
-                    "activity_log_retention_days",
-                    settings.activity_log_retention_days,
-                )
-                try:
-                    retention_days = int(retention_days)
-                except (ValueError, TypeError):
-                    retention_days = settings.activity_log_retention_days
-
-                if retention_days <= 0:
-                    continue
-
-                cutoff = datetime.now(UTC) - timedelta(days=retention_days)
-                result = await conn.execute(
-                    """
-                    DELETE FROM node_activity na
-                    USING node n
-                    WHERE na.node_id = n.id
-                      AND n.workspace_id = $1
-                      AND na.create_date < $2
-                    """,
-                    workspace_id,
-                    cutoff,
-                )
-                deleted = _deleted_count_from_result(result)
-                if deleted:
-                    logger.info(
-                        f"[ACTIVITY_LOG_CLEANUP] Deleted {deleted} old rows "
-                        f"in workspace {workspace_id} (retention: {retention_days} days)"
-                    )
 
     async def _cleanup_task_completions(self):
         """Delete old task completion rows when retention is enabled."""
-        async with get_connection() as conn:
-            workspaces = await conn.fetch(
-                "SELECT id FROM workspace WHERE active = TRUE"
+        for ws_row in await (await self._get_repo()).list_active_workspaces():
+            workspace_id = ws_row["id"]
+
+            enabled = await (await self._get_repo()).get_workspace_setting(
+                workspace_id,
+                "task_completion_retention_enabled",
+                settings.task_completion_retention_enabled,
             )
+            if not enabled:
+                continue
 
-            for ws_row in workspaces:
-                workspace_id = ws_row["id"]
+            retention_days = await (await self._get_repo()).get_workspace_setting(
+                workspace_id,
+                "task_completion_retention_days",
+                settings.task_completion_retention_days,
+            )
+            try:
+                retention_days = int(retention_days)
+            except (ValueError, TypeError):
+                retention_days = settings.task_completion_retention_days
 
-                enabled = await self._get_workspace_setting(
-                    conn,
-                    workspace_id,
-                    "task_completion_retention_enabled",
-                    settings.task_completion_retention_enabled,
+            if retention_days <= 0:
+                continue
+
+            cutoff = datetime.now(UTC) - timedelta(days=retention_days)
+            deleted = await (await self._get_repo()).delete_task_completions_older_than(
+                workspace_id, cutoff
+            )
+            if deleted:
+                logger.info(
+                    f"[TASK_COMPLETION_CLEANUP] Deleted {deleted} old rows "
+                    f"in workspace {workspace_id} (retention: {retention_days} days)"
                 )
-                if not enabled:
-                    continue
-
-                retention_days = await self._get_workspace_setting(
-                    conn,
-                    workspace_id,
-                    "task_completion_retention_days",
-                    settings.task_completion_retention_days,
-                )
-                try:
-                    retention_days = int(retention_days)
-                except (ValueError, TypeError):
-                    retention_days = settings.task_completion_retention_days
-
-                if retention_days <= 0:
-                    continue
-
-                cutoff = datetime.now(UTC) - timedelta(days=retention_days)
-                result = await conn.execute(
-                    "DELETE FROM task_completion WHERE workspace_id = $1 AND completed_at < $2",
-                    workspace_id,
-                    cutoff,
-                )
-                deleted = _deleted_count_from_result(result)
-                if deleted:
-                    logger.info(
-                        f"[TASK_COMPLETION_CLEANUP] Deleted {deleted} old rows "
-                        f"in workspace {workspace_id} (retention: {retention_days} days)"
-                    )
-
-
-def _deleted_count_from_result(result: str) -> int:
-    """Extract the number of deleted rows from an asyncpg DELETE result string."""
-    # asyncpg returns strings like "DELETE 42"
-    try:
-        parts = result.split()
-        if len(parts) == 2 and parts[0] == "DELETE":
-            return int(parts[1])
-    except (ValueError, IndexError):
-        pass
-    return 0
 
 
 def get_cleanup_scheduler() -> CleanupScheduler:

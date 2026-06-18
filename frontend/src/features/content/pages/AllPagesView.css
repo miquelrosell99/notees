@@ -30,16 +30,6 @@
   color: var(--color-on-surface-variant);
 }
 
-.page-header.all-pages-view__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--spacing-3);
+.all-pages-view__header {
   margin-bottom: var(--spacing-3);
-}
-
-.all-pages-view__search {
-  flex: 1;
-  max-width: var(--layout-size-9xl);
-  margin: 0 auto;
 }

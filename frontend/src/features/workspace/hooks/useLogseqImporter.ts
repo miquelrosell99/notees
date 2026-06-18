@@ -20,9 +20,9 @@
  */
 import { useState, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useCreateNode, useUpdateNode } from '@/features/content/hooks/useNodeMutations';
-import { usePageClass, useClassClass } from '@/features/content/hooks/usePageClass';
-import { useCreateProperty } from '@/features/content/hooks/useProperties';
+import { useCreateNode, useUpdateNode } from '@/features/content';
+import { usePageClass, useClassClass } from '@/features/content';
+import { useCreateProperty } from '@/features/properties';
 import type { LogseqExport } from '@/utils/ednParser';
 import type { TaskReportData } from '@/components/ui/TaskReport';
 import { runImport } from './useLogseqImporter.runner';

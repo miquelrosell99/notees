@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     refresh_token_expire_days: int = 7  # 7 days
     refresh_token_remember_me_days: int = 90  # 90 days for "keep me signed in"
     registration_enabled: bool = False  # Disabled by default; set REGISTRATION_ENABLED=true to allow open registration
+    admin_password: str | None = None  # Initial admin password; if unset, first registration is rejected
 
     @field_validator("algorithm", mode="after")
     @classmethod
@@ -111,20 +112,11 @@ class Settings(BaseSettings):
     @field_validator("cors_origins", mode="after")
     @classmethod
     def reject_insecure_cors_wildcard(cls, v, info):
-        """Reject wildcard CORS when credentials are enabled in production."""
+        """Reject wildcard CORS when credentials are enabled in any environment."""
         if "*" in v:
-            env = (info.data.get("environment") or "").lower()
-            if env == "production":
-                raise ValueError(
-                    "CORS_ORIGINS='*' is not allowed in production when allow_credentials=True. "
-                    "Set CORS_ORIGINS to specific allowed origins."
-                )
-            import warnings
-
-            warnings.warn(
-                "CORS is configured with wildcard '*'. This is insecure for production. "
-                "Set CORS_ORIGINS to specific allowed origins.",
-                UserWarning, stacklevel=2,
+            raise ValueError(
+                "CORS_ORIGINS='*' is not allowed when allow_credentials=True. "
+                "Set CORS_ORIGINS to specific allowed origins."
             )
         return v
 

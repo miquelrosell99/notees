@@ -6,7 +6,7 @@
  */
 
 import { useCallback } from 'react';
-import { QueryBlockList } from './QueryBlockList';
+import type { ComponentType } from 'react';
 import { QueryBlockCard } from './QueryBlockCard';
 import { ProseConditionBuilder } from './ProseConditionBuilder';
 import { SelectionButton } from '@/components/ui/SelectionButton';
@@ -17,6 +17,16 @@ import './QueryBlockBuilder.css';
 
 // ==================== Types ====================
 
+type QueryBlock = ConditionNode | GroupNode | ASTNotNode;
+
+interface QueryBlockListComponentProps {
+  blocks: QueryBlock[];
+  onChange: (blocks: QueryBlock[]) => void;
+  readOnly?: boolean;
+  showAddButton?: boolean;
+  showEmptyMessage?: boolean;
+}
+
 interface QueryBlockBuilderProps {
   /** The block to render */
   block: ConditionNode | GroupNode | ASTNotNode;
@@ -26,6 +36,8 @@ interface QueryBlockBuilderProps {
   onRemove: () => void;
   /** Whether this block is read-only */
   readOnly?: boolean;
+  /** Component used to render nested block lists (breaks the List↔Builder cycle) */
+  listComponent: ComponentType<QueryBlockListComponentProps>;
 }
 
 // ==================== Main Component ====================
@@ -35,8 +47,10 @@ export function QueryBlockBuilder({
   onChange,
   onRemove,
   readOnly = false,
+  listComponent,
 }: QueryBlockBuilderProps) {
-  
+  const ListComponent = listComponent;
+
   // Check if this block is removable/editable
   const canRemove = isNodeRemovable(block);
   const canEdit = isNodeEditable(block);
@@ -103,6 +117,7 @@ export function QueryBlockBuilder({
               onChange={handleNotChildChange}
               onRemove={() => {}}
               readOnly={isReadOnly}
+              listComponent={ListComponent}
             />
           </div>
         </>
@@ -183,7 +198,7 @@ export function QueryBlockBuilder({
         {/* Children rendered below with vertical line */}
         {groupBlock.children.length > 0 && (
           <div className="query-block-builder__nested-body">
-            <QueryBlockList
+            <ListComponent
               blocks={groupBlock.children}
               onChange={handleUnifiedChildrenChange}
               readOnly={isReadOnly}
@@ -195,7 +210,7 @@ export function QueryBlockBuilder({
         {/* Show add button when empty */}
         {groupBlock.children.length === 0 && !isReadOnly && (
           <div className="query-block-builder__nested-body">
-            <QueryBlockList
+            <ListComponent
               blocks={[]}
               onChange={handleUnifiedChildrenChange}
               readOnly={isReadOnly}
@@ -261,7 +276,7 @@ export function QueryBlockBuilder({
         {/* Nested group */}
         {'nested_group' in condition && condition.nested_group && (
           <div className="query-block-builder__nested-body">
-            <QueryBlockList
+            <ListComponent
               blocks={condition.nested_group.children}
               onChange={handleNestedChange}
               readOnly={isReadOnly}

@@ -81,7 +81,7 @@ export function TableSizeSelector({
           <button
             key={`${row}-${col}`}
             type="button"
-            className={`table-size-selector__cell ${isSelected ? 'table-size-selector__cell--selected' : ''}`}
+            className={`table-size-selector__cell icon-only-touch-target ${isSelected ? 'table-size-selector__cell--selected' : ''}`}
             onMouseEnter={() => handleCellMouseEnter(row, col)}
             onClick={(e) => handleCellClick(row, col, e)}
             role="gridcell"

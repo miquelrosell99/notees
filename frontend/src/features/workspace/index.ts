@@ -1,6 +1,7 @@
 export * from './components';
 export { WorkspaceManagementView } from './pages/WorkspaceManagementView';
 export * from './api/workspaces';
+export * from './api/autoExport';
 export * from './hooks/useSettings';
 export { useSettingsQuery as useSettings } from './hooks/useSettings';
 export * from './hooks/useViewSettings';

@@ -10,6 +10,17 @@
   padding: 0 var(--spacing-2);
 }
 
+/* Focus mode — hide the horizontal tab bar, reveal on hover.
+   Driven by data-focus-mode on the root. */
+.tab-bar-normal[data-focus-mode="true"] {
+  opacity: var(--opacity-0);
+  transition: opacity var(--motion-duration-medium) var(--motion-easing-standard);
+}
+
+.tab-bar-normal[data-focus-mode="true"]:hover {
+  opacity: var(--opacity-100);
+}
+
 .tab-bar-normal__label {
   font-size: var(--font-size-2xs);
   font-weight: 600;

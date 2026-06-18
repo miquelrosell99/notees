@@ -10,6 +10,8 @@ from httpx import AsyncClient
 
 from app.db.schema import SYSTEM_CLASS_UUIDS
 
+pytestmark = pytest.mark.integration
+
 
 async def _get_template_class_id(authenticated_client: AsyncClient) -> int:
     """Look up the template system class node ID."""

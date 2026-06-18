@@ -51,38 +51,6 @@
   }
 }
 
-/* Document mode - paragraphs without bullets, but keep separator line */
-.node-content.document .node-content-children,
-.node-content-children.document-mode {
-  /* Keep border-top separator line in all view modes */
-}
-
-.node-content-children.document-mode .block {
-  padding-left: 0;
-}
-
-/* Hide bullets in document mode */
-.node-content-children.document-mode .bullet-wrapper {
-  display: none;
-}
-
-/* Flat hierarchy in document mode - no indentation for nested blocks */
-.node-content-children.document-mode .children-container {
-  margin-left: 0;
-}
-
-.node-content-children.document-mode .nested-blocks {
-  margin-left: 0;
-}
-
-.node-content-children.document-mode .children-collapse-line {
-  display: none;
-}
-
-/* Deprecated class - kept for backwards compatibility */
-.node-content-children.document-mode .block-bullet {
-  display: none;
-}
 
 .add-block-btn {
   display: inline-flex;

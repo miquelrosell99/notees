@@ -1,10 +1,10 @@
 /**
  * ConfirmationModal Component
- * 
+ *
  * A reusable confirmation dialog for important actions.
  * Uses the base Modal component for consistent styling.
  */
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useState } from 'react';
 import { Modal } from './Modal';
 import { AlertIcon } from './icons';
 import { Button } from './Button';
@@ -18,7 +18,7 @@ interface ConfirmationModalProps {
   confirmLabel?: string;
   cancelLabel?: string;
   variant?: 'primary' | 'danger';
-  onConfirm: () => void;
+  onConfirm: () => void | Promise<void>;
   onCancel: () => void;
 }
 
@@ -33,10 +33,33 @@ export function ConfirmationModal({
   onConfirm,
   onCancel,
 }: ConfirmationModalProps) {
-  // Enter anywhere inside the modal = confirm (capture phase to beat button activation)
-  const stableConfirm = useCallback(() => onConfirm(), [onConfirm]);
+  const [isPending, setIsPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Reset internal state whenever the modal opens/closes.
   useEffect(() => {
-    if (!isOpen) return;
+    if (isOpen) {
+      setIsPending(false);
+      setError(null);
+    }
+  }, [isOpen]);
+
+  const handleConfirm = useCallback(async () => {
+    if (isPending) return;
+    setError(null);
+    setIsPending(true);
+    try {
+      await onConfirm();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
+    } finally {
+      setIsPending(false);
+    }
+  }, [isPending, onConfirm]);
+
+  // Enter anywhere inside the modal = confirm (capture phase to beat button activation)
+  useEffect(() => {
+    if (!isOpen || isPending) return;
     const handler = (e: KeyboardEvent) => {
       if (e.key !== 'Enter' || e.isComposing) return;
       if (e.ctrlKey || e.metaKey || e.altKey) return;
@@ -44,11 +67,11 @@ export function ConfirmationModal({
       if (!target.closest('.confirmation-modal')) return;
       e.preventDefault();
       e.stopPropagation();
-      stableConfirm();
+      handleConfirm();
     };
     document.addEventListener('keydown', handler, true);
     return () => document.removeEventListener('keydown', handler, true);
-  }, [isOpen, stableConfirm]);
+  }, [isOpen, isPending, handleConfirm]);
 
   return (
     <Modal
@@ -62,24 +85,32 @@ export function ConfirmationModal({
         <div className="confirmation-modal__icon">
           <AlertIcon />
         </div>
-        <h3 className="confirmation-modal__title">{title}</h3>
+        <h3 id="modal-title" className="confirmation-modal__title">{title}</h3>
       </div>
-      
+
       <p className="confirmation-modal__message">{message}</p>
       {secondaryMessage && (
         <p className="confirmation-modal__secondary-message">{secondaryMessage}</p>
       )}
-      
+
+      {error && (
+        <p className="confirmation-modal__error" role="alert">
+          {error}
+        </p>
+      )}
+
       <div className="confirmation-modal__actions">
         <Button
           variant="default"
           onClick={onCancel}
+          disabled={isPending}
         >
           {cancelLabel}
         </Button>
         <Button
           variant={variant === 'danger' ? 'danger' : 'primary'}
-          onClick={onConfirm}
+          onClick={handleConfirm}
+          loading={isPending}
         >
           {confirmLabel}
         </Button>

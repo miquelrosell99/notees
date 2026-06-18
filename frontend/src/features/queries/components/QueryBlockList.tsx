@@ -5,6 +5,7 @@
  */
 
 import { useCallback, useState } from 'react';
+import type { ComponentType } from 'react';
 import { Button } from '@/components/ui/Button';
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/ContextMenu';
 import { QueryBlockBuilder } from './QueryBlockBuilder';
@@ -37,6 +38,13 @@ interface BlockItemProps {
   readOnly: boolean;
   onUpdate: (block: QueryBlock) => void;
   onRemove: () => void;
+  listComponent: ComponentType<{
+    blocks: QueryBlock[];
+    onChange: (blocks: QueryBlock[]) => void;
+    readOnly?: boolean;
+    showAddButton?: boolean;
+    showEmptyMessage?: boolean;
+  }>;
 }
 
 // ==================== Block Item ====================
@@ -46,6 +54,7 @@ function BlockItem({
   readOnly,
   onUpdate,
   onRemove,
+  listComponent,
 }: BlockItemProps) {
   const canEdit = isNodeEditable(block);
   const effectiveReadOnly = readOnly || !canEdit;
@@ -57,6 +66,7 @@ function BlockItem({
         onChange={onUpdate}
         onRemove={onRemove}
         readOnly={effectiveReadOnly}
+        listComponent={listComponent}
       />
     </div>
   );
@@ -330,6 +340,7 @@ export function QueryBlockList({
               readOnly={readOnly}
               onUpdate={(updated) => handleUpdateBlock(index, updated)}
               onRemove={() => handleRemoveBlock(index)}
+              listComponent={QueryBlockList}
             />
           ))}
         </>
@@ -346,6 +357,7 @@ export function QueryBlockList({
               readOnly={true}
               onUpdate={() => {}}
               onRemove={() => {}}
+              listComponent={QueryBlockList}
             />
           ))}
         </>

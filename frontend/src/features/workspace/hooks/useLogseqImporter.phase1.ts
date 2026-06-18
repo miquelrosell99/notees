@@ -1,5 +1,5 @@
 import { addClassExtends } from '@/api/properties';
-import { nodeNameToText } from '@/features/queries/hooks/useStringifyAST';
+import { nodeNameToText } from '@/features/queries';
 import type { Node } from '@/types/api';
 import type { ImportContext } from './useLogseqImporter.types';
 import { createPhase, errorMessage } from './useLogseqImporter.utils';

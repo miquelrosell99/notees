@@ -5,8 +5,7 @@
  * Polls the backend for progress and shows a determinate progress bar.
  */
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { autoExportBatch, getAutoExportStatus } from '@/api/autoExport';
-import type { AutoExportStatus } from '@/api/autoExport';
+import { autoExportBatch, getAutoExportStatus, type AutoExportStatus } from '@/features/workspace';
 import { Modal } from '@/components/ui/Modal';
 import { TaskProgress } from '@/components/ui/TaskProgress';
 import { TaskReport } from '@/components/ui/TaskReport';

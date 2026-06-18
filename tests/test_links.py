@@ -12,7 +12,7 @@ async def test_transactional_node_creation_with_links(node_service):
     This test documents expected behavior for future transaction refactoring.
     """
     target = await node_service.create_page("Target")
-    source = await node_service.create_page(f"Source with link [[{target.id}]]")
+    await node_service.create_page(f"Source with link [[{target.id}]]")
 
     backlinks = await node_service._link_service.get_backlinks(target.id)
     assert isinstance(backlinks, list)

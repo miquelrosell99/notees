@@ -194,6 +194,7 @@ export function TaskRecurrencePicker({ rule, onChange, onDelete, readOnly = fals
                       type="button"
                       className={`task-recurrence-picker__weekday ${selected ? 'task-recurrence-picker__weekday--selected' : ''}`}
                       aria-pressed={selected}
+                      aria-label={day.label}
                       onClick={() =>
                         setDraft((prev) => {
                           const current = new Set(prev.weekdays ?? []);
@@ -234,6 +235,7 @@ export function TaskRecurrencePicker({ rule, onChange, onDelete, readOnly = fals
                 <div className="task-recurrence-picker__row">
                   <select
                     className="task-recurrence-picker__select"
+                    aria-label="Week of month"
                     value={draft.week_of_month ?? ''}
                     onChange={(e) =>
                       setDraft((prev) => ({
@@ -260,6 +262,7 @@ export function TaskRecurrencePicker({ rule, onChange, onDelete, readOnly = fals
                           type="button"
                           className={`task-recurrence-picker__weekday ${selected ? 'task-recurrence-picker__weekday--selected' : ''}`}
                           aria-pressed={selected}
+                          aria-label={day.label}
                           onClick={() =>
                             setDraft((prev) => ({
                               ...prev,
@@ -288,6 +291,7 @@ export function TaskRecurrencePicker({ rule, onChange, onDelete, readOnly = fals
                 <select
                   id="recurrence-month"
                   className="task-recurrence-picker__select"
+                  aria-label="Month"
                   value={draft.month ?? ''}
                   onChange={(e) =>
                     setDraft((prev) => ({ ...prev, month: e.target.value === '' ? null : parseInt(e.target.value, 10) }))

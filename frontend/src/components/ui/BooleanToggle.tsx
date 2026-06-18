@@ -5,6 +5,7 @@
  */
 import { forwardRef, useId, type InputHTMLAttributes } from 'react';
 import './BooleanToggle.css';
+import { useReducedMotion } from '@/hooks';
 
 export type BooleanToggleSize = 'sm' | 'md' | 'lg';
 
@@ -42,10 +43,12 @@ export const BooleanToggle = forwardRef<HTMLInputElement, BooleanToggleProps>(fu
 ) {
   const generatedId = useId();
   const toggleId = id || generatedId;
+  const prefersReducedMotion = useReducedMotion();
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    // Tactile feedback on mobile — switches use the light (10ms) haptic
-    if (typeof navigator !== 'undefined' && navigator.vibrate) {
+    // Tactile feedback on mobile — switches use the light (10ms) haptic.
+    // Skip haptics when the user prefers reduced motion.
+    if (!prefersReducedMotion && typeof navigator !== 'undefined' && navigator.vibrate) {
       navigator.vibrate(10);
     }
     rest.onChange?.(e);

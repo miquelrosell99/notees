@@ -2,10 +2,8 @@
 
 from datetime import date
 
-import pytest
-
 from app.domain.entities import TaskRecurrence
-from app.domain.services.recurrence_engine import describe_rule, has_ended, next_occurrence
+from app.features.tasks.service import describe_rule, has_ended, next_occurrence
 
 
 class TestNextOccurrence:

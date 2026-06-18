@@ -1,0 +1,108 @@
+/**
+ * TableView styles.
+ */
+
+
+
+
+.node-block-table-view {
+  --table-view-max-width: 75rem;
+
+  width: 100%;
+  max-width: var(--table-view-max-width);
+  margin: 0 auto;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: var(--spacing-1) 0;
+}
+
+.node-block-table {
+  width: 100%;
+  min-width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-body-xl);
+}
+
+.node-block-table th {
+  text-align: left;
+  padding: var(--spacing-1-5) var(--spacing-3);
+  border-bottom: var(--border-width-thick) solid var(--color-outline-variant);
+  font-weight: 600;
+  font-size: var(--font-size-sm);
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-label);
+  color: var(--color-on-surface-variant);
+  white-space: nowrap;
+  user-select: none;
+}
+
+.node-block-table-row {
+  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
+}
+
+.node-block-table-row:hover {
+  background: var(--color-hover-overlay);
+}
+
+.node-block-table-cell {
+  padding: var(--spacing-micro) var(--spacing-2);
+  vertical-align: top;
+}
+
+.node-block-table-property-stub {
+  display: block;
+  min-height: var(--height-xs);
+}
+
+/* Date cells with action buttons */
+.node-table__date-cell {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-2);
+  width: 100%;
+}
+
+.node-table__date {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.node-table__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-1);
+  margin-left: auto;
+  opacity: var(--opacity-0);
+  transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.node-table__date-cell:hover .node-table__actions,
+.node-table__actions:focus-within {
+  opacity: var(--opacity-100);
+}
+
+@media (hover: none) {
+  .node-table__actions {
+    opacity: var(--opacity-100);
+  }
+}
+
+/* Pages section at the bottom of table view */
+.node-table-view__pages-section {
+  margin-top: var(--spacing-4);
+}
+
+.node-table-view__pages-header {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: var(--letter-spacing-section);
+  color: var(--color-on-surface-variant);
+  padding: var(--spacing-1) 0;
+  margin-bottom: var(--spacing-1);
+  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
+}

@@ -17,10 +17,18 @@ Journal pages use tags: 'day', 'month', 'year' with YYYYMMdd format names.
 
 import uuid
 from datetime import datetime
-from enum import StrEnum
 from typing import TypeVar
 
 from pydantic import BaseModel, field_validator
+
+# Sync DTOs are defined in the domain layer; re-export them here for the API.
+from app.domain.entities.sync import (  # noqa: F401
+    ClientNodeState,
+    ServerNodeState,
+    SyncConflict,
+    SyncRequest,
+    SyncResponse,
+)
 
 
 def _validate_password_strength(v: str | None) -> str | None:
@@ -46,19 +54,26 @@ def _validate_password_strength(v: str | None) -> str | None:
     return v
 
 
+def _validate_admin_password_strength(v: str | None) -> str | None:
+    """Admin password complexity validator.
+
+    Admin-created accounts use the stricter 12-character baseline applied to
+    ``ADMIN_PASSWORD``. Reuses the user password checks after enforcing the
+    admin minimum length.
+    """
+    if v is None:
+        return v
+    if len(v) < 12:
+        raise ValueError("Admin password must be at least 12 characters")
+    return _validate_password_strength(v)
+
+
 def generate_uuid() -> str:
     """Generate a unique UUID for nodes."""
     return str(uuid.uuid4())
 
 
-class ExportFormat(StrEnum):
-    """Export formats."""
-
-    MARKDOWN = "markdown"
-    HTML = "html"
-    PDF = "pdf"
-    TEXT = "text"
-    JSON = "json"
+# Re-exported from the feature-first export module for backward compatibility.
 
 
 # ==================== USER MODELS ====================
@@ -78,6 +93,8 @@ class UserCreate(UserBase):
     surnames: str | None = None
     profile_pic: str | None = None
     remember_me: bool = False
+    admin_password: str | None = None
+    """Configured ADMIN_PASSWORD; required only when creating the first admin."""
 
     @field_validator("email")
     @classmethod
@@ -124,10 +141,15 @@ class PasswordChangeRequest(BaseModel):
 
 
 class AdminUserCreate(UserCreate):
-    """Admin user creation model. Reuses email/password validators from UserCreate."""
+    """Admin user creation model. Uses the stricter admin password baseline."""
 
     role: str = "user"
     active: bool = True
+
+    @field_validator("password")
+    @classmethod
+    def validate_admin_password(cls, v):
+        return _validate_admin_password_strength(v)
 
 
 class AdminUserUpdate(BaseModel):
@@ -271,155 +293,7 @@ class WorkspaceCreate(BaseModel):
     name: str
 
 
-# ==================== SYNC MODELS ====================
-
-
-class ClientNodeState(BaseModel):
-    """Client-side node state sent during sync."""
-
-    uuid: str
-    version: int
-    name: str | None = None
-    parent_id: str | None = None
-    sequence: float | None = None
-    is_deleted: bool = False
-
-
-class SyncRequest(BaseModel):
-    """Request for syncing data."""
-
-    last_sync: datetime | None = None
-    client_nodes: list[ClientNodeState] = []
-    workspace_uuid: str | None = None
-
-
-class ServerNodeState(BaseModel):
-    """Server-side node state returned during sync."""
-
-    uuid: str
-    version: int
-    name: str | None = None
-    parent_id: str | None = None
-    sequence: float | None = None
-    is_deleted: bool = False
-    write_date: datetime | None = None
-
-
-class SyncConflict(BaseModel):
-    """Conflict detected during sync."""
-
-    uuid: str
-    server_version: int
-    client_version: int
-    server_node: ServerNodeState | None = None
-    reason: str
-
-
-class SyncResponse(BaseModel):
-    """Response from sync."""
-
-    server_time: datetime
-    server_nodes: list[ServerNodeState] = []
-    deleted_node_uuids: list[str] = []
-    conflicts: list[SyncConflict] = []
-
-
 # ==================== EXPORT MODELS ====================
-
-
-class ExportRequest(BaseModel):
-    """Export request."""
-
-    node_ids: list[str]
-    format: ExportFormat
-    include_children: bool = True
-    include_backlinks: bool = False
-    layout: str = "outline"
-    formatting: bool = True
-    style: str | None = None
-    properties: str = "none"
-    density: str = "comfortable"
-    numbering: str = "none"
-    measure: str = "full"
-    doctype: str = "none"
-    section_break: bool = False
-    show_uuid: bool = False
-    link_style: str = "raw"
-    theme_mode: str = "light"
-    cover_page: bool = False
-    page_size: str = "a4"
-    include_child_pages: bool = False
-
-    @field_validator("layout")
-    @classmethod
-    def validate_layout(cls, v):
-        if v not in {"outline", "flat"}:
-            raise ValueError("layout must be one of: outline, flat")
-        return v
-
-    @field_validator("properties")
-    @classmethod
-    def validate_properties(cls, v):
-        if v not in {"none", "main", "all"}:
-            raise ValueError("properties must be one of: none, main, all")
-        return v
-
-    @field_validator("density")
-    @classmethod
-    def validate_density(cls, v):
-        if v not in {"comfortable", "compact"}:
-            raise ValueError("density must be one of: comfortable, compact")
-        return v
-
-    @field_validator("numbering")
-    @classmethod
-    def validate_numbering(cls, v):
-        if v not in {"none", "hierarchical", "legal", "appendix"}:
-            raise ValueError("numbering must be one of: none, hierarchical, legal, appendix")
-        return v
-
-    @field_validator("measure")
-    @classmethod
-    def validate_measure(cls, v):
-        if v not in {"full", "readable", "book", "two-column"}:
-            raise ValueError("measure must be one of: full, readable, book, two-column")
-        return v
-
-    @field_validator("doctype")
-    @classmethod
-    def validate_doctype(cls, v):
-        if v not in {"none", "article", "report", "book", "legal", "academic"}:
-            raise ValueError("doctype must be one of: none, article, report, book, legal, academic")
-        return v
-
-    @field_validator("link_style")
-    @classmethod
-    def validate_link_style(cls, v):
-        if v not in {"raw", "text"}:
-            raise ValueError("link_style must be one of: raw, text")
-        return v
-
-    @field_validator("theme_mode")
-    @classmethod
-    def validate_theme_mode(cls, v):
-        if v not in {"light", "dark"}:
-            raise ValueError("theme_mode must be one of: light, dark")
-        return v
-
-    @field_validator("page_size")
-    @classmethod
-    def validate_page_size(cls, v):
-        if v not in {"a4", "letter", "legal"}:
-            raise ValueError("page_size must be one of: a4, letter, legal")
-        return v
-
-
-class ExportResponse(BaseModel):
-    """Export response."""
-
-    content: str
-    filename: str
-    mime_type: str
 
 
 # ==================== SETTINGS MODELS ====================

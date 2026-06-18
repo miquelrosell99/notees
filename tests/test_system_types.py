@@ -8,21 +8,23 @@ This tests the following constraints:
 import pytest
 import pytest_asyncio
 
-from app.db.schema import SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS
+from app.db.schema import SYSTEM_CLASS_UUIDS
 
 
 @pytest_asyncio.fixture
 async def node_service(db_pool, test_user):
     """Create a NodeService for testing."""
-    from app.domain.repositories import (
-        PostgresNodeRepository,
-        PostgresPropertyRepository,
+    from app.features.nodes.link_service import LinkParsingService
+    from app.features.nodes.node_service import NodeService
+    from app.features.nodes.repository import (
         PostgresLinkRepository,
+        PostgresNodeRepository,
+        PostgresNodeViewRepository,
     )
-    from app.domain.services import NodeService, LinkParsingService
-    
+    from app.features.properties.repository import PostgresPropertyRepository
+
     workspace_id = test_user["workspace_id"]
-    
+
     # Get system type IDs from workspace
     async with db_pool.acquire() as conn:
         row = await conn.fetchrow(
@@ -30,19 +32,21 @@ async def node_service(db_pool, test_user):
             SYSTEM_CLASS_UUIDS['page'], workspace_id
         )
         page_type_id = row['id']
-    
+
     # Create repositories (classes now in class_ids column, no property)
     node_repo = PostgresNodeRepository(db_pool, workspace_id, page_type_id)
     property_repo = PostgresPropertyRepository(db_pool, workspace_id)
     link_repo = PostgresLinkRepository(db_pool, workspace_id)
-    
+    view_repo = PostgresNodeViewRepository(db_pool, workspace_id, str(test_user["id"]))
+
     # Create services
     link_service = LinkParsingService(node_repo, link_repo)
     service = NodeService(
         node_repo, property_repo, link_service, page_type_id,
-        workspace_id=workspace_id
+        workspace_id=workspace_id,
+        view_repo=view_repo,
     )
-    
+
     return service
 
 
@@ -67,17 +71,17 @@ async def system_type_ids(db_pool, test_user):
 async def test_cannot_add_day_type(node_service, system_type_ids):
     """Test that adding 'day' type manually is rejected."""
     from app.domain.errors import SystemClassConstraintError
-    
+
     service = node_service
     day_type_id = system_type_ids['day']
-    
+
     # Create a test page
     page = await service.create_page("Test Page")
-    
+
     # Try to add day type manually - should fail
     with pytest.raises(SystemClassConstraintError) as exc_info:
         await service.add_class(page.id, day_type_id)
-    
+
     assert "day" in exc_info.value.message.lower()
     assert "managed by the system" in exc_info.value.message.lower()
 
@@ -86,17 +90,17 @@ async def test_cannot_add_day_type(node_service, system_type_ids):
 async def test_cannot_add_month_type(node_service, system_type_ids):
     """Test that adding 'month' type manually is rejected."""
     from app.domain.errors import SystemClassConstraintError
-    
+
     service = node_service
     month_type_id = system_type_ids['month']
-    
+
     # Create a test page
     page = await service.create_page("Test Page")
-    
+
     # Try to add month type manually - should fail
     with pytest.raises(SystemClassConstraintError) as exc_info:
         await service.add_class(page.id, month_type_id)
-    
+
     assert "month" in exc_info.value.message.lower()
 
 
@@ -104,17 +108,17 @@ async def test_cannot_add_month_type(node_service, system_type_ids):
 async def test_cannot_add_year_type(node_service, system_type_ids):
     """Test that adding 'year' type manually is rejected."""
     from app.domain.errors import SystemClassConstraintError
-    
+
     service = node_service
     year_type_id = system_type_ids['year']
-    
+
     # Create a test page
     page = await service.create_page("Test Page")
-    
+
     # Try to add year type manually - should fail
     with pytest.raises(SystemClassConstraintError) as exc_info:
         await service.add_class(page.id, year_type_id)
-    
+
     assert "year" in exc_info.value.message.lower()
 
 
@@ -122,17 +126,17 @@ async def test_cannot_add_year_type(node_service, system_type_ids):
 async def test_cannot_remove_day_type(node_service, system_type_ids):
     """Test that removing 'day' type is rejected even if a node has it."""
     from app.domain.errors import SystemClassConstraintError
-    
+
     service = node_service
     day_type_id = system_type_ids['day']
-    
+
     # Create a test page (imagine this was somehow given day type)
     page = await service.create_page("Test Page")
-    
+
     # Try to remove day type - should fail
     with pytest.raises(SystemClassConstraintError) as exc_info:
         await service.remove_class(page.id, day_type_id)
-    
+
     assert "day" in exc_info.value.message.lower()
     assert "managed by the system" in exc_info.value.message.lower()
 
@@ -141,15 +145,15 @@ async def test_cannot_remove_day_type(node_service, system_type_ids):
 async def test_cannot_remove_type_from_system_type(node_service, system_type_ids):
     """Test that removing 'class' from a system class node is rejected."""
     from app.domain.errors import SystemClassConstraintError
-    
+
     service = node_service
     class_type_id = system_type_ids['class']
     task_type_id = system_type_ids['task']
-    
+
     # Try to remove 'class' from task type - should fail
     with pytest.raises(SystemClassConstraintError) as exc_info:
         await service.remove_class(task_type_id, class_type_id)
-    
+
     # Message should mention 'class' (or 'type' for backward compatibility)
     message = exc_info.value.message.lower()
     assert "class" in message or "type" in message
@@ -161,10 +165,10 @@ async def test_can_add_regular_type(node_service, system_type_ids):
     """Test that adding a regular (non-date) type works."""
     service = node_service
     task_type_id = system_type_ids['task']
-    
+
     # Create a test page
     page = await service.create_page("Test Page")
-    
+
     # Add task type - should succeed (no exception)
     success = await service.add_class(page.id, task_type_id)
     assert success is True
@@ -175,15 +179,15 @@ async def test_can_remove_regular_type(node_service, system_type_ids):
     """Test that removing a regular (non-date) type works."""
     service = node_service
     task_type_id = system_type_ids['task']
-    
+
     # Create a test page and add task type
     page = await service.create_page("Test Page")
     await service.add_class(page.id, task_type_id)
-    
+
     # Remove task type - should succeed
     success = await service.remove_class(page.id, task_type_id)
     assert success is True
-    
+
     # Verify type was removed
     types = await service.get_node_classes(page.id)
     type_names = [t.name for t in types]
@@ -195,10 +199,10 @@ async def test_can_remove_type_from_user_type(node_service, system_type_ids):
     """Test that removing 'type' from a user-created type node works."""
     service = node_service
     class_type_id = system_type_ids['class']
-    
+
     # Create a user-defined type (page with 'type' type)
     user_type = await service.create_page("MyCustomType", additional_classes=[class_type_id])
-    
+
     # Remove 'type' from user type - should succeed (no exception, user types are not protected)
     success = await service.remove_class(user_type.id, class_type_id)
     # May return True or False depending on whether the type was actually set,
@@ -211,19 +215,19 @@ async def test_adding_type_type_sets_is_class_flag(node_service, system_type_ids
     """Test that adding 'class' type to a page sets is_class=True on the node."""
     service = node_service
     class_type_id = system_type_ids['class']
-    
+
     # Create a page (not a class initially)
     page = await service.create_page("Test Page For Type")
-    
+
     # Verify is_class is False initially
     node = await service.get_node(page.id)
     assert node is not None
     assert node.is_class is False
-    
+
     # Add 'class' type to the page
     success = await service.add_class(page.id, class_type_id)
     assert success is True
-    
+
     # Verify is_class is now True
     node = await service.get_node(page.id)
     assert node is not None
@@ -235,20 +239,20 @@ async def test_removing_type_type_clears_is_class_flag(node_service, system_type
     """Test that removing 'class' type from a user-created type sets is_class=False."""
     service = node_service
     class_type_id = system_type_ids['class']
-    
+
     # Create a page and add 'class' type to make it a class
     page = await service.create_page("User Created Type")
     await service.add_class(page.id, class_type_id)
-    
+
     # Verify is_class is True
     node = await service.get_node(page.id)
     assert node is not None
     assert node.is_class is True
-    
+
     # Remove 'class' type
     success = await service.remove_class(page.id, class_type_id)
     assert success is True
-    
+
     # Verify is_class is now False
     node = await service.get_node(page.id)
     assert node is not None
@@ -260,29 +264,29 @@ async def test_page_type_sets_is_page_flag(node_service, system_type_ids):
     """Test that adding/removing 'page' type sets is_page flag correctly."""
     service = node_service
     page_type_id = system_type_ids['page']
-    
+
     # Create a block (not a page initially)
     parent = await service.create_page("Parent Page")
     block = await service.create_block("Test Block", parent.id)
-    
+
     # Verify is_page is False initially
     node = await service.get_node(block.id)
     assert node is not None
     assert node.is_page is False
-    
+
     # Add 'page' type to the block
     success = await service.add_class(block.id, page_type_id)
     assert success is True
-    
+
     # Verify is_page is now True
     node = await service.get_node(block.id)
     assert node is not None
     assert node.is_page is True
-    
+
     # Remove 'page' type
     success = await service.remove_class(block.id, page_type_id)
     assert success is True
-    
+
     # Verify is_page is now False
     node = await service.get_node(block.id)
     assert node is not None

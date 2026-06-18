@@ -24,8 +24,23 @@
   font: var(--font-label-small);
 }
 
+/* List-view context: align with list-item indentation. */
+.node-breadcrumbs--list-view.node-breadcrumbs--inline {
+  padding-left: var(--spacing-5);
+}
+
 .node-breadcrumbs--compact {
   gap: var(--spacing-micro);
+}
+
+/* Header bar variant: flush margins and keep pointer events. */
+.node-breadcrumbs[data-in-header="true"] {
+  margin-bottom: 0;
+  margin-top: 0;
+  padding: 0;
+  flex: 0 1 auto;
+  min-width: 0;
+  pointer-events: auto;
 }
 
 .node-breadcrumbs--compact .node-breadcrumb-link {
@@ -54,29 +69,6 @@
   color: var(--color-on-surface-variant);
   transition: all var(--motion-duration-short) var(--motion-easing-standard);
   font: inherit;
-}
-
-/* Reset block padding inside breadcrumbs for proper centering */
-.node-breadcrumb-link .block {
-  padding: 0;
-}
-
-/* Ensure proper vertical alignment of block content in breadcrumbs */
-.node-breadcrumb-link .block-row {
-  align-items: center;
-}
-
-.node-breadcrumb-link .block-content {
-  display: flex;
-  align-items: center;
-}
-
-.node-breadcrumb-link .block-content-view {
-  min-height: 0;
-}
-
-.node-breadcrumb-link .block-text {
-  line-height: 1.2;
 }
 
 .node-breadcrumb-link:hover {
@@ -218,13 +210,35 @@
   flex-shrink: 0;
 }
 
-.node-breadcrumb-item:hover .node-breadcrumb-edit-btn {
+.node-breadcrumb-item:hover .node-breadcrumb-edit-btn,
+.node-breadcrumb-item:focus-within .node-breadcrumb-edit-btn,
+.node-breadcrumb-edit-btn:focus-visible {
   opacity: var(--opacity-100);
   width: var(--icon-size-md) !important;
 }
 
 .node-breadcrumb-edit-btn:hover {
   color: var(--color-on-surface);
+}
+
+/* The breadcrumb edit affordance is intentionally zero-width until hover.
+   Expand it to the full 44×44 target on hover/focus so the hit area is not
+   clipped by overflow:hidden. */
+.node-breadcrumb-edit-btn {
+  position: relative;
+}
+
+.node-breadcrumb-item:hover .node-breadcrumb-edit-btn,
+.node-breadcrumb-edit-btn:hover,
+.node-breadcrumb-edit-btn:focus-visible {
+  width: var(--button-icon-only-xs) !important;
+  min-width: var(--button-icon-only-xs) !important;
+}
+
+@media (max-width: 768px) {
+  .node-breadcrumb-edit-btn {
+    width: var(--button-icon-only-xs) !important;
+  }
 }
 
 /* ─── Loading spinner ──────────────────────────────────────────────────────── */

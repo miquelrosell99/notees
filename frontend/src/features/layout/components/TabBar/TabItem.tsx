@@ -2,8 +2,7 @@
  * TabItem — single tab in the tab bar.
  */
 import { useCallback, useRef, useState } from 'react';
-import { Button } from '@/components/ui/Button';
-import { Icon } from '@/components/ui/Icon';
+import { Button, Icon } from '@/components/ui';
 import type { Tab } from '@/stores/navigationStore';
 import { TabContextMenu } from './TabContextMenu';
 import type { SplitOrientation } from '@/stores/navigationStore';

@@ -6,10 +6,10 @@
  * into a [[link]]) or ignored (dismissed).
  */
 import { useState, useCallback, useMemo } from 'react';
-import { useUnlinkedMentions, usePromoteMention, useIgnoreMention } from '@/hooks';
+import { useUnlinkedMentions, usePromoteMention, useIgnoreMention } from '@/features/content';
 import { Button } from '@/components/ui/Button';
 import { ChevronRightIcon, ChevronDownIcon, SearchIcon } from '@/components/ui/icons';
-import { nodeNameToText } from '@/hooks';
+import { nodeNameToText } from '@/features/queries';
 import type { Mention } from '@/types/api';
 import './NodeViewSection.css';
 import './UnlinkedMentionsSection.css';

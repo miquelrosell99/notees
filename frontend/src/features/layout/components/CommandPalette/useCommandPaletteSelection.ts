@@ -10,7 +10,7 @@ import {
 import { useNavigationStore } from '@/stores';
 import { useCommandRegistry } from '@/stores/commandRegistry';
 import { useNotifications } from '@/stores/notificationStore';
-import { useCreateNode } from '@/hooks';
+import { useCreateNode } from '@/features/content';
 import { nodeKeys } from '@/hooks/queryKeys';
 import { parseHierarchicalPath, resolveHierarchicalParent } from '@/utils/hierarchicalPath';
 import type { ItemEntry, DuplicateModalState } from './CommandPalette.types';
@@ -51,7 +51,8 @@ export function useCommandPaletteSelection(params: UseCommandPaletteSelectionPar
   } = params;
 
   const queryClient = useQueryClient();
-  const { openNode, openPropertyView } = useNavigationStore();
+  const openNode = useNavigationStore((s) => s.openNode);
+  const openPropertyView = useNavigationStore((s) => s.openPropertyView);
   const { error: notifyError, warning: notifyWarning } = useNotifications();
   const createNodeMutation = useCreateNode();
 

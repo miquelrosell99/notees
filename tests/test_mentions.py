@@ -3,6 +3,8 @@
 import pytest
 from httpx import AsyncClient
 
+pytestmark = pytest.mark.integration
+
 
 class TestUnlinkedMentions:
     """Test unlinked mention detection, promotion, and ignoring."""

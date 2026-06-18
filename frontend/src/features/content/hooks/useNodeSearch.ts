@@ -20,7 +20,7 @@ import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { useSearch, usePages, useNodes, useClasses, useSearchClasses, useSuggestions } from './useNodes';
 import * as nodesApi from '@/api/nodes';
 import { parseHierarchicalPath } from '@/utils/hierarchicalPath';
-import { nodeNameToText } from '@/features/queries/hooks/useStringifyAST';
+import { nodeNameToText } from '@/features/queries';
 import type { NodeSearchMode, NodeSearchFilters, NodeSearchItem, UseNodeSearchReturn } from './useNodeSearch.types';
 import { nodeKeys } from '@/hooks/queryKeys';
 
