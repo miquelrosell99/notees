@@ -27,6 +27,7 @@ export {
   formatYear,
   isValidHexColor,
   getContrastColor,
+  isSupportBadgeVisible,
   DATE_FORMAT_OPTIONS,
   FIRST_DAY_OF_WEEK_OPTIONS,
   ACCENT_COLOR_OPTIONS,
