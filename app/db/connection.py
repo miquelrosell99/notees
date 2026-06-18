@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import urllib.parse
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
@@ -151,12 +152,18 @@ async def init_pool() -> asyncpg.Pool:
             return _pool
 
         database_url = get_database_url()
+        parsed = urllib.parse.urlparse(database_url)
+        password = urllib.parse.unquote(parsed.password) if parsed.password else settings.postgres_password
 
         async def _init_conn(conn: asyncpg.Connection) -> None:
             await setup_jsonb_codec(conn)
 
         _pool = await asyncpg.create_pool(
-            dsn=database_url,
+            host=parsed.hostname or settings.postgres_host,
+            port=parsed.port or settings.postgres_port,
+            user=parsed.username or settings.postgres_user,
+            password=password,
+            database=parsed.path.lstrip("/") or settings.postgres_db,
             min_size=settings.postgres_pool_min,
             max_size=settings.postgres_pool_max,
             max_inactive_connection_lifetime=settings.postgres_pool_max_inactive_time,
