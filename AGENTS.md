@@ -460,7 +460,7 @@ docker exec notees-postgres-dev psql -U notees -c "CREATE DATABASE notees_test;"
 docker exec notees-backend-dev pip install pytest==7.4.4 pytest-asyncio==0.23.3 pytest-cov httpx==0.26.0 testcontainers
 
 # 4. Run integration tests using the existing postgres container (use --no-cov to avoid coverage overhead)
-docker exec -e TEST_DATABASE_URL=postgresql://notees:change_me_dev_password@postgres:5432/notees_test notees-backend-dev pytest tests/ -m "not slow" -p no:cacheprovider --no-cov -v
+docker exec -e TEST_DATABASE_URL=postgresql://notees:YOUR_PASSWORD@postgres:5432/notees_test notees-backend-dev pytest tests/ -m "not slow" -p no:cacheprovider --no-cov -v
 ```
 
 **Test configuration (`pytest.ini`):**

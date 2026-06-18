@@ -1,7 +1,7 @@
 """Performance benchmarks for Notees.
 
 Run inside the backend container:
-    docker exec -e TEST_DATABASE_URL=postgresql://notees:change_me_dev_password@postgres:5432/notees_test \
+    docker exec -e TEST_DATABASE_URL=postgresql://notees:YOUR_PASSWORD@postgres:5432/notees_test \
         notees-backend-dev pytest tests/test_benchmarks.py -v -s
 
 These tests measure:
