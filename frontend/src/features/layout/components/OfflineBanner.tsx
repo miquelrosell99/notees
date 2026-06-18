@@ -6,7 +6,7 @@
  */
 import React from 'react';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
-import { Icon } from '@/components/ui/Icon';
+import { Icon } from '@/components/ui';
 import './OfflineBanner.css';
 
 export function OfflineBanner(): React.ReactNode {

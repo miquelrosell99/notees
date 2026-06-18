@@ -9,15 +9,17 @@
  * and supports various display modes and interactions.
  */
 import { useState, useEffect, useCallback } from 'react';
-import { useNode } from '@/hooks';
+import { useNode } from '@/features/content';
 import { useNavigationStore } from '@/stores';
-import { getAssetUrlAsync } from '@/api/assets';
+import { getAssetUrlAsync } from '@/features/assets';
 import { Card, type CardVariant } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { ImageModal } from '@/components/ui/ImageModal';
 import { FloatingButtonArray } from '@/components/ui/FloatingButtonArray';
 import { Bullet } from '@/features/content/components/blocks/Bullet';
 import './AssetImage.css';
+
+export type AssetImageVariant = 'default' | 'banner' | 'cover' | 'card-cover';
 
 interface AssetImageProps {
   /** Asset node ID */
@@ -56,6 +58,10 @@ interface AssetImageProps {
   emptyPlaceholder?: React.ReactNode;
   /** Whether to show bullet in modal */
   showModalBullet?: boolean;
+  /** Display variant driving internal layout (banner/cover/card-cover). */
+  assetVariant?: AssetImageVariant;
+  /** Additional class applied to the <img> element. */
+  imageClassName?: string;
 }
 
 export function AssetImage({
@@ -77,6 +83,8 @@ export function AssetImage({
   loadingPlaceholder,
   emptyPlaceholder,
   showModalBullet = true,
+  assetVariant = 'default',
+  imageClassName = '',
 }: AssetImageProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
@@ -144,9 +152,9 @@ export function AssetImage({
   // Loading state
   if (assetNodeId && isLoading) {
     return loadingPlaceholder || (
-      <div className={`asset-image asset-image--loading ${className}`}>
+      <div className={`asset-image asset-image--loading ${className}`} data-asset-variant={assetVariant}>
         {showCard ? (
-          <Card padding={false} radius={radius} elevation={elevation}>
+          <Card padding={false} radius={radius} elevation={elevation} className="asset-image__card">
             <div className="asset-image__placeholder" />
           </Card>
         ) : (
@@ -159,9 +167,9 @@ export function AssetImage({
   // No image
   if (!assetNodeId || !imageUrl || hasError) {
     return (
-      <div className={`asset-image asset-image--empty ${className}`}>
+      <div className={`asset-image asset-image--empty ${className}`} data-asset-variant={assetVariant}>
         {showCard ? (
-          <Card padding={false} radius={radius} elevation={elevation} variant={variant}>
+          <Card padding={false} radius={radius} elevation={elevation} variant={variant} className="asset-image__card">
             {emptyPlaceholder || <div className="asset-image__placeholder" />}
           </Card>
         ) : (
@@ -178,7 +186,7 @@ export function AssetImage({
       src={imageUrl}
       alt={alt}
       loading="lazy"
-      className="asset-image__img"
+      className={`asset-image__img ${imageClassName}`}
       onError={handleImageError}
       style={{
         pointerEvents: isDragging ? 'none' : 'auto'
@@ -229,7 +237,7 @@ export function AssetImage({
 
   return (
     <>
-      <div className={`asset-image ${className}`}>
+      <div className={`asset-image ${className}`} data-asset-variant={assetVariant}>
         {/* Action buttons */}
         {showActions && actionButtons && (
           <FloatingButtonArray
@@ -243,7 +251,7 @@ export function AssetImage({
 
         {/* Image with optional card wrapper */}
         {showCard ? (
-          <Card padding={false} radius={radius} elevation={elevation} variant={variant}>
+          <Card padding={false} radius={radius} elevation={elevation} variant={variant} className="asset-image__card">
             {imageContent}
           </Card>
         ) : (

@@ -5,9 +5,10 @@
  * and all its child blocks. Useful for debugging and understanding the internal structure.
  */
 import { Modal } from '@/components/ui/Modal';
+import { Button } from '@/components/ui/Button';
 import { copyToClipboard } from '@/utils/clipboardManager';
-import { useNode } from '@/hooks';
-import { nodeNameToText } from '@/features/queries/hooks/useStringifyAST';
+import { useNode } from '@/features/content';
+import { nodeNameToText } from '@/features/queries';
 import type { CSSProperties } from 'react';
 import type { Node } from '@/types';
 import './ASTViewerModal.css';
@@ -119,13 +120,13 @@ export function ASTViewerModal({ isOpen, onClose, node }: ASTViewerModalProps) {
         <div className="ast-viewer-ast">
           <div className="ast-viewer-ast-header">
             <span>This Node</span>
-            <button 
-              className="ast-viewer-copy-btn"
+            <Button
+              size="xs"
               onClick={() => copyToClipboard(displayNode.name || '')}
               title="Copy to clipboard"
             >
               Copy
-            </button>
+            </Button>
           </div>
           <div className="ast-viewer-row">
             <span className="ast-viewer-label">Format:</span>

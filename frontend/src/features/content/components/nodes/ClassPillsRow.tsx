@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/Button';
 import { NodeRef } from './NodeRef';
 import { Pill } from '@/components/ui/Pill';
 
-import { useRemoveClass, useClasses } from '@/hooks';
+import { useRemoveClass, useClasses } from '@/features/content';
 import { isNonRemovableClass } from '@/constants';
 import type { Node } from '@/types';
 import './ClassPillsRow.css';

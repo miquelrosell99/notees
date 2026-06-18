@@ -53,7 +53,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: var(--font-size-sm);
-  letter-spacing: 0.03em;
+  letter-spacing: var(--letter-spacing-label);
 }
 
 .embed-block-header__hint {
@@ -73,16 +73,6 @@
   padding: var(--spacing-1) 0;
 }
 
-/* Inner editor adjustments inside embed */
-.embed-block-content .notees-editor {
-  padding: 0;
-}
-
-.embed-block-content .node-block {
-  /* Slightly reduce indentation inside embed */
-  margin-left: calc(var(--node-block-depth, 0) * var(--spacing-6));
-}
-
 /* ─── Loading / error states ───────────────────────────────────── */
 
 .embed-block-loading,
@@ -93,16 +83,3 @@
   opacity: var(--opacity-60);
 }
 
-/* ─── Embed pill style in host block content area ─────────────── */
-
-/* Inline link wrapper for embed refType — show as a subtle indicator */
-.inline-link-wrapper[data-ref-type="embed"] {
-  opacity: var(--opacity-60);
-}
-
-.inline-link-wrapper[data-ref-type="embed"] .inline-link-inner {
-  font-size: 0.8em;
-  border: var(--border-width-default) dashed var(--color-outline-variant);
-  border-radius: var(--shape-extra-small);
-  padding: 0 var(--spacing-1);
-}

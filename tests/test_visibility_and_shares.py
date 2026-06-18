@@ -9,14 +9,14 @@ These tests verify:
 import pytest
 from httpx import AsyncClient
 
-from app import auth
-from app.db.connection import get_data_dir
 from app.domain.entities import NodeUpdateData
 from app.domain.permissions import PermissionChecker, Permissions
 from app.domain.repositories import PostgresPermissionRepository
-from app.node_export import get_static_share_path
+from app.features.auth import auth
+from app.infrastructure.export.share_files import get_static_share_path
 
 
+@pytest.mark.integration
 class TestPagePrivacy:
     """Test page privacy: is_private flag."""
 
@@ -168,6 +168,7 @@ class TestPagePrivacy:
         assert "children" in data
 
 
+@pytest.mark.integration
 class TestPublicShareStaticHtml:
     """Test static HTML generation, serving, regeneration, and cleanup."""
 

@@ -8,7 +8,17 @@ import type { Node, Property } from './api';
 import type { NodeView, QueryAST } from './nodeView';
 import type { ReactNode } from 'react';
 import type { ContextMenuItem } from '@/components/ui/ContextMenu';
-import type { SortEntry } from '@/features/content/components/nodes/views/NodeTable';
+
+// ==================== Sorting ====================
+
+/** Direction for a sort column. */
+export type SortDirection = 'asc' | 'desc';
+
+/** Entry for multi-column sorting. */
+export interface SortEntry {
+  key: string;
+  direction: SortDirection;
+}
 
 // ==================== GroupBy Options ====================
 
@@ -244,6 +254,9 @@ export interface NodeCollectionProps {
 
   /** List view density size: 'sm' for compact, 'md' for normal (default: 'md') */
   size?: 'sm' | 'md';
+
+  /** Whether this collection is rendered inside a property text block editor. */
+  inPropertyEditor?: boolean;
 
   /** Default sort columns applied on initial render (user can clear/override) */
   defaultSort?: SortEntry[];
@@ -566,4 +579,7 @@ export interface NodeCollectionContextValue {
   
   /** Maximum depth */
   maxDepth: number;
+
+  /** Whether this collection is rendered inside a property text block editor. */
+  inPropertyEditor?: boolean;
 }

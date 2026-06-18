@@ -1,0 +1,211 @@
+/**
+ * CardView CSS
+ *
+ * Grid container layout for the card view — adaptive CSS multi-column masonry.
+ * Column count is determined automatically by available space and the card
+ * min width. No fixed column counts or user-selectable sizes.
+ */
+
+
+
+
+.node-kanban-view {
+  --kanban-masonry-column: var(--layout-size-6xl);
+  --kanban-masonry-wide-column: min(var(--layout-size-9xl), 100%);
+  --kanban-column-width: clamp(var(--layout-size-5xl), 80vw, var(--layout-size-7xl));
+
+  column-gap: var(--spacing-4);
+  column-width: var(--kanban-masonry-column);
+  width: 100%;
+}
+
+/* Masonry container background — makes ungrouped cards visible against the page surface */
+.node-kanban-view:not(.node-kanban-view--kanban) {
+  background: var(--color-surface-container-high);
+  padding: var(--spacing-4);
+  border-radius: var(--shape-large);
+}
+
+/* Horizontal layouts (cover-left/right) are wider per card */
+.node-kanban-view:has(.node-card--cover-left, .node-card--cover-right) {
+  column-width: var(--kanban-masonry-wide-column);
+}
+
+.node-kanban-view--sortable {
+  user-select: none;
+}
+
+/* ==================== Kanban View (Grouped by Page) ==================== */
+
+.node-kanban-view--kanban {
+  display: flex;
+  gap: var(--spacing-4);
+  overflow-x: auto;
+  padding: var(--spacing-2) 0;
+  /* Override masonry — each kanban column is a single-column flex stack */
+  column-count: unset;
+  column-width: unset;
+}
+
+.node-kanban-view__kanban-column {
+  flex: 0 0 auto;
+  width: var(--kanban-column-width);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+  background: var(--color-surface-container-high);
+  border-radius: var(--shape-large);
+  padding: var(--spacing-4);
+  max-height: calc(100vh - var(--kanban-view-header-offset));
+}
+
+.node-kanban-view__kanban-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  padding: var(--spacing-2) var(--spacing-3);
+  background: var(--color-surface);
+  border-radius: var(--shape-medium);
+  font-weight: 600;
+  font-size: var(--font-size-base);
+  color: var(--color-on-surface);
+  flex-shrink: 0;
+}
+
+.node-kanban-view__kanban-icon {
+  font-size: var(--font-size-lead);
+  line-height: 1;
+}
+
+.node-kanban-view__kanban-title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.node-kanban-view__kanban-count {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--spacing-6);
+  height: var(--height-xs);
+  padding: 0 var(--spacing-2);
+  background: var(--color-surface-container-highest);
+  border-radius: var(--shape-full);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  color: var(--color-on-surface-variant);
+}
+
+.node-kanban-view__kanban-cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+  overflow-y: auto;
+  flex: 1;
+  padding: var(--spacing-1);
+}
+
+/* Wrapper around each kanban card — prevents flexbox min-height:auto=0 bug
+   when the card itself has overflow:hidden */
+.node-kanban-view__kanban-card-wrapper {
+  width: 100%;
+}
+
+/* ==================== Lazy Card Wrapper ==================== */
+
+.node-card-lazy-wrapper {
+  break-inside: avoid;
+}
+
+.node-kanban-view--kanban .node-card-lazy-wrapper {
+  break-inside: auto;
+}
+
+.node-card-placeholder {
+  background: var(--color-surface-container);
+  border: var(--border-width-default) dashed var(--color-outline-variant);
+  border-radius: var(--shape-medium);
+  min-height: var(--layout-size-sm);
+}
+
+/* ==================== Kanban DnD ==================== */
+
+.node-kanban-view__kanban-column--over {
+  outline: var(--border-width-thick) solid var(--color-primary);
+  outline-offset: calc(var(--spacing-micro) * -1);
+}
+
+.node-kanban-view__kanban-column--collapsed {
+  min-width: auto;
+  width: var(--spacing-12);
+  align-items: center;
+}
+
+.node-kanban-view__kanban-column--collapsed .node-kanban-view__kanban-header {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  gap: var(--spacing-1);
+  padding: var(--spacing-2) 0;
+}
+
+.node-kanban-view__kanban-column--collapsed .node-kanban-view__kanban-count {
+  writing-mode: horizontal-tb;
+  transform: rotate(90deg);
+}
+
+.node-kanban-view__kanban-header {
+  cursor: pointer;
+  user-select: none;
+}
+
+.node-kanban-view__kanban-header:hover {
+  background: var(--color-surface-container);
+}
+
+.node-kanban-view__kanban-header:focus-visible {
+  outline: var(--border-width-thick) solid var(--color-accent);
+  outline-offset: calc(var(--spacing-micro) * -1);
+}
+
+.node-kanban-view__kanban-collapse-btn {
+  flex-shrink: 0;
+  opacity: var(--opacity-0);
+  transition: opacity var(--motion-duration-shorter) var(--motion-easing-ease);
+}
+
+.node-kanban-view__kanban-column:hover .node-kanban-view__kanban-collapse-btn,
+.node-kanban-view__kanban-column:focus-within .node-kanban-view__kanban-collapse-btn,
+.node-kanban-view__kanban-collapse-btn:focus-visible {
+  opacity: var(--opacity-100);
+}
+
+@media (hover: none) {
+  .node-kanban-view__kanban-collapse-btn {
+    opacity: var(--opacity-100);
+  }
+}
+
+.node-kanban-view__kanban-column--collapsed .node-kanban-view__kanban-collapse-btn {
+  opacity: var(--opacity-100);
+  transform: rotate(90deg);
+}
+
+.node-kanban-view__kanban-card {
+  cursor: grab;
+}
+
+.node-kanban-view__kanban-card:active {
+  cursor: grabbing;
+}
+
+.node-kanban-view__kanban-card--dragging {
+  opacity: var(--opacity-40);
+}
+
+.node-kanban-view__kanban-card--overlay {
+  opacity: var(--opacity-100);
+  box-shadow: none;
+  transform: rotate(2deg);
+}

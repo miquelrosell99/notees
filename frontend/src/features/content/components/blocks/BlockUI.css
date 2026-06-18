@@ -18,6 +18,13 @@
   -moz-user-select: none;
 }
 
+/* Remote-lock owner color — driven by data attribute so parent CSS cannot
+   reach into .block-ui internals to set it. */
+.block-ui[data-owner-color] {
+  border-left: var(--border-width-thick) solid var(--block-owner-color);
+  padding-left: var(--spacing-1);
+}
+
 /* Collapse arrow — positioned between thread line and bullet */
 .block-collapse-arrow {
   position: absolute;
@@ -54,7 +61,7 @@
 /* Default hover/focus: show arrow at its normal centered position. */
 .block-collapse-arrow:hover .block-collapse-arrow__icon,
 .block-collapse-arrow:focus-visible .block-collapse-arrow__icon,
-.node-block:hover .block-collapse-arrow__icon {
+.block-ui[data-row-hover="true"] .block-collapse-arrow__icon {
   opacity: var(--opacity-100);
   color: var(--color-on-surface);
 }
@@ -64,12 +71,24 @@
 .block-collapse-arrow--thread-overlap .block-collapse-arrow__icon,
 .block-collapse-arrow--thread-overlap:hover .block-collapse-arrow__icon,
 .block-collapse-arrow--thread-overlap:focus-visible .block-collapse-arrow__icon,
-.node-block:hover .block-collapse-arrow--thread-overlap .block-collapse-arrow__icon {
+.block-ui[data-row-hover="true"] .block-collapse-arrow--thread-overlap .block-collapse-arrow__icon {
   transform: translateY(calc(-1px - 0.75rem));
 }
 
 .block-collapse-arrow--thread-overlap:active .block-collapse-arrow__icon {
   transform: translateY(calc(-1px - 0.75rem)) scale(var(--tactile-press-scale));
+}
+
+/* Suppress collapse-arrow hover reveal while dragging a block. */
+body.notees-dragging-block .block-ui[data-row-hover="true"] .block-collapse-arrow {
+  opacity: var(--opacity-0);
+}
+
+/* Small list-view sizing for the collapse arrow. */
+.block-ui[data-list-size="sm"] .block-collapse-arrow {
+  width: var(--icon-size-xs);
+  height: var(--icon-size-xs);
+  left: calc(var(--icon-size-xs) * -1);
 }
 
 /* Extend the clickable/hoverable area upward only when the arrow is floated,
@@ -83,11 +102,6 @@
   height: calc(100% + 0.75rem);
   background: transparent;
   pointer-events: auto;
-}
-
-/* Block bullet specific: right margin for spacing from content */
-.block-ui > .bullet-wrapper {
-  margin-right: var(--spacing-1-5);
 }
 
 /* Lock indicator — shown when another user is editing this block */

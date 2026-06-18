@@ -31,7 +31,7 @@ import type {
   ASTExternalLink,
   ASTInlineNode,
 } from '@/types/ast';
-import type { WhiteboardData } from '@/types/whiteboard';
+import type { WhiteboardData } from '@/features/whiteboard/types/whiteboard';
 import type { QueryAST } from '@/types/queryAST';
 
 // Re-export types for convenience

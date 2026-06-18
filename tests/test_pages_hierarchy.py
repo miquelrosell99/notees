@@ -2,6 +2,8 @@
 import pytest
 from httpx import AsyncClient
 
+pytestmark = pytest.mark.integration
+
 
 class TestPagesHierarchy:
     """Test that list_nodes returns child pages in the tree."""

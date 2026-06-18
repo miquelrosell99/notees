@@ -11,6 +11,19 @@
   overflow: visible !important;
 }
 
+/* Focus mode — dim the chrome, reveal on hover. Driven by data-focus-mode
+   on the Card root (set by TopBar.tsx). */
+.top-bar-card[data-focus-mode="true"] {
+  opacity: var(--opacity-15);
+  background: color-mix(in srgb, var(--color-background) 80%, transparent);
+  backdrop-filter: blur(2px);
+  transition: opacity var(--motion-duration-medium) var(--motion-easing-standard);
+}
+
+.top-bar-card[data-focus-mode="true"]:hover {
+  opacity: var(--opacity-100);
+}
+
 /* ==================== Top Bar Container ==================== */
 .top-bar {
   display: flex;

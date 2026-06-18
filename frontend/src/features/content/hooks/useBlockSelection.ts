@@ -15,7 +15,7 @@ import { getRuntimeEventBus } from '@/runtime/eventBus';
 import { useInputContext } from '@/stores/inputContext';
 import { copyRuntimeBlocksToClipboard, tryParseInternalFormat } from '@/utils/clipboardManager';
 import { useClipboardStore } from '@/stores/clipboardStore';
-import { pasteBlocksAfterBlock } from '@/features/content/editor/utils/pasteBlocks';
+import { pasteBlocksAfterBlock } from '@/features/editor';
 import { generateUUID } from '@/utils/uuid';
 import { clearClasses, applyClasses, getSiblingIds, type UseBlockSelectionOptions } from './useBlockSelection.utils';
 

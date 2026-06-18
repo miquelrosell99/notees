@@ -4,11 +4,11 @@
  * Context menu for archived nodes with unarchive and delete actions.
  */
 import { useCallback, useState } from 'react';
-import { useUnarchiveNode, useDeleteNode, useLinkedReferencesCount } from '@/hooks';
-import { nodeNameToText } from '@/features/queries/hooks/useStringifyAST';
+import { useUnarchiveNode, useDeleteNode, useLinkedReferencesCount } from '@/features/content';
+import { nodeNameToText } from '@/features/queries';
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/ContextMenu';
 import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
-import { useNavigationStore } from '@/stores';
+import { useAddSidebarCardAction, useOpenLocalGraphAction } from '@/features/layout';
 import type { Node } from '@/types';
 import { copyToClipboard } from '@/utils/clipboardManager';
 import './NodeContextMenu.css';
@@ -30,7 +30,8 @@ export function ArchivedNodeContextMenu({ node, position, onClose }: ArchivedNod
   const [showUnarchiveModal, setShowUnarchiveModal] = useState(false);
   const unarchiveNode = useUnarchiveNode();
   const deleteNode = useDeleteNode();
-  const { addSidebarCard, openLocalGraph } = useNavigationStore();
+  const addSidebarCard = useAddSidebarCardAction();
+  const openLocalGraph = useOpenLocalGraphAction();
   const { count: linkedRefsCount } = useLinkedReferencesCount(node.id);
   
   const handleUnarchiveClick = useCallback(() => {

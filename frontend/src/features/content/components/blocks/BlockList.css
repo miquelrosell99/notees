@@ -11,6 +11,10 @@
   outline: none;
 }
 
+.block-list[data-flush="true"] {
+  padding: 0;
+}
+
 .block-list.drag-over {
   outline: var(--border-width-thick) dashed var(--color-primary);
   outline-offset: calc(var(--spacing-micro) * -1);

@@ -1,0 +1,28 @@
+/**
+ * NodeDocumentView CSS
+ * 
+ * Styles for document view mode - no bullets, no indentation, paragraph-style
+ */
+
+
+
+
+.node-document-view {
+  width: 100%;
+  max-width: var(--layout-size-14xl);
+  margin: 0 auto;
+}
+
+.document-node {
+  margin-bottom: var(--spacing-2);
+}
+
+.document-node__content {
+  line-height: 1.7;
+}
+
+.document-node__children {
+  margin-top: var(--spacing-2);
+}
+
+/* Document mode hides bullets via data-document-mode on BlockUI/Bullet. */

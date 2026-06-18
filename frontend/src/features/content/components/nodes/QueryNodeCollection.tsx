@@ -25,9 +25,9 @@ import {
 } from '@/features/content/hooks/useNodeViews';
 import { useCreateNode, usePageClass, useAddClass } from '@/features/content/hooks/useNodes';
 import { useClasses, useLinkedReferences } from '@/features/content/hooks/useNodeQueries';
-import { nodeNameToText } from '@/features/queries/hooks/useStringifyAST';
+import { nodeNameToText } from '@/features/queries';
 
-import { useContentSave } from '@/hooks';
+import { useContentSave } from '@/features/editor';
 
 import type { NodeView, NodeViewType } from '@/types/nodeView';
 import type { QueryAST, ValidationResult } from '@/types/queryAST';

@@ -13,7 +13,23 @@
   padding: var(--spacing-6);
   background: var(--color-surface-container);
   border-radius: var(--shape-medium);
-  border-left: var(--border-width-node-color) solid var(--color-accent);
+}
+
+/* Embedded variant sits flush inside a grid section. */
+.page-header[data-embedded="true"] {
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.page-header[data-embedded="true"] .page-header__title-row {
+  margin-bottom: 0;
+}
+
+/* Focus mode — fade the icon button so only the title remains. */
+.page-header[data-focus-mode="true"] .page-icon-btn {
+  opacity: var(--opacity-0);
+  pointer-events: none;
+  transition: opacity var(--motion-duration-medium) var(--motion-easing-standard);
 }
 
 /* Title row: Icon + Title horizontally */

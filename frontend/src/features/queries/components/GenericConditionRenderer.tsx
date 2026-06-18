@@ -9,11 +9,12 @@ import { useState, useEffect } from 'react';
 import { Dropdown } from '@/components/ui/Dropdown';
 import { TextField } from '@/components/ui/TextField';
 import { SelectionButton } from '@/components/ui/SelectionButton';
-import { NodeSelector } from '@/features/content/components/nodes/NodeSelector';
+import { NodeSelector } from '@/features/content';
 
-import { useNode, useProperties } from '@/hooks';
-import { useNodeByUuid } from '@/features/content/hooks/useNodeQueries';
-import { useCurrentNodeUuid } from '@/features/content/hooks/useCurrentNodeUuid';
+import { useProperties } from '@/features/properties';
+import { useNode } from '@/features/content';
+import { useNodeByUuid } from '@/features/content';
+import { useCurrentNodeUuid } from '@/features/content';
 import type { ConditionNode, StyleType } from '@/types/queryAST';
 import { 
   getConditionConfig, 

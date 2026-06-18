@@ -5,8 +5,9 @@ import pytest
 import pytest_asyncio
 from httpx import AsyncClient
 
-from app import auth
-from app.main import app
+from app.features.auth import auth
+
+pytestmark = pytest.mark.integration
 
 
 @pytest_asyncio.fixture

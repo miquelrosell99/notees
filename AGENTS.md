@@ -24,7 +24,7 @@ Key features:
 
 - **Architecture**: Backend uses strict hexagonal architecture. Domain services must only use repository interfaces, never FastAPI or asyncpg directly.
 - **DB Connections**: Never call `pool.acquire()` directly. Use `app.db.connection.get_connection()` or `get_transaction()`.
-- **DI Factories**: `app/dependencies.py` factory functions return repository port interfaces from `app/domain/repositories/interfaces.py`, not concrete PostgreSQL implementations.
+- **DI Factories**: `app/dependencies.py` and feature `dependencies.py` factory functions return repository port interfaces from the owning feature's `port.py` (or shared `app/domain/ports.py`), not concrete PostgreSQL implementations.
 - **Frontend Imports**: Always use path aliases (e.g., `@/components/ui/Button`, `@/features/auth/api/auth`). Never use relative `../../../` paths. CSS is co-located with components.
 - **Feature Barrels**: Cross-feature imports go through `frontend/src/features/<name>/index.ts` barrels. Do not import from another feature's internal subdirectories.
 - **Feature Hooks**: Domain-specific hooks live in `frontend/src/features/<feature>/hooks/` (or `api/`). Generic hooks stay in `frontend/src/hooks/`.
@@ -117,36 +117,64 @@ notees/
 ├── app/                          # Backend (FastAPI)
 │   ├── main.py                   # FastAPI app factory, lifespan, middleware, routers
 │   ├── config.py                 # Pydantic-settings configuration
-│   ├── auth.py                   # JWT auth, password hashing, user management
-│   ├── models.py                 # Pydantic request/response schemas
+│   ├── models.py                 # Cross-cutting Pydantic request/response schemas
 │   ├── backup.py                 # Automatic backup scheduler (pg_dump)
 │   ├── logging_config.py         # Structured logging setup
-│   ├── node_export.py            # Export logic (Markdown, HTML, PDF)
-│   ├── workspace_io.py           # Workspace import/export
-│   ├── workspace_manager.py      # Workspace lifecycle management
-│   ├── dependencies.py           # FastAPI dependency injection helpers
+│   ├── dependencies.py           # Cross-feature dependency injection helpers
 │   ├── db/                       # Database layer
 │   │   ├── connection.py         # asyncpg pool + request-scoped connections
 │   │   └── schema/               # Schema initialization, migrations, constants
-│   ├── domain/                   # Hexagonal architecture: domain layer
+│   ├── domain/                   # Shared domain kernel
 │   │   ├── entities/             # Pure data models (Node, User, Property, QueryAST)
-│   │   ├── services/             # Business logic orchestrators
-│   │   ├── repositories/         # Repository interfaces + PostgreSQL implementations
-│   │   └── errors.py             # Domain exceptions
-│   ├── routers/                  # FastAPI API endpoints
-│   ├── infrastructure/           # Additional infra adapters
+│   │   ├── errors.py             # Domain exceptions
+│   │   ├── permissions.py        # Permission checks
+│   │   ├── ports.py              # Cross-cutting ports (EmailSender, NodeExportRenderer)
+│   │   └── stringify_ast.py      # AST serialization
+│   ├── features/                 # Feature-first modules (router + service + repository)
+│   │   ├── activity/
+│   │   ├── admin/
+│   │   ├── assets/
+│   │   ├── auth/
+│   │   ├── export/
+│   │   ├── nodes/
+│   │   ├── notifications/
+│   │   ├── properties/
+│   │   ├── shares/
+│   │   ├── sync/
+│   │   ├── tasks/
+│   │   ├── undo/
+│   │   └── workspaces/
+│   ├── infrastructure/           # Infrastructure adapters
+│   │   ├── email.py              # SMTP email sender adapter
+│   │   └── export/               # HTML/PDF/Markdown export rendering adapters
+│   ├── workspace_io.py           # Workspace import/export
+│   ├── workspace_manager.py      # Workspace lifecycle management
 │   ├── static/                   # Static assets + built frontend output (dist/)
 │   └── utils/                    # Small utilities
 │
 ├── frontend/                     # React SPA
 │   ├── src/
-│   │   ├── api/                  # Axios client + endpoint functions
+│   │   ├── api/                  # Shared Axios client only
 │   │   ├── components/ui/        # Reusable UI atoms (Button, Card, Modal, etc.)
-│   │   ├── features/             # Feature-first modules (auth, content, queries, ...)
-│   │   ├── hooks/                # Custom React hooks
-│   │   ├── stores/               # Zustand stores
-│   │   ├── types/                # TypeScript type definitions
-│   │   ├── utils/                # Utility functions
+│   │   ├── features/             # Feature-first modules
+│   │   │   ├── auth/
+│   │   │   ├── collab/
+│   │   │   ├── content/          # Core node/page/block logic
+│   │   │   ├── editor/           # Lexical editor, plugins, inline editor
+│   │   │   ├── journals/
+│   │   │   ├── layout/
+│   │   │   ├── properties/       # Property cells, renderers, registry
+│   │   │   ├── queries/
+│   │   │   ├── shares/
+│   │   │   ├── sidebar/
+│   │   │   ├── tasks/
+│   │   │   ├── views/            # Graph, timeline, gantt, kanban, etc.
+│   │   │   ├── whiteboard/
+│   │   │   └── workspace/
+│   │   ├── hooks/                # Generic React hooks
+│   │   ├── stores/               # Cross-cutting Zustand stores
+│   │   ├── types/                # Shared TypeScript type definitions
+│   │   ├── utils/                # Shared utility functions
 │   │   ├── views/                # Top-level view components
 │   │   ├── workers/              # Web Workers
 │   │   ├── runtime/              # OperationRuntime + graph/event/undo helpers
@@ -185,27 +213,29 @@ notees/
 
 > For the generic hexagonal architecture pattern, request-scoped connections, and background-task rules, see `fastapi-patterns`. The description below is Notees-specific.
 
-The backend follows a strict hexagonal architecture with three layers:
+The backend follows a feature-first hexagonal architecture:
 
-1. **Domain Layer** (`app/domain/`)
+1. **Feature modules** (`app/features/<feature>/`)
+   - Each feature owns its `router.py`, `service.py`, `port.py` (repository interface), `repository.py` (PostgreSQL implementation), `dependencies.py`, and `models.py`.
+   - Features depend on other features only through their public barrels or shared `app/domain/ports.py`.
+   - Routers are thin HTTP adapters; business logic lives in `service.py`.
+
+2. **Shared domain kernel** (`app/domain/`)
    - `entities/`: Pure dataclasses with no external dependencies.
-   - `services/`: Business logic orchestrators. Services never import FastAPI or asyncpg directly; they use repository interfaces.
-   - `repositories/interfaces.py`: Abstract ports (e.g., `NodeRepository`, `PropertyRepository`).
-   - `errors.py`: Domain-specific exceptions.
+   - `ports.py`: Cross-cutting ports such as `EmailSender` and `NodeExportRenderer`.
+   - `errors.py`, `permissions.py`, `stringify_ast.py`: shared domain concerns.
 
-2. **Infrastructure Layer** (`app/domain/repositories/`)
-   - Concrete PostgreSQL implementations: `postgres_node.py`, `postgres_link.py`, `postgres_property.py`, `postgres_user.py`, etc.
-   - These are the **only** files that should execute SQL against asyncpg.
-
-3. **API Layer** (`app/routers/`)
-   - FastAPI routers that depend on domain services.
-   - Request/response schemas are defined in `app/models.py` or `app/routers/*/models.py`.
+3. **Infrastructure adapters** (`app/infrastructure/`)
+   - Concrete adapters for cross-cutting concerns: SMTP email (`email.py`), HTML/PDF/Markdown export rendering (`export/`), Redis pubsub, etc.
+   - PostgreSQL implementations live inside their owning feature's `repository.py` and are the only files that execute SQL against asyncpg.
 
 **Post-migration boundary changes:**
+- Backend is organized by feature under `app/features/<feature>/`, each owning router, service, repository port, and PostgreSQL implementation.
 - Routers are thin HTTP adapters; business logic and orchestration live in domain services.
-- `UndoService` no longer executes SQL directly; persistence is handled by the `UndoRepository` interface implemented in `postgres_undo.py`.
-- Auth persistence moved from direct database access in `app/auth.py` into `UserRepository`.
-- Routers depend on repository interfaces from `app/domain/repositories/interfaces.py`; concrete `Postgres*` implementations are wired in `app/dependencies.py`.
+- `UndoService` no longer executes SQL directly; persistence is handled by the `UndoRepository` interface inside `app/features/undo/`.
+- Auth persistence moved from direct database access in `app/auth.py` into `app/features/auth/`.
+- Services depend on repository ports from their own or another feature's `port.py`; concrete `Postgres*` implementations are wired in feature `dependencies.py` or `app/dependencies.py`.
+- Cross-cutting ports (`EmailSender`, `NodeExportRenderer`) live in `app/domain/ports.py` and are implemented in `app/infrastructure/`.
 
 **Key backend patterns:**
 - **Request-scoped DB connections**: `app/db/connection.py` uses a `ContextVar` to share one pooled connection across all repository calls within a single HTTP request. This avoids pool contention.
@@ -224,19 +254,28 @@ The backend follows a strict hexagonal architecture with three layers:
 The fleet audit identified a number of drift items. The following have been resolved during the migration:
 
 - **Router-level SQL**: Direct `await conn.` calls and raw SQL were removed from routers; persistence operations now live in domain services and repository implementations.
-- **UndoService SQL**: `UndoService` no longer contains SQL; all undo persistence is handled by the `UndoRepository` interface implemented in `postgres_undo.py`.
-- **Auth persistence**: Direct database access in `app/auth.py` was moved into `UserRepository`.
-- **Concrete repository imports**: Routers depend on repository interfaces from `app/domain/repositories/interfaces.py`; concrete `Postgres*` implementations are wired in `app/dependencies.py`.
+- **UndoService SQL**: `UndoService` no longer contains SQL; all undo persistence is handled by the `UndoRepository` interface inside `app/features/undo/`.
+- **Auth persistence**: Direct database access in `app/auth.py` was moved into `app/features/auth/`.
+- **Concrete repository imports**: Routers and services depend on repository ports from their feature's `port.py` or `app/domain/ports.py`; concrete `Postgres*` implementations are wired in feature `dependencies.py` or `app/dependencies.py`.
 - **Design-token drift**: Hardcoded colors, decorative glows/shadows, and incorrect radius values were replaced with tokens from `variables.css`.
 - **Accent default**: The `:root` default accent is now sage `#5B7D5B`, with `--color-on-accent` and dark-mode overrides. The earlier default `#404040` has been retired.
 - **Block bullet**: Block bullets remain **circular** per the product-owner decision; the design language documents this signature element.
 - **Accessibility gaps**: Touch targets were increased to at least 44×44 px, `div role="button"` controls were converted to real `<button>` elements, visible `:focus-visible` rings were restored, form labels were associated with inputs, toast notifications were given `aria-live` regions, modal-like surfaces trap focus, and hover-only actions also reveal on `:focus-within`/`:focus-visible`.
 - **Mobile hardening**: Hardcoded English strings were externalized to `strings.xml`, WebView cookie/third-party settings were tightened, origin handling was improved, `android:allowBackup` was set to `false`, and the debug keystore is tracked.
-- **Feature-first frontend structure**: Domain-specific hooks moved from `frontend/src/hooks/` into `frontend/src/features/<feature>/hooks/`, feature barrels were curated, cross-feature deep imports were replaced with barrel imports, and large Zustand destructurings were converted to focused selectors.
+- **Feature-first frontend structure**: Domain-specific hooks, API endpoint modules, React contexts, and Zustand stores moved from `frontend/src/{api,contexts,hooks,stores}/` into their owning `frontend/src/features/<feature>/` module. The `collab` feature was fully consolidated under `features/collab/`. Feature barrels remain the only public surface for cross-feature imports, and the two remaining file-level import cycles were broken.
 - **DI ports**: `app/dependencies.py` factories now return repository port interfaces instead of concrete `Postgres*` implementations.
+- **Backend boundary cleanup**: Password hashing utilities were extracted to `app/utils/password.py`, removing the `app.auth` ↔ `postgres_user` import cycle. Router imports of `db.schema.constants` were redirected to `domain.entities.constants`. `build_import_records` was moved out of `workspace_io_service.py` so repositories no longer depend on a domain service.
 - **Invite password validation**: `InviteAcceptRequest` enforces the same password-complexity rules as other account endpoints.
 - **Pydantic request bodies**: Raw `request.json()` calls in `app/routers/sync.py` and `app/routers/nodes/favorites.py` were replaced with Pydantic models.
 - **Asset caching**: The service worker caches `/api/assets/` responses with a CacheFirst strategy.
+- **Export rendering port**: Rendering, YAML frontmatter, static share paths, and PDF generation were moved from `app/node_export.py` into `app/infrastructure/export/`. `ExportService` now depends on the `NodeExportRenderer` port, and `HtmlPdfExportRenderer` is wired through `app/dependencies.py`.
+- **PropertyService**: Property lifecycle, values, class filters, selection lines, class-property bindings, and side effects (task automation, activity logging) moved from `app/routers/properties/` into `app/features/properties/service.py`. Property routers are now thin HTTP adapters.
+- **Router transaction boundaries**: `async with get_transaction():` blocks in `nodes/classes.py` and `nodes/links.py` moved into atomic methods on `NodeService` inside `app/features/nodes/`.
+- **Email sender port**: Email sending and public-URL building extracted from `WorkspaceService` and `PostgresShareRepository` into the `EmailSender` port (`app/domain/ports.py`) and `SmtpEmailSender` adapter (`app/infrastructure/email.py`). `ShareService` inside `app/features/shares/` orchestrates repository + email port.
+- **Full backend feature-first re-layout**: Every major feature was moved from layer-first directories into `app/features/<feature>/`, including `auth`, `activity`, `assets`, `admin`, `export`, `nodes`, `notifications`, `properties`, `shares`, `sync`, `tasks`, `undo`, and `workspaces`. Each feature owns its router, service, repository port, and PostgreSQL implementation.
+- **Frontend feature splits**: `features/whiteboard/`, `features/properties/`, `features/views/`, and `features/editor/` were extracted from the `features/content` monolith into standalone modules with their own barrels.
+- **Leaner test suite**: Added `unit` marker, reusable fakes in `tests/fakes.py`, and fast unit tests in `tests/unit/`. Integration tests are tagged with `@pytest.mark.integration`. The fast unit suite runs in ~0.1 s without Docker/Postgres.
+- **Legacy layer-first directory cleanup**: `app/routers/` now only re-exports feature routers; `app/domain/services/` only contains the shared QueryAST compiler kernel; `app/domain/repositories/interfaces.py` only holds cross-cutting repository ports. All feature-specific code lives under `app/features/<feature>/`.
 
 ### Frontend: React SPA
 
@@ -244,12 +283,13 @@ The fleet audit identified a number of drift items. The following have been reso
 
 - **Build tool**: Vite with PWA plugin (`vite-plugin-pwa`). The build outputs to `app/static/dist`.
 - **State**: Zustand for client state (navigation, UI, auth, settings, undo); TanStack Query for server state and caching.
-- **Editor**: Lexical with 28+ custom plugins for block editing, slash commands, drag-and-drop, tables, code blocks, etc.
+- **Feature-first frontend**: `frontend/src/features/` owns cohesive domains: `content` (core node/page/block logic), `editor` (Lexical editor, plugins, inline editor), `properties` (property cells/renderers/registry), `views` (graph, timeline, gantt, kanban, table, etc.), `whiteboard`, `tasks`, `queries`, `auth`, `workspace`, `shares`, `journals`, `layout`, `sidebar`, and `collab`. Cross-feature imports go through feature barrels.
+- **Editor**: Lexical with 28+ custom plugins for block editing, slash commands, drag-and-drop, tables, code blocks, etc. Editor code lives in `frontend/src/features/editor/`.
 - **Routing**: Client-side routing within the SPA via a custom router (`src/hooks/useRouter.hook.ts`). FastAPI serves `index.html` for all non-API routes (`spa_fallback`).
-- **Path aliases**: `@/components`, `@/hooks`, `@/stores`, `@/api`, `@/editor`, `@/runtime`, `@/types`.
+- **Path aliases**: `@/components`, `@/hooks`, `@/stores`, `@/api`, `@/editor`, `@/runtime`, `@/types`, `@/features`.
 - **Optimistic UI**: Mutations update TanStack Query cache immediately and roll back on failure.
-- **View modes**: `NodeCollection` dispatches to `ListView`, `DocumentView`, `CardView`, `TableView`, `GanttView`, `GraphView`, `TimelineView`, and `WhiteboardView`.
-- **Canvas Renderers**: `GanttView` and `TimelineView` use extracted imperative canvas renderers (`GanttRenderer.ts`, `TimelineRenderer.ts`) to keep React components focused on state while pure functions/classes handle 2D drawing.
+- **View modes**: `NodeCollection` dispatches to view components in `frontend/src/features/views/` (`ListView`, `DocumentView`, `CardView`, `TableView`, `GanttView`, `GraphView`, `TimelineView`, etc.).
+- **Canvas Renderers**: `GanttView` and `TimelineView` use extracted imperative canvas renderers (`GanttRenderer.ts`, `TimelineRenderer.ts`) in `frontend/src/features/views/renderers/`.
 - **PWA**: Service worker auto-updates; precaches JS/CSS/HTML/ICO/PNG/SVG/WOFF2; network-first API caching; CacheFirst WASM caching; Web Share Target support.
 
 #### Frontend Data Flow Architecture
@@ -265,7 +305,7 @@ Backend API ←→ TanStack Query (server state) ←→ SyncManager (adapter) �
 1. **OperationRuntime** (`frontend/src/runtime/OperationRuntime.ts`): Pure derived-state engine. It owns base nodes (from TanStack Query) + pending operations = projected nodes. It has no React, TanStack Query, or API imports.
 2. **Runtime helpers** (`frontend/src/runtime/graphHelpers.ts`, `eventBus.ts`, `serverIdMap.ts`, plus `frontend/src/stores/undoEngine.ts`): Thin modules around OperationRuntime. They provide graph traversal, typed event emission, server-id mapping, undo/redo, and intent dispatch. None of them call the API.
 3. **SyncManager** (`frontend/src/sync/SyncManager.tsx`): The **sole** React adapter between OperationRuntime and TanStack Query. Mounted once in `App.tsx`, it observes dispatchable operations, fires `useMutation` hooks, applies targeted cache updates, and acknowledges operations on success.
-4. **useContentSave** (`frontend/src/hooks/useContentSave.ts`): Debounces editor content changes and forwards them to the undo engine as `update_content` intents. It no longer calls the API directly.
+4. **useContentSave** (`frontend/src/features/editor/hooks/useContentSave.ts`): Debounces editor content changes and forwards them to the undo engine as `update_content` intents. It no longer calls the API directly.
 
 **Boundary rules:**
 
@@ -382,7 +422,32 @@ The debug keystore is checked into the repo intentionally (it is not a secret).
 
 ### Backend Tests
 
-Tests are in `tests/` and use **pytest** with async support. Because the backend depends on `y-py` and other native extensions, tests **must be run inside the backend Docker container** against the existing PostgreSQL service.
+Tests are in `tests/` and use **pytest** with async support. Unit tests in
+`tests/unit/` run in-memory with fake repositories/ports and do not require
+Docker or PostgreSQL. Integration and slow tests that exercise the HTTP client
+and database **must be run inside the backend Docker container** against the
+existing PostgreSQL service.
+
+#### Test tiers
+
+Use these tiers during development and CI:
+
+```bash
+# Fast unit tests (no Docker, no DB)
+pytest tests/unit -m unit --no-cov
+
+# Integration tests excluding slow
+pytest tests/ -m "not slow" --no-cov
+
+# Full suite with coverage (CI)
+pytest tests/
+```
+
+> Prefer unit tests for domain-service behavior. Use integration tests for
+> endpoint contracts and cross-layer concerns. Mark slow tests with
+> `@pytest.mark.slow`.
+
+#### Docker-based integration run
 
 ```bash
 # 1. Ensure the dev stack is running (bind-mounts tests/ and pytest.ini)
@@ -394,7 +459,7 @@ docker exec notees-postgres-dev psql -U notees -c "CREATE DATABASE notees_test;"
 # 3. Install test dependencies inside the backend container
 docker exec notees-backend-dev pip install pytest==7.4.4 pytest-asyncio==0.23.3 pytest-cov httpx==0.26.0 testcontainers
 
-# 4. Run all tests using the existing postgres container (use --no-cov to avoid coverage overhead)
+# 4. Run integration tests using the existing postgres container (use --no-cov to avoid coverage overhead)
 docker exec -e TEST_DATABASE_URL=postgresql://notees:change_me_dev_password@postgres:5432/notees_test notees-backend-dev pytest tests/ -m "not slow" -p no:cacheprovider --no-cov -v
 ```
 
@@ -402,7 +467,7 @@ docker exec -e TEST_DATABASE_URL=postgresql://notees:change_me_dev_password@post
 - `asyncio_mode = auto`
 - Coverage target: `--cov-fail-under=30` (current baseline; raise only after coverage consistently exceeds a new threshold)
 - Coverage reports to `htmlcov/`
-- Markers: `slow`, `integration`
+- Markers: `slow`, `integration`, `unit`
 
 **Fixtures (`tests/conftest.py`):**
 - `db_pool`: Initializes asyncpg pool, drops and recreates the `public` schema, and re-creates extensions + schema before every test. Explicitly drops `uuid-ossp` before the schema drop to avoid stale extension catalog entries; does **not** drop `pg_trgm` because that can segfault Postgres 17-alpine.
@@ -472,8 +537,8 @@ All configuration is centralized in `app/config.py` using **pydantic-settings**.
 **Important:**
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `ADMIN_PASSWORD` | (generated, not logged) | Initial admin password. If unset, a random password is generated on first startup. **The password is NOT shown in logs.** Set this env var to retrieve or change it. |
-| `ACCESS_TOKEN_EXPIRE_HOURS` | `24` | JWT token lifetime (code default). `.env.example` sets `168` for development convenience. |
+| `ADMIN_PASSWORD` | (unset) | Initial admin password. If set and no admin exists on startup, an admin user is created automatically. Must be at least 12 characters with uppercase, lowercase, digit, and special character. If unset, or set but too weak, and no admin exists, both automatic admin creation and first-boot registration are rejected until a valid password is configured or an admin is created with `scripts/promote_user_to_admin.py`. When first-boot registration is allowed, the registrant must supply the configured `ADMIN_PASSWORD` in the registration request; the first admin is created with `ADMIN_PASSWORD`, not the registrant's chosen password. |
+| `ACCESS_TOKEN_EXPIRE_HOURS` | `0.25` (15 minutes) | JWT access token lifetime. Override only if you understand the security trade-off. |
 | `LOG_LEVEL` | `INFO` | Logging verbosity |
 | `BACKUP_INTERVAL_SECONDS` | `3600` | Automatic backup interval |
 | `MAX_BACKUPS` | `50` | Max backup files to keep |
@@ -494,17 +559,19 @@ See `.env.example` for the full template.
 
 - **SECRET_KEY is mandatory** and validated at startup (min 32 chars). The app will refuse to start without it.
 - **Password hashing**: Uses `bcrypt` via passlib (with `pbkdf2_sha256` retained for backward compatibility with existing hashes).
-- **JWT tokens**: Signed with HS256. Token lifetime defaults to 24 hours (configurable via `ACCESS_TOKEN_EXPIRE_HOURS`).
-- **CORS**: Disabled by default (frontend and backend are same-origin). Only configure `CORS_ORIGINS` if you run them on separate domains. When CORS is enabled with `allow_credentials=True` in production, a startup warning is logged.
+- **JWT tokens**: Signed with HS256. Access token lifetime defaults to **15 minutes** (configurable via `ACCESS_TOKEN_EXPIRE_HOURS`).
+- **CORS**: Disabled by default (frontend and backend are same-origin). Only configure `CORS_ORIGINS` if you run them on separate domains. `CORS_ORIGINS=*` is rejected in all environments when credentials are enabled.
 - **HSTS / HTTPS redirect**: Hardened headers (`Strict-Transport-Security` and the HTTP→HTTPS redirect) are enabled **only** when `ENVIRONMENT=production`. Set this explicitly for production deployments; do not rely on the reload flag.
 - **Rate limiting**: `fastapi_limiter` (0.2.0) + `pyrate_limiter` are configured in `app/main.py` and individual routers. See the [Rate Limiting](#rate-limiting) subsystem reference for details.
 - **Request body size limit**: 55 MB maximum (to support the 50 MB asset upload cap plus multipart overhead).
 - **User cache**: In-memory user cache with 5-minute TTL to avoid DB pool acquisition on every request.
 - **Static asset caching**: Hashed JS/CSS chunks get long-term cache headers; everything else is `no-store`.
 - **Cross-Origin headers**: `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: require-corp` are set on all responses to enable `SharedArrayBuffer` in the browser.
-- **Admin user**: Auto-created on first startup if it does not exist. If `ADMIN_PASSWORD` is unset, a random password is generated. **The generated password is NOT logged.** Set `ADMIN_PASSWORD` env var to retrieve or change it.
+- **Admin user**: Auto-created on first startup **only when `ADMIN_PASSWORD` is set and meets the admin complexity baseline** (≥12 characters, mixed case, digit, special character). If `ADMIN_PASSWORD` is unset, too weak, or empty and no admin exists, both automatic admin creation and first-boot registration are rejected; an error is logged. Set a valid `ADMIN_PASSWORD` and restart, or run `scripts/promote_user_to_admin.py` to bootstrap an admin manually. The `/auth/register` first-boot path requires the caller to provide the configured `ADMIN_PASSWORD`; the initial admin account is created with `ADMIN_PASSWORD` as its password, never with the registrant's chosen password.
 - **Production Docker image**: Runs as non-root `appuser`.
 - **Backup security**: `pg_dump`/`pg_restore` credentials are passed via environment variables (`PGPASSWORD`, `PGUSER`) rather than command-line arguments to prevent exposure via `ps`.
+- **Backup/export encryption at rest**: Backup `.dump` files and workspace export ZIPs are **not encrypted by the application**. Store `data/backups/` and `data/workspaces/{uuid}/export/` on encrypted volumes, or encrypt files outside the app. Optional `BACKUP_ENCRYPTION_KEY` support is planned as a follow-up.
+- **Content Security Policy**: The current CSP allows `'unsafe-inline'` for scripts and styles, which is required by the current SPA build architecture. Inline script injection is prevented because all rendered HTML is generated by the compiled React application and FastAPI, not from raw user input. A nonce- or hash-based CSP is a future hardening item.
 
 ---
 
@@ -592,12 +659,13 @@ Never call `pool.acquire()` directly in routers or services. Use:
 2. **Static asset caching vs. no-cache**: Hashed assets under `/assets/` are cached immutably; API responses and `index.html` are never cached.
 
 ### Adding a New API Endpoint
-1. Define Pydantic schemas in `app/models.py` or `app/routers/<module>/models.py`.
-2. Add domain logic to the appropriate service in `app/domain/services/`.
-3. If needed, extend the repository interface in `app/domain/repositories/interfaces.py` and implement it in the Postgres repository.
-4. Create/update the router in `app/routers/`.
-5. Include the router in `app/main.py`.
-6. Add tests in `tests/`.
+1. Identify the owning feature under `app/features/<feature>/`.
+2. Define Pydantic schemas in `app/features/<feature>/models.py` (or `app/models.py` for truly shared schemas).
+3. Add domain logic to `app/features/<feature>/service.py`.
+4. If needed, extend the repository port in `app/features/<feature>/port.py` and implement it in `app/features/<feature>/repository.py`.
+5. Create/update `app/features/<feature>/router.py`.
+6. Include the router in `app/features/<feature>/__init__.py` and wire it in `app/main.py`.
+7. Add tests in `tests/`.
 
 ### Frontend Conventions
 
@@ -850,7 +918,7 @@ Modular replacement for the original monolithic SemanticGraphEngine. Uses Struct
 4. If the setting affects physics, wire it through `buildSGEPhysicsConfig()` in `GraphView.tsx`
 
 **Adding a new graph filter or data-mode control:**
-1. If it needs backend data, extend `LinksRequest` / `LinksResponse` in `app/routers/nodes/models.py` and the endpoint in `search.py`
+1. If it needs backend data, extend `LinksRequest` / `LinksResponse` in `app/features/nodes/models.py` and the endpoint in `app/features/nodes/router.py` (search routes)
 2. Update `frontend/src/api/nodes.ts` and `frontend/src/hooks/useNodeGraphQueries.ts` to expose the new parameter
 3. Add state + persistence logic in `GraphView.tsx` (localStorage key pattern: `graph_{viewId}_{key}`)
 4. Apply the filter in the main `useMemo` that builds `nodes` and `links`
@@ -1050,13 +1118,15 @@ data/workspaces/{workspace_uuid}/
 - `assetTokens.ts` — Short-lived token cache
 
 **Gotchas:**
-- Legacy delete code in `app/routers/nodes/crud.py` still globs `assets_dir/{uuid}.*` (flat pattern), but assets now live in folders (`{uuid}/main.{ext}`). This may leave orphaned folders.
+- Asset storage uses folders (`{uuid}/main.{ext}`). Deletion flows through `app/features/assets/service.py`, which removes the whole folder.
 
 ---
 
 ### Rate Limiting
 
 Rate limiting is implemented with **`fastapi_limiter`** (0.2.0) and **`pyrate_limiter`**. It is **not** Redis-backed; all state lives in in-memory buckets inside the Python process.
+
+**Scaling note:** The default `PerKeyBucketFactory` uses `InMemoryBucket`, which is local to a single Python process. For multi-replica deployments, rate limits are **not shared** across instances. If you run Notees behind a load balancer with more than one backend replica, switch to a Redis-backed bucket (e.g., `RedisBucket` from `pyrate_limiter`) using the existing Redis service configured via `REDIS_URL`.
 
 **Architecture:**
 - `app/main.py` defines the global default limiter (`_default_api_limiter`) and attaches it to the `/api` and `/api/v1` root routers.
@@ -1067,14 +1137,14 @@ Rate limiting is implemented with **`fastapi_limiter`** (0.2.0) and **`pyrate_li
 | Limiter | Location | Rate | Scope |
 |---------|----------|------|-------|
 | Default API | `app/main.py` | **5000 req/min per IP** | All `/api/*` and `/api/v1/*` routes |
-| Auth register | `app/routers/auth.py` | 3 req/min | `POST /api/auth/register` |
-| Auth login | `app/routers/auth.py` | 5 req/min | `POST /api/auth/login` |
-| Node CRUD | `app/routers/nodes/crud.py` | 120 req/min | Node create/update/delete routes |
-| Batch create | `app/routers/nodes/batch.py` | 60 req/min | `POST /api/nodes/batch` |
-| Batch update | `app/routers/nodes/batch.py` | 120 req/min | `PUT /api/nodes/batch` |
-| Batch delete | `app/routers/nodes/batch.py` | 120 req/min | `DELETE /api/nodes/batch` |
-| Trash | `app/routers/nodes/trash.py` | 120 req/min | Trash restore/permanent-delete |
-| Shares | `app/routers/nodes/shares.py` | 30 req/min | Share create/update endpoints |
+| Auth register | `app/features/auth/router.py` | 3 req/min | `POST /api/auth/register` |
+| Auth login | `app/features/auth/router.py` | 5 req/min | `POST /api/auth/login` |
+| Node CRUD | `app/features/nodes/router/crud.py` | 120 req/min | Node create/update/delete routes |
+| Batch create | `app/features/nodes/router/batch.py` | 60 req/min | `POST /api/nodes/batch` |
+| Batch update | `app/features/nodes/router/batch.py` | 120 req/min | `PUT /api/nodes/batch` |
+| Batch delete | `app/features/nodes/router/batch.py` | 120 req/min | `DELETE /api/nodes/batch` |
+| Trash | `app/features/nodes/router/trash.py` | 120 req/min | Trash restore/permanent-delete |
+| Shares | `app/features/shares/router.py` | 30 req/min | Share create/update endpoints |
 
 **Important implementation detail — `PerKeyBucketFactory`:**
 
@@ -1089,7 +1159,7 @@ The fix is `PerKeyBucketFactory` (defined in `app/main.py`). It creates a separa
    _default_api_limiter = Limiter(PerKeyBucketFactory([Rate(5000, Duration.MINUTE)]))
    ```
 
-2. **Specific router** — edit the `Rate(...)` in the relevant router file (e.g., `app/routers/auth.py`):
+2. **Specific router** — edit the `Rate(...)` in the relevant router file (e.g., `app/features/auth/router.py`):
    ```python
    _auth_limiter_login = Limiter(Rate(5, Duration.MINUTE))
    ```
@@ -1099,11 +1169,11 @@ The fix is `PerKeyBucketFactory` (defined in `app/main.py`). It creates a separa
 
 **Key files:**
 - `app/main.py` — Global default limiter + `PerKeyBucketFactory`
-- `app/routers/auth.py` — Auth-specific limiters
-- `app/routers/nodes/batch.py` — Batch operation limiters
-- `app/routers/nodes/crud.py` — Node CRUD limiters
-- `app/routers/nodes/trash.py` — Trash limiters
-- `app/routers/nodes/shares.py` — Share limiters
+- `app/features/auth/router.py` — Auth-specific limiters
+- `app/features/nodes/router/batch.py` — Batch operation limiters
+- `app/features/nodes/router/crud.py` — Node CRUD limiters
+- `app/features/nodes/router/trash.py` — Trash limiters
+- `app/features/shares/router.py` — Share limiters
 
 ---
 

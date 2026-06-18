@@ -10,7 +10,7 @@
  * Child blocks are separate nodes — they are NEVER embedded in a parent's AST.
  */
 
-import type { WhiteboardData } from './whiteboard';
+import type { WhiteboardData } from '@/features/whiteboard/types/whiteboard';
 import type { QueryAST } from './queryAST';
 
 // ─── Leaf nodes ────────────────────────────────────────────────────

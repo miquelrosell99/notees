@@ -6,6 +6,7 @@
  */
 import { NodeCollection } from '@/features/content/components/nodes/NodeCollection';
 import { NodeCollectionToolbar } from '@/features/content/components/nodes/NodeCollectionToolbar';
+import { PageViewHeader } from '@/features/content/components/nodes/PageViewHeader';
 import { ArchivedNodeContextMenu } from '@/features/content/components/nodes/ArchivedNodeContextMenu';
 import { ArchiveIcon } from '@/components/ui/icons';
 import { useNavigationStore } from '@/stores';
@@ -25,7 +26,7 @@ interface ArchivedPagesViewProps {
 }
 
 export function ArchivedPagesView({ className = '' }: ArchivedPagesViewProps) {
-  const { openNode } = useNavigationStore();
+  const openNode = useNavigationStore((state) => state.openNode);
   const [viewMode, setViewMode] = useState<NodeCollectionViewMode>('list');
   const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
 
@@ -63,28 +64,22 @@ export function ArchivedPagesView({ className = '' }: ArchivedPagesViewProps) {
   
   return (
     <article className={`node-view node-view--page archived-pages-view ${className}`}>
-      {/* Page Header */}
-      <div className="page-header-section">
-        <div className="page-header-section__header">
-          <div className="page-header">
-            <h1 className="page-header__title">
-              Archived Pages
-            </h1>
-            <div className="page-header__actions">
-              {!isLoading && nodes && nodes.length > 0 && (
-                <Button
-                  variant="danger"
-                  size="sm"
-                  onClick={() => setShowDeleteAllConfirm(true)}
-                  disabled={deleteAllMutation.isPending}
-                >
-                  {deleteAllMutation.isPending ? 'Deleting...' : 'Delete All'}
-                </Button>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
+      <PageViewHeader
+        className="archived-pages-view__header"
+        title={<h1>Archived Pages</h1>}
+        actions={
+          !isLoading && nodes && nodes.length > 0 ? (
+            <Button
+              variant="danger"
+              size="sm"
+              onClick={() => setShowDeleteAllConfirm(true)}
+              disabled={deleteAllMutation.isPending}
+            >
+              {deleteAllMutation.isPending ? 'Deleting...' : 'Delete All'}
+            </Button>
+          ) : undefined
+        }
+      />
       
       {/* Archived Collection */}
       <div className="archived-pages-view__content">

@@ -1643,14 +1643,11 @@ CREATE TABLE IF NOT EXISTS refresh_token (
     revoked_at TIMESTAMPTZ,
     replaced_by INTEGER REFERENCES refresh_token(id) ON DELETE SET NULL,
     family_id UUID NOT NULL DEFAULT uuid_generate_v4(),
-    remember_me BOOLEAN NOT NULL DEFAULT FALSE
+    remember_me BOOLEAN NOT NULL DEFAULT FALSE,
+    last_4 VARCHAR(4)
 );
 
-CREATE INDEX IF NOT EXISTS idx_refresh_token_user ON refresh_token(user_id);
-CREATE INDEX IF NOT EXISTS idx_refresh_token_hash ON refresh_token(token_hash);
-CREATE INDEX IF NOT EXISTS idx_refresh_token_family ON refresh_token(family_id);
-
--- Migration: Add remember_me column to refresh_token for existing databases
+-- Migration: Add remember_me and last_4 columns to refresh_token for existing databases
 DO $$
 BEGIN
     IF NOT EXISTS (
@@ -1659,8 +1656,19 @@ BEGIN
     ) THEN
         ALTER TABLE refresh_token ADD COLUMN remember_me BOOLEAN NOT NULL DEFAULT FALSE;
     END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'refresh_token' AND column_name = 'last_4'
+    ) THEN
+        ALTER TABLE refresh_token ADD COLUMN last_4 VARCHAR(4);
+    END IF;
 END $$;
 
+CREATE INDEX IF NOT EXISTS idx_refresh_token_user ON refresh_token(user_id);
+CREATE INDEX IF NOT EXISTS idx_refresh_token_hash ON refresh_token(token_hash);
+CREATE INDEX IF NOT EXISTS idx_refresh_token_family ON refresh_token(family_id);
+CREATE INDEX IF NOT EXISTS idx_refresh_token_last4 ON refresh_token(last_4);
 CREATE INDEX IF NOT EXISTS idx_refresh_token_remember_me ON refresh_token(remember_me) WHERE remember_me = TRUE;
 
 -- Migration: Change node.sequence from INTEGER to DOUBLE PRECISION for fractional ordering

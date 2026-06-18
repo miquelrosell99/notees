@@ -5,15 +5,16 @@
  * NodeRef → NodeContextMenu → NodeSelector → NodeRef.
  */
 import { useMemo } from 'react';
-import { getNodePickerPalette } from './views/viewTypes';
+import { getNodePickerPalette } from '@/features/views';
 import './ColorPickerRow.css';
 
 interface ColorPickerRowProps {
   currentColor: string | null;
   onColorChange: (color: string | null) => void;
+  className?: string;
 }
 
-export function ColorPickerRow({ currentColor, onColorChange }: ColorPickerRowProps) {
+export function ColorPickerRow({ currentColor, onColorChange, className = '' }: ColorPickerRowProps) {
   const nodeColors = useMemo(() => getNodePickerPalette(), []);
   // Stop propagation to prevent ContextMenu's outside click handler from closing the menu
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -31,7 +32,7 @@ export function ColorPickerRow({ currentColor, onColorChange }: ColorPickerRowPr
     <div
       role="group"
       aria-label="Color options"
-      className="context-menu-color-row"
+      className={`context-menu-color-row ${className}`}
       onMouseDownCapture={handleMouseDown}
       onClickCapture={(e) => {
         e.stopPropagation();

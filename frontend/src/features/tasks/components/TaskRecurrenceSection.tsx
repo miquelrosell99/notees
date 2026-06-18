@@ -8,8 +8,8 @@
 // Kept as a deep import to avoid a circular dependency: the content barrel
 // exports NodeView, which renders TaskRecurrenceSection. If this component
 // imported the content barrel, we would get tasks -> content -> tasks.
-import { NodeViewSection } from '@/features/content/components/nodes/NodeViewSection';
-import { useDeleteTaskRecurrence, useSetTaskRecurrence, useTaskRecurrence } from '@/hooks';
+import { NodeViewSection } from '@/features/content';
+import { useDeleteTaskRecurrence, useSetTaskRecurrence, useTaskRecurrence } from '@/features/tasks';
 import { useNotifications } from '@/stores/notificationStore';
 import type { RecurrenceRuleInput } from '@/types/api';
 import { TaskCompletionHistory } from './TaskCompletionHistory';

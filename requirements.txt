@@ -1,7 +1,7 @@
 # Core
 fastapi==0.136.3
 uvicorn[standard]==0.48.0
-python-multipart==0.0.29
+python-multipart==0.0.31
 pydantic==2.13.4
 pydantic-settings==2.14.1
 PyJWT==2.13.0
@@ -18,7 +18,7 @@ Pillow==12.2.0
 
 # PDF generation
 weasyprint==68.1
-Pygments==2.19.1
+Pygments==2.20.0
 
 # Rate Limiting
 fastapi-limiter==0.2.0

@@ -6,6 +6,7 @@
 import { useCallback } from 'react';
 import { QuerySection } from '@/features/content/components/nodes/QuerySection';
 import { NodeSearchBox } from '@/features/content/components/nodes/NodeSearchBox';
+import { PageViewHeader } from '@/features/content/components/nodes/PageViewHeader';
 import { Button } from '@/components/ui/Button';
 import { useNavigationStore } from '@/stores';
 import { useModalStore } from '@/stores';
@@ -17,8 +18,8 @@ interface AllPagesViewProps {
 }
 
 export function AllPagesView({ className = '' }: AllPagesViewProps) {
-  const { openNode } = useNavigationStore();
-  const { setCommandPaletteOpen } = useModalStore();
+  const openNode = useNavigationStore((state) => state.openNode);
+  const setCommandPaletteOpen = useModalStore((state) => state.setCommandPaletteOpen);
   
   // Special pseudo-node ID and UUID for all_pages view
   const PSEUDO_NODE_ID = 0;
@@ -30,29 +31,27 @@ export function AllPagesView({ className = '' }: AllPagesViewProps) {
   
   return (
     <article className={`node-view node-view--page all-pages-view ${className}`}>
-      {/* Page Header */}
-      <div className="page-header-section">
-        <div className="page-header-section__header">
-          <div className="page-header all-pages-view__header">
-            <h1 className="page-header__title">All Pages</h1>
-            <div className="all-pages-view__search">
-              <NodeSearchBox
-                placeholder="Search pages..."
-                onSelect={handleSearchSelect}
-              />
-            </div>
-            <Button
-              variant="primary"
-              size="sm"
-              icon={"mdi mdi-plus"}
-              onClick={() => setCommandPaletteOpen(true)}
-              title="New page (Ctrl+K)"
-            >
-              New page
-            </Button>
-          </div>
-        </div>
-      </div>
+      <PageViewHeader
+        className="all-pages-view__header"
+        title={<h1>All Pages</h1>}
+        middle={
+          <NodeSearchBox
+            placeholder="Search pages..."
+            onSelect={handleSearchSelect}
+          />
+        }
+        actions={
+          <Button
+            variant="primary"
+            size="sm"
+            icon={"mdi mdi-plus"}
+            onClick={() => setCommandPaletteOpen(true)}
+            title="New page (Ctrl+K)"
+          >
+            New page
+          </Button>
+        }
+      />
       
       {/* Pages Section - use QuerySection with all_pages view type */}
       <QuerySection

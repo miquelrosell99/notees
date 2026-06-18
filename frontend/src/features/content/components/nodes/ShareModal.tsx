@@ -20,7 +20,7 @@ import {
   useNodeUserShares,
   useCreateUserShare,
   useDeleteUserShare,
-} from '@/features/shares/hooks/useShares';
+} from '@/features/shares';
 import { copyToClipboard } from '@/utils/clipboardManager';
 import './ShareModal.css';
 

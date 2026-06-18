@@ -29,6 +29,18 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from app.config import settings
 from app.main import app
 
+
+# Set a test admin password so registration endpoints can bootstrap the first
+# admin when the test database is empty. Tests that need a different value can
+# override this fixture or set settings.admin_password directly.
+@pytest.fixture(autouse=True)
+def _set_test_admin_password():
+    original = settings.admin_password
+    settings.admin_password = "TestAdminPass123!"
+    yield
+    settings.admin_password = original
+
+
 # ==================== PYTEST CONFIGURATION ====================
 
 pytest_plugins = ('pytest_asyncio',)
@@ -104,17 +116,17 @@ def temp_data_dir(tmp_path: Path) -> Generator[Path, None, None]:
     settings.database_dir = data_dir
 
     # Update auth module's USERS_DIR for user files (if it exists)
-    from app import auth
-    original_users_dir = getattr(auth, 'USERS_DIR', None)
+    from app.features import auth as auth_module
+    original_users_dir = getattr(auth_module, 'USERS_DIR', None)
     if original_users_dir is not None:
-        auth.USERS_DIR = data_dir / "users"
+        auth_module.USERS_DIR = data_dir / "users"
 
     yield data_dir
 
     # Restore
     settings.database_dir = original_dir
     if original_users_dir is not None:
-        auth.USERS_DIR = original_users_dir
+        auth_module.USERS_DIR = original_users_dir
 
 
 @pytest_asyncio.fixture(scope="function")
@@ -160,7 +172,10 @@ async def db_pool(database_url: str, temp_data_dir: Path):
             try:
                 await setup_conn.execute("DROP SCHEMA IF EXISTS public CASCADE")
                 break
-            except asyncpg.exceptions.DependencyStillExistsError:
+            except (
+                asyncpg.exceptions.DependentObjectsStillExistError,
+                asyncpg.exceptions.DeadlockDetectedError,
+            ):
                 await setup_conn.execute(
                     """
                     SELECT pg_terminate_backend(pid)
@@ -178,10 +193,11 @@ async def db_pool(database_url: str, temp_data_dir: Path):
         await setup_conn.execute("SET search_path TO public")
 
         # Re-create required extensions in the fresh public schema.
-        # uuid-ossp is created by init_database itself because running CREATE
-        # EXTENSION IF NOT EXISTS twice in the same connection before SCHEMA_SQL
-        # triggers an asyncpg/PostgreSQL unique-violation on pg_extension_name_index.
+        # pg_trgm is created here; uuid-ossp is also created explicitly to avoid
+        # a visibility race where init_database's SCHEMA_SQL can execute before
+        # the extension functions are resolvable in the same connection.
         await setup_conn.execute("CREATE EXTENSION IF NOT EXISTS pg_trgm")
+        await setup_conn.execute('CREATE EXTENSION IF NOT EXISTS "uuid-ossp"')
 
         # Initialize fresh schema on the same connection
         await schema.init_database(setup_conn)
@@ -193,7 +209,7 @@ async def db_pool(database_url: str, temp_data_dir: Path):
     pool = await connection.init_pool()
 
     # Clear in-memory auth cache so tests don't see stale user data
-    from app import auth
+    from app.features.auth import auth
     auth._user_cache.clear()
 
     # Reset per-key rate-limit buckets so leftover request budgets from a
@@ -243,9 +259,9 @@ async def test_user(db_pool, temp_data_dir: Path) -> dict:
     """Create a test user and workspace, return user data with auth token."""
     import shutil
 
-    from app import auth
     from app.db import schema
     from app.db.connection import get_workspace_dir
+    from app.features.auth import auth
 
     # Use unique email per test to avoid conflicts
     unique_id = secrets.token_hex(4)
@@ -328,7 +344,7 @@ async def auth_client(authenticated_client: AsyncClient) -> AsyncClient:
 @pytest_asyncio.fixture(scope="function")
 async def node_repository(db_pool, test_user):
     """Create a node repository for the test user's workspace."""
-    from app.domain.repositories import PostgresNodeRepository
+    from app.features.nodes.repository import PostgresNodeRepository
     return PostgresNodeRepository(
         db_pool, test_user["workspace_id"], test_user["page_class_id"], int(test_user["id"])
     )
@@ -337,35 +353,35 @@ async def node_repository(db_pool, test_user):
 @pytest_asyncio.fixture(scope="function")
 async def property_repository(db_pool, test_user):
     """Create a property repository for the test user's workspace."""
-    from app.domain.repositories import PostgresPropertyRepository
+    from app.features.properties.repository import PostgresPropertyRepository
     return PostgresPropertyRepository(db_pool, test_user["workspace_id"], int(test_user["id"]))
 
 
 @pytest_asyncio.fixture(scope="function")
 async def link_repository(db_pool, test_user):
     """Create a link repository for the test user's workspace."""
-    from app.domain.repositories import PostgresLinkRepository
+    from app.features.nodes.repository import PostgresLinkRepository
     return PostgresLinkRepository(db_pool, test_user["workspace_id"], int(test_user["id"]))
 
 
 @pytest_asyncio.fixture(scope="function")
 async def link_service(node_repository, link_repository):
     """Create a LinkParsingService for the test user's workspace."""
-    from app.domain.services.link_service import LinkParsingService
+    from app.features.nodes.link_service import LinkParsingService
     return LinkParsingService(node_repository, link_repository)
 
 
 @pytest_asyncio.fixture(scope="function")
 async def mention_repository(db_pool, test_user):
     """Create a mention repository for the test user's workspace."""
-    from app.domain.repositories import PostgresMentionRepository
+    from app.features.nodes.repository import PostgresMentionRepository
     return PostgresMentionRepository(db_pool, test_user["workspace_id"], int(test_user["id"]))
 
 
 @pytest_asyncio.fixture(scope="function")
 async def mention_service(node_repository, mention_repository, link_repository, test_user):
     """Create a MentionService for the test user's workspace."""
-    from app.domain.services.mention_service import MentionService
+    from app.features.nodes.mention_service import MentionService
     return MentionService(
         node_repository,
         mention_repository,
@@ -375,9 +391,13 @@ async def mention_service(node_repository, mention_repository, link_repository, 
 
 
 @pytest_asyncio.fixture(scope="function")
-async def node_service(node_repository, property_repository, link_service, mention_service, test_user):
+async def node_service(node_repository, property_repository, link_service, mention_service, test_user, db_pool):
     """Create a NodeService for the test user's workspace."""
-    from app.domain.services.node_service import NodeService
+    from app.features.nodes.node_service import NodeService
+    from app.features.nodes.repository import PostgresNodeViewRepository
+    view_repo = PostgresNodeViewRepository(
+        db_pool, test_user["workspace_id"], str(test_user["id"])
+    )
     return NodeService(
         node_repository,
         property_repository,
@@ -385,6 +405,7 @@ async def node_service(node_repository, property_repository, link_service, menti
         test_user["page_class_id"],
         workspace_id=test_user["workspace_id"],
         mention_service=mention_service,
+        view_repo=view_repo,
     )
 
 

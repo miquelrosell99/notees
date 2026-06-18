@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/Button';
 import { TaskReport, type TaskPhaseResult } from '@/components/ui/TaskReport';
 import { fixRawUuidLinks, type FixRawUuidLinksResponse } from '@/api/nodes';
 import { nodeKeys } from '@/hooks/queryKeys';
-import { nodeViewKeys } from '@/features/content/hooks/useNodeViews';
+import { nodeViewKeys } from '@/features/content';
 import './FixRawLinksModal.css';
 import { Icon } from '@/components/ui/icons';
 

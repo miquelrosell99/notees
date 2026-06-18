@@ -10,15 +10,17 @@
 import { useState, useCallback, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigationStore } from '@/stores';
+import { useShallow } from 'zustand/react/shallow';
 import type { MainViewType } from '@/stores';
-import { useNode, useIsMobile, useNodeByUuid } from '@/hooks';
+import { useIsMobile } from '@/hooks';
+import { useNode, useNodeByUuid } from '@/features/content';
 
 import { WorkspaceSwitcher, WorkspaceModal, useWorkspaceSettings, useEmptyTrash } from '@/features/workspace';
 import { GraphSettingsModal, UserSettingsModal, SystemSettingsModal } from '@/features/layout/components/Modals';
 import { AccountMenu } from '@/features/layout/components/AccountMenu';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { PageContextMenu } from '@/features/content/components/nodes/NodeContextMenu';
+import { PageContextMenu } from '@/features/content';
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/ContextMenu';
 import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
 import { useClickOutside } from '@/hooks/useClickOutside';
@@ -386,7 +388,16 @@ export function Sidebar({ collapsed }: SidebarProps) {
     openNodeInNewTab,
     isSidebarCollapsed,
     toggleSidebar,
-  } = useNavigationStore();
+  } = useNavigationStore(
+    useShallow((s) => ({
+      mainViewType: s.mainViewType,
+      setMainViewType: s.setMainViewType,
+      openNode: s.openNode,
+      openNodeInNewTab: s.openNodeInNewTab,
+      isSidebarCollapsed: s.isSidebarCollapsed,
+      toggleSidebar: s.toggleSidebar,
+    }))
+  );
 
   // Fetch workspace settings for sidebar visibility toggles
   const { data: workspaceSettings } = useWorkspaceSettings();

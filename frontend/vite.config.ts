@@ -103,8 +103,13 @@ export default defineConfig({
   server: {
     port: 5173,
     host: '0.0.0.0',
-    allowedHosts: true,
-    cors: true,
+    // Restrict to known local dev hosts. To expose the dev server to a remote
+    // host (e.g., for LAN testing), set the VITE_ALLOWED_HOSTS env variable to
+    // a comma-separated list of hostnames, or run with --host <hostname>.
+    allowedHosts: process.env.VITE_ALLOWED_HOSTS
+      ? process.env.VITE_ALLOWED_HOSTS.split(',')
+      : ['localhost', '127.0.0.1'],
+    cors: false,
     // Required for SharedArrayBuffer (crossOriginIsolated = true)
     headers: {
       'Cross-Origin-Opener-Policy': 'same-origin',

@@ -16,7 +16,7 @@
 import { useState, useCallback } from 'react';
 import { useCreateNode, usePageClass } from '@/features/content';
 import { listNodes } from '@/api/nodes';
-import { useNavigationStore } from '@/stores';
+import { useOpenNode } from '@/features/layout';
 import { parseHierarchicalPath, resolveHierarchicalParent } from '@/utils/hierarchicalPath';
 
 export interface DraftBlock {
@@ -86,7 +86,7 @@ export function useQuickAdd(options: UseQuickAddOptions = {}): UseQuickAddReturn
   );
   
   const createNodeMutation = useCreateNode();
-  const { openNode } = useNavigationStore();
+  const openNode = useOpenNode();
   const { pageClassId } = usePageClass();
 
   // Reset blocks to initial state

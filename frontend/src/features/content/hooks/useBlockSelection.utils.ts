@@ -28,6 +28,10 @@ export function clearClasses(rootEl: HTMLElement): void {
   const selector = SELECTION_CLASSES.map((c) => `.${c}`).join(', ');
   rootEl.querySelectorAll(selector).forEach((el) => {
     el.classList.remove(...SELECTION_CLASSES);
+    el.querySelectorAll('.bullet-wrapper').forEach((bullet) => {
+      bullet.removeAttribute('data-selected');
+      bullet.removeAttribute('data-selected-child');
+    });
   });
 }
 
@@ -62,6 +66,9 @@ export function applyClasses(rootEl: HTMLElement, selectedIds: Set<string>): voi
       }
     }
     el.classList.add(hasSelectedParent ? 'node-block--selected-child' : 'node-block--selected');
+    el.querySelectorAll('.bullet-wrapper').forEach((bullet) => {
+      bullet.setAttribute('data-selected', hasSelectedParent ? 'child' : 'true');
+    });
   }
 
   // Apply first/last/single classes per contiguous run

@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Modal } from '@/components/ui/Modal';
 import { Icon } from '@/components/ui/icons';
-import { useDeleteTaskCompletion, useTaskCompletions } from '@/hooks';
+import { useDeleteTaskCompletion, useTaskCompletions } from '@/features/tasks';
 import { formatDate } from '@/stores';
 import { useSettingsStore } from '@/stores';
 import type { TaskCompletion } from '@/types/api';

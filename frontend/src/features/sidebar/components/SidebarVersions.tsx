@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { NodeViewSection } from '@/features/content/components/nodes/NodeViewSection';
+import { NodeViewSection } from '@/features/content';
 import { Button } from '@/components/ui/Button';
 import { Spinner } from '@/components/ui/Spinner';
 import { Icon } from '@/components/ui/icons';
@@ -50,6 +50,7 @@ export function SidebarVersions({ nodeId }: SidebarVersionsProps) {
       expanded={expanded}
       onExpandedChange={setExpanded}
       className="sidebar-context-section sidebar-context-section--versions"
+      variant="sidebar"
       hideWhenEmpty={false}
     >
       {loading ? (

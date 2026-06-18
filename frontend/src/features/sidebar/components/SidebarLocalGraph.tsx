@@ -10,9 +10,9 @@
  * Passes all workspace nodes to GraphView, which filters by BFS depth
  * via the levels slider.
  */
-import { useGraphNodes } from '@/hooks';
+import { useGraphNodes } from '@/features/content';
 import { Spinner } from '@/components/ui/Spinner';
-import { GraphView } from '@/features/content';
+import { GraphView } from '@/features/views';
 import './SidebarLocalGraph.css';
 
 export interface SidebarLocalGraphProps {

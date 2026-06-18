@@ -6,7 +6,7 @@
   flex-direction: column;
 }
 
-.archived-pages-view .page-header-section {
+.archived-pages-view__header {
   padding: var(--spacing-2) var(--spacing-6);
   margin-bottom: 0;
   flex-shrink: 0;
@@ -42,7 +42,7 @@
 }
 
 @media (max-width: 768px) {
-  .archived-pages-view .page-header-section,
+  .archived-pages-view__header,
   .archived-pages-view__content {
     padding-left: var(--spacing-4);
     padding-right: var(--spacing-4);
@@ -50,7 +50,7 @@
 }
 
 @media (max-width: 480px) {
-  .archived-pages-view .page-header-section,
+  .archived-pages-view__header,
   .archived-pages-view__content {
     padding-left: var(--spacing-3);
     padding-right: var(--spacing-3);

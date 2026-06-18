@@ -28,64 +28,6 @@ div.node-pill:focus-visible {
   border-radius: var(--shape-extra-small);
 }
 
-/* Link variant - inline text style with subtle underline + micro-tint */
-.node-pill--link .pill {
-  display: inline;
-  padding: 0 var(--spacing-tiny);
-  margin: 0 var(--spacing-hairline);
-  background: color-mix(in srgb, var(--color-on-surface) 5%, transparent);
-  border-radius: var(--shape-small);
-  border-bottom: var(--border-width-medium) dotted var(--color-outline);
-  color: var(--color-on-surface);
-  font: inherit;
-  line-height: inherit;
-  gap: var(--spacing-micro);
-  transition: background var(--motion-duration-short) var(--motion-easing-standard),
-              border-color var(--motion-duration-short) var(--motion-easing-standard),
-              border-bottom-style var(--motion-duration-short) var(--motion-easing-standard),
-              box-shadow var(--motion-duration-short) var(--motion-easing-standard),
-              transform var(--motion-duration-short) var(--motion-easing-tactile);
-}
-
-.node-pill--link .pill:hover {
-  background: color-mix(in srgb, var(--color-on-surface) 10%, transparent);
-  border-bottom-style: solid;
-  border-bottom-color: var(--color-on-surface-variant);
-  filter: none;
-}
-
-.node-pill--link .pill:active {
-  transform: scale(0.97);
-  box-shadow: none;
-}
-
-.node-pill--link.node-pill--page .pill:not([style*="background"]) {
-  background: color-mix(in srgb, var(--color-on-surface) 5%, transparent);
-  color: var(--color-on-surface);
-}
-
-.node-pill--link.node-pill--block .pill:not([style*="background"]) {
-  background: color-mix(in srgb, var(--color-on-surface) 3%, transparent);
-  color: var(--color-on-surface-variant);
-}
-
-/* When pill has a custom color, the Pill component sets text color for contrast */
-.node-pill--link .pill[style*="background"] {
-  border-radius: var(--shape-small);
-  padding: 0 var(--spacing-tiny);
-}
-
-/* Hide icon in link pills for cleaner inline look */
-.node-pill--link .pill__left-icon {
-  display: none;
-}
-
-/* Allow natural text flow in link pills */
-.node-pill--link .pill__text {
-  white-space: normal;
-  overflow: visible;
-}
-
 /* Click count badge */
 .node-pill__badge {
   display: inline-flex;
@@ -144,14 +86,6 @@ div.node-pill:focus-visible {
   visibility: hidden;
 }
 
-/* Selection highlight when pill is arrow-key selected in editor */
-.node-link-mount.link-pill--selected > .node-pill > .pill,
-.node-link-mount.inline-link--selected > .node-pill > .pill {
-  outline: var(--border-width-thick) solid var(--color-on-surface);
-  outline-offset: 1px;
-  border-radius: var(--shape-extra-small);
-}
-
 /* Broken link indicator — shown when an inline node reference target is missing */
 .broken-link {
   color: var(--color-error);
@@ -162,13 +96,13 @@ div.node-pill:focus-visible {
 }
 
 /* Context menu wrapper for link variant with color picker */
-.node-pill-context-menu-wrapper .context-menu {
+.node-pill-context-menu {
   position: relative !important;
   left: 0 !important;
   top: 0 !important;
   border-radius: 0 0 var(--shape-large) var(--shape-large);
 }
 
-.node-pill-context-menu-wrapper .context-menu-color-row {
+.node-pill-context-menu__color-row {
   border-radius: var(--shape-large) var(--shape-large) 0 0;
 }

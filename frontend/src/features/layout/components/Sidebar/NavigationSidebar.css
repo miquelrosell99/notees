@@ -238,8 +238,7 @@
 
 /* ==================== Favorites List ==================== */
 .sidebar-favorites-list {
-  padding-top: 0;
-  padding-left: var(--spacing-2);
+  padding: 0;
   position: relative;
 }
 
@@ -258,13 +257,14 @@ button.sidebar-recent-item {
   font: inherit;
   color: inherit;
   text-align: left;
-  width: auto;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .sidebar-favorite-item {
   display: flex;
   align-items: center;
-  padding: 0;
+  padding: 0 var(--spacing-2);
   border-radius: var(--shape-small);
   transition: background var(--motion-duration-short) var(--motion-easing-standard);
   position: relative;
@@ -333,6 +333,7 @@ button.sidebar-recent-item {
 .sidebar-recent-block {
   flex: 1;
   min-width: 0;
+  padding: 0 var(--spacing-2);
   pointer-events: none;
   overflow: hidden;
 }
@@ -347,8 +348,16 @@ button.sidebar-recent-item {
   transition: opacity var(--motion-duration-short);
 }
 
-.sidebar-favorite-item:hover .sidebar-favorite-remove {
+.sidebar-favorite-item:hover .sidebar-favorite-remove,
+.sidebar-favorite-item:focus-within .sidebar-favorite-remove,
+.sidebar-favorite-remove:focus-visible {
   opacity: var(--opacity-100);
+}
+
+@media (hover: none) {
+  .sidebar-favorite-item .sidebar-favorite-remove {
+    opacity: var(--opacity-100);
+  }
 }
 
 /* Breadcrumb wrapper — hidden by default, revealed on hover/focus */
@@ -379,52 +388,21 @@ button.sidebar-recent-item {
 
 .sidebar-favorite-item .block-row,
 .sidebar-recent-item .block-row {
-  padding: var(--spacing-3) var(--spacing-3);
+  padding: var(--spacing-4) 0;
   gap: var(--spacing-3);
   min-height: var(--height-md);
   align-items: center;
 }
 
-.sidebar-favorite-item .block-content,
-.sidebar-recent-item .block-content {
-  pointer-events: none;
-  display: flex;
-  align-items: center;
-}
-
-.sidebar-favorite-item .block-content-view,
-.sidebar-recent-item .block-content-view {
-  font: var(--font-body-medium);
-  color: var(--color-on-surface);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  min-height: auto;
-}
-
-.sidebar-favorite-item .block-content-view .content-with-pills,
-.sidebar-recent-item .block-content-view .content-with-pills {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--spacing-3);
-  line-height: 1.2;
-}
-
-.sidebar-favorite-item.active .block-content-view,
-.sidebar-recent-item.active .block-content-view {
-  color: var(--color-on-primary-container);
-}
-
 /* ==================== Recents List ==================== */
 .sidebar-recents-list {
-  padding-top: 0;
-  padding-left: var(--spacing-2);
+  padding: 0;
 }
 
 .sidebar-recent-item {
   display: flex;
   flex-direction: column;
-  padding: var(--spacing-1);
+  padding: var(--spacing-1) var(--spacing-2);
   cursor: pointer;
   border-radius: var(--shape-small);
   transition: background var(--motion-duration-short) var(--motion-easing-standard);

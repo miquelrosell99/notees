@@ -88,7 +88,7 @@
   --color-on-accent: #ffffff;
   --color-accent-hover: color-mix(in srgb, var(--color-accent) 90%, black);
   --color-accent-active: color-mix(in srgb, var(--color-accent) 80%, black);
-  --color-accent-subtle: #737373;
+  --color-accent-subtle: #8BA88B;
   --color-surface-tint: transparent;
 
   /* ==================== Graph View (light defaults) ==================== */
@@ -399,6 +399,7 @@
   --modal-width-xl: 1200px;
   --modal-width-xs: 280px;
   --modal-width-2xl: 1000px;
+  --page-cover-height: 100px;
   --page-icon-placeholder-size: 40px;
   --panel-width-md: 200px;
   --panel-width-sm: 120px;

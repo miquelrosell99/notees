@@ -7,8 +7,9 @@
  * - Blocks: Uses NodeViewContent for focused block view
  */
 import { useCallback } from 'react';
-import { useNode } from '@/hooks';
-import { nodeNameToText } from '@/features/queries/hooks/useStringifyAST';
+import { useShallow } from 'zustand/react/shallow';
+import { useNode } from '@/features/content';
+import { nodeNameToText } from '@/features/queries';
 import { useNavigationStore } from '@/stores';
 import { Spinner } from '@/components/ui/Spinner';
 import type { SidebarNodeType } from '@/stores';
@@ -24,7 +25,9 @@ interface SidebarNodeViewProps {
 
 export function SidebarNodeView({ nodeId, nodeType }: SidebarNodeViewProps) {
   const { data: node, isLoading, error } = useNode(nodeId);
-  const { openNode, viewMode } = useNavigationStore();
+  const { openNode, viewMode } = useNavigationStore(
+    useShallow((state) => ({ openNode: state.openNode, viewMode: state.viewMode })),
+  );
 
   const handleOpenFull = useCallback(() => {
     if (!node) return;

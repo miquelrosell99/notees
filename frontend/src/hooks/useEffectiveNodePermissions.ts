@@ -7,7 +7,7 @@
  * previously only looked at workspace role, defaulting to "owner" when
  * the workspace wasn't in the user's list.
  */
-import { useWorkspaceRole } from '@/features/workspace/hooks/useWorkspaceRole';
+import { useWorkspaceRole } from '@/features/workspace';
 import type { Node } from '@/types/api';
 
 export interface EffectivePermissions {

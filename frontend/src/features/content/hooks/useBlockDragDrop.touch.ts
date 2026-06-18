@@ -14,6 +14,13 @@ import {
 import { buildGhostContent } from './useBlockDragDrop.anchors';
 import type { DragDropRefs, DragDropHelpers } from './useBlockDragDrop.engine';
 
+const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
+
+function vibrateIfAllowed(pattern: number | number[]) {
+  if (typeof window === 'undefined' || window.matchMedia(REDUCED_MOTION_QUERY).matches) return;
+  navigator.vibrate?.(pattern);
+}
+
 export function createTouchHandlers(
   rootEl: HTMLElement,
   editorId: string,
@@ -51,7 +58,7 @@ export function createTouchHandlers(
     if (!rootEl) return;
     state.longPressPending = false;
     state.active = true;
-    navigator.vibrate?.(30);
+    vibrateIfAllowed(30);
     window.getSelection()?.removeAllRanges();
 
     const isMultiDrag = state.topLevelIds.length > 1;
@@ -214,7 +221,7 @@ export function createTouchHandlers(
       if (!st || !st.pending) return;
       st.pending = false;
       st.longPressPending = true;
-      navigator.vibrate?.(20);
+      vibrateIfAllowed(20);
     }, LONG_PRESS_MS);
   };
 

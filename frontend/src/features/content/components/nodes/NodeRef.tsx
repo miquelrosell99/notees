@@ -19,7 +19,7 @@ import { ContextMenu, type ContextMenuItem } from '@/components/ui/ContextMenu';
 import { ColorPickerRow } from './ColorPickerRow';
 import { useBatchedNode } from '@/hooks';
 import { useNodeDisplay } from '@/features/content/hooks/useNodeDisplay';
-import { useReferencedNode } from '@/contexts/useReferencedNode';
+import { useReferencedNode } from '@/features/content';
 import { useNodeByUuid } from '@/features/content/hooks/useNodeQueries';
 import { useNavigationStore } from '@/stores';
 import { parseAST, parseLinkId } from '@/lib/astBuilder';
@@ -455,8 +455,16 @@ function NodeRefInteractive({
 
   // Determine pill styling class
   const pillClass = isLink
-    ? `node-pill node-pill--link ${isPage ? 'node-pill--page' : 'node-pill--block'} ${refType === 'class' ? 'node-pill--class' : ''} ${className}`
+    ? `node-pill ${className}`
     : `node-pill ${className}`;
+
+  const pillVariant = isLink
+    ? refType === 'class'
+      ? 'link-class'
+      : isPage
+        ? 'link-page'
+        : 'link-block'
+    : 'default';
 
   return (
     <>
@@ -471,6 +479,7 @@ function NodeRefInteractive({
         >
           <Pill
             text={displayText}
+            variant={pillVariant}
             leftIcon={effectiveIcon ? <NodeIcon icon={effectiveIcon} isPage={isPage} size="xs" /> : undefined}
             color={effectiveColor}
           />
@@ -488,6 +497,7 @@ function NodeRefInteractive({
         >
           <Pill
             text={displayText}
+            variant={pillVariant}
             leftIcon={effectiveIcon ? <NodeIcon icon={effectiveIcon} isPage={isPage} size="xs" /> : undefined}
             rightIcon={
               (!readOnly && onRemove)
@@ -547,12 +557,14 @@ function NodeRefInteractive({
                 <ColorPickerRow
                   currentColor={node?.color ?? null}
                   onColorChange={handleColorChangeFromMenu}
+                  className="node-pill-context-menu__color-row"
                 />
                 <ContextMenu
                   items={contextMenuItems}
                   position={{ x: 0, y: 0 }}
                   onClose={handleCloseContextMenu}
                   containerRef={contextMenuWrapperRef}
+                  className="node-pill-context-menu"
                 />
               </div>
             </>

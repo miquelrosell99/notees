@@ -2,8 +2,7 @@
  * TabOverflowDropdown — dropdown listing all open tabs when they don't fit.
  */
 import { useRef, useEffect } from 'react';
-import { Button } from '@/components/ui/Button';
-import { Icon } from '@/components/ui/Icon';
+import { Button, Icon } from '@/components/ui';
 import type { Tab } from '@/stores/navigationStore';
 import './TabOverflowDropdown.css';
 

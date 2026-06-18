@@ -1,7 +1,10 @@
 """Test that template instantiation copies ALL children, not just the first."""
 import pytest
 from httpx import AsyncClient
+
 from app.db.schema import SYSTEM_CLASS_UUIDS
+
+pytestmark = pytest.mark.integration
 
 
 async def _get_template_class_id(c: AsyncClient) -> int:
@@ -30,11 +33,11 @@ async def test_multi_child_as_blocks(authenticated_client: AsyncClient):
 
     # Create 3 child blocks under the template
     child1 = await _create_node(c, name="Child 1", parent_id=template["id"], sequence=0)
-    child2 = await _create_node(c, name="Child 2", parent_id=template["id"], sequence=1)
-    child3 = await _create_node(c, name="Child 3", parent_id=template["id"], sequence=2)
+    await _create_node(c, name="Child 2", parent_id=template["id"], sequence=1)
+    await _create_node(c, name="Child 3", parent_id=template["id"], sequence=2)
 
     # Add a grandchild under child1
-    gc1 = await _create_node(c, name="Grandchild 1", parent_id=child1["id"], sequence=0)
+    await _create_node(c, name="Grandchild 1", parent_id=child1["id"], sequence=0)
 
     # Create a target page
     parent = await _create_node(c, name="Target Page")

@@ -80,8 +80,14 @@
   opacity: var(--opacity-100) !important;
 }
 
-.query-block-card:hover .query-block-card__corner-button {
+.query-block-card:hover .query-block-card__corner-button,
+.query-block-card:focus-within .query-block-card__corner-button,
+.query-block-card__corner-button:focus-visible {
   opacity: var(--opacity-70);
+}
+
+.query-block-card__corner-button:focus-visible {
+  opacity: var(--opacity-100);
 }
 
 /* System lock icon - always visible but subtle */

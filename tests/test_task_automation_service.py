@@ -10,55 +10,9 @@ import pytest
 import pytest_asyncio
 
 from app.db.schema.constants import SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS
-from app.domain.entities import TaskCompletion, TaskRecurrence
-from app.domain.repositories.interfaces import (
-    TaskCompletionRepository,
-    TaskRecurrenceRepository,
-)
+from tests.fakes import FakeTaskCompletionRepository, FakeTaskRecurrenceRepository
 
-
-class FakeTaskRecurrenceRepository(TaskRecurrenceRepository):
-    """In-memory recurrence rule store for domain-level tests."""
-
-    def __init__(self):
-        self._rules: dict[int, TaskRecurrence] = {}
-
-    async def get_by_task(self, task_node_id: int) -> TaskRecurrence | None:
-        return self._rules.get(task_node_id)
-
-    async def upsert(self, data: TaskRecurrence) -> TaskRecurrence:
-        self._rules[data.task_node_id] = data
-        return data
-
-    async def delete(self, task_node_id: int) -> bool:
-        return self._rules.pop(task_node_id, None) is not None
-
-
-class FakeTaskCompletionRepository(TaskCompletionRepository):
-    """In-memory completion history store for domain-level tests."""
-
-    def __init__(self):
-        self._records: list[TaskCompletion] = []
-
-    async def list_by_task(
-        self, task_node_id: int, limit: int = 50, offset: int = 0
-    ) -> list[TaskCompletion]:
-        matching = [c for c in self._records if c.task_node_id == task_node_id]
-        matching.sort(key=lambda c: c.completed_at, reverse=True)
-        return matching[offset : offset + limit]
-
-    async def create(self, completion: TaskCompletion) -> TaskCompletion:
-        completion.id = len(self._records) + 1
-        self._records.append(completion)
-        return completion
-
-    async def count_by_task(self, task_node_id: int) -> int:
-        return sum(1 for c in self._records if c.task_node_id == task_node_id)
-
-    async def delete(self, completion_id: int) -> bool:
-        before = len(self._records)
-        self._records = [c for c in self._records if c.id != completion_id]
-        return len(self._records) < before
+pytestmark = pytest.mark.integration
 
 
 async def _get_task_class_id(node_service) -> int:
@@ -131,7 +85,7 @@ async def _get_node_properties_raw(property_repository, node_id: int) -> dict:
 @pytest_asyncio.fixture
 async def task_automation_service(node_service, property_repository, test_user):
     """Create a TaskAutomationService for the test user's workspace."""
-    from app.domain.services.task_automation_service import TaskAutomationService
+    from app.features.tasks.service import TaskAutomationService
     return TaskAutomationService(
         node_service,
         property_repository,

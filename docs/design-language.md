@@ -73,7 +73,7 @@ Keep the existing minimal radius scale; identity comes from color and type, not 
 2. **The editorial page header**
    - Large serif page title.
    - Warm surface background for the header area.
-   - A thin accent line or left border that marks the page as the current focus.
+   - No decorative border; the surface and typography alone mark the page as the current focus.
 
 3. **The tactile block bullet**
    - A small, solid circular indicator.
@@ -92,7 +92,7 @@ Keep the existing minimal radius scale; identity comes from color and type, not 
 - Verify lint, type, and design-system checks.
 
 ### Phase 2 — Signature components
-- `PageHeader`: serif title, warm header background, accent left border.
+- `PageHeader`: serif title, warm header background, no decorative left border.
 - `Button`: primary variant uses accent; icon-only active states use accent.
 - `TopBar`: reduce visual weight, recede into the workspace background.
 - `BlockRow` / `Bullet`: circular bullet, accent selection state.

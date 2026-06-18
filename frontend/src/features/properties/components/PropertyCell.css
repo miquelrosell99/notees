@@ -1,0 +1,231 @@
+.property-cell {
+  padding: var(--spacing-2) var(--spacing-3);
+  min-height: var(--height-md);
+  font-size: var(--font-size-button);
+  color: var(--color-on-surface);
+  cursor: default;
+  display: flex;
+  align-items: center;
+  position: relative;
+}
+
+/* Reset native <button> defaults when a cell is made interactive. */
+button.property-cell {
+  appearance: none;
+  border: none;
+  background: none;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  width: auto;
+}
+
+.property-cell:focus-visible {
+  outline: var(--border-width-thick) solid var(--color-accent);
+  outline-offset: calc(var(--spacing-micro) * -1);
+}
+
+.property-cell--editable {
+  cursor: pointer;
+  transition: background var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.property-cell--editable:hover {
+  background: var(--color-hover-overlay);
+}
+
+.property-cell--empty {
+  color: var(--color-on-surface-variant);
+  font-style: italic;
+}
+
+.property-cell--empty-wrapper {
+  position: relative;
+  padding: 0;
+}
+
+.property-cell--empty-wrapper > button.property-cell {
+  width: 100%;
+  min-height: var(--height-md);
+  padding: var(--spacing-2) var(--spacing-3);
+  text-align: left;
+}
+
+
+.property-cell--node-multi {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-1);
+  padding: var(--spacing-1) var(--spacing-2);
+  position: relative;
+}
+
+.property-cell--loading {
+  padding: var(--spacing-2) var(--spacing-3);
+  color: var(--color-on-surface-variant);
+  font-size: var(--font-size-sm);
+}
+
+.property-cell--selection {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-1);
+  padding: var(--spacing-1) var(--spacing-2);
+  position: relative;
+}
+
+/* Block component wrapper for text and single node properties */
+.property-cell-block {
+  width: 100%;
+  padding: 0;
+}
+
+/* Image/asset property cell */
+.property-cell--image {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-1);
+  padding: var(--spacing-1);
+}
+
+.property-cell__asset {
+  height: var(--spacing-12);
+  max-width: var(--layout-size-xl);
+}
+
+.property-cell__asset-img {
+  height: var(--spacing-12);
+  max-width: var(--layout-size-xl);
+  object-fit: cover;
+  border-radius: var(--shape-small);
+}
+
+.property-cell__image {
+  max-width: var(--layout-size-sm);
+  max-height: var(--layout-size-2xs);
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  border-radius: var(--shape-small);
+  display: block;
+}
+
+.property-cell--editing {
+  padding: 0;
+}
+
+.property-cell--boolean {
+  justify-content: center;
+  cursor: pointer;
+}
+
+.property-cell__checkbox {
+  cursor: pointer;
+  width: var(--icon-size-sm);
+  height: var(--icon-size-sm);
+}
+
+.property-cell__input {
+  width: 100%;
+  padding: var(--spacing-2) var(--spacing-3);
+  border: var(--border-width-thick) solid var(--color-primary);
+  font-size: var(--font-size-button);
+  font-family: inherit;
+  color: var(--color-on-surface);
+  background: var(--color-surface);
+  outline: none;
+  resize: vertical;
+  min-height: var(--height-md);
+}
+
+.property-cell__input:focus {
+  border-color: color-mix(in srgb, var(--color-primary) 35%, var(--color-outline-variant));
+}
+
+textarea.property-cell__input {
+  min-height: 3.75rem;
+  max-height: var(--layout-size-2xl);
+}
+
+/* Selection picker dropdown */
+.property-cell__picker {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: var(--z-floating);
+  background: var(--color-surface);
+  border: var(--border-width-default) solid var(--color-outline-variant);
+  border-radius: var(--shape-medium);
+  max-height: var(--layout-size-7xl);
+  overflow-y: auto;
+  min-width: var(--layout-size-2xl);
+  margin-top: var(--spacing-1);
+}
+
+.property-cell__picker-option {
+  padding: var(--spacing-2) var(--spacing-3);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  width: 100%;
+  border: none;
+  background: none;
+  text-align: left;
+  font: inherit;
+  color: var(--color-on-surface);
+  transition: background var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.property-cell__picker-option:hover {
+  background: var(--color-hover-overlay);
+}
+
+.property-cell__add-button {
+  min-width: var(--spacing-6);
+  height: var(--height-xs);
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Colored dot for selection options */
+.selection-color-dot {
+  display: inline-block;
+  width: var(--spacing-tight);
+  height: var(--spacing-tight);
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* URL and Email cells */
+.property-cell--url,
+.property-cell--email {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.property-cell__link {
+  color: var(--color-primary);
+  text-decoration: none;
+  font-size: var(--font-size-button);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.property-cell__link:hover {
+  text-decoration: underline;
+}
+
+/* Date cell */
+.property-cell--date {
+  cursor: pointer;
+}
+
+.property-cell__date-name {
+  font-size: var(--font-size-button);
+  color: var(--color-on-surface);
+}

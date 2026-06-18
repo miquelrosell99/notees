@@ -80,7 +80,8 @@ function getRetentionSetting(
 
 export function GraphSettingsModal({ isOpen, onClose }: GraphSettingsModalProps) {
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
-  const { dateFormat, setDateFormat } = useSettingsStore();
+  const dateFormat = useSettingsStore((s) => s.dateFormat);
+  const setDateFormat = useSettingsStore((s) => s.setDateFormat);
   const [isUpdatingDateFormat, setIsUpdatingDateFormat] = useState(false);
   const [showDateFormatConfirm, setShowDateFormatConfirm] = useState(false);
   const [pendingDateFormat, setPendingDateFormat] = useState<DateFormat | null>(null);

@@ -6,7 +6,8 @@
  */
 import { useState, useMemo, useCallback } from 'react';
 import { useJournals } from '@/features/journals';
-import { useNode, useDailyNote } from '@/hooks';
+import { useNode, useDailyNote } from '@/features/content';
+import { PageViewHeader } from '@/features/content';
 import './JournalsView.css';
 import { useNavigationStore } from '@/stores';
 import { NodeViewContent } from '@/features/content';
@@ -20,7 +21,7 @@ interface JournalEntryProps {
 }
 
 function JournalEntry({ dailyPageId }: JournalEntryProps) {
-  const { viewMode } = useNavigationStore();
+  const viewMode = useNavigationStore((state) => state.viewMode);
   const { data: page } = useNode(dailyPageId);
   
   // Get border color if page has a color
@@ -40,15 +41,21 @@ function JournalEntry({ dailyPageId }: JournalEntryProps) {
             borderLeft: 'var(--border-width-node-color-strong) solid var(--card-border-color)'
           } as React.CSSProperties}
         >
-          <NodeViewContent 
-            nodeId={dailyPageId} 
+          <NodeViewContent
+            nodeId={dailyPageId}
             viewMode={viewMode}
+            className="journal-entry__node-view"
+            pageHeaderClassName="journal-entry__page-header"
+            breadcrumbsClassName="journal-entry__breadcrumbs"
           />
         </Card>
       ) : (
-        <NodeViewContent 
-          nodeId={dailyPageId} 
+        <NodeViewContent
+          nodeId={dailyPageId}
           viewMode={viewMode}
+          className="journal-entry__node-view"
+          pageHeaderClassName="journal-entry__page-header"
+          breadcrumbsClassName="journal-entry__breadcrumbs"
         />
       )}
     </article>
@@ -62,7 +69,7 @@ interface JournalsViewProps {
 export function JournalsView({ className = '' }: JournalsViewProps) {
   const { data: dailyPages, isLoading, error, refetch } = useJournals();
   const [visibleCount, setVisibleCount] = useState(10);
-  const { openNode } = useNavigationStore();
+  const openNode = useNavigationStore((state) => state.openNode);
   const { refetch: refetchToday } = useDailyNote(new Date());
 
   const handleOpenToday = useCallback(async () => {
@@ -92,22 +99,20 @@ export function JournalsView({ className = '' }: JournalsViewProps) {
   
   return (
     <div className={`journals-view ${className}`}>
-      {/* Page Header */}
-      <div className="page-header-section">
-        <div className="page-header-section__header">
-          <div className="page-header journals-view__header">
-            <h1 className="page-header__title">Journals</h1>
-            <Button
-              variant="primary"
-              size="sm"
-              icon="mdi mdi-notebook-edit-outline"
-              onClick={handleOpenToday}
-            >
-              Open today&apos;s note
-            </Button>
-          </div>
-        </div>
-      </div>
+      <PageViewHeader
+        className="journals-view__header"
+        title={<h1>Journals</h1>}
+        actions={
+          <Button
+            variant="primary"
+            size="sm"
+            icon="mdi mdi-notebook-edit-outline"
+            onClick={handleOpenToday}
+          >
+            Open today&apos;s note
+          </Button>
+        }
+      />
 
       <div className="journals-list">
         <DataStateView

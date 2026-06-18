@@ -1,7 +1,7 @@
 import { useMemo, useCallback } from 'react';
 import { getOperationRuntime } from '@/runtime';
 import { getNode } from '@/runtime/graphHelpers';
-import { useSetNodeProperty, useProperties } from '@/features/content';
+import { useSetNodeProperty, useProperties } from '@/features/properties';
 import {
   SYSTEM_PROPERTY_UUIDS,
   TASK_STATUSES,

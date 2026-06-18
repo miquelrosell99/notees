@@ -4,8 +4,8 @@
  * Compact graph view displayed in the bottom-right corner.
  * Shows all workspace pages as a force-directed graph.
  */
-import { useGraphNodes } from '@/hooks';
-import { GraphView } from '@/features/content';
+import { useGraphNodes } from '@/features/content';
+import { GraphView } from '@/features/views';
 import { Button } from '@/components/ui/Button';
 import './GraphMinimap.css';
 

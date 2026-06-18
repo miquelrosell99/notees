@@ -20,8 +20,8 @@ import {
   useUpdateWorkspaceMember,
   useRemoveWorkspaceMember,
   useRemovePendingInvite,
-} from '@/features/shares/hooks/useShares';
-import type { WorkspaceMember } from '@/features/shares/api/shares';
+} from '@/features/shares';
+import type { WorkspaceMember } from '@/features/shares';
 import './WorkspaceShareModal.css';
 
 interface WorkspaceShareModalProps {

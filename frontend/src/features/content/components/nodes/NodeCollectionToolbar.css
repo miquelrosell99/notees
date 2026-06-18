@@ -23,20 +23,6 @@
   min-width: 0;
 }
 
-/* When block content is in the toolbar, make it flexible and clickable */
-.node-collection-toolbar__left .block-content {
-  flex: 1;
-  min-width: 0;
-  min-height: var(--height-xs);
-  cursor: text;
-}
-
-/* Ensure block content view inside toolbar is clickable */
-.node-collection-toolbar__left .block-content-view {
-  min-height: var(--height-xs);
-  cursor: text;
-}
-
 /* Right section - toolbar controls */
 .node-collection-toolbar__right {
   display: flex;
@@ -167,48 +153,6 @@
 .node-collection-toolbar__group-by-option--active {
   background-color: var(--color-pressed-overlay);
   font-weight: 500;
-}
-
-/* When NodeViewSection header is in the toolbar */
-.node-collection-toolbar .node-view-section__header-content {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-1);
-  cursor: pointer;
-  min-width: 0;
-}
-
-.node-collection-toolbar .node-view-section__toggle {
-  flex-shrink: 0;
-}
-
-.node-collection-toolbar .node-view-section__title-area {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-2);
-  min-width: 0;
-  flex: 1;
-}
-
-.node-collection-toolbar .node-view-section__icon {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-}
-
-.node-collection-toolbar .node-view-section__title {
-  font-size: var(--font-size-base);
-  font-weight: 500;
-  margin: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.node-collection-toolbar .node-view-section__count {
-  flex-shrink: 0;
-  color: var(--color-on-surface-variant);
-  font-size: var(--font-size-sm);
 }
 
 /* ── View settings panel ────────────────────────────────────── */

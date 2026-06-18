@@ -11,10 +11,10 @@
  */
 import { useEffect, useCallback, useState, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { useNode } from '@/hooks';
+import { useNode } from '@/features/content';
 import { useSettingsStore } from '@/stores';
-import { usePresentationStore } from '@/stores/presentationStore';
-import { nodeNameToText } from '@/features/queries/hooks/useStringifyAST';
+import { usePresentationState } from '@/features/content/hooks/usePresentationSelectors';
+import { nodeNameToText } from '@/features/queries';
 import { BlockList } from '@/features/content/components/blocks/BlockList';
 import { Button } from '@/components/ui/Button';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
@@ -27,7 +27,7 @@ function getSlideTitle(node: Node): string {
 }
 
 export function PresentationModal() {
-  const { isOpen, nodeId, closePresentation } = usePresentationStore();
+  const { isOpen, nodeId, closePresentation } = usePresentationState();
   const { data: node } = useNode(nodeId, { include_children: true });
   const linkedRefsCollapseLevel = useSettingsStore((state) => state.linkedRefsCollapseLevel);
   const containerRef = useRef<HTMLDivElement>(null);

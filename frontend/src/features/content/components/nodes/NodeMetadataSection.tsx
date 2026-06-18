@@ -8,7 +8,7 @@ import { NodeViewSection } from '@/features/content/components/nodes/NodeViewSec
 import { NodeSelector } from '@/features/content/components/nodes/NodeSelector';
 import { MetadataIcon } from '@/components/ui/icons';
 import type { Node } from '@/types/api';
-import { nodeNameToText } from '@/hooks';
+import { nodeNameToText } from '@/features/queries';
 import './NodeMetadataSection.css';
 
 interface NodeMetadataSectionProps {
@@ -37,6 +37,10 @@ interface NodeMetadataSectionProps {
   onAddExtends?: (node: Node) => void;
   onCreateExtends?: (name: string) => void;
   defaultExpanded?: boolean;
+  /** When true, hides the entire section (used by focus mode). */
+  focusMode?: boolean;
+  /** Visual variant passed to the underlying section chrome. */
+  variant?: 'default' | 'sidebar-node';
 }
 
 export function NodeMetadataSection({
@@ -65,6 +69,8 @@ export function NodeMetadataSection({
   onAddExtends,
   onCreateExtends,
   defaultExpanded = true,
+  focusMode = false,
+  variant = 'default',
 }: NodeMetadataSectionProps) {
   const count =
     pageClassDetails.length +
@@ -80,6 +86,8 @@ export function NodeMetadataSection({
       count={count}
       className="node-metadata-section"
       defaultExpanded={defaultExpanded}
+      focusMode={focusMode}
+      variant={variant}
     >
       <div className="node-metadata-content">
         {/* Classes */}

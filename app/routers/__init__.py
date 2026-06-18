@@ -4,17 +4,23 @@ Exports all API routers for the application.
 Uses the new node-centric architecture where everything is a node.
 """
 
-from .assets import router as assets_router
-from .auth import router as auth_router
-from .auto_export import router as auto_export_router
-from .export import router as export_router
-from .live_sync_ws import router as live_sync_ws_router
-from .nodes import router as nodes_router
-from .properties import router as properties_router
-from .sync import router as sync_router
-from .tasks import router as tasks_router
-from .undo import router as undo_router
-from .workspaces import router as workspaces_router
+from app.features.activity.router import router as activity_router
+from app.features.admin.router import router as admin_router
+from app.features.assets.router import router as assets_router
+from app.features.auth.router import router as auth_router
+from app.features.export.router import router as export_router
+from app.features.nodes.router import router as nodes_router
+from app.features.notifications.router import router as notifications_router
+from app.features.properties.router import router as properties_router
+from app.features.properties.router.values import router as property_values_router
+from app.features.shares.router import workspace_shares_router as shares_router
+from app.features.sync.router import router as sync_router
+from app.features.tasks.router import router as tasks_router
+from app.features.undo.router import router as undo_router
+from app.features.workspaces.router import router as workspaces_router
+
+# Property value endpoints are mounted under the nodes router
+nodes_router.include_router(property_values_router)
 
 __all__ = [
     "auth_router",
@@ -25,7 +31,9 @@ __all__ = [
     "export_router",
     "assets_router",
     "undo_router",
-    "auto_export_router",
-    "live_sync_ws_router",
     "tasks_router",
+    "activity_router",
+    "notifications_router",
+    "admin_router",
+    "shares_router",
 ]

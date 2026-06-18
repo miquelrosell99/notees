@@ -7,13 +7,13 @@ expiration, and hand-off.
 
 from __future__ import annotations
 
-import asyncio
+import contextlib
 import json
 from typing import Any
 
 import pytest
 
-from app.routers import live_sync_ws as ws
+from app.features.collab import live_sync_ws as ws
 
 
 class FakeWebSocket:
@@ -36,11 +36,8 @@ def clear_state() -> None:
     for timers in ws._lock_timers.values():
         for task in timers.values():
             if not task.done():
-                try:
+                with contextlib.suppress(RuntimeError):
                     task.cancel()
-                except RuntimeError:
-                    # Event loop may already be closed during teardown.
-                    pass
     ws._lock_timers.clear()
     ws._page_locks.clear()
     ws._lock_queues.clear()

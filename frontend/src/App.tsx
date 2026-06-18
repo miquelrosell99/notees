@@ -19,17 +19,14 @@ import { KeyboardShortcutsProvider } from './hooks/KeyboardShortcutsProvider';
 import { useGlobalKeyboardListener } from './hooks/useGlobalKeyboardListener';
 import { useWindowFocusActiveBlock } from './hooks/useWindowFocusActiveBlock';
 import { useCommand } from './hooks/useCommand';
-import { useUndoStackPersistence } from '@/features/layout/hooks/useUndoStackPersistence';
+import { useUndoStackPersistence, useAndroidBridge, AppRoutes } from '@/features/layout';
+import { CommandRegistrations } from './features/commands';
 import { COMMAND_IDS } from './stores/commandRegistry';
 import { DndProvider } from './providers/DndProvider';
 import { useUndoStore } from './stores';
-import { useAndroidBridge } from './hooks';
-import { AppRoutes } from './features/layout/components/AppRoutes';
-import { CommandRegistrations } from './features/commands';
 import { SyncManager } from './sync';
 import { getLogger } from './utils/logger';
 import './App.css';
-import './focus-mode.css';
 
 const log = getLogger('App');
 

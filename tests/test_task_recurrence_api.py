@@ -4,7 +4,7 @@ import pytest
 
 from app.db.schema.constants import SYSTEM_CLASS_UUIDS
 
-pytestmark = pytest.mark.asyncio
+pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
 
 
 async def _get_class_id(client, uuid: str) -> int:

@@ -94,6 +94,7 @@ services:
       - /app/node_modules
     environment:
       VITE_API_PROXY_TARGET: http://backend:8000
+      VITE_ALLOWED_HOSTS: ${VITE_ALLOWED_HOSTS:-atlas}
     depends_on:
       backend:
         condition: service_healthy

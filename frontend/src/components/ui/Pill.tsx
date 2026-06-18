@@ -2,13 +2,15 @@ import React from 'react';
 import { isColorLight } from '@/utils/color';
 import './Pill.css';
 
-interface PillProps {
+export interface PillProps {
   text: string;
   leftIcon?: React.ReactNode;
   rightIcon?: React.ReactNode;
   onRightIconClick?: () => void;
   color?: string;
   className?: string;
+  /** Visual variant. The link variants are used by inline node references. */
+  variant?: 'default' | 'link' | 'link-page' | 'link-block' | 'link-class';
 }
 
 export const Pill: React.FC<PillProps> = ({
@@ -18,6 +20,7 @@ export const Pill: React.FC<PillProps> = ({
   onRightIconClick,
   color,
   className = '',
+  variant = 'default',
 }) => {
   const handleRightIconClick = (e: React.MouseEvent | React.KeyboardEvent) => {
     e.stopPropagation();
@@ -30,9 +33,11 @@ export const Pill: React.FC<PillProps> = ({
     ? { backgroundColor: color, color: isColorLight(color) ? '#000000' : '#ffffff' }
     : undefined;
 
+  const variantClass = variant === 'default' ? '' : `pill--${variant}`;
+
   return (
-    <div 
-      className={`pill ${className}`}
+    <div
+      className={`pill ${variantClass} ${className}`}
       style={pillStyle}
     >
       {leftIcon && (

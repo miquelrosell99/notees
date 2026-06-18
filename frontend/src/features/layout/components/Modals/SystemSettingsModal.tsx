@@ -9,9 +9,7 @@ import { Spinner } from '@/components/ui/Spinner';
 import { Button } from '@/components/ui/Button';
 import { TextField } from '@/components/ui/TextField';
 import { Dropdown } from '@/components/ui/Dropdown';
-import { BooleanToggle } from '@/components/ui/BooleanToggle';
-import { Icon } from '@/components/ui/Icon';
-import { Separator } from '@/components/ui/Separator';
+import { BooleanToggle, Icon, Separator } from '@/components/ui';
 import { useAuthStore } from '@/stores';
 import { useClickOutside } from '@/hooks/useClickOutside';
 import {

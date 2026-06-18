@@ -54,9 +54,11 @@ interface ContextMenuProps {
   inline?: boolean;
   /** When true, menu aligns to the right edge of the anchor/position */
   alignRight?: boolean;
+  /** Additional class applied to the menu root (alongside context-menu). */
+  className?: string;
 }
 
-export function ContextMenu({ items, position, anchorEl, onClose, title, activeItem, containerRef, inline = false, alignRight = false }: ContextMenuProps) {
+export function ContextMenu({ items, position, anchorEl, onClose, title, activeItem, containerRef, inline = false, alignRight = false, className = '' }: ContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
   const [focusedIndex, setFocusedIndex] = useState(-1);
   const [activeSubmenu, setActiveSubmenu] = useState<string | null>(null);
@@ -202,7 +204,7 @@ export function ContextMenu({ items, position, anchorEl, onClose, title, activeI
   const menu = (
     <Card
       ref={menuCallbackRef}
-      className="context-menu"
+      className={`context-menu ${className}`}
       role="menu"
       elevation="high"
       padding={false}

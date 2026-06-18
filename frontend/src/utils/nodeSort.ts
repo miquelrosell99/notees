@@ -6,7 +6,7 @@
  */
 import type { Node, Property } from '@/types';
 import { parseDateUuid } from '@/types/api';
-import type { SortEntry } from '@/features/content/components/nodes/views/NodeTable';
+import type { SortEntry } from '@/types/nodeCollection';
 
 // ─── Helpers ──────────────────────────────────────────────────────
 

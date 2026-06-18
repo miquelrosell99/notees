@@ -13,9 +13,9 @@ import { NodeSelector, nodeViewKeys } from '@/features/content';
 import { mergePages } from '@/api/nodes';
 import { useQueryClient } from '@tanstack/react-query';
 import { nodeKeys } from '@/hooks/queryKeys';
-import { useNavigationStore } from '@/stores';
+import { useCurrentNodeId, useOpenNode } from '@/features/layout';
 import { nodeNameToText } from '@/features/queries';
-import { useNode } from '@/hooks';
+import { useNode } from '@/features/content';
 import type { Node } from '@/types';
 import './MergePagesModal.css';
 
@@ -25,7 +25,8 @@ export interface MergePagesModalProps {
 }
 
 export function MergePagesModal({ isOpen, onClose }: MergePagesModalProps) {
-  const { currentNodeId, openNode } = useNavigationStore();
+  const currentNodeId = useCurrentNodeId();
+  const openNode = useOpenNode();
   const { data: currentNode } = useNode(currentNodeId);
   const queryClient = useQueryClient();
 

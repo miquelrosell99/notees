@@ -9,6 +9,7 @@
  */
 import { useCallback, memo, useEffect, useRef } from 'react';
 import { useNavigationStore } from '@/stores';
+import { useShallow } from 'zustand/react/shallow';
 import type { SidebarCard } from '@/stores';
 import { SidebarContextSections } from './SidebarContextSections';
 import { Button } from '@/components/ui/Button';
@@ -41,12 +42,19 @@ const SidebarCardRenderer = memo(function SidebarCardRenderer({
  * Main component - scrollable panel of sidebar cards
  */
 export function RightSidebarCards() {
-  const { 
-    sidebarCards, 
-    removeSidebarCard, 
+  const {
+    sidebarCards,
+    removeSidebarCard,
     clearSidebarCards,
     flashSidebarCardId,
-  } = useNavigationStore();
+  } = useNavigationStore(
+    useShallow((s) => ({
+      sidebarCards: s.sidebarCards,
+      removeSidebarCard: s.removeSidebarCard,
+      clearSidebarCards: s.clearSidebarCards,
+      flashSidebarCardId: s.flashSidebarCardId,
+    }))
+  );
   const listRef = useRef<HTMLDivElement>(null);
 
   const handleCardClose = useCallback((cardId: number) => {

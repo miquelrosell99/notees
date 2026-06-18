@@ -45,6 +45,7 @@ async def sample_page(authenticated_client, test_user):
     return type("Page", (), {"id": data["id"], "uuid": data["uuid"]})()
 
 
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_date_placeholder_create_date_today(authenticated_client, sample_page):
     """{today} resolves to a date and can filter by create_date."""
@@ -77,6 +78,7 @@ async def test_date_placeholder_create_date_today(authenticated_client, sample_p
     assert sample_page.id in node_ids
 
 
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_date_placeholder_this_year(authenticated_client, sample_page):
     """{this_year} resolves to January 1st of the current year."""
@@ -109,6 +111,7 @@ async def test_date_placeholder_this_year(authenticated_client, sample_page):
     assert sample_page.id in node_ids
 
 
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_typed_current_node_id_placeholder(authenticated_client, sample_page):
     """{current_node_id} is substituted as an integer, not a string."""
@@ -141,6 +144,7 @@ async def test_typed_current_node_id_placeholder(authenticated_client, sample_pa
     assert data["nodes"][0]["id"] == sample_page.id
 
 
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_aggregation_count_by_text_property(
     authenticated_client, property_repository, text_property, test_user
@@ -181,6 +185,7 @@ async def test_aggregation_count_by_text_property(
     assert by_key.get("done") == 1
 
 
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_query_language_parse_flag(authenticated_client):
     """The text query language parser can be invoked via the parse endpoint."""
@@ -205,6 +210,7 @@ async def test_query_language_parses_complex_expression():
     assert children[2].type == "not"  # type: ignore[attr-defined]
 
 
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_query_language_executes_with_property_name_resolution(
     authenticated_client, property_repository, priority_property, test_user
@@ -228,6 +234,7 @@ async def test_query_language_executes_with_property_name_resolution(
     assert data["nodes"][0]["id"] == page_id
 
 
+@pytest.mark.integration
 @pytest.mark.asyncio
 async def test_query_language_date_placeholder(authenticated_client, sample_page):
     """The text query language supports date placeholders."""

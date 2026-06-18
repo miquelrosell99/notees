@@ -3,8 +3,6 @@ import json
 
 import pytest
 
-from app.domain.entities import NodeUpdateData
-
 
 @pytest.mark.asyncio
 async def test_soft_delete_basic(node_service):
@@ -132,7 +130,7 @@ async def test_soft_delete_filters_in_queries(node_service):
 @pytest.mark.asyncio
 async def test_delete_node_cascades_to_links(node_service):
     """Test that deleting a node removes its outgoing links."""
-    page1 = await node_service.create_page("Page 1")
+    await node_service.create_page("Page 1")
     page2 = await node_service.create_page("Page 2")
 
     await node_service.delete_node(page2.id)

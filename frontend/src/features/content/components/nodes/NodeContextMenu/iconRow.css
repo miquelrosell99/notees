@@ -1,0 +1,66 @@
+/** Icon + color picker row used above the node context menu. */
+
+.context-menu-icon-color-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  padding: var(--spacing-2) var(--spacing-3);
+  background: var(--color-surface);
+  border: var(--border-width-default) solid var(--color-outline-variant);
+  border-bottom: none;
+  border-radius: var(--shape-large) var(--shape-large) 0 0;
+}
+
+.context-menu-icon-btn {
+  width: var(--icon-size-xl);
+  height: var(--height-md);
+  border: var(--border-width-default) solid var(--color-outline-variant);
+  border-radius: var(--shape-large);
+  background: var(--color-surface-container);
+  color: var(--color-on-surface-variant);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  flex-shrink: 0;
+  transition: border-color var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.context-menu-icon-btn:hover {
+  border-color: var(--color-outline);
+}
+
+.context-menu-icon-placeholder {
+  font-size: var(--font-size-lead);
+  line-height: 1;
+}
+
+.context-menu-icon-emoji {
+  font-size: var(--font-size-lead);
+  line-height: 1;
+}
+
+.context-menu-favorite-btn {
+  width: var(--icon-size-xl);
+  height: var(--height-md);
+  border: var(--border-width-default) solid var(--color-outline-variant);
+  border-radius: var(--shape-large);
+  background: var(--color-surface-container);
+  color: var(--color-on-surface-variant);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  flex-shrink: 0;
+  transition: border-color var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.context-menu-favorite-btn:hover {
+  border-color: var(--color-outline);
+}
+
+.context-menu-favorite-btn.favorited {
+  color: var(--color-primary);
+}

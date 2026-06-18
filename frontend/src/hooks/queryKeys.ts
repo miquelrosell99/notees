@@ -225,3 +225,30 @@ export const queryKeys = {
   previewQuery: (nodeId: number, ast: unknown, viewMode: string) =>
     ['preview-query', nodeId, ast, viewMode] as const,
 };
+
+// ==================== Shares Query Keys ====================
+
+export const sharesKeys = {
+  all: ['shares'] as const,
+  node: (nodeId: number) => [...sharesKeys.all, 'node', nodeId] as const,
+  workspace: () => [...sharesKeys.all, 'workspace'] as const,
+  public: (shareUuid: string) => ['public-share', shareUuid] as const,
+  userShares: (nodeId: number) => [...sharesKeys.all, 'user-shares', nodeId] as const,
+  inbox: () => [...sharesKeys.all, 'inbox'] as const,
+  workspaceMembers: (workspaceUuid: string) => ['workspace-members', workspaceUuid] as const,
+};
+
+// ==================== Templates Query Keys ====================
+
+export const templateKeys = {
+  all: ['templates'] as const,
+  list: () => [...templateKeys.all, 'list'] as const,
+  variables: (nodeId: number) => [...templateKeys.all, 'variables', nodeId] as const,
+};
+
+// ==================== Notifications Query Keys ====================
+
+export const notificationKeys = {
+  all: ['notifications'] as const,
+  list: (includeRead: boolean) => [...notificationKeys.all, 'list', includeRead] as const,
+};

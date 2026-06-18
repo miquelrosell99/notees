@@ -2,7 +2,7 @@
  * React Query mutations for admin user management.
  */
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { createAdminUser, updateAdminUser, deactivateAdminUser } from '@/api/admin';
+import { createAdminUser, updateAdminUser, deactivateAdminUser } from '@/features/auth';
 import { adminKeys } from '@/hooks/queryKeys';
 import type { AdminUserUpdate } from '@/types';
 

@@ -33,7 +33,7 @@
 .ast-viewer-label {
   font-weight: 500;
   color: var(--color-text-muted);
-  min-width: 3.75rem;
+  min-width: var(--spacing-16);
 }
 
 .ast-viewer-value {
@@ -65,22 +65,6 @@
   align-items: center;
   font-weight: 500;
   color: var(--color-text-muted);
-}
-
-.ast-viewer-copy-btn {
-  padding: var(--spacing-1) var(--spacing-2);
-  font-size: var(--font-size-sm);
-  background: var(--color-bg-tertiary);
-  border: var(--border-width-default) solid var(--color-border);
-  border-radius: var(--radius-sm);
-  color: var(--color-text-secondary);
-  cursor: pointer;
-  transition: background-color var(--motion-duration-short) var(--motion-easing-standard), border-color var(--motion-duration-short) var(--motion-easing-standard), color var(--motion-duration-short) var(--motion-easing-standard);
-}
-
-.ast-viewer-copy-btn:hover {
-  background: var(--color-bg-hover);
-  color: var(--color-text-primary);
 }
 
 .ast-viewer-pre {

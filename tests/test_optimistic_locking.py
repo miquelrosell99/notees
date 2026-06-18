@@ -8,6 +8,7 @@ from app.domain.errors import OptimisticLockError
 class TestOptimisticLocking:
     """Test optimistic locking for concurrent edit detection."""
 
+    @pytest.mark.integration
     @pytest.mark.asyncio
     async def test_concurrent_update_conflict(self, authenticated_client, node_service, node_repository):
         """Test that concurrent updates are detected via version field."""

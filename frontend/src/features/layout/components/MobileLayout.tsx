@@ -19,9 +19,10 @@
  */
 import { useEffect, useRef } from 'react';
 import { useNavigationStore, useModalStore } from '@/stores';
-import { reportDrawerStateToAndroid } from '@/hooks';
+import { reportDrawerStateToAndroid } from '@/features/layout';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
 import { Button } from '@/components/ui/Button';
+import { CardMobileLayoutProvider } from '@/components/ui/CardMobileLayoutContext';
 import { Sidebar } from './Sidebar';
 import { MainContent } from './MainContent';
 import { TopBar } from './TopBar';
@@ -106,7 +107,9 @@ export function MobileLayout({ currentNodeId }: MobileLayoutProps) {
 
       {/* ── Full-width content ── */}
       <main className="mobile-content">
-        <MainContent />
+        <CardMobileLayoutProvider value={true}>
+          <MainContent />
+        </CardMobileLayoutProvider>
       </main>
 
       {/* ── Overlay drawer ── */}

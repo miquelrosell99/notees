@@ -18,7 +18,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useNavigationStore, useModalStore, useSettingsStore, usePresentationStore } from '@/stores';
 import { useCommand } from '@/hooks/useCommand';
 import { COMMAND_IDS } from '@/stores/commandRegistry';
-import { useCreateNode, useNode, useIsMobile, useDocumentTitle } from '@/hooks';
+import { useIsMobile, useDocumentTitle } from '@/hooks';
+import { useCreateNode, useNode } from '@/features/content';
 import { RouteAdapter } from './RouteAdapter';
 import { NavigationUrlSync } from './NavigationUrlSync';
 import { useSettingsQuery } from '@/features/workspace';
@@ -34,7 +35,7 @@ import { MobileLayout } from './MobileLayout';
 import { RightSidebarCards } from '@/features/sidebar';
 import { GraphMinimap } from './GraphMinimap';
 import { CommandPalette } from './CommandPalette';
-import { BrokenLinkFixContext } from '@/contexts/BrokenLinkFixContext';
+import { BrokenLinkFixContext } from '@/features/content';
 const ImportDataModal = React.lazy(() => import('@/features/workspace/components/ImportDataModal').then(m => ({ default: m.ImportDataModal })));
 const ImportLogseqModal = React.lazy(() => import('@/features/workspace/components/ImportLogseqModal').then(m => ({ default: m.ImportLogseqModal })));
 const ImportLogseqFolderModal = React.lazy(() => import('@/features/workspace/components/ImportLogseqFolderModal').then(m => ({ default: m.ImportLogseqFolderModal })));
@@ -100,7 +101,8 @@ export function Layout() {
     setCreateWithUuidModalOpen(true, uuid);
   }, [setCreateWithUuidModalOpen]);
   
-  const { wideMode, tabPosition } = useSettingsStore();
+  const wideMode = useSettingsStore(s => s.wideMode);
+  const tabPosition = useSettingsStore(s => s.tabPosition);
   const createNodeMutation = useCreateNode();
   const { data: currentNode } = useNode(currentNodeId);
   
@@ -275,7 +277,7 @@ export function Layout() {
         {isMobile ? (
           <MobileLayout currentNodeId={currentNodeId} />
         ) : (
-          <div className={`app-canvas${viewMode === 'focus' ? ' focus-mode' : ''}${wideMode ? ' wide-mode' : ''}`}>
+          <div className={`app-canvas${wideMode ? ' wide-mode' : ''}`}>
             <TopBar />
             <div className="app-workspace" ref={workspaceRef}>
               <div className={`sidebar-wrapper${isSidebarCollapsed ? ' sidebar-wrapper--collapsed' : ''}`} style={leftSidebarStyle}>
@@ -305,7 +307,7 @@ export function Layout() {
               <Card className="main-container" padding={false} elevation="medium">
                 <MainContent />
               </Card>
-              <div className={`sidebar-wrapper sidebar-wrapper--right${!showSidebar ? ' sidebar-wrapper--collapsed' : ''}`} style={rightSidebarStyle}>
+              <div className={`sidebar-wrapper sidebar-wrapper--right${!showSidebar ? ' sidebar-wrapper--collapsed' : ''}`} style={rightSidebarStyle} data-focus-mode={viewMode === 'focus' || undefined}>
                 {showSidebar && (
                   /* eslint-disable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex */
                   <div

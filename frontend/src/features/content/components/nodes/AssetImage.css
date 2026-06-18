@@ -71,3 +71,72 @@
   width: auto;
   height: auto;
 }
+
+/* ==================== Display variants ==================== */
+
+/* Banner: fill the full-width, fixed-height slot and cover-fit the image. */
+.asset-image[data-asset-variant="banner"] {
+  height: 100%;
+  width: 100%;
+}
+
+.asset-image[data-asset-variant="banner"] > .asset-image__card {
+  height: 100%;
+  width: 100%;
+}
+
+.asset-image[data-asset-variant="banner"].asset-image--empty .asset-image__card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.asset-image[data-asset-variant="banner"] .asset-image__img {
+  height: 100%;
+  width: 100%;
+  object-fit: cover;
+}
+
+/* Cover: clamped portrait card, keep aspect ratio, actions bottom-right. */
+.asset-image[data-asset-variant="cover"] {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+}
+
+.asset-image[data-asset-variant="cover"] > .asset-image__card {
+  height: 100%;
+  aspect-ratio: 3 / 4;
+}
+
+.asset-image[data-asset-variant="cover"].asset-image--empty .asset-image__card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.asset-image[data-asset-variant="cover"] .asset-image__img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.asset-image[data-asset-variant="cover"] .asset-image__actions {
+  top: auto;
+  bottom: var(--spacing-2);
+  right: var(--spacing-2);
+}
+
+/* Card cover: scale naturally within a card thumbnail. */
+.asset-image[data-asset-variant="card-cover"] {
+  width: 100% !important;
+  height: auto !important;
+  display: block;
+}
+
+.asset-image[data-asset-variant="card-cover"] .asset-image__img {
+  width: 100% !important;
+  height: auto !important;
+  display: block;
+}

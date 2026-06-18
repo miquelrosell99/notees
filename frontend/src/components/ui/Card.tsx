@@ -6,9 +6,10 @@
  * 
  * Previously named "Panel" - renamed to "Card" for better semantic meaning.
  */
-import { forwardRef, type ReactNode, type HTMLAttributes } from 'react';
+import { forwardRef, type ReactNode, type HTMLAttributes, useContext } from 'react';
 import './Card.css';
 import { cn } from '@/utils/cn';
+import { CardMobileLayoutContext } from './CardMobileLayoutContext';
 
 export type CardElevation = 'none' | 'low' | 'medium' | 'high';
 export type CardVariant = 'default' | 'outlined' | 'filled' | 'transparent' | 'dashed';
@@ -37,6 +38,8 @@ export interface CardProps extends HTMLAttributes<HTMLDivElement> {
   showCloseButton?: boolean;
   /** Callback when close button is clicked */
   onClose?: () => void;
+  /** Render in mobile layout mode (full-bleed, no border radius). */
+  mobileLayout?: boolean;
 }
 
 /**
@@ -57,10 +60,14 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(function Card(
     selected = false,
     showCloseButton = false,
     onClose,
+    mobileLayout = false,
     ...rest
   },
   ref
 ) {
+  const isMobileLayout = useContext(CardMobileLayoutContext);
+  const mobileLayoutAttr = mobileLayout || isMobileLayout || undefined;
+
   const classes = cn(
     'card',
     `card--elevation-${elevation}`,
@@ -74,7 +81,7 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(function Card(
   );
 
   return (
-    <div ref={ref} className={classes} {...rest}>
+    <div ref={ref} className={classes} data-mobile-layout={mobileLayoutAttr || undefined} {...rest}>
       {showCloseButton && (
         <button
           type="button"

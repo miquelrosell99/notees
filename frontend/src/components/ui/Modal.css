@@ -38,17 +38,33 @@
 
 /* Sheet variant: anchored to the bottom of the viewport. Use higher
    specificity so this overrides the Card's all-corner radius. */
-.card.modal--sheet,
 .modal.modal--sheet {
+  width: 100%;
+  max-width: 100%;
   margin-top: auto;
   margin-bottom: 0;
   max-height: calc(90vh - env(safe-area-inset-bottom));
   border-radius: var(--shape-sheet) var(--shape-sheet) 0 0;
+  animation: modalSheetSlideIn var(--motion-duration-medium) var(--motion-easing-decelerate);
 }
 
-.card.modal--sheet .modal__header,
 .modal.modal--sheet .modal__header {
   border-radius: var(--shape-sheet) var(--shape-sheet) 0 0;
+}
+
+.modal--sheet .modal__footer {
+  border-radius: 0;
+}
+
+@keyframes modalSheetSlideIn {
+  from {
+    opacity: var(--opacity-0);
+    transform: translateY(100%);
+  }
+  to {
+    opacity: var(--opacity-100);
+    transform: translateY(0);
+  }
 }
 
 @keyframes modalSlideIn {
@@ -64,16 +80,15 @@
 
 /* Modal must not clip its children — override the overflow:hidden that
    Card's radius variants set for rounded-corner clipping.
-   .card.modal has specificity 0,2,0; .card--radius-lg is 0,1,0;
-   and Modal.css loads after Card.css so both specificity and source
-   order guarantee this wins. */
-.card.modal,
-.card.modal .modal__header,
-.card.modal .modal__footer {
+   The Card root always has .modal in addition to .card, so we style through
+   the modal-owned class rather than reaching into Card internals. */
+.modal,
+.modal .modal__header,
+.modal .modal__footer {
   overflow: visible;
 }
 
-.card.modal .modal__content {
+.modal .modal__content {
   overflow-y: auto;
 }
 

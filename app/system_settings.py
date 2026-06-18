@@ -13,14 +13,15 @@ from __future__ import annotations
 from typing import Any
 
 from .db.connection import get_pool
-from .domain.repositories import PostgresSystemSettingsRepository
+from .domain.repositories.factories import make_system_settings_repository
+from .domain.repositories.interfaces import SystemSettingsRepository
 from .logging_config import get_logger
 
 logger = get_logger(__name__)
 
 
-async def _repo() -> PostgresSystemSettingsRepository:
-    return PostgresSystemSettingsRepository(await get_pool())
+async def _repo() -> SystemSettingsRepository:
+    return make_system_settings_repository(await get_pool())
 
 
 async def get_system_setting(key: str, default: Any = None) -> Any:

@@ -115,6 +115,7 @@ export function ViewBuilder({
                 value={textQuery}
                 onChange={(e) => setTextQuery(e.target.value)}
                 placeholder='e.g. content:"meeting" AND create_date >= {this_week}'
+                aria-label="Text query"
                 rows={3}
                 className="view-builder__text-query-textarea"
               />

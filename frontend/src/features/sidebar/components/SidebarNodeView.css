@@ -94,17 +94,3 @@
 .sidebar-node-view .node-view-content {
   /* NodeViewContent uses sidebarMode to hide banner and header */
 }
-
-/* Override some NodeViewContent styles for sidebar context */
-.sidebar-node-view .node-view-section {
-  margin-top: var(--spacing-2);
-  padding-top: var(--spacing-2);
-}
-
-.sidebar-node-view .node-view-section__header {
-  padding: var(--spacing-2) var(--spacing-4);
-}
-
-.sidebar-node-view .node-view-section__title {
-  font: var(--font-label-medium);
-}

@@ -10,7 +10,7 @@ import {
   listTaskCompletions,
   recordTaskCompletion,
   setRecurrenceRule,
-} from '@/api/tasks';
+} from '@/features/tasks';
 import { taskKeys } from '@/hooks/queryKeys';
 import type { RecurrenceRule, RecurrenceRuleInput, TaskCompletionInput } from '@/types/api';
 

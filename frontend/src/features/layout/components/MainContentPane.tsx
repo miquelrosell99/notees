@@ -6,17 +6,18 @@
  */
 import React, { useMemo, Suspense } from 'react';
 import { LoadingScreen } from '@/components/ui/LoadingScreen';
-import { useNode, useClasses } from '@/hooks';
-import { useSystemClasses, NodeViewWrapper, NodeViewContent, PagesView, ArchivedPagesView, TrashView, WhiteboardsView } from '@/features/content';
+import { useNode, useClasses } from '@/features/content';
+import { useSystemClasses, NodeViewWrapper, NodeViewContent, PagesView, ArchivedPagesView, TrashView } from '@/features/content';
+import { WhiteboardsView } from '@/features/whiteboard';
 import { useNavigationStore } from '@/stores';
 import { getEffectiveColor } from '@/utils/nodeIcon';
-import { JournalsView } from '@/features/journals/pages/JournalsView';
+import { JournalsView } from '@/features/journals';
 import { TasksView } from '@/features/tasks';
 import type { Tab } from '@/stores/navigationStore';
 import './MainContentPane.css';
 
-const PropertyViewFull = React.lazy(() => import('@/features/content/pages/PropertyView').then(m => ({ default: m.PropertyViewFull })));
-const WhiteboardView = React.lazy(() => import('@/features/content/components/nodes/views/WhiteboardView').then(m => ({ default: m.WhiteboardView })));
+const PropertyViewFull = React.lazy(() => import('@/features/properties/pages/PropertyView').then(m => ({ default: m.PropertyViewFull })));
+const WhiteboardView = React.lazy(() => import('@/features/whiteboard').then(m => ({ default: m.WhiteboardView })));
 const SharesUnifiedView = React.lazy(() => import('@/features/shares/pages/SharesUnifiedView').then(m => ({ default: m.SharesUnifiedView })));
 
 interface MainContentPaneProps {

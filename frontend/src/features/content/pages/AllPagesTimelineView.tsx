@@ -4,8 +4,8 @@
  * Pseudo-page that fetches all pages and passes them to TimelineView.
  * Similar to AllPagesView but for timeline visualization.
  */
-import { usePages } from '@/hooks';
-import { TimelineView } from '@/features/content/components/nodes/views/TimelineView';
+import { usePages } from '@/features/content';
+import { TimelineView } from '@/features/views';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { DataStateView } from '@/components/ui/DataStateView';
 import './AllPagesTimelineView.css';

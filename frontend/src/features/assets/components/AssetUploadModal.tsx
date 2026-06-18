@@ -5,7 +5,7 @@
  * Validates file type and size (max 50MB).
  */
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { uploadAsset, isSupportedAssetType, getAssetCategory, MAX_ASSET_SIZE, type Asset, type AssetCategory } from '@/api/assets';
+import { uploadAsset, isSupportedAssetType, getAssetCategory, MAX_ASSET_SIZE, type Asset, type AssetCategory } from '../api/assets';
 import { Button } from '@/components/ui/Button';
 import { Spinner } from '@/components/ui/Spinner';
 import { FileDropZone } from '@/components/ui/FileDropZone';

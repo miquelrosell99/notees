@@ -15,19 +15,19 @@ import { SortableContext, useSortable, verticalListSortingStrategy, arrayMove } 
 import { CSS } from '@dnd-kit/utilities';
 
 import type { NodeCollectionViewMode, NodeCollectionGroupBy } from '@/types/nodeCollection';
-import { getViewDefinition, getViewModeOptions } from './views';
+import { getViewDefinition, getViewModeOptions } from '@/features/views';
 import { SelectionButton, type SelectionButtonOption } from '@/components/ui/SelectionButton';
 import { ButtonWithPanel } from '@/components/ui/ButtonWithPanel';
 import { Button } from '@/components/ui/Button';
-import { PropertyColumnSelector } from '@/features/content/components/properties/PropertyColumnSelector';
-import { GroupBySelector } from '@/features/content/components/properties/GroupBySelector';
-import { GanttPropertySelector } from '@/features/content/components/properties/GanttPropertySelector';
-import type { GanttTimeScale } from '@/features/content/components/properties/GanttPropertySelector';
+import { PropertyColumnSelector } from '@/features/properties';
+import { GroupBySelector } from '@/features/properties';
+import { GanttPropertySelector } from '@/features/properties';
+import type { GanttTimeScale } from '@/features/properties';
 import type { Property } from '@/types/api';
-import { useProperties } from '@/features/content/hooks/useProperties';
+import { useProperties } from '@/features/properties';
 import './NodeCollectionToolbar.css';
 import { Icon, DragVerticalIcon } from '@/components/ui/icons';
-import type { SortEntry } from '@/features/content/components/nodes/views/NodeTable';
+import type { SortEntry } from '@/types/nodeCollection';
 
 // Card layout mode icon mappings
 const CARD_LAYOUT_ICONS: Record<string, string> = {
@@ -268,7 +268,7 @@ export function NodeCollectionToolbar({
                 variant="ghost"
                 size="xs"
                 icon="mdi mdi-close"
-                className="node-collection-toolbar__group-by-badge-close"
+                className="node-collection-toolbar__group-by-badge-close icon-only-touch-target"
                 onClick={() => onGroupByChange('none')}
                 title="Clear grouping"
               />
@@ -513,17 +513,19 @@ function SortConfiguratorItem({
       </span>
       <span className="sort-configurator__label">{label}</span>
       <button
-        className="sort-configurator__direction"
+        className="sort-configurator__direction icon-only-touch-target"
         onClick={onToggleDirection}
         type="button"
+        aria-label={sort.direction === 'asc' ? 'Ascending' : 'Descending'}
         title={sort.direction === 'asc' ? 'Ascending' : 'Descending'}
       >
         {sort.direction === 'asc' ? '↑' : '↓'}
       </button>
       <button
-        className="sort-configurator__remove"
+        className="sort-configurator__remove icon-only-touch-target"
         onClick={onRemove}
         type="button"
+        aria-label="Remove sort"
         title="Remove"
       >
         <Icon path="mdi mdi-close" size={0.6} />

@@ -9,9 +9,10 @@ import { useCallback } from 'react';
 import { Bullet } from './Bullet';
 import { Icon } from '@/components/ui/icons';
 import { Button } from '@/components/ui/Button';
+import { useFocusMode } from '@/hooks';
 import type { Node } from '@/types/api';
 import type { JSX } from 'react';
-import type { PresenceUser } from '@/stores/livePresenceStore';
+import type { PresenceUser } from '@/features/collab';
 import './BlockUI.css';
 
 interface BlockUIProps {
@@ -46,6 +47,16 @@ interface BlockUIProps {
   onRequestLock?: () => void;
   /** Dismiss the conflict banner and refresh the block. */
   onResolveConflict?: () => void;
+  /** Whether the parent row is hovered (drives collapse-arrow reveal). */
+  rowHover?: boolean;
+  /** Whether this block is a ghost pseudo-block. */
+  isGhost?: boolean;
+  /** Compact list-view size context (e.g. 'sm' for small list view). */
+  listSize?: 'sm' | 'md';
+  /** Whether this block is rendered inside a property text block editor. */
+  inPropertyEditor?: boolean;
+  /** Document mode: hide bullets and flatten chrome. */
+  documentMode?: boolean;
 }
 
 export function BlockUI({
@@ -67,6 +78,11 @@ export function BlockUI({
   conflict,
   onRequestLock,
   onResolveConflict,
+  rowHover = false,
+  isGhost = false,
+  listSize,
+  inPropertyEditor,
+  documentMode,
 }: BlockUIProps): JSX.Element {
   const handleClick = () => {
     onNavigate?.(node.uuid);
@@ -86,15 +102,22 @@ export function BlockUI({
   const hasChildren = hasChildrenOverride ?? (node.has_children ?? false);
   const collapsed = collapsedProp ?? node.collapsed ?? false;
   const ownerColor = lockedBy?.[0]?.color;
+  const isFocusMode = useFocusMode();
 
   return (
     <div
       className="block-ui"
-      style={ownerColor ? { borderLeft: `2px solid ${ownerColor}`, paddingLeft: 4 } : undefined}
+      data-owner-color={ownerColor || undefined}
+      data-row-hover={rowHover || undefined}
+      data-list-size={listSize || undefined}
+      data-property-editor={inPropertyEditor || undefined}
+      data-focus-mode={isFocusMode || undefined}
+      data-document-mode={documentMode || undefined}
+      style={ownerColor ? { '--block-owner-color': ownerColor } as React.CSSProperties : undefined}
     >
       {hasChildren && onCollapseToggle && (
         <button
-          className={`block-collapse-arrow ${(isActivePath && depth > 0) ? 'block-collapse-arrow--thread-overlap' : ''}`}
+          className={`block-collapse-arrow icon-only-touch-target ${(isActivePath && depth > 0) ? 'block-collapse-arrow--thread-overlap' : ''}`}
           onClick={handleCollapseClick}
           title={collapsed ? 'Expand' : 'Collapse'}
           aria-label={collapsed ? 'Expand' : 'Collapse'}
@@ -115,6 +138,13 @@ export function BlockUI({
         isActivePath={isActivePath}
         showMiniBullet={isActivePath && !!(iconOverride ?? node.icon)}
         size="sm"
+        disableOpticalOffset
+        isGhost={isGhost}
+        listSize={listSize}
+        inPropertyEditor={inPropertyEditor}
+        documentMode={documentMode}
+        spacing="default"
+        focusMode={isFocusMode}
       />
       {presenceUsers && presenceUsers.length > 0 && (
         <div className="block-ui__presence">

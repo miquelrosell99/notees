@@ -13,17 +13,19 @@
  * Used by both page view and block view.
  */
 import { useRef, useCallback, useState, useMemo } from 'react';
-import { useContentSave, useNodeNavigation, useAddClass, useRemoveClass, useClasses, useUpdateNode, useSetNodeProperty, useProperties } from '@/hooks';
+import { useSetNodeProperty, useProperties } from '@/features/properties';
+import { useNodeNavigation, useAddClass, useRemoveClass, useClasses, useUpdateNode } from '@/features/content';
+import { useContentSave } from '@/features/editor';
 import { useLazyChildren } from '@/features/content/hooks/useLazyChildren';
 
 import type { Node } from '@/types';
 // GraphNode type no longer needed here — projection moved to useBlockTree
 import type { NodeCollectionViewMode } from '@/types/nodeCollection';
 import { NodeCollection } from './NodeCollection';
-import { AssetUploadModal } from '@/features/assets/components/AssetUploadModal';
+import { AssetUploadModal } from '@/features/assets';
 import { Modal } from '@/components/ui/Modal';
 import { NodeSelector } from './NodeSelector';
-import { type Asset, type AssetCategory, uploadAsset } from '@/api/assets';
+import { type Asset, type AssetCategory, uploadAsset } from '@/features/assets';
 import { createNode } from '@/api/nodes';
 import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from '@/constants/systemProperties';
 import { TableCreationModal, type TableGridSize } from '@/components/ui/TableCreationModal';
@@ -435,7 +437,7 @@ export function NodeContent({
     <div className={`node-content ${displayMode}`} ref={contentRef}>
       {/* Always render NodeCollection so BlockList is mounted and can pick up
           runtime-created blocks immediately. showEmpty=false hides the "No items" msg. */}
-      <section className={`node-content-children blocks-container ${displayMode === 'document' ? 'document-mode' : ''}`}>
+      <section className="node-content-children blocks-container">
         <NodeCollection
           nodes={children}
           viewMode={viewMode}

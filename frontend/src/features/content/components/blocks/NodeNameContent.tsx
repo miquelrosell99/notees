@@ -10,7 +10,7 @@ import type { ASTInlineNode } from '@/types/ast';
 import { parseAST, parseLinkId } from '@/lib/astBuilder';
 import { NodeRef } from '@/features/content/components/nodes/NodeRef';
 import { useNavigationStore } from '@/stores';
-import { useReferencedNode } from '@/contexts/useReferencedNode';
+import { useReferencedNode } from '@/features/content';
 import { useNodeByUuid } from '@/features/content/hooks/useNodeQueries';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';

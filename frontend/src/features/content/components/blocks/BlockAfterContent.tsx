@@ -23,15 +23,15 @@ import {
   TASK_STATUSES,
   TASK_CLOSED_STATUSES,
 } from '@/constants/systemProperties';
-import type { TaskStatus } from '@/features/tasks/hooks/useTaskActions';
-import { nodeNameToText } from '@/features/queries/hooks/useStringifyAST';
+import type { TaskStatus } from '@/features/tasks';
+import { nodeNameToText } from '@/features/queries';
 import { AssetImage } from '@/features/content/components/nodes/AssetImage';
 import { QuerySection } from '@/features/content/components/nodes/QuerySection';
 import { QueryNodeCollection } from '@/features/content/components/nodes/QueryNodeCollection';
-import { useQueryBlock } from '@/features/queries/hooks/useQueryBlock';
+import { useQueryBlock } from '@/features/queries';
 import { Card } from '@/components/ui/Card';
 import { useNavigationStore } from '@/stores';
-import { useNode } from '@/hooks';
+import { useNode } from '@/features/content';
 import type { Node } from '@/types/api';
 import type { ASTDocument, ASTInlineNode } from '@/types/ast';
 import { parseAST, parseLinkId } from '@/lib/astBuilder';
@@ -292,7 +292,7 @@ function BacklinkPreview({ node, expanded }: { node: Node; expanded?: boolean })
         onPointerDownCapture={(e) => e.stopPropagation()}
       >
         <div className="backlink-preview__inner">
-          <Card variant="filled" radius="sm" paddingSize="sm">
+          <Card variant="filled" radius="sm" paddingSize="sm" className="backlink-preview__card">
             {showQuery ? (
               <QuerySection
                 nodeId={node.id}
@@ -301,6 +301,7 @@ function BacklinkPreview({ node, expanded }: { node: Node; expanded?: boolean })
                 title="Linked References"
                 defaultExpanded
                 hideWhenEmpty
+                variant="backlink"
                 onNodeClick={(id) => openNode(id)}
                 onBlockCreated={(id) => addSidebarCard(id, 'block')}
                 hideViewManagement

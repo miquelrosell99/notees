@@ -2,17 +2,8 @@ import { useState, useCallback, useRef, useEffect, useMemo, useDeferredValue } f
 import { useQueryClient } from '@tanstack/react-query';
 import type { Node } from '@/types';
 import type { RecentPage } from '@/api/nodes';
-import {
-  useSearch,
-  useCreateNode,
-  useTodayNote,
-  usePages,
-  usePageClass,
-  useHierarchicalPath,
-  useClassClass,
-  useProperties,
-  useClasses,
-} from '@/features/content';
+import { useProperties } from '@/features/properties';
+import { useSearch, useCreateNode, useTodayNote, usePages, usePageClass, useHierarchicalPath, useClassClass, useClasses } from '@/features/content';
 import { nodeNameToText } from '@/features/queries';
 import { useCommandPaletteSearch } from '@/hooks/useCommandPaletteSearch';
 import {
@@ -57,7 +48,8 @@ export function useCommandPaletteState({ isOpen, onClose }: UseCommandPaletteSta
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const { quickAddDestination, dateFormat } = useSettingsStore();
+  const quickAddDestination = useSettingsStore((s) => s.quickAddDestination);
+  const dateFormat = useSettingsStore((s) => s.dateFormat);
 
   const { error: notifyError } = useNotifications();
   const createNodeMutation = useCreateNode();

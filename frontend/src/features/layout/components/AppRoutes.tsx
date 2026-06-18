@@ -124,7 +124,7 @@ function OnboardingRoute() {
 }
 
 function LoginRoute() {
-  const { isAuthenticated } = useAuthStore();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const { data: authStatus } = useAuthStatus();
 
   if (authStatus?.needs_onboarding) {
@@ -172,8 +172,10 @@ function WorkspaceRedirect() {
 }
 
 function AuthenticatedShell() {
-  const { isAuthenticated, setUser } = useAuthStore();
-  const { showWorkspaceManager, setShowWorkspaceManager } = useModalStore();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const setUser = useAuthStore((s) => s.setUser);
+  const showWorkspaceManager = useModalStore((s) => s.showWorkspaceManager);
+  const setShowWorkspaceManager = useModalStore((s) => s.setShowWorkspaceManager);
   const location = useLocation();
   const navigate = useNavigate();
   const isWorkspacesRoute = location.pathname === '/workspaces';

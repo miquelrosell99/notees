@@ -8,7 +8,7 @@
  */
 import { useState, useCallback } from 'react';
 import { Spinner } from '@/components/ui/Spinner';
-import { useNodeActivity, useDeleteNodeActivity } from '@/hooks';
+import { useNodeActivity, useDeleteNodeActivity } from '@/features/content';
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/ContextMenu';
 import { splitTextWithLinks } from '@/lib/noteesUri';
 import { getNodeByUuid } from '@/api/nodes';
@@ -16,12 +16,16 @@ import { useNavigationStore } from '@/stores';
 import { Bullet } from '@/features/content/components/blocks/Bullet';
 import { NodeViewSection } from './NodeViewSection';
 import { ClockIcon } from '@/components/ui/icons';
-import type { NodeActivity } from '@/api/activity';
+import type { NodeActivity } from '../../api/activity';
 import './NodeActivityLogSection.css';
 
 interface NodeActivityLogSectionProps {
   nodeId: number;
   defaultExpanded?: boolean;
+  /** Visual variant passed to the underlying section chrome. */
+  variant?: 'default' | 'sidebar-node' | 'sidebar';
+  /** When true, hides the entire section (used by focus mode). */
+  focusMode?: boolean;
 }
 
 // Note: link_inserted is intentionally omitted because the backend provides
@@ -113,9 +117,9 @@ function ActivityMessage({ activity }: { activity: NodeActivity }) {
   }, [openNode]);
 
   return (
-    <span className="node-inline">
-      <Bullet nodeId={activity.id} interactive={false} size="sm" />
-      <span className="node-inline__text">
+    <span className="activity-message">
+      <Bullet nodeId={activity.id} interactive={false} size="sm" dimmed />
+      <span className="activity-message__text">
         {segments.map((seg, i) =>
           seg.type === 'link' ? (
             <button
@@ -137,7 +141,8 @@ function ActivityMessage({ activity }: { activity: NodeActivity }) {
 }
 
 
-export function NodeActivityLogSection({ nodeId, defaultExpanded = false }: NodeActivityLogSectionProps) {
+export function NodeActivityLogSection({ nodeId, defaultExpanded = false, variant = 'default', focusMode = false }: NodeActivityLogSectionProps) {
+  const internalVariant = variant;
   const { data: activities, isLoading } = useNodeActivity(nodeId);
   const deleteActivity = useDeleteNodeActivity();
   
@@ -178,18 +183,21 @@ export function NodeActivityLogSection({ nodeId, defaultExpanded = false }: Node
       count={count}
       defaultExpanded={defaultExpanded}
       hideWhenEmpty={false}
+      variant={variant}
+      focusMode={focusMode}
     >
-      <div className="node-activity-log">
-        <div className="node-activity-list">
+      <div className="node-activity-log" data-variant={internalVariant}>
+        <div className="node-activity-list" data-variant={internalVariant}>
           {isLoading ? (
             <div className="node-activity-loading"><Spinner size="sm" /></div>
           ) : count === 0 || !activities ? (
-            <div className="node-activity-empty">No activity recorded yet</div>
+            <div className="node-activity-empty" data-variant={internalVariant}>No activity recorded yet</div>
           ) : (
             activities.map(activity => (
               <div
                 key={activity.id}
                 className="node-activity-item"
+                data-variant={internalVariant}
                 onContextMenu={(e) => handleContextMenu(activity.id, e)}
               >
                 <ActivityMessage activity={activity} />

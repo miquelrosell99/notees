@@ -5,6 +5,22 @@ from io import BytesIO
 import pytest
 from httpx import AsyncClient
 
+pytestmark = pytest.mark.integration
+
+
+@pytest.mark.asyncio
+async def test_asset_download_rejects_invalid_uuid(authenticated_client: AsyncClient):
+    """Downloading an asset with a malformed UUID must be rejected."""
+    response = await authenticated_client.get("/api/assets/not-a-uuid")
+    assert response.status_code in (403, 404)
+
+
+@pytest.mark.asyncio
+async def test_asset_thumbnail_rejects_invalid_uuid(authenticated_client: AsyncClient):
+    """Downloading a thumbnail with a malformed UUID must be rejected."""
+    response = await authenticated_client.get("/api/assets/not-a-uuid/thumbnail")
+    assert response.status_code in (403, 404)
+
 
 @pytest.mark.asyncio
 async def test_asset_token_allows_download_without_auth_header(authenticated_client: AsyncClient):

@@ -31,3 +31,24 @@ button.node-inline {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* Group header link: dotted underline that solidifies on hover. */
+.node-inline[data-variant="group-link"] .node-inline__text {
+  text-decoration: underline dotted;
+  text-decoration-color: var(--color-outline);
+  text-underline-offset: 3px;
+  text-decoration-thickness: 2px;
+  transition: text-decoration-color var(--motion-duration-short) var(--motion-easing-standard),
+              text-decoration-style var(--motion-duration-short) var(--motion-easing-standard),
+              color var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.node-inline[data-variant="group-link"].node-inline--clickable:hover {
+  background: none;
+}
+
+.node-inline[data-variant="group-link"]:hover .node-inline__text {
+  text-decoration-style: solid;
+  text-decoration-color: var(--color-on-surface);
+  color: var(--color-primary);
+}

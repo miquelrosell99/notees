@@ -12,7 +12,7 @@
  * Do NOT subscribe to node maps or collections directly.
  * Use selectors (e.g. useNavigationStore(s => s.openNode)) to avoid render cascades.
  */
-export { useAuthStore } from '@/features/auth/stores/authStore';
+export { useAuthStore } from '@/features/auth';
 export { usePresentationStore } from './presentationStore';
 export { useModalStore } from './modalStore';
 export { useNavigationStore } from './navigationStore';
@@ -79,6 +79,5 @@ export {
   type ModifierKeys,
 } from './keyboardStore';
 export { type ShortcutContext } from './commandRegistry';
-export { useWhiteboardStore } from './whiteboardStore';
 export { useUndoStore } from './undoStore';
 export { useClipboardStore, type ClipboardMode } from './clipboardStore';

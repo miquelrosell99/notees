@@ -37,6 +37,28 @@
   font-size: var(--font-size-sm);
 }
 
+.node-activity-log[data-variant="sidebar"] {
+  padding: 0;
+}
+
+.node-activity-log[data-variant="sidebar"] .node-activity-list {
+  padding: 0;
+}
+
+.node-activity-log[data-variant="sidebar"] .node-activity-item {
+  padding: var(--spacing-1) var(--spacing-3);
+  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
+}
+
+.node-activity-log[data-variant="sidebar"] .node-activity-item:last-child {
+  border-bottom: none;
+}
+
+.node-activity-log[data-variant="sidebar"] .node-activity-empty {
+  padding: var(--spacing-2) var(--spacing-3);
+  text-align: center;
+}
+
 .node-activity-loading {
   padding: var(--spacing-4);
   text-align: center;
@@ -54,29 +76,18 @@
   background: var(--color-hover-overlay);
 }
 
-/* Bullet hover effect - same as blocks */
-.node-activity-item .bullet-wrapper .bullet-dot {
-  opacity: var(--opacity-50);
-  transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
+.activity-message {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-1);
 }
 
-.node-activity-item:hover .bullet-wrapper .bullet-dot {
-  opacity: var(--opacity-100);
-}
-
-/* Ensure BlockPreview inside activity items has proper styling */
-.node-activity-item .block-preview {
-  font-size: var(--font-size-button);
-}
-
-.node-activity-item .block-preview .block-content {
-  color: var(--color-on-surface-variant);
-}
-
-/* Activity message text */
-.node-activity-item .node-inline__text {
+.activity-message__text {
   font-size: var(--font-size-button);
   color: var(--color-on-surface-variant);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Clickable node links within activity messages */

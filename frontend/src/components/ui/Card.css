@@ -75,6 +75,12 @@
   overflow: hidden;
 }
 
+/* Mobile layout: full-bleed cards with no border radius. */
+.card[data-mobile-layout] {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
 /* Elevation levels — zero visual noise (design system mandate) */
 .card--elevation-none {
   box-shadow: none;

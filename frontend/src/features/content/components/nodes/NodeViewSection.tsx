@@ -38,6 +38,10 @@ export interface NodeViewSectionProps {
   className?: string;
   /** Whether to hide the section when empty (count === 0) */
   hideWhenEmpty?: boolean;
+  /** Visual variant. */
+  variant?: 'default' | 'sidebar' | 'sidebar-node' | 'backlink';
+  /** When true, hides the entire section (used by focus mode). */
+  focusMode?: boolean;
 }
 
 export function NodeViewSection({
@@ -51,6 +55,8 @@ export function NodeViewSection({
   headerActions,
   className = '',
   hideWhenEmpty = false,
+  variant = 'default',
+  focusMode = false,
 }: NodeViewSectionProps) {
   // Support both controlled and uncontrolled modes
   const isControlled = expanded !== undefined;
@@ -71,7 +77,11 @@ export function NodeViewSection({
   }
   
   return (
-    <section className={`node-view-section ${isExpanded ? 'expanded' : 'collapsed'} ${className}`}>
+    <section
+      className={`node-view-section ${isExpanded ? 'expanded' : 'collapsed'} ${className}`}
+      data-variant={variant}
+      data-focus-mode={focusMode || undefined}
+    >
       {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events -- The header is a pointer-only toggle; keyboard users can use the visible expand/collapse button inside it. */}
       <header
         className="node-view-section__header"

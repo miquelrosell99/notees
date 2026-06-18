@@ -1,4 +1,5 @@
 import { useCallback, useMemo } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import type { Node } from '@/types';
 import { useNavigationStore, useSettingsStore } from '@/stores';
 import { useKeyboardListNav } from '@/hooks/useKeyboardListNav';
@@ -66,7 +67,9 @@ export function useCommandPalette({ isOpen, onClose, onSelect }: CommandPaletteP
     isOpen,
   });
 
-  const { openNodeCollectionFromNodes, openNode } = useNavigationStore();
+  const { openNodeCollectionFromNodes, openNode } = useNavigationStore(
+    useShallow((state) => ({ openNodeCollectionFromNodes: state.openNodeCollectionFromNodes, openNode: state.openNode })),
+  );
 
   // Destructure popup state so the keyboard handler has a stable dependency list
   const {

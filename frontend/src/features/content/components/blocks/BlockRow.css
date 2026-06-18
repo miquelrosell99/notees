@@ -24,6 +24,15 @@
   contain: layout style;
 }
 
+.block-row[data-list-size="sm"] {
+  margin: var(--spacing-hairline) 0;
+  min-height: 1.3em;
+  line-height: 1.4;
+  font: var(--font-body-small);
+  /* Tighter indent for nested blocks */
+  margin-left: calc(var(--node-block-depth, 0) * var(--spacing-4));
+}
+
 /* Left chrome column — bullet, presence, locks, after-bullet icons */
 .block-row__left {
   grid-area: left;
@@ -48,24 +57,8 @@
   min-width: 0;
 }
 
-/* The bullet wrapper is centered in the left column, so the dot optical nudge
-   (designed for top-aligned rows) pushes it below the text. Remove it here. */
-.block-row__left .bullet-container {
-  transform: none;
-}
-
-/* Block bullet specific: right margin for spacing from content */
-.block-ui > .bullet-wrapper {
-  margin-right: var(--spacing-1-5);
-}
-
 /* ─── Editing indicator — subtle bullet scale instead of breathing ring ─ */
-
-.node-block--editing .bullet-dot {
-  transform: scale(1.2);
-  background-color: var(--color-primary);
-  opacity: var(--opacity-90);
-}
+/* Driven by data-editing on the bullet wrapper (set by CustomCaretPlugin). */
 
 /* Content area — inline editor sits here */
 .block-row__content {
@@ -110,32 +103,12 @@
   opacity: var(--opacity-60);
 }
 
-.block-row--ghost .bullet-dot {
-  opacity: var(--opacity-40);
-  background-color: var(--color-outline);
-}
-
-.block-row--ghost:hover .bullet-dot {
-  opacity: var(--opacity-55);
-  background-color: var(--color-on-surface-variant);
-}
-
 .block-row--ghost .block-row__content-fallback--ghost {
   cursor: text;
 }
 
 /* ─── Selected state (block selection via Escape / keyboard / drag) ─ */
-
-.node-block--selected .bullet-wrapper,
-.node-block--selected-child .bullet-wrapper {
-  opacity: var(--opacity-100);
-}
-
-.node-block--selected .bullet-dot,
-.node-block--selected-child .bullet-dot {
-  opacity: var(--opacity-90);
-  background-color: var(--color-accent);
-}
+/* Driven by data-selected on the bullet wrapper (set by useBlockSelection). */
 
 /* Selection overlay card */
 .block-selection-card {
@@ -249,68 +222,24 @@ body.notees-dragging-block .node-block--drop-spacing-instant {
     margin-left var(--motion-duration-medium) var(--motion-easing-standard) !important;
 }
 
-/* Suppress all hover effects while dragging a block */
-body.notees-dragging-block .bullet-interactive:hover {
-  background-color: transparent;
-  transform: none;
-}
-
-body.notees-dragging-block .bullet-interactive:hover .bullet-dot {
-  opacity: var(--opacity-55);
-  background-color: var(--color-on-surface-variant);
-  transform: none;
-  box-shadow: none;
-}
-
+/* Suppress row background hover while dragging a block */
 body.notees-dragging-block .node-block:hover {
   background: none;
 }
 
-body.notees-dragging-block .node-block--has-children:hover .block-collapse-arrow {
-  opacity: var(--opacity-0);
+/* ─── Property editor context ─────────────────────────────────── */
+/* Text properties embed a mini block editor inside a table cell. */
+
+.block-row[data-property-editor="true"] {
+  margin-top: 0;
+  margin-bottom: 0;
 }
 
-/* ─── Page blocks ──────────────────────────────────────────────── */
-
-.node-block--page .inline-editor__content {
-  font: var(--font-label-large);
-}
-
-/* ─── Colored block backgrounds ────────────────────────────────── */
-
-.block-row.node-block[style*="--node-color"] .inline-editor__content {
-  background-color: rgba(var(--node-color-rgb, var(--color-node-default-rgb)), 0.08);
-  padding: var(--spacing-micro) var(--spacing-2);
-  border-radius: var(--shape-small);
-}
-
-@media (max-width: 768px) {
-  .block-row.node-block[style*="--node-color"] .inline-editor__content {
-    padding: var(--spacing-micro) var(--spacing-1);
-  }
+/* Hide the bullet chrome only for the root block of a property editor —
+   children keep their bullets for nested editing. */
+.block-row[data-property-editor="true"][data-depth="0"] > .block-ui {
+  display: none;
 }
 
 /* ─── Touch swipe indent / outdent (mobile) ─────────────────────── */
-
-/* Disable bullet transitions while a swipe gesture is active */
-.node-block--swipe-indent .block-ui > .bullet-wrapper,
-.node-block--swipe-outdent .block-ui > .bullet-wrapper {
-  transition: none;
-}
-
-/* Shift the bullet horizontally with rubber-band feel */
-.node-block--swipe-indent .block-ui > .bullet-wrapper {
-  transform: translateX(calc(var(--swipe-progress, 0) * var(--spacing-3)));
-}
-
-.node-block--swipe-outdent .block-ui > .bullet-wrapper {
-  transform: translateX(calc(var(--swipe-progress, 0) * -1 * var(--spacing-3)));
-}
-
-/* Brighten and scale the bullet dot as the gesture confirms */
-.node-block--swipe-indent .bullet-dot,
-.node-block--swipe-outdent .bullet-dot {
-  opacity: var(--opacity-100);
-  transform: scale(calc(1 + var(--swipe-progress, 0) * 0.3));
-  transition: none;
-}
+/* Driven by data-swipe on the bullet wrapper (set by useTouchIndent). */

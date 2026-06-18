@@ -58,12 +58,6 @@
   padding-bottom: 0;
 }
 
-/* Cards inside the content area: full-bleed, no border-radius */
-.mobile-content .card {
-  border-radius: 0 !important;
-  box-shadow: none !important;
-}
-
 /* ── Off-canvas drawer ───────────────────────────────────────── */
 .mobile-drawer {
   position: fixed;

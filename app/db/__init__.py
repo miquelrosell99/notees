@@ -8,17 +8,20 @@ Updated for workspace-based schema:
 - Added get_workspace_assets_dir for workspace assets directory
 """
 
+from app.utils.paths import (
+    get_export_dir,
+    get_workspace_assets_dir,
+    get_workspace_dir,
+)
+
 from .connection import (
     DATA_DIR,
     close_pool,
     get_connection,
     get_data_dir,
-    get_export_dir,
     get_pool,
     get_pool_stats,
     get_transaction,
-    get_workspace_assets_dir,
-    get_workspace_dir,
     get_workspace_uuid,
     init_pool,
 )

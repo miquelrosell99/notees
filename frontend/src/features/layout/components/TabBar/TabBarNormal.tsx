@@ -8,6 +8,7 @@
  */
 import { useCallback, useRef, useState, useEffect, useMemo } from 'react';
 import { useNavigationStore, type Tab, type SplitOrientation } from '@/stores/navigationStore';
+import { useShallow } from 'zustand/react/shallow';
 import { Button } from '@/components/ui/Button';
 import { NodeSelector } from '@/features/content';
 import { TabOverflowDropdown } from './TabOverflowDropdown';
@@ -23,6 +24,8 @@ interface TabBarNormalProps {
 }
 
 export function TabBarNormal({ tabs, activeTabId, secondaryTabId, splitOrientation }: TabBarNormalProps) {
+  const viewMode = useNavigationStore((s) => s.viewMode);
+  const isFocusMode = viewMode === 'focus';
   const {
     activateTab,
     closeTab,
@@ -35,7 +38,21 @@ export function TabBarNormal({ tabs, activeTabId, secondaryTabId, splitOrientati
     replaceTabContent,
     splitTab,
     unsplit,
-  } = useNavigationStore();
+  } = useNavigationStore(
+    useShallow((s) => ({
+      activateTab: s.activateTab,
+      closeTab: s.closeTab,
+      closeOtherTabs: s.closeOtherTabs,
+      closeTabsToRight: s.closeTabsToRight,
+      pinTab: s.pinTab,
+      unpinTab: s.unpinTab,
+      reorderTabs: s.reorderTabs,
+      openNodeInNewTab: s.openNodeInNewTab,
+      replaceTabContent: s.replaceTabContent,
+      splitTab: s.splitTab,
+      unsplit: s.unsplit,
+    }))
+  );
 
   const stripRef = useRef<HTMLDivElement>(null);
   const addBtnRef = useRef<HTMLButtonElement>(null);
@@ -294,7 +311,7 @@ export function TabBarNormal({ tabs, activeTabId, secondaryTabId, splitOrientati
   );
 
   return (
-    <div className="tab-bar-normal">
+    <div className="tab-bar-normal" data-focus-mode={isFocusMode || undefined}>
       <div
         className="tab-bar-normal__strip"
         ref={stripRef}

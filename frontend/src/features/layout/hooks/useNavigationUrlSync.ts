@@ -7,6 +7,7 @@
 import { useEffect, useRef, type MutableRefObject } from 'react';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { useNavigationStore, type MainViewType } from '@/stores';
+import { useShallow } from 'zustand/react/shallow';
 import { useNavigationHistoryStore } from '@/stores/navigationHistoryStore';
 import { buildUrl } from './url';
 import { getNode } from '@/api/nodes';
@@ -32,7 +33,17 @@ export function useNavigationUrlSync({ hasInitialized, isProcessingUrl }: Naviga
     activeTabId,
     secondaryTabId,
     splitOrientation,
-  } = useNavigationStore();
+  } = useNavigationStore(
+    useShallow((s) => ({
+      mainViewType: s.mainViewType,
+      currentNodeId: s.currentNodeId,
+      currentPropertyId: s.currentPropertyId,
+      tabs: s.tabs,
+      activeTabId: s.activeTabId,
+      secondaryTabId: s.secondaryTabId,
+      splitOrientation: s.splitOrientation,
+    }))
+  );
 
   const prevStateRef = useRef<{
     mainViewType: MainViewType;

@@ -19,7 +19,7 @@ import { Icon } from '@/components/ui/icons';
 export function WorkspaceSwitcher() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const { setShowWorkspaceManager } = useModalStore();
+  const setShowWorkspaceManager = useModalStore((s) => s.setShowWorkspaceManager);
 
   const { data } = useQuery({
     queryKey: workspaceKeys.all,

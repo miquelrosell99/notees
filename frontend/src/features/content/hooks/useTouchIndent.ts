@@ -17,6 +17,7 @@ export interface UseTouchIndentOptions {
 const THRESHOLD = 52;
 const CANCEL_THRESHOLD = 22;
 const LOCK_SCROLL_AFTER = 14;
+const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
 
 export function useTouchIndent({ containerRef, onIndent, onOutdent, readOnly }: UseTouchIndentOptions): void {
   useEffect(() => {
@@ -34,19 +35,18 @@ export function useTouchIndent({ containerRef, onIndent, onOutdent, readOnly }: 
     function applyProgress(progress: number, direction: 'indent' | 'outdent') {
       if (!activeBlockEl) return;
       activeBlockEl.style.setProperty('--swipe-progress', String(progress));
-      if (direction === 'indent') {
-        activeBlockEl.classList.add('node-block--swipe-indent');
-        activeBlockEl.classList.remove('node-block--swipe-outdent');
-      } else {
-        activeBlockEl.classList.add('node-block--swipe-outdent');
-        activeBlockEl.classList.remove('node-block--swipe-indent');
-      }
+      activeBlockEl.querySelectorAll('.bullet-wrapper').forEach((bullet) => {
+        bullet.setAttribute('data-swipe', direction);
+      });
     }
 
     function cleanup() {
       if (activeBlockEl) {
         activeBlockEl.classList.remove('node-block--swipe-indent', 'node-block--swipe-outdent');
         activeBlockEl.style.removeProperty('--swipe-progress');
+        activeBlockEl.querySelectorAll('.bullet-wrapper').forEach((bullet) => {
+          bullet.removeAttribute('data-swipe');
+        });
       }
       activeBlockId = null;
       activeBlockEl = null;
@@ -88,8 +88,10 @@ export function useTouchIndent({ containerRef, onIndent, onOutdent, readOnly }: 
 
       if (absDx >= THRESHOLD) {
         committed = true;
-        // Deliberate swipe gesture — medium (25ms) haptic
-        navigator.vibrate?.(25);
+        // Deliberate swipe gesture — medium (25ms) haptic, unless reduced motion is preferred.
+        if (!window.matchMedia(REDUCED_MOTION_QUERY).matches) {
+          navigator.vibrate?.(25);
+        }
         if (dx > 0) {
           onIndent?.(activeBlockId);
         } else {

@@ -12,7 +12,7 @@
 import type { Query, QueryClient, QueryCache } from '@tanstack/react-query';
 import type { Node, LinkedReference, PropertyBacklink } from '@/types/api';
 import { nodeKeys } from './queryKeys';
-import { nodeViewKeys } from '@/features/content/hooks/useNodeViews';
+import { nodeViewKeys } from '@/features/content';
 
 
 // =============================================================================

@@ -59,19 +59,9 @@
 }
 
 /* ==================== Selected Date Indicator ==================== */
-.calendar-day.btn.selected {
-  background: var(--color-secondary-container);
-  color: var(--color-on-secondary-container);
-  font-weight: 600;
-}
+/* Selected-day styles live in CalendarPopup.css, which DatePickerPopup reuses. */
 
-.calendar-day.btn.selected:hover {
-  background: var(--color-secondary-container);
-  color: var(--color-on-secondary-container);
-}
-
-/* Today + selected: primary wins */
-.calendar-day.btn.today.selected {
-  background: var(--color-primary);
-  color: var(--color-on-primary);
+.calendar-today-btn {
+  min-height: var(--button-min-height);
+  min-width: var(--button-min-height);
 }

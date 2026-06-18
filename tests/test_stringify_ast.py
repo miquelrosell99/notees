@@ -3,16 +3,14 @@ Tests for the canonical AST → string stringifier (Python backend).
 
 Mirrors the frontend test suite to guarantee parity.
 """
-import pytest
 
 from app.domain.stringify_ast import (
+    NodeLinkResolution,
     StringifyMode,
     StringifyOptions,
-    NodeLinkResolution,
-    stringify_ast,
     parse_ast,
+    stringify_ast,
 )
-
 
 # ── Helpers ─────────────────────────────────────────────────────────
 
@@ -426,17 +424,18 @@ class TestParseAST:
 
 class TestParseASTPlain:
     def test_simple_text(self):
-        from app.domain.stringify_ast import parse_ast, serialize_ast, ParseMode
         import json
-        
+
+        from app.domain.stringify_ast import ParseMode, parse_ast, serialize_ast
+
         ast = parse_ast("Hello World", ParseMode.PLAIN)
         result = serialize_ast(ast)
         parsed = json.loads(result)
         assert parsed == [{"type": "paragraph", "children": [{"type": "text", "text": "Hello World"}]}]
-    
+
     def test_roundtrip(self):
-        from app.domain.stringify_ast import parse_ast, serialize_ast, ParseMode
-        
+        from app.domain.stringify_ast import ParseMode, parse_ast, serialize_ast
+
         ast_json = serialize_ast(parse_ast("2026", ParseMode.PLAIN))
         result = parse_ast(ast_json)
         assert len(result) == 1

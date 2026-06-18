@@ -8,19 +8,20 @@
 import { useCommand } from '@/hooks/useCommand';
 import { COMMAND_IDS } from '@/stores/commandRegistry';
 import { useNavigationStore } from '@/stores';
-import { useNotifyActions } from '@/features/layout/hooks/useNotificationSelectors';
+import { useNotifyActions } from '@/features/layout';
 import { queryClient } from '@/lib/queryClient';
 import { updateNode, createNode } from '@/api/nodes';
 import { resetNodeViews } from '@/api/nodeViews';
-import { usePageClass, useClasses } from '@/hooks';
+import { usePageClass, useClasses } from '@/features/content';
 import { nodeKeys } from '@/hooks/queryKeys';
-import { nodeViewKeys } from '@/features/content/hooks/useNodeViews';
+import { nodeViewKeys } from '@/features/content';
 import { SYSTEM_CLASS_UUIDS } from '@/constants/systemProperties';
 
 export function CommandRegistrations() {
   const { pageClassId } = usePageClass();
   const { data: allClasses } = useClasses();
-  const { openNode, currentNodeId } = useNavigationStore();
+  const openNode = useNavigationStore((s) => s.openNode);
+  const currentNodeId = useNavigationStore((s) => s.currentNodeId);
   const { notifyError, notifyWarning, notifySuccess } = useNotifyActions();
 
   // Toggle page privacy — needs queryClient and current node data

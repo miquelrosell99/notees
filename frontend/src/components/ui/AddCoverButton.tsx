@@ -21,6 +21,8 @@ export interface AddCoverButtonProps {
   className?: string;
   /** Size variant */
   size?: 'sm' | 'md' | 'lg';
+  /** Display variant (e.g. inside a card cover thumbnail). */
+  variant?: 'default' | 'card-cover';
 }
 
 export function AddCoverButton({
@@ -28,7 +30,8 @@ export function AddCoverButton({
   onDrop,
   processDrop,
   className = '',
-  size = 'md'
+  size = 'md',
+  variant = 'default',
 }: AddCoverButtonProps) {
   const [isDragging, setIsDragging] = useState(false);
   
@@ -64,8 +67,9 @@ export function AddCoverButton({
   };
   
   return (
-    <button 
+    <button
       className={`add-cover-button add-cover-button--${size} ${isDragging ? 'add-cover-button--dragging' : ''} ${className}`}
+      data-variant={variant}
       onClick={onClick}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}

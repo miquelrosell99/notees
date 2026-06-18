@@ -1,5 +1,5 @@
-"""Tests for the export module (node_export)."""
-from app.node_export import (
+"""Tests for the export rendering module."""
+from app.infrastructure.export.rendering import (
     build_body_class,
     build_toc_html,
     export_to_html,

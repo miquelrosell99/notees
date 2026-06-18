@@ -8,6 +8,7 @@
   position: fixed;
   z-index: var(--z-node-overlay);
   width: var(--scratchpad-width);
+  max-width: calc(100vw - var(--spacing-8));
   max-height: 31.25rem;
   background: var(--color-surface);
   border: var(--border-width-default) solid var(--color-outline-variant);
@@ -90,10 +91,6 @@
   font-size: var(--font-size-base);
 }
 
-.scratchpad-content .node-collection {
-  padding: 0;
-}
-
 /* Add block button */
 .scratchpad-add-block {
   padding: var(--spacing-1) var(--spacing-2);
@@ -101,7 +98,9 @@
   transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
 }
 
-.scratchpad-content:hover .scratchpad-add-block {
+.scratchpad-content:hover .scratchpad-add-block,
+.scratchpad-content:focus-within .scratchpad-add-block,
+.scratchpad-add-block:focus-visible {
   opacity: var(--opacity-100);
 }
 

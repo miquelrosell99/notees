@@ -134,16 +134,6 @@
   grid-row: 1;
 }
 
-/* Remove bottom margin from page-header when inside the grid section */
-.page-header-section__header .page-header {
-  margin-bottom: 0;
-  padding-bottom: 0;
-}
-
-/* Ensure title row has no extra padding */
-.page-header-section__header .page-header__title-row {
-  margin-bottom: 0;
-}
 
 .alias-of-link {
   font: var(--font-title-medium);
@@ -222,11 +212,6 @@
   opacity: var(--opacity-100);
 }
 
-.node-view__banner-collapse-btn[aria-expanded="true"] .btn__icon {
-  transform: rotate(180deg);
-  transition: transform var(--motion-duration-short) var(--motion-easing-standard);
-}
-
 .node-view__banner-content {
   width: 100%;
   overflow: hidden;
@@ -246,12 +231,6 @@
   opacity: var(--opacity-100);
 }
 
-.node-view__banner-image .asset-image--empty .card {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
 .node-view__banner-empty-btn {
   display: flex;
   align-items: center;
@@ -268,25 +247,6 @@
   cursor: pointer;
 }
 
-.node-view__banner-image {
-  position: relative;
-  height: 100%;
-  width: 100%;
-}
-
-/* Only target the image card, not the floating-button-array card */
-.node-view__banner-image > .card:not(.floating-button-array) {
-  height: 100%;
-  width: 100%;
-}
-
-/* Banner images stretch to fill */
-.node-view__banner-image .asset-image__img {
-  height: 100%;
-  width: 100%;
-  object-fit: cover;
-}
-
 /* ==================== Cover Image ==================== */
 .node-view__cover {
   grid-column: 2;
@@ -294,7 +254,7 @@
   display: flex;
   flex-direction: row;
   align-items: center;
-  height: var(--layout-size-xl);
+  height: var(--page-cover-height);
 }
 
 .node-view__cover--dragging {
@@ -329,11 +289,6 @@
   color: var(--color-on-surface);
 }
 
-.node-view__cover-collapse-btn[aria-expanded="true"] .btn__icon {
-  transform: rotate(180deg);
-  transition: transform var(--motion-duration-short) var(--motion-easing-standard);
-}
-
 .node-view__cover-content {
   overflow: hidden;
   transition: width var(--motion-duration-medium) var(--motion-easing-standard), opacity var(--motion-duration-medium) var(--motion-easing-standard);
@@ -360,23 +315,6 @@
   height: 100%;
 }
 
-/* Card is the visible container; width scales with the image between
-   4:3 portrait (120px) and 1:1 square (160px) at the fixed 160px height.
-   Exclude the floating action-button array card so it hugs its content. */
-.node-view__cover-image > .card:not(.floating-button-array) {
-  height: 100%;
-  min-width: var(--layout-size-sm);
-  max-width: var(--layout-size-xl);
-}
-
-/* Empty cover placeholder defaults to a 4:3 portrait dashed card */
-.node-view__cover-image .asset-image--empty .card {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: var(--layout-size-sm);
-}
-
 /* Trigger that fills the empty cover card */
 .node-view__cover-empty-btn {
   display: flex;
@@ -395,23 +333,9 @@
   cursor: pointer;
 }
 
-.node-view__cover-image .asset-image--empty .card:hover .node-view__cover-empty-btn,
-.node-view__cover-image .asset-image--empty .card:focus-within .node-view__cover-empty-btn {
+.node-view__cover-image:hover .node-view__cover-empty-btn,
+.node-view__cover-image:focus-within .node-view__cover-empty-btn {
   color: var(--color-primary);
-}
-
-/* Cover images keep their aspect ratio within the clamped card */
-.node-view__cover-image .asset-image__img {
-  width: auto;
-  height: 100%;
-  object-fit: contain;
-}
-
-/* Cover action buttons sit at the bottom-right to avoid obscuring the top of cover images */
-.node-view__cover-image .asset-image__actions {
-  top: auto;
-  bottom: var(--spacing-2);
-  right: var(--spacing-2);
 }
 
 /* Focused Block Content - renders block as a top-level list item */
@@ -420,31 +344,10 @@
 }
 
 /* Spacing between the active block bullet and the card grid below it */
-.focused-block-content > .node-collection + .node-collection {
-  margin-top: var(--spacing-6);
-}
-
-.focused-block-content .node-list-view {
-  padding: 0;
-}
-
-/* Ensure the focused block is displayed properly */
-.focused-block-content .node-list-item-wrapper:first-child {
-  margin-top: 0;
-}
-
-/* Suppress color border for the root block in focused view (article element already has colored border) */
-.focused-block-content .notees-editor-content > .node-block:first-child[style*="--node-color"] {
-  border-left: none !important;
-  padding-left: 0 !important;
-}
-
-/* Suppress colored background for the root block in focused view */
-.focused-block-content .notees-editor-content > .node-block:first-child[style*="--node-color"] > p,
-.focused-block-content .notees-editor-content > .node-block:first-child[style*="--node-color"] > span,
-.focused-block-content .notees-editor-content > .node-block:first-child[style*="--node-color"] > .notees-editor-paragraph {
-  background-color: transparent !important;
-  padding: 0 !important;
+.focused-block-content__collections {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-6);
 }
 
 /* Add block button for focused block view */
@@ -454,8 +357,16 @@
   transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
 }
 
-.focused-block-content:hover .focused-block-content-add {
+.focused-block-content:hover .focused-block-content-add,
+.focused-block-content:focus-within .focused-block-content-add,
+.focused-block-content-add:focus-visible {
   opacity: var(--opacity-100);
+}
+
+@media (hover: none) {
+  .focused-block-content-add {
+    opacity: var(--opacity-100);
+  }
 }
 
 /* ==================== Responsive Breakpoints ==================== */
@@ -488,6 +399,29 @@
   border-bottom: var(--border-width-default) solid var(--color-outline-variant);
   font-size: var(--font-size-base);
   color: var(--color-on-surface-variant);
+}
+
+/* ==================== Focus Mode ==================== */
+/* Driven by data-focus-mode on the NodeView article root. */
+
+.node-view[data-focus-mode="true"] .node-view__banner {
+  display: none;
+}
+
+.node-view[data-focus-mode="true"] .node-view__cover {
+  display: none;
+}
+
+.node-view[data-focus-mode="true"] .page-header-section {
+  grid-template-columns: 1fr;
+}
+
+.node-view[data-focus-mode="true"] .page-properties-section {
+  display: none;
+}
+
+.node-view[data-focus-mode="true"] .node-view-footer {
+  display: none;
 }
 
 /* Mobile: tighter spacing */

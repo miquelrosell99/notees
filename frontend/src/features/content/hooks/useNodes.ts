@@ -75,22 +75,7 @@ export {
   useRemoveAlias,
 } from './useNodeMutations';
 
-// ==================== Property Hooks ====================
-export {
-  useProperties,
-  useProperty,
-  useBatchPropertyValues,
-  useCreateProperty,
-  useUpdateProperty,
-  useClassProperties,
-  useClassExtends,
-  useAddPropertyToClass,
-  useRemovePropertyFromClass,
-  useAddClassExtends,
-  useRemoveClassExtends,
-  useSetNodeProperty,
-  useNodesWithProperty,
-} from './useProperties';
+
 
 // ==================== Comment Hooks ====================
 export {
