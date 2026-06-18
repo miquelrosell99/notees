@@ -359,7 +359,7 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
     rendRef.current = renderer;
 
     const worker = new Worker(
-      new URL('./sgeWorker.ts', import.meta.url),
+      new URL('../renderers/sgeWorker.ts', import.meta.url),
       { type: 'module' },
     );
     workerRef.current = worker;
