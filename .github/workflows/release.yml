@@ -130,12 +130,9 @@ jobs:
           # Fetch current body, append checksum section if missing
           BODY=$(gh release view "$TAG" --json body --jq '.body')
           if ! echo "$BODY" | grep -q 'SHA-256'; then
-            NEW_BODY="${BODY}
-
----
-
-### Verification
-
-**SHA-256 (${ASSET}):** \`${SHA256}\`"
-            printf '%s' "$NEW_BODY" | gh release edit "$TAG" --notes-file -
+            {
+              printf '%s\n\n---\n\n### Verification\n\n' "$BODY"
+              printf '**SHA-256 (%s):** `%s`\n' "$ASSET" "$SHA256"
+            } > /tmp/release-body.md
+            gh release edit "$TAG" --notes-file /tmp/release-body.md
           fi
