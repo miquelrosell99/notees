@@ -160,7 +160,7 @@ Environment variables (or `.env` file):
 |----------|---------|-------------|
 | `SECRET_KEY` | (required) | JWT signing key - must be set! |
 | `POSTGRES_PASSWORD` | (required) | PostgreSQL password |
-| `ADMIN_PASSWORD` | (generated) | Initial admin password |
+| `ADMIN_PASSWORD` | (unset) | Initial admin password - required for first-boot registration |
 | `PUID` | `1000` | Host user ID for file permissions |
 | `PGID` | `1000` | Host group ID for file permissions |
 | `TZ` | `UTC` | Container timezone |
@@ -191,31 +191,30 @@ Add the generated key to your `.env` file:
 SECRET_KEY=your-generated-secret-key-here
 ```
 
-**2. ADMIN_PASSWORD** - Initial admin password (optional)
+**2. ADMIN_PASSWORD** - Initial admin password (required for first-boot registration)
 
-On first startup, if `ADMIN_PASSWORD` is not set, a random password will be generated and logged **once**.
+If no admin user exists, the first registration is allowed **only** when `ADMIN_PASSWORD` is set to a strong password (at least 12 characters with uppercase, lowercase, digit, and special character). The registrant must provide this exact password during registration; the first admin account is created with `ADMIN_PASSWORD`.
 
-**Option A:** Set a specific password (recommended):
+If `ADMIN_PASSWORD` is unset, empty, or too weak, first-boot registration is rejected and the instance stays locked. You can still bootstrap an admin manually with:
+
+```bash
+python scripts/promote_user_to_admin.py <email>
+```
+
+**Recommended:** Set a specific password before first startup:
 ```bash
 ADMIN_PASSWORD=your-secure-password-here
 ```
-
-**Option B:** Use the generated password:
-- Watch the logs on first startup
-- Save the generated password immediately
-- It will never be shown again!
-- Change this password after first login
 
 #### Security Checklist
 
 Before deploying to production:
 
 - [ ] Set strong `SECRET_KEY` (minimum 32 characters)
-- [ ] Set or note the admin password
+- [ ] Set a strong `ADMIN_PASSWORD` before first startup
 - [ ] Enable HTTPS in production
 - [ ] Set up database backups (automatic with PostgreSQL)
 - [ ] Review rate limiting settings
-- [ ] Change default admin password after first login
 - [ ] Regularly update dependencies
 - [ ] Monitor application logs for security issues
 
