@@ -508,6 +508,8 @@ Releases are automated through `.github/workflows/release.yml`. Pushing a Git ta
 1. Builds and pushes a multi-arch (`linux/amd64`, `linux/arm64`) Docker image to `ghcr.io/miquelrosell99/notees`.
 2. Builds the Android APK in Docker and attaches it to the GitHub release with a SHA-256 checksum.
 
+Continuous integration for the Android wrapper is handled by `.github/workflows/android.yml`, which builds the APK on every push or pull request that touches `mobile/**` and uploads it as a workflow artifact (no release is created).
+
 ### When to push a new tag
 
 - Push a tag only when `main` is in a releasable state and the production Docker build has been verified locally:
