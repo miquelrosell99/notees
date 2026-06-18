@@ -1136,7 +1136,7 @@ Rate limiting is implemented with **`fastapi_limiter`** (0.2.0) and **`pyrate_li
 
 | Limiter | Location | Rate | Scope |
 |---------|----------|------|-------|
-| Default API | `app/main.py` | **5000 req/min per IP** | All `/api/*` and `/api/v1/*` routes |
+| Default API | `app/main.py` | **120 req/min per IP** | All `/api/*` and `/api/v1/*` routes |
 | Auth register | `app/features/auth/router.py` | 3 req/min | `POST /api/auth/register` |
 | Auth login | `app/features/auth/router.py` | 5 req/min | `POST /api/auth/login` |
 | Node CRUD | `app/features/nodes/router/crud.py` | 120 req/min | Node create/update/delete routes |
@@ -1156,7 +1156,7 @@ The fix is `PerKeyBucketFactory` (defined in `app/main.py`). It creates a separa
 
 1. **Global default** — edit the `Rate(...)` in `app/main.py`:
    ```python
-   _default_api_limiter = Limiter(PerKeyBucketFactory([Rate(5000, Duration.MINUTE)]))
+   _default_api_limiter = Limiter(PerKeyBucketFactory([Rate(120, Duration.MINUTE)]))
    ```
 
 2. **Specific router** — edit the `Rate(...)` in the relevant router file (e.g., `app/features/auth/router.py`):
