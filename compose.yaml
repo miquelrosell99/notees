@@ -62,7 +62,9 @@ services:
       RELOAD: "true"
       HOST: 0.0.0.0
       TZ: ${TZ:-UTC}
-      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB}
       REDIS_URL: redis://redis:6379/0
       PUID: ${PUID:-1000}
       PGID: ${PGID:-1000}
