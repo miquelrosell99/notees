@@ -57,7 +57,7 @@ export function TabBarNormal({ tabs, activeTabId, secondaryTabId, splitOrientati
   const stripRef = useRef<HTMLDivElement>(null);
   const addBtnRef = useRef<HTMLButtonElement>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
-  const [indicatorStyle, setIndicatorStyle] = useState<React.CSSProperties>({});
+
   const [showPicker, setShowPicker] = useState(false);
   const [showOverflow, setShowOverflow] = useState(false);
   const [overflowOpen, setOverflowOpen] = useState(false);
@@ -80,53 +80,6 @@ export function TabBarNormal({ tabs, activeTabId, secondaryTabId, splitOrientati
     ro.observe(strip);
     return () => ro.disconnect();
   }, [tabsKey]);
-
-  // Position the sliding indicator over the active tab
-  useEffect(() => {
-    const strip = stripRef.current;
-    if (!strip) return;
-
-    const updateIndicator = () => {
-      const activeTab = strip.querySelector('.tab-item--active') as HTMLElement | null;
-      if (!activeTab) {
-        setIndicatorStyle({});
-        return;
-      }
-      const stripRect = strip.getBoundingClientRect();
-      const label = activeTab.querySelector('.tab-item__label') as HTMLElement | null;
-
-      // Center indicator under the label text specifically (not the whole tab,
-      // so icons/color indicators on the left don't shift the visual center)
-      let offsetLeft: number;
-      let indicatorWidth: number;
-      if (label) {
-        const labelRect = label.getBoundingClientRect();
-        indicatorWidth = Math.min(Math.max(16, labelRect.width * 0.55), 36);
-        offsetLeft = labelRect.left - stripRect.left + (labelRect.width - indicatorWidth) / 2;
-      } else {
-        // Icon-only tab (e.g. pinned) — center under the whole tab
-        const tabRect = activeTab.getBoundingClientRect();
-        indicatorWidth = Math.min(Math.max(16, tabRect.width * 0.4), 32);
-        offsetLeft = tabRect.left - stripRect.left + (tabRect.width - indicatorWidth) / 2;
-      }
-      setIndicatorStyle({
-        width: indicatorWidth,
-        transform: `translateX(${offsetLeft}px)`,
-      });
-    };
-
-    updateIndicator();
-
-    const ro = new ResizeObserver(updateIndicator);
-    ro.observe(strip);
-    strip.querySelectorAll('.tab-item').forEach((tab) => ro.observe(tab));
-    strip.addEventListener('scroll', updateIndicator);
-
-    return () => {
-      ro.disconnect();
-      strip.removeEventListener('scroll', updateIndicator);
-    };
-  }, [activeTabId, tabsKey]);
 
   // Auto-scroll to keep the active tab visible
   useEffect(() => {
@@ -319,8 +272,6 @@ export function TabBarNormal({ tabs, activeTabId, secondaryTabId, splitOrientati
         onDragOver={handleStripDragOver}
         onWheel={handleWheel}
       >
-        <span className="tab-bar-normal__indicator" style={indicatorStyle} aria-hidden="true" />
-
         {pinnedTabs.length > 0 && (
           <div className="tab-bar-normal__pinned">
             {pinnedTabs.map((tab, i) => renderTabItem(tab, i))}
@@ -350,7 +301,6 @@ export function TabBarNormal({ tabs, activeTabId, secondaryTabId, splitOrientati
           />
         )}
 
-        <span className="tab-bar-normal__label">Tabs</span>
       </div>
 
       {showOverflow && (
