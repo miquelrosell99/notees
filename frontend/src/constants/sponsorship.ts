@@ -2,24 +2,16 @@
  * Sponsorship and support links for Notees.
  *
  * These URLs point to the official project sponsorship channels.
- * Replace the placeholder values below with the real links before release.
  */
 
 /** Primary GitHub Sponsors profile URL */
-// TODO: replace with the real GitHub Sponsors URL before release.
-export const GITHUB_SPONSORS_URL = 'https://github.com/sponsors/notees';
+export const GITHUB_SPONSORS_URL = 'https://github.com/sponsors/miquelrosell99';
 
 /** Ko-fi / Buy Me a Coffee one-time tip URL */
-// TODO: replace with the real Ko-fi / Buy Me a Coffee URL before release.
-export const KO_FI_URL = 'https://ko-fi.com/notees';
-
-/** Open Collective organization backing URL */
-// TODO: replace with the real Open Collective URL before release.
-export const OPEN_COLLECTIVE_URL = 'https://opencollective.com/notees';
+export const KO_FI_URL = 'https://ko-fi.com/miquelrosell';
 
 /** Contact email for sponsorship or invoicing inquiries */
-// TODO: replace with the real sponsorship contact email before release.
-export const SPONSORSHIP_EMAIL = 'sponsors@notees.app';
+export const SPONSORSHIP_EMAIL = 'miquelroselltarrago@gmail.com';
 
 export interface SponsorshipChannel {
   id: string;
@@ -43,13 +35,6 @@ export const SPONSORSHIP_CHANNELS: SponsorshipChannel[] = [
     description: 'One-time tip for users who prefer not to subscribe.',
     url: KO_FI_URL,
     icon: 'mdi mdi-coffee',
-  },
-  {
-    id: 'open-collective',
-    name: 'Open Collective',
-    description: 'Organization backing with invoicing support.',
-    url: OPEN_COLLECTIVE_URL,
-    icon: 'mdi mdi-account-group',
   },
 ];
 

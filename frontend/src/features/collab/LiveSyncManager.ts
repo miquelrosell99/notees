@@ -125,7 +125,7 @@ export class LiveSyncManager {
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     // Optional VITE_WS_URL lets deployments bypass the Vite dev proxy and
-    // connect directly to the backend WebSocket (e.g. ws://atlas:8000).
+    // connect directly to the backend WebSocket (e.g. ws://my-server:8000).
     // Authentication is provided by the HTTPOnly access_token cookie, which
     // is sent automatically for same-origin WebSocket handshakes.
     const configuredUrl = import.meta.env.VITE_WS_URL as string | undefined;
