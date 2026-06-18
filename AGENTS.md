@@ -501,6 +501,87 @@ Tests use Vitest with `jsdom`, `@testing-library/react`, and `@testing-library/j
 
 ---
 
+## Release Process
+
+Releases are automated through `.github/workflows/release.yml`. Pushing a Git tag that matches `v*` triggers the workflow, which:
+
+1. Builds and pushes a multi-arch (`linux/amd64`, `linux/arm64`) Docker image to `ghcr.io/miquelrosell99/notees`.
+2. Builds the Android APK in Docker and attaches it to the GitHub release with a SHA-256 checksum.
+
+### When to push a new tag
+
+- Push a tag only when `main` is in a releasable state and the production Docker build has been verified locally:
+  ```bash
+  docker build -t notees:canary .
+  ```
+- Use semantic versioning (`vMAJOR.MINOR.PATCH`).
+  - `PATCH` for bug fixes and small corrections.
+  - `MINOR` for new features or significant dependency updates.
+  - `MAJOR` for breaking changes to the data model, API, or deployment contract.
+- Do **not** move an existing published tag. If a release is broken, cut a new version (e.g. `v0.2.1`).
+
+### Creating a release
+
+```bash
+# 1. Ensure main is up to date
+git checkout main
+git pull origin main
+
+# 2. Pick the next version and tag it
+VERSION=v0.3.0
+git tag -a "$VERSION" -m "Release $VERSION"
+git push origin "$VERSION"
+```
+
+The `Release` workflow will run automatically. You can monitor it under **Actions → Release**.
+
+### Re-running a release for an existing tag
+
+If the workflow failed for a tag that already exists (for example, because of a CI-only issue), use the workflow dispatch input rather than moving the tag:
+
+```bash
+gh workflow run release.yml --ref main -f tag=v0.2.0
+```
+
+### Release artifacts
+
+| Artifact | Location | Notes |
+|---|---|---|
+| Docker image | `ghcr.io/miquelrosell99/notees:vX.Y.Z` | Multi-arch; also tagged `latest` on every release. |
+| Android APK | Attached to GitHub release | Named `notees-android-vX.Y.Z.apk`; debug-signed with the repo keystore. |
+| Checksum | Release notes + `.sha256` file | SHA-256 of the APK for verification. |
+
+### Deploying a release
+
+Use `compose.prod.yaml` for production deployments. It consumes the released image and uses named Docker volumes instead of bind-mounts.
+
+```bash
+# Copy and edit environment variables
+cp .env.example .env
+# Set SECRET_KEY, Postgres credentials, etc.
+
+# Pull and run the released version
+export TAG=v0.2.0
+docker compose -f compose.prod.yaml up -d
+```
+
+Do **not** use `compose.yaml` in production: it mounts source code, exposes the Vite dev server, and is optimized for local development.
+
+### Local release verification
+
+Before pushing a tag, you can also build and test the release artifacts locally:
+
+```bash
+# Web app Docker image
+docker build -t notees:canary .
+
+# Android APK
+cd mobile
+./build-apk.sh
+```
+
+---
+
 ## Code Style & Linting
 
 > Generic Python and TypeScript/React style rules are covered by `fastapi-patterns` and `react-ui-patterns`. Project-specific enforcement tools are listed below.
