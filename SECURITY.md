@@ -11,7 +11,7 @@ Only the latest commit on the default branch receives security updates. Because 
 If you discover a security vulnerability in Notees, please report it responsibly:
 
 1. **Do not open a public issue.** Public disclosure can put existing deployments at risk before a fix is available.
-2. Email the maintainers at **security@notees.local** with:
+2. Email the maintainers at **miquelroselltarrago@gmail.com** with:
    - A clear description of the vulnerability.
    - Steps to reproduce the issue.
    - The potential impact (e.g., data exposure, authentication bypass).
