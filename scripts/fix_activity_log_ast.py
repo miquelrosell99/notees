@@ -18,10 +18,20 @@ import asyncpg
 
 from app.domain.stringify_ast import ParseMode, StringifyMode, StringifyOptions, parse_ast, stringify_ast
 
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql://notees:change_me_dev_password@postgres:5432/notees",
-)
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+
+def _require_database_url() -> None:
+    """Exit if DATABASE_URL is not configured."""
+    if DATABASE_URL:
+        return
+    print(
+        "Error: DATABASE_URL environment variable is required.\n"
+        "Example:\n"
+        "  DATABASE_URL=postgresql://notees:YOUR_PASSWORD@postgres:5432/notees "
+        "python scripts/fix_activity_log_ast.py"
+    )
+    raise SystemExit(1)
 
 
 def _find_quoted_ast_segments(text: str) -> list[tuple[int, int, str]]:
@@ -85,6 +95,7 @@ def _fix_details(details: str) -> str | None:
 
 
 async def fix_activity_log_ast() -> int:
+    _require_database_url()
     conn = await asyncpg.connect(DATABASE_URL)
     try:
         rows = await conn.fetch(

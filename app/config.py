@@ -3,9 +3,10 @@
 Centralizes all configuration settings with environment variable support.
 """
 
+import urllib.parse
 from pathlib import Path
 
-from pydantic import field_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -63,7 +64,12 @@ class Settings(BaseSettings):
 
     # Database
     database_dir: Path = Path("data")
-    database_url: str = "postgresql://notees:change_me_dev_password@localhost:5432/notees"
+    database_url: str = ""
+    postgres_user: str = "notees"
+    postgres_password: str | None = None
+    postgres_host: str = "localhost"
+    postgres_port: int = 5432
+    postgres_db: str = "notees"
     postgres_pool_min: int = 5
     postgres_pool_max: int = 50
     postgres_pool_max_inactive_time: float = 300
@@ -133,6 +139,18 @@ class Settings(BaseSettings):
     @classmethod
     def strip_trailing_slash(cls, v: str) -> str:
         return v.rstrip("/")
+
+    @model_validator(mode="after")
+    def derive_database_url(self):
+        """Build DATABASE_URL from PostgreSQL components when not provided directly."""
+        if self.database_url:
+            return self
+        password = urllib.parse.quote(self.postgres_password or "", safe="")
+        self.database_url = (
+            f"postgresql://{self.postgres_user}:{password}"
+            f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
+        )
+        return self
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", case_sensitive=False, extra="ignore")
 
