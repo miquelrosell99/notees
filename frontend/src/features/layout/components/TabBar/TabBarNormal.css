@@ -21,23 +21,6 @@
   opacity: var(--opacity-100);
 }
 
-.tab-bar-normal__label {
-  font-size: var(--font-size-2xs);
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--color-on-surface-variant);
-  opacity: var(--opacity-45);
-  user-select: none;
-  white-space: nowrap;
-  flex-shrink: 0;
-  margin-left: auto;
-  padding-right: var(--spacing-2);
-  position: sticky;
-  right: 0;
-  background: inherit;
-}
-
 .tab-bar-normal__strip {
   position: relative;
   display: inline-flex;
@@ -49,27 +32,13 @@
   -ms-overflow-style: none;
   gap: 0;
   padding: var(--spacing-hairline) var(--spacing-1);
-  background: var(--color-surface-container);
-  border: var(--border-width-default) solid color-mix(in srgb, var(--color-outline-variant) 35%, transparent);
+  background: transparent;
+  border: var(--border-width-default) solid color-mix(in srgb, var(--color-outline-variant) 22%, transparent);
   border-radius: var(--shape-large);
 }
 
 .tab-bar-normal__strip::-webkit-scrollbar {
   display: none;
-}
-
-/* Short centered underline indicator for active tab */
-.tab-bar-normal__indicator {
-  position: absolute;
-  bottom: 1px;
-  left: 0;
-  height: var(--shape-extra-small);
-  background: var(--color-primary);
-  border-radius: var(--shape-hairline);
-  transition: transform var(--motion-duration-medium) var(--motion-easing-standard),
-              width var(--motion-duration-short) var(--motion-easing-standard);
-  z-index: var(--z-2);
-  pointer-events: none;
 }
 
 /* Pinned tabs - sticky left */
@@ -101,6 +70,7 @@
   display: flex;
   align-items: center;
   flex-shrink: 0;
+  gap: var(--spacing-1);
 }
 
 /* Subtle vertical divider between tabs */
@@ -121,7 +91,7 @@
 .tab-bar-normal__insert-indicator {
   width: var(--border-width-thick);
   align-self: stretch;
-  background: var(--color-primary);
+  background: var(--color-accent);
   border-radius: var(--shape-full);
   margin: 0 var(--spacing-hairline);
   flex-shrink: 0;

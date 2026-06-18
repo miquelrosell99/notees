@@ -67,13 +67,13 @@ export function TabItem({
 
   return (
     <>
-      <div className="tab-item-wrapper">
+      <div className={`tab-item-wrapper ${canClose && !tab.pinned ? 'tab-item-wrapper--closeable' : ''}`}>
         <button
           ref={tabRef}
           type="button"
           role="tab"
           aria-selected={isActive}
-          className={`tab-item ${isActive ? 'tab-item--active' : ''} ${isSecondary ? 'tab-item--secondary' : ''} ${tab.pinned ? 'tab-item--pinned' : ''}`}
+          className={`tab-item ${isActive ? 'tab-item--active' : ''} ${isSecondary ? 'tab-item--secondary' : ''} ${tab.pinned ? 'tab-item--pinned' : ''} ${canClose && !tab.pinned ? 'tab-item--closeable' : ''}`}
           onClick={onActivate}
           onContextMenu={handleContextMenu}
           onMouseDown={handleMouseDown}

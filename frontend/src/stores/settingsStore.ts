@@ -96,6 +96,8 @@ interface SettingsState {
   showBulletThread: boolean;
   /** Whether the "Support Notees" sidebar badge is hidden. */
   supportBadgeHidden: boolean;
+  /** Timestamp (ms) until which the support badge is hidden; null means not temporarily hidden. */
+  supportBadgeHiddenUntil: number | null;
 
   // Actions
   setTheme: (theme: ThemePreference) => void;
@@ -114,6 +116,7 @@ interface SettingsState {
   setTabPosition: (position: 'top' | 'left') => void;
   setShowBulletThread: (show: boolean) => void;
   setSupportBadgeHidden: (hidden: boolean) => void;
+  setSupportBadgeHiddenUntil: (until: number | null) => void;
 }
 
 /**
@@ -288,6 +291,7 @@ export const useSettingsStore = create<SettingsState>()(
       tabPosition: 'top',
       showBulletThread: true,
       supportBadgeHidden: false,
+      supportBadgeHiddenUntil: null,
 
       // Actions
       setTheme: (theme) => {
@@ -354,6 +358,9 @@ export const useSettingsStore = create<SettingsState>()(
       },
       setSupportBadgeHidden: (hidden) => {
         set({ supportBadgeHidden: hidden });
+      },
+      setSupportBadgeHiddenUntil: (until) => {
+        set({ supportBadgeHiddenUntil: until });
       },
     }),
     {
