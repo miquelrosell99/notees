@@ -1,0 +1,79 @@
+# Docker Compose for Production
+# Uses the released Docker image built from Dockerfile.
+#
+# Usage:
+#   export TAG=v0.2.0   # or latest
+#   docker compose -f compose.prod.yaml up -d
+#
+# The web frontend is baked into the backend image, so no separate
+# frontend service is needed.
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: notees-redis
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres:
+    image: postgres:17-alpine
+    container_name: notees-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      TZ: ${TZ:-UTC}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  backend:
+    image: ghcr.io/miquelrosell99/notees:${TAG:-latest}
+    container_name: notees-backend
+    restart: unless-stopped
+    ports:
+      - "${NOTES_PORT:-8000}:8000"
+    env_file:
+      - .env
+    environment:
+      HOST: 0.0.0.0
+      TZ: ${TZ:-UTC}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB}
+      REDIS_URL: redis://redis:6379/0
+      PUID: ${PUID:-1000}
+      PGID: ${PGID:-1000}
+    volumes:
+      - app-data:/app/data
+      - app-logs:/app/logs
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  postgres-data:
+  redis-data:
+  app-data:
+  app-logs:
