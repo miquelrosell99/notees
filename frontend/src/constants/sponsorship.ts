@@ -10,8 +10,9 @@ export const GITHUB_SPONSORS_URL = 'https://github.com/sponsors/miquelrosell99';
 /** Ko-fi / Buy Me a Coffee one-time tip URL */
 export const KO_FI_URL = 'https://ko-fi.com/miquelrosell';
 
-/** Contact email for sponsorship or invoicing inquiries */
-export const SPONSORSHIP_EMAIL = 'miquelroselltarrago@gmail.com';
+/** Contact email for sponsorship or invoicing inquiries.
+ * Replace with a real project email before enabling public sponsorship flows. */
+export const SPONSORSHIP_EMAIL = 'sponsorship@notees.local';
 
 export interface SponsorshipChannel {
   id: string;
