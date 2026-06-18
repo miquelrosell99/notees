@@ -19,7 +19,15 @@ load_dotenv()
 async def promote(email: str) -> None:
     import os
 
-    url = os.getenv("DATABASE_URL", "postgresql://notees:change_me_password@localhost:5432/notees")
+    url = os.getenv("DATABASE_URL")
+    if not url:
+        print(
+            "Error: DATABASE_URL environment variable is required.\n"
+            "Example:\n"
+            "  DATABASE_URL=postgresql://notees:YOUR_PASSWORD@localhost:5432/notees "
+            "python scripts/promote_user_to_admin.py user@example.com"
+        )
+        sys.exit(1)
     conn = await asyncpg.connect(url)
 
     user = await conn.fetchrow('SELECT id, email, role FROM "user" WHERE email = $1', email)
