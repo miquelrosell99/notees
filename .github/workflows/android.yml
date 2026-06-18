@@ -1,0 +1,53 @@
+name: Android Build
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'mobile/**'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'mobile/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Set up Docker
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: Build APK
+        run: |
+          cd mobile
+          ./build-apk.sh
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4
+        with:
+          name: notees-android-apk
+          path: mobile/notees.apk
+          retention-days: 14
+
+      - name: Compute SHA-256
+        id: checksum
+        working-directory: mobile
+        run: |
+          sha256sum notees.apk > notees.apk.sha256
+          echo "sum=$(cut -d' ' -f1 notees.apk.sha256)" >> "$GITHUB_OUTPUT"
+
+      - name: Summary
+        run: |
+          echo "### Android APK built" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Size: $(du -h mobile/notees.apk | cut -f1)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- SHA-256: \`${{ steps.checksum.outputs.sum }}\`" >> "$GITHUB_STEP_SUMMARY"
