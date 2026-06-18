@@ -5,7 +5,7 @@
 # ==========================================
 # Stage 1: Build Frontend
 # ==========================================
-FROM node:22-alpine AS frontend-builder
+FROM node:22-alpine@sha256:e58326d0d441090181ac150dc2078d3e2cf6a0d42e809aebba3ef5880935ffdd AS frontend-builder
 
 WORKDIR /app/frontend
 
@@ -25,7 +25,7 @@ RUN npm run build -- --outDir ./dist
 # ==========================================
 # Stage 2: Production Backend
 # ==========================================
-FROM python:3.13-slim AS production
+FROM python:3.13-slim@sha256:c33f0bc4364a6881bed1ec0cc2665e6c53c87a43e774aaeab88e6f17af105e4f AS production
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
