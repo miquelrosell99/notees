@@ -110,7 +110,7 @@ class BackupScheduler:
         _parsed = _urlparse.urlparse(db_url)
         pg_env = {
             **os.environ,
-            "PGPASSWORD": _parsed.password or "",
+            "PGPASSWORD": _urlparse.unquote(_parsed.password) if _parsed.password else "",
             "PGUSER": _parsed.username or "",
             "PGHOST": _parsed.hostname or "localhost",
             "PGPORT": str(_parsed.port or 5432),
@@ -218,7 +218,7 @@ class BackupScheduler:
         _parsed = _urlparse.urlparse(db_url)
         pg_env = {
             **os.environ,
-            "PGPASSWORD": _parsed.password or "",
+            "PGPASSWORD": _urlparse.unquote(_parsed.password) if _parsed.password else "",
             "PGUSER": _parsed.username or "",
             "PGHOST": _parsed.hostname or "localhost",
             "PGPORT": str(_parsed.port or 5432),
