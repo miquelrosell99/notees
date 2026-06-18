@@ -144,6 +144,19 @@ export function applyTheme(theme: ThemePreference, oledMode = false): void {
   }
 }
 
+/**
+ * Determine whether the support badge should be visible based on the user's
+ * hide preferences.
+ */
+export function isSupportBadgeVisible(
+  hidden: boolean,
+  hiddenUntil: number | null
+): boolean {
+  if (hidden) return false;
+  if (hiddenUntil != null && hiddenUntil > Date.now()) return false;
+  return true;
+}
+
 const HEX_COLOR_REGEX = /^#([0-9A-Fa-f]{6})$/;
 
 /**
