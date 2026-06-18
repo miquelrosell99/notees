@@ -25,10 +25,15 @@ import asyncpg
 
 
 async def main():
-    db_url = os.environ.get(
-        "DATABASE_URL",
-        "postgresql://notees:change_me_dev_password@postgres:5432/notees"
-    )
+    db_url = os.environ.get("DATABASE_URL")
+    if not db_url:
+        print(
+            "Error: DATABASE_URL environment variable is required.\n"
+            "Example:\n"
+            "  DATABASE_URL=postgresql://notees:YOUR_PASSWORD@postgres:5432/notees "
+            "python scripts/fix_inline_class_links.py"
+        )
+        raise SystemExit(1)
 
     conn = await asyncpg.connect(db_url)
 
