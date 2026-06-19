@@ -13,6 +13,12 @@ import type {
   SetCollapsedPayload,
   SetClassesPayload,
   SetTagsPayload,
+  AddClassPayload,
+  RemoveClassPayload,
+  AddTagPayload,
+  RemoveTagPayload,
+  UpdateNodePayload,
+  MoveNodePayload,
 } from './operation';
 
 const MIN_ORDER_GAP = 1e-9;
@@ -207,6 +213,111 @@ function applySetTags(nodes: Map<string, CoreNode>, operation: Operation, now: n
   return nodes;
 }
 
+function applyAddClass(nodes: Map<string, CoreNode>, operation: Operation, now: number): Map<string, CoreNode> {
+  const node = nodes.get(operation.blockId);
+  if (!node) {
+    return nodes;
+  }
+
+  const payload = operation.payload as AddClassPayload;
+  if (node.classIds.includes(payload.classId)) {
+    return nodes;
+  }
+
+  const updated = cloneNode(node);
+  updated.classIds = [...node.classIds, payload.classId];
+  updated.updatedAt = new Date(now).toISOString();
+
+  nodes.set(operation.blockId, updated);
+  return nodes;
+}
+
+function applyRemoveClass(nodes: Map<string, CoreNode>, operation: Operation, now: number): Map<string, CoreNode> {
+  const node = nodes.get(operation.blockId);
+  if (!node) {
+    return nodes;
+  }
+
+  const payload = operation.payload as RemoveClassPayload;
+  const updated = cloneNode(node);
+  updated.classIds = node.classIds.filter((id) => id !== payload.classId);
+  updated.updatedAt = new Date(now).toISOString();
+
+  nodes.set(operation.blockId, updated);
+  return nodes;
+}
+
+function applyAddTag(nodes: Map<string, CoreNode>, operation: Operation, now: number): Map<string, CoreNode> {
+  const node = nodes.get(operation.blockId);
+  if (!node) {
+    return nodes;
+  }
+
+  const payload = operation.payload as AddTagPayload;
+  if (node.tagIds.includes(payload.tagId)) {
+    return nodes;
+  }
+
+  const updated = cloneNode(node);
+  updated.tagIds = [...node.tagIds, payload.tagId];
+  updated.updatedAt = new Date(now).toISOString();
+
+  nodes.set(operation.blockId, updated);
+  return nodes;
+}
+
+function applyRemoveTag(nodes: Map<string, CoreNode>, operation: Operation, now: number): Map<string, CoreNode> {
+  const node = nodes.get(operation.blockId);
+  if (!node) {
+    return nodes;
+  }
+
+  const payload = operation.payload as RemoveTagPayload;
+  const updated = cloneNode(node);
+  updated.tagIds = node.tagIds.filter((id) => id !== payload.tagId);
+  updated.updatedAt = new Date(now).toISOString();
+
+  nodes.set(operation.blockId, updated);
+  return nodes;
+}
+
+function applyUpdateNode(nodes: Map<string, CoreNode>, operation: Operation, now: number): Map<string, CoreNode> {
+  const node = nodes.get(operation.blockId);
+  if (!node) {
+    return nodes;
+  }
+
+  const payload = operation.payload as UpdateNodePayload;
+  const updated = cloneNode(node);
+  for (const [key, value] of Object.entries(payload.updates)) {
+    if (value !== undefined) {
+      (updated as unknown as Record<string, unknown>)[key] = value;
+    }
+  }
+  updated.updatedAt = new Date(now).toISOString();
+
+  nodes.set(operation.blockId, updated);
+  return nodes;
+}
+
+function applyMoveNode(nodes: Map<string, CoreNode>, operation: Operation, now: number): Map<string, CoreNode> {
+  const node = nodes.get(operation.blockId);
+  if (!node) {
+    return nodes;
+  }
+
+  const payload = operation.payload as MoveNodePayload;
+  const orderIndex = computeOrderIndex(nodes, payload.parentId, payload.afterBlockId);
+
+  const updated = cloneNode(node);
+  updated.parentId = payload.parentId;
+  updated.orderIndex = orderIndex;
+  updated.updatedAt = new Date(now).toISOString();
+
+  nodes.set(operation.blockId, updated);
+  return nodes;
+}
+
 /**
  * Apply a single operation to an immutable graph and return a new graph.
  * The input graph is never mutated.
@@ -233,6 +344,18 @@ export function applyOperation(
       return applySetClasses(mutable, operation, now);
     case 'set_tags':
       return applySetTags(mutable, operation, now);
+    case 'add_class':
+      return applyAddClass(mutable, operation, now);
+    case 'remove_class':
+      return applyRemoveClass(mutable, operation, now);
+    case 'add_tag':
+      return applyAddTag(mutable, operation, now);
+    case 'remove_tag':
+      return applyRemoveTag(mutable, operation, now);
+    case 'update_node':
+      return applyUpdateNode(mutable, operation, now);
+    case 'move_node':
+      return applyMoveNode(mutable, operation, now);
     default:
       return mutable;
   }
