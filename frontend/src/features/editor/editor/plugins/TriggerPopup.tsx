@@ -16,7 +16,7 @@ import { createPortal } from 'react-dom';
 import type { Node } from '@/types';
 import { useNodeSearch, type NodeSearchItem } from '@/features/content';
 import { nodeNameToText } from '@/features/queries';
-import { useClasses } from '@/features/content';
+import { useClasses, usePages } from '@/features/content';
 import { SYSTEM_CLASS_UUIDS } from '@/constants';
 import { NodeResultItem } from '@/features/content';
 import { useCreateNode } from '@/features/content';
@@ -347,6 +347,35 @@ export function TriggerPopup({
   const { pageClassId } = usePageClass();
   const { classClassId } = useClassClass();
   const { data: allClasses = [] } = useClasses();
+  const { data: allPages = [] } = usePages();
+
+  const pageById = useMemo(() => {
+    const m = new Map<number, Node>();
+    for (const p of allPages) m.set(p.id, p);
+    return m;
+  }, [allPages]);
+
+  const buildParentPath = useCallback((node: Node): string => {
+    if (!node.parent_id) return '';
+    const segments: string[] = [];
+    let currentId: number | null = node.parent_id;
+    while (currentId !== null) {
+      const parent = pageById.get(currentId);
+      if (!parent || !parent.is_page) break;
+      segments.unshift(nodeNameToText(parent.name) || 'Untitled');
+      currentId = parent.parent_id ?? null;
+    }
+    return segments.join(' / ');
+  }, [pageById]);
+
+  const buildBlockParentPath = useCallback((node: Node): string => {
+    if (!node.page_id) return '';
+    const page = pageById.get(node.page_id);
+    if (!page) return '';
+    const pageName = nodeNameToText(page.name) || 'Untitled';
+    const ancestors = buildParentPath(page);
+    return ancestors ? `${ancestors} / ${pageName}` : pageName;
+  }, [pageById, buildParentPath]);
 
   const bumpCommandUsage = useCallback((commandId: string) => {
     try {
@@ -616,6 +645,7 @@ export function TriggerPopup({
               <NodeResultItem
                 key={item.node.id}
                 node={item.node}
+                parentPath={item.node.is_page ? buildParentPath(item.node) : buildBlockParentPath(item.node)}
                 displayClasses={getDisplayClasses(item.node)}
                 allClasses={allClasses}
                 isHighlighted={index === selectedIndex}
@@ -628,7 +658,7 @@ export function TriggerPopup({
       );
     }
     return null;
-  }, [valuePickerFilter, userPickerResults, selectedIndex, getDisplayClasses, allClasses, confirmValuePicker]);
+  }, [valuePickerFilter, userPickerResults, selectedIndex, getDisplayClasses, allClasses, confirmValuePicker, buildParentPath, buildBlockParentPath]);
 
   const mainList = (
     <div className="trigger-popup__list">
@@ -674,6 +704,7 @@ export function TriggerPopup({
                 <NodeResultItem
                   key={item.item.node.id}
                   node={item.item.node}
+                  parentPath={item.item.node.is_page ? buildParentPath(item.item.node) : buildBlockParentPath(item.item.node)}
                   displayClasses={getDisplayClasses(item.item.node)}
                   allClasses={allClasses}
                   isHighlighted={index === effectiveSelectedIndex}
