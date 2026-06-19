@@ -86,6 +86,45 @@ describe('operationToApiRequest', () => {
     expect(request).toEqual({ type: 'delete', id: 42 });
   });
 
+  it('builds an add_class request', () => {
+    const operation = op({
+      id: 'op-1',
+      type: 'add_class',
+      blockId: 'a',
+      serverId: 42,
+      payload: { classId: '5' },
+    });
+
+    const request = operationToApiRequest(operation);
+    expect(request).toEqual({ type: 'add_class', id: 42, classId: 5 });
+  });
+
+  it('builds a remove_class request', () => {
+    const operation = op({
+      id: 'op-1',
+      type: 'remove_class',
+      blockId: 'a',
+      serverId: 42,
+      payload: { classId: '5' },
+    });
+
+    const request = operationToApiRequest(operation);
+    expect(request).toEqual({ type: 'remove_class', id: 42, classId: 5 });
+  });
+
+  it('builds a move_node request', () => {
+    const operation = op({
+      id: 'op-1',
+      type: 'move_node',
+      blockId: 'a',
+      serverId: 42,
+      payload: { parentId: '7', afterBlockId: null },
+    });
+
+    const request = operationToApiRequest(operation);
+    expect(request).toEqual({ type: 'move_node', id: 42, parentId: 7, position: 0 });
+  });
+
   it('marks operations without serverId as unsupported', () => {
     const operation = op({
       id: 'op-1',
@@ -120,6 +159,11 @@ describe('executeOperation', () => {
       createNode: vi.fn().mockResolvedValue(created),
       updateNode: vi.fn(),
       deleteNode: vi.fn(),
+      addClass: vi.fn(),
+      removeClass: vi.fn(),
+      addTag: vi.fn(),
+      removeTag: vi.fn(),
+      moveNode: vi.fn(),
     };
 
     const operation = op({
@@ -155,6 +199,11 @@ describe('executeOperation', () => {
       createNode: vi.fn(),
       updateNode: vi.fn().mockResolvedValue(updated),
       deleteNode: vi.fn(),
+      addClass: vi.fn(),
+      removeClass: vi.fn(),
+      addTag: vi.fn(),
+      removeTag: vi.fn(),
+      moveNode: vi.fn(),
     };
 
     const operation = op({
@@ -176,6 +225,11 @@ describe('executeOperation', () => {
       createNode: vi.fn(),
       updateNode: vi.fn(),
       deleteNode: vi.fn().mockResolvedValue(undefined),
+      addClass: vi.fn(),
+      removeClass: vi.fn(),
+      addTag: vi.fn(),
+      removeTag: vi.fn(),
+      moveNode: vi.fn(),
     };
 
     const operation = op({ id: 'op-1', type: 'delete', blockId: 'a', serverId: 42, payload: {} });
@@ -183,6 +237,89 @@ describe('executeOperation', () => {
     await executeOperation(operation, api);
 
     expect(api.deleteNode).toHaveBeenCalledWith(42);
+  });
+
+  it('calls addClass API for add_class operations', async () => {
+    const updated: Node = {
+      id: 42,
+      uuid: 'a',
+      name: 'updated',
+      icon: null,
+      color: null,
+      parent_id: null,
+      page_id: null,
+      sequence: 0,
+      collapsed: false,
+      active: true,
+      is_page: false,
+      classes: [5],
+      create_date: new Date().toISOString(),
+      write_date: new Date().toISOString(),
+    };
+    const api = {
+      createNode: vi.fn(),
+      updateNode: vi.fn(),
+      deleteNode: vi.fn(),
+      addClass: vi.fn().mockResolvedValue(updated),
+      removeClass: vi.fn(),
+      addTag: vi.fn(),
+      removeTag: vi.fn(),
+      moveNode: vi.fn(),
+    };
+
+    const operation = op({
+      id: 'op-1',
+      type: 'add_class',
+      blockId: 'a',
+      serverId: 42,
+      payload: { classId: '5' },
+    });
+
+    const result = await executeOperation(operation, api);
+
+    expect(api.addClass).toHaveBeenCalledWith(42, 5);
+    expect(result).toBe(updated);
+  });
+
+  it('calls moveNode API for move_node operations', async () => {
+    const moved: Node = {
+      id: 42,
+      uuid: 'a',
+      name: 'moved',
+      icon: null,
+      color: null,
+      parent_id: 7,
+      page_id: null,
+      sequence: 1,
+      collapsed: false,
+      active: true,
+      is_page: false,
+      create_date: new Date().toISOString(),
+      write_date: new Date().toISOString(),
+    };
+    const api = {
+      createNode: vi.fn(),
+      updateNode: vi.fn(),
+      deleteNode: vi.fn(),
+      addClass: vi.fn(),
+      removeClass: vi.fn(),
+      addTag: vi.fn(),
+      removeTag: vi.fn(),
+      moveNode: vi.fn().mockResolvedValue(moved),
+    };
+
+    const operation = op({
+      id: 'op-1',
+      type: 'move_node',
+      blockId: 'a',
+      serverId: 42,
+      payload: { parentId: '7', afterBlockId: null },
+    });
+
+    const result = await executeOperation(operation, api);
+
+    expect(api.moveNode).toHaveBeenCalledWith(42, 7, 0);
+    expect(result).toBe(moved);
   });
 });
 
