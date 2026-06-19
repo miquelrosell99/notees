@@ -132,3 +132,20 @@
 .tab-item__close:active {
   transform: translateY(-50%) scale(0.92);
 }
+
+/* Touch devices (Android, tablets, touch monitors): always show the close
+   button because hover is not available. */
+@media (hover: none) {
+  .tab-item-wrapper--closeable .tab-item {
+    padding-right: calc(var(--button-icon-only-visible-xs) + var(--spacing-1));
+  }
+
+  .tab-item__close {
+    opacity: var(--opacity-60);
+  }
+
+  .tab-item-wrapper:active .tab-item__close,
+  .tab-item__close:active {
+    opacity: var(--opacity-100);
+  }
+}

@@ -13,8 +13,8 @@ import { NotificationPanel } from './NotificationBell';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { useClickOutside } from '@/hooks/useClickOutside';
-import { useEscapeKey } from '@/hooks/useEscapeKey';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
+import { useOverlaySurface } from '@/hooks/useOverlaySurface';
 import { isAndroidApp } from '@/features/layout/hooks/useAndroidBridge';
 import { cn } from '@/utils/cn';
 import './AccountMenu.css';
@@ -61,10 +61,24 @@ export function AccountMenu({
   const logout = useAuthStore((s) => s.logout);
   const { data: notificationsData } = useNotifications(false);
 
-  // Trap focus inside the account dropdown while it is open and return focus on close
+  // Register the main menu and notification panel with the global overlay stack
+  // so Escape closes the topmost one in the correct order.
+  useOverlaySurface({
+    type: 'popup',
+    enabled: isOpen,
+    onClose: () => setIsOpen(false),
+  });
+  useOverlaySurface({
+    type: 'popup',
+    enabled: notificationPanel.open,
+    onClose: () => setNotificationPanel({ open: false }),
+  });
+
+  // Trap focus inside the account dropdown while it is open and return focus on close.
+  // Escape handling is owned by the global overlay stack.
   useFocusTrap(menuRef, {
     enabled: isOpen,
-    onEscape: () => setIsOpen(false),
+    onEscape: undefined,
     restoreFocus: true,
   });
 
@@ -74,9 +88,6 @@ export function AccountMenu({
   ).length;
 
   useClickOutside([triggerRef, menuRef], () => setIsOpen(false), isOpen);
-  useEscapeKey(() => {
-    setNotificationPanel({ open: false });
-  }, notificationPanel.open);
 
   // Compute portal position when opened
   const updatePosition = useCallback(() => {

@@ -247,8 +247,8 @@
 }
 
 /* Reset native <button> defaults for sidebar item rows. */
-button.sidebar-favorite-item,
-button.sidebar-recent-item {
+.sidebar-favorite-item,
+.sidebar-recent-item {
   appearance: none;
   border: none;
   background: none;

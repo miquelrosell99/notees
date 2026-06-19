@@ -4,6 +4,7 @@ import { SYSTEM_CLASS_UUIDS } from '@/constants';
 import { nodeKeys, propertyKeys } from '@/hooks/queryKeys';
 import type { QueryClient } from '@tanstack/react-query';
 import type { LogseqExport } from '@/utils/ednParser';
+import type { Node } from '@/types/api';
 import type { TaskReportData } from '@/components/ui/TaskReport';
 import type { ImportMode, NodeInfo, PhaseResult, ImportContext } from './useLogseqImporter.types';
 import { countBlocks } from './useLogseqImporter.utils';
@@ -21,7 +22,7 @@ interface RunImportDeps {
   classClassId: number | null;
   mutations: {
     createNode: { mutateAsync: (...args: any[]) => Promise<{ id: number; uuid: string }> };
-    updateNode: { mutateAsync: (...args: any[]) => Promise<{ id: number; uuid: string }> };
+    updateNode: { mutateAsync: (...args: any[]) => Promise<Node | null> };
     createProperty: { mutateAsync: (...args: any[]) => Promise<unknown> };
   };
   queryClient: QueryClient;

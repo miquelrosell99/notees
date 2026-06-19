@@ -67,8 +67,8 @@
   height: 100dvh;
   width: min(80vw, var(--layout-size-7xl));
   z-index: var(--z-modal);
-  /* Slide off-screen by default */
-  transform: translateX(-100%);
+  /* Slide off-screen by default; drag offset is injected via CSS variable */
+  transform: translateX(calc(-100% + var(--drawer-drag-offset, 0px)));
   transition: transform var(--motion-duration-medium) var(--motion-easing-standard);
   /* Safe area for devices with curved edges / notches / home bars */
   padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom) env(safe-area-inset-left);
@@ -85,7 +85,13 @@
 }
 
 .mobile-drawer--open {
-  transform: translateX(0);
+  transform: translateX(var(--drawer-drag-offset, 0px));
+}
+
+/* Disable transitions while the user is actively dragging the drawer */
+.mobile-drawer--dragging,
+.mobile-drawer-backdrop--dragging {
+  transition: none !important;
 }
 
 /*
@@ -105,6 +111,11 @@
   border-radius: 0 var(--shape-sheet) var(--shape-sheet) 0;
 }
 
+/* On Android the native shell draws hard edges — no rounded drawer corners */
+.android-app .mobile-drawer .sidebar {
+  border-radius: 0;
+}
+
 /* Override desktop collapse styles that use visibility/opacity/transform */
 .mobile-drawer .sidebar,
 .mobile-drawer--open .sidebar {
@@ -119,12 +130,8 @@
   inset: 0;
   background: var(--color-scrim);
   z-index: var(--z-modal-backdrop);
-  animation: mobile-backdrop-in var(--motion-duration-medium) var(--motion-easing-standard);
-}
-
-@keyframes mobile-backdrop-in {
-  from { opacity: var(--opacity-0); }
-  to   { opacity: var(--opacity-100); }
+  opacity: var(--drawer-backdrop-opacity, 0);
+  transition: opacity var(--motion-duration-medium) var(--motion-easing-standard);
 }
 
 /* ── Floating action button ──────────────────────────────────── */

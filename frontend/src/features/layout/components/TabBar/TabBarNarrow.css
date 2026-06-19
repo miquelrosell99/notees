@@ -34,13 +34,15 @@
 }
 
 .tab-bar-narrow__popup {
-  position: absolute;
-  top: calc(100% + var(--spacing-1-5));
-  left: 0;
   z-index: var(--z-100);
-  min-width: var(--layout-size-5xl);
+  min-width: min(var(--layout-size-5xl), calc(100vw - var(--spacing-4)));
+  max-width: calc(100vw - var(--spacing-4));
   max-height: var(--layout-size-9xl);
   overflow-y: auto;
+}
+
+.tab-bar-narrow__popup--portal {
+  position: fixed;
 }
 
 .tab-bar-narrow__item-label {

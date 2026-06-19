@@ -13,6 +13,7 @@
 import React, { useRef, useCallback, useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
+import { useOverlaySurface } from '@/hooks/useOverlaySurface';
 import type {
   WhiteboardElement,
   WhiteboardCardElement,
@@ -287,7 +288,12 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
   // Keyboard shortcuts modal
   const [showShortcuts, setShowShortcuts] = useState(false);
   const shortcutsRef = useRef<HTMLDivElement>(null);
-  useFocusTrap(shortcutsRef, { enabled: showShortcuts, onEscape: () => setShowShortcuts(false) });
+  useOverlaySurface({
+    type: 'popup',
+    enabled: showShortcuts,
+    onClose: () => setShowShortcuts(false),
+  });
+  useFocusTrap(shortcutsRef, { enabled: showShortcuts, onEscape: undefined });
 
   // Track pointer state
   const pointerState = useRef({

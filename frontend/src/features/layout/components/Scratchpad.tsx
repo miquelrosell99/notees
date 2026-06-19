@@ -13,6 +13,7 @@ import { NodeSelector, BlockList } from '@/features/content';
 import { useTodayNote, usePages, useNodeByUuid, useMoveNode, useDeleteNode } from '@/features/content';
 import { useContentSave, flushAllContentSaves } from '@/features/editor';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
+import { useOverlaySurface } from '@/hooks/useOverlaySurface';
 import { useSettingsStore } from '@/stores';
 import { generateUUID } from '@/utils/uuid';
 import { SYSTEM_PAGE_UUIDS } from '@/constants/systemProperties';
@@ -42,10 +43,19 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
   const dragOffset = useRef({ x: 0, y: 0 });
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Trap focus inside the scratchpad while it is open and return focus on close
+  // Register with the global overlay stack so Escape closes the scratchpad
+  // regardless of where DOM focus is.
+  useOverlaySurface({
+    type: 'popup',
+    enabled: isOpen,
+    onClose,
+  });
+
+  // Trap focus inside the scratchpad while it is open and return focus on close.
+  // Escape handling is owned by the global overlay stack.
   useFocusTrap(containerRef, {
     enabled: isOpen,
-    onEscape: onClose,
+    onEscape: undefined,
     restoreFocus: true,
   });
 
