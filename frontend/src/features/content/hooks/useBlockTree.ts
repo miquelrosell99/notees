@@ -41,6 +41,8 @@ interface UseBlockTreeOptions {
   nodeUuid?: string;
   /** If false (default), a ghost block is appended as the last sibling. */
   readOnly?: boolean;
+  /** If false, no ghost pseudo-blocks are generated regardless of readOnly. */
+  showNewBlock?: boolean;
 }
 
 /** Flatten a node tree statically (no runtime overlay). */
@@ -130,6 +132,7 @@ function flattenNodesFromRuntime(
   runtime: OperationRuntime,
   expandAll = false,
   readOnly = false,
+  showNewBlock = true,
   rootUuid?: string,
 ): FlatNode[] {
   const nodeMap = new Map<string, Node>();
@@ -224,7 +227,7 @@ function flattenNodesFromRuntime(
         result.push(...flatten(children.map(c => c.uuid), depth + 1));
         // Trailing pseudo-block for creating children of this parent.
         // Skip nested ghosts when page filtering is active to avoid orphan rows.
-        if (!readOnly && !pagesOnly && !skipPages) {
+        if (!readOnly && showNewBlock && !pagesOnly && !skipPages) {
           result.push(createGhostFlatNode(uuid, depth + 1));
         }
       }
@@ -253,7 +256,7 @@ function flattenNodesFromRuntime(
 
   const result = flatten(topLevel, 0);
   // Trailing pseudo-block for the root list.
-  if (!readOnly && rootUuid) {
+  if (!readOnly && showNewBlock && rootUuid) {
     result.push(createGhostFlatNode(rootUuid, 0));
   }
   return result;
@@ -271,6 +274,7 @@ export function useBlockTree(
     nodeId,
     nodeUuid,
     readOnly = false,
+    showNewBlock = true,
   } = options;
 
   // Sync prop nodes into the runtime so structural ops have graph data.
@@ -315,9 +319,9 @@ export function useBlockTree(
     if (!hasRuntimeData) {
       return flattenNodes(nodes, maxDepth, pagesOnly, skipPages, 0, expandAll);
     }
-    return flattenNodesFromRuntime(nodes, maxDepth, pagesOnly, skipPages, runtime, expandAll, readOnly, nodeUuid);
+    return flattenNodesFromRuntime(nodes, maxDepth, pagesOnly, skipPages, runtime, expandAll, readOnly, showNewBlock, nodeUuid);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nodes, maxDepth, pagesOnly, skipPages, expandAll, readOnly, nodeUuid, structureVersion]);
+  }, [nodes, maxDepth, pagesOnly, skipPages, expandAll, readOnly, showNewBlock, nodeUuid, structureVersion]);
 
   return { flatNodes, structureVersion };
 }

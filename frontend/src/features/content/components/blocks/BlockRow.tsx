@@ -94,6 +94,8 @@ interface BlockRowProps {
   listSize?: 'sm' | 'md';
   /** Whether this row is rendered inside a property text block editor. */
   inPropertyEditor?: boolean;
+  /** When true, hide the bullet for this specific row (children keep theirs). */
+  hideBullet?: boolean;
   /** Document mode: hide bullets and flatten chrome. */
   documentMode?: boolean;
 }
@@ -132,6 +134,7 @@ export const BlockRow = memo(
       inCard = false,
       listSize,
       inPropertyEditor,
+      hideBullet,
       documentMode,
     },
     ref,
@@ -482,6 +485,7 @@ export const BlockRow = memo(
             isGhost={isGhost}
             listSize={listSize}
             inPropertyEditor={inPropertyEditor}
+            hideBullet={hideBullet}
             documentMode={documentMode}
           />
           {propertyIcons.afterBullet.length > 0 && (

@@ -1,55 +1,42 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import * as nodesApi from '@/api/nodes';
 import type { Node } from '@/types/api';
 import { nodeKeys } from '@/hooks/queryKeys';
 import { nodeViewKeys } from './useNodeViews';
 import { awaitAllContentSaves } from '@/hooks/contentSaveTracker';
-import { findNodeInCache } from './useNodeMutations.utils';
-import { updateNodeInTreeCaches, updateNodeInFlatCaches } from '@/hooks/cacheUtils';
-
+import {
+  findNodeInCache,
+  getRuntimeBlockIdForServerId,
+  applyNodeIntent,
+} from './useNodeMutations.utils';
+import { waitForOperationAck } from '@/sync/waitForOperation';
+import * as nodesApi from '@/api/nodes';
 
 /**
- * Hook to remove a tag from a node (tags are stored in node.tag_ids)
+ * Hook to remove a tag from a node (tags are stored in node.tag_ids).
+ *
+ * The optimistic update is handled by OperationRuntime. SyncManager dispatches
+ * the API call and writes the result back to the cache.
  */
 export function useRemoveTag() {
   const queryClient = useQueryClient();
 
-  return useMutation({
-    mutationFn: async ({ nodeId, tagId }: { nodeId: number; tagId: number }) => {
+  return useMutation<Node | null, Error, { nodeId: number; tagId: number }>({
+    mutationFn: async ({ nodeId, tagId }) => {
       await awaitAllContentSaves();
-      return nodesApi.removeTagLink(nodeId, tagId);
-    },
-    onMutate: async ({ nodeId, tagId }) => {
-      await queryClient.cancelQueries({ queryKey: nodeKeys.detailBase(nodeId) });
 
-      let oldNode = queryClient.getQueryData<Node>(nodeKeys.detailBase(nodeId));
-      if (!oldNode) {
-        oldNode = findNodeInCache(queryClient, nodeId) ?? undefined;
+      const blockId = getRuntimeBlockIdForServerId(nodeId);
+      if (!blockId) {
+        await nodesApi.removeTagLink(nodeId, tagId);
+        return findNodeInCache(queryClient, nodeId);
       }
 
-      const newTags = oldNode?.tags?.filter((id: number) => id !== tagId) ?? [];
-      const updates = { tags: newTags };
-
-      queryClient.setQueriesData<Node>(
-        { queryKey: nodeKeys.detailBase(nodeId), exact: false },
-        (old) => old ? { ...old, ...updates } : old
-      );
-
-      updateNodeInTreeCaches(queryClient, nodeId, (node) => ({ ...node, ...updates }));
-      updateNodeInFlatCaches(queryClient, nodeId, (node) => ({ ...node, ...updates }));
-
-      return { oldNode };
-    },
-    onError: (_err, { nodeId }, context) => {
-      if (context?.oldNode) {
-        const rollback = { tags: context.oldNode.tags };
-        queryClient.setQueriesData<Node>(
-          { queryKey: nodeKeys.detailBase(nodeId), exact: false },
-          (old) => old ? { ...old, ...rollback } : old
-        );
-        updateNodeInTreeCaches(queryClient, nodeId, (node) => ({ ...node, ...rollback }));
-        updateNodeInFlatCaches(queryClient, nodeId, (node) => ({ ...node, ...rollback }));
-      }
+      const operationId = applyNodeIntent({
+        type: 'remove_tag',
+        blockId,
+        tagId: String(tagId),
+      });
+      await waitForOperationAck(operationId);
+      return findNodeInCache(queryClient, nodeId);
     },
     onSuccess: (_data, { nodeId, tagId }) => {
       queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(nodeId) });

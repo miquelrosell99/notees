@@ -11,7 +11,7 @@ import { parseAST, parseLinkId } from '@/lib/astBuilder';
 import { NodeRef } from '@/features/content/components/nodes/NodeRef';
 import { useNavigationStore } from '@/stores';
 import { useReferencedNode } from '@/features/content';
-import { useNodeByUuid } from '@/features/content/hooks/useNodeQueries';
+import { useBatchedNodeByUuid } from '@/hooks';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
 import '@/styles/inline-link.css';
@@ -24,7 +24,7 @@ import '@/styles/math.css';
 function InlineLinkWrapper({ nodeUuid, children }: { nodeUuid: string; children: React.ReactNode }) {
   const openNode = useNavigationStore(s => s.openNode);
   const addSidebarCard = useNavigationStore(s => s.addSidebarCard);
-  const { data: node } = useBatchedNodeByUuid(nodeUuid);
+  const { data: node } = useBatchedNodeByUuidFallback(nodeUuid);
 
   const handleClick = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -125,10 +125,10 @@ export function NodeNameContent({ name }: { name: string | null | undefined }) {
   return <>{content.length > 0 ? content : 'Untitled'}</>;
 }
 
-function useBatchedNodeByUuid(uuid: string) {
+function useBatchedNodeByUuidFallback(uuid: string) {
   const refNode = useReferencedNode(uuid);
-  const { data: fallback } = useNodeByUuid(!refNode ? uuid : null, {
-    meta: { skipGlobalError: true },
+  const { data: fallback } = useBatchedNodeByUuid(!refNode ? uuid : null, {
+    skipGlobalError: true,
   });
   return { data: refNode ?? fallback ?? null };
 }
