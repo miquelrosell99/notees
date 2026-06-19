@@ -5,7 +5,19 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import type { MutationIntent } from '@/runtime/types';
 import { OperationRuntime, setOperationRuntime, getOperationRuntime } from '@/runtime';
-import { intentToOperations, contentOperation, createOperation, moveOperation, deleteOperation } from '@/sync/intents';
+import {
+  intentToOperations,
+  contentOperation,
+  createOperation,
+  moveOperation,
+  deleteOperation,
+  addClassOperation,
+  removeClassOperation,
+  addTagOperation,
+  removeTagOperation,
+  updateNodeOperation,
+  moveNodeOperation,
+} from '@/sync/intents';
 
 function makeRuntime(): OperationRuntime {
   const runtime = new OperationRuntime();
@@ -106,6 +118,79 @@ describe('intentToOperations', () => {
     expect(ops).toHaveLength(2);
     expect(ops.map((o) => o.type)).toEqual(['delete', 'update_content']);
   });
+
+  it('converts add_class to an operation', () => {
+    const runtime = makeRuntime();
+    const intent: MutationIntent = { type: 'add_class', blockId: 'server-block', classId: '5' };
+
+    const ops = intentToOperations(intent, runtime);
+
+    expect(ops).toHaveLength(1);
+    expect(ops[0].type).toBe('add_class');
+    expect(ops[0].serverId).toBe(42);
+    expect(ops[0].payload).toEqual({ classId: '5' });
+  });
+
+  it('converts remove_class to an operation', () => {
+    const runtime = makeRuntime();
+    const intent: MutationIntent = { type: 'remove_class', blockId: 'server-block', classId: '5' };
+
+    const ops = intentToOperations(intent, runtime);
+
+    expect(ops).toHaveLength(1);
+    expect(ops[0].type).toBe('remove_class');
+  });
+
+  it('converts add_tag to an operation', () => {
+    const runtime = makeRuntime();
+    const intent: MutationIntent = { type: 'add_tag', blockId: 'server-block', tagId: '10' };
+
+    const ops = intentToOperations(intent, runtime);
+
+    expect(ops).toHaveLength(1);
+    expect(ops[0].type).toBe('add_tag');
+  });
+
+  it('converts remove_tag to an operation', () => {
+    const runtime = makeRuntime();
+    const intent: MutationIntent = { type: 'remove_tag', blockId: 'server-block', tagId: '10' };
+
+    const ops = intentToOperations(intent, runtime);
+
+    expect(ops).toHaveLength(1);
+    expect(ops[0].type).toBe('remove_tag');
+  });
+
+  it('converts update_node to an operation', () => {
+    const runtime = makeRuntime();
+    const intent: MutationIntent = {
+      type: 'update_node',
+      blockId: 'server-block',
+      updates: { icon: '⭐' },
+    };
+
+    const ops = intentToOperations(intent, runtime);
+
+    expect(ops).toHaveLength(1);
+    expect(ops[0].type).toBe('update_node');
+    expect(ops[0].payload).toEqual({ updates: { icon: '⭐' } });
+  });
+
+  it('converts move_node to an operation', () => {
+    const runtime = makeRuntime();
+    const intent: MutationIntent = {
+      type: 'move_node',
+      blockId: 'server-block',
+      parentId: 'new-parent',
+      afterBlockId: null,
+    };
+
+    const ops = intentToOperations(intent, runtime);
+
+    expect(ops).toHaveLength(1);
+    expect(ops[0].type).toBe('move_node');
+    expect(ops[0].payload).toEqual({ parentId: 'new-parent', afterBlockId: null });
+  });
 });
 
 describe('operation factories', () => {
@@ -137,6 +222,43 @@ describe('operation factories', () => {
     const op = deleteOperation('a', 99);
     expect(op.type).toBe('delete');
     expect(op.serverId).toBe(99);
+  });
+
+  it('addClassOperation stores class id', () => {
+    const op = addClassOperation('a', 99, '5');
+    expect(op.type).toBe('add_class');
+    expect(op.serverId).toBe(99);
+    expect(op.payload).toEqual({ classId: '5' });
+  });
+
+  it('removeClassOperation stores class id', () => {
+    const op = removeClassOperation('a', 99, '5');
+    expect(op.type).toBe('remove_class');
+    expect(op.payload).toEqual({ classId: '5' });
+  });
+
+  it('addTagOperation stores tag id', () => {
+    const op = addTagOperation('a', 99, '10');
+    expect(op.type).toBe('add_tag');
+    expect(op.payload).toEqual({ tagId: '10' });
+  });
+
+  it('removeTagOperation stores tag id', () => {
+    const op = removeTagOperation('a', 99, '10');
+    expect(op.type).toBe('remove_tag');
+    expect(op.payload).toEqual({ tagId: '10' });
+  });
+
+  it('updateNodeOperation stores updates', () => {
+    const op = updateNodeOperation('a', 99, { icon: '⭐' });
+    expect(op.type).toBe('update_node');
+    expect(op.payload).toEqual({ updates: { icon: '⭐' } });
+  });
+
+  it('moveNodeOperation stores parent and after block', () => {
+    const op = moveNodeOperation('a', 99, 'p', 'b');
+    expect(op.type).toBe('move_node');
+    expect(op.payload).toEqual({ parentId: 'p', afterBlockId: 'b' });
   });
 });
 
