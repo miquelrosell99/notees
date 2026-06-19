@@ -165,6 +165,26 @@ async def _node_to_response_with_permissions(
     return response
 
 
+async def _resolve_display_names_for_responses(
+    service: NodeService,
+    nodes: list[Node],
+    responses: list[NodeResponse],
+) -> None:
+    """Resolve inline node links in node names and set display_name on responses.
+
+    Only mutates responses whose names contain links and whose resolved text
+    differs from the raw AST name.
+    """
+    if not nodes:
+        return
+    display_names = await service.resolve_node_display_names(nodes)
+    for node, response in zip(nodes, responses, strict=True):
+        if node.id is not None:
+            resolved = display_names.get(node.id)
+            if resolved:
+                response.display_name = resolved
+
+
 def _build_children_response(
     children: list[Node], class_ids_map: dict[int, list[int]] | None = None
 ) -> list[NodeResponse]:
@@ -447,6 +467,9 @@ async def _build_node_detail_response(
         node, service.permissions, tags=tag_ids, classes=class_ids, aliases=alias_ids
     )
 
+    # Resolve inline links in the main node name (e.g. a page whose title is [[Other Page]]).
+    await _resolve_display_names_for_responses(service, [node], [response])
+
     if include_children:
         children_data = await service.load_node_children(
             node_id, include_properties=include_properties
@@ -490,6 +513,12 @@ async def _build_node_detail_response(
                 parent.children.append(node_response)
 
         response.children = root_children
+
+        # Resolve inline links in child block names so lists/tables/cards show
+        # meaningful text instead of "…" for blocks whose content is a link.
+        child_nodes = [d for d in visible_descendants if d.id is not None]
+        child_responses = [node_map[d.id] for d in child_nodes]
+        await _resolve_display_names_for_responses(service, child_nodes, child_responses)
 
         if referenced_targets:
             display_names = await _resolve_referenced_display_names(

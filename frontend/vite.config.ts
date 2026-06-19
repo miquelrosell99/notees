@@ -110,11 +110,13 @@ export default defineConfig({
       ? process.env.VITE_ALLOWED_HOSTS.split(',')
       : ['localhost', '127.0.0.1'],
     cors: false,
-    // Required for SharedArrayBuffer (crossOriginIsolated = true)
-    headers: {
-      'Cross-Origin-Opener-Policy': 'same-origin',
-      'Cross-Origin-Embedder-Policy': 'require-corp',
-    },
+    // COOP/COEP are disabled in dev because they break module-worker loading
+    // in some Firefox configurations. SharedArrayBuffer-dependent features are
+    // tested in production builds instead.
+    // headers: {
+    //   'Cross-Origin-Opener-Policy': 'same-origin',
+    //   'Cross-Origin-Embedder-Policy': 'require-corp',
+    // },
     // Enable polling for Docker on Windows
     watch: {
       usePolling: true,

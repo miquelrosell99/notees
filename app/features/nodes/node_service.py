@@ -5,6 +5,7 @@ Orchestrates node operations with link parsing and property management.
 
 from __future__ import annotations
 
+import re
 from datetime import UTC, date, datetime
 from typing import TYPE_CHECKING, Any
 
@@ -19,7 +20,15 @@ from app.domain.errors import (
     PermissionDeniedError,
 )
 from app.domain.permissions import PermissionChecker
-from app.domain.stringify_ast import ParseMode, StringifyMode, StringifyOptions, parse_ast, serialize_ast, stringify_ast
+from app.domain.stringify_ast import (
+    NodeLinkResolution,
+    ParseMode,
+    StringifyMode,
+    StringifyOptions,
+    parse_ast,
+    serialize_ast,
+    stringify_ast,
+)
 from app.domain.validation import validate_node_create, validate_node_update
 from app.features.nodes.class_management_service import ClassManagementService
 from app.logging_config import get_logger
@@ -51,6 +60,11 @@ MAX_HIERARCHY_DEPTH = 100
 # Maximum descendants to load in a single read operation to prevent unbounded reads
 MAX_DESCENDANTS_LOAD = 5000
 
+# Maximum unique link targets to fetch when resolving inline node links.
+# Cycle detection is handled by the visited set; this cap only guards against
+# accidental huge graphs.
+MAX_LINK_RESOLUTION_TARGETS = 1000
+
 
 def _format_node_name(raw_name: str | None) -> str:
     """Extract plain text from a node name, handling AST JSON gracefully."""
@@ -62,6 +76,53 @@ def _format_node_name(raw_name: str | None) -> str:
         return text.strip() or "Unknown"
     except (ValueError, TypeError, KeyError):
         return raw_name
+
+
+_LINK_ID_RE = re.compile(r'"link_id"\s*:\s*"([^"]+)"')
+
+
+def _extract_link_uuids(name: str | None) -> set[str]:
+    """Extract target node UUIDs from node_link AST nodes in a raw name."""
+    uuids: set[str] = set()
+    if not name:
+        return uuids
+    for match in _LINK_ID_RE.finditer(name):
+        link_id = match.group(1)
+        colon = link_id.find(":")
+        node_uuid = link_id[:colon] if colon > 0 else link_id
+        if node_uuid:
+            uuids.add(node_uuid)
+    return uuids
+
+
+def _make_link_resolver(link_target_map: dict[str, Any]):
+    """Return a NodeLinkResolver backed by a pre-fetched target AST map."""
+
+    def _resolve_link(link_id: str):
+        colon = link_id.find(":")
+        node_uuid = link_id[:colon] if colon > 0 else link_id
+        target_ast = link_target_map.get(node_uuid)
+        if target_ast is None:
+            return None
+        return NodeLinkResolution(
+            target_ast=target_ast,
+            label=None,
+            target_id=node_uuid,
+        )
+
+    return _resolve_link
+
+
+def _resolve_display_name(raw_name: str | None, link_target_map: dict[str, Any]) -> str:
+    """Stringify a raw node name to plain text, resolving inline links."""
+    if not raw_name:
+        return ""
+    resolver = _make_link_resolver(link_target_map) if link_target_map else None
+    opts = StringifyOptions(
+        mode=StringifyMode.TEXT_ONLY,
+        resolve_node_link=resolver,
+    )
+    return stringify_ast(parse_ast(raw_name), opts)
 
 
 class NodeService:
@@ -368,6 +429,69 @@ class NodeService:
     async def resolve_referenced_display_names(self, target_rows: list[Any]) -> dict[str, str]:
         """Resolve node links embedded in names."""
         return await self._node_repo.resolve_referenced_display_names(target_rows)
+
+    async def _build_link_target_map(
+        self,
+        names: list[str | None],
+    ) -> dict[str, Any]:
+        """Fetch target nodes for links found in the given names, transitively.
+
+        Returns a map of target node UUID -> parsed name AST. This allows
+        stringify_ast to resolve inline [[...]] links when producing display text.
+
+        Termination is driven by a visited set, so cyclic link graphs (A→B→A)
+        do not cause unbounded work. A hard cap on the total number of unique
+        targets fetched guards against accidentally huge graphs.
+        """
+        link_node_uuids: set[str] = set()
+        for name in names:
+            link_node_uuids.update(_extract_link_uuids(name))
+
+        link_target_map: dict[str, Any] = {}
+        visited_uuids: set[str] = set()
+        while link_node_uuids:
+            to_fetch = [uuid for uuid in link_node_uuids if uuid not in visited_uuids]
+            visited_uuids.update(link_node_uuids)
+            link_node_uuids.clear()
+            if not to_fetch:
+                continue
+            if len(visited_uuids) > MAX_LINK_RESOLUTION_TARGETS:
+                logger.warning(
+                    "Link resolution stopped after fetching %s unique targets",
+                    MAX_LINK_RESOLUTION_TARGETS,
+                )
+                break
+            target_nodes = await self.get_nodes_by_uuids(to_fetch)
+            for target in target_nodes.values():
+                if target.uuid and target.name:
+                    link_target_map[target.uuid] = parse_ast(target.name)
+                    link_node_uuids.update(_extract_link_uuids(target.name))
+
+        return link_target_map
+
+    async def resolve_node_display_names(
+        self,
+        nodes: list[Node],
+    ) -> dict[int, str]:
+        """Resolve plain-text display names for a list of nodes.
+
+        Inline node links are resolved recursively so that a name like
+        [[Target Page]] renders as "Target Page" instead of "…". Cycles are
+        detected by stringify_ast's internal visited set, while the target
+        fetcher stops once all reachable unique targets have been loaded.
+        """
+        if not nodes:
+            return {}
+
+        names = [node.name for node in nodes]
+        link_target_map = await self._build_link_target_map(names)
+
+        result: dict[int, str] = {}
+        for node in nodes:
+            if node.id is None:
+                continue
+            result[node.id] = _resolve_display_name(node.name, link_target_map)
+        return result
 
     async def get_node_breadcrumbs(self, node_id: int) -> list[Node]:
         """Get ancestor chain from root to node's immediate parent."""
@@ -1873,16 +1997,6 @@ class NodeService:
         self, node_id: int
     ) -> list[dict[str, Any]]:
         """Get ancestor breadcrumb chain with resolved link display names."""
-        import re
-
-        from ...domain.stringify_ast import (
-            NodeLinkResolution,
-            StringifyMode,
-            StringifyOptions,
-            parse_ast,
-            stringify_ast,
-        )
-
         node = await self.get_node(node_id)
         breadcrumb_target_id = node_id
         if node and node.aliased_id:
@@ -1899,37 +2013,8 @@ class NodeService:
                 ancestor_ids
             )
 
-        link_node_uuids: set[str] = set()
-        for breadcrumb_node in breadcrumb_nodes:
-            if breadcrumb_node.name:
-                for match in re.finditer(r'"link_id"\s*:\s*"([^"]+)"', breadcrumb_node.name):
-                    link_id = match.group(1)
-                    colon = link_id.find(":")
-                    node_uuid = link_id[:colon] if colon > 0 else link_id
-                    link_node_uuids.add(node_uuid)
-
-        link_target_map: dict[str, Any] = {}
-        if link_node_uuids:
-            target_nodes = await self.get_nodes_by_uuids(list(link_node_uuids))
-            for target in target_nodes.values():
-                if target.name:
-                    link_target_map[target.uuid] = parse_ast(target.name)
-
-        def _resolve_link(link_id: str):
-            colon = link_id.find(":")
-            node_uuid = link_id[:colon] if colon > 0 else link_id
-            target_ast = link_target_map.get(node_uuid)
-            if target_ast is None:
-                return None
-            return NodeLinkResolution(
-                target_ast=target_ast,
-                label=None,
-                target_id=node_uuid,
-            )
-
-        opts = StringifyOptions(
-            mode=StringifyMode.TEXT_ONLY,
-            resolve_node_link=_resolve_link if link_target_map else None,
+        link_target_map = await self._build_link_target_map(
+            [n.name for n in breadcrumb_nodes]
         )
 
         items: list[dict[str, Any]] = []
@@ -1956,7 +2041,7 @@ class NodeService:
                 )
 
             raw_name = breadcrumb_node.name or ""
-            display = stringify_ast(parse_ast(raw_name), opts)
+            display = _resolve_display_name(raw_name, link_target_map)
             items.append(
                 {
                     "id": breadcrumb_node.id or 0,
