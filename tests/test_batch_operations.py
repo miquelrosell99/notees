@@ -231,3 +231,66 @@ class TestBatchUpdate:
         data = resp.json()
         assert data["updated"] == 0
         assert data["failed"] == 0
+
+
+class TestBatchGetByUuid:
+    """Test batch node fetch by UUID."""
+
+    @pytest.mark.asyncio
+    async def test_batch_get_by_uuid_multiple_nodes(
+        self,
+        authenticated_client: AsyncClient,
+        sample_node_data: dict,
+    ):
+        """Fetch several nodes by UUID in a single call."""
+        # Create a parent page and two blocks
+        page_resp = await authenticated_client.post("/api/nodes/", json=sample_node_data)
+        page = page_resp.json()
+
+        blocks = []
+        for i in range(2):
+            br = await authenticated_client.post(
+                "/api/nodes/",
+                json={"name": f"Block {i}", "parent_id": page["id"], "sequence": i},
+            )
+            blocks.append(br.json())
+
+        uuids = [blocks[0]["uuid"], blocks[1]["uuid"]]
+        resp = await authenticated_client.post("/api/nodes/batch-get-by-uuid", json={"uuids": uuids})
+        assert resp.status_code == 200
+
+        data = resp.json()
+        assert set(data["nodes"].keys()) == set(uuids)
+        for block in blocks:
+            assert data["nodes"][block["uuid"]]["uuid"] == block["uuid"]
+            assert data["nodes"][block["uuid"]]["id"] == block["id"]
+
+    @pytest.mark.asyncio
+    async def test_batch_get_by_uuid_missing_ignored(
+        self,
+        authenticated_client: AsyncClient,
+        sample_node_data: dict,
+    ):
+        """Unknown UUIDs are silently omitted from the result."""
+        page_resp = await authenticated_client.post("/api/nodes/", json=sample_node_data)
+        page = page_resp.json()
+
+        resp = await authenticated_client.post(
+            "/api/nodes/batch-get-by-uuid",
+            json={"uuids": [page["uuid"], "00000000-0000-0000-0000-000000000000"]},
+        )
+        assert resp.status_code == 200
+
+        data = resp.json()
+        assert list(data["nodes"].keys()) == [page["uuid"]]
+
+    @pytest.mark.asyncio
+    async def test_batch_get_by_uuid_empty_list(
+        self,
+        authenticated_client: AsyncClient,
+    ):
+        """Empty UUID list returns an empty nodes map."""
+        resp = await authenticated_client.post("/api/nodes/batch-get-by-uuid", json={"uuids": []})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["nodes"] == {}
