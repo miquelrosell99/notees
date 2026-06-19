@@ -11,6 +11,7 @@
 import { useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
+import { useOverlaySurface } from '@/hooks/useOverlaySurface';
 import { Button } from './Button';
 import './ImageModal.css';
 
@@ -42,10 +43,19 @@ export function ImageModal({
 }: ImageModalProps) {
   const backdropRef = useRef<HTMLDivElement>(null);
 
-  // Trap focus inside the modal while it is open and return focus on close
+  // Register with the global overlay stack so Escape closes this modal
+  // regardless of where DOM focus is.
+  useOverlaySurface({
+    type: 'modal',
+    enabled: isOpen,
+    onClose,
+  });
+
+  // Trap focus inside the modal while it is open and return focus on close.
+  // Escape handling is owned by the global overlay stack.
   useFocusTrap(backdropRef, {
     enabled: isOpen,
-    onEscape: onClose,
+    onEscape: undefined,
     restoreFocus: true,
   });
 

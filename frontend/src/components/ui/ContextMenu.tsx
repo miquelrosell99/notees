@@ -9,6 +9,7 @@ import { createPortal } from 'react-dom';
 
 import { Card } from './Card';
 import { Separator } from './Separator';
+import { useOverlaySurface } from '@/hooks/useOverlaySurface';
 import './ContextMenu.css';
 import { Icon } from '@/components/ui/icons';
 
@@ -68,6 +69,21 @@ export function ContextMenu({ items, position, anchorEl, onClose, title, activeI
     setClosingSubmenu(true);
   }, []);
 
+  // Register with the global overlay stack so Escape closes this context menu
+  // (or its active submenu first) regardless of where DOM focus is.
+  useOverlaySurface({
+    type: 'popup',
+    enabled: true,
+    onClose,
+    onEscape: () => {
+      if (activeSubmenu) {
+        closeSubmenuAnimated();
+        return true;
+      }
+      return false;
+    },
+  });
+
   // Get non-separator items for keyboard navigation
   const navigableItems = items.filter(item => !item.separator && !item.disabled);
 
@@ -90,12 +106,6 @@ export function ContextMenu({ items, position, anchorEl, onClose, title, activeI
         return;
       }
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        onClose();
-      }
-    };
-
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
         onClose();
       }
     };
@@ -126,12 +136,10 @@ export function ContextMenu({ items, position, anchorEl, onClose, title, activeI
     // Use both mousedown and click to ensure we catch outside clicks
     document.addEventListener('mousedown', handleClickOutside, true);
     document.addEventListener('click', handleClickOutside, true);
-    document.addEventListener('keydown', handleEscape);
     document.addEventListener('keydown', handleKeyDown);
     return () => {
       document.removeEventListener('mousedown', handleClickOutside, true);
       document.removeEventListener('click', handleClickOutside, true);
-      document.removeEventListener('keydown', handleEscape);
       document.removeEventListener('keydown', handleKeyDown);
     };
   }, [onClose, navigableItems, focusedIndex, containerRef]);

@@ -15,7 +15,7 @@
 }
 
 /* Reset native <button> defaults for sortable rows. */
-button.list-sortable__item {
+.list-sortable__item {
   appearance: none;
   border: none;
   background: none;

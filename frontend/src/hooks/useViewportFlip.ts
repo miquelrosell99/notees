@@ -1,4 +1,4 @@
-import { useEffect, useState, type RefObject } from 'react';
+import { useLayoutEffect, useState, useCallback, type RefObject } from 'react';
 
 export interface ViewportFlipOptions {
   /** Maximum height of the popup (default: 300) */
@@ -9,8 +9,10 @@ export interface ViewportFlipOptions {
   includeWidth?: boolean;
   /** Minimum width override (popup will be at least this wide) */
   minWidth?: number;
-  /** Known popup width for horizontal clamping (omit to skip horizontal clamping) */
+  /** Known popup width for horizontal clamping (omit to measure dynamically from popupRef) */
   popupWidth?: number;
+  /** Ref to the popup element. When provided, its rendered width is measured and used for clamping. */
+  popupRef?: RefObject<HTMLElement | null>;
   /** Known popup height for simple flip (omit to use dynamic maxHeight calculation) */
   popupHeight?: number;
   /** Horizontal edge padding when clamping (default: 16) */
@@ -35,6 +37,9 @@ export interface ViewportFlipResult {
  *   Used by Dropdown and NodeSelector.
  * - **Fixed-size**: when `popupHeight` is provided, does a simple flip without
  *   dynamic maxHeight. Used by CalendarPopup.
+ *
+ * When `popupRef` is provided, the popup's rendered width is measured and used
+ * to keep the popup inside the viewport by shifting it left when it overflows.
  */
 export function useViewportFlip(
   anchorRef: RefObject<HTMLElement | null>,
@@ -47,6 +52,7 @@ export function useViewportFlip(
     includeWidth = false,
     minWidth,
     popupWidth,
+    popupRef,
     popupHeight,
     edgePadding = 16,
     fixed = false,
@@ -54,7 +60,7 @@ export function useViewportFlip(
 
   const [position, setPosition] = useState<ViewportFlipResult | null>(null);
 
-  useEffect(() => {
+  const calculate = useCallback(() => {
     if (!isOpen || !anchorRef.current) {
       setPosition(null);
       return;
@@ -62,6 +68,7 @@ export function useViewportFlip(
 
     const rect = anchorRef.current.getBoundingClientRect();
     const viewportHeight = window.innerHeight;
+    const viewportWidth = window.innerWidth;
     const spaceBelow = viewportHeight - rect.bottom;
     const spaceAbove = rect.top;
     const scrollY = fixed ? 0 : window.scrollY;
@@ -96,11 +103,15 @@ export function useViewportFlip(
 
     let left = rect.left + scrollX;
 
-    // Horizontal clamping
-    if (popupWidth !== undefined) {
-      const viewportWidth = window.innerWidth;
-      if (left + popupWidth > viewportWidth - edgePadding) {
-        left = viewportWidth - popupWidth - edgePadding;
+    // Horizontal clamping: prefer measured width, fall back to provided width
+    const measuredWidth = popupRef?.current?.getBoundingClientRect().width;
+    const effectivePopupWidth = measuredWidth ?? popupWidth;
+    if (effectivePopupWidth !== undefined) {
+      if (left + effectivePopupWidth > viewportWidth - edgePadding) {
+        left = viewportWidth - effectivePopupWidth - edgePadding;
+      }
+      if (left < edgePadding) {
+        left = edgePadding;
       }
     }
 
@@ -111,7 +122,16 @@ export function useViewportFlip(
     }
 
     setPosition(result);
-  }, [isOpen, maxPopupHeight, gap, includeWidth, minWidth, popupWidth, popupHeight, edgePadding, fixed, anchorRef]);
+  }, [isOpen, anchorRef, maxPopupHeight, gap, popupHeight, edgePadding, fixed, popupRef, popupWidth, includeWidth, minWidth]);
+
+  useLayoutEffect(() => {
+    calculate();
+
+    if (!isOpen) return;
+
+    window.addEventListener('resize', calculate);
+    return () => window.removeEventListener('resize', calculate);
+  }, [calculate, isOpen]);
 
   return position;
 }

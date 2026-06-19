@@ -258,6 +258,12 @@ export interface NodeCollectionProps {
   /** Whether this collection is rendered inside a property text block editor. */
   inPropertyEditor?: boolean;
 
+  /** When false, hide the trailing "new block" pseudo block in list view (default: true). */
+  showNewBlock?: boolean;
+
+  /** When true, hide the bullet on root/top-level blocks in list view (children keep theirs). */
+  hideRootBullet?: boolean;
+
   /** Default sort columns applied on initial render (user can clear/override) */
   defaultSort?: SortEntry[];
 
@@ -411,6 +417,12 @@ export interface NodeListViewProps extends NodeCollectionViewBaseProps {
 
   /** Force all nodes to be expanded, ignoring stored collapsed state. */
   expandAll?: boolean;
+
+  /** When false, hide the trailing "new block" pseudo block (default: true). */
+  showNewBlock?: boolean;
+
+  /** When true, hide the bullet on root/top-level blocks only (children keep theirs). */
+  hideRootBullet?: boolean;
 }
 
 /**

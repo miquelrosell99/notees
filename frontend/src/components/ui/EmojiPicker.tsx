@@ -26,6 +26,7 @@ import { Tabs } from './Tabs';
 import './EmojiPicker.css';
 import { Icon } from '@/components/ui/icons';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
+import { useOverlaySurface } from '@/hooks/useOverlaySurface';
 
 // Common emoji categories
 const EMOJI_CATEGORIES = {
@@ -357,9 +358,16 @@ export function EmojiPicker({
 
   useEffect(() => { searchRef.current?.focus(); }, []);
 
+  // Register popup with the global overlay stack so Escape closes it.
+  useOverlaySurface({
+    type: 'popup',
+    enabled: asPopup,
+    onClose,
+  });
+
   useFocusTrap(pickerRef, {
     enabled: asPopup,
-    onEscape: onClose,
+    onEscape: undefined,
     autoFocus: false,
     restoreFocus: true,
   });

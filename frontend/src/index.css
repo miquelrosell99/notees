@@ -48,6 +48,32 @@ body {
   margin: 0;
   min-width: var(--layout-body-min-width);
   min-height: 100vh;
+  /* App UI should not behave like a selectable document. Editable areas are
+     re-enabled below via [contenteditable], input, and textarea overrides. */
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+
+/* Re-enable selection only in genuine editable surfaces */
+input,
+textarea,
+[contenteditable="true"],
+.inline-editor__content {
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+}
+
+/* On Android suppress the browser pull-to-refresh / reload gesture completely. */
+.android-app,
+.android-app body,
+.android-app .mobile-content,
+.android-app .main-content,
+.android-app .mobile-drawer {
+  overscroll-behavior-y: none;
 }
 
 h1, h2, h3, h4, h5, h6 {

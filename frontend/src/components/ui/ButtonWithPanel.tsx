@@ -15,6 +15,7 @@ import { Button, type ButtonProps, type ButtonSize, type ButtonVariant } from '.
 import { Card } from './Card';
 import { useClickOutside } from '@/hooks/useClickOutside';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
+import { useOverlaySurface } from '@/hooks/useOverlaySurface';
 import './ButtonWithPanel.css';
 
 /** Space between the trigger and the floating panel. */
@@ -120,10 +121,19 @@ export function ButtonWithPanel({
     handleOpenChange(false);
   }, [handleOpenChange]);
 
-  // Trap focus while the panel is open and return focus to the trigger on close
+  // Register with the global overlay stack so Escape closes the panel
+  // regardless of where DOM focus is.
+  useOverlaySurface({
+    type: 'popup',
+    enabled: isOpen && closeOnEscape,
+    onClose: closePanel,
+  });
+
+  // Trap focus while the panel is open and return focus to the trigger on close.
+  // Escape handling is owned by the global overlay stack.
   useFocusTrap(panelRef, {
     enabled: isOpen,
-    onEscape: closeOnEscape ? closePanel : undefined,
+    onEscape: undefined,
     restoreFocus: true,
   });
 

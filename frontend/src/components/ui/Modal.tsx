@@ -15,6 +15,7 @@ import { createPortal } from 'react-dom';
 import { Card } from './Card';
 import { Button } from './Button';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
+import { useOverlaySurface } from '@/hooks/useOverlaySurface';
 import './Modal.css';
 
 export type ModalSize = 'sm' | 'md' | 'lg' | 'xl';
@@ -108,25 +109,20 @@ export function Modal({
   const isMobile = useIsMobileViewport(variant === 'auto');
   const isSheet = variant === 'sheet' || (variant === 'auto' && isMobile);
 
-  // Enable focus trap for accessibility
+  // Register with the global overlay stack so Escape closes this modal
+  // regardless of where DOM focus is, and in the correct LIFO order.
+  useOverlaySurface({
+    type: 'modal',
+    enabled: isOpen && closeOnEscape,
+    onClose,
+  });
+
+  // Enable focus trap for accessibility (Tab cycling / restore focus).
+  // Escape handling is owned by the global overlay stack.
   useFocusTrap(containerRef, {
     enabled: isOpen,
-    onEscape: closeOnEscape ? onClose : undefined,
+    onEscape: undefined,
   });
-  
-  // Handle escape key (fallback if focus trap doesn't catch it)
-  useEffect(() => {
-    if (!isOpen || !closeOnEscape) return;
-
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onClose();
-      }
-    };
-
-    document.addEventListener('keydown', handleEscape);
-    return () => document.removeEventListener('keydown', handleEscape);
-  }, [isOpen, closeOnEscape, onClose]);
 
   // Handle backdrop click
   const handleBackdropClick = useCallback(
