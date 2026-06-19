@@ -183,6 +183,96 @@ describe('applyOperation', () => {
     expect(result.get('a')?.tagIds).toEqual(['10', '20']);
   });
 
+  it('adds a class id', () => {
+    const nodes = new Map([['a', baseNode({ blockId: 'a', classIds: ['1'] })]]);
+    const operation = op({
+      id: 'op-1',
+      type: 'add_class',
+      blockId: 'a',
+      payload: { classId: '2' },
+    });
+
+    const result = applyOperation(nodes, operation, now);
+
+    expect(result.get('a')?.classIds).toEqual(['1', '2']);
+  });
+
+  it('removes a class id', () => {
+    const nodes = new Map([['a', baseNode({ blockId: 'a', classIds: ['1', '2'] })]]);
+    const operation = op({
+      id: 'op-1',
+      type: 'remove_class',
+      blockId: 'a',
+      payload: { classId: '1' },
+    });
+
+    const result = applyOperation(nodes, operation, now);
+
+    expect(result.get('a')?.classIds).toEqual(['2']);
+  });
+
+  it('adds a tag id', () => {
+    const nodes = new Map([['a', baseNode({ blockId: 'a', tagIds: ['10'] })]]);
+    const operation = op({
+      id: 'op-1',
+      type: 'add_tag',
+      blockId: 'a',
+      payload: { tagId: '20' },
+    });
+
+    const result = applyOperation(nodes, operation, now);
+
+    expect(result.get('a')?.tagIds).toEqual(['10', '20']);
+  });
+
+  it('removes a tag id', () => {
+    const nodes = new Map([['a', baseNode({ blockId: 'a', tagIds: ['10', '20'] })]]);
+    const operation = op({
+      id: 'op-1',
+      type: 'remove_tag',
+      blockId: 'a',
+      payload: { tagId: '10' },
+    });
+
+    const result = applyOperation(nodes, operation, now);
+
+    expect(result.get('a')?.tagIds).toEqual(['20']);
+  });
+
+  it('updates node fields', () => {
+    const nodes = new Map([['a', baseNode({ blockId: 'a', icon: null, color: null })]]);
+    const operation = op({
+      id: 'op-1',
+      type: 'update_node',
+      blockId: 'a',
+      payload: { updates: { icon: '⭐', color: 'red' } },
+    });
+
+    const result = applyOperation(nodes, operation, now);
+
+    expect(result.get('a')?.icon).toBe('⭐');
+    expect(result.get('a')?.color).toBe('red');
+  });
+
+  it('moves a node via move_node operation', () => {
+    const nodes = new Map([
+      ['root', baseNode({ blockId: 'root', parentId: null, orderIndex: 0, isPage: true, nodeType: 'page' })],
+      ['a', baseNode({ blockId: 'a', parentId: 'other', orderIndex: 0 })],
+      ['b', baseNode({ blockId: 'b', parentId: 'root', orderIndex: 0 })],
+    ]);
+    const operation = op({
+      id: 'op-1',
+      type: 'move_node',
+      blockId: 'a',
+      payload: { parentId: 'root', afterBlockId: 'b' },
+    });
+
+    const result = applyOperation(nodes, operation, now);
+
+    expect(result.get('a')?.parentId).toBe('root');
+    expect(result.get('a')?.orderIndex).toBeGreaterThan(result.get('b')!.orderIndex);
+  });
+
   it('renormalizes siblings when the order gap becomes too small', () => {
     const nodes = new Map([
       ['a', baseNode({ blockId: 'a', parentId: 'root', orderIndex: 0 })],

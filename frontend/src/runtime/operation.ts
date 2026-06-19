@@ -33,6 +33,7 @@ export interface CoreNode {
   color?: string | null;
   classIds: string[];
   tagIds: string[];
+  isPrivate?: boolean;
   createdAt: string;
   updatedAt: string;
   version: number;
@@ -81,6 +82,31 @@ export interface SetTagsPayload {
   tagIds: string[];
 }
 
+export interface AddClassPayload {
+  classId: string;
+}
+
+export interface RemoveClassPayload {
+  classId: string;
+}
+
+export interface AddTagPayload {
+  tagId: string;
+}
+
+export interface RemoveTagPayload {
+  tagId: string;
+}
+
+export interface UpdateNodePayload {
+  updates: Partial<CoreNode>;
+}
+
+export interface MoveNodePayload {
+  parentId: string | null;
+  afterBlockId: string | null;
+}
+
 // ─── Operation union ─────────────────────────────────────────────
 
 export type OperationType =
@@ -90,7 +116,13 @@ export type OperationType =
   | 'delete'
   | 'set_collapsed'
   | 'set_classes'
-  | 'set_tags';
+  | 'set_tags'
+  | 'add_class'
+  | 'remove_class'
+  | 'add_tag'
+  | 'remove_tag'
+  | 'update_node'
+  | 'move_node';
 
 export interface Operation {
   readonly id: string;
@@ -104,7 +136,13 @@ export interface Operation {
     | DeletePayload
     | SetCollapsedPayload
     | SetClassesPayload
-    | SetTagsPayload;
+    | SetTagsPayload
+    | AddClassPayload
+    | RemoveClassPayload
+    | AddTagPayload
+    | RemoveTagPayload
+    | UpdateNodePayload
+    | MoveNodePayload;
   readonly state: OperationState;
   readonly dependsOn: readonly string[];
   readonly retryCount: number;

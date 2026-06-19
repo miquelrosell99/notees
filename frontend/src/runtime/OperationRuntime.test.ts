@@ -74,7 +74,7 @@ describe('OperationRuntime', () => {
     expect(runtime.getPendingOperations()).toHaveLength(1);
   });
 
-  it('acknowledges an operation and removes it from active operations', () => {
+  it('acknowledges an operation and keeps its effect until base state catches up', () => {
     const runtime = new OperationRuntime();
     runtime.loadBaseNodes([baseNode({ blockId: 'a' })]);
     runtime.applyOperation(
@@ -88,12 +88,51 @@ describe('OperationRuntime', () => {
 
     runtime.acknowledgeOperation('op-1');
 
-    expect(runtime.getOperations()).toHaveLength(0);
-    // Without a base-state update, the acknowledged effect disappears.
-    // SyncManager must update the cache before acknowledging.
+    // Acknowledged operations stay in the runtime so the projection does not
+    // snap back while we wait for the fresh base state to arrive.
+    expect(runtime.getOperations()).toHaveLength(1);
+    expect(runtime.getOperations()[0].state).toBe('acknowledged');
     expect(runtime.getNode('a')?.contentAST).toEqual([
-      { type: 'paragraph', children: [{ type: 'text', text: '' }] },
+      { type: 'paragraph', children: [{ type: 'text', text: 'local' }] },
     ]);
+
+    // Once the base state is updated, the acknowledged operation is removed.
+    runtime.upsertBaseNodes([
+      baseNode({
+        blockId: 'a',
+        contentAST: [{ type: 'paragraph', children: [{ type: 'text', text: 'local' }] }],
+      }),
+    ]);
+    expect(runtime.getOperations()).toHaveLength(0);
+  });
+
+  it('preserves structural changes across acknowledge until base state catches up', () => {
+    const runtime = new OperationRuntime();
+    runtime.loadBaseNodes([
+      baseNode({ blockId: 'root' }),
+      baseNode({ blockId: 'a', parentId: 'root' }),
+    ]);
+    runtime.applyOperation(
+      op({
+        id: 'op-move',
+        type: 'move',
+        blockId: 'a',
+        payload: { parentId: 'root', afterBlockId: null },
+      }),
+    );
+
+    // Simulate SyncManager: server acks the move before fresh base nodes arrive.
+    runtime.acknowledgeOperation('op-move');
+
+    // The structural change must not snap back while waiting for the base update.
+    expect(runtime.getOperations()).toHaveLength(1);
+    expect(runtime.getOperations()[0].state).toBe('acknowledged');
+    expect(runtime.getNode('a')?.parentId).toBe('root');
+
+    // Fresh base state arrives and absorbs the acknowledged operation.
+    runtime.upsertBaseNodes([baseNode({ blockId: 'a', parentId: 'root' })]);
+    expect(runtime.getOperations()).toHaveLength(0);
+    expect(runtime.getNode('a')?.parentId).toBe('root');
   });
 
   it('does not acknowledge an unknown operation', () => {

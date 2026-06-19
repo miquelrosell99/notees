@@ -42,10 +42,16 @@ function getAffectedBlockIds(operation: Operation): string[] {
 
 /**
  * Save all current pending operations from the runtime to IndexedDB.
+ *
+ * Acknowledged operations are filtered out: they are waiting for a base-state
+ * update that will happen on the next render, so there is no value in
+ * persisting them across reloads.
  */
 export async function saveOperations(): Promise<void> {
   const runtime = getOperationRuntime();
-  const operations = runtime.getOperations();
+  const operations = runtime
+    .getOperations()
+    .filter((op) => op.state !== 'acknowledged');
   await setStored(operations as Operation[]);
 }
 

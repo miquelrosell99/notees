@@ -18,6 +18,12 @@ import type {
   UpdateContentPayload,
   SetCollapsedPayload,
   SetClassesPayload,
+  AddClassPayload,
+  RemoveClassPayload,
+  AddTagPayload,
+  RemoveTagPayload,
+  UpdateNodePayload,
+  MoveNodePayload,
 } from '@/runtime';
 import { writeCreate, writeUpdate, writeDelete, writeMove } from './cacheWriter';
 import { getOperationRuntime } from '@/runtime';
@@ -27,13 +33,55 @@ export interface SyncApi {
   createNode: (data: NodeCreate) => Promise<Node>;
   updateNode: (id: number, data: NodeUpdate) => Promise<Node>;
   deleteNode: (id: number) => Promise<void>;
+  addClass: (id: number, classId: number) => Promise<Node>;
+  removeClass: (id: number, classId: number) => Promise<Node>;
+  addTag: (id: number, tagId: number) => Promise<Node>;
+  removeTag: (id: number, tagId: number) => Promise<Node>;
+  moveNode: (id: number, parentId: number | null, position?: number) => Promise<Node>;
 }
 
 export const defaultSyncApi: SyncApi = {
   createNode: nodesApi.createNode,
   updateNode: nodesApi.updateNode,
   deleteNode: nodesApi.deleteNode,
+  addClass: nodesApi.addClass,
+  removeClass: nodesApi.removeClass,
+  addTag: async (id: number, tagId: number) => {
+    await nodesApi.addTagLink(id, tagId);
+    return buildTagNodeFromRuntime(id);
+  },
+  removeTag: async (id: number, tagId: number) => {
+    await nodesApi.removeTagLink(id, tagId);
+    return buildTagNodeFromRuntime(id);
+  },
+  moveNode: nodesApi.moveNode,
 };
+
+export function buildTagNodeFromRuntime(id: number): Node {
+  const runtime = getOperationRuntime();
+  const coreNode = runtime.snapshot().projectedNodes.values();
+  for (const node of coreNode) {
+    if (node.serverId === id) {
+      return {
+        id,
+        uuid: node.blockId,
+        name: node.name ?? '',
+        icon: node.icon ?? null,
+        color: node.color ?? null,
+        parent_id: null,
+        page_id: null,
+        sequence: node.orderIndex,
+        collapsed: node.collapsed,
+        active: !node.isDeleted,
+        is_page: node.isPage,
+        create_date: node.createdAt,
+        write_date: node.updatedAt,
+        tags: node.tagIds.map((t) => parseInt(t, 10)),
+      };
+    }
+  }
+  throw new Error(`Node ${id} not found in runtime for tag update`);
+}
 
 function serializeContentAST(contentAST: UpdateContentPayload['contentAST']): string {
   return JSON.stringify(contentAST);
@@ -70,6 +118,11 @@ export function operationToApiRequest(operation: Operation):
   | { type: 'create'; data: NodeCreate }
   | { type: 'update'; id: number; data: NodeUpdate }
   | { type: 'delete'; id: number }
+  | { type: 'add_class'; id: number; classId: number }
+  | { type: 'remove_class'; id: number; classId: number }
+  | { type: 'add_tag'; id: number; tagId: number }
+  | { type: 'remove_tag'; id: number; tagId: number }
+  | { type: 'move_node'; id: number; parentId: number; position: number }
   | { type: 'unsupported' } {
   const runtime = getOperationRuntime();
   const runtimeServerId =
@@ -134,6 +187,65 @@ export function operationToApiRequest(operation: Operation):
         data: {}, // Tags use a separate endpoint; treat as unsupported for now.
       };
     }
+    case 'add_class': {
+      if (runtimeServerId == null) return { type: 'unsupported' };
+      return {
+        type: 'add_class',
+        id: runtimeServerId,
+        classId: parseInt((operation.payload as AddClassPayload).classId, 10),
+      };
+    }
+    case 'remove_class': {
+      if (runtimeServerId == null) return { type: 'unsupported' };
+      return {
+        type: 'remove_class',
+        id: runtimeServerId,
+        classId: parseInt((operation.payload as RemoveClassPayload).classId, 10),
+      };
+    }
+    case 'add_tag': {
+      if (runtimeServerId == null) return { type: 'unsupported' };
+      return {
+        type: 'add_tag',
+        id: runtimeServerId,
+        tagId: parseInt((operation.payload as AddTagPayload).tagId, 10),
+      };
+    }
+    case 'remove_tag': {
+      if (runtimeServerId == null) return { type: 'unsupported' };
+      return {
+        type: 'remove_tag',
+        id: runtimeServerId,
+        tagId: parseInt((operation.payload as RemoveTagPayload).tagId, 10),
+      };
+    }
+    case 'update_node': {
+      if (runtimeServerId == null) return { type: 'unsupported' };
+      const updatePayload = operation.payload as UpdateNodePayload;
+      const data: NodeUpdate = {};
+      if (updatePayload.updates.name !== undefined) data.name = updatePayload.updates.name ?? null;
+      if (updatePayload.updates.icon !== undefined) data.icon = updatePayload.updates.icon;
+      if (updatePayload.updates.color !== undefined) data.color = updatePayload.updates.color;
+      if (updatePayload.updates.isPage !== undefined) data.is_page = updatePayload.updates.isPage;
+      if (updatePayload.updates.collapsed !== undefined) data.collapsed = updatePayload.updates.collapsed;
+      return { type: 'update', id: runtimeServerId, data };
+    }
+    case 'move_node': {
+      if (runtimeServerId == null) return { type: 'unsupported' };
+      const movePayload = operation.payload as MoveNodePayload;
+      const parentId = movePayload.parentId ? resolveParentServerId(runtime, movePayload.parentId) : null;
+      const siblings = movePayload.parentId ? runtime.getChildren(movePayload.parentId) : [];
+      const afterIndex = movePayload.afterBlockId
+        ? siblings.findIndex((s) => s.blockId === movePayload.afterBlockId)
+        : -1;
+      const position = afterIndex >= 0 ? afterIndex + 1 : 0;
+      return {
+        type: 'move_node',
+        id: runtimeServerId,
+        parentId: parentId ?? 0,
+        position,
+      };
+    }
     case 'delete': {
       if (runtimeServerId == null) return { type: 'unsupported' };
       return { type: 'delete', id: runtimeServerId };
@@ -160,6 +272,16 @@ export async function executeOperation(
     case 'delete':
       await api.deleteNode(request.id);
       return null;
+    case 'add_class':
+      return api.addClass(request.id, request.classId);
+    case 'remove_class':
+      return api.removeClass(request.id, request.classId);
+    case 'add_tag':
+      return api.addTag(request.id, request.tagId);
+    case 'remove_tag':
+      return api.removeTag(request.id, request.tagId);
+    case 'move_node':
+      return api.moveNode(request.id, request.parentId, request.position);
     case 'unsupported':
       throw new Error(`Unsupported operation: ${operation.type}`);
   }
@@ -196,6 +318,34 @@ export function applyCacheUpdate(
       break;
     case 'set_classes':
       if (node.id > 0) writeUpdate(queryClient, node.id, { classes: node.classes });
+      break;
+    case 'add_class':
+    case 'remove_class':
+      if (node.id > 0) {
+        writeUpdate(queryClient, node.id, {
+          classes: node.classes,
+          color: node.color,
+          icon: node.icon,
+          is_page: node.is_page,
+        });
+      }
+      break;
+    case 'add_tag':
+    case 'remove_tag':
+      if (node.id > 0) writeUpdate(queryClient, node.id, { tags: node.tags });
+      break;
+    case 'update_node':
+      if (node.id > 0) {
+        writeUpdate(queryClient, node.id, {
+          name: node.name,
+          icon: node.icon,
+          color: node.color,
+          is_private: node.is_private,
+        });
+      }
+      break;
+    case 'move_node':
+      if (node.id > 0) writeMove(queryClient, node.id, node.parent_id, node.sequence, node);
       break;
     case 'delete':
       if (operation.serverId != null) writeDelete(queryClient, operation.serverId);

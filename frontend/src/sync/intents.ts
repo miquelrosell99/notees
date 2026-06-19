@@ -8,7 +8,7 @@
  * alongside the simple intent mappings.
  */
 
-import type { MutationIntent } from '@/runtime/types';
+import type { MutationIntent, GraphNode } from '@/runtime/types';
 import type { Operation, CreatePayload, UpdateContentPayload } from '@/runtime';
 import type { OperationRuntime } from '@/runtime';
 import { generateUUID } from '@/utils/uuid';
@@ -50,6 +50,36 @@ export function intentToOperations(
     case 'set_node_type':
       // Node type changes are currently folded into class assignments.
       return [];
+
+    case 'add_class': {
+      const serverId = resolveServerId(intent.blockId);
+      return [addClassOperation(intent.blockId, serverId, intent.classId)];
+    }
+
+    case 'remove_class': {
+      const serverId = resolveServerId(intent.blockId);
+      return [removeClassOperation(intent.blockId, serverId, intent.classId)];
+    }
+
+    case 'add_tag': {
+      const serverId = resolveServerId(intent.blockId);
+      return [addTagOperation(intent.blockId, serverId, intent.tagId)];
+    }
+
+    case 'remove_tag': {
+      const serverId = resolveServerId(intent.blockId);
+      return [removeTagOperation(intent.blockId, serverId, intent.tagId)];
+    }
+
+    case 'update_node': {
+      const serverId = resolveServerId(intent.blockId);
+      return [updateNodeOperation(intent.blockId, serverId, intent.updates)];
+    }
+
+    case 'move_node': {
+      const serverId = resolveServerId(intent.blockId);
+      return [moveNodeOperation(intent.blockId, serverId, intent.parentId, intent.afterBlockId)];
+    }
 
     case 'batch':
       return intent.intents.flatMap((sub) => intentToOperations(sub, runtime));
@@ -383,5 +413,126 @@ export function collapsedOperation(
     maxRetries: 3,
     createdAt: Date.now(),
     payload: { collapsed },
+  };
+}
+
+export function addClassOperation(
+  blockId: string,
+  serverId: number | undefined,
+  classId: string,
+  dependsOn: readonly string[] = [],
+): Operation {
+  return {
+    id: generateUUID(),
+    type: 'add_class',
+    blockId,
+    serverId,
+    state: 'pending',
+    dependsOn,
+    retryCount: 0,
+    maxRetries: 3,
+    createdAt: Date.now(),
+    payload: { classId },
+  };
+}
+
+export function removeClassOperation(
+  blockId: string,
+  serverId: number | undefined,
+  classId: string,
+  dependsOn: readonly string[] = [],
+): Operation {
+  return {
+    id: generateUUID(),
+    type: 'remove_class',
+    blockId,
+    serverId,
+    state: 'pending',
+    dependsOn,
+    retryCount: 0,
+    maxRetries: 3,
+    createdAt: Date.now(),
+    payload: { classId },
+  };
+}
+
+export function addTagOperation(
+  blockId: string,
+  serverId: number | undefined,
+  tagId: string,
+  dependsOn: readonly string[] = [],
+): Operation {
+  return {
+    id: generateUUID(),
+    type: 'add_tag',
+    blockId,
+    serverId,
+    state: 'pending',
+    dependsOn,
+    retryCount: 0,
+    maxRetries: 3,
+    createdAt: Date.now(),
+    payload: { tagId },
+  };
+}
+
+export function removeTagOperation(
+  blockId: string,
+  serverId: number | undefined,
+  tagId: string,
+  dependsOn: readonly string[] = [],
+): Operation {
+  return {
+    id: generateUUID(),
+    type: 'remove_tag',
+    blockId,
+    serverId,
+    state: 'pending',
+    dependsOn,
+    retryCount: 0,
+    maxRetries: 3,
+    createdAt: Date.now(),
+    payload: { tagId },
+  };
+}
+
+export function updateNodeOperation(
+  blockId: string,
+  serverId: number | undefined,
+  updates: Partial<GraphNode>,
+  dependsOn: readonly string[] = [],
+): Operation {
+  return {
+    id: generateUUID(),
+    type: 'update_node',
+    blockId,
+    serverId,
+    state: 'pending',
+    dependsOn,
+    retryCount: 0,
+    maxRetries: 3,
+    createdAt: Date.now(),
+    payload: { updates },
+  };
+}
+
+export function moveNodeOperation(
+  blockId: string,
+  serverId: number | undefined,
+  parentId: string | null,
+  afterBlockId: string | null,
+  dependsOn: readonly string[] = [],
+): Operation {
+  return {
+    id: generateUUID(),
+    type: 'move_node',
+    blockId,
+    serverId,
+    state: 'pending',
+    dependsOn,
+    retryCount: 0,
+    maxRetries: 3,
+    createdAt: Date.now(),
+    payload: { parentId, afterBlockId },
   };
 }

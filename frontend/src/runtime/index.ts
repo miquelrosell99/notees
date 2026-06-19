@@ -33,6 +33,12 @@ export type {
   SetCollapsedPayload,
   SetClassesPayload,
   SetTagsPayload,
+  AddClassPayload,
+  RemoveClassPayload,
+  AddTagPayload,
+  RemoveTagPayload,
+  UpdateNodePayload,
+  MoveNodePayload,
 } from './operation';
 export {
   getNode,
