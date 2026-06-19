@@ -51,6 +51,7 @@ export function TabBarVertical({ tabs, activeTabId, secondaryTabId, splitOrienta
 
   const stripRef = useRef<HTMLDivElement>(null);
   const addBtnRef = useRef<HTMLButtonElement>(null);
+  const overflowBtnRef = useRef<HTMLButtonElement>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [indicatorStyle, setIndicatorStyle] = useState<React.CSSProperties>({});
   const [showPicker, setShowPicker] = useState(false);
@@ -330,6 +331,7 @@ export function TabBarVertical({ tabs, activeTabId, secondaryTabId, splitOrienta
       {showOverflow && (
         <div className="tab-bar-vertical__overflow">
           <Button aria-label="All tabs"
+            ref={overflowBtnRef}
             icon="mdi mdi-chevron-down"
             variant="ghost"
             size="sm"
@@ -343,6 +345,7 @@ export function TabBarVertical({ tabs, activeTabId, secondaryTabId, splitOrienta
               activeTabId={activeTabId}
               onSelect={activateTab}
               onClose={() => setOverflowOpen(false)}
+              triggerRef={overflowBtnRef}
             />
           )}
         </div>

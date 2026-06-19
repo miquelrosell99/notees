@@ -67,6 +67,13 @@ const SortableFavoriteItem = memo(function SortableFavoriteItem({
     onContextMenu(nodeId, e);
   }, [nodeId, onContextMenu]);
 
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      onNavigate(nodeId);
+    }
+  }, [nodeId, onNavigate]);
+
   const handleDragHandleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -85,13 +92,15 @@ const SortableFavoriteItem = memo(function SortableFavoriteItem({
   );
 
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       aria-label={node ? nodeNameToText(node.name) || 'Untitled' : 'Loading favorite'}
       className={`sidebar-favorite-item ${isActive ? 'active' : ''} ${isDragging ? 'dragging' : ''}`}
       style={style}
       onClick={handleClick}
       onContextMenu={handleContextMenu}
+      onKeyDown={handleKeyDown}
     >
       {/* Drag handle */}
       <button
@@ -138,7 +147,7 @@ const SortableFavoriteItem = memo(function SortableFavoriteItem({
         }}
         title="Remove from favorites"
       />
-    </button>
+    </div>
   );
 });
 
