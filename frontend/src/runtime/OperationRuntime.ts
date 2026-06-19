@@ -11,7 +11,8 @@
  */
 
 import type { CoreNode, Operation } from './operation';
-import { applyOperations } from './operationReducer';
+import { applyOperation, applyOperations } from './operationReducer';
+import { withAcknowledged } from './operation';
 
 export interface OperationRuntimeSnapshot {
   readonly baseNodes: ReadonlyMap<string, CoreNode>;
@@ -29,19 +30,33 @@ export class OperationRuntime {
   /**
    * Replace the entire base state (e.g. when a page query returns fresh data).
    * Existing operations are reapplied on top of the new base.
+   *
+   * All acknowledged operations are removed: loadBaseNodes means the server
+   * state is being replaced wholesale, so any operation whose effect was still
+   * waiting for a base-state update is now either reflected in the new base or
+   * no longer relevant.
    */
   loadBaseNodes(nodes: readonly CoreNode[]): void {
     this.baseNodes = new Map(nodes.map((node) => [node.blockId, node]));
+    this.removeAllAcknowledgedOperations();
     this.recomputeProjection();
   }
 
   /**
    * Incrementally merge one or more base nodes.
+   *
+   * Acknowledged operations for blocks that are updated here are removed,
+   * because the server state is now authoritative for those blocks. This
+   * prevents the transient snap-back that can happen when an operation is
+   * acknowledged before the corresponding base-state update arrives.
    */
   upsertBaseNodes(nodes: readonly CoreNode[]): void {
+    const updatedBlockIds = new Set<string>();
     for (const node of nodes) {
       this.baseNodes.set(node.blockId, node);
+      updatedBlockIds.add(node.blockId);
     }
+    this.removeAcknowledgedForBlocks(updatedBlockIds);
     this.recomputeProjection();
   }
 
@@ -54,6 +69,60 @@ export class OperationRuntime {
   }
 
   /**
+   * Remove acknowledged operations for the given block IDs.
+   *
+   * Called by loadBaseNodes / upsertBaseNodes once server state is known to be
+   * authoritative for those blocks.
+   */
+  private removeAcknowledgedForBlocks(blockIds: Set<string>): void {
+    for (const [id, operation] of this.operations) {
+      if (operation.state === 'acknowledged' && blockIds.has(operation.blockId)) {
+        this.operations.delete(id);
+      }
+    }
+  }
+
+  private removeAllAcknowledgedOperations(): void {
+    for (const [id, operation] of this.operations) {
+      if (operation.state === 'acknowledged') {
+        this.operations.delete(id);
+      }
+    }
+  }
+
+  /**
+   * Check whether applying an operation to the current base nodes would be a
+   * no-op for the fields the operation touches. If so, the base state already
+   * reflects the operation and we can discard it immediately.
+   */
+  private isOperationEffectInBase(operation: Operation): boolean {
+    const baseNode = this.baseNodes.get(operation.blockId);
+    if (!baseNode) {
+      // A create operation is the only one that can legitimately have no base
+      // node; in that case the effect is not yet in base.
+      return false;
+    }
+    const after = applyOperation(this.baseNodes, operation);
+    const afterNode = after.get(operation.blockId);
+    if (!afterNode) return false;
+
+    const touchedFields = (Object.keys(baseNode) as (keyof CoreNode)[]).filter((field) =>
+      operationTouchesField(operation, field),
+    );
+    return touchedFields.every((field) => {
+      const a = baseNode[field];
+      const b = afterNode[field];
+      // Use JSON comparison for arrays/objects (e.g. contentAST, classIds) because
+      // reference equality is too strict when base nodes come from a different
+      // source than the operation payload.
+      if (typeof a === 'object' && a !== null) {
+        return JSON.stringify(a) === JSON.stringify(b);
+      }
+      return a === b;
+    });
+  }
+
+  /**
    * Apply a local operation. The projected graph updates immediately.
    */
   applyOperation(operation: Operation): void {
@@ -63,11 +132,27 @@ export class OperationRuntime {
 
   /**
    * Mark an operation as acknowledged by the server.
+   *
+   * The operation is kept in the acknowledged state rather than removed
+   * immediately. Its effect continues to be applied to the projection until the
+   * next base-state update confirms it. This closes the gap between "server
+   * said OK" and "fresh base nodes arrived", which otherwise can cause a
+   * visible snap-back (e.g. an indented block jumping back to its old level
+   * for one frame).
+   *
+   * If the current base state already reflects the operation's effect, the
+   * operation is discarded right away.
    */
   acknowledgeOperation(operationId: string): void {
     const operation = this.operations.get(operationId);
     if (!operation) return;
-    this.operations.delete(operationId);
+    this.operations.set(operationId, withAcknowledged(operation));
+
+    // When the base state is already up to date we can clean up immediately.
+    if (this.isOperationEffectInBase(operation)) {
+      this.operations.delete(operationId);
+    }
+
     this.recomputeProjection();
   }
 
@@ -210,9 +295,17 @@ function operationTouchesField(operation: Operation, field: keyof CoreNode): boo
     case 'set_collapsed':
       return field === 'collapsed';
     case 'set_classes':
+    case 'add_class':
+    case 'remove_class':
       return field === 'classIds';
     case 'set_tags':
+    case 'add_tag':
+    case 'remove_tag':
       return field === 'tagIds';
+    case 'update_node':
+      return true;
+    case 'move_node':
+      return field === 'parentId' || field === 'orderIndex';
     default:
       return false;
   }

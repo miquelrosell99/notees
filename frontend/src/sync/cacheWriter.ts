@@ -28,6 +28,11 @@ export type NodePatch = Partial<Pick<
   | 'tags'
   | 'properties'
   | 'is_private'
+  | 'is_page'
+  | 'is_class'
+  | 'is_daily'
+  | 'is_monthly'
+  | 'is_yearly'
 >>;
 
 /**

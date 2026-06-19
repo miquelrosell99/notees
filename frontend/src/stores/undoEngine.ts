@@ -11,7 +11,7 @@ import { getOperationRuntime } from '@/runtime';
 import { getRuntimeEventBus } from '@/runtime/eventBus';
 import { getNode } from '@/runtime/graphHelpers';
 import { getContentASTLength } from '@/runtime/astUtils';
-import type { MutationIntent, UndoEntry, RuntimeEvent, RuntimeEventHandler } from '@/runtime/types';
+import type { MutationIntent, UndoEntry, RuntimeEvent, RuntimeEventHandler, GraphNode } from '@/runtime/types';
 import type { RuntimeEventBus } from '@/runtime/eventBus';
 
 // ─── Global singleton ─────────────────────────────────────────────
@@ -186,6 +186,39 @@ export class UndoEngine {
         if (!node) return null;
         return { type: 'set_node_type', blockId: intent.blockId, nodeType: node.nodeType };
       }
+      case 'add_class':
+        return { type: 'remove_class', blockId: intent.blockId, classId: intent.classId };
+      case 'remove_class':
+        return { type: 'add_class', blockId: intent.blockId, classId: intent.classId };
+      case 'add_tag':
+        return { type: 'remove_tag', blockId: intent.blockId, tagId: intent.tagId };
+      case 'remove_tag':
+        return { type: 'add_tag', blockId: intent.blockId, tagId: intent.tagId };
+      case 'update_node': {
+        const node = this.runtime.getNode(intent.blockId);
+        if (!node) return null;
+        const reverseUpdates: Partial<GraphNode> = {};
+        for (const key of Object.keys(intent.updates) as (keyof GraphNode)[]) {
+          const value = node[key];
+          if (value !== undefined) {
+            (reverseUpdates as Record<string, unknown>)[key] = Array.isArray(value) ? [...value] : value;
+          }
+        }
+        return { type: 'update_node', blockId: intent.blockId, updates: reverseUpdates };
+      }
+      case 'move_node': {
+        const node = this.runtime.getNode(intent.blockId);
+        if (!node) return null;
+        const siblings = node.parentId ? this.runtime.getChildren(node.parentId) : [];
+        const myIndex = siblings.findIndex((s) => s.blockId === intent.blockId);
+        const afterId = myIndex > 0 ? siblings[myIndex - 1].blockId : null;
+        return {
+          type: 'move_node',
+          blockId: intent.blockId,
+          parentId: node.parentId ?? null,
+          afterBlockId: afterId,
+        };
+      }
       case 'reorder_blocks': {
         const previousOrder = this.runtime.getChildren(intent.parentId).map((n) => n.blockId);
         return {
@@ -259,6 +292,18 @@ function intentLabel(intent: MutationIntent): string {
       return 'Reorder blocks';
     case 'set_node_type':
       return 'Change block type';
+    case 'add_class':
+      return 'Add class';
+    case 'remove_class':
+      return 'Remove class';
+    case 'add_tag':
+      return 'Add tag';
+    case 'remove_tag':
+      return 'Remove tag';
+    case 'update_node':
+      return 'Update node';
+    case 'move_node':
+      return 'Move node';
     case 'split_block':
       return 'Split block';
     case 'merge_blocks':
