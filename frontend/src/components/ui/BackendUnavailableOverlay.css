@@ -1,0 +1,33 @@
+/* BackendUnavailableOverlay — full-screen lock when backend is down */
+
+.backend-unavailable-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal-backdrop);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-background);
+  padding: var(--spacing-6);
+  text-align: center;
+}
+
+.backend-unavailable-overlay__content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-4);
+  max-width: var(--modal-width-sm);
+}
+
+.backend-unavailable-overlay__title {
+  margin: 0;
+  color: var(--color-on-background);
+  font: var(--font-headline-small);
+}
+
+.backend-unavailable-overlay__message {
+  margin: 0;
+  color: var(--color-on-surface-variant);
+  font: var(--font-body-large);
+}

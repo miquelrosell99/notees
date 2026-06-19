@@ -43,6 +43,10 @@ interface UseBlockTreeOptions {
   readOnly?: boolean;
   /** If false, no ghost pseudo-blocks are generated regardless of readOnly. */
   showNewBlock?: boolean;
+  /** If true, the root container is a block (focused block view), so the trailing
+   *  root ghost is indented one level deeper and the per-parent child ghost for the
+   *  root node is suppressed to avoid a duplicate placeholder. */
+  rootIsBlock?: boolean;
 }
 
 /** Flatten a node tree statically (no runtime overlay). */
@@ -134,6 +138,7 @@ function flattenNodesFromRuntime(
   readOnly = false,
   showNewBlock = true,
   rootUuid?: string,
+  rootIsBlock = false,
 ): FlatNode[] {
   const nodeMap = new Map<string, Node>();
   const idToUuid = new Map<number, string>();
@@ -227,7 +232,11 @@ function flattenNodesFromRuntime(
         result.push(...flatten(children.map(c => c.uuid), depth + 1));
         // Trailing pseudo-block for creating children of this parent.
         // Skip nested ghosts when page filtering is active to avoid orphan rows.
-        if (!readOnly && showNewBlock && !pagesOnly && !skipPages) {
+        // In focused block view the root node is the focused block itself; its
+        // child ghost is suppressed because the root ghost (at depth 1) already
+        // serves as the "new child of the focused block" placeholder.
+        const isRootLevel = depth === 0;
+        if (!readOnly && showNewBlock && !pagesOnly && !skipPages && !(rootIsBlock && isRootLevel)) {
           result.push(createGhostFlatNode(uuid, depth + 1));
         }
       }
@@ -257,7 +266,10 @@ function flattenNodesFromRuntime(
   const result = flatten(topLevel, 0);
   // Trailing pseudo-block for the root list.
   if (!readOnly && showNewBlock && rootUuid) {
-    result.push(createGhostFlatNode(rootUuid, 0));
+    // In focused block view the root is the focused block; new blocks created
+    // from the root ghost are children of that block, so indent one level deeper.
+    const rootGhostDepth = rootIsBlock ? 1 : 0;
+    result.push(createGhostFlatNode(rootUuid, rootGhostDepth));
   }
   return result;
 }
@@ -275,6 +287,7 @@ export function useBlockTree(
     nodeUuid,
     readOnly = false,
     showNewBlock = true,
+    rootIsBlock = false,
   } = options;
 
   // Sync prop nodes into the runtime so structural ops have graph data.
@@ -319,9 +332,9 @@ export function useBlockTree(
     if (!hasRuntimeData) {
       return flattenNodes(nodes, maxDepth, pagesOnly, skipPages, 0, expandAll);
     }
-    return flattenNodesFromRuntime(nodes, maxDepth, pagesOnly, skipPages, runtime, expandAll, readOnly, showNewBlock, nodeUuid);
+    return flattenNodesFromRuntime(nodes, maxDepth, pagesOnly, skipPages, runtime, expandAll, readOnly, showNewBlock, nodeUuid, rootIsBlock);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nodes, maxDepth, pagesOnly, skipPages, expandAll, readOnly, showNewBlock, nodeUuid, structureVersion]);
+  }, [nodes, maxDepth, pagesOnly, skipPages, expandAll, readOnly, showNewBlock, nodeUuid, rootIsBlock, structureVersion]);
 
   return { flatNodes, structureVersion };
 }

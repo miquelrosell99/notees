@@ -11,6 +11,7 @@ from .helpers import (
     _build_children_tree,
     _get_node_service,
     _node_to_response,
+    _resolve_display_names_for_responses,
 )
 from .models import (
     LinksRequest,
@@ -201,7 +202,9 @@ async def search_nodes(
             node = await service.get_node_by_uuid(uuid)
             if node and node.id is not None:
                 node_class_ids = node.class_ids or []
-                return SearchResponse(nodes=[_node_to_response(node, classes=node_class_ids)])
+                response = _node_to_response(node, classes=node_class_ids)
+                await _resolve_display_names_for_responses(service, [node], [response])
+                return SearchResponse(nodes=[response])
 
             # Fall back to prefix match (uuid starts with the search term)
             if len(uuid) >= 4:  # Require at least 4 chars for prefix search
@@ -210,6 +213,7 @@ async def search_nodes(
                 for node_obj in nodes:
                     node_class_ids = node_obj.class_ids or []
                     result.append(_node_to_response(node_obj, classes=node_class_ids))
+                await _resolve_display_names_for_responses(service, nodes, result)
                 return SearchResponse(nodes=result)
 
             return SearchResponse(nodes=[])
@@ -240,6 +244,10 @@ async def search_nodes(
             continue
         node_class_ids = n.class_ids or []
         result.append(_node_to_response(n, classes=node_class_ids))
+
+    # Resolve inline node links so search results, command palette items, and
+    # similar surfaces show target names instead of "…" for link-only content.
+    await _resolve_display_names_for_responses(service, nodes, result)
 
     return SearchResponse(nodes=result)
 
@@ -312,6 +320,10 @@ async def list_nodes(
         for n in nodes
         if n.id is not None
     ]
+
+    # Resolve inline node links so table cells, cards, and list items show
+    # target page names instead of "…" for link-only content.
+    await _resolve_display_names_for_responses(service, nodes, result)
 
     # Include children if requested; descendant lookup is batched via
     # get_node_descendants_batch inside _build_children_tree.

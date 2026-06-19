@@ -76,11 +76,19 @@ class RedisPubSub:
             logger.warning(f"Redis publish failed: {e}")
 
     async def subscribe(self, channel: str) -> AsyncIterator[bytes]:
-        """Subscribe to a Redis channel and yield messages."""
-        client = await self._get_sub_client()
+        """Subscribe to a Redis channel and yield messages.
+
+        Uses a dedicated Redis client per subscriber so that the connection
+        and its pub/sub object can be closed cleanly when the subscriber
+        disconnects. This prevents the shared connection pool from leaking
+        connections across many short-lived WebSocket sessions.
+        """
+        import redis.asyncio as redis
+
+        client = redis.from_url(self._redis_url, decode_responses=False)
         pubsub = client.pubsub()
-        await pubsub.subscribe(channel)
         try:
+            await pubsub.subscribe(channel)
             async for message in pubsub.listen():
                 if message["type"] == "message":
                     data = message["data"]
@@ -91,7 +99,12 @@ class RedisPubSub:
         except Exception as e:
             logger.warning(f"Redis subscribe error: {e}")
         finally:
-            await pubsub.unsubscribe(channel)
+            with contextlib.suppress(Exception):
+                await pubsub.unsubscribe(channel)
+            with contextlib.suppress(Exception):
+                await pubsub.close()
+            with contextlib.suppress(Exception):
+                await client.close()
 
 
 class CollaborationPubSub:

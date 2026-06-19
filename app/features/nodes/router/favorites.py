@@ -7,7 +7,7 @@ from app.domain.repositories.interfaces import SettingsRepository
 from app.features.nodes.port import NodeRepository
 from app.models import PaginatedResponse, User
 
-from .helpers import _get_class_ids_batch, _get_node_service, _node_to_response
+from .helpers import _get_class_ids_batch, _get_node_service, _node_to_response, _resolve_display_names_for_responses
 from .models import NodeResponse, ReorderFavoritesRequest, SetFavoritesRequest
 
 router = APIRouter()
@@ -58,6 +58,8 @@ async def get_favorites(
         if n.id is None:
             continue
         result.append(_node_to_response(n, classes=class_ids_map.get(n.id, [])))
+
+    await _resolve_display_names_for_responses(service, nodes, result)
 
     return PaginatedResponse[NodeResponse](
         items=result,

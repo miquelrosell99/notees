@@ -6,6 +6,7 @@
 import axios, { type AxiosError, type AxiosRequestConfig } from 'axios';
 import { getLogger } from '@/utils/logger';
 import { clearUserData, getApiKey } from '@/utils/auth';
+import { useConnectionStore } from '@/stores/connectionStore';
 
 const log = getLogger('api');
 
@@ -112,6 +113,10 @@ axiosClient.interceptors.response.use(
         // Don't clear auth here — the exec function will attempt refresh first.
         // Only log so we can trace the initial 401.
         log.warn(`Authentication challenge: ${method} ${url}`);
+      } else if (response.status === 502 || response.status === 503) {
+        // Backend or upstream proxy is unavailable (e.g. Postgres recovering).
+        log.error(`Server unavailable: ${response.status} ${method} ${url}`, error);
+        useConnectionStore.getState().markUnhealthy(`${response.status} ${method} ${url}`);
       } else if (response.status >= 500) {
         log.error(`Server error: ${response.status} ${method} ${url}`, error);
       } else if (response.status >= 400) {
@@ -128,7 +133,10 @@ axiosClient.interceptors.response.use(
         }
       }
     } else {
+      // No response means the request never reached the backend (network error,
+      // CORS, browser offline, or proxy down).
       log.error(`Network error: ${method} ${url}`, error);
+      useConnectionStore.getState().markUnhealthy(`network error ${method} ${url}`);
     }
 
     return Promise.reject(error);

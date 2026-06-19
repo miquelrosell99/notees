@@ -194,6 +194,7 @@ export const ListView = memo(function ListView({
   expandAll = false,
   showNewBlock = true,
   hideRootBullet = false,
+  rootIsBlock = false,
 }: NodeListViewProps) {
   const { inPropertyEditor } = useNodeCollectionContext();
   const sizeClass = size === 'sm' ? 'node-list-view--sm' : '';
@@ -363,6 +364,7 @@ export const ListView = memo(function ListView({
                 inPropertyEditor={inPropertyEditor}
                 showNewBlock={showNewBlock}
                 hideRootBullet={hideRootBullet}
+                rootIsBlock={rootIsBlock}
               />
             </div>
           </div>
@@ -392,6 +394,7 @@ export const ListView = memo(function ListView({
             inPropertyEditor={inPropertyEditor}
             showNewBlock={showNewBlock}
             hideRootBullet={hideRootBullet}
+            rootIsBlock={rootIsBlock}
             size={size}
           />
         ))}
@@ -474,6 +477,7 @@ export const ListView = memo(function ListView({
                 inPropertyEditor={inPropertyEditor}
                 showNewBlock={showNewBlock}
                 hideRootBullet={hideRootBullet}
+                rootIsBlock={rootIsBlock}
               />
             </div>
           );
@@ -507,6 +511,7 @@ export const ListView = memo(function ListView({
         inPropertyEditor={inPropertyEditor}
         showNewBlock={showNewBlock}
         hideRootBullet={hideRootBullet}
+        rootIsBlock={rootIsBlock}
       />
     </div>
   );
@@ -549,6 +554,7 @@ function ListViewGroup({
   inPropertyEditor = false,
   showNewBlock = true,
   hideRootBullet = false,
+  rootIsBlock = false,
   size,
 }: {
   group: GroupTreeNode;
@@ -572,6 +578,7 @@ function ListViewGroup({
   inPropertyEditor?: boolean;
   showNewBlock?: boolean;
   hideRootBullet?: boolean;
+  rootIsBlock?: boolean;
   size?: 'sm' | 'md';
 }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -667,6 +674,7 @@ function ListViewGroup({
                       inPropertyEditor={inPropertyEditor}
                       showNewBlock={showNewBlock}
                       hideRootBullet={hideRootBullet}
+                      rootIsBlock={rootIsBlock}
                     />
                   </div>
                 );
@@ -691,6 +699,7 @@ function ListViewGroup({
                 inPropertyEditor={inPropertyEditor}
                 showNewBlock={showNewBlock}
                 hideRootBullet={hideRootBullet}
+                rootIsBlock={rootIsBlock}
               />
             )
           ) : (
@@ -718,6 +727,7 @@ function ListViewGroup({
                 inPropertyEditor={inPropertyEditor}
                 showNewBlock={showNewBlock}
                 hideRootBullet={hideRootBullet}
+                rootIsBlock={rootIsBlock}
                 size={size}
               />
             ))

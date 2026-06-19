@@ -264,6 +264,11 @@ export interface NodeCollectionProps {
   /** When true, hide the bullet on root/top-level blocks in list view (children keep theirs). */
   hideRootBullet?: boolean;
 
+  /** When true, the root container is a block (focused block view), so the trailing
+   *  "new block" pseudo-block is indented one level deeper because it creates a child
+   *  of the focused block rather than a sibling/top-level block. */
+  rootIsBlock?: boolean;
+
   /** Default sort columns applied on initial render (user can clear/override) */
   defaultSort?: SortEntry[];
 
@@ -423,6 +428,11 @@ export interface NodeListViewProps extends NodeCollectionViewBaseProps {
 
   /** When true, hide the bullet on root/top-level blocks only (children keep theirs). */
   hideRootBullet?: boolean;
+
+  /** When true, the root container is a block (focused block view), so the trailing
+   *  "new block" pseudo-block is indented one level deeper because it creates a child
+   *  of the focused block rather than a sibling/top-level block. */
+  rootIsBlock?: boolean;
 }
 
 /**
