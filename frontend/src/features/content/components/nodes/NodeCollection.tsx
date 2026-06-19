@@ -138,6 +138,7 @@ export const NodeCollection = memo(function NodeCollection({
   showClasses = false,
   showNewBlock = true,
   hideRootBullet = false,
+  rootIsBlock = false,
   queryAst,
   isTransient = false,
   inPropertyEditor = false,
@@ -407,6 +408,7 @@ export const NodeCollection = memo(function NodeCollection({
           showClasses,
           showNewBlock,
           hideRootBullet,
+          rootIsBlock,
         };
 
       case 'document':
@@ -612,6 +614,7 @@ export const NodeCollection = memo(function NodeCollection({
     showClasses,
     showNewBlock,
     hideRootBullet,
+    rootIsBlock,
     nodes,
     tableColumns,
     selectedPropertyUuids,

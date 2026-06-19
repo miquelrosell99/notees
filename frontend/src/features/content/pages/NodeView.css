@@ -350,25 +350,6 @@
   gap: var(--spacing-6);
 }
 
-/* Add block button for focused block view */
-.focused-block-content-add {
-  padding: var(--spacing-2) 0;
-  opacity: var(--opacity-0);
-  transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
-}
-
-.focused-block-content:hover .focused-block-content-add,
-.focused-block-content:focus-within .focused-block-content-add,
-.focused-block-content-add:focus-visible {
-  opacity: var(--opacity-100);
-}
-
-@media (hover: none) {
-  .focused-block-content-add {
-    opacity: var(--opacity-100);
-  }
-}
-
 /* ==================== Responsive Breakpoints ==================== */
 
 /* Tablet: reduce padding */

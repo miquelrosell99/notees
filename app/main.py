@@ -336,6 +336,7 @@ async def enforce_https(request, call_next):
 
 
 @app.get("/health")
+@app.get("/api/health")
 async def health_check():
     return {"status": "ok"}
 

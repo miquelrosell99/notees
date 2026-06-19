@@ -13,6 +13,7 @@ from .helpers import (
     _get_class_ids_batch,
     _get_node_service,
     _node_to_response,
+    _resolve_display_names_for_responses,
 )
 from .models import (
     BatchPermanentDeleteRequest,
@@ -46,10 +47,14 @@ async def get_trash(
     node_ids = [node_id for node_id in node_ids if node_id is not None]
     class_ids_map = await _get_class_ids_batch(service, node_ids)
 
+    nodes = []
     responses = []
     for row in rows:
         node = service.row_to_node(row)
+        nodes.append(node)
         responses.append(_node_to_response(node, classes=class_ids_map.get(node.id or 0, [])))
+
+    await _resolve_display_names_for_responses(service, nodes, responses)
 
     return PaginatedResponse[NodeResponse](
         items=responses,

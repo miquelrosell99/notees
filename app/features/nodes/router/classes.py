@@ -16,6 +16,7 @@ from .helpers import (
     _get_node_service,
     _get_undo_service,
     _node_to_response,
+    _resolve_display_names_for_responses,
 )
 from .models import ClassRequest, NodeResponse
 
@@ -41,16 +42,16 @@ async def list_classes(
     class_ids_map = await _get_class_ids_batch(node_service, node_ids)
     extends_map = await _get_extends_batch(node_service, node_ids)
 
-    return {
-        "nodes": [
-            _node_to_response(
-                n,
-                classes=class_ids_map.get(n.id, []) if n.id else [],
-                extends=extends_map.get(n.id, []) if n.id else [],
-            )
-            for n in nodes
-        ]
-    }
+    nodes_responses = [
+        _node_to_response(
+            n,
+            classes=class_ids_map.get(n.id, []) if n.id else [],
+            extends=extends_map.get(n.id, []) if n.id else [],
+        )
+        for n in nodes
+    ]
+    await _resolve_display_names_for_responses(node_service, nodes, nodes_responses)
+    return {"nodes": nodes_responses}
 
 
 @router.get("/classes/search")
@@ -72,16 +73,16 @@ async def search_classes(
     class_ids_map = await _get_class_ids_batch(node_service, node_ids)
     extends_map = await _get_extends_batch(node_service, node_ids)
 
-    return {
-        "nodes": [
-            _node_to_response(
-                n,
-                classes=class_ids_map.get(n.id, []) if n.id else [],
-                extends=extends_map.get(n.id, []) if n.id else [],
-            )
-            for n in nodes
-        ]
-    }
+    nodes_responses = [
+        _node_to_response(
+            n,
+            classes=class_ids_map.get(n.id, []) if n.id else [],
+            extends=extends_map.get(n.id, []) if n.id else [],
+        )
+        for n in nodes
+    ]
+    await _resolve_display_names_for_responses(node_service, nodes, nodes_responses)
+    return {"nodes": nodes_responses}
 
 
 @router.get("/classes/{class_id}/nodes")
@@ -107,6 +108,7 @@ async def get_nodes_with_class(
     class_ids_map = await _get_class_ids_batch(node_service, node_ids)
 
     items = [_node_to_response(n, classes=class_ids_map.get(n.id, []) if n.id else []) for n in nodes]
+    await _resolve_display_names_for_responses(node_service, nodes, items)
 
     return PaginatedResponse[NodeResponse](
         items=items,

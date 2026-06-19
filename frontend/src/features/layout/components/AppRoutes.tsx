@@ -30,7 +30,7 @@ import {
 } from '@/stores';
 import { COMMAND_IDS } from '@/stores/commandRegistry';
 import { useCommand } from '@/hooks/useCommand';
-import { useAuthStatus } from '@/features/auth';
+import { useAuthStatus, getMe } from '@/features/auth';
 import { listWorkspaces, getSettings } from '@/features/workspace';
 import { authKeys, settingsKeys, workspaceKeys } from '@/hooks/queryKeys';
 import { getUserData } from '@/utils/auth';
@@ -173,6 +173,8 @@ function WorkspaceRedirect() {
 
 function AuthenticatedShell() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const authVerified = useAuthStore((s) => s.authVerified);
+  const setAuthVerified = useAuthStore((s) => s.setAuthVerified);
   const setUser = useAuthStore((s) => s.setUser);
   const showWorkspaceManager = useModalStore((s) => s.showWorkspaceManager);
   const setShowWorkspaceManager = useModalStore((s) => s.setShowWorkspaceManager);
@@ -204,10 +206,27 @@ function AuthenticatedShell() {
 
   const needsOnboarding = authStatus?.needs_onboarding ?? false;
 
+  // Verify the access token is fresh before firing any other authenticated
+  // queries. When a user is restored from persisted storage the cookie may be
+  // expired; this query triggers the API client's refresh flow if needed and
+  // acts as the canonical auth-ready signal for the rest of the app.
+  const { data: verifiedUser, isLoading: isVerifyingAuth } = useQuery({
+    queryKey: ['auth', 'verify'],
+    queryFn: () => getMe(),
+    enabled: isAuthenticated && authRestored && !authVerified,
+    staleTime: Infinity,
+  });
+
+  useEffect(() => {
+    if (verifiedUser && !authVerified) {
+      setAuthVerified(true);
+    }
+  }, [verifiedUser, authVerified, setAuthVerified]);
+
   const { data: dbData, isLoading: isLoadingWorkspaces } = useQuery({
     queryKey: workspaceKeys.all,
     queryFn: () => listWorkspaces(),
-    enabled: isAuthenticated && !needsOnboarding,
+    enabled: isAuthenticated && !needsOnboarding && authVerified,
     staleTime: 10000,
     select: (data) => ({
       workspaces: data.items,
@@ -218,7 +237,7 @@ function AuthenticatedShell() {
   const { data: enrollmentSettings, isLoading: isCheckingEnrollment } = useQuery({
     queryKey: settingsKeys.all,
     queryFn: () => getSettings(),
-    enabled: isAuthenticated && !needsOnboarding,
+    enabled: isAuthenticated && !needsOnboarding && authVerified,
     staleTime: Infinity,
   });
 
@@ -276,7 +295,7 @@ function AuthenticatedShell() {
     wasWorkspacesRouteRef.current = isWorkspacesRoute;
   }, [isWorkspacesRoute, showWorkspaceManager, setShowWorkspaceManager]);
 
-  if (!authRestored || isLoadingAuthStatus) {
+  if (!authRestored || isLoadingAuthStatus || isVerifyingAuth) {
     return <LoadingScreen label="Loading…" />;
   }
 

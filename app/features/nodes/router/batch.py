@@ -372,6 +372,10 @@ async def batch_get_nodes(
         for nid, prop_data in batch_result.items():
             node_properties_map[nid] = extract_properties_dict(prop_data)
 
+    # Resolve inline links in node names so display_name is usable in tabs,
+    # inline pills, and other UI surfaces that don't have their own resolver.
+    display_name_map = await service.resolve_node_display_names(nodes)
+
     # Build response dict
     result: dict[str, NodeResponse] = {}
     for node in nodes:
@@ -384,6 +388,7 @@ async def batch_get_nodes(
             classes=class_map.get(nid, []),
             backlink_count=backlink_counts.get(nid, 0),
         )
+        response.display_name = display_name_map.get(nid) or response.display_name
         if request.include_properties and nid in node_properties_map:
             response.properties = node_properties_map[nid]
         result[str(nid)] = response
@@ -432,6 +437,10 @@ async def batch_get_nodes_by_uuid(
         for nid, prop_data in batch_result.items():
             node_properties_map[nid] = extract_properties_dict(prop_data)
 
+    # Resolve inline links in node names so display_name is usable in tabs,
+    # inline pills, and other UI surfaces that don't have their own resolver.
+    display_name_map = await service.resolve_node_display_names(nodes)
+
     # Build response dict keyed by UUID
     result: dict[str, NodeResponse] = {}
     for node in nodes:
@@ -444,6 +453,7 @@ async def batch_get_nodes_by_uuid(
             classes=class_map.get(nid, []),
             backlink_count=backlink_counts.get(nid, 0),
         )
+        response.display_name = display_name_map.get(nid) or response.display_name
         if request.include_properties and nid in node_properties_map:
             response.properties = node_properties_map[nid]
         result[node.uuid] = response
