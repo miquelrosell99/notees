@@ -35,7 +35,6 @@ import { useCommand } from '@/hooks/useCommand';
 import { SHORTCUT_IDS } from '@/stores/keyboardStore';
 import { COMMAND_IDS } from '@/stores/commandRegistry';
 
-import { generateUUID } from '@/utils/uuid';
 import type { Node, Property, PropertyCreate } from '@/types';
 import type { ViewMode, NodeViewType } from '@/stores';
 
@@ -81,11 +80,7 @@ import './NodeView.css';
 import { Icon } from '@/components/ui/icons';
 import { getOperationRuntime } from '@/runtime';
 import { getNode, getAllNodes } from '@/runtime/graphHelpers';
-import { upsertNodes, getRuntimeEventBus } from '@/runtime/eventBus';
-import { registerParentServerId } from '@/runtime/serverIdMap';
-import { getUndoEngine } from '@/stores/undoEngine';
-import { useEditorFocusStore } from '@/stores/editorFocusStore';
-import type { MutationIntent } from '@/runtime/types';
+import { upsertNodes } from '@/runtime/eventBus';
 
 
 // Local storage key for collapse state (banner only; cover derives from image presence)
@@ -137,10 +132,9 @@ interface FocusedBlockContentProps {
   onAddSidebarCard: (nodeId: number) => void;
   displayMode?: 'bullet' | 'document' | 'kanban';
   editable?: boolean;
-  canCreate?: boolean;
 }
 
-function FocusedBlockContent({ node, onAddSidebarCard, displayMode = 'bullet', editable = true, canCreate = true }: FocusedBlockContentProps) {
+function FocusedBlockContent({ node, onAddSidebarCard, displayMode = 'bullet', editable = true }: FocusedBlockContentProps) {
   const { handleNodeClick } = useNodeNavigation();
   
   // Debounced content save - batches rapid edits to reduce API calls
@@ -184,33 +178,6 @@ function FocusedBlockContent({ node, onAddSidebarCard, displayMode = 'bullet', e
     }
   }, { label: 'Toggle Replace' });
 
-  // Handle add block (adds child to the focused block)
-  const handleAddBlock = useCallback(() => {
-    console.log('[NodeView/FocusedBlock] handleAddBlock triggered', { nodeUuid: node.uuid, childrenCount: node.children?.length });
-    // Create via runtime intent so the block appears immediately (no API roundtrip);
-    // the runtime/SyncManager handles persistence automatically.
-    const newBlockId = generateUUID();
-
-    // Register the parent's serverId so the runtime can resolve it
-    registerParentServerId(node.uuid, node.id);
-
-    const nodeChildren = node.children ?? [];
-    // The API orders children by sequence, so the last array element is the rightmost block.
-    const lastChild = nodeChildren.length > 0 ? nodeChildren[nodeChildren.length - 1] : null;
-
-    console.log('[NodeView/FocusedBlock] Applying create_block intent', { newBlockId, parentId: node.uuid, afterBlockId: lastChild?.uuid ?? null });
-    useEditorFocusStore.getState().setPendingFocus(newBlockId);
-    const intent: MutationIntent = {
-      type: 'create_block',
-      parentId: node.uuid,
-      afterBlockId: lastChild?.uuid ?? null,
-      blockId: newBlockId,
-      contentAST: [{ type: 'paragraph', children: [{ type: 'text', text: '' }] }],
-    };
-    getUndoEngine().applyIntent(intent, (intent as { type: string }).type === 'update_content' ? { sourceEditorId: (intent as { sourceEditorId?: string }).sourceEditorId } : undefined);
-    getRuntimeEventBus().flushEvents();
-  }, [node.uuid, node.id, node.children]);
-
   // In card mode, show the focused block as a bullet header (depth 0 only),
   // then its children separately as cards.
   // In list mode, the single NodeCollection handles both the block and children.
@@ -252,13 +219,6 @@ function FocusedBlockContent({ node, onAddSidebarCard, displayMode = 'bullet', e
             onAddClass={handleAddClass}
           />
         </div>
-        <div className="focused-block-content-add hover-reveal">
-          {canCreate && (
-            <Button icon={"mdi mdi-plus"} onClick={handleAddBlock} className="add-block-btn" title="Add block" size="sm" variant="ghost">
-              Add block
-            </Button>
-          )}
-        </div>
       </div>
     );
   }
@@ -278,14 +238,8 @@ function FocusedBlockContent({ node, onAddSidebarCard, displayMode = 'bullet', e
         pageId={node.id}
         nodeUuid={node.uuid}
         onAddClass={handleAddClass}
+        rootIsBlock
       />
-      <div className="focused-block-content-add hover-reveal">
-        {canCreate && (
-          <Button icon={"mdi mdi-plus"} onClick={handleAddBlock} className="add-block-btn" title="Add block" size="sm" variant="ghost">
-            Add block
-          </Button>
-        )}
-      </div>
     </div>
   );
 }
@@ -1379,7 +1333,6 @@ export function NodeView({
           onAddSidebarCard={(id) => addSidebarCard(id, 'block')}
           displayMode={contentDisplayMode}
           editable={workspaceCanWrite}
-          canCreate={workspaceCanCreate}
         />
       )}
       

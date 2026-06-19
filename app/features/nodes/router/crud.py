@@ -31,6 +31,7 @@ from .helpers import (
     _node_snapshot,
     _node_to_response,
     _node_to_response_with_permissions,
+    _resolve_display_names_for_responses,
     extract_properties_dict,
 )
 from .models import (
@@ -311,6 +312,8 @@ async def get_archived_pages(
             continue
         result.append(_node_to_response(page_node, classes=class_ids_map.get(page_node.id, [])))
 
+    await _resolve_display_names_for_responses(service, archived_nodes, result)
+
     return PaginatedResponse[NodeResponse](
         items=result,
         total=total,
@@ -347,6 +350,8 @@ async def list_templates(
                 tags=tag_ids_map.get(t.id, []),
             )
         )
+
+    await _resolve_display_names_for_responses(service, template_nodes, result)
 
     return PaginatedResponse[NodeResponse](
         items=result,
@@ -421,6 +426,8 @@ async def list_tasks(
             classes=class_ids_map.get(n.id, []),
             tags=tag_ids_map.get(n.id, []),
         ))
+
+    await _resolve_display_names_for_responses(service, paginated_nodes, result)
 
     return PaginatedResponse[NodeResponse](
         items=result,
@@ -587,10 +594,12 @@ async def get_node_by_uuid(
         raise HTTPException(404, "Node not found")
 
     response = await _node_to_response_with_permissions(node, service.permissions)
+    await _resolve_display_names_for_responses(service, [node], [response])
 
     if include_children and node.id:
         children = await service.get_node_children(node.id)
         response.children = [_node_to_response(c) for c in children]
+        await _resolve_display_names_for_responses(service, children, response.children)
 
     if include_backlinks and node.id:
         backlink_infos = await service.get_backlinks(node.id)

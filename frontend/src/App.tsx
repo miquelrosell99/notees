@@ -26,6 +26,8 @@ import { DndProvider } from './providers/DndProvider';
 import { useUndoStore } from './stores';
 import { useInputContext } from './stores/inputContext';
 import { SyncManager } from './sync';
+import { useBackendHealth } from './hooks/useBackendHealth';
+import { BackendUnavailableOverlay } from './components/ui/BackendUnavailableOverlay';
 import { getLogger } from './utils/logger';
 import './App.css';
 
@@ -64,6 +66,8 @@ function AppContent() {
   // Register the Android bridge as early as possible — before auth gates — so
   // the native shell can call window.noteesBridge even while the app is loading.
   useAndroidBridge();
+  // Start the backend health poller. It runs for the lifetime of the app.
+  useBackendHealth();
   return <AppRoutes />;
 }
 
@@ -179,6 +183,7 @@ function App() {
           </DndProvider>
         </KeyboardShortcutsProvider>
       </PersistQueryClientProvider>
+      <BackendUnavailableOverlay />
     </>
   );
 }

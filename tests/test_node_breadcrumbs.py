@@ -8,6 +8,111 @@ from app.domain.entities import NodeCreateData, Property
 from app.domain.entities.property import PropertyType
 
 
+def _link_ast(target_uuid: str, link_uuid: str, label: str | None = None) -> str:
+    """Return a block name AST containing a single node link."""
+    label_field = f',"label":"{label}"' if label else ""
+    return (
+        '[{"type":"paragraph","children":['
+        f'{{"type":"node_link","link_id":"{target_uuid}:{link_uuid}","ref_type":"node"{label_field}}}'
+        ']}]'
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.integration
+async def test_breadcrumbs_resolve_links_inside_block_names(
+    auth_client,
+    node_repository,
+    test_user,
+):
+    """A block whose name is a node link should display the target's name in breadcrumbs."""
+    page_class_id = test_user["page_class_id"]
+    suffix = secrets.token_hex(4)
+
+    # Page A is the root; Page B is the link target.
+    page_a = await node_repository.create(
+        NodeCreateData(name=f"Root Page {suffix}", classes=[page_class_id])
+    )
+    page_b = await node_repository.create(
+        NodeCreateData(name=f"Target Page {suffix}", classes=[page_class_id])
+    )
+    assert page_a.id is not None
+    assert page_b.id is not None
+    assert page_b.uuid is not None
+
+    # Block C's name is a link to Page B.
+    link_uuid = secrets.token_hex(16)
+    block_c = await node_repository.create(
+        NodeCreateData(name=_link_ast(page_b.uuid, link_uuid), parent_id=page_a.id)
+    )
+    assert block_c.id is not None
+
+    # Block D is nested under Block C.
+    block_d = await node_repository.create(
+        NodeCreateData(name="Nested block", parent_id=block_c.id)
+    )
+    assert block_d.id is not None
+
+    response = await auth_client.get(f"/api/nodes/{block_d.id}/breadcrumbs")
+    assert response.status_code == 200
+
+    breadcrumbs = response.json()["breadcrumbs"]
+    ids = [b["id"] for b in breadcrumbs]
+
+    # Order should be: root page -> block C (link block).
+    assert page_a.id in ids
+    assert block_c.id in ids
+    assert block_d.id not in ids  # current node is excluded
+
+    block_c_item = next(b for b in breadcrumbs if b["id"] == block_c.id)
+    assert block_c_item["name"] == _link_ast(page_b.uuid, link_uuid)
+    assert block_c_item["display_name"] == f"Target Page {suffix}"
+
+
+@pytest.mark.asyncio
+@pytest.mark.integration
+async def test_breadcrumbs_resolve_links_inside_block_names_recursively(
+    auth_client,
+    node_repository,
+    test_user,
+):
+    """A link target whose name is also a link should resolve recursively in breadcrumbs."""
+    page_class_id = test_user["page_class_id"]
+    suffix = secrets.token_hex(4)
+
+    # Page C is the final link target; Page B's name links to Page C;
+    # Block A's name links to Page B.
+    page_c = await node_repository.create(
+        NodeCreateData(name=f"Final Page {suffix}", classes=[page_class_id])
+    )
+    page_b = await node_repository.create(
+        NodeCreateData(name=_link_ast(page_c.uuid, secrets.token_hex(16)), classes=[page_class_id])
+    )
+    assert page_b.id is not None
+    assert page_b.uuid is not None
+
+    page_a = await node_repository.create(
+        NodeCreateData(name=f"Root Page {suffix}", classes=[page_class_id])
+    )
+    block_x = await node_repository.create(
+        NodeCreateData(name=_link_ast(page_b.uuid, secrets.token_hex(16)), parent_id=page_a.id)
+    )
+    assert block_x.id is not None
+
+    block_y = await node_repository.create(
+        NodeCreateData(name="Nested block", parent_id=block_x.id)
+    )
+    assert block_y.id is not None
+
+    response = await auth_client.get(f"/api/nodes/{block_y.id}/breadcrumbs")
+    assert response.status_code == 200
+
+    breadcrumbs = response.json()["breadcrumbs"]
+    block_x_item = next(b for b in breadcrumbs if b["id"] == block_x.id)
+    # Block X -> Page B -> Page C, so the resolved name should be "Final Page ...".
+    assert block_x_item["display_name"] == f"Final Page {suffix}"
+
+
 @pytest.mark.asyncio
 @pytest.mark.integration
 async def test_breadcrumbs_include_text_property_pseudo_block(

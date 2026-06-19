@@ -15,6 +15,8 @@ interface AuthState {
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
+  /** True once the access token has been verified/refreshed against the backend. */
+  authVerified: boolean;
 
   // Actions
   login: (email: string, password: string, rememberMe?: boolean) => Promise<void>;
@@ -22,6 +24,7 @@ interface AuthState {
   changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
   logout: () => void;
   setUser: (user: User | null) => void;
+  setAuthVerified: (verified: boolean) => void;
   clearError: () => void;
 }
 
@@ -32,6 +35,7 @@ export const useAuthStore = create<AuthState>()(
       isAuthenticated: false,
       isLoading: false,
       error: null,
+      authVerified: false,
 
       login: async (email: string, password: string, rememberMe: boolean = true) => {
         set({ isLoading: true, error: null });
@@ -42,6 +46,7 @@ export const useAuthStore = create<AuthState>()(
             user: response.user,
             isAuthenticated: true,
             isLoading: false,
+            authVerified: true,
           });
         } catch (error) {
           const message = error instanceof Error ? error.message : 'Login failed';
@@ -59,6 +64,7 @@ export const useAuthStore = create<AuthState>()(
             user: response.user,
             isAuthenticated: true,
             isLoading: false,
+            authVerified: true,
           });
         } catch (error) {
           const message = error instanceof Error ? error.message : 'Registration failed';
@@ -76,11 +82,16 @@ export const useAuthStore = create<AuthState>()(
         set({
           user: null,
           isAuthenticated: false,
+          authVerified: false,
         });
       },
 
       setUser: (user: User | null) => {
         set({ user, isAuthenticated: !!user });
+      },
+
+      setAuthVerified: (verified: boolean) => {
+        set({ authVerified: verified });
       },
 
       clearError: () => {

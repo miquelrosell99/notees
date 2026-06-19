@@ -35,6 +35,7 @@ export class LiveSyncManager {
   private listeners = new Set<MessageListener>();
   private statusListeners = new Set<StatusListener>();
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private connectTimer: ReturnType<typeof setTimeout> | null = null;
   private pendingMessages: object[] = [];
   private reconnectAttempts = 0;
   private intentionalClose = false;
@@ -76,7 +77,12 @@ export class LiveSyncManager {
     }
   }
 
-  /** Open (or re-open) the WebSocket for a given page. */
+  /** Open (or re-open) the WebSocket for a given page.
+   *
+   * The actual open is deferred briefly so that React Strict Mode / initial
+   * render storms do not create visible connect/disconnect cycles in the
+   * browser console.
+   */
   connect(nodeUuid: string): void {
     if (this.nodeUuid === nodeUuid) {
       const state = this.ws?.readyState;
@@ -88,11 +94,18 @@ export class LiveSyncManager {
     this.intentionalClose = false;
     this.nodeUuid = nodeUuid;
     this._setStatus('connecting');
-    this._open();
+    this.connectTimer = setTimeout(() => {
+      this.connectTimer = null;
+      if (this.nodeUuid === nodeUuid) this._open();
+    }, 300);
   }
 
   /** Close the current connection. */
   disconnect(): void {
+    if (this.connectTimer) {
+      clearTimeout(this.connectTimer);
+      this.connectTimer = null;
+    }
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;

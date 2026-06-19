@@ -23,6 +23,7 @@ from .helpers import (
     _get_class_ids_batch,
     _get_node_service,
     _node_to_response,
+    _resolve_display_names_for_responses,
 )
 from .models import BatchNodeDailyRequest, BatchNodeDailyResponse, BatchNodeDailyResultItem, NodeResponse
 
@@ -69,6 +70,8 @@ async def list_daily_pages(
     for node in nodes:
         class_ids = class_ids_map.get(node.id, []) if node.id else []
         result.append(_node_to_response(node, classes=class_ids))
+
+    await _resolve_display_names_for_responses(service, nodes, result)
 
     return PaginatedResponse[NodeResponse](
         items=result,

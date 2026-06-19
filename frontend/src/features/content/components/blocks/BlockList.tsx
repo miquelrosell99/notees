@@ -102,6 +102,9 @@ interface BlockListProps {
   documentMode?: boolean;
   /** When true, removes vertical padding so the list sits flush in a container. */
   flush?: boolean;
+  /** When true, the root container is a block (focused block view), so the trailing
+   *  "new block" pseudo-block is indented one level deeper. */
+  rootIsBlock?: boolean;
 }
 
 export function BlockList({
@@ -133,6 +136,7 @@ export function BlockList({
   hideRootBullet = false,
   documentMode = false,
   flush = false,
+  rootIsBlock = false,
 }: BlockListProps): JSX.Element {
   const { flatNodes, structureVersion } = useBlockTree(nodes, {
     maxDepth,
@@ -143,6 +147,7 @@ export function BlockList({
     nodeUuid,
     readOnly,
     showNewBlock,
+    rootIsBlock,
   });
 
   const blockIds = useMemo(() => flatNodes.filter((n) => !n.isGhost).map((n) => n.node.uuid), [flatNodes]);

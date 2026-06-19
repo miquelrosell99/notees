@@ -16,6 +16,7 @@ from .helpers import (
     _get_node_service,
     _get_undo_service,
     _node_to_response,
+    _resolve_display_names_for_responses,
     extract_properties_dict,
 )
 from .models import (
@@ -199,19 +200,32 @@ async def get_backlinks(
     page_ids = list({n.page_id for n in source_nodes.values() if n.page_id})
     page_nodes = {n.id: n for n in await service.get_nodes_by_ids(page_ids)} if page_ids else {}
 
+    # Resolve inline node links so backlink surfaces show target names.
+    source_display_names = await service.resolve_node_display_names(list(source_nodes.values()))
+    page_display_names = await service.resolve_node_display_names(list(page_nodes.values()))
+
     result = []
     for link in backlinks:
         source = source_nodes.get(link.source_node_id)
         source_page = page_nodes.get(source.page_id) if source and source.page_id else None
 
         link_type = "property" if link.property_id else ("embed" if link.link and link.link.is_embed else "text")
+
+        source_node_name = source.name if source else ""
+        if source and source.id is not None:
+            source_node_name = source_display_names.get(source.id, source_node_name)
+
+        source_page_name = source_page.name if source_page else None
+        if source_page and source_page.id is not None:
+            source_page_name = page_display_names.get(source_page.id, source_page_name)
+
         result.append(
             BacklinkResponse(
                 source_node_id=link.source_node_id,
                 source_node_uuid=str(source.uuid) if source and source.uuid else "",
-                source_node_name=source.name if source else "",
+                source_node_name=source_node_name,
                 source_page_id=source.page_id if source else None,
-                source_page_name=source_page.name if source_page else None,
+                source_page_name=source_page_name,
                 link_type=link_type,
                 position=link.link.position if link.link else 0,
             )
@@ -343,11 +357,13 @@ async def get_linked_references(
         if source.id and source.id in node_properties_map:
             source_response.properties = node_properties_map[source.id]
 
+        source_page_response = _node_to_response(source_page) if source_page else None
+
         link_type = "property" if link.property_id else ("embed" if link.link and link.link.is_embed else "text")
         result.append(
             LinkedReferenceResponse(
                 source_node=source_response,
-                source_page=_node_to_response(source_page) if source_page else None,
+                source_page=source_page_response,
                 link_type=link_type,
                 context=context,
                 breadcrumb_path=breadcrumb_segments,
@@ -356,6 +372,16 @@ async def get_linked_references(
                 text_property_root_block_id=getattr(link, "text_property_root_block_id", None),
             )
         )
+
+    # Resolve inline node links for source nodes and their containing pages.
+    source_page_nodes = [source_page for _, _, source_page, _ in sources_data if source_page]
+    result_source_nodes = [source for source, _, _, _ in sources_data]
+    await _resolve_display_names_for_responses(service, result_source_nodes, [r.source_node for r in result])
+    await _resolve_display_names_for_responses(
+        service,
+        source_page_nodes,
+        [r.source_page for r in result if r.source_page is not None],
+    )
 
     return {"linked_references": result, "total_count": total_count}
 
@@ -420,6 +446,7 @@ async def get_property_backlinks(
 
     # Build result with properties attached
     result = []
+    page_nodes = []
     for page, property_id, property_name in pages_data:
         page_response = _node_to_response(page)
 
@@ -427,6 +454,7 @@ async def get_property_backlinks(
         if page.id and page.id in node_properties_map:
             page_response.properties = node_properties_map[page.id]
 
+        page_nodes.append(page)
         result.append(
             PropertyBacklinkResponse(
                 source_page=page_response,
@@ -434,6 +462,8 @@ async def get_property_backlinks(
                 property_name=property_name,
             )
         )
+
+    await _resolve_display_names_for_responses(service, page_nodes, [r.source_page for r in result])
 
     return {"property_backlinks": result}
 
@@ -453,10 +483,14 @@ async def get_aliases(
 
     # Fetch full node data for each alias (raw alias records, not resolved targets)
     aliases = []
+    alias_nodes = []
     for alias_id in alias_ids:
         alias_node = await service.get_node_by_id(alias_id)
         if alias_node:
+            alias_nodes.append(alias_node)
             aliases.append(_node_to_response(alias_node))
+
+    await _resolve_display_names_for_responses(service, alias_nodes, aliases)
 
     return {"aliases": aliases}
 

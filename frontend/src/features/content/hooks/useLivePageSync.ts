@@ -13,6 +13,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { liveSyncManager, useLivePresenceStore, type PresenceUser } from '@/features/collab';
+import { useAuthStore } from '@/features/auth';
 import { useEditorFocusStore } from '@/stores/editorFocusStore';
 import { useNotificationStore } from '@/stores/notificationStore';
 import type { Node } from '@/types';
@@ -47,10 +48,11 @@ function applyRemoteBlockUpdate(
 export function useLivePageSync({ nodeUuid, enabled = true }: UseLivePageSyncOptions) {
   const queryClient = useQueryClient();
   const unsubRef = useRef<(() => void) | null>(null);
+  const authVerified = useAuthStore((s) => s.authVerified);
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'connecting' | 'error' | 'idle'>('idle');
 
   useEffect(() => {
-    if (!enabled || !nodeUuid) return;
+    if (!enabled || !nodeUuid || !authVerified) return;
 
     const unsubStatus = liveSyncManager.onStatusChange(setConnectionStatus);
 
@@ -196,7 +198,7 @@ export function useLivePageSync({ nodeUuid, enabled = true }: UseLivePageSyncOpt
         }));
       }
     };
-  }, [nodeUuid, queryClient, enabled]);
+  }, [nodeUuid, queryClient, enabled, authVerified]);
 
   return connectionStatus;
 }

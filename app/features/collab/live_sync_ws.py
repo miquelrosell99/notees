@@ -336,9 +336,11 @@ async def _run_redis_loop(
                 # Remove internal sender_id before forwarding
                 msg.pop("sender_id", None)
                 await connection.send(msg)
-            except ConnectionError:
+            except Exception:
+                # Ignore malformed or transient messages
                 pass
-    except ConnectionError:
+    except Exception:
+        # Subscription terminated (disconnect, Redis error, etc.)
         pass
 
 

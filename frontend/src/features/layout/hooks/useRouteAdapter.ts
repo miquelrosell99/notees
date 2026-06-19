@@ -9,7 +9,7 @@
 import { useEffect, useCallback, type MutableRefObject } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useNavigationStore, useSettingsStore, type MainViewType, type DefaultView } from '@/stores';
+import { useNavigationStore, useSettingsStore, useAuthStore, type MainViewType, type DefaultView } from '@/stores';
 import { useShallow } from 'zustand/react/shallow';
 import { useTodayNote } from '@/features/content';
 import { useNavigationHistoryStore } from '@/stores/navigationHistoryStore';
@@ -41,6 +41,7 @@ export function useRouteAdapter({ hasInitialized, isProcessingUrl }: RouteAdapte
   const entityUuid = params['*'];
   const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
+  const authVerified = useAuthStore((s) => s.authVerified);
 
   const {
     setMainViewType,
@@ -62,6 +63,7 @@ export function useRouteAdapter({ hasInitialized, isProcessingUrl }: RouteAdapte
   const { data: dbData, isLoading: isLoadingDbs } = useQuery({
     queryKey: workspaceKeys.all,
     queryFn: () => listWorkspaces(),
+    enabled: authVerified,
     staleTime: 30000,
     select: (data) => ({
       workspaces: data.items,

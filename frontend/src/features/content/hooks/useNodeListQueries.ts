@@ -5,6 +5,7 @@
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import * as nodesApi from '@/api/nodes';
 import { nodeKeys } from '@/hooks/queryKeys';
+import { useAuthStore } from '@/stores';
 
 export function usePages(options?: { includeChildren?: boolean; rootOnly?: boolean }) {
   const { includeChildren = false, rootOnly = false } = options ?? {};
@@ -75,12 +76,14 @@ export function useTags() {
  * Classes are essentially pages that can categorize other nodes
  */
 
-export function useClasses() {
+export function useClasses(options?: { enabled?: boolean }) {
+  const authVerified = useAuthStore((s) => s.authVerified);
   return useQuery({
     queryKey: nodeKeys.classes(),
     queryFn: () => nodesApi.listClasses(),
     placeholderData: [],
     staleTime: 1000 * 60 * 5, // 5 minutes - class list rarely changes
+    enabled: options?.enabled ?? authVerified,
   });
 }
 
