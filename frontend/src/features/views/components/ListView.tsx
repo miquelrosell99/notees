@@ -192,6 +192,8 @@ export const ListView = memo(function ListView({
   maxDepth,
   showClasses = false,
   expandAll = false,
+  showNewBlock = true,
+  hideRootBullet = false,
 }: NodeListViewProps) {
   const { inPropertyEditor } = useNodeCollectionContext();
   const sizeClass = size === 'sm' ? 'node-list-view--sm' : '';
@@ -359,6 +361,8 @@ export const ListView = memo(function ListView({
                 expandAll={expandAll}
                 listSize={size === 'sm' ? 'sm' : undefined}
                 inPropertyEditor={inPropertyEditor}
+                showNewBlock={showNewBlock}
+                hideRootBullet={hideRootBullet}
               />
             </div>
           </div>
@@ -386,6 +390,8 @@ export const ListView = memo(function ListView({
             showClasses={showClasses}
             expandAll={expandAll}
             inPropertyEditor={inPropertyEditor}
+            showNewBlock={showNewBlock}
+            hideRootBullet={hideRootBullet}
             size={size}
           />
         ))}
@@ -466,6 +472,8 @@ export const ListView = memo(function ListView({
                 expandAll={expandAll}
                 listSize={size === 'sm' ? 'sm' : undefined}
                 inPropertyEditor={inPropertyEditor}
+                showNewBlock={showNewBlock}
+                hideRootBullet={hideRootBullet}
               />
             </div>
           );
@@ -497,6 +505,8 @@ export const ListView = memo(function ListView({
         expandAll={expandAll}
         listSize={size === 'sm' ? 'sm' : undefined}
         inPropertyEditor={inPropertyEditor}
+        showNewBlock={showNewBlock}
+        hideRootBullet={hideRootBullet}
       />
     </div>
   );
@@ -537,6 +547,8 @@ function ListViewGroup({
   showClasses = false,
   expandAll = false,
   inPropertyEditor = false,
+  showNewBlock = true,
+  hideRootBullet = false,
   size,
 }: {
   group: GroupTreeNode;
@@ -558,6 +570,8 @@ function ListViewGroup({
   showClasses?: boolean;
   expandAll?: boolean;
   inPropertyEditor?: boolean;
+  showNewBlock?: boolean;
+  hideRootBullet?: boolean;
   size?: 'sm' | 'md';
 }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -651,6 +665,8 @@ function ListViewGroup({
                       expandAll={expandAll}
                       listSize={size === 'sm' ? 'sm' : undefined}
                       inPropertyEditor={inPropertyEditor}
+                      showNewBlock={showNewBlock}
+                      hideRootBullet={hideRootBullet}
                     />
                   </div>
                 );
@@ -673,6 +689,8 @@ function ListViewGroup({
                 expandAll={expandAll}
                 listSize={size === 'sm' ? 'sm' : undefined}
                 inPropertyEditor={inPropertyEditor}
+                showNewBlock={showNewBlock}
+                hideRootBullet={hideRootBullet}
               />
             )
           ) : (
@@ -698,6 +716,8 @@ function ListViewGroup({
                 showClasses={showClasses}
                 expandAll={expandAll}
                 inPropertyEditor={inPropertyEditor}
+                showNewBlock={showNewBlock}
+                hideRootBullet={hideRootBullet}
                 size={size}
               />
             ))

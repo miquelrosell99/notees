@@ -56,6 +56,7 @@ export function TabBarNormal({ tabs, activeTabId, secondaryTabId, splitOrientati
 
   const stripRef = useRef<HTMLDivElement>(null);
   const addBtnRef = useRef<HTMLButtonElement>(null);
+  const overflowBtnRef = useRef<HTMLButtonElement>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
   const [showPicker, setShowPicker] = useState(false);
@@ -306,6 +307,7 @@ export function TabBarNormal({ tabs, activeTabId, secondaryTabId, splitOrientati
       {showOverflow && (
         <div className="tab-bar-normal__overflow">
           <Button aria-label="All tabs"
+            ref={overflowBtnRef}
             icon="mdi mdi-chevron-down"
             variant="ghost"
             size="sm"
@@ -319,6 +321,7 @@ export function TabBarNormal({ tabs, activeTabId, secondaryTabId, splitOrientati
               activeTabId={activeTabId}
               onSelect={activateTab}
               onClose={() => setOverflowOpen(false)}
+              triggerRef={overflowBtnRef}
             />
           )}
         </div>

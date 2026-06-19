@@ -14,6 +14,7 @@
  */
 import { useEffect } from 'react';
 import { useNavigationStore } from '@/stores';
+import { useTouchContextMenu, isEditableElement } from '@/hooks/useTouchContextMenu';
 
 // ── Type declarations ─────────────────────────────────────────────────────────
 
@@ -78,6 +79,27 @@ export function useAndroidBridge() {
   const isSidebarCollapsed = useNavigationStore(s => s.isSidebarCollapsed);
   const openNode = useNavigationStore(s => s.openNode);
   const setMainViewType = useNavigationStore(s => s.setMainViewType);
+  const isNative = isAndroidApp();
+
+  // Convert long-presses into context-menu events inside the Android wrapper.
+  useTouchContextMenu(isNative);
+
+  useEffect(() => {
+    if (!isNative) return;
+
+    // Suppress the browser's native long-press context menu so the app's custom
+    // menus are the only ones shown. Editable fields keep their native menu for
+    // copy/paste.
+    const onContextMenu = (e: MouseEvent) => {
+      const target = e.target as Element | null;
+      if (target && isEditableElement(target)) return;
+      e.preventDefault();
+    };
+    document.addEventListener('contextmenu', onContextMenu, { capture: true });
+    return () => {
+      document.removeEventListener('contextmenu', onContextMenu, { capture: true });
+    };
+  }, [isNative]);
 
   useEffect(() => {
     if (!isAndroidApp()) return;
