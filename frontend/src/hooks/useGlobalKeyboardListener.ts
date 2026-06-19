@@ -17,9 +17,12 @@ export function useGlobalKeyboardListener() {
 
       // Allow modifier shortcuts (Ctrl/Cmd) even in text editing contexts.
       // Non-modifier keys in inputs/contenteditable are left alone so typing works.
+      // Escape is an exception: it must always reach the global overlay stack
+      // so the most recently opened modal/popup can be closed regardless of focus.
       const isModifierShortcut = event.ctrlKey || event.metaKey;
+      const isEscape = event.key === 'Escape';
 
-      if ((isInput || isContentEditable) && !isModifierShortcut) {
+      if ((isInput || isContentEditable) && !isModifierShortcut && !isEscape) {
         return;
       }
 

@@ -93,6 +93,13 @@ export function ListSortable<T extends ListSortableItem>({
     handleDragStart(index, e);
   }, [handleDragStart]);
 
+  const handleItemKeyDown = useCallback((item: T, index: number, e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      handleItemClick(item, index);
+    }
+  }, [handleItemClick]);
+
   if (items.length === 0) {
     return null;
   }
@@ -107,13 +114,15 @@ export function ListSortable<T extends ListSortableItem>({
         const style = getItemStyle(index);
 
         return (
-          <button
+          <div
             key={item.id}
-            type="button"
+            role="button"
+            tabIndex={0}
             className={`list-sortable__item ${itemClassName} ${isDragging ? 'list-sortable__item--dragging' : ''} ${isSettling ? 'list-sortable__item--settling' : ''}`}
             style={style}
             onClick={() => handleItemClick(item, index)}
             onContextMenu={(e) => handleItemContextMenu(item, e)}
+            onKeyDown={(e) => handleItemKeyDown(item, index, e)}
           >
             {/* Drag handle */}
             {showDragHandle && (
@@ -157,7 +166,7 @@ export function ListSortable<T extends ListSortableItem>({
                 }
               </div>
             )}
-          </button>
+          </div>
         );
       })}
     </div>

@@ -25,6 +25,8 @@ import type {
   BatchPermanentDeleteResponse,
   BatchGetNodesRequest,
   BatchGetNodesResponse,
+  BatchGetNodesByUuidRequest,
+  BatchGetNodesByUuidResponse,
   BatchNodeDailyResponse,
   BreadcrumbsResponse,
 } from '@/types/api';
@@ -102,6 +104,16 @@ export async function getPageContent(pageId: number): Promise<Node> {
  */
 export async function batchGetNodes(request: BatchGetNodesRequest): Promise<BatchGetNodesResponse> {
   const response = await api.post<BatchGetNodesResponse>(`${BASE}/batch-get`, request);
+  return response.data;
+}
+
+/**
+ * Fetch multiple nodes by UUID in a single call.
+ * Returns a map of node_uuid (string) -> Node for all found nodes.
+ * Missing or inaccessible UUIDs are silently omitted.
+ */
+export async function batchGetNodesByUuid(request: BatchGetNodesByUuidRequest): Promise<BatchGetNodesByUuidResponse> {
+  const response = await api.post<BatchGetNodesByUuidResponse>(`${BASE}/batch-get-by-uuid`, request);
   return response.data;
 }
 

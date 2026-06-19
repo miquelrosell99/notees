@@ -9,8 +9,8 @@ import { createPortal } from 'react-dom';
 import { Card } from './Card';
 import { SelectTrigger } from './SelectTrigger';
 import { useClickOutside } from '@/hooks/useClickOutside';
-import { useEscapeKey } from '@/hooks/useEscapeKey';
 import { useViewportFlip } from '@/hooks/useViewportFlip';
+import { useOverlaySurface } from '@/hooks/useOverlaySurface';
 import './Dropdown.css';
 import { Icon } from '@/components/ui/icons';
 
@@ -112,6 +112,7 @@ export function Dropdown<T = string>({
   const menuPosition = useViewportFlip(containerRef, isOpen, {
     maxHeight: 300,
     includeWidth: true,
+    popupRef: menuRef,
   });
 
   // Close dropdown handler
@@ -120,8 +121,13 @@ export function Dropdown<T = string>({
     setSearchQuery('');
   }, []);
 
-  // Close on escape key
-  useEscapeKey(handleClose, isOpen);
+  // Register with the global overlay stack so Escape closes the dropdown
+  // regardless of where DOM focus is.
+  useOverlaySurface({
+    type: 'popup',
+    enabled: isOpen,
+    onClose: handleClose,
+  });
 
   // Close on click outside
   useClickOutside([containerRef, menuRef], handleClose, isOpen);
@@ -234,19 +240,23 @@ export function Dropdown<T = string>({
         )}
 
         {/* Dropdown menu - rendered in portal */}
-        {isOpen && menuPosition && createPortal(
+        {isOpen && createPortal(
           <Card
             ref={menuRef}
-            className="dropdown-menu dropdown-menu--portal" 
-            elevation="high" 
+            className="dropdown-menu dropdown-menu--portal"
+            elevation="high"
             padding={false}
-            style={{
-              position: 'absolute',
-              top: `${menuPosition.top}px`,
-              left: `${menuPosition.left}px`,
-              minWidth: `${menuPosition.width}px`,
-              maxHeight: `${menuPosition.maxHeight}px`,
-            }}
+            style={
+              menuPosition
+                ? {
+                    position: 'absolute',
+                    top: `${menuPosition.top}px`,
+                    left: `${menuPosition.left}px`,
+                    minWidth: `${menuPosition.width}px`,
+                    maxHeight: `${menuPosition.maxHeight}px`,
+                  }
+                : { position: 'absolute', top: 0, left: 0, visibility: 'hidden' }
+            }
           >
             {searchable && (
               <div className="dropdown-search">
