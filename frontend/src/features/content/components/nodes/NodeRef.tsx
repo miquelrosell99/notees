@@ -17,10 +17,9 @@ import { Pill } from '@/components/ui/Pill';
 import { NodeIcon, CloseIcon } from '@/components/ui/icons';
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/ContextMenu';
 import { ColorPickerRow } from './ColorPickerRow';
-import { useBatchedNode } from '@/hooks';
+import { useBatchedNode, useBatchedNodeByUuid } from '@/hooks';
 import { useNodeDisplay } from '@/features/content/hooks/useNodeDisplay';
 import { useReferencedNode } from '@/features/content';
-import { useNodeByUuid } from '@/features/content/hooks/useNodeQueries';
 import { useNavigationStore } from '@/stores';
 import { parseAST, parseLinkId } from '@/lib/astBuilder';
 import type { ASTInlineNode } from '@/types/ast';
@@ -179,9 +178,9 @@ function NodeRefInline({
 
   // Resolve node: provided > uuid context > uuid fetch > batched ID fetch
   const refNode = useReferencedNode(nodeUuid ?? null);
-  const { data: uuidFallback } = useNodeByUuid(
+  const { data: uuidFallback } = useBatchedNodeByUuid(
     !providedNode && !refNode && nodeUuid ? nodeUuid : null,
-    { meta: { skipGlobalError: true } }
+    { skipGlobalError: true }
   );
   const { data: idFallback } = useBatchedNode(
     !providedNode && !refNode && !nodeUuid ? (nodeId ?? null) : null,
@@ -280,9 +279,9 @@ function NodeRefInteractive({
   
   // UUID resolution (for non-inline interactive links that happen to have a UUID)
   const refNode = useReferencedNode(nodeUuid ?? null);
-  const { data: uuidFallback } = useNodeByUuid(
+  const { data: uuidFallback } = useBatchedNodeByUuid(
     !providedNode && !fetchedNode && !refNode && nodeUuid ? nodeUuid : null,
-    { meta: { skipGlobalError: true } }
+    { skipGlobalError: true }
   );
   
   // Use provided node directly, or fetched node for ID-only usage

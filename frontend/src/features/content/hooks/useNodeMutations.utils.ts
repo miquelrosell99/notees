@@ -7,6 +7,12 @@ import type { Node } from '@/types/api';
 import { nodeKeys } from '@/hooks/queryKeys';
 import { nodeViewKeys } from './useNodeViews';
 import { findNodeInRootTree } from '@/utils/nodeTree';
+import { getOperationRuntime } from '@/runtime';
+import { getNodeByServerId } from '@/runtime/graphHelpers';
+import { getRuntimeEventBus } from '@/runtime/eventBus';
+import { getUndoEngine } from '@/stores/undoEngine';
+import { waitForOperationAck } from '@/sync/waitForOperation';
+import type { MutationIntent } from '@/runtime/types';
 
 
 export function invalidateNodeCaches(
@@ -183,4 +189,44 @@ export function hasTableClass(node: Node, allClasses: Node[] | undefined): boole
   if (!tableClass) return false;
   
   return node.classes.includes(tableClass.id);
+}
+
+/**
+ * Resolve a server-side node ID to the runtime block ID (UUID).
+ * Returns null if the node is not currently loaded in the runtime.
+ */
+export function getRuntimeBlockIdForServerId(nodeId: number): string | null {
+  const runtime = getOperationRuntime();
+  return getNodeByServerId(runtime, nodeId)?.blockId ?? null;
+}
+
+/**
+ * Apply a runtime mutation intent and return the operation ID so callers can
+ * wait for SyncManager to acknowledge it.
+ */
+export function applyNodeIntent(intent: MutationIntent): string {
+  getUndoEngine().applyIntent(intent, { pushUndo: true });
+  getRuntimeEventBus().flushEvents();
+  const ops = getOperationRuntime().getOperations();
+  // The operation we just added is the last new one.
+  return ops[ops.length - 1]?.id ?? '';
+}
+
+/**
+ * Emit a runtime intent for a server-side node and wait for acknowledgement.
+ * Returns false if the node is not in the runtime (caller should fall back to
+ * a direct API mutation).
+ */
+export async function emitNodeIntentAndWait(
+  nodeId: number,
+  intent: MutationIntent,
+): Promise<boolean> {
+  const blockId = getRuntimeBlockIdForServerId(nodeId);
+  if (!blockId) return false;
+
+  const operationId = applyNodeIntent(intent);
+  if (!operationId) return false;
+
+  await waitForOperationAck(operationId);
+  return true;
 }

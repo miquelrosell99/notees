@@ -342,7 +342,7 @@ export function NodeSelector({
   const menuPosition = useViewportFlip(
     containerRef,
     trigger === 'select' && !multi && isPickerOpen,
-    { maxHeight: 320, includeWidth: true, minWidth: 240 },
+    { maxHeight: 320, includeWidth: true, minWidth: 240, popupRef: menuRef },
   );
 
   // Position menu for 'select' multi mode - anchored to arrow button, right-aligned
@@ -835,19 +835,23 @@ export function NodeSelector({
         )}
 
         {/* Dropdown Menu for single-select - Rendered in Portal */}
-        {!multi && isPickerOpen && menuPosition && createPortal(
+        {!multi && isPickerOpen && createPortal(
           <Card
             ref={menuRef}
             className="node-selector__dropdown node-selector__dropdown--portal"
             elevation="high"
             padding={false}
-            style={{
-              position: 'absolute',
-              top: `${menuPosition.top}px`,
-              left: `${menuPosition.left}px`,
-              minWidth: `${menuPosition.width}px`,
-              maxHeight: `${menuPosition.maxHeight}px`,
-            }}
+            style={
+              menuPosition
+                ? {
+                    position: 'absolute',
+                    top: `${menuPosition.top}px`,
+                    left: `${menuPosition.left}px`,
+                    minWidth: `${menuPosition.width}px`,
+                    maxHeight: `${menuPosition.maxHeight}px`,
+                  }
+                : { position: 'absolute', top: 0, left: 0, visibility: 'hidden' }
+            }
           >
             {/* Search Input */}
             <div className="node-selector__search-wrapper">

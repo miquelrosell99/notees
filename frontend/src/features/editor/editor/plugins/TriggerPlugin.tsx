@@ -29,7 +29,6 @@ import {
 } from 'lexical';
 import { $createInlineLinkNode } from '@/features/editor/editor/nodes/InlineLinkNode';
 import { TriggerPopup, type TriggerPopupType } from './TriggerPopup';
-import { useInputContext } from '@/stores/inputContext';
 import type { Node } from '@/types/api';
 import { getOperationRuntime } from '@/runtime';
 import { getNode } from '@/runtime/graphHelpers';
@@ -302,14 +301,12 @@ export function TriggerPlugin({
     );
   }, [editor, blockIdProp]);
 
-  // ─── Track popup state in InputContext / EditorFocusStore ─────
+  // ─── Track popup state in EditorFocusStore ───────────────────
 
   useEffect(() => {
     if (popup) {
-      useInputContext.getState().enterPopup();
       useEditorFocusStore.getState().openPopup();
       return () => {
-        useInputContext.getState().leavePopup();
         useEditorFocusStore.getState().closePopup();
       };
     }

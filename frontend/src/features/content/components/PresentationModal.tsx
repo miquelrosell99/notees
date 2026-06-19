@@ -18,6 +18,7 @@ import { nodeNameToText } from '@/features/queries';
 import { BlockList } from '@/features/content/components/blocks/BlockList';
 import { Button } from '@/components/ui/Button';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
+import { useOverlaySurface } from '@/hooks/useOverlaySurface';
 import type { Node } from '@/types';
 import './PresentationModal.css';
 
@@ -39,6 +40,13 @@ export function PresentationModal() {
 
   const [currentIndex, setCurrentIndex] = useState(0);
 
+  // Register with the global overlay stack so Escape closes the presentation.
+  useOverlaySurface({
+    type: 'modal',
+    enabled: isOpen,
+    onClose: closePresentation,
+  });
+
   const goToPrev = useCallback(() => {
     setCurrentIndex((prev) => Math.max(prev - 1, 0));
   }, []);
@@ -48,9 +56,10 @@ export function PresentationModal() {
   }, [slides.length]);
 
   // Trap focus inside the modal while it is open.
+  // Escape handling is owned by the global overlay stack.
   useFocusTrap(containerRef, {
     enabled: isOpen,
-    onEscape: closePresentation,
+    onEscape: undefined,
   });
 
   // Keyboard navigation

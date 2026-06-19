@@ -34,6 +34,7 @@ import { Button } from '@/components/ui/Button';
 import { NodeInline } from '@/features/content/components/blocks/NodeInline';
 import { NodeSelector } from './NodeSelector';
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/ContextMenu';
+import { PROPERTY_TYPE_ICONS } from '@/features/properties';
 import './NodeBreadcrumbs.css';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -191,12 +192,15 @@ function useAncestorChain(nodeId: number | null, _nodeType: 'page' | 'block'): {
 
     const chain: BreadcrumbItem[] = [];
     for (const item of breadcrumbs) {
+      const isProperty = item.is_property ?? false;
       chain.push({
         id: item.id,
         name: item.name || '',
         displayName: item.display_name || undefined,
-        icon: item.icon,
+        icon: isProperty ? (item.icon || PROPERTY_TYPE_ICONS.text) : item.icon,
         isPage: item.is_page,
+        isProperty,
+        propertyId: isProperty ? (item.property_id ?? item.id) : undefined,
         parentLocked: item.parent_locked,
       });
     }
@@ -295,8 +299,10 @@ export function NodeBreadcrumbs({
       }
     }
 
-    // If we have property context, insert it after the last page (or at the end)
-    if (propertyContext && nodeType === 'block') {
+    // If we have property context, insert it after the last page (or at the end).
+    // Skip if the backend already returned the same property in the ancestor chain.
+    if (propertyContext && nodeType === 'block' &&
+        !items.some((b) => b.isProperty && b.propertyId === propertyContext.propertyId)) {
       let insertAt = items.length;
       for (let i = items.length - 1; i >= 0; i--) {
         if (items[i].isPage) { insertAt = i + 1; break; }
@@ -304,7 +310,7 @@ export function NodeBreadcrumbs({
       items.splice(insertAt, 0, {
         id: propertyContext.propertyId,
         name: propertyContext.propertyName,
-        icon: null,
+        icon: PROPERTY_TYPE_ICONS.text,
         isPage: false,
         isProperty: true,
         propertyId: propertyContext.propertyId,
@@ -367,7 +373,7 @@ export function NodeBreadcrumbs({
    */
   const handleEditParent = useCallback((item: BreadcrumbItem, anchorEl: HTMLElement) => {
     if (item.isProperty || item.childParentLocked) return;
-    const idx = breadcrumbs.findIndex((b) => b.id === item.id);
+    const idx = breadcrumbs.findIndex((b) => b.id === item.id && b.isProperty === item.isProperty);
     const childNodeId = idx < breadcrumbs.length - 1 ? breadcrumbs[idx + 1].id : nodeId;
     setPickerState({ targetNodeId: childNodeId, currentParentId: item.id, anchorEl });
   }, [breadcrumbs, nodeId]);
@@ -412,7 +418,7 @@ export function NodeBreadcrumbs({
         danger: true,
         onClick: () => {
           setContextMenuState(null);
-          const idx = breadcrumbs.findIndex((b) => b.id === item.id);
+          const idx = breadcrumbs.findIndex((b) => b.id === item.id && b.isProperty === item.isProperty);
           const childNodeId = idx < breadcrumbs.length - 1 ? breadcrumbs[idx + 1].id : nodeId;
           updateNode.mutate(
             { id: childNodeId, data: { parent_id: null } },

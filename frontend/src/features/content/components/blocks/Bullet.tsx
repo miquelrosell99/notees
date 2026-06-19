@@ -62,6 +62,8 @@ export interface BulletProps {
   inPropertyEditor?: boolean;
   /** Document mode: hide the bullet entirely. */
   documentMode?: boolean;
+  /** When true, the bullet (but not its layout slot) is hidden. */
+  hideBullet?: boolean;
   /** When true, the dot is dimmed until the bullet is hovered. */
   dimmed?: boolean;
   /** Spacing to the right of the bullet (default gives a standard block gap). */
@@ -93,6 +95,7 @@ export function Bullet({
   listSize,
   inPropertyEditor,
   documentMode,
+  hideBullet,
   dimmed,
   spacing = 'default',
   focusMode,
@@ -145,6 +148,12 @@ export function Bullet({
   
 
   
+  // Hidden bullet: keep the component API but render nothing (used for root blocks
+  // in contexts like text properties where the bullet is redundant chrome).
+  if (hideBullet) {
+    return null;
+  }
+
   const Tag = interactive ? 'button' : 'div' as const;
   const buttonProps = interactive ? { type: 'button' as const } : {};
 

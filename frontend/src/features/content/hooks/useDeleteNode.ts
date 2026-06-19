@@ -8,13 +8,17 @@ import * as nodesApi from '@/api/nodes';
 import type { Node } from '@/types/api';
 import { nodeKeys } from '@/hooks/queryKeys';
 import { nodeViewKeys } from './useNodeViews';
-import { getOperationRuntime } from '@/runtime';
-import { getNodeByServerId, getDescendants } from '@/runtime/graphHelpers';
-import { removeNodes } from '@/runtime/eventBus';
 import { removeFavorite, isFavorite } from './useFavorites';
 import { removeRecent } from './useRecents';
 import { useNavigationStore } from '@/stores/navigationStore';
-import { invalidateNodeCaches, findNodeInCache, hasTableClass } from './useNodeMutations.utils';
+import {
+  invalidateNodeCaches,
+  findNodeInCache,
+  hasTableClass,
+  getRuntimeBlockIdForServerId,
+  applyNodeIntent,
+} from './useNodeMutations.utils';
+import { waitForOperationAck } from '@/sync/waitForOperation';
 
 import {
   removeNodeFromAllCaches,
@@ -27,8 +31,12 @@ export function useDeleteNode() {
   const navigate = useNavigate();
   const { workspaceId } = useParams<{ workspaceId?: string }>();
 
-  return useMutation({
-    mutationFn: async (id: number): Promise<{ deletedNode: Node | undefined; tableCellInfo: { parentId: number; sequence: number } | null }> => {
+  return useMutation<
+    { deletedNode: Node | undefined; tableCellInfo: { parentId: number; sequence: number } | null },
+    Error,
+    number
+  >({
+    mutationFn: async (id: number) => {
       let nodeData = queryClient.getQueryData<Node>(nodeKeys.detail(id, {}));
       if (!nodeData) {
         nodeData = findNodeInCache(queryClient, id) ?? undefined;
@@ -50,7 +58,13 @@ export function useDeleteNode() {
         }
       }
 
-      await nodesApi.deleteNode(id);
+      const blockId = getRuntimeBlockIdForServerId(id);
+      if (blockId) {
+        const operationId = applyNodeIntent({ type: 'delete_block', blockId });
+        await waitForOperationAck(operationId);
+      } else {
+        await nodesApi.deleteNode(id);
+      }
 
       if (tableCellInfo) {
         await nodesApi.createNode({
@@ -90,17 +104,6 @@ export function useDeleteNode() {
       removeNodeFromAllCaches(queryClient, deletedId);
       removeNodeFromLinkedRefCaches(queryClient, deletedId);
       removeNodeFromPropertyBacklinkCaches(queryClient, deletedId);
-
-      // Immediately remove from runtime
-      const runtime = getOperationRuntime();
-      const graphNode = getNodeByServerId(runtime, deletedId);
-      if (graphNode) {
-        const descendants = getDescendants(runtime, graphNode.blockId);
-        removeNodes([
-          graphNode.blockId,
-          ...descendants.map(d => d.blockId),
-        ]);
-      }
     },
     onSuccess: async ({ deletedNode, tableCellInfo }, deletedId) => {
       const { useNavigationStore } = await import('@/stores');
@@ -142,46 +145,16 @@ export function useDeleteNode() {
       }
       removeRecent(deletedId);
 
-      queryClient.invalidateQueries({
-        queryKey: nodeKeys.lists(),
-        refetchType: 'none',
-      });
-      queryClient.invalidateQueries({
-        queryKey: nodeKeys.pages(),
-        refetchType: 'active',
-      });
-      queryClient.invalidateQueries({
-        queryKey: nodeKeys.allBacklinks(),
-        refetchType: 'none',
-      });
-      queryClient.invalidateQueries({
-        queryKey: nodeKeys.allLinkedRefs(),
-        refetchType: 'none',
-      });
-      queryClient.invalidateQueries({
-        queryKey: nodeKeys.pageContents(),
-        refetchType: 'none',
-      });
-      queryClient.invalidateQueries({
-        queryKey: nodeViewKeys.queryResults(),
-        refetchType: 'active',
-      });
-      queryClient.invalidateQueries({
-        queryKey: nodeKeys.pseudoNodeQuery(),
-        refetchType: 'active',
-      });
-      queryClient.invalidateQueries({
-        queryKey: nodeKeys.inlineQuery(),
-        refetchType: 'active',
-      });
-      queryClient.invalidateQueries({
-        queryKey: nodeKeys.graph(),
-        refetchType: 'none',
-      });
-      queryClient.invalidateQueries({
-        queryKey: nodeKeys.graphNodes(),
-        refetchType: 'none',
-      });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.lists(), refetchType: 'none' });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.pages(), refetchType: 'active' });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.allBacklinks(), refetchType: 'none' });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.allLinkedRefs(), refetchType: 'none' });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.pageContents(), refetchType: 'none' });
+      queryClient.invalidateQueries({ queryKey: nodeViewKeys.queryResults(), refetchType: 'active' });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.pseudoNodeQuery(), refetchType: 'active' });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.inlineQuery(), refetchType: 'active' });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.graph(), refetchType: 'none' });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.graphNodes(), refetchType: 'none' });
     },
   });
 }

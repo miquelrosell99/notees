@@ -55,6 +55,8 @@ interface BlockUIProps {
   listSize?: 'sm' | 'md';
   /** Whether this block is rendered inside a property text block editor. */
   inPropertyEditor?: boolean;
+  /** When true, the bullet itself is hidden (collapse arrow and presence still render). */
+  hideBullet?: boolean;
   /** Document mode: hide bullets and flatten chrome. */
   documentMode?: boolean;
 }
@@ -82,6 +84,7 @@ export function BlockUI({
   isGhost = false,
   listSize,
   inPropertyEditor,
+  hideBullet,
   documentMode,
 }: BlockUIProps): JSX.Element {
   const handleClick = () => {
@@ -142,6 +145,7 @@ export function BlockUI({
         isGhost={isGhost}
         listSize={listSize}
         inPropertyEditor={inPropertyEditor}
+        hideBullet={hideBullet}
         documentMode={documentMode}
         spacing="default"
         focusMode={isFocusMode}

@@ -1,76 +1,46 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import * as nodesApi from '@/api/nodes';
 import type { Node } from '@/types/api';
 import { nodeKeys } from '@/hooks/queryKeys';
 import { nodeViewKeys } from './useNodeViews';
 import { awaitAllContentSaves } from '@/hooks/contentSaveTracker';
-import { findNodeInCache } from './useNodeMutations.utils';
-import { updateNodeInTreeCaches, updateNodeInFlatCaches } from '@/hooks/cacheUtils';
-
+import {
+  findNodeInCache,
+  getRuntimeBlockIdForServerId,
+  applyNodeIntent,
+} from './useNodeMutations.utils';
+import { waitForOperationAck } from '@/sync/waitForOperation';
+import * as nodesApi from '@/api/nodes';
 
 /**
- * Hook to remove a class from a node
+ * Hook to remove a class from a node.
+ *
+ * The optimistic update is handled by OperationRuntime. SyncManager dispatches
+ * the API call and writes the result back to the cache.
  */
 export function useRemoveClass() {
   const queryClient = useQueryClient();
 
-  return useMutation({
-    mutationFn: async ({ nodeId, classId }: { nodeId: number; classId: number }) => {
+  return useMutation<Node | null, Error, { nodeId: number; classId: number }>({
+    mutationFn: async ({ nodeId, classId }) => {
       await awaitAllContentSaves();
-      return nodesApi.removeClass(nodeId, classId);
-    },
-    onMutate: async ({ nodeId, classId }) => {
-      await queryClient.cancelQueries({ queryKey: nodeKeys.detailBase(nodeId) });
 
-      let oldNode = queryClient.getQueryData<Node>(nodeKeys.detailBase(nodeId));
-      if (!oldNode) {
-        oldNode = findNodeInCache(queryClient, nodeId) ?? undefined;
+      const blockId = getRuntimeBlockIdForServerId(nodeId);
+      if (!blockId) {
+        return nodesApi.removeClass(nodeId, classId);
       }
 
-      const newClasses = oldNode?.classes?.filter((id: number) => id !== classId) ?? [];
-      const updates = { classes: newClasses };
-
-      queryClient.setQueriesData<Node>(
-        { queryKey: nodeKeys.detailBase(nodeId), exact: false },
-        (old) => old ? { ...old, ...updates } : old
-      );
-
-      updateNodeInTreeCaches(queryClient, nodeId, (node) => ({ ...node, ...updates }));
-      updateNodeInFlatCaches(queryClient, nodeId, (node) => ({ ...node, ...updates }));
-
-      return { oldNode };
+      const operationId = applyNodeIntent({
+        type: 'remove_class',
+        blockId,
+        classId: String(classId),
+      });
+      await waitForOperationAck(operationId);
+      return findNodeInCache(queryClient, nodeId);
     },
-    onError: (_err, { nodeId }, context) => {
-      if (context?.oldNode) {
-        const rollback = { classes: context.oldNode.classes };
-        queryClient.setQueriesData<Node>(
-          { queryKey: nodeKeys.detailBase(nodeId), exact: false },
-          (old) => old ? { ...old, ...rollback } : old
-        );
-        updateNodeInTreeCaches(queryClient, nodeId, (node) => ({ ...node, ...rollback }));
-        updateNodeInFlatCaches(queryClient, nodeId, (node) => ({ ...node, ...rollback }));
-      }
-    },
-    onSuccess: (updatedNode, { nodeId, classId }, context) => {
-      const oldNode = context?.oldNode;
+    onSuccess: (updatedNode, { nodeId, classId }) => {
+      if (!updatedNode) return;
 
-      const classUpdates = {
-        classes: updatedNode.classes,
-        is_page: updatedNode.is_page,
-        is_class: updatedNode.is_class,
-        is_daily: updatedNode.is_daily,
-        is_monthly: updatedNode.is_monthly,
-        is_yearly: updatedNode.is_yearly,
-        write_date: updatedNode.write_date,
-      };
-
-      queryClient.setQueriesData<Node>(
-        { queryKey: nodeKeys.detailBase(nodeId), exact: false },
-        (old) => old ? { ...old, ...classUpdates } : updatedNode
-      );
-
-      updateNodeInTreeCaches(queryClient, nodeId, (node) => ({ ...node, ...classUpdates }));
-      updateNodeInFlatCaches(queryClient, nodeId, (node) => ({ ...node, ...classUpdates }));
+      const oldNode = findNodeInCache(queryClient, nodeId);
 
       queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(nodeId) });
       queryClient.invalidateQueries({ queryKey: nodeKeys.pageContent(nodeId) });

@@ -31,6 +31,7 @@ import { Spinner } from '@/components/ui/Spinner';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
 import './SuggestionPopup.css';
 import { useNodeSearch, usePages, useClasses, type NodeSearchMode } from '@/features/content';
+import { useOverlaySurface } from '@/hooks/useOverlaySurface';
 import { parseQueryWithFilters } from '@/utils/searchFilters';
 import type { Node } from '@/types';
 import { NodeIcon, TagIcon, AddIcon, BulletIcon, CalendarIcon } from '@/components/ui/icons';
@@ -119,11 +120,20 @@ export function SuggestionPopup({
   const [adjustedPosition, setAdjustedPosition] = useState(position);
   const [displayLimit, setDisplayLimit] = useState(10);
 
-  // Trap focus (Tab/Escape) while the popup is presented as a modal, but do not
+  // Register with the global overlay stack so Escape closes this popup
+  // even when focus remains in the editor.
+  useOverlaySurface({
+    type: 'popup',
+    enabled: isOpen,
+    onClose,
+  });
+
+  // Trap focus (Tab) while the popup is presented as a modal, but do not
   // auto-focus so the user can keep typing in the editor input.
+  // Escape handling is owned by the global overlay stack.
   useFocusTrap(containerRef, {
     enabled: isOpen,
-    onEscape: onClose,
+    onEscape: undefined,
     autoFocus: false,
     restoreFocus: false,
   });
@@ -394,12 +404,6 @@ export function SuggestionPopup({
         break;
       }
         
-      case 'Escape':
-        e.preventDefault();
-        e.stopPropagation();
-        onClose();
-        break;
-        
       case 'Tab':
         e.preventDefault();
         e.stopPropagation();
@@ -416,7 +420,7 @@ export function SuggestionPopup({
       return lexicalEditor.registerCommand(
         KEY_DOWN_COMMAND,
         (event: KeyboardEvent) => {
-          const handledKeys = ['ArrowDown', 'ArrowUp', 'Enter', 'Escape', 'Tab'];
+          const handledKeys = ['ArrowDown', 'ArrowUp', 'Enter', 'Tab'];
           if (!handledKeys.includes(event.key)) return false;
           handleKeyDown(event);
           return true;
