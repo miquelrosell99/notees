@@ -42,6 +42,8 @@ from .links import router as links_router
 # Re-export models for external use
 from .models import (
     BacklinkResponse,
+    BatchGetNodesByUuidRequest,
+    BatchGetNodesByUuidResponse,
     BatchGetNodesRequest,
     BatchGetNodesResponse,
     BreadcrumbItem,
@@ -80,6 +82,8 @@ __all__ = [
     "_node_to_response",
     # Re-exported models
     "BacklinkResponse",
+    "BatchGetNodesByUuidRequest",
+    "BatchGetNodesByUuidResponse",
     "BatchGetNodesRequest",
     "BatchGetNodesResponse",
     "BreadcrumbItem",

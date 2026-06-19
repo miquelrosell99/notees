@@ -1261,10 +1261,52 @@ class PostgresPropertyRepository(BasePostgresRepository, PropertyRepository):
                 JOIN property p ON p.id = pvr.property_id
                 WHERE pvr.target_id = ANY($1)
                   AND p.type = 'text'
+                  AND p.workspace_id = $2
             """,
                 target_ids,
+                self._workspace_id,
             )
             return {row["target_id"] for row in rows}
+
+    async def get_text_property_contexts_for_targets(
+        self, target_ids: list[int]
+    ) -> dict[int, list[dict[str, Any]]]:
+        """For each target node ID, return the text-property relations that reference it.
+
+        Returns:
+            {target_id -> [{'property_id': int, 'property_name': str,
+            'property_icon': str | None, 'node_id': int}, ...]}
+        """
+        result: dict[int, list[dict[str, Any]]] = {}
+        if not target_ids:
+            return result
+
+        async with acquire_connection(self._pool) as conn:
+            rows = await conn.fetch(
+                """
+                SELECT DISTINCT pvr.target_id, pvr.node_id, p.id AS property_id,
+                       p.name AS property_name, p.icon AS property_icon
+                FROM property_value_relation pvr
+                JOIN property p ON p.id = pvr.property_id
+                WHERE pvr.target_id = ANY($1)
+                  AND p.type = 'text'
+                  AND p.workspace_id = $2
+                ORDER BY pvr.target_id, p.name
+            """,
+                target_ids,
+                self._workspace_id,
+            )
+            for row in rows:
+                target_id = row["target_id"]
+                result.setdefault(target_id, []).append(
+                    {
+                        "property_id": row["property_id"],
+                        "property_name": row["property_name"],
+                        "property_icon": row["property_icon"],
+                        "node_id": row["node_id"],
+                    }
+                )
+            return result
 
     async def clear_all_property_values(self, node_id: int, property_id: int) -> None:
         """Clear all values for a property on a node (but keep the assignment)."""

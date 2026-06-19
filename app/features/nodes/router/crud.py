@@ -5,7 +5,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request
 from fastapi_limiter.depends import RateLimiter
-from pyrate_limiter import Duration, Limiter, Rate
+from pyrate_limiter import Duration
 
 from app.dependencies import get_current_user, get_property_repository
 from app.domain.entities import NodeCreateData, NodeUpdateData
@@ -17,6 +17,7 @@ from app.features.properties.port import PropertyRepository
 from app.features.shares.dependencies import _get_share_service
 from app.logging_config import get_logger
 from app.models import PaginatedResponse, User
+from app.rate_limit import per_ip_limiter
 
 from .helpers import (
     _build_node_detail_response,
@@ -48,7 +49,7 @@ from .models import (
 
 logger = get_logger(__name__)
 
-_crud_limiter = Limiter(Rate(120, Duration.MINUTE))
+_crud_limiter = per_ip_limiter(120, Duration.MINUTE)
 router = APIRouter()
 
 
@@ -487,6 +488,8 @@ async def get_node_breadcrumbs(
                 icon=item["icon"],
                 is_page=item["is_page"],
                 parent_locked=item["parent_locked"],
+                is_property=item.get("is_property", False),
+                property_id=item.get("property_id"),
             )
             for item in breadcrumb_items
         ]

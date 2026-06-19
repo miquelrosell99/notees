@@ -273,6 +273,17 @@ class PropertyRepository(ABC):
         pass
 
     @abstractmethod
+    async def get_text_property_contexts_for_targets(
+        self, target_ids: list[int]
+    ) -> dict[int, list[dict[str, Any]]]:
+        """For each target node ID, return the text-property relations that reference it.
+
+        Returns a mapping of target_id -> list of dicts with keys:
+        property_id, property_name, property_icon, node_id.
+        """
+        pass
+
+    @abstractmethod
     async def clear_all_property_values(self, node_id: int, property_id: int) -> None:
         """Clear all values for a property on a node (but keep the assignment)."""
         pass

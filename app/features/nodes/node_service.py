@@ -1890,6 +1890,15 @@ class NodeService:
 
         breadcrumb_nodes = await self.get_node_breadcrumbs(breadcrumb_target_id)
 
+        # Discover text-property value blocks in the ancestor chain so the
+        # breadcrumb path can show the owning property as a pseudo-block.
+        ancestor_ids = [n.id for n in breadcrumb_nodes if n.id is not None and n.id != breadcrumb_target_id]
+        text_prop_contexts: dict[int, list[dict[str, Any]]] = {}
+        if ancestor_ids:
+            text_prop_contexts = await self._property_repo.get_text_property_contexts_for_targets(
+                ancestor_ids
+            )
+
         link_node_uuids: set[str] = set()
         for breadcrumb_node in breadcrumb_nodes:
             if breadcrumb_node.name:
@@ -1927,6 +1936,25 @@ class NodeService:
         for breadcrumb_node in breadcrumb_nodes:
             if breadcrumb_node.id == breadcrumb_target_id:
                 continue
+
+            # Insert a property pseudo-block before any ancestor that is a
+            # text-property value block.
+            contexts = text_prop_contexts.get(breadcrumb_node.id or 0)
+            if contexts:
+                ctx = contexts[0]
+                items.append(
+                    {
+                        "id": ctx["property_id"],
+                        "name": ctx["property_name"],
+                        "display_name": ctx["property_name"],
+                        "icon": ctx["property_icon"],
+                        "is_page": False,
+                        "parent_locked": False,
+                        "is_property": True,
+                        "property_id": ctx["property_id"],
+                    }
+                )
+
             raw_name = breadcrumb_node.name or ""
             display = stringify_ast(parse_ast(raw_name), opts)
             items.append(
@@ -1937,6 +1965,8 @@ class NodeService:
                     "icon": breadcrumb_node.icon,
                     "is_page": breadcrumb_node.is_page,
                     "parent_locked": breadcrumb_node.parent_locked,
+                    "is_property": False,
+                    "property_id": None,
                 }
             )
 

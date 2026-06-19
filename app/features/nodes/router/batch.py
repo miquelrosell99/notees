@@ -21,6 +21,8 @@ from .helpers import (
     extract_properties_dict,
 )
 from .models import (
+    BatchGetNodesByUuidRequest,
+    BatchGetNodesByUuidResponse,
     BatchGetNodesRequest,
     BatchGetNodesResponse,
     BatchNodeCreateRequest,
@@ -387,3 +389,63 @@ async def batch_get_nodes(
         result[str(nid)] = response
 
     return BatchGetNodesResponse(nodes=result)
+
+
+@router.post("/batch-get-by-uuid", name="batch_get_nodes_by_uuid")
+async def batch_get_nodes_by_uuid(
+    request: BatchGetNodesByUuidRequest,
+    user: User = Depends(get_current_user),
+    link_repo: LinkRepository = Depends(get_link_repository),
+):
+    """Fetch multiple nodes by UUID in a single call.
+
+    Returns a dictionary of node_uuid -> NodeResponse for all found nodes.
+    Missing or inaccessible nodes are silently omitted.
+    Includes tags, classes, backlink counts, and optionally properties for each node.
+
+    This is much more efficient than making N individual GET /nodes/uuid/{uuid}
+    requests, especially for views that render many inline links at once.
+    """
+    service = await _get_node_service(user)
+
+    uuid_to_node = await service.get_nodes_by_uuids(request.uuids)
+    nodes = list(uuid_to_node.values())
+
+    if not nodes:
+        return BatchGetNodesByUuidResponse(nodes={})
+
+    node_ids = [n.id for n in nodes if n.id is not None]
+
+    # Batch-fetch metadata for all nodes in parallel
+    class_map = await _get_class_ids_batch(service, node_ids)
+    tag_map = await _get_related_ids_batch(service, node_ids, "tags")
+
+    # Batch-fetch backlink counts
+    backlink_counts: dict[int, int] = {}
+    if node_ids:
+        backlink_counts = await link_repo.get_backlink_counts(node_ids)
+
+    # Batch-fetch properties if requested
+    node_properties_map: dict[int, dict[str, Any]] = {}
+    if request.include_properties and node_ids:
+        batch_result = await service.get_nodes_properties_batch(node_ids)
+        for nid, prop_data in batch_result.items():
+            node_properties_map[nid] = extract_properties_dict(prop_data)
+
+    # Build response dict keyed by UUID
+    result: dict[str, NodeResponse] = {}
+    for node in nodes:
+        if node.id is None:
+            continue
+        nid = node.id
+        response = _node_to_response(
+            node,
+            tags=tag_map.get(nid, []),
+            classes=class_map.get(nid, []),
+            backlink_count=backlink_counts.get(nid, 0),
+        )
+        if request.include_properties and nid in node_properties_map:
+            response.properties = node_properties_map[nid]
+        result[node.uuid] = response
+
+    return BatchGetNodesByUuidResponse(nodes=result)
