@@ -94,6 +94,10 @@ interface BlockListProps {
   listSize?: 'sm' | 'md';
   /** Whether this list is rendered inside a property text block editor. */
   inPropertyEditor?: boolean;
+  /** When false, hide the trailing "new block" pseudo block (default: true). */
+  showNewBlock?: boolean;
+  /** When true, hide the bullet on the root/top-level blocks only. */
+  hideRootBullet?: boolean;
   /** Document mode: hide bullets and flatten chrome. */
   documentMode?: boolean;
   /** When true, removes vertical padding so the list sits flush in a container. */
@@ -125,6 +129,8 @@ export function BlockList({
   inCard = false,
   listSize,
   inPropertyEditor = false,
+  showNewBlock = true,
+  hideRootBullet = false,
   documentMode = false,
   flush = false,
 }: BlockListProps): JSX.Element {
@@ -136,6 +142,7 @@ export function BlockList({
     nodeId,
     nodeUuid,
     readOnly,
+    showNewBlock,
   });
 
   const blockIds = useMemo(() => flatNodes.filter((n) => !n.isGhost).map((n) => n.node.uuid), [flatNodes]);
@@ -421,28 +428,71 @@ export function BlockList({
 
   const enableVirtualization = flatNodes.length > 30;
 
-  const scrollElementRef = useRef<HTMLElement | null>(null);
+  // Locate the nearest scrollable ancestor. This is stored in state (not a ref)
+  // so that the virtualizer re-subscribes when the element becomes available.
+  const [scrollElement, setScrollElement] = useState<HTMLElement | null>(null);
   useLayoutEffect(() => {
     if (!containerRef.current) return;
     let el: HTMLElement | null = containerRef.current;
     while (el) {
       const style = window.getComputedStyle(el);
       if (/(auto|scroll)/.test(style.overflow + style.overflowY + style.overflowX)) {
-        scrollElementRef.current = el;
+        setScrollElement(el);
         return;
       }
       el = el.parentElement;
     }
-    scrollElementRef.current = null;
+    setScrollElement(null);
   }, []);
+
+  // The virtual list sits inside a scrollable ancestor (e.g. .main-content) that
+  // has other content above it. TanStack Virtual assumes the list starts at
+  // scrollTop 0 of that ancestor, so we must tell it the real offset of the
+  // virtual list container within the scroll element.
+  const innerContainerRef = useRef<HTMLDivElement>(null);
+  const [scrollMargin, setScrollMargin] = useState(0);
+
+  const recomputeScrollMargin = useCallback(() => {
+    const scrollEl = scrollElement;
+    const innerEl = innerContainerRef.current;
+    if (!scrollEl || !innerEl) {
+      setScrollMargin(0);
+      return;
+    }
+    const scrollRect = scrollEl.getBoundingClientRect();
+    const innerRect = innerEl.getBoundingClientRect();
+    const margin = Math.round(innerRect.top - scrollRect.top + scrollEl.scrollTop);
+    setScrollMargin(Math.max(0, margin));
+  }, [scrollElement]);
+
+  useLayoutEffect(() => {
+    recomputeScrollMargin();
+  }, [recomputeScrollMargin, flatNodes.length, enableVirtualization]);
+
+  useEffect(() => {
+    const handleResize = () => recomputeScrollMargin();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [recomputeScrollMargin]);
+
+  useEffect(() => {
+    const innerEl = innerContainerRef.current;
+    const scrollEl = scrollElement;
+    if (!innerEl || !scrollEl || typeof ResizeObserver === 'undefined') return;
+
+    const observer = new ResizeObserver(() => recomputeScrollMargin());
+    observer.observe(innerEl);
+    observer.observe(scrollEl);
+    return () => observer.disconnect();
+  }, [recomputeScrollMargin, scrollElement]);
 
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Virtual's `useVirtualizer()` API returns non-memoized functions by design.
   const virtualizer = useVirtualizer({
     count: flatNodes.length,
-    getScrollElement: () => scrollElementRef.current,
-    estimateSize: () => 32,
+    getScrollElement: () => scrollElement,
+    estimateSize: () => 36,
     overscan: 10,
-    scrollPaddingEnd: 80,
+    scrollMargin,
     enabled: enableVirtualization,
   });
 
@@ -514,7 +564,7 @@ export function BlockList({
             virtualItems={virtualItems.map((vi) => ({ index: vi.index, start: vi.start, end: vi.end }))}
             onLineClick={handleOverlayLineClick}
           />
-          <div style={{ position: 'relative', height: `${totalSize}px` }}>
+          <div ref={innerContainerRef} style={{ position: 'relative', height: `${totalSize}px` }}>
           {virtualItems.map((virtualRow) => {
             const { node, depth, effectiveCollapsed, isGhost } = flatNodes[virtualRow.index];
             return (
@@ -556,6 +606,7 @@ export function BlockList({
                   inCard={inCard}
                   listSize={listSize}
                   inPropertyEditor={inPropertyEditor}
+                  hideBullet={hideRootBullet && depth === 0}
                   documentMode={documentMode}
                   onEnter={handleEnter}
                   onBackspaceAtStart={handleBackspaceAtStart}
@@ -604,6 +655,7 @@ export function BlockList({
             inCard={inCard}
             listSize={listSize}
             inPropertyEditor={inPropertyEditor}
+            hideBullet={hideRootBullet && depth === 0}
             documentMode={documentMode}
             onEnter={handleEnter}
             onBackspaceAtStart={handleBackspaceAtStart}
