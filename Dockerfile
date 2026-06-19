@@ -18,23 +18,23 @@ RUN npm install
 # Copy frontend source
 COPY frontend/ ./
 
-# Build frontend (outputs to ../app/static/dist as per vite.config.ts)
-# We need to adjust the output for Docker context
+# Build frontend (outputs to ./dist; copied into the backend image below)
 RUN npm run build -- --outDir ./dist
 
 # ==========================================
 # Stage 2: Production Backend
 # ==========================================
-FROM python:3.13-slim@sha256:c33f0bc4364a6881bed1ec0cc2665e6c53c87a43e774aaeab88e6f17af105e4f AS production
+FROM ghcr.io/astral-sh/uv:python3.13-bookworm AS production
 
 # Set environment variables
-ENV PYTHONDONTWRITEBYTECODE=1 \
+ENV PYTHONDONTWRYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PYTHONPATH=/app
+    PYTHONPATH=/app \
+    UV_COMPILE_BYTECODE=1
 
 WORKDIR /app
 
-# Install system dependencies
+# Install system dependencies required by WeasyPrint and runtime utilities
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpango-1.0-0 \
     libpangoft2-1.0-0 \
@@ -48,9 +48,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libc6-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements and install Python dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Copy dependency metadata and install production dependencies
+COPY uv.lock pyproject.toml ./
+RUN uv sync --frozen --no-dev
 
 # Copy application code
 COPY app/ ./app/
@@ -61,6 +61,11 @@ COPY --from=frontend-builder /app/frontend/dist ./app/static/dist
 # Create data and logs directories
 RUN mkdir -p /app/data /app/logs
 
+# Ensure the runtime user can read the app and execute venv binaries
+RUN chmod -R a+r /app \
+    && find /app -type d -exec chmod a+x {} + \
+    && chmod -R a+x /app/.venv/bin
+
 # Copy entrypoint script
 COPY docker-entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
@@ -70,7 +75,7 @@ EXPOSE 8000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/auth/status')" || exit 1
+    CMD /app/.venv/bin/python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/auth/status')" || exit 1
 
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["/app/.venv/bin/uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -37,7 +37,7 @@ Notees implements the following security controls:
 
 Dependencies are audited automatically:
 
-- Backend: `pip-audit --requirement requirements.txt`
+- Backend: `uv run pip-audit` (after `uv sync --no-dev` and `uv pip install pip-audit`)
 - Frontend: `npm audit`
 - Dead code / unused exports: `npx knip`
 
