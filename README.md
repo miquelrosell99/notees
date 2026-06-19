@@ -25,11 +25,12 @@ This project was developed with the assistance of AI tools. AI was used througho
 
 ## Quick Start
 
-**Notees is deployed via Docker** for both development and production. There is no bare-metal or native deployment path.
+Notees is developed and deployed with **Docker Compose**. The development stack runs backend, frontend, PostgreSQL, and Redis in containers with hot-reload.
 
 ### Prerequisites
 
-- Docker & Docker Compose
+- [Docker & Docker Compose](https://docs.docker.com/compose/)
+- [Task](https://taskfile.dev/installation/) (optional but recommended) — dev task runner
 
 ### Development
 
@@ -38,12 +39,17 @@ This project was developed with the assistance of AI tools. AI was used througho
 cp .env.example .env
 # Edit .env and set a secure SECRET_KEY!
 
-# Start backend, frontend, and PostgreSQL
-docker compose up
+# Build and run the full development stack
+task dev
 
-# The frontend dev server runs on http://localhost:5173
-# The backend API runs on http://localhost:8000
+# Or without Task:
+# docker compose -f compose.dev.yaml up
 ```
+
+- Frontend: http://localhost:5173
+- Backend API: http://localhost:8001
+
+> Note: development services use non-default host ports (`8001` for the backend, `5433` for PostgreSQL, and `6380` for Redis) so Notees can coexist with other local services.
 
 ### Production
 
@@ -52,16 +58,23 @@ docker compose up
 cp .env.example .env
 # Edit .env and set a secure SECRET_KEY!
 
-# Build and run the production image
+# Build the production image (frontend + backend)
 docker build -t notees .
+
+# Run it
 docker run -p 8000:8000 --env-file .env notees
+
+# Or deploy with Docker Compose (uses the released image by default)
+export TAG=latest
+docker compose up -d
 ```
 
 **Docker files:**
 - `Dockerfile` — Production multi-stage build (builds frontend + backend)
 - `Dockerfile.dev` — Development backend with hot-reload
 - `frontend/Dockerfile.dev` — Development frontend build stage
-- `compose.yaml` — Development deployment (backend + frontend + PostgreSQL)
+- `compose.yaml` — Production deployment
+- `compose.dev.yaml` — Development deployment (backend + frontend + PostgreSQL + Redis)
 - `.dockerignore` — Files to exclude from Docker builds
 
 ## Project Structure
@@ -90,21 +103,42 @@ notees/
 
 ## Development
 
-### Backend
+### Full Stack (Docker Compose — Recommended)
 
 ```bash
-# Run tests (inside Docker or with local PostgreSQL)
-pytest tests/ -v
+# Copy environment file and configure
+cp .env.example .env
+# Edit .env and set SECRET_KEY and POSTGRES_PASSWORD
+
+# Build and run backend + frontend + Postgres + Redis
+task dev
+
+# Run tests inside the backend container
+docker compose -f compose.dev.yaml exec backend uv run pytest tests/ -m "not slow" --no-cov -v
+```
+
+### Backend
+
+Inside the running backend container:
+
+```bash
+docker compose -f compose.dev.yaml exec backend bash
+
+# Run tests
+uv run pytest tests/ -m "not slow" --no-cov -v
+
+# Lint
+uv run ruff check app/
 ```
 
 ### Frontend
 
+Inside the running frontend container:
+
 ```bash
-cd frontend
+docker compose -f compose.dev.yaml exec frontend sh
 
-# Development server with hot reload
-npm run dev
-
+# Development server (already running via compose)
 # Type checking
 npm run typecheck
 
@@ -114,6 +148,27 @@ npm run build
 # Linting
 npm run lint
 ```
+
+### Local Development (Alternative)
+
+If you prefer to run backend/frontend directly on your host:
+
+```bash
+# Install local dependencies
+uv sync --all-groups
+cd frontend && npm install
+
+# Start only Postgres and Redis in Docker
+docker compose -f compose.dev.yaml up postgres redis -d
+
+# Terminal 1 — backend
+uv run uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload --reload-dir app
+
+# Terminal 2 — frontend
+cd frontend && npm run dev
+```
+
+For local development you also need the PostgreSQL 17 client (`pg_dump`) installed on your host.
 
 ## Architecture
 

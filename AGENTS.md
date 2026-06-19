@@ -32,11 +32,11 @@ Key features:
 - **Zustand Selectors**: Avoid large store destructurings. Use per-field selectors or focused selector hooks (e.g., `features/layout/hooks/useNavigationSelectors.ts`).
 - **Secret Key**: `SECRET_KEY` is mandatory (>= 32 chars). The app will not start without it.
 - **Node Model**: Everything is a `node` (pages, blocks, tags, properties, journals, tasks). Differentiation is via boolean flags (`is_page`, `is_task`, etc.) that are kept in sync with system class assignments.
-- **Dev vs. Prod**: Dev PostgreSQL settings (`fsync=off`, etc.) in `compose.yaml` must never be used in production.
+- **Dev vs. Prod**: Development infrastructure settings in `compose.dev.yaml` must never be used in production.
 - **Technical Excellence**: Always take the technically best path, not the simpler path. Proper extraction, clean interfaces, and type safety take precedence over minimal diff size.
 - **Root Causes Over Hacks**: Always fix root causes instead of adding defensive workarounds. If a symptom points to a deeper architectural issue (stale state, lifecycle mismatches, incorrect boundaries), refactor the underlying cause rather than patching around it.
 - **Fix Bad Data at the Source**: If a bug is caused by incorrect data in the database or schema, fix the data and add a migration — never add frontend/backend "backward compatibility" code to tolerate bad data.
-- **Docker-first**: Development and production are both Docker-based. Local venv setup is possible but not the supported path.
+- **Docker-first development**: Backend, frontend, PostgreSQL, and Redis run via `compose.dev.yaml` in development. Local development without Docker is supported as an alternative.
 
 > Generic engineering principles (code style, import grouping, testing discipline, accessibility, performance, security patterns) are covered by the skills listed under [Skill References](#skill-references).
 
@@ -53,12 +53,9 @@ Key features:
 
 - **Multi-file changes**: If a task touches more than 2–3 files, spans both frontend and backend, or changes interfaces/schemas, use **plan mode** (`EnterPlanMode`) and get user approval before writing code.
 - **Always verify**: After code changes, run the relevant linter/test suite before finishing.
-  - Backend: `ruff check app/`; run tests inside the backend Docker container (see [Testing Strategy](#testing-strategy)).
+  - Backend: `uv run ruff check app/` and `uv run pytest tests/ -m "not slow" --no-cov` (assumes services are up; see [Testing Strategy](#testing-strategy)).
   - Frontend: `cd frontend && npm run lint` and `npx tsc -b --noEmit`.
 - **Fix all test failures**: If tests fail after your changes — even failures that appear unrelated to your task — you must fix them before finishing. Do not leave the test suite broken.
-- **Prefer minimal changes**: Do not refactor unrelated code. Follow the existing file's style, even if it differs slightly from the general guidelines.
-
----
 
 ## Technology Stack
 
@@ -85,7 +82,7 @@ Key features:
 | Frontend | @dnd-kit | latest | Drag & drop |
 | Frontend | sql.js | 1.14.0 | In-browser SQLite (WASM) |
 | Mobile | Kotlin + Android SDK | 36 (minSdk 26) | WebView wrapper app |
-| Containerization | Docker + Docker Compose | — | Deployment |
+| Containerization | Docker + Docker Compose | — | Production deployment and local development stack |
 
 ---
 
@@ -196,11 +193,12 @@ notees/
 ├── scripts/                      # Utility scripts
 ├── data/                         # User data, assets, backups (gitignored)
 ├── logs/                         # Application logs (gitignored)
-├── compose.yaml                  # Docker Compose (development)
+├── compose.yaml                  # Docker Compose (production)
+├── compose.dev.yaml              # Docker Compose (development services: PostgreSQL + Redis)
 ├── Dockerfile                    # Production multi-stage build
-├── Dockerfile.dev                # Development backend with hot-reload
-├── requirements.txt              # Python dependencies
-├── pyproject.toml                # Build system, Ruff, mypy config
+├── Taskfile.yml                  # Common development tasks
+├── uv.lock                       # Python dependency lockfile
+├── pyproject.toml                # Python project metadata, Ruff, mypy config
 ├── pytest.ini                   # Pytest configuration
 └── .env.example                  # Example environment variables
 ```
@@ -338,7 +336,8 @@ The fleet migration resolved the high-severity performance issues. The remaining
 - **Gantt label pane is virtualized**: Only visible label rows are rendered in the DOM. The canvas right pane still draws every bar; with the 500-node cap this is acceptable.
 - **Timeline is event-driven**: The permanent `requestAnimationFrame` loop was removed; canvas renders are triggered by dependency changes. Event hit-testing uses an x-sorted spatial index for O(log n) lookups.
 - **Exports are asynchronous jobs**: `POST /export` and `GET /export/{uuid}` return `{job_id}`. Callers must poll `GET /export/jobs/{job_id}` and download from `GET /export/jobs/{job_id}/download`. Jobs are stored in memory and results are written to `data/exports`; they do not survive a backend restart.
-- **Tests are bind-mounted in development**: `compose.yaml` mounts `./tests:/app/tests` and `./pytest.ini:/app/pytest.ini`, so tests can be run without `docker cp`.
+
+---
 
 ---
 
@@ -346,64 +345,76 @@ The fleet migration resolved the high-severity performance issues. The remaining
 
 ### Prerequisites
 - Docker & Docker Compose
+- [Task](https://taskfile.dev/) — task runner (optional but recommended)
 
-### Full Stack (Docker Compose — Recommended)
+### Quick Start (Docker Compose — Recommended)
 
 ```bash
 # Copy and configure environment
 cp .env.example .env
 # Edit .env and set SECRET_KEY and Postgres credentials
 
-# Start backend, frontend, and PostgreSQL
-docker compose up
+# Build and run the full development stack
+# (backend + frontend + PostgreSQL + Redis with hot-reload)
+task dev
 
-# The frontend dev server runs on http://localhost:5173
-# The backend API runs on http://localhost:8000
+# Or without Task:
+# docker compose -f compose.dev.yaml up
 ```
 
-### Backend (local debugging only)
+- Frontend: http://localhost:5173
+- Backend API: http://localhost:8001
+
+> Note: development services use non-default host ports (`8001` for the backend, `5433` for PostgreSQL, and `6380` for Redis) so Notees can coexist with other local services.
+
+### Inside the containers
+
+Backend tests:
 
 ```bash
-# Not the recommended path — use Docker Compose instead
-pip install -r requirements.txt
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+docker compose -f compose.dev.yaml exec backend uv run pytest tests/ -m "not slow" --no-cov -v
 ```
 
-### Frontend
+Frontend lint/typecheck:
 
 ```bash
-cd frontend
-
-# Install dependencies
-npm install
-
-# Development server with hot reload (port 5173)
-npm run dev
-
-# Type check
-npm run typecheck   # tsc -b
-
-# Production build (outputs to ../app/static/dist)
-npm run build
-
-# Preview production build
-npm run preview
-
-# Linting
+docker compose -f compose.dev.yaml exec frontend sh
 npm run lint
 ```
 
-### Production Docker Build
+### Local Development (Alternative)
+
+If you prefer to run backend/frontend directly on your host:
+
+```bash
+# Install local dependencies
+uv sync --all-groups
+cd frontend && npm install
+
+# Start only Postgres and Redis in Docker
+docker compose -f compose.dev.yaml up postgres redis -d
+
+# Terminal 1 — backend
+uv run uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload --reload-dir app
+
+# Terminal 2 — frontend
+cd frontend && npm run dev
+```
+
+For local development you also need the PostgreSQL 17 client (`pg_dump`) installed on your host.
+
+### Production Docker
 
 ```bash
 # Multi-stage build (builds frontend + backend image)
 docker build -t notees .
-```
 
-### Production Docker Run
-
-```bash
+# Run it
 docker run -p 8000:8000 --env-file .env notees
+
+# Or deploy with Docker Compose
+export TAG=latest
+docker compose up -d
 ```
 
 ### Mobile
@@ -414,8 +425,6 @@ cd mobile
 ```
 The debug keystore is checked into the repo intentionally (it is not a secret).
 
----
-
 ## Testing Strategy
 
 > Generic testing discipline is covered by `fastapi-patterns` and `react-ui-patterns`. The commands and project-specific setup below are Notees-specific.
@@ -424,9 +433,8 @@ The debug keystore is checked into the repo intentionally (it is not a secret).
 
 Tests are in `tests/` and use **pytest** with async support. Unit tests in
 `tests/unit/` run in-memory with fake repositories/ports and do not require
-Docker or PostgreSQL. Integration and slow tests that exercise the HTTP client
-and database **must be run inside the backend Docker container** against the
-existing PostgreSQL service.
+Docker or PostgreSQL. Integration tests run against the PostgreSQL container
+started by `compose.dev.yaml`.
 
 #### Test tiers
 
@@ -434,33 +442,37 @@ Use these tiers during development and CI:
 
 ```bash
 # Fast unit tests (no Docker, no DB)
-pytest tests/unit -m unit --no-cov
+uv run pytest tests/unit -m unit --no-cov
 
-# Integration tests excluding slow
-pytest tests/ -m "not slow" --no-cov
+# Integration tests excluding slow (run inside the backend container)
+docker compose -f compose.dev.yaml exec backend uv run pytest tests/ -m "not slow" --no-cov
 
-# Full suite with coverage (CI)
-pytest tests/
+# Full suite with coverage (run inside the backend container)
+docker compose -f compose.dev.yaml exec backend uv run pytest tests/
 ```
 
 > Prefer unit tests for domain-service behavior. Use integration tests for
 > endpoint contracts and cross-layer concerns. Mark slow tests with
 > `@pytest.mark.slow`.
 
-#### Docker-based integration run
+#### Integration run inside the dev container
 
 ```bash
-# 1. Ensure the dev stack is running (bind-mounts tests/ and pytest.ini)
-docker compose up -d
+# 1. Ensure the dev stack is running
+docker compose -f compose.dev.yaml up -d
 
 # 2. Create the test database (one-time setup)
-docker exec notees-postgres-dev psql -U notees -c "CREATE DATABASE notees_test;"
+docker compose -f compose.dev.yaml exec postgres psql -U notees -c "CREATE DATABASE notees_test;"
 
-# 3. Install test dependencies inside the backend container
-docker exec notees-backend-dev pip install pytest==7.4.4 pytest-asyncio==0.23.3 pytest-cov httpx==0.26.0 testcontainers
+# 3. Run integration tests inside the backend container
+#    (it connects to the postgres service automatically)
+docker compose -f compose.dev.yaml exec backend uv run pytest tests/ -m "not slow" -p no:cacheprovider --no-cov -v
+```
 
-# 4. Run integration tests using the existing postgres container (use --no-cov to avoid coverage overhead)
-docker exec -e TEST_DATABASE_URL=postgresql://notees:YOUR_PASSWORD@postgres:5432/notees_test notees-backend-dev pytest tests/ -m "not slow" -p no:cacheprovider --no-cov -v
+If you run tests locally instead of inside the container, set `TEST_DATABASE_URL`:
+
+```bash
+TEST_DATABASE_URL=postgresql://notees:YOUR_PASSWORD@localhost:5433/notees_test uv run pytest tests/ -m "not slow" -p no:cacheprovider --no-cov -v
 ```
 
 **Test configuration (`pytest.ini`):**
@@ -475,12 +487,6 @@ docker exec -e TEST_DATABASE_URL=postgresql://notees:YOUR_PASSWORD@postgres:5432
 - `test_user`: Creates a unique test user + workspace and returns auth token.
 - `client` / `authenticated_client`: `httpx.AsyncClient` against the FastAPI ASGI app.
 - `node_repository`, `property_repository`, `link_repository`, `node_service`: Domain-layer fixtures wired to the test DB.
-
-**Why Docker for tests?**
-The backend has native dependencies that are installed inside the `Dockerfile.dev` image. Running `pytest` directly on the host or in a local venv may fail with `ModuleNotFoundError`. Always run tests inside the `notees-backend-dev` container.
-
-**Alternative test database:**
-Set `TEST_DATABASE_URL` to use an external PostgreSQL instance instead of the compose postgres service.
 
 ### Frontend Tests
 
@@ -555,7 +561,7 @@ gh workflow run release.yml --ref main -f tag=v0.2.0
 
 ### Deploying a release
 
-Use `compose.prod.yaml` for production deployments. It consumes the released image and uses named Docker volumes instead of bind-mounts.
+Use `compose.yaml` for production deployments. It consumes the released image and uses named Docker volumes instead of bind-mounts.
 
 ```bash
 # Copy and edit environment variables
@@ -564,10 +570,10 @@ cp .env.example .env
 
 # Pull and run the released version
 export TAG=v0.2.0
-docker compose -f compose.prod.yaml up -d
+docker compose up -d
 ```
 
-Do **not** use `compose.yaml` in production: it mounts source code, exposes the Vite dev server, and is optimized for local development.
+Do **not** use `compose.dev.yaml` in production: it only brings up infrastructure services and is optimized for local development.
 
 ### Local release verification
 
@@ -662,12 +668,13 @@ See `.env.example` for the full template.
 
 > Generic self-hosting patterns (Docker Compose, multi-stage Dockerfile, env files, health checks, update workflow) are covered by `selfhost-release`. Notees-specific commands and warnings are below.
 
-**Notees is deployed via Docker** for both development and production environments. There is no bare-metal or native deployment path; all runtime dependencies (Python, Node.js, PostgreSQL) are containerized.
+**Notees is deployed via Docker** for both development and production. The development stack (`compose.dev.yaml`) runs backend, frontend, PostgreSQL, and Redis with hot-reload. Production uses the released image via `compose.yaml`.
 
 ### Docker Compose (Development)
 
-The included `compose.yaml` brings up:
-- `postgres`: PostgreSQL 17 (with `fsync=off`, `synchronous_commit=off`, `full_page_writes=off` for dev speed — **never use in production**)
+The included `compose.dev.yaml` brings up:
+- `postgres`: PostgreSQL 17
+- `redis`: Redis 7 for real-time collaboration pub/sub
 - `backend`: FastAPI with hot-reload, mounted source volumes
 - `frontend`: Vite dev server on port 5173, proxying `/api` to the backend
 
@@ -675,7 +682,7 @@ The included `compose.yaml` brings up:
 
 `Dockerfile` is a multi-stage build:
 1. **Stage 1**: `node:22-alpine` builds the frontend.
-2. **Stage 2**: `python:3.13-slim` runs the backend with the built frontend copied into `app/static/dist`.
+2. **Stage 2**: `ghcr.io/astral-sh/uv:python3.13-bookworm` runs the backend with the built frontend copied into `app/static/dist`.
 
 System dependencies in the production image include `libpango`, `libcairo2`, `fonts-liberation`, `libffi-dev`, and `libgdk-pixbuf` for WeasyPrint PDF generation. The container runs as non-root `appuser`, exposes port 8000, and has a healthcheck on `/api/auth/status`.
 
@@ -876,7 +883,7 @@ Notees is a calm, writing-first knowledge workspace. Its visual identity is defi
 
 - **Do not** use `pool.acquire()` directly in domain services or routers. Use `get_connection()` or `get_transaction()` from `app.db.connection`.
 - **Do not** forget to set `SECRET_KEY` before running. The app will crash at startup with a clear validation error.
-- **Do not** run the dev PostgreSQL settings (`fsync=off`, `synchronous_commit=off`, `full_page_writes=off`) in production. They are explicitly set only in `compose.yaml`.
+- **Do not** run the dev PostgreSQL settings (`fsync=off`, `synchronous_commit=off`, `full_page_writes=off`) in production. They are explicitly set only in `compose.dev.yaml`.
 - **Do not** assume `run_dev.py` or `run.py` exists at the project root. The actual entry points are `uvicorn app.main:app --reload` (backend) and `npm run dev` (frontend).
 - When building the Docker image, the frontend build stage outputs to `./dist` inside the container and is copied to `app/static/dist` in the final stage.
 - The frontend build uses `Cross-Origin-Opener-Policy` / `Cross-Origin-Embedder-Policy` headers to enable `SharedArrayBuffer` (required for sql.js/WebAssembly features).
