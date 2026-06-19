@@ -32,14 +32,23 @@ const RecentItem = memo(function RecentItem({ nodeId, isActive, onClick, onNavig
     onClick(e as React.MouseEvent);
   }, [onClick]);
 
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      onNavigate(nodeId);
+    }
+  }, [nodeId, onNavigate]);
+
   if (!node) return <div className="sidebar-item-skeleton" />;
 
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       aria-label={node ? nodeNameToText(node.name) || 'Untitled' : 'Loading recent'}
       onClick={handleClick}
       onContextMenu={onContextMenu}
+      onKeyDown={handleKeyDown}
       className={`sidebar-recent-item ${isActive ? 'active' : ''}`}
     >
       <div className="sidebar-recent-block">
@@ -62,7 +71,7 @@ const RecentItem = memo(function RecentItem({ nodeId, isActive, onClick, onNavig
           draggable={true}
         />
       </div>
-    </button>
+    </div>
   );
 });
 
