@@ -9,12 +9,9 @@
 }
 
 .tab-overflow-dropdown {
-  position: absolute;
-  top: calc(100% + var(--spacing-1));
-  right: 0;
   z-index: var(--z-10000);
   min-width: 12rem;
-  max-width: 18rem;
+  max-width: min(18rem, calc(100vw - var(--spacing-4)));
   background: var(--color-surface);
   border: var(--border-width-default) solid var(--color-outline-variant);
   border-radius: var(--shape-medium);
@@ -23,6 +20,10 @@
   display: flex;
   flex-direction: column;
   gap: var(--spacing-micro);
+}
+
+.tab-overflow-dropdown--portal {
+  position: fixed;
 }
 
 .tab-overflow-dropdown__header {

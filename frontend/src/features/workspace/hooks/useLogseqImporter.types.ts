@@ -33,7 +33,7 @@ export interface ImportContext {
 
   mutations: {
     createNode: { mutateAsync: (...args: any[]) => Promise<{ id: number; uuid: string }> };
-    updateNode: { mutateAsync: (...args: any[]) => Promise<{ id: number; uuid: string }> };
+    updateNode: { mutateAsync: (...args: any[]) => Promise<Node | null> };
     createProperty: { mutateAsync: (...args: any[]) => Promise<unknown> };
   };
 

@@ -135,6 +135,8 @@ function SingleTextBlock({
         showClasses={true}
         onEnterAtRoot={onEnterAtRoot}
         inPropertyEditor={true}
+        showNewBlock={false}
+        hideRootBullet={true}
       />
     </div>
   );

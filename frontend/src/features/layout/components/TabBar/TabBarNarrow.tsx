@@ -2,8 +2,11 @@
  * TabBarNarrow — collapsible tab list for narrow screens.
  */
 import { useState, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { type Tab } from '@/stores/navigationStore';
 import { useTabActions } from '@/features/layout/hooks/useTabActions';
+import { usePopupPosition } from '@/hooks/usePopupPosition';
+import { useClickOutside } from '@/hooks/useClickOutside';
 import { Icon } from '@/components/ui';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -20,15 +23,24 @@ export function TabBarNarrow({ tabs, activeTabId }: TabBarNarrowProps) {
   const [open, setOpen] = useState(false);
   const { activateTab, closeTab, reorderTabs, pinTab, unpinTab } = useTabActions();
   const activeTab = tabs.find((t) => t.id === activeTabId);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const popupRef = useRef<HTMLDivElement>(null);
+  const popupPosition = usePopupPosition(triggerRef, popupRef, open, {
+    alignment: 'left',
+    gap: 8,
+    edgePadding: 8,
+  });
+
+  useClickOutside([triggerRef, popupRef], () => setOpen(false), open);
 
   const handleReorder = useCallback((fromIndex: number, toIndex: number) => {
     reorderTabs(fromIndex, toIndex);
   }, [reorderTabs]);
 
   return (
-    <div className="tab-bar-narrow" ref={popupRef}>
+    <div className="tab-bar-narrow">
       <Button
+        ref={triggerRef}
         variant="ghost"
         size="sm"
         className="tab-bar-narrow__trigger"
@@ -42,8 +54,19 @@ export function TabBarNarrow({ tabs, activeTabId }: TabBarNarrowProps) {
         <Icon path={open ? 'mdi mdi-chevron-up' : 'mdi mdi-chevron-down'} size={0.7} />
       </Button>
 
-      {open && (
-        <Card className="tab-bar-narrow__popup" padding paddingSize="sm" elevation="high">
+      {open && createPortal(
+        <Card
+          ref={popupRef}
+          className="tab-bar-narrow__popup tab-bar-narrow__popup--portal"
+          padding
+          paddingSize="sm"
+          elevation="high"
+          style={
+            popupPosition
+              ? { position: 'fixed', top: popupPosition.top, left: popupPosition.left }
+              : { position: 'fixed', top: 0, left: 0, visibility: 'hidden' }
+          }
+        >
           <ListSortable
             items={tabs.map((t) => ({ id: t.id, tab: t }))}
             onReorder={handleReorder}
@@ -105,7 +128,8 @@ export function TabBarNarrow({ tabs, activeTabId }: TabBarNarrowProps) {
               New Tab
             </Button>
           </div>
-        </Card>
+        </Card>,
+        document.body
       )}
     </div>
   );
