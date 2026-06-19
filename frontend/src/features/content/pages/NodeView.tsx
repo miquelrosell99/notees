@@ -407,8 +407,13 @@ export function NodeView({
   const { data: aliasedNodeData } = useNode(node?.aliased_id ?? null);
   const { data: allProperties } = useProperties();
   const { pageClassId } = usePageClass();
-  const { addSidebarCard, openNode } = useNavigationStore(
-    useShallow((state) => ({ addSidebarCard: state.addSidebarCard, openNode: state.openNode })),
+  const { addSidebarCard, openNode, openPropertyView, currentPropertyContext } = useNavigationStore(
+    useShallow((state) => ({
+      addSidebarCard: state.addSidebarCard,
+      openNode: state.openNode,
+      openPropertyView: state.openPropertyView,
+      currentPropertyContext: state.currentPropertyContext,
+    })),
   );
   const contentDisplayMode = useAppStore((state) => state.contentDisplayMode);
   const isMobile = useIsMobile();
@@ -1028,7 +1033,8 @@ export function NodeView({
           nodeId={nodeId}
           nodeType={resolvedType}
           onNavigate={(id) => openNode(id)}
-          propertyContext={undefined}
+          onNavigateToProperty={(id) => openPropertyView(id)}
+          propertyContext={currentPropertyContext}
           parentLocked={node.parent_locked}
           editable={!isAlias}
           inHeader

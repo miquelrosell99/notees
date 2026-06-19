@@ -24,6 +24,7 @@ import { usePageClass, useClassClass } from '@/features/content';
 import { Button } from '@/components/ui/Button';
 import { Spinner } from '@/components/ui/Spinner';
 import { AddIcon, Icon } from '@/components/ui/icons';
+import { useOverlaySurface } from '@/hooks/useOverlaySurface';
 import './TriggerPopup.css';
 
 export type TriggerPopupType = 'class' | 'link' | 'tag' | 'slash';
@@ -148,13 +149,33 @@ export function TriggerPopup({
     if (estimatedHeight <= roomAbove) return 'above';
     return 'below';
   });
-  const [popupPos, setPopupPos] = useState<{ top: number; left: number }>({ top: position.top, left: position.left });
+  const [popupPos, setPopupPos] = useState<{ top?: number; bottom?: number; left: number }>({ top: position.top, left: position.left });
   const [isPositioned, setIsPositioned] = useState(false);
   const [activeFilters, setActiveFilters] = useState<ActiveFilter[]>([]);
   const [dismissedFilterKeys, setDismissedFilterKeys] = useState<Set<string>>(new Set());
   const [valuePickerFilter, setValuePickerFilter] = useState<FilterDef | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Register with the global overlay stack so Escape closes this popup even
+  // when focus is still in the editor. Internal Escape-consuming states
+  // (value picker / pending filter) are handled first.
+  useOverlaySurface({
+    type: 'popup',
+    enabled: true,
+    onClose,
+    onEscape: () => {
+      if (valuePickerFilter) {
+        closeValuePicker();
+        return true;
+      }
+      if (pendingFilter) {
+        dismissPendingFilter(pendingFilter.key);
+        return true;
+      }
+      return false;
+    },
+  });
 
   const isNodeTrigger = type !== 'slash';
 
@@ -297,19 +318,26 @@ export function TriggerPopup({
     }
     if (left < padding) left = padding;
 
-    const height = el.getBoundingClientRect().height;
     const roomBelow = window.innerHeight - position.top - gap;
     const roomAbove = position.caretTop - gap;
 
-    if (height <= roomBelow) {
+    // Use a stable estimated height for the initial placement decision so the
+    // popup doesn't flip above/below as the result list grows or shrinks.
+    const estimatedHeight = 280;
+
+    if (estimatedHeight <= roomBelow) {
+      // Anchor the top edge just below the caret; the popup grows downward.
       setPlacement('below');
       setPopupPos({ top: position.top + gap, left });
-    } else if (height <= roomAbove) {
+    } else if (estimatedHeight <= roomAbove) {
+      // Anchor the bottom edge (search bar) just above the caret; the popup
+      // grows upward while the search bar stays fixed.
       setPlacement('above');
-      setPopupPos({ top: position.caretTop - height - gap, left });
+      setPopupPos({ bottom: window.innerHeight - (position.caretTop - gap), left });
     } else {
+      // Not enough room either way; prefer below and clamp to viewport.
       setPlacement('below');
-      setPopupPos({ top: Math.max(padding, Math.min(position.top + gap, window.innerHeight - height - padding)), left });
+      setPopupPos({ top: Math.max(padding, Math.min(position.top + gap, window.innerHeight - estimatedHeight - padding)), left });
     }
     setIsPositioned(true);
   }, [position]);
@@ -462,15 +490,6 @@ export function TriggerPopup({
         } else if (showCreate) {
           handleCreate(cleanQuery.trim(), mode);
         }
-      } else if (e.key === 'Escape') {
-        e.preventDefault();
-        e.stopPropagation();
-        // If there's a pending filter suggestion, dismiss it instead of closing the popup
-        if (pendingFilter) {
-          dismissPendingFilter(pendingFilter.key);
-        } else {
-          onClose();
-        }
       } else if (e.key === 'Backspace' || e.key === 'Delete') {
         if (query.length === 0 && activeFilters.length > 0) {
           e.preventDefault();
@@ -497,13 +516,10 @@ export function TriggerPopup({
       activeFilters,
       onSelectNode,
       onSelectCommand,
-      onClose,
       onDeletePlaceholder,
       handleCreate,
       bumpCommandUsage,
       selectedIndex,
-      pendingFilter,
-      dismissPendingFilter,
       addFilter,
       removeFilter,
       confirmValuePicker,
@@ -719,9 +735,11 @@ export function TriggerPopup({
       style={{
         position: 'fixed',
         top: popupPos.top,
+        bottom: popupPos.bottom,
         left: popupPos.left,
         zIndex: 'var(--z-1000)',
         visibility: isPositioned ? 'visible' : 'hidden',
+        maxHeight: placement === 'above' ? position.caretTop - 4 : undefined,
       }}
       onMouseDown={(e) => e.stopPropagation()}
       role="dialog"
