@@ -24,6 +24,7 @@ import { CommandRegistrations } from './features/commands';
 import { COMMAND_IDS } from './stores/commandRegistry';
 import { DndProvider } from './providers/DndProvider';
 import { useUndoStore } from './stores';
+import { useInputContext } from './stores/inputContext';
 import { SyncManager } from './sync';
 import { getLogger } from './utils/logger';
 import './App.css';
@@ -51,6 +52,10 @@ function GlobalKeyboardHandler() {
   useCommand(COMMAND_IDS.REDO_ALT, () => {
     useUndoStore.getState().performRedo(queryClient);
   }, { label: 'Redo' });
+
+  useCommand(COMMAND_IDS.ESCAPE, () => {
+    return useInputContext.getState().closeTopSurface();
+  }, { label: 'Close top overlay' });
 
   return null;
 }

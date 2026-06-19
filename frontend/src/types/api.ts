@@ -276,6 +276,21 @@ export interface BatchGetNodesResponse {
 }
 
 /**
+ * Request to fetch multiple nodes by UUID in a single call
+ */
+export interface BatchGetNodesByUuidRequest {
+  uuids: string[];
+  include_properties?: boolean;
+}
+
+/**
+ * Response for batch node fetch by UUID — keyed by node UUID
+ */
+export interface BatchGetNodesByUuidResponse {
+  nodes: Record<string, Node>;
+}
+
+/**
  * A single breadcrumb in the ancestor chain
  */
 export interface BreadcrumbItemResponse {
@@ -285,6 +300,8 @@ export interface BreadcrumbItemResponse {
   icon: string | null;
   is_page: boolean;
   parent_locked: boolean;
+  is_property?: boolean;
+  property_id?: number | null;
 }
 
 /**
