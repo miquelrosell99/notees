@@ -281,6 +281,19 @@ class BatchGetNodesResponse(BaseModel):
     nodes: dict[str, NodeResponse]  # Keyed by node ID (as string for JSON compat)
 
 
+class BatchGetNodesByUuidRequest(BaseModel):
+    """Request to fetch multiple nodes by UUID in a single call."""
+
+    uuids: list[str]
+    include_properties: bool = False
+
+
+class BatchGetNodesByUuidResponse(BaseModel):
+    """Response for batch node fetch by UUID."""
+
+    nodes: dict[str, NodeResponse]  # Keyed by node UUID (as string for JSON compat)
+
+
 class BreadcrumbItem(BaseModel):
     """A single breadcrumb in the ancestor chain."""
 
@@ -290,6 +303,8 @@ class BreadcrumbItem(BaseModel):
     icon: str | None = None
     is_page: bool = False
     parent_locked: bool = False
+    is_property: bool = False
+    property_id: int | None = None
 
 
 class BreadcrumbsResponse(BaseModel):
