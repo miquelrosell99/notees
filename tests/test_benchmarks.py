@@ -1,8 +1,8 @@
 """Performance benchmarks for Notees.
 
-Run inside the backend container:
-    docker exec -e TEST_DATABASE_URL=postgresql://notees:YOUR_PASSWORD@postgres:5432/notees_test \
-        notees-backend-dev pytest tests/test_benchmarks.py -v -s
+Run locally (assumes services are up):
+    TEST_DATABASE_URL=postgresql://notees:YOUR_PASSWORD@localhost:5433/notees_test \
+        uv run pytest tests/test_benchmarks.py -v -s
 
 These tests measure:
 - Page content loading with large block counts (virtualization stress)
