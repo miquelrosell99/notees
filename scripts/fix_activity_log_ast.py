@@ -5,8 +5,8 @@ Scans node_activity for rows where quoted values inside ``details`` are stored
 as raw JSON AST (e.g. ``[{"type":"paragraph",...}]``) and converts them to
 plain text so the UI shows human-readable labels.
 
-Run inside the backend container:
-    docker exec notees-backend-dev python scripts/fix_activity_log_ast.py
+Run locally (assumes services are up):
+    uv run python scripts/fix_activity_log_ast.py
 """
 from __future__ import annotations
 
