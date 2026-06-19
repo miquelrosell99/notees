@@ -66,6 +66,8 @@ export interface GraphNode {
   taskStatus?: string | null;
   /** Tag IDs */
   tagIds: string[];
+  /** Private node flag */
+  isPrivate?: boolean;
   /** Timestamps */
   createdAt: string;
   updatedAt: string;
@@ -128,6 +130,12 @@ export type MutationIntent =
   | { type: 'set_collapsed'; blockId: string; collapsed: boolean }
   | { type: 'reorder_blocks'; parentId: string; orderedBlockIds: string[] }
   | { type: 'set_node_type'; blockId: string; nodeType: GraphNodeType }
+  | { type: 'add_class'; blockId: string; classId: string }
+  | { type: 'remove_class'; blockId: string; classId: string }
+  | { type: 'add_tag'; blockId: string; tagId: string }
+  | { type: 'remove_tag'; blockId: string; tagId: string }
+  | { type: 'update_node'; blockId: string; updates: Partial<GraphNode> }
+  | { type: 'move_node'; blockId: string; parentId: string | null; afterBlockId: string | null }
   | { type: 'batch'; intents: MutationIntent[] };
 
 // ─── Undo/Redo ────────────────────────────────────────────────────
