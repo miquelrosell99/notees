@@ -1,0 +1,64 @@
+version: '3'
+
+vars:
+  FRONTEND_DIR: frontend
+  COMPOSE_DEV: docker compose -f compose.dev.yaml
+
+tasks:
+  setup:
+    desc: Build development Docker images
+    cmds:
+      - "{{.COMPOSE_DEV}} build"
+
+  dev:
+    desc: Run the full development stack (backend + frontend + Postgres + Redis)
+    cmds:
+      - "{{.COMPOSE_DEV}} up"
+
+  services:
+    desc: Start only infrastructure services (Postgres + Redis)
+    cmds:
+      - "{{.COMPOSE_DEV}} up postgres redis -d"
+
+  services:down:
+    desc: Stop infrastructure services
+    cmds:
+      - "{{.COMPOSE_DEV}} down"
+
+  services:logs:
+    desc: Tail logs from infrastructure services
+    cmds:
+      - "{{.COMPOSE_DEV}} logs -f postgres redis"
+
+  backend:
+    desc: Run backend locally outside Docker (alternative to the dev stack)
+    cmds:
+      - uv run uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8001} --reload --reload-dir app
+
+  frontend:
+    desc: Run frontend locally outside Docker (alternative to the dev stack)
+    dir: frontend
+    cmds:
+      - npm run dev
+
+  lint:
+    desc: Run backend and frontend linters
+    cmds:
+      - uv run ruff check app/
+      - cd {{.FRONTEND_DIR}} && npm run lint
+
+  test:
+    desc: Run fast backend tests (assumes services are up)
+    cmds:
+      - uv run pytest tests/ -m "not slow" --no-cov -v
+
+  test:full:
+    desc: Run full backend test suite (assumes services are up)
+    cmds:
+      - uv run pytest tests/ --no-cov -v
+
+  build:
+    desc: Build production frontend and Docker image
+    cmds:
+      - cd {{.FRONTEND_DIR}} && npm run build
+      - docker build -t notees .

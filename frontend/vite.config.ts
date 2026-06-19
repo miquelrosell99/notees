@@ -117,15 +117,13 @@ export default defineConfig({
     //   'Cross-Origin-Opener-Policy': 'same-origin',
     //   'Cross-Origin-Embedder-Policy': 'require-corp',
     // },
-    // Enable polling for Docker on Windows
-    watch: {
-      usePolling: true,
-      interval: 1000,
-    },
+    // Proxy API requests (including WebSockets) to the FastAPI backend.
+    // Docker Compose dev sets VITE_API_PROXY_TARGET to the backend service.
+    // For local development outside Docker, the default is localhost:8001.
     proxy: {
       // Proxy API requests (including WebSockets) to the FastAPI backend
       '/api': {
-        target: process.env.VITE_API_PROXY_TARGET || 'http://localhost:8000',
+        target: process.env.VITE_API_PROXY_TARGET || 'http://localhost:8001',
         changeOrigin: true,
         ws: true,
       },

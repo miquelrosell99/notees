@@ -1,0 +1,111 @@
+# Docker Compose for Development
+# Runs backend, frontend, PostgreSQL, and Redis with hot-reload.
+#
+# Usage:
+#   docker compose -f compose.dev.yaml up
+#
+# The backend and frontend are built from Dockerfile.dev and source code is
+# bind-mounted for hot-reload.
+
+services:
+  # Redis for real-time collaboration pub/sub
+  redis:
+    image: redis:7-alpine
+    container_name: notees-redis-dev
+    restart: unless-stopped
+    volumes:
+      - ./.config/notees-redis-dev:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # PostgreSQL database
+  postgres:
+    image: postgres:17-alpine
+    container_name: notees-postgres-dev
+    restart: unless-stopped
+    # Non-default host port to avoid conflicts with other local Postgres instances.
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      TZ: ${TZ:-UTC}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+
+    # Dev-only: disable durability for speed. Never use these settings in production.
+    command: >
+      postgres
+      -c fsync=off
+      -c synchronous_commit=off
+      -c full_page_writes=off
+    volumes:
+      - ./.config/notees-postgres-dev:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 600s
+
+  # Backend API with hot reload
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: notees-backend-dev
+    restart: unless-stopped
+    # Non-default host port to avoid conflicts with other local services on 8000.
+    ports:
+      - "8001:8000"
+    env_file:
+      - .env
+    environment:
+      HOST: 0.0.0.0
+      PORT: 8000
+      TZ: ${TZ:-UTC}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB}
+      REDIS_URL: redis://redis:6379/0
+      PUID: ${PUID:-1000}
+      PGID: ${PGID:-1000}
+    volumes:
+      - ./app:/app/app
+      - ./tests:/app/tests
+      - ./pytest.ini:/app/pytest.ini
+      - ./.config/notees-backend-dev/data:/app/data
+      - ./.config/notees-backend-dev/logs:/app/logs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  # Frontend Vite dev server with hot reload
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: notees-frontend-dev
+    restart: unless-stopped
+    ports:
+      - "5173:5173"
+    environment:
+      VITE_API_PROXY_TARGET: http://backend:8000
+      VITE_ALLOWED_HOSTS: ${VITE_ALLOWED_HOSTS:-localhost}
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      backend:
+        condition: service_healthy

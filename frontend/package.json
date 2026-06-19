@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "typecheck": "tsc -b --noEmit",
     "lint": "eslint . && tsc -b --noEmit",
     "lint:css": "node scripts/validate-design-system.js",
     "lint:all": "eslint . && tsc -b --noEmit && node scripts/validate-design-system.js",
