@@ -29,6 +29,7 @@ __all__ = [
     "_get_tag_ids",
     "_get_alias_ids",
     "_get_class_ids_batch",
+    "_get_tag_ids_batch",
     "_get_extends_batch",
     "_get_related_ids_batch",
     "_get_effective_class_ids_batch",
@@ -130,6 +131,9 @@ def _node_to_response(
         is_task=node.is_task,
         is_table=node.is_table,
         is_comment=node.is_comment,
+        is_asset=node.is_asset,
+        is_template=node.is_template,
+        is_card=node.is_card,
         parent_locked=node.parent_locked,
         is_private=node.is_private,
         create_date=node.create_date,
@@ -281,6 +285,14 @@ async def _get_class_ids_batch(service: NodeService, node_ids: list[int]) -> dic
     Returns a dict mapping node_id -> list of class_ids.
     """
     return await service.get_class_ids_batch(node_ids)
+
+
+async def _get_tag_ids_batch(service: NodeService, node_ids: list[int]) -> dict[int, list[int]]:
+    """Efficiently fetch tag_ids directly from node table.
+
+    Returns a dict mapping node_id -> list of tag_ids.
+    """
+    return await service.get_tag_link_targets_batch(node_ids)
 
 
 async def _get_extends_batch(service: NodeService, node_ids: list[int]) -> dict[int, list[int]]:
@@ -482,6 +494,7 @@ async def _build_node_detail_response(
 
         descendant_ids = [d.id for d in visible_descendants if d.id is not None]
         node_class_map = await _get_class_ids_batch(service, descendant_ids)
+        node_tag_map = await _get_tag_ids_batch(service, descendant_ids)
 
         node_properties_map: dict[int, dict[str, Any]] = {}
         if include_properties:
@@ -493,7 +506,8 @@ async def _build_node_detail_response(
             if d.id is not None:
                 bcount = backlink_counts.get(d.id, 0)
                 d_class_ids = node_class_map.get(d.id, [])
-                node_resp = _node_to_response(d, classes=d_class_ids, backlink_count=bcount)
+                d_tag_ids = node_tag_map.get(d.id, [])
+                node_resp = _node_to_response(d, tags=d_tag_ids, classes=d_class_ids, backlink_count=bcount)
                 node_resp.has_children = d.id in children_of
                 if include_properties and d.id in node_properties_map:
                     node_resp.properties = node_properties_map[d.id]

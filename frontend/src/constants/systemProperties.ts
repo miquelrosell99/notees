@@ -79,6 +79,7 @@ export const SYSTEM_CLASS_UUIDS = {
   info: '00000000-0000-0000-0001-000000000019',
   danger: '00000000-0000-0000-0001-000000000020',
   success: '00000000-0000-0000-0001-000000000021',
+  cloze: '00000000-0000-0000-0001-000000000022',
 } as const;
 
 /**
@@ -94,13 +95,6 @@ export const SYSTEM_PAGE_UUIDS = {
  */
 export function isSystemPropertyUuid(uuid: string): boolean {
   return Object.values(SYSTEM_PROPERTY_UUIDS).includes(uuid as typeof SYSTEM_PROPERTY_UUIDS[keyof typeof SYSTEM_PROPERTY_UUIDS]);
-}
-
-/**
- * Check if a property is the 'tags' system property
- */
-export function isTagsProperty(uuid: string): boolean {
-  return uuid === SYSTEM_PROPERTY_UUIDS.tags;
 }
 
 /**
@@ -123,6 +117,7 @@ export const BLOCK_ONLY_CLASS_UUIDS = [
   SYSTEM_CLASS_UUIDS.info,
   SYSTEM_CLASS_UUIDS.danger,
   SYSTEM_CLASS_UUIDS.success,
+  SYSTEM_CLASS_UUIDS.cloze,
 ] as const;
 
 /**

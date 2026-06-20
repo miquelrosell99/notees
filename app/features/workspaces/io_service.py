@@ -273,6 +273,7 @@ class WorkspaceIOService:
         dump_data: dict,
         workspace_name: str,
         remap_uuids: bool = True,
+        cleanup_invalid_cloze: bool = False,
     ) -> dict:
         """Import a dump file into a brand new workspace."""
         user_id = await self._resolve_user_id(user_id_str)
@@ -284,7 +285,11 @@ class WorkspaceIOService:
         logger.info(f"Created workspace '{workspace_name}' (id={workspace_id}, uuid={workspace_uuid}) for import")
 
         stats, uuid_map = await self._repo.import_dump(
-            workspace_id, user_id, dump_data, remap_uuids=remap_uuids
+            workspace_id,
+            user_id,
+            dump_data,
+            remap_uuids=remap_uuids,
+            cleanup_invalid_cloze=cleanup_invalid_cloze,
         )
 
         _active_workspaces[user_id_str] = workspace_uuid
@@ -302,6 +307,7 @@ class WorkspaceIOService:
         user_id_str: str,
         zip_path: Path,
         workspace_name: str,
+        cleanup_invalid_cloze: bool = False,
     ) -> dict:
         """Import a workspace from a ZIP file containing dump.json and assets."""
         import tempfile as _tempfile
@@ -331,6 +337,7 @@ class WorkspaceIOService:
                 dump_data=dump_data,
                 workspace_name=workspace_name,
                 remap_uuids=False,
+                cleanup_invalid_cloze=cleanup_invalid_cloze,
             )
 
             new_workspace_uuid = result["uuid"]
@@ -349,6 +356,7 @@ class WorkspaceIOService:
         user_id_str: str,
         workspace_uuid: str,
         dump_data: dict,
+        cleanup_invalid_cloze: bool = False,
     ) -> dict:
         """Restore an existing workspace to a previous state from a dump file."""
         user_id = await self._resolve_user_id(user_id_str)
@@ -360,7 +368,9 @@ class WorkspaceIOService:
         workspace_id = workspace["id"]
         logger.warning(f"Restoring workspace '{workspace['name']}' (id={workspace_id}) - DELETING ALL EXISTING DATA")
 
-        stats, _ = await self._repo.restore_workspace(workspace_id, user_id, dump_data)
+        stats, _ = await self._repo.restore_workspace(
+            workspace_id, user_id, dump_data, cleanup_invalid_cloze=cleanup_invalid_cloze
+        )
 
         return {
             "uuid": workspace_uuid,

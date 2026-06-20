@@ -26,6 +26,8 @@ from .helpers import (
     _get_class_ids_batch,
     _get_node_service,
     _get_related_ids_batch,
+    _get_tag_ids,
+    _get_tag_ids_batch,
     _get_undo_service,
     _name_text,
     _node_snapshot,
@@ -164,7 +166,7 @@ async def create_node(
     # Notify mentions
     await _notify_mentions(service, node, int(user.id), notification_repo)
 
-    return _node_to_response(node, classes=list(body.classes))
+    return _node_to_response(node, tags=list(node.tag_ids), classes=list(node.class_ids))
 
 
 @router.post("/page", response_model=NodeResponse)
@@ -305,12 +307,19 @@ async def get_archived_pages(
 
     node_ids = [page_node.id for page_node in archived_nodes if page_node.id is not None]
     class_ids_map = await _get_class_ids_batch(service, node_ids)
+    tag_ids_map = await _get_tag_ids_batch(service, node_ids)
 
     result = []
     for page_node in archived_nodes:
         if page_node.id is None:
             continue
-        result.append(_node_to_response(page_node, classes=class_ids_map.get(page_node.id, [])))
+        result.append(
+            _node_to_response(
+                page_node,
+                classes=class_ids_map.get(page_node.id, []),
+                tags=tag_ids_map.get(page_node.id, []),
+            )
+        )
 
     await _resolve_display_names_for_responses(service, archived_nodes, result)
 
@@ -528,6 +537,7 @@ async def instantiate_template(
         parent_id=body.parent_id,
         name=body.name,
         variables=body.variables,
+        dynamic_context=body.dynamic_context,
         as_blocks=body.as_blocks,
         after_id=body.after_id,
     )
@@ -593,12 +603,17 @@ async def get_node_by_uuid(
     if not node:
         raise HTTPException(404, "Node not found")
 
-    response = await _node_to_response_with_permissions(node, service.permissions)
+    tag_ids = await _get_tag_ids(service, node.id) if node.id else []
+    response = await _node_to_response_with_permissions(node, service.permissions, tags=tag_ids)
     await _resolve_display_names_for_responses(service, [node], [response])
 
     if include_children and node.id:
         children = await service.get_node_children(node.id)
-        response.children = [_node_to_response(c) for c in children]
+        child_ids = [c.id for c in children if c.id is not None]
+        child_tag_map = await _get_tag_ids_batch(service, child_ids)
+        response.children = [
+            _node_to_response(c, tags=child_tag_map.get(c.id or 0, [])) for c in children
+        ]
         await _resolve_display_names_for_responses(service, children, response.children)
 
     if include_backlinks and node.id:
