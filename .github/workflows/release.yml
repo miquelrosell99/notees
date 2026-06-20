@@ -111,6 +111,15 @@ jobs:
           echo "name=$ASSET" >> "$GITHUB_OUTPUT"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
+      - name: Ensure release exists
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.asset.outputs.tag }}"
+          if ! gh release view "$TAG" --json url >/dev/null 2>&1; then
+            gh release create "$TAG" --generate-notes --title "$TAG"
+          fi
+
       - name: Upload APK to release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
