@@ -150,6 +150,8 @@ CREATE TABLE IF NOT EXISTS node (
     is_comment BOOLEAN NOT NULL DEFAULT FALSE,
     is_task BOOLEAN NOT NULL DEFAULT FALSE,
     is_table BOOLEAN NOT NULL DEFAULT FALSE,
+    is_card BOOLEAN NOT NULL DEFAULT FALSE,
+    is_cloze BOOLEAN NOT NULL DEFAULT FALSE,
     -- Parent lock flag
     parent_locked BOOLEAN NOT NULL DEFAULT FALSE,
     -- Privacy: if true, only the owner can access this node
@@ -600,6 +602,33 @@ END $$;
 -- (class_inline table has been merged into node_link)
 
 -- ============================================================
+-- FLASHCARDS (SPACED REPETITION)
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS flashcard (
+    id SERIAL PRIMARY KEY,
+    uuid UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
+    node_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
+    workspace_id INTEGER NOT NULL REFERENCES workspace(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+    front_text TEXT NOT NULL DEFAULT '',
+    back_text TEXT NOT NULL DEFAULT '',
+    ease_factor DOUBLE PRECISION NOT NULL DEFAULT 2.5,
+    interval_days INTEGER NOT NULL DEFAULT 0,
+    repetitions INTEGER NOT NULL DEFAULT 0,
+    lapses INTEGER NOT NULL DEFAULT 0,
+    due_date TIMESTAMPTZ,
+    last_reviewed_at TIMESTAMPTZ,
+    active BOOLEAN NOT NULL DEFAULT TRUE,
+    create_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    write_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (node_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_flashcard_workspace_due ON flashcard(workspace_id, user_id, due_date) WHERE active = TRUE;
+CREATE INDEX IF NOT EXISTS idx_flashcard_node ON flashcard(node_id);
+
+-- ============================================================
 -- NODE MENTIONS (UNLINKED MENTION CANDIDATES)
 -- ============================================================
 -- Tracks occurrences of a page name in another page's content that are not yet
@@ -841,6 +870,22 @@ DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'node' AND column_name = 'is_table') THEN
         ALTER TABLE node ADD COLUMN is_table BOOLEAN NOT NULL DEFAULT FALSE;
+    END IF;
+END $$;
+
+-- Migration: Add is_card column to node table if missing
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'node' AND column_name = 'is_card') THEN
+        ALTER TABLE node ADD COLUMN is_card BOOLEAN NOT NULL DEFAULT FALSE;
+    END IF;
+END $$;
+
+-- Migration: Add is_cloze column to node table if missing
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'node' AND column_name = 'is_cloze') THEN
+        ALTER TABLE node ADD COLUMN is_cloze BOOLEAN NOT NULL DEFAULT FALSE;
     END IF;
 END $$;
 

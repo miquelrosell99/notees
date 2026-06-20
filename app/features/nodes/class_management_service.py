@@ -41,6 +41,13 @@ BLOCK_ONLY_CLASS_UUIDS = {
     SYSTEM_CLASS_UUIDS["query"],
     SYSTEM_CLASS_UUIDS["comment"],
     SYSTEM_CLASS_UUIDS["quote"],
+    SYSTEM_CLASS_UUIDS["warning"],
+    SYSTEM_CLASS_UUIDS["note"],
+    SYSTEM_CLASS_UUIDS["tip"],
+    SYSTEM_CLASS_UUIDS["info"],
+    SYSTEM_CLASS_UUIDS["danger"],
+    SYSTEM_CLASS_UUIDS["success"],
+    SYSTEM_CLASS_UUIDS["cloze"],
 }
 
 # Full set of system class UUIDs for quick lookup
@@ -189,6 +196,18 @@ class ClassManagementService:
             raise SystemClassConstraintError(
                 f"The '{class_node.name}' class can only be assigned to blocks, not pages."
             )
+
+        if class_node and class_node.uuid == SYSTEM_CLASS_UUIDS["cloze"]:
+            parent_id = node.parent_id
+            if parent_id is None:
+                raise SystemClassConstraintError(
+                    "The 'cloze' class can only be assigned to blocks inside a card."
+                )
+            parent = await self._node_repo.get_by_id(parent_id)
+            if not parent or not parent.is_card:
+                raise SystemClassConstraintError(
+                    "The 'cloze' class can only be assigned to blocks inside a card."
+                )
 
         current_class_ids = list(node.class_ids or [])
         if class_node_id in current_class_ids:

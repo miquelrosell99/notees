@@ -32,6 +32,7 @@ from app.domain.entities.query_ast import (
     ScopeNode,
     ScopeType,
     StyleCondition,
+    TagCondition,
 )
 from app.domain.errors import DomainError
 
@@ -403,6 +404,8 @@ ORDER BY {order_by_sql}"""
             return self._generate_child_path_condition(condition)
         elif isinstance(condition, PageCondition):
             return self._generate_page_condition(condition)
+        elif isinstance(condition, TagCondition):
+            return self._generate_tag_condition(condition)
 
         return None
 
@@ -1295,6 +1298,49 @@ ORDER BY {order_by_sql}"""
                 AND ({page_sql})
             )""",
         )
+
+    def _generate_tag_condition(self, condition: TagCondition) -> str | None:
+        """Generate SQL for tag condition - filter by node.tag_ids array.
+
+        Operators:
+        - is: node is tagged with the given tag page(s)
+        - is_not: node is NOT tagged with the given tag page(s)
+        - has_any_tag: node has at least one tag
+        - has_no_tag: node has no tags
+        """
+        operator = getattr(condition, "operator", "is")
+
+        if operator == "has_no_tag":
+            return "(n.tag_ids IS NULL OR array_length(n.tag_ids, 1) IS NULL)"
+        if operator == "has_any_tag":
+            return "(n.tag_ids IS NOT NULL AND array_length(n.tag_ids, 1) > 0)"
+
+        # Resolve UUIDs
+        tag_uuids: list[str] = []
+        if condition.tag_uuids:
+            tag_uuids = [u for u in condition.tag_uuids if u]
+        elif condition.tag_uuid:
+            tag_uuids = [condition.tag_uuid]
+
+        if tag_uuids:
+            param_names = [self._add_param(uuid) for uuid in tag_uuids]
+            param_refs = ", ".join([f"%({p})s" for p in param_names])
+            target_subquery = (
+                f"SELECT id FROM node WHERE uuid IN ({param_refs}) AND workspace_id = %(workspace_id)s AND active = TRUE"
+            )
+            if operator == "is_not":
+                return f"(n.tag_ids IS NULL OR NOT (n.tag_ids && ARRAY({target_subquery})))"
+            return f"n.tag_ids && ARRAY({target_subquery})"
+
+        # Resolve numeric IDs
+        tag_ids = condition.tag_ids or ([condition.tag_id] if condition.tag_id else [])
+        if tag_ids:
+            param_name = self._add_param(tag_ids)
+            if operator == "is_not":
+                return f"(n.tag_ids IS NULL OR NOT (n.tag_ids && {param_name}::int[]))"
+            return f"n.tag_ids && {param_name}::int[]"
+
+        return None
 
     def _generate_child_condition(self, condition: ChildCondition) -> str | None:
         """Generate SQL for child condition - direct children match.

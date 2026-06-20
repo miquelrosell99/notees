@@ -1,0 +1,23 @@
+.template-gallery {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.template-gallery__header {
+  flex-shrink: 0;
+}
+
+.template-gallery__content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: var(--spacing-md);
+}
+
+.template-gallery__toolbar {
+  flex-shrink: 0;
+  margin-bottom: var(--spacing-md);
+}

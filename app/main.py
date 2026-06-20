@@ -61,6 +61,7 @@ from .domain.errors import (
 )
 from .domain.repositories.factories import make_user_repository
 from .features.auth import is_strong_admin_password
+from .features.flashcards import router as flashcards_router
 from .features.nodes.router import router as nodes_router
 from .features.sync.router import router as sync_router
 from .infrastructure.export.share_files import get_static_share_path
@@ -538,6 +539,7 @@ routers = [
     properties_router,
     sync_router,
     tasks_router,
+    flashcards_router,
     export_router,
     auto_export_router,
     assets_router,

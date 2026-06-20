@@ -339,6 +339,7 @@ async def download_workspace_export_job(job_id: str, user: User = Depends(get_cu
 async def import_workspace(
     file: UploadFile = File(...),
     name: str = Form(...),
+    cleanup_invalid_cloze: bool = Query(False, description="Strip cloze class from blocks that are not inside a card"),
     workspace_io_service: WorkspaceIOService = Depends(get_workspace_io_service),
     user: User = Depends(get_current_user),
 ):
@@ -357,6 +358,7 @@ async def import_workspace(
                 user_id_str=user.id,
                 zip_path=tmp_path,
                 workspace_name=name,
+                cleanup_invalid_cloze=cleanup_invalid_cloze,
             )
         else:
             with open(tmp_path, encoding="utf-8") as f:
@@ -366,6 +368,7 @@ async def import_workspace(
                 user_id_str=user.id,
                 dump_data=dump_data,
                 workspace_name=name,
+                cleanup_invalid_cloze=cleanup_invalid_cloze,
             )
             result.pop("uuid_map", None)
 
@@ -383,6 +386,7 @@ async def import_workspace(
 async def restore_workspace(
     workspace_id: str,
     file: UploadFile = File(...),
+    cleanup_invalid_cloze: bool = Query(False, description="Strip cloze class from blocks that are not inside a card"),
     workspace_io_service: WorkspaceIOService = Depends(get_workspace_io_service),
     user: User = Depends(get_current_user),
 ):
@@ -399,6 +403,7 @@ async def restore_workspace(
             user_id_str=user.id,
             workspace_uuid=workspace_id,
             dump_data=dump_data,
+            cleanup_invalid_cloze=cleanup_invalid_cloze,
         )
         invalidate_workspace_cache(int(user.id))
         return result

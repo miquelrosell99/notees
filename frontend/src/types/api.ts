@@ -12,12 +12,12 @@
 
 /**
  * Core Node entity
- * 
- * Everything in Notees is a node. Nodes are differentiated by their tags:
- * - Page: has "page" tag
+ *
+ * Everything in Notees is a node. Nodes are differentiated by system classes:
+ * - Page: has the "page" system class
  * - Block: has parent_id (child of another node)
- * - Tag: has "tag" tag (always also has "page" tag)
- * - Date nodes: have "day", "month", or "year" tag
+ * - Date nodes: have "day", "month", or "year" system class
+ * - Tags: pages referenced by other nodes' tag_ids array
  */
 export interface Node {
   id: number;
@@ -54,6 +54,9 @@ export interface Node {
   is_yearly?: boolean; // Whether this is a yearly note
   is_comment?: boolean; // Whether this node is a comment
   is_task?: boolean; // Whether this node is a task item
+  is_asset?: boolean; // Whether this node is an asset/file block
+  is_template?: boolean; // Whether this node is a template page
+  is_card?: boolean; // Whether this node is a flashcard/quiz card
   parent_locked?: boolean; // Whether this node's parent is locked
   is_private?: boolean; // If true, only the owner can access this node
   
@@ -103,8 +106,8 @@ export interface Node {
 /**
  * Helper to check if a node is a page
  */
-export function isPage(node: Node, pageTagId: number): boolean {
-  return node.tags?.includes(pageTagId) ?? false;
+export function isPage(node: Node): boolean {
+  return node.is_page ?? false;
 }
 
 /**
@@ -860,29 +863,6 @@ export interface SearchResponse {
   results: Node[];
   count?: number;
 }
-
-// ==================== System Tags ====================
-
-/**
- * Well-known system tag names
- */
-export const SystemTags = {
-  TAG: 'tag',
-  PAGE: 'page',
-  YEAR: 'year',
-  MONTH: 'month',
-  DAY: 'day',
-  QUOTE: 'quote',
-  QUERY: 'query',
-  CODE: 'code',
-  ASSET: 'asset',
-  WHITEBOARD: 'whiteboard',
-  CARD: 'card',
-  TASK: 'task',
-  TEMPLATE: 'template',
-} as const;
-
-export type SystemTag = typeof SystemTags[keyof typeof SystemTags];
 
 // ==================== Date Helpers ====================
 
