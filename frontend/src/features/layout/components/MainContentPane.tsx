@@ -7,7 +7,8 @@
 import React, { useMemo, Suspense } from 'react';
 import { LoadingScreen } from '@/components/ui/LoadingScreen';
 import { useNode, useClasses } from '@/features/content';
-import { useSystemClasses, NodeViewWrapper, NodeViewContent, PagesView, ArchivedPagesView, TrashView } from '@/features/content';
+import { useSystemClasses, NodeViewWrapper, NodeViewContent, PagesView, ArchivedPagesView, TrashView, TemplateGallery } from '@/features/content';
+import { FlashcardsPage } from '@/features/flashcards';
 import { WhiteboardsView } from '@/features/whiteboard';
 import { useNavigationStore } from '@/stores';
 import { getEffectiveColor } from '@/utils/nodeIcon';
@@ -83,6 +84,22 @@ export function MainContentPane({ tab, onNavigateToNode }: MainContentPaneProps)
     return (
       <main className="main-content">
         <TasksView />
+      </main>
+    );
+  }
+
+  if (viewType === 'templates') {
+    return (
+      <main className="main-content">
+        <TemplateGallery />
+      </main>
+    );
+  }
+
+  if (viewType === 'flashcards') {
+    return (
+      <main className="main-content">
+        <FlashcardsPage />
       </main>
     );
   }

@@ -2,7 +2,7 @@
  * MDI Icons for the application
  *
  * Uses the shared MDI SVG sprite sheet (`/mdi-sprite.svg`) for all icons.
- * Provides default icons for system tags and pages.
+ * Provides default icons for system classes and pages.
  */
 import { Icon } from './Icon';
 import { getMdiClass } from '@/utils/iconDom';
@@ -146,6 +146,10 @@ export const CloseIcon = ({ size = 'md', className, color, title }: IconProps) =
 
 export const CommentIcon = ({ size = 'md', className, color, title }: IconProps) => (
   <Icon path="mdi-comment-text-outline" size={getSize(size)} className={className} color={color} title={title} />
+);
+
+export const FlashcardIcon = ({ size = 'md', className, color, title }: IconProps) => (
+  <Icon path="mdi-cards-outline" size={getSize(size)} className={className} color={color} title={title} />
 );
 
 export const SendIcon = ({ size = 'md', className, color, title }: IconProps) => (

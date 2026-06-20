@@ -111,6 +111,7 @@ SYSTEM_CLASSES = [
     "info",
     "danger",
     "success",
+    "cloze",
 ]
 
 SYSTEM_CLASS_UUIDS = {
@@ -135,6 +136,7 @@ SYSTEM_CLASS_UUIDS = {
     "info": "00000000-0000-0000-0001-000000000019",
     "danger": "00000000-0000-0000-0001-000000000020",
     "success": "00000000-0000-0000-0001-000000000021",
+    "cloze": "00000000-0000-0000-0001-000000000022",
 }
 
 SYSTEM_CLASS_ICONS = {
@@ -157,6 +159,7 @@ SYSTEM_CLASS_ICONS = {
     "info": "mdiInformationOutline",
     "danger": "mdiAlertCircle",
     "success": "mdiCheckCircle",
+    "cloze": "mdiEyeOff",
 }
 
 

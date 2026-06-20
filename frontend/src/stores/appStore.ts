@@ -31,7 +31,9 @@ export type MainViewType =
   | 'shares'
   | 'inbox'
   | 'whiteboards'
-  | 'tasks';
+  | 'tasks'
+  | 'templates'
+  | 'flashcards';
 export type NodeViewType = 'page' | 'block';
 export type SidebarTab = 'pages' | 'graph';
 export type SidebarNodeType = 'page' | 'block';

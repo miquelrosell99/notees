@@ -1,0 +1,17 @@
+.flashcards-page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.flashcards-page__header {
+  flex-shrink: 0;
+}
+
+.flashcards-page__content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}

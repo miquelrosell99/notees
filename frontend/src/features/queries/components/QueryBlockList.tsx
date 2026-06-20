@@ -207,6 +207,16 @@ export function QueryBlockList({
     onChange([...blocks, newCondition]);
   }, [blocks, onChange]);
 
+  const handleAddTag = useCallback(() => {
+    const newCondition: ConditionNode = {
+      type: 'condition',
+      condition_type: 'tag',
+      tag_uuids: [],
+      operator: 'is',
+    };
+    onChange([...blocks, newCondition]);
+  }, [blocks, onChange]);
+
   // State for context menu
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
 
@@ -264,6 +274,11 @@ export function QueryBlockList({
       id: 'page',
       label: 'PAGE',
       onClick: () => { handleAddPage(); setMenuAnchor(null); },
+    },
+    {
+      id: 'tag',
+      label: 'TAG',
+      onClick: () => { handleAddTag(); setMenuAnchor(null); },
     },
     { id: 'sep-4', label: '', separator: true },
     {

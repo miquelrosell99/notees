@@ -27,6 +27,8 @@ CLASS_UUID_TO_FLAG: dict[str, str] = {
     SYSTEM_CLASS_UUIDS["comment"]: "is_comment",
     SYSTEM_CLASS_UUIDS["task"]: "is_task",
     SYSTEM_CLASS_UUIDS["table"]: "is_table",
+    SYSTEM_CLASS_UUIDS["card"]: "is_card",
+    SYSTEM_CLASS_UUIDS["cloze"]: "is_cloze",
 }
 
 # Deterministic, de-duplicated ordering of all class-driven flags. This is used

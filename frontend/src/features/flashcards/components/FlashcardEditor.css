@@ -1,0 +1,78 @@
+.flashcard-editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3, 0.75rem);
+  padding: var(--spacing-3, 0.75rem);
+  background: var(--color-surface-container, #f5f5f5);
+  border-radius: var(--radius-md, 8px);
+  border: 1px solid var(--color-outline-variant, #e0e0e0);
+}
+
+.flashcard-editor__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-1, 0.25rem);
+}
+
+.flashcard-editor__label {
+  font-size: var(--font-size-xs, 0.75rem);
+  font-weight: var(--font-weight-medium, 500);
+  color: var(--color-on-surface-variant, #616161);
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+}
+
+.flashcard-editor__content {
+  padding: var(--spacing-2, 0.5rem);
+  background: var(--color-surface, #ffffff);
+  border: 1px solid var(--color-outline, #c4c4c4);
+  border-radius: var(--radius-sm, 6px);
+  font-size: var(--font-size-sm, 0.875rem);
+  line-height: 1.5;
+  color: var(--color-on-surface, #212121);
+  white-space: pre-wrap;
+}
+
+.flashcard-editor__cloze {
+  padding: var(--spacing-1, 0.25rem) 0;
+  border-bottom: 1px solid var(--color-outline-variant, #e0e0e0);
+}
+
+.flashcard-editor__cloze:last-child {
+  border-bottom: none;
+}
+
+.flashcard-editor__placeholder {
+  color: var(--color-on-surface-variant, #616161);
+}
+
+.flashcard-editor__actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.flashcard-editor--loading {
+  gap: var(--spacing-3, 0.75rem);
+}
+
+.flashcard-editor__skeleton {
+  height: 4rem;
+  border-radius: var(--radius-sm, 6px);
+  background: var(--color-surface-container-highest, #eeeeee);
+  animation: flashcard-editor-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes flashcard-editor-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.flashcard-editor--empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--spacing-2, 0.5rem);
+  padding: var(--spacing-3, 0.75rem);
+  color: var(--color-on-surface-variant, #616161);
+  font-size: var(--font-size-sm, 0.875rem);
+}

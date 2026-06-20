@@ -16,6 +16,8 @@ import { useRef, useCallback, useState, useMemo } from 'react';
 import { useSetNodeProperty, useProperties } from '@/features/properties';
 import { useNodeNavigation, useAddClass, useRemoveClass, useClasses, useUpdateNode } from '@/features/content';
 import { useContentSave } from '@/features/editor';
+import { useCreateFlashcard } from '@/features/flashcards';
+import { stringifyAST, StringifyMode } from '@/lib';
 import { useLazyChildren } from '@/features/content/hooks/useLazyChildren';
 
 import type { Node } from '@/types';
@@ -29,6 +31,9 @@ import { type Asset, type AssetCategory, uploadAsset } from '@/features/assets';
 import { createNode } from '@/api/nodes';
 import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from '@/constants/systemProperties';
 import { TableCreationModal, type TableGridSize } from '@/components/ui/TableCreationModal';
+import { TemplateVariableDialog } from '../TemplateVariableDialog';
+import { useTemplateVariables } from '../../hooks/useTemplates';
+import { useAuthStore } from '@/features/auth/stores/authStore';
 
 import './NodeContent.css';
 import { getOperationRuntime } from '@/runtime';
@@ -89,6 +94,7 @@ export function NodeContent({
   const addClass = useAddClass();
   const removeClass = useRemoveClass();
   const setNodeProperty = useSetNodeProperty();
+  const createFlashcard = useCreateFlashcard();
 
   // Resolve properties for slash command side-effects (e.g. task status)
   const { data: allProperties } = useProperties();
@@ -157,8 +163,33 @@ export function NodeContent({
   const [moveTargetBlockId, setMoveTargetBlockId] = useState<number | null>(null);
   const updateNode = useUpdateNode();
 
+  // Template instantiation state
+  const [pendingTemplate, setPendingTemplate] = useState<{
+    templateNodeId: number;
+    templateName: string;
+    blockServerId: number | undefined;
+  } | null>(null);
+  const { data: templateVariablesData } = useTemplateVariables(pendingTemplate?.templateNodeId ?? null);
+  const currentUser = useAuthStore(state => state.user);
+
   // Handle template instantiation from the inline /template picker
-  const handleTemplateInstantiate = useCallback(async (templateNodeId: number, blockServerId: number | undefined) => {
+  const handleTemplateInstantiate = useCallback((templateNodeId: number, blockServerId: number | undefined) => {
+    const runtime = getOperationRuntime();
+    const allRuntimeNodes = getAllNodes(runtime);
+    const templateNode = allRuntimeNodes.find(n => n.serverId === templateNodeId);
+    setPendingTemplate({
+      templateNodeId,
+      templateName: templateNode?.name ?? 'Template',
+      blockServerId,
+    });
+  }, []);
+
+  const executeTemplateInstantiation = useCallback(async (
+    templateNodeId: number,
+    blockServerId: number | undefined,
+    variables: Record<string, string>,
+    dynamicContext: Record<string, string>,
+  ) => {
     try {
       const { instantiateTemplate } = await import('@/api/nodes');
 
@@ -177,7 +208,8 @@ export function NodeContent({
       const result = await instantiateTemplate(templateNodeId, {
         parent_id: parentId,
         as_blocks: true,
-        variables: {},
+        variables,
+        dynamic_context: dynamicContext,
       });
       if (result.blocks.length > 0) {
         const { apiNodesToGraphNodes } = await import('@/features/content/hooks/useRuntimeSync');
@@ -329,8 +361,32 @@ export function NodeContent({
           setMoveTargetBlockId(blockServerId);
         }
         break;
+      case 'flashcard': {
+        const classId = systemClassMap?.card;
+        if (classId == null || blockServerId == null) break;
+        addClass.mutate(
+          { nodeId: blockServerId, classId },
+          {
+            onSuccess: () => {
+              const runtime = getOperationRuntime();
+              const graphNode = getAllNodes(runtime).find(n => n.serverId === blockServerId);
+              const frontText = graphNode
+                ? stringifyAST(graphNode.contentAST, { mode: StringifyMode.TEXT_ONLY }).trim()
+                : '';
+              createFlashcard.mutate({ nodeId: blockServerId, frontText, backText: '' });
+            },
+          },
+        );
+        break;
+      }
+      case 'cloze': {
+        const clozeClassId = systemClassMap?.cloze;
+        if (clozeClassId == null || blockServerId == null) break;
+        addClass.mutate({ nodeId: blockServerId, classId: clozeClassId });
+        break;
+      }
     }
-  }, [systemClassMap, addClass, node.id, allProperties, setNodeProperty]);
+  }, [systemClassMap, addClass, node.id, allProperties, setNodeProperty, createFlashcard]);
 
   // Handle table creation from modal — new table with selected dimensions
   const handleTableConfirm = useCallback(async (size: TableGridSize) => {
@@ -510,6 +566,31 @@ export function NodeContent({
           allowCreate={false}
         />
       </Modal>
+
+      {/* Template variable dialog */}
+      {pendingTemplate && (
+        <TemplateVariableDialog
+          isOpen
+          templateName={pendingTemplate.templateName}
+          variables={templateVariablesData?.variables ?? []}
+          dynamicVariables={templateVariablesData?.dynamic_variables ?? []}
+          context={{
+            currentPageName: node.name,
+            currentPageUuid: node.uuid,
+            currentUserName: currentUser?.name ?? null,
+          }}
+          onCancel={() => setPendingTemplate(null)}
+          onConfirm={(variables, dynamicContext) => {
+            executeTemplateInstantiation(
+              pendingTemplate.templateNodeId,
+              pendingTemplate.blockServerId,
+              variables,
+              dynamicContext,
+            );
+            setPendingTemplate(null);
+          }}
+        />
+      )}
 
     </div>
   );

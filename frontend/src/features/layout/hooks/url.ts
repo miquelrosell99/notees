@@ -19,6 +19,8 @@ export const SPECIAL_VIEWS: Record<string, MainViewType | 'auth'> = {
   inbox: 'inbox',
   whiteboards: 'whiteboards',
   tasks: 'tasks',
+  templates: 'templates',
+  flashcards: 'flashcards',
   auth: 'auth',
 };
 
@@ -36,6 +38,8 @@ export const VIEW_TO_PATH: Record<MainViewType, string> = {
   inbox: 'inbox',
   whiteboards: 'whiteboards',
   tasks: 'tasks',
+  templates: 'templates',
+  flashcards: 'flashcards',
   property: '',
   'node-collection': '',
 };

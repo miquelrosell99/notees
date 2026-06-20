@@ -10,6 +10,7 @@ from typing import Any
 import asyncpg
 
 from app.db.connection import acquire_connection, get_workspace_dir
+from app.domain.entities.constants import SYSTEM_CLASS_UUIDS
 from app.features.workspaces.port import WorkspaceIORepository, WorkspaceRepository
 from app.logging_config import get_logger
 
@@ -715,7 +716,12 @@ class PostgresWorkspaceIORepository(WorkspaceIORepository):
             return dict(row) if row else None
 
     async def import_dump(
-        self, workspace_id: int, user_id: int, dump_data: dict, remap_uuids: bool
+        self,
+        workspace_id: int,
+        user_id: int,
+        dump_data: dict,
+        remap_uuids: bool,
+        cleanup_invalid_cloze: bool = False,
     ) -> tuple[dict, dict[str, str]]:
         """Run the entire multi-phase import inside a single DB transaction."""
         stats = {
@@ -1107,6 +1113,11 @@ class PostgresWorkspaceIORepository(WorkspaceIORepository):
                 )
             stats["settings"] = len(bundle.settings_records)
 
+            if cleanup_invalid_cloze:
+                stats["invalid_cloze_cleaned"] = await self._cleanup_invalid_cloze_assignments(
+                    conn, workspace_id
+                )
+
             logger.info("Re-enabling node triggers")
             await conn.execute("ALTER TABLE node ENABLE TRIGGER node_search_update")
             await conn.execute("ALTER TABLE node ENABLE TRIGGER node_write_date")
@@ -1134,6 +1145,52 @@ class PostgresWorkspaceIORepository(WorkspaceIORepository):
         logger.info(f"Import complete: {stats}")
         return stats, bundle.uuid_map
 
+    async def _cleanup_invalid_cloze_assignments(
+        self, conn: asyncpg.Connection, workspace_id: int
+    ) -> int:
+        """Remove the cloze class from nodes that are not direct children of a card.
+
+        This is useful as an opt-in correction after importing a workspace dump
+        that may contain inconsistent cloze assignments.
+        """
+        cloze_uuid = SYSTEM_CLASS_UUIDS["cloze"]
+        row = await conn.fetchrow(
+            "SELECT id FROM node WHERE workspace_id = $1 AND uuid = $2 AND active = TRUE",
+            workspace_id,
+            cloze_uuid,
+        )
+        if not row:
+            return 0
+        cloze_class_id = row["id"]
+
+        result = await conn.fetchval(
+            """
+            WITH cleaned AS (
+                UPDATE node n
+                SET class_ids = array_remove(n.class_ids, $2),
+                    is_cloze = FALSE
+                WHERE n.workspace_id = $1
+                  AND n.is_cloze = TRUE
+                  AND $2 = ANY(n.class_ids)
+                  AND (
+                      n.parent_id IS NULL
+                      OR NOT EXISTS (
+                          SELECT 1 FROM node p
+                          WHERE p.id = n.parent_id AND p.is_card = TRUE
+                      )
+                  )
+                RETURNING n.id
+            )
+            SELECT COUNT(*) FROM cleaned
+            """,
+            workspace_id,
+            cloze_class_id,
+        )
+        count = int(result or 0)
+        if count > 0:
+            logger.info(f"Cleaned up {count} invalid cloze assignment(s) in workspace {workspace_id}")
+        return count
+
     async def delete_all_workspace_data(self, workspace_id: int) -> None:
         """Delete all data in a workspace."""
         async with acquire_connection(self._pool) as conn, conn.transaction():
@@ -1149,10 +1206,18 @@ class PostgresWorkspaceIORepository(WorkspaceIORepository):
             await conn.execute("DELETE FROM node WHERE workspace_id = $1", workspace_id)
             await conn.execute("DELETE FROM property WHERE workspace_id = $1", workspace_id)
 
-    async def restore_workspace(self, workspace_id: int, user_id: int, dump_data: dict) -> dict:
+    async def restore_workspace(
+        self,
+        workspace_id: int,
+        user_id: int,
+        dump_data: dict,
+        cleanup_invalid_cloze: bool = False,
+    ) -> dict:
         """Delete all data then import with remap_uuids=False."""
         await self.delete_all_workspace_data(workspace_id)
-        stats, _ = await self.import_dump(workspace_id, user_id, dump_data, remap_uuids=False)
+        stats, _ = await self.import_dump(
+            workspace_id, user_id, dump_data, remap_uuids=False, cleanup_invalid_cloze=cleanup_invalid_cloze
+        )
         return stats
 
     async def list_page_uuids(self, workspace_id: int) -> list[dict]:

@@ -10,8 +10,8 @@ import { Button } from '@/components/ui/Button';
 import { NodeRef } from './NodeRef';
 import { Pill } from '@/components/ui/Pill';
 
-import { useRemoveClass, useClasses } from '@/features/content';
-import { isNonRemovableClass } from '@/constants';
+import { useRemoveClass, useClasses, useNode, useSystemClasses } from '@/features/content';
+import { isNonRemovableClass, SYSTEM_CLASS_UUIDS } from '@/constants';
 import type { Node } from '@/types';
 import './ClassPillsRow.css';
 
@@ -35,6 +35,10 @@ export const ClassPillsRow = memo(function ClassPillsRow({
   const [popupPos, setPopupPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const removeClass = useRemoveClass();
   const { data: allClasses } = useClasses();
+  const { data: node } = useNode(nodeId);
+  const parentId = node?.parent_id ?? null;
+  const { data: parentNode } = useNode(parentId);
+  const { systemClassIds } = useSystemClasses();
 
   const classIdsKey = classes.map((c) => c.id).join(',');
 
@@ -83,7 +87,12 @@ export const ClassPillsRow = memo(function ClassPillsRow({
   }, []);
 
   const appliedClassIds = new Set(classes.map((c) => c.id));
-  const availableClasses = allClasses?.filter((c) => !appliedClassIds.has(c.id)) ?? [];
+  const parentIsCard = parentId != null && parentNode?.classes?.includes(systemClassIds?.card ?? -1);
+  const availableClasses = allClasses?.filter((c) => {
+    if (appliedClassIds.has(c.id)) return false;
+    if (c.uuid === SYSTEM_CLASS_UUIDS.cloze) return parentIsCard;
+    return true;
+  }) ?? [];
 
   const visibleClasses = overflowCount > 0 ? classes.slice(0, 1) : classes;
 

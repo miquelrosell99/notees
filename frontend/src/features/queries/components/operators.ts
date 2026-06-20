@@ -153,6 +153,18 @@ export const PAGE_OPERATORS: OperatorDefinition[] = [
   { value: 'has_no_page', label: 'is not set' },
 ];
 
+// ==================== Tag Operators ====================
+
+/**
+ * Operators for tag conditions
+ */
+export const TAG_OPERATORS: OperatorDefinition[] = [
+  { value: 'is', label: 'is any of' },
+  { value: 'is_not', label: 'is not any of' },
+  { value: 'has_any_tag', label: 'is set' },
+  { value: 'has_no_tag', label: 'is not set' },
+];
+
 // ==================== Style Operators ====================
 
 /**
@@ -181,6 +193,7 @@ export const OPERATOR_MAP = new Map<string, OperatorDefinition>(
     ...FLAG_OPERATORS,
     ...STYLE_OPERATORS,
     ...PAGE_OPERATORS,
+    ...TAG_OPERATORS,
   ].map(op => [op.value, op])
 );
 

@@ -31,8 +31,9 @@ import { $createInlineLinkNode } from '@/features/editor/editor/nodes/InlineLink
 import { TriggerPopup, type TriggerPopupType } from './TriggerPopup';
 import type { Node } from '@/types/api';
 import { getOperationRuntime } from '@/runtime';
-import { getNode } from '@/runtime/graphHelpers';
+import { getNode, getAllNodes } from '@/runtime/graphHelpers';
 import { getRuntimeEventBus } from '@/runtime/eventBus';
+import { SYSTEM_CLASS_UUIDS } from '@/constants';
 import { getUndoEngine } from '@/stores/undoEngine';
 import type { MutationIntent } from '@/runtime/types';
 import { useEditorFocusStore } from '@/stores/editorFocusStore';
@@ -549,6 +550,31 @@ export function TriggerPlugin({
     [editor, removePlaceholder, onSlashCommand, templateClassFilters, handleClose]
   );
 
+  // Hide the /cloze command unless the active block's parent is a card node.
+  const hiddenSlashCommandIds = (() => {
+    const hidden = new Set<string>();
+
+    const blockServerId = blockServerIdRef.current;
+    if (blockServerId == null) {
+      hidden.add('cloze');
+      return hidden;
+    }
+
+    const runtime = getOperationRuntime();
+    const blockNode = getAllNodes(runtime).find((n) => n.serverId === blockServerId);
+    if (!blockNode?.parentId) {
+      hidden.add('cloze');
+      return hidden;
+    }
+
+    const parentNode = getAllNodes(runtime).find((n) => n.blockId === blockNode.parentId);
+    const parentIsCard = parentNode?.classIds.includes(SYSTEM_CLASS_UUIDS.card) ?? false;
+    if (!parentIsCard) {
+      hidden.add('cloze');
+    }
+    return hidden;
+  })();
+
   // ─── Render ──────────────────────────────────────────────────
 
   if (!popup) return null;
@@ -561,6 +587,8 @@ export function TriggerPlugin({
       onSelectCommand={popup.type === 'slash' ? handleSelectCommand : undefined}
       onClose={handleClose}
       onDeletePlaceholder={handleDeletePlaceholder}
+      hiddenSlashCommandIds={hiddenSlashCommandIds}
+      contextBlockServerId={blockServerIdRef.current}
     />
   );
 }

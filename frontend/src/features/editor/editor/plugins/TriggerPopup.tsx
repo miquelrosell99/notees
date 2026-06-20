@@ -18,6 +18,8 @@ import { useNodeSearch, type NodeSearchItem } from '@/features/content';
 import { nodeNameToText } from '@/features/queries';
 import { useClasses, usePages } from '@/features/content';
 import { SYSTEM_CLASS_UUIDS } from '@/constants';
+import { getOperationRuntime } from '@/runtime';
+import { getAllNodes } from '@/runtime/graphHelpers';
 import { NodeResultItem } from '@/features/content';
 import { useCreateNode } from '@/features/content';
 import { usePageClass, useClassClass } from '@/features/content';
@@ -52,6 +54,8 @@ const SLASH_COMMANDS: SlashCommand[] = [
   { id: 'audio', label: 'Insert audio', description: 'Upload an audio file' },
   { id: 'file', label: 'Insert file', description: 'Upload any supported file' },
   { id: 'template', label: 'Add template', description: 'Insert content from a template' },
+  { id: 'flashcard', label: 'Flashcard', description: 'Convert this block into a flashcard' },
+  { id: 'cloze', label: 'Cloze', description: 'Mark this block as a cloze deletion' },
   { id: 'move', label: 'Move to page', description: 'Move this block under a different page' },
 ];
 
@@ -128,6 +132,10 @@ export interface TriggerPopupProps {
   onClose: () => void;
   /** Called when user presses Backspace/Delete to remove the trigger placeholder */
   onDeletePlaceholder?: () => void;
+  /** Slash command ids that should not be shown in this popup */
+  hiddenSlashCommandIds?: Set<string>;
+  /** Server ID of the block that opened this popup, used for context-aware filtering */
+  contextBlockServerId?: number;
 }
 
 export function TriggerPopup({
@@ -137,6 +145,8 @@ export function TriggerPopup({
   onSelectCommand,
   onClose,
   onDeletePlaceholder,
+  hiddenSlashCommandIds,
+  contextBlockServerId,
 }: TriggerPopupProps) {
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -197,6 +207,19 @@ export function TriggerPopup({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query]);
 
+  // Context-aware filtering: only show the cloze class when the block's parent is a card.
+  const { data: allClasses = [] } = useClasses();
+  const { data: allPages = [] } = usePages();
+
+  const parentIsCard = useMemo(() => {
+    if (contextBlockServerId == null) return false;
+    const runtime = getOperationRuntime();
+    const blockNode = getAllNodes(runtime).find((n) => n.serverId === contextBlockServerId);
+    if (!blockNode?.parentId) return false;
+    const parentNode = getAllNodes(runtime).find((n) => n.blockId === blockNode.parentId);
+    return parentNode?.classIds.includes(SYSTEM_CLASS_UUIDS.card) ?? false;
+  }, [contextBlockServerId]);
+
   // Determine search mode and filter props from active filters
   const searchMode = type === 'class' ? 'classes' : type === 'tag' ? 'tags' : 'all';
   const filterProps = useMemo(() => {
@@ -220,8 +243,14 @@ export function TriggerPopup({
   );
 
   const nodeItems: NodeSearchItem[] = useMemo(
-    () => [...pageResults, ...blockResults],
-    [pageResults, blockResults]
+    () => {
+      const items = [...pageResults, ...blockResults];
+      if (type !== 'class' || parentIsCard) {
+        return items;
+      }
+      return items.filter((item) => item.node.uuid !== SYSTEM_CLASS_UUIDS.cloze);
+    },
+    [pageResults, blockResults, type, parentIsCard],
   );
 
   // Value picker data (for user filter)
@@ -260,12 +289,14 @@ export function TriggerPopup({
     } else {
       // Slash commands
       const lower = query.toLowerCase();
-      const scored = SLASH_COMMANDS.map((c) => {
-        const labelMatch = c.label.toLowerCase().includes(lower);
-        const descMatch = c.description.toLowerCase().includes(lower);
-        const textScore = (labelMatch ? 2 : 0) + (descMatch ? 1 : 0);
-        return { cmd: c, textScore, freq: commandUsage[c.id] || 0 };
-      }).filter((s) => s.textScore > 0 || !query);
+      const scored = SLASH_COMMANDS
+        .filter((c) => !hiddenSlashCommandIds?.has(c.id))
+        .map((c) => {
+          const labelMatch = c.label.toLowerCase().includes(lower);
+          const descMatch = c.description.toLowerCase().includes(lower);
+          const textScore = (labelMatch ? 2 : 0) + (descMatch ? 1 : 0);
+          return { cmd: c, textScore, freq: commandUsage[c.id] || 0 };
+        }).filter((s) => s.textScore > 0 || !query);
       scored.sort((a, b) => {
         if (b.textScore !== a.textScore) return b.textScore - a.textScore;
         return b.freq - a.freq;
@@ -276,7 +307,7 @@ export function TriggerPopup({
     }
 
     return { selectableItems: items };
-  }, [type, pendingFilter, valuePickerFilter, nodeItems, query, commandUsage]);
+  }, [type, pendingFilter, valuePickerFilter, nodeItems, query, commandUsage, hiddenSlashCommandIds]);
 
   const showCreate = isNodeTrigger && showCreateOption && cleanQuery.trim() && !valuePickerFilter;
   const itemCount = selectableItems.length + (showCreate ? 1 : 0);
@@ -302,6 +333,14 @@ export function TriggerPopup({
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [onClose]);
+
+  // If every slash command is hidden, close the popup so the user isn't shown
+  // an empty menu.
+  useEffect(() => {
+    if (type === 'slash' && SLASH_COMMANDS.every((c) => hiddenSlashCommandIds?.has(c.id))) {
+      onClose();
+    }
+  }, [type, hiddenSlashCommandIds, onClose]);
 
   // Position adjustment
   useLayoutEffect(() => {
@@ -346,8 +385,6 @@ export function TriggerPopup({
   const createNode = useCreateNode();
   const { pageClassId } = usePageClass();
   const { classClassId } = useClassClass();
-  const { data: allClasses = [] } = useClasses();
-  const { data: allPages = [] } = usePages();
 
   const pageById = useMemo(() => {
     const m = new Map<number, Node>();

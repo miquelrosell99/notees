@@ -45,6 +45,9 @@ class NodeResponse(BaseModel):
     is_task: bool = False  # Task item (synchronized with task class assignment)
     is_table: bool = False  # Table block (synchronized with table class assignment)
     is_comment: bool = False  # Whether this node is a comment
+    is_asset: bool = False  # Asset/file block (synchronized with asset class assignment)
+    is_template: bool = False  # Template page (synchronized with template class assignment)
+    is_card: bool = False  # Flashcard/quiz card (synchronized with card class assignment)
     parent_locked: bool = False  # Whether this node's parent is locked
     is_private: bool = False  # If true, only the owner can access this node
     create_date: str
@@ -472,6 +475,7 @@ class TemplateInstantiateRequest(BaseModel):
     parent_id: int | None = None
     name: str | None = None
     variables: dict[str, str] = {}
+    dynamic_context: dict[str, str] = {}  # Computed values for <% ... %> dynamic placeholders
     as_blocks: bool = False  # If True, create children under parent_id without a root page
     after_id: int | None = None  # Insert blocks after this sibling (as_blocks mode)
 
@@ -488,6 +492,7 @@ class TemplateVariablesResponse(BaseModel):
     """Template variable names extracted from content."""
 
     variables: list[str]  # Deduplicated list of {{variable_name}} placeholders
+    dynamic_variables: list[str] = []  # Deduplicated list of <% dynamic_variable %> placeholders
 
 
 # ==================== Workspace Visualization ====================

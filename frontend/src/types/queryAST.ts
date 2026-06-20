@@ -182,7 +182,8 @@ export type ConditionType =
   | 'parent_path'
   | 'child'
   | 'child_path'
-  | 'page';
+  | 'page'
+  | 'tag';
 
 /**
  * Base condition node
@@ -347,6 +348,19 @@ export interface PageCondition extends BaseConditionNode {
 }
 
 /**
+ * Tag condition - filter by descriptive tags (node.tag_ids)
+ */
+export interface TagCondition extends BaseConditionNode {
+  condition_type: 'tag';
+  // Static mode: specific tag page(s)
+  tag_uuid?: string;
+  tag_uuids?: string[];
+  tag_id?: number;
+  tag_ids?: number[];
+  operator?: 'is' | 'is_not' | 'has_any_tag' | 'has_no_tag';
+}
+
+/**
  * Union type for all conditions
  */
 export type ConditionNode =
@@ -361,7 +375,8 @@ export type ConditionNode =
   | ParentPathCondition
   | ChildCondition
   | ChildPathCondition
-  | PageCondition;
+  | PageCondition
+  | TagCondition;
 
 // ==================== Group Node ====================
 

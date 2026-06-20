@@ -296,6 +296,7 @@ class NodeSearchRepository(ABC):
         pages_only: bool = False,
         parent_id: int | None = None,
         type_id: int | None = None,
+        tag_id: int | None = None,
         class_ids: list[int] | None = None,
         root_only: bool = False,
         sort_by: str = "sequence",

@@ -9,12 +9,13 @@
  */
 import { useState, useCallback, useMemo } from 'react';
 import { useProperties, useSetNodeProperty, useCreateProperty, useClassProperties } from '../hooks';
-import { useNode, useCreateNode, usePageClass } from '@/features/content';
+import { useNode, useCreateNode, usePageClass, useSystemClasses } from '@/features/content';
+import { FlashcardEditor } from '@/features/flashcards';
 import { useNavigationStore } from '@/stores';
 import { useNotifications } from '@/stores/notificationStore';
 import type { Property, Node, ClassProperty, PropertyCreate } from '@/types/api';
 import { SYSTEM_PROPERTY_UUIDS } from '@/constants';
-import { PropertiesIcon } from '@/components/ui/icons';
+import { PropertiesIcon, FlashcardIcon } from '@/components/ui/icons';
 import { Button } from '@/components/ui/Button';
 import { getPropertyValueRenderer } from '../utils/propertyValueRegistry';
 import '../utils/registerPropertyRenderers';
@@ -75,6 +76,7 @@ export function PropertiesSection({
   const createNodeMutation = useCreateNode();
   const createPropertyMutation = useCreateProperty();
   const { pageClassId } = usePageClass();
+  const { systemClassIds } = useSystemClasses();
 
   // Get class properties for all classes the node has (with inheritance)
   // We need to fetch properties for each class
@@ -359,35 +361,52 @@ export function PropertiesSection({
     return null;
   }
 
-  // If no properties at all, show empty message
+  const cardClassId = systemClassIds?.card;
+  const isCard = cardClassId != null && node.classes?.includes(cardClassId);
+
+  const flashcardSection = !inline && isCard ? (
+    <NodeViewSection
+      title="Flashcard"
+      icon={<FlashcardIcon size="sm" />}
+      className={`flashcard-section ${className}`}
+      defaultExpanded={true}
+    >
+      <FlashcardEditor nodeId={nodeId} readOnly={readOnly} />
+    </NodeViewSection>
+  ) : null;
+
+  // If no properties at all, show empty message (but still render flashcard editor for cards)
   if (nodeProperties.length === 0) {
     // In inline mode (block preview), nothing to show — keep the container hidden
     if (inline) return null;
     return (
-      <section className={`properties-view ${className}`}>
-        {showAddProperty && !readOnly && (
-          <div className="properties-add-wrapper">
-            <Button
-              icon={"mdi mdi-plus"}
-              className="properties-add-btn"
-              onClick={() => setShowPropertyPopup(!showPropertyPopup)}
-              title="Add property"
-              size="xs"
-              variant="ghost"
-            >
-              Add property
-            </Button>
-            <PropertySuggestionPopup
-              isOpen={showPropertyPopup}
-              onClose={() => setShowPropertyPopup(false)}
-              onSelect={handleSelectProperty}
-              onCreate={handleCreateNewProperty}
-              excludeIds={appliedPropertyIds}
-              contextNodeId={nodeId}
-            />
-          </div>
-        )}
-      </section>
+      <>
+        {flashcardSection}
+        <section className={`properties-view ${className}`}>
+          {showAddProperty && !readOnly && (
+            <div className="properties-add-wrapper">
+              <Button
+                icon={"mdi mdi-plus"}
+                className="properties-add-btn"
+                onClick={() => setShowPropertyPopup(!showPropertyPopup)}
+                title="Add property"
+                size="xs"
+                variant="ghost"
+              >
+                Add property
+              </Button>
+              <PropertySuggestionPopup
+                isOpen={showPropertyPopup}
+                onClose={() => setShowPropertyPopup(false)}
+                onSelect={handleSelectProperty}
+                onCreate={handleCreateNewProperty}
+                excludeIds={appliedPropertyIds}
+                contextNodeId={nodeId}
+              />
+            </div>
+          )}
+        </section>
+      </>
     );
   }
 
@@ -412,15 +431,17 @@ export function PropertiesSection({
   }
 
   return (
-    <NodeViewSection
-      title="Properties"
-      icon={<PropertiesIcon size="sm" />}
-      count={nodeProperties.length}
-      className={`properties-section ${className}`}
-      expanded={isExpanded}
-      onExpandedChange={setIsExpanded}
-      hideWhenEmpty={true}
-    >
+    <>
+      {flashcardSection}
+      <NodeViewSection
+        title="Properties"
+        icon={<PropertiesIcon size="sm" />}
+        count={nodeProperties.length}
+        className={`properties-section ${className}`}
+        expanded={isExpanded}
+        onExpandedChange={setIsExpanded}
+        hideWhenEmpty={true}
+      >
       <section className={`properties-view`}>
         {/* Properties List using standard PropertyList component */}
         <PropertyList
@@ -458,6 +479,7 @@ export function PropertiesSection({
         )}
       </section>
     </NodeViewSection>
+  </>
   );
 }
 

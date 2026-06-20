@@ -24,7 +24,7 @@ from app.utils import utc_now
 
 _NODE_SELECT_COLUMNS = (
     "id, uuid, workspace_id, name, icon, color, parent_id, page_id, sequence, collapsed, active, "
-    "is_shared, is_page, is_class, is_day, is_month, is_year, is_asset, is_template, is_comment, is_task, is_table, "
+    "is_shared, is_page, is_class, is_day, is_month, is_year, is_asset, is_template, is_comment, is_task, is_table, is_card, is_cloze, "
     "parent_locked, is_private, is_deleted, deleted_at, class_ids, tag_ids, classes_path, "
     "create_date, write_date, open_date, create_uid, write_uid, version, aliased_id"
 )
@@ -75,6 +75,8 @@ class PostgresNodeRepository(
         is_comment = flags.get("is_comment", False)
         is_task = flags.get("is_task", False)
         is_table = flags.get("is_table", False)
+        is_card = flags.get("is_card", False)
+        is_cloze = flags.get("is_cloze", False)
 
         # Pages never have page_id - only blocks do
         if is_page:
@@ -87,11 +89,11 @@ class PostgresNodeRepository(
                     uuid, workspace_id, name, icon, color, parent_id, page_id,
                     sequence, collapsed,
                     is_class, is_page, is_day, is_month, is_year,
-                    is_asset, is_template, is_comment, is_task, is_table,
+                    is_asset, is_template, is_comment, is_task, is_table, is_card, is_cloze,
                     class_ids, tag_ids,
                     create_date, write_date, create_uid, write_uid
                 )
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $22, $23, $23)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $24, $25, $25)
                 RETURNING id
                 """,
                 uuid,
@@ -113,6 +115,8 @@ class PostgresNodeRepository(
                 is_comment,
                 is_task,
                 is_table,
+                is_card,
+                is_cloze,
                 data.classes if data.classes else [],
                 data.tags if data.tags else [],
                 now,
@@ -147,6 +151,8 @@ class PostgresNodeRepository(
             is_comment=is_comment,
             is_task=is_task,
             is_table=is_table,
+            is_card=is_card,
+            is_cloze=is_cloze,
             create_date=now.isoformat(),
             write_date=now.isoformat(),
             create_uid=uid,

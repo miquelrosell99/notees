@@ -18,6 +18,7 @@ from app.domain.errors import (
     NodeNotFoundError,
     NodeValidationError,
     PermissionDeniedError,
+    SystemClassConstraintError,
 )
 from app.domain.permissions import PermissionChecker
 from app.domain.stringify_ast import (
@@ -203,6 +204,7 @@ class NodeService:
         pages_only: bool = False,
         parent_id: int | None = None,
         type_id: int | None = None,
+        tag_id: int | None = None,
         class_ids: list[int] | None = None,
         root_only: bool = False,
         sort_by: str = "sequence",
@@ -215,6 +217,7 @@ class NodeService:
             pages_only=pages_only,
             parent_id=parent_id,
             type_id=type_id,
+            tag_id=tag_id,
             class_ids=class_ids,
             root_only=root_only,
             sort_by=sort_by,
@@ -770,12 +773,22 @@ class NodeService:
         validate_node_create(data.name, data.icon, data.color)
 
         # Validate parent_id exists when provided
+        parent = None
         if data.parent_id is not None:
             parent = await self._node_repo.get_by_id(data.parent_id)
             if parent is None:
                 raise NodeValidationError(
                     f"Parent node does not exist: {data.parent_id}",
                     field="parent_id",
+                )
+
+        # Validate cloze class can only be assigned to blocks inside a card
+        if data.classes:
+            class_nodes = await self._node_repo.get_by_ids(data.classes)
+            has_cloze = any(c.uuid == SYSTEM_CLASS_UUIDS["cloze"] for c in class_nodes)
+            if has_cloze and (parent is None or not parent.is_card):
+                raise SystemClassConstraintError(
+                    "The 'cloze' class can only be assigned to blocks inside a card."
                 )
 
         # Validate page name uniqueness if it's a page with classes
@@ -967,6 +980,21 @@ class NodeService:
             await self._link_service.update_classes_path(node.id)
             await self._log_activity(node.id, "moved", f"Moved to parent {new_parent_id}")
 
+        # Cloze deletions are only valid as direct children of cards. If a cloze
+        # block is moved elsewhere, strip the cloze class automatically.
+        if (
+            node.id is not None
+            and node.is_cloze
+            and new_parent_id is not None
+            and new_parent_id != old_parent_id
+        ):
+            parent = await self._node_repo.get_by_id(new_parent_id)
+            if parent is None or not parent.is_card:
+                cloze_class_id = await self._node_repo.find_node_id_by_uuid(SYSTEM_CLASS_UUIDS["cloze"])
+                if cloze_class_id:
+                    await self.remove_class(node.id, cloze_class_id)
+                    node = await self._node_repo.get_by_id(node.id) or node
+
         return node
 
     async def _check_circular_reference(self, node_id: int, new_parent_id: int) -> None:
@@ -1106,6 +1134,21 @@ class NodeService:
         if data.parent_id is not None and data.parent_id != old_parent_id and node.id is not None:
             await self._link_service.update_classes_path(node.id)
             await self._log_activity(node.id, "moved", f"Moved to parent {data.parent_id}")
+
+        # Cloze deletions are only valid as direct children of cards. Strip the
+        # cloze class if the node was moved under a non-card parent.
+        if (
+            data.parent_id is not None
+            and data.parent_id != old_parent_id
+            and node.id is not None
+            and node.is_cloze
+        ):
+            parent = await self._node_repo.get_by_id(data.parent_id)
+            if parent is None or not parent.is_card:
+                cloze_class_id = await self._node_repo.find_node_id_by_uuid(SYSTEM_CLASS_UUIDS["cloze"])
+                if cloze_class_id:
+                    await self.remove_class(node.id, cloze_class_id)
+                    node = await self._node_repo.get_by_id(node.id) or node
 
         # Apply class reconciliation and property values in the same transaction
         if classes is not None or properties:
@@ -1585,28 +1628,39 @@ class NodeService:
         """List all template nodes in this workspace."""
         return await self._node_repo.list_templates()
 
-    async def extract_template_variables(self, node_id: int) -> list[str]:
-        """Extract {{variable_name}} placeholders from a node and all its descendants."""
+    async def extract_template_variables(self, node_id: int) -> tuple[list[str], list[str]]:
+        """Extract {{variable_name}} and <% dynamic_variable %> placeholders from a template tree.
+
+        Returns a tuple of (static_variables, dynamic_variables).
+        """
         import re
 
         template_node = await self._node_repo.get_by_id(node_id)
         if not template_node:
-            return []
+            return [], []
         descendants = await self._node_repo.get_template_descendants(node_id)
         all_names = [template_node.name] + [d.name for d in descendants]
 
-        pattern = re.compile(r"\{\{([a-zA-Z_][a-zA-Z0-9_]*)\}\}")
-        seen: set = set()
-        variables: list[str] = []
+        static_pattern = re.compile(r"\{\{([a-zA-Z_][a-zA-Z0-9_]*)\}\}")
+        dynamic_pattern = re.compile(r"<%\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*%>")
+        static_seen: set = set()
+        dynamic_seen: set = set()
+        static_variables: list[str] = []
+        dynamic_variables: list[str] = []
         for name in all_names:
             if not name:
                 continue
-            for match in pattern.finditer(name):
+            for match in static_pattern.finditer(name):
                 var = match.group(1)
-                if var not in seen:
-                    seen.add(var)
-                    variables.append(var)
-        return variables
+                if var not in static_seen:
+                    static_seen.add(var)
+                    static_variables.append(var)
+            for match in dynamic_pattern.finditer(name):
+                var = match.group(1)
+                if var not in dynamic_seen:
+                    dynamic_seen.add(var)
+                    dynamic_variables.append(var)
+        return static_variables, dynamic_variables
 
     async def instantiate_template(
         self,
@@ -1615,6 +1669,7 @@ class NodeService:
         parent_id: int | None = None,
         name: str | None = None,
         variables: dict[str, str] | None = None,
+        dynamic_context: dict[str, str] | None = None,
         as_blocks: bool = False,
         after_id: int | None = None,
     ) -> dict[str, Any]:
@@ -1664,6 +1719,11 @@ class NodeService:
             if variables:
                 for var_name, var_value in variables.items():
                     result = result.replace("{{" + var_name + "}}", var_value)
+            # Substitute dynamic <% ... %> placeholders using the provided context.
+            if dynamic_context:
+                for var_name, var_value in dynamic_context.items():
+                    result = result.replace("<%" + var_name + "%>", var_value)
+                    result = result.replace("<% " + var_name + " %>", var_value)
             return result
 
         # 5. Strip template class from root's class_ids

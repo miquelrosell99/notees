@@ -99,6 +99,9 @@ export function GenericConditionRenderer({
     } else if (condition.condition_type === 'page') {
       const uuid = (condition as unknown as Record<string, unknown>).page_uuid;
       return uuid === '{current_node_uuid}' || (uuid && uuid === currentNodeUuid);
+    } else if (condition.condition_type === 'tag') {
+      const uuids = (condition as unknown as Record<string, unknown>).tag_uuids as string[] | undefined;
+      return uuids?.length === 1 && (uuids[0] === '{current_node_uuid}' || uuids[0] === currentNodeUuid);
     }
     return false;
   })();
@@ -143,6 +146,9 @@ export function GenericConditionRenderer({
       } else if (condition.condition_type === 'page') {
         const uuid = (condition as unknown as Record<string, unknown>).page_uuid;
         return uuid === '{current_node_uuid}' || (uuid && uuid === currentNodeUuid);
+      } else if (condition.condition_type === 'tag') {
+        const uuids = (condition as unknown as Record<string, unknown>).tag_uuids as string[] | undefined;
+        return uuids?.length === 1 && (uuids[0] === '{current_node_uuid}' || uuids[0] === currentNodeUuid);
       }
       return false;
     })();
@@ -193,6 +199,11 @@ export function GenericConditionRenderer({
         delete updated.page_uuids;
         delete updated.page_id;
         delete updated.page_ids;
+      } else if (condition.condition_type === 'tag') {
+        delete updated.tag_uuid;
+        delete updated.tag_uuids;
+        delete updated.tag_id;
+        delete updated.tag_ids;
       }
       
       // Reset to static mode
@@ -356,8 +367,21 @@ export function GenericConditionRenderer({
     } else if (condition.condition_type === 'page') {
       updates.page_id = nodeId ?? undefined;
       updates.page_uuid = node?.uuid ?? '';
+    } else if (condition.condition_type === 'tag') {
+      const existing = condition as unknown as Record<string, unknown>;
+      if (nodeId && node?.uuid) {
+        const currentUuids = (existing.tag_uuids as string[]) || [];
+        const currentIds = (existing.tag_ids as number[]) || [];
+        if (!currentUuids.includes(node.uuid)) {
+          updates.tag_uuids = [...currentUuids, node.uuid];
+          updates.tag_ids = [...currentIds, nodeId];
+        }
+      } else {
+        updates.tag_uuids = [];
+        updates.tag_ids = [];
+      }
     }
-    
+
     onUpdate({
       ...condition,
       ...updates,
@@ -475,7 +499,8 @@ export function GenericConditionRenderer({
       
       case 'node-selector': {
         // Path conditions use plural arrays (target_uuids, ancestor_uuids, descendant_uuids)
-        const isPathCondition = ['reference_path', 'parent_path', 'child_path'].includes(condition.condition_type);
+        // Tag condition also uses plural arrays.
+        const isPathCondition = ['reference_path', 'parent_path', 'child_path', 'tag'].includes(condition.condition_type);
         
         if (isPathCondition) {
           // Multi-select mode for path conditions
@@ -484,6 +509,7 @@ export function GenericConditionRenderer({
             if (condition.condition_type === 'reference_path') return (c.target_ids as number[]) || [];
             if (condition.condition_type === 'parent_path') return (c.ancestor_ids as number[]) || [];
             if (condition.condition_type === 'child_path') return (c.descendant_ids as number[]) || [];
+            if (condition.condition_type === 'tag') return (c.tag_ids as number[]) || [];
             return [];
           };
           const selectedIds = getPathIds();
@@ -523,6 +549,15 @@ export function GenericConditionRenderer({
                     newIds.splice(idx, 1);
                     newUuids.splice(idx, 1);
                     onUpdate({ ...condition, descendant_ids: newIds, descendant_uuids: newUuids, nested_group: undefined } as unknown as ConditionNode);
+                  }
+                } else if (condition.condition_type === 'tag') {
+                  const idx = ((c.tag_ids as number[]) || []).indexOf(node.id);
+                  if (idx >= 0) {
+                    const newIds = [...((c.tag_ids as number[]) || [])];
+                    const newUuids = [...((c.tag_uuids as string[]) || [])];
+                    newIds.splice(idx, 1);
+                    newUuids.splice(idx, 1);
+                    onUpdate({ ...condition, tag_ids: newIds, tag_uuids: newUuids, nested_group: undefined } as unknown as ConditionNode);
                   }
                 }
               }}

@@ -21,6 +21,8 @@ import { getEffectiveColor } from '@/utils/nodeIcon';
 import { useProperties, useSetNodeProperty } from '@/features/properties';
 import { useCreateNode, useRemoveClass, useAddClass, useUpdateNode, useResolvedClassDetails } from '@/features/content';
 import { useContentSave } from '@/features/editor';
+import { useCreateFlashcard } from '@/features/flashcards';
+import { stringifyAST, StringifyMode } from '@/lib';
 import { nodeNameToText } from '@/features/queries';
 import { useNavigationStore } from '@/stores';
 import { Button } from '@/components/ui/Button';
@@ -152,6 +154,7 @@ export const NodeCard = memo(function NodeCard({
   // Mutations
   const removeClass = useRemoveClass();
   const addClass = useAddClass();
+  const createFlashcard = useCreateFlashcard();
   const updateNode = useUpdateNode();
   const createNode = useCreateNode();
 
@@ -470,8 +473,32 @@ export const NodeCard = memo(function NodeCard({
       case 'file':
         // Cards don't currently support inline asset upload from slash commands
         break;
+      case 'flashcard': {
+        const cls = _propsAllClasses?.find(c => c.uuid === SYSTEM_CLASS_UUIDS.card);
+        if (!cls || blockServerId == null) break;
+        addClass.mutate(
+          { nodeId: blockServerId, classId: cls.id },
+          {
+            onSuccess: () => {
+              const runtime = getOperationRuntime();
+              const graphNode = getAllNodes(runtime).find(n => n.serverId === blockServerId);
+              const frontText = graphNode
+                ? stringifyAST(graphNode.contentAST, { mode: StringifyMode.TEXT_ONLY }).trim()
+                : '';
+              createFlashcard.mutate({ nodeId: blockServerId, frontText, backText: '' });
+            },
+          },
+        );
+        break;
+      }
+      case 'cloze': {
+        const cls = _propsAllClasses?.find(c => c.uuid === SYSTEM_CLASS_UUIDS.cloze);
+        if (!cls || blockServerId == null) break;
+        addClass.mutate({ nodeId: blockServerId, classId: cls.id });
+        break;
+      }
     }
-  }, [_propsAllClasses, addClass]);
+  }, [_propsAllClasses, addClass, createFlashcard]);
 
   // Handle table creation from modal — new table
   const handleTableConfirm = useCallback(async (size: TableGridSize) => {

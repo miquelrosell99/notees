@@ -32,5 +32,5 @@ async def get_template_variables(
     if not node.is_template:
         raise HTTPException(422, "Node is not a template")
 
-    variables = await service.extract_template_variables(node_id)
-    return TemplateVariablesResponse(variables=variables)
+    variables, dynamic_variables = await service.extract_template_variables(node_id)
+    return TemplateVariablesResponse(variables=variables, dynamic_variables=dynamic_variables)
