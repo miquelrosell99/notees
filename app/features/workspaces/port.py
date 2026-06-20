@@ -146,7 +146,12 @@ class WorkspaceIORepository(ABC):
 
     @abstractmethod
     async def import_dump(
-        self, workspace_id: int, user_id: int, dump_data: dict, remap_uuids: bool
+        self,
+        workspace_id: int,
+        user_id: int,
+        dump_data: dict,
+        remap_uuids: bool,
+        cleanup_invalid_cloze: bool = False,
     ) -> tuple[dict, dict[str, str]]:
         """Run the entire multi-phase import inside a single DB transaction.
 
@@ -160,7 +165,13 @@ class WorkspaceIORepository(ABC):
         pass
 
     @abstractmethod
-    async def restore_workspace(self, workspace_id: int, user_id: int, dump_data: dict) -> dict:
+    async def restore_workspace(
+        self,
+        workspace_id: int,
+        user_id: int,
+        dump_data: dict,
+        cleanup_invalid_cloze: bool = False,
+    ) -> dict:
         """Delete all data then import with remap_uuids=False."""
         pass
 

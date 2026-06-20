@@ -15,6 +15,7 @@ export { PagesView } from './pages/PagesView';
 export { ArchivedPagesView } from './pages/ArchivedPagesView';
 export { TrashView } from './pages/TrashView';
 export { AllPagesView } from './pages/AllPagesView';
+export { TemplateGallery } from './pages/TemplateGallery';
 export { AllPagesGraphView } from './pages/AllPagesGraphView';
 export { AllPagesTimelineView } from './pages/AllPagesTimelineView';
 

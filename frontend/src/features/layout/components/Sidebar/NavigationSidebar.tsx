@@ -220,6 +220,34 @@ function CollapsedSidebarView({
           aria-label="Pages"
           title="Pages"
         />
+        <Button
+          className="sidebar-collapsed__btn"
+          variant="ghost"
+          size="md"
+          icon="mdi mdi-file-document-outline"
+          fullWidth
+          active={mainViewType === 'templates'}
+          onClick={() => {
+            setMainViewType('templates');
+            closeMobileDrawer();
+          }}
+          aria-label="Templates"
+          title="Templates"
+        />
+        <Button
+          className="sidebar-collapsed__btn"
+          variant="ghost"
+          size="md"
+          icon="mdi mdi-cards-outline"
+          fullWidth
+          active={mainViewType === 'flashcards'}
+          onClick={() => {
+            setMainViewType('flashcards');
+            closeMobileDrawer();
+          }}
+          aria-label="Flashcards"
+          title="Flashcards"
+        />
         {showWhiteboards && (
           <Button
             className="sidebar-collapsed__btn"
@@ -496,6 +524,8 @@ export function Sidebar({ collapsed }: SidebarProps) {
   const topNavItems = useMemo(() => {
     const items: Array<{ icon: string; label: string; view?: string; action?: () => void }> = [
       { icon: "mdi mdi-book-open-page-variant", label: 'Pages', view: 'pages' as const },
+      { icon: "mdi mdi-file-document-outline", label: 'Templates', view: 'templates' as const },
+      { icon: "mdi mdi-cards-outline", label: 'Flashcards', view: 'flashcards' as const },
     ];
     if (showWhiteboards) {
       items.push({ icon: "mdi mdi-view-dashboard-outline", label: 'Whiteboards', view: 'whiteboards' as const });

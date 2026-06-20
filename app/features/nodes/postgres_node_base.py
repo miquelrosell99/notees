@@ -128,6 +128,8 @@ class _PostgresNodeBase(BasePostgresRepository):
             is_comment=row.get("is_comment", False),
             is_task=row.get("is_task", False),
             is_table=row.get("is_table", False),
+            is_card=row.get("is_card", False),
+            is_cloze=row.get("is_cloze", False),
             parent_locked=row.get("parent_locked", False),
             open_date=open_date,
             create_date=create_date,

@@ -243,7 +243,8 @@ async def search_nodes(
         if n.id is None:
             continue
         node_class_ids = n.class_ids or []
-        result.append(_node_to_response(n, classes=node_class_ids))
+        node_tag_ids = n.tag_ids or []
+        result.append(_node_to_response(n, tags=node_tag_ids, classes=node_class_ids))
 
     # Resolve inline node links so search results, command palette items, and
     # similar surfaces show target names instead of "…" for link-only content.
@@ -257,6 +258,7 @@ async def list_nodes(
     pages_only: bool = False,
     parent_id: int | None = None,
     type_id: int | None = None,
+    tag_id: int | None = None,
     class_filters: str | None = None,  # Comma-separated class IDs to filter by
     include_children: bool = False,
     root_only: bool = False,  # Only return nodes with no parent
@@ -272,6 +274,7 @@ async def list_nodes(
         pages_only: Only return pages (no blocks)
         parent_id: Only return children of this node
         type_id: Only return nodes with this type
+        tag_id: Only return nodes tagged with this tag page
         class_filters: Additional comma-separated class IDs to filter by
         include_children: Include nested children for each node
         root_only: Only return root nodes (no parent_id)
@@ -305,6 +308,7 @@ async def list_nodes(
         pages_only=pages_only,
         parent_id=parent_id,
         type_id=type_id,
+        tag_id=tag_id,
         class_ids=expanded_class_ids,
         root_only=root_only,
         sort_by=sort_by,
@@ -313,10 +317,11 @@ async def list_nodes(
         page_size=effective_page_size,
     )
 
-    # Build the response; class_ids are already populated on the Node entities.
+    # Build the response; class_ids and tag_ids are already populated on the Node entities.
     class_ids_map = {n.id: list(n.class_ids) for n in nodes if n.id is not None}
+    tag_ids_map = {n.id: list(n.tag_ids) for n in nodes if n.id is not None}
     result = [
-        _node_to_response(n, classes=class_ids_map.get(n.id, []))
+        _node_to_response(n, tags=tag_ids_map.get(n.id, []), classes=class_ids_map.get(n.id, []))
         for n in nodes
         if n.id is not None
     ]

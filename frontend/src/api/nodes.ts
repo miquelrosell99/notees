@@ -1024,6 +1024,7 @@ export interface TemplateInstantiateOptions {
   parent_id?: number;
   name?: string;
   variables?: Record<string, string>;
+  dynamic_context?: Record<string, string>;
   as_blocks?: boolean;
   after_id?: number;
 }
@@ -1044,8 +1045,13 @@ export async function listTemplates(
   return response.data;
 }
 
-export async function getTemplateVariables(nodeId: number): Promise<{ variables: string[] }> {
-  const response = await api.get<{ variables: string[] }>(`${BASE}/${nodeId}/template-variables`);
+export interface TemplateVariablesResult {
+  variables: string[];
+  dynamic_variables: string[];
+}
+
+export async function getTemplateVariables(nodeId: number): Promise<TemplateVariablesResult> {
+  const response = await api.get<TemplateVariablesResult>(`${BASE}/${nodeId}/template-variables`);
   return response.data;
 }
 

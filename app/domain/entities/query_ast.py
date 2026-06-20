@@ -102,6 +102,7 @@ class ConditionType(StrEnum):
     CHILD_PATH = "child_path"
     FLAG = "flag"
     PAGE = "page"
+    TAG = "tag"
 
 
 class PropertyOperator(StrEnum):
@@ -326,6 +327,19 @@ class PageCondition(BaseConditionNode):
 
 
 @dataclass
+class TagCondition(BaseConditionNode):
+    """Tag condition - filter by tag (descriptive tag_ids array on node)."""
+
+    condition_type: Literal[ConditionType.TAG] = ConditionType.TAG
+    # Static mode: specific tag page(s)
+    tag_uuid: str = ""
+    tag_uuids: list[str] | None = None
+    tag_id: int | None = None
+    tag_ids: list[int] | None = None
+    operator: str | None = None  # 'is' | 'is_not' | 'has_any_tag' | 'has_no_tag'
+
+
+@dataclass
 class ChildCondition(BaseConditionNode):
     """Child condition - filter by direct child nodes matching criteria."""
 
@@ -363,6 +377,7 @@ ConditionNode = (
     | ChildPathCondition
     | FlagCondition
     | PageCondition
+    | TagCondition
 )
 
 
@@ -742,6 +757,18 @@ def condition_from_dict(data: dict[str, Any]) -> ConditionNode:
             page_ids=data.get("page_ids"),
             nested_group=nested_group,
             operator=data.get("operator", "is_page"),
+        )
+    elif condition_type == ConditionType.TAG:
+        nested_group = None
+        if "nested_group" in data and data["nested_group"]:
+            nested_group = GroupNode.from_dict(data["nested_group"])
+        return TagCondition(
+            tag_uuid=data.get("tag_uuid", ""),
+            tag_uuids=data.get("tag_uuids"),
+            tag_id=data.get("tag_id"),
+            tag_ids=data.get("tag_ids"),
+            nested_group=nested_group,
+            operator=data.get("operator", "is"),
         )
     else:
         # Default to content condition

@@ -81,6 +81,8 @@ class Node:
     is_comment: bool = False  # Comment block
     is_task: bool = False  # Task item (synchronized with task class assignment)
     is_table: bool = False  # Table block (synchronized with table class assignment)
+    is_card: bool = False  # Flashcard/quiz card (synchronized with card class assignment)
+    is_cloze: bool = False  # Cloze deletion block (child of a card)
 
     # Parent lock - prevents parent_id from being changed
     parent_locked: bool = False

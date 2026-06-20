@@ -172,6 +172,7 @@ class PostgresNodeSearchMixin(_PostgresNodeBase):
         pages_only: bool = False,
         parent_id: int | None = None,
         type_id: int | None = None,
+        tag_id: int | None = None,
         class_ids: list[int] | None = None,
         root_only: bool = False,
         sort_by: str = "sequence",
@@ -212,6 +213,11 @@ class PostgresNodeSearchMixin(_PostgresNodeBase):
         if type_id is not None:
             conditions.append(f"${param_idx} = ANY(n.class_ids)")
             params.append(type_id)
+            param_idx += 1
+
+        if tag_id is not None:
+            conditions.append(f"${param_idx} = ANY(n.tag_ids)")
+            params.append(tag_id)
             param_idx += 1
 
         if class_ids:

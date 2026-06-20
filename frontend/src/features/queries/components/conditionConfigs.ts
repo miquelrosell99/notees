@@ -18,6 +18,7 @@ import {
   FLAG_OPERATORS,
   STYLE_OPERATORS,
   PAGE_OPERATORS,
+  TAG_OPERATORS,
   type OperatorDefinition,
 } from './operators';
 
@@ -275,6 +276,20 @@ export const CONDITION_CONFIGS: Record<string, ConditionConfig> = {
       defaultLogic: 'AND',
     },
     noValueOperators: ['has_no_page', 'has_any_page'],
+  },
+
+  tag: {
+    label: 'TAG',
+    operators: TAG_OPERATORS,
+    defaultOperator: 'is',
+    hasStaticDynamicToggle: false,
+    staticMode: {
+      inputType: 'node-selector',
+      placeholder: 'Select tag...',
+      required: true,
+      allowMultiple: true,
+    },
+    noValueOperators: ['has_any_tag', 'has_no_tag'],
   },
 };
 

@@ -71,6 +71,7 @@ export function useSystemClasses() {
       code: allClasses.find(c => c.uuid === SYSTEM_CLASS_UUIDS.code) ?? null,
       whiteboard: allClasses.find(c => c.uuid === SYSTEM_CLASS_UUIDS.whiteboard) ?? null,
       card: allClasses.find(c => c.uuid === SYSTEM_CLASS_UUIDS.card) ?? null,
+      cloze: allClasses.find(c => c.uuid === SYSTEM_CLASS_UUIDS.cloze) ?? null,
     };
   }, [allClasses]);
   
@@ -92,6 +93,7 @@ export function useSystemClasses() {
       code: systemClasses.code?.id ?? null,
       whiteboard: systemClasses.whiteboard?.id ?? null,
       card: systemClasses.card?.id ?? null,
+      cloze: systemClasses.cloze?.id ?? null,
     };
   }, [systemClasses]);
   

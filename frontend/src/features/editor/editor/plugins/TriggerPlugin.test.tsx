@@ -63,6 +63,7 @@ vi.mock('@/runtime', () => ({
 
 vi.mock('@/runtime/graphHelpers', () => ({
   getNode: () => ({ serverId: 42 }),
+  getAllNodes: () => [],
 }));
 
 vi.mock('@/runtime/eventBus', () => ({
