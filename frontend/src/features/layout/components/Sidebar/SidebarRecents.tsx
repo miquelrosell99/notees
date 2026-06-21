@@ -32,7 +32,7 @@ const RecentItem = memo(function RecentItem({ nodeId, isActive, onClick, onNavig
     onClick(e as React.MouseEvent);
   }, [onClick]);
 
-  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLButtonElement>) => {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
       onNavigate(nodeId);
@@ -42,9 +42,8 @@ const RecentItem = memo(function RecentItem({ nodeId, isActive, onClick, onNavig
   if (!node) return <div className="sidebar-item-skeleton" />;
 
   return (
-    <div
-      role="button"
-      tabIndex={0}
+    <button
+      type="button"
       aria-label={node ? nodeNameToText(node.name) || 'Untitled' : 'Loading recent'}
       onClick={handleClick}
       onContextMenu={onContextMenu}
@@ -71,7 +70,7 @@ const RecentItem = memo(function RecentItem({ nodeId, isActive, onClick, onNavig
           draggable={true}
         />
       </div>
-    </div>
+    </button>
   );
 });
 
@@ -131,7 +130,7 @@ export function SidebarRecents({ onContextMenu, onItemClick }: SidebarRecentsPro
       >
         {expanded ? <ChevronDownIcon size="xs" /> : <ChevronRightIcon size="xs" />}
         <ClockIcon size="xs" />
-        <h3 className="sidebar-section-title">Recents</h3>
+        <h2 className="sidebar-section-title">Recents</h2>
       </button>
       {expanded && (
         <div className="sidebar-recents-list">

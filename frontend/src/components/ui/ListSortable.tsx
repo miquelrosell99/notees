@@ -107,6 +107,7 @@ export function ListSortable<T extends ListSortableItem>({
   return (
     <div
       ref={containerRef}
+      role="list"
       className={`list-sortable ${className} ${dragState ? 'list-sortable--dragging' : ''}`}
     >
       {items.map((item, index) => {
@@ -114,16 +115,18 @@ export function ListSortable<T extends ListSortableItem>({
         const style = getItemStyle(index);
 
         return (
-          <div
-            key={item.id}
-            role="button"
-            tabIndex={0}
-            className={`list-sortable__item ${itemClassName} ${isDragging ? 'list-sortable__item--dragging' : ''} ${isSettling ? 'list-sortable__item--settling' : ''}`}
-            style={style}
-            onClick={() => handleItemClick(item, index)}
-            onContextMenu={(e) => handleItemContextMenu(item, e)}
-            onKeyDown={(e) => handleItemKeyDown(item, index, e)}
-          >
+          <>
+            {/* eslint-disable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex */}
+            <div
+              role="listitem"
+              tabIndex={0}
+              key={item.id}
+              className={`list-sortable__item ${itemClassName} ${isDragging ? 'list-sortable__item--dragging' : ''} ${isSettling ? 'list-sortable__item--settling' : ''}`}
+              style={style}
+              onClick={() => handleItemClick(item, index)}
+              onContextMenu={(e) => handleItemContextMenu(item, e)}
+              onKeyDown={(e) => handleItemKeyDown(item, index, e)}
+            >
             {/* Drag handle */}
             {showDragHandle && (
               <button
@@ -167,6 +170,8 @@ export function ListSortable<T extends ListSortableItem>({
               </div>
             )}
           </div>
+          {/* eslint-enable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex */}
+          </>
         );
       })}
     </div>

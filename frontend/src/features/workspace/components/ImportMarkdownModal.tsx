@@ -17,7 +17,7 @@ import {
   countMdBlocks,
   type LogseqMdPage,
   type LogseqMdBlock,
-} from '@/utils/logseqMdParser';
+} from '@/plugins/builtin/logseq_importer/utils/logseqMdParser';
 import { useCreateNode, usePageClass } from '@/features/content';
 import './ImportMarkdownModal.css';
 

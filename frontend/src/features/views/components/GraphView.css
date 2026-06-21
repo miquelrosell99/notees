@@ -329,7 +329,7 @@
 }
 
 .graph-search-input::placeholder {
-  color: var(--color-outline);
+  color: var(--color-placeholder);
 }
 
 .graph-search-input:focus {

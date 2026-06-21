@@ -14,6 +14,9 @@ from app.domain.ports import NodeExportRenderer
 from app.domain.stringify_ast import NodeLinkResolution, parse_ast
 from app.features.export.port import ExportRepository
 from app.logging_config import get_logger
+from app.plugins.core.context import PluginContext
+from app.plugins.core.manager import plugin_manager
+from app.plugins.core.ports import ExportContext
 
 logger = get_logger(__name__)
 
@@ -277,6 +280,7 @@ class ExportService:
         workspace_id: int,
         node_ids: list[str],
         format: Any,
+        user_id: int | None = None,
         include_children: bool = True,
         layout: str = "outline",
         formatting: bool = True,
@@ -298,7 +302,7 @@ class ExportService:
         link_target_brackets: bool = True,
         frontmatter: bool = False,
     ) -> tuple[bytes, str, str]:
-        """Export nodes to Markdown, HTML, PDF, Text, or JSON.
+        """Export nodes to Markdown, HTML, PDF, Text, JSON, or a plugin format.
 
         Args:
             workspace_id: Workspace ID to export from.
@@ -338,8 +342,56 @@ class ExportService:
         elif properties == "all":
             property_target_nodes = nodes_data
 
-        # Automatically skip the root page node for Markdown exports.
         fmt_str = str(format).lower()
+
+        # Delegate to a plugin exporter if one registered for this format.
+        exporter_reg = plugin_manager.get_exporter_registration(fmt_str)
+        if exporter_reg is not None:
+            plugin_id, adapter = exporter_reg
+            resolved_ids = await self._export_repo.resolve_node_ids(workspace_id, node_ids)
+            if not resolved_ids:
+                raise ValueError("No nodes found to export")
+
+            loaded_plugin = plugin_manager.get_plugin(plugin_id)
+            if loaded_plugin is None:
+                raise ValueError(f"Plugin {plugin_id} is not loaded")
+
+            plugin_context = PluginContext(
+                plugin_id=plugin_id,
+                permissions=set(loaded_plugin.manifest.permissions),
+                registry=plugin_manager.registry,
+                port_factories=plugin_manager.port_factories,
+            )
+            options = {
+                "include_children": include_children,
+                "include_child_pages": include_child_pages,
+                "layout": layout,
+                "formatting": formatting,
+                "style": style,
+                "properties": properties,
+                "density": density,
+                "numbering": numbering,
+                "measure": measure,
+                "doctype": doctype,
+                "section_break": section_break,
+                "show_uuid": show_uuid,
+                "link_style": link_style,
+                "theme_mode": theme_mode,
+                "cover_page": cover_page,
+                "page_size": page_size,
+            }
+            result = await adapter.export_nodes(
+                ExportContext(
+                    node_ids=resolved_ids,
+                    workspace_id=workspace_id,
+                    user_id=user_id or 0,
+                    plugin_context=plugin_context,
+                    options=options,
+                )
+            )
+            return result.content, result.filename, result.mime_type
+
+        # Automatically skip the root page node for Markdown exports.
         if fmt_str == "markdown" and nodes_data and nodes_data[0].get("is_page", False) and include_children:
             nodes_data = [nd for nd in nodes_data if nd.get("depth", 0) > 0]
             for nd in nodes_data:

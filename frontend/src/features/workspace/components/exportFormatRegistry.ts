@@ -41,6 +41,10 @@ export function registerExportFormat(def: ExportFormatDefinition): void {
   registry.set(def.format, def);
 }
 
+export function unregisterExportFormat(format: string): void {
+  registry.delete(format);
+}
+
 export function getExportFormat(format: string): ExportFormatDefinition | undefined {
   return registry.get(format);
 }

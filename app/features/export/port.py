@@ -83,3 +83,10 @@ class ExportRepository(ABC):
     ) -> list[dict[str, Any]]:
         """List active non-deleted page UUIDs and names for batch export."""
         pass
+
+    @abstractmethod
+    async def resolve_node_ids(
+        self, workspace_id: int, node_uuids: list[str]
+    ) -> list[int]:
+        """Return integer node IDs for the given UUIDs in the workspace."""
+        pass

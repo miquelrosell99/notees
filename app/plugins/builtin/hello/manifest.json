@@ -1,0 +1,17 @@
+{
+  "id": "notees.hello",
+  "name": "Hello Plugin",
+  "version": "1.0.0",
+  "description": "A minimal built-in plugin demonstrating the plugin system.",
+  "author": "Notees",
+  "license": "AGPL-3.0",
+  "permissions": ["router"],
+  "backend": {
+    "entrypoint": "app.plugins.builtin.hello.setup:setup"
+  },
+  "contributes": {
+    "commands": [
+      {"id": "hello.greet", "label": "Hello: Greet", "icon": "hand-wave"}
+    ]
+  }
+}

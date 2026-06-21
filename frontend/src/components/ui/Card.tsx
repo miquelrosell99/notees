@@ -89,7 +89,7 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(function Card(
           onClick={onClose}
           aria-label="Close"
         >
-          <span className="mdi mdi-close" />
+          <span className="mdi mdi-close" aria-hidden="true" />
         </button>
       )}
       {children}

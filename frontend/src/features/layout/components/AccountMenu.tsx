@@ -194,6 +194,7 @@ export function AccountMenu({
           ref={menuRef}
           className="account-menu__dropdown"
           elevation="high"
+          radius="floating"
           padding={false}
           style={{
             ...(menuPos.top !== undefined ? { top: `${menuPos.top}px` } : { bottom: `${menuPos.bottom}px` }),

@@ -73,6 +73,7 @@ export function InlineConfirmButton({
           size={size}
           onClick={handleConfirm}
           title={confirmTitle}
+          aria-label={confirmTitle}
         >
           <CheckIcon size={size} />
         </Button>
@@ -81,6 +82,7 @@ export function InlineConfirmButton({
           size={size}
           onClick={handleCancel}
           title={cancelTitle}
+          aria-label={cancelTitle}
         >
           <CloseIcon size={size} />
         </Button>

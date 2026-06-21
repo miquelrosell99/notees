@@ -38,7 +38,7 @@ import { CommandPalette } from './CommandPalette';
 import { BrokenLinkFixContext } from '@/features/content';
 const ImportDataModal = React.lazy(() => import('@/features/workspace/components/ImportDataModal').then(m => ({ default: m.ImportDataModal })));
 const ImportLogseqModal = React.lazy(() => import('@/features/workspace/components/ImportLogseqModal').then(m => ({ default: m.ImportLogseqModal })));
-const ImportLogseqFolderModal = React.lazy(() => import('@/features/workspace/components/ImportLogseqFolderModal').then(m => ({ default: m.ImportLogseqFolderModal })));
+const ImportLogseqFolderModal = React.lazy(() => import('@/plugins/builtin/logseq_importer/components/ImportLogseqFolderModal').then(m => ({ default: m.ImportLogseqFolderModal })));
 const ImportMarkdownModal = React.lazy(() => import('@/features/workspace/components/ImportMarkdownModal').then(m => ({ default: m.ImportMarkdownModal })));
 const ExportPageModal = React.lazy(() => import('@/features/workspace/components/ExportPageModal').then(m => ({ default: m.ExportPageModal })));
 const ShareModal = React.lazy(() => import('@/features/content/components/nodes/ShareModal').then(m => ({ default: m.ShareModal })));
@@ -49,6 +49,7 @@ const CreatePageWithUuidModal = React.lazy(() => import('@/features/layout/compo
 const AutoExportProgressModal = React.lazy(() => import('@/features/workspace/components/AutoExportProgressModal').then(m => ({ default: m.AutoExportProgressModal })));
 import { Card } from '@/components/ui/Card';
 import { PresentationModal } from '@/features/content';
+import { PluginManagerModal, PluginCommandRegistrations } from '@/plugins/core';
 import './Layout.css';
 
 export function Layout() {
@@ -71,6 +72,8 @@ export function Layout() {
   const setImportLogseqModalOpen = useModalStore(s => s.setImportLogseqModalOpen);
   const isImportLogseqFolderModalOpen = useModalStore(s => s.isImportLogseqFolderModalOpen);
   const setImportLogseqFolderModalOpen = useModalStore(s => s.setImportLogseqFolderModalOpen);
+
+  const [pluginManagerOpen, setPluginManagerOpen] = useState(false);
   const isImportMarkdownModalOpen = useModalStore(s => s.isImportMarkdownModalOpen);
   const setImportMarkdownModalOpen = useModalStore(s => s.setImportMarkdownModalOpen);
   const isExportPageModalOpen = useModalStore(s => s.isExportPageModalOpen);
@@ -280,7 +283,11 @@ export function Layout() {
           <div className={`app-canvas${wideMode ? ' wide-mode' : ''}`}>
             <TopBar />
             <div className="app-workspace" ref={workspaceRef}>
-              <div className={`sidebar-wrapper${isSidebarCollapsed ? ' sidebar-wrapper--collapsed' : ''}`} style={leftSidebarStyle}>
+              <aside
+                className={`sidebar-wrapper${isSidebarCollapsed ? ' sidebar-wrapper--collapsed' : ''}`}
+                style={leftSidebarStyle}
+                aria-label="Primary sidebar"
+              >
                 <Sidebar collapsed={isSidebarCollapsed} />
                 {!isSidebarCollapsed && (
                   /* eslint-disable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex */
@@ -302,12 +309,19 @@ export function Layout() {
                   />
                   /* eslint-enable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex */
                 )}
-              </div>
+              </aside>
               {tabPosition === 'left' && <TabBar />}
-              <Card className="main-container" padding={false} elevation="medium">
-                <MainContent />
-              </Card>
-              <div className={`sidebar-wrapper sidebar-wrapper--right${!showSidebar ? ' sidebar-wrapper--collapsed' : ''}`} style={rightSidebarStyle} data-focus-mode={viewMode === 'focus' || undefined}>
+              <main id="main-content" className="main-container">
+                <Card className="main-container__card" padding={false} elevation="medium">
+                  <MainContent />
+                </Card>
+              </main>
+              <aside
+                className={`sidebar-wrapper sidebar-wrapper--right${!showSidebar ? ' sidebar-wrapper--collapsed' : ''}`}
+                style={rightSidebarStyle}
+                data-focus-mode={viewMode === 'focus' || undefined}
+                aria-label="Secondary sidebar"
+              >
                 {showSidebar && (
                   /* eslint-disable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex */
                   <div
@@ -338,7 +352,7 @@ export function Layout() {
                     <RightSidebarCards />
                   </div>
                 </Card>
-              </div>
+              </aside>
             </div>
           </div>
         )}
@@ -484,6 +498,15 @@ export function Layout() {
           <AutoExportProgressModal
             isOpen={isAutoExportProgressModalOpen}
             onClose={() => setAutoExportProgressModalOpen(false)}
+          />
+        </Suspense>
+
+        {/* Plugin Manager */}
+        <PluginCommandRegistrations onOpenPluginManager={() => setPluginManagerOpen(true)} />
+        <Suspense fallback={null}>
+          <PluginManagerModal
+            isOpen={pluginManagerOpen}
+            onClose={() => setPluginManagerOpen(false)}
           />
         </Suspense>
       </BrokenLinkFixContext.Provider>

@@ -227,6 +227,7 @@ function LazyCategory({ label, items, isIcon, selectedValue, onSelect }: LazyCat
                   variant="ghost"
                   size="xs"
                   title={kebab}
+                  aria-label={kebab}
                   active={selectedValue === kebab}
                   className="ep-item"
                   onClick={() => onSelect(item)}
@@ -241,6 +242,7 @@ function LazyCategory({ label, items, isIcon, selectedValue, onSelect }: LazyCat
                 variant="ghost"
                 size="xs"
                 title={item}
+                aria-label={item}
                 active={selectedValue === item}
                 className="ep-item ep-emoji-item"
                 onClick={() => onSelect(item)}
@@ -283,6 +285,7 @@ const ItemGrid = React.memo(function ItemGrid({ items, isIcon, selectedValue, on
               variant="ghost"
               size="xs"
               title={kebab}
+              aria-label={kebab}
               active={selectedValue === kebab}
               className="ep-item"
               onClick={() => onSelect(item)}
@@ -297,6 +300,7 @@ const ItemGrid = React.memo(function ItemGrid({ items, isIcon, selectedValue, on
             variant="ghost"
             size="xs"
             title={item}
+            aria-label={item}
             active={selectedValue === item}
             className="ep-item ep-emoji-item"
             onClick={() => onSelect(item)}

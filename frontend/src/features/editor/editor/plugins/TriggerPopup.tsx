@@ -27,6 +27,7 @@ import { Button } from '@/components/ui/Button';
 import { Spinner } from '@/components/ui/Spinner';
 import { AddIcon, Icon } from '@/components/ui/icons';
 import { useOverlaySurface } from '@/hooks/useOverlaySurface';
+import { getRegisteredSlashCommands } from '@/plugins/core';
 import './TriggerPopup.css';
 
 export type TriggerPopupType = 'class' | 'link' | 'tag' | 'slash';
@@ -150,6 +151,16 @@ export function TriggerPopup({
 }: TriggerPopupProps) {
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
+
+  const allSlashCommands = useMemo<SlashCommand[]>(() => {
+    const pluginCommands = getRegisteredSlashCommands().map((cmd) => ({
+      id: cmd.id,
+      label: cmd.label,
+      description: cmd.description ?? '',
+    }));
+    return [...SLASH_COMMANDS, ...pluginCommands];
+  }, []);
+
   const [placement, setPlacement] = useState<'below' | 'above'>(() => {
     const estimatedHeight = 280;
     const gap = 4;
@@ -289,7 +300,7 @@ export function TriggerPopup({
     } else {
       // Slash commands
       const lower = query.toLowerCase();
-      const scored = SLASH_COMMANDS
+      const scored = allSlashCommands
         .filter((c) => !hiddenSlashCommandIds?.has(c.id))
         .map((c) => {
           const labelMatch = c.label.toLowerCase().includes(lower);
@@ -307,7 +318,7 @@ export function TriggerPopup({
     }
 
     return { selectableItems: items };
-  }, [type, pendingFilter, valuePickerFilter, nodeItems, query, commandUsage, hiddenSlashCommandIds]);
+  }, [type, pendingFilter, valuePickerFilter, nodeItems, query, commandUsage, hiddenSlashCommandIds, allSlashCommands]);
 
   const showCreate = isNodeTrigger && showCreateOption && cleanQuery.trim() && !valuePickerFilter;
   const itemCount = selectableItems.length + (showCreate ? 1 : 0);
@@ -337,10 +348,10 @@ export function TriggerPopup({
   // If every slash command is hidden, close the popup so the user isn't shown
   // an empty menu.
   useEffect(() => {
-    if (type === 'slash' && SLASH_COMMANDS.every((c) => hiddenSlashCommandIds?.has(c.id))) {
+    if (type === 'slash' && allSlashCommands.every((c) => hiddenSlashCommandIds?.has(c.id))) {
       onClose();
     }
-  }, [type, hiddenSlashCommandIds, onClose]);
+  }, [type, hiddenSlashCommandIds, onClose, allSlashCommands]);
 
   // Position adjustment
   useLayoutEffect(() => {

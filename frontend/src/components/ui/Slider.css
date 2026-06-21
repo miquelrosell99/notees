@@ -53,7 +53,7 @@
   -webkit-appearance: none;
   appearance: none;
   width: 100%;
-  height: var(--shape-small);
+  height: var(--button-min-height);
   border-radius: var(--shape-full);
   background: transparent;
   cursor: pointer;
@@ -149,7 +149,7 @@
 }
 
 .slider--sm .slider__input {
-  height: 3px;
+  height: var(--button-min-height);
 }
 
 /* ─── Disabled ───────────────────────────────────────────────────── */

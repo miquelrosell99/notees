@@ -66,7 +66,7 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(function Che
     if (indeterminate) {
       // Indeterminate state: horizontal bar
       return (
-        <svg viewBox="0 0 16 16" fill="none" className="checkbox-icon">
+        <svg viewBox="0 0 16 16" fill="none" className="checkbox-icon" aria-hidden="true">
           <rect x="3" y="7" width="10" height="2" rx="1" fill="currentColor" />
         </svg>
       );
@@ -74,14 +74,14 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(function Che
     if (variant === 'dot') {
       // Dot variant: filled circle (for negated/excluded states)
       return (
-        <svg viewBox="0 0 16 16" fill="none" className="checkbox-icon">
+        <svg viewBox="0 0 16 16" fill="none" className="checkbox-icon" aria-hidden="true">
           <circle cx="8" cy="8" r="4" fill="currentColor" />
         </svg>
       );
     }
     // Default check variant: checkmark
     return (
-      <svg viewBox="0 0 16 16" fill="none" className="checkbox-icon">
+      <svg viewBox="0 0 16 16" fill="none" className="checkbox-icon" aria-hidden="true">
         <path
           d="M3.5 8.5L6.5 11.5L12.5 4.5"
           stroke="currentColor"

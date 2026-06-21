@@ -7,7 +7,6 @@
 export { ExportPageModal } from './ExportPageModal';
 export { ImportDataModal } from './ImportDataModal';
 export { ImportLogseqModal } from './ImportLogseqModal';
-export { ImportLogseqFolderModal } from './ImportLogseqFolderModal';
 export { ImportMarkdownModal } from './ImportMarkdownModal';
 export { ImportOptionsModal } from './ImportOptionsModal';
 export { WorkspaceModal } from './WorkspaceModal';

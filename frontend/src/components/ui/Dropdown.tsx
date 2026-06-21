@@ -266,13 +266,14 @@ export function Dropdown<T = string>({
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search..."
+                  aria-label="Search options"
                   className="dropdown-search-input"
                 />
                 {searchExtra}
               </div>
             )}
 
-            <div className="dropdown-options" role="listbox">
+            <div className="dropdown-options">
               {filteredOptions.length === 0 ? (
                 <div className="dropdown-empty">{emptyContent}</div>
               ) : (
@@ -284,16 +285,15 @@ export function Dropdown<T = string>({
                       
                       if (renderOption) {
                         return (
-                          <div onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }}
+                          <button
+                            type="button"
                             key={String(option.value)}
                             onClick={() => handleSelect(option)}
                             className={`dropdown-option ${selected ? 'dropdown-option--selected' : ''} ${option.disabled ? 'dropdown-option--disabled' : ''}`}
-                            role="option"
-                            tabIndex={option.disabled ? -1 : 0}
-                            aria-selected={selected}
+                            disabled={option.disabled}
                           >
                             {renderOption(option, selected)}
-                          </div>
+                          </button>
                         );
                       }
 
@@ -304,8 +304,6 @@ export function Dropdown<T = string>({
                           className={`dropdown-option ${selected ? 'dropdown-option--selected' : ''} ${option.disabled ? 'dropdown-option--disabled' : ''}`}
                           onClick={() => handleSelect(option)}
                           disabled={option.disabled}
-                          role="option"
-                          aria-selected={selected}
                         >
                           {option.iconNode ? (
                             <span className="dropdown-option-icon">{option.iconNode}</span>

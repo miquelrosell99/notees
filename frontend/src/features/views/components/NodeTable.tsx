@@ -537,6 +537,7 @@ export function NodeTable<T>({
                   shouldRenderNodeCell ? 'table-cell--node' : '',
                 ].filter(Boolean).join(' ')}
                 style={{ width: column.width }}
+                data-label={typeof column.header === 'string' ? column.header : undefined}
               >
                 {shouldRenderNodeCell ? (
                   <div className="table-node-cell">

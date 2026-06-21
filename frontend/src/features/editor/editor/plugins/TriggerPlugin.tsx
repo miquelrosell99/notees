@@ -38,6 +38,7 @@ import { getUndoEngine } from '@/stores/undoEngine';
 import type { MutationIntent } from '@/runtime/types';
 import { useEditorFocusStore } from '@/stores/editorFocusStore';
 import { flushAllContentSaves } from '@/hooks/contentSaveTracker';
+import { getSlashCommand } from '@/plugins/core';
 
 function applyRuntimeIntent(intent: MutationIntent): void {
   getUndoEngine().applyIntent(intent, intent.type === 'update_content' ? { sourceEditorId: intent.sourceEditorId } : undefined);
@@ -541,6 +542,16 @@ export function TriggerPlugin({
           position: coords,
           context: 'embed',
         });
+        return;
+      }
+
+      const pluginCommand = getSlashCommand(commandId);
+      if (pluginCommand) {
+        pluginCommand.execute({
+          editor,
+          blockServerId: blockServerIdRef.current ?? null,
+        });
+        handleClose();
         return;
       }
 

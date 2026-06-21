@@ -109,6 +109,16 @@
   flex-wrap: wrap;
 }
 
+.page-title-heading {
+  flex: 1;
+  margin: 0;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  min-width: 12ch;
+  max-width: 100%;
+}
+
 .page-title-input {
   flex: 1;
   min-width: 12ch;
@@ -199,7 +209,7 @@
   font-weight: 600;
   color: var(--color-on-error-container);
   background: var(--color-error-container);
-  border-radius: var(--shape-small);
+  border-radius: var(--shape-large);
   text-transform: uppercase;
   letter-spacing: var(--letter-spacing-badge);
 }
@@ -212,7 +222,7 @@
   font-weight: 600;
   color: var(--color-on-surface-variant);
   background: var(--color-surface-container-high);
-  border-radius: var(--shape-small);
+  border-radius: var(--shape-large);
   text-transform: uppercase;
   letter-spacing: var(--letter-spacing-badge);
   opacity: var(--opacity-70);

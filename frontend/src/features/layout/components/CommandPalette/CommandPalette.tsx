@@ -19,6 +19,7 @@ import { DuplicatePageModal } from '@/features/layout/components/Modals';
 import { Button } from '@/components/ui/Button';
 import { Icon, AddIcon, CalendarIcon, CheckIcon, ChevronRightIcon } from '@/components/ui/icons';
 import { useCommandRegistry } from '@/stores/commandRegistry';
+import { useId } from 'react';
 
 import type { CommandPaletteProps } from './CommandPalette.types';
 
@@ -76,6 +77,11 @@ export function CommandPalette(props: CommandPaletteProps) {
     return getCommand(commandId)?.devOnly ?? false;
   };
 
+  const baseId = useId();
+  const resultListId = `${baseId}-results`;
+  const getResultId = (index: number) => `${baseId}-result-${index}`;
+  const isResultsExpanded = allItems.length > 0 || isTypingClass || isTypingColon;
+
   const {
     dateItems,
     pageItems,
@@ -104,6 +110,11 @@ export function CommandPalette(props: CommandPaletteProps) {
             ref={inputRef}
             type="text"
             className="command-palette__input"
+            role="combobox"
+            aria-label="Search commands and nodes"
+            aria-expanded={isResultsExpanded}
+            aria-controls={resultListId}
+            aria-activedescendant={selectedIndex >= 0 ? getResultId(selectedIndex) : undefined}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
@@ -184,7 +195,7 @@ export function CommandPalette(props: CommandPaletteProps) {
           </div>
         )}
 
-        <div className="command-palette__results">
+        <div id={resultListId} className="command-palette__results" role="listbox" aria-label="Command palette results">
           {isTypingClass ? (
             <div className="command-palette__hint">
               Type to search classes, press Enter to select
@@ -208,6 +219,9 @@ export function CommandPalette(props: CommandPaletteProps) {
                     return (
                       <button
                         key={item.label}
+                        id={getResultId(globalIndex)}
+                        role="option"
+                        aria-selected={selectedIndex === globalIndex}
                         className={`command-palette__result ${selectedIndex === globalIndex ? 'command-palette__result--selected' : ''}`}
                         onClick={() => handleSelect(globalIndex)}
                       >
@@ -234,6 +248,9 @@ export function CommandPalette(props: CommandPaletteProps) {
                     return (
                       <button
                         key={item.filterPrefix?.prefix}
+                        id={getResultId(globalIndex)}
+                        role="option"
+                        aria-selected={selectedIndex === globalIndex}
                         className={`command-palette__result ${selectedIndex === globalIndex ? 'command-palette__result--selected' : ''}`}
                         onClick={() => handleSelect(globalIndex)}
                       >
@@ -262,6 +279,7 @@ export function CommandPalette(props: CommandPaletteProps) {
                         return (
                           <ResultItem
                             key={item.result?.node?.id}
+                            id={getResultId(globalIndex)}
                             result={item.result!}
                             isSelected={selectedIndex === globalIndex}
                             onClick={() => handleSelect(globalIndex)}
@@ -281,6 +299,7 @@ export function CommandPalette(props: CommandPaletteProps) {
                         return (
                           <ResultItem
                             key={item.result?.node?.id}
+                            id={getResultId(globalIndex)}
                             result={item.result!}
                             isSelected={selectedIndex === globalIndex}
                             onClick={() => handleSelect(globalIndex)}
@@ -314,6 +333,7 @@ export function CommandPalette(props: CommandPaletteProps) {
                         return (
                           <ResultItem
                             key={item.result?.node?.id}
+                            id={getResultId(globalIndex)}
                             result={item.result!}
                             isSelected={selectedIndex === globalIndex}
                             onClick={() => handleSelect(globalIndex)}
@@ -337,6 +357,9 @@ export function CommandPalette(props: CommandPaletteProps) {
                 return (
                   <button
                     key={item.commandId}
+                    id={getResultId(globalIndex)}
+                    role="option"
+                    aria-selected={selectedIndex === globalIndex}
                     className={`command-palette__result command-palette__result--action ${selectedIndex === globalIndex ? 'command-palette__result--selected' : ''}`}
                     onClick={() => handleSelect(globalIndex)}
                   >
@@ -366,6 +389,9 @@ export function CommandPalette(props: CommandPaletteProps) {
                     return (
                       <button
                         key="date-page"
+                        id={getResultId(globalIndex)}
+                        role="option"
+                        aria-selected={selectedIndex === globalIndex}
                         className={`command-palette__result command-palette__result--action ${selectedIndex === globalIndex ? 'command-palette__result--selected' : ''}`}
                         onClick={() => handleSelect(globalIndex)}
                       >
@@ -395,6 +421,9 @@ export function CommandPalette(props: CommandPaletteProps) {
                   return (
                     <button
                       key="show-more-pages"
+                      id={getResultId(globalIndex)}
+                      role="option"
+                      aria-selected={selectedIndex === globalIndex}
                       className={`command-palette__result command-palette__result--show-more ${selectedIndex === globalIndex ? 'command-palette__result--selected' : ''}`}
                       onClick={() => handleSelect(globalIndex)}
                     >
@@ -406,6 +435,9 @@ export function CommandPalette(props: CommandPaletteProps) {
                   return (
                     <button
                       key="add-page"
+                      id={getResultId(globalIndex)}
+                      role="option"
+                      aria-selected={selectedIndex === globalIndex}
                       className={`command-palette__result command-palette__result--action ${selectedIndex === globalIndex ? 'command-palette__result--selected' : ''}`}
                       onClick={() => handleSelect(globalIndex)}
                     >
@@ -423,6 +455,7 @@ export function CommandPalette(props: CommandPaletteProps) {
                 return (
                   <ResultItem
                     key={item.result?.node?.id}
+                    id={getResultId(globalIndex)}
                     result={item.result!}
                     isSelected={selectedIndex === globalIndex}
                     onClick={() => handleSelect(globalIndex)}
@@ -448,6 +481,9 @@ export function CommandPalette(props: CommandPaletteProps) {
                   return (
                     <button
                       key="show-more-blocks"
+                      id={getResultId(globalIndex)}
+                      role="option"
+                      aria-selected={selectedIndex === globalIndex}
                       className={`command-palette__result command-palette__result--show-more ${selectedIndex === globalIndex ? 'command-palette__result--selected' : ''}`}
                       onClick={() => handleSelect(globalIndex)}
                     >
@@ -458,6 +494,7 @@ export function CommandPalette(props: CommandPaletteProps) {
                 return (
                   <ResultItem
                     key={item.result?.node?.id}
+                    id={getResultId(globalIndex)}
                     result={item.result!}
                     isSelected={selectedIndex === globalIndex}
                     onClick={() => handleSelect(globalIndex)}
@@ -483,6 +520,9 @@ export function CommandPalette(props: CommandPaletteProps) {
                   return (
                     <button
                       key="show-more-properties"
+                      id={getResultId(globalIndex)}
+                      role="option"
+                      aria-selected={selectedIndex === globalIndex}
                       className={`command-palette__result command-palette__result--show-more ${selectedIndex === globalIndex ? 'command-palette__result--selected' : ''}`}
                       onClick={() => handleSelect(globalIndex)}
                     >
@@ -493,6 +533,7 @@ export function CommandPalette(props: CommandPaletteProps) {
                 return (
                   <ResultItem
                     key={item.result?.property?.id}
+                    id={getResultId(globalIndex)}
                     result={item.result!}
                     isSelected={selectedIndex === globalIndex}
                     onClick={() => handleSelect(globalIndex)}
@@ -512,6 +553,9 @@ export function CommandPalette(props: CommandPaletteProps) {
                 return (
                   <button
                     key="quick-add"
+                    id={getResultId(globalIndex)}
+                    role="option"
+                    aria-selected={selectedIndex === globalIndex}
                     className={`command-palette__result command-palette__result--action ${selectedIndex === globalIndex ? 'command-palette__result--selected' : ''}`}
                     onClick={() => handleSelect(globalIndex)}
                   >

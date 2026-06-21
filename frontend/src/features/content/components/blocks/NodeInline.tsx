@@ -90,17 +90,18 @@ export function NodeInline({
     }
   }, [nodeUuid, nodeId, providedDisplayText, displayText]);
 
-  const Tag = onClick ? 'button' : 'span' as const;
+  const href = onClick && nodeUuid ? `/node/${nodeUuid}` : undefined;
+  const Tag = onClick ? 'a' : 'span' as const;
 
   return (
     <Tag
       className={`node-inline ${onClick ? 'node-inline--clickable' : ''} ${className}`}
       data-variant={variant}
+      href={href}
       onClick={onClick ? handleClick : undefined}
       draggable={draggable}
       onDragStart={handleDragStart}
       title={title ?? displayText}
-      type={onClick ? 'button' : undefined}
     >
       {showBullet && (
         <Bullet

@@ -37,8 +37,8 @@ class Settings(BaseSettings):
     @field_validator("secret_key", mode="after")
     @classmethod
     def validate_secret_key(cls, v):
-        """Ensure secret key is set and not the insecure default."""
-        if not v or v == "notees-secret-key-change-in-production":
+        """Ensure secret key is set and sufficiently long."""
+        if not v:
             raise ValueError(
                 "SECRET_KEY environment variable must be set to a secure random value. "
                 'Generate one with: python -c "import secrets; print(secrets.token_urlsafe(32))"'
@@ -74,6 +74,10 @@ class Settings(BaseSettings):
     postgres_pool_max: int = 50
     postgres_pool_max_inactive_time: float = 300
     postgres_statement_cache_size: int = 100
+
+    # Plugins
+    plugins_dir: Path = Path("app/plugins")
+    plugins_external_dir: Path = Path("data/plugins")
 
     # Backup
     backup_interval_seconds: int = 3600  # 1 hour

@@ -53,6 +53,8 @@
   border: none;
   padding: 0;
   aspect-ratio: 1;
+  min-width: var(--button-min-height);
+  min-height: var(--button-min-height);
   border-radius: var(--shape-medium);
   color: var(--color-on-surface-variant);
   cursor: pointer;
@@ -92,6 +94,8 @@
   border: none;
   padding: 0;
   aspect-ratio: 1;
+  min-width: var(--button-min-height);
+  min-height: var(--button-min-height);
   border-radius: var(--shape-medium);
   color: var(--color-on-surface-variant);
   cursor: pointer;

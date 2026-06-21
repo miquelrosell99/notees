@@ -230,7 +230,7 @@ function CalloutPreview({ node, type }: { node: Node; type: string }): JSX.Eleme
         color: `var(${config.colorVar})`,
       }}
     >
-      <span className="callout-icon mdi" style={{ color: `var(${config.colorVar})` }}>
+      <span className="callout-icon mdi" style={{ color: `var(${config.colorVar})` }} aria-hidden="true">
         <span className={config.icon} />
       </span>
       <span className="callout-text">{text}</span>

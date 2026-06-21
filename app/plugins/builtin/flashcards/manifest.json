@@ -1,0 +1,26 @@
+{
+  "id": "notees.flashcards",
+  "name": "Flashcards",
+  "version": "1.0.0",
+  "description": "Spaced-repetition flashcards powered by the SM-2 algorithm.",
+  "author": "Notees",
+  "license": "AGPL-3.0",
+  "permissions": ["read_nodes", "write_nodes", "router"],
+  "backend": {
+    "entrypoint": "app.plugins.builtin.flashcards.setup:setup"
+  },
+  "frontend": {
+    "entrypoint": "./dist/plugin.js"
+  },
+  "contributes": {
+    "commands": [
+      {"id": "flashcards.open", "label": "Open Flashcards", "icon": "cards-outline"}
+    ],
+    "views": [
+      {"id": "flashcards", "label": "Flashcards", "icon": "cards-outline"}
+    ],
+    "sidebarItems": [
+      {"id": "flashcards-sidebar", "label": "Flashcards", "icon": "cards-outline", "viewId": "flashcards"}
+    ]
+  }
+}

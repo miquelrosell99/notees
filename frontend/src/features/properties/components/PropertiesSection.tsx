@@ -10,7 +10,7 @@
 import { useState, useCallback, useMemo } from 'react';
 import { useProperties, useSetNodeProperty, useCreateProperty, useClassProperties } from '../hooks';
 import { useNode, useCreateNode, usePageClass, useSystemClasses } from '@/features/content';
-import { FlashcardEditor } from '@/features/flashcards';
+import { FlashcardEditor } from '@/plugins/builtin/flashcards';
 import { useNavigationStore } from '@/stores';
 import { useNotifications } from '@/stores/notificationStore';
 import type { Property, Node, ClassProperty, PropertyCreate } from '@/types/api';

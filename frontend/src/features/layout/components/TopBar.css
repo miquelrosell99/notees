@@ -20,8 +20,15 @@
   transition: opacity var(--motion-duration-medium) var(--motion-easing-standard);
 }
 
-.top-bar-card[data-focus-mode="true"]:hover {
+.top-bar-card[data-focus-mode="true"]:hover,
+.top-bar-card[data-focus-mode="true"]:focus-within {
   opacity: var(--opacity-100);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .top-bar-card[data-focus-mode="true"] {
+    transition: none;
+  }
 }
 
 /* ==================== Top Bar Container ==================== */

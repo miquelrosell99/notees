@@ -85,7 +85,7 @@ export function DataStateView({
       error instanceof Error ? error.message : 'An unexpected error occurred.';
     return (
       <div className={`data-state-view data-state-view--error ${className}`} role="alert">
-        <div className="data-state-view__error-icon">⚠</div>
+        <div className="data-state-view__error-icon" aria-hidden="true">⚠</div>
         <h3 className="data-state-view__error-title">{errorTitle}</h3>
         <p className="data-state-view__error-message">{message}</p>
         {onRetry && (

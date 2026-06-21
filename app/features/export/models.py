@@ -21,7 +21,7 @@ class ExportRequest(BaseModel):
     """Export request."""
 
     node_ids: list[str]
-    format: ExportFormat
+    format: str
     include_children: bool = True
     include_backlinks: bool = False
     layout: str = "outline"

@@ -15,6 +15,14 @@
   /* Let Panel component provide floating appearance with border-radius and shadow */
 }
 
+.main-container__card {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+}
+
 /* Wrapper for node view with fixed header and scrollable content */
 .main-content-wrapper {
   flex: 1;
@@ -246,8 +254,15 @@
   transition: opacity var(--motion-duration-medium) var(--motion-easing-standard);
 }
 
-.sidebar-wrapper--right[data-focus-mode="true"]:hover {
+.sidebar-wrapper--right[data-focus-mode="true"]:hover,
+.sidebar-wrapper--right[data-focus-mode="true"]:focus-within {
   opacity: var(--opacity-100);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-wrapper--right[data-focus-mode="true"] {
+    transition: none;
+  }
 }
 
 /* ==================== Sidebar Resize Handles ==================== */

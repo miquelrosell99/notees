@@ -5,6 +5,14 @@
 
 
 
+.code-textarea-label {
+  display: block;
+  margin-bottom: var(--spacing-2);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-on-surface-variant);
+}
+
 .code-textarea {
   width: 100%;
   min-height: var(--layout-size-2xl);

@@ -71,6 +71,7 @@ services:
       POSTGRES_PORT: 5432
       POSTGRES_DB: ${POSTGRES_DB}
       REDIS_URL: redis://redis:6379/0
+      TEST_DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/notees_test
       PUID: ${PUID:-1000}
       PGID: ${PGID:-1000}
     volumes:

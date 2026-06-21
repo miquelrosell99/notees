@@ -305,6 +305,9 @@
   flex-shrink: 0;
   display: flex;
   align-items: center;
+  justify-content: center;
+  min-width: var(--button-min-height);
+  min-height: var(--button-min-height);
   opacity: var(--opacity-35);
   transition: opacity var(--motion-duration-short);
   border: none;

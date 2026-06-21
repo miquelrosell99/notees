@@ -633,3 +633,22 @@ class PostgresExportRepository(ExportRepository):
                 workspace_id,
             )
         return [dict(r) for r in rows]
+
+    async def resolve_node_ids(
+        self, workspace_id: int, node_uuids: list[str]
+    ) -> list[int]:
+        """Return integer node IDs for the given UUIDs in the workspace."""
+        if not node_uuids:
+            return []
+        placeholders = ", ".join(f"${i + 2}" for i in range(len(node_uuids)))
+        async with acquire_connection(self._pool) as conn:
+            rows = await conn.fetch(
+                f"""
+                SELECT id FROM node
+                WHERE workspace_id = $1 AND uuid::text IN ({placeholders})
+                  AND is_deleted = FALSE AND active = TRUE
+                """,
+                workspace_id,
+                *node_uuids,
+            )
+        return [r["id"] for r in rows]

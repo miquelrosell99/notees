@@ -61,11 +61,12 @@ from .domain.errors import (
 )
 from .domain.repositories.factories import make_user_repository
 from .features.auth import is_strong_admin_password
-from .features.flashcards import router as flashcards_router
 from .features.nodes.router import router as nodes_router
 from .features.sync.router import router as sync_router
 from .infrastructure.export.share_files import get_static_share_path
 from .logging_config import get_logger, setup_logging
+from .plugins.core import plugin_manager
+from .plugins.core.bootstrap import register_core_ports
 from .rate_limit import PerKeyBucketFactory, ip_only_identifier
 from .routers import (
     activity_router,
@@ -77,6 +78,7 @@ from .routers import (
     undo_router,
     workspaces_router,
 )
+from .routers.plugins import router as plugins_router
 
 # Initialize logging
 setup_logging(level=settings.log_level, log_file=settings.log_file)
@@ -138,6 +140,11 @@ async def lifespan(app: FastAPI):
     # Ensure required directories exist
     ensure_directories()
 
+    # Load plugins and mount their routers
+    if not _in_test:
+        register_core_ports()
+        await plugin_manager.load_plugins()
+
     # Skip background schedulers during tests (lifespan may be triggered by ASGI transports)
     if not _in_test:
         # Start backup scheduler
@@ -175,6 +182,7 @@ app = FastAPI(
     lifespan=lifespan,
     redirect_slashes=True,  # Redirect /api/nodes to /api/nodes/
 )
+plugin_manager.bind_app(app)
 
 # Compress responses ≥ 1 KB with gzip
 app.add_middleware(GZipMiddleware, minimum_size=1000)
@@ -539,7 +547,6 @@ routers = [
     properties_router,
     sync_router,
     tasks_router,
-    flashcards_router,
     export_router,
     auto_export_router,
     assets_router,
@@ -550,6 +557,7 @@ routers = [
     notifications_router,
     public_router,
     admin_router,
+    plugins_router,
 ]
 
 for r in routers:
@@ -558,6 +566,9 @@ for r in routers:
 
 app.include_router(api_router)
 app.include_router(v1_router)
+
+# Mount plugin routers after core routers so plugin routes are available.
+plugin_manager.mount_routers(app)
 
 # Mount WebSocket router separately — it cannot inherit HTTP-only dependencies
 # like RateLimiter because WebSocket scopes lack an HTTP Request object.

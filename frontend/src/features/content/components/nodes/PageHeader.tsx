@@ -459,28 +459,32 @@ export function PageHeader({
           </button>
           
           <div className="page-title-container">
-            <textarea
-              ref={titleRef}
-              className={`page-title-input${titleSizeClass ? ` ${titleSizeClass}` : ''}${!isNameEditable ? ' readonly' : ''}`}
-              value={inputValue}
-              onChange={(e) => handleInputChange(e.target.value)}
-              onFocus={() => {
-                liveSyncManager.sendFocus(page.uuid);
-                useLivePresenceStore.getState().setLocalFocus(page.uuid, page.uuid);
-              }}
-              onBlur={(e) => {
-                liveSyncManager.sendBlur(page.uuid);
-                useLivePresenceStore.getState().setLocalFocus(page.uuid, null);
-                handleNameChange(e.target.value);
-              }}
-              onKeyDown={handlePageTitleKeyDown}
-              placeholder="Untitled"
-              onClick={(e) => e.stopPropagation()}
-              readOnly={!isNameEditable}
-              spellCheck={false}
-              title={!isNameEditable ? 'System page names cannot be edited' : undefined}
-              rows={1}
-            />
+            <h1 className="page-title-heading">
+              <textarea
+                ref={titleRef}
+                className={`page-title-input${titleSizeClass ? ` ${titleSizeClass}` : ''}${!isNameEditable ? ' readonly' : ''}`}
+                value={inputValue}
+                onChange={(e) => handleInputChange(e.target.value)}
+                onFocus={() => {
+                  liveSyncManager.sendFocus(page.uuid);
+                  useLivePresenceStore.getState().setLocalFocus(page.uuid, page.uuid);
+                }}
+                onBlur={(e) => {
+                  liveSyncManager.sendBlur(page.uuid);
+                  useLivePresenceStore.getState().setLocalFocus(page.uuid, null);
+                  handleNameChange(e.target.value);
+                }}
+                onKeyDown={handlePageTitleKeyDown}
+                placeholder="Untitled"
+                onClick={(e) => e.stopPropagation()}
+                readOnly={!isNameEditable}
+                tabIndex={isNameEditable ? undefined : -1}
+                spellCheck={false}
+                title={!isNameEditable ? 'System page names cannot be edited' : undefined}
+                rows={1}
+                aria-label="Page title"
+              />
+            </h1>
               {renamePreview && (
                 <span className="page-title-child-preview">
                   {renamePreview.type === 'create-child' && `→ will create child: ${renamePreview.path}`}

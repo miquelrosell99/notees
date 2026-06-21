@@ -1,0 +1,30 @@
+{
+  "id": "notees.koreader",
+  "name": "KOReader Sync",
+  "version": "1.0.0",
+  "description": "Sync highlights and notes from a KOReader sync server.",
+  "author": "Notees",
+  "license": "AGPL-3.0",
+  "permissions": ["read_nodes", "write_nodes", "read_properties", "background_sync", "router"],
+  "backend": {
+    "entrypoint": "app.plugins.builtin.koreader.setup:setup"
+  },
+  "frontend": {
+    "entrypoint": "./dist/plugin.js"
+  },
+  "contributes": {
+    "settings": [
+      {"id": "sync_url", "type": "string", "label": "KOReader sync server URL", "default": "http://127.0.0.1:8080/"},
+      {"id": "device_name", "type": "string", "label": "Device name"}
+    ],
+    "commands": [
+      {"id": "koreader.sync", "label": "KOReader: Sync highlights", "icon": "sync"}
+    ],
+    "views": [
+      {"id": "koreader-highlights", "label": "KOReader Highlights", "icon": "book-open-variant"}
+    ],
+    "sidebarItems": [
+      {"id": "koreader-sidebar", "label": "KOReader", "icon": "book-open-variant", "viewId": "koreader-highlights"}
+    ]
+  }
+}

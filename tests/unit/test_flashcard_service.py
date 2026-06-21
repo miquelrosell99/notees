@@ -8,8 +8,8 @@ from typing import Any
 
 import pytest
 
-from app.features.flashcards.port import FlashcardData, FlashcardRepository
-from app.features.flashcards.service import FlashcardService
+from app.plugins.builtin.flashcards.port import FlashcardData, FlashcardRepository
+from app.plugins.builtin.flashcards.service import FlashcardService
 
 
 @dataclass

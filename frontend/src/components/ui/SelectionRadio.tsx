@@ -6,6 +6,7 @@
  *
  * Supports `vertical` (default) or `horizontal` layout via the `layout` prop.
  */
+import React from 'react';
 import './SelectionRadio.css';
 
 export interface RadioOption {
@@ -25,6 +26,8 @@ interface SelectionRadioProps {
   layout?: 'vertical' | 'horizontal';
   disabled?: boolean;
   className?: string;
+  /** Accessible label for the radio group */
+  label?: string;
 }
 
 export function SelectionRadio({
@@ -34,7 +37,9 @@ export function SelectionRadio({
   layout = 'vertical',
   disabled = false,
   className = '',
+  label,
 }: SelectionRadioProps) {
+  const groupName = React.useId();
   return (
     <div
       className={[
@@ -45,13 +50,16 @@ export function SelectionRadio({
         .filter(Boolean)
         .join(' ')}
       role="radiogroup"
+      aria-label={label}
     >
       {options.map((opt) => {
         const selected = opt.value === value;
         const isDisabled = disabled;
+        const inputId = `${groupName}-${opt.value}`;
         return (
-          <div
+          <label
             key={opt.value}
+            htmlFor={inputId}
             className={[
               'radio-group__option',
               selected ? 'radio-group__option--selected' : '',
@@ -59,36 +67,36 @@ export function SelectionRadio({
             ]
               .filter(Boolean)
               .join(' ')}
-            role="radio"
-            aria-checked={selected}
             aria-disabled={isDisabled}
-            tabIndex={isDisabled ? -1 : 0}
-            onClick={() => !isDisabled && onChange(opt.value)}
-            onKeyDown={(e) => {
-              if (!isDisabled && (e.key === 'Enter' || e.key === ' ')) {
-                e.preventDefault();
-                onChange(opt.value);
-              }
-            }}
           >
+            <input
+              id={inputId}
+              name={groupName}
+              type="radio"
+              value={opt.value}
+              checked={selected}
+              disabled={isDisabled}
+              onChange={() => onChange(opt.value)}
+              className="radio-group__input"
+            />
             {/* Radio indicator */}
-            <div className="radio-group__indicator">
-              {selected && <div className="radio-group__indicator-dot" />}
-            </div>
+            <span className="radio-group__indicator" aria-hidden="true">
+              {selected && <span className="radio-group__indicator-dot" />}
+            </span>
 
             {/* Text content */}
-            <div className="radio-group__content">
-              <div className="radio-group__label-row">
+            <span className="radio-group__content">
+              <span className="radio-group__label-row">
                 <span className="radio-group__label">{opt.label}</span>
                 {opt.badge && (
                   <span className="radio-group__badge">{opt.badge}</span>
                 )}
-              </div>
+              </span>
               {opt.description && (
-                <p className="radio-group__description">{opt.description}</p>
+                <span className="radio-group__description">{opt.description}</span>
               )}
-            </div>
-          </div>
+            </span>
+          </label>
         );
       })}
     </div>

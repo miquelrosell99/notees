@@ -137,8 +137,8 @@
   height: unset;       /* Override btn--xs fixed 28px height */
   aspect-ratio: 1;
   padding: var(--spacing-micro);
-  min-width: unset;
-  min-height: unset;
+  min-width: var(--button-min-height);
+  min-height: var(--button-min-height);
   border-radius: var(--shape-small);
   transition: background var(--motion-duration-instant) var(--motion-easing-standard), transform var(--motion-duration-instant) var(--motion-easing-standard);
 }

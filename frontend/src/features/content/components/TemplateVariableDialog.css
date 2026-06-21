@@ -3,7 +3,7 @@
   flex-direction: column;
   gap: var(--spacing-md);
   padding: var(--spacing-sm) 0;
-  min-width: 320px;
+  min-width: var(--layout-dialog-min-width);
 }
 
 .template-variable-dialog__section {

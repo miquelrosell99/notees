@@ -92,18 +92,18 @@ def render_invite_email(
 
     html = f"""<!DOCTYPE html>
 <html>
-<body style="font-family: sans-serif; line-height: 1.5; color: #333;">
+<body style="font-family: sans-serif; line-height: 1.5; color: #111111;">
   <p>Hi,</p>
   <p><strong>{inviter_name}</strong> has invited you to collaborate on {target} in <strong>Notees</strong>.</p>
   <p style="margin: 24px 0;">
-    <a href="{invite_link}" style="background:#2563eb;color:#fff;padding:10px 20px;text-decoration:none;border-radius:6px;display:inline-block;">
+    <a href="{invite_link}" style="background:#5B7D5B;color:#FFFFFF;padding:10px 20px;text-decoration:none;border-radius:6px;display:inline-block;">
       Accept Invitation
     </a>
   </p>
   <p>Or copy this link into your browser:<br/>
-     <code style="background:#f3f4f6;padding:4px 8px;border-radius:4px;">{invite_link}</code>
+     <code style="background:#f5f3ef;padding:4px 8px;border-radius:4px;color:#111111;">{invite_link}</code>
   </p>
-  <p style="font-size: 0.875rem; color: #666;">This link will expire in 7 days.</p>
+  <p style="font-size: 0.875rem; color: #5c5c5c;">This link will expire in 7 days.</p>
   <p>— Notees</p>
 </body>
 </html>"""
