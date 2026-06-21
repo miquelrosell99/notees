@@ -16,7 +16,7 @@
   width: 100%;
   padding: var(--spacing-2) var(--spacing-3);
   border: var(--border-width-default) solid var(--color-outline-variant);
-  border-radius: var(--shape-small);
+  border-radius: var(--shape-extra-large);
   background: var(--color-surface);
   color: var(--color-on-surface);
   font-size: var(--font-size-base);

@@ -16,9 +16,9 @@
  *   body is replaced by a TaskProgress so the user has clear feedback.
  *   The report phase shows TaskReport with a working close button.
  */
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 
 import {
   deleteWorkspace,
@@ -43,15 +43,16 @@ import {
   parseLogseqFolder,
   countMdBlocks,
   type LogseqFolderResult,
-} from '@/utils/logseqMdParser';
-import { useLogseqFolderImporter } from '@/features/workspace/hooks/useLogseqFolderImporter';
+} from '@/plugins/builtin/logseq_importer/utils/logseqMdParser';
+import { useLogseqFolderImporter } from '@/plugins/builtin/logseq_importer/hooks/useLogseqFolderImporter';
 import { favoriteKeys, recentKeys, workspaceKeys } from '@/hooks/queryKeys';
+import { useImporters, useRunImporter, type ImporterRunResult } from '@/plugins/core';
 import './ImportOptionsModal.css';
-import './ImportLogseqFolderModal.css';
+import '@/plugins/builtin/logseq_importer/components/ImportLogseqFolderModal.css';
 
 // -- Types -----------------------------------------------------------------
 
-export type ImportType = 'json' | 'logseq-edn' | 'logseq-sqlite' | 'logseq-folder' | 'markdown';
+export type ImportType = string;
 
 export interface ImportResult {
   workspace: WorkspaceInfo;
@@ -69,7 +70,7 @@ interface ImportOptionsModalProps {
 
 // -- Source options --------------------------------------------------------
 
-const SOURCE_OPTIONS: RadioOption[] = [
+const BUILTIN_SOURCE_OPTIONS: RadioOption[] = [
   {
     value: 'json',
     label: 'Notees Dump',
@@ -102,6 +103,12 @@ const SOURCE_OPTIONS: RadioOption[] = [
   },
 ];
 
+const BUILTIN_IMPORT_TYPES = new Set(BUILTIN_SOURCE_OPTIONS.map((o) => o.value));
+
+function isBuiltInImportType(type: string): boolean {
+  return BUILTIN_IMPORT_TYPES.has(type);
+}
+
 // -- Helpers ---------------------------------------------------------------
 
 // -- Main component --------------------------------------------------------
@@ -131,6 +138,11 @@ export function ImportOptionsModal({
   const [folderName, setFolderName] = useState<string | null>(null);
   const [folderParseError, setFolderParseError] = useState<string | null>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
+
+  // Plugin importer state
+  const [pluginFile, setPluginFile] = useState<File | null>(null);
+  const [pluginReport, setPluginReport] = useState<ImporterRunResult | null>(null);
+
   const nameInputRef = useRef<HTMLInputElement>(null);
   const ednTextareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -153,6 +165,21 @@ export function ImportOptionsModal({
   const pendingFolderRef = useRef<LogseqFolderResult | null>(null);
 
   const queryClient = useQueryClient();
+  const { workspaceId } = useParams<{ workspaceId?: string }>();
+  const { data: pluginImporters = [] } = useImporters(isOpen);
+  const runPluginImporter = useRunImporter();
+
+  const sourceOptions = useMemo<RadioOption[]>(() => {
+    const pluginOptions: RadioOption[] = pluginImporters.map((imp) => ({
+      value: imp.id,
+      label: imp.label,
+      description: imp.file_extensions?.length
+        ? `Import ${imp.file_extensions.map((e) => `.${e}`).join(', ')} files`
+        : 'Plugin import source',
+      badge: 'plugin',
+    }));
+    return [...BUILTIN_SOURCE_OPTIONS, ...pluginOptions];
+  }, [pluginImporters]);
 
   // Logseq import pipeline  shared hook
   const {
@@ -198,6 +225,8 @@ export function ImportOptionsModal({
       setFolderName(null);
       setFolderParseError(null);
       pendingFolderRef.current = null;
+      setPluginFile(null);
+      setPluginReport(null);
       setUuidOverrides({});
       if (folderInputRef.current) folderInputRef.current.value = '';
       resetImport();
@@ -212,6 +241,8 @@ export function ImportOptionsModal({
     setFolderResult(null);
     setFolderName(null);
     setFolderParseError(null);
+    setPluginFile(null);
+    setPluginReport(null);
     setUuidOverrides({});
     if (folderInputRef.current) folderInputRef.current.value = '';
   }, [selectedType]);
@@ -362,22 +393,45 @@ export function ImportOptionsModal({
   // -- Workspace import / creation mutations -------------------------------
   const { importWorkspace, createWorkspace } = useWorkspaceImport();
 
-  const isPending = importWorkspace.isPending || createWorkspace.isPending;
+  const isPending = importWorkspace.isPending || createWorkspace.isPending || runPluginImporter.isPending;
 
   const isSubmitEnabled = (() => {
-    if (!nameIsValid || isCheckingName || isPending) return false;
-    if (selectedType === 'json') return jsonFile !== null;
-    if (selectedType === 'logseq-edn') return parsedExport !== null;
-    if (selectedType === 'logseq-sqlite') return parsedExport !== null && !isParsing;
-    if (selectedType === 'markdown') return true;
-    if (selectedType === 'logseq-folder') return folderResult !== null && !isParsing;
-    return false;
+    if (isPending) return false;
+    if (isBuiltInImportType(selectedType)) {
+      if (!nameIsValid || isCheckingName) return false;
+      if (selectedType === 'json') return jsonFile !== null;
+      if (selectedType === 'logseq-edn') return parsedExport !== null;
+      if (selectedType === 'logseq-sqlite') return parsedExport !== null && !isParsing;
+      if (selectedType === 'markdown') return true;
+      if (selectedType === 'logseq-folder') return folderResult !== null && !isParsing;
+      return false;
+    }
+    // Plugin importer source
+    return pluginFile !== null && !!workspaceId;
   })();
 
   const handleSubmit = useCallback(() => {
     if (!isSubmitEnabled) return;
     setSubmitError(null);
     const trimmedName = name.trim();
+
+    if (!isBuiltInImportType(selectedType)) {
+      if (!pluginFile || !workspaceId) return;
+      runPluginImporter.mutate(
+        { importerId: selectedType, file: pluginFile, workspaceUuid: workspaceId },
+        {
+          onSuccess: (result) => {
+            setPluginReport(result);
+            setPhase('report');
+          },
+          onError: (err: Error) => {
+            setSubmitError(err.message || 'Import failed');
+          },
+        }
+      );
+      return;
+    }
+
     if (selectedType === 'json' && jsonFile) {
       importWorkspace.mutate(
         { name: trimmedName, file: jsonFile },
@@ -414,7 +468,7 @@ export function ImportOptionsModal({
         },
       });
     }
-  }, [isSubmitEnabled, name, selectedType, jsonFile, importWorkspace, createWorkspace, parsedExport, folderResult, onSuccess]);
+  }, [isSubmitEnabled, name, selectedType, jsonFile, importWorkspace, createWorkspace, parsedExport, folderResult, pluginFile, workspaceId, runPluginImporter, onSuccess]);
 
   // Enter anywhere inside the modal = submit (capture phase)
   useEffect(() => {
@@ -569,6 +623,50 @@ export function ImportOptionsModal({
         </Modal>
       );
     }
+    if (pluginReport) {
+      const total =
+        pluginReport.created_node_ids.length +
+        pluginReport.updated_node_ids.length +
+        pluginReport.skipped_count +
+        pluginReport.error_count;
+      return (
+        <Modal
+          isOpen={isOpen}
+          onClose={handleOpenWorkspace}
+          title="Import Complete"
+          size="md"
+          footer={
+            <Button variant="primary" onClick={handleOpenWorkspace}>
+              Done
+            </Button>
+          }
+        >
+          <div className="import-unified__report-message">
+            <p className="import-unified__report-success">
+              Imported {total} record{total !== 1 ? 's' : ''}.
+            </p>
+            <ul className="import-unified__preview-list">
+              <li><span>Created</span><span>{pluginReport.created_node_ids.length}</span></li>
+              <li><span>Updated</span><span>{pluginReport.updated_node_ids.length}</span></li>
+              <li><span>Skipped</span><span>{pluginReport.skipped_count}</span></li>
+              {pluginReport.error_count > 0 && (
+                <li><span>Errors</span><span>{pluginReport.error_count}</span></li>
+              )}
+            </ul>
+            {pluginReport.messages.length > 0 && (
+              <details className="import-unified__preview">
+                <summary className="import-unified__preview-summary">Messages</summary>
+                <ul className="import-unified__preview-list">
+                  {pluginReport.messages.map((msg, idx) => (
+                    <li key={idx}><span>{msg}</span></li>
+                  ))}
+                </ul>
+              </details>
+            )}
+          </div>
+        </Modal>
+      );
+    }
   }
 
   return (
@@ -580,34 +678,36 @@ export function ImportOptionsModal({
       className="import-unified"
       footer={
         <div className="import-unified__footer">
-          <div className="import-unified__footer-name">
-          <TextField
-            ref={nameInputRef}
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="my-notes"
-            disabled={isPending}
-            error={name.length >= 2 && nameCheck?.available === false}
-            errorMessage={
-              name.length >= 2 && nameCheck?.available === false
-                ? 'This name is already taken'
-                : undefined
-            }
-            containerClassName=''
-            icon={
-              isCheckingName ? (
-                <SyncIcon size="xs" />
-              ) : name.length >= 2 ? (
-                <Icon
-                  path={nameCheck?.available ? "mdi mdi-check" : "mdi mdi-close"}
-                  size={0.6}
-                  color={nameCheck?.available ? 'var(--color-success)' : 'var(--color-error)'}
-                />
-              ) : undefined
-            }
-          />
-          </div>
+          {isBuiltInImportType(selectedType) && (
+            <div className="import-unified__footer-name">
+            <TextField
+              ref={nameInputRef}
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="my-notes"
+              disabled={isPending}
+              error={name.length >= 2 && nameCheck?.available === false}
+              errorMessage={
+                name.length >= 2 && nameCheck?.available === false
+                  ? 'This name is already taken'
+                  : undefined
+              }
+              containerClassName=''
+              icon={
+                isCheckingName ? (
+                  <SyncIcon size="xs" />
+                ) : name.length >= 2 ? (
+                  <Icon
+                    path={nameCheck?.available ? "mdi mdi-check" : "mdi mdi-close"}
+                    size={0.6}
+                    color={nameCheck?.available ? 'var(--color-success)' : 'var(--color-error)'}
+                  />
+                ) : undefined
+              }
+            />
+            </div>
+          )}
           <div className="import-unified__footer-actions">
             <Button variant="default" onClick={onClose} disabled={isPending}>
               Cancel
@@ -629,10 +729,10 @@ export function ImportOptionsModal({
         <div className="import-unified__field-group">
           <span className="import-unified__section-label">Source</span>
           <SelectionRadio
-            options={SOURCE_OPTIONS}
+            options={sourceOptions}
             value={selectedType}
             onChange={(v) => {
-              setSelectedType(v as ImportType);
+              setSelectedType(v);
               setSubmitError(null);
             }}
             layout="vertical"
@@ -736,6 +836,25 @@ export function ImportOptionsModal({
                 {folderParseError}
               </div>
             )}
+          </div>
+        )}
+
+        {!isBuiltInImportType(selectedType) && (
+          <div className="import-unified__field-group">
+            <span className="import-unified__section-label">Import file</span>
+            <FileDropZone
+              file={pluginFile}
+              accept={
+                pluginImporters
+                  .find((imp) => imp.id === selectedType)
+                  ?.file_extensions?.map((ext) => `.${ext}`)
+                  .join(',') ?? '*'
+              }
+              onSelect={setPluginFile}
+              onClear={() => setPluginFile(null)}
+              placeholder="Drop the file to import"
+              disabled={isPending}
+            />
           </div>
         )}
 

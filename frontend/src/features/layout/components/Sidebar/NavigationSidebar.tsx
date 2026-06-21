@@ -29,6 +29,7 @@ import { SidebarRecents } from './SidebarRecents';
 import { SupportBadge } from '@/features/support';
 import { ChevronDownIcon, ChevronRightIcon } from '@/components/ui/icons';
 import { SYSTEM_PAGE_UUIDS } from '@/constants/systemProperties';
+import { getRegisteredSidebarItems } from '@/plugins/core';
 import './NavigationSidebar.css';
 
 interface SidebarProps {
@@ -525,13 +526,19 @@ export function Sidebar({ collapsed }: SidebarProps) {
     const items: Array<{ icon: string; label: string; view?: string; action?: () => void }> = [
       { icon: "mdi mdi-book-open-page-variant", label: 'Pages', view: 'pages' as const },
       { icon: "mdi mdi-file-document-outline", label: 'Templates', view: 'templates' as const },
-      { icon: "mdi mdi-cards-outline", label: 'Flashcards', view: 'flashcards' as const },
     ];
     if (showWhiteboards) {
       items.push({ icon: "mdi mdi-view-dashboard-outline", label: 'Whiteboards', view: 'whiteboards' as const });
     }
     if (showTasks) {
       items.push({ icon: "mdi mdi-checkbox-marked-circle-outline", label: 'Tasks', view: 'tasks' as const });
+    }
+    for (const pluginItem of getRegisteredSidebarItems()) {
+      items.push({
+        icon: pluginItem.icon ? `mdi mdi-${pluginItem.icon}` : "mdi mdi-puzzle-outline",
+        label: pluginItem.label,
+        view: pluginItem.viewId,
+      });
     }
     return items;
   }, [showWhiteboards, showTasks]);

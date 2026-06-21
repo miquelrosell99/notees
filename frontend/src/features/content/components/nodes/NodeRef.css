@@ -19,6 +19,11 @@ button.node-pill {
   font: inherit;
   color: inherit;
   text-align: left;
+  position: relative;
+  /* Expand the minimum hit area to 44×44 px without disrupting inline flow. */
+  min-width: var(--button-min-height);
+  min-height: var(--button-min-height);
+  vertical-align: middle;
 }
 
 button.node-pill:focus-visible,

@@ -29,6 +29,7 @@ import { SyncManager } from './sync';
 import { useBackendHealth } from './hooks/useBackendHealth';
 import { BackendUnavailableOverlay } from './components/ui/BackendUnavailableOverlay';
 import { getLogger } from './utils/logger';
+import { pluginManager } from '@/plugins/core';
 import './App.css';
 
 const log = getLogger('App');
@@ -103,6 +104,12 @@ function App() {
     log.info('Notees application initialized', {
       version: import.meta.env.VITE_APP_VERSION || 'dev',
       mode: import.meta.env.MODE,
+    });
+
+    // Load frontend plugins. Built-in plugins are bundled; user plugins are
+    // fetched from the backend and imported dynamically.
+    pluginManager.loadPlugins().catch((err) => {
+      log.error('Failed to load plugins', err);
     });
   }, []);
 

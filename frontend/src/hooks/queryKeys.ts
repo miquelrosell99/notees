@@ -246,6 +246,21 @@ export const templateKeys = {
   variables: (nodeId: number) => [...templateKeys.all, 'variables', nodeId] as const,
 };
 
+// ==================== Plugin Query Keys ====================
+
+export const pluginKeys = {
+  all: ['plugins'] as const,
+  list: () => [...pluginKeys.all, 'list'] as const,
+  installJob: (jobId: string | null | undefined) => [...pluginKeys.all, 'install-job', jobId] as const,
+  importers: () => [...pluginKeys.all, 'importers'] as const,
+  exporters: () => [...pluginKeys.all, 'exporters'] as const,
+};
+
+export const pluginSettingsKeys = {
+  all: ['plugin-settings'] as const,
+  forPlugin: (pluginId: string) => [...pluginSettingsKeys.all, pluginId] as const,
+};
+
 // ==================== Notifications Query Keys ====================
 
 export const notificationKeys = {

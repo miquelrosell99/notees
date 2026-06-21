@@ -1,0 +1,23 @@
+{
+  "id": "notees.logseq_importer",
+  "name": "Logseq Importer",
+  "version": "1.0.0",
+  "description": "Import Logseq markdown graph folders into Notees.",
+  "author": "Notees",
+  "license": "AGPL-3.0",
+  "permissions": ["read_nodes", "write_nodes", "read_properties", "import", "router"],
+  "backend": {
+    "entrypoint": "app.plugins.builtin.logseq_importer.setup:setup"
+  },
+  "frontend": {
+    "entrypoint": "./dist/plugin.js"
+  },
+  "contributes": {
+    "commands": [
+      {"id": "logseq.importFolder", "label": "Import Logseq folder", "icon": "folder-open"}
+    ],
+    "importers": [
+      {"id": "logseq.folder", "label": "Logseq markdown folder", "fileExtensions": ["zip"]}
+    ]
+  }
+}

@@ -146,6 +146,43 @@ export function PropertyForm({
   const defaultValueId = `${baseId}-default-value`;
   const nameInputRef = useRef<HTMLInputElement>(null);
   const newOptionInputRef = useRef<HTMLInputElement>(null);
+  const typeOptionRefs = useRef<(HTMLButtonElement | null)[]>([]);
+
+  const handleTypeKeyDown = useCallback((e: React.KeyboardEvent<HTMLButtonElement>, currentIndex: number) => {
+    if (readOnly) return;
+
+    const count = PROPERTY_TYPE_OPTIONS.length;
+    let nextIndex = currentIndex;
+
+    switch (e.key) {
+      case 'ArrowRight':
+      case 'ArrowDown':
+        e.preventDefault();
+        nextIndex = (currentIndex + 1) % count;
+        break;
+      case 'ArrowLeft':
+      case 'ArrowUp':
+        e.preventDefault();
+        nextIndex = (currentIndex - 1 + count) % count;
+        break;
+      case 'Home':
+        e.preventDefault();
+        nextIndex = 0;
+        break;
+      case 'End':
+        e.preventDefault();
+        nextIndex = count - 1;
+        break;
+      default:
+        return;
+    }
+
+    const nextType = PROPERTY_TYPE_OPTIONS[nextIndex];
+    if (nextType && onTypeChange) {
+      onTypeChange(nextType.type);
+      typeOptionRefs.current[nextIndex]?.focus();
+    }
+  }, [readOnly, onTypeChange]);
 
   useEffect(() => {
     if (autoFocusName && showNameField) {
@@ -212,19 +249,28 @@ export function PropertyForm({
         <div className="property-form__field">
           <label id={typeLabelId} htmlFor={typeId} className="property-form__label">Type</label>
           <div id={typeId} className="property-form__type-grid" role="radiogroup" aria-labelledby={typeLabelId}>
-            {PROPERTY_TYPE_OPTIONS.map((type) => (
-              <button
-                key={type.type}
-                className={`property-form__type-option ${
-                  propertyType === type.type ? 'property-form__type-option--selected' : ''
-                }`}
-                onClick={() => !readOnly && onTypeChange(type.type)}
-                disabled={readOnly}
-              >
-                <div className="property-form__type-label">{type.label}</div>
-                <div className="property-form__type-description">{type.description}</div>
-              </button>
-            ))}
+            {PROPERTY_TYPE_OPTIONS.map((type, index) => {
+              const selected = propertyType === type.type;
+              return (
+                <button
+                  key={type.type}
+                  ref={(el) => { typeOptionRefs.current[index] = el; }}
+                  type="button"
+                  role="radio"
+                  aria-checked={selected}
+                  tabIndex={selected ? 0 : -1}
+                  className={`property-form__type-option ${
+                    selected ? 'property-form__type-option--selected' : ''
+                  }`}
+                  onClick={() => !readOnly && onTypeChange(type.type)}
+                  onKeyDown={(e) => handleTypeKeyDown(e, index)}
+                  disabled={readOnly}
+                >
+                  <div className="property-form__type-label">{type.label}</div>
+                  <div className="property-form__type-description">{type.description}</div>
+                </button>
+              );
+            })}
           </div>
         </div>
       )}

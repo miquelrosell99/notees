@@ -68,6 +68,11 @@
   line-height: 1.5;
 }
 
+.block-row__content:focus-visible {
+  outline: var(--border-width-thick) solid var(--color-accent);
+  outline-offset: var(--spacing-micro);
+}
+
 /* Inline content + class pills row */
 .block-row__content-line {
   display: flex;

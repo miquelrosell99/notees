@@ -38,12 +38,12 @@ export function MainContent() {
 
   if (!activeTab) {
     return (
-      <main className="main-content">
+      <div className="main-content">
         <div className="empty-state">
           <h2>Welcome to Notees</h2>
           <p>Select a page from the sidebar, or press Ctrl+K to create one.</p>
         </div>
-      </main>
+      </div>
     );
   }
 

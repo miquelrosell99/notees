@@ -15,6 +15,7 @@ interface ResultItemProps {
   allClasses?: Node[];
   pageClassId?: number | null;
   searchTerm?: string;
+  id?: string;
 }
 
 /**
@@ -28,6 +29,7 @@ export function ResultItem({
   allClasses,
   pageClassId,
   searchTerm = '',
+  id,
 }: ResultItemProps) {
   const ref = useRef<HTMLButtonElement>(null);
 
@@ -48,6 +50,9 @@ export function ResultItem({
     return (
       <button
         ref={ref}
+        id={id}
+        role="option"
+        aria-selected={isSelected}
         className={`command-palette__result ${isSelected ? 'command-palette__result--selected' : ''}`}
         onClick={onClick}
       >
@@ -85,6 +90,9 @@ export function ResultItem({
   return (
     <button
       ref={ref}
+      id={id}
+      role="option"
+      aria-selected={isSelected}
       className={`command-palette__result ${isSelected ? 'command-palette__result--selected' : ''}`}
       onClick={onClick}
     >

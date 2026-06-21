@@ -35,13 +35,13 @@ html {
 
 a {
   font-weight: 500;
-  color: var(--color-primary);
+  color: var(--color-accent);
   text-decoration: inherit;
   transition: color var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 a:hover {
-  color: var(--color-primary-hover);
+  color: var(--color-accent-hover);
 }
 
 body {
@@ -95,7 +95,7 @@ button {
 }
 
 button:focus-visible {
-  outline: var(--border-width-thick) solid var(--color-primary);
+  outline: var(--border-width-thick) solid var(--color-accent);
   outline-offset: var(--spacing-micro);
 }
 

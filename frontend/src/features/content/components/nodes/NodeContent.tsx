@@ -16,7 +16,7 @@ import { useRef, useCallback, useState, useMemo } from 'react';
 import { useSetNodeProperty, useProperties } from '@/features/properties';
 import { useNodeNavigation, useAddClass, useRemoveClass, useClasses, useUpdateNode } from '@/features/content';
 import { useContentSave } from '@/features/editor';
-import { useCreateFlashcard } from '@/features/flashcards';
+import { useCreateFlashcard } from '@/plugins/builtin/flashcards';
 import { stringifyAST, StringifyMode } from '@/lib';
 import { useLazyChildren } from '@/features/content/hooks/useLazyChildren';
 

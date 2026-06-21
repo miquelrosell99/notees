@@ -30,6 +30,16 @@
   transform: scale(1.02);
 }
 
+.add-cover-button:focus-visible {
+  outline: var(--border-width-thick) solid var(--color-accent);
+  outline-offset: var(--spacing-micro);
+}
+
+.add-cover-button:active {
+  background: var(--color-pressed-overlay);
+  transform: scale(0.98);
+}
+
 .add-cover-button__text {
   font-size: var(--font-size-base);
   font-weight: 500;

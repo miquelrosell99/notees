@@ -3,19 +3,24 @@
 This module provides shared fixtures for testing the Notees application
 using PostgreSQL. Supports two modes:
 
-1. **Testcontainers (default)**: Spins up a PostgreSQL container per session
+1. **External database (default inside the dev container)**: Uses an existing
+   PostgreSQL instance. ``compose.dev.yaml`` sets ``TEST_DATABASE_URL`` to the
+   shared dev Postgres ``notees_test`` database, so tests run inside the
+   backend container do not need Docker-in-Docker.
+
+2. **Testcontainers**: Spins up a fresh PostgreSQL container per session.
    - Requires Docker running
+   - Used automatically when ``TEST_DATABASE_URL`` is not set
    - Fully isolated test database
 
-2. **External database**: Uses an existing PostgreSQL instance
-   - Set TEST_DATABASE_URL environment variable
-   - Useful for CI/CD or when Docker isn't available
-   - Database is cleaned between tests
+The external URL is normalized before use so raw passwords containing special
+characters (``[]@``) are percent-encoded before being passed to asyncpg.
 """
 import asyncio
 import os
 import secrets
 import sys
+import urllib.parse
 from collections.abc import AsyncGenerator, Generator
 from pathlib import Path
 
@@ -93,11 +98,49 @@ def postgres_container():
         yield postgres
 
 
+def _encode_database_url(url: str) -> str:
+    """Percent-encode an unescaped database URL so urllib can parse it.
+
+    TEST_DATABASE_URL is often built by interpolating a raw password that may
+    contain ``[]@`` characters. Python's URL parser treats unescaped brackets
+    as a bracketed host and fails, so we manually extract the password, quote
+    it, and reassemble the DSN.
+    """
+    try:
+        urllib.parse.urlparse(url)
+        return url
+    except ValueError:
+        pass
+
+    if "://" not in url:
+        return url
+
+    scheme, rest = url.split("://", 1)
+    if "/" in rest:
+        netloc, path = rest.split("/", 1)
+        path = "/" + path
+    else:
+        netloc, path = rest, ""
+
+    if "@" not in netloc:
+        return url
+
+    userinfo, hostport = netloc.rsplit("@", 1)
+    if ":" not in userinfo:
+        user = userinfo
+        password = ""
+    else:
+        user, password = userinfo.split(":", 1)
+
+    password = urllib.parse.quote(password, safe="")
+    return f"{scheme}://{user}:{password}@{hostport}{path}"
+
+
 @pytest.fixture(scope="session")
 def database_url(postgres_container) -> str:
     """Get the database URL for the test PostgreSQL instance."""
     if _EXTERNAL_DB_URL:
-        return _EXTERNAL_DB_URL
+        return _encode_database_url(_EXTERNAL_DB_URL)
 
     return postgres_container.get_connection_url().replace(
         "postgresql+psycopg2://", "postgresql://"

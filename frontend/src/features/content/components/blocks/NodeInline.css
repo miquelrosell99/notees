@@ -12,8 +12,11 @@
   overflow: hidden;
 }
 
-button.node-inline {
+button.node-inline,
+a.node-inline {
   text-align: left;
+  text-decoration: none;
+  color: inherit;
 }
 
 .node-inline--clickable {
