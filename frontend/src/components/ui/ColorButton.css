@@ -20,6 +20,8 @@
   flex-shrink: 0;
   background: var(--color-surface-container);
   overflow: hidden;
+  min-width: var(--button-min-height);
+  min-height: var(--button-min-height);
   transition: 
     border-color var(--motion-duration-short) var(--motion-easing-standard),
     box-shadow var(--motion-duration-short) var(--motion-easing-standard);

@@ -188,6 +188,15 @@ export function CalendarPopup({
     onSelectYear(currentYear);
   };
 
+  const formatDayLabel = (day: number) => {
+    return new Date(currentYear, currentMonth, day).toLocaleDateString(undefined, {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
+  };
+
   return (
     <div
       className="calendar-popup"
@@ -240,6 +249,8 @@ export function CalendarPopup({
                 size="xs"
                 className={`calendar-day ${isToday(day) ? `today${todayAccent ? ' accent-pulse' : ''}` : ''} ${hasNote(day) ? 'has-note' : ''}`}
                 onClick={() => handleDayClick(day)}
+                aria-selected={false}
+                aria-label={formatDayLabel(day)}
               >
                 {day}
               </Button>

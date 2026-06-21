@@ -246,6 +246,15 @@ export function DatePickerPopup({
     setCurrentYear(today.getFullYear());
   };
 
+  const formatDayLabel = (day: number) => {
+    return new Date(currentYear, currentMonth, day).toLocaleDateString(undefined, {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
+  };
+
   // ── render ─────────────────────────────────────────────
 
   const popup = (
@@ -313,6 +322,8 @@ export function DatePickerPopup({
                 size="xs"
                 className={`calendar-day ${isToday(day) ? 'today' : ''} ${hasNote(day) ? 'has-note' : ''} ${isSelected(day) ? 'selected' : ''}`}
                 onClick={() => handleDayClick(day)}
+                aria-selected={isSelected(day)}
+                aria-label={formatDayLabel(day)}
               >
                 {day}
               </Button>

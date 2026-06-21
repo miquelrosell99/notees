@@ -154,6 +154,14 @@
   border-radius: var(--shape-extra-small);
 }
 
+.checkbox-container--minimal .checkbox-input {
+  width: var(--button-min-height);
+  height: var(--button-min-height);
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
 .checkbox-container--minimal .checkbox-checkmark--sm {
   width: var(--icon-size-xs);
   height: var(--icon-size-xs);

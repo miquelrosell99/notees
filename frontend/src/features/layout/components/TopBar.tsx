@@ -222,7 +222,7 @@ export function TopBar() {
             className="menu-toggle"
           />
         
-          <h1 className="app-title">Notees</h1>
+          <span className="app-title">Notees</span>
           <LiveSyncIndicator />
         </div>
       

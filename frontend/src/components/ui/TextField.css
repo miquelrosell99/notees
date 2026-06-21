@@ -39,7 +39,7 @@
 }
 
 .text-field::placeholder {
-  color: var(--color-outline);
+  color: var(--color-placeholder);
 }
 
 .text-field--error {

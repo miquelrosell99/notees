@@ -65,6 +65,7 @@
   justify-content: center;
   gap: var(--spacing-1);
   height: var(--height-sm);
+  min-height: var(--button-min-height);
   padding: 0 var(--spacing-3);
   border: none;
   border-radius: var(--shape-small);

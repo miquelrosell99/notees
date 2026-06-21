@@ -39,7 +39,7 @@ interface ToastItemProps {
 function ToastItem({ notification, onDismiss }: ToastItemProps) {
   return (
     <div className={`notification-toast notification-toast--${notification.type}`}>
-      <span className="notification-toast__icon">
+      <span className="notification-toast__icon" aria-hidden="true">
         {ICONS[notification.type]}
       </span>
       <div className="notification-toast__content">

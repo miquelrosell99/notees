@@ -142,6 +142,7 @@ export const COMMAND_IDS = {
   GO_TODAY: 'nav.goToday',
   NEW_PAGE: 'page.new',
   SETTINGS: 'settings.open',
+  PLUGIN_MANAGER: 'plugins.openManager',
   ADD_PROPERTY: 'property.add',
   UNDO: 'edit.undo',
   REDO: 'edit.redo',

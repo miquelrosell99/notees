@@ -37,6 +37,7 @@
   position: relative;
   will-change: transform;
   cursor: pointer;
+  min-height: var(--button-min-height);
 }
 
 .list-sortable__item:last-child {

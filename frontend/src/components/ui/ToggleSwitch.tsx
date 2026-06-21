@@ -11,7 +11,7 @@ import { cn } from '@/utils/cn';
 
 export type ToggleSwitchSize = 'sm' | 'md' | 'lg';
 
-export interface ToggleSwitchProps extends Omit<HTMLAttributes<HTMLDivElement>, 'onChange'> {
+export interface ToggleSwitchProps extends Omit<HTMLAttributes<HTMLButtonElement>, 'onChange'> {
   /** Size variant */
   size?: ToggleSwitchSize;
   /** Label for the left (unchecked) state */
@@ -29,7 +29,7 @@ export interface ToggleSwitchProps extends Omit<HTMLAttributes<HTMLDivElement>, 
 /**
  * ToggleSwitch - A switch with labels on both sides for A/B selection.
  */
-export const ToggleSwitch = forwardRef<HTMLDivElement, ToggleSwitchProps>(function ToggleSwitch(
+export const ToggleSwitch = forwardRef<HTMLButtonElement, ToggleSwitchProps>(function ToggleSwitch(
   {
     size = 'md',
     leftLabel,
@@ -50,45 +50,44 @@ export const ToggleSwitch = forwardRef<HTMLDivElement, ToggleSwitchProps>(functi
     className,
   );
 
+  const leftId = `${props.id ?? 'toggle'}-left`;
+  const rightId = `${props.id ?? 'toggle'}-right`;
+
   const handleClick = () => {
     if (!disabled) {
       onChange(!checked);
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (!disabled && (e.key === 'Enter' || e.key === ' ')) {
-      e.preventDefault();
-      onChange(!checked);
-    }
-  };
-
   return (
-    <div
+    <button
       ref={ref}
+      type="button"
       className={containerClasses}
       onClick={handleClick}
-      onKeyDown={handleKeyDown}
-      tabIndex={disabled ? -1 : 0}
+      disabled={disabled}
       role="switch"
       aria-checked={checked}
       aria-disabled={disabled}
+      aria-labelledby={`${leftId} ${rightId}`}
       {...props}
     >
       <span
+        id={leftId}
         className={`toggle-switch__label toggle-switch__label--left ${!checked ? 'toggle-switch__label--active' : ''}`}
       >
         {leftLabel}
       </span>
-      <div className="toggle-switch__track">
-        <div className="toggle-switch__thumb" />
-      </div>
+      <span className="toggle-switch__track">
+        <span className="toggle-switch__thumb" />
+      </span>
       <span
+        id={rightId}
         className={`toggle-switch__label toggle-switch__label--right ${checked ? 'toggle-switch__label--active' : ''}`}
       >
         {rightLabel}
       </span>
-    </div>
+    </button>
   );
 });
 

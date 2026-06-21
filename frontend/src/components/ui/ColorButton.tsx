@@ -48,6 +48,8 @@ function ColorSwatch({
   active = false,
   className = '',
   disabled,
+  title,
+  'aria-label': ariaLabel,
   ...props
 }: Omit<ColorButtonProps, 'showPicker' | 'showNoneOption' | 'colors' | 'onColorChange'>) {
   const classNames = [
@@ -60,7 +62,14 @@ function ColorSwatch({
     .filter(Boolean)
     .join(' ');
   return (
-    <button className={classNames} disabled={disabled} type="button" {...props}>
+    <button
+      className={classNames}
+      disabled={disabled}
+      type="button"
+      title={title}
+      aria-label={ariaLabel ?? title}
+      {...props}
+    >
       <span className="color-btn__fill" style={{ backgroundColor: color }} />
     </button>
   );
@@ -198,7 +207,7 @@ export const ColorButton = forwardRef<HTMLButtonElement, ColorButtonProps>(funct
   };
 
   const isHexValid = isValidHexColor(hexInput);
-  const previewColor = isHexValid ? normalizeHex(hexInput) : '#808080';
+  const previewColor = isHexValid ? normalizeHex(hexInput) : 'var(--color-disabled)';
 
   const classNames = [
     'color-btn',
@@ -253,6 +262,7 @@ export const ColorButton = forwardRef<HTMLButtonElement, ColorButtonProps>(funct
                 size="xs"
                 active={color === cssVar}
                 title={label}
+                aria-label={label}
                 onClick={(e) => {
                   e.stopPropagation();
                   handleColorSelect(cssVar);
@@ -282,6 +292,7 @@ export const ColorButton = forwardRef<HTMLButtonElement, ColorButtonProps>(funct
               active={isHexValid}
               disabled={!isHexValid}
               title={isHexValid ? 'Apply' : 'Invalid hex'}
+              aria-label={isHexValid ? 'Apply color' : 'Invalid hex color'}
               onClick={(e) => {
                 e.stopPropagation();
                 if (isHexValid) handleHexApply();
