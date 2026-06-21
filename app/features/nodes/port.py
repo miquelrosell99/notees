@@ -51,6 +51,13 @@ class NodeCrudRepository(ABC):
         pass
 
     @abstractmethod
+    async def update_descendant_page_ids(
+        self, node_id: int, new_page_id: int | None
+    ) -> None:
+        """Set page_id on all descendants of node_id (excluding node_id itself)."""
+        pass
+
+    @abstractmethod
     async def delete(self, node_id: int) -> bool:
         """Delete a node and all its children."""
         pass

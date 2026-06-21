@@ -15,6 +15,7 @@ import { liveSyncManager, useLivePresenceStore } from '@/features/collab';
 import { parseAST, parseLinkId } from '@/lib/astBuilder';
 import { nodeNameToText } from '@/features/queries';
 import { NodeContextMenu } from '@/features/content/components/nodes/NodeContextMenu';
+import { ConvertToPageModal } from '@/features/content/components/nodes/ConvertToPageModal';
 import { copyRuntimeBlocksToClipboard } from '@/utils/clipboardManager';
 import { useClipboardStore } from '@/stores/clipboardStore';
 import { useAuthStore } from '@/features/auth';
@@ -209,6 +210,7 @@ export const BlockRow = memo(
     const { cycleTaskStatus } = useTaskActions(node);
 
     const [contextMenuPos, setContextMenuPos] = useState<{ x: number; y: number } | null>(null);
+    const [showConvertToPageModal, setShowConvertToPageModal] = useState(false);
     const [backlinkExpanded, setBacklinkExpanded] = useState(false);
     const [isRowHovered, setIsRowHovered] = useState(false);
     const toggleBacklinks = useCallback(() => {
@@ -273,6 +275,10 @@ export const BlockRow = memo(
 
     const handleCloseContextMenu = useCallback(() => {
       setContextMenuPos(null);
+    }, []);
+
+    const handleConvertToPage = useCallback(() => {
+      setShowConvertToPageModal(true);
     }, []);
 
     const handleCopyBlocks = useCallback(() => {
@@ -575,8 +581,14 @@ export const BlockRow = memo(
           onClose={handleCloseContextMenu}
           onCopyBlocks={handleCopyBlocks}
           onPasteBlocks={handlePasteBlocks}
+          onConvertToPage={handleConvertToPage}
         />
       )}
+      <ConvertToPageModal
+        node={node}
+        isOpen={showConvertToPageModal}
+        onClose={() => setShowConvertToPageModal(false)}
+      />
       </>
     );
   },

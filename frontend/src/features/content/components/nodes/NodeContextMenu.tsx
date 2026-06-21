@@ -75,6 +75,8 @@ export interface NodeContextMenuProps extends BaseContextMenuProps {
   onParentChange?: (parentId: number | null) => void;
   /** Enables 'convert-to-page' action (block-scoped) */
   onConvertToPage?: () => void;
+  /** Enables 'convert-to-block' action (page-scoped) */
+  onConvertToBlock?: () => void;
   /** Called by 'add-banner' action (page-scoped) */
   onAddBanner?: () => void;
   /** Called by 'copy-blocks' action — caller should copy the block to clipboard */
@@ -91,6 +93,7 @@ export function NodeContextMenu({
   actions = DEFAULT_ACTIONS,
   onParentChange,
   onConvertToPage,
+  onConvertToBlock,
   onAddBanner,
   onCopyBlocks,
   onPasteBlocks,
@@ -193,6 +196,16 @@ export function NodeContextMenu({
             label: 'Convert to page',
             icon: 'mdi-file-document-outline',
             onClick: () => { onConvertToPage(); onClose(); },
+          });
+          break;
+
+        case 'convert-to-block':
+          if (!onConvertToBlock) break;
+          items.push({
+            id: 'convert-to-block',
+            label: 'Convert to block',
+            icon: 'mdi-format-list-bulleted',
+            onClick: () => { onConvertToBlock(); onClose(); },
           });
           break;
 
@@ -445,7 +458,7 @@ export function NodeContextMenu({
     return items;
   }, [
     actions, nodeScope, node, isPageFavorited, isHeader, clipboardMode,
-    onConvertToPage, onAddBanner, onCopyBlocks, onPasteBlocks, onClose, onParentChange,
+    onConvertToPage, onConvertToBlock, onAddBanner, onCopyBlocks, onPasteBlocks, onClose, onParentChange,
     addSidebarCard, openLocalGraph, openNode, updateNode, unarchiveNode,
     showDevOptions, handleDeleteClick, handleArchiveClick, setShowShareModal,
     addFavoriteMutation, removeFavoriteMutation, currentNodeId, sidebarCards,

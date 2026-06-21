@@ -9,7 +9,14 @@ from pyrate_limiter import Duration
 
 from app.dependencies import get_current_user, get_property_repository
 from app.domain.entities import NodeCreateData, NodeUpdateData
-from app.domain.errors import DatePageDeletionError, DuplicateNodeError, OptimisticLockError, SystemClassConstraintError
+from app.domain.errors import (
+    DatePageDeletionError,
+    DuplicateNodeError,
+    NodeNotFoundError,
+    NodeValidationError,
+    OptimisticLockError,
+    SystemClassConstraintError,
+)
 from app.domain.stringify_ast import extract_node_links, parse_ast
 from app.features.notifications.dependencies import get_notification_repository
 from app.features.notifications.port import NotificationRepository
@@ -41,6 +48,8 @@ from .models import (
     BreadcrumbItem,
     BreadcrumbSegment,
     BreadcrumbsResponse,
+    ConvertToBlockRequest,
+    ConvertToPageRequest,
     LinkedReferenceResponse,
     MoveNodeRequest,
     NodeCreateRequest,
@@ -929,6 +938,107 @@ async def move_node(
                 pass
     except ValueError as e:
         raise HTTPException(422, str(e)) from e
+
+    return _node_to_response(node)
+
+
+@router.post("/{node_id}/convert-to-page", response_model=NodeResponse)
+async def convert_block_to_page(
+    node_id: int,
+    request: ConvertToPageRequest,
+    user: User = Depends(get_current_user),
+):
+    """Convert a block into a root page.
+
+    Optionally renames the node. The page class is added automatically.
+    """
+    service = await _get_node_service(user)
+
+    old_node = await service.get_node(node_id)
+    before = _node_snapshot(old_node) if old_node else None
+
+    try:
+        node = await service.convert_block_to_page(
+            node_id, name=request.name, user_id=int(user.id)
+        )
+    except NodeNotFoundError as e:
+        raise HTTPException(404, str(e)) from e
+    except SystemClassConstraintError as e:
+        raise HTTPException(422, str(e)) from e
+    except ValueError as e:
+        raise HTTPException(422, str(e)) from e
+    except DuplicateNodeError as e:
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "message": str(e),
+                "code": "DUPLICATE_NODE",
+                "name": e.name,
+                "conflicting_classes": e.conflicting_classes,
+            },
+        ) from e
+
+    if before:
+        try:
+            undo = await _get_undo_service(user)
+            await undo.record(
+                "convert_block_to_page",
+                "node",
+                node_id,
+                before_state=before,
+                after_state=_node_snapshot(node),
+                description=f"Converted block to page '{_name_text(node.name)}'",
+            )
+        except (ValueError, TypeError, LookupError):
+            pass
+
+    return _node_to_response(node)
+
+
+@router.post("/{node_id}/convert-to-block", response_model=NodeResponse)
+async def convert_page_to_block(
+    node_id: int,
+    request: ConvertToBlockRequest,
+    user: User = Depends(get_current_user),
+):
+    """Convert a page into a block under the given destination page.
+
+    The page class is removed automatically.
+    """
+    service = await _get_node_service(user)
+
+    old_node = await service.get_node(node_id)
+    before = _node_snapshot(old_node) if old_node else None
+
+    try:
+        node = await service.convert_page_to_block(
+            node_id,
+            parent_id=request.parent_id,
+            position=request.position,
+            user_id=int(user.id),
+        )
+    except NodeNotFoundError as e:
+        raise HTTPException(404, str(e)) from e
+    except SystemClassConstraintError as e:
+        raise HTTPException(422, str(e)) from e
+    except NodeValidationError as e:
+        raise HTTPException(422, {"message": str(e), "field": e.field}) from e
+    except ValueError as e:
+        raise HTTPException(422, str(e)) from e
+
+    if before:
+        try:
+            undo = await _get_undo_service(user)
+            await undo.record(
+                "convert_page_to_block",
+                "node",
+                node_id,
+                before_state=before,
+                after_state=_node_snapshot(node),
+                description=f"Converted page to block '{_name_text(node.name)}'",
+            )
+        except (ValueError, TypeError, LookupError):
+            pass
 
     return _node_to_response(node)
 
