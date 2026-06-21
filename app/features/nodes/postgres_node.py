@@ -314,6 +314,39 @@ class PostgresNodeRepository(
             row = await conn.fetchrow(query, *params)
             return self._row_to_node(row) if row else None
 
+    async def update_descendant_page_ids(
+        self, node_id: int, new_page_id: int | None
+    ) -> None:
+        """Set page_id on all descendants of node_id (excluding node_id itself).
+
+        Used when a node's containing page changes so its subtree keeps the
+        correct page reference without rewriting parent_id hierarchy.
+        """
+        async with acquire_connection(self._pool) as conn:
+            await conn.execute(
+                """
+                WITH RECURSIVE descendants AS (
+                    SELECT id, 0 AS depth
+                    FROM node
+                    WHERE id = $1 AND workspace_id = $2
+                    UNION ALL
+                    SELECT n.id, d.depth + 1
+                    FROM node n
+                    INNER JOIN descendants d ON n.parent_id = d.id
+                    WHERE n.workspace_id = $2 AND d.depth < 100
+                )
+                UPDATE node
+                SET page_id = $3,
+                    write_date = NOW(),
+                    version = version + 1
+                WHERE id IN (SELECT id FROM descendants WHERE depth > 0)
+                  AND workspace_id = $2
+                """,
+                node_id,
+                self._workspace_id,
+                new_page_id,
+            )
+
     async def update_names_batch(
         self, updates: list[tuple[int, str]], user_id: int | None = None
     ) -> None:

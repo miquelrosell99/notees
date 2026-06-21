@@ -1,0 +1,17 @@
+.convert-to-block-modal__label {
+  display: block;
+  margin-bottom: var(--space-2);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+}
+
+.convert-to-block-modal__selector {
+  min-height: 200px;
+}
+
+.convert-to-block-modal__error {
+  margin-top: var(--space-2);
+  color: var(--color-error);
+  font-size: var(--font-size-sm);
+}

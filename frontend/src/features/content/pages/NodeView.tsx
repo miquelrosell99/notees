@@ -29,6 +29,7 @@ import { nodeNameToText } from '@/features/queries';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { usePageAliases } from '@/features/content';
 import { useNavigationStore, useAppStore, useSettingsStore, formatDate } from '@/stores';
+import { useOpenNodeAction } from '@/features/layout';
 import { useFindReplaceStore } from '@/stores/findReplaceStore';
 import { useKeyboardShortcut } from '@/hooks/useKeyboardShortcut';
 import { useCommand } from '@/hooks/useCommand';
@@ -48,6 +49,7 @@ import { NodeContent } from '@/features/content/components/nodes/NodeContent';
 import { NodeCollection } from '@/features/content/components/nodes/NodeCollection';
 
 import { PageContextMenu, BlockContextMenu } from '@/features/content/components/nodes/NodeContextMenu';
+import { ConvertToBlockModal } from '@/features/content/components/nodes/ConvertToBlockModal';
 import { QuerySection, NodeActivityLogSection, UnlinkedMentionsSection } from '@/features/content/components/nodes';
 import { PropertiesSection } from '@/features/properties';
 import { PropertySuggestionPopup } from '@/features/properties';
@@ -381,6 +383,7 @@ export function NodeView({
   const createNode = useCreateNode();
   const setPropertyMutation = useSetNodeProperty();
   const createPropertyMutation = useCreateProperty();
+  const openNodeAction = useOpenNodeAction();
   // Property popup state
   const [showPropertyPopup, setShowPropertyPopup] = useState(false);
   // When set, the property popup targets a specific block; otherwise the current node
@@ -466,6 +469,13 @@ export function NodeView({
     });
   }, [node, addClass, allClasses]);
   
+  // Navigate to the destination page after a page has been converted to a block
+  const handleConvertedToBlock = useCallback((converted: Node) => {
+    if (converted.page_id) {
+      openNodeAction(converted.page_id);
+    }
+  }, [openNodeAction]);
+
   // Handle adding a tag via NodeSelector
   const handleAddTag = useCallback((tagNode: Node) => {
     if (!node) return;
@@ -665,6 +675,7 @@ export function NodeView({
   // Context menu state
   const [showContextMenu, setShowContextMenu] = useState(false);
   const [contextMenuPos, setContextMenuPos] = useState({ x: 0, y: 0 });
+  const [showConvertToBlockModal, setShowConvertToBlockModal] = useState(false);
 
   // Top-bar 3-dot menu state
   const [showTopBarMenu, setShowTopBarMenu] = useState(false);
@@ -1073,6 +1084,7 @@ export function NodeView({
         anchorEl={topBarMenuBtnRef.current}
         onClose={handleCloseTopBarMenu}
         onAddBanner={handleSelectBannerImage}
+        onConvertToBlock={() => setShowConvertToBlockModal(true)}
       />
     ) : (
       <BlockContextMenu
@@ -1500,6 +1512,7 @@ export function NodeView({
             position={contextMenuPos}
             onClose={handleCloseContextMenu}
             onAddBanner={handleSelectBannerImage}
+            onConvertToBlock={() => setShowConvertToBlockModal(true)}
           />
         ) : (
           <BlockContextMenu
@@ -1509,6 +1522,13 @@ export function NodeView({
           />
         )
       )}
+
+      <ConvertToBlockModal
+        node={node}
+        isOpen={showConvertToBlockModal}
+        onClose={() => setShowConvertToBlockModal(false)}
+        onConverted={handleConvertedToBlock}
+      />
 
       {/* Property Suggestion Modal for Ctrl+Alt+P */}
       {showPropertyPopup && (

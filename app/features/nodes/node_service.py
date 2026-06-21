@@ -31,7 +31,7 @@ from app.domain.stringify_ast import (
     stringify_ast,
 )
 from app.domain.validation import validate_node_create, validate_node_update
-from app.features.nodes.class_management_service import ClassManagementService
+from app.features.nodes.class_management_service import BLOCK_ONLY_CLASS_UUIDS, ClassManagementService
 from app.logging_config import get_logger
 
 if TYPE_CHECKING:
@@ -2602,6 +2602,179 @@ class NodeService:
         logger.info(f"[MERGE] Soft-deleted source node {source_id}")
 
         return {"children_moved": len(children_ids), "target_id": target_id}
+
+    async def convert_block_to_page(
+        self,
+        node_id: int,
+        name: str | None = None,
+        user_id: int | None = None,
+    ) -> Node:
+        """Convert a block into a root page.
+
+        Adds the page class, detaches the node from its parent, updates the
+        page_id of all descendants, and optionally renames the node.
+        """
+        node = await self._node_repo.get_by_id(node_id)
+        if not node:
+            raise NodeNotFoundError(f"Node {node_id} not found")
+        if node.is_page:
+            raise ValueError("Node is already a page")
+        if node.parent_id is None:
+            raise ValueError("Only blocks can be converted to pages")
+        if node.parent_locked:
+            raise ValueError("Cannot convert a parent-locked block")
+
+        # Reject block-only classes on the would-be page
+        class_nodes = await self._node_repo.get_by_ids(list(node.class_ids or []))
+        conflicting = [
+            class_node
+            for class_node in class_nodes
+            if class_node.uuid in BLOCK_ONLY_CLASS_UUIDS
+        ]
+        if conflicting:
+            names = ", ".join(_format_node_name(c.name) for c in conflicting)
+            raise SystemClassConstraintError(
+                f"Cannot convert to page: block-only classes remain ({names}). "
+                "Remove them first."
+            )
+
+        # Build new class list with page class
+        page_class_id = self._page_class_id
+        new_classes = list(node.class_ids or [])
+        if page_class_id is not None and page_class_id not in new_classes:
+            new_classes.append(page_class_id)
+
+        # Validate new name if provided
+        if name is not None and name != node.name:
+            validate_node_update(name, node.icon, node.color)
+            await self._validate_page_name_uniqueness(
+                name=name,
+                parent_id=None,
+                classes=new_classes,
+                exclude_node_id=node_id,
+            )
+
+        if self._user_id:
+            await self.permissions.require_node_write(node_id)
+
+        async with get_transaction():
+            # 1. Update classes and recompute flags
+            await self._node_repo.update_node_class_ids(node_id, new_classes)
+            await self._class_service.update_flags_from_classes(node_id, new_classes)
+
+            # 2. Detach from parent; repository will set page_id = NULL because is_page = TRUE
+            update_data = NodeUpdateData(
+                name=name,
+                parent_id=None,
+                clear_parent=True,
+            )
+            await self._node_repo.update(node_id, update_data, user_id)
+
+            # 3. Descendants now belong to the new page
+            await self._node_repo.update_descendant_page_ids(node_id, node_id)
+
+            # 4. Recompute classes_path for the whole subtree
+            await self._link_service.update_classes_path_for_descendants(node_id)
+
+            # 5. Re-parse links/mentions if name changed
+            if name is not None:
+                updated = await self._node_repo.get_by_id(node_id)
+                if updated and updated.name:
+                    await self._link_service.update_node_links(node_id, updated.name)
+                    await self._link_service.update_inline_classes(node_id, updated.name)
+                    if self._mention_service is not None:
+                        await self._mention_service.reindex_source(node_id)
+
+        await self._log_activity(node_id, "converted", "Converted block to page")
+
+        refreshed = await self._node_repo.get_by_id(node_id)
+        if refreshed is None:
+            raise NodeNotFoundError(f"Node {node_id} not found after conversion")
+        return refreshed
+
+    async def convert_page_to_block(
+        self,
+        node_id: int,
+        parent_id: int,
+        position: float | None = None,
+        user_id: int | None = None,
+    ) -> Node:
+        """Convert a page into a block under the given destination page.
+
+        Removes the page class, attaches the node under parent_id, updates the
+        page_id of all descendants, and validates constraints.
+        """
+        node = await self._node_repo.get_by_id(node_id)
+        if not node:
+            raise NodeNotFoundError(f"Node {node_id} not found")
+        if not node.is_page:
+            raise ValueError("Node is not a page")
+        if node.is_day or node.is_month or node.is_year:
+            raise ValueError("Date journal pages cannot be converted to blocks")
+        if node.parent_locked:
+            raise ValueError("Cannot convert a parent-locked page")
+
+        # Validate destination exists and is a page
+        parent = await self._node_repo.get_by_id(parent_id)
+        if not parent:
+            raise NodeValidationError(
+                f"Destination page does not exist: {parent_id}",
+                field="parent_id",
+            )
+        if not parent.is_page:
+            raise NodeValidationError(
+                "Destination must be a page",
+                field="parent_id",
+            )
+        if parent_id == node_id:
+            raise ValueError("Cannot convert a page into a child of itself")
+
+        # Validate no circular reference
+        await self._check_circular_reference(node_id, parent_id)
+
+        # Validate max hierarchy depth
+        await self._check_max_depth(node_id, parent_id)
+
+        # Reject pages that define a class (class class is page-only)
+        class_class_id = await self._node_repo.find_node_id_by_uuid(SYSTEM_CLASS_UUIDS["class"])
+        if class_class_id is not None and class_class_id in (node.class_ids or []):
+            raise SystemClassConstraintError(
+                "Pages that define a class cannot be converted to blocks."
+            )
+
+        # Build new class list without page class
+        page_class_id = self._page_class_id
+        new_classes = [cid for cid in (node.class_ids or []) if cid != page_class_id]
+
+        if self._user_id:
+            await self.permissions.require_node_write(node_id)
+
+        async with get_transaction():
+            # 1. Update classes and recompute flags (is_page becomes FALSE)
+            await self._node_repo.update_node_class_ids(node_id, new_classes)
+            await self._class_service.update_flags_from_classes(node_id, new_classes)
+
+            # 2. Attach under destination page; repository computes page_id
+            update_data = NodeUpdateData(
+                parent_id=parent_id,
+                sequence=position,
+            )
+            await self._node_repo.update(node_id, update_data, user_id)
+
+            # 3. Propagate containing page to descendants
+            updated = await self._node_repo.get_by_id(node_id)
+            new_page_id = updated.page_id if updated else parent_id
+            await self._node_repo.update_descendant_page_ids(node_id, new_page_id)
+
+            # 4. Recompute classes_path for the whole subtree
+            await self._link_service.update_classes_path_for_descendants(node_id)
+
+        await self._log_activity(node_id, "converted", "Converted page to block")
+
+        refreshed = await self._node_repo.get_by_id(node_id)
+        if refreshed is None:
+            raise NodeNotFoundError(f"Node {node_id} not found after conversion")
+        return refreshed
 
     def _redirect_link_in_content(
         self,

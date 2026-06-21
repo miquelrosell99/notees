@@ -403,6 +403,29 @@ export async function moveNode(
 }
 
 /**
+ * Convert a block into a root page.
+ */
+export async function convertToPage(id: number, name?: string): Promise<Node> {
+  const response = await api.post<Node>(`${BASE}/${id}/convert-to-page`, { name });
+  return response.data;
+}
+
+/**
+ * Convert a page into a block under a destination page.
+ */
+export async function convertToBlock(
+  id: number,
+  parentId: number,
+  position?: number
+): Promise<Node> {
+  const response = await api.post<Node>(`${BASE}/${id}/convert-to-block`, {
+    parent_id: parentId,
+    position,
+  });
+  return response.data;
+}
+
+/**
  * Search nodes by name
  * 
  * @param query - Search query string

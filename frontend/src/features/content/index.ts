@@ -36,6 +36,8 @@ export { AssetImage, type AssetImageVariant } from './components/nodes/AssetImag
 export { PageHeader } from './components/nodes/PageHeader';
 export { QuerySection, type QuerySectionProps } from './components/nodes/QuerySection';
 export { CollapsiblePillRow } from './components/nodes/CollapsiblePillRow';
+export { ConvertToPageModal } from './components/nodes/ConvertToPageModal';
+export { ConvertToBlockModal } from './components/nodes/ConvertToBlockModal';
 
 // Block editor
 export { BlockList } from './components/blocks/BlockList';
@@ -87,6 +89,7 @@ export * from './hooks/useArchivedPages';
 export * from './hooks/usePageAliases';
 export * from './hooks/useBatchNodes';
 export * from './hooks/useTemplates';
+export * from './hooks/useConvertNode';
 export * from './hooks/dnd';
 
 // Runtime sync helpers consumed by other features
