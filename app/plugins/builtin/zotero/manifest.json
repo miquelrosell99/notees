@@ -1,0 +1,33 @@
+{
+  "id": "notees.zotero",
+  "name": "Zotero Connector",
+  "version": "1.0.0",
+  "description": "Sync Zotero libraries and cite items in the editor.",
+  "author": "Notees",
+  "license": "AGPL-3.0",
+  "permissions": ["read_nodes", "write_nodes", "read_properties", "background_sync", "router"],
+  "backend": {
+    "entrypoint": "app.plugins.builtin.zotero.setup:setup",
+    "dependencies": ["pyzotero>=1.5.0"]
+  },
+  "frontend": {
+    "entrypoint": "./dist/plugin.js"
+  },
+  "contributes": {
+    "settings": [
+      {"id": "api_url", "type": "string", "label": "Zotero local API URL", "default": "http://127.0.0.1:23119/"},
+      {"id": "library_id", "type": "string", "label": "Library ID"},
+      {"id": "library_type", "type": "string", "label": "Library type", "default": "users"}
+    ],
+    "commands": [
+      {"id": "zotero.openSettings", "label": "Zotero: Open settings", "icon": "cog"},
+      {"id": "zotero.sync", "label": "Zotero: Sync now", "icon": "sync"}
+    ],
+    "views": [
+      {"id": "zotero-library", "label": "Zotero Library", "icon": "bookshelf"}
+    ],
+    "sidebarItems": [
+      {"id": "zotero-sidebar", "label": "Zotero", "icon": "bookshelf", "viewId": "zotero-library"}
+    ]
+  }
+}

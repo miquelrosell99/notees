@@ -14,6 +14,10 @@
   --color-primary-hover: #1a1a1a;
   --color-primary-pressed: #333333;
 
+  /* Absolute black/white for contrast-math results (e.g. text on user-chosen colors) */
+  --color-black: #000000;
+  --color-white: #ffffff;
+
   /* ==================== Secondary ==================== */
   --color-secondary: #333333;
   --color-on-secondary: #ffffff;
@@ -178,20 +182,26 @@
   --font-family-display: Georgia, 'Times New Roman', serif;
   --font-family-mono: 'JetBrains Mono', 'Fira Code', Consolas, monospace;
 
+  /* Font weights */
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
   /* Display — editorial serif for hero moments */
   --font-display-large: 400 3.5rem/1.1 var(--font-family-display);
   --font-display-medium: 400 2.75rem/1.15 var(--font-family-display);
   --font-display-small: 400 2.25rem/1.2 var(--font-family-display);
 
   /* Headline — editorial serif for section/page titles */
-  --font-headline-large: 400 2rem/1.25 var(--font-family-display);
-  --font-headline-medium: 400 1.75rem/1.3 var(--font-family-display);
-  --font-headline-small: 400 1.5rem/1.35 var(--font-family-display);
+  --font-headline-large: 600 2rem/1.25 var(--font-family-display);
+  --font-headline-medium: 600 1.75rem/1.3 var(--font-family-display);
+  --font-headline-small: 600 1.5rem/1.35 var(--font-family-display);
 
-  /* Title */
-  --font-title-large: 600 1.25rem/1.4 var(--font-family-base);
-  --font-title-medium: 600 1rem/1.4 var(--font-family-base);
-  --font-title-small: 600 0.875rem/1.4 var(--font-family-base);
+  /* Title — editorial serif for card/page titles */
+  --font-title-large: 600 1.25rem/1.4 var(--font-family-display);
+  --font-title-medium: 600 1rem/1.4 var(--font-family-display);
+  --font-title-small: 600 0.875rem/1.4 var(--font-family-display);
 
   /* Body */
   --font-body-large: 400 1rem/1.5 var(--font-family-base);
@@ -474,9 +484,12 @@
   --text-secondary: var(--color-on-surface-variant);
   --text-tertiary: var(--color-on-surface-variant);
   --text-muted: var(--color-on-surface-variant);
+  --color-text: var(--color-on-surface);
   --color-text-primary: var(--color-on-surface);
   --color-text-secondary: var(--color-on-surface-variant);
+  --color-text-tertiary: var(--color-on-surface-variant);
   --color-text-muted: var(--color-on-surface-variant);
+  --color-placeholder: var(--color-on-surface-variant);
   --color-border: var(--color-outline-variant);
   --color-border-subtle: var(--color-outline-variant);
   --color-bg-primary: var(--color-surface);
@@ -490,6 +503,8 @@
   --accent-primary: var(--color-accent);
   --shadow-2: var(--elevation-2);
   --shadow-3: var(--elevation-3);
+  --shadow-md: var(--elevation-2);
+  --shadow-lg: var(--elevation-3);
   --radius-full: var(--shape-full);
   --radius-lg: var(--shape-large);
   --radius-md: var(--shape-medium);
@@ -503,7 +518,22 @@
   --z-toast: var(--z-tooltip);
   /* Generic layout dimensions for one-off component sizes */
   --layout-body-min-width: 320px;
+  --layout-dialog-min-width: 320px;
+  --layout-stat-min-width: 60px;
+  --flashcard-study-card-max-width: 600px;
+  --flashcard-study-card-min-height: 280px;
   --spacing-tight: 10px;
+
+  /* Friendly aliases used by some component CSS files */
+  --spacing-sm: var(--spacing-3);
+  --spacing-md: var(--spacing-4);
+  --spacing-lg: var(--spacing-5);
+  --spacing-xl: var(--spacing-6);
+  --space-0-5: var(--spacing-1);
+  --space-1: var(--spacing-2);
+  --space-2: var(--spacing-3);
+  --space-3: var(--spacing-4);
+  --space-4: var(--spacing-5);
 
   /* Generic layout dimension scale */
   --icon-size-xs: 14px;

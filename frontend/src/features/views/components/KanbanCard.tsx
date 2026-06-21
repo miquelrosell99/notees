@@ -21,7 +21,7 @@ import { getEffectiveColor } from '@/utils/nodeIcon';
 import { useProperties, useSetNodeProperty } from '@/features/properties';
 import { useCreateNode, useRemoveClass, useAddClass, useUpdateNode, useResolvedClassDetails } from '@/features/content';
 import { useContentSave } from '@/features/editor';
-import { useCreateFlashcard } from '@/features/flashcards';
+import { useCreateFlashcard } from '@/plugins/builtin/flashcards';
 import { stringifyAST, StringifyMode } from '@/lib';
 import { nodeNameToText } from '@/features/queries';
 import { useNavigationStore } from '@/stores';

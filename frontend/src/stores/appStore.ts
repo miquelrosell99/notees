@@ -33,7 +33,8 @@ export type MainViewType =
   | 'whiteboards'
   | 'tasks'
   | 'templates'
-  | 'flashcards';
+  | 'flashcards'
+  | string;
 export type NodeViewType = 'page' | 'block';
 export type SidebarTab = 'pages' | 'graph';
 export type SidebarNodeType = 'page' | 'block';

@@ -74,7 +74,7 @@
   animation: dropdownFadeIn var(--motion-duration-short) var(--motion-easing-standard);
   background: var(--color-surface);
   border: var(--border-width-default) solid var(--color-outline-variant);
-  border-radius: var(--shape-medium);
+  border-radius: var(--shape-floating-panel);
 }
 
 /* Portal version (rendered at body level) */
@@ -129,7 +129,7 @@
 }
 
 .dropdown-search-input::placeholder {
-  color: var(--color-outline);
+  color: var(--color-placeholder);
 }
 
 /* Options */

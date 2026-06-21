@@ -22,6 +22,10 @@ interface CodeTextareaProps {
   className?: string;
   /** Minimum pixel height */
   minHeight?: number;
+  /** Accessible label for the textarea */
+  label?: string;
+  /** ID used to associate the textarea with its label */
+  id?: string;
 }
 
 export const CodeTextarea = forwardRef<HTMLTextAreaElement, CodeTextareaProps>(
@@ -37,6 +41,8 @@ export const CodeTextarea = forwardRef<HTMLTextAreaElement, CodeTextareaProps>(
       spellCheck = false,
       className = '',
       minHeight,
+      label,
+      id,
     },
     forwardedRef,
   ) {
@@ -61,16 +67,25 @@ export const CodeTextarea = forwardRef<HTMLTextAreaElement, CodeTextareaProps>(
       .join(' ');
 
     return (
-      <textarea
-        ref={ref}
-        className={cls}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        disabled={disabled}
-        spellCheck={spellCheck}
-        style={minHeight != null ? { minHeight } : undefined}
-      />
+      <>
+        {label && (
+          <label htmlFor={id} className="code-textarea-label">
+            {label}
+          </label>
+        )}
+        <textarea
+          ref={ref}
+          id={id}
+          className={cls}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          disabled={disabled}
+          spellCheck={spellCheck}
+          style={minHeight != null ? { minHeight } : undefined}
+          aria-label={label ? undefined : 'Code input'}
+        />
+      </>
     );
   },
 );

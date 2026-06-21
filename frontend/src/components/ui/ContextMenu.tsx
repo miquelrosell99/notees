@@ -215,6 +215,7 @@ export function ContextMenu({ items, position, anchorEl, onClose, title, activeI
       className={`context-menu ${className}`}
       role="menu"
       elevation="high"
+      radius="floating"
       padding={false}
       onFocus={(e: React.FocusEvent) => e.stopPropagation()}
       onMouseDown={(e: React.MouseEvent) => e.stopPropagation()}

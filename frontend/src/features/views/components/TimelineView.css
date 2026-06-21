@@ -221,7 +221,7 @@
 }
 
 .timeline-search-input::placeholder {
-  color: var(--color-outline);
+  color: var(--color-placeholder);
 }
 
 .timeline-search-results {

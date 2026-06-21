@@ -8,12 +8,12 @@ import React, { useMemo, Suspense } from 'react';
 import { LoadingScreen } from '@/components/ui/LoadingScreen';
 import { useNode, useClasses } from '@/features/content';
 import { useSystemClasses, NodeViewWrapper, NodeViewContent, PagesView, ArchivedPagesView, TrashView, TemplateGallery } from '@/features/content';
-import { FlashcardsPage } from '@/features/flashcards';
 import { WhiteboardsView } from '@/features/whiteboard';
 import { useNavigationStore } from '@/stores';
 import { getEffectiveColor } from '@/utils/nodeIcon';
 import { JournalsView } from '@/features/journals';
 import { TasksView } from '@/features/tasks';
+import { getViewDefinition } from '@/plugins/core';
 import type { Tab } from '@/stores/navigationStore';
 import './MainContentPane.css';
 
@@ -42,81 +42,73 @@ export function MainContentPane({ tab, onNavigateToNode }: MainContentPaneProps)
 
   if (viewType === 'pages' || viewType === 'all-pages') {
     return (
-      <main className="main-content">
+      <div className="main-content">
         <PagesView />
-      </main>
+      </div>
     );
   }
 
   if (viewType === 'archived') {
     return (
-      <main className="main-content">
+      <div className="main-content">
         <ArchivedPagesView />
-      </main>
+      </div>
     );
   }
 
   if (viewType === 'trash') {
     return (
-      <main className="main-content">
+      <div className="main-content">
         <TrashView />
-      </main>
+      </div>
     );
   }
 
   if (viewType === 'journals') {
     return (
-      <main className="main-content">
+      <div className="main-content">
         <JournalsView />
-      </main>
+      </div>
     );
   }
 
   if (viewType === 'whiteboards') {
     return (
-      <main className="main-content">
+      <div className="main-content">
         <WhiteboardsView />
-      </main>
+      </div>
     );
   }
 
   if (viewType === 'tasks') {
     return (
-      <main className="main-content">
+      <div className="main-content">
         <TasksView />
-      </main>
+      </div>
     );
   }
 
   if (viewType === 'templates') {
     return (
-      <main className="main-content">
+      <div className="main-content">
         <TemplateGallery />
-      </main>
-    );
-  }
-
-  if (viewType === 'flashcards') {
-    return (
-      <main className="main-content">
-        <FlashcardsPage />
-      </main>
+      </div>
     );
   }
 
   if (viewType === 'graph') {
     return (
-      <main className="main-content">
+      <div className="main-content">
         <PagesView initialViewMode="graph" />
-      </main>
+      </div>
     );
   }
 
   if (viewType === 'timeline') {
     return (
-      <main className="main-content">
+      <div className="main-content">
         <PagesView initialViewMode="timeline" />
-      </main>
+      </div>
     );
   }
 
@@ -135,34 +127,45 @@ export function MainContentPane({ tab, onNavigateToNode }: MainContentPaneProps)
 
   if (viewType === 'shares' || viewType === 'inbox') {
     return (
-      <main className="main-content">
+      <div className="main-content">
         <Suspense fallback={<LoadingScreen fullscreen={false} label="Loading…" />}>
           <SharesUnifiedView initialTab={viewType === 'inbox' ? 'inbox' : 'shared-out'} />
         </Suspense>
-      </main>
+      </div>
     );
   }
 
   if (viewType === 'node-collection') {
     return (
-      <main className="main-content">
+      <div className="main-content">
         <div className="empty-state">
           <h2>Collection</h2>
           <p>This collection view isn&apos;t available in tabs.</p>
         </div>
-      </main>
+      </div>
+    );
+  }
+
+  // Plugin-registered top-level views
+  const pluginView = getViewDefinition(viewType);
+  if (pluginView) {
+    const PluginViewComponent = pluginView.component;
+    return (
+      <div className="main-content">
+        <PluginViewComponent />
+      </div>
     );
   }
 
   // Default: node view (page or block)
   if (!tab.nodeId) {
     return (
-      <main className="main-content">
+      <div className="main-content">
         <div className="empty-state">
           <h2>Welcome to Notees</h2>
           <p>Select a page from the sidebar, or press Ctrl+K to create one.</p>
         </div>
-      </main>
+      </div>
     );
   }
 
@@ -171,24 +174,24 @@ export function MainContentPane({ tab, onNavigateToNode }: MainContentPaneProps)
 
   if (isWhiteboard && currentNode) {
     return (
-      <main className="main-content main-content--whiteboard">
+      <div className="main-content main-content--whiteboard">
         <Suspense fallback={<LoadingScreen fullscreen={false} label="Loading…" />}>
           <WhiteboardView nodeId={currentNode.id} nodeUuid={currentNode.uuid} />
         </Suspense>
-      </main>
+      </div>
     );
   }
 
   return (
     <div className="main-content-wrapper" style={nodeColorStyle}>
       <NodeViewWrapper nodeId={tab.nodeId} viewMode={viewMode} liveSync />
-      <main
+      <div
         id="main-content"
         className={`main-content${nodeColorStyle ? ' has-node-border' : ''}`}
         style={nodeColorStyle}
       >
         <NodeViewContent nodeId={tab.nodeId} viewMode={viewMode} liveSync />
-      </main>
+      </div>
     </div>
   );
 }

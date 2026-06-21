@@ -286,10 +286,106 @@
   color: var(--color-on-surface-variant);
 }
 
-/* Responsive */
+/* Responsive — convert table to stacked cards on narrow viewports */
 @media (max-width: 768px) {
   .table-cell--hide-mobile {
     display: none;
+  }
+
+  .table-container {
+    overflow-x: visible;
+  }
+
+  .table {
+    display: block;
+    border: none;
+    background: transparent;
+  }
+
+  .table-header {
+    display: none;
+  }
+
+  .table-body {
+    display: block;
+  }
+
+  .table-body .table-row {
+    display: block;
+    margin-bottom: var(--spacing-3);
+    background: var(--color-surface);
+    border: var(--border-width-default) solid var(--color-outline-variant);
+    border-radius: var(--shape-medium);
+    overflow: hidden;
+  }
+
+  .table-body .table-cell {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-3);
+    width: 100% !important;
+    border: none;
+    border-bottom: var(--border-width-default) solid var(--color-outline-variant);
+    padding: var(--spacing-2) var(--spacing-3);
+    text-align: left !important;
+  }
+
+  .table-body .table-cell:last-child {
+    border-bottom: none;
+  }
+
+  .table-body .table-cell::before {
+    content: attr(data-label);
+    flex: 0 0 30%;
+    max-width: 8rem;
+    font-weight: var(--font-weight-semibold);
+    font-size: var(--font-size-sm);
+    color: var(--color-on-surface-variant);
+    text-transform: capitalize;
+  }
+
+  .table-body .table-cell--checkbox {
+    position: static;
+    justify-content: flex-start;
+    box-shadow: none;
+    background: var(--color-surface);
+    z-index: auto;
+  }
+
+  .table-body .table-cell--checkbox::before {
+    content: none;
+  }
+
+  .table-body .table-cell--node .table-node-cell {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .table-node-cell__actions {
+    opacity: var(--opacity-100);
+  }
+
+  .table-row--depth-1 > td:first-child,
+  .table-row--depth-2 > td:first-child,
+  .table-row--depth-3 > td:first-child,
+  .table-row--depth-4 > td:first-child {
+    padding-left: var(--spacing-3);
+  }
+
+  .table-drag-handle {
+    left: calc(var(--spacing-2) * -1);
+    top: var(--spacing-3);
+    transform: none;
+  }
+
+  .table-container--reorderable .table {
+    margin-left: var(--spacing-4);
+  }
+
+  .table-cell--loading,
+  .table-cell--empty {
+    display: block;
+    text-align: center;
   }
 }
 
@@ -323,6 +419,11 @@
   background: var(--color-surface);
   color: var(--color-on-surface);
   outline: none;
+}
+
+.table-header-input:focus-visible {
+  outline: var(--border-width-thick) solid var(--color-accent);
+  outline-offset: var(--spacing-micro);
 }
 
 /* Delete column button */
@@ -410,6 +511,11 @@
   background: var(--color-surface);
   color: var(--color-on-surface);
   outline: none;
+}
+
+.table-cell-input:focus-visible {
+  outline: var(--border-width-thick) solid var(--color-accent);
+  outline-offset: var(--spacing-micro);
 }
 
 /* Row actions column */

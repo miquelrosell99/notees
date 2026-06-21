@@ -15,7 +15,6 @@ from app.export_jobs import create_job, get_job, update_job
 from app.features.export.dependencies import _get_export_renderer, _make_export_repository
 from app.features.export.models import (
     CreateExportJobResponse,
-    ExportFormat,
     ExportJobResponse,
     ExportRequest,
     RenderPdfRequest,
@@ -29,7 +28,7 @@ logger = get_logger(__name__)
 
 
 def _validate_single_node_params(
-    export_format: ExportFormat,
+    export_format: str,
     layout: str,
     properties: str,
     density: str,
@@ -87,11 +86,12 @@ async def _run_node_export_job(job_id: str, user_id: str, export_args: dict) -> 
         update_job(job_id, status="running", status_text="Exporting nodes…")
 
         workspace_id = export_args.pop("workspace_id")
+        user_id = export_args.pop("user_id")
         export_repo = await _make_export_repository(workspace_id)
         renderer = _get_export_renderer()
         service = ExportService(export_repo, renderer)
         content, filename, _mime_type = await service.export_nodes(
-            workspace_id=workspace_id, **export_args
+            workspace_id=workspace_id, user_id=user_id, **export_args
         )
 
         exports_dir = get_data_dir() / "exports"
@@ -141,6 +141,7 @@ async def export_nodes(
         "page_size": request.page_size,
         "include_child_pages": request.include_child_pages,
         "workspace_id": workspace_id,
+        "user_id": int(user.id),
     }
 
     job = create_job()
@@ -215,11 +216,7 @@ async def export_single_node(
     workspace_id: int = Depends(get_workspace_id),
 ):
     """Start an async job to export a single node by UUID."""
-    try:
-        export_format = ExportFormat(format)
-    except ValueError:
-        raise HTTPException(status_code=400, detail=f"Invalid format: {format}") from None
-
+    export_format = format
     _validate_single_node_params(
         export_format,
         layout,
@@ -252,8 +249,9 @@ async def export_single_node(
         "cover_page": cover_page,
         "page_size": page_size,
         "include_child_pages": include_child_pages,
-        "frontmatter": export_format == ExportFormat.MARKDOWN,
+        "frontmatter": format.lower() == "markdown",
         "workspace_id": workspace_id,
+        "user_id": int(user.id),
     }
 
     job = create_job()

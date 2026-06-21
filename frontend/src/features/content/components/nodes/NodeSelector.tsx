@@ -780,6 +780,8 @@ export function NodeSelector({
             className="node-selector__dropdown node-selector__dropdown--portal"
             elevation="high"
             padding={false}
+            role="dialog"
+            aria-label="Select node"
             style={{
               position: 'absolute',
               top: `${multiMenuPos.top}px`,
@@ -795,6 +797,7 @@ export function NodeSelector({
               onChange={(e) => handleSearchChange(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder={effectiveCreateNew ? 'Search or create...' : searchPlaceholder}
+              aria-label={effectiveCreateNew ? 'Search or create' : searchPlaceholder}
               className="node-selector__search-field"
             />
             <FilterPills filters={appliedFilters} onRemove={handleRemoveFilter} />
@@ -841,6 +844,8 @@ export function NodeSelector({
             className="node-selector__dropdown node-selector__dropdown--portal"
             elevation="high"
             padding={false}
+            role="dialog"
+            aria-label="Select node"
             style={
               menuPosition
                 ? {
@@ -863,6 +868,7 @@ export function NodeSelector({
                 onChange={(e) => handleSearchChange(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder={searchPlaceholder}
+                aria-label={searchPlaceholder}
               />
             </div>
             
@@ -924,6 +930,7 @@ export function NodeSelector({
           type="text"
           className="node-selector__search"
           placeholder={searchPlaceholder}
+          aria-label={searchPlaceholder}
           value={searchQuery}
           onChange={(e) => handleSearchChange(e.target.value)}
           onKeyDown={handleKeyDown}
@@ -970,6 +977,8 @@ export function NodeSelector({
       <div
         className="node-selector__picker"
         ref={pickerRef}
+        role="dialog"
+        aria-label="Select node"
         style={{ top: pickerPos.top, left: pickerPos.left }}
       >
         <input
@@ -977,6 +986,7 @@ export function NodeSelector({
           type="text"
           className="node-selector__search"
           placeholder={searchPlaceholder}
+          aria-label={searchPlaceholder}
           value={searchQuery}
           onChange={(e) => handleSearchChange(e.target.value)}
           onKeyDown={handleKeyDown}
@@ -1052,6 +1062,8 @@ export function NodeSelector({
             <div
               className="node-selector__picker"
               ref={pickerRef}
+              role="dialog"
+              aria-label="Select node"
               style={{ top: pickerPos.top, left: pickerPos.left }}
             >
               <input

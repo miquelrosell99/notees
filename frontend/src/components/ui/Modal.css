@@ -10,7 +10,7 @@
   justify-content: center;
   background: var(--color-scrim);
   z-index: var(--z-modal-backdrop);
-  animation: backdropFadeIn var(--motion-duration-short) var(--motion-easing-standard);
+  animation: backdropFadeIn var(--motion-duration-extra-long) var(--motion-easing-standard);
   /* Prevent content from disappearing under notches/home bars on sheet variants. */
   padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
 }
@@ -33,7 +33,7 @@
   flex-direction: column;
   max-height: 90vh;
   min-height: min-content;
-  animation: modalSlideIn var(--motion-duration-medium) var(--motion-easing-decelerate);
+  animation: modalSlideIn var(--motion-duration-long) var(--motion-easing-decelerate);
 }
 
 /* Sheet variant: anchored to the bottom of the viewport. Use higher
@@ -45,7 +45,7 @@
   margin-bottom: 0;
   max-height: calc(90vh - env(safe-area-inset-bottom));
   border-radius: var(--shape-sheet) var(--shape-sheet) 0 0;
-  animation: modalSheetSlideIn var(--motion-duration-medium) var(--motion-easing-decelerate);
+  animation: modalSheetSlideIn var(--motion-duration-long) var(--motion-easing-decelerate);
 }
 
 .modal.modal--sheet .modal__header {
