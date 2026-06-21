@@ -465,7 +465,8 @@ docker compose -f compose.dev.yaml up -d
 docker compose -f compose.dev.yaml exec postgres psql -U notees -c "CREATE DATABASE notees_test;"
 
 # 3. Run integration tests inside the backend container
-#    (it connects to the postgres service automatically)
+#    (compose.dev.yaml sets TEST_DATABASE_URL to the dev Postgres service,
+#     so testcontainers is not needed inside the container)
 docker compose -f compose.dev.yaml exec backend uv run pytest tests/ -m "not slow" -p no:cacheprovider --no-cov -v
 ```
 
