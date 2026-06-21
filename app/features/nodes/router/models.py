@@ -200,6 +200,19 @@ class MoveNodeRequest(BaseModel):
     position: float | None = None
 
 
+class ConvertToPageRequest(BaseModel):
+    """Request to convert a block into a page."""
+
+    name: str | None = None
+
+
+class ConvertToBlockRequest(BaseModel):
+    """Request to convert a page into a block under a destination page."""
+
+    parent_id: int
+    position: float | None = None
+
+
 class TagLinkRequest(BaseModel):
     """Request to add a tag link."""
 

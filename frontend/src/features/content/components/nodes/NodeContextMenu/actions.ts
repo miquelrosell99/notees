@@ -4,6 +4,7 @@ export type ActionName =
   | 'favorite'
   | 'move-to'
   | 'convert-to-page'
+  | 'convert-to-block'
   | 'toggle-header'
   | 'copy-uuid'
   | 'copy-link'
@@ -37,6 +38,7 @@ export const DEFAULT_ACTIONS: ActionConfig[] = [
   ['paste-blocks',    'both'],
   ['move-to',         'both'],
   ['convert-to-page', 'block'],
+  ['convert-to-block', 'page'],
   ['toggle-header',   'block'],
   ['copy-text',       'both'],
   ['export',          'both'],
