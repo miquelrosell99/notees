@@ -36,18 +36,18 @@ jobs:
         uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4
         with:
           name: notees-android-apk
-          path: mobile/notees.apk
+          path: mobile/dist/notees.apk
           retention-days: 14
 
       - name: Compute SHA-256
         id: checksum
         working-directory: mobile
         run: |
-          sha256sum notees.apk > notees.apk.sha256
-          echo "sum=$(cut -d' ' -f1 notees.apk.sha256)" >> "$GITHUB_OUTPUT"
+          sha256sum dist/notees.apk > dist/notees.apk.sha256
+          echo "sum=$(cut -d' ' -f1 dist/notees.apk.sha256)" >> "$GITHUB_OUTPUT"
 
       - name: Summary
         run: |
           echo "### Android APK built" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Size: $(du -h mobile/notees.apk | cut -f1)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Size: $(du -h mobile/dist/notees.apk | cut -f1)" >> "$GITHUB_STEP_SUMMARY"
           echo "- SHA-256: \`${{ steps.checksum.outputs.sum }}\`" >> "$GITHUB_STEP_SUMMARY"
