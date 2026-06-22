@@ -19,6 +19,7 @@ import {
   memo,
   type JSX,
 } from 'react';
+
 import { LexicalComposer } from '@lexical/react/LexicalComposer';
 import { RichTextPlugin } from '@lexical/react/LexicalRichTextPlugin';
 import { ContentEditable } from '@lexical/react/LexicalContentEditable';
@@ -46,6 +47,11 @@ import { serializeContentAST } from './editorConfig';
 import { useEditorFocusStore } from '@/stores/editorFocusStore';
 import { useInlineEditorRegistry } from '@/stores/inlineEditorRegistry';
 import { useLivePresenceStore, liveSyncManager } from '@/features/collab';
+import {
+  clearActiveEditor,
+  setActiveEditor,
+} from './activeEditorRegistry';
+import { reportEditorFocus } from './mobileEditorBridge';
 import { NodeLinkPlugin } from './plugins/NodeLinkPlugin';
 import { TriggerPlugin } from './plugins/TriggerPlugin';
 import { CustomCaretPlugin } from './plugins/CustomCaretPlugin';
@@ -512,6 +518,19 @@ function InlineEditorInner({
     editorRef.current = editor;
   }, [editor, editorRef]);
 
+  // Track the active editor globally and report focus changes to the native shell.
+  const handleFocus = useCallback(() => {
+    setActiveEditor(editor);
+    reportEditorFocus(true);
+    onFocus();
+  }, [editor, onFocus]);
+
+  const handleBlur = useCallback(() => {
+    clearActiveEditor(editor);
+    reportEditorFocus(false);
+    onBlur();
+  }, [editor, onBlur]);
+
   // Register/unregister in the global inline editor registry (for find/replace)
   useEffect(() => {
     useInlineEditorRegistry.getState().register(blockId, editor);
@@ -536,8 +555,8 @@ function InlineEditorInner({
         contentEditable={
           <ContentEditable
             className="inline-editor__content node-block-content"
-            onFocus={onFocus}
-            onBlur={onBlur}
+            onFocus={handleFocus}
+            onBlur={handleBlur}
             aria-label="Block content"
           />
         }
