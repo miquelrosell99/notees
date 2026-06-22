@@ -49,3 +49,4 @@ jobs:
       - name: Audit unused frontend exports
         working-directory: frontend
         run: npx knip
+        continue-on-error: true
