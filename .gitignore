@@ -1,6 +1,6 @@
 # Config and data directories
 .config/
-data/
+/data/
 postgres_data/
 
 ai/
