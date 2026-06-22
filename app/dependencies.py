@@ -30,7 +30,7 @@ from .config import settings
 from .db.connection import acquire_connection, get_pool
 from .db.schema import get_or_create_user_workspace
 from .domain.permissions import PermissionChecker
-from .domain.ports import EmailSender
+from .domain.ports import EmailSender, PushNotificationSender
 from .domain.repositories import (
     PostgresPermissionRepository,
     PostgresQueryRepository,
@@ -61,6 +61,12 @@ from .features.nodes.port import (
     NodeRepository,
     NodeViewRepository,
 )
+from .features.notifications.port import NotificationRepository, PushDeviceRepository
+from .features.notifications.repository import (
+    PostgresNotificationRepository,
+    PostgresPushDeviceRepository,
+)
+from .features.notifications.service import NotificationService
 from .features.properties.port import PropertyRepository
 from .features.properties.repository import PostgresPropertyRepository
 from .features.sync.service import SyncService
@@ -72,6 +78,7 @@ from .features.workspaces.dependencies import (
 )
 from .features.workspaces.manager import get_active_workspace_id
 from .infrastructure.email import SmtpEmailSender
+from .infrastructure.push.fcm import FcmPushSender
 from .logging_config import get_logger
 from .models import SyncRequest, User
 
@@ -216,6 +223,26 @@ def _get_email_sender() -> EmailSender:
 async def get_email_sender() -> AsyncGenerator[EmailSender, None]:
     """FastAPI dependency yielding the configured email sender."""
     yield _get_email_sender()
+
+
+# ------------------------------------------------------------------------------
+# Push notification adapter
+# ------------------------------------------------------------------------------
+
+_push_sender_instance: PushNotificationSender | None = None
+
+
+def _get_push_sender() -> PushNotificationSender:
+    """Return the singleton FCM push sender adapter."""
+    global _push_sender_instance
+    if _push_sender_instance is None:
+        _push_sender_instance = FcmPushSender(settings)
+    return _push_sender_instance
+
+
+async def get_push_sender() -> AsyncGenerator[PushNotificationSender, None]:
+    """FastAPI dependency yielding the configured push sender."""
+    yield _get_push_sender()
 
 
 # ------------------------------------------------------------------------------
@@ -525,3 +552,24 @@ async def get_repositories(user: User = Depends(get_current_user)) -> AsyncGener
     user_id = int(user.id)
     workspace_id, page_class_id = await _get_workspace_context_cached(pool, user_id)
     yield RepositoryBundle(pool, workspace_id, page_class_id, user_id)
+
+
+async def get_notification_repository() -> AsyncGenerator[NotificationRepository, None]:
+    """Get a NotificationRepository (not workspace-scoped)."""
+    pool = await get_pool()
+    yield PostgresNotificationRepository(pool)
+
+
+async def get_push_device_repository() -> AsyncGenerator[PushDeviceRepository, None]:
+    """Get a PushDeviceRepository (not workspace-scoped)."""
+    pool = await get_pool()
+    yield PostgresPushDeviceRepository(pool)
+
+
+async def get_notification_service(
+    repo: NotificationRepository = Depends(get_notification_repository),
+    push_device_repo: PushDeviceRepository = Depends(get_push_device_repository),
+    push_sender: PushNotificationSender = Depends(get_push_sender),
+) -> AsyncGenerator[NotificationService, None]:
+    """Get a NotificationService wired to the configured push sender."""
+    yield NotificationService(repo, push_device_repo, push_sender)

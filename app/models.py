@@ -140,6 +140,13 @@ class PasswordChangeRequest(BaseModel):
         return _validate_password_strength(v)
 
 
+class DeviceTokenRegisterRequest(BaseModel):
+    """Mobile push notification device token registration."""
+
+    token: str
+    platform: str = "unknown"
+
+
 class AdminUserCreate(UserCreate):
     """Admin user creation model. Uses the stricter admin password baseline."""
 

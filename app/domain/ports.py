@@ -9,6 +9,23 @@ from typing import Any
 
 
 @dataclass(frozen=True)
+class PushNotification:
+    """A push notification payload to be delivered to one or more devices."""
+
+    title: str
+    body: str
+    data: dict[str, Any] | None = None
+
+
+@dataclass(frozen=True)
+class PushSendResult:
+    """Result of a push notification send attempt."""
+
+    success: bool
+    message: str | None = None
+
+
+@dataclass(frozen=True)
 class InviteEmailResult:
     """Result of sending an invitation email."""
 
@@ -79,4 +96,22 @@ class NodeExportRenderer(ABC):
     @abstractmethod
     def delete_share_html(self, share_uuid: str) -> None:
         """Delete the static HTML file for a share, if it exists."""
+        ...
+
+
+class PushNotificationSender(ABC):
+    """Port for sending push notifications to mobile/desktop devices."""
+
+    @abstractmethod
+    async def send_to_tokens(
+        self,
+        tokens: list[str],
+        notification: PushNotification,
+    ) -> PushSendResult:
+        """Send a notification to the given device tokens."""
+        ...
+
+    @abstractmethod
+    def is_configured(self) -> bool:
+        """Return True if the adapter is configured and able to send pushes."""
         ...

@@ -139,6 +139,9 @@ class Settings(BaseSettings):
     smtp_from: str | None = None
     public_url: str = "http://localhost:8000"
 
+    # Push notifications (optional — FCM legacy HTTP API server key)
+    fcm_server_key: str | None = None
+
     @field_validator("public_url", mode="after")
     @classmethod
     def strip_trailing_slash(cls, v: str) -> str:
