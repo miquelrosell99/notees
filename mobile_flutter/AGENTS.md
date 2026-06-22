@@ -10,7 +10,7 @@ The Flutter app is a **hybrid native shell** for Notees. It provides native Andr
 - **Display name**: `Notees`
 - **Functional accent**: sage green `#5B7D5B`
 - **Architecture**: feature-first Flutter with Provider + ChangeNotifier, Dio, go_router, sqflite
-- **Native features**: biometric app lock, offline quick-capture queue, share receiver, push-notification prep, keyboard-snapped edit toolbar, bottom navigation, advanced search filters, reusable node picker
+- **Native features**: biometric app lock, offline quick-capture queue, share receiver, push-notification prep, keyboard-snapped edit toolbar, bottom navigation, advanced search filters, reusable node picker, native settings with server and account management
 
 ## Key Files
 
@@ -29,7 +29,7 @@ mobile_flutter/
 │   │   └── repositories/     # Auth, Server, Workspace, Node
 │   ├── presentation/
 │   │   ├── providers/        # AuthProvider
-│   │   ├── screens/          # Splash, ServerSetup, Login, Dashboard, etc.
+│   │   ├── screens/          # Splash, ServerSetup, Login, Dashboard, Settings, ServerManagement, UserProfile, ApiKeys, etc.
 │   │   └── widgets/          # Fleet-styled cards, section titles
 │   └── native/               # WebView editor + JS bridge (WIP)
 ├── android/                  # Android platform project

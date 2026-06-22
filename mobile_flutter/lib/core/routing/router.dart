@@ -2,11 +2,14 @@ import 'package:go_router/go_router.dart';
 
 import '../../presentation/providers/auth_provider.dart';
 import '../../presentation/screens/about_screen.dart';
+import '../../presentation/screens/api_keys_screen.dart';
 import '../../presentation/screens/login_screen.dart';
 import '../../presentation/screens/main_shell_screen.dart';
+import '../../presentation/screens/server_management_screen.dart';
 import '../../presentation/screens/server_setup_screen.dart';
 import '../../presentation/screens/settings_screen.dart';
 import '../../presentation/screens/splash_screen.dart';
+import '../../presentation/screens/user_profile_screen.dart';
 import '../../presentation/screens/webview_editor_screen.dart';
 
 /// Route names.
@@ -72,6 +75,18 @@ GoRouter createRouter({required AuthProvider authProvider}) {
       GoRoute(
         path: Routes.about,
         builder: (context, state) => const AboutScreen(),
+      ),
+      GoRoute(
+        path: '${Routes.settings}/servers',
+        builder: (context, state) => const ServerManagementScreen(),
+      ),
+      GoRoute(
+        path: '${Routes.settings}/profile',
+        builder: (context, state) => const UserProfileScreen(),
+      ),
+      GoRoute(
+        path: '${Routes.settings}/api-keys',
+        builder: (context, state) => const ApiKeysScreen(),
       ),
       GoRoute(
         path: '${Routes.editor}/:nodeId',

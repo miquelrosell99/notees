@@ -74,6 +74,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
           const SizedBox(height: 28),
+          const SectionTitle(icon: Icons.dns_outlined, label: 'Server'),
+          const SizedBox(height: 8),
+          FleetCard(
+            child: Column(
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.dns),
+                  title: const Text('Manage servers'),
+                  subtitle: auth.activeServer != null
+                      ? Text(auth.activeServer!.nickname)
+                      : const Text('No active server'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => context.push('/settings/servers'),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 28),
           const SectionTitle(icon: Icons.account_circle_outlined, label: 'Account'),
           const SizedBox(height: 8),
           FleetCard(
@@ -83,6 +101,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   leading: const Icon(Icons.person_outline),
                   title: Text(auth.user?.displayName ?? 'Guest'),
                   subtitle: auth.user != null ? Text(auth.user!.email) : null,
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: auth.user != null
+                      ? () => context.push('/settings/profile')
+                      : null,
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.key_outlined),
+                  title: const Text('API keys'),
+                  subtitle: const Text('Manage personal access tokens'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: auth.user != null
+                      ? () => context.push('/settings/api-keys')
+                      : null,
                 ),
                 const Divider(height: 1),
                 ListTile(
