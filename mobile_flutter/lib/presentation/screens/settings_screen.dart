@@ -282,7 +282,7 @@ class _AccentRow extends StatelessWidget {
           ),
           const SizedBox(width: 10),
           _AccentSwatch(
-            color: const Color(0xFFE8DCC4),
+            color: const Color(0xFF5B7D5B),
             selected: accent == AppAccent.functional,
             onTap: () => onChanged(AppAccent.functional),
           ),

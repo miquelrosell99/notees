@@ -102,9 +102,12 @@ class _ServerSetupScreenState extends State<ServerSetupScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Connect to Notees')),
       body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(20),
-          children: [
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 520),
+            child: ListView(
+              padding: const EdgeInsets.all(20),
+              children: [
             Text(
               'Enter your self-hosted Notees server URL. Your data stays on your server.',
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
@@ -206,6 +209,8 @@ class _ServerSetupScreenState extends State<ServerSetupScreen> {
               ),
             ],
           ],
+        ),
+          ),
         ),
       ),
     );
