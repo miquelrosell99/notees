@@ -6,7 +6,8 @@
  */
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { acceptInvite, getAuthStatus, register, login } from '@/features/auth/api/auth';
+import { acceptInvite, getAuthStatus, register, login, storeAuth } from '@/features/auth/api/auth';
+import { scheduleProactiveRefresh } from '@/api/client';
 import { TextField } from '@/components/ui/TextField';
 import { Button } from '@/components/ui/Button';
 import { Spinner } from '@/components/ui/Spinner';
@@ -38,7 +39,11 @@ export function InviteAcceptView() {
       if (existingUser && token) {
         setStep('accepting');
         acceptInvite({ token })
-          .then(() => setStep('done'))
+          .then((response) => {
+            storeAuth(response);
+            scheduleProactiveRefresh(response.access_token);
+            setStep('done');
+          })
           .catch((err) => {
             setError(err.message || 'Failed to accept invite');
             setStep('error');
@@ -61,8 +66,11 @@ export function InviteAcceptView() {
     setStep('accepting');
     setError(null);
     try {
-      await register({ email, password, name: name || undefined, remember_me: rememberMe });
-      await acceptInvite({ token, remember_me: rememberMe });
+      const registerResponse = await register({ email, password, name: name || undefined, remember_me: rememberMe });
+      storeAuth(registerResponse);
+      const inviteResponse = await acceptInvite({ token, remember_me: rememberMe });
+      storeAuth(inviteResponse);
+      scheduleProactiveRefresh(inviteResponse.access_token);
       setStep('done');
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Registration failed';
@@ -75,8 +83,11 @@ export function InviteAcceptView() {
     setStep('accepting');
     setError(null);
     try {
-      await login({ email, password: loginPassword, remember_me: rememberMe });
-      await acceptInvite({ token, remember_me: rememberMe });
+      const loginResponse = await login({ email, password: loginPassword, remember_me: rememberMe });
+      storeAuth(loginResponse);
+      const inviteResponse = await acceptInvite({ token, remember_me: rememberMe });
+      storeAuth(inviteResponse);
+      scheduleProactiveRefresh(inviteResponse.access_token);
       setStep('done');
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Login failed';

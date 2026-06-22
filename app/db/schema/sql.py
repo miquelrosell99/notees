@@ -1700,14 +1700,16 @@ CREATE TABLE IF NOT EXISTS refresh_token (
     token_hash VARCHAR(255) NOT NULL,
     expires_at TIMESTAMPTZ NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    rotated_at TIMESTAMPTZ,
     revoked_at TIMESTAMPTZ,
     replaced_by INTEGER REFERENCES refresh_token(id) ON DELETE SET NULL,
     family_id UUID NOT NULL DEFAULT uuid_generate_v4(),
     remember_me BOOLEAN NOT NULL DEFAULT FALSE,
+    grace_period_used BOOLEAN NOT NULL DEFAULT FALSE,
     last_4 VARCHAR(4)
 );
 
--- Migration: Add remember_me and last_4 columns to refresh_token for existing databases
+-- Migration: Add remember_me, last_4, rotated_at, and grace_period_used columns to refresh_token for existing databases
 DO $$
 BEGIN
     IF NOT EXISTS (
@@ -1722,6 +1724,20 @@ BEGIN
         WHERE table_name = 'refresh_token' AND column_name = 'last_4'
     ) THEN
         ALTER TABLE refresh_token ADD COLUMN last_4 VARCHAR(4);
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'refresh_token' AND column_name = 'rotated_at'
+    ) THEN
+        ALTER TABLE refresh_token ADD COLUMN rotated_at TIMESTAMPTZ;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'refresh_token' AND column_name = 'grace_period_used'
+    ) THEN
+        ALTER TABLE refresh_token ADD COLUMN grace_period_used BOOLEAN NOT NULL DEFAULT FALSE;
     END IF;
 END $$;
 
