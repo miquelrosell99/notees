@@ -550,7 +550,7 @@ function InlineEditorInner({
       data-list-size={listSize || undefined}
       data-property-editor={inPropertyEditor || undefined}
     >
-      <SyncedContentPlugin contentAST={initialContentAST} readOnly={readOnly} />
+      <SyncedContentPlugin contentAST={initialContentAST} readOnly={readOnly} blockId={blockId} />
       <RichTextPlugin
         contentEditable={
           <ContentEditable
