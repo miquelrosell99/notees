@@ -7,8 +7,10 @@
  * - When the prop changes and the editor is **not active** (blurred or read-only),
  *   overwrite the editor only if the serialized prop differs from the current
  *   editor content.
- * - While the editor is active (focused and editable), local changes win; the prop
- *   is ignored so that typing is never interrupted by TanStack Query refetches.
+ * - While the editor is active (focused and editable, or blurred while a trigger
+ *   popup is open for this editor), local changes win; the prop is ignored so that
+ *   typing and trigger-popup operations are never interrupted by TanStack Query
+ *   refetches.
  * - When the editor becomes inactive, re-evaluate and apply any pending prop change.
  */
 
@@ -17,11 +19,14 @@ import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext
 import { $getRoot, $createParagraphNode, type ElementNode } from 'lexical';
 import { populateInlineContent, extractInlineContent } from '../inlineContentPopulation';
 import { serializeContentAST } from '../editorConfig';
+import { useEditorFocusStore } from '@/stores/editorFocusStore';
 import type { ContentAST } from '@/runtime/types';
 
 interface SyncedContentPluginProps {
   contentAST: ContentAST;
   readOnly?: boolean;
+  /** Block ID of the editor this plugin belongs to, used to detect popup ownership. */
+  blockId?: string;
 }
 
 function isEditorFocused(editor: ReturnType<typeof useLexicalComposerContext>[0]): boolean {
@@ -30,14 +35,18 @@ function isEditorFocused(editor: ReturnType<typeof useLexicalComposerContext>[0]
   return rootElement === document.activeElement || rootElement.contains(document.activeElement);
 }
 
-export function SyncedContentPlugin({ contentAST, readOnly = false }: SyncedContentPluginProps): null {
+export function SyncedContentPlugin({ contentAST, readOnly = false, blockId }: SyncedContentPluginProps): null {
   const [editor] = useLexicalComposerContext();
   const [isFocused, setIsFocused] = useState(() => isEditorFocused(editor));
-  // The editor is "active" when it is both focused and editable. Local edits
-  // win while active; we snapshot the prop on activation so that on deactivation
-  // we can distinguish "prop changed externally" from "editor has local edits
-  // that haven't propagated back to the prop yet".
-  const isActive = isFocused && !readOnly;
+  const popupOpen = useEditorFocusStore((s) => s.popupOpen);
+  const activeBlockId = useEditorFocusStore((s) => s.activeBlockId);
+  // The editor is "active" when it is focused and editable, or when a trigger
+  // popup is open for this specific editor. Local edits win while active; we
+  // snapshot the prop on activation so that on deactivation we can distinguish
+  // "prop changed externally" from "editor has local edits that haven't
+  // propagated back to the prop yet".
+  const popupBelongsToEditor = blockId != null && popupOpen && activeBlockId === blockId;
+  const isActive = (isFocused || popupBelongsToEditor) && !readOnly;
   const lastAppliedPropRef = useRef<string | null>(null);
   const wasActiveRef = useRef(false);
 
@@ -79,7 +88,9 @@ export function SyncedContentPlugin({ contentAST, readOnly = false }: SyncedCont
     // If the prop hasn't changed since the editor became active, don't overwrite
     // whatever is currently in the editor. This prevents popups that steal focus
     // (trigger menus, pickers) from clobbering a freshly-typed character before
-    // the debounced save has propagated to the prop.
+    // the debounced save has propagated to the prop. The popup-open check above
+    // already blocks sync while a trigger popup is open for this editor; this
+    // guard handles other focus-stealing surfaces.
     if (lastAppliedPropRef.current !== null && serializedProp === lastAppliedPropRef.current) {
       return;
     }

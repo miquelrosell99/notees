@@ -165,11 +165,10 @@
 
 /* ==================== Sidebar Navigation ==================== */
 .sidebar-nav {
-  padding: var(--spacing-2);
-  display: flex;
-  flex-direction: row;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
   gap: var(--spacing-micro);
+  padding: var(--spacing-1) var(--spacing-2);
 }
 
 /* ==================== Navigation Items ==================== */
@@ -295,23 +294,38 @@
 
 /* Drag handle for favorites */
 .sidebar-drag-handle {
+  position: relative;
   color: var(--color-on-surface-variant);
   font: inherit;
   font-size: var(--font-size-sm);
   cursor: grab;
-  padding: var(--spacing-1);
+  padding: 0;
   line-height: 1;
   user-select: none;
   flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  min-width: var(--button-min-height);
-  min-height: var(--button-min-height);
+  width: var(--spacing-8);
+  height: var(--spacing-8);
+  min-width: var(--spacing-8);
+  min-height: var(--spacing-8);
   opacity: var(--opacity-35);
   transition: opacity var(--motion-duration-short);
   border: none;
   background: none;
+}
+
+/* Keep the drag handle touch target at 44×44 while the visible area is smaller. */
+.sidebar-drag-handle::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: max(100%, var(--button-min-height));
+  height: max(100%, var(--button-min-height));
+  pointer-events: auto;
 }
 
 .sidebar-drag-handle:focus-visible {
@@ -332,16 +346,20 @@
 }
 
 /* Block container within favorite/recent items */
-.sidebar-favorite-block,
+.sidebar-favorite-block {
+  flex: 1;
+  min-width: 0;
+  padding: 0 var(--spacing-1) 0 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
 .sidebar-recent-block {
   flex: 1;
   min-width: 0;
   padding: 0 var(--spacing-2);
   pointer-events: none;
   overflow: hidden;
-}
-
-.sidebar-recent-block {
   width: 100%;
 }
 
@@ -391,9 +409,9 @@
 
 .sidebar-favorite-item .block-row,
 .sidebar-recent-item .block-row {
-  padding: var(--spacing-4) 0;
-  gap: var(--spacing-3);
-  min-height: var(--height-md);
+  padding: var(--spacing-2) 0;
+  gap: var(--spacing-2);
+  min-height: var(--height-sm);
   align-items: center;
 }
 
