@@ -183,10 +183,18 @@ notees/
 │   ├── eslint.config.js
 │   └── vitest.config.ts          # Vitest test runner config
 │
-├── mobile/                       # Android Kotlin app
+├── mobile/                       # Android Kotlin WebView wrapper (legacy)
 │   ├── app/                      # App module (Activities, Bridge, preferences, widget)
 │   ├── build-apk.sh              # Docker-based APK build script
 │   └── Dockerfile
+│
+├── mobile_flutter/               # First-class Flutter mobile app (Android + iOS)
+│   ├── android/
+│   ├── ios/
+│   ├── lib/                      # Dart source
+│   ├── build-apk.sh              # Docker-based Flutter build script
+│   ├── Dockerfile
+│   └── AGENTS.md
 │
 ├── tests/                        # Backend test suite
 ├── docs/                         # Architecture documentation
@@ -316,15 +324,13 @@ Backend API ←→ TanStack Query (server state) ←→ SyncManager (adapter) �
 
 ### Mobile
 
-The `mobile/` directory contains a minimal Android Kotlin app (API 26–36, minSdk 26) that wraps the frontend in a WebView. It provides:
-- A server setup screen (`SetupActivity`).
-- A native share receiver (`ShareActivity`).
-- An `AndroidBridge` for native-to-web communication.
-- Encrypted server URL storage via `EncryptedSharedPreferences`.
-- Deep link support: `notees://note/42`.
-- File chooser for uploads, custom User-Agent, back button handling.
+Notees has two mobile codebases during the transition period:
 
-For build instructions and full mobile details, see `mobile/README.md`. For agent context when modifying the mobile app, see `mobile/AGENTS.md`.
+- **`mobile/`** — the original minimal Android Kotlin WebView wrapper (API 26–36, minSdk 26). It provides server setup, share receiver, Android bridge, encrypted storage, deep links, and file uploads. Kept for reference and existing users while the Flutter app matures.
+- **`mobile_flutter/`** — the new first-class Flutter mobile shell for Android and iOS. It provides native UI for auth, server setup, dashboard, quick capture, journals, tasks, and notifications, and embeds the existing React web app in a WebView for the full editor, whiteboard, and QueryAST views.
+
+For the Kotlin wrapper, see `mobile/README.md` and `mobile/AGENTS.md`.  
+For the Flutter app, see `mobile_flutter/AGENTS.md` and `mobile_flutter/build-apk.sh`.
 
 ---
 
