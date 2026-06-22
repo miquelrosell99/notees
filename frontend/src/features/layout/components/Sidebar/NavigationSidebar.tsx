@@ -36,7 +36,7 @@ interface SidebarProps {
   collapsed: boolean;
 }
 
-const SIDEBAR_TOP_EXPANDED_KEY = 'notees:sidebar-top-expanded';
+
 const SIDEBAR_BOTTOM_EXPANDED_KEY = 'notees:sidebar-bottom-expanded';
 
 function useSidebarSectionState(key: string, defaultValue: boolean = true) {
@@ -407,7 +407,6 @@ export function Sidebar({ collapsed }: SidebarProps) {
   const [contextMenuPos, setContextMenuPos] = useState({ x: 0, y: 0 });
   const [trashContextMenuPos, setTrashContextMenuPos] = useState<{ x: number; y: number } | null>(null);
   const [showEmptyTrashConfirm, setShowEmptyTrashConfirm] = useState(false);
-  const [topExpanded, toggleTopExpanded] = useSidebarSectionState(SIDEBAR_TOP_EXPANDED_KEY, true);
   const [bottomExpanded, toggleBottomExpanded] = useSidebarSectionState(SIDEBAR_BOTTOM_EXPANDED_KEY, true);
 
   const {
@@ -578,77 +577,65 @@ export function Sidebar({ collapsed }: SidebarProps) {
               <WorkspaceSwitcher />
             </div>
 
-            {/* Top Navigation - Collapsible, not scrollable */}
-            <div className="sidebar-nav-section">
-              <button
-                className="sidebar-section-header"
-                onClick={toggleTopExpanded}
-                title={topExpanded ? 'Collapse navigation' : 'Expand navigation'}
-              >
-                {topExpanded ? <ChevronDownIcon size="xs" /> : <ChevronRightIcon size="xs" />}
-                <h3 className="sidebar-section-title">Navigation</h3>
-              </button>
-              {topExpanded && (
-                <nav className="sidebar-nav">
-                  {showJournals && (
-                    <Button
-                      variant="ghost"
-                      size="md"
-                      icon="mdi mdi-notebook-outline"
-                      fullWidth
-                      active={mainViewType === 'journals'}
-                      onClick={() => {
-                        setMainViewType('journals');
-                        closeMobileDrawer();
-                      }}
-                      title="Journal"
-                    >
-                      Journal
-                    </Button>
-                  )}
-                  {showInbox && (
-                    <Button
-                      variant="ghost"
-                      size="md"
-                      icon="mdi mdi-inbox-arrow-down"
-                      fullWidth
-                      disabled={!inboxNode}
-                      onClick={handleOpenInbox}
-                      title="Inbox"
-                    >
-                      Inbox
-                    </Button>
-                  )}
-                  {topNavItems.map((item) => {
-                    const isPagesItem = item.view === 'pages';
-                    const isActive = isPagesItem
-                      ? mainViewType === 'pages' || mainViewType === 'all-pages' || mainViewType === 'graph' || mainViewType === 'timeline'
-                      : item.view ? mainViewType === item.view : false;
-                    return (
-                      <Button
-                        key={item.view ?? item.label}
-                        variant="ghost"
-                        size="md"
-                        icon={item.icon}
-                        fullWidth
-                        active={isActive}
-                        onClick={() => {
-                          if (item.action) {
-                            item.action();
-                          } else if (item.view) {
-                            setMainViewType(item.view as MainViewType);
-                          }
-                          closeMobileDrawer();
-                        }}
-                        title={item.label}
-                      >
-                        {item.label}
-                      </Button>
-                    );
-                  })}
-                </nav>
+            {/* Top Navigation */}
+            <nav className="sidebar-nav">
+              {showJournals && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  icon="mdi mdi-notebook-outline"
+                  fullWidth
+                  active={mainViewType === 'journals'}
+                  onClick={() => {
+                    setMainViewType('journals');
+                    closeMobileDrawer();
+                  }}
+                  title="Journal"
+                >
+                  Journal
+                </Button>
               )}
-            </div>
+              {showInbox && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  icon="mdi mdi-inbox-arrow-down"
+                  fullWidth
+                  disabled={!inboxNode}
+                  onClick={handleOpenInbox}
+                  title="Inbox"
+                >
+                  Inbox
+                </Button>
+              )}
+              {topNavItems.map((item) => {
+                const isPagesItem = item.view === 'pages';
+                const isActive = isPagesItem
+                  ? mainViewType === 'pages' || mainViewType === 'all-pages' || mainViewType === 'graph' || mainViewType === 'timeline'
+                  : item.view ? mainViewType === item.view : false;
+                return (
+                  <Button
+                    key={item.view ?? item.label}
+                    variant="ghost"
+                    size="sm"
+                    icon={item.icon}
+                    fullWidth
+                    active={isActive}
+                    onClick={() => {
+                      if (item.action) {
+                        item.action();
+                      } else if (item.view) {
+                        setMainViewType(item.view as MainViewType);
+                      }
+                      closeMobileDrawer();
+                    }}
+                    title={item.label}
+                  >
+                    {item.label}
+                  </Button>
+                );
+              })}
+            </nav>
 
             {/* Scrollable middle content - only favorites and recents */}
             <div className="sidebar-content">
@@ -676,7 +663,7 @@ export function Sidebar({ collapsed }: SidebarProps) {
                       key={item.label}
                       className="sidebar-footer__item"
                       variant="ghost"
-                      size="md"
+                      size="sm"
                       icon={item.icon}
                       fullWidth
                       active={item.view ? mainViewType === item.view : false}
@@ -695,7 +682,7 @@ export function Sidebar({ collapsed }: SidebarProps) {
                   <Button
                     className="sidebar-footer__item"
                     variant="ghost"
-                    size="md"
+                    size="sm"
                     icon="mdi mdi-cog"
                     fullWidth
                     onClick={handleOpenGraphSettings}
@@ -714,7 +701,7 @@ export function Sidebar({ collapsed }: SidebarProps) {
                       <Button
                         ref={ref}
                         variant="ghost"
-                        size="md"
+                        size="sm"
                         icon="mdi mdi-account"
                         fullWidth
                         active={isOpen}

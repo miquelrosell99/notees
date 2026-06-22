@@ -30,10 +30,10 @@
   overflow-x: auto;
   scrollbar-width: none;
   -ms-overflow-style: none;
-  gap: 0;
+  gap: var(--spacing-micro);
   padding: var(--spacing-hairline) var(--spacing-1);
   background: transparent;
-  border: var(--border-width-default) solid color-mix(in srgb, var(--color-outline-variant) 22%, transparent);
+  border: none;
   border-radius: var(--shape-large);
 }
 
@@ -73,16 +73,9 @@
   gap: var(--spacing-1);
 }
 
-/* Subtle vertical divider between tabs */
+/* Tabs now render as minimal individual buttons; no vertical dividers needed. */
 .tab-bar-normal__slot::after {
-  content: '';
-  position: absolute;
-  right: 0;
-  top: 25%;
-  height: 50%;
-  width: 1px;
-  background: var(--color-outline-variant);
-  opacity: var(--opacity-40);
+  display: none;
 }
 
 /* Section divider between tabs and the add button */
