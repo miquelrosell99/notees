@@ -96,7 +96,7 @@ notees/
 │   │   ├── stores/         # Zustand state management
 │   │   └── types/          # TypeScript types
 │   └── vite.config.ts
-├── mobile/                 # Android Kotlin wrapper app (WebView)
+├── mobile/                 # Mobile app (Flutter; Android + iOS)
 ├── tests/                  # Backend test suite (pytest)
 └── data/                   # User data (gitignored)
 ```
@@ -149,9 +149,9 @@ npm run build
 npm run lint
 ```
 
-### Local Development (Alternative)
+### Local Development (Alternative — explicit opt-in only)
 
-If you prefer to run backend/frontend directly on your host:
+Only use this path if you explicitly choose not to use Docker for the running services. The default and recommended development workflow is `task dev` or `docker compose -f compose.dev.yaml up`.
 
 ```bash
 # Install local dependencies
