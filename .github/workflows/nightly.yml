@@ -38,7 +38,7 @@ jobs:
 
           # Create new nightly release with the APK
           gh release create "$TAG" \
-            "mobile/notees.apk#notees-nightly.apk" \
+            "mobile/dist/notees.apk#notees-nightly.apk" \
             --prerelease \
             --title "Nightly Build ($SHA)" \
             --notes "Automated nightly build from commit \`$SHA\`.\
