@@ -41,7 +41,17 @@ mobile_flutter/
 
 ## Build
 
-Local builds require Flutter SDK. For a containerized build with no host dependencies:
+**Prefer CI builds.** The Docker-based local build (`./build-apk.sh`) downloads the Flutter image, the Android SDK/NDK, and compiles Gradle on every run, which is heavy for an i3/16 GB server that runs other apps. Use GitHub Actions instead:
+
+```bash
+# Trigger a release APK build and print the run URL
+cd mobile_flutter
+./trigger-ci-build.sh
+```
+
+Then grab the artifact from the printed workflow run.
+
+For local emergencies only:
 
 ```bash
 cd mobile_flutter
