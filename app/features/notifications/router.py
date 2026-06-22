@@ -7,9 +7,9 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.dependencies import get_current_user
-from app.features.notifications.dependencies import get_notification_repository
+from app.dependencies import get_current_user, get_notification_service
 from app.features.notifications.port import NotificationRepository
+from app.features.notifications.service import NotificationService
 from app.logging_config import get_logger
 from app.models import NotificationResponse, User
 
@@ -22,10 +22,10 @@ async def list_notifications(
     include_read: bool = False,
     limit: int = 20,
     user: User = Depends(get_current_user),
-    repo: NotificationRepository = Depends(get_notification_repository),
+    service: NotificationService = Depends(get_notification_service),
 ):
     """List notifications for the current user."""
-    rows = await repo.list_notifications(int(user.id), include_read, limit)
+    rows = await service._repo.list_notifications(int(user.id), include_read, limit)
 
     notifications = []
     for r in rows:
@@ -50,10 +50,10 @@ async def list_notifications(
 async def mark_notification_read(
     notification_id: int,
     user: User = Depends(get_current_user),
-    repo: NotificationRepository = Depends(get_notification_repository),
+    service: NotificationService = Depends(get_notification_service),
 ):
     """Mark a notification as read."""
-    updated = await repo.mark_notification_read(notification_id, int(user.id))
+    updated = await service._repo.mark_notification_read(notification_id, int(user.id))
     if not updated:
         raise HTTPException(status_code=404, detail="Notification not found")
 
@@ -63,10 +63,10 @@ async def mark_notification_read(
 @router.post("/read-all")
 async def mark_all_notifications_read(
     user: User = Depends(get_current_user),
-    repo: NotificationRepository = Depends(get_notification_repository),
+    service: NotificationService = Depends(get_notification_service),
 ):
     """Mark all notifications as read."""
-    await repo.mark_all_notifications_read(int(user.id))
+    await service._repo.mark_all_notifications_read(int(user.id))
 
     return {"status": "ok"}
 
@@ -82,5 +82,9 @@ async def create_notification(
     """Create a notification (internal helper).
 
     Can be called from other routers/services.
+
+    .. deprecated::
+        Use ``NotificationService.create_notification`` for new callers so that
+        push delivery can be triggered.
     """
     await repo.create_notification(user_id, type, actor_user_id, node_id, message)

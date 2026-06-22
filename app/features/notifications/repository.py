@@ -7,7 +7,7 @@ from typing import Any
 import asyncpg
 
 from app.db.connection import acquire_connection
-from app.features.notifications.port import NotificationRepository
+from app.features.notifications.port import NotificationRepository, PushDeviceRepository
 
 
 class PostgresNotificationRepository(NotificationRepository):
@@ -107,4 +107,40 @@ class PostgresNotificationRepository(NotificationRepository):
                 VALUES ($1, $2, $3, $4, $5)
                 """,
                 values,
+            )
+
+
+class PostgresPushDeviceRepository(PushDeviceRepository):
+    """PostgreSQL persistence for push notification device tokens."""
+
+    def __init__(self, pool: asyncpg.Pool):
+        self._pool = pool
+
+    async def register_token(self, user_id: int, token: str, platform: str) -> None:
+        async with acquire_connection(self._pool) as conn:
+            await conn.execute(
+                """
+                INSERT INTO user_device_token (user_id, token, platform, active, create_date, write_date)
+                VALUES ($1, $2, $3, TRUE, NOW(), NOW())
+                ON CONFLICT (user_id, token) DO UPDATE
+                SET active = TRUE, platform = EXCLUDED.platform, write_date = NOW()
+                """,
+                user_id,
+                token,
+                platform,
+            )
+
+    async def list_tokens_for_user(self, user_id: int) -> list[str]:
+        async with acquire_connection(self._pool) as conn:
+            rows = await conn.fetch(
+                "SELECT token FROM user_device_token WHERE user_id = $1 AND active = TRUE",
+                user_id,
+            )
+        return [r["token"] for r in rows]
+
+    async def deactivate_token(self, token: str) -> None:
+        async with acquire_connection(self._pool) as conn:
+            await conn.execute(
+                "UPDATE user_device_token SET active = FALSE WHERE token = $1",
+                token,
             )
