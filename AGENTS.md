@@ -36,7 +36,7 @@ Key features:
 - **Technical Excellence**: Always take the technically best path, not the simpler path. Proper extraction, clean interfaces, and type safety take precedence over minimal diff size.
 - **Root Causes Over Hacks**: Always fix root causes instead of adding defensive workarounds. If a symptom points to a deeper architectural issue (stale state, lifecycle mismatches, incorrect boundaries), refactor the underlying cause rather than patching around it.
 - **Fix Bad Data at the Source**: If a bug is caused by incorrect data in the database or schema, fix the data and add a migration — never add frontend/backend "backward compatibility" code to tolerate bad data.
-- **Docker-first development**: Backend, frontend, PostgreSQL, and Redis run via `compose.dev.yaml` in development. Local development without Docker is supported as an alternative.
+- **Docker-first development**: Backend, frontend, PostgreSQL, and Redis run via `compose.dev.yaml` in development. **Do not recommend bare `npm run dev`, `uvicorn ...`, or other host-local runtime commands unless the user explicitly asks for local development without Docker.** Linting and type-checking should also prefer running inside the frontend/backend containers.
 
 > Generic engineering principles (code style, import grouping, testing discipline, accessibility, performance, security patterns) are covered by the skills listed under [Skill References](#skill-references).
 
@@ -53,8 +53,9 @@ Key features:
 
 - **Multi-file changes**: If a task touches more than 2–3 files, spans both frontend and backend, or changes interfaces/schemas, use **plan mode** (`EnterPlanMode`) and get user approval before writing code.
 - **Always verify**: After code changes, run the relevant linter/test suite before finishing.
-  - Backend: `uv run ruff check app/` and `uv run pytest tests/ -m "not slow" --no-cov` (assumes services are up; see [Testing Strategy](#testing-strategy)).
-  - Frontend: `cd frontend && npm run lint` and `npx tsc -b --noEmit`.
+  - Backend (inside container): `docker compose -f compose.dev.yaml exec backend uv run ruff check app/` and `docker compose -f compose.dev.yaml exec backend uv run pytest tests/ -m "not slow" --no-cov`.
+  - Frontend (inside container): `docker compose -f compose.dev.yaml exec frontend npm run lint` and `docker compose -f compose.dev.yaml exec frontend npx tsc -b --noEmit`.
+  - Only fall back to host-local commands (`uv run ...`, `cd frontend && npm ...`) when the user explicitly says they are not using Docker.
 - **Fix all test failures**: If tests fail after your changes — even failures that appear unrelated to your task — you must fix them before finishing. Do not leave the test suite broken.
 
 ## Technology Stack
@@ -183,17 +184,13 @@ notees/
 │   ├── eslint.config.js
 │   └── vitest.config.ts          # Vitest test runner config
 │
-├── mobile/                       # Android Kotlin WebView wrapper (legacy)
-│   ├── app/                      # App module (Activities, Bridge, preferences, widget)
-│   ├── build-apk.sh              # Docker-based APK build script
-│   └── Dockerfile
-│
-├── mobile_flutter/               # First-class Flutter mobile app (Android + iOS)
+├── mobile/                       # First-class Flutter mobile app (Android + iOS)
 │   ├── android/
 │   ├── ios/
 │   ├── lib/                      # Dart source
 │   ├── build-apk.sh              # Docker-based Flutter build script
 │   ├── Dockerfile
+│   ├── README.md
 │   └── AGENTS.md
 │
 ├── tests/                        # Backend test suite
@@ -324,13 +321,9 @@ Backend API ←→ TanStack Query (server state) ←→ SyncManager (adapter) �
 
 ### Mobile
 
-Notees has two mobile codebases during the transition period:
+The mobile app in `mobile/` is a first-class **Flutter hybrid shell** for Android and iOS. It provides native UI for auth, server setup, dashboard, quick capture, journals, tasks, and notifications, and embeds the existing React web app in a WebView for the full editor, whiteboard, and QueryAST views.
 
-- **`mobile/`** — the original minimal Android Kotlin WebView wrapper (API 26–36, minSdk 26). It provides server setup, share receiver, Android bridge, encrypted storage, deep links, and file uploads. Kept for reference and existing users while the Flutter app matures.
-- **`mobile_flutter/`** — the new first-class Flutter mobile shell for Android and iOS. It provides native UI for auth, server setup, dashboard, quick capture, journals, tasks, and notifications, and embeds the existing React web app in a WebView for the full editor, whiteboard, and QueryAST views.
-
-For the Kotlin wrapper, see `mobile/README.md` and `mobile/AGENTS.md`.  
-For the Flutter app, see `mobile_flutter/AGENTS.md` and `mobile_flutter/build-apk.sh`.
+See `mobile/README.md` for build instructions and `mobile/AGENTS.md` for agent context when modifying the mobile app.
 
 ---
 
@@ -388,9 +381,9 @@ docker compose -f compose.dev.yaml exec frontend sh
 npm run lint
 ```
 
-### Local Development (Alternative)
+### Local Development (Alternative — explicit opt-in only)
 
-If you prefer to run backend/frontend directly on your host:
+Only use this path if you explicitly choose not to use Docker for the running services. The default and recommended development workflow is `docker compose -f compose.dev.yaml up`.
 
 ```bash
 # Install local dependencies
@@ -521,7 +514,7 @@ Releases are automated through `.github/workflows/release.yml`. Pushing a Git ta
 1. Builds and pushes a multi-arch (`linux/amd64`, `linux/arm64`) Docker image to `ghcr.io/miquelrosell99/notees`.
 2. Builds the Android APK in Docker and attaches it to the GitHub release with a SHA-256 checksum.
 
-Continuous integration for the Android wrapper is handled by `.github/workflows/android.yml`, which builds the APK on every push or pull request that touches `mobile/**` and uploads it as a workflow artifact (no release is created).
+Continuous integration for the Android app is handled by `.github/workflows/android.yml`, which builds the Flutter APK on every push or pull request that touches `mobile/**` and uploads it as a workflow artifact (no release is created).
 
 ### When to push a new tag
 
@@ -601,15 +594,16 @@ cd mobile
 
 > Generic Python and TypeScript/React style rules are covered by `fastapi-patterns` and `react-ui-patterns`. Project-specific enforcement tools are listed below.
 
-- **Backend**: Ruff is configured in `pyproject.toml` (target py312, line-length 120, Google docstyle convention, select E/W/F/I/N/UP/B/C4/SIM). Run `ruff check app/`.
-- **Frontend**: ESLint (flat config) with `@eslint/js`, `typescript-eslint`, `react-hooks`, `react-refresh`, and `jsx-a11y`. Run `cd frontend && npm run lint`.
+- **Backend**: Ruff is configured in `pyproject.toml` (target py312, line-length 120, Google docstyle convention, select E/W/F/I/N/UP/B/C4/SIM). Prefer running inside the container: `docker compose -f compose.dev.yaml exec backend uv run ruff check app/`. Fall back to host-local `uv run ruff check app/` only when not using Docker.
+- **Frontend**: ESLint (flat config) with `@eslint/js`, `typescript-eslint`, `react-hooks`, `react-refresh`, and `jsx-a11y`. Prefer running inside the container: `docker compose -f compose.dev.yaml exec frontend npm run lint`. Fall back to host-local `cd frontend && npm run lint` only when not using Docker.
 - **Design System Validator**: `frontend/scripts/validate-design-system.js` catches hardcoded pixel values in spacing/layout properties. It uses a baseline (`scripts/.design-system-baseline.txt`) that grandfathers existing violations, so only *new* violations fail the build.
   ```bash
-  cd frontend
+  # Inside the frontend container
+  docker compose -f compose.dev.yaml exec frontend sh
   node scripts/validate-design-system.js              # check for new violations
   node scripts/validate-design-system.js --update-baseline  # after fixing a batch
   ```
-- **Dead code detector**: `cd frontend && npx knip` finds unused exports and files.
+- **Dead code detector**: `cd frontend && npx knip` finds unused exports and files. Run inside the frontend container when the dev stack is up.
 
 ---
 
@@ -684,6 +678,16 @@ The included `compose.dev.yaml` brings up:
 - `redis`: Redis 7 for real-time collaboration pub/sub
 - `backend`: FastAPI with hot-reload, mounted source volumes
 - `frontend`: Vite dev server on port 5173, proxying `/api` to the backend
+
+**Remote/LAN access:** The Vite dev server restricts requests by `Host` header. To connect from another device (e.g., a phone over Tailscale or LAN), add the device hostname to `VITE_ALLOWED_HOSTS` in `.env` and recreate the frontend container:
+
+```bash
+# Example .env
+VITE_ALLOWED_HOSTS=localhost,atlas,atlas.ts.net
+
+# Recreate frontend to pick up the env change
+docker compose -f compose.dev.yaml up -d --force-recreate frontend
+```
 
 ### Production Docker
 
@@ -891,7 +895,8 @@ Notees is a calm, writing-first knowledge workspace. Its visual identity is defi
 - **Do not** use `pool.acquire()` directly in domain services or routers. Use `get_connection()` or `get_transaction()` from `app.db.connection`.
 - **Do not** forget to set `SECRET_KEY` before running. The app will crash at startup with a clear validation error.
 - **Do not** run the dev PostgreSQL settings (`fsync=off`, `synchronous_commit=off`, `full_page_writes=off`) in production. They are explicitly set only in `compose.dev.yaml`.
-- **Do not** assume `run_dev.py` or `run.py` exists at the project root. The actual entry points are `uvicorn app.main:app --reload` (backend) and `npm run dev` (frontend).
+- **Do not** recommend bare `npm run dev`, `uvicorn app.main:app --reload`, or other host-local runtime commands as the default way to run the app in development. The canonical entry points are the `backend` and `frontend` services in `compose.dev.yaml`. Host-local commands are only for the explicit opt-in alternative path.
+- **Do not** assume `run_dev.py` or `run.py` exists at the project root.
 - When building the Docker image, the frontend build stage outputs to `./dist` inside the container and is copied to `app/static/dist` in the final stage.
 - The frontend build uses `Cross-Origin-Opener-Policy` / `Cross-Origin-Embedder-Policy` headers to enable `SharedArrayBuffer` (required for sql.js/WebAssembly features).
 - The `README.md` is kept up to date with the current stack. For the canonical version list, check `pyproject.toml`, `package.json`, and the AGENTS.md Technology Stack table.
