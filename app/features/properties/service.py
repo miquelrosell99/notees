@@ -21,6 +21,7 @@ from app.domain.entities import (
 from app.domain.entities.constants import SYSTEM_PROPERTY_UUIDS
 from app.logging_config import get_logger
 from app.utils import utc_now
+from app.utils.date_range import normalize_date_range_value
 
 if TYPE_CHECKING:
     from app.features.activity.port import ActivityRepository
@@ -484,6 +485,9 @@ class PropertyService:
         if not prop:
             raise PropertyNotFoundError(f"Property {property_id} not found")
 
+        if prop.type == PropertyType.DATE_RANGE and value is not None and value != "":
+            value = normalize_date_range_value(value)
+
         if prop.type in SCALAR_TYPES:
             logger.info(
                 "[SET_PROPERTY] Setting scalar value for node %s, prop %s, value=%r, type=%s",
@@ -594,6 +598,9 @@ class PropertyService:
                 prop = prop_cache.get(property_id)
                 if not prop:
                     raise ValueError(f"Property {property_id} not found")
+
+                if prop.type == PropertyType.DATE_RANGE and value is not None and value != "":
+                    value = normalize_date_range_value(value)
 
                 if prop.type in SCALAR_TYPES:
                     await self._property_repo.set_scalar_value(

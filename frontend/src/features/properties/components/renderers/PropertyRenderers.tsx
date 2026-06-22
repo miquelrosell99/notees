@@ -13,10 +13,12 @@ import { Dropdown } from '@/components/ui/Dropdown';
 import { NodeSelector } from '@/features/content';
 import { TextPropertyBlock } from '../../components/TextPropertyBlock';
 import { DatePropertyValue } from '../../components/DatePropertyValue';
+import { DateRangePicker } from '../../components/DateRangePicker';
 import { UrlPropertyValue } from '../../components/UrlPropertyValue';
 import { EmailPropertyValue } from '../../components/EmailPropertyValue';
 import { NodeIcon } from '@/components/ui/icons';
 import { parseIconField } from '@/utils/iconDom';
+import { formatDateRange, type DateRangeValue } from '@/utils/dateRange';
 import type { PropertyValueProps } from '../../utils/propertyValueRegistry';
 import type { Property } from '@/types/api';
 
@@ -365,6 +367,63 @@ export function dateGetGroupInfo(_property: Property, rawValue: unknown): { labe
 
 export function dateCompareValues(a: unknown, b: unknown): number {
   return String(a ?? '').localeCompare(String(b ?? ''));
+}
+
+// ==================== Date Range ====================
+
+export function DateRangePropertyValueRenderer({
+  value,
+  readOnly = false,
+  onChange,
+}: Pick<PropertyValueProps, 'value' | 'readOnly' | 'onChange'> & { readOnly?: boolean }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const normalized = value && typeof value === 'object' ? (value as DateRangeValue) : null;
+
+  return (
+    <>
+      <button
+        type="button"
+        className="property-value-date-range-display"
+        onClick={() => { if (!readOnly) setIsOpen(true); }}
+        disabled={readOnly}
+        title={readOnly ? undefined : 'Click to change date range'}
+      >
+        {normalized ? (
+          <span>{formatDateRange(normalized)}</span>
+        ) : (
+          <span className="property-placeholder">Empty</span>
+        )}
+      </button>
+      {isOpen && (
+        <DateRangePicker
+          initialValue={normalized}
+          onChange={(newValue) => onChange(newValue)}
+          onClose={() => setIsOpen(false)}
+        />
+      )}
+    </>
+  );
+}
+
+export function dateRangeGetDefaultValue(): unknown {
+  return null;
+}
+
+export function dateRangeFormatValue(value: unknown): string {
+  if (!value || typeof value !== 'object') return '';
+  try {
+    return formatDateRange(value as DateRangeValue);
+  } catch {
+    return '';
+  }
+}
+
+export function dateRangeGetGroupInfo(_property: Property, rawValue: unknown): { label: string; icon: string | null } {
+  return { label: dateRangeFormatValue(rawValue) || '(No value)', icon: null };
+}
+
+export function dateRangeCompareValues(a: unknown, b: unknown): number {
+  return String(dateRangeFormatValue(a)).localeCompare(String(dateRangeFormatValue(b)));
 }
 
 // ==================== URL ====================

@@ -61,6 +61,16 @@ def _extract_property_value(val):
     return None
 
 
+def _maybe_parse_date_range(prop_type: str, value: Any) -> Any:
+    """Parse JSON date_range payloads so the API returns an object, not a string."""
+    if prop_type == "date_range" and isinstance(value, str):
+        try:
+            return json.loads(value)
+        except (json.JSONDecodeError, TypeError):
+            return value
+    return value
+
+
 def extract_properties_dict(all_prop_values: dict[int, dict[str, Any]]) -> dict[str, Any]:
     """Convert raw property values from the repository into a JSON-serializable dict.
 
@@ -79,6 +89,7 @@ def extract_properties_dict(all_prop_values: dict[int, dict[str, Any]]) -> dict[
                 unique_values: list = []
                 for v in values:
                     extracted = _extract_property_value(v)
+                    extracted = _maybe_parse_date_range(prop.type.value, extracted)
                     if extracted is not None and extracted not in seen:
                         seen.add(extracted)
                         unique_values.append(extracted)
@@ -86,6 +97,7 @@ def extract_properties_dict(all_prop_values: dict[int, dict[str, Any]]) -> dict[
             else:
                 # Single-value: return scalar
                 extracted = _extract_property_value(values[0])
+                extracted = _maybe_parse_date_range(prop.type.value, extracted)
                 if extracted is not None:
                     props_dict[str(prop_id)] = extracted
                 else:

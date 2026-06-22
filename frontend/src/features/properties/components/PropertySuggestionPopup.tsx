@@ -26,6 +26,7 @@ const PROPERTY_TYPE_ICONS: Record<PropertyType, string> = {
   float: 'mdiDecimal',
   boolean: 'mdiCheckboxMarkedOutline',
   date: 'mdiCalendar',
+  date_range: 'mdiCalendarRange',
   selection: 'mdiFormatListBulleted',
   node: 'mdiLink',
   url: 'mdiLinkVariant',

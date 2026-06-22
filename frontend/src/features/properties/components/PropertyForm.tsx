@@ -28,6 +28,7 @@ const PROPERTY_TYPE_OPTIONS: PropertyTypeOption[] = [
   { type: 'float', label: 'Decimal', description: 'Numbers with decimals', supportsMultiValue: false },
   { type: 'boolean', label: 'Checkbox', description: 'True/false value', supportsMultiValue: false },
   { type: 'date', label: 'Date', description: 'Date picker', supportsMultiValue: false },
+  { type: 'date_range', label: 'Date Range', description: 'Range of days, months, or years', supportsMultiValue: false },
   { type: 'selection', label: 'Selection', description: 'Choose from options', supportsMultiValue: true },
   { type: 'node', label: 'Node', description: 'Link to another node', supportsMultiValue: true },
   { type: 'url', label: 'URL', description: 'Web link', supportsMultiValue: false },
