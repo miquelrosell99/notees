@@ -93,12 +93,16 @@ class ServerRepository {
   /// Verifies that the server is reachable. Returns an error message or null.
   Future<String?> pingServer(String url) async {
     final normalized = _normalizeUrl(url);
-    final uri = Uri.parse(normalized);
+    final healthUri = Uri.parse('$normalized/api/health');
     final client = HttpClient()
       ..connectionTimeout = const Duration(seconds: 8);
     try {
-      final request = await client.headUrl(uri);
-      await request.close().timeout(const Duration(seconds: 8));
+      final request = await client.getUrl(healthUri);
+      final response = await request.close().timeout(const Duration(seconds: 8));
+      if (response.statusCode >= 400) {
+        return 'Server returned ${response.statusCode}';
+      }
+      await response.drain<void>();
       return null;
     } on Exception catch (e) {
       return 'Could not reach server: $e';
