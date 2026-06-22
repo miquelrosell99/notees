@@ -199,6 +199,16 @@ class UserRepository(ABC):
         pass
 
     @abstractmethod
+    async def get_refresh_token_grace_status(self, token_id: int) -> dict | None:
+        """Return rotated_at and grace_period_used for a refresh token."""
+        pass
+
+    @abstractmethod
+    async def mark_refresh_token_grace_used(self, token_id: int) -> None:
+        """Mark a refresh token's grace period as consumed."""
+        pass
+
+    @abstractmethod
     async def rotate_refresh_token(
         self,
         old_token_id: int,

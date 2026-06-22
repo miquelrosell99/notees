@@ -23,7 +23,7 @@ import { useUndoStackPersistence, useAndroidBridge, AppRoutes } from '@/features
 import { CommandRegistrations } from './features/commands';
 import { COMMAND_IDS } from './stores/commandRegistry';
 import { DndProvider } from './providers/DndProvider';
-import { useUndoStore } from './stores';
+import { useUndoStore, useAuthStore } from './stores';
 import { useInputContext } from './stores/inputContext';
 import { SyncManager } from './sync';
 import { useBackendHealth } from './hooks/useBackendHealth';
@@ -38,6 +38,30 @@ const log = getLogger('App');
  * Global keyboard listener component
  * Sets up the centralized keyboard event handler
  */
+function AuthSyncListener() {
+  const logout = useAuthStore((s) => s.logout);
+  const user = useAuthStore((s) => s.user);
+
+  useEffect(() => {
+    function handleStorage(event: StorageEvent) {
+      // Another tab logged out or cleared persisted auth state.
+      if (
+        event.key === 'auth:logout' ||
+        (event.key === 'auth-storage' && event.newValue === null)
+      ) {
+        if (user) {
+          logout();
+        }
+      }
+    }
+
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, [logout, user]);
+
+  return null;
+}
+
 function GlobalKeyboardHandler() {
   useGlobalKeyboardListener();
   useUndoStackPersistence();
@@ -178,6 +202,7 @@ function App() {
       >
         <KeyboardShortcutsProvider>
           <DndProvider>
+            <AuthSyncListener />
             <GlobalKeyboardHandler />
             <CommandRegistrations />
             <SyncManager />

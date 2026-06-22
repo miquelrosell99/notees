@@ -416,13 +416,22 @@ class PostgresUserRepository(UserRepository):
             return [dict(row) for row in rows]
 
     async def find_refresh_token_candidates(self, last_4: str) -> list[dict]:
-        """Fetch non-revoked, non-expired refresh tokens matching the last-4 suffix."""
+        """Fetch refresh tokens matching the last-4 suffix.
+
+        Includes active tokens and rotated tokens whose one-time grace period
+        has not yet been consumed. This allows a recently-rotated refresh token
+        to be reused once within a short grace window (multi-tab safety).
+        """
         async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch(
                 """
                 SELECT id, user_id, token_hash, family_id, expires_at, revoked_at, replaced_by, remember_me, last_4
                 FROM refresh_token
-                WHERE revoked_at IS NULL AND expires_at > NOW() AND last_4 = $1
+                WHERE expires_at > NOW() AND last_4 = $1
+                  AND (
+                      revoked_at IS NULL
+                      OR (rotated_at IS NOT NULL AND grace_period_used = FALSE)
+                  )
                 """,
                 last_4,
             )
@@ -433,6 +442,23 @@ class PostgresUserRepository(UserRepository):
         async with acquire_connection(self._pool) as conn:
             return await conn.fetchval(
                 "SELECT replaced_by FROM refresh_token WHERE id = $1",
+                token_id,
+            )
+
+    async def get_refresh_token_grace_status(self, token_id: int) -> dict | None:
+        """Return rotated_at and grace_period_used for a refresh token."""
+        async with acquire_connection(self._pool) as conn:
+            row = await conn.fetchrow(
+                "SELECT rotated_at, grace_period_used FROM refresh_token WHERE id = $1",
+                token_id,
+            )
+            return dict(row) if row else None
+
+    async def mark_refresh_token_grace_used(self, token_id: int) -> None:
+        """Mark a refresh token's grace period as consumed."""
+        async with acquire_connection(self._pool) as conn:
+            await conn.execute(
+                "UPDATE refresh_token SET grace_period_used = TRUE WHERE id = $1",
                 token_id,
             )
 
@@ -470,7 +496,7 @@ class PostgresUserRepository(UserRepository):
             await conn.execute(
                 """
                 UPDATE refresh_token
-                SET revoked_at = NOW(), replaced_by = $1
+                SET revoked_at = NOW(), replaced_by = $1, rotated_at = NOW()
                 WHERE id = $2
                 """,
                 new_row["id"],

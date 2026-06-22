@@ -12,17 +12,78 @@ const log = getLogger('api');
 
 let isRefreshing = false;
 let refreshPromise: Promise<boolean> | null = null;
+let proactiveRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+
+/**
+ * Decode the exp claim from a JWT without verifying the signature.
+ * The backend still validates the signature on every request; this is only
+ * used to schedule a proactive refresh before the cookie expires.
+ */
+export function getTokenExpiry(accessToken: string): number | null {
+  try {
+    const payload = accessToken.split('.')[1];
+    if (!payload) return null;
+    const json = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
+    const decoded = JSON.parse(json) as { exp?: number };
+    return decoded.exp ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Schedule a proactive refresh shortly before the access token expires.
+ * Keeps the dev session alive without waiting for a 401.
+ */
+export function scheduleProactiveRefresh(accessToken: string): void {
+  cancelProactiveRefresh();
+  const exp = getTokenExpiry(accessToken);
+  if (!exp) return;
+
+  const expiresAt = exp * 1000;
+  const refreshAt = expiresAt - Date.now() - 60_000; // 1 minute before expiry
+
+  if (refreshAt <= 0) {
+    // Token is already expiring; refresh immediately.
+    refreshAccessToken().catch((err) => {
+      log.error('Immediate proactive refresh failed', err);
+    });
+    return;
+  }
+
+  proactiveRefreshTimer = setTimeout(() => {
+    refreshAccessToken().catch((err) => {
+      log.error('Proactive refresh failed', err);
+    });
+  }, refreshAt);
+}
+
+/**
+ * Cancel any pending proactive refresh timer.
+ */
+export function cancelProactiveRefresh(): void {
+  if (proactiveRefreshTimer) {
+    clearTimeout(proactiveRefreshTimer);
+    proactiveRefreshTimer = null;
+  }
+}
 
 async function doRefresh(): Promise<boolean> {
   try {
     // The backend sets the access token as an HTTPOnly cookie; the frontend
-    // just needs to make the request with credentials included.
+    // just needs to make the request with credentials included. The response
+    // body also contains the new access token so we can schedule the next
+    // proactive refresh.
     const resp = await fetch('/api/auth/refresh', {
       method: 'POST',
       credentials: 'same-origin',
     });
     if (!resp.ok) {
       throw new Error(`Refresh failed: ${resp.status}`);
+    }
+    const data = (await resp.json()) as { access_token?: string };
+    if (data.access_token) {
+      scheduleProactiveRefresh(data.access_token);
     }
     return true;
   } catch (err) {
@@ -43,9 +104,17 @@ async function refreshAccessToken(): Promise<boolean> {
   return refreshPromise;
 }
 
+const AUTH_LOGOUT_KEY = 'auth:logout';
+
 function handleAuthFailure() {
   clearUserData();
   localStorage.removeItem('auth-storage');
+  // Notify other tabs that this session has ended.
+  try {
+    localStorage.setItem(AUTH_LOGOUT_KEY, Date.now().toString());
+  } catch {
+    // Ignore storage errors (e.g., private mode).
+  }
   window.dispatchEvent(new CustomEvent('auth:unauthorized'));
   // This module is not a React component, so we fall back to a full-page
   // redirect. React-router-aware components should prefer useNavigate().
