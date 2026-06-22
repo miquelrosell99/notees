@@ -16,9 +16,10 @@ class Settings(BaseSettings):
     # Security
     secret_key: str = ""  # Required - must be set via SECRET_KEY env var
     algorithm: str = "HS256"
-    access_token_expire_hours: float = 0.25  # 15 minutes
-    refresh_token_expire_days: int = 7  # 7 days
+    access_token_expire_hours: float = 0.25  # 15 minutes (production default)
+    refresh_token_expire_days: int = 7  # 7 days (production default)
     refresh_token_remember_me_days: int = 90  # 90 days for "keep me signed in"
+    refresh_token_reuse_grace_seconds: float = 30.0  # leeway for rotated refresh tokens (multi-tab safety)
     registration_enabled: bool = False  # Disabled by default; set REGISTRATION_ENABLED=true to allow open registration
     admin_password: str | None = None  # Initial admin password; if unset, first registration is rejected
 
@@ -46,6 +47,20 @@ class Settings(BaseSettings):
         if len(v) < 32:
             raise ValueError("SECRET_KEY must be at least 32 characters long")
         return v
+
+    @model_validator(mode="after")
+    def apply_dev_token_defaults(self):
+        """In non-production environments, use longer-lived tokens so development
+        is not interrupted by constant re-authentication. Explicit env vars that
+        differ from the production defaults are respected.
+        """
+        if self.environment.lower() == "production":
+            return self
+        if self.access_token_expire_hours == 0.25:
+            self.access_token_expire_hours = 8.0
+        if self.refresh_token_expire_days == 7:
+            self.refresh_token_expire_days = 30
+        return self
 
     # Server
     host: str = "0.0.0.0"

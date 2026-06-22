@@ -9,6 +9,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { User } from '@/types';
 import * as authApi from '@/features/auth/api/auth';
+import { scheduleProactiveRefresh, cancelProactiveRefresh } from '@/api/client';
 
 interface AuthState {
   user: User | null;
@@ -42,6 +43,7 @@ export const useAuthStore = create<AuthState>()(
         try {
           const response = await authApi.login({ email, password, remember_me: rememberMe });
           authApi.storeAuth(response);
+          scheduleProactiveRefresh(response.access_token);
           set({
             user: response.user,
             isAuthenticated: true,
@@ -60,6 +62,7 @@ export const useAuthStore = create<AuthState>()(
         try {
           const response = await authApi.register({ email, password, name, remember_me: rememberMe });
           authApi.storeAuth(response);
+          scheduleProactiveRefresh(response.access_token);
           set({
             user: response.user,
             isAuthenticated: true,
@@ -79,6 +82,7 @@ export const useAuthStore = create<AuthState>()(
 
       logout: () => {
         authApi.logout();
+        cancelProactiveRefresh();
         set({
           user: null,
           isAuthenticated: false,

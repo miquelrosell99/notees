@@ -343,10 +343,14 @@ async def refresh_access_token(request: Request, response: Response):
         raise HTTPException(status_code=401, detail="Invalid or expired refresh token")
 
     # Check if token was already used (rotated). Reuse detection is delegated to
-    # the auth module so the router does not execute SQL directly.
+    # the auth module so the router does not execute SQL directly. If the reuse
+    # occurs within the configured grace window, allow it once (multi-tab safety).
     if await auth_module.is_refresh_token_reused(token_row["id"]):
-        await auth_module.revoke_refresh_token_family(token_row["family_id"])
-        raise HTTPException(status_code=401, detail="Refresh token reuse detected")
+        if await auth_module.is_refresh_token_within_grace(token_row["id"]):
+            await auth_module.consume_refresh_token_grace(token_row["id"])
+        else:
+            await auth_module.revoke_refresh_token_family(token_row["family_id"])
+            raise HTTPException(status_code=401, detail="Refresh token reuse detected")
 
     remember_me = token_row.get("remember_me", False)
 
