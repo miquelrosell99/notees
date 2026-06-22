@@ -628,7 +628,10 @@ All configuration is centralized in `app/config.py` using **pydantic-settings**.
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `ADMIN_PASSWORD` | (unset) | Initial admin password. If set and no admin exists on startup, an admin user is created automatically. Must be at least 12 characters with uppercase, lowercase, digit, and special character. If unset, or set but too weak, and no admin exists, both automatic admin creation and first-boot registration are rejected until a valid password is configured or an admin is created with `scripts/promote_user_to_admin.py`. When first-boot registration is allowed, the registrant must supply the configured `ADMIN_PASSWORD` in the registration request; the first admin is created with `ADMIN_PASSWORD`, not the registrant's chosen password. |
-| `ACCESS_TOKEN_EXPIRE_HOURS` | `0.25` (15 minutes) | JWT access token lifetime. Override only if you understand the security trade-off. |
+| `ACCESS_TOKEN_EXPIRE_HOURS` | `0.25` prod / `8.0` dev | JWT access token lifetime. Production defaults to 15 minutes; development defaults to 8 hours to avoid constant re-logins. |
+| `REFRESH_TOKEN_EXPIRE_DAYS` | `7` prod / `30` dev | Refresh token lifetime. Production defaults to 7 days; development defaults to 30 days. |
+| `REFRESH_TOKEN_REMEMBER_ME_DAYS` | `90` | Refresh token lifetime when "Remember me" is checked. |
+| `REFRESH_TOKEN_REUSE_GRACE_SECONDS` | `30` | One-time grace window for a rotated refresh token to be reused (prevents multi-tab logout races). |
 | `LOG_LEVEL` | `INFO` | Logging verbosity |
 | `BACKUP_INTERVAL_SECONDS` | `3600` | Automatic backup interval |
 | `MAX_BACKUPS` | `50` | Max backup files to keep |
@@ -649,7 +652,7 @@ See `.env.example` for the full template.
 
 - **SECRET_KEY is mandatory** and validated at startup (min 32 chars). The app will refuse to start without it.
 - **Password hashing**: Uses `bcrypt` via passlib (with `pbkdf2_sha256` retained for backward compatibility with existing hashes).
-- **JWT tokens**: Signed with HS256. Access token lifetime defaults to **15 minutes** (configurable via `ACCESS_TOKEN_EXPIRE_HOURS`).
+- **JWT tokens**: Signed with HS256. Access token lifetime defaults to **15 minutes in production** and **8 hours in development** (configurable via `ACCESS_TOKEN_EXPIRE_HOURS`). Refresh tokens are rotated on every use; a short reuse grace period prevents multiple browser tabs from racing each other into logout.
 - **CORS**: Disabled by default (frontend and backend are same-origin). Only configure `CORS_ORIGINS` if you run them on separate domains. `CORS_ORIGINS=*` is rejected in all environments when credentials are enabled.
 - **HSTS / HTTPS redirect**: Hardened headers (`Strict-Transport-Security` and the HTTP→HTTPS redirect) are enabled **only** when `ENVIRONMENT=production`. Set this explicitly for production deployments; do not rely on the reload flag.
 - **Rate limiting**: `fastapi_limiter` (0.2.0) + `pyrate_limiter` are configured in `app/main.py` and individual routers. See the [Rate Limiting](#rate-limiting) subsystem reference for details.
