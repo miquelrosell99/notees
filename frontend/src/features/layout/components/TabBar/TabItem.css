@@ -9,16 +9,17 @@
 }
 
 .tab-item {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: var(--spacing-1);
-  height: var(--height-sm);
+  height: var(--height-xs);
   min-height: var(--button-min-height);
-  padding: 0 var(--spacing-4);
+  padding: 0 var(--spacing-2);
   border-radius: var(--shape-small);
   font: inherit;
-  font-size: var(--font-size-md);
+  font-size: var(--font-size-sm);
   font-weight: 400;
   color: var(--color-on-surface-variant);
   background: transparent;
@@ -29,7 +30,7 @@
   transition: color var(--motion-duration-short) var(--motion-easing-standard),
               background var(--motion-duration-short) var(--motion-easing-standard);
   max-width: 12rem;
-  min-width: var(--height-sm);
+  min-width: var(--height-xs);
 }
 
 .tab-item:focus-visible {
@@ -50,6 +51,18 @@
 
 .tab-item--active:hover {
   background: var(--color-surface-container-high);
+}
+
+/* Accent underline indicator for the active tab */
+.tab-item--active::after {
+  content: '';
+  position: absolute;
+  bottom: var(--spacing-1);
+  left: var(--spacing-2);
+  right: var(--spacing-2);
+  height: var(--border-width-thick);
+  background: var(--color-accent);
+  border-radius: var(--shape-full);
 }
 
 .tab-item--secondary {
@@ -132,6 +145,11 @@
 
 .tab-item__close:active {
   transform: translateY(-50%) scale(0.92);
+}
+
+/* Suppress the horizontal underline on vertical tabs where it looks out of place. */
+.tab-bar-vertical__slot .tab-item--active::after {
+  display: none;
 }
 
 /* Touch devices (Android, tablets, touch monitors): always show the close

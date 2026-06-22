@@ -32,6 +32,7 @@ import { MathNode } from '../nodes/MathNode';
 import { SyncedContentPlugin } from './SyncedContentPlugin';
 import { extractInlineContent } from '../inlineContentPopulation';
 import { serializeContentAST } from '../editorConfig';
+import { useEditorFocusStore } from '@/stores/editorFocusStore';
 import type { ContentAST } from '@/runtime/types';
 
 const initialConfig = {
@@ -52,21 +53,22 @@ interface TestEditorHandle {
 interface TestEditorProps {
   contentAST: ContentAST;
   readOnly?: boolean;
+  blockId?: string;
 }
 
 const TestEditor = forwardRef<TestEditorHandle, TestEditorProps>(function TestEditor(
-  { contentAST, readOnly },
+  { contentAST, readOnly, blockId },
   ref,
 ): JSX.Element {
   return (
     <LexicalComposer initialConfig={initialConfig}>
-      <TestEditorInner contentAST={contentAST} readOnly={readOnly} ref={ref} />
+      <TestEditorInner contentAST={contentAST} readOnly={readOnly} blockId={blockId} ref={ref} />
     </LexicalComposer>
   );
 });
 
 const TestEditorInner = forwardRef<TestEditorHandle, TestEditorProps>(function TestEditorInner(
-  { contentAST, readOnly },
+  { contentAST, readOnly, blockId },
   ref,
 ): JSX.Element {
   const [editor] = useLexicalComposerContext();
@@ -103,7 +105,7 @@ const TestEditorInner = forwardRef<TestEditorHandle, TestEditorProps>(function T
         placeholder={null}
         ErrorBoundary={LexicalErrorBoundary}
       />
-      <SyncedContentPlugin contentAST={contentAST} readOnly={readOnly} />
+      <SyncedContentPlugin contentAST={contentAST} readOnly={readOnly} blockId={blockId} />
     </>
   );
 });
@@ -210,5 +212,42 @@ describe('SyncedContentPlugin', () => {
     expect(ref.current!.getContent()).toBe(
       JSON.stringify([{ type: 'paragraph', children: [{ type: 'text', text: 'hello@' }] }]),
     );
+  });
+
+  it('does not overwrite the editor while a trigger popup is open for it', async () => {
+    const blockId = 'test-block';
+    const ref = createRef<TestEditorHandle>();
+    const { rerender } = render(<TestEditor ref={ref} contentAST={astA} blockId={blockId} />);
+
+    await waitFor(() => expect(ref.current).not.toBeNull());
+    act(() => {
+      ref.current!.focus();
+    });
+
+    // Simulate opening a trigger popup for this editor. The editor loses focus
+    // to the popup input, but activeBlockId stays set and popupOpen becomes true.
+    act(() => {
+      useEditorFocusStore.getState().focusBlock(blockId);
+      useEditorFocusStore.getState().openPopup();
+    });
+
+    // The editor is blurred while the popup is open, as in real usage.
+    act(() => {
+      ref.current!.blur();
+    });
+
+    rerender(<TestEditor ref={ref} contentAST={astB} blockId={blockId} />);
+
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(ref.current!.getContent()).toBe(JSON.stringify(astA));
+
+    // Once the popup closes, the prop change should apply (editor is blurred).
+    act(() => {
+      useEditorFocusStore.getState().closePopup();
+    });
+
+    await waitFor(() => {
+      expect(ref.current!.getContent()).toBe(JSON.stringify(astB));
+    });
   });
 });

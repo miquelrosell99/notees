@@ -20,7 +20,9 @@ import {
   $isTextNode,
   $isElementNode,
   $getNodeByKey,
+  $getRoot,
   $createTextNode,
+  $createParagraphNode,
   KEY_DOWN_COMMAND,
   CONTROLLED_TEXT_INSERTION_COMMAND,
   COMMAND_PRIORITY_NORMAL,
@@ -390,36 +392,54 @@ export function TriggerPlugin({
     (nodeUuid: string, refType: 'node' | 'class' | 'user') => {
       editor.update(() => {
         const selection = $getSelection();
-        if (!$isRangeSelection(selection)) return;
-
-        const anchorNode = selection.anchor.getNode();
-        const anchorOffset = selection.anchor.offset;
         const pill = $createInlineLinkNode(nodeUuid, refType);
 
-        if ($isTextNode(anchorNode)) {
-          const text = anchorNode.getTextContent();
-          const before = text.slice(0, anchorOffset);
-          const after = text.slice(anchorOffset);
-
-          // Split the text node at the cursor: [before] [pill] [after]
-          anchorNode.setTextContent(before || '\u200B');
-          anchorNode.insertAfter(pill);
-
-          if (after) {
-            const afterTextNode = $createTextNode(after);
-            pill.insertAfter(afterTextNode);
-            afterTextNode.selectStart();
-          } else {
-            const afterNode = $createTextNode('\u200B');
-            pill.insertAfter(afterNode);
-            afterNode.selectStart();
-          }
-        } else {
-          anchorNode.insertAfter(pill);
-          const afterNode = $createTextNode('\u200B');
+        const insertAfterPill = (afterText?: string) => {
+          const afterNode = $createTextNode(afterText || '\u200B');
           pill.insertAfter(afterNode);
           afterNode.selectStart();
+        };
+
+        if ($isRangeSelection(selection)) {
+          const anchorNode = selection.anchor.getNode();
+          const anchorOffset = selection.anchor.offset;
+
+          if ($isTextNode(anchorNode)) {
+            const text = anchorNode.getTextContent();
+            const before = text.slice(0, anchorOffset);
+            const after = text.slice(anchorOffset);
+
+            // Split the text node at the cursor: [before] [pill] [after]
+            anchorNode.setTextContent(before || '\u200B');
+            anchorNode.insertAfter(pill);
+            insertAfterPill(after);
+            return;
+          }
+
+          if ($isElementNode(anchorNode)) {
+            // Anchor is on an element (usually the paragraph). Insert the pill
+            // at the element offset so it lands inside the paragraph, not after it.
+            const child = anchorNode.getChildAtIndex(anchorOffset);
+            if (child) {
+              child.insertBefore(pill);
+            } else {
+              anchorNode.append(pill);
+            }
+            insertAfterPill();
+            return;
+          }
         }
+
+        // Fallback when there is no range selection or the anchor is the root:
+        // append the pill to the first paragraph (creating one if necessary).
+        const root = $getRoot();
+        const firstChild = root.getFirstChild();
+        const paragraph = $isElementNode(firstChild) ? firstChild : $createParagraphNode();
+        if (paragraph !== firstChild) {
+          root.append(paragraph);
+        }
+        paragraph.append(pill);
+        insertAfterPill();
       });
     },
     [editor]

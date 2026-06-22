@@ -62,6 +62,19 @@
   z-index: var(--z-1);
 }
 
+/* Invisible minimum hit-area overlay so the target stays ≥ 44×44 even when the
+   visible option size is shrunk by a size-specific rule. */
+.selection-button__option::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: max(100%, var(--button-min-height));
+  height: max(100%, var(--button-min-height));
+  pointer-events: auto;
+}
+
 .selection-button__option:hover:not(:disabled):not(.selection-button__option--selected) {
   color: var(--color-on-surface);
 }
@@ -102,6 +115,18 @@
   transition: color var(--motion-duration-short) var(--motion-easing-standard),
               background var(--motion-duration-short) var(--motion-easing-standard);
   z-index: var(--z-1);
+}
+
+/* Invisible minimum hit-area overlay for the overflow toggle. */
+.selection-button__overflow-toggle::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: max(100%, var(--button-min-height));
+  height: max(100%, var(--button-min-height));
+  pointer-events: auto;
 }
 
 .selection-button__overflow-toggle:hover:not(:disabled) {
@@ -169,6 +194,8 @@
 .selection-button--sm .selection-button__overflow-toggle {
   width: var(--selection-btn-size-sm);
   height: var(--selection-btn-size-sm);
+  min-width: var(--selection-btn-size-sm);
+  min-height: var(--selection-btn-size-sm);
 }
 
 /* Mobile: tighter padding to save header space */
@@ -187,12 +214,16 @@
 .selection-button--md .selection-button__overflow-toggle {
   width: var(--selection-btn-size-md);
   height: var(--selection-btn-size-md);
+  min-width: var(--selection-btn-size-md);
+  min-height: var(--selection-btn-size-md);
 }
 
 .selection-button--lg .selection-button__option,
 .selection-button--lg .selection-button__overflow-toggle {
   width: var(--selection-btn-size-lg);
   height: var(--selection-btn-size-lg);
+  min-width: var(--selection-btn-size-lg);
+  min-height: var(--selection-btn-size-lg);
 }
 
 /* Wrapper with label layout */
