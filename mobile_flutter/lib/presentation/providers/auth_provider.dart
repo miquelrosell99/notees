@@ -123,6 +123,20 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  /// Switches the active server and clears the current session so the user
+  /// must sign in again.
+  Future<void> switchActiveServer(ServerProfile server) async {
+    await selectServer(server);
+  }
+
+  /// Updates the current user's profile and refreshes the cached user.
+  Future<void> updateUserProfile({String? name, String? surnames}) async {
+    if (_dio == null) throw const AuthException('No server configured');
+    final repo = AuthRepository(dio: _dio!, secureStorage: secureStorage);
+    _user = await repo.updateProfile(name: name, surnames: surnames);
+    notifyListeners();
+  }
+
   Future<void> _switchToDefaultWorkspace() async {
     if (_dio == null) return;
     final workspaceRepo = WorkspaceRepository(dio: _dio!);
