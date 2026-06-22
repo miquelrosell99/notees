@@ -76,6 +76,49 @@ class AuthRepository {
     }
   }
 
+  Future<User> updateProfile({String? name, String? surnames}) async {
+    final response = await dio.put<Map<String, dynamic>>(
+      '/auth/me',
+      data: {
+        if (name != null) 'name': name,
+        if (surnames != null) 'surnames': surnames,
+      },
+    );
+    return User.fromJson(response.data!);
+  }
+
+  Future<void> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    await dio.post<Map<String, dynamic>>(
+      '/auth/change-password',
+      data: {
+        'current_password': currentPassword,
+        'new_password': newPassword,
+      },
+    );
+  }
+
+  Future<List<ApiKey>> listApiKeys() async {
+    final response = await dio.get<List<dynamic>>('/auth/api-keys');
+    return (response.data ?? [])
+        .map((e) => ApiKey.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<ApiKey> createApiKey({required String name}) async {
+    final response = await dio.post<Map<String, dynamic>>(
+      '/auth/api-keys',
+      data: {'name': name},
+    );
+    return ApiKey.fromJson(response.data!);
+  }
+
+  Future<void> revokeApiKey(String keyId) async {
+    await dio.delete('/auth/api-keys/$keyId');
+  }
+
   User _handleTokenResponse(Map<String, dynamic> data) {
     final accessToken = data['access_token'] as String?;
     final refreshToken = data['refresh_token'] as String?;
@@ -100,4 +143,28 @@ class AuthException implements Exception {
 
   @override
   String toString() => message;
+}
+
+class ApiKey {
+  ApiKey({
+    required this.id,
+    required this.name,
+    required this.scopes,
+    this.key,
+    required this.createDate,
+  });
+
+  final String id;
+  final String name;
+  final List<String> scopes;
+  final String? key;
+  final DateTime createDate;
+
+  factory ApiKey.fromJson(Map<String, dynamic> json) => ApiKey(
+        id: json['id'] as String,
+        name: json['name'] as String,
+        scopes: (json['scopes'] as List<dynamic>?)?.cast<String>() ?? [],
+        key: json['key'] as String?,
+        createDate: DateTime.parse(json['create_date'] as String),
+      );
 }
