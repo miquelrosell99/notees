@@ -74,6 +74,21 @@ BEGIN
     END IF;
 END $$;
 
+-- Push notification device tokens (one row per user/device pair)
+CREATE TABLE IF NOT EXISTS user_device_token (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+    token TEXT NOT NULL,
+    platform VARCHAR(20) NOT NULL DEFAULT 'unknown',
+    active BOOLEAN DEFAULT TRUE,
+    create_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    write_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(user_id, token)
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_device_token_user_id ON user_device_token(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_device_token_token ON user_device_token(token);
+
 -- ============================================================
 -- WORKSPACES
 -- ============================================================

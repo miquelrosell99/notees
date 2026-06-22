@@ -122,6 +122,7 @@ async def init_database(conn: asyncpg.Connection) -> None:
     await _run_migration("migrate_task_recurrence_to_table", conn, _run_migrate_task_recurrence)
     from app.db.migrations.normalize_settings_jsonb import run as _run_normalize_settings_jsonb
     await _run_migration("normalize_settings_jsonb", conn, _run_normalize_settings_jsonb)
+    await _run_migration("add_user_device_token", conn, _add_user_device_token)
 
 
 
@@ -1552,3 +1553,30 @@ async def _materialize_search_text(conn: asyncpg.Connection) -> None:
     count = int(result.split()[-1]) if result else 0
     if count > 0:
         logger.info(f"Backfilled search_text for {count} existing nodes")
+
+
+async def _add_user_device_token(conn: asyncpg.Connection) -> None:
+    """Add the user_device_token table for push notification support."""
+    from ...logging_config import get_logger
+
+    logger = get_logger(__name__)
+
+    has_table = await conn.fetchval(
+        "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'user_device_token')"
+    )
+    if not has_table:
+        await conn.execute("""
+            CREATE TABLE user_device_token (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+                token TEXT NOT NULL,
+                platform VARCHAR(20) NOT NULL DEFAULT 'unknown',
+                active BOOLEAN DEFAULT TRUE,
+                create_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                write_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                UNIQUE(user_id, token)
+            )
+        """)
+        await conn.execute("CREATE INDEX idx_user_device_token_user_id ON user_device_token(user_id)")
+        await conn.execute("CREATE INDEX idx_user_device_token_token ON user_device_token(token)")
+        logger.info("Created user_device_token table")

@@ -14,17 +14,19 @@ from pydantic import BaseModel
 from pyrate_limiter import Duration
 
 from app.config import settings
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, get_push_device_repository
 from app.domain.errors import PasswordRequiredError, RegistrationDisabledError
 from app.features.auth import auth as auth_module
 from app.features.auth.dependencies import get_invite_repository
 from app.features.auth.port import InviteRepository
+from app.features.notifications.port import PushDeviceRepository
 from app.logging_config import get_logger
 from app.models import (
     AccessTokenResponse,
     ApiKeyCreate,
     ApiKeyCreateResponse,
     ApiKeyResponse,
+    DeviceTokenRegisterRequest,
     InviteAcceptRequest,
     PasswordChangeRequest,
     Token,
@@ -547,4 +549,15 @@ async def revoke_api_key_endpoint(
     success = await auth_module.revoke_api_key(int(user.id), key_id)
     if not success:
         raise HTTPException(status_code=404, detail="API key not found or already revoked")
+    return {"success": True}
+
+
+@router.post("/device-token")
+async def register_device_token(
+    data: DeviceTokenRegisterRequest,
+    user: User = Depends(get_current_user),  # noqa: B008
+    push_device_repo: PushDeviceRepository = Depends(get_push_device_repository),
+):
+    """Register a mobile push notification device token for the current user."""
+    await push_device_repo.register_token(int(user.id), data.token, data.platform)
     return {"success": True}

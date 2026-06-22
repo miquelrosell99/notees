@@ -6,7 +6,7 @@
  * two editors (e.g., scratchpad + page editor).
  */
 
-import type { LexicalEditor } from 'lexical';
+import { FORMAT_TEXT_COMMAND, type LexicalEditor, type TextFormatType } from 'lexical';
 
 let activeEditor: LexicalEditor | null = null;
 
@@ -45,4 +45,14 @@ export function isOtherEditorActive(editor: LexicalEditor): boolean {
  */
 export function getActiveEditor(): LexicalEditor | null {
   return activeEditor;
+}
+
+/**
+ * Dispatch a text-format command on the currently focused editor.
+ * Safe to call from native mobile toolbars via the JS bridge.
+ */
+export function applyFormatToActiveEditor(format: TextFormatType): boolean {
+  if (!activeEditor) return false;
+  activeEditor.dispatchCommand(FORMAT_TEXT_COMMAND, format);
+  return true;
 }

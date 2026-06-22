@@ -15,6 +15,7 @@
 import { useEffect } from 'react';
 import { useNavigationStore } from '@/stores';
 import { useTouchContextMenu, isEditableElement } from '@/hooks/useTouchContextMenu';
+import { initMobileEditorBridge } from '@/features/editor/editor/mobileEditorBridge';
 
 // ── Type declarations ─────────────────────────────────────────────────────────
 
@@ -107,6 +108,9 @@ export function useAndroidBridge() {
     // Tell CSS that native padding already handles system bar insets so
     // env(safe-area-inset-*) rules should not be applied on top.
     document.documentElement.classList.add('android-app');
+
+    // Expose the editor bridge so the native toolbar can drive formatting.
+    initMobileEditorBridge();
 
     window.noteesBridge = {
       onShareReceived(text: string) {

@@ -2,9 +2,10 @@
 
 import contextlib
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Body, Depends, HTTPException, Query
 
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, get_property_repository
+from app.domain.entities.constants import SYSTEM_PROPERTY_UUIDS, TASK_CLOSED_STATUSES
 from app.models import PaginatedResponse, User
 
 from .helpers import (
@@ -17,6 +18,7 @@ from .models import (
     LinksRequest,
     LinksResponse,
     NodeResponse,
+    SearchFilterRequest,
     SearchResponse,
     WorkspaceDataResponse,
     WorkspaceLinkResponse,
@@ -346,3 +348,88 @@ async def list_nodes(
         has_next=has_next,
         has_prev=has_prev,
     )
+
+
+@router.post("/search", response_model=SearchResponse)
+async def search_nodes_filtered(
+    request: SearchFilterRequest = Body(...),
+    user: User = Depends(get_current_user),
+    property_repo=Depends(get_property_repository),
+):
+    """Structured search endpoint optimized for mobile and external clients.
+
+    Combines text search with filters such as node type, class, task state,
+    date range, and sorting. Returns the same `SearchResponse` shape as the
+    plain GET /search endpoint so clients can share parsing logic.
+    """
+    service = await _get_node_service(user)
+
+    # Use NodeService.search for the text + simple filters it already supports.
+    offset = (request.page - 1) * request.limit
+    nodes = await service.search(
+        request.query,
+        limit=request.limit * 4,  # Over-fetch to absorb post-filters.
+        offset=offset,
+        class_filters=request.class_ids or None,
+        is_page=request.is_page,
+        is_class=None,
+        is_daily=request.is_daily,
+        sort_by="write_date" if request.sort_by == "relevance" else request.sort_by,
+        order=request.order,
+    )
+
+    # Apply is_task post-filter when requested.
+    if request.is_task is not None:
+        nodes = [n for n in nodes if n.is_task == request.is_task]
+
+    # Apply task state post-filter when needed.
+    if request.is_task is not False and request.task_state in ("open", "completed"):
+        node_ids = [n.id for n in nodes if n.id is not None]
+        if node_ids:
+            status_prop = await property_repo.get_by_uuid(SYSTEM_PROPERTY_UUIDS["task_status"])
+            if status_prop and status_prop.id is not None:
+                batch_props = await service.get_nodes_properties_batch(node_ids)
+                lines = await property_repo.get_selection_lines(status_prop.id)
+                closed_line_ids = {line.id for line in lines if line.name in TASK_CLOSED_STATUSES}
+
+                def _is_closed(node) -> bool:
+                    if node.id is None:
+                        return False
+                    prop_data = batch_props.get(node.id, {})
+                    status_data = prop_data.get(status_prop.id)
+                    if status_data and status_data.get("values"):
+                        val = status_data["values"][0]
+                        sel_id = getattr(val, "selection_line_id", None)
+                        return sel_id in closed_line_ids
+                    return False
+
+                want_closed = request.task_state == "completed"
+                nodes = [n for n in nodes if _is_closed(n) == want_closed]
+
+    # Apply date range post-filter on write_date.
+    if request.date_from or request.date_to:
+
+        def _in_date_range(node) -> bool:
+            write_date = node.write_date
+            if write_date is None:
+                return False
+            date_str = write_date.isoformat()[:10] if hasattr(write_date, "isoformat") else str(write_date)[:10]
+            return not (
+                (request.date_from and date_str < request.date_from)
+                or (request.date_to and date_str > request.date_to)
+            )
+
+        nodes = [n for n in nodes if _in_date_range(n)]
+
+    # Build response with class_ids and tag_ids populated.
+    result = []
+    for n in nodes[: request.limit]:
+        if n.id is None:
+            continue
+        node_class_ids = n.class_ids or []
+        node_tag_ids = n.tag_ids or []
+        result.append(_node_to_response(n, tags=node_tag_ids, classes=node_class_ids))
+
+    await _resolve_display_names_for_responses(service, nodes, result)
+
+    return SearchResponse(nodes=result)

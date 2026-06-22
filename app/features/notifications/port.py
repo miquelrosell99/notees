@@ -35,3 +35,22 @@ class NotificationRepository(ABC):
     async def create_many(self, notifications: list[dict[str, Any]]) -> None:
         """Create multiple notifications in a single batch."""
         pass
+
+
+class PushDeviceRepository(ABC):
+    """Repository interface for push notification device tokens."""
+
+    @abstractmethod
+    async def register_token(self, user_id: int, token: str, platform: str) -> None:
+        """Register or reactivate a device token for a user."""
+        pass
+
+    @abstractmethod
+    async def list_tokens_for_user(self, user_id: int) -> list[str]:
+        """Return active device tokens for a user."""
+        pass
+
+    @abstractmethod
+    async def deactivate_token(self, token: str) -> None:
+        """Mark a token as inactive (e.g., after FCM reports it as invalid)."""
+        pass

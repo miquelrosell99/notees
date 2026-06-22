@@ -1,6 +1,6 @@
 """Pydantic models for the Nodes API."""
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -567,6 +567,28 @@ class LinksResponse(BaseModel):
     """Links between nodes."""
 
     links: list[WorkspaceLinkResponse]
+
+
+class SearchFilterRequest(BaseModel):
+    """Structured search request for mobile and external clients.
+
+    Provides a single, versionable contract for filtered node search.
+    Simple combinations reuse NodeService.search(); complex combinations
+    are compiled to QueryAST and executed by the query executor.
+    """
+
+    query: str = ""
+    class_ids: list[int] = []
+    is_page: bool | None = None
+    is_task: bool | None = None
+    is_daily: bool | None = None
+    task_state: Literal["open", "completed", "any"] = "any"
+    date_from: str | None = None  # ISO date, e.g. 2024-01-01
+    date_to: str | None = None
+    sort_by: Literal["relevance", "write_date", "create_date", "name"] = "relevance"
+    order: Literal["asc", "desc"] = "desc"
+    limit: int = Field(50, ge=1, le=5000)
+    page: int = Field(1, ge=1)
 
 
 class SearchResponse(BaseModel):
