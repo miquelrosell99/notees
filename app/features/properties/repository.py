@@ -696,7 +696,7 @@ class PostgresPropertyRepository(BasePostgresRepository, PropertyRepository):
             value_float = None
             value_integer = None
 
-            if prop.type in (PropertyType.TEXT, PropertyType.URL, PropertyType.EMAIL):
+            if prop.type in (PropertyType.TEXT, PropertyType.URL, PropertyType.EMAIL, PropertyType.DATE_RANGE):
                 value_text = str(value) if value is not None else None
             elif prop.type == PropertyType.INTEGER:
                 value_integer = int(value) if value is not None else None

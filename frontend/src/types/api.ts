@@ -487,7 +487,7 @@ export interface BatchNodeDailyResponse {
 /**
  * Property types
  */
-export type PropertyType = 'integer' | 'float' | 'text' | 'boolean' | 'url' | 'email' | 'node' | 'selection' | 'date' | 'image';
+export type PropertyType = 'integer' | 'float' | 'text' | 'boolean' | 'url' | 'email' | 'node' | 'selection' | 'date' | 'date_range' | 'image';
 
 /**
  * Icon visibility for property values at block level.

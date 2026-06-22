@@ -9,6 +9,9 @@ export {
   InlineLinkNode,
   $createInlineLinkNode,
   $isInlineLinkNode,
+  InlineDateRangeNode,
+  $createInlineDateRangeNode,
+  $isInlineDateRangeNode,
 } from './nodes';
 
 // Plugins

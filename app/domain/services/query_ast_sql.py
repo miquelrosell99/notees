@@ -35,6 +35,7 @@ from app.domain.entities.query_ast import (
     TagCondition,
 )
 from app.domain.errors import DomainError
+from app.utils.date_range import date_uuid_to_date
 
 from ...logging_config import get_logger
 
@@ -744,6 +745,34 @@ ORDER BY {order_by_sql}"""
                         JOIN node target ON target.id = pvr.target_id
                         WHERE np.node_id = n.id
                         AND target.uuid::text <= %({value_param})s
+                    )"""
+
+                return None
+
+            # Date ranges: stored as JSON with start/end ISO dates.
+            if condition.property_type == PropertyType.DATE_RANGE:
+                if condition.operator == "contains":
+                    try:
+                        target_date = date_uuid_to_date(str(condition.value))
+                    except ValueError:
+                        return None
+                    target_param = self._add_param(target_date.isoformat())
+                    return f"""EXISTS (
+                        SELECT 1 FROM node_property np
+                        {prop_join_clause}
+                        JOIN property_value_scalar pvs ON pvs.node_property_id = np.id
+                        WHERE np.node_id = n.id
+                        AND (pvs.value_text::jsonb->>'start')::date <= %({target_param})s::date
+                        AND (pvs.value_text::jsonb->>'end')::date >= %({target_param})s::date
+                    )"""
+
+                if condition.operator == "equals":
+                    return f"""EXISTS (
+                        SELECT 1 FROM node_property np
+                        {prop_join_clause}
+                        JOIN property_value_scalar pvs ON pvs.node_property_id = np.id
+                        WHERE np.node_id = n.id
+                        AND pvs.value_text = %({value_param})s
                     )"""
 
                 return None
