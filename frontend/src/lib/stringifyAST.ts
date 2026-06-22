@@ -16,7 +16,9 @@ import type {
   ASTDocument,
   ASTBlockNode,
   ASTInlineNode,
+  ASTDateRange,
 } from '@/types/ast';
+import { formatDateRange } from '@/utils/dateRange';
 
 // ─── Public types ──────────────────────────────────────────────────
 
@@ -213,6 +215,14 @@ function renderInline(node: ASTInlineNode, opts: StringifyOptions): string {
         return text;
       }
       return `[${text}]([broken])`;
+    }
+
+    case 'date_range': {
+      const label = node.label || formatDateRange(node as ASTDateRange);
+      if (opts.mode === StringifyMode.TEXT_ONLY) {
+        return label;
+      }
+      return `[${label}]([date-range])`;
     }
 
     default:

@@ -1,0 +1,41 @@
+.inline-date-range-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1, 4px);
+  padding: 0 var(--space-2, 8px);
+  border-radius: var(--radius-full, 9999px);
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  font-size: var(--font-size-sm, 0.875rem);
+  cursor: pointer;
+  user-select: none;
+}
+
+.inline-date-range-pill:hover {
+  background: var(--color-surface-hover);
+}
+
+.inline-date-range-edit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--color-text-tertiary);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.inline-date-range-pill:hover .inline-date-range-edit,
+.inline-date-range-pill:focus-within .inline-date-range-edit {
+  opacity: 1;
+}
+
+.inline-date-range-edit:hover {
+  color: var(--color-text);
+}

@@ -128,7 +128,7 @@ class PropertyCreateRequest(BaseModel):
 
     name: str
     icon: str | None = None
-    type: str = "text"  # integer, float, boolean, url, email (scalar) | node, text, image, date (relation) | selection
+    type: str = "text"  # integer, float, boolean, url, email, date_range (scalar) | node, text, image, date (relation) | selection
     is_multi: bool = False
     scope: str = "global"  # 'global' | 'class' | 'node'
     node_id: int | None = None  # For scoped properties (class or node)

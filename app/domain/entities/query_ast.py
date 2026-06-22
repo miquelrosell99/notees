@@ -140,6 +140,7 @@ class PropertyType(StrEnum):
     TEXT = "text"
     NUMBER = "number"
     DATE = "date"
+    DATE_RANGE = "date_range"
     CHECKBOX = "checkbox"
     SELECT = "select"
     MULTI_SELECT = "multi_select"

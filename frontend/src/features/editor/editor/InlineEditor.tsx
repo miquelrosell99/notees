@@ -41,6 +41,7 @@ import { notesEditorTheme } from './theme';
 import './InlineEditor.css';
 import '@/styles/inline-link.css';
 import { InlineLinkNode, $isInlineLinkNode } from './nodes/InlineLinkNode';
+import { InlineDateRangeNode, $isInlineDateRangeNode } from './nodes/InlineDateRangeNode';
 import { MathNode, $isMathNode } from './nodes/MathNode';
 import { extractInlineContent } from './inlineContentPopulation';
 import { serializeContentAST } from './editorConfig';
@@ -170,7 +171,7 @@ export const InlineEditor = memo(
       () => ({
         namespace: `InlineEditor-${blockId}`,
         theme: notesEditorTheme,
-        nodes: [ParagraphNode, TextNode, InlineLinkNode, MathNode],
+        nodes: [ParagraphNode, TextNode, InlineLinkNode, InlineDateRangeNode, MathNode],
         onError: (error: Error) => {
           console.error(`[InlineEditor ${blockId}] Lexical error:`, error);
         },
@@ -343,7 +344,7 @@ export const InlineEditor = memo(
                 if ($isTextNode(child) && child.getTextContent() === '\u200B') continue;
                 if ($isTextNode(child)) {
                   offset += child.getTextContent().length;
-                } else if ($isInlineLinkNode(child)) {
+                } else if ($isInlineLinkNode(child) || $isInlineDateRangeNode(child)) {
                   offset += 1;
                 } else if ($isMathNode(child)) {
                   offset += 1;
@@ -371,7 +372,7 @@ export const InlineEditor = memo(
               if ($isTextNode(child) && child.getTextContent() === '\u200B') continue;
               if ($isTextNode(child)) {
                 offset += child.getTextContent().length;
-              } else if ($isInlineLinkNode(child)) {
+              } else if ($isInlineLinkNode(child) || $isInlineDateRangeNode(child)) {
                 offset += 1;
               } else if ($isMathNode(child)) {
                 offset += 1;

@@ -1177,13 +1177,17 @@ class NodeService:
                 await self.remove_class(node_id, cls_id)
 
         if properties and self._property_repo is not None:
-            from ...domain.entities.property import RELATION_TYPES, SCALAR_TYPES
+            from app.utils.date_range import normalize_date_range_value
+
+            from ...domain.entities.property import RELATION_TYPES, SCALAR_TYPES, PropertyType
 
             repo = self._property_repo
             for prop_id, value in properties.items():
                 prop = await repo.get_by_id(prop_id)
                 if not prop:
                     continue
+                if prop.type == PropertyType.DATE_RANGE and value is not None and value != "":
+                    value = normalize_date_range_value(value)
                 if prop.type in SCALAR_TYPES:
                     await repo.set_scalar_value(node_id, prop_id, value)
                 elif prop.type in RELATION_TYPES:
@@ -2450,11 +2454,15 @@ class NodeService:
     async def set_property_value_atomic(self, node_id: int, property_id: int, value: Any) -> Node:
         """Type-dispatch property value set inside a transaction."""
         from app.domain.entities.property import RELATION_TYPES, SCALAR_TYPES, PropertyType
+        from app.utils.date_range import normalize_date_range_value
 
         async with get_transaction():
             prop = await self._property_repo.get_by_id(property_id)
             if prop is None:
                 raise NodeNotFoundError(f"Property {property_id} not found")
+
+            if prop.type == PropertyType.DATE_RANGE and value is not None and value != "":
+                value = normalize_date_range_value(value)
 
             if prop.type in SCALAR_TYPES:
                 await self._property_repo.set_scalar_value(node_id, property_id, value)

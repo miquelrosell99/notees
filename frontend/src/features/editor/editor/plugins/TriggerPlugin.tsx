@@ -30,7 +30,10 @@ import {
   type RangeSelection,
 } from 'lexical';
 import { $createInlineLinkNode } from '@/features/editor/editor/nodes/InlineLinkNode';
+import { $createInlineDateRangeNode } from '@/features/editor/editor/nodes/InlineDateRangeNode';
 import { TriggerPopup, type TriggerPopupType } from './TriggerPopup';
+import { DateRangePicker } from '@/features/properties/components/DateRangePicker';
+import type { DateRangeValue } from '@/utils/dateRange';
 import type { Node } from '@/types/api';
 import { getOperationRuntime } from '@/runtime';
 import { getNode, getAllNodes } from '@/runtime/graphHelpers';
@@ -110,6 +113,7 @@ export function TriggerPlugin({
 }: TriggerPluginProps): JSX.Element | null {
   const [editor] = useLexicalComposerContext();
   const [popup, setPopup] = useState<PopupState | null>(null);
+  const [dateRangePickerOpen, setDateRangePickerOpen] = useState(false);
   const placeholderRef = useRef<Placeholder | null>(null);
   const blockServerIdRef = useRef<number | undefined>(undefined);
   const popupOpenRef = useRef(false);
@@ -445,6 +449,66 @@ export function TriggerPlugin({
     [editor]
   );
 
+  // ─── Insert inline date range helper ─────────────────────────
+
+  const insertDateRange = useCallback(
+    (value: DateRangeValue) => {
+      editor.update(() => {
+        const selection = $getSelection();
+        const pill = $createInlineDateRangeNode(
+          value.start,
+          value.end,
+          value.granularity,
+          value.start_uuid,
+          value.end_uuid,
+        );
+
+        const insertAfterPill = (afterText?: string) => {
+          const afterNode = $createTextNode(afterText || '\u200B');
+          pill.insertAfter(afterNode);
+          afterNode.selectStart();
+        };
+
+        if ($isRangeSelection(selection)) {
+          const anchorNode = selection.anchor.getNode();
+          const anchorOffset = selection.anchor.offset;
+
+          if ($isTextNode(anchorNode)) {
+            const text = anchorNode.getTextContent();
+            const before = text.slice(0, anchorOffset);
+            const after = text.slice(anchorOffset);
+
+            anchorNode.setTextContent(before || '\u200B');
+            anchorNode.insertAfter(pill);
+            insertAfterPill(after);
+            return;
+          }
+
+          if ($isElementNode(anchorNode)) {
+            const child = anchorNode.getChildAtIndex(anchorOffset);
+            if (child) {
+              child.insertBefore(pill);
+            } else {
+              anchorNode.append(pill);
+            }
+            insertAfterPill();
+            return;
+          }
+        }
+
+        const root = $getRoot();
+        const firstChild = root.getFirstChild();
+        const paragraph = $isElementNode(firstChild) ? firstChild : $createParagraphNode();
+        if (paragraph !== firstChild) {
+          root.append(paragraph);
+        }
+        paragraph.append(pill);
+        insertAfterPill();
+      });
+    },
+    [editor]
+  );
+
   // ─── Create embed sibling helper ─────────────────────────────
 
   const insertEmbedSibling = useCallback(
@@ -565,6 +629,12 @@ export function TriggerPlugin({
         return;
       }
 
+      if (commandId === 'date-range') {
+        handleClose();
+        setDateRangePickerOpen(true);
+        return;
+      }
+
       const pluginCommand = getSlashCommand(commandId);
       if (pluginCommand) {
         pluginCommand.execute({
@@ -611,16 +681,27 @@ export function TriggerPlugin({
   if (!popup) return null;
 
   return (
-    <TriggerPopup
-      type={popup.type}
-      position={popup.position}
-      onSelectNode={popup.type !== 'slash' ? handleSelectNode : undefined}
-      onSelectCommand={popup.type === 'slash' ? handleSelectCommand : undefined}
-      onClose={handleClose}
-      onDeletePlaceholder={handleDeletePlaceholder}
-      hiddenSlashCommandIds={hiddenSlashCommandIds}
-      contextBlockServerId={blockServerIdRef.current}
-    />
+    <>
+      <TriggerPopup
+        type={popup.type}
+        position={popup.position}
+        onSelectNode={popup.type !== 'slash' ? handleSelectNode : undefined}
+        onSelectCommand={popup.type === 'slash' ? handleSelectCommand : undefined}
+        onClose={handleClose}
+        onDeletePlaceholder={handleDeletePlaceholder}
+        hiddenSlashCommandIds={hiddenSlashCommandIds}
+        contextBlockServerId={blockServerIdRef.current}
+      />
+      {dateRangePickerOpen && (
+        <DateRangePicker
+          onChange={(value) => {
+            if (value) insertDateRange(value);
+            setDateRangePickerOpen(false);
+          }}
+          onClose={() => setDateRangePickerOpen(false)}
+        />
+      )}
+    </>
   );
 }
 

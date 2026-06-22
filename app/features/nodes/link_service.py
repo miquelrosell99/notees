@@ -192,6 +192,46 @@ def _parse_embeds_from_ast(content: str) -> list[tuple[str, int, str | None]] | 
     return embeds
 
 
+def _parse_date_ranges_from_ast(content: str) -> list[tuple[str, str, int]] | None:
+    """Try to parse content as AST JSON and extract date_range nodes.
+
+    Returns None if content is not valid AST JSON, otherwise returns
+    list of (start_uuid, end_uuid, position) tuples.
+    """
+    try:
+        ast = json.loads(content)
+    except (json.JSONDecodeError, TypeError):
+        return None
+
+    if not isinstance(ast, list):
+        return None
+
+    if ast and (not isinstance(ast[0], dict) or "type" not in ast[0]):
+        return None
+
+    ranges: list[tuple[str, str, int]] = []
+    position = 0
+
+    def walk(nodes: Any) -> None:
+        nonlocal position
+        if not isinstance(nodes, list):
+            return
+        for node in nodes:
+            if not isinstance(node, dict):
+                continue
+            if node.get("type") == "date_range":
+                start_uuid = str(node.get("start_uuid", ""))
+                end_uuid = str(node.get("end_uuid", ""))
+                if start_uuid and end_uuid:
+                    ranges.append((start_uuid, end_uuid, position))
+                    position += 1
+            if "children" in node:
+                walk(node["children"])
+
+    walk(ast)
+    return ranges
+
+
 def sanitize_content(raw_content: str) -> str:
     """Strip editor artifacts and normalize to canonical format.
 
@@ -434,6 +474,39 @@ class LinkParsingService:
             )
             created_embed = await self._link_repo.create(embed_link)
             created_links.append(created_embed)
+
+        # Parse and persist inline date_range endpoints as node_link rows.
+        # This makes the source appear in backlinks for both endpoint journal pages.
+        parsed_ranges = _parse_date_ranges_from_ast(content) or []
+        range_uuids = {uu for start, end, _ in parsed_ranges for uu in (start, end)}
+        range_uuid_to_node: dict[str, Node] = {}
+        if range_uuids:
+            resolved_range_nodes = await self._node_repo.get_by_uuids(list(range_uuids))
+            range_uuid_to_node = {n.uuid: n for n in resolved_range_nodes if n.uuid}
+
+        seen_range_target_ids: set[int] = set()
+        for start_uuid, end_uuid, position in parsed_ranges:
+            for uuid in (start_uuid, end_uuid):
+                target_node = range_uuid_to_node.get(uuid)
+                if not target_node:
+                    continue
+                target_id = target_node.id
+                if target_id in seen_range_target_ids:
+                    continue
+                seen_range_target_ids.add(target_id)
+
+                range_link = NodeLink(
+                    source_id=node_id,
+                    target_id=target_id,
+                    position=position,
+                    name=None,
+                )
+                created_range_link = await self._link_repo.create(range_link)
+                created_links.append(created_range_link)
+
+                # Log activity for NEW page links only
+                if target_id not in existing_target_ids and target_node.is_page:
+                    await self._log_link_activity(node_id, target_id, source_page_id, target_node)
 
         return created_links
 

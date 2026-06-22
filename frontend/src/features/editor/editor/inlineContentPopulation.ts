@@ -18,6 +18,10 @@ import {
   $isInlineLinkNode,
 } from './nodes/InlineLinkNode';
 import {
+  $createInlineDateRangeNode,
+  $isInlineDateRangeNode,
+} from './nodes/InlineDateRangeNode';
+import {
   $createMathNode,
   $isMathNode,
 } from './nodes/MathNode';
@@ -63,7 +67,7 @@ export function populateInlineContent(parent: ElementNode, contentAST: ContentAS
   // Ensure trailing cursor node after pill / line break
   const children = parent.getChildren();
   const lastChild = children[children.length - 1];
-  if (lastChild && ($isInlineLinkNode(lastChild) || $isMathNode(lastChild) || $isLineBreakNode(lastChild))) {
+  if (lastChild && ($isInlineLinkNode(lastChild) || $isInlineDateRangeNode(lastChild) || $isMathNode(lastChild) || $isLineBreakNode(lastChild))) {
     parent.append($createTextNode('\u200B'));
   }
 }
@@ -108,6 +112,16 @@ export function extractInlineContent(parent: ElementNode): ContentAST {
         };
         inlines.push(nodeLink);
       }
+    } else if ($isInlineDateRangeNode(child)) {
+      inlines.push({
+        type: 'date_range',
+        start: child.getStart(),
+        end: child.getEnd(),
+        granularity: child.getGranularity(),
+        start_uuid: child.getStartUuid(),
+        end_uuid: child.getEndUuid(),
+        ...(child.getLabel() ? { label: child.getLabel() } : {}),
+      });
     } else if ($isMathNode(child)) {
       inlines.push({
         type: 'math',
@@ -208,10 +222,27 @@ function appendInlineNode(parent: ElementNode, inline: ASTInlineNode, format: nu
       parent.append(pill);
       break;
     }
+    case 'date_range': {
+      const children = parent.getChildren();
+      const lastChild = children[children.length - 1];
+      if (children.length === 0 || $isInlineLinkNode(lastChild) || $isInlineDateRangeNode(lastChild) || $isMathNode(lastChild)) {
+        parent.append($createTextNode('\u200B'));
+      }
+      const rangeNode = $createInlineDateRangeNode(
+        inline.start,
+        inline.end,
+        inline.granularity,
+        inline.start_uuid,
+        inline.end_uuid,
+        inline.label ?? undefined,
+      );
+      parent.append(rangeNode);
+      break;
+    }
     case 'math': {
       const children = parent.getChildren();
       const lastChild = children[children.length - 1];
-      if (children.length === 0 || $isInlineLinkNode(lastChild) || $isMathNode(lastChild)) {
+      if (children.length === 0 || $isInlineLinkNode(lastChild) || $isInlineDateRangeNode(lastChild) || $isMathNode(lastChild)) {
         parent.append($createTextNode('\u200B'));
       }
       const mathNode = $createMathNode(inline.expression, inline.displayMode ?? false);

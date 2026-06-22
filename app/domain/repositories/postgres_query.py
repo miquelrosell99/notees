@@ -190,6 +190,7 @@ class PostgresQueryRepository(BasePostgresRepository, QueryRepository):
             "boolean": PropertyType.CHECKBOX,
             "node": PropertyType.NODE,
             "date": PropertyType.DATE,
+            "date_range": PropertyType.DATE_RANGE,
             "selection": PropertyType.SELECTION,
         }
 

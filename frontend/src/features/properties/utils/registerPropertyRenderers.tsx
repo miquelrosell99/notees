@@ -14,6 +14,7 @@ import {
   NodePropertyValue,
   SelectionPropertyValue,
   DatePropertyValueRenderer,
+  DateRangePropertyValueRenderer,
   UrlPropertyValueRenderer,
   EmailPropertyValueRenderer,
   // Logic
@@ -41,6 +42,10 @@ import {
   dateFormatValue,
   dateGetGroupInfo,
   dateCompareValues,
+  dateRangeGetDefaultValue,
+  dateRangeFormatValue,
+  dateRangeGetGroupInfo,
+  dateRangeCompareValues,
   urlGetDefaultValue,
   urlFormatValue,
   urlGetGroupInfo,
@@ -151,6 +156,19 @@ registerPropertyValueRenderer({
   formatValue: dateFormatValue,
   getGroupInfo: dateGetGroupInfo,
   compareValues: dateCompareValues,
+});
+
+// ==================== Date Range ====================
+
+registerPropertyValueRenderer({
+  type: 'date_range',
+  label: 'Date Range',
+  icon: 'calendar-range',
+  component: DateRangePropertyValueRenderer,
+  getDefaultValue: dateRangeGetDefaultValue,
+  formatValue: dateRangeFormatValue,
+  getGroupInfo: dateRangeGetGroupInfo,
+  compareValues: dateRangeCompareValues,
 });
 
 // ==================== URL ====================

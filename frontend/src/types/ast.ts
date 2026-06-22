@@ -70,6 +70,17 @@ export interface ASTBrokenLink {
   readonly label?: string | null;
 }
 
+/** Inline date range pill. */
+export interface ASTDateRange {
+  readonly type: 'date_range';
+  readonly start: string;          // ISO date (YYYY-MM-DD)
+  readonly end: string;
+  readonly granularity: 'day' | 'month' | 'year';
+  readonly start_uuid: string;
+  readonly end_uuid: string;
+  readonly label?: string | null;
+}
+
 // ─── Mark (formatting) nodes ───────────────────────────────────────
 
 export interface ASTStrong {
@@ -170,6 +181,7 @@ export type ASTInlineNode =
   | ASTMath
   | ASTNodeLink
   | ASTBrokenLink
+  | ASTDateRange
   | ASTStrong
   | ASTEm
   | ASTStrikethrough
@@ -212,6 +224,6 @@ export type ASTDocument = ASTBlockNode[];
 // ─── Helpers ───────────────────────────────────────────────────────
 
 /** Type guard: is the node a leaf (no children array)? */
-export function isLeafNode(node: ASTInlineNode): node is ASTText | ASTHardBreak | ASTCode | ASTMath | ASTNodeLink | ASTBrokenLink {
-  return node.type === 'text' || node.type === 'hard_break' || node.type === 'code' || node.type === 'math' || node.type === 'node_link' || node.type === 'broken_link';
+export function isLeafNode(node: ASTInlineNode): node is ASTText | ASTHardBreak | ASTCode | ASTMath | ASTNodeLink | ASTBrokenLink | ASTDateRange {
+  return node.type === 'text' || node.type === 'hard_break' || node.type === 'code' || node.type === 'math' || node.type === 'node_link' || node.type === 'broken_link' || node.type === 'date_range';
 }

@@ -23,6 +23,7 @@ import type {
   ASTMath,
   ASTNodeLink,
   ASTBrokenLink,
+  ASTDateRange,
   ASTStrong,
   ASTEm,
   ASTStrikethrough,
@@ -79,6 +80,25 @@ export function nodeLink(linkId: string, refType: 'node' | 'class' = 'node', lab
 
 export function brokenLink(linkId: string, label?: string | null): ASTBrokenLink {
   return { type: 'broken_link', link_id: linkId, label: label ?? undefined };
+}
+
+export function dateRange(
+  start: string,
+  end: string,
+  granularity: 'day' | 'month' | 'year',
+  startUuid: string,
+  endUuid: string,
+  label?: string | null,
+): ASTDateRange {
+  return {
+    type: 'date_range',
+    start,
+    end,
+    granularity,
+    start_uuid: startUuid,
+    end_uuid: endUuid,
+    label: label ?? undefined,
+  };
 }
 
 // ─── Link ID utilities ─────────────────────────────────────────────
