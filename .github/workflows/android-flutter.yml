@@ -45,10 +45,10 @@ jobs:
 
       - name: Compute SHA-256
         id: checksum
-        working-directory: mobile_flutter/build/app/outputs/flutter-apk
         run: |
-          sha256sum app-release.apk > app-release.apk.sha256
-          echo "sum=$(cut -d' ' -f1 app-release.apk.sha256)" >> "$GITHUB_OUTPUT"
+          cp mobile_flutter/build/app/outputs/flutter-apk/app-release.apk /tmp/notees-flutter.apk
+          sha256sum /tmp/notees-flutter.apk > /tmp/notees-flutter.apk.sha256
+          echo "sum=$(cut -d' ' -f1 /tmp/notees-flutter.apk.sha256)" >> "$GITHUB_OUTPUT"
 
       - name: Summary
         run: |
