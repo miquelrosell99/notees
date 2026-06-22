@@ -8,6 +8,7 @@
 import React, { useCallback } from 'react';
 import type { ASTInlineNode } from '@/types/ast';
 import { parseAST, parseLinkId } from '@/lib/astBuilder';
+import { formatDateRange } from '@/utils/dateRange';
 import { NodeRef } from '@/features/content/components/nodes/NodeRef';
 import { useNavigationStore } from '@/stores';
 import { useReferencedNode } from '@/features/content';
@@ -110,6 +111,16 @@ function renderInlineNodes(nodes: ASTInlineNode[]): React.ReactNode[] {
             className={node.displayMode ? 'math-wrapper math-wrapper--display' : 'math-wrapper'}
             dangerouslySetInnerHTML={{ __html: html }}
           />
+        );
+      }
+      case 'date_range': {
+        const label = node.label || formatDateRange(node);
+        return (
+          <InlineLinkWrapper key={i} nodeUuid={node.start_uuid}>
+            <span className="inline-date-range-pill" title={`${node.start} → ${node.end}`}>
+              {label}
+            </span>
+          </InlineLinkWrapper>
         );
       }
       default:

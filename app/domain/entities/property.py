@@ -10,7 +10,8 @@ New property system with separate tables for:
 - property_value_selection: Selection values
 
 Property types and storage:
-- Scalar types (stored in property_value_scalar): integer, float, boolean
+- Scalar types (stored in property_value_scalar): integer, float, boolean, date_range
+  - date_range: Closed date range with start/end ISO dates and granularity (JSON)
 - Relation types (stored in property_value_relation): node, text, image, date
   - text: Links to a node that acts as text content
   - image: Links to an asset node (always single value)
@@ -40,6 +41,7 @@ class PropertyType(StrEnum):
     BOOLEAN = "boolean"
     URL = "url"  # URL string with link rendering
     EMAIL = "email"  # Email string with mailto: rendering
+    DATE_RANGE = "date_range"  # Closed date range (start, end, granularity) stored as JSON
 
     # Relation types - stored in property_value_relation
     NODE = "node"  # Reference to other nodes
@@ -67,7 +69,7 @@ class PropertyScope(StrEnum):
 
 
 # Property types that use scalar storage
-SCALAR_TYPES = {PropertyType.INTEGER, PropertyType.FLOAT, PropertyType.BOOLEAN, PropertyType.URL, PropertyType.EMAIL}
+SCALAR_TYPES = {PropertyType.INTEGER, PropertyType.FLOAT, PropertyType.BOOLEAN, PropertyType.URL, PropertyType.EMAIL, PropertyType.DATE_RANGE}
 
 # Property types that use relation storage
 RELATION_TYPES = {PropertyType.NODE, PropertyType.TEXT, PropertyType.IMAGE, PropertyType.DATE}
