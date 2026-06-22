@@ -428,6 +428,32 @@ async def is_refresh_token_reused(token_id: int) -> bool:
     return replaced is not None
 
 
+async def is_refresh_token_within_grace(token_id: int) -> bool:
+    """Return True if a rotated refresh token is still within its reuse grace window.
+
+    This allows one extra reuse of the immediately previous refresh token within
+    a short time window, preventing multiple browser tabs from racing each other
+    into logout when the access token expires.
+    """
+    repo = await _get_user_repo()
+    status = await repo.get_refresh_token_grace_status(token_id)
+    if not status:
+        return False
+    if status.get("grace_period_used"):
+        return False
+    rotated_at = status.get("rotated_at")
+    if not rotated_at:
+        return False
+    grace = timedelta(seconds=settings.refresh_token_reuse_grace_seconds)
+    return datetime.now(UTC) - rotated_at.replace(tzinfo=UTC) <= grace
+
+
+async def consume_refresh_token_grace(token_id: int) -> None:
+    """Mark a refresh token's grace period as consumed."""
+    repo = await _get_user_repo()
+    await repo.mark_refresh_token_grace_used(token_id)
+
+
 async def rotate_refresh_token(old_token_id: int, new_token: str, remember_me: bool = False) -> dict:
     """Rotate a refresh token: revoke old, create new, link them.
 
