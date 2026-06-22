@@ -14,7 +14,7 @@ class ThemeProvider extends ChangeNotifier {
 
   static const List<Map<String, dynamic>> accentPresets = [
     {'name': 'White', 'color': '0xFFFFFFFF'},
-    {'name': 'Beige', 'color': '0xFFE8DCC4'},
+    {'name': 'Sage', 'color': '0xFF5B7D5B'},
     {'name': 'Dynamic', 'color': null},
   ];
 
@@ -25,7 +25,7 @@ class ThemeProvider extends ChangeNotifier {
 
   AppAccent get accent {
     final raw = _prefs.getString(_accentKey);
-    return AppAccent.values.byName(raw ?? AppAccent.functional.name);
+    return AppAccent.values.byName(raw ?? AppAccent.white.name);
   }
 
   bool get pureBlack => _prefs.getBool(_pureBlackKey) ?? false;

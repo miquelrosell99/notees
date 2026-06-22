@@ -125,11 +125,15 @@ ThemeData buildNoteesTheme({
       fillColor: baseScheme.surfaceContainerHighest,
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(16),
-        borderSide: BorderSide.none,
+        borderSide: BorderSide(
+          color: baseScheme.outline.withAlpha((0.2 * 255).round()),
+        ),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(16),
-        borderSide: BorderSide.none,
+        borderSide: BorderSide(
+          color: baseScheme.outline.withAlpha((0.2 * 255).round()),
+        ),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(16),
@@ -139,7 +143,7 @@ ThemeData buildNoteesTheme({
         borderRadius: BorderRadius.circular(16),
         borderSide: BorderSide(color: baseScheme.error),
       ),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      contentPadding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
     ),
     chipTheme: ChipThemeData(
       elevation: 0,
