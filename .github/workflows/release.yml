@@ -106,7 +106,7 @@ jobs:
         run: |
           TAG="${{ steps.ref.outputs.tag }}"
           ASSET="notees-android-${TAG}.apk"
-          cp notees.apk "$ASSET"
+          cp dist/notees.apk "$ASSET"
           sha256sum "$ASSET" > "${ASSET}.sha256"
           echo "name=$ASSET" >> "$GITHUB_OUTPUT"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
