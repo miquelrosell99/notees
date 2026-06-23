@@ -12,6 +12,7 @@ import {
   Navigate,
   useNavigate,
   useLocation,
+  useParams,
 } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -112,6 +113,22 @@ function syncUserSettingsFromBackend(settings: Record<string, unknown>) {
   ) {
     state.setHashtagPasteMode(settings.hashtag_paste_mode as HashtagPasteMode);
   }
+}
+
+function NodeRedirect() {
+  const { nodeId } = useParams<{ nodeId: string }>();
+  const navigate = useNavigate();
+  const openNode = useNavigationStore((s) => s.openNode);
+
+  useLayoutEffect(() => {
+    const id = parseInt(nodeId || '', 10);
+    if (Number.isFinite(id)) {
+      openNode(id);
+    }
+    navigate('/', { replace: true });
+  }, [nodeId, navigate, openNode]);
+
+  return null;
 }
 
 function OnboardingRoute() {
@@ -376,6 +393,7 @@ export function AppRoutes() {
           <Route element={<AuthenticatedShell />}>
             <Route path="/" element={<WorkspaceRedirect />} />
             <Route path="/workspaces" element={<Outlet />} />
+            <Route path="/node/:nodeId" element={<NodeRedirect />} />
             <Route path="/:workspaceId/*" element={<Layout />} />
           </Route>
         </Routes>

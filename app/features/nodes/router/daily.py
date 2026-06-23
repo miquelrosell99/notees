@@ -195,7 +195,9 @@ async def get_or_create_daily(
         existing = await service.get_node_by_uuid(uuid)
         if existing:
             class_ids = await _get_class_ids(service, existing.id) if existing.id else []
-            return _node_to_response(existing, classes=class_ids)
+            response = _node_to_response(existing, classes=class_ids)
+            await _resolve_display_names_for_responses(service, [existing], [response])
+            return response
 
         # 3. Create day page with month as parent
         day_data = NodeCreateData(
@@ -205,7 +207,9 @@ async def get_or_create_daily(
         )
         node = await service.create_raw_node(day_data, uuid=uuid)
         # Return with types (page and day)
-        return _node_to_response(node, classes=[page_type_id, day_type_id])
+        response = _node_to_response(node, classes=[page_type_id, day_type_id])
+        await _resolve_display_names_for_responses(service, [node], [response])
+        return response
     except HTTPException:
         raise
     except Exception as e:
