@@ -151,7 +151,7 @@ def _node_to_response(
         create_date=node.create_date,
         write_date=node.write_date,
         open_date=node.open_date,
-        display_name=node.display_name,
+        display_name=_name_text(node.name, max_len=None),
         tags=tags or [],
         classes=classes if classes is not None else node.class_ids,
         comment_count=comment_count,
@@ -448,8 +448,12 @@ def _node_snapshot(node) -> dict:
     }
 
 
-def _name_text(name: str | None, max_len: int = 60) -> str:
-    """Convert a node name (possibly AST JSON) to plain text for display in undo descriptions."""
+def _name_text(name: str | None, max_len: int | None = 60) -> str:
+    """Convert a node name (possibly AST JSON) to plain text for display.
+
+    Used for undo descriptions and as the default ``display_name`` fallback so
+    API responses never surface raw AST JSON to clients.
+    """
     if not name:
         return ""
     try:
@@ -458,11 +462,17 @@ def _name_text(name: str | None, max_len: int = 60) -> str:
         ast = parse_ast(name, ParseMode.JSON)
         if ast:
             text = stringify_ast(ast, StringifyOptions(mode=StringifyMode.TEXT_ONLY))
-            return text[:max_len] if text else ""
+            if not text:
+                return ""
+            if max_len is not None and len(text) > max_len:
+                return text[:max_len]
+            return text
     except (ValueError, TypeError, KeyError):
         # Not valid AST JSON or AST processing error — return raw name
         pass
-    return name[:max_len]
+    if max_len is not None and len(name) > max_len:
+        return name[:max_len]
+    return name
 
 
 async def _build_node_detail_response(
@@ -568,7 +578,7 @@ async def _build_node_detail_response(
                     sequence=target.sequence,
                     collapsed=target.collapsed,
                     active=target.active,
-                    display_name=display_names.get(uuid_str),
+                    display_name=display_names.get(uuid_str) or _name_text(target.name, max_len=None),
                     classes=list(target.class_ids or []),
                 )
             response.referenced_nodes = referenced_nodes
