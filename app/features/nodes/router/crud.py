@@ -741,9 +741,10 @@ async def get_page_content(
 
             # Extract context around the link
             context = source.name
-            if link.position > 0 and len(context) > 100:
-                start = max(0, link.position - 50)
-                end = min(len(context), link.position + 50)
+            position = link.link.position if link.link else 0
+            if position > 0 and len(context) > 100:
+                start = max(0, position - 50)
+                end = min(len(context), position + 50)
                 context = "..." + context[start:end] + "..."
 
             page_response.linked_references.append(
