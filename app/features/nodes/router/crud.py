@@ -777,7 +777,7 @@ async def get_page_content(
                 sequence=target.sequence,
                 collapsed=target.collapsed,
                 active=target.active,
-                display_name=None,
+                display_name=_name_text(target.name, max_len=None),
                 classes=list(target.class_ids or []),
             )
         page_response.referenced_nodes = referenced_nodes
