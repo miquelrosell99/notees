@@ -207,12 +207,12 @@ async def get_recent_pages(
     nodes = await service.get_recent_pages(limit)
     node_ids = [node.id for node in nodes if node.id is not None]
     alias_ids_map = await _get_related_ids_batch(service, node_ids, "aliases")
-    return {
-        "nodes": [
-            _node_to_response(node, aliases=alias_ids_map.get(node.id or 0, []))
-            for node in nodes
-        ]
-    }
+    responses = [
+        _node_to_response(node, aliases=alias_ids_map.get(node.id or 0, []))
+        for node in nodes
+    ]
+    await _resolve_display_names_for_responses(service, nodes, responses)
+    return {"nodes": responses}
 
 
 @router.get("/random", response_model=dict[str, list[NodeResponse]])
@@ -228,12 +228,12 @@ async def get_random_pages(
     nodes = await service.get_random_pages(limit)
     node_ids = [node.id for node in nodes if node.id is not None]
     alias_ids_map = await _get_related_ids_batch(service, node_ids, "aliases")
-    return {
-        "nodes": [
-            _node_to_response(node, aliases=alias_ids_map.get(node.id or 0, []))
-            for node in nodes
-        ]
-    }
+    responses = [
+        _node_to_response(node, aliases=alias_ids_map.get(node.id or 0, []))
+        for node in nodes
+    ]
+    await _resolve_display_names_for_responses(service, nodes, responses)
+    return {"nodes": responses}
 
 
 @router.get("/recently-created", response_model=dict[str, list[NodeResponse]])
@@ -246,12 +246,12 @@ async def get_recently_created_pages(
     nodes = await service.get_recently_created_pages(limit)
     node_ids = [node.id for node in nodes if node.id is not None]
     alias_ids_map = await _get_related_ids_batch(service, node_ids, "aliases")
-    return {
-        "nodes": [
-            _node_to_response(node, aliases=alias_ids_map.get(node.id or 0, []))
-            for node in nodes
-        ]
-    }
+    responses = [
+        _node_to_response(node, aliases=alias_ids_map.get(node.id or 0, []))
+        for node in nodes
+    ]
+    await _resolve_display_names_for_responses(service, nodes, responses)
+    return {"nodes": responses}
 
 
 @router.get("/suggestions", response_model=dict[str, list[dict[str, Any]]])
