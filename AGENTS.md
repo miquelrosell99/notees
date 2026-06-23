@@ -577,16 +577,14 @@ Do **not** use `compose.dev.yaml` in production: it only brings up infrastructur
 
 ### Local release verification
 
-Before pushing a tag, you can also build and test the release artifacts locally:
+Before pushing a tag, verify the web app Docker image locally:
 
 ```bash
 # Web app Docker image
 docker build -t notees:canary .
-
-# Android APK
-cd mobile
-./build-apk.sh
 ```
+
+**Android APK builds must run in GitHub Actions only.** Do not build the release APK locally. The Android workflow (`.github/workflows/android.yml`) builds and uploads the APK on every push or pull request that touches `mobile/**`, and the `release.yml` workflow attaches it to GitHub releases. See `mobile/AGENTS.md` for details.
 
 ---
 
