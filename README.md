@@ -38,6 +38,7 @@ The mobile app is a first-class native companion. It covers the workflows most u
 | Search with filters | ✅ | ✅ |
 | Favorites | ✅ | ✅ |
 | Recents | ✅ | ✅ |
+| List / card / table views | ✅ | ✅ |
 | Properties & types | ✅ | ❌ |
 | Queries / database views | ✅ | ❌ |
 | Whiteboard | ✅ | ❌ |
