@@ -23,6 +23,32 @@ This project was developed with the assistance of AI tools. AI was used througho
 - **Multi-Database** — Create separate knowledge bases for different projects or contexts.
 - **Export** — Export notes to Markdown, HTML, or PDF.
 
+## Web vs. Mobile App
+
+The mobile app is a first-class native companion. It covers the workflows most useful on phones, while the web app remains the full-featured desktop editing surface.
+
+| Feature | Web app | Mobile app |
+|---------|:-------:|:----------:|
+| Page editing | ✅ | ✅ (plain-text blocks) |
+| Block-based / outliner editing | ✅ | ❌ |
+| Rich inline formatting (bold, links, code) | ✅ | ❌ |
+| Bidirectional `[[links]]` | ✅ | ✅ (rendered as text, still parsed on save) |
+| Daily journal | ✅ | ✅ |
+| Task lists | ✅ | ✅ (dedicated Tasks tab) |
+| Search with filters | ✅ | ✅ |
+| Favorites | ✅ | ✅ |
+| Recents | ✅ | ✅ |
+| Properties & types | ✅ | ❌ |
+| Queries / database views | ✅ | ❌ |
+| Whiteboard | ✅ | ❌ |
+| Graph view | ✅ | ❌ |
+| Timeline / Gantt / Calendar views | ✅ | ❌ |
+| Export (Markdown, HTML, PDF) | ✅ | ❌ |
+| Offline-first | ✅ | ✅ (native UI + quick capture) |
+| Biometric app lock | ❌ | ✅ |
+| Multi-server management | ❌ | ✅ |
+| Native quick capture | ❌ | ✅ |
+
 ## Quick Start
 
 Notees is developed and deployed with **Docker Compose**. The development stack runs backend, frontend, PostgreSQL, and Redis in containers with hot-reload.
