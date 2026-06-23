@@ -39,6 +39,11 @@ from .helpers import (
 )
 from .links import router as links_router
 
+# Property value endpoints are mounted under the nodes router.
+# They live in the properties feature but their paths start with /{node_id}/properties,
+# so they must be included here to appear under /api/nodes/.
+from app.features.properties.router.values import router as property_values_router
+
 # Re-export models for external use
 from .models import (
     BacklinkResponse,
@@ -147,6 +152,9 @@ router.include_router(versions_router)
 # Registered before the generic CRUD router so that specific /{node_id}/...
 # routes take precedence over /{node_id}.
 router.include_router(links_router)
+
+# Property value endpoints (GET/POST /{node_id}/properties, /{node_id}/properties/{property_id}/scalar, etc.)
+router.include_router(property_values_router)
 
 # CRUD endpoints (POST "", POST /page, GET /recents, GET /archived, GET/PUT/DELETE /{node_id}, etc.)
 router.include_router(crud_router)
