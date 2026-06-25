@@ -179,6 +179,18 @@ class PostgresMentionRepository(BasePostgresRepository, MentionRepository):
                 return None
             return self._row_to_mention(row)
 
+    async def get_by_uuid(self, mention_uuid: str) -> NodeMention | None:
+        """Get a mention by public UUID."""
+        async with acquire_connection(self._pool) as conn:
+            row = await conn.fetchrow(
+                "SELECT * FROM node_mention WHERE uuid = $1 AND workspace_id = $2",
+                mention_uuid,
+                self._workspace_id,
+            )
+            if not row:
+                return None
+            return self._row_to_mention(row)
+
     async def set_ignored(self, mention_id: int, ignored: bool = True) -> NodeMention | None:
         """Mark a mention as ignored (or un-ignored)."""
         async with acquire_connection(self._pool) as conn:
