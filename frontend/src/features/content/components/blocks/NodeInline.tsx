@@ -20,8 +20,8 @@ export interface NodeInlineProps {
   icon?: string | null;
   /** Whether this is a page node */
   isPage?: boolean;
-  /** Node ID (for bullet) */
-  nodeId?: number;
+  /** Node ID or UUID (for bullet / navigation) */
+  nodeId?: string | number;
   /** Node UUID (for drag-and-drop) */
   nodeUuid?: string;
   /** Show a bullet/icon on the left */

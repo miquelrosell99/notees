@@ -43,9 +43,9 @@ export interface GraphRendererRef {
   /** Live-update SGE config without recreating the worker. */
   setConfig: (cfg: SGEPhysicsConfig) => void;
   /** Pin a node in place so physics ignores it. */
-  pinNode: (id: number) => void;
+  pinNode: (id: string) => void;
   /** Unpin a node so physics can move it again. */
-  unpinNode: (id: number) => void;
+  unpinNode: (id: string) => void;
 }
 
 // ─── Props ────────────────────────────────────────────────────────────────────
@@ -66,9 +66,9 @@ export interface GraphRendererProps {
   /** CSS class applied to the root element. */
   className?: string;
   /** Called when user clicks (not drags) a node. */
-  onNodeClick?: (nodeId: number) => void;
+  onNodeClick?: (nodeId: string) => void;
   /** Called when user double-clicks a node. */
-  onNodeDblClick?: (nodeId: number) => void;
+  onNodeDblClick?: (nodeId: string) => void;
   /** Called when user clicks on empty canvas space (no node hit). */
   onEmptyClick?: () => void;
   /** Enable curved edges. Default: true */
@@ -80,7 +80,7 @@ export interface GraphRendererProps {
   /** Enable link-type LOD based on zoom. Default: true */
   enableLinkLOD?: boolean;
   /** Node IDs that are on a highlighted path. */
-  pathNodeIds?: Set<number>;
+  pathNodeIds?: Set<string>;
   /** Edge keys ("min-max") that are on a highlighted path. */
   pathEdgeKeys?: Set<string>;
 }

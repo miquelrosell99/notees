@@ -19,7 +19,7 @@ export function ShareInboxView() {
       useNavigationStore.setState({ isSwitchingWorkspace: true });
       try {
         await switchWorkspace(item.workspace.uuid);
-        openNode(item.node_id);
+        openNode(item.node_uuid);
       } finally {
         useNavigationStore.setState({ isSwitchingWorkspace: false });
       }
@@ -49,13 +49,13 @@ export function ShareInboxView() {
       ) : (
         <div className="share-inbox-view__list">
           {items.map((item) => (
-            <div key={item.share_id} className="share-inbox-view__item">
+            <div key={item.share_uuid} className="share-inbox-view__item">
               <div className="share-inbox-view__item-header">
                 <NodeInline
                   name={item.node_name}
                   icon={item.node_icon}
                   isPage={item.is_page}
-                  nodeId={item.node_id}
+                  nodeId={item.node_uuid}
                   showBullet={false}
                   className="share-inbox-view__item-name"
                 />

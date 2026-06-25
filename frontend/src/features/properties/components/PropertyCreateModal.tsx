@@ -159,13 +159,13 @@ export function PropertyCreateModal({
   
   // Class selection handlers
   const handleSelectClass = useCallback((node: Node) => {
-    if (!allowedClasses.some(c => c.id === node.id)) {
+    if (!allowedClasses.some(c => c.uuid === node.uuid)) {
       setAllowedClasses(prev => [...prev, node]);
     }
   }, [allowedClasses]);
-  
-  const handleRemoveClass = useCallback((id: number) => {
-    setAllowedClasses(prev => prev.filter(c => c.id !== id));
+
+  const handleRemoveClass = useCallback((uuid: string) => {
+    setAllowedClasses(prev => prev.filter(c => c.uuid !== uuid));
   }, []);
   
   // Create property

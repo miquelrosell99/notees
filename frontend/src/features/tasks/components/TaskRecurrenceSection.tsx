@@ -17,7 +17,7 @@ import { TaskRecurrencePicker } from './TaskRecurrencePicker';
 import './TaskRecurrenceSection.css';
 
 interface TaskRecurrenceSectionProps {
-  nodeId: number;
+  nodeId: string;
   readOnly?: boolean;
 }
 
