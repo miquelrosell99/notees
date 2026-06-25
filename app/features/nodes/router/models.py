@@ -64,6 +64,7 @@ class NodeResponse(BaseModel):
     classes: list[int] = []  # Class node IDs (categorization with @)
     classes_uuid: list[str] = []  # Class node UUIDs
     properties: dict[str, Any] = {}
+    properties_uuid: dict[str, Any] = {}  # property_uuid -> value (preferred public identifier)
     # Linked references - classes_path (inherited classes from ancestors)
     classes_path: list[int] = []  # Inherited class node IDs from ancestors' classes properties
     classes_path_uuid: list[str] = []  # Inherited class node UUIDs
@@ -578,7 +579,8 @@ class WorkspaceNodeResponse(BaseModel):
     is_daily: bool = False
     is_monthly: bool = False
     is_yearly: bool = False
-    class_ids: list[int] = []  # Class node integer IDs
+    class_ids: list[int] = []  # Class node integer IDs (deprecated, use class_uuids)
+    class_uuids: list[str] = []  # Class node UUIDs (preferred public identifier)
     block_count: int = 0
     aliased_id: int | None = None
     aliased_uuid: str | None = None

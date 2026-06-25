@@ -248,6 +248,13 @@ def _enrich_node_response_uuids(
     response.aliases_uuid = [uuid_map[a] for a in response.aliases if a in uuid_map]
     response.extends_uuid = [uuid_map[e] for e in response.extends if e in uuid_map]
 
+    if response.properties and property_uuid_map is not None:
+        response.properties_uuid = {
+            property_uuid_map[int(prop_id)]: value
+            for prop_id, value in response.properties.items()
+            if prop_id.isdigit() and int(prop_id) in property_uuid_map
+        }
+
     if response.children:
         for child in response.children:
             _enrich_node_response_uuids(child, uuid_map, property_uuid_map)
