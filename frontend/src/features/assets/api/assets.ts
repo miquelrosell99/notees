@@ -19,7 +19,8 @@ export type AssetCategory = 'image' | 'audio' | 'file';
  */
 export interface Asset {
   uuid: string;
-  node_id: number;
+  node_id: number; // deprecated: use node_uuid
+  node_uuid: string;
   filename: string;
   content_type: string;
   category: AssetCategory;
@@ -65,20 +66,24 @@ export const SUPPORTED_CONTENT_TYPES = {
  */
 export async function uploadAsset(
   file: File,
-  parentId?: number,
-  existingNodeId?: number,
+  parentUuid?: string,
+  existingNodeUuid?: string,
   content?: string,
 ): Promise<Asset> {
   const formData = new FormData();
   formData.append('file', file);
-  if (parentId !== undefined) formData.append('parent_id', String(parentId));
-  if (existingNodeId !== undefined) formData.append('existing_node_id', String(existingNodeId));
+  if (parentUuid !== undefined) formData.append('parent_uuid', parentUuid);
+  if (existingNodeUuid !== undefined) formData.append('existing_node_uuid', existingNodeUuid);
   if (content !== undefined) formData.append('content', content);
-  
-  log.info(`Uploading asset: ${file.name} (${file.type}, ${file.size} bytes)${existingNodeId ? ` (converting node ${existingNodeId})` : ''}`);
-  
+
+  log.info(
+    `Uploading asset: ${file.name} (${file.type}, ${file.size} bytes)${
+      existingNodeUuid ? ` (converting node ${existingNodeUuid})` : ''
+    }`
+  );
+
   const response = await api.post<Asset>('/assets/upload', formData);
-  
+
   log.info(`Asset uploaded: ${response.data.uuid}`);
   return response.data;
 }

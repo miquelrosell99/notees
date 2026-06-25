@@ -6,25 +6,16 @@
 import api from '@/api/client';
 import { nodeQueryWorkerClient } from '@/lib/nodeQueryWorkerClient';
 import type { Node } from '@/types/api';
-import type { 
-  NodeView, 
-  NodeViewCreate, 
-  NodeViewUpdate, 
+import type {
+  NodeView,
+  NodeViewCreate,
+  NodeViewUpdate,
   QueryAST,
   QueryExecuteRequest,
   QueryExecuteResponse,
 } from '@/types/nodeView';
-import { resolveNodeUuid, resolveNodeViewUuid } from '@/utils/resolveNodeUuid';
 
 const BASE = '/nodes/views';
-
-function requireViewUuid(viewId: string | number): string {
-  const uuid = resolveNodeViewUuid(viewId);
-  if (!uuid) {
-    throw new Error(`Unable to resolve UUID for view id ${viewId}`);
-  }
-  return uuid;
-}
 
 // ==================== Response Types ====================
 
@@ -49,7 +40,7 @@ interface QueryCountResponse {
  * List NodeViews for a node
  */
 export async function listNodeViews(
-  nodeId: string | number,
+  nodeUuid: string,
   options?: {
     view_type?: string;
     include_query_ast?: boolean;
@@ -57,7 +48,7 @@ export async function listNodeViews(
 ): Promise<NodeView[]> {
   const response = await api.get<NodeViewsResponse>(BASE, {
     params: {
-      node_uuid: resolveNodeUuid(nodeId),
+      node_uuid: nodeUuid,
       ...options,
     },
   });
@@ -65,10 +56,10 @@ export async function listNodeViews(
 }
 
 /**
- * Get a NodeView by ID
+ * Get a NodeView by UUID
  */
-export async function getNodeView(viewId: string | number): Promise<NodeView> {
-  const response = await api.get<NodeView>(`${BASE}/${requireViewUuid(viewId)}`);
+export async function getNodeView(viewUuid: string): Promise<NodeView> {
+  const response = await api.get<NodeView>(`${BASE}/${viewUuid}`);
   return response.data;
 }
 
@@ -76,11 +67,11 @@ export async function getNodeView(viewId: string | number): Promise<NodeView> {
  * Get the default NodeView for a view_type
  */
 export async function getDefaultNodeView(
-  nodeId: string | number,
+  nodeUuid: string,
   viewType: string
 ): Promise<NodeView | null> {
   const response = await api.get<NodeView | null>(
-    `${BASE}/default/${resolveNodeUuid(nodeId)}/${viewType}`
+    `${BASE}/default/${nodeUuid}/${viewType}`
   );
   return response.data;
 }
@@ -97,13 +88,10 @@ export async function createNodeView(data: NodeViewCreate): Promise<NodeView> {
  * Update a NodeView
  */
 export async function updateNodeView(
-  viewId: string | number,
+  viewUuid: string,
   data: NodeViewUpdate
 ): Promise<NodeView> {
-  const response = await api.put<NodeView>(
-    `${BASE}/${requireViewUuid(viewId)}`,
-    data
-  );
+  const response = await api.put<NodeView>(`${BASE}/${viewUuid}`, data);
   return response.data;
 }
 
@@ -111,34 +99,33 @@ export async function updateNodeView(
  * Update the query AST for a NodeView
  */
 export async function updateQueryAST(
-  viewId: string | number,
+  viewUuid: string,
   queryAST: Record<string, any>
 ): Promise<NodeView> {
-  const response = await api.put<NodeView>(
-    `${BASE}/${requireViewUuid(viewId)}/query-ast`,
-    { query_ast: queryAST }
-  );
+  const response = await api.put<NodeView>(`${BASE}/${viewUuid}/query-ast`, {
+    query_ast: queryAST,
+  });
   return response.data;
 }
 
 /**
  * Delete a NodeView
  */
-export async function deleteNodeView(viewId: string | number): Promise<void> {
-  await api.delete(`${BASE}/${requireViewUuid(viewId)}`);
+export async function deleteNodeView(viewUuid: string): Promise<void> {
+  await api.delete(`${BASE}/${viewUuid}`);
 }
 
 /**
  * Reorder NodeViews within a view_type
  */
 export async function reorderNodeViews(
-  nodeId: string | number,
+  nodeUuid: string,
   viewType: string,
-  viewIds: (string | number)[]
+  viewUuids: string[]
 ): Promise<NodeView[]> {
   const response = await api.post<NodeViewsResponse>(
-    `${BASE}/reorder/${resolveNodeUuid(nodeId)}/${viewType}`,
-    { view_uuids: viewIds.map(requireViewUuid) }
+    `${BASE}/reorder/${nodeUuid}/${viewType}`,
+    { view_uuids: viewUuids }
   );
   return response.data.views;
 }
@@ -150,7 +137,7 @@ export async function reorderNodeViews(
  * Returns full response with nodes, optional total_count, and metrics.
  */
 export async function executeNodeViewQuery(
-  viewId: string | number,
+  viewUuid: string,
   options?: {
     runtime_params?: Record<string, unknown>;
     limit?: number;
@@ -165,8 +152,8 @@ export async function executeNodeViewQuery(
   }
 ): Promise<QueryExecuteResponse> {
   const data = await nodeQueryWorkerClient.post<QueryExecuteAPIResponse>(
-    `/api/nodes/views/${requireViewUuid(viewId)}/execute`,
-    options,
+    `/api/nodes/views/${viewUuid}/execute`,
+    options
   );
   return {
     nodes: data.nodes,
@@ -183,7 +170,7 @@ export async function executeNodeViewQuery(
 export async function executeQuery(request: QueryExecuteRequest): Promise<QueryExecuteResponse> {
   const data = await nodeQueryWorkerClient.post<QueryExecuteAPIResponse>(
     `/api/nodes/views/execute`,
-    request,
+    request
   );
   return {
     nodes: data.nodes,
@@ -196,9 +183,7 @@ export async function executeQuery(request: QueryExecuteRequest): Promise<QueryE
 /**
  * Count results for a query without fetching all data
  */
-export async function countQueryResults(
-  request: QueryExecuteRequest
-): Promise<number> {
+export async function countQueryResults(request: QueryExecuteRequest): Promise<number> {
   const response = await api.post<QueryCountResponse>(`${BASE}/count`, request);
   return response.data.count;
 }
@@ -209,11 +194,11 @@ export async function countQueryResults(
  * Ensure a node has default views, creating them if needed via the backend
  */
 export async function ensureDefaultViews(
-  nodeId: string | number,
+  nodeUuid: string,
   viewTypes?: string[]
 ): Promise<NodeView[]> {
   const response = await api.post<{ views: NodeView[] }>(
-    `${BASE}/ensure-defaults/${resolveNodeUuid(nodeId)}`,
+    `${BASE}/ensure-defaults/${nodeUuid}`,
     viewTypes ?? null
   );
   return response.data.views;
@@ -223,9 +208,9 @@ export async function ensureDefaultViews(
  * Reset all views for a node to defaults
  * Deletes all existing views and creates new default views
  */
-export async function resetNodeViews(nodeId: string | number): Promise<NodeView[]> {
+export async function resetNodeViews(nodeUuid: string): Promise<NodeView[]> {
   const response = await api.post<{ views: NodeView[] }>(
-    `${BASE}/reset/${resolveNodeUuid(nodeId)}`
+    `${BASE}/reset/${nodeUuid}`
   );
   return response.data.views;
 }

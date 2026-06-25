@@ -71,8 +71,10 @@ export interface ImporterInfo {
 }
 
 export interface ImporterRunResult {
-  created_node_ids: number[];
-  updated_node_ids: number[];
+  created_node_ids: number[]; // deprecated: use created_node_uuids
+  created_node_uuids: string[];
+  updated_node_ids: number[]; // deprecated: use updated_node_uuids
+  updated_node_uuids: string[];
   skipped_count: number;
   error_count: number;
   messages: string[];
