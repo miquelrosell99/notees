@@ -110,6 +110,39 @@ async def resolve_property_uuid(
     return prop.id
 
 
+async def resolve_scalar_value_uuid(
+    value_uuid: str = Path(..., description="Public scalar value UUID"),
+    repo: PropertyRepository = Depends(get_property_repository),
+) -> int:
+    """Resolve a scalar property value UUID to its internal numeric ID."""
+    value = await repo.get_scalar_value_by_uuid(value_uuid)
+    if value is None or value.id is None:
+        raise HTTPException(status_code=404, detail="Scalar value not found")
+    return value.id
+
+
+async def resolve_relation_value_uuid(
+    value_uuid: str = Path(..., description="Public relation value UUID"),
+    repo: PropertyRepository = Depends(get_property_repository),
+) -> int:
+    """Resolve a relation property value UUID to its internal numeric ID."""
+    value = await repo.get_relation_value_by_uuid(value_uuid)
+    if value is None or value.id is None:
+        raise HTTPException(status_code=404, detail="Relation value not found")
+    return value.id
+
+
+async def resolve_selection_value_uuid(
+    value_uuid: str = Path(..., description="Public selection value UUID"),
+    repo: PropertyRepository = Depends(get_property_repository),
+) -> int:
+    """Resolve a selection property value UUID to its internal numeric ID."""
+    value = await repo.get_selection_value_by_uuid(value_uuid)
+    if value is None or value.id is None:
+        raise HTTPException(status_code=404, detail="Selection value not found")
+    return value.id
+
+
 async def resolve_view_uuid(
     view_uuid: str = Path(..., description="Public node view UUID"),
     repo: NodeViewRepository = Depends(get_node_view_repository),

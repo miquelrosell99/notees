@@ -140,6 +140,11 @@ class PropertyRepository(ABC):
         pass
 
     @abstractmethod
+    async def get_scalar_value_by_uuid(self, value_uuid: str) -> PropertyValueScalar | None:
+        """Get a specific scalar value by its public UUID."""
+        pass
+
+    @abstractmethod
     async def remove_scalar_value(self, value_id: int) -> bool:
         """Remove a specific scalar value."""
         pass
@@ -159,6 +164,11 @@ class PropertyRepository(ABC):
     @abstractmethod
     async def get_relation_values(self, node_id: int, property_id: int) -> list[PropertyValueRelation]:
         """Get all relation values for a property on a node."""
+        pass
+
+    @abstractmethod
+    async def get_relation_value_by_uuid(self, value_uuid: str) -> PropertyValueRelation | None:
+        """Get a specific relation value by its public UUID."""
         pass
 
     @abstractmethod
@@ -248,6 +258,11 @@ class PropertyRepository(ABC):
     @abstractmethod
     async def get_selection_values(self, node_id: int, property_id: int) -> list[PropertyValueSelection]:
         """Get all selection values for a property on a node."""
+        pass
+
+    @abstractmethod
+    async def get_selection_value_by_uuid(self, value_uuid: str) -> PropertyValueSelection | None:
+        """Get a specific selection value by its public UUID."""
         pass
 
     @abstractmethod
