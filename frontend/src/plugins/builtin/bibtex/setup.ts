@@ -19,15 +19,4 @@ export function setup(context: PluginContext) {
       // TODO: open file picker and POST to plugin importer endpoint.
     },
   });
-
-  context.registerExportFormat({
-    format: 'bibtex',
-    label: 'BibTeX',
-    extension: 'bib',
-    mimeType: 'application/x-bibtex',
-    supportsPreview: false,
-    hasHtmlOptions: false,
-    supportsCssOverrides: false,
-    icon: 'file-document-outline',
-  });
 }
