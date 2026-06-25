@@ -11,6 +11,9 @@ from app.features.nodes.port import NodeRepository
 from app.features.nodes.router.dependencies import (
     resolve_node_uuid,
     resolve_node_uuids,
+    resolve_relation_value_uuid,
+    resolve_scalar_value_uuid,
+    resolve_selection_value_uuid,
     resolve_target_uuid,
 )
 from app.features.nodes.router.helpers import (
@@ -423,9 +426,9 @@ async def get_scalar_values(
     }
 
 
-@router.delete("/{node_uuid}/properties/{property_uuid}/scalar/{value_id}")
+@router.delete("/{node_uuid}/properties/{property_uuid}/scalar/{value_uuid}")
 async def remove_scalar_value(
-    value_id: int,
+    value_id: int = Depends(resolve_scalar_value_uuid),
     node_id: int = Depends(resolve_node_uuid),
     property_id: int = Depends(resolve_property_uuid),
     service: PropertyService = Depends(get_property_service),
@@ -514,9 +517,9 @@ async def get_relation_values(
     }
 
 
-@router.delete("/{node_uuid}/properties/{property_uuid}/relation/{value_id}")
+@router.delete("/{node_uuid}/properties/{property_uuid}/relation/{value_uuid}")
 async def remove_relation_value(
-    value_id: int,
+    value_id: int = Depends(resolve_relation_value_uuid),
     node_id: int = Depends(resolve_node_uuid),
     property_id: int = Depends(resolve_property_uuid),
     service: PropertyService = Depends(get_property_service),
@@ -613,9 +616,9 @@ async def get_selection_values(
     }
 
 
-@router.delete("/{node_uuid}/properties/{property_uuid}/selection/{value_id}")
+@router.delete("/{node_uuid}/properties/{property_uuid}/selection/{value_uuid}")
 async def remove_selection_value(
-    value_id: int,
+    value_id: int = Depends(resolve_selection_value_uuid),
     node_id: int = Depends(resolve_node_uuid),
     property_id: int = Depends(resolve_property_uuid),
     service: PropertyService = Depends(get_property_service),
