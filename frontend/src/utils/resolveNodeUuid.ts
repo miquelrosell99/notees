@@ -76,13 +76,9 @@ export function resolveNodeViewUuid(viewId: string | number): string | null {
 
 function findNodeUuidInCache(nodeId: number): string | null {
   const queryCache = queryClient.getQueryCache();
-  const candidates = [
-    ...queryCache.findAll({ queryKey: ['nodes', 'detail'] }),
-    ...queryCache.findAll({ queryKey: ['nodes', 'page-content'] }),
-    ...queryCache.findAll({ queryKey: ['nodes', 'uuid'] }),
-    ...queryCache.findAll({ queryKey: ['nodes', 'graph-nodes'] }),
-  ];
-  for (const query of candidates) {
+  // Scan every cached query. Numeric IDs can appear in list, search, daily,
+  // favorites, recents, and many other queries; hard-coding keys is fragile.
+  for (const query of queryCache.findAll()) {
     const uuid = findUuidInData(query.state.data, nodeId);
     if (uuid) return uuid;
   }
