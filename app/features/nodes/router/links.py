@@ -1,6 +1,6 @@
 """Backlinks, linked references, tag links, alias, and property endpoints."""
 
-from fastapi import APIRouter, Depends, HTTPException, Path
+from fastapi import APIRouter, Depends, HTTPException
 
 from app.dependencies import get_current_user, get_node_repository, get_property_repository
 from app.domain.entities import BacklinkInfo
@@ -14,6 +14,7 @@ from app.models import User
 
 from .dependencies import (
     resolve_alias_uuid,
+    resolve_mention_uuid,
     resolve_node_uuid,
     resolve_node_uuids,
     resolve_target_uuid,
@@ -778,10 +779,10 @@ async def get_unlinked_mentions(
     }
 
 
-@router.post("/{node_uuid}/mentions/{mention_id}/promote")
+@router.post("/{node_uuid}/mentions/{mention_uuid}/promote")
 async def promote_mention(
     node_id: int = Depends(resolve_node_uuid),
-    mention_id: int = Path(...),
+    mention_id: int = Depends(resolve_mention_uuid),
     user: User = Depends(get_current_user),
 ):
     """Promote an unlinked mention to a real [[node link]]."""
@@ -799,10 +800,10 @@ async def promote_mention(
     return {"success": True, "source_node_id": updated.id}
 
 
-@router.post("/{node_uuid}/mentions/{mention_id}/ignore")
+@router.post("/{node_uuid}/mentions/{mention_uuid}/ignore")
 async def ignore_mention(
     node_id: int = Depends(resolve_node_uuid),
-    mention_id: int = Path(...),
+    mention_id: int = Depends(resolve_mention_uuid),
     user: User = Depends(get_current_user),
 ):
     """Ignore an unlinked mention candidate."""
@@ -813,10 +814,10 @@ async def ignore_mention(
     return {"success": True, "is_ignored": True}
 
 
-@router.post("/{node_uuid}/mentions/{mention_id}/unignore")
+@router.post("/{node_uuid}/mentions/{mention_uuid}/unignore")
 async def unignore_mention(
     node_id: int = Depends(resolve_node_uuid),
-    mention_id: int = Path(...),
+    mention_id: int = Depends(resolve_mention_uuid),
     user: User = Depends(get_current_user),
 ):
     """Restore a previously ignored mention candidate."""

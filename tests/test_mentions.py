@@ -84,10 +84,10 @@ class TestUnlinkedMentions:
         block_id = block.json()["id"]
 
         mentions_resp = await authenticated_client.get(f"/api/nodes/{target_uuid}/mentions")
-        mention_id = mentions_resp.json()["mentions"][0]["id"]
+        mention_uuid = mentions_resp.json()["mentions"][0]["uuid"]
 
         promote_resp = await authenticated_client.post(
-            f"/api/nodes/{target_uuid}/mentions/{mention_id}/promote"
+            f"/api/nodes/{target_uuid}/mentions/{mention_uuid}/promote"
         )
         assert promote_resp.status_code == 200
         assert promote_resp.json()["success"] is True
@@ -132,10 +132,10 @@ class TestUnlinkedMentions:
         )
 
         mentions_resp = await authenticated_client.get(f"/api/nodes/{target_uuid}/mentions")
-        mention_id = mentions_resp.json()["mentions"][0]["id"]
+        mention_uuid = mentions_resp.json()["mentions"][0]["uuid"]
 
         ignore_resp = await authenticated_client.post(
-            f"/api/nodes/{target_uuid}/mentions/{mention_id}/ignore"
+            f"/api/nodes/{target_uuid}/mentions/{mention_uuid}/ignore"
         )
         assert ignore_resp.status_code == 200
 

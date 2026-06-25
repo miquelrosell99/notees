@@ -823,6 +823,11 @@ class MentionRepository(ABC):
         pass
 
     @abstractmethod
+    async def get_by_uuid(self, mention_uuid: str) -> NodeMention | None:
+        """Get a mention by public UUID."""
+        pass
+
+    @abstractmethod
     async def set_ignored(self, mention_id: int, ignored: bool = True) -> NodeMention | None:
         """Mark a mention as ignored (or un-ignored)."""
         pass
