@@ -469,10 +469,10 @@ async def list_members(
         raise HTTPException(status_code=403, detail=str(e)) from e
 
 
-@router.put("/{workspace_uuid}/members/{member_user_id}")
+@router.put("/{workspace_uuid}/members/{member_user_uuid}")
 async def update_member(
     workspace_uuid: str,
-    member_user_id: int,
+    member_user_uuid: str,
     body: MemberUpdateRequest,
     workspace_service: WorkspaceService = Depends(get_workspace_service),
     user: User = Depends(get_current_user),
@@ -482,7 +482,7 @@ async def update_member(
         await workspace_service.update_member(
             workspace_uuid=workspace_uuid,
             owner_id=int(user.id),
-            member_user_id=member_user_id,
+            member_user_uuid=member_user_uuid,
             role=body.role,
         )
         return {"status": "ok", "role": body.role}
@@ -492,21 +492,21 @@ async def update_member(
         raise HTTPException(status_code=403, detail=str(e)) from e
 
 
-@router.delete("/{workspace_uuid}/members/{member_user_id}")
+@router.delete("/{workspace_uuid}/members/{member_user_uuid}")
 async def remove_member(
     workspace_uuid: str,
-    member_user_id: int,
+    member_user_uuid: str,
     workspace_service: WorkspaceService = Depends(get_workspace_service),
     user: User = Depends(get_current_user),
 ):
     """Remove a member from a workspace."""
     try:
-        await workspace_service.remove_member(
+        removed_user_id = await workspace_service.remove_member(
             workspace_uuid=workspace_uuid,
             owner_id=int(user.id),
-            member_user_id=member_user_id,
+            member_user_uuid=member_user_uuid,
         )
-        invalidate_workspace_cache(member_user_id)
+        invalidate_workspace_cache(removed_user_id)
         return {"status": "ok"}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
