@@ -299,7 +299,7 @@ class WorkspaceService:
         self,
         workspace_uuid: str,
         owner_id: int,
-        member_user_id: int,
+        member_user_uuid: str,
         role: str,
     ) -> None:
         """Update a member's role in a workspace."""
@@ -309,6 +309,12 @@ class WorkspaceService:
         ws_id, ws_owner_id = ws
         if ws_owner_id != owner_id:
             raise PermissionError("Only workspace owners can update members")
+
+        member_user = await self._user_repo.get_by_uuid(member_user_uuid)
+        if member_user is None or member_user.id is None:
+            raise ValueError("User not found")
+        member_user_id = member_user.id
+
         if member_user_id == ws_owner_id:
             raise ValueError("Cannot change owner's role")
 
@@ -320,7 +326,7 @@ class WorkspaceService:
         self,
         workspace_uuid: str,
         owner_id: int,
-        member_user_id: int,
+        member_user_uuid: str,
     ) -> None:
         """Remove a member from a workspace."""
         ws = await self._workspace_repo.get_workspace_id_owner(workspace_uuid)
@@ -329,10 +335,17 @@ class WorkspaceService:
         ws_id, ws_owner_id = ws
         if ws_owner_id != owner_id:
             raise PermissionError("Only workspace owners can remove members")
+
+        member_user = await self._user_repo.get_by_uuid(member_user_uuid)
+        if member_user is None or member_user.id is None:
+            raise ValueError("User not found")
+        member_user_id = member_user.id
+
         if member_user_id == ws_owner_id:
             raise ValueError("Cannot remove owner")
 
         await self._workspace_repo.remove_member(ws_id, member_user_id)
+        return member_user_id
 
     async def remove_pending_invite(
         self,
