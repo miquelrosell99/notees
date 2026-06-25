@@ -62,7 +62,8 @@ async def get_workspace_data_endpoint(
             is_daily=n["is_daily"],
             is_monthly=n["is_monthly"],
             is_yearly=n["is_yearly"],
-            class_ids=[class_uuid_map[cid] for cid in n.get("class_ids", []) if cid in class_uuid_map],
+            class_ids=[cid for cid in n.get("class_ids", []) if cid is not None],
+            class_uuids=[class_uuid_map[cid] for cid in n.get("class_ids", []) if cid in class_uuid_map],
             block_count=n["block_count"],
             aliased_id=n.get("aliased_id"),
             aliased_uuid=class_uuid_map.get(n.get("aliased_id")) if n.get("aliased_id") else None,
@@ -131,7 +132,8 @@ async def get_workspace_nodes_endpoint(
             is_daily=n["is_daily"],
             is_monthly=n["is_monthly"],
             is_yearly=n["is_yearly"],
-            class_ids=[class_uuid_map[cid] for cid in n.get("class_ids", []) if cid in class_uuid_map],
+            class_ids=[cid for cid in n.get("class_ids", []) if cid is not None],
+            class_uuids=[class_uuid_map[cid] for cid in n.get("class_ids", []) if cid in class_uuid_map],
             block_count=n["block_count"],
         )
         for n in node_dicts
