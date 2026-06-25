@@ -4,7 +4,18 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import * as propertiesApi from '@/api/properties';
 import { nodeKeys, propertyKeys, nodeViewKeys } from '@/hooks/queryKeys';
-import { tryResolveNodeUuid } from '@/utils/resolveNodeUuid';
+import { tryResolveNodeUuid, resolveNodeUuid, resolvePropertyUuid } from '@/utils/resolveNodeUuid';
+
+function resolveClassId(classId: string | number): string {
+  return typeof classId === 'string' ? classId : resolveNodeUuid(classId);
+}
+
+function resolvePropertyId(propertyId: string | number): string {
+  if (typeof propertyId === 'string') return propertyId;
+  const uuid = resolvePropertyUuid(propertyId);
+  if (!uuid) throw new Error(`Unable to resolve UUID for property id ${propertyId}`);
+  return uuid;
+}
 
 function invalidateClassQueries(
   queryClient: ReturnType<typeof useQueryClient>,
@@ -27,7 +38,7 @@ export function useAddPropertyToClass() {
 
   return useMutation({
     mutationFn: ({ classId, propertyId }: { classId: string | number; propertyId: string | number }) =>
-      propertiesApi.addClassProperty(classId, propertyId),
+      propertiesApi.addClassProperty(resolveClassId(classId), resolvePropertyId(propertyId)),
     onSuccess: (_, { classId }) => {
       invalidateClassQueries(queryClient, classId);
       queryClient.invalidateQueries({ queryKey: nodeKeys.details() });
@@ -43,7 +54,7 @@ export function useRemovePropertyFromClass() {
 
   return useMutation({
     mutationFn: ({ classId, propertyId }: { classId: string | number; propertyId: string | number }) =>
-      propertiesApi.removeClassProperty(classId, propertyId),
+      propertiesApi.removeClassProperty(resolveClassId(classId), resolvePropertyId(propertyId)),
     onSuccess: (_, { classId }) => {
       invalidateClassQueries(queryClient, classId);
       queryClient.invalidateQueries({ queryKey: nodeKeys.details() });
@@ -59,7 +70,7 @@ export function useReorderClassProperties() {
 
   return useMutation({
     mutationFn: ({ classId, propertyIds }: { classId: string | number; propertyIds: (string | number)[] }) =>
-      propertiesApi.reorderClassProperties(classId, propertyIds),
+      propertiesApi.reorderClassProperties(resolveClassId(classId), propertyIds.map(resolvePropertyId)),
     onSuccess: (_, { classId }) => {
       invalidateClassQueries(queryClient, classId);
       queryClient.invalidateQueries({ queryKey: nodeKeys.details() });
@@ -82,7 +93,7 @@ export function useUpdateClassProperty() {
       classId: string | number;
       propertyId: string | number;
       data: { required?: boolean; hidden?: boolean };
-    }) => propertiesApi.updateClassProperty(classId, propertyId, data),
+    }) => propertiesApi.updateClassProperty(resolveClassId(classId), resolvePropertyId(propertyId), data),
     onSuccess: (_, { classId }) => {
       invalidateClassQueries(queryClient, classId);
       queryClient.invalidateQueries({ queryKey: nodeKeys.details() });
@@ -98,7 +109,7 @@ export function useAddClassExtends() {
 
   return useMutation({
     mutationFn: ({ classId, extendsClassId }: { classId: string | number; extendsClassId: string | number }) =>
-      propertiesApi.addClassExtends(classId, extendsClassId),
+      propertiesApi.addClassExtends(resolveClassId(classId), resolveClassId(extendsClassId)),
     onSuccess: (_, { classId, extendsClassId }) => {
       queryClient.invalidateQueries({ queryKey: propertyKeys.classExtends(classId) });
       queryClient.invalidateQueries({ queryKey: propertyKeys.forClassInherited(classId) });
@@ -124,7 +135,7 @@ export function useRemoveClassExtends() {
 
   return useMutation({
     mutationFn: ({ classId, extendsClassId }: { classId: string | number; extendsClassId: string | number }) =>
-      propertiesApi.removeClassExtends(classId, extendsClassId),
+      propertiesApi.removeClassExtends(resolveClassId(classId), resolveClassId(extendsClassId)),
     onSuccess: (_, { classId, extendsClassId }) => {
       queryClient.invalidateQueries({ queryKey: propertyKeys.classExtends(classId) });
       queryClient.invalidateQueries({ queryKey: propertyKeys.forClassInherited(classId) });

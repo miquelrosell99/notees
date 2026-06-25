@@ -265,7 +265,7 @@ export const BlockRow = memo(
     }, [node.uuid]);
 
     const handleBulletContextMenu = useCallback(
-      (_nodeId: number, event: React.MouseEvent) => {
+      (_nodeId: string | number, event: React.MouseEvent) => {
         event.preventDefault();
         event.stopPropagation();
         setContextMenuPos({ x: event.clientX, y: event.clientY });

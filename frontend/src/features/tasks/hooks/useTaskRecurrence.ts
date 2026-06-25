@@ -14,11 +14,12 @@ import {
 import { taskKeys } from '@/hooks/queryKeys';
 import type { RecurrenceRule, RecurrenceRuleInput, TaskCompletionInput } from '@/types/api';
 
-export function useTaskRecurrence(nodeId: number | null | undefined) {
+export function useTaskRecurrence(nodeId: string | number | null | undefined) {
+  const nodeUuid = typeof nodeId === 'string' ? nodeId : nodeId != null ? String(nodeId) : '';
   return useQuery({
-    queryKey: taskKeys.recurrence(nodeId ?? 0),
-    queryFn: () => getRecurrenceRule(nodeId!),
-    enabled: !!nodeId,
+    queryKey: taskKeys.recurrence(nodeUuid),
+    queryFn: () => getRecurrenceRule(nodeUuid),
+    enabled: !!nodeUuid,
     staleTime: 0,
   });
 }
@@ -31,13 +32,15 @@ export function useSetTaskRecurrence() {
       nodeId,
       rule,
     }: {
-      nodeId: number;
+      nodeId: string | number;
       rule: RecurrenceRuleInput;
     }): Promise<RecurrenceRule> => {
-      return setRecurrenceRule(nodeId, rule);
+      const nodeUuid = typeof nodeId === 'string' ? nodeId : String(nodeId);
+      return setRecurrenceRule(nodeUuid, rule);
     },
     onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: taskKeys.recurrence(variables.nodeId) });
+      const nodeUuid = typeof variables.nodeId === 'string' ? variables.nodeId : String(variables.nodeId);
+      queryClient.invalidateQueries({ queryKey: taskKeys.recurrence(nodeUuid) });
     },
   });
 }
@@ -46,22 +49,27 @@ export function useDeleteTaskRecurrence() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ nodeId }: { nodeId: number }) => deleteRecurrenceRule(nodeId),
+    mutationFn: ({ nodeId }: { nodeId: string | number }) => {
+      const nodeUuid = typeof nodeId === 'string' ? nodeId : String(nodeId);
+      return deleteRecurrenceRule(nodeUuid);
+    },
     onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: taskKeys.recurrence(variables.nodeId) });
+      const nodeUuid = typeof variables.nodeId === 'string' ? variables.nodeId : String(variables.nodeId);
+      queryClient.invalidateQueries({ queryKey: taskKeys.recurrence(nodeUuid) });
     },
   });
 }
 
 export function useTaskCompletions(
-  nodeId: number | null | undefined,
+  nodeId: string | number | null | undefined,
   options: { limit?: number; offset?: number } = {}
 ) {
   const { limit = 50, offset = 0 } = options;
+  const nodeUuid = typeof nodeId === 'string' ? nodeId : nodeId != null ? String(nodeId) : '';
   return useQuery({
-    queryKey: taskKeys.completions(nodeId ?? 0, limit, offset),
-    queryFn: () => listTaskCompletions(nodeId!, { limit, offset }),
-    enabled: !!nodeId,
+    queryKey: taskKeys.completions(nodeUuid, limit, offset),
+    queryFn: () => listTaskCompletions(nodeUuid, { limit, offset }),
+    enabled: !!nodeUuid,
   });
 }
 
@@ -73,12 +81,16 @@ export function useRecordTaskCompletion() {
       nodeId,
       input,
     }: {
-      nodeId: number;
+      nodeId: string | number;
       input: TaskCompletionInput;
-    }) => recordTaskCompletion(nodeId, input),
+    }) => {
+      const nodeUuid = typeof nodeId === 'string' ? nodeId : String(nodeId);
+      return recordTaskCompletion(nodeUuid, input);
+    },
     onSuccess: (_data, variables) => {
+      const nodeUuid = typeof variables.nodeId === 'string' ? variables.nodeId : String(variables.nodeId);
       queryClient.invalidateQueries({
-        queryKey: taskKeys.completions(variables.nodeId),
+        queryKey: taskKeys.completions(nodeUuid),
       });
     },
   });
@@ -88,17 +100,18 @@ export function useDeleteTaskCompletion() {
   const queryClient = useQueryClient();
 
   const mutation = useMutation({
-    mutationFn: ({ nodeId, completionId }: { nodeId: number; completionId: number }) =>
-      deleteTaskCompletion(nodeId, completionId),
+    mutationFn: ({ nodeId, completionId }: { nodeId: string | number; completionId: string }) =>
+      deleteTaskCompletion(typeof nodeId === 'string' ? nodeId : String(nodeId), completionId),
     onSuccess: (_data, variables) => {
+      const nodeUuid = typeof variables.nodeId === 'string' ? variables.nodeId : String(variables.nodeId);
       queryClient.invalidateQueries({
-        queryKey: taskKeys.completions(variables.nodeId),
+        queryKey: taskKeys.completions(nodeUuid),
       });
     },
   });
 
   const deleteCompletion = useCallback(
-    (nodeId: number, completionId: number) => {
+    (nodeId: string | number, completionId: string) => {
       mutation.mutate({ nodeId, completionId });
     },
     [mutation]

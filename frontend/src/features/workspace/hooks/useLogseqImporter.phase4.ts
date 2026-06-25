@@ -1,4 +1,5 @@
 import { batchAddClassProperties } from '@/api/properties';
+import { resolveNodeUuid, resolvePropertyUuid } from '@/utils/resolveNodeUuid';
 import type { ImportContext } from './useLogseqImporter.types';
 import { createPhase, errorMessage } from './useLogseqImporter.utils';
 
@@ -8,15 +9,18 @@ export async function runPhase4(ctx: ImportContext): Promise<void> {
   const p4 = createPhase('Bind properties to classes');
   phases.push(p4);
   const PHASE4_WHITELIST = new Set(['logseq.property/description', 'logseq.property/status', 'logseq.property/priority']);
-  const classPropertyItems: Array<{ class_node_id: number; property_id: number; label: string }> = [];
+  const classPropertyItems: Array<{ class_node_uuid: string; property_uuid: string; label: string }> = [];
   for (const cls of parsed.classes) {
     const noteesClassId = classIdMap.get(cls.id);
     if (!noteesClassId || !cls.properties) continue;
+    const classNodeUuid = resolveNodeUuid(noteesClassId);
     for (const logseqPropId of cls.properties) {
       if (logseqPropId.startsWith('logseq.property') && !PHASE4_WHITELIST.has(logseqPropId)) continue;
       const noteesPropId = propIdMap.get(logseqPropId);
       if (!noteesPropId) continue;
-      classPropertyItems.push({ class_node_id: noteesClassId, property_id: noteesPropId, label: `${cls.title} ← ${logseqPropId}` });
+      const propertyUuid = resolvePropertyUuid(noteesPropId);
+      if (!propertyUuid) continue;
+      classPropertyItems.push({ class_node_uuid: classNodeUuid, property_uuid: propertyUuid, label: `${cls.title} ← ${logseqPropId}` });
     }
   }
   if (classPropertyItems.length > 0) {
@@ -25,7 +29,7 @@ export async function runPhase4(ctx: ImportContext): Promise<void> {
     for (let i = 0; i < classPropertyItems.length; i += BATCH_SIZE) {
       const chunk = classPropertyItems.slice(i, i + BATCH_SIZE);
       try {
-        const res = await batchAddClassProperties(chunk.map(({ class_node_id, property_id }) => ({ class_node_id, property_id })));
+        const res = await batchAddClassProperties(chunk.map(({ class_node_uuid, property_uuid }) => ({ class_node_uuid, property_uuid })));
         for (const r of res.results) {
           if (r.success) { p4.succeeded++; } else {
             p4.failed++;

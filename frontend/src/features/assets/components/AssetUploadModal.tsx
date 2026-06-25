@@ -19,10 +19,10 @@ interface AssetUploadModalProps {
   onClose: () => void;
   /** Callback when upload completes successfully */
   onUpload: (asset: Asset) => void;
-  /** Optional parent node ID for the asset */
-  parentId?: number;
-  /** Optional existing node ID to convert to asset (for empty blocks) */
-  existingNodeId?: number;
+  /** Optional parent node UUID for the asset */
+  parentId?: string;
+  /** Optional existing node UUID to convert to asset (for empty blocks) */
+  existingNodeId?: string;
   /** Optional filter to limit accepted asset types */
   acceptedTypes?: AssetCategory[];
   /** Optional initial file to upload (e.g. from paste) */

@@ -164,12 +164,10 @@ export function linkclassId(t: string): number {
 }
 
 /**
- * Numeric pair key — avoids string interpolation in hot loop
+ * Order-independent pair key — avoids string interpolation in hot loop
  */
-export function pairKey(a: number, b: number): number {
-  const lo = a < b ? a : b;
-  const hi = a < b ? b : a;
-  return lo * 100000 + hi;
+export function pairKey(a: string, b: string): string {
+  return a < b ? `${a}-${b}` : `${b}-${a}`;
 }
 
 /**
@@ -177,15 +175,15 @@ export function pairKey(a: number, b: number): number {
  * Returns all nodes that appear in any shortest path
  */
 export function findAllShortestPaths(
-  startId: number,
-  endId: number,
+  startId: string,
+  endId: string,
   nodes: GraphNode[],
   links: GraphLink[]
-): Set<number> {
+): Set<string> {
   if (startId === endId) return new Set([startId]);
   
   // Build adjacency list
-  const adjacency = new Map<number, number[]>();
+  const adjacency = new Map<string, string[]>();
   for (const node of nodes) {
     adjacency.set(node.id, []);
   }
@@ -195,9 +193,9 @@ export function findAllShortestPaths(
   }
   
   // BFS to find shortest distance and track all parents
-  const distance = new Map<number, number>();
-  const parents = new Map<number, number[]>();
-  const queue: number[] = [startId];
+  const distance = new Map<string, number>();
+  const parents = new Map<string, string[]>();
+  const queue: string[] = [startId];
   distance.set(startId, 0);
   parents.set(startId, []);
   
@@ -230,9 +228,9 @@ export function findAllShortestPaths(
   if (!found) return new Set();
   
   // Reconstruct all nodes in all shortest paths using DFS
-  const nodesInPaths = new Set<number>();
+  const nodesInPaths = new Set<string>();
   
-  const dfs = (nodeId: number) => {
+  const dfs = (nodeId: string) => {
     if (nodesInPaths.has(nodeId)) return;
     nodesInPaths.add(nodeId);
     
