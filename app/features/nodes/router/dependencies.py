@@ -8,8 +8,13 @@ from __future__ import annotations
 
 from fastapi import Depends, HTTPException, Path
 
-from app.dependencies import get_node_repository, get_node_view_repository, get_property_repository
-from app.features.nodes.port import NodeRepository, NodeViewRepository
+from app.dependencies import (
+    get_mention_repository,
+    get_node_repository,
+    get_node_view_repository,
+    get_property_repository,
+)
+from app.features.nodes.port import MentionRepository, NodeRepository, NodeViewRepository
 from app.features.properties.port import PropertyRepository
 
 
@@ -48,6 +53,17 @@ async def resolve_class_node_uuid(
     if node is None or node.id is None:
         raise HTTPException(status_code=404, detail="Class not found")
     return node.id
+
+
+async def resolve_mention_uuid(
+    mention_uuid: str = Path(..., description="Public mention UUID"),
+    repo: MentionRepository = Depends(get_mention_repository),
+) -> int:
+    """Resolve a mention UUID to its internal numeric ID."""
+    mention = await repo.get_by_uuid(mention_uuid)
+    if mention is None or mention.id is None:
+        raise HTTPException(status_code=404, detail="Mention not found")
+    return mention.id
 
 
 async def resolve_target_uuid(
