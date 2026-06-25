@@ -760,6 +760,13 @@ class FakeTaskCompletionRepository(TaskCompletionRepository):
     async def count_by_task(self, task_node_id: int) -> int:
         return sum(1 for c in self._records if c.task_node_id == task_node_id)
 
+    async def get_by_uuid(self, completion_uuid: str) -> TaskCompletion | None:
+        """Get a completion record by its public UUID."""
+        for record in self._records:
+            if record.uuid == completion_uuid:
+                return record
+        return None
+
     async def delete(self, completion_id: int) -> bool:
         before = len(self._records)
         self._records = [c for c in self._records if c.id != completion_id]
