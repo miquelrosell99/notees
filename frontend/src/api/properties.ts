@@ -2,8 +2,6 @@
  * Properties API functions
  */
 import api from '@/api/client';
-import { queryClient } from '@/lib/queryClient';
-import { propertyKeys } from '@/hooks/queryKeys';
 import type {
   Property,
   PropertyCreate,
@@ -17,68 +15,8 @@ import type {
   InheritedProperty,
   ExtendedByClass,
 } from '@/types/api';
-import { resolveNodeUuid, resolvePropertyUuid } from '@/utils/resolveNodeUuid';
 
 const BASE = '/properties';
-
-function resolveRequiredPropertyUuid(id: string | number): string {
-  const uuid = typeof id === 'string' ? id : resolvePropertyUuid(id);
-  if (!uuid) {
-    throw new Error(`Unable to resolve UUID for property id ${id}`);
-  }
-  return uuid;
-}
-
-function resolveSelectionLineUuid(id: string | number): string | null {
-  if (typeof id === 'string') return id;
-
-  const queryCache = queryClient.getQueryCache();
-  const candidates = queryCache.findAll({ queryKey: propertyKeys.all });
-  for (const query of candidates) {
-    const uuid = findUuidForId(query.state.data, id);
-    if (uuid) return uuid;
-  }
-  return null;
-}
-
-function resolveRequiredSelectionLineUuid(id: string | number): string {
-  const uuid = resolveSelectionLineUuid(id);
-  if (!uuid) {
-    throw new Error(`Unable to resolve UUID for selection line id ${id}`);
-  }
-  return uuid;
-}
-
-function findUuidForId(data: unknown, targetId: number): string | null {
-  if (Array.isArray(data)) {
-    for (const item of data) {
-      const found = findUuidForId(item, targetId);
-      if (found) return found;
-    }
-    return null;
-  }
-
-  if (data && typeof data === 'object') {
-    const record = data as Record<string, unknown>;
-    if (typeof record.id === 'number' && record.id === targetId) {
-      if (typeof record.uuid === 'string') {
-        return record.uuid;
-      }
-      if (typeof record.selection_line_uuid === 'string') {
-        return record.selection_line_uuid;
-      }
-    }
-
-    for (const value of Object.values(record)) {
-      if (Array.isArray(value)) {
-        const found = findUuidForId(value, targetId);
-        if (found) return found;
-      }
-    }
-  }
-
-  return null;
-}
 
 /**
  * List all property definitions
@@ -93,15 +31,15 @@ export async function listProperties(): Promise<Property[]> {
  * global properties + class-scoped properties (if contextClassIds) + node-scoped (if contextNodeId)
  */
 export async function getAvailableProperties(opts: {
-  contextNodeId?: string | number;
-  contextClassIds?: (string | number)[];
+  contextNodeId?: string;
+  contextClassIds?: string[];
 }): Promise<Property[]> {
   const params: Record<string, string> = {};
   if (opts.contextNodeId != null) {
-    params.context_node_uuid = resolveNodeUuid(opts.contextNodeId);
+    params.context_node_uuid = opts.contextNodeId;
   }
   if (opts.contextClassIds?.length) {
-    params.context_class_ids = opts.contextClassIds.map(resolveNodeUuid).join(',');
+    params.context_class_ids = opts.contextClassIds.join(',');
   }
   const response = await api.get<PropertiesResponse>(`${BASE}/available`, { params });
   return response.data.properties ?? [];
@@ -116,40 +54,35 @@ export async function createProperty(data: PropertyCreate): Promise<Property> {
 }
 
 /**
- * Get a property by ID
+ * Get a property by UUID
  */
-export async function getProperty(id: string | number): Promise<Property> {
-  const response = await api.get<Property>(`${BASE}/${resolveRequiredPropertyUuid(id)}`);
+export async function getProperty(propertyUuid: string): Promise<Property> {
+  const response = await api.get<Property>(`${BASE}/${propertyUuid}`);
   return response.data;
 }
 
 /**
- * Get a property by UUID
+ * Get a property by UUID (legacy alias)
+ * @deprecated Use getProperty instead.
  */
-export async function getPropertyByUuid(propertyUuid: string): Promise<Property> {
-  const response = await api.get<Property>(`${BASE}/uuid/${propertyUuid}`);
-  return response.data;
-}
+export const getPropertyByUuid = getProperty;
 
 /**
  * Update a property
  */
 export async function updateProperty(
-  id: string | number,
+  propertyUuid: string,
   data: PropertyUpdate
 ): Promise<Property> {
-  const response = await api.put<Property>(
-    `${BASE}/${resolveRequiredPropertyUuid(id)}`,
-    data
-  );
+  const response = await api.put<Property>(`${BASE}/${propertyUuid}`, data);
   return response.data;
 }
 
 /**
  * Delete a property
  */
-export async function deleteProperty(id: string | number): Promise<void> {
-  await api.delete(`${BASE}/${resolveRequiredPropertyUuid(id)}`);
+export async function deleteProperty(propertyUuid: string): Promise<void> {
+  await api.delete(`${BASE}/${propertyUuid}`);
 }
 
 // ============== Selection Options ==============
@@ -158,14 +91,14 @@ export async function deleteProperty(id: string | number): Promise<void> {
  * Add a selection option
  */
 export async function addSelectionOption(
-  propertyId: string | number,
+  propertyUuid: string,
   name: string,
   icon?: string | null,
   sequence?: number,
   color?: string | null
 ): Promise<SelectionOption> {
   const response = await api.post<SelectionOption>(
-    `${BASE}/${resolveRequiredPropertyUuid(propertyId)}/selection-lines`,
+    `${BASE}/${propertyUuid}/selection-lines`,
     {
       name,
       icon,
@@ -180,12 +113,12 @@ export async function addSelectionOption(
  * Update a selection option (e.g. change icon or color)
  */
 export async function updateSelectionOption(
-  propertyId: string | number,
-  optionId: string | number,
+  propertyUuid: string,
+  optionUuid: string,
   data: { icon?: string | null; name?: string; order?: number; color?: string | null }
 ): Promise<SelectionOption> {
   const response = await api.put<SelectionOption>(
-    `${BASE}/${resolveRequiredPropertyUuid(propertyId)}/selection-lines/${resolveRequiredSelectionLineUuid(optionId)}`,
+    `${BASE}/${propertyUuid}/selection-lines/${optionUuid}`,
     data
   );
   return response.data;
@@ -195,12 +128,10 @@ export async function updateSelectionOption(
  * Delete a selection option
  */
 export async function deleteSelectionOption(
-  propertyId: string | number,
-  optionId: string | number
+  propertyUuid: string,
+  optionUuid: string
 ): Promise<void> {
-  await api.delete(
-    `${BASE}/${resolveRequiredPropertyUuid(propertyId)}/selection-lines/${resolveRequiredSelectionLineUuid(optionId)}`
-  );
+  await api.delete(`${BASE}/${propertyUuid}/selection-lines/${optionUuid}`);
 }
 
 /**
@@ -208,13 +139,12 @@ export async function deleteSelectionOption(
  * Accepts the options in the desired new order.
  */
 export async function reorderSelectionOptions(
-  propertyId: string | number,
-  orderedOptions: Array<{ id: string | number }>
+  propertyUuid: string,
+  orderedOptions: Array<{ uuid: string }>
 ): Promise<void> {
-  const propertyUuid = resolveRequiredPropertyUuid(propertyId);
   await Promise.all(
     orderedOptions.map((opt, index) =>
-      api.put(`${BASE}/${propertyUuid}/selection-lines/${resolveRequiredSelectionLineUuid(opt.id)}`, {
+      api.put(`${BASE}/${propertyUuid}/selection-lines/${opt.uuid}`, {
         order: index,
       })
     )
@@ -227,13 +157,13 @@ export async function reorderSelectionOptions(
  * Add a class filter to a node-type property
  */
 export async function addClassFilter(
-  propertyId: string | number,
-  classNodeId: string | number
-): Promise<{ id: number; class_node_id: number }> {
-  const response = await api.post<{ id: number; class_node_id: number }>(
-    `${BASE}/${resolveRequiredPropertyUuid(propertyId)}/class-filters`,
+  propertyUuid: string,
+  classNodeUuid: string
+): Promise<{ uuid: string; class_node_uuid: string }> {
+  const response = await api.post<{ uuid: string; class_node_uuid: string }>(
+    `${BASE}/${propertyUuid}/class-filters`,
     null,
-    { params: { class_node_uuid: resolveNodeUuid(classNodeId) } }
+    { params: { class_node_uuid: classNodeUuid } }
   );
   return response.data;
 }
@@ -242,12 +172,10 @@ export async function addClassFilter(
  * Remove a class filter from a property
  */
 export async function removeClassFilter(
-  propertyId: string | number,
-  classNodeId: string | number
+  propertyUuid: string,
+  classNodeUuid: string
 ): Promise<void> {
-  await api.delete(
-    `${BASE}/${resolveRequiredPropertyUuid(propertyId)}/class-filters/${resolveNodeUuid(classNodeId)}`
-  );
+  await api.delete(`${BASE}/${propertyUuid}/class-filters/${classNodeUuid}`);
 }
 
 // ============== Type Properties ==============
@@ -256,11 +184,11 @@ export async function removeClassFilter(
  * Get properties linked to a class
  */
 export async function getClassProperties(
-  classNodeId: string | number,
+  classNodeUuid: string,
   includeInherited: boolean = false
 ): Promise<ClassProperty[]> {
   const response = await api.get<ClassPropertiesResponse>(
-    `${BASE}/classes/${resolveNodeUuid(classNodeId)}/properties`,
+    `${BASE}/classes/${classNodeUuid}/properties`,
     { params: { include_inherited: includeInherited } }
   );
   return response.data.class_properties ?? [];
@@ -270,16 +198,16 @@ export async function getClassProperties(
  * Link a property to a class
  */
 export async function addClassProperty(
-  classNodeId: string | number,
-  propertyId: string | number,
+  classNodeUuid: string,
+  propertyUuid: string,
   sequence?: number,
   defaultValue?: unknown,
   required?: boolean
 ): Promise<ClassProperty> {
   const response = await api.post<ClassProperty>(
-    `${BASE}/classes/${resolveNodeUuid(classNodeId)}/properties`,
+    `${BASE}/classes/${classNodeUuid}/properties`,
     {
-      property_uuid: resolveRequiredPropertyUuid(propertyId),
+      property_uuid: propertyUuid,
       sequence: sequence ?? 0,
       default_value: defaultValue,
       required: required ?? false,
@@ -292,23 +220,21 @@ export async function addClassProperty(
  * Remove a property from a class
  */
 export async function removeClassProperty(
-  classNodeId: string | number,
-  propertyId: string | number
+  classNodeUuid: string,
+  propertyUuid: string
 ): Promise<void> {
-  await api.delete(
-    `${BASE}/classes/${resolveNodeUuid(classNodeId)}/properties/${resolveRequiredPropertyUuid(propertyId)}`
-  );
+  await api.delete(`${BASE}/classes/${classNodeUuid}/properties/${propertyUuid}`);
 }
 
 /**
- * Reorder properties within a class by providing property IDs in the desired order
+ * Reorder properties within a class by providing property UUIDs in the desired order
  */
 export async function reorderClassProperties(
-  classNodeId: string | number,
-  propertyIds: (string | number)[]
+  classNodeUuid: string,
+  propertyUuids: string[]
 ): Promise<void> {
-  await api.put(`${BASE}/classes/${resolveNodeUuid(classNodeId)}/properties/reorder`, {
-    property_uuids: propertyIds.map(resolveRequiredPropertyUuid),
+  await api.put(`${BASE}/classes/${classNodeUuid}/properties/reorder`, {
+    property_uuids: propertyUuids,
   });
 }
 
@@ -316,12 +242,12 @@ export async function reorderClassProperties(
  * Update class property binding (required, hidden flags)
  */
 export async function updateClassProperty(
-  classNodeId: string | number,
-  propertyId: string | number,
+  classNodeUuid: string,
+  propertyUuid: string,
   data: { required?: boolean; hidden?: boolean }
 ): Promise<ClassProperty> {
   const response = await api.patch<ClassProperty>(
-    `${BASE}/classes/${resolveNodeUuid(classNodeId)}/properties/${resolveRequiredPropertyUuid(propertyId)}`,
+    `${BASE}/classes/${classNodeUuid}/properties/${propertyUuid}`,
     data
   );
   return response.data;
@@ -342,7 +268,7 @@ export async function getPropertyStats(): Promise<
 /**
  * Get property suggestions for a node, ranked by usage frequency
  */
-export async function getPropertySuggestions(nodeId?: string | number): Promise<
+export async function getPropertySuggestions(nodeUuid?: string): Promise<
   Array<{
     property_id: number;
     property_uuid: string;
@@ -353,7 +279,7 @@ export async function getPropertySuggestions(nodeId?: string | number): Promise<
     already_assigned: boolean;
   }>
 > {
-  const params = nodeId != null ? { node_uuid: resolveNodeUuid(nodeId) } : {};
+  const params = nodeUuid != null ? { node_uuid: nodeUuid } : {};
   const response = await api.get<{
     suggestions: Array<{
       property_id: number;
@@ -373,9 +299,9 @@ export async function getPropertySuggestions(nodeId?: string | number): Promise<
 /**
  * Get classes that a class extends (inherits from)
  */
-export async function getClassExtends(classNodeId: string | number): Promise<ClassExtends[]> {
+export async function getClassExtends(classNodeUuid: string): Promise<ClassExtends[]> {
   const response = await api.get<ClassExtendsResponse>(
-    `${BASE}/classes/${resolveNodeUuid(classNodeId)}/extends`
+    `${BASE}/classes/${classNodeUuid}/extends`
   );
   return response.data.extends ?? [];
 }
@@ -384,14 +310,14 @@ export async function getClassExtends(classNodeId: string | number): Promise<Cla
  * Add a class that this class extends (inherits from)
  */
 export async function addClassExtends(
-  classNodeId: string | number,
-  extendsClassNodeId: string | number,
+  classNodeUuid: string,
+  extendsClassNodeUuid: string,
   sequence?: number
 ): Promise<ClassExtends> {
   const response = await api.post<ClassExtends>(
-    `${BASE}/classes/${resolveNodeUuid(classNodeId)}/extends`,
+    `${BASE}/classes/${classNodeUuid}/extends`,
     {
-      extends_class_node_uuid: resolveNodeUuid(extendsClassNodeId),
+      extends_class_node_uuid: extendsClassNodeUuid,
       sequence: sequence ?? 0,
     }
   );
@@ -402,11 +328,11 @@ export async function addClassExtends(
  * Remove a class extension (inheritance link)
  */
 export async function removeClassExtends(
-  classNodeId: string | number,
-  extendsClassNodeId: string | number
+  classNodeUuid: string,
+  extendsClassNodeUuid: string
 ): Promise<void> {
   await api.delete(
-    `${BASE}/classes/${resolveNodeUuid(classNodeId)}/extends/${resolveNodeUuid(extendsClassNodeId)}`
+    `${BASE}/classes/${classNodeUuid}/extends/${extendsClassNodeUuid}`
   );
 }
 
@@ -414,10 +340,10 @@ export async function removeClassExtends(
  * Get inherited properties for a class (from extended classes)
  */
 export async function getInheritedProperties(
-  classNodeId: string | number
+  classNodeUuid: string
 ): Promise<InheritedProperty[]> {
   const response = await api.get<{ inherited_properties: InheritedProperty[] }>(
-    `${BASE}/classes/${resolveNodeUuid(classNodeId)}/inherited-properties`
+    `${BASE}/classes/${classNodeUuid}/inherited-properties`
   );
   return response.data.inherited_properties ?? [];
 }
@@ -426,10 +352,10 @@ export async function getInheritedProperties(
  * Get classes that extend this class (reverse lookup)
  */
 export async function getExtendedByClasses(
-  classNodeId: string | number
+  classNodeUuid: string
 ): Promise<ExtendedByClass[]> {
   const response = await api.get<{ classes: ExtendedByClass[] }>(
-    `${BASE}/classes/${resolveNodeUuid(classNodeId)}/extended-by`
+    `${BASE}/classes/${classNodeUuid}/extended-by`
   );
   return response.data.classes ?? [];
 }
@@ -438,25 +364,22 @@ export async function getExtendedByClasses(
  * Validate class extends (check for circular inheritance)
  */
 export async function validateClassExtends(
-  classNodeId: string | number,
-  extendsIds: (string | number)[]
+  classNodeUuid: string,
+  extendsUuids: string[]
 ): Promise<{ valid: boolean; error?: string; cycle_path?: string[] }> {
   const response = await api.post<{
     valid: boolean;
     error?: string;
     cycle_path?: string[];
-  }>(
-    `${BASE}/classes/${resolveNodeUuid(classNodeId)}/validate-extends`,
-    extendsIds.map(resolveNodeUuid)
-  );
+  }>(`${BASE}/classes/${classNodeUuid}/validate-extends`, extendsUuids);
   return response.data;
 }
 
 // ============== Batch Operations ==============
 
 export interface BatchSetPropertyItem {
-  node_id: string | number;
-  property_id: string | number;
+  node_uuid: string;
+  property_uuid: string;
   value: unknown;
 }
 
@@ -473,18 +396,14 @@ export async function batchSetPropertyValues(
   items: BatchSetPropertyItem[]
 ): Promise<BatchSetPropertyResponse> {
   const response = await api.post<BatchSetPropertyResponse>(`${BASE}/batch/set`, {
-    items: items.map((item) => ({
-      node_uuid: resolveNodeUuid(item.node_id),
-      property_uuid: resolveRequiredPropertyUuid(item.property_id),
-      value: item.value,
-    })),
+    items,
   });
   return response.data;
 }
 
 export interface BatchClassPropertyItem {
-  class_node_id: string | number;
-  property_id: string | number;
+  class_node_uuid: string;
+  property_uuid: string;
 }
 
 export interface BatchClassPropertyResponse {
@@ -501,12 +420,7 @@ export async function batchAddClassProperties(
 ): Promise<BatchClassPropertyResponse> {
   const response = await api.post<BatchClassPropertyResponse>(
     `${BASE}/classes/batch/properties`,
-    {
-      items: items.map((item) => ({
-        class_node_uuid: resolveNodeUuid(item.class_node_id),
-        property_uuid: resolveRequiredPropertyUuid(item.property_id),
-      })),
-    }
+    { items }
   );
   return response.data;
 }
@@ -517,30 +431,33 @@ export async function batchAddClassProperties(
  * Node with property value response
  */
 export interface NodeWithPropertyValue {
-  node_id: number;
+  node_id: number; // deprecated: use node_uuid
   node_uuid: string;
   node_name: string;
   node_icon: string | null;
   node_color: string | null;
-  parent_id: number | null;
-  page_id: number | null;
+  parent_id: number | null; // deprecated: use parent_uuid
+  parent_uuid: string | null;
+  page_id: number | null; // deprecated: use page_uuid
+  page_uuid: string | null;
   is_page: boolean;
   is_class: boolean;
   create_date: string;
   write_date: string;
   property_value: unknown;
   properties?: Record<string, unknown>;
-  class_ids?: number[];
+  class_ids?: number[]; // deprecated: use class_uuids
+  class_uuids?: string[];
 }
 
 /**
  * Get all nodes that have a value for a specific property
  */
 export async function getNodesWithProperty(
-  propertyId: string | number
+  propertyUuid: string
 ): Promise<{ nodes: NodeWithPropertyValue[]; property: Property }> {
   const response = await api.get<{ nodes: NodeWithPropertyValue[]; property: Property }>(
-    `${BASE}/${resolveRequiredPropertyUuid(propertyId)}/nodes`
+    `${BASE}/${propertyUuid}/nodes`
   );
   return response.data;
 }
