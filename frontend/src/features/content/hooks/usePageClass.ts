@@ -77,7 +77,7 @@ export function useSystemClasses() {
   
   const systemClassIds = useMemo(() => {
     if (!systemClasses) return null;
-    
+
     return {
       page: systemClasses.page?.id ?? null,
       class: systemClasses.class?.id ?? null,
@@ -96,10 +96,33 @@ export function useSystemClasses() {
       cloze: systemClasses.cloze?.id ?? null,
     };
   }, [systemClasses]);
-  
+
+  const systemClassUuids = useMemo(() => {
+    if (!systemClasses) return null;
+
+    return {
+      page: systemClasses.page?.uuid ?? null,
+      class: systemClasses.class?.uuid ?? null,
+      day: systemClasses.day?.uuid ?? null,
+      month: systemClasses.month?.uuid ?? null,
+      year: systemClasses.year?.uuid ?? null,
+      comment: systemClasses.comment?.uuid ?? null,
+      task: systemClasses.task?.uuid ?? null,
+      template: systemClasses.template?.uuid ?? null,
+      asset: systemClasses.asset?.uuid ?? null,
+      quote: systemClasses.quote?.uuid ?? null,
+      query: systemClasses.query?.uuid ?? null,
+      code: systemClasses.code?.uuid ?? null,
+      whiteboard: systemClasses.whiteboard?.uuid ?? null,
+      card: systemClasses.card?.uuid ?? null,
+      cloze: systemClasses.cloze?.uuid ?? null,
+    };
+  }, [systemClasses]);
+
   return {
     systemClasses,
     systemClassIds,
+    systemClassUuids,
     isLoading,
   };
 }

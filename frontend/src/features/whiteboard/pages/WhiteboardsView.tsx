@@ -23,39 +23,39 @@ interface WhiteboardsViewProps {
 export function WhiteboardsView({ className = '' }: WhiteboardsViewProps) {
   const openNode = useOpenNode();
   const queryClient = useQueryClient();
-  const { systemClassIds, isLoading: classesLoading } = useSystemClasses();
-  const whiteboardClassId = systemClassIds?.whiteboard ?? null;
-  const pageClassId = systemClassIds?.page ?? null;
+  const { systemClassUuids, isLoading: classesLoading } = useSystemClasses();
+  const whiteboardClassUuid = systemClassUuids?.whiteboard ?? null;
+  const pageClassUuid = systemClassUuids?.page ?? null;
 
   const {
     data: whiteboards = [],
     isLoading: whiteboardsLoading,
     error,
-  } = useNodesWithClass(whiteboardClassId);
+  } = useNodesWithClass(whiteboardClassUuid);
 
   const createNode = useCreateNode();
 
   const [viewMode, setViewMode] = useState<NodeCollectionViewMode>('kanban');
 
   const handleCreateWhiteboard = useCallback(async () => {
-    if (!whiteboardClassId || !pageClassId) return;
+    if (!whiteboardClassUuid || !pageClassUuid) return;
 
-    const classes = [pageClassId];
-    if (!classes.includes(whiteboardClassId)) {
-      classes.push(whiteboardClassId);
+    const classes = [pageClassUuid];
+    if (!classes.includes(whiteboardClassUuid)) {
+      classes.push(whiteboardClassUuid);
     }
 
     const newNode = await createNode.mutateAsync({
       name: 'New Whiteboard',
-      classes,
+      class_uuids: classes,
     });
 
     // Invalidate the whiteboards list so the new one appears
-    queryClient.invalidateQueries({ queryKey: nodeKeys.byClass(whiteboardClassId) });
+    queryClient.invalidateQueries({ queryKey: nodeKeys.byClass(whiteboardClassUuid) });
 
     // Open the newly created whiteboard
     openNode(newNode.uuid);
-  }, [whiteboardClassId, pageClassId, createNode, queryClient, openNode]);
+  }, [whiteboardClassUuid, pageClassUuid, createNode, queryClient, openNode]);
 
   const handleNodeClick = useCallback(
     (node: Node) => {
@@ -85,7 +85,7 @@ export function WhiteboardsView({ className = '' }: WhiteboardsViewProps) {
             size="sm"
             icon={"mdi mdi-plus"}
             onClick={handleCreateWhiteboard}
-            disabled={!whiteboardClassId || createNode.isPending}
+            disabled={!whiteboardClassUuid || createNode.isPending}
             title="New whiteboard"
           >
             New whiteboard
@@ -115,7 +115,7 @@ export function WhiteboardsView({ className = '' }: WhiteboardsViewProps) {
             editable={false}
             showAddButton
             onAdd={handleCreateWhiteboard}
-            can_create={!!whiteboardClassId}
+            can_create={!!whiteboardClassUuid}
             emptyMessage="Create a whiteboard to get started"
           />
         </DataStateView>

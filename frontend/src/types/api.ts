@@ -233,6 +233,7 @@ export interface NodeCreate {
   sequence?: number;
   tags?: number[];
   classes?: number[];  // Class node IDs - backend computes is_page, is_class etc from these
+  class_uuids?: string[];  // Class node UUIDs (takes precedence over classes)
   properties?: Record<number, unknown>;
   uuid?: string;  // Optional: override auto-generated UUID (e.g. from Logseq import)
   // For date nodes

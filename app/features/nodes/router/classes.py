@@ -12,7 +12,7 @@ from app.dependencies import (
 from app.features.nodes.port import NodeRepository
 from app.models import PaginatedResponse, User
 
-from .dependencies import resolve_class_uuid, resolve_node_uuid
+from .dependencies import resolve_class_node_uuid, resolve_class_uuid, resolve_node_uuid
 from .helpers import (
     _get_class_ids_batch,
     _get_extends_batch,
@@ -88,9 +88,9 @@ async def search_classes(
     return {"nodes": nodes_responses}
 
 
-@router.get("/classes/{class_id}/nodes")
+@router.get("/classes/{class_node_uuid}/nodes")
 async def get_nodes_with_class(
-    class_id: int,
+    class_node_id: int = Depends(resolve_class_node_uuid),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=500),
     user: User = Depends(get_current_user),
@@ -104,8 +104,8 @@ async def get_nodes_with_class(
     class_service = await _get_class_service(user)
     node_service = await _get_node_service(user)
     offset = (page - 1) * page_size
-    nodes = await class_service.get_nodes_with_class(class_id, limit=page_size, offset=offset)
-    total = await class_service.count_nodes_with_class(class_id)
+    nodes = await class_service.get_nodes_with_class(class_node_id, limit=page_size, offset=offset)
+    total = await class_service.count_nodes_with_class(class_node_id)
 
     node_ids = [n.id for n in nodes if n.id is not None]
     class_ids_map = await _get_class_ids_batch(node_service, node_ids)
