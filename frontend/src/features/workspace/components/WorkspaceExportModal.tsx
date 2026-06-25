@@ -81,7 +81,7 @@ export function WorkspaceExportModal({
 }: WorkspaceExportModalProps) {
   const [format, setFormat] = useState<ExportFormat>('dump');
   const [includeAssets, setIncludeAssets] = useState(false);
-  const [jobId, setJobId] = useState<string | null>(null);
+  const [jobUuid, setJobUuid] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const formatOptions = useMemo(() => getFormatOptions(includeAssets), [includeAssets]);
@@ -94,8 +94,8 @@ export function WorkspaceExportModal({
   const handleStartExport = useCallback(async () => {
     setError(null);
     try {
-      const { job_id } = await createExportJob(workspaceUuid, format, includeAssets);
-      setJobId(job_id);
+      const { job_uuid } = await createExportJob(workspaceUuid, format, includeAssets);
+      setJobUuid(job_uuid);
     } catch (err) {
       const axiosErr = err as { response?: { data?: { detail?: string } } };
       const detail = axiosErr.response?.data?.detail;
@@ -104,7 +104,7 @@ export function WorkspaceExportModal({
   }, [workspaceUuid, format, includeAssets]);
 
   const handleReset = useCallback(() => {
-    setJobId(null);
+    setJobUuid(null);
     setError(null);
   }, []);
 
@@ -115,9 +115,9 @@ export function WorkspaceExportModal({
 
   // Poll job status when we have an active job
   const { data: job } = useQuery<ExportJob>({
-    queryKey: workspaceKeys.exportJob(jobId),
-    queryFn: () => getExportJob(jobId!),
-    enabled: !!jobId,
+    queryKey: workspaceKeys.exportJob(jobUuid),
+    queryFn: () => getExportJob(jobUuid!),
+    enabled: !!jobUuid,
     refetchInterval: (query) => {
       const data = query.state.data;
       if (!data) return 500;
@@ -133,7 +133,7 @@ export function WorkspaceExportModal({
     if (job.status === 'completed') {
       const doDownload = async () => {
         try {
-          const blob = await downloadExportJob(job.id);
+          const blob = await downloadExportJob(job.job_uuid);
           const fmtCode = getFormatCode(format);
           const ext = getFileExtension(format, includeAssets);
           const timestamp = new Date().toISOString().replace(/[:T]/g, '-').slice(0, 19);
@@ -142,20 +142,19 @@ export function WorkspaceExportModal({
           handleClose();
         } catch (err) {
           setError(err instanceof Error ? err.message : 'Download failed');
-          setJobId(null);
+          setJobUuid(null);
         }
       };
       doDownload();
     }
 
     if (job.status === 'failed') {
-       
       setError(job.error ?? 'Export failed');
-      setJobId(null);
+      setJobUuid(null);
     }
   }, [job, format, includeAssets, workspaceName, handleClose]);
 
-  const isExporting = !!jobId && job && job.status !== 'completed' && job.status !== 'failed';
+  const isExporting = !!jobUuid && job && job.status !== 'completed' && job.status !== 'failed';
 
   const progressLabel = useMemo(() => {
     if (!job) return 'Starting export…';
@@ -176,7 +175,7 @@ export function WorkspaceExportModal({
           <Button variant="default" onClick={handleClose} disabled={isExporting}>
             {isExporting ? 'Cancel' : 'Close'}
           </Button>
-          {!jobId && (
+          {!jobUuid && (
             <Button
               variant="primary"
               icon="mdi mdi-download"

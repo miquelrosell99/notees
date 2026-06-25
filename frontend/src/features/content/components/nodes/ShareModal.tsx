@@ -25,7 +25,7 @@ import { copyToClipboard } from '@/utils/clipboardManager';
 import './ShareModal.css';
 
 interface ShareModalProps {
-  nodeId: number;
+  nodeUuid: string;
   isOpen: boolean;
   onClose: () => void;
 }
@@ -36,15 +36,15 @@ const PERMISSION_OPTIONS = [
   { value: 'write' as const, label: 'Can edit' },
 ];
 
-export function ShareModal({ nodeId, isOpen, onClose }: ShareModalProps) {
+export function ShareModal({ nodeUuid, isOpen, onClose }: ShareModalProps) {
   // Public shares
-  const { data: publicData, isLoading: publicLoading } = useNodeShares(nodeId);
+  const { data: publicData, isLoading: publicLoading } = useNodeShares(nodeUuid);
   const createShare = useCreateShare();
   const deleteShare = useDeleteShare();
   const [expiryDate, setExpiryDate] = useState('');
 
   // User shares
-  const { data: userData, isLoading: userLoading } = useNodeUserShares(nodeId);
+  const { data: userData, isLoading: userLoading } = useNodeUserShares(nodeUuid);
   const createUserShare = useCreateUserShare();
   const deleteUserShare = useDeleteUserShare();
   const [inviteEmail, setInviteEmail] = useState('');
@@ -53,10 +53,10 @@ export function ShareModal({ nodeId, isOpen, onClose }: ShareModalProps) {
 
   const handleCreatePublic = useCallback(() => {
     createShare.mutate(
-      { nodeId, expiryDate: expiryDate || null, password: publicPassword || null },
+      { nodeUuid, expiryDate: expiryDate || null, password: publicPassword || null },
       { onSuccess: () => { setExpiryDate(''); setPublicPassword(''); } }
     );
-  }, [nodeId, expiryDate, publicPassword, createShare]);
+  }, [nodeUuid, expiryDate, publicPassword, createShare]);
 
   const handleCopy = useCallback((url: string) => {
     copyToClipboard(url);
@@ -66,10 +66,10 @@ export function ShareModal({ nodeId, isOpen, onClose }: ShareModalProps) {
     const email = inviteEmail.trim();
     if (!email) return;
     createUserShare.mutate(
-      { nodeId, email, permission: invitePermission },
+      { nodeUuid, email, permission: invitePermission },
       { onSuccess: () => { setInviteEmail(''); setInvitePermission('read'); } }
     );
-  }, [nodeId, inviteEmail, invitePermission, createUserShare]);
+  }, [nodeUuid, inviteEmail, invitePermission, createUserShare]);
 
   const shares = publicData?.shares ?? [];
   const userShares = userData?.shares ?? [];

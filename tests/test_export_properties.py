@@ -15,11 +15,11 @@ async def _export_single_node_and_download(
     """Start a single-node export job, wait for completion, and return the downloaded text."""
     export_resp = await auth_client.get(f"/api/export/{page_uuid}", params=params)
     assert export_resp.status_code == 200, export_resp.text
-    job_id = export_resp.json()["job_id"]
+    job_uuid = export_resp.json()["job_uuid"]
 
     status = None
     for _ in range(50):
-        status_resp = await auth_client.get(f"/api/export/jobs/{job_id}")
+        status_resp = await auth_client.get(f"/api/export/jobs/{job_uuid}")
         assert status_resp.status_code == 200, status_resp.text
         status = status_resp.json()
         if status["status"] in ("completed", "failed"):
@@ -29,7 +29,7 @@ async def _export_single_node_and_download(
     assert status is not None
     assert status["status"] == "completed", status.get("error", "unknown error")
 
-    download_resp = await auth_client.get(f"/api/export/jobs/{job_id}/download")
+    download_resp = await auth_client.get(f"/api/export/jobs/{job_uuid}/download")
     assert download_resp.status_code == 200, download_resp.text
     return download_resp.text
 
@@ -46,7 +46,6 @@ class TestMarkdownExportProperties:
         page_resp = await auth_client.post("/api/nodes/page", params={"name": "Prop Test Page"})
         assert page_resp.status_code == 200
         page = page_resp.json()
-        page_id = page["id"]
         page_uuid = page["uuid"]
 
         # Create a property and assign it to the page
@@ -56,28 +55,28 @@ class TestMarkdownExportProperties:
         )
         assert prop_resp.status_code == 200
         prop = prop_resp.json()
-        prop_id = prop["id"]
+        prop_uuid = prop["uuid"]
 
         # Add a selection line
         sel_resp = await auth_client.post(
-            f"/api/properties/{prop_id}/selection-lines",
+            f"/api/properties/{prop_uuid}/selection-lines",
             json={"name": "Ready"},
         )
         assert sel_resp.status_code == 200
         sel_line = sel_resp.json()
-        sel_line_id = sel_line["id"]
+        sel_line_uuid = sel_line["uuid"]
 
         # Add a child block so markdown export doesn't fail with "no child nodes"
         block_resp = await auth_client.post(
             "/api/nodes/",
-            json={"name": "Empty Block", "parent_id": page_id},
+            json={"name": "Empty Block", "parent_uuid": page_uuid},
         )
         assert block_resp.status_code == 200
 
         # Assign property value to the page
         await auth_client.post(
-            f"/api/nodes/{page_id}/properties",
-            json={"property_id": prop_id, "value": sel_line_id},
+            f"/api/nodes/{page_uuid}/properties",
+            json={"property_uuid": prop_uuid, "value": sel_line_uuid},
         )
 
         # Export with properties=none
@@ -101,17 +100,16 @@ class TestMarkdownExportProperties:
         page_resp = await auth_client.post("/api/nodes/page", params={"name": "Prop Test Page 2"})
         assert page_resp.status_code == 200
         page = page_resp.json()
-        page_id = page["id"]
         page_uuid = page["uuid"]
 
         # Create a child block
         block_resp = await auth_client.post(
             "/api/nodes/",
-            json={"name": "Child Block", "parent_id": page_id},
+            json={"name": "Child Block", "parent_uuid": page_uuid},
         )
         assert block_resp.status_code == 200
         block = block_resp.json()
-        block_id = block["id"]
+        block_uuid = block["uuid"]
 
         # Create a property
         prop_resp = await auth_client.post(
@@ -120,25 +118,25 @@ class TestMarkdownExportProperties:
         )
         assert prop_resp.status_code == 200
         prop = prop_resp.json()
-        prop_id = prop["id"]
+        prop_uuid = prop["uuid"]
 
         # Add selection line
         sel_resp = await auth_client.post(
-            f"/api/properties/{prop_id}/selection-lines",
+            f"/api/properties/{prop_uuid}/selection-lines",
             json={"name": "Done"},
         )
         assert sel_resp.status_code == 200
         sel_line = sel_resp.json()
-        sel_line_id = sel_line["id"]
+        sel_line_uuid = sel_line["uuid"]
 
         # Assign property to page and block
         await auth_client.post(
-            f"/api/nodes/{page_id}/properties",
-            json={"property_id": prop_id, "value": sel_line_id},
+            f"/api/nodes/{page_uuid}/properties",
+            json={"property_uuid": prop_uuid, "value": sel_line_uuid},
         )
         await auth_client.post(
-            f"/api/nodes/{block_id}/properties",
-            json={"property_id": prop_id, "value": sel_line_id},
+            f"/api/nodes/{block_uuid}/properties",
+            json={"property_uuid": prop_uuid, "value": sel_line_uuid},
         )
 
         # Export with properties=main
@@ -164,23 +162,22 @@ class TestMarkdownExportProperties:
         page_resp = await auth_client.post("/api/nodes/page", params={"name": "Prop Test Page 3"})
         assert page_resp.status_code == 200
         page = page_resp.json()
-        page_id = page["id"]
         page_uuid = page["uuid"]
 
         # Create nested blocks: page -> block1 -> block2
         block1_resp = await auth_client.post(
             "/api/nodes/",
-            json={"name": "Block 1", "parent_id": page_id},
+            json={"name": "Block 1", "parent_uuid": page_uuid},
         )
         assert block1_resp.status_code == 200
-        block1_id = block1_resp.json()["id"]
+        block1_uuid = block1_resp.json()["uuid"]
 
         block2_resp = await auth_client.post(
             "/api/nodes/",
-            json={"name": "Block 2", "parent_id": block1_id},
+            json={"name": "Block 2", "parent_uuid": block1_uuid},
         )
         assert block2_resp.status_code == 200
-        block2_id = block2_resp.json()["id"]
+        block2_uuid = block2_resp.json()["uuid"]
 
         # Create a property
         prop_resp = await auth_client.post(
@@ -188,21 +185,21 @@ class TestMarkdownExportProperties:
             json={"name": "TaskStatusAll", "type": "selection"},
         )
         assert prop_resp.status_code == 200
-        prop_id = prop_resp.json()["id"]
+        prop_uuid = prop_resp.json()["uuid"]
 
         # Add selection line
         sel_resp = await auth_client.post(
-            f"/api/properties/{prop_id}/selection-lines",
+            f"/api/properties/{prop_uuid}/selection-lines",
             json={"name": "In Progress"},
         )
         assert sel_resp.status_code == 200
-        sel_line_id = sel_resp.json()["id"]
+        sel_line_uuid = sel_resp.json()["uuid"]
 
         # Assign to all nodes
-        for nid in [page_id, block1_id, block2_id]:
+        for node_uuid in [page_uuid, block1_uuid, block2_uuid]:
             await auth_client.post(
-                f"/api/nodes/{nid}/properties",
-                json={"property_id": prop_id, "value": sel_line_id},
+                f"/api/nodes/{node_uuid}/properties",
+                json={"property_uuid": prop_uuid, "value": sel_line_uuid},
             )
 
         # Export with properties=all
@@ -227,15 +224,14 @@ class TestMarkdownExportProperties:
         # Create a page with a child block that has a property
         page_resp = await auth_client.post("/api/nodes/page", params={"name": "No Props Page"})
         assert page_resp.status_code == 200
-        page_id = page_resp.json()["id"]
         page_uuid = page_resp.json()["uuid"]
 
         block_resp = await auth_client.post(
             "/api/nodes/",
-            json={"name": "Block with prop", "parent_id": page_id},
+            json={"name": "Block with prop", "parent_uuid": page_uuid},
         )
         assert block_resp.status_code == 200
-        block_id = block_resp.json()["id"]
+        block_uuid = block_resp.json()["uuid"]
 
         # Create property
         prop_resp = await auth_client.post(
@@ -243,18 +239,18 @@ class TestMarkdownExportProperties:
             json={"name": "PriorityNone", "type": "selection"},
         )
         assert prop_resp.status_code == 200
-        prop_id = prop_resp.json()["id"]
+        prop_uuid = prop_resp.json()["uuid"]
 
         sel_resp = await auth_client.post(
-            f"/api/properties/{prop_id}/selection-lines",
+            f"/api/properties/{prop_uuid}/selection-lines",
             json={"name": "High"},
         )
         assert sel_resp.status_code == 200
-        sel_line_id = sel_resp.json()["id"]
+        sel_line_uuid = sel_resp.json()["uuid"]
 
         await auth_client.post(
-            f"/api/nodes/{block_id}/properties",
-            json={"property_id": prop_id, "value": sel_line_id},
+            f"/api/nodes/{block_uuid}/properties",
+            json={"property_uuid": prop_uuid, "value": sel_line_uuid},
         )
 
         # Export with properties=none

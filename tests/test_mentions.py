@@ -23,27 +23,29 @@ class TestUnlinkedMentions:
             json={"name": "TargetPage", "classes": [page_class_id]},
         )
         assert target.status_code == 200
-        target_id = target.json()["id"]
+        target_data = target.json()
+        target_uuid = target_data["uuid"]
 
         source = await authenticated_client.post(
             "/api/nodes/",
             json={"name": "SourcePage", "classes": [page_class_id]},
         )
         assert source.status_code == 200
-        source_id = source.json()["id"]
+        source_data = source.json()
+        source_uuid = source_data["uuid"]
 
         block = await authenticated_client.post(
             "/api/nodes/",
             json={
                 "name": "I read TargetPage today",
-                "parent_id": source_id,
+                "parent_uuid": source_uuid,
                 "classes": [],
             },
         )
         assert block.status_code == 200
         block_id = block.json()["id"]
 
-        mentions_resp = await authenticated_client.get(f"/api/nodes/{target_id}/mentions")
+        mentions_resp = await authenticated_client.get(f"/api/nodes/{target_uuid}/mentions")
         assert mentions_resp.status_code == 200
         mentions = mentions_resp.json()["mentions"]
         assert len(mentions) == 1
@@ -63,39 +65,39 @@ class TestUnlinkedMentions:
             "/api/nodes/",
             json={"name": "TargetPage", "classes": [page_class_id]},
         )
-        target_id = target.json()["id"]
+        target_uuid = target.json()["uuid"]
 
         source = await authenticated_client.post(
             "/api/nodes/",
             json={"name": "SourcePage", "classes": [page_class_id]},
         )
-        source_id = source.json()["id"]
+        source_uuid = source.json()["uuid"]
 
         block = await authenticated_client.post(
             "/api/nodes/",
             json={
                 "name": "I read TargetPage today",
-                "parent_id": source_id,
+                "parent_uuid": source_uuid,
                 "classes": [],
             },
         )
         block_id = block.json()["id"]
 
-        mentions_resp = await authenticated_client.get(f"/api/nodes/{target_id}/mentions")
+        mentions_resp = await authenticated_client.get(f"/api/nodes/{target_uuid}/mentions")
         mention_id = mentions_resp.json()["mentions"][0]["id"]
 
         promote_resp = await authenticated_client.post(
-            f"/api/nodes/{target_id}/mentions/{mention_id}/promote"
+            f"/api/nodes/{target_uuid}/mentions/{mention_id}/promote"
         )
         assert promote_resp.status_code == 200
         assert promote_resp.json()["success"] is True
 
         # Mention should be gone after promotion.
-        mentions_resp = await authenticated_client.get(f"/api/nodes/{target_id}/mentions")
+        mentions_resp = await authenticated_client.get(f"/api/nodes/{target_uuid}/mentions")
         assert mentions_resp.json()["mentions"] == []
 
         # The target should now have a text backlink.
-        backlinks_resp = await authenticated_client.get(f"/api/nodes/{target_id}/backlinks")
+        backlinks_resp = await authenticated_client.get(f"/api/nodes/{target_uuid}/backlinks")
         backlinks = backlinks_resp.json()["backlinks"]
         assert any(b["source_node_id"] == block_id for b in backlinks)
 
@@ -112,30 +114,30 @@ class TestUnlinkedMentions:
             "/api/nodes/",
             json={"name": "TargetPage", "classes": [page_class_id]},
         )
-        target_id = target.json()["id"]
+        target_uuid = target.json()["uuid"]
 
         source = await authenticated_client.post(
             "/api/nodes/",
             json={"name": "SourcePage", "classes": [page_class_id]},
         )
-        source_id = source.json()["id"]
+        source_uuid = source.json()["uuid"]
 
         await authenticated_client.post(
             "/api/nodes/",
             json={
                 "name": "I read TargetPage today",
-                "parent_id": source_id,
+                "parent_uuid": source_uuid,
                 "classes": [],
             },
         )
 
-        mentions_resp = await authenticated_client.get(f"/api/nodes/{target_id}/mentions")
+        mentions_resp = await authenticated_client.get(f"/api/nodes/{target_uuid}/mentions")
         mention_id = mentions_resp.json()["mentions"][0]["id"]
 
         ignore_resp = await authenticated_client.post(
-            f"/api/nodes/{target_id}/mentions/{mention_id}/ignore"
+            f"/api/nodes/{target_uuid}/mentions/{mention_id}/ignore"
         )
         assert ignore_resp.status_code == 200
 
-        mentions_resp = await authenticated_client.get(f"/api/nodes/{target_id}/mentions")
+        mentions_resp = await authenticated_client.get(f"/api/nodes/{target_uuid}/mentions")
         assert mentions_resp.json()["mentions"] == []

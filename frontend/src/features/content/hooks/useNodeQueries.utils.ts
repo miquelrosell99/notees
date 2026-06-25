@@ -26,6 +26,17 @@ export function findNodeInTree(root: Node, targetId: number): Node | undefined {
   return undefined;
 }
 
+export function findNodeInTreeByUuid(root: Node, targetUuid: string): Node | undefined {
+  if (root.uuid === targetUuid) return root;
+  if (root.children) {
+    for (const child of root.children) {
+      const found = findNodeInTreeByUuid(child, targetUuid);
+      if (found) return found;
+    }
+  }
+  return undefined;
+}
+
 // ==================== Node Queries ====================
 
 /**

@@ -1,4 +1,4 @@
-import { getNode, batchDeleteNodes, batchPermanentlyDeleteNodes } from '@/api/nodes';
+import { getNode, batchGetNodes, batchDeleteNodes, batchPermanentlyDeleteNodes } from '@/api/nodes';
 import type { Node, PropertyType } from '@/types/api';
 import type { QueryClient } from '@tanstack/react-query';
 import type { PhaseResult } from './useLogseqImporter.types';
@@ -52,7 +52,10 @@ function collectChildInfo(node: Node): { uuids: string[]; ids: number[] } {
  * Two-step: soft-delete first, then hard-delete to free UUIDs.
  */
 export async function deleteExistingBlocks(pageId: number, queryClient: QueryClient): Promise<number> {
-  const fullPage = await getNode(pageId, { include_children: true });
+  const batchResult = await batchGetNodes({ ids: [pageId] });
+  const pageUuid = Object.values(batchResult.nodes)[0]?.uuid;
+  if (!pageUuid) return 0;
+  const fullPage = await getNode(pageUuid, { include_children: true });
   const { uuids: childUuids, ids: childIds } = collectChildInfo(fullPage);
 
   if (childUuids.length === 0) return 0;

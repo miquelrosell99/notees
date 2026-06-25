@@ -5,9 +5,17 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from app.dependencies import get_current_user, get_node_repository, get_settings_repository
 from app.domain.repositories.interfaces import SettingsRepository
 from app.features.nodes.port import NodeRepository
+from app.features.nodes.router.dependencies import resolve_node_uuid, resolve_node_uuids
 from app.models import PaginatedResponse, User
 
-from .helpers import _get_class_ids_batch, _get_node_service, _node_to_response, _resolve_display_names_for_responses
+from .helpers import (
+    _build_node_uuid_map,
+    _enrich_node_responses_uuids,
+    _get_class_ids_batch,
+    _get_node_service,
+    _node_to_response,
+    _resolve_display_names_for_responses,
+)
 from .models import NodeResponse, ReorderFavoritesRequest, SetFavoritesRequest
 
 router = APIRouter()
@@ -30,18 +38,18 @@ async def get_favorites(
     offset = (page - 1) * page_size
     user_id = int(user.id)
 
-    favorites = await settings_repo.get_user_favorites(user_id)
-    if not favorites:
+    favorite_ids = await settings_repo.get_user_favorites(user_id)
+    if not favorite_ids:
         return PaginatedResponse[NodeResponse](
             items=[], total=0, page=page, page_size=page_size, has_next=False, has_prev=False
         )
 
     # Filter out deleted or archived nodes using a single batch query
-    valid_ids = await node_repo.filter_existing_active_node_ids(favorites)
-    valid_favorites = [fid for fid in favorites if fid in valid_ids]
+    valid_ids = await node_repo.filter_existing_active_node_ids(favorite_ids)
+    valid_favorite_ids = [fid for fid in favorite_ids if fid in valid_ids]
 
-    total = len(valid_favorites)
-    paginated_ids = valid_favorites[offset : offset + page_size]
+    total = len(valid_favorite_ids)
+    paginated_ids = valid_favorite_ids[offset : offset + page_size]
 
     # Fetch node details for paginated IDs
     nodes = []
@@ -60,6 +68,7 @@ async def get_favorites(
         result.append(_node_to_response(n, classes=class_ids_map.get(n.id, [])))
 
     await _resolve_display_names_for_responses(service, nodes, result)
+    await _enrich_node_responses_uuids(result, node_repo)
 
     return PaginatedResponse[NodeResponse](
         items=result,
@@ -76,12 +85,14 @@ async def set_favorites(
     body: SetFavoritesRequest,
     user: User = Depends(get_current_user),
     settings_repo: SettingsRepository = Depends(get_settings_repository),
+    node_repo: NodeRepository = Depends(get_node_repository),
 ):
-    """Set the list of favorite page IDs.
+    """Set the list of favorite page UUIDs.
 
-    Expects JSON body: { "favorites": [nodeId1, nodeId2, ...] }
+    Expects JSON body: { "favorites": [nodeUuid1, nodeUuid2, ...] }
     """
-    await settings_repo.set_user_favorites(int(user.id), body.favorites)
+    favorite_ids = await resolve_node_uuids(body.favorites, node_repo)
+    await settings_repo.set_user_favorites(int(user.id), favorite_ids)
 
     return {"status": "ok", "favorites": body.favorites}
 
@@ -91,31 +102,34 @@ async def reorder_favorites(
     body: ReorderFavoritesRequest,
     user: User = Depends(get_current_user),
     settings_repo: SettingsRepository = Depends(get_settings_repository),
+    node_repo: NodeRepository = Depends(get_node_repository),
 ):
     """Reorder favorites by moving an item from one position to another.
 
     Expects JSON body: { "from_index": number, "to_index": number }
+    Returns the reordered list as UUIDs.
     """
-    favorites = await settings_repo.get_user_favorites(int(user.id))
+    favorite_ids = await settings_repo.get_user_favorites(int(user.id))
 
     # Validate indices
-    if body.from_index >= len(favorites):
+    if body.from_index >= len(favorite_ids):
         raise HTTPException(status_code=400, detail="from_index out of bounds")
-    if body.to_index >= len(favorites):
+    if body.to_index >= len(favorite_ids):
         raise HTTPException(status_code=400, detail="to_index out of bounds")
 
     # Reorder
-    item = favorites.pop(body.from_index)
-    favorites.insert(body.to_index, item)
+    item = favorite_ids.pop(body.from_index)
+    favorite_ids.insert(body.to_index, item)
 
-    await settings_repo.set_user_favorites(int(user.id), favorites)
+    await settings_repo.set_user_favorites(int(user.id), favorite_ids)
 
-    return {"status": "ok", "favorites": favorites}
+    uuid_map = await _build_node_uuid_map(node_repo, favorite_ids)
+    return {"status": "ok", "favorites": [uuid_map.get(fid) for fid in favorite_ids if uuid_map.get(fid)]}
 
 
-@router.post("/favorites/{node_id}")
+@router.post("/favorites/{node_uuid}")
 async def add_favorite(
-    node_id: int,
+    node_id: int = Depends(resolve_node_uuid),
     user: User = Depends(get_current_user),
     settings_repo: SettingsRepository = Depends(get_settings_repository),
     node_repo: NodeRepository = Depends(get_node_repository),
@@ -136,14 +150,16 @@ async def add_favorite(
         favorites.append(node_id)
         await settings_repo.set_user_favorites(int(user.id), favorites)
 
-    return {"status": "ok", "favorites": favorites}
+    uuid_map = await _build_node_uuid_map(node_repo, favorites)
+    return {"status": "ok", "favorites": [uuid_map.get(fid) for fid in favorites if uuid_map.get(fid)]}
 
 
-@router.delete("/favorites/{node_id}")
+@router.delete("/favorites/{node_uuid}")
 async def remove_favorite(
-    node_id: int,
+    node_id: int = Depends(resolve_node_uuid),
     user: User = Depends(get_current_user),
     settings_repo: SettingsRepository = Depends(get_settings_repository),
+    node_repo: NodeRepository = Depends(get_node_repository),
 ):
     """Remove a page from favorites."""
     favorites = await settings_repo.get_user_favorites(int(user.id))
@@ -153,4 +169,5 @@ async def remove_favorite(
         favorites.remove(node_id)
         await settings_repo.set_user_favorites(int(user.id), favorites)
 
-    return {"status": "ok", "favorites": favorites}
+    uuid_map = await _build_node_uuid_map(node_repo, favorites)
+    return {"status": "ok", "favorites": [uuid_map.get(fid) for fid in favorites if uuid_map.get(fid)]}

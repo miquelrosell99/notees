@@ -604,7 +604,7 @@ export function CommandPalette(props: CommandPaletteProps) {
         parentId={duplicateModal.parentId}
         onSuccess={(node) => {
           onClose();
-          openNode(node.id);
+          openNode(node.uuid);
         }}
       />
 

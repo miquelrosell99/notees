@@ -4,6 +4,7 @@ import { nodeKeys } from '@/hooks/queryKeys';
 import { nodeViewKeys } from './useNodeViews';
 import { awaitAllContentSaves } from '@/hooks/contentSaveTracker';
 import * as nodesApi from '@/api/nodes';
+import { getNodeUuidByServerId } from './useNodeMutations.utils';
 
 function invalidateAfterConversion(
   queryClient: ReturnType<typeof useQueryClient>,
@@ -47,7 +48,9 @@ export function useConvertToPage() {
   return useMutation<Node, Error, { nodeId: number; name?: string; oldParentId?: number | null }>({
     mutationFn: async ({ nodeId, name }) => {
       await awaitAllContentSaves();
-      return nodesApi.convertToPage(nodeId, name);
+      const nodeUuid = getNodeUuidByServerId(queryClient, nodeId);
+      if (!nodeUuid) throw new Error('Node UUID not found');
+      return nodesApi.convertToPage(nodeUuid, name);
     },
     onSuccess: (node, variables) => {
       invalidateAfterConversion(queryClient, node, variables.oldParentId, null);
@@ -68,7 +71,10 @@ export function useConvertToBlock() {
   >({
     mutationFn: async ({ nodeId, parentId, position }) => {
       await awaitAllContentSaves();
-      return nodesApi.convertToBlock(nodeId, parentId, position);
+      const nodeUuid = getNodeUuidByServerId(queryClient, nodeId);
+      const parentNodeUuid = getNodeUuidByServerId(queryClient, parentId);
+      if (!nodeUuid || !parentNodeUuid) throw new Error('Node UUID not found');
+      return nodesApi.convertToBlock(nodeUuid, parentNodeUuid, position);
     },
     onSuccess: (node, variables) => {
       invalidateAfterConversion(queryClient, node, variables.oldParentId, node.parent_id);

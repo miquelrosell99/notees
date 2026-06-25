@@ -40,16 +40,30 @@ async def init_database(conn: asyncpg.Connection) -> None:
     This creates all tables, indexes, and triggers.
     Call this during application startup.
     """
-    # Enable UUID extension separately before running the main schema DDL.
-    # PostgreSQL/asyncpg can fail with a unique-violation on pg_extension_name_index
-    # when CREATE EXTENSION IF NOT EXISTS is embedded in a multi-statement string.
-    await conn.execute('CREATE EXTENSION IF NOT EXISTS "uuid-ossp"')
+    # Keep the UUID extension in a dedicated schema so that recreating the
+    # public schema between tests (DROP SCHEMA public CASCADE) does not
+    # invalidate the extension catalog entry and leave uuid_generate_v4()
+    # intermittently unresolved.
+    await conn.execute("CREATE SCHEMA IF NOT EXISTS extensions")
+    await conn.execute('CREATE EXTENSION IF NOT EXISTS "uuid-ossp" SCHEMA extensions')
+
+    # Ensure every connection resolves unqualified uuid_generate_v4() against
+    # the extensions schema, including ad-hoc connections that do not run
+    # through our pool init hook.
+    db_name = await conn.fetchval("SELECT current_database()")
+    await conn.execute(
+        f'ALTER DATABASE "{db_name}" SET search_path = public, extensions'
+    )
 
     # Execute the schema DDL inside an explicit transaction.  Wrapping the
     # script guarantees it is committed atomically and avoids the subtle
     # uvloop/pytest-asyncio behaviour where a large implicit-transaction
     # multi-statement string is not always persisted.
     async with conn.transaction():
+        # Re-bind search_path inside the transaction so uuid_generate_v4() and
+        # other extension functions are resolvable even after public was
+        # recreated. SET LOCAL keeps the change scoped to this transaction.
+        await conn.execute("SET LOCAL search_path TO public, extensions")
         await conn.execute(SCHEMA_SQL)
 
     # Clean up legacy node_path closure table artifacts if they still exist
@@ -123,6 +137,7 @@ async def init_database(conn: asyncpg.Connection) -> None:
     from app.db.migrations.normalize_settings_jsonb import run as _run_normalize_settings_jsonb
     await _run_migration("normalize_settings_jsonb", conn, _run_normalize_settings_jsonb)
     await _run_migration("add_user_device_token", conn, _add_user_device_token)
+    await _run_migration("add_uuid_columns_to_remaining_tables", conn, _add_uuid_columns_to_remaining_tables)
 
 
 
@@ -728,6 +743,7 @@ async def _migrate_collaboration_schema(conn: asyncpg.Connection) -> None:
         await conn.execute("""
             CREATE TABLE notification (
                 id SERIAL PRIMARY KEY,
+                uuid UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
                 user_id INTEGER NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
                 type VARCHAR(50) NOT NULL,
                 actor_user_id INTEGER REFERENCES "user"(id) ON DELETE SET NULL,
@@ -1580,3 +1596,56 @@ async def _add_user_device_token(conn: asyncpg.Connection) -> None:
         await conn.execute("CREATE INDEX idx_user_device_token_user_id ON user_device_token(user_id)")
         await conn.execute("CREATE INDEX idx_user_device_token_token ON user_device_token(token)")
         logger.info("Created user_device_token table")
+
+
+async def _add_uuid_columns_to_remaining_tables(conn: asyncpg.Connection) -> None:
+    """Add uuid columns to tables that were created before the universal UUID migration."""
+    from ...logging_config import get_logger
+
+    logger = get_logger(__name__)
+
+    tables = [
+        "node_version",
+        "node_activity",
+        "link_click",
+        "notification",
+        "workspace_share",
+        "undo_log",
+        "class_property",
+        "class_extend",
+        "property_class_filter",
+    ]
+
+    for table in tables:
+        has_uuid = await conn.fetchval(
+            """
+            SELECT EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name = $1 AND column_name = 'uuid'
+            )
+            """,
+            table,
+        )
+        if has_uuid:
+            continue
+
+        await conn.execute(
+            f"""
+            ALTER TABLE {table}
+            ADD COLUMN uuid UUID UNIQUE DEFAULT uuid_generate_v4()
+            """
+        )
+        await conn.execute(
+            f"""
+            UPDATE {table}
+            SET uuid = uuid_generate_v4()
+            WHERE uuid IS NULL
+            """
+        )
+        await conn.execute(
+            f"""
+            ALTER TABLE {table}
+            ALTER COLUMN uuid SET NOT NULL
+            """
+        )
+        logger.info(f"Added uuid column to {table}")

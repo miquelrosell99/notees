@@ -60,16 +60,16 @@ export async function createWorkspace(name: string): Promise<WorkspaceInfo> {
 /**
  * Switch to a different workspace by UUID
  */
-export async function switchWorkspace(uuid: string): Promise<{ status: string; active: string }> {
-  const response = await api.post(`/workspaces/${encodeURIComponent(uuid)}/switch`);
+export async function switchWorkspace(workspaceUuid: string): Promise<{ status: string; active: string }> {
+  const response = await api.post(`/workspaces/${encodeURIComponent(workspaceUuid)}/switch`);
   return response.data;
 }
 
 /**
  * Delete a workspace by UUID
  */
-export async function deleteWorkspace(uuid: string): Promise<{ status: string }> {
-  const response = await api.delete(`/workspaces/${encodeURIComponent(uuid)}`);
+export async function deleteWorkspace(workspaceUuid: string): Promise<{ status: string }> {
+  const response = await api.delete(`/workspaces/${encodeURIComponent(workspaceUuid)}`);
   return response.data;
 }
 
@@ -96,10 +96,10 @@ export async function importWorkspace(name: string, file: File): Promise<Workspa
  * Restore a workspace from a dump file.
  * WARNING: This replaces ALL data in the workspace.
  */
-export async function restoreWorkspace(uuid: string, file: File): Promise<{ uuid: string; name: string; stats: Record<string, number> }> {
+export async function restoreWorkspace(workspaceUuid: string, file: File): Promise<{ uuid: string; name: string; stats: Record<string, number> }> {
   const formData = new FormData();
   formData.append('file', file);
-  const response = await api.post(`/workspaces/${encodeURIComponent(uuid)}/restore`, formData);
+  const response = await api.post(`/workspaces/${encodeURIComponent(workspaceUuid)}/restore`, formData);
   return response.data;
 }
 
@@ -114,8 +114,8 @@ export function getWorkspaceExportUrl(name: string): string {
  * Export a workspace as a ZIP file (database + assets).
  * Returns a Blob so the caller can trigger the download via UI utilities.
  */
-export async function exportWorkspaceZip(uuid: string): Promise<Blob> {
-  const response = await api.get(`/workspaces/${encodeURIComponent(uuid)}/export-zip`, {
+export async function exportWorkspaceZip(workspaceUuid: string): Promise<Blob> {
+  const response = await api.get(`/workspaces/${encodeURIComponent(workspaceUuid)}/export-zip`, {
     responseType: 'blob',
     timeout: 0, // no timeout — exports can take arbitrarily long for large workspaces
   });
@@ -127,12 +127,12 @@ export async function exportWorkspaceZip(uuid: string): Promise<Blob> {
  * Returns a Blob so the caller can trigger the download.
  */
 export async function exportWorkspaceFormat(
-  uuid: string,
+  workspaceUuid: string,
   format: 'dump' | 'markdown' | 'text' | 'json',
   includeAssets: boolean = false,
 ): Promise<Blob> {
   const response = await api.get(
-    `/workspaces/${encodeURIComponent(uuid)}/export-by-uuid`,
+    `/workspaces/${encodeURIComponent(workspaceUuid)}/export-by-uuid`,
     {
       params: { format, include_assets: includeAssets },
       responseType: 'blob',
@@ -145,7 +145,7 @@ export async function exportWorkspaceFormat(
 // ── Export jobs (async with progress) ──────────────────────
 
 export interface ExportJob {
-  id: string;
+  job_uuid: string;
   status: 'pending' | 'running' | 'completed' | 'failed';
   progress: number;
   status_text: string;
@@ -157,12 +157,12 @@ export interface ExportJob {
  * Start an async workspace export job.
  */
 export async function createExportJob(
-  uuid: string,
+  workspaceUuid: string,
   format: 'dump' | 'markdown' | 'text' | 'json',
   includeAssets: boolean = false,
-): Promise<{ job_id: string }> {
+): Promise<{ job_uuid: string }> {
   const response = await api.post(
-    `/workspaces/${encodeURIComponent(uuid)}/export-job`,
+    `/workspaces/${encodeURIComponent(workspaceUuid)}/export-job`,
     null,
     { params: { format, include_assets: includeAssets } },
   );
@@ -172,17 +172,17 @@ export async function createExportJob(
 /**
  * Poll an export job for progress.
  */
-export async function getExportJob(jobId: string): Promise<ExportJob> {
-  const response = await api.get(`/workspaces/export-jobs/${encodeURIComponent(jobId)}`);
+export async function getExportJob(jobUuid: string): Promise<ExportJob> {
+  const response = await api.get(`/workspaces/export-jobs/${encodeURIComponent(jobUuid)}`);
   return response.data;
 }
 
 /**
  * Download a completed export job result.
  */
-export async function downloadExportJob(jobId: string): Promise<Blob> {
+export async function downloadExportJob(jobUuid: string): Promise<Blob> {
   const response = await api.get(
-    `/workspaces/export-jobs/${encodeURIComponent(jobId)}/download`,
+    `/workspaces/export-jobs/${encodeURIComponent(jobUuid)}/download`,
     { responseType: 'blob' },
   );
   return new Blob([response.data], { type: 'application/zip' });

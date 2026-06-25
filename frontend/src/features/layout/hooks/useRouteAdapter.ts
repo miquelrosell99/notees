@@ -88,10 +88,10 @@ export function useRouteAdapter({ hasInitialized, isProcessingUrl }: RouteAdapte
         await switchWorkspace(targetWsUuid);
 
         useNavigationStore.setState({
-          currentNodeId: null,
-          activeNodeId: null,
+          currentNodeUuid: null,
+          activeNodeUuid: null,
           sidebarNode: null,
-          localGraphNodeId: null,
+          localGraphNodeUuid: null,
           mainViewType: 'node',
         });
 
@@ -116,7 +116,7 @@ export function useRouteAdapter({ hasInitialized, isProcessingUrl }: RouteAdapte
 
   const goHome = useCallback(() => {
     log.debug('Going to home');
-    useNavigationStore.setState({ currentNodeId: null, mainViewType: 'node' });
+    useNavigationStore.setState({ currentNodeUuid: null, mainViewType: 'node' });
   }, []);
 
   const processRoute = useCallback(async () => {
@@ -132,7 +132,7 @@ export function useRouteAdapter({ hasInitialized, isProcessingUrl }: RouteAdapte
         // empty and the URL syncs just like any other navigation.
         if (defaultView === 'today') {
           if (todayNote) {
-            openNode(todayNote.id);
+            openNode(todayNote.uuid);
           }
           // If today's note is still loading, this effect will re-run once it resolves.
         } else {
@@ -158,7 +158,7 @@ export function useRouteAdapter({ hasInitialized, isProcessingUrl }: RouteAdapte
         try {
           const node = await getNodeByUuid(uuid);
           log.debug('UUID resolved to node', { uuid, id: node.id, is_page: node.is_page });
-          openNode(node.id);
+          openNode(node.uuid);
           return;
         } catch {
           /* not a node */
@@ -176,7 +176,7 @@ export function useRouteAdapter({ hasInitialized, isProcessingUrl }: RouteAdapte
         }
 
         log.warn('UUID not found as node or property, going home', { uuid });
-        useNavigationStore.setState({ currentNodeId: null, currentPropertyId: null });
+        useNavigationStore.setState({ currentNodeUuid: null, currentPropertyUuid: null });
         goHome();
         return;
       }
@@ -222,7 +222,7 @@ export function useRouteAdapter({ hasInitialized, isProcessingUrl }: RouteAdapte
     const resolveSplit = async () => {
       try {
         const node = await getNodeByUuid(splitUuid);
-        openNodeInNewTab(node.id);
+        openNodeInNewTab(node.uuid);
         const state = useNavigationStore.getState();
         const newTab = state.tabs[state.tabs.length - 1];
         if (newTab) {

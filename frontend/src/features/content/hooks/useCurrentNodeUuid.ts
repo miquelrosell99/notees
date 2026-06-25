@@ -6,6 +6,6 @@ import { isUuid } from '@/utils/uuid';
 
 export function useCurrentNodeUuid(): string | null {
   const params = useParams();
-  const entityUuid = params['*'];
-  return entityUuid && isUuid(entityUuid) ? entityUuid : null;
+  const nodeUuid = params['*'];
+  return nodeUuid && isUuid(nodeUuid) ? nodeUuid : null;
 }

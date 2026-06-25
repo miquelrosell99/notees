@@ -4,12 +4,19 @@ import contextlib
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query
 
-from app.dependencies import get_current_user, get_property_repository
+from app.dependencies import get_current_user, get_node_repository, get_property_repository
 from app.domain.entities.constants import SYSTEM_PROPERTY_UUIDS, TASK_CLOSED_STATUSES
+from app.features.nodes.port import NodeRepository
 from app.models import PaginatedResponse, User
 
+from .dependencies import (
+    resolve_class_uuids,
+    resolve_node_uuids,
+)
 from .helpers import (
     _build_children_tree,
+    _build_node_uuid_map,
+    _enrich_node_responses_uuids,
     _get_node_service,
     _node_to_response,
     _resolve_display_names_for_responses,
@@ -32,6 +39,7 @@ router = APIRouter()
 async def get_workspace_data_endpoint(
     page: int = Query(1, ge=1),
     page_size: int = Query(500, ge=1, le=5000),
+    node_repo: NodeRepository = Depends(get_node_repository),
     user: User = Depends(get_current_user),
 ):
     """Get workspace data for visualization with nodes and links.
@@ -40,6 +48,9 @@ async def get_workspace_data_endpoint(
     """
     service = await _get_node_service(user)
     total, node_dicts, link_dicts = await service.get_workspace_data(page, page_size)
+
+    class_node_ids = {cid for n in node_dicts for cid in n.get("class_ids", [])}
+    class_uuid_map = await _build_node_uuid_map(node_repo, list(class_node_ids))
 
     nodes = [
         WorkspaceNodeResponse(
@@ -51,14 +62,26 @@ async def get_workspace_data_endpoint(
             is_daily=n["is_daily"],
             is_monthly=n["is_monthly"],
             is_yearly=n["is_yearly"],
-            class_ids=n["class_ids"],
+            class_ids=[class_uuid_map[cid] for cid in n.get("class_ids", []) if cid in class_uuid_map],
             block_count=n["block_count"],
-            aliased_id=n["aliased_id"],
+            aliased_id=n.get("aliased_id"),
+            aliased_uuid=class_uuid_map.get(n.get("aliased_id")) if n.get("aliased_id") else None,
         )
         for n in node_dicts
     ]
+
+    # Resolve link source/target IDs to public UUIDs.
+    link_node_ids = []
+    for link in link_dicts:
+        link_node_ids.append(link["source"])
+        link_node_ids.append(link["target"])
+    uuid_map = await _build_node_uuid_map(node_repo, link_node_ids)
     links = [
-        WorkspaceLinkResponse(source=link["source"], target=link["target"], type=link["type"])
+        WorkspaceLinkResponse(
+            source=uuid_map.get(link["source"], ""),
+            target=uuid_map.get(link["target"], ""),
+            type=link["type"],
+        )
         for link in link_dicts
     ]
 
@@ -78,6 +101,7 @@ async def get_workspace_nodes_endpoint(
     page: int = Query(1, ge=1),
     page_size: int | None = Query(None, ge=1, le=1000),
     user: User = Depends(get_current_user),
+    node_repo: NodeRepository = Depends(get_node_repository),
 ):
     """Get workspace nodes for visualization (without links).
 
@@ -94,6 +118,9 @@ async def get_workspace_nodes_endpoint(
 
     total, node_dicts = await service.get_workspace_nodes(page, page_size)
 
+    class_node_ids = {cid for n in node_dicts for cid in n.get("class_ids", [])}
+    class_uuid_map = await _build_node_uuid_map(node_repo, list(class_node_ids))
+
     nodes = [
         WorkspaceNodeResponse(
             id=n["id"],
@@ -104,7 +131,7 @@ async def get_workspace_nodes_endpoint(
             is_daily=n["is_daily"],
             is_monthly=n["is_monthly"],
             is_yearly=n["is_yearly"],
-            class_ids=n["class_ids"],
+            class_ids=[class_uuid_map[cid] for cid in n.get("class_ids", []) if cid in class_uuid_map],
             block_count=n["block_count"],
         )
         for n in node_dicts
@@ -123,12 +150,13 @@ async def get_workspace_nodes_endpoint(
 @router.post("/links", response_model=LinksResponse)
 async def get_links_for_nodes(
     body: LinksRequest,
+    node_repo: NodeRepository = Depends(get_node_repository),
     user: User = Depends(get_current_user),
 ):
-    """Get links for a specific set of node IDs.
+    """Get links for a specific set of node UUIDs.
 
-    Accepts {"node_ids": [1, 2, 3, ...], "scope": "between" | "touching",
-             "cooccurrence": true | false, "context_node_id": id | null}
+    Accepts {"node_uuids": ["...", ...], "scope": "between" | "touching",
+             "cooccurrence": true | false, "context_node_uuid": uuid | null}
     and returns links (reference, parent, class, extends, property-reference, cooccurrence).
 
     Scopes:
@@ -138,23 +166,47 @@ async def get_links_for_nodes(
         Use for discovering connections from a starting set of nodes.
 
     Co-occurrence:
-      - Without context_node_id: global flat co-occurrence across all blocks mentioning the node set.
-      - With context_node_id: parent-inclusive co-occurrence within the context page.
+      - Without context_node_uuid: global flat co-occurrence across all blocks mentioning the node set.
+      - With context_node_uuid: parent-inclusive co-occurrence within the context page.
     """
-    node_ids = body.node_ids
+    node_uuids = body.node_uuids
     scope = body.scope
     cooccurrence = body.cooccurrence
-    if not node_ids or not isinstance(node_ids, list):
+    if not node_uuids or not isinstance(node_uuids, list):
         return LinksResponse(links=[])
     if scope not in ("between", "touching"):
         raise HTTPException(status_code=400, detail="scope must be 'between' or 'touching'")
 
+    node_ids = await resolve_node_uuids(node_uuids, node_repo)
+    context_node_id = None
+    if body.context_node_uuid:
+        context_node = await node_repo.get_by_uuid(body.context_node_uuid)
+        if context_node is None or context_node.id is None:
+            raise HTTPException(status_code=404, detail="Context node not found")
+        context_node_id = context_node.id
+
     service = await _get_node_service(user)
     links = await service.get_links_for_nodes(
-        node_ids, scope, cooccurrence, body.context_node_id
+        node_ids, scope, cooccurrence, context_node_id
     )
 
-    return LinksResponse(links=links)
+    # Resolve numeric link source/target IDs to public UUIDs.
+    link_node_ids = []
+    for link in links:
+        link_node_ids.append(link["source"])
+        link_node_ids.append(link["target"])
+    uuid_map = await _build_node_uuid_map(node_repo, link_node_ids)
+    uuid_links = [
+        WorkspaceLinkResponse(
+            source=uuid_map.get(link["source"], ""),
+            target=uuid_map.get(link["target"], ""),
+            type=link["type"],
+            weight=link.get("weight"),
+        )
+        for link in links
+    ]
+
+    return LinksResponse(links=uuid_links)
 
 
 @router.get("/search", response_model=SearchResponse)
@@ -164,12 +216,14 @@ async def search_nodes(
     page: int = Query(1, ge=1),
     sort_by: str = Query("write_date", description="Field to sort by: name, write_date, create_date"),
     order: str = Query("desc", description="Sort order: asc or desc"),
-    class_filters: str | None = None,  # Comma-separated class IDs to filter by
+    class_filters: str | None = None,  # Comma-separated class UUIDs to filter by
     uuid: str | None = None,  # Direct UUID lookup (prefix match)
     is_page: bool | None = None,  # Filter by is_page flag
     is_class: bool | None = None,  # Filter by is_class flag
     is_daily: bool | None = None,  # Filter by is_day flag
     is_user_page: bool | None = None,  # Filter to user pages only
+    node_repo: NodeRepository = Depends(get_node_repository),
+    property_repo=Depends(get_property_repository),
     user: User = Depends(get_current_user),
 ):
     """Search nodes by name, UUID, or filtered by properties.
@@ -180,7 +234,7 @@ async def search_nodes(
         page: Page number (1-indexed)
         sort_by: Field to sort by (name, write_date, create_date)
         order: Sort order (asc, desc)
-        class_filters: Optional comma-separated list of class IDs to filter results
+        class_filters: Optional comma-separated list of class UUIDs to filter results
         uuid: Optional UUID prefix to search by (exact or prefix match)
         is_page: Optional boolean to filter pages vs blocks
         is_class: Optional boolean to filter class definitions
@@ -206,6 +260,7 @@ async def search_nodes(
                 node_class_ids = node.class_ids or []
                 response = _node_to_response(node, classes=node_class_ids)
                 await _resolve_display_names_for_responses(service, [node], [response])
+                await _enrich_node_responses_uuids([response], node_repo, property_repo)
                 return SearchResponse(nodes=[response])
 
             # Fall back to prefix match (uuid starts with the search term)
@@ -216,6 +271,7 @@ async def search_nodes(
                     node_class_ids = node_obj.class_ids or []
                     result.append(_node_to_response(node_obj, classes=node_class_ids))
                 await _resolve_display_names_for_responses(service, nodes, result)
+                await _enrich_node_responses_uuids(result, node_repo, property_repo)
                 return SearchResponse(nodes=result)
 
             return SearchResponse(nodes=[])
@@ -224,7 +280,9 @@ async def search_nodes(
     filter_class_ids: list[int] | None = None
     if class_filters:
         with contextlib.suppress(ValueError):
-            filter_class_ids = [int(cid.strip()) for cid in class_filters.split(",") if cid.strip()]
+            parsed_uuids = [cid.strip() for cid in class_filters.split(",") if cid.strip()]
+            if parsed_uuids:
+                filter_class_ids = await resolve_class_uuids(parsed_uuids, node_repo)
 
     offset = (page - 1) * limit
     nodes = await service.search(
@@ -251,6 +309,7 @@ async def search_nodes(
     # Resolve inline node links so search results, command palette items, and
     # similar surfaces show target names instead of "…" for link-only content.
     await _resolve_display_names_for_responses(service, nodes, result)
+    await _enrich_node_responses_uuids(result, node_repo, property_repo)
 
     return SearchResponse(nodes=result)
 
@@ -258,26 +317,28 @@ async def search_nodes(
 @router.get("/", name="list_nodes")
 async def list_nodes(
     pages_only: bool = False,
-    parent_id: int | None = None,
-    type_id: int | None = None,
-    tag_id: int | None = None,
-    class_filters: str | None = None,  # Comma-separated class IDs to filter by
+    parent_uuid: str | None = None,
+    type_uuid: str | None = None,
+    tag_uuid: str | None = None,
+    class_filters: str | None = None,  # Comma-separated class UUIDs to filter by
     include_children: bool = False,
     root_only: bool = False,  # Only return nodes with no parent
     page: int = Query(1, ge=1, description="Page number"),
     page_size: int | None = Query(None, ge=1, description="Items per page (omit to return all)"),
     sort_by: str = Query("sequence", description="Field to sort by: name, write_date, create_date, sequence"),
     order: str = Query("asc", description="Sort order: asc or desc"),
+    node_repo: NodeRepository = Depends(get_node_repository),
+    property_repo=Depends(get_property_repository),
     user: User = Depends(get_current_user),
 ):
     """List nodes with optional filters, sorting, and pagination.
 
     Args:
         pages_only: Only return pages (no blocks)
-        parent_id: Only return children of this node
-        type_id: Only return nodes with this type
-        tag_id: Only return nodes tagged with this tag page
-        class_filters: Additional comma-separated class IDs to filter by
+        parent_uuid: Only return children of this node
+        type_uuid: Only return nodes with this type/class
+        tag_uuid: Only return nodes tagged with this tag page
+        class_filters: Additional comma-separated class UUIDs to filter by
         include_children: Include nested children for each node
         root_only: Only return root nodes (no parent_id)
         page: Page number (1-indexed)
@@ -298,13 +359,36 @@ async def list_nodes(
 
     service = await _get_node_service(user)
 
+    # Resolve optional node UUID filters to internal numeric IDs.
+    parent_id: int | None = None
+    if parent_uuid:
+        parent_node = await node_repo.get_by_uuid(parent_uuid)
+        if parent_node is None or parent_node.id is None:
+            raise HTTPException(status_code=404, detail="Parent node not found")
+        parent_id = parent_node.id
+
+    type_id: int | None = None
+    if type_uuid:
+        type_node = await node_repo.get_by_uuid(type_uuid)
+        if type_node is None or type_node.id is None:
+            raise HTTPException(status_code=404, detail="Type node not found")
+        type_id = type_node.id
+
+    tag_id: int | None = None
+    if tag_uuid:
+        tag_node = await node_repo.get_by_uuid(tag_uuid)
+        if tag_node is None or tag_node.id is None:
+            raise HTTPException(status_code=404, detail="Tag node not found")
+        tag_id = tag_node.id
+
     # Parse class filters if provided and expand them to include subclasses.
     expanded_class_ids: list[int] | None = None
     if class_filters:
         with contextlib.suppress(ValueError):
-            parsed = {int(cid.strip()) for cid in class_filters.split(",") if cid.strip()}
-            if parsed:
-                expanded_class_ids = list(await service.expand_class_hierarchy(list(parsed)))
+            parsed_uuids = [cid.strip() for cid in class_filters.split(",") if cid.strip()]
+            if parsed_uuids:
+                parsed_ids = await resolve_class_uuids(parsed_uuids, node_repo)
+                expanded_class_ids = list(await service.expand_class_hierarchy(parsed_ids))
 
     nodes, total = await service.list_nodes(
         pages_only=pages_only,
@@ -337,6 +421,8 @@ async def list_nodes(
     if include_children and result:
         result = await _build_children_tree(service, result, class_ids_map)
 
+    await _enrich_node_responses_uuids(result, node_repo, property_repo)
+
     has_next = (page * effective_page_size) < total
     has_prev = page > 1
 
@@ -354,6 +440,7 @@ async def list_nodes(
 async def search_nodes_filtered(
     request: SearchFilterRequest = Body(...),
     user: User = Depends(get_current_user),
+    node_repo: NodeRepository = Depends(get_node_repository),
     property_repo=Depends(get_property_repository),
 ):
     """Structured search endpoint optimized for mobile and external clients.
@@ -364,13 +451,18 @@ async def search_nodes_filtered(
     """
     service = await _get_node_service(user)
 
+    # Resolve class UUID filters to internal numeric IDs.
+    class_ids: list[int] | None = None
+    if request.class_uuids:
+        class_ids = await resolve_class_uuids(request.class_uuids, node_repo)
+
     # Use NodeService.search for the text + simple filters it already supports.
     offset = (request.page - 1) * request.limit
     nodes = await service.search(
         request.query,
         limit=request.limit * 4,  # Over-fetch to absorb post-filters.
         offset=offset,
-        class_filters=request.class_ids or None,
+        class_filters=class_ids,
         is_page=request.is_page,
         is_class=None,
         is_daily=request.is_daily,
@@ -431,5 +523,6 @@ async def search_nodes_filtered(
         result.append(_node_to_response(n, tags=node_tag_ids, classes=node_class_ids))
 
     await _resolve_display_names_for_responses(service, nodes, result)
+    await _enrich_node_responses_uuids(result, node_repo, property_repo)
 
     return SearchResponse(nodes=result)

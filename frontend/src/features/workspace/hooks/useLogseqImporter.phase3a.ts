@@ -63,7 +63,7 @@ export async function runPhase3a(ctx: ImportContext, p3: PhaseResult): Promise<v
       const nodeInfo = titleToNodeInfo.get(page.title);
       if (!nodeInfo) return;
       try {
-        const fullDay = await getNode(nodeInfo.id, { include_children: true });
+        const fullDay = await getNode(nodeInfo.uuid, { include_children: true });
         journalStartSeqs.set(page.title, fullDay.children?.length ?? 0);
       } catch { /* default to 0 */ }
     }));

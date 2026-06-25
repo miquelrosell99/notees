@@ -20,7 +20,7 @@ class ExportFormat(StrEnum):
 class ExportRequest(BaseModel):
     """Export request."""
 
-    node_ids: list[str]
+    node_uuids: list[str]
     format: str
     include_children: bool = True
     include_backlinks: bool = False
@@ -121,13 +121,13 @@ class RenderPdfRequest(BaseModel):
 class CreateExportJobResponse(BaseModel):
     """Response returned when an export job is created."""
 
-    job_id: str
+    job_uuid: str
 
 
 class ExportJobResponse(BaseModel):
     """Response returned when querying an export job status."""
 
-    id: str
+    job_uuid: str
     status: str
     progress: int
     status_text: str

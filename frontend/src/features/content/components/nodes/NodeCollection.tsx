@@ -74,7 +74,7 @@ function isGroupByActive(value: NodeCollectionGroupBy): boolean {
  */
 export const NodeCollection = memo(function NodeCollection({
   nodes,
-  viewId,
+  viewUuid,
   view,
   viewMode,
   availableViewModes,
@@ -174,7 +174,7 @@ export const NodeCollection = memo(function NodeCollection({
   const groupByProperties = useMemo(() => {
     return normalizedGroupBy
       .filter((g) => g !== 'page' && g !== 'none')
-      .map((uuid) => allProperties.find((p) => p.uuid === uuid))
+      .map((propertyUuid) => allProperties.find((p) => p.uuid === propertyUuid))
       .filter((p): p is Property => p != null);
   }, [normalizedGroupBy, allProperties]);
 
@@ -275,6 +275,7 @@ export const NodeCollection = memo(function NodeCollection({
     }
   };
   const updateNodeView = useUpdateNodeView();
+  const viewIdForCharts = view?.id;
 
   // Load property columns from view configuration (only for uncontrolled, non-transient mode)
   useEffect(() => {
@@ -299,14 +300,14 @@ export const NodeCollection = memo(function NodeCollection({
     setInternalPropertyUuids(propertyUuids);
 
     // Save to view configuration via API
-    if (!isTransient && viewId) {
-      const shown_properties = propertyUuids.map((uuid, index) => ({
-        uuid,
+    if (!isTransient && viewUuid) {
+      const shown_properties = propertyUuids.map((propertyUuid, index) => ({
+        uuid: propertyUuid,
         sequence: index + 1,
       }));
 
       updateNodeView.mutate({
-        viewId,
+        viewId: viewUuid,
         data: { shown_properties },
       });
     }
@@ -517,7 +518,7 @@ export const NodeCollection = memo(function NodeCollection({
           nodes: nodes.slice(0, IMMERSIVE_VIEW_NODE_LIMIT),
           groupByProperty,
           queryAst,
-          viewId,
+          viewId: viewIdForCharts,
         };
 
       case 'pivot':
@@ -525,7 +526,7 @@ export const NodeCollection = memo(function NodeCollection({
           ...commonViewProps,
           nodes: nodes.slice(0, IMMERSIVE_VIEW_NODE_LIMIT),
           queryAst,
-          viewId,
+          viewId: viewIdForCharts,
         };
 
       case 'timeline':
@@ -570,7 +571,7 @@ export const NodeCollection = memo(function NodeCollection({
         }
         return {
           nodes: graphNodes,
-          currentNodeId: activeNode?.id ?? null,
+          currentNodeUuid: activeNode?.uuid ?? null,
           className: 'node-collection__graph',
         };
       }
@@ -630,7 +631,7 @@ export const NodeCollection = memo(function NodeCollection({
     ganttEndDateProperty,
     ganttTimeScale,
     queryAst,
-    viewId,
+    viewIdForCharts,
     activeNode,
     sortColumns,
     setSortColumns,

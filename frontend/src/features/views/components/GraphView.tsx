@@ -21,6 +21,7 @@ import { useReducedMotion } from '@/hooks';
 import { useClasses, useGraphLinks } from '@/features/content';
 import { useSettingsQuery, setSetting } from '@/features/workspace';
 import { useNavigationStore } from '@/stores';
+import { getServerId } from '@/runtime/serverIdMap';
 import { nodeNameToText } from '@/features/queries';
 import { NodeIcon } from '@/components/ui/icons';
 import type { GraphNode as ApiGraphNode } from '@/api/nodes';
@@ -59,7 +60,7 @@ export interface GraphViewProps {
   /** Graph nodes to display */
   nodes: ApiGraphNode[];
   /** Currently highlighted node ID (e.g., current page for minimap) */
-  currentNodeId?: number | null;
+  currentNodeUuid?: string | null;
   /** Show settings panels (graph settings, class colors, visibility filters, animation). Default: true */
   showSettings?: boolean;
   /** Show search box and node selection panel. Default: true */
@@ -222,7 +223,7 @@ const GraphView = memo(function GraphView({
   viewId = 'default',
   className = '',
   nodes: apiNodes,
-  currentNodeId,
+  currentNodeUuid,
   localGraphMode = false,
   showSettings = true,
   showSearch = true,
@@ -252,6 +253,10 @@ const GraphView = memo(function GraphView({
   // Fetch links between the provided nodes
   const nodeIds = useMemo(() => apiNodes.map(n => n.id), [apiNodes]);
 
+  // Convert the active page UUID (when provided) back to the numeric server id
+  // used by the graph data model.
+  const currentNodeId = currentNodeUuid ? getServerId(currentNodeUuid) ?? null : null;
+
   // Graph data mode: standard (explicit links) vs co-occurrence inference
   const [graphDataMode, setGraphDataMode] = useState<GraphDataMode>(() => {
     try {
@@ -266,7 +271,7 @@ const GraphView = memo(function GraphView({
 
   const { data: apiLinks = [], isLoading: linksLoading } = useGraphLinks(nodeIds, {
     cooccurrence: graphDataMode === 'cooccurrence',
-    contextNodeId: localGraphMode ? currentNodeId ?? null : null,
+    contextNodeId: localGraphMode ? currentNodeId : null,
   });
   
   const { data: classes } = useClasses();
@@ -954,7 +959,7 @@ const GraphView = memo(function GraphView({
           viewMode={viewMode}
           onCollapse={() => setSidebarCollapsed(true)}
           localGraphMode={localGraphMode}
-          currentNodeId={currentNodeId}
+          currentNodeUuid={currentNodeId}
           levels={levels}
           onLevelsChange={setLevels}
         />
@@ -1085,7 +1090,7 @@ const GraphView = memo(function GraphView({
       {!linksLoading && nodes.length === 0 && sourceNodes.length > 0 && (
         <div className="node-graph-view__loading-overlay">
           <div className="node-graph-view__empty">
-            {currentNodeId != null ? (
+            {currentNodeUuid != null ? (
               <>
                 <h3>No connected nodes within {levels} {levels === 1 ? 'level' : 'levels'}</h3>
                 <p>Try increasing the levels to see more connections.</p>
@@ -1102,7 +1107,7 @@ const GraphView = memo(function GraphView({
               icon="mdi mdi-refresh"
               onClick={() => {
                 setVisibilityFilters({ ...DEFAULT_VISIBILITY_FILTERS });
-                if (currentNodeId != null) setLevels(1);
+                if (currentNodeUuid != null) setLevels(1);
               }}
               style={{ marginTop: 'var(--spacing-3)' }}
             >

@@ -72,7 +72,7 @@ def _media_type_for_path(path: Path) -> str:
     return mapping.get(path.suffix.lower(), "application/octet-stream")
 
 
-async def _run_node_export_job(job_id: str, user_id: str, export_args: dict) -> None:
+async def _run_node_export_job(job_uuid: str, user_id: str, export_args: dict) -> None:
     """Background task that performs the actual node export.
 
     Runs outside the request lifecycle and therefore must not capture any
@@ -83,7 +83,7 @@ async def _run_node_export_job(job_id: str, user_id: str, export_args: dict) -> 
     clear_request_conn()
 
     try:
-        update_job(job_id, status="running", status_text="Exporting nodes…")
+        update_job(job_uuid, status="running", status_text="Exporting nodes…")
 
         workspace_id = export_args.pop("workspace_id")
         user_id = export_args.pop("user_id")
@@ -97,21 +97,21 @@ async def _run_node_export_job(job_id: str, user_id: str, export_args: dict) -> 
         exports_dir = get_data_dir() / "exports"
         exports_dir.mkdir(parents=True, exist_ok=True)
 
-        path = exports_dir / f"{job_id}_{filename}"
+        path = exports_dir / f"{job_uuid}_{filename}"
         if isinstance(content, str):
             content = content.encode("utf-8")
         path.write_bytes(content)
 
         update_job(
-            job_id,
+            job_uuid,
             status="completed",
             progress=100,
             result_path=str(path),
             status_text="Export complete",
         )
     except Exception as exc:
-        logger.error(f"Node export job {job_id} failed: {exc}", exc_info=True)
-        update_job(job_id, status="failed", error=str(exc))
+        logger.error(f"Node export job {job_uuid} failed: {exc}", exc_info=True)
+        update_job(job_uuid, status="failed", error=str(exc))
 
 
 @router.post("", response_model=CreateExportJobResponse)
@@ -122,7 +122,7 @@ async def export_nodes(
 ):
     """Start an async job to export nodes to Markdown, HTML, PDF, Text, or JSON."""
     export_args = {
-        "node_ids": request.node_ids,
+        "node_uuids": request.node_uuids,
         "format": request.format,
         "include_children": request.include_children,
         "layout": request.layout,
@@ -147,16 +147,16 @@ async def export_nodes(
     job = create_job()
     logger.info(
         f"Created node export job {job.id} for user {user.id} "
-        f"(format={request.format}, nodes={len(request.node_ids)})"
+        f"(format={request.format}, nodes={len(request.node_uuids)})"
     )
     asyncio.create_task(_run_node_export_job(job.id, user.id, export_args))
-    return CreateExportJobResponse(job_id=job.id)
+    return CreateExportJobResponse(job_uuid=job.id)
 
 
-@router.get("/jobs/{job_id}", response_model=ExportJobResponse)
-async def get_node_export_job(job_id: str, user: User = Depends(get_current_user)):
+@router.get("/jobs/{job_uuid}", response_model=ExportJobResponse)
+async def get_node_export_job(job_uuid: str, user: User = Depends(get_current_user)):
     """Get the status of a node export job."""
-    job = get_job(job_id)
+    job = get_job(job_uuid)
     if job is None:
         raise HTTPException(status_code=404, detail="Export job not found")
 
@@ -165,7 +165,7 @@ async def get_node_export_job(job_id: str, user: User = Depends(get_current_user
         download_url = f"/api/export/jobs/{job.id}/download"
 
     return ExportJobResponse(
-        id=job.id,
+        job_uuid=job.id,
         status=job.status,
         progress=job.progress,
         status_text=job.status_text,
@@ -174,10 +174,10 @@ async def get_node_export_job(job_id: str, user: User = Depends(get_current_user
     )
 
 
-@router.get("/jobs/{job_id}/download")
-async def download_node_export_job(job_id: str, user: User = Depends(get_current_user)):
+@router.get("/jobs/{job_uuid}/download")
+async def download_node_export_job(job_uuid: str, user: User = Depends(get_current_user)):
     """Download the result of a completed export job."""
-    job = get_job(job_id)
+    job = get_job(job_uuid)
     if job is None:
         raise HTTPException(status_code=404, detail="Export job not found")
     if job.status != "completed":
@@ -231,7 +231,7 @@ async def export_single_node(
     )
 
     export_args = {
-        "node_ids": [node_uuid],
+        "node_uuids": [node_uuid],
         "format": export_format,
         "include_children": include_children,
         "layout": layout,
@@ -260,7 +260,7 @@ async def export_single_node(
         f"(format={export_format}, node={node_uuid})"
     )
     asyncio.create_task(_run_node_export_job(job.id, user.id, export_args))
-    return CreateExportJobResponse(job_id=job.id)
+    return CreateExportJobResponse(job_uuid=job.id)
 
 
 @router.post("/render-pdf")

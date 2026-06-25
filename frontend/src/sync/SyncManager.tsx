@@ -29,45 +29,45 @@ export function SyncManager({ api: apiProp }: SyncManagerProps = {}): null {
   const createNode = useMutation<Node, Error, NodeCreate>({
     mutationFn: nodesApi.createNode,
   });
-  const updateNode = useMutation<Node, Error, { id: number; data: NodeUpdate }>({
-    mutationFn: ({ id, data }) => nodesApi.updateNode(id, data),
+  const updateNode = useMutation<Node, Error, { nodeUuid: string; data: NodeUpdate }>({
+    mutationFn: ({ nodeUuid, data }) => nodesApi.updateNode(nodeUuid, data),
   });
-  const deleteNode = useMutation<void, Error, number>({
+  const deleteNode = useMutation<void, Error, string>({
     mutationFn: nodesApi.deleteNode,
   });
-  const addClass = useMutation<Node, Error, { id: number; classId: number }>({
-    mutationFn: ({ id, classId }) => nodesApi.addClass(id, classId),
+  const addClass = useMutation<Node, Error, { nodeUuid: string; classUuid: string }>({
+    mutationFn: ({ nodeUuid, classUuid }) => nodesApi.addClass(nodeUuid, classUuid),
   });
-  const removeClass = useMutation<Node, Error, { id: number; classId: number }>({
-    mutationFn: ({ id, classId }) => nodesApi.removeClass(id, classId),
+  const removeClass = useMutation<Node, Error, { nodeUuid: string; classUuid: string }>({
+    mutationFn: ({ nodeUuid, classUuid }) => nodesApi.removeClass(nodeUuid, classUuid),
   });
-  const addTag = useMutation<Node, Error, { id: number; tagId: number }>({
-    mutationFn: async ({ id, tagId }) => {
-      await nodesApi.addTagLink(id, tagId);
-      return buildTagNodeFromRuntime(id);
+  const addTag = useMutation<Node, Error, { nodeUuid: string; tagUuid: string }>({
+    mutationFn: async ({ nodeUuid, tagUuid }) => {
+      await nodesApi.addTagLink(nodeUuid, tagUuid);
+      return buildTagNodeFromRuntime(nodeUuid);
     },
   });
-  const removeTag = useMutation<Node, Error, { id: number; tagId: number }>({
-    mutationFn: async ({ id, tagId }) => {
-      await nodesApi.removeTagLink(id, tagId);
-      return buildTagNodeFromRuntime(id);
+  const removeTag = useMutation<Node, Error, { nodeUuid: string; tagUuid: string }>({
+    mutationFn: async ({ nodeUuid, tagUuid }) => {
+      await nodesApi.removeTagLink(nodeUuid, tagUuid);
+      return buildTagNodeFromRuntime(nodeUuid);
     },
   });
-  const moveNode = useMutation<Node, Error, { id: number; parentId: number; position?: number }>({
-    mutationFn: ({ id, parentId, position }) => nodesApi.moveNode(id, parentId, position),
+  const moveNode = useMutation<Node, Error, { nodeUuid: string; parentNodeUuid: string | null; position?: number }>({
+    mutationFn: ({ nodeUuid, parentNodeUuid, position }) => nodesApi.moveNode(nodeUuid, parentNodeUuid, position),
   });
 
   useEffect(() => {
     const api = apiProp ?? {
       createNode: (data: NodeCreate) => createNode.mutateAsync(data),
-      updateNode: (id: number, data: NodeUpdate) => updateNode.mutateAsync({ id, data }),
-      deleteNode: (id: number) => deleteNode.mutateAsync(id),
-      addClass: (id: number, classId: number) => addClass.mutateAsync({ id, classId }),
-      removeClass: (id: number, classId: number) => removeClass.mutateAsync({ id, classId }),
-      addTag: (id: number, tagId: number) => addTag.mutateAsync({ id, tagId }),
-      removeTag: (id: number, tagId: number) => removeTag.mutateAsync({ id, tagId }),
-      moveNode: (id: number, parentId: number | null, position?: number) =>
-        moveNode.mutateAsync({ id, parentId: parentId ?? 0, position }),
+      updateNode: (nodeUuid: string, data: NodeUpdate) => updateNode.mutateAsync({ nodeUuid, data }),
+      deleteNode: (nodeUuid: string) => deleteNode.mutateAsync(nodeUuid),
+      addClass: (nodeUuid: string, classUuid: string) => addClass.mutateAsync({ nodeUuid, classUuid }),
+      removeClass: (nodeUuid: string, classUuid: string) => removeClass.mutateAsync({ nodeUuid, classUuid }),
+      addTag: (nodeUuid: string, tagUuid: string) => addTag.mutateAsync({ nodeUuid, tagUuid }),
+      removeTag: (nodeUuid: string, tagUuid: string) => removeTag.mutateAsync({ nodeUuid, tagUuid }),
+      moveNode: (nodeUuid: string, parentNodeUuid: string | null, position?: number) =>
+        moveNode.mutateAsync({ nodeUuid, parentNodeUuid, position }),
     };
 
     const dispatch = async (operation: Operation) => {

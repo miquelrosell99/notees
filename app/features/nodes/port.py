@@ -122,6 +122,13 @@ class NodeCrudRepository(ABC):
         pass
 
     @abstractmethod
+    async def get_node_version_detail_by_uuid(
+        self, version_uuid: str, node_id: int
+    ) -> dict[str, Any] | None:
+        """Get a single node version detail row by its public UUID."""
+        pass
+
+    @abstractmethod
     async def filter_existing_active_node_ids(
         self, node_ids: list[int]
     ) -> set[int]:
@@ -844,6 +851,11 @@ class ClassExtendRepository(ABC):
         pass
 
     @abstractmethod
+    async def get_class_extend_by_uuid(self, uuid: str) -> ClassExtend | None:
+        """Get a class extension relationship by its public UUID."""
+        pass
+
+    @abstractmethod
     async def remove_extends(self, class_node_id: int, extends_class_id: int) -> bool:
         """Remove an extends relationship. Returns True if deleted."""
         pass
@@ -865,6 +877,16 @@ class ClassExtendRepository(ABC):
         Returns a dict mapping target_id (child class) -> list of source_ids
         (parent classes) in sequence order.
         """
+        pass
+
+    @abstractmethod
+    async def get_by_uuid(self, extend_uuid: str) -> ClassExtend | None:
+        """Get a class extension relationship by its public UUID."""
+        pass
+
+    @abstractmethod
+    async def get_uuids_by_ids(self, extend_ids: list[int]) -> dict[int, str]:
+        """Return a mapping of internal class_extend IDs to public UUIDs."""
         pass
 
     @abstractmethod
@@ -896,6 +918,11 @@ class NodeViewRepository(ABC):
     @abstractmethod
     async def get_by_uuid(self, uuid: str) -> NodeView | None:
         """Get a NodeView by UUID."""
+        pass
+
+    @abstractmethod
+    async def get_by_uuids(self, uuids: list[str]) -> list[NodeView]:
+        """Get multiple NodeViews by UUID in a single query."""
         pass
 
     @abstractmethod

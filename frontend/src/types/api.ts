@@ -26,7 +26,9 @@ export interface Node {
   icon: string | null;
   color: string | null;
   parent_id: number | null;
+  parent_uuid: string | null;
   page_id: number | null;
+  page_uuid: string | null;
   sequence: number;
   collapsed: boolean;
   active: boolean;
@@ -42,8 +44,7 @@ export interface Node {
   
   // Page information for grouping (populated by query results)
   page_name?: string | null;
-  page_uuid?: string | null;
-  
+
   // Computed fields
   display_name?: string | null;
   tags?: number[];  // Tag node IDs (descriptive linking with #)
@@ -228,6 +229,7 @@ export interface NodeCreate {
   icon?: string | null;
   color?: string | null;
   parent_id?: number | null;
+  parent_uuid?: string | null;
   sequence?: number;
   tags?: number[];
   classes?: number[];  // Class node IDs - backend computes is_page, is_class etc from these
@@ -250,6 +252,7 @@ export interface NodeUpdate {
   icon?: string | null;
   color?: string | null;
   parent_id?: number | null;
+  parent_uuid?: string | null;
   sequence?: number | null;
   collapsed?: boolean | null;
   is_private?: boolean | null;
@@ -257,6 +260,7 @@ export interface NodeUpdate {
   is_favorite?: boolean | null;
   /** When provided, reconcile node classes to exactly this set (Odoo-style write) */
   classes?: number[];
+  class_uuids?: string[];
   /** When provided, apply each property_id -> value pair */
   properties?: Record<number, unknown>;
 }
@@ -298,6 +302,7 @@ export interface BatchGetNodesByUuidResponse {
  */
 export interface BreadcrumbItemResponse {
   id: number;
+  uuid: string;
   name: string;
   display_name: string;
   icon: string | null;
@@ -305,6 +310,7 @@ export interface BreadcrumbItemResponse {
   parent_locked: boolean;
   is_property?: boolean;
   property_id?: number | null;
+  property_uuid?: string | null;
 }
 
 /**
@@ -898,6 +904,7 @@ export function generateYearUuid(year: number): string {
  */
 export interface NotificationResponse {
   id: string;
+  uuid?: string;
   type: string;
   actor_user_id: string | null;
   actor_name: string | null;

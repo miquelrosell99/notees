@@ -39,6 +39,8 @@ import './NodeContent.css';
 import { getOperationRuntime } from '@/runtime';
 import { getAllNodes } from '@/runtime/graphHelpers';
 import { upsertNodes } from '@/runtime/eventBus';
+import { useQueryClient } from '@tanstack/react-query';
+import { getNodeUuidByServerId } from '@/features/content/hooks/useNodeMutations.utils';
 
 
 interface NodeContentProps {
@@ -104,8 +106,8 @@ export function NodeContent({
   const systemClassMap = useMemo(() => {
     if (!allClasses) return null;
     const map: Record<string, number | undefined> = {};
-    for (const [key, uuid] of Object.entries(SYSTEM_CLASS_UUIDS)) {
-      const found = allClasses.find(c => c.uuid === uuid);
+    for (const [key, classUuid] of Object.entries(SYSTEM_CLASS_UUIDS)) {
+      const found = allClasses.find(c => c.uuid === classUuid);
       if (found) map[key] = found.id;
     }
     return map;
@@ -162,6 +164,7 @@ export function NodeContent({
   // Move-to-page modal state (/move slash command)
   const [moveTargetBlockId, setMoveTargetBlockId] = useState<number | null>(null);
   const updateNode = useUpdateNode();
+  const queryClient = useQueryClient();
 
   // Template instantiation state
   const [pendingTemplate, setPendingTemplate] = useState<{
@@ -205,8 +208,10 @@ export function NodeContent({
           parentUuid = blockNode.blockId;
         }
       }
-      const result = await instantiateTemplate(templateNodeId, {
-        parent_id: parentId,
+      const templateUuid = getNodeUuidByServerId(queryClient, templateNodeId);
+      if (!templateUuid) throw new Error('Template UUID not found');
+      const result = await instantiateTemplate(templateUuid, {
+        parent_uuid: parentUuid,
         as_blocks: true,
         variables,
         dynamic_context: dynamicContext,

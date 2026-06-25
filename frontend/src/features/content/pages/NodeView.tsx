@@ -395,7 +395,7 @@ export function NodeView({
     const formatted = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
     try {
       const dailyNode = await getOrCreateDaily(formatted);
-      openNode(dailyNode.id);
+      openNode(dailyNode.uuid);
     } catch (error) {
       console.error('Failed to open daily page:', error);
     }
@@ -999,7 +999,7 @@ export function NodeView({
           nodeType={resolvedType}
           onNavigate={(id) => openNode(id)}
           onNavigateToProperty={(id) => openPropertyView(id)}
-          propertyContext={currentPropertyContext}
+          propertyContext={currentPropertyContext as unknown as { propertyId: number; propertyName: string } | null}
           parentLocked={node.parent_locked}
           editable={!isAlias}
           inHeader

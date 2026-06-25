@@ -208,7 +208,7 @@ class PostgresShareRepository(BasePostgresRepository, ShareRepository):
             )
             rows = await conn.fetch(
                 """
-                SELECT ns.id, ns.node_id, ns.can_read, ns.can_write,
+                SELECT ns.id, ns.uuid as share_uuid, ns.node_id, ns.can_read, ns.can_write,
                        ns.create_date as shared_at, ns.create_uid as shared_by_id,
                        u.email as shared_by_email,
                        n.uuid as node_uuid, n.name as node_name, n.icon as node_icon,
@@ -304,7 +304,7 @@ class PostgresShareRepository(BasePostgresRepository, ShareRepository):
                     active = TRUE,
                     write_uid = EXCLUDED.write_uid,
                     write_date = NOW()
-                RETURNING id, node_id, user_id, can_read, can_write, create_date, create_uid
+                RETURNING id, uuid, node_id, user_id, can_read, can_write, create_date, create_uid
                 """,
                 node_id,
                 target_id,
@@ -337,7 +337,7 @@ class PostgresShareRepository(BasePostgresRepository, ShareRepository):
 
             rows = await conn.fetch(
                 """
-                SELECT ns.id, ns.node_id, ns.user_id, u.email, ns.can_read, ns.can_write,
+                SELECT ns.id, ns.uuid as share_uuid, ns.node_id, ns.user_id, u.email, ns.can_read, ns.can_write,
                        ns.create_date, ns.create_uid
                 FROM node_share ns
                 JOIN "user" u ON u.id = ns.user_id
@@ -375,6 +375,64 @@ class PostgresShareRepository(BasePostgresRepository, ShareRepository):
             )
 
             # Check if any shares remain; if not, clear is_shared flag
+            remaining = await conn.fetchrow(
+                "SELECT 1 FROM node_share WHERE node_id = $1 AND active = TRUE LIMIT 1",
+                share_row["node_id"],
+            )
+            public_remaining = await conn.fetchrow(
+                "SELECT 1 FROM node_public_share WHERE node_id = $1 AND active = TRUE LIMIT 1",
+                share_row["node_id"],
+            )
+            if not remaining and not public_remaining:
+                await conn.execute(
+                    "UPDATE node SET is_shared = FALSE WHERE id = $1",
+                    share_row["node_id"],
+                )
+
+        return {"node_id": share_row["node_id"]}
+
+    async def get_node_user_share_by_uuid(
+        self, share_uuid: str
+    ) -> dict[str, Any] | None:
+        """Get a node-level user share by its public UUID."""
+        async with acquire_connection(self._pool) as conn:
+            row = await conn.fetchrow(
+                """
+                SELECT ns.id, ns.uuid as share_uuid, ns.node_id, ns.user_id, u.email,
+                       ns.can_read, ns.can_write, ns.create_date, ns.create_uid
+                FROM node_share ns
+                JOIN "user" u ON u.id = ns.user_id
+                WHERE ns.uuid = $1 AND ns.active = TRUE
+                """,
+                share_uuid,
+            )
+            return dict(row) if row else None
+
+    async def revoke_user_share_by_uuid(
+        self, share_uuid: str, workspace_id: int, user_id: int
+    ) -> dict[str, Any] | None:
+        """Revoke a node user share by its public UUID."""
+        async with acquire_connection(self._pool) as conn, conn.transaction():
+            share_row = await conn.fetchrow(
+                """
+                SELECT ns.id, ns.node_id, ns.create_uid, n.create_uid as node_owner_id
+                FROM node_share ns
+                JOIN node n ON n.id = ns.node_id
+                WHERE ns.uuid = $1 AND ns.active = TRUE AND n.workspace_id = $2
+                """,
+                share_uuid,
+                workspace_id,
+            )
+            if not share_row:
+                return None
+            if share_row["create_uid"] != user_id and share_row["node_owner_id"] != user_id:
+                raise PermissionError("Only the share creator or node owner can revoke")
+
+            await conn.execute(
+                "UPDATE node_share SET active = FALSE WHERE id = $1",
+                share_row["id"],
+            )
+
             remaining = await conn.fetchrow(
                 "SELECT 1 FROM node_share WHERE node_id = $1 AND active = TRUE LIMIT 1",
                 share_row["node_id"],

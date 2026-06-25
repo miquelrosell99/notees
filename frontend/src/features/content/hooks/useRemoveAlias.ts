@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import * as nodesApi from '@/api/nodes';
 import { nodeKeys } from '@/hooks/queryKeys';
+import { getNodeUuidByServerId } from './useNodeMutations.utils';
 
 /**
  * Hook to remove an alias from a node
@@ -9,8 +10,12 @@ export function useRemoveAlias() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ nodeId, aliasId }: { nodeId: number; aliasId: number }) =>
-      nodesApi.removeAlias(nodeId, aliasId),
+    mutationFn: ({ nodeId, aliasId }: { nodeId: number; aliasId: number }) => {
+      const nodeUuid = getNodeUuidByServerId(queryClient, nodeId);
+      const aliasNodeUuid = getNodeUuidByServerId(queryClient, aliasId);
+      if (!nodeUuid || !aliasNodeUuid) throw new Error('Node UUID not found');
+      return nodesApi.removeAlias(nodeUuid, aliasNodeUuid);
+    },
     onSuccess: (_, { nodeId, aliasId }) => {
       // Invalidate with active refetch to ensure changes show immediately
       queryClient.invalidateQueries({

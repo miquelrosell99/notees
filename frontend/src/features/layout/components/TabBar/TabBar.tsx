@@ -22,15 +22,15 @@ export function TabBar() {
   const splitOrientation = useNavigationStore((s) => s.splitOrientation);
   const updateTabLabel = useNavigationStore((s) => s.updateTabLabel);
 
-  // Fetch display data for tabs that have nodeIds
-  const nodeIds = useMemo(() => tabs.map((t) => t.nodeId).filter((id): id is number => !!id), [tabs]);
-  const displayData = useNodesDisplayData(nodeIds);
+  // Fetch display data for tabs that have node UUIDs
+  const nodeUuids = useMemo(() => tabs.map((t) => t.nodeUuid).filter((id): id is string => typeof id === 'string'), [tabs]);
+  const displayData = useNodesDisplayData(nodeUuids);
 
   // Sync tab labels/icons/colors from fetched node data
   useEffect(() => {
     for (const tab of tabs) {
-      if (!tab.nodeId) continue;
-      const data = displayData[tab.nodeId];
+      if (!tab.nodeUuid) continue;
+      const data = displayData[tab.nodeUuid];
       if (!data) continue;
       const label = data.displayText || tab.label;
       const icon = data.effectiveIcon || tab.icon;

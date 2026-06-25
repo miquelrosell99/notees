@@ -49,6 +49,11 @@ class PropertyRepository(ABC):
         pass
 
     @abstractmethod
+    async def get_by_uuids(self, uuids: list[str]) -> list[Property]:
+        """Get multiple properties by UUID in a single query, preserving order."""
+        pass
+
+    @abstractmethod
     async def get_by_name(self, name: str, node_id: int | None = None) -> Property | None:
         """Get property by name. For local properties, node_id specifies the page context."""
         pass
@@ -100,6 +105,11 @@ class PropertyRepository(ABC):
     @abstractmethod
     async def get_node_property(self, node_id: int, property_id: int) -> NodeProperty | None:
         """Get a node_property assignment."""
+        pass
+
+    @abstractmethod
+    async def get_node_property_by_id(self, node_property_id: int) -> NodeProperty | None:
+        """Get a node_property assignment by its internal ID."""
         pass
 
     @abstractmethod
@@ -195,6 +205,21 @@ class PropertyRepository(ABC):
         pass
 
     @abstractmethod
+    async def get_selection_line_by_uuid(self, uuid: str) -> PropertySelectionLine | None:
+        """Get a selection option by its public UUID."""
+        pass
+
+    @abstractmethod
+    async def get_selection_lines_by_ids(self, ids: list[int]) -> list[PropertySelectionLine]:
+        """Get multiple selection options by internal ID in a single query."""
+        pass
+
+    @abstractmethod
+    async def get_selection_lines_by_uuids(self, uuids: list[str]) -> list[PropertySelectionLine]:
+        """Get multiple selection options by public UUID in a single query, preserving order."""
+        pass
+
+    @abstractmethod
     async def update_selection_line(
         self, line_id: int, name: str | None = None, icon: str | None = None, order: int | None = None
     ) -> PropertySelectionLine | None:
@@ -243,8 +268,13 @@ class PropertyRepository(ABC):
         pass
 
     @abstractmethod
-    async def get_class_filters(self, property_id: int) -> list[int]:
-        """Get all class filter node IDs for a property."""
+    async def get_class_filters(self, property_id: int) -> list[PropertyClassFilter]:
+        """Get all class filters for a property."""
+        pass
+
+    @abstractmethod
+    async def get_class_filter_by_uuid(self, uuid: str) -> PropertyClassFilter | None:
+        """Get a class filter by its public UUID."""
         pass
 
     @abstractmethod
@@ -293,6 +323,11 @@ class PropertyRepository(ABC):
     @abstractmethod
     async def get_class_properties(self, class_node_id: int) -> list[ClassProperty]:
         """Get properties that a class applies to classed nodes."""
+        pass
+
+    @abstractmethod
+    async def get_class_property_by_uuid(self, uuid: str) -> ClassProperty | None:
+        """Get a class property binding by its public UUID."""
         pass
 
     @abstractmethod

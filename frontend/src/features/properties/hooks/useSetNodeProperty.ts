@@ -5,16 +5,22 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import * as nodesApi from '@/api/nodes';
 import type { BatchPropertiesResult } from '@/api/nodes';
 import { nodeKeys } from '@/hooks/queryKeys';
+import { getNodeUuidByServerId } from '@/features/content/hooks/useNodeMutations.utils';
+import { resolvePropertyUuid } from '@/utils/resolveNodeUuid';
 
 export function useSetNodeProperty() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ nodeId, propertyId, value }: { nodeId: number; propertyId: number; value: unknown }) => {
+    mutationFn: async ({ nodeId, propertyId, value }: { nodeId: string | number; propertyId: string | number; value: unknown }) => {
+      const nodeUuid = typeof nodeId === 'string' ? nodeId : getNodeUuidByServerId(queryClient, nodeId);
+      if (!nodeUuid) throw new Error('Node UUID not found');
+      const propertyUuid = typeof propertyId === 'string' ? propertyId : resolvePropertyUuid(propertyId);
+      if (!propertyUuid) throw new Error('Property UUID not found');
       if (value === null) {
-        return nodesApi.removeProperty(nodeId, propertyId);
+        return nodesApi.removeProperty(nodeUuid, propertyUuid);
       }
-      return nodesApi.setProperty(nodeId, propertyId, value);
+      return nodesApi.setProperty(nodeUuid, propertyUuid, value);
     },
 
     onMutate: async ({ nodeId, propertyId, value }) => {

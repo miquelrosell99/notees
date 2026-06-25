@@ -2,7 +2,7 @@
  * useTabNodeData — fetch display data (icon, color, text) for tab nodes.
  */
 import { useMemo } from 'react';
-import { useBatchNodes, useClasses } from '@/features/content';
+import { useBatchNodesByUuid, useClasses } from '@/features/content';
 import { nodeNameToText } from '@/features/queries';
 import { getEffectiveIcon, getEffectiveColor } from '@/utils/nodeIcon';
 import type { Node } from '@/types';
@@ -13,13 +13,13 @@ export interface TabNodeDisplayData {
   color: string | null | undefined;
 }
 
-export function useNodesDisplayData(nodeIds: number[]): Record<number, TabNodeDisplayData> {
-  const { data: batchResult } = useBatchNodes(nodeIds);
+export function useNodesDisplayData(nodeUuids: string[]): Record<string, TabNodeDisplayData> {
+  const { data: batchResult } = useBatchNodesByUuid(nodeUuids);
 
   const { data: allClasses } = useClasses();
 
   return useMemo(() => {
-    const result: Record<number, TabNodeDisplayData> = {};
+    const result: Record<string, TabNodeDisplayData> = {};
     const nodes = batchResult?.nodes;
     if (!nodes) return result;
 
@@ -33,7 +33,7 @@ export function useNodesDisplayData(nodeIds: number[]): Record<number, TabNodeDi
         : nodeNameToText(node.name);
       const displayText = text?.trim() || (node.is_page ? '[Untitled]' : '[Block]');
 
-      result[node.id] = {
+      result[node.uuid] = {
         displayText,
         effectiveIcon,
         color: effectiveColor,

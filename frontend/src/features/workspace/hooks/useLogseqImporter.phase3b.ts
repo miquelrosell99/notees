@@ -105,10 +105,11 @@ export async function runPhase3b(ctx: ImportContext, p3: PhaseResult): Promise<v
   ctx.phases.push(p5);
   {
     const propertyCollector = {
-      mutateAsync: async (args: { nodeId: number; propertyId: number; value: unknown }) => {
-        let props = nodeIdToProperties.get(args.nodeId);
-        if (!props) { props = {}; nodeIdToProperties.set(args.nodeId, props); }
-        props[args.propertyId] = args.value;
+      mutateAsync: async (args: { nodeId: string | number; propertyId: string | number; value: unknown }) => {
+        const nodeId = args.nodeId as number;
+        let props = nodeIdToProperties.get(nodeId);
+        if (!props) { props = {}; nodeIdToProperties.set(nodeId, props); }
+        props[args.propertyId as number] = args.value;
         return {} as unknown;
       },
     };

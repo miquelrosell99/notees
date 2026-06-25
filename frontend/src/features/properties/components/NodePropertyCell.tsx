@@ -32,19 +32,19 @@ export function NodePropertyCell({
   const setPropertyMutation = useSetNodeProperty();
   const openNode = useNavigationStore(state => state.openNode);
 
-  // Parse node IDs from value
+  // Parse node UUIDs from value
   const isMultiValue = property.multi || Array.isArray(value);
-  const nodeIds: number[] = isMultiValue && Array.isArray(value)
-    ? value.filter((v): v is number => typeof v === 'number')
-    : typeof value === 'number'
+  const nodeUuids: string[] = isMultiValue && Array.isArray(value)
+    ? value.filter((v): v is string => typeof v === 'string')
+    : typeof value === 'string'
       ? [value]
       : [];
 
   // Fetch all nodes in parallel
   const nodeQueries = useQueries({
-    queries: nodeIds.map((nodeId) => ({
-      queryKey: nodeKeys.detail(nodeId, { include_children: false }),
-      queryFn: () => nodesApi.getNode(nodeId, { include_children: false }),
+    queries: nodeUuids.map((nodeUuid) => ({
+      queryKey: nodeKeys.byUuid(nodeUuid),
+      queryFn: () => nodesApi.getNode(nodeUuid, { include_children: false }),
       staleTime: 5 * 60 * 1000,
     })),
   });
@@ -59,7 +59,7 @@ export function NodePropertyCell({
   const isLoading = nodeQueries.some(q => q.isLoading);
 
   // Asset properties: render as images
-  if (isAssetProperty && nodeIds.length > 0) {
+  if (isAssetProperty && nodeUuids.length > 0) {
     if (isLoading) {
       return (
         <div className="property-cell property-cell--loading">
@@ -70,10 +70,10 @@ export function NodePropertyCell({
 
     return (
       <div className="property-cell property-cell--image">
-        {nodeIds.map((nodeId) => (
+        {nodeUuids.map((nodeUuid) => (
           <AssetImage
-            key={nodeId}
-            assetNodeId={nodeId}
+            key={nodeUuid}
+            assetNodeId={nodeUuid}
             showCard={false}
             clickable={true}
             showActions={false}
@@ -86,7 +86,7 @@ export function NodePropertyCell({
   }
 
   // Regular node properties: use NodeSelector
-  if (isLoading && nodeIds.length > 0) {
+  if (isLoading && nodeUuids.length > 0) {
     return (
       <div className="property-cell property-cell--loading">
         <Spinner size="sm" />
@@ -103,7 +103,7 @@ export function NodePropertyCell({
         emptyText="Add"
         searchPlaceholder="Search..."
         onNodeClick={(selectedNode) => {
-          openNode(selectedNode.id);
+          openNode(selectedNode.uuid);
         }}
         onAdd={editable ? (selectedNode) => {
           const currentValue = isMultiValue && Array.isArray(value) ? value : (value ? [value] : []);
@@ -112,7 +112,7 @@ export function NodePropertyCell({
             : selectedNode.id;
           setPropertyMutation.mutate({
             nodeId: parentNode.id,
-            propertyId: property.id,
+            propertyId: property.uuid,
             value: newValue,
           });
         } : undefined}
@@ -120,14 +120,14 @@ export function NodePropertyCell({
           if (property.multi && Array.isArray(value)) {
             setPropertyMutation.mutate({
               nodeId: parentNode.id,
-              propertyId: property.id,
+              propertyId: property.uuid,
               value: value.filter(id => id !== selectedNode.id),
             });
           } else {
             // Single value: remove means set to null
             setPropertyMutation.mutate({
               nodeId: parentNode.id,
-              propertyId: property.id,
+              propertyId: property.uuid,
               value: null,
             });
           }

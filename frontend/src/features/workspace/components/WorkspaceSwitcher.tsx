@@ -33,10 +33,10 @@ export function WorkspaceSwitcher() {
 
   const clearCacheOnSwitch = useCallback((switchedUuid: string) => {
     useNavigationStore.setState({
-      currentNodeId: null,
-      activeNodeId: null,
+      currentNodeUuid: null,
+      activeNodeUuid: null,
       sidebarNode: null,
-      localGraphNodeId: null,
+      localGraphNodeUuid: null,
       mainViewType: 'node',
     });
     queryClient.removeQueries({ queryKey: favoriteKeys.all });

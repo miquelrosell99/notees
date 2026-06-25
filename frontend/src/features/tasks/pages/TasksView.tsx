@@ -67,19 +67,19 @@ export function TasksView() {
     // Invalidate all task-view caches so the new task appears
     queryClient.invalidateQueries({ queryKey: taskKeys.view() });
 
-    openNode(newNode.id);
+    openNode(newNode.uuid);
   }, [pageClassId, taskClassId, createNode, queryClient, openNode]);
 
   const handleNodeClick = useCallback(
     (node: Node) => {
-      openNode(node.id);
+      openNode(node.uuid);
     },
     [openNode],
   );
 
   const handleNodeShiftClick = useCallback(
     (node: Node) => {
-      useNavigationStore.getState().addSidebarCard(node.id, 'page');
+      useNavigationStore.getState().addSidebarCard(node.uuid, 'page');
     },
     [],
   );

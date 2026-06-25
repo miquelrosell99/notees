@@ -7,11 +7,11 @@ from app.db.schema import SYSTEM_CLASS_UUIDS
 pytestmark = pytest.mark.integration
 
 
-async def _get_template_class_id(c: AsyncClient) -> int:
+async def _get_template_class_uuid(c: AsyncClient) -> str:
     resp = await c.get("/api/nodes/classes")
     for cls in resp.json().get("nodes", []):
         if cls.get("uuid") == SYSTEM_CLASS_UUIDS["template"]:
-            return cls["id"]
+            return cls["uuid"]
     raise Exception("Template class not found")
 
 
@@ -28,23 +28,23 @@ async def test_multi_child_as_blocks(authenticated_client: AsyncClient):
 
     # Create template page
     template = await _create_node(c, name="Multi Child Template")
-    tc_id = await _get_template_class_id(c)
-    await c.post(f"/api/nodes/{template['id']}/classes", json={"class_node_id": tc_id})
+    tc_uuid = await _get_template_class_uuid(c)
+    await c.post(f"/api/nodes/{template['uuid']}/classes", json={"class_node_uuid": tc_uuid})
 
     # Create 3 child blocks under the template
-    child1 = await _create_node(c, name="Child 1", parent_id=template["id"], sequence=0)
-    await _create_node(c, name="Child 2", parent_id=template["id"], sequence=1)
-    await _create_node(c, name="Child 3", parent_id=template["id"], sequence=2)
+    child1 = await _create_node(c, name="Child 1", parent_uuid=template["uuid"], sequence=0)
+    await _create_node(c, name="Child 2", parent_uuid=template["uuid"], sequence=1)
+    await _create_node(c, name="Child 3", parent_uuid=template["uuid"], sequence=2)
 
     # Add a grandchild under child1
-    await _create_node(c, name="Grandchild 1", parent_id=child1["id"], sequence=0)
+    await _create_node(c, name="Grandchild 1", parent_uuid=child1["uuid"], sequence=0)
 
     # Create a target page
     parent = await _create_node(c, name="Target Page")
 
     # Instantiate as blocks
     resp = await c.post(
-        f"/api/nodes/{template['id']}/instantiate",
+        f"/api/nodes/{template['uuid']}/instantiate",
         json={"parent_id": parent["id"], "as_blocks": True},
     )
     assert resp.status_code == 200, resp.text

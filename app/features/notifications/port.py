@@ -20,6 +20,18 @@ class NotificationRepository(ABC):
         pass
 
     @abstractmethod
+    async def mark_notification_read_by_uuid(self, notification_uuid: str, user_id: int) -> bool:
+        """Mark a single notification as read by its public UUID."""
+        pass
+
+    @abstractmethod
+    async def get_notification_id_by_uuid(
+        self, notification_uuid: str, user_id: int
+    ) -> int | None:
+        """Resolve a notification UUID to its internal ID, verifying ownership."""
+        pass
+
+    @abstractmethod
     async def mark_all_notifications_read(self, user_id: int) -> None:
         """Mark all notifications for a user as read."""
         pass

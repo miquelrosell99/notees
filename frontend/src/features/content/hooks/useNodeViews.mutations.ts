@@ -17,7 +17,16 @@ import type {
   NodeViewCreate,
   NodeViewUpdate,
 } from '@/types/nodeView';
+import { resolveNodeUuid, resolveNodeViewUuid } from '@/utils/resolveNodeUuid';
 import { nodeViewKeys } from './useNodeViews.queries';
+
+function requireViewUuid(viewId: string | number): string {
+  const uuid = resolveNodeViewUuid(viewId);
+  if (!uuid) {
+    throw new Error(`Unable to resolve UUID for view id ${viewId}`);
+  }
+  return uuid;
+}
 
 export function useCreateNodeView() {
   const queryClient = useQueryClient();
@@ -31,11 +40,11 @@ export function useCreateNodeView() {
         predicate: (query) => {
           const key = query.queryKey;
           // Match ['nodeViews', 'list', nodeId, ...]
-          return key[0] === 'nodeViews' && key[1] === 'list' && key[2] === newView.node_id;
+          return key[0] === 'nodeViews' && key[1] === 'list' && key[2] === newView.node_uuid;
         },
       });
       queryClient.invalidateQueries({
-        queryKey: nodeViewKeys.byType(newView.node_id),
+        queryKey: nodeViewKeys.byType(newView.node_uuid),
       });
     },
   });
@@ -48,17 +57,17 @@ export function useUpdateNodeView() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ viewId, data }: { viewId: number; data: NodeViewUpdate }) =>
-      updateNodeView(viewId, data),
+    mutationFn: ({ viewId, data }: { viewId: string | number; data: NodeViewUpdate }) =>
+      updateNodeView(requireViewUuid(viewId), data),
     onSuccess: (updatedView) => {
       // Update the cache for this view
       queryClient.setQueryData(nodeViewKeys.detail(updatedView.id), updatedView);
       // Invalidate list queries
       queryClient.invalidateQueries({
-        queryKey: nodeViewKeys.list(updatedView.node_id),
+        queryKey: nodeViewKeys.list(updatedView.node_uuid),
       });
       queryClient.invalidateQueries({
-        queryKey: nodeViewKeys.byType(updatedView.node_id),
+        queryKey: nodeViewKeys.byType(updatedView.node_uuid),
       });
     },
   });
@@ -72,7 +81,7 @@ export function useUpdateQueryAST() {
 
   return useMutation({
     mutationFn: ({ viewId, queryAST }: { viewId: number; queryAST: Record<string, any> }) =>
-      updateQueryAST(viewId, queryAST),
+      updateQueryAST(requireViewUuid(viewId), queryAST),
     onSuccess: (updatedView) => {
       // Update the cache for this view
       queryClient.setQueryData(nodeViewKeys.detail(updatedView.id), updatedView);
@@ -87,7 +96,7 @@ export function useUpdateQueryAST() {
       });
       // Also invalidate the list queries since the view was updated
       queryClient.invalidateQueries({
-        queryKey: nodeViewKeys.list(updatedView.node_id),
+        queryKey: nodeViewKeys.list(updatedView.node_uuid),
       });
     },
   });
@@ -100,7 +109,7 @@ export function useDeleteNodeView() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (viewId: number) => deleteNodeView(viewId),
+    mutationFn: (viewId: number) => deleteNodeView(requireViewUuid(viewId)),
     onSuccess: (_, viewId) => {
       // Remove from cache
       queryClient.removeQueries({
@@ -121,7 +130,7 @@ export function useResetNodeViews() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (nodeId: number) => resetNodeViews(nodeId),
+    mutationFn: (nodeId: number) => resetNodeViews(resolveNodeUuid(nodeId)),
     onSuccess: async (newViews, nodeId) => {
       // First, remove all old view details and query results to prevent stale queries
       queryClient.removeQueries({
@@ -183,7 +192,11 @@ export function useReorderNodeViews() {
       nodeId: number;
       viewType: string;
       viewIds: number[];
-    }) => reorderNodeViews(nodeId, viewType, viewIds),
+    }) => reorderNodeViews(
+      resolveNodeUuid(nodeId),
+      viewType,
+      viewIds.map(requireViewUuid)
+    ),
     onSuccess: (updatedViews, { nodeId }) => {
       // Update list cache
       queryClient.invalidateQueries({
@@ -228,7 +241,7 @@ function _flushBatch() {
     }
 
     const viewTypesArr = [...viewTypes];
-    ensureDefaultViews(nodeId, viewTypesArr)
+    ensureDefaultViews(resolveNodeUuid(nodeId), viewTypesArr)
       .then((views) => {
         _ensuredNodes.add(nodeId);
         // Only invalidate if new views were actually created
@@ -293,13 +306,13 @@ export function useEnsureDefaultViews() {
   return useMutation({
     mutationFn: async ({ nodeId, viewTypes }: { nodeId: number; viewTypes?: string[] }) => {
       if (_ensuredNodes.has(nodeId)) return [];
-      const views = await ensureDefaultViews(nodeId, viewTypes);
+      const views = await ensureDefaultViews(resolveNodeUuid(nodeId), viewTypes);
       _ensuredNodes.add(nodeId);
       return views;
     },
     onSuccess: (views) => {
       if (views.length > 0) {
-        const nodeId = views[0].node_id;
+        const nodeId = views[0].node_uuid;
         queryClient.invalidateQueries({
           queryKey: nodeViewKeys.list(nodeId),
         });
@@ -310,10 +323,3 @@ export function useEnsureDefaultViews() {
     },
   });
 }
-
-// ==================== Utility Hooks ====================
-
-/**
- * Get the current active NodeView for a section
- * Returns the first view (default) if no active view is set
- */

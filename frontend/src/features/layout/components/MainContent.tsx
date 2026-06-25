@@ -32,7 +32,7 @@ export function MainContent() {
     }
   }, [activeTab?.type, queryClient]);
 
-  const handleNavigate = useMemo(() => (nodeId: number) => {
+  const handleNavigate = useMemo(() => (nodeId: string | number) => {
     openNode(nodeId);
   }, [openNode]);
 

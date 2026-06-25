@@ -61,7 +61,7 @@ export function Layout() {
   // Use granular selectors to avoid re-rendering on unrelated store changes
   const isSidebarCollapsed = useNavigationStore(s => s.isSidebarCollapsed);
   const rightSidebarOpen = useNavigationStore(s => s.rightSidebarOpen);
-  const currentNodeId = useNavigationStore(s => s.currentNodeId);
+  const currentNodeUuid = useNavigationStore(s => s.currentNodeUuid);
   const mainViewType = useNavigationStore(s => s.mainViewType);
   const viewMode = useNavigationStore(s => s.viewMode);
   const isCommandPaletteOpen = useModalStore(s => s.isCommandPaletteOpen);
@@ -92,7 +92,7 @@ export function Layout() {
   const isAutoExportProgressModalOpen = useModalStore(s => s.isAutoExportProgressModalOpen);
   const setAutoExportProgressModalOpen = useModalStore(s => s.setAutoExportProgressModalOpen);
   const isMinimapOpen = useModalStore(s => s.isMinimapOpen);
-  const presentationNodeId = usePresentationStore(s => s.nodeId);
+  const presentationNodeUuid = usePresentationStore(s => s.nodeUuid);
   const setMinimapOpen = useModalStore(s => s.setMinimapOpen);
   const openNode = useNavigationStore(s => s.openNode);
   const splitTab = useNavigationStore(s => s.splitTab);
@@ -100,14 +100,14 @@ export function Layout() {
 
   // Callback provided to all BlockEditors via context — opens the create-with-UUID modal
   // pre-filled with the missing UUID so the user can create the target node.
-  const handleFixBrokenLink = useCallback((uuid: string) => {
-    setCreateWithUuidModalOpen(true, uuid);
+  const handleFixBrokenLink = useCallback((nodeUuid: string) => {
+    setCreateWithUuidModalOpen(true, nodeUuid);
   }, [setCreateWithUuidModalOpen]);
   
   const wideMode = useSettingsStore(s => s.wideMode);
   const tabPosition = useSettingsStore(s => s.tabPosition);
   const createNodeMutation = useCreateNode();
-  const { data: currentNode } = useNode(currentNodeId);
+  const { data: currentNode } = useNode(currentNodeUuid);
   
   // Settings are synced from the backend into the local store before Layout
   // mounts. useSettingsQuery() is used here only so components downstream can
@@ -131,8 +131,8 @@ export function Layout() {
   // Track page opens by calling the API and refreshing recents.
   // Only call for actual pages; blocks return 400.
   useEffect(() => {
-    if (currentNodeId && mainViewType === 'node' && currentNode?.is_page) {
-      markPageOpened(currentNodeId)
+    if (currentNodeUuid && mainViewType === 'node' && currentNode?.is_page && currentNode.uuid) {
+      markPageOpened(currentNode.uuid)
         .then(() => {
           queryClient.invalidateQueries({ queryKey: recentKeys.all });
         })
@@ -140,7 +140,7 @@ export function Layout() {
           console.error('Failed to mark page as opened:', error);
         });
     }
-  }, [currentNodeId, mainViewType, currentNode?.is_page, queryClient]);
+  }, [currentNodeUuid, mainViewType, currentNode?.is_page, queryClient]);
   
   // Register commands in the Command Registry
   useCommand(COMMAND_IDS.COMMAND_PALETTE, () => {
@@ -278,7 +278,7 @@ export function Layout() {
         <OfflineBanner />
         {/* ── Chrome: MobileLayout or desktop three-column ── */}
         {isMobile ? (
-          <MobileLayout currentNodeId={currentNodeId} />
+          <MobileLayout currentNodeUuid={currentNodeUuid} />
         ) : (
           <div className={`app-canvas${wideMode ? ' wide-mode' : ''}`}>
             <TopBar />
@@ -372,27 +372,27 @@ export function Layout() {
             onClose={() => setImportDataModalOpen(false)}
             onImport={async (blocks: BlockData[]) => {
               // Import blocks as children of current node
-              if (!currentNodeId) return;
+              if (!currentNodeUuid) return;
               
               // Create blocks recursively
               const createBlocksRecursively = async (
                 blockDataList: BlockData[],
-                parentId: number
+                parentUuid: string
               ) => {
                 for (const blockData of blockDataList) {
                   const newNode = await createNodeMutation.mutateAsync({
                     name: blockData.name || '',
-                    parent_id: parentId,
+                    parent_uuid: parentUuid,
                   });
                   
                   // Recursively create children
                   if (blockData.children && blockData.children.length > 0) {
-                    await createBlocksRecursively(blockData.children, newNode.id);
+                    await createBlocksRecursively(blockData.children, newNode.uuid);
                   }
                 }
               };
               
-              await createBlocksRecursively(blocks, currentNodeId);
+              await createBlocksRecursively(blocks, currentNodeUuid);
             }}
           />
         </Suspense>
@@ -427,7 +427,7 @@ export function Layout() {
         </Suspense>
 
         {/* Export Page Modal */}
-        {currentNodeId && currentNode?.uuid && (
+        {currentNodeUuid && currentNode?.uuid && (
           <Suspense fallback={null}>
             <ExportPageModal
               isOpen={isExportPageModalOpen}
@@ -439,10 +439,10 @@ export function Layout() {
         )}
 
         {/* Share Modal */}
-        {currentNodeId && (
+        {currentNodeUuid && (
           <Suspense fallback={null}>
             <ShareModal
-              nodeId={currentNodeId}
+              nodeUuid={currentNodeUuid}
               isOpen={isShareModalOpen}
               onClose={() => setShareModalOpen(false)}
             />
@@ -474,7 +474,7 @@ export function Layout() {
         </Suspense>
 
         {/* Presentation Modal */}
-        <PresentationModal key={presentationNodeId ?? 'closed'} />
+        <PresentationModal key={presentationNodeUuid ?? 'closed'} />
 
         {/* Create Page with UUID Modal (global — opened from Command Palette or broken-link context menu) */}
         <Suspense fallback={null}>
@@ -484,7 +484,7 @@ export function Layout() {
             onClose={() => setCreateWithUuidModalOpen(false, null)}
             onSuccess={(node) => {
               setCreateWithUuidModalOpen(false, null);
-              openNode(node.id);
+              openNode(node.uuid);
               // If this was opened from a broken-link context menu, fix all references
               if (createWithUuidPrefill) {
                 fixLinksForUuid(createWithUuidPrefill).catch(console.error);

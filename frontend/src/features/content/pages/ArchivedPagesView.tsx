@@ -112,7 +112,7 @@ export function ArchivedPagesView({ className = '' }: ArchivedPagesViewProps) {
             hideToolbar={true}
             customContextMenu={ArchivedNodeContextMenu}
             customContextMenuItems={generateContextMenuItems}
-            onNodeClick={(node) => openNode(node.id)}
+            onNodeClick={(node) => openNode(node.uuid)}
           />
         </DataStateView>
       </div>
