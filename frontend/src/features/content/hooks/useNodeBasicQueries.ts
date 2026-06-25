@@ -9,7 +9,8 @@ import { isApiError } from '@/api/client';
 import * as nodesApi from '@/api/nodes';
 import { nodeKeys } from '@/hooks/queryKeys';
 import type { Node } from '@/types/api';
-import { findNodeInTree } from './useNodeQueries.utils';
+import { findNodeInTreeByUuid } from './useNodeQueries.utils';
+import { getNodeUuidByServerId } from './useNodeMutations.utils';
 
 export function useNodes(filters?: { pages_only?: boolean; parent_id?: number; tag_id?: number; page_size?: number } | null) {
   return useQuery({
@@ -25,7 +26,7 @@ export function useNodes(filters?: { pages_only?: boolean; parent_id?: number; t
  */
 
 export function useNode(
-  id: number | null,
+  id: string | number | null,
   options?: {
     include_children?: boolean;
     include_backlinks?: boolean;
@@ -38,22 +39,23 @@ export function useNode(
   const navigate = useNavigate();
   const { workspaceId } = useParams<{ workspaceId?: string }>();
   const { meta, staleTime, ...apiOptions } = options || {};
+  const nodeUuid = id === null ? null : typeof id === 'string' ? id : getNodeUuidByServerId(queryClient, id);
   const result = useQuery({
-    queryKey: nodeKeys.detail(id ?? 0, apiOptions),
-    queryFn: () => nodesApi.getNode(id!, apiOptions),
-    enabled: !!id,
+    queryKey: nodeKeys.detail(id ?? '', apiOptions),
+    queryFn: () => nodesApi.getNode(nodeUuid!, apiOptions),
+    enabled: !!nodeUuid,
     meta,
     staleTime,
     // Provide data from existing parent caches while the fresh fetch loads.
     // This prevents showing empty content when navigating to a block's
     // focused view before its content save has completed on the server.
     placeholderData: () => {
-      if (!id) return undefined;
+      if (!nodeUuid) return undefined;
       const queryCache = queryClient.getQueryCache();
       for (const query of queryCache.findAll({ queryKey: nodeKeys.details() })) {
         const data = query.state.data as Node | undefined;
         if (data) {
-          const found = findNodeInTree(data, id);
+          const found = findNodeInTreeByUuid(data, nodeUuid);
           if (found) return found;
         }
       }
@@ -73,13 +75,13 @@ export function useNode(
   // Wrapped in useEffect to avoid scheduling state updates during render,
   // which can trigger "Maximum update depth exceeded" loops.
   useEffect(() => {
-    if (result.error && isApiError(result.error) && result.error.response?.status === 404 && id) {
+    if (result.error && isApiError(result.error) && result.error.response?.status === 404 && nodeUuid) {
       import('@/stores').then(({ useNavigationStore }) => {
-        const currentNodeId = useNavigationStore.getState().currentNodeId;
-        if (currentNodeId === id) {
+        const currentNodeUuid = useNavigationStore.getState().currentNodeUuid;
+        if (currentNodeUuid === nodeUuid) {
           // Node was deleted, navigate away
           useNavigationStore.setState({
-            currentNodeId: null,
+            currentNodeUuid: null,
             mainViewType: 'node'
           });
           // Navigate to workspace home
@@ -87,7 +89,7 @@ export function useNode(
         }
       });
     }
-  }, [result.error, id, navigate, workspaceId]);
+  }, [result.error, nodeUuid, navigate, workspaceId]);
 
   return result;
 }
@@ -101,15 +103,17 @@ export function useNode(
  * This uses a separate cache key to avoid polluting the full detail cache.
  */
 
-export function useNodeMetadata(id: number | null) {
+export function useNodeMetadata(id: string | number | null) {
+  const queryClient = useQueryClient();
+  const nodeUuid = id === null ? null : typeof id === 'string' ? id : getNodeUuidByServerId(queryClient, id);
   return useQuery({
-    queryKey: nodeKeys.metadata(id ?? 0),
-    queryFn: () => nodesApi.getNode(id!, {
+    queryKey: nodeKeys.metadata(id ?? ''),
+    queryFn: () => nodesApi.getNode(nodeUuid!, {
       include_children: false,
       include_backlinks: false,
       include_properties: false,
     }),
-    enabled: !!id,
+    enabled: !!nodeUuid,
     // Metadata is stable, cache longer
     staleTime: 1000 * 60 * 10, // 10 minutes
   });
@@ -122,14 +126,16 @@ export function useNodeMetadata(id: number | null) {
  * Results are normalized into the main node cache on success.
  */
 
-export function useNodeChildren(parentId: number | null) {
+export function useNodeChildren(parentId: string | number | null) {
+  const queryClient = useQueryClient();
+  const parentUuid = parentId === null ? null : typeof parentId === 'string' ? parentId : getNodeUuidByServerId(queryClient, parentId);
   return useQuery({
-    queryKey: nodeKeys.childrenOnly(parentId ?? 0),
+    queryKey: nodeKeys.childrenOnly(parentId ?? ''),
     queryFn: async () => {
-      const parent = await nodesApi.getNode(parentId!, { include_children: true });
+      const parent = await nodesApi.getNode(parentUuid!, { include_children: true });
       return parent.children ?? [];
     },
-    enabled: !!parentId,
+    enabled: !!parentUuid,
     staleTime: 1000 * 60 * 5,
   });
 }
@@ -159,11 +165,13 @@ export function useNodeByUuid(
  * Hook to fetch page content (blocks, properties, backlinks)
  */
 
-export function usePageContent(pageId: number | null) {
+export function usePageContent(pageId: string | number | null) {
+  const queryClient = useQueryClient();
+  const pageUuid = pageId === null ? null : typeof pageId === 'string' ? pageId : getNodeUuidByServerId(queryClient, pageId);
   return useQuery({
-    queryKey: nodeKeys.pageContent(pageId ?? 0),
-    queryFn: () => nodesApi.getPageContent(pageId!),
-    enabled: !!pageId,
+    queryKey: nodeKeys.pageContent(pageId ?? ''),
+    queryFn: () => nodesApi.getPageContent(pageUuid!),
+    enabled: !!pageUuid,
 
   });
 }

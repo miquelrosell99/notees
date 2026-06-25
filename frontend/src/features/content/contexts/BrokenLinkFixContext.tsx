@@ -6,7 +6,7 @@
  */
 import { createContext, useContext } from 'react';
 
-export type FixBrokenLinkCallback = (uuid: string) => void;
+export type FixBrokenLinkCallback = (nodeUuid: string) => void;
 
 export const BrokenLinkFixContext = createContext<FixBrokenLinkCallback | null>(null);
 

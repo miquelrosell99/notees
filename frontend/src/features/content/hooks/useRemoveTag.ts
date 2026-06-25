@@ -7,6 +7,8 @@ import {
   findNodeInCache,
   getRuntimeBlockIdForServerId,
   applyNodeIntent,
+  getNodeUuidByServerId,
+  getTagUuidByServerId,
 } from './useNodeMutations.utils';
 import { waitForOperationAck } from '@/sync/waitForOperation';
 import * as nodesApi from '@/api/nodes';
@@ -20,23 +22,27 @@ import * as nodesApi from '@/api/nodes';
 export function useRemoveTag() {
   const queryClient = useQueryClient();
 
-  return useMutation<Node | null, Error, { nodeId: number; tagId: number }>({
+  return useMutation<Node | null, Error, { nodeId: string | number; tagId: string | number }>({
     mutationFn: async ({ nodeId, tagId }) => {
       await awaitAllContentSaves();
 
-      const blockId = getRuntimeBlockIdForServerId(nodeId);
+      const nodeUuid = typeof nodeId === 'string' ? nodeId : getNodeUuidByServerId(queryClient, nodeId);
+      if (!nodeUuid) throw new Error('Node UUID not found');
+      const tagUuid = typeof tagId === 'string' ? tagId : getTagUuidByServerId(queryClient, tagId);
+      if (!tagUuid) throw new Error('Tag UUID not found');
+      const blockId = typeof nodeId === 'string' ? null : getRuntimeBlockIdForServerId(nodeId);
       if (!blockId) {
-        await nodesApi.removeTagLink(nodeId, tagId);
-        return findNodeInCache(queryClient, nodeId);
+        await nodesApi.removeTagLink(nodeUuid, tagUuid);
+        return typeof nodeId === 'string' ? null : findNodeInCache(queryClient, nodeId);
       }
 
       const operationId = applyNodeIntent({
         type: 'remove_tag',
         blockId,
-        tagId: String(tagId),
+        tagId: tagUuid,
       });
       await waitForOperationAck(operationId);
-      return findNodeInCache(queryClient, nodeId);
+      return typeof nodeId === 'string' ? null : findNodeInCache(queryClient, nodeId);
     },
     onSuccess: (_data, { nodeId, tagId }) => {
       queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(nodeId) });

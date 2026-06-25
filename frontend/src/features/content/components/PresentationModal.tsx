@@ -28,8 +28,8 @@ function getSlideTitle(node: Node): string {
 }
 
 export function PresentationModal() {
-  const { isOpen, nodeId, closePresentation } = usePresentationState();
-  const { data: node } = useNode(nodeId, { include_children: true });
+  const { isOpen, nodeUuid, closePresentation } = usePresentationState();
+  const { data: node } = useNode(nodeUuid, { include_children: true });
   const linkedRefsCollapseLevel = useSettingsStore((state) => state.linkedRefsCollapseLevel);
   const containerRef = useRef<HTMLDivElement>(null);
 

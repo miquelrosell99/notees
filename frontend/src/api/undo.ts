@@ -9,6 +9,7 @@ export interface UndoResult {
 
 export interface UndoStackEntry {
   id: number;
+  uuid: string;
   operation: string;
   entity_type: string;
   entity_id: number;
@@ -37,13 +38,13 @@ export async function getUndoStack(): Promise<UndoStack> {
   return response.data;
 }
 
-export async function undoTo(entryId: number): Promise<UndoResult[]> {
-  const response = await api.post<UndoResult[]>(`/undo/undo-to/${entryId}`);
+export async function undoTo(entryIdOrUuid: number | string): Promise<UndoResult[]> {
+  const response = await api.post<UndoResult[]>(`/undo/undo-to/${entryIdOrUuid}`);
   return response.data;
 }
 
-export async function redoTo(entryId: number): Promise<UndoResult[]> {
-  const response = await api.post<UndoResult[]>(`/undo/redo-to/${entryId}`);
+export async function redoTo(entryIdOrUuid: number | string): Promise<UndoResult[]> {
+  const response = await api.post<UndoResult[]>(`/undo/redo-to/${entryIdOrUuid}`);
   return response.data;
 }
 

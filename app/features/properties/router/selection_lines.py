@@ -2,20 +2,26 @@
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, get_node_repository, get_property_repository
 from app.domain.entities import PropertyType
+from app.features.nodes.port import NodeRepository
 from app.features.properties.dependencies import get_property_service
-from app.features.properties.models import SelectionLineRequest, SelectionLineResponse, SelectionLineUpdateRequest
+from app.features.properties.models import SelectionLineRequest, SelectionLineUpdateRequest
+from app.features.properties.port import PropertyRepository
+from app.features.properties.router.dependencies import resolve_property_uuid, resolve_selection_line_uuid
+from app.features.properties.router.helpers import _selection_line_to_response
 from app.features.properties.service import PropertyService
 from app.models import User
 
 router = APIRouter()
 
 
-@router.get("/{property_id}/selection-lines")
+@router.get("/{property_uuid}/selection-lines")
 async def list_selection_lines(
-    property_id: int,
+    property_id: int = Depends(resolve_property_uuid),
     service: PropertyService = Depends(get_property_service),
+    node_repo: NodeRepository = Depends(get_node_repository),
+    property_repo: PropertyRepository = Depends(get_property_repository),
     user: User = Depends(get_current_user),
 ):
     """Get all selection lines (options) for a property."""
@@ -26,26 +32,22 @@ async def list_selection_lines(
         raise HTTPException(400, "Property is not a selection type")
 
     lines = await service.list_selection_lines(property_id)
+    prop_uuid_map = {prop.id: prop.uuid} if prop.id is not None else {}
     return {
         "selection_lines": [
-            SelectionLineResponse(
-                id=line.id,  # type: ignore[arg-type]
-                property_id=line.property_id,
-                name=line.name,
-                icon=line.icon,
-                color=line.color,
-                order=line.order,
-            )
+            _selection_line_to_response(line, property_uuid=prop_uuid_map.get(line.property_id))
             for line in lines
         ]
     }
 
 
-@router.post("/{property_id}/selection-lines")
+@router.post("/{property_uuid}/selection-lines")
 async def add_selection_line(
-    property_id: int,
-    request: SelectionLineRequest,
+    property_id: int = Depends(resolve_property_uuid),
+    request: SelectionLineRequest = ...,
     service: PropertyService = Depends(get_property_service),
+    node_repo: NodeRepository = Depends(get_node_repository),
+    property_repo: PropertyRepository = Depends(get_property_repository),
     user: User = Depends(get_current_user),
 ):
     """Add a selection line (option) to a property."""
@@ -60,22 +62,18 @@ async def add_selection_line(
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
 
-    return SelectionLineResponse(
-        id=line.id,  # type: ignore[arg-type]
-        property_id=line.property_id,
-        name=line.name,
-        icon=line.icon,
-        color=line.color,
-        order=line.order,
-    )
+    prop = await property_repo.get_by_id(property_id)
+    return _selection_line_to_response(line, property_uuid=prop.uuid if prop else None)
 
 
-@router.put("/{property_id}/selection-lines/{line_id}")
+@router.put("/{property_uuid}/selection-lines/{selection_line_uuid}")
 async def update_selection_line(
-    property_id: int,
-    line_id: int,
-    request: SelectionLineUpdateRequest,
+    property_id: int = Depends(resolve_property_uuid),
+    line_id: int = Depends(resolve_selection_line_uuid),
+    request: SelectionLineUpdateRequest = ...,
     service: PropertyService = Depends(get_property_service),
+    node_repo: NodeRepository = Depends(get_node_repository),
+    property_repo: PropertyRepository = Depends(get_property_repository),
     user: User = Depends(get_current_user),
 ):
     """Update a selection line."""
@@ -90,20 +88,14 @@ async def update_selection_line(
     if not line:
         raise HTTPException(404, "Selection line not found")
 
-    return SelectionLineResponse(
-        id=line.id,  # type: ignore[arg-type]
-        property_id=line.property_id,
-        name=line.name,
-        icon=line.icon,
-        color=line.color,
-        order=line.order,
-    )
+    prop = await property_repo.get_by_id(property_id)
+    return _selection_line_to_response(line, property_uuid=prop.uuid if prop else None)
 
 
-@router.get("/{property_id}/selection-lines/{line_id}/can-delete")
+@router.get("/{property_uuid}/selection-lines/{selection_line_uuid}/can-delete")
 async def check_can_delete_selection_line(
-    property_id: int,
-    line_id: int,
+    property_id: int = Depends(resolve_property_uuid),
+    line_id: int = Depends(resolve_selection_line_uuid),
     service: PropertyService = Depends(get_property_service),
     user: User = Depends(get_current_user),
 ):
@@ -112,10 +104,10 @@ async def check_can_delete_selection_line(
     return {"can_delete": can_delete, "reason": reason}
 
 
-@router.delete("/{property_id}/selection-lines/{line_id}")
+@router.delete("/{property_uuid}/selection-lines/{selection_line_uuid}")
 async def delete_selection_line(
-    property_id: int,
-    line_id: int,
+    property_id: int = Depends(resolve_property_uuid),
+    line_id: int = Depends(resolve_selection_line_uuid),
     service: PropertyService = Depends(get_property_service),
     user: User = Depends(get_current_user),
 ):

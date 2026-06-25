@@ -62,6 +62,11 @@ class UndoRepository(ABC):
         pass
 
     @abstractmethod
+    async def get_undo_entry_id_by_uuid(self, entry_uuid: str) -> int | None:
+        """Resolve an undo log entry UUID to its internal ID for the current user/workspace."""
+        pass
+
+    @abstractmethod
     async def undo_to(self, entry_id: int) -> list[dict]:
         """Undo all operations down to and including entry_id."""
         pass
@@ -79,4 +84,14 @@ class UndoRepository(ABC):
     @abstractmethod
     async def clear_for_node(self, node_id: int) -> None:
         """Delete all undo/redo entries affecting the given node."""
+        pass
+
+    @abstractmethod
+    async def get_entry_by_uuid(self, entry_uuid: str) -> dict | None:
+        """Get a single undo log entry by its public UUID."""
+        pass
+
+    @abstractmethod
+    async def get_entry_uuids_by_ids(self, entry_ids: list[int]) -> dict[int, str]:
+        """Return a mapping of internal undo entry IDs to public UUIDs."""
         pass

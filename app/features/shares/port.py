@@ -96,3 +96,17 @@ class ShareRepository(ABC):
         Returns {"node_id": node_id} on success, or None if not found/forbidden.
         """
         pass
+
+    @abstractmethod
+    async def get_node_user_share_by_uuid(
+        self, share_uuid: str
+    ) -> dict[str, Any] | None:
+        """Get a node-level user share by its public UUID."""
+        pass
+
+    @abstractmethod
+    async def revoke_user_share_by_uuid(
+        self, share_uuid: str, workspace_id: int, user_id: int
+    ) -> dict[str, Any] | None:
+        """Revoke a node-level user share by its public UUID."""
+        pass

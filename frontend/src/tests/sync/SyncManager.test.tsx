@@ -37,7 +37,9 @@ describe('SyncManager', () => {
       icon: null,
       color: null,
       parent_id: null,
+      parent_uuid: null,
       page_id: null,
+      page_uuid: null,
       sequence: 0,
       collapsed: false,
       active: true,
@@ -55,7 +57,9 @@ describe('SyncManager', () => {
       icon: null,
       color: null,
       parent_id: 1,
+      parent_uuid: 'parent-uuid',
       page_id: null,
+      page_uuid: null,
       sequence: 0,
       collapsed: false,
       active: true,
@@ -166,7 +170,9 @@ describe('SyncManager', () => {
       icon: null,
       color: 'red',
       parent_id: null,
+      parent_uuid: null,
       page_id: null,
+      page_uuid: null,
       sequence: 0,
       collapsed: false,
       active: true,
@@ -209,7 +215,7 @@ describe('SyncManager', () => {
       expect(ops[0].state).toBe('acknowledged');
     });
 
-    expect(api.addClass).toHaveBeenCalledWith(42, 5);
+    expect(api.addClass).toHaveBeenCalledWith('node-uuid', '5');
   });
 
   it('reports operation failure to the runtime', async () => {

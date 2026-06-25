@@ -12,20 +12,20 @@ import type { SidebarCard } from '@/stores';
 registerSidebarCard({
   type: 'localGraph',
   component: function LocalGraphCard({ card, onClose }: { card: SidebarCard; onClose: () => void }) {
-    return <SidebarCardLocalGraph nodeId={card.nodeId} onClose={onClose} />;
+    return <SidebarCardLocalGraph nodeUuid={card.nodeUuid} onClose={onClose} />;
   },
 });
 
 registerSidebarCard({
   type: 'page',
   component: function PageCard({ card, onClose }: { card: SidebarCard; onClose: () => void }) {
-    return <SidebarCardNode nodeId={card.nodeId} cardType="page" onClose={onClose} />;
+    return <SidebarCardNode nodeUuid={card.nodeUuid} cardType="page" onClose={onClose} />;
   },
 });
 
 registerSidebarCard({
   type: 'block',
   component: function BlockCard({ card, onClose }: { card: SidebarCard; onClose: () => void }) {
-    return <SidebarCardNode nodeId={card.nodeId} cardType="block" onClose={onClose} />;
+    return <SidebarCardNode nodeUuid={card.nodeUuid} cardType="block" onClose={onClose} />;
   },
 });

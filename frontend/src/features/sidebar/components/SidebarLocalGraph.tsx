@@ -16,14 +16,14 @@ import { GraphView } from '@/features/views';
 import './SidebarLocalGraph.css';
 
 export interface SidebarLocalGraphProps {
-  /** The node ID to center the local graph on */
-  nodeId: number;
+  /** The node UUID to center the local graph on */
+  nodeUuid: string;
   /** CSS class */
   className?: string;
 }
 
 export function SidebarLocalGraph({ 
-  nodeId,
+  nodeUuid,
   className = '' 
 }: SidebarLocalGraphProps) {
   const { data: allNodes, isLoading } = useGraphNodes();
@@ -48,9 +48,9 @@ export function SidebarLocalGraph({
     <div className={`graph-view-local ${className}`}>
       <div className="graph-view-local__content">
         <GraphView
-          viewId={`local-${nodeId}`}
+          viewId={`local-${nodeUuid}`}
           nodes={allNodes}
-          currentNodeId={nodeId}
+          currentNodeUuid={nodeUuid}
           showSettings={true}
           showSearch={false}
           showViewModes={false}

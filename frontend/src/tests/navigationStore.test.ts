@@ -3,8 +3,8 @@ import { useNavigationStore } from '@/stores/navigationStore';
 
 const resetState = () =>
   useNavigationStore.setState({
-    activeNodeId: null,
-    currentNodeId: null,
+    activeNodeUuid: null,
+    currentNodeUuid: null,
     currentPropertyContext: null,
     sidebarOpen: true,
     isSidebarCollapsed: false,
@@ -13,27 +13,27 @@ const resetState = () =>
     rightSidebarContent: null,
     sidebarNode: null,
     sidebarCards: [],
-    localGraphNodeId: null,
+    localGraphNodeUuid: null,
     viewMode: 'default',
     preFocusModeSidebarCollapsed: null,
     mainViewType: 'node',
-    currentPropertyId: null,
+    currentPropertyUuid: null,
   });
 
 beforeEach(resetState);
 
 describe('navigationStore — openNode', () => {
-  it('sets currentNodeId and mainViewType to node', () => {
-    useNavigationStore.getState().openNode(42);
+  it('sets currentNodeUuid and mainViewType to node', () => {
+    useNavigationStore.getState().openNode('node-uuid-42');
     const s = useNavigationStore.getState();
-    expect(s.currentNodeId).toBe(42);
+    expect(s.currentNodeUuid).toBe('node-uuid-42');
     expect(s.mainViewType).toBe('node');
     expect(s.currentPropertyContext).toBeNull();
   });
 
   it('stores propertyContext when provided', () => {
-    useNavigationStore.getState().openNode(10, { propertyId: 5, propertyName: 'Status' });
-    expect(useNavigationStore.getState().currentPropertyContext).toEqual({ propertyId: 5, propertyName: 'Status' });
+    useNavigationStore.getState().openNode('node-uuid-10', { propertyUuid: 'prop-uuid-5', propertyName: 'Status' });
+    expect(useNavigationStore.getState().currentPropertyContext).toEqual({ propertyUuid: 'prop-uuid-5', propertyName: 'Status' });
   });
 });
 
@@ -81,25 +81,25 @@ describe('navigationStore — focus mode', () => {
 
 describe('navigationStore — sidebarCards', () => {
   it('addSidebarCard adds a new card and opens right sidebar', () => {
-    useNavigationStore.getState().addSidebarCard(7, 'page');
+    useNavigationStore.getState().addSidebarCard('node-uuid-7', 'page');
     const s = useNavigationStore.getState();
     expect(s.sidebarCards).toHaveLength(1);
-    expect(s.sidebarCards[0].nodeId).toBe(7);
+    expect(s.sidebarCards[0].nodeUuid).toBe('node-uuid-7');
     expect(s.sidebarCards[0].cardType).toBe('page');
     expect(s.rightSidebarOpen).toBe(true);
   });
 
   it('addSidebarCard deduplicates: moves existing card to front', () => {
-    useNavigationStore.getState().addSidebarCard(7, 'page');
-    useNavigationStore.getState().addSidebarCard(8, 'block');
-    useNavigationStore.getState().addSidebarCard(7, 'page');
+    useNavigationStore.getState().addSidebarCard('node-uuid-7', 'page');
+    useNavigationStore.getState().addSidebarCard('node-uuid-8', 'block');
+    useNavigationStore.getState().addSidebarCard('node-uuid-7', 'page');
     const cards = useNavigationStore.getState().sidebarCards;
     expect(cards).toHaveLength(2);
-    expect(cards[0].nodeId).toBe(7);
+    expect(cards[0].nodeUuid).toBe('node-uuid-7');
   });
 
   it('removeSidebarCard removes a card by id', () => {
-    useNavigationStore.getState().addSidebarCard(5, 'block');
+    useNavigationStore.getState().addSidebarCard('node-uuid-5', 'block');
     const { sidebarCards } = useNavigationStore.getState();
     const cardId = sidebarCards[0].id;
     useNavigationStore.getState().removeSidebarCard(cardId);
@@ -107,31 +107,31 @@ describe('navigationStore — sidebarCards', () => {
   });
 
   it('clearSidebarCards empties the list', () => {
-    useNavigationStore.getState().addSidebarCard(1, 'page');
-    useNavigationStore.getState().addSidebarCard(2, 'localGraph');
+    useNavigationStore.getState().addSidebarCard('node-uuid-1', 'page');
+    useNavigationStore.getState().addSidebarCard('node-uuid-2', 'localGraph');
     useNavigationStore.getState().clearSidebarCards();
     expect(useNavigationStore.getState().sidebarCards).toHaveLength(0);
   });
 });
 
 describe('navigationStore — local graph', () => {
-  it('openLocalGraph sets localGraphNodeId', () => {
-    useNavigationStore.getState().openLocalGraph(99);
-    expect(useNavigationStore.getState().localGraphNodeId).toBe(99);
+  it('openLocalGraph sets localGraphNodeUuid', () => {
+    useNavigationStore.getState().openLocalGraph('node-uuid-99');
+    expect(useNavigationStore.getState().localGraphNodeUuid).toBe('node-uuid-99');
   });
 
-  it('closeLocalGraph clears localGraphNodeId', () => {
-    useNavigationStore.getState().openLocalGraph(99);
+  it('closeLocalGraph clears localGraphNodeUuid', () => {
+    useNavigationStore.getState().openLocalGraph('node-uuid-99');
     useNavigationStore.getState().closeLocalGraph();
-    expect(useNavigationStore.getState().localGraphNodeId).toBeNull();
+    expect(useNavigationStore.getState().localGraphNodeUuid).toBeNull();
   });
 });
 
 describe('navigationStore — property view', () => {
-  it('openPropertyView sets mainViewType and currentPropertyId', () => {
-    useNavigationStore.getState().openPropertyView(3);
+  it('openPropertyView sets mainViewType and currentPropertyUuid', () => {
+    useNavigationStore.getState().openPropertyView('prop-uuid-3');
     const s = useNavigationStore.getState();
     expect(s.mainViewType).toBe('property');
-    expect(s.currentPropertyId).toBe(3);
+    expect(s.currentPropertyUuid).toBe('prop-uuid-3');
   });
 });

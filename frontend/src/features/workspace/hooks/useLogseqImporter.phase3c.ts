@@ -1,4 +1,4 @@
-import { batchUpdateNodes, createNode as createNodeApi, getNode, getOrCreateDaily } from '@/api/nodes';
+import { batchUpdateNodes, batchGetNodesByUuid, createNode as createNodeApi, getNode, getOrCreateDaily } from '@/api/nodes';
 import { nodeNameToText } from '@/features/queries';
 import { useNavigationStore } from '@/stores';
 import type { BatchNodeUpdateItem } from '@/types/api';
@@ -92,25 +92,37 @@ export async function runPhase3c(ctx: ImportContext, p3: PhaseResult): Promise<v
 
   // Standalone blocks
   if (parsed.standaloneBlocks && parsed.standaloneBlocks.length > 0) {
+    let parentUuid: string | undefined;
     let parentId: number | undefined;
-    const activeNodeId = useNavigationStore.getState().currentNodeId;
-    if (activeNodeId) {
-      parentId = activeNodeId;
+    const activeNodeUuid = useNavigationStore.getState().currentNodeUuid;
+    if (activeNodeUuid) {
       setImportStatus('Adding block to current node…');
+      try {
+        const batchResult = await batchGetNodesByUuid({ uuids: [activeNodeUuid] });
+        const node = Object.values(batchResult.nodes)[0];
+        if (node) {
+          parentUuid = node.uuid;
+          parentId = node.id;
+        }
+      } catch (e) {
+        p3.failed++;
+        p3.errors.push({ item: 'Standalone block (current node)', message: errorMessage(e) });
+      }
     } else {
       const today = new Date().toISOString().slice(0, 10);
       setImportStatus(`Adding block to today's page (${today})…`);
       try {
         const dayNode = await getOrCreateDaily(today);
+        parentUuid = dayNode.uuid;
         parentId = dayNode.id;
       } catch (e) {
         p3.failed++;
         p3.errors.push({ item: 'Standalone block (daily page)', message: errorMessage(e) });
       }
     }
-    if (parentId) {
+    if (parentUuid && parentId) {
       try {
-        const parentNode = await getNode(parentId, { include_children: true });
+        const parentNode = await getNode(parentUuid, { include_children: true });
         const startSeq = parentNode.children?.length ?? 0;
         await createBlocksRecursively(
           parsed.standaloneBlocks, parentId, startSeq, uuidMap, ctx.classIdMap, ctx.contentQueue, p3, ctx.override,

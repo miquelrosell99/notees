@@ -23,29 +23,29 @@ export function useNoteesUri() {
   const openNode = useNavigationStore(state => state.openNode);
 
   /** Navigate to a node by its UUID */
-  const navigateToUuid = useCallback(async (uuid: string): Promise<boolean> => {
+  const navigateToUuid = useCallback(async (nodeUuid: string): Promise<boolean> => {
     try {
-      const node = await getNodeByUuid(uuid);
+      const node = await getNodeByUuid(nodeUuid);
       if (node?.id) {
-        openNode(node.id);
+        openNode(node.uuid);
         return true;
       }
-      log.warn('Node not found for UUID', { uuid });
+      log.warn('Node not found for UUID', { nodeUuid });
       return false;
     } catch (err) {
-      log.error('Failed to navigate to node', { uuid, err });
+      log.error('Failed to navigate to node', { nodeUuid, err });
       return false;
     }
   }, [openNode]);
 
   /** Navigate to a node by its notees: URI */
   const navigateToUri = useCallback(async (uri: string): Promise<boolean> => {
-    const uuid = parseNoteesUri(uri);
-    if (!uuid) {
+    const nodeUuid = parseNoteesUri(uri);
+    if (!nodeUuid) {
       log.warn('Invalid notees URI', { uri });
       return false;
     }
-    return navigateToUuid(uuid);
+    return navigateToUuid(nodeUuid);
   }, [navigateToUuid]);
 
   return { navigateToUri, navigateToUuid };

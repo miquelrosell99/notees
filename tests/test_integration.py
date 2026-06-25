@@ -262,12 +262,13 @@ class TestNodeCrudFlow:
         assert response.status_code == 200
         page = response.json()
         page_id = page["id"]
+        page_uuid = page["uuid"]
         assert page["is_page"] is True
         # For pages, name is stored as AST
         assert "Integration Test Page" in page.get("name", "")
 
         # Read the page
-        response = await auth_client.get(f"/api/nodes/{page_id}")
+        response = await auth_client.get(f"/api/nodes/{page_uuid}")
         assert response.status_code == 200
         assert response.json()["id"] == page_id
 
@@ -275,16 +276,16 @@ class TestNodeCrudFlow:
         update_data = {
             "name": "Updated Integration Test Page",
         }
-        response = await auth_client.put(f"/api/nodes/{page_id}", json=update_data)
+        response = await auth_client.put(f"/api/nodes/{page_uuid}", json=update_data)
         assert response.status_code == 200
         assert "Updated Integration Test Page" in response.json().get("name", "")
 
         # Delete the page
-        response = await auth_client.delete(f"/api/nodes/{page_id}")
+        response = await auth_client.delete(f"/api/nodes/{page_uuid}")
         assert response.status_code == 200
 
         # Verify deleted
-        response = await auth_client.get(f"/api/nodes/{page_id}")
+        response = await auth_client.get(f"/api/nodes/{page_uuid}")
         assert response.status_code == 404
 
     @pytest.mark.asyncio
@@ -294,21 +295,21 @@ class TestNodeCrudFlow:
         page_response = await auth_client.post("/api/nodes/page", params={"name": "Parent Page for Blocks"})
         assert page_response.status_code == 200
         page = page_response.json()
-        page_id = page["id"]
+        page_uuid = page["uuid"]
 
         # Create blocks under the page
         blocks = []
         for i in range(3):
             response = await auth_client.post("/api/nodes/", json={
                 "name": f"Block {i + 1} content",
-                "parent_id": page_id,
+                "parent_uuid": page_uuid,
             })
             assert response.status_code == 200
             blocks.append(response.json())
 
         # Verify blocks are children of the page
         response = await auth_client.get(
-            f"/api/nodes/page/{page_id}/content"
+            f"/api/nodes/page/{page_uuid}/content"
         )
         assert response.status_code == 200
         page_data = response.json()
@@ -316,7 +317,7 @@ class TestNodeCrudFlow:
         assert len(children) == 3
 
         # Cleanup
-        await auth_client.delete(f"/api/nodes/{page_id}")
+        await auth_client.delete(f"/api/nodes/{page_uuid}")
 
 
 class TestDailyPageFlow:
@@ -361,13 +362,15 @@ class TestDailyPageFlow:
             "/api/nodes/daily",
             params={"date": today}
         )
-        page_id = response.json()["id"]
+        page = response.json()
+        page_id = page["id"]
+        page_uuid = page["uuid"]
 
         # Add a block to the daily page
         block_response = await auth_client.post("/api/nodes/", json={
             "name": "Today I learned about integration testing.",
             "is_page": False,
-            "parent_id": page_id,
+            "parent_uuid": page_uuid,
         })
         assert block_response.status_code == 200
         block = block_response.json()

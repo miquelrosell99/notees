@@ -544,13 +544,13 @@ async def list_api_keys_endpoint(
     return [ApiKeyResponse(**k) for k in keys]
 
 
-@router.delete("/api-keys/{key_id}")
+@router.delete("/api-keys/{key_uuid}")
 async def revoke_api_key_endpoint(
-    key_id: str,
+    key_uuid: str,
     user: User = Depends(get_current_user),  # noqa: B008
 ):
     """Revoke an API key."""
-    success = await auth_module.revoke_api_key(int(user.id), key_id)
+    success = await auth_module.revoke_api_key(int(user.id), key_uuid)
     if not success:
         raise HTTPException(status_code=404, detail="API key not found or already revoked")
     return {"success": True}

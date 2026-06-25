@@ -32,9 +32,9 @@ function InlineLinkWrapper({ nodeUuid, children }: { nodeUuid: string; children:
     e.stopPropagation();
     if (!node) return;
     if (e.shiftKey) {
-      addSidebarCard(node.id, node.is_page ? 'page' : 'block');
+      addSidebarCard(node.uuid, node.is_page ? 'page' : 'block');
     } else {
-      openNode(node.id);
+      openNode(node.uuid);
     }
   }, [node, openNode, addSidebarCard]);
 
@@ -136,9 +136,9 @@ export function NodeNameContent({ name }: { name: string | null | undefined }) {
   return <>{content.length > 0 ? content : 'Untitled'}</>;
 }
 
-function useBatchedNodeByUuidFallback(uuid: string) {
-  const refNode = useReferencedNode(uuid);
-  const { data: fallback } = useBatchedNodeByUuid(!refNode ? uuid : null, {
+function useBatchedNodeByUuidFallback(nodeUuid: string) {
+  const refNode = useReferencedNode(nodeUuid);
+  const { data: fallback } = useBatchedNodeByUuid(!refNode ? nodeUuid : null, {
     skipGlobalError: true,
   });
   return { data: refNode ?? fallback ?? null };

@@ -21,6 +21,17 @@ async def _get_table_class_id(authenticated_client: AsyncClient) -> int:
     pytest.fail("Table system class not found in workspace")
 
 
+async def _get_table_class_uuid(authenticated_client: AsyncClient) -> str:
+    """Look up the table system class node UUID."""
+    resp = await authenticated_client.get("/api/nodes/classes")
+    assert resp.status_code == 200
+    classes = resp.json().get("nodes", [])
+    for cls in classes:
+        if cls.get("uuid") == SYSTEM_CLASS_UUIDS["table"]:
+            return cls["uuid"]
+    pytest.fail("Table system class not found in workspace")
+
+
 async def _create_node(authenticated_client: AsyncClient, **kwargs) -> dict:
     """Create a node via POST /api/nodes/."""
     resp = await authenticated_client.post("/api/nodes/", json=kwargs)
@@ -41,7 +52,7 @@ class TestIsTableFlag:
         )
         assert table.get("is_table") is True
 
-        resp = await authenticated_client.get(f"/api/nodes/{table['id']}")
+        resp = await authenticated_client.get(f"/api/nodes/{table['uuid']}")
         assert resp.status_code == 200
         assert resp.json().get("is_table") is True
 
@@ -59,10 +70,10 @@ class TestIsTableFlag:
         page = await _create_node(authenticated_client, name="Becomes Table")
         assert page.get("is_table") is False
 
-        table_class_id = await _get_table_class_id(authenticated_client)
+        table_class_uuid = await _get_table_class_uuid(authenticated_client)
         resp = await authenticated_client.post(
-            f"/api/nodes/{page['id']}/classes",
-            json={"class_node_id": table_class_id},
+            f"/api/nodes/{page['uuid']}/classes",
+            json={"class_node_uuid": table_class_uuid},
         )
         assert resp.status_code == 200
         assert resp.json().get("is_table") is True
@@ -72,13 +83,14 @@ class TestIsTableFlag:
         self, authenticated_client: AsyncClient
     ):
         table_class_id = await _get_table_class_id(authenticated_client)
+        table_class_uuid = await _get_table_class_uuid(authenticated_client)
         table = await _create_node(
             authenticated_client, name="Former Table", classes=[table_class_id]
         )
         assert table.get("is_table") is True
 
         resp = await authenticated_client.delete(
-            f"/api/nodes/{table['id']}/classes/{table_class_id}"
+            f"/api/nodes/{table['uuid']}/classes/{table_class_uuid}"
         )
         assert resp.status_code == 200
         assert resp.json().get("is_table") is False

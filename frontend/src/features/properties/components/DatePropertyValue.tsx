@@ -32,9 +32,9 @@ export function DatePropertyValue({
   // Convert day page UUID (YYYYMMDD) to YYYY-MM-DD for the DatePickerPopup
   const isoValue = useMemo(() => {
     if (!dayNode?.uuid) return '';
-    const u = dayNode.uuid;
-    if (u.length === 8 && /^\d{8}$/.test(u)) {
-      return `${u.slice(0, 4)}-${u.slice(4, 6)}-${u.slice(6, 8)}`;
+    const dayNodeUuid = dayNode.uuid;
+    if (dayNodeUuid.length === 8 && /^\d{8}$/.test(dayNodeUuid)) {
+      return `${dayNodeUuid.slice(0, 4)}-${dayNodeUuid.slice(4, 6)}-${dayNodeUuid.slice(6, 8)}`;
     }
     return '';
   }, [dayNode?.uuid]);

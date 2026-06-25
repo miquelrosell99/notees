@@ -22,7 +22,7 @@ class PostgresNotificationRepository(NotificationRepository):
             if include_read:
                 rows = await conn.fetch(
                     """
-                    SELECT n.id, n.type, n.actor_user_id, u.name as actor_name,
+                    SELECT n.id, n.uuid, n.type, n.actor_user_id, u.name as actor_name,
                            n.node_id, nd.name as node_name, n.message, n.is_read, n.create_date
                     FROM notification n
                     LEFT JOIN "user" u ON u.id = n.actor_user_id
@@ -37,7 +37,7 @@ class PostgresNotificationRepository(NotificationRepository):
             else:
                 rows = await conn.fetch(
                     """
-                    SELECT n.id, n.type, n.actor_user_id, u.name as actor_name,
+                    SELECT n.id, n.uuid, n.type, n.actor_user_id, u.name as actor_name,
                            n.node_id, nd.name as node_name, n.message, n.is_read, n.create_date
                     FROM notification n
                     LEFT JOIN "user" u ON u.id = n.actor_user_id
@@ -60,6 +60,28 @@ class PostgresNotificationRepository(NotificationRepository):
                 user_id,
             )
             return result.split()[-1] != "0"
+
+    async def mark_notification_read_by_uuid(self, notification_uuid: str, user_id: int) -> bool:
+        """Mark a notification as read by its public UUID."""
+        async with acquire_connection(self._pool) as conn:
+            result = await conn.execute(
+                "UPDATE notification SET is_read = TRUE WHERE uuid = $1 AND user_id = $2",
+                notification_uuid,
+                user_id,
+            )
+            return result.split()[-1] != "0"
+
+    async def get_notification_id_by_uuid(
+        self, notification_uuid: str, user_id: int
+    ) -> int | None:
+        """Resolve a notification UUID to its internal ID, verifying ownership."""
+        async with acquire_connection(self._pool) as conn:
+            row = await conn.fetchrow(
+                "SELECT id FROM notification WHERE uuid = $1 AND user_id = $2",
+                notification_uuid,
+                user_id,
+            )
+            return row["id"] if row else None
 
     async def mark_all_notifications_read(self, user_id: int) -> None:
         """Mark all notifications for a user as read."""

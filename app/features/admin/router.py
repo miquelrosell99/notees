@@ -78,24 +78,24 @@ async def create_user(
     return user
 
 
-@router.put("/users/{user_id}")
+@router.put("/users/{user_uuid}")
 async def update_user(
-    user_id: str,
+    user_uuid: str,
     data: AdminUserUpdate,
     admin_user=Depends(require_admin),  # noqa: B008
     user_repo: UserRepository = Depends(get_user_repository),
 ):
     """Update a user (admin only)."""
-    current = await user_repo.get_by_id_or_uuid(user_id)
+    current = await user_repo.get_by_id_or_uuid(user_uuid)
     if not current:
         raise HTTPException(status_code=404, detail="User not found")
 
-    if str(user_id) == str(admin_user.id) and data.role is not None and data.role != "admin":
+    if str(user_uuid) == str(admin_user.id) and data.role is not None and data.role != "admin":
         raise HTTPException(status_code=400, detail="Cannot demote yourself")
 
     # Prevent demoting the last active admin
     if data.role is not None and current.role == "admin" and data.role != "admin":
-        other_admins = await user_repo.count_other_admins(int(user_id))
+        other_admins = await user_repo.count_other_admins(int(user_uuid))
         if other_admins == 0:
             raise HTTPException(status_code=400, detail="Cannot demote the last admin")
 
@@ -116,16 +116,16 @@ async def update_user(
     if data.active is not None:
         updates["active"] = data.active
 
-    row = await user_repo.update_user_admin(user_id, updates)
+    row = await user_repo.update_user_admin(user_uuid, updates)
 
     if not row:
         raise HTTPException(status_code=404, detail="User not found")
 
     if data.password is not None:
-        user_id_int = int(user_id)
+        user_id_int = int(user_uuid)
         await auth_module.revoke_all_user_refresh_tokens(user_id_int)
         await auth_module.revoke_all_user_api_keys(user_id_int)
-        auth_module.clear_user_cache(user_id)
+        auth_module.clear_user_cache(user_uuid)
 
     return {
         "id": str(row["id"]),
@@ -140,27 +140,27 @@ async def update_user(
     }
 
 
-@router.delete("/users/{user_id}")
+@router.delete("/users/{user_uuid}")
 async def deactivate_user(
-    user_id: str,
+    user_uuid: str,
     admin_user=Depends(require_admin),  # noqa: B008
     user_repo: UserRepository = Depends(get_user_repository),
 ):
     """Deactivate a user (admin only)."""
-    if str(user_id) == str(admin_user.id):
+    if str(user_uuid) == str(admin_user.id):
         raise HTTPException(status_code=400, detail="Cannot deactivate yourself")
 
-    target = await user_repo.get_by_id_or_uuid(user_id)
+    target = await user_repo.get_by_id_or_uuid(user_uuid)
     if not target or not target.active:
         raise HTTPException(status_code=404, detail="User not found")
 
     # Prevent deactivating the last active admin
     if target.role == "admin":
-        other_admins = await user_repo.count_other_admins(int(user_id))
+        other_admins = await user_repo.count_other_admins(int(user_uuid))
         if other_admins == 0:
             raise HTTPException(status_code=400, detail="Cannot deactivate the last admin")
 
-    await user_repo.deactivate_user_admin(user_id)
+    await user_repo.deactivate_user_admin(user_uuid)
 
     return {"success": True}
 

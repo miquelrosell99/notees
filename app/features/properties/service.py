@@ -14,6 +14,7 @@ from app.domain.entities import (
     RELATION_TYPES,
     SCALAR_TYPES,
     Property,
+    PropertyClassFilter,
     PropertyScope,
     PropertySelectionLine,
     PropertyType,
@@ -226,13 +227,13 @@ class PropertyService:
 
     # ============== Class filters ==============
 
-    async def list_class_filters(self, property_id: int) -> list[int]:
+    async def list_class_filters(self, property_id: int) -> list[PropertyClassFilter]:
         """Get all class filters for a property."""
         return await self._property_repo.get_class_filters(property_id)
 
     async def add_class_filter(
         self, property_id: int, class_node_id: int
-    ) -> Any:
+    ) -> PropertyClassFilter:
         """Add a class filter to a node-type property."""
         return await self._property_repo.add_class_filter(property_id, class_node_id)
 

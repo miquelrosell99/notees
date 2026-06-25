@@ -5,6 +5,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { setProperty, getOrCreateDaily } from '@/api/nodes';
 import { nodeKeys } from '@/hooks/queryKeys';
 import { nodeViewKeys } from '@/features/content';
+import { resolveNodeUuid } from '@/utils/resolveNodeUuid';
 import type { Property } from '@/types/api';
 
 function formatDateForApi(d: Date): string {
@@ -16,10 +17,11 @@ export function useCalendarDateMutation(startDateProperty: Property | undefined)
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ nodeId, newDate }: { nodeId: number; newDate: Date }) => {
+    mutationFn: async ({ nodeId, newDate }: { nodeId: string | number; newDate: Date }) => {
       if (!startDateProperty) return;
+      const nodeUuid = resolveNodeUuid(nodeId);
       const dayNode = await getOrCreateDaily(formatDateForApi(newDate));
-      await setProperty(nodeId, startDateProperty.id, dayNode.id);
+      await setProperty(nodeUuid, startDateProperty.uuid, dayNode.uuid);
     },
     onSuccess: async (_, { nodeId }) => {
       await Promise.all([

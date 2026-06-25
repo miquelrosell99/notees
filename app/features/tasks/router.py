@@ -9,9 +9,11 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from app.dependencies import get_current_user, get_node_service
+from app.dependencies import get_current_user, get_node_repository, get_node_service
 from app.domain.entities import TaskCompletion, TaskRecurrence
 from app.features.nodes.node_service import NodeService
+from app.features.nodes.port import NodeRepository
+from app.features.nodes.router.dependencies import resolve_node_uuid
 from app.features.tasks.dependencies import (
     get_task_completion_repository,
     get_task_recurrence_repository,
@@ -30,17 +32,21 @@ router = APIRouter(prefix="/tasks", tags=["tasks"])
 
 
 async def _require_task(
-    node_id: int, node_service: NodeService
-) -> None:
-    """Validate that ``node_id`` refers to an existing, non-deleted task."""
+    node_uuid: str,
+    node_service: NodeService,
+    repo: NodeRepository,
+) -> int:
+    """Validate that ``node_uuid`` refers to an existing, non-deleted task."""
+    node_id = await resolve_node_uuid(node_uuid, repo)
     node = await node_service.get_node(node_id)
     if not node or node.is_deleted:
-        raise HTTPException(status_code=404, detail=f"Task {node_id} not found")
+        raise HTTPException(status_code=404, detail=f"Task {node_uuid} not found")
     if not node.is_task:
         raise HTTPException(
             status_code=400,
-            detail=f"Node {node_id} is not a task",
+            detail=f"Node {node_uuid} is not a task",
         )
+    return node_id
 
 
 def _entity_to_recurrence_response(rule: TaskRecurrence) -> RecurrenceRuleResponse:
@@ -84,31 +90,33 @@ def _entity_to_completion_response(
     )
 
 
-@router.get("/{node_id}/recurrence", response_model=RecurrenceRuleResponse | None)
+@router.get("/{node_uuid}/recurrence", response_model=RecurrenceRuleResponse | None)
 async def get_recurrence_rule(
-    node_id: int,
+    node_uuid: str,
     user: User = Depends(get_current_user),
     node_service: NodeService = Depends(get_node_service),
     recurrence_repo: TaskRecurrenceRepository = Depends(get_task_recurrence_repository),
+    repo: NodeRepository = Depends(get_node_repository),
 ) -> RecurrenceRuleResponse | None:
     """Return the active recurrence rule for a task, or null if none exists."""
-    await _require_task(node_id, node_service)
+    node_id = await _require_task(node_uuid, node_service, repo)
     rule = await recurrence_repo.get_by_task(node_id)
     if rule is None:
         return None
     return _entity_to_recurrence_response(rule)
 
 
-@router.put("/{node_id}/recurrence", response_model=RecurrenceRuleResponse)
+@router.put("/{node_uuid}/recurrence", response_model=RecurrenceRuleResponse)
 async def set_recurrence_rule(
-    node_id: int,
+    node_uuid: str,
     request: RecurrenceRuleRequest,
     user: User = Depends(get_current_user),
     node_service: NodeService = Depends(get_node_service),
     recurrence_repo: TaskRecurrenceRepository = Depends(get_task_recurrence_repository),
+    repo: NodeRepository = Depends(get_node_repository),
 ) -> RecurrenceRuleResponse:
     """Create or replace the recurrence rule for a task."""
-    await _require_task(node_id, node_service)
+    node_id = await _require_task(node_uuid, node_service, repo)
     rule = TaskRecurrence(
         task_node_id=node_id,
         workspace_id=node_service.workspace_id,
@@ -127,46 +135,49 @@ async def set_recurrence_rule(
     return _entity_to_recurrence_response(saved)
 
 
-@router.delete("/{node_id}/recurrence")
+@router.delete("/{node_uuid}/recurrence")
 async def delete_recurrence_rule(
-    node_id: int,
+    node_uuid: str,
     user: User = Depends(get_current_user),
     node_service: NodeService = Depends(get_node_service),
     recurrence_repo: TaskRecurrenceRepository = Depends(get_task_recurrence_repository),
+    repo: NodeRepository = Depends(get_node_repository),
 ) -> dict[str, bool]:
     """Remove the recurrence rule from a task."""
-    await _require_task(node_id, node_service)
+    node_id = await _require_task(node_uuid, node_service, repo)
     deleted = await recurrence_repo.delete(node_id)
     if not deleted:
         raise HTTPException(status_code=404, detail=f"No recurrence rule for task {node_id}")
     return {"deleted": True}
 
 
-@router.get("/{node_id}/completions", response_model=list[TaskCompletionResponse])
+@router.get("/{node_uuid}/completions", response_model=list[TaskCompletionResponse])
 async def list_task_completions(
-    node_id: int,
+    node_uuid: str,
     user: User = Depends(get_current_user),
     node_service: NodeService = Depends(get_node_service),
     completion_repo: TaskCompletionRepository = Depends(get_task_completion_repository),
+    repo: NodeRepository = Depends(get_node_repository),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
 ) -> list[TaskCompletionResponse]:
     """List completion history for a task, newest first."""
-    await _require_task(node_id, node_service)
+    node_id = await _require_task(node_uuid, node_service, repo)
     completions = await completion_repo.list_by_task(node_id, limit=limit, offset=offset)
     return [_entity_to_completion_response(c) for c in completions]
 
 
-@router.post("/{node_id}/completions", response_model=TaskCompletionResponse)
+@router.post("/{node_uuid}/completions", response_model=TaskCompletionResponse)
 async def record_task_completion(
-    node_id: int,
+    node_uuid: str,
     request: TaskCompletionRequest,
     user: User = Depends(get_current_user),
     node_service: NodeService = Depends(get_node_service),
     completion_repo: TaskCompletionRepository = Depends(get_task_completion_repository),
+    repo: NodeRepository = Depends(get_node_repository),
 ) -> TaskCompletionResponse:
     """Manually record a completion (or skip) for a task occurrence."""
-    await _require_task(node_id, node_service)
+    node_id = await _require_task(node_uuid, node_service, repo)
     completion = TaskCompletion(
         task_node_id=node_id,
         workspace_id=node_service.workspace_id,
@@ -179,16 +190,17 @@ async def record_task_completion(
     return _entity_to_completion_response(saved)
 
 
-@router.delete("/{node_id}/completions/{completion_id}")
+@router.delete("/{node_uuid}/completions/{completion_id}")
 async def delete_task_completion(
-    node_id: int,
+    node_uuid: str,
     completion_id: int,
     user: User = Depends(get_current_user),
     node_service: NodeService = Depends(get_node_service),
     completion_repo: TaskCompletionRepository = Depends(get_task_completion_repository),
+    repo: NodeRepository = Depends(get_node_repository),
 ) -> dict[str, bool]:
     """Delete a single completion record."""
-    await _require_task(node_id, node_service)
+    await _require_task(node_uuid, node_service, repo)
     deleted = await completion_repo.delete(completion_id)
     if not deleted:
         raise HTTPException(status_code=404, detail=f"Completion {completion_id} not found")

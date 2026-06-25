@@ -36,7 +36,7 @@ class PostgresClassExtendRepository(BasePostgresRepository, ClassExtendRepositor
         async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch(
                 """
-                SELECT ce.id, ce.target_id, ce.source_id, ce.sequence, n.name, n.icon
+                SELECT ce.id, ce.uuid, ce.target_id, ce.source_id, ce.sequence, n.name, n.icon
                 FROM class_extend ce
                 JOIN node n ON n.id = ce.source_id
                 WHERE ce.target_id = $1
@@ -50,6 +50,7 @@ class PostgresClassExtendRepository(BasePostgresRepository, ClassExtendRepositor
             return [
                 ClassExtend(
                     id=row["id"],
+                    uuid=str(row["uuid"]),
                     target_id=row["target_id"],
                     source_id=row["source_id"],
                     sequence=row["sequence"],
@@ -83,7 +84,7 @@ class PostgresClassExtendRepository(BasePostgresRepository, ClassExtendRepositor
                 """
                 INSERT INTO class_extend (target_id, source_id, sequence)
                 VALUES ($1, $2, $3)
-                RETURNING id, target_id, source_id, sequence
+                RETURNING id, uuid, target_id, source_id, sequence
             """,
                 class_node_id,
                 extends_class_id,
@@ -92,11 +93,39 @@ class PostgresClassExtendRepository(BasePostgresRepository, ClassExtendRepositor
 
             return ClassExtend(
                 id=row["id"],
+                uuid=str(row["uuid"]),
                 target_id=row["target_id"],
                 source_id=row["source_id"],
                 sequence=row["sequence"],
                 source_name=source["name"],
                 source_icon=source["icon"],
+            )
+
+    async def get_class_extend_by_uuid(self, uuid: str) -> ClassExtend | None:
+        """Get a class extension relationship by its public UUID."""
+        async with acquire_connection(self._pool) as conn:
+            row = await conn.fetchrow(
+                """
+                SELECT ce.id, ce.uuid, ce.target_id, ce.source_id, ce.sequence, n.name, n.icon
+                FROM class_extend ce
+                JOIN node n ON n.id = ce.source_id
+                WHERE ce.uuid = $1
+                  AND n.workspace_id = $2
+                  AND n.active = TRUE
+            """,
+                uuid,
+                self._workspace_id,
+            )
+            if not row:
+                return None
+            return ClassExtend(
+                id=row["id"],
+                uuid=str(row["uuid"]),
+                target_id=row["target_id"],
+                source_id=row["source_id"],
+                sequence=row["sequence"],
+                source_name=row["name"],
+                source_icon=row["icon"],
             )
 
     async def remove_extends(self, class_node_id: int, extends_class_id: int) -> bool:
@@ -179,6 +208,48 @@ class PostgresClassExtendRepository(BasePostgresRepository, ClassExtendRepositor
             for row in rows:
                 result.setdefault(row["target_id"], []).append(row["source_id"])
             return result
+
+    async def get_by_uuid(self, extend_uuid: str) -> ClassExtend | None:
+        """Get a class extension relationship by its public UUID."""
+        async with acquire_connection(self._pool) as conn:
+            row = await conn.fetchrow(
+                """
+                SELECT ce.id, ce.uuid, ce.target_id, ce.source_id, ce.sequence, n.name, n.icon
+                FROM class_extend ce
+                JOIN node n ON n.id = ce.source_id
+                WHERE ce.uuid = $1
+                  AND n.workspace_id = $2
+                  AND n.active = TRUE
+            """,
+                extend_uuid,
+                self._workspace_id,
+            )
+            if row is None:
+                return None
+            return ClassExtend(
+                id=row["id"],
+                uuid=str(row["uuid"]),
+                target_id=row["target_id"],
+                source_id=row["source_id"],
+                sequence=row["sequence"],
+                source_name=row["name"],
+                source_icon=row["icon"],
+            )
+
+    async def get_uuids_by_ids(self, extend_ids: list[int]) -> dict[int, str]:
+        """Return a mapping of internal class_extend IDs to public UUIDs."""
+        if not extend_ids:
+            return {}
+        async with acquire_connection(self._pool) as conn:
+            rows = await conn.fetch(
+                """
+                SELECT id, uuid FROM class_extend
+                WHERE id = ANY($1) AND workspace_id = $2
+            """,
+                extend_ids,
+                self._workspace_id,
+            )
+            return {row["id"]: str(row["uuid"]) for row in rows}
 
     async def expand_class_hierarchy(self, class_ids: list[int]) -> set[int]:
         """Expand a set of class IDs to include all subclasses recursively."""

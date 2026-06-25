@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi_limiter.depends import RateLimiter
 from pydantic import BaseModel
 from pyrate_limiter import Duration, Limiter, Rate
@@ -16,8 +16,11 @@ from app.dependencies import (
     _get_node_service,
     _get_node_service_for_workspace,
     get_current_user,
+    get_node_repository,
 )
 from app.features.auth import hash_password
+from app.features.nodes.port import NodeRepository
+from app.features.nodes.router.dependencies import resolve_node_uuid
 from app.features.nodes.router.helpers import _name_text, _resolve_referenced_display_names
 from app.infrastructure.export.share_files import delete_share_html
 from app.logging_config import get_logger
@@ -125,6 +128,7 @@ async def get_share_inbox(
     items = [
         {
             "share_id": r["id"],
+            "share_uuid": str(r["share_uuid"]) if r["share_uuid"] else None,
             "node_id": r["node_id"],
             "node_uuid": str(r["node_uuid"]),
             "node_name": resolved.get(str(r["node_uuid"])) or _name_text(r["node_name"]) or "Untitled",
@@ -184,18 +188,20 @@ class PublicShareCreateRequest(BaseModel):
 
 
 @node_shares_router.post(
-    "/{node_id}/shares",
+    "/{node_uuid}/shares",
     dependencies=[Depends(RateLimiter(limiter=_node_shares_limiter))],
 )
 async def create_share(
     request: Request,
-    node_id: int = Path(..., ge=1),
+    node_uuid: str,
     body: PublicShareCreateRequest = ...,  # type: ignore[assignment]
     user: User = Depends(get_current_user),  # noqa: B008
     share_repo: ShareRepository = Depends(get_share_repository),
+    repo: NodeRepository = Depends(get_node_repository),
 ):
     """Create a new public share link for a node."""
     service = await _get_share_service(user)
+    node_id = await resolve_node_uuid(node_uuid, repo)
     try:
         share = await service.create_share(node_id, expiry_date=body.expiry_date)
     except ValueError as e:
@@ -216,13 +222,15 @@ async def create_share(
     return _node_share_to_response(share, request)
 
 
-@node_shares_router.get("/{node_id}/shares")
+@node_shares_router.get("/{node_uuid}/shares")
 async def list_node_shares(
-    node_id: int = Path(..., ge=1),
+    node_uuid: str,
     user: User = Depends(get_current_user),  # noqa: B008
+    repo: NodeRepository = Depends(get_node_repository),
 ):
     """List all active shares for a node."""
     service = await _get_share_service(user)
+    node_id = await resolve_node_uuid(node_uuid, repo)
     shares = await service.list_shares_for_node(node_id)
     return {"shares": [_node_share_to_response(s) for s in shares]}
 
@@ -234,6 +242,7 @@ class UserShareCreateRequest(BaseModel):
 
 class UserShareResponse(BaseModel):
     share_id: int
+    share_uuid: str
     node_id: int
     shared_with_user_id: int
     shared_with_email: str
@@ -242,14 +251,16 @@ class UserShareResponse(BaseModel):
     created_by: int
 
 
-@node_shares_router.post("/{node_id}/user-shares")
+@node_shares_router.post("/{node_uuid}/user-shares")
 async def create_user_share(
-    node_id: int = Path(..., ge=1),
+    node_uuid: str,
     body: UserShareCreateRequest = ...,  # type: ignore[assignment]
     user: User = Depends(get_current_user),  # noqa: B008
     share_service: ShareService = Depends(get_share_service),
+    repo: NodeRepository = Depends(get_node_repository),
 ):
     """Share a node with a specific user."""
+    node_id = await resolve_node_uuid(node_uuid, repo)
     try:
         result = await share_service.create_node_user_share(
             node_id, body.email, body.permission
@@ -265,15 +276,17 @@ async def create_user_share(
     return result
 
 
-@node_shares_router.get("/{node_id}/user-shares")
+@node_shares_router.get("/{node_uuid}/user-shares")
 async def list_node_user_shares(
-    node_id: int = Path(..., ge=1),
+    node_uuid: str,
     user: User = Depends(get_current_user),  # noqa: B008
     share_repo: ShareRepository = Depends(get_share_repository),
+    repo: NodeRepository = Depends(get_node_repository),
 ):
     """List user shares for a node."""
     workspace_id = share_repo.workspace_id
     user_id = int(user.id)
+    node_id = await resolve_node_uuid(node_uuid, repo)
 
     try:
         _is_owner, rows = await share_repo.list_node_user_shares(node_id, workspace_id, user_id)
@@ -286,6 +299,7 @@ async def list_node_user_shares(
         "shares": [
             {
                 "share_id": r["id"],
+                "share_uuid": str(r["share_uuid"]) if r["share_uuid"] else None,
                 "node_id": r["node_id"],
                 "shared_with_user_id": r["user_id"],
                 "shared_with_email": r["email"],
@@ -298,9 +312,9 @@ async def list_node_user_shares(
     }
 
 
-@node_shares_router.delete("/user-shares/{share_id}")
+@node_shares_router.delete("/user-shares/{share_uuid}")
 async def revoke_user_share(
-    share_id: int,
+    share_uuid: str,
     user: User = Depends(get_current_user),  # noqa: B008
     share_repo: ShareRepository = Depends(get_share_repository),
 ):
@@ -309,7 +323,7 @@ async def revoke_user_share(
     user_id = int(user.id)
 
     try:
-        result = await share_repo.revoke_user_share(share_id, workspace_id, user_id)
+        result = await share_repo.revoke_user_share_by_uuid(share_uuid, workspace_id, user_id)
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e)) from e
 

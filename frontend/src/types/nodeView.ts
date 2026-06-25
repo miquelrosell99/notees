@@ -32,7 +32,7 @@ export type NodeViewType =
 export interface NodeView {
   id: number;
   uuid: string;
-  node_id: number;
+  node_uuid: string;
   name: string;
   view_type: NodeViewType | string;
   order_index: number;
@@ -50,7 +50,7 @@ export interface NodeView {
  * Request to create a NodeView
  */
 export interface NodeViewCreate {
-  node_id: number;
+  node_uuid: string;
   name: string;
   view_type: string;
   order_index?: number;

@@ -223,6 +223,24 @@ class PostgresNodeViewRepository(NodeViewRepository):
                 return None
             return self._row_to_node_view(row)
 
+    async def get_by_uuids(self, uuids: list[str]) -> list[NodeView]:
+        """Get multiple NodeViews by UUID in a single query, preserving order."""
+        if not uuids:
+            return []
+        async with acquire_connection(self._pool) as conn:
+            rows = await conn.fetch(
+                """
+                SELECT nv.* FROM node_view nv
+                JOIN node n ON n.id = nv.node_id
+                WHERE nv.uuid = ANY($1) AND nv.active = TRUE
+                  AND n.workspace_id = $2
+            """,
+                uuids,
+                self._workspace_id,
+            )
+            uuid_to_view = {str(row["uuid"]): self._row_to_node_view(row) for row in rows}
+            return [uuid_to_view[uuid] for uuid in uuids if uuid in uuid_to_view]
+
     async def list_by_node(
         self,
         node_id: int,

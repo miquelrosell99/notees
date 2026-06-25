@@ -33,19 +33,19 @@ export function CalendarPopup({ isOpen, onClose, anchorRef, goToTodaySignal }: C
 
   const handleSelectDay = useCallback(async (date: Date) => {
     const node = await nodesApi.getOrCreateDaily(toIsoLocal(date));
-    openNode(node.id);
+    openNode(node.uuid);
     onClose();
   }, [openNode, onClose]);
 
   const handleSelectMonth = useCallback(async (year: number, month: number) => {
     const node = await nodesApi.getOrCreateMonthly(year, month + 1);
-    openNode(node.id);
+    openNode(node.uuid);
     onClose();
   }, [openNode, onClose]);
 
   const handleSelectYear = useCallback(async (year: number) => {
     const node = await nodesApi.getOrCreateYearly(year);
-    openNode(node.id);
+    openNode(node.uuid);
     onClose();
   }, [openNode, onClose]);
 

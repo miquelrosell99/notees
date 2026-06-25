@@ -19,13 +19,13 @@ export async function createAdminUser(data: AdminUserCreate): Promise<AdminUser>
   return response.data;
 }
 
-export async function updateAdminUser(userId: string, data: AdminUserUpdate): Promise<AdminUser> {
-  const response = await api.put<AdminUser>(`/admin/users/${userId}`, data);
+export async function updateAdminUser(userUuid: string, data: AdminUserUpdate): Promise<AdminUser> {
+  const response = await api.put<AdminUser>(`/admin/users/${userUuid}`, data);
   return response.data;
 }
 
-export async function deactivateAdminUser(userId: string): Promise<{ success: boolean }> {
-  const response = await api.delete<{ success: boolean }>(`/admin/users/${userId}`);
+export async function deactivateAdminUser(userUuid: string): Promise<{ success: boolean }> {
+  const response = await api.delete<{ success: boolean }>(`/admin/users/${userUuid}`);
   return response.data;
 }
 

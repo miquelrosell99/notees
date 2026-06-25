@@ -47,7 +47,7 @@ export function TemplateGallery() {
         name: 'New template',
         classes: [templateClassId],
       });
-      openNode(newTemplate.id);
+      openNode(newTemplate.uuid);
       queryClient.invalidateQueries({ queryKey: templateKeys.list() });
     } catch (e) {
       console.error('[TemplateGallery] failed to create template', e);
@@ -74,7 +74,7 @@ export function TemplateGallery() {
         label: 'Open',
         icon: 'mdi mdi-arrow-right',
         onClick: () => {
-          openNode(template.id);
+          openNode(template.uuid);
           closeMenu();
         },
       },
@@ -120,7 +120,7 @@ export function TemplateGallery() {
             editable={false}
             showClasses={true}
             hideToolbar={true}
-            onNodeClick={(node) => openNode(node.id)}
+            onNodeClick={(node) => openNode(node.uuid)}
             customContextMenuItems={contextMenuItems}
           />
         </DataStateView>

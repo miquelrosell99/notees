@@ -52,14 +52,18 @@ async def get_stack(
     return await service.get_stack_info()
 
 
-@router.post("/undo-to/{entry_id}")
+@router.post("/undo-to/{entry_uuid}")
 async def undo_to(
-    entry_id: int,
+    entry_uuid: str,
     user: User = Depends(get_current_user),
     undo_repo: UndoRepository = Depends(get_undo_repository),
 ):
     """Undo all operations down to (and including) the given entry."""
     from app.features.undo.service import UndoService
+
+    entry_id = await undo_repo.get_undo_entry_id_by_uuid(entry_uuid)
+    if entry_id is None:
+        raise HTTPException(status_code=404, detail="Entry not found")
 
     service = UndoService(undo_repo)
     results = await service.undo_to(entry_id)
@@ -68,14 +72,18 @@ async def undo_to(
     return results
 
 
-@router.post("/redo-to/{entry_id}")
+@router.post("/redo-to/{entry_uuid}")
 async def redo_to(
-    entry_id: int,
+    entry_uuid: str,
     user: User = Depends(get_current_user),
     undo_repo: UndoRepository = Depends(get_undo_repository),
 ):
     """Redo all operations up to (and including) the given entry."""
     from app.features.undo.service import UndoService
+
+    entry_id = await undo_repo.get_undo_entry_id_by_uuid(entry_uuid)
+    if entry_id is None:
+        raise HTTPException(status_code=404, detail="Entry not found")
 
     service = UndoService(undo_repo)
     results = await service.redo_to(entry_id)

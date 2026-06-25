@@ -589,7 +589,7 @@ class PostgresNodeRepository(
         async with acquire_connection(self._pool) as conn:
             return await conn.fetch(
                 """
-                SELECT nv.id, nv.name, nv.created_at, nv.user_id, u.username
+                SELECT nv.id, nv.uuid, nv.name, nv.created_at, nv.user_id, u.username
                 FROM node_version nv
                 LEFT JOIN "user" u ON u.id = nv.user_id
                 WHERE nv.node_id = $1 AND nv.workspace_id = $2
@@ -1583,13 +1583,32 @@ class PostgresNodeRepository(
         async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow(
                 """
-                SELECT nv.id, nv.name, nv.created_at, nv.user_id,
+                SELECT nv.id, nv.uuid, nv.name, nv.created_at, nv.user_id,
                        u.username
                 FROM node_version nv
                 LEFT JOIN "user" u ON u.id = nv.user_id
                 WHERE nv.id = $1 AND nv.node_id = $2 AND nv.workspace_id = $3
                 """,
                 version_id,
+                node_id,
+                self._workspace_id,
+            )
+        return dict(row) if row else None
+
+    async def get_node_version_detail_by_uuid(
+        self, version_uuid: str, node_id: int
+    ) -> dict[str, Any] | None:
+        """Get a single node version detail row by its public UUID."""
+        async with acquire_connection(self._pool) as conn:
+            row = await conn.fetchrow(
+                """
+                SELECT nv.id, nv.uuid, nv.name, nv.created_at, nv.user_id,
+                       u.username
+                FROM node_version nv
+                LEFT JOIN "user" u ON u.id = nv.user_id
+                WHERE nv.uuid = $1 AND nv.node_id = $2 AND nv.workspace_id = $3
+                """,
+                version_uuid,
                 node_id,
                 self._workspace_id,
             )

@@ -87,24 +87,24 @@ export function PropertyConfigSection({
   // Selection option handlers
   const handleAddSelectionOption = useCallback(async () => {
     if (!newOptionName.trim()) return;
-    
+
     try {
       const { icon: parsedIcon, color: parsedColor } = parseIconField(newOptionIcon || '');
       const newOption = await addSelectionOption(
-        property.id,
+        property.uuid,
         newOptionName.trim(),
         parsedIcon || newOptionIcon || null,
         property.options.length, // sequence
         parsedColor || null,
       );
-      
+
       // Update property with new option
       const updatedProperty: Property = {
         ...property,
         options: [...property.options, newOption],
       };
       onUpdate(updatedProperty);
-      
+
       setNewOptionName('');
       setNewOptionIcon('');
       setShowAddOption(false);
@@ -114,11 +114,11 @@ export function PropertyConfigSection({
       console.error(err);
     }
   }, [property, newOptionName, newOptionIcon, onUpdate]);
-  
+
   const handleRemoveSelectionOption = useCallback(async (id: string) => {
     try {
-      await deleteSelectionOption(property.id, Number(id));
-      
+      await deleteSelectionOption(property.uuid, Number(id));
+
       // Update property without the deleted option
       const updatedProperty: Property = {
         ...property,
@@ -131,12 +131,12 @@ export function PropertyConfigSection({
       console.error(err);
     }
   }, [property, onUpdate]);
-  
+
   const handleUpdateSelectionOptionIcon = useCallback(async (id: string, iconField: string) => {
     // Parse color from the JSON icon field so we can save it to the dedicated color column
     const { icon: parsedIcon, color: parsedColor } = parseIconField(iconField);
     try {
-      await updateSelectionOption(property.id, Number(id), { icon: parsedIcon || null, color: parsedColor || null });
+      await updateSelectionOption(property.uuid, Number(id), { icon: parsedIcon || null, color: parsedColor || null });
       const updatedProperty: Property = {
         ...property,
         options: property.options.map(o =>
@@ -154,7 +154,7 @@ export function PropertyConfigSection({
   const handleReorderSelectionOptions = useCallback(async (reordered: SelectionOptionWithId[]) => {
     try {
       await reorderSelectionOptions(
-        property.id,
+        property.uuid,
         reordered.map(opt => ({ id: Number(opt.id) }))
       );
       const updatedProperty: Property = {
@@ -173,18 +173,18 @@ export function PropertyConfigSection({
       console.error(err);
     }
   }, [property, onUpdate]);
-  
+
   // Allowed class handlers
   const handleAddAllowedClass = useCallback(async (node: Node) => {
     // Don't add if already in the list
     if (allowedClasses.some(c => c.id === node.id)) return;
-    
+
     try {
-      await addClassFilter(property.id, node.id);
-      
+      await addClassFilter(property.uuid, node.uuid);
+
       // Update local state
       setAllowedClasses(prev => [...prev, node]);
-      
+
       // Update property with new class_filters
       const updatedProperty: Property = {
         ...property,
@@ -197,14 +197,15 @@ export function PropertyConfigSection({
       console.error(err);
     }
   }, [property, allowedClasses, onUpdate]);
-  
+
   const handleRemoveAllowedClass = useCallback(async (nodeId: number) => {
     try {
-      await removeClassFilter(property.id, nodeId);
-      
+      const nodeUuid = allowedClasses.find(c => c.id === nodeId)?.uuid ?? nodeId;
+      await removeClassFilter(property.uuid, nodeUuid);
+
       // Update local state
       setAllowedClasses(prev => prev.filter(c => c.id !== nodeId));
-      
+
       // Update property with removed class_filter
       const updatedProperty: Property = {
         ...property,
@@ -216,7 +217,7 @@ export function PropertyConfigSection({
       setError('Failed to remove class filter');
       console.error(err);
     }
-  }, [property, onUpdate]);
+  }, [property, allowedClasses, onUpdate]);
   
   // Handle multi-value change
   const handleMultiValueChange = useCallback(async (newIsMulti: boolean) => {
@@ -227,7 +228,7 @@ export function PropertyConfigSection({
       // Changing from single to multi is safe, no confirmation needed
       try {
         const updated = await updatePropertyMutation.mutateAsync({
-          id: property.id,
+          id: property.uuid,
           data: { multi: newIsMulti },
         });
         setIsMultiValue(newIsMulti);
@@ -244,7 +245,7 @@ export function PropertyConfigSection({
   const handleConfirmMultiValueChange = useCallback(async () => {
     try {
       const updated = await updatePropertyMutation.mutateAsync({
-        id: property.id,
+        id: property.uuid,
         data: { multi: false },
       });
       setIsMultiValue(false);
@@ -297,7 +298,7 @@ export function PropertyConfigSection({
             onChange={async (value) => {
               try {
                 const updated = await updatePropertyMutation.mutateAsync({
-                  id: property.id,
+                  id: property.uuid,
                   data: { icon_visibility: value as PropertyIconVisibility },
                 });
                 onUpdate(updated);
@@ -418,7 +419,7 @@ function ValidationRulesSection({
     );
     try {
       const updated = await updatePropertyMutation.mutateAsync({
-        id: property.id,
+        id: property.uuid,
         data: { validation_rules: Object.keys(cleaned).length ? cleaned : null },
       });
       onUpdate(updated);
