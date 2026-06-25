@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import AsyncGenerator
 
 import asyncpg
-from fastapi import Depends
+from fastapi import Depends, HTTPException, Path
 
 from app.db.connection import get_pool
 from app.dependencies import _get_workspace_context_cached, get_current_user
@@ -50,6 +50,17 @@ async def get_task_completion_repository(
     user_id = int(user.id)
     workspace_id, _ = await _get_workspace_context_cached(pool, user_id)
     yield _make_task_completion_repository(pool, workspace_id, user_id)
+
+
+async def resolve_task_completion_uuid(
+    completion_uuid: str = Path(..., description="Public task completion UUID"),
+    repo: TaskCompletionRepository = Depends(get_task_completion_repository),
+) -> int:
+    """Resolve a task completion UUID to its internal numeric ID."""
+    completion = await repo.get_by_uuid(completion_uuid)
+    if completion is None or completion.id is None:
+        raise HTTPException(status_code=404, detail="Task completion not found")
+    return completion.id
 
 
 async def _get_task_automation_service(user: User) -> TaskAutomationService:
