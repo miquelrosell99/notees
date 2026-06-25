@@ -470,27 +470,29 @@ export function NodeContent({
     // Invalidate so the asset preview renders
     const { queryClient } = await import('@/lib/queryClient');
     const { nodeKeys } = await import('@/hooks/queryKeys');
-    queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(node.id) });
-  }, [targetBlockId, convertToAsset, children, saveImmediate, node.id]);
+    queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(node.uuid) });
+  }, [targetBlockId, convertToAsset, children, saveImmediate, node.uuid]);
 
   // Handle image paste in a block
-  // - Convert the block to an asset via existing_node_id
+  // - Convert the block to an asset via existing_node_uuid
   // - Pass the original content so the backend preserves it
   const handlePasteImage = useCallback(async (blockServerId: number, file: File, _hasContent: boolean) => {
     try {
       const block = children.find(c => c.id === blockServerId);
       const savedContent = block?.name || '';
+      const blockUuid = block?.uuid;
+      if (!blockUuid) return;
       // Convert block to asset, passing original content so the backend
       // preserves the node's text instead of overwriting it with the filename.
-      await uploadAsset(file, node.id, blockServerId, savedContent || undefined);
+      await uploadAsset(file, node.uuid, blockUuid, savedContent || undefined);
       // Invalidate so the asset preview renders
       const { queryClient } = await import('@/lib/queryClient');
       const { nodeKeys } = await import('@/hooks/queryKeys');
-      queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(node.id) });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(node.uuid) });
     } catch (err) {
       console.error('[NodeContent] Failed to handle pasted image:', err);
     }
-  }, [node.id, children]);
+  }, [node.uuid, children]);
 
   const viewMode = toViewMode(displayMode);
 
@@ -535,8 +537,8 @@ export function NodeContent({
           setManualAssetBlockId(null);
         }}
         onUpload={handleAssetUploaded}
-        parentId={targetBlockId || node.id}
-        existingNodeId={convertToAsset ? targetBlockId || undefined : undefined}
+        parentId={(targetBlockId ? children.find(c => c.id === targetBlockId)?.uuid : undefined) || node.uuid}
+        existingNodeId={convertToAsset ? (targetBlockId ? children.find(c => c.id === targetBlockId)?.uuid : undefined) : undefined}
         acceptedTypes={assetTypeFilter}
         initialFile={pendingFile}
       />

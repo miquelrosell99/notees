@@ -11,7 +11,7 @@
 
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { GraphWebGLRenderer, type NodeVisual, getCssEdgeColor, getCssEdgeCooccurrenceColor, getCssEdgePathColor, getCssNodePathColor } from '../renderers/graphWebGLRenderer';
-import type { SGEPhysicsConfig } from '../renderers/sge';
+import type { SGEPhysicsConfig, SGENode, SGEEdge } from '../renderers/sge';
 import type { GraphNode, GraphLink } from '../types/viewTypes';
 import { LINK_TYPE_IDS, LINK_TYPE_CURVATURE } from '../utils/graphConstants';
 
@@ -140,7 +140,7 @@ function buildPhysEdges(
     1,
   );
 
-  const nodeColorMap = new Map<number, [number, number, number, number]>();
+  const nodeColorMap = new Map<string, [number, number, number, number]>();
   for (const n of nodes) {
     const c = nodeColor(n);
     if (c) nodeColorMap.set(n.id, [c[0], c[1], c[2], c[3]]);
@@ -149,7 +149,7 @@ function buildPhysEdges(
   const PATH_EDGE_COLOR = getCssEdgePathColor();
 
   return edges.map(e => {
-    const edgeKey = `${Math.min(e.source, e.target)}-${Math.max(e.source, e.target)}`;
+    const edgeKey = [e.source, e.target].sort().join('-');
     const isPath = pathEdgeKeys?.has(edgeKey) ?? false;
     const srcNodeColor = nodeColorMap.get(e.source);
     const tgtNodeColor = nodeColorMap.get(e.target);
@@ -184,11 +184,11 @@ function buildNodeVisuals(
   nodes: GraphNode[],
   sizeByConnections: boolean,
   baseNodeRadius: number,
-  pathNodeIds?: Set<number>,
-): { visuals: Map<number, NodeVisual>; maxConn: number } {
+  pathNodeIds?: Set<string>,
+): { visuals: Map<string, NodeVisual>; maxConn: number } {
   const PATH_COLOR = getCssNodePathColor();
   const maxConn = nodes.reduce((m, n) => Math.max(m, n.connectionCount), 0);
-  const visuals = new Map<number, NodeVisual>();
+  const visuals = new Map<string, NodeVisual>();
   for (const n of nodes) {
     const isPath = pathNodeIds?.has(n.id) ?? false;
     visuals.set(n.id, {
@@ -225,13 +225,13 @@ export interface GraphRendererOptions {
   /** Base node radius in world units. Default: 7 */
   baseNodeRadius?: number;
   /** Node IDs on a highlighted path. */
-  pathNodeIds?: Set<number>;
+  pathNodeIds?: Set<string>;
   /** Edge keys on a highlighted path. */
   pathEdgeKeys?: Set<string>;
   /** Callback when user clicks a node (no drag involved). */
-  onNodeClick?: (nodeId: number) => void;
+  onNodeClick?: (nodeId: string) => void;
   /** Callback when user double-clicks a node. */
-  onNodeDblClick?: (nodeId: number) => void;
+  onNodeDblClick?: (nodeId: string) => void;
   /** Callback when user clicks on empty space. */
   onEmptyClick?: () => void;
   /** Enable curved edges. Default: true. */
@@ -248,14 +248,14 @@ export interface GraphRendererHandle {
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
   labelCanvasRef: React.RefObject<HTMLCanvasElement | null>;
   stats: GraphRendererStats;
-  selectedNodeId: number;
-  hoveredNode: { id: number; name: string; screenX: number; screenY: number } | null;
-  hoveredEdge: { source: number; target: number; type: string; screenX: number; screenY: number } | null;
+  selectedNodeId: string;
+  hoveredNode: { id: string; name: string; screenX: number; screenY: number } | null;
+  hoveredEdge: { source: string; target: string; type: string; screenX: number; screenY: number } | null;
   pause: () => void;
   resume: () => void;
   setConfig: (cfg: SGEPhysicsConfig) => void;
-  pinNode: (id: number) => void;
-  unpinNode: (id: number) => void;
+  pinNode: (id: string) => void;
+  unpinNode: (id: string) => void;
   recenter: () => void;
   panBy: (dx: number, dy: number) => void;
   zoomBy: (factor: number) => void;
@@ -279,6 +279,11 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
   const rafRef     = useRef<number>(0);
   const optsRef    = useRef(opts);
 
+  // Mapping between public string node IDs and the numeric indices used by the
+  // physics worker / WebGL position arrays.
+  const idToIndexRef = useRef(new Map<string, number>());
+  const indexToIdRef = useRef<string[]>([]);
+
   // SharedArrayBuffer shared-memory path
   const sabPosRef    = useRef<Float32Array  | null>(null);
   const sabMetaI32   = useRef<Int32Array    | null>(null);
@@ -288,27 +293,27 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
 
   const camRef = useRef({ x: 0, y: 0, zoom: 1 });
 
-  const hoveredNodeRef = useRef(-1);
-  const selectedRef    = useRef(-1);
-  const [selectedNodeId, setSelectedNodeId] = useState<number>(-1);
-  const [hoveredNode, setHoveredNode] = useState<{ id: number; name: string; screenX: number; screenY: number } | null>(null);
-  const [hoveredEdge, setHoveredEdge] = useState<{ source: number; target: number; type: string; screenX: number; screenY: number } | null>(null);
+  const hoveredNodeRef = useRef<string | null>(null);
+  const selectedRef    = useRef<string>('');
+  const [selectedNodeId, setSelectedNodeId] = useState<string>('');
+  const [hoveredNode, setHoveredNode] = useState<{ id: string; name: string; screenX: number; screenY: number } | null>(null);
+  const [hoveredEdge, setHoveredEdge] = useState<{ source: string; target: string; type: string; screenX: number; screenY: number } | null>(null);
 
-  const nodeNamesRef = useRef(new Map<number, string>());
-  const nodeRadiiRef = useRef(new Map<number, number>());
+  const nodeNamesRef = useRef(new Map<string, string>());
+  const nodeRadiiRef = useRef(new Map<string, number>());
   // Last known physics positions, used to preserve layout across topology changes.
-  const lastPositionsRef = useRef(new Map<number, { x: number; y: number }>());
+  const lastPositionsRef = useRef(new Map<string, { x: number; y: number }>());
 
   type DragMode = 'none' | 'camera' | 'node';
   const dragRef = useRef<{
     mode: DragMode;
-    nodeId: number;
+    nodeId: string;
     startPx: number; startPy: number;
     startWx: number; startWy: number;
     camStartX: number; camStartY: number;
     moved: boolean;
   }>({
-    mode: 'none', nodeId: -1,
+    mode: 'none', nodeId: '',
     startPx: 0, startPy: 0,
     startWx: 0, startWy: 0,
     camStartX: 0, camStartY: 0,
@@ -404,16 +409,20 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
       }
 
       if (msg.type === 'frame') {
-        renderer.updatePositions(msg.positions, msg.nodeIds);
+        const indexToId = indexToIdRef.current;
+        const positions = msg.positions as Float32Array;
+        const ids = msg.nodeIds as Int32Array;
+        const mappedIds: string[] = new Array(ids.length);
+        const map = lastPositionsRef.current;
+        for (let i = 0; i < msg.nodeCount; i++) {
+          const id = indexToId[ids[i]] ?? String(ids[i]);
+          mappedIds[i] = id;
+          map.set(id, { x: positions[i * 2], y: positions[i * 2 + 1] });
+        }
+        renderer.updatePositions(positions, mappedIds);
         statsAccRef.current.energy = msg.energy;
         statsAccRef.current.ticks = msg.ticks;
         dirtyRef.current.positions = true;
-        const positions = msg.positions as Float32Array;
-        const ids = msg.nodeIds as Int32Array;
-        const map = lastPositionsRef.current;
-        for (let i = 0; i < msg.nodeCount; i++) {
-          map.set(ids[i], { x: positions[i * 2], y: positions[i * 2 + 1] });
-        }
         if (needsAutoFitRef.current && msg.nodeCount > 0) {
           needsAutoFitRef.current = false;
           autoFit(msg.positions, msg.nodeCount);
@@ -438,14 +447,18 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
         if (seq !== sabSeq.current) {
           sabSeq.current = seq;
           const n = Atomics.load(metaI32, 1);
-          rend.updatePositions(sabPos.subarray(0, n * 2), sabNids.subarray(0, n));
+          const indexToId = indexToIdRef.current;
+          const mappedIds: string[] = new Array(n);
+          const map = lastPositionsRef.current;
+          for (let i = 0; i < n; i++) {
+            const id = indexToId[sabNids[i]] ?? String(sabNids[i]);
+            mappedIds[i] = id;
+            map.set(id, { x: sabPos[i * 2], y: sabPos[i * 2 + 1] });
+          }
+          rend.updatePositions(sabPos.subarray(0, n * 2), mappedIds);
           statsAccRef.current.energy = metaF32[3];
           statsAccRef.current.ticks = Atomics.load(metaI32, 2);
           dirtyRef.current.positions = true;
-          const map = lastPositionsRef.current;
-          for (let i = 0; i < n; i++) {
-            map.set(sabNids[i], { x: sabPos[i * 2], y: sabPos[i * 2 + 1] });
-          }
           if (needsAutoFitRef.current && n > 0) {
             needsAutoFitRef.current = false;
             autoFit(sabPos, n);
@@ -567,7 +580,7 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
               rendered++;
             }
 
-            if (hoveredNodeRef.current >= 0 && hoveredNodeRef.current !== selectedRef.current) {
+            if (hoveredNodeRef.current !== null && hoveredNodeRef.current !== selectedRef.current) {
               const hIdx = rend.nodeOrder.indexOf(hoveredNodeRef.current);
               if (hIdx >= 0) {
                 const hName = names.get(hoveredNodeRef.current);
@@ -585,7 +598,7 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
               }
             }
 
-            if (selectedRef.current >= 0) {
+            if (selectedRef.current !== '') {
               const sIdx = rend.nodeOrder.indexOf(selectedRef.current);
               if (sIdx >= 0) {
                 const sName = names.get(selectedRef.current);
@@ -668,17 +681,35 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
     topoTimerRef.current = setTimeout(() => {
       topoTimerRef.current = null;
 
+      const idToIndex = new Map<string, number>();
+      const indexToId: string[] = new Array(nodes.length);
+      nodes.forEach((n, i) => {
+        idToIndex.set(n.id, i);
+        indexToId[i] = n.id;
+      });
+      idToIndexRef.current = idToIndex;
+      indexToIdRef.current = indexToId;
+
       const lastPos = lastPositionsRef.current;
       const physNodes = nodes.map(n => {
         const preserved = lastPos.get(n.id);
         return {
-          id: n.id,
+          id: idToIndex.get(n.id)!,
           x: n.x ?? preserved?.x,
           y: n.y ?? preserved?.y,
           pinned: n.pinned,
         };
       });
-      workerRef.current?.postMessage({ type: 'init', nodes: physNodes, edges, config });
+
+      const physEdges: SGEEdge[] = [];
+      for (const e of edges) {
+        const si = idToIndex.get(e.source);
+        const ti = idToIndex.get(e.target);
+        if (si === undefined || ti === undefined) continue;
+        physEdges.push({ source: si, target: ti });
+      }
+
+      workerRef.current?.postMessage({ type: 'init', nodes: physNodes as SGENode[], edges: physEdges, config });
 
       // Display names only change when the node set changes.
       const names = nodeNamesRef.current;
@@ -708,7 +739,7 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
     if (!renderer) return;
 
     const { visuals, maxConn } = buildNodeVisuals(nodes, sizeByConnections, baseNodeRadius, pathNodeIds);
-    const idArr = new Int32Array(nodes.map(n => n.id));
+    const idArr = nodes.map(n => n.id);
     renderer.setNodeVisuals(idArr, visuals);
 
     const physEdges = buildPhysEdges(nodes, edges, coloredEdges, taperedEdges, curvedEdges, pathEdgeKeys);
@@ -805,7 +836,8 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
       d.nodeId = hitNode;
       d.startWx = world.x;
       d.startWy = world.y;
-      post({ type: 'dragStart', nodeId: hitNode });
+      const idx = idToIndexRef.current.get(hitNode);
+      if (idx !== undefined) post({ type: 'dragStart', nodeId: idx });
     } else {
       d.mode      = 'camera';
       d.camStartX = camRef.current.x;
@@ -823,12 +855,12 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
     const rend = rendRef.current;
     if (rend) {
       const world  = rend.screenToWorld(px, py);
-      const hit    = rend.pickNode(world.x, world.y, 8 / camRef.current.zoom) ?? -1;
+      const hit    = rend.pickNode(world.x, world.y, 8 / camRef.current.zoom);
       if (hit !== hoveredNodeRef.current) {
         hoveredNodeRef.current = hit;
-        rend.setHoveredNode(hit);
+        rend.setHoveredNode(hit ?? '');
         dirtyRef.current.hover = true;
-        if (hit >= 0) {
+        if (hit !== null) {
           const rect = canvas.getBoundingClientRect();
           const cssX = (px / (canvas.width / rect.width));
           const cssY = (py / (canvas.height / rect.height));
@@ -841,7 +873,7 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
         rend.setHoveredEdge(-1);
       }
       if (d.mode === 'none') {
-        canvas.style.cursor = hit >= 0 ? 'pointer' : 'grab';
+        canvas.style.cursor = hit !== null ? 'pointer' : 'grab';
       } else if (d.mode === 'node') {
         canvas.style.cursor = 'grabbing';
       } else {
@@ -862,7 +894,9 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
     } else if (d.mode === 'node') {
       const world = rend?.screenToWorld(px, py);
       if (!world) return;
-      post({ type: 'dragMove', nodeId: d.nodeId, x: world.x, y: world.y });
+      const idx = idToIndexRef.current.get(d.nodeId);
+      if (idx === undefined) return;
+      post({ type: 'dragMove', nodeId: idx, x: world.x, y: world.y });
       rend?.overridePosition(d.nodeId, world.x, world.y);
       dirtyRef.current.positions = true;
     }
@@ -872,7 +906,8 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
     const d = dragRef.current;
 
     if (d.mode === 'node') {
-      post({ type: 'dragEnd', nodeId: d.nodeId });
+      const idx = idToIndexRef.current.get(d.nodeId);
+      if (idx !== undefined) post({ type: 'dragEnd', nodeId: idx });
       if (!d.moved) {
         const nodeId = d.nodeId;
         selectedRef.current = nodeId;
@@ -882,16 +917,16 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
         optsRef.current.onNodeClick?.(nodeId);
       }
     } else if (d.mode === 'camera' && !d.moved) {
-      if (selectedRef.current >= 0) {
-        selectedRef.current = -1;
-        setSelectedNodeId(-1);
-        rendRef.current?.setSelectedNode(-1);
+      if (selectedRef.current !== '') {
+        selectedRef.current = '';
+        setSelectedNodeId('');
+        rendRef.current?.setSelectedNode('');
         dirtyRef.current.hover = true;
       }
       optsRef.current.onEmptyClick?.();
     }
     d.mode   = 'none';
-    d.nodeId = -1;
+    d.nodeId = '';
     d.moved  = false;
     e.currentTarget.releasePointerCapture(e.pointerId);
   }, [post]);
@@ -905,7 +940,7 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
     const py   = (e.clientY - rect.top)  * (canvas.height / rect.height);
     const world = rend.screenToWorld(px, py);
     const hit   = rend.pickNode(world.x, world.y, 8 / camRef.current.zoom);
-    if (hit !== null && hit !== undefined && hit >= 0) {
+    if (hit !== null && hit !== undefined) {
       optsRef.current.onNodeDblClick?.(hit);
     }
   }, [canvasRef]);
@@ -940,12 +975,16 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
     workerRef.current?.postMessage({ type: 'setConfig', config: cfg });
   }, []);
 
-  const pinNode = useCallback((id: number) => {
-    workerRef.current?.postMessage({ type: 'pin', nodeId: id });
+  const pinNode = useCallback((id: string) => {
+    const idx = idToIndexRef.current.get(id);
+    if (idx === undefined) return;
+    workerRef.current?.postMessage({ type: 'pin', nodeId: idx });
   }, []);
 
-  const unpinNode = useCallback((id: number) => {
-    workerRef.current?.postMessage({ type: 'unpin', nodeId: id });
+  const unpinNode = useCallback((id: string) => {
+    const idx = idToIndexRef.current.get(id);
+    if (idx === undefined) return;
+    workerRef.current?.postMessage({ type: 'unpin', nodeId: idx });
   }, []);
 
   const recenter = useCallback(() => {
@@ -1007,8 +1046,9 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
   }, []);
 
   const clearSelection = useCallback(() => {
-    selectedRef.current = -1;
-    setSelectedNodeId(-1);
+    selectedRef.current = '';
+    setSelectedNodeId('');
+    rendRef.current?.setSelectedNode('');
     dirtyRef.current.hover = true;
   }, []);
 

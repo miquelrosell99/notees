@@ -4,14 +4,16 @@
 import { useQuery } from '@tanstack/react-query';
 import type { Node } from '@/types/api';
 import { propertyKeys } from '@/hooks/queryKeys';
+import { resolvePropertyUuid } from '@/utils/resolveNodeUuid';
 
 export function useNodesWithProperty(propertyId: string | number | null) {
+  const propertyUuid = propertyId == null ? null : typeof propertyId === 'string' ? propertyId : resolvePropertyUuid(propertyId);
   return useQuery({
-    queryKey: propertyKeys.nodes(propertyId ?? ''),
+    queryKey: propertyKeys.nodes(propertyUuid ?? ''),
     queryFn: async () => {
-      if (!propertyId) return [];
+      if (!propertyUuid) return [];
       const { getNodesWithProperty } = await import('@/api/properties');
-      const response = await getNodesWithProperty(propertyId);
+      const response = await getNodesWithProperty(propertyUuid);
 
       return response.nodes.map(item => ({
         id: item.node_id,

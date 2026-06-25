@@ -13,7 +13,7 @@ import type { TaskCompletion } from '@/types/api';
 import './TaskCompletionHistory.css';
 
 interface TaskCompletionHistoryProps {
-  nodeId: number;
+  nodeId: string;
   readOnly?: boolean;
 }
 
@@ -94,7 +94,7 @@ export function TaskCompletionHistory({ nodeId, readOnly = false }: TaskCompleti
                     size="xs"
                     variant="ghost"
                     disabled={isDeleting}
-                    onClick={() => deleteCompletion(nodeId, completion.id)}
+                    onClick={() => deleteCompletion(nodeId, completion.uuid)}
                   />
                 )}
               </li>

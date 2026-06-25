@@ -30,7 +30,7 @@ export function TrashView({ className = '' }: TrashViewProps) {
   const [viewMode, setViewMode] = useState<NodeCollectionViewMode>('table');
   const [showEmptyConfirm, setShowEmptyConfirm] = useState(false);
   const [showDeleteSelectedConfirm, setShowDeleteSelectedConfirm] = useState(false);
-  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const { data: nodes, isLoading, error, refetch } = useTrash();
   const { restore, permanentDelete, emptyTrash: emptyTrashMutation, batchDelete: batchDeleteMutation } = useTrashMutations();
@@ -46,21 +46,21 @@ export function TrashView({ className = '' }: TrashViewProps) {
   const handleNodeShiftClick = useCallback((node: Node) => {
     setSelectedIds(prev => {
       const next = new Set(prev);
-      if (next.has(node.id)) {
-        next.delete(node.id);
+      if (next.has(node.uuid)) {
+        next.delete(node.uuid);
       } else {
-        next.add(node.id);
+        next.add(node.uuid);
       }
       return next;
     });
   }, []);
-  
+
   // Select/deselect all
   const handleToggleSelectAll = useCallback(() => {
     if (!nodes) return;
     setSelectedIds(prev => {
       if (prev.size === nodes.length) return new Set();
-      return new Set(nodes.map(n => n.id));
+      return new Set(nodes.map(n => n.uuid));
     });
   }, [nodes]);
   
@@ -70,7 +70,7 @@ export function TrashView({ className = '' }: TrashViewProps) {
   
   // Generate context menu items for trash nodes
   const generateContextMenuItems = useCallback((node: Node, closeMenu: () => void): ContextMenuItem[] => {
-    const isSelected = selectedIds.has(node.id);
+    const isSelected = selectedIds.has(node.uuid);
     return [
       {
         id: 'select',
@@ -85,7 +85,7 @@ export function TrashView({ className = '' }: TrashViewProps) {
         id: 'restore',
         label: 'Restore',
         onClick: () => {
-          restore.mutate(node.id);
+          restore.mutate(node.uuid);
           closeMenu();
         },
       },
@@ -104,7 +104,7 @@ export function TrashView({ className = '' }: TrashViewProps) {
         danger: true,
         onClick: () => {
           if (confirm(`Permanently delete "${nodeNameToText(node.name) || 'Untitled'}"? This cannot be undone.`)) {
-            permanentDelete.mutate(node.id);
+            permanentDelete.mutate(node.uuid);
           }
           closeMenu();
         },

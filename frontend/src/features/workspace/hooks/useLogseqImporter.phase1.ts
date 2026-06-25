@@ -1,6 +1,7 @@
 import { addClassExtends } from '@/api/properties';
 import { nodeNameToText } from '@/features/queries';
 import type { Node } from '@/types/api';
+import { resolveNodeUuid } from '@/utils/resolveNodeUuid';
 import type { ImportContext } from './useLogseqImporter.types';
 import { createPhase, errorMessage } from './useLogseqImporter.utils';
 
@@ -55,7 +56,9 @@ export async function runPhase1(ctx: ImportContext, existingClasses: Node[]): Pr
     if (!noteesClassId || !noteesParentClassId) continue;
     setImportStatus(`Setting class extends: ${cls.title}`);
     try {
-      await addClassExtends(noteesClassId, noteesParentClassId);
+      const classUuid = resolveNodeUuid(noteesClassId);
+      const parentClassUuid = resolveNodeUuid(noteesParentClassId);
+      await addClassExtends(classUuid, parentClassUuid);
       p1b.succeeded++;
       tick();
     } catch (e) {

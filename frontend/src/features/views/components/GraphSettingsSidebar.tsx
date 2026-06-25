@@ -31,7 +31,7 @@ export interface GraphSettingsSidebarProps {
   viewMode: 'normal' | 'circle' | 'tree';
   onCollapse: () => void;
   localGraphMode?: boolean;
-  currentNodeUuid?: number | null;
+  currentNodeUuid?: string | null;
   levels?: number;
   onLevelsChange?: (levels: number) => void;
 }

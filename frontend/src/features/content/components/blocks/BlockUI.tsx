@@ -26,7 +26,7 @@ interface BlockUIProps {
   onCollapseToggle?: () => void;
   onNavigate?: (blockId: string) => void;
   onOpenInSidebar?: (blockId: string) => void;
-  onContextMenu?: (nodeId: number, event: React.MouseEvent) => void;
+  onContextMenu?: (nodeId: string | number, event: React.MouseEvent) => void;
   /** Whether the bullet should be interactive (clickable/draggable). */
   interactive?: boolean;
   /** Whether this block is on the active editing path. */
@@ -91,7 +91,7 @@ export function BlockUI({
     onNavigate?.(node.uuid);
   };
 
-  const handleShiftClick = (_nodeId: number) => {
+  const handleShiftClick = (_nodeId: string | number) => {
     onOpenInSidebar?.(node.uuid);
   };
 

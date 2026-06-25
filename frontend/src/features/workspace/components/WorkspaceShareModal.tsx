@@ -91,15 +91,15 @@ export function WorkspaceShareModal({ workspaceUuid, isOpen, onClose }: Workspac
   }, [workspaceUuid, inviteEmail, inviteRole, inviteMember]);
 
   const handleRoleChange = useCallback(
-    (memberUserId: number, role: string) => {
-      updateMember.mutate({ workspaceUuid, memberUserId, role });
+    (memberUserUuid: string, role: string) => {
+      updateMember.mutate({ workspaceUuid, memberUserUuid, role });
     },
     [workspaceUuid, updateMember]
   );
 
   const handleRemove = useCallback(
-    (memberUserId: number) => {
-      removeMember.mutate({ workspaceUuid, memberUserId });
+    (memberUserUuid: string) => {
+      removeMember.mutate({ workspaceUuid, memberUserUuid });
     },
     [workspaceUuid, removeMember]
   );
@@ -216,14 +216,14 @@ function MemberRow({
 }: {
   member: WorkspaceMember;
   isCurrentUserOwner: boolean;
-  onRoleChange: (userId: number, role: string) => void;
-  onRemove: (userId: number) => void;
+  onRoleChange: (userUuid: string, role: string) => void;
+  onRemove: (userUuid: string) => void;
   onRemovePending: (email: string) => void;
   isUpdating: boolean;
   isRemoving: boolean;
   isRemovingPending: boolean;
 }) {
-  const isPending = member.status === 'pending' || member.user_id === null;
+  const isPending = member.status === 'pending' || member.user_uuid === null;
   return (
     <div className="workspace-share-modal__people-row">
       <div className="workspace-share-modal__user-info">
@@ -238,7 +238,7 @@ function MemberRow({
               <Dropdown
                 options={ROLE_OPTIONS}
                 value={member.role}
-                onChange={(val) => val && member.user_id !== null && onRoleChange(member.user_id, val)}
+                onChange={(val) => val && member.user_uuid !== null && onRoleChange(member.user_uuid, val)}
                 size="sm"
                 disabled={isUpdating}
                 className="workspace-share-modal__role-dropdown"
@@ -250,7 +250,7 @@ function MemberRow({
               icon="mdi mdi-delete-outline"
               title={isPending ? "Cancel invite" : "Remove member"}
               aria-label={isPending ? "Cancel invite" : "Remove member"}
-              onClick={() => isPending ? onRemovePending(member.email) : onRemove(member.user_id!)}
+              onClick={() => isPending ? onRemovePending(member.email) : onRemove(member.user_uuid!)}
               disabled={isRemoving || isRemovingPending}
             />
           </>

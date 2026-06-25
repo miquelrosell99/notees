@@ -42,7 +42,7 @@ export function SharesUnifiedView({ initialTab = 'shared-out' }: SharesUnifiedVi
       useNavigationStore.setState({ isSwitchingWorkspace: true });
       try {
         await switchWorkspace(item.workspace.uuid);
-        openNode(item.node_id);
+        openNode(item.node_uuid);
       } finally {
         useNavigationStore.setState({ isSwitchingWorkspace: false });
       }
@@ -90,7 +90,7 @@ export function SharesUnifiedView({ initialTab = 'shared-out' }: SharesUnifiedVi
                 <div key={share.share_uuid} className="shares-unified-view__item">
                   <button
                     className="shares-unified-view__item-name"
-                    onClick={() => share.node_id && openNode(share.node_id)}
+                    onClick={() => share.node_uuid && openNode(share.node_uuid)}
                   >
                     {share.node_name || 'Untitled'}
                   </button>
@@ -152,13 +152,13 @@ export function SharesUnifiedView({ initialTab = 'shared-out' }: SharesUnifiedVi
           ) : (
             <div className="shares-unified-view__list">
               {items.map((item) => (
-                <div key={item.share_id} className="shares-unified-view__item shares-unified-view__item--inbox">
+                <div key={item.share_uuid} className="shares-unified-view__item shares-unified-view__item--inbox">
                   <div className="shares-unified-view__item-header">
                     <NodeInline
                       name={item.node_name}
                       icon={item.node_icon}
                       isPage={item.is_page}
-                      nodeId={item.node_id}
+                      nodeId={item.node_uuid}
                       showBullet={false}
                       className="shares-unified-view__item-inline"
                     />

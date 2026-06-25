@@ -64,20 +64,20 @@ export function PropertyConfigSection({
     setIsMultiValue(property.multi || false);
   }, [property.multi]);
   
-  // Load allowed classes from property.class_filters
+  // Load allowed classes from property.class_filter_uuids
   useEffect(() => {
-    if (allClasses && property.class_filters) {
-      const classNodes = property.class_filters
-        .map(classId => allClasses.find(c => c.id === classId))
+    if (allClasses && property.class_filter_uuids) {
+      const classNodes = property.class_filter_uuids
+        .map(classUuid => allClasses.find(c => c.uuid === classUuid))
         .filter((c): c is Node => c !== undefined);
       setAllowedClasses(classNodes);
     }
-  }, [allClasses, property.class_filters]);
+  }, [allClasses, property.class_filter_uuids]);
   
-  // Convert property options to form format
-  const selectionOptions: SelectionOptionWithId[] = useMemo(() => 
+  // Convert property options to form format (id holds the option UUID)
+  const selectionOptions: SelectionOptionWithId[] = useMemo(() =>
     (property.options || []).map(opt => ({
-      id: String(opt.id),
+      id: opt.uuid ?? String(opt.id),
       name: opt.name,
       icon: opt.icon || undefined,
     })),
@@ -117,12 +117,12 @@ export function PropertyConfigSection({
 
   const handleRemoveSelectionOption = useCallback(async (id: string) => {
     try {
-      await deleteSelectionOption(property.uuid, Number(id));
+      await deleteSelectionOption(property.uuid, id);
 
       // Update property without the deleted option
       const updatedProperty: Property = {
         ...property,
-        options: property.options.filter(o => String(o.id) !== id),
+        options: property.options.filter(o => (o.uuid ?? String(o.id)) !== id),
       };
       onUpdate(updatedProperty);
       setError(null);
@@ -136,11 +136,11 @@ export function PropertyConfigSection({
     // Parse color from the JSON icon field so we can save it to the dedicated color column
     const { icon: parsedIcon, color: parsedColor } = parseIconField(iconField);
     try {
-      await updateSelectionOption(property.uuid, Number(id), { icon: parsedIcon || null, color: parsedColor || null });
+      await updateSelectionOption(property.uuid, id, { icon: parsedIcon || null, color: parsedColor || null });
       const updatedProperty: Property = {
         ...property,
         options: property.options.map(o =>
-          String(o.id) === id ? { ...o, icon: iconField, color: parsedColor || null } : o
+          (o.uuid ?? String(o.id)) === id ? { ...o, icon: iconField, color: parsedColor || null } : o
         ),
       };
       onUpdate(updatedProperty);
@@ -155,12 +155,13 @@ export function PropertyConfigSection({
     try {
       await reorderSelectionOptions(
         property.uuid,
-        reordered.map(opt => ({ id: Number(opt.id) }))
+        reordered.map(opt => ({ uuid: opt.id }))
       );
       const updatedProperty: Property = {
         ...property,
         options: reordered.map((opt, index) => ({
-          id: Number(opt.id),
+          id: 0,
+          uuid: opt.id,
           name: opt.name,
           icon: opt.icon ?? null,
           color: null,
@@ -177,7 +178,7 @@ export function PropertyConfigSection({
   // Allowed class handlers
   const handleAddAllowedClass = useCallback(async (node: Node) => {
     // Don't add if already in the list
-    if (allowedClasses.some(c => c.id === node.id)) return;
+    if (allowedClasses.some(c => c.uuid === node.uuid)) return;
 
     try {
       await addClassFilter(property.uuid, node.uuid);
@@ -185,10 +186,10 @@ export function PropertyConfigSection({
       // Update local state
       setAllowedClasses(prev => [...prev, node]);
 
-      // Update property with new class_filters
+      // Update property with new class_filter_uuids
       const updatedProperty: Property = {
         ...property,
-        class_filters: [...property.class_filters, node.id],
+        class_filter_uuids: [...(property.class_filter_uuids ?? []), node.uuid],
       };
       onUpdate(updatedProperty);
       setError(null);
@@ -198,18 +199,17 @@ export function PropertyConfigSection({
     }
   }, [property, allowedClasses, onUpdate]);
 
-  const handleRemoveAllowedClass = useCallback(async (nodeId: number) => {
+  const handleRemoveAllowedClass = useCallback(async (nodeUuid: string) => {
     try {
-      const nodeUuid = allowedClasses.find(c => c.id === nodeId)?.uuid ?? nodeId;
       await removeClassFilter(property.uuid, nodeUuid);
 
       // Update local state
-      setAllowedClasses(prev => prev.filter(c => c.id !== nodeId));
+      setAllowedClasses(prev => prev.filter(c => c.uuid !== nodeUuid));
 
-      // Update property with removed class_filter
+      // Update property with removed class_filter_uuid
       const updatedProperty: Property = {
         ...property,
-        class_filters: property.class_filters.filter(id => id !== nodeId),
+        class_filter_uuids: (property.class_filter_uuids ?? []).filter(uuid => uuid !== nodeUuid),
       };
       onUpdate(updatedProperty);
       setError(null);
@@ -266,17 +266,17 @@ export function PropertyConfigSection({
   return (
     <div className="property-config-section">
       {/* Scope Display (for local properties only) */}
-      {isLocal && property.node_id && (
+      {isLocal && property.node_uuid && (
         <div className="property-config-section__scope">
           <span className="property-config-section__scope-label">Applies to </span>
           <button
             type="button"
             className="property-config-section__scope-link"
             onClick={() => {
-              if (property.node_id) openNode(property.node_id);
+              if (property.node_uuid) openNode(property.node_uuid);
             }}
           >
-            Page #{property.node_id}
+            Page
           </button>
         </div>
       )}

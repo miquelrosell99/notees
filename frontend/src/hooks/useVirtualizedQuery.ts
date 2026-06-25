@@ -25,6 +25,7 @@ import { autoFixSystemQuery } from '@/lib/systemQueryAutoFix';
 import { normalizeAST } from '@/lib/astNormalizer';
 import { useDebouncedValue } from './useDebouncedValue';
 import { nodeViewKeys } from './queryKeys';
+import { resolveNodeViewUuid } from '@/utils/resolveNodeUuid';
 import type { QueryAST } from '@/types/queryAST';
 import type { QueryExecuteResponse, QueryExecutionMetrics } from '@/types/nodeView';
 import type { Node } from '@/types/api';
@@ -32,8 +33,8 @@ import type { Node } from '@/types/api';
 // ==================== Types ====================
 
 export interface UseVirtualizedQueryOptions {
-  /** NodeView ID to execute (0 = ad-hoc) */
-  viewId: number;
+  /** NodeView ID/UUID to execute (0 = ad-hoc) */
+  viewId: string | number;
   /** Runtime parameters for placeholder substitution */
   runtimeParams?: Record<string, unknown>;
   /** Live AST for ad-hoc / preview queries (will be debounced) */
@@ -146,11 +147,13 @@ export function useVirtualizedQuery(
     }
   }, [queryFingerprint, windowSize]);
 
+  const hasViewId = typeof viewId === 'string' ? viewId.length > 0 : viewId > 0;
+
   // Build the query key
   const queryKey = useMemo(() => {
-    if (viewId > 0 && !preparedAST) {
+    if (hasViewId && !preparedAST) {
       // View-based query
-      return nodeViewKeys.queryResult(viewId, {
+      return nodeViewKeys.queryResult(viewId as string, {
         runtimeParams,
         limit,
         offset,
@@ -169,7 +172,7 @@ export function useVirtualizedQuery(
       limit,
       offset,
     ];
-  }, [viewId, preparedAST, runtimeParams, limit, offset, includeChildren, includeProperties, enrich]);
+  }, [viewId, hasViewId, preparedAST, runtimeParams, limit, offset, includeChildren, includeProperties, enrich]);
 
   // Execute the query
   const {
@@ -189,9 +192,11 @@ export function useVirtualizedQuery(
         enrich,
       };
 
-      if (viewId > 0 && !preparedAST) {
+      if (viewId && viewId !== 0 && !preparedAST) {
         // Execute against a saved view
-        return executeNodeViewQuery(viewId, requestOpts);
+        const viewUuid = typeof viewId === 'string' ? viewId : resolveNodeViewUuid(viewId);
+        if (!viewUuid) throw new Error(`Unable to resolve UUID for view ${viewId}`);
+        return executeNodeViewQuery(viewUuid, requestOpts);
       }
 
       // Ad-hoc query
@@ -200,8 +205,8 @@ export function useVirtualizedQuery(
         ...requestOpts,
       });
     },
-    enabled: enabled && (viewId > 0 || !!preparedAST),
-    staleTime: staleTime ?? (viewId > 0 ? 30_000 : 0),
+    enabled: enabled && (hasViewId || !!preparedAST),
+    staleTime: staleTime ?? (hasViewId ? 30_000 : 0),
   });
 
   const allNodes = useMemo(() => data?.nodes ?? [], [data?.nodes]);

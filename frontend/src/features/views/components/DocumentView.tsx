@@ -111,7 +111,7 @@ export const DocumentView = memo(function DocumentView({
 
     for (const file of files) {
       try {
-        const asset = await uploadAsset(file, _pageId);
+        const asset = await uploadAsset(file, _nodeUuid ?? undefined);
         const newBlockId = generateUUID();
         const nodeChildren = allNodes;
         const lastChild = nodeChildren.length > 0 ? nodeChildren[nodeChildren.length - 1] : null;

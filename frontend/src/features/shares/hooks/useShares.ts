@@ -149,13 +149,13 @@ export function useUpdateWorkspaceMember() {
   return useMutation({
     mutationFn: ({
       workspaceUuid,
-      memberUserId,
+      memberUserUuid,
       role,
     }: {
       workspaceUuid: string;
-      memberUserId: number;
+      memberUserUuid: string;
       role: string;
-    }) => updateWorkspaceMember(workspaceUuid, memberUserId, role),
+    }) => updateWorkspaceMember(workspaceUuid, memberUserUuid, role),
     onSuccess: (_, { workspaceUuid }) => {
       queryClient.invalidateQueries({ queryKey: sharesKeys.workspaceMembers(workspaceUuid) });
     },
@@ -167,11 +167,11 @@ export function useRemoveWorkspaceMember() {
   return useMutation({
     mutationFn: ({
       workspaceUuid,
-      memberUserId,
+      memberUserUuid,
     }: {
       workspaceUuid: string;
-      memberUserId: number;
-    }) => removeWorkspaceMember(workspaceUuid, memberUserId),
+      memberUserUuid: string;
+    }) => removeWorkspaceMember(workspaceUuid, memberUserUuid),
     onSuccess: (_, { workspaceUuid }) => {
       queryClient.invalidateQueries({ queryKey: sharesKeys.workspaceMembers(workspaceUuid) });
     },

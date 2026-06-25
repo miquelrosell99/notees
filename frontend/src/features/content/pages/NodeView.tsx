@@ -1293,7 +1293,7 @@ export function NodeView({
           {showProperties && node.is_task && (
             <div className="page-recurrence-section">
               <TaskRecurrenceSection
-                nodeId={node.id}
+                nodeId={node.uuid}
                 readOnly={!workspaceCanWrite}
               />
             </div>

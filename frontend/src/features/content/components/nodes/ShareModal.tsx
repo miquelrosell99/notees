@@ -210,7 +210,7 @@ export function ShareModal({ nodeUuid, isOpen, onClose }: ShareModalProps) {
               ) : (
                 <div className="share-modal__people-list">
                   {userShares.map((share) => (
-                    <div key={share.share_id} className="share-modal__people-row">
+                    <div key={share.share_uuid} className="share-modal__people-row">
                       <div className="share-modal__people-info">
                         <Icon path="mdi mdi-account-circle" size={1} />
                         <span className="share-modal__people-email">
@@ -229,7 +229,7 @@ export function ShareModal({ nodeUuid, isOpen, onClose }: ShareModalProps) {
                           size="sm"
                           icon="mdi mdi-delete-outline"
                           title="Remove access"
-                          onClick={() => deleteUserShare.mutate(share.share_id)}
+                          onClick={() => deleteUserShare.mutate(share.share_uuid)}
                         />
                       </div>
                     </div>

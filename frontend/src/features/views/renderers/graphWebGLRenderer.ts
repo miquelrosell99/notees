@@ -552,8 +552,8 @@ const EDGE_QUAD_VERTS = new Float32Array([
 ]);
 
 export interface RendererEdge {
-  source: number;
-  target: number;
+  source: string;
+  target: string;
   dashed?: boolean;
   /** Per-link-type curvature factor (overrides default). */
   curvature?: number;
@@ -624,8 +624,8 @@ export class GraphWebGLRenderer {
   } = { resolution: null, camera: null, zoom: null, positions: null, minRadiusPx: null };
 
   // --- Hover / selection state ---
-  private _hoveredNodeId  = -1;
-  private _selectedNodeId = -1;
+  private _hoveredNodeId  = '';
+  private _selectedNodeId = '';
   private _hoveredEdgeIndex = -1;
   private _edgeMask = 0xFFFFFFFF; // show all link types by default
   private _communityDim = 1.0;
@@ -644,11 +644,11 @@ export class GraphWebGLRenderer {
 
   // --- Node metadata (maintained separately from position buffer) ---
   /** nodeId → index into current positions array */
-  private nodeIndex = new Map<number, number>();
+  private nodeIndex = new Map<string, number>();
   /** nodeId → NodeVisual */
-  private nodeVisuals = new Map<number, NodeVisual>();
+  private nodeVisuals = new Map<string, NodeVisual>();
   /** Sorted list of nodeIds in the same order received from worker */
-  private nodeIdOrder: Int32Array = new Int32Array(0);
+  private nodeIdOrder: string[] = [];
   /** Latest position buffer from physics worker */
   private positions: Float32Array = new Float32Array(0);
 
@@ -656,9 +656,9 @@ export class GraphWebGLRenderer {
   private edges: RendererEdge[] = [];
 
   // --- Adjacency for dimming ---
-  private _adjacency = new Map<number, Set<number>>();
+  private _adjacency = new Map<string, Set<string>>();
   /** Set of nodeIds that are "highlighted" (hovered/selected + their direct neighbours). */
-  private _highlightedIds = new Set<number>();
+  private _highlightedIds = new Set<string>();
   /** When true, repack node instances to apply updated dim factors. */
   private _dimDirty = false;
   /** Alpha multiplier for dimmed (non-highlighted) nodes. */
@@ -1033,15 +1033,15 @@ export class GraphWebGLRenderer {
    * Associates nodeId → visual metadata; rebuilds the index map.
    */
   setNodeVisuals(
-    nodeIds: ArrayLike<number>,
-    visuals: Map<number, NodeVisual>,
+    nodeIds: ArrayLike<string>,
+    visuals: Map<string, NodeVisual>,
   ): void {
     this.nodeVisuals = visuals;
     const n = nodeIds.length;
-    this.nodeIdOrder = new Int32Array(n);
+    this.nodeIdOrder = new Array<string>(n);
     this.nodeIndex.clear();
     for (let i = 0; i < n; i++) {
-      const id = (nodeIds as Int32Array)[i];
+      const id = nodeIds[i];
       this.nodeIdOrder[i] = id;
       this.nodeIndex.set(id, i);
     }
@@ -1073,7 +1073,7 @@ export class GraphWebGLRenderer {
   private _recomputeHighlighted(): void {
     this._highlightedIds.clear();
     // Dimming is driven only by selection — hover does not dim other nodes.
-    const focusIds = [this._selectedNodeId].filter(id => id >= 0);
+    const focusIds = [this._selectedNodeId].filter(id => id !== '');
     if (focusIds.length === 0) {
       this._dimDirty = true;
       this._edgeDirty = true; // rebuild edges without dimming
@@ -1093,12 +1093,12 @@ export class GraphWebGLRenderer {
    * positions: Float32Array [x0, y0, x1, y1, …] length = nodeCount * 2.
    * nodeIds accompanies positions (same order).
    */
-  updatePositions(positions: Float32Array, nodeIds: Int32Array): void {
+  updatePositions(positions: Float32Array, nodeIds: string[]): void {
     this.positions = positions;
     // Rebuild the index map in case topology changed (nodeIds re-sent on init/setTopology)
     if (nodeIds.length !== this.nodeIdOrder.length) {
       this.nodeIndex.clear();
-      this.nodeIdOrder = new Int32Array(nodeIds);
+      this.nodeIdOrder = nodeIds.slice();
       for (let i = 0; i < nodeIds.length; i++) {
         this.nodeIndex.set(nodeIds[i], i);
       }
@@ -1109,7 +1109,7 @@ export class GraphWebGLRenderer {
   }
 
   /** Override a single node's position (e.g., during drag on main thread). */
-  overridePosition(nodeId: number, x: number, y: number): void {
+  overridePosition(nodeId: string, x: number, y: number): void {
     const idx = this.nodeIndex.get(nodeId);
     if (idx === undefined) return;
     if (this.positions.length >= (idx + 1) * 2) {
@@ -1127,14 +1127,14 @@ export class GraphWebGLRenderer {
   }
 
   /** Signal the renderer which node is currently hovered (for ring + dimming). */
-  setHoveredNode(id: number): void {
+  setHoveredNode(id: string): void {
     if (this._hoveredNodeId === id) return;
     this._hoveredNodeId = id;
     this._recomputeHighlighted();
   }
 
   /** Signal the renderer which node is currently selected (for ring + dimming). */
-  setSelectedNode(id: number): void {
+  setSelectedNode(id: string): void {
     if (this._selectedNodeId === id) return;
     this._selectedNodeId = id;
     this._recomputeHighlighted();
@@ -1143,7 +1143,7 @@ export class GraphWebGLRenderer {
   /** Read-only access to the latest physics positions (for label rendering). */
   get nodePositions(): Float32Array { return this.positions; }
   /** Read-only ordered list of node IDs (index matches nodePositions). */
-  get nodeOrder(): Int32Array { return this.nodeIdOrder; }
+  get nodeOrder(): string[] { return this.nodeIdOrder; }
 
   /** Convert world-space coords to canvas-pixel coords. */
   worldToScreen(wx: number, wy: number): { x: number; y: number } {
@@ -1425,7 +1425,7 @@ export class GraphWebGLRenderer {
     // Ring radius = node_radius * scale so it peeks out from behind the node.
     // Color is always taken from the node's own visual color (or CSS default).
     const minWorldRadius = this.opts.minNodeRadiusPx / (2.0 * zoom);
-    const writeRing = (nodeId: number, scale: number, a: number): void => {
+    const writeRing = (nodeId: string, scale: number, a: number): void => {
       const idx = this.nodeIndex.get(nodeId);
       if (idx === undefined) return;
       const px  = this.positions[idx * 2];
@@ -1446,9 +1446,9 @@ export class GraphWebGLRenderer {
     };
 
     // Selected: larger glare ring, fully opaque node color.
-    if (this._selectedNodeId >= 0) writeRing(this._selectedNodeId, 1.85, 0.80);
+    if (this._selectedNodeId !== '') writeRing(this._selectedNodeId, 1.85, 0.80);
     // Hovered: slightly enlarged glare ring — no dimming of other nodes.
-    if (this._hoveredNodeId >= 0 && this._hoveredNodeId !== this._selectedNodeId) {
+    if (this._hoveredNodeId !== '' && this._hoveredNodeId !== this._selectedNodeId) {
       writeRing(this._hoveredNodeId, 1.55, 0.45);
     }
 
@@ -1572,7 +1572,7 @@ export class GraphWebGLRenderer {
   }
 
   /** Find the closest node to a world-space point within maxDist world units. */
-  pickNode(wx: number, wy: number, maxDist = 20): number | null {
+  pickNode(wx: number, wy: number, maxDist = 20): string | null {
     const pos = this.positions;
     let best = -1;
     let bestD2 = maxDist * maxDist;

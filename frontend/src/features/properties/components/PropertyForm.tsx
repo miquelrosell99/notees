@@ -80,7 +80,7 @@ export interface PropertyFormProps {
   onShowAddOptionChange: (show: boolean) => void;
   
   onAddClass: (node: Node) => void;
-  onRemoveClass: (id: number) => void;
+  onRemoveClass: (uuid: string) => void;
   
   // Config
   readOnly?: boolean;
@@ -403,7 +403,7 @@ export function PropertyForm({
               onNodeClick={() => {
                 // Optional: navigate to class node
               }}
-              onRemove={!readOnly ? (node) => onRemoveClass(node.id) : undefined}
+              onRemove={!readOnly ? (node) => onRemoveClass(node.uuid) : undefined}
               onAdd={!readOnly ? onAddClass : undefined}
               readOnly={readOnly}
             />

@@ -5,15 +5,7 @@
  * Use these consistently for cache invalidation and query matching.
  */
 
-// Fast numeric hash for large ID arrays (avoids spreading 4000+ IDs into query keys)
-function hashNumberArray(ids: number[]): number {
-  let hash = ids.length;
-  for (let i = 0; i < ids.length; i++) {
-    hash = ((hash << 5) - hash + ids[i]) | 0;
-  }
-  return hash;
-}
-
+// Fast string hash for large ID arrays (avoids spreading 4000+ IDs into query keys)
 function hashStringArray(ids: string[]): string {
   let hash = ids.length;
   for (let i = 0; i < ids.length; i++) {
@@ -64,7 +56,7 @@ export const nodeKeys = {
   tasks: (includeComplete?: boolean) => [...nodeKeys.all, 'tasks', { includeComplete }] as const,
   graph: () => [...nodeKeys.all, 'graph'] as const,
   graphNodes: () => [...nodeKeys.all, 'graph-nodes'] as const,
-  graphLinks: (nodeIds: number[], scope?: string, cooccurrence?: boolean, contextNodeId?: number | null) => [...nodeKeys.all, 'graph-links', scope ?? 'between', cooccurrence ?? false, contextNodeId ?? 'none', nodeIds.length, hashNumberArray(nodeIds)] as const,
+  graphLinks: (nodeIds: string[], scope?: string, cooccurrence?: boolean, contextNodeUuid?: string | null) => [...nodeKeys.all, 'graph-links', scope ?? 'between', cooccurrence ?? false, contextNodeUuid ?? 'none', nodeIds.length, hashStringArray(nodeIds)] as const,
   
   // PERFORMANCE: Metadata-only keys for lightweight queries
   // These are separate from detail queries to avoid cache pollution
@@ -100,15 +92,15 @@ export const nodeViewKeys = {
     [...nodeViewKeys.lists(), nodeId, viewType] as const,
   byType: (nodeId: string | number) => [...nodeViewKeys.all, 'byType', nodeId] as const,
   details: () => [...nodeViewKeys.all, 'detail'] as const,
-  detail: (viewId: number) => [...nodeViewKeys.details(), viewId] as const,
-  default: (nodeId: number, viewType: string) =>
+  detail: (viewId: string | number) => [...nodeViewKeys.details(), viewId] as const,
+  default: (nodeId: string | number, viewType: string) =>
     [...nodeViewKeys.all, 'default', nodeId, viewType] as const,
   queryResults: () => [...nodeViewKeys.all, 'queryResults'] as const,
-  queryResult: (viewId: number, params?: Record<string, unknown>) =>
+  queryResult: (viewId: string | number, params?: Record<string, unknown>) =>
     [...nodeViewKeys.queryResults(), viewId, params] as const,
-  count: (viewId?: number | null, request?: unknown) =>
+  count: (viewId?: string | number | null, request?: unknown) =>
     [...nodeViewKeys.queryResults(), 'count', viewId ?? 'all', request ?? {}] as const,
-  aggregate: (viewId: number | null | undefined, aggregation: unknown, nodeUuid?: string) =>
+  aggregate: (viewId: string | number | null | undefined, aggregation: unknown, nodeUuid?: string) =>
     ['node-view-aggregate', viewId, aggregation, nodeUuid ?? ''] as const,
 };
 
@@ -145,8 +137,8 @@ export const commentKeys = {
 export const activityKeys = {
   all: ['activity'] as const,
   forNode: (nodeId: string | number) => [...activityKeys.all, 'node', nodeId] as const,
-  linkClicks: (sourceNodeId: number) => [...activityKeys.all, 'link-clicks', sourceNodeId] as const,
-  linkClick: (sourceNodeId: number, targetNodeId: number) => [...activityKeys.all, 'link-click', sourceNodeId, targetNodeId] as const,
+  linkClicks: (sourceNodeId: string | number) => [...activityKeys.all, 'link-clicks', sourceNodeId] as const,
+  linkClick: (sourceNodeId: string | number, targetNodeId: string | number) => [...activityKeys.all, 'link-click', sourceNodeId, targetNodeId] as const,
 };
 
 // ==================== Settings Query Keys ====================
@@ -179,8 +171,8 @@ export const recentKeys = {
 
 export const taskKeys = {
   all: ['tasks'] as const,
-  recurrence: (nodeId: number) => [...taskKeys.all, 'recurrence', nodeId] as const,
-  completions: (nodeId: number, limit?: number, offset?: number) =>
+  recurrence: (nodeId: string | number) => [...taskKeys.all, 'recurrence', nodeId] as const,
+  completions: (nodeId: string | number, limit?: number, offset?: number) =>
     [...taskKeys.all, 'completions', nodeId, { limit: limit ?? 50, offset: offset ?? 0 }] as const,
   view: (activeTab?: string) => ['tasks-view', activeTab] as const,
 };

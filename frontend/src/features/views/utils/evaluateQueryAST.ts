@@ -25,22 +25,22 @@ import type { Node } from '@/types';
 export interface EvalContext {
   /** All visible nodes for looking up related nodes */
   allNodes: ApiGraphNode[];
-  /** Map for O(1) node lookup by ID */
-  nodeById: Map<number, ApiGraphNode>;
+  /** Map for O(1) node lookup by UUID */
+  nodeByUuid: Map<string, ApiGraphNode>;
   /** Links between visible nodes */
   links: GraphLink[];
-  /** Parent relationships: childId -> parentIds */
-  parentMap: Map<number, number[]>;
-  /** Child relationships: parentId -> childIds */
-  childMap: Map<number, number[]>;
-  /** Reference relationships: sourceId -> targetIds */
-  referenceMap: Map<number, number[]>;
-  /** Transitive ancestor closure: nodeId -> Set<ancestorIds> */
-  transitiveParentMap: Map<number, Set<number>>;
-  /** Transitive descendant closure: nodeId -> Set<descendantIds> */
-  transitiveChildMap: Map<number, Set<number>>;
-  /** Class hierarchy: classId -> Set<descendantClassIds> (classes that extend this one) */
-  classDescendants: Map<number, Set<number>>;
+  /** Parent relationships: childUuid -> parentUuids */
+  parentMap: Map<string, string[]>;
+  /** Child relationships: parentUuid -> childUuids */
+  childMap: Map<string, string[]>;
+  /** Reference relationships: sourceUuid -> targetUuids */
+  referenceMap: Map<string, string[]>;
+  /** Transitive ancestor closure: nodeUuid -> Set<ancestorUuids> */
+  transitiveParentMap: Map<string, Set<string>>;
+  /** Transitive descendant closure: nodeUuid -> Set<descendantUuids> */
+  transitiveChildMap: Map<string, Set<string>>;
+  /** Class hierarchy: classUuid -> Set<descendantClassUuids> (classes that extend this one) */
+  classDescendants: Map<string, Set<string>>;
   /** All classes for name lookups */
   classes: Node[];
 }
@@ -73,14 +73,14 @@ export function buildEvalContext(
   links: GraphLink[],
   classes: Node[],
 ): EvalContext {
-  const nodeById = new Map<number, ApiGraphNode>();
+  const nodeByUuid = new Map<string, ApiGraphNode>();
   for (const n of nodes) {
-    nodeById.set(n.id, n);
+    nodeByUuid.set(n.uuid, n);
   }
 
-  const parentMap = new Map<number, number[]>();
-  const childMap = new Map<number, number[]>();
-  const referenceMap = new Map<number, number[]>();
+  const parentMap = new Map<string, string[]>();
+  const childMap = new Map<string, string[]>();
+  const referenceMap = new Map<string, string[]>();
 
   for (const link of links) {
     if (link.type === 'parent') {
@@ -106,7 +106,7 @@ export function buildEvalContext(
 
   return {
     allNodes: nodes,
-    nodeById,
+    nodeByUuid,
     links,
     parentMap,
     childMap,
@@ -205,42 +205,48 @@ function evaluateCondition(condition: ConditionNode, node: ApiGraphNode, ctx: Ev
 
 // ----- Class -----
 
+function resolveClassUuid(raw: string | number | undefined, ctx: EvalContext): string | undefined {
+  if (raw == null) return undefined;
+  if (typeof raw === 'string') return raw;
+  return ctx.classes.find(c => c.id === raw)?.uuid;
+}
+
+function getNodeClassUuids(node: ApiGraphNode, ctx: EvalContext): string[] {
+  if (node.class_uuids) return node.class_uuids;
+  if (node.class_ids) {
+    return node.class_ids
+      .map(id => ctx.classes.find(c => c.id === id)?.uuid)
+      .filter((uuid): uuid is string => !!uuid);
+  }
+  return [];
+}
+
 function evaluateClassCondition(
   cond: Extract<ConditionNode, { condition_type: 'class' }>,
   node: ApiGraphNode,
   ctx: EvalContext,
 ): boolean {
-  const nodeClassIds = node.class_ids ?? [];
-  const targetClassId = cond.class_id;
-  const targetClassUuid = cond.class_uuid;
+  const nodeClassUuids = getNodeClassUuids(node, ctx);
+  const targetUuid = resolveClassUuid(cond.class_uuid ?? cond.class_id, ctx);
 
-  if (!targetClassId && !targetClassUuid) return false;
+  if (!targetUuid) return false;
 
   const op = cond.operator ?? 'contains';
 
-  // Resolve UUID to ID if needed
-  let targetId = targetClassId;
-  if (!targetId && targetClassUuid) {
-    const cls = ctx.classes.find(c => c.uuid === targetClassUuid);
-    targetId = cls?.id;
-  }
-
-  if (!targetId) return false;
-
   // Direct class membership
-  const hasDirectClass = nodeClassIds.includes(targetId);
+  const hasDirectClass = nodeClassUuids.includes(targetUuid);
 
   // Inherited class membership: check if any of the node's classes extend the target
-  const descendants = ctx.classDescendants.get(targetId);
+  const descendants = ctx.classDescendants.get(targetUuid);
   const hasDescendantClass = descendants
-    ? nodeClassIds.some(cid => descendants.has(cid))
+    ? nodeClassUuids.some(cid => descendants.has(cid))
     : false;
 
   const hasClass = hasDirectClass || hasDescendantClass;
 
   switch (op) {
     case 'is':
-      return hasClass && nodeClassIds.length === 1;
+      return hasClass && nodeClassUuids.length === 1;
     case 'is_not':
       return !hasClass;
     case 'contains':
@@ -248,9 +254,9 @@ function evaluateClassCondition(
     case 'does_not_contain':
       return !hasClass;
     case 'defined':
-      return nodeClassIds.length > 0;
+      return nodeClassUuids.length > 0;
     case 'not_defined':
-      return nodeClassIds.length === 0;
+      return nodeClassUuids.length === 0;
     default:
       return hasClass;
   }
@@ -263,21 +269,16 @@ function evaluateExtendsCondition(
   node: ApiGraphNode,
   ctx: EvalContext,
 ): boolean {
-  const nodeClassIds = node.class_ids ?? [];
-  let targetId = cond.extends_class_id;
+  const nodeClassUuids = getNodeClassUuids(node, ctx);
+  const targetUuid = resolveClassUuid(cond.extends_class_uuid ?? cond.extends_class_id, ctx);
 
-  if (!targetId && cond.extends_class_uuid) {
-    const cls = ctx.classes.find(c => c.uuid === cond.extends_class_uuid);
-    targetId = cls?.id;
-  }
-
-  if (!targetId) return false;
+  if (!targetUuid) return false;
 
   // Check if any of the node's classes are descendants of the target class
-  const descendants = ctx.classDescendants.get(targetId);
+  const descendants = ctx.classDescendants.get(targetUuid);
   if (!descendants) return false;
 
-  return nodeClassIds.some(cid => cid === targetId || descendants.has(cid));
+  return nodeClassUuids.some(cid => cid === targetUuid || descendants.has(cid));
 }
 
 // ----- Property -----
@@ -361,44 +362,48 @@ function evaluateParentCondition(
   ctx: EvalContext,
 ): boolean {
   const op = cond.operator ?? 'has_parent';
-  const parentIds = ctx.parentMap.get(node.id) ?? [];
+  const parentUuids = ctx.parentMap.get(node.uuid) ?? [];
 
   switch (op) {
     case 'has_no_parent':
-      return parentIds.length === 0;
+      return parentUuids.length === 0;
     case 'has_any_parent':
-      return parentIds.length > 0;
+      return parentUuids.length > 0;
     case 'not_has_parent': {
       // Static mode: check specific parents
-      if (cond.parent_ids && cond.parent_ids.length > 0) {
-        return !cond.parent_ids.some(pid => parentIds.includes(pid));
-      }
       if (cond.parent_uuids && cond.parent_uuids.length > 0) {
-        const parentUuids = parentIds.map(pid => ctx.nodeById.get(pid)?.uuid).filter(Boolean);
         return !cond.parent_uuids.some(uuid => parentUuids.includes(uuid));
       }
-      return parentIds.length === 0;
+      if (cond.parent_ids && cond.parent_ids.length > 0) {
+        return !cond.parent_ids.some(pid => {
+          const uuid = ctx.nodeByUuid.get(String(pid))?.uuid ?? ctx.classes.find(c => c.id === pid)?.uuid;
+          return uuid && parentUuids.includes(uuid);
+        });
+      }
+      return parentUuids.length === 0;
     }
     case 'has_parent': {
       // Dynamic mode: evaluate nested group against each parent
       if (cond.nested_group) {
-        return parentIds.some(pid => {
-          const parent = ctx.nodeById.get(pid);
+        return parentUuids.some(uuid => {
+          const parent = ctx.nodeByUuid.get(uuid);
           return parent && evaluateGroup(cond.nested_group!, parent, ctx);
         });
       }
       // Static mode
-      if (cond.parent_ids && cond.parent_ids.length > 0) {
-        return cond.parent_ids.some(pid => parentIds.includes(pid));
-      }
       if (cond.parent_uuids && cond.parent_uuids.length > 0) {
-        const parentUuids = parentIds.map(pid => ctx.nodeById.get(pid)?.uuid).filter(Boolean);
         return cond.parent_uuids.some(uuid => parentUuids.includes(uuid));
       }
-      return parentIds.length > 0;
+      if (cond.parent_ids && cond.parent_ids.length > 0) {
+        return cond.parent_ids.some(pid => {
+          const uuid = ctx.nodeByUuid.get(String(pid))?.uuid ?? ctx.classes.find(c => c.id === pid)?.uuid;
+          return uuid && parentUuids.includes(uuid);
+        });
+      }
+      return parentUuids.length > 0;
     }
     default:
-      return parentIds.length > 0;
+      return parentUuids.length > 0;
   }
 }
 
@@ -410,7 +415,7 @@ function evaluateParentPathCondition(
   ctx: EvalContext,
 ): boolean {
   const op = cond.operator ?? 'has_ancestor';
-  const ancestors = ctx.transitiveParentMap.get(node.id) ?? new Set<number>();
+  const ancestors = ctx.transitiveParentMap.get(node.uuid) ?? new Set<string>();
 
   switch (op) {
     case 'has_no_ancestor':
@@ -418,32 +423,32 @@ function evaluateParentPathCondition(
     case 'has_any_ancestor':
       return ancestors.size > 0;
     case 'not_has_ancestor': {
-      if (cond.ancestor_ids && cond.ancestor_ids.length > 0) {
-        return !cond.ancestor_ids.some(aid => ancestors.has(aid));
-      }
       if (cond.ancestor_uuids && cond.ancestor_uuids.length > 0) {
-        const ancestorUuids = Array.from(ancestors)
-          .map(aid => ctx.nodeById.get(aid)?.uuid)
-          .filter(Boolean);
-        return !cond.ancestor_uuids.some(uuid => ancestorUuids.includes(uuid));
+        return !cond.ancestor_uuids.some(uuid => ancestors.has(uuid));
+      }
+      if (cond.ancestor_ids && cond.ancestor_ids.length > 0) {
+        return !cond.ancestor_ids.some(aid => {
+          const uuid = ctx.nodeByUuid.get(String(aid))?.uuid ?? ctx.classes.find(c => c.id === aid)?.uuid;
+          return uuid && ancestors.has(uuid);
+        });
       }
       return ancestors.size === 0;
     }
     case 'has_ancestor': {
       if (cond.nested_group) {
-        return Array.from(ancestors).some(aid => {
-          const ancestor = ctx.nodeById.get(aid);
+        return Array.from(ancestors).some(uuid => {
+          const ancestor = ctx.nodeByUuid.get(uuid);
           return ancestor && evaluateGroup(cond.nested_group!, ancestor, ctx);
         });
       }
-      if (cond.ancestor_ids && cond.ancestor_ids.length > 0) {
-        return cond.ancestor_ids.some(aid => ancestors.has(aid));
-      }
       if (cond.ancestor_uuids && cond.ancestor_uuids.length > 0) {
-        const ancestorUuids = Array.from(ancestors)
-          .map(aid => ctx.nodeById.get(aid)?.uuid)
-          .filter(Boolean);
-        return cond.ancestor_uuids.some(uuid => ancestorUuids.includes(uuid));
+        return cond.ancestor_uuids.some(uuid => ancestors.has(uuid));
+      }
+      if (cond.ancestor_ids && cond.ancestor_ids.length > 0) {
+        return cond.ancestor_ids.some(aid => {
+          const uuid = ctx.nodeByUuid.get(String(aid))?.uuid ?? ctx.classes.find(c => c.id === aid)?.uuid;
+          return uuid && ancestors.has(uuid);
+        });
       }
       return ancestors.size > 0;
     }
@@ -460,41 +465,45 @@ function evaluateChildCondition(
   ctx: EvalContext,
 ): boolean {
   const op = cond.operator ?? 'has_child';
-  const childIds = ctx.childMap.get(node.id) ?? [];
+  const childUuids = ctx.childMap.get(node.uuid) ?? [];
 
   switch (op) {
     case 'has_no_child':
-      return childIds.length === 0;
+      return childUuids.length === 0;
     case 'has_any_child':
-      return childIds.length > 0;
+      return childUuids.length > 0;
     case 'not_has_child': {
-      if (cond.child_ids && cond.child_ids.length > 0) {
-        return !cond.child_ids.some(cid => childIds.includes(cid));
-      }
       if (cond.child_uuids && cond.child_uuids.length > 0) {
-        const childUuids = childIds.map(cid => ctx.nodeById.get(cid)?.uuid).filter(Boolean);
         return !cond.child_uuids.some(uuid => childUuids.includes(uuid));
       }
-      return childIds.length === 0;
+      if (cond.child_ids && cond.child_ids.length > 0) {
+        return !cond.child_ids.some(cid => {
+          const uuid = ctx.nodeByUuid.get(String(cid))?.uuid ?? ctx.classes.find(c => c.id === cid)?.uuid;
+          return uuid && childUuids.includes(uuid);
+        });
+      }
+      return childUuids.length === 0;
     }
     case 'has_child': {
       if (cond.nested_group) {
-        return childIds.some(cid => {
-          const child = ctx.nodeById.get(cid);
+        return childUuids.some(uuid => {
+          const child = ctx.nodeByUuid.get(uuid);
           return child && evaluateGroup(cond.nested_group!, child, ctx);
         });
       }
-      if (cond.child_ids && cond.child_ids.length > 0) {
-        return cond.child_ids.some(cid => childIds.includes(cid));
-      }
       if (cond.child_uuids && cond.child_uuids.length > 0) {
-        const childUuids = childIds.map(cid => ctx.nodeById.get(cid)?.uuid).filter(Boolean);
         return cond.child_uuids.some(uuid => childUuids.includes(uuid));
       }
-      return childIds.length > 0;
+      if (cond.child_ids && cond.child_ids.length > 0) {
+        return cond.child_ids.some(cid => {
+          const uuid = ctx.nodeByUuid.get(String(cid))?.uuid ?? ctx.classes.find(c => c.id === cid)?.uuid;
+          return uuid && childUuids.includes(uuid);
+        });
+      }
+      return childUuids.length > 0;
     }
     default:
-      return childIds.length > 0;
+      return childUuids.length > 0;
   }
 }
 
@@ -506,7 +515,7 @@ function evaluateChildPathCondition(
   ctx: EvalContext,
 ): boolean {
   const op = cond.operator ?? 'has_descendant';
-  const descendants = ctx.transitiveChildMap.get(node.id) ?? new Set<number>();
+  const descendants = ctx.transitiveChildMap.get(node.uuid) ?? new Set<string>();
 
   switch (op) {
     case 'has_no_descendant':
@@ -514,32 +523,32 @@ function evaluateChildPathCondition(
     case 'has_any_descendant':
       return descendants.size > 0;
     case 'not_has_descendant': {
-      if (cond.descendant_ids && cond.descendant_ids.length > 0) {
-        return !cond.descendant_ids.some(did => descendants.has(did));
-      }
       if (cond.descendant_uuids && cond.descendant_uuids.length > 0) {
-        const descendantUuids = Array.from(descendants)
-          .map(did => ctx.nodeById.get(did)?.uuid)
-          .filter(Boolean);
-        return !cond.descendant_uuids.some(uuid => descendantUuids.includes(uuid));
+        return !cond.descendant_uuids.some(uuid => descendants.has(uuid));
+      }
+      if (cond.descendant_ids && cond.descendant_ids.length > 0) {
+        return !cond.descendant_ids.some(did => {
+          const uuid = ctx.nodeByUuid.get(String(did))?.uuid ?? ctx.classes.find(c => c.id === did)?.uuid;
+          return uuid && descendants.has(uuid);
+        });
       }
       return descendants.size === 0;
     }
     case 'has_descendant': {
       if (cond.nested_group) {
-        return Array.from(descendants).some(did => {
-          const descendant = ctx.nodeById.get(did);
+        return Array.from(descendants).some(uuid => {
+          const descendant = ctx.nodeByUuid.get(uuid);
           return descendant && evaluateGroup(cond.nested_group!, descendant, ctx);
         });
       }
-      if (cond.descendant_ids && cond.descendant_ids.length > 0) {
-        return cond.descendant_ids.some(did => descendants.has(did));
-      }
       if (cond.descendant_uuids && cond.descendant_uuids.length > 0) {
-        const descendantUuids = Array.from(descendants)
-          .map(did => ctx.nodeById.get(did)?.uuid)
-          .filter(Boolean);
-        return cond.descendant_uuids.some(uuid => descendantUuids.includes(uuid));
+        return cond.descendant_uuids.some(uuid => descendants.has(uuid));
+      }
+      if (cond.descendant_ids && cond.descendant_ids.length > 0) {
+        return cond.descendant_ids.some(did => {
+          const uuid = ctx.nodeByUuid.get(String(did))?.uuid ?? ctx.classes.find(c => c.id === did)?.uuid;
+          return uuid && descendants.has(uuid);
+        });
       }
       return descendants.size > 0;
     }
@@ -556,7 +565,7 @@ function evaluateReferenceCondition(
   ctx: EvalContext,
 ): boolean {
   const op = cond.operator ?? 'references';
-  const refs = ctx.referenceMap.get(node.id) ?? [];
+  const refs = ctx.referenceMap.get(node.uuid) ?? [];
 
   switch (op) {
     case 'has_no_references':
@@ -564,36 +573,34 @@ function evaluateReferenceCondition(
     case 'has_references':
       return refs.length > 0;
     case 'does_not_reference': {
-      if (cond.target_id) {
-        return !refs.includes(cond.target_id);
-      }
       if (cond.target_uuid) {
-        const refUuids = refs.map(rid => ctx.nodeById.get(rid)?.uuid).filter(Boolean);
-        return !refUuids.includes(cond.target_uuid);
+        return !refs.includes(cond.target_uuid);
       }
       if (cond.target_uuids && cond.target_uuids.length > 0) {
-        const refUuids = refs.map(rid => ctx.nodeById.get(rid)?.uuid).filter(Boolean);
-        return !cond.target_uuids.some(uuid => refUuids.includes(uuid));
+        return !cond.target_uuids.some(uuid => refs.includes(uuid));
+      }
+      if (cond.target_id) {
+        const targetUuid = ctx.nodeByUuid.get(String(cond.target_id))?.uuid ?? ctx.classes.find(c => c.id === cond.target_id)?.uuid;
+        return targetUuid ? !refs.includes(targetUuid) : refs.length === 0;
       }
       return refs.length === 0;
     }
     case 'references': {
       if (cond.nested_group) {
-        return refs.some(rid => {
-          const target = ctx.nodeById.get(rid);
+        return refs.some(uuid => {
+          const target = ctx.nodeByUuid.get(uuid);
           return target && evaluateGroup(cond.nested_group!, target, ctx);
         });
       }
-      if (cond.target_id) {
-        return refs.includes(cond.target_id);
-      }
       if (cond.target_uuid) {
-        const refUuids = refs.map(rid => ctx.nodeById.get(rid)?.uuid).filter(Boolean);
-        return refUuids.includes(cond.target_uuid);
+        return refs.includes(cond.target_uuid);
       }
       if (cond.target_uuids && cond.target_uuids.length > 0) {
-        const refUuids = refs.map(rid => ctx.nodeById.get(rid)?.uuid).filter(Boolean);
-        return cond.target_uuids.some(uuid => refUuids.includes(uuid));
+        return cond.target_uuids.some(uuid => refs.includes(uuid));
+      }
+      if (cond.target_id) {
+        const targetUuid = ctx.nodeByUuid.get(String(cond.target_id))?.uuid ?? ctx.classes.find(c => c.id === cond.target_id)?.uuid;
+        return targetUuid ? refs.includes(targetUuid) : false;
       }
       return refs.length > 0;
     }
@@ -611,22 +618,24 @@ function evaluateReferencePathCondition(
 ): boolean {
   // reference_path requires transitive reference closure which we don't pre-compute
   // For now, evaluate against direct references only as an approximation
-  const refs = ctx.referenceMap.get(node.id) ?? [];
+  const refs = ctx.referenceMap.get(node.uuid) ?? [];
 
   if (cond.nested_group) {
-    return refs.some(rid => {
-      const target = ctx.nodeById.get(rid);
+    return refs.some(uuid => {
+      const target = ctx.nodeByUuid.get(uuid);
       return target && evaluateGroup(cond.nested_group!, target, ctx);
     });
   }
 
-  if (cond.target_ids && cond.target_ids.length > 0) {
-    return cond.target_ids.some((tid: number) => refs.includes(tid));
+  if (cond.target_uuids && cond.target_uuids.length > 0) {
+    return cond.target_uuids.some(uuid => refs.includes(uuid));
   }
 
-  if (cond.target_uuids && cond.target_uuids.length > 0) {
-    const refUuids = refs.map(rid => ctx.nodeById.get(rid)?.uuid).filter(Boolean);
-    return cond.target_uuids.some(uuid => refUuids.includes(uuid));
+  if (cond.target_ids && cond.target_ids.length > 0) {
+    return cond.target_ids.some((tid: number) => {
+      const uuid = ctx.nodeByUuid.get(String(tid))?.uuid ?? ctx.classes.find(c => c.id === tid)?.uuid;
+      return uuid && refs.includes(uuid);
+    });
   }
 
   return refs.length > 0;
@@ -694,12 +703,12 @@ function evaluateOperator(
 
 // ==================== Helper: Transitive Closure ====================
 
-function buildTransitiveClosure(directMap: Map<number, number[]>): Map<number, Set<number>> {
-  const closure = new Map<number, Set<number>>();
+function buildTransitiveClosure(directMap: Map<string, string[]>): Map<string, Set<string>> {
+  const closure = new Map<string, Set<string>>();
 
-  for (const [nodeId] of directMap) {
-    const visited = new Set<number>();
-    const queue = [...(directMap.get(nodeId) ?? [])];
+  for (const [nodeUuid] of directMap) {
+    const visited = new Set<string>();
+    const queue = [...(directMap.get(nodeUuid) ?? [])];
 
     while (queue.length > 0) {
       const current = queue.shift()!;
@@ -711,7 +720,7 @@ function buildTransitiveClosure(directMap: Map<number, number[]>): Map<number, S
       }
     }
 
-    closure.set(nodeId, visited);
+    closure.set(nodeUuid, visited);
   }
 
   return closure;
@@ -719,35 +728,36 @@ function buildTransitiveClosure(directMap: Map<number, number[]>): Map<number, S
 
 // ==================== Helper: Class Descendants ====================
 
-function buildClassDescendants(classes: Node[], links: GraphLink[]): Map<number, Set<number>> {
-  const descendants = new Map<number, Set<number>>();
+function buildClassDescendants(classes: Node[], links: GraphLink[]): Map<string, Set<string>> {
+  const descendants = new Map<string, Set<string>>();
 
-  // Collect all class IDs involved in the hierarchy
-  const allClassIds = new Set<number>();
+  // Collect all class UUIDs involved in the hierarchy
+  const allClassUuids = new Set<string>();
   for (const cls of classes) {
-    allClassIds.add(cls.id);
+    if (cls.uuid) allClassUuids.add(cls.uuid);
   }
   for (const link of links) {
     if (link.type === 'extends') {
-      allClassIds.add(link.source);
-      allClassIds.add(link.target);
+      allClassUuids.add(link.source);
+      allClassUuids.add(link.target);
     }
   }
 
   // Initialize empty sets
-  for (const id of allClassIds) {
-    descendants.set(id, new Set());
+  for (const uuid of allClassUuids) {
+    descendants.set(uuid, new Set());
   }
 
   // Build direct parent -> child relationships
-  const children = new Map<number, number[]>();
+  const children = new Map<string, string[]>();
 
   // From class nodes' own classes (if available)
   for (const cls of classes) {
-    for (const parentId of cls.classes ?? []) {
-      const siblings = children.get(parentId) ?? [];
-      siblings.push(cls.id);
-      children.set(parentId, siblings);
+    const classUuids = cls.classes_uuid ?? cls.classes?.map(id => classes.find(c => c.id === id)?.uuid).filter((uuid): uuid is string => !!uuid) ?? [];
+    for (const parentUuid of classUuids) {
+      const siblings = children.get(parentUuid) ?? [];
+      siblings.push(cls.uuid);
+      children.set(parentUuid, siblings);
     }
   }
 
@@ -763,9 +773,9 @@ function buildClassDescendants(classes: Node[], links: GraphLink[]): Map<number,
   }
 
   // Compute transitive closure for each class
-  for (const [classId] of descendants) {
-    const visited = new Set<number>();
-    const queue = [...(children.get(classId) ?? [])];
+  for (const [classUuid] of descendants) {
+    const visited = new Set<string>();
+    const queue = [...(children.get(classUuid) ?? [])];
 
     while (queue.length > 0) {
       const current = queue.shift()!;
@@ -777,7 +787,7 @@ function buildClassDescendants(classes: Node[], links: GraphLink[]): Map<number,
       }
     }
 
-    descendants.set(classId, visited);
+    descendants.set(classUuid, visited);
   }
 
   return descendants;

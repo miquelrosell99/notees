@@ -56,15 +56,15 @@ export async function deleteExistingBlocks(pageId: number, queryClient: QueryCli
   const pageUuid = Object.values(batchResult.nodes)[0]?.uuid;
   if (!pageUuid) return 0;
   const fullPage = await getNode(pageUuid, { include_children: true });
-  const { uuids: childUuids, ids: childIds } = collectChildInfo(fullPage);
+  const { uuids: childUuids } = collectChildInfo(fullPage);
 
   if (childUuids.length === 0) return 0;
 
   const result = await batchDeleteNodes({ uuids: childUuids });
 
-  if (childIds.length > 0) {
+  if (childUuids.length > 0) {
     try {
-      await batchPermanentlyDeleteNodes({ ids: childIds });
+      await batchPermanentlyDeleteNodes({ uuids: childUuids });
     } catch (e) {
       console.warn('[IMPORT] Hard-delete of old blocks failed (non-critical):', e);
     }
