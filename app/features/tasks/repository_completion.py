@@ -95,6 +95,21 @@ class PostgresTaskCompletionRepository(BasePostgresRepository, TaskCompletionRep
             )
             return row["count"] if row else 0
 
+    async def get_by_uuid(self, completion_uuid: str) -> TaskCompletion | None:
+        """Get a completion record by its public UUID."""
+        async with acquire_connection(self._pool) as conn:
+            row = await conn.fetchrow(
+                """
+                SELECT * FROM task_completion
+                WHERE uuid = $1 AND workspace_id = $2
+                """,
+                completion_uuid,
+                self._workspace_id,
+            )
+            if not row:
+                return None
+            return self._row_to_entity(row)
+
     async def delete(self, completion_id: int) -> bool:
         """Delete a completion record. Returns True if deleted."""
         async with acquire_connection(self._pool) as conn:

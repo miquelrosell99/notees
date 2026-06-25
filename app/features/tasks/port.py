@@ -48,6 +48,11 @@ class TaskCompletionRepository(ABC):
         pass
 
     @abstractmethod
+    async def get_by_uuid(self, completion_uuid: str) -> TaskCompletion | None:
+        """Get a completion record by its public UUID."""
+        pass
+
+    @abstractmethod
     async def delete(self, completion_id: int) -> bool:
         """Delete a completion record. Returns True if deleted."""
         pass
