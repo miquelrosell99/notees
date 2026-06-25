@@ -14,7 +14,7 @@ from app.dependencies import (
 )
 from app.features.nodes.port import NodeRepository
 from app.features.nodes.router.dependencies import (
-    resolve_class_uuid,
+    resolve_class_node_uuid,
     resolve_class_uuids,
     resolve_property_uuid,
     resolve_property_uuids,
@@ -142,7 +142,7 @@ async def _class_property_to_response(
 @router.get("/classes/{class_node_uuid}/properties")
 async def get_class_properties(
     class_node_uuid: str,
-    class_node_id: int = Depends(resolve_class_uuid),
+    class_node_id: int = Depends(resolve_class_node_uuid),
     include_inherited: bool = False,
     service: PropertyService = Depends(get_property_service),
     node_repo: NodeRepository = Depends(get_node_repository),
@@ -167,7 +167,7 @@ async def get_class_properties(
 async def add_class_property(
     class_node_uuid: str,
     request: ClassPropertyRequest,
-    class_node_id: int = Depends(resolve_class_uuid),
+    class_node_id: int = Depends(resolve_class_node_uuid),
     service: PropertyService = Depends(get_property_service),
     node_repo: NodeRepository = Depends(get_node_repository),
     user: User = Depends(get_current_user),
@@ -204,7 +204,7 @@ async def add_class_property(
 async def remove_class_property(
     class_node_uuid: str,
     property_uuid: str,
-    class_node_id: int = Depends(resolve_class_uuid),
+    class_node_id: int = Depends(resolve_class_node_uuid),
     property_id: int = Depends(resolve_property_uuid),
     service: PropertyService = Depends(get_property_service),
     user: User = Depends(get_current_user),
@@ -221,7 +221,7 @@ async def update_class_property(
     class_node_uuid: str,
     property_uuid: str,
     request: ClassPropertyUpdateRequest,
-    class_node_id: int = Depends(resolve_class_uuid),
+    class_node_id: int = Depends(resolve_class_node_uuid),
     property_id: int = Depends(resolve_property_uuid),
     service: PropertyService = Depends(get_property_service),
     node_repo: NodeRepository = Depends(get_node_repository),
@@ -249,7 +249,7 @@ class ReorderClassPropertiesRequest(BaseModel):
 @router.put("/classes/{class_node_uuid}/properties/reorder")
 async def reorder_class_properties(
     class_node_uuid: str,
-    class_node_id: int = Depends(resolve_class_uuid),
+    class_node_id: int = Depends(resolve_class_node_uuid),
     request: ReorderClassPropertiesRequest = ...,
     service: PropertyService = Depends(get_property_service),
     user: User = Depends(get_current_user),
@@ -270,7 +270,7 @@ async def reorder_class_properties(
 @router.get("/classes/{class_node_uuid}/extends")
 async def get_class_extends(
     class_node_uuid: str = Path(...),
-    class_node_id: int = Depends(resolve_class_uuid),
+    class_node_id: int = Depends(resolve_class_node_uuid),
     node_repo: NodeRepository = Depends(get_node_repository),
     user: User = Depends(get_current_user),
 ):
@@ -311,7 +311,7 @@ async def get_class_extends(
 @router.post("/classes/{class_node_uuid}/extends")
 async def add_class_extends(
     class_node_uuid: str,
-    class_node_id: int = Depends(resolve_class_uuid),
+    class_node_id: int = Depends(resolve_class_node_uuid),
     request: ClassExtendsRequest = ...,
     node_repo: NodeRepository = Depends(get_node_repository),
     user: User = Depends(get_current_user),
@@ -359,7 +359,7 @@ async def add_class_extends(
 async def remove_class_extends(
     class_node_uuid: str = Path(...),
     extends_class_node_uuid: str = Path(...),
-    class_node_id: int = Depends(resolve_class_uuid),
+    class_node_id: int = Depends(resolve_class_node_uuid),
     node_repo: NodeRepository = Depends(get_node_repository),
     user: User = Depends(get_current_user),
 ):
@@ -386,7 +386,7 @@ async def remove_class_extends(
 @router.get("/classes/{class_node_uuid}/inherited-properties")
 async def get_inherited_properties_endpoint(
     class_node_uuid: str = Path(...),
-    class_node_id: int = Depends(resolve_class_uuid),
+    class_node_id: int = Depends(resolve_class_node_uuid),
     user: User = Depends(get_current_user),
 ):
     """Get all properties inherited from extended classes.
@@ -423,7 +423,7 @@ async def get_inherited_properties_endpoint(
 @router.get("/classes/{class_node_uuid}/extended-by")
 async def get_extended_by_classes_endpoint(
     class_node_uuid: str = Path(...),
-    class_node_id: int = Depends(resolve_class_uuid),
+    class_node_id: int = Depends(resolve_class_node_uuid),
     user: User = Depends(get_current_user),
 ):
     """Get all classes that extend this class (reverse lookup).
@@ -443,7 +443,7 @@ async def get_extended_by_classes_endpoint(
 @router.post("/classes/{class_node_uuid}/validate-extends")
 async def validate_class_extends_endpoint(
     extends_uuids: list[str],
-    class_node_id: int = Depends(resolve_class_uuid),
+    class_node_id: int = Depends(resolve_class_node_uuid),
     node_repo: NodeRepository = Depends(get_node_repository),
     user: User = Depends(get_current_user),
 ):

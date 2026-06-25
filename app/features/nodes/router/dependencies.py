@@ -28,8 +28,23 @@ async def resolve_class_uuid(
     class_uuid: str = Path(..., description="Public class node UUID"),
     repo: NodeRepository = Depends(get_node_repository),
 ) -> int:
-    """Resolve a class node UUID to its internal numeric ID."""
+    """Resolve a class node UUID to its internal numeric ID.
+
+    Prefer ``resolve_class_node_uuid`` for routes that name the path parameter
+    ``class_node_uuid``.
+    """
     node = await repo.get_by_uuid(class_uuid)
+    if node is None or node.id is None:
+        raise HTTPException(status_code=404, detail="Class not found")
+    return node.id
+
+
+async def resolve_class_node_uuid(
+    class_node_uuid: str = Path(..., description="Public class node UUID"),
+    repo: NodeRepository = Depends(get_node_repository),
+) -> int:
+    """Resolve a class node UUID (named explicitly) to its internal numeric ID."""
+    node = await repo.get_by_uuid(class_node_uuid)
     if node is None or node.id is None:
         raise HTTPException(status_code=404, detail="Class not found")
     return node.id
