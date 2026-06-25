@@ -3,6 +3,7 @@
  */
 import api from '@/api/client';
 import { nodeQueryWorkerClient } from '@/lib/nodeQueryWorkerClient';
+import { resolveNodeUuid, resolvePropertyUuid } from '@/utils/resolveNodeUuid';
 import type {
   Node,
   NodeCreate,
@@ -16,8 +17,10 @@ import type {
   Mention,
   MentionsResponse,
   BatchNodeCreateRequest,
+  BatchNodeCreateItem,
   BatchNodeCreateResponse,
   BatchNodeUpdateRequest,
+  BatchNodeUpdateItem,
   BatchNodeUpdateResponse,
   BatchNodeDeleteRequest,
   BatchNodeDeleteResponse,
@@ -40,6 +43,100 @@ export interface NodeVersion {
 }
 
 const BASE = '/nodes';
+
+function resolvePropertyUuids(
+  properties: Record<number, unknown>
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(properties)) {
+    const propertyUuid = resolvePropertyUuid(Number(key));
+    if (!propertyUuid) {
+      throw new Error(`Unable to resolve UUID for property id ${key}`);
+    }
+    result[propertyUuid] = value;
+  }
+  return result;
+}
+
+function toUuidBatchCreateItem(
+  item: BatchNodeCreateItem
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {};
+  if (item.name !== undefined) payload.name = item.name;
+  if (item.icon !== undefined) payload.icon = item.icon;
+  if (item.color !== undefined) payload.color = item.color;
+  if (item.sequence !== undefined) payload.sequence = item.sequence;
+  if (item.uuid !== undefined) payload.uuid = item.uuid;
+
+  if (item.parent_uuid !== undefined) {
+    payload.parent_uuid = item.parent_uuid;
+  } else if (item.parent_id != null) {
+    payload.parent_uuid = resolveNodeUuid(item.parent_id);
+  }
+
+  if (item.tag_uuids !== undefined) {
+    payload.tag_uuids = item.tag_uuids;
+  } else if (item.tags !== undefined) {
+    payload.tag_uuids = item.tags.map(resolveNodeUuid);
+  }
+
+  if (item.class_uuids !== undefined) {
+    payload.class_uuids = item.class_uuids;
+  } else if (item.classes !== undefined) {
+    payload.class_uuids = item.classes.map(resolveNodeUuid);
+  }
+
+  if (item.property_uuids !== undefined) {
+    payload.property_uuids = item.property_uuids;
+  } else if (item.properties !== undefined) {
+    payload.property_uuids = resolvePropertyUuids(item.properties);
+  }
+
+  return payload;
+}
+
+function toUuidBatchUpdateItem(
+  item: BatchNodeUpdateItem
+): Record<string, unknown> {
+  const payload: Record<string, unknown> = {};
+  if (item.uuid !== undefined) {
+    payload.uuid = item.uuid;
+  } else if (item.id != null) {
+    payload.uuid = resolveNodeUuid(item.id);
+  }
+
+  if (item.name !== undefined) payload.name = item.name;
+  if (item.icon !== undefined) payload.icon = item.icon;
+  if (item.color !== undefined) payload.color = item.color;
+  if (item.sequence !== undefined) payload.sequence = item.sequence;
+  if (item.collapsed !== undefined) payload.collapsed = item.collapsed;
+
+  if (item.parent_uuid !== undefined) {
+    payload.parent_uuid = item.parent_uuid;
+  } else if (item.parent_id != null) {
+    payload.parent_uuid = resolveNodeUuid(item.parent_id);
+  }
+
+  if (item.tag_uuids !== undefined) {
+    payload.tag_uuids = item.tag_uuids;
+  } else if (item.tags !== undefined) {
+    payload.tag_uuids = item.tags.map(resolveNodeUuid);
+  }
+
+  if (item.class_uuids !== undefined) {
+    payload.class_uuids = item.class_uuids;
+  } else if (item.classes !== undefined) {
+    payload.class_uuids = item.classes.map(resolveNodeUuid);
+  }
+
+  if (item.property_uuids !== undefined) {
+    payload.property_uuids = item.property_uuids;
+  } else if (item.properties !== undefined) {
+    payload.property_uuids = resolvePropertyUuids(item.properties);
+  }
+
+  return payload;
+}
 
 /**
  * List nodes with optional filters
@@ -232,9 +329,16 @@ export async function batchCreateNodes(
   request: BatchNodeCreateRequest,
   options?: { headers?: Record<string, string> },
 ): Promise<BatchNodeCreateResponse> {
-  const response = await api.post<BatchNodeCreateResponse>(`${BASE}/batch`, request, {
-    headers: options?.headers,
-  });
+  const response = await api.post<BatchNodeCreateResponse>(
+    `${BASE}/batch`,
+    {
+      nodes: request.nodes.map(toUuidBatchCreateItem),
+      uuid_conflict_mode: request.uuid_conflict_mode,
+    },
+    {
+      headers: options?.headers,
+    }
+  );
   return response.data;
 }
 
@@ -244,7 +348,9 @@ export async function batchCreateNodes(
  * Useful for Logseq / bulk imports where many blocks need content updates.
  */
 export async function batchUpdateNodes(request: BatchNodeUpdateRequest): Promise<BatchNodeUpdateResponse> {
-  const response = await api.put<BatchNodeUpdateResponse>(`${BASE}/batch`, request);
+  const response = await api.put<BatchNodeUpdateResponse>(`${BASE}/batch`, {
+    nodes: request.nodes.map(toUuidBatchUpdateItem),
+  });
   return response.data;
 }
 
@@ -514,12 +620,13 @@ export async function listTasks(
  * Graph node for visualization
  */
 export interface GraphNode {
-  id: number;
+  id: number; // deprecated
   uuid: string;
   name: string;
   type?: 'page' | 'block';
   tags?: string[];
-  class_ids?: number[];
+  class_ids?: number[]; // deprecated: use class_uuids
+  class_uuids?: string[];
   properties?: Record<string, unknown>;
   is_daily?: boolean;
   is_class?: boolean;
@@ -530,15 +637,18 @@ export interface GraphNode {
   backlink_count?: number;
   internal_link_count?: number;
   block_count?: number;
-  aliased_id?: number | null;
+  aliased_id?: number | null; // deprecated: use aliased_uuid
+  aliased_uuid?: string | null;
 }
 
 /**
  * Graph link for visualization
  */
 export interface GraphLink {
-  source: number;
-  target: number;
+  source: string;
+  source_id?: number; // deprecated: use source
+  target: string;
+  target_id?: number; // deprecated: use target
   type: 'parent' | 'reference' | 'class' | 'extends' | 'property-reference' | 'cooccurrence';
   weight?: number;
 }
@@ -638,7 +748,8 @@ export async function updateDateFormat(newFormat: string): Promise<UpdateDateFor
  */
 export interface PropertyBacklink {
   source_page: Node;
-  property_id: number;
+  property_id: number; // deprecated: use property_uuid
+  property_uuid: string;
   property_name: string;
 }
 
@@ -705,10 +816,12 @@ export async function getCommentCount(nodeUuid: string): Promise<number> {
  * Text link info
  */
 export interface TextLink {
-  id: number;
+  id: number; // deprecated
   uuid: string;
-  source_node_id: number;
-  target_node_id: number;
+  source_node_id: number; // deprecated: use source_node_uuid
+  source_node_uuid: string;
+  target_node_id: number; // deprecated: use target_node_uuid
+  target_node_uuid: string;
   position: number;
   name?: string | null;
 }
@@ -792,13 +905,15 @@ export async function markPageOpened(nodeUuid: string): Promise<{ status: string
  * Recent page info
  */
 export interface RecentPage {
-  id: number;
+  id: number; // deprecated
   uuid: string;
   name: string;
   icon: string | null;
   color: string | null;
-  parent_id: number | null;
-  page_id: number | null;
+  parent_id: number | null; // deprecated: use parent_uuid
+  parent_uuid: string | null;
+  page_id: number | null; // deprecated: use page_uuid
+  page_uuid: string | null;
   is_page: boolean;
   is_class: boolean;
   is_daily: boolean;
@@ -807,9 +922,12 @@ export interface RecentPage {
   create_date: string;
   write_date: string;
   open_date: string;
-  classes?: number[];
-  aliased_id?: number | null;
-  aliases?: number[];
+  classes?: number[]; // deprecated: use class_uuids
+  class_uuids?: string[];
+  aliased_id?: number | null; // deprecated: use aliased_uuid
+  aliased_uuid?: string | null;
+  aliases?: number[]; // deprecated: use aliases_uuid
+  aliases_uuid?: string[];
 }
 
 /**
@@ -975,8 +1093,12 @@ export async function clearScratchpad(): Promise<{ status: string; deleted_count
  * Permanently delete multiple nodes from trash by ID.
  * Each node is processed independently — failures don't block others.
  */
-export async function batchPermanentlyDeleteNodes(request: BatchPermanentDeleteRequest): Promise<BatchPermanentDeleteResponse> {
-  const response = await api.post<BatchPermanentDeleteResponse>(`${BASE}/trash/batch-delete`, request);
+export async function batchPermanentlyDeleteNodes(
+  request: BatchPermanentDeleteRequest
+): Promise<BatchPermanentDeleteResponse> {
+  const response = await api.post<BatchPermanentDeleteResponse>(`${BASE}/trash/batch-delete`, {
+    uuids: request.uuids,
+  });
   return response.data;
 }
 

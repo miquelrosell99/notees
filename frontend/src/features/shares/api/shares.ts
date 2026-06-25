@@ -6,12 +6,12 @@ import type { PaginatedResponse } from '@/types/api';
 
 export interface Share {
   share_uuid: string;
-  node_id: number;
+  node_id: number; // deprecated: use node_uuid
+  node_uuid: string;
   created_at: string;
   expiry_date: string | null;
   url: string;
   node_name?: string | null;
-  node_uuid?: string | null;
 }
 
 export interface SharesResponse {
@@ -20,7 +20,7 @@ export interface SharesResponse {
 
 export interface PublicSharedNode {
   node: {
-    id: number;
+    id: number; // deprecated
     uuid: string;
     name: string;
     display_name: string;
@@ -32,16 +32,18 @@ export interface PublicSharedNode {
     is_month: boolean;
     is_year: boolean;
     is_template: boolean;
-    parent_id: number | null;
+    parent_id: number | null; // deprecated: use parent_uuid
+    parent_uuid: string | null;
     sequence: number;
-    class_ids: number[];
+    class_ids: number[]; // deprecated: use class_uuids
+    class_uuids: string[];
     create_date: string;
     write_date: string;
     properties: Record<string, unknown>;
   };
   children: (Omit<PublicSharedNode['node'], 'properties'> & { depth: number })[];
   property_definitions: Array<{
-    id: number;
+    id: number; // deprecated
     uuid: string;
     name: string;
     icon: string | null;
@@ -49,14 +51,17 @@ export interface PublicSharedNode {
     multi: boolean;
     is_system: boolean;
     scope: string;
-    node_id: number | null;
+    node_id: number | null; // deprecated: use node_uuid
+    node_uuid: string | null;
     icon_visibility: string;
     validation_rules: Record<string, unknown> | null;
     create_date: string;
     write_date: string;
-    class_filters: number[];
+    class_filters: number[]; // deprecated: use class_filter_uuids
+    class_filter_uuids: string[];
     options: Array<{
-      id: number;
+      id: number; // deprecated
+      uuid: string;
       name: string;
       icon: string | null;
       color: string | null;
@@ -66,13 +71,13 @@ export interface PublicSharedNode {
 }
 
 export interface UserShare {
-  share_id: number;
-  node_id: number;
-  shared_with_user_id: number;
+  share_uuid: string;
+  node_uuid: string;
+  shared_with_user_uuid: string;
   shared_with_email: string;
   permission: 'read' | 'write' | 'comment';
   created_at: string;
-  created_by: number;
+  created_by_uuid: string;
 }
 
 export interface UserSharesResponse {
@@ -80,8 +85,7 @@ export interface UserSharesResponse {
 }
 
 export interface ShareInboxItem {
-  share_id: number;
-  node_id: number;
+  share_uuid: string;
   node_uuid: string;
   node_name: string;
   node_icon: string | null;
@@ -89,13 +93,12 @@ export interface ShareInboxItem {
   permission: 'read' | 'write';
   shared_at: string;
   shared_by: {
-    user_id: number;
+    user_uuid: string;
     email: string;
   };
   workspace: {
-    id: number;
-    name: string;
     uuid: string;
+    name: string;
   };
 }
 
@@ -104,9 +107,8 @@ export interface ShareInboxResponse {
 }
 
 export interface WorkspaceMember {
-  user_id: number | null;
-  email: string;
   user_uuid: string | null;
+  email: string;
   role: string;
   joined_at: string | null;
   status?: string | null;
@@ -163,7 +165,10 @@ export async function deleteShare(shareUuid: string): Promise<{ success: boolean
 /**
  * Get a publicly shared node (no auth required)
  */
-export async function getPublicSharedNode(shareUuid: string, password?: string): Promise<PublicSharedNode> {
+export async function getPublicSharedNode(
+  shareUuid: string,
+  password?: string
+): Promise<PublicSharedNode> {
   const response = await api.get<PublicSharedNode>(`${PUBLIC_BASE}/${shareUuid}`, {
     params: password ? { password } : undefined,
   });
@@ -198,8 +203,8 @@ export async function listNodeUserShares(nodeUuid: string): Promise<UserSharesRe
 /**
  * Revoke a user share
  */
-export async function deleteUserShare(shareId: number): Promise<{ success: boolean }> {
-  const response = await api.delete<{ success: boolean }>(`${BASE}/user-shares/${shareId}`);
+export async function deleteUserShare(shareUuid: string): Promise<{ success: boolean }> {
+  const response = await api.delete<{ success: boolean }>(`${BASE}/user-shares/${shareUuid}`);
   return response.data;
 }
 
@@ -208,7 +213,7 @@ export async function deleteUserShare(shareId: number): Promise<{ success: boole
  */
 export async function getShareInbox(
   page: number = 1,
-  page_size: number = 50,
+  page_size: number = 50
 ): Promise<PaginatedResponse<ShareInboxItem>> {
   const response = await api.get<PaginatedResponse<ShareInboxItem>>(`${SHARES_BASE}/inbox`, {
     params: { page, page_size },
@@ -239,11 +244,11 @@ export async function inviteWorkspaceMember(
 export async function listWorkspaceMembers(
   workspaceUuid: string,
   page: number = 1,
-  page_size: number = 50,
+  page_size: number = 50
 ): Promise<PaginatedResponse<WorkspaceMember>> {
   const response = await api.get<PaginatedResponse<WorkspaceMember>>(
     `${WORKSPACES_BASE}/${workspaceUuid}/members`,
-    { params: { page, page_size } },
+    { params: { page, page_size } }
   );
   return response.data;
 }
@@ -253,10 +258,10 @@ export async function listWorkspaceMembers(
  */
 export async function updateWorkspaceMember(
   workspaceUuid: string,
-  memberUserId: number,
+  memberUserUuid: string,
   role: string
 ): Promise<{ status: string; role: string }> {
-  const response = await api.put(`${WORKSPACES_BASE}/${workspaceUuid}/members/${memberUserId}`, {
+  const response = await api.put(`${WORKSPACES_BASE}/${workspaceUuid}/members/${memberUserUuid}`, {
     role,
   });
   return response.data;
@@ -267,9 +272,11 @@ export async function updateWorkspaceMember(
  */
 export async function removeWorkspaceMember(
   workspaceUuid: string,
-  memberUserId: number
+  memberUserUuid: string
 ): Promise<{ status: string }> {
-  const response = await api.delete(`${WORKSPACES_BASE}/${workspaceUuid}/members/${memberUserId}`);
+  const response = await api.delete(
+    `${WORKSPACES_BASE}/${workspaceUuid}/members/${memberUserUuid}`
+  );
   return response.data;
 }
 
@@ -277,6 +284,8 @@ export async function removePendingInvite(
   workspaceUuid: string,
   email: string
 ): Promise<{ status: string }> {
-  const response = await api.delete(`${WORKSPACES_BASE}/${workspaceUuid}/pending-invites/${encodeURIComponent(email)}`);
+  const response = await api.delete(
+    `${WORKSPACES_BASE}/${workspaceUuid}/pending-invites/${encodeURIComponent(email)}`
+  );
   return response.data;
 }
