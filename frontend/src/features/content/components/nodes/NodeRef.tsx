@@ -17,10 +17,12 @@ import { Pill } from '@/components/ui/Pill';
 import { NodeIcon, CloseIcon } from '@/components/ui/icons';
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/ContextMenu';
 import { ColorPickerRow } from './ColorPickerRow';
-import { useBatchedNode, useBatchedNodeByUuid } from '@/hooks';
+import { useBatchedNode } from '@/hooks';
 import { useNodeDisplay } from '@/features/content/hooks/useNodeDisplay';
 import { useReferencedNode } from '@/features/content';
 import { useNavigationStore } from '@/stores';
+import { useQueryClient } from '@tanstack/react-query';
+import { getNodeUuidByServerId } from '@/features/content/hooks/useNodeMutations.utils';
 import { parseAST, parseLinkId } from '@/lib/astBuilder';
 import type { ASTInlineNode } from '@/types/ast';
 import type { Node } from '@/types';
@@ -175,22 +177,22 @@ function NodeRefInline({
   customName,
 }: NodeRefProps) {
   const depth = useContext(NodeRefDepth);
+  const queryClient = useQueryClient();
 
-  // Resolve node: provided > uuid context > uuid fetch > batched ID fetch
-  const refNode = useReferencedNode(nodeUuid ?? null);
-  const { data: uuidFallback } = useBatchedNodeByUuid(
-    !providedNode && !refNode && nodeUuid ? nodeUuid : null,
+  // Resolve to a UUID for fetching/navigation
+  const resolvedNodeUuid = nodeUuid ?? (nodeId ? getNodeUuidByServerId(queryClient, nodeId) : null);
+
+  // Resolve node: provided > uuid context > batched UUID fetch
+  const refNode = useReferencedNode(resolvedNodeUuid ?? null);
+  const { data: fetchedNode } = useBatchedNode(
+    !providedNode && !refNode && resolvedNodeUuid ? resolvedNodeUuid : null,
     { skipGlobalError: true }
   );
-  const { data: idFallback } = useBatchedNode(
-    !providedNode && !refNode && !nodeUuid ? (nodeId ?? null) : null,
-    { skipGlobalError: true }
-  );
-  const node = providedNode ?? refNode ?? uuidFallback ?? idFallback ?? null;
+  const node = providedNode ?? refNode ?? fetchedNode ?? null;
 
   const { effectiveIcon, displayText: nodeDisplayText, isPage, color } = useNodeDisplay(
     node,
-    nodeUuid ? (nodeUuid.slice(0, 8) + '…') : '[Loading...]',
+    resolvedNodeUuid ? (resolvedNodeUuid.slice(0, 8) + '…') : '[Loading...]',
   );
 
   const displayText = customName || nodeDisplayText;
@@ -265,40 +267,38 @@ function NodeRefInteractive({
   
   const pillRef = useRef<HTMLButtonElement | HTMLDivElement>(null);
   const contextMenuWrapperRef = useRef<HTMLDivElement>(null);
+  const queryClient = useQueryClient();
   
   // Use selectors to avoid subscribing to full store — actions are stable refs
   const openNode = useNavigationStore(s => s.openNode);
   const openNodeInNewTab = useNavigationStore(s => s.openNodeInNewTab);
   const addSidebarCard = useNavigationStore(s => s.addSidebarCard);
+
+  // Resolve to a UUID for fetching/navigation
+  const resolvedNodeUuid = nodeUuid ?? (nodeId ? getNodeUuidByServerId(queryClient, nodeId) : null);
   
-  // Only batch-fetch when no node is provided (need to fetch by ID)
+  // Batch-fetch when no node is provided
+  const refNode = useReferencedNode(resolvedNodeUuid ?? null);
   const { data: fetchedNode } = useBatchedNode(
-    providedNode ? null : (nodeId ?? null),
+    !providedNode && !refNode && resolvedNodeUuid ? resolvedNodeUuid : null,
     { skipGlobalError: true }
   );
   
-  // UUID resolution (for non-inline interactive links that happen to have a UUID)
-  const refNode = useReferencedNode(nodeUuid ?? null);
-  const { data: uuidFallback } = useBatchedNodeByUuid(
-    !providedNode && !fetchedNode && !refNode && nodeUuid ? nodeUuid : null,
-    { skipGlobalError: true }
-  );
-  
-  // Use provided node directly, or fetched node for ID-only usage
-  const node = providedNode ?? fetchedNode ?? refNode ?? uuidFallback;
+  // Use provided node directly, or fetched node for UUID usage
+  const node = providedNode ?? refNode ?? fetchedNode;
   
   // Shared display data (icon, text, color) — deduplicated with InlineLink
   const { effectiveIcon, displayText: actualNodeName, isPage: _isPage, color: effectiveColor } = useNodeDisplay(
     node,
-    nodeId ? '[Loading...]' : '[Missing]',
+    resolvedNodeUuid ? '[Loading...]' : '[Missing]',
   );
 
   // Display text: prefer custom name, fall back to actual node name
   const displayText = useMemo(() => {
     if (customName) return customName;
-    if (!node) return nodeId ? '[Loading...]' : '[Missing]';
+    if (!node) return resolvedNodeUuid ? '[Loading...]' : '[Missing]';
     return actualNodeName;
-  }, [customName, node, nodeId, actualNodeName]);
+  }, [customName, node, resolvedNodeUuid, actualNodeName]);
   
   const isPage = node?.is_page ?? true;
   const isLink = variant === 'link';
@@ -328,11 +328,11 @@ function NodeRefInteractive({
       // Navigation mode (for inline links)
       if (e.ctrlKey || e.metaKey) {
         e.preventDefault();
-        openNodeInNewTab(node.id);
+        openNodeInNewTab(node.uuid);
       } else if (e.shiftKey) {
-        addSidebarCard(node.id, isPage ? 'page' : 'block');
+        addSidebarCard(node.uuid, isPage ? 'page' : 'block');
       } else {
-        openNode(node.id);
+        openNode(node.uuid);
       }
     } else if (onClick) {
       onClick();
@@ -381,7 +381,7 @@ function NodeRefInteractive({
         id: 'open',
         label: isPage ? 'Open page' : 'Open block',
         onClick: () => {
-          openNode(node.id);
+          openNode(node.uuid);
           handleCloseContextMenu();
         },
       },
@@ -390,7 +390,7 @@ function NodeRefInteractive({
         label: 'Open in sidebar',
         shortcut: '⇧Click',
         onClick: () => {
-          addSidebarCard(node.id, isPage ? 'page' : 'block');
+          addSidebarCard(node.uuid, isPage ? 'page' : 'block');
           handleCloseContextMenu();
         },
       },

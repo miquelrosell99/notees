@@ -24,19 +24,19 @@ import './GroupBySelector.css';
 // ── Pseudo-options shown before real properties ──────────────────────────────
 
 interface PseudoOption {
-  uuid: string;
+  propertyUuid: string;
   name: string;
   type: string;
 }
 
 const NONE_OPTION: PseudoOption = {
-  uuid: 'none',
+  propertyUuid: 'none',
   name: 'None',
   type: '',
 };
 
 const PAGE_OPTION: PseudoOption = {
-  uuid: 'page',
+  propertyUuid: 'page',
   name: 'Page',
   type: 'NODE',
 };
@@ -93,51 +93,51 @@ export function GroupBySelector({ value, onChange, onClose, hidePageOption = fal
     : [];
 
   // Resolve the human-readable label for a selected option UUID
-  const getOptionLabel = (uuid: string): string => {
-    if (uuid === 'page') return PAGE_OPTION.name;
-    if (uuid === 'none') return NONE_OPTION.name;
-    return properties.find(p => p.uuid === uuid)?.name ?? 'Property';
+  const getOptionLabel = (propertyUuid: string): string => {
+    if (propertyUuid === 'page') return PAGE_OPTION.name;
+    if (propertyUuid === 'none') return NONE_OPTION.name;
+    return properties.find(p => p.uuid === propertyUuid)?.name ?? 'Property';
   };
 
-  const getOptionIcon = (uuid: string): string | null | undefined => {
-    if (uuid === 'page') return undefined;
-    return properties.find(p => p.uuid === uuid)?.icon;
+  const getOptionIcon = (propertyUuid: string): string | null | undefined => {
+    if (propertyUuid === 'page') return undefined;
+    return properties.find(p => p.uuid === propertyUuid)?.icon;
   };
 
-  const selectedUuids = useMemo<string[]>(() => {
+  const selectedPropertyUuids = useMemo<string[]>(() => {
     if (!multi) return [];
     if (Array.isArray(value)) return value;
     if (value && value !== 'none') return [value];
     return [];
   }, [multi, value]);
 
-  const isSelected = (uuid: string): boolean => {
-    if (!multi) return value === uuid;
-    if (uuid === 'none') return !value || value === 'none';
-    return selectedUuids.includes(uuid);
+  const isSelected = (propertyUuid: string): boolean => {
+    if (!multi) return value === propertyUuid;
+    if (propertyUuid === 'none') return !value || value === 'none';
+    return selectedPropertyUuids.includes(propertyUuid);
   };
 
-  const handleToggle = (uuid: string) => {
+  const handleToggle = (propertyUuid: string) => {
     if (!multi) {
-      onChange(uuid);
+      onChange(propertyUuid);
       onClose?.();
       return;
     }
 
-    if (uuid === 'none') {
+    if (propertyUuid === 'none') {
       onChange('none');
       onClose?.();
       return;
     }
 
-    const next = selectedUuids.includes(uuid)
-      ? selectedUuids.filter(u => u !== uuid)
-      : [...selectedUuids, uuid];
+    const next = selectedPropertyUuids.includes(propertyUuid)
+      ? selectedPropertyUuids.filter(u => u !== propertyUuid)
+      : [...selectedPropertyUuids, propertyUuid];
     onChange(next.length > 0 ? next : 'none');
   };
 
-  const removeChip = (uuid: string) => {
-    const next = selectedUuids.filter(u => u !== uuid);
+  const removeChip = (propertyUuid: string) => {
+    const next = selectedPropertyUuids.filter(u => u !== propertyUuid);
     onChange(next.length > 0 ? next : 'none');
   };
 
@@ -157,19 +157,19 @@ export function GroupBySelector({ value, onChange, onClose, hidePageOption = fal
       </div>
 
       {/* Selected chips (multi mode only) */}
-      {multi && selectedUuids.length > 0 && (
+      {multi && selectedPropertyUuids.length > 0 && (
         <div className="group-by-selector__chips">
-          {selectedUuids.map(uuid => (
-            <span key={uuid} className="group-by-selector__chip">
-              {uuid !== 'page' && getOptionIcon(uuid) && (
-                <NodeIcon icon={getOptionIcon(uuid)} size="xs" />
+          {selectedPropertyUuids.map(propertyUuid => (
+            <span key={propertyUuid} className="group-by-selector__chip">
+              {propertyUuid !== 'page' && getOptionIcon(propertyUuid) && (
+                <NodeIcon icon={getOptionIcon(propertyUuid)} size="xs" />
               )}
-              <span className="group-by-selector__chip-label">{getOptionLabel(uuid)}</span>
+              <span className="group-by-selector__chip-label">{getOptionLabel(propertyUuid)}</span>
               <button
                 type="button"
                 className="group-by-selector__chip-remove"
-                onClick={() => removeChip(uuid)}
-                aria-label={`Remove ${getOptionLabel(uuid)}`}
+                onClick={() => removeChip(propertyUuid)}
+                aria-label={`Remove ${getOptionLabel(propertyUuid)}`}
                 title="Remove"
               >
                 <CloseIcon size="xs" />
@@ -198,13 +198,13 @@ export function GroupBySelector({ value, onChange, onClose, hidePageOption = fal
       <div className="group-by-selector__list">
         {/* Pseudo-options: None, Page */}
         {pseudoOptions.map((opt) => {
-          const active = isSelected(opt.uuid);
+          const active = isSelected(opt.propertyUuid);
           return (
             <button
               type="button"
-              key={opt.uuid}
+              key={opt.propertyUuid}
               className={`group-by-selector__item ${active ? 'group-by-selector__item--active' : ''}`}
-              onClick={() => handleToggle(opt.uuid)}
+              onClick={() => handleToggle(opt.propertyUuid)}
             >
               <span className="group-by-selector__check">{active ? <CheckIcon size="xs" /> : null}</span>
               <span className="group-by-selector__item-content">

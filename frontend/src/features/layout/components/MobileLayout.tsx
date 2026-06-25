@@ -39,10 +39,10 @@ const SNAP_DURATION_MS = 300;
 
 interface MobileLayoutProps {
   /** Called when the user navigates to a new node (for auto-close of drawer). */
-  currentNodeId: number | null;
+  currentNodeUuid: string | null;
 }
 
-export function MobileLayout({ currentNodeId }: MobileLayoutProps) {
+export function MobileLayout({ currentNodeUuid }: MobileLayoutProps) {
   const isSidebarCollapsed = useNavigationStore(s => s.isSidebarCollapsed);
   const toggleSidebar = useNavigationStore(s => s.toggleSidebar);
   const setScratchpadOpen = useModalStore(s => s.setScratchpadOpen);
@@ -64,13 +64,13 @@ export function MobileLayout({ currentNodeId }: MobileLayoutProps) {
   }, [drawerOpen]);
 
   // Auto-close drawer when user taps a note — mirrors Obsidian
-  const prevNodeIdRef = useRef(currentNodeId);
+  const prevNodeIdRef = useRef(currentNodeUuid);
   useEffect(() => {
-    if (currentNodeId !== prevNodeIdRef.current && drawerOpen) {
+    if (currentNodeUuid !== prevNodeIdRef.current && drawerOpen) {
       toggleSidebar();
     }
-    prevNodeIdRef.current = currentNodeId;
-  }, [currentNodeId, drawerOpen, toggleSidebar]);
+    prevNodeIdRef.current = currentNodeUuid;
+  }, [currentNodeUuid, drawerOpen, toggleSidebar]);
 
   // Close drawer when any modal / popup overlay opens
   useEffect(() => {

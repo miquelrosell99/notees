@@ -20,6 +20,10 @@ The monolithic nodes.py has been split into:
 
 from fastapi import APIRouter
 
+# Property value endpoints are mounted under the nodes router.
+# They live in the properties feature but their paths start with /{node_id}/properties,
+# so they must be included here to appear under /api/nodes/.
+from app.features.properties.router.values import router as property_values_router
 from app.features.shares.router import node_shares_router as shares_router
 
 from .batch import router as batch_router
@@ -38,11 +42,6 @@ from .helpers import (
     _node_to_response,
 )
 from .links import router as links_router
-
-# Property value endpoints are mounted under the nodes router.
-# They live in the properties feature but their paths start with /{node_id}/properties,
-# so they must be included here to appear under /api/nodes/.
-from app.features.properties.router.values import router as property_values_router
 
 # Re-export models for external use
 from .models import (

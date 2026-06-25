@@ -165,7 +165,7 @@ export function ImportOptionsModal({
   const pendingFolderRef = useRef<LogseqFolderResult | null>(null);
 
   const queryClient = useQueryClient();
-  const { workspaceId } = useParams<{ workspaceId?: string }>();
+  const { workspaceUuid } = useParams<{ workspaceUuid?: string }>();
   const { data: pluginImporters = [] } = useImporters(isOpen);
   const runPluginImporter = useRunImporter();
 
@@ -262,10 +262,10 @@ export function ImportOptionsModal({
       try {
         await switchWorkspace(workspace!.uuid);
         useNavigationStore.setState({
-          currentNodeId: null,
-          activeNodeId: null,
+          currentNodeUuid: null,
+          activeNodeUuid: null,
           sidebarNode: null,
-          localGraphNodeId: null,
+          localGraphNodeUuid: null,
           mainViewType: 'node',
         });
         queryClient.removeQueries({ queryKey: favoriteKeys.all });
@@ -407,7 +407,7 @@ export function ImportOptionsModal({
       return false;
     }
     // Plugin importer source
-    return pluginFile !== null && !!workspaceId;
+    return pluginFile !== null && !!workspaceUuid;
   })();
 
   const handleSubmit = useCallback(() => {
@@ -416,9 +416,9 @@ export function ImportOptionsModal({
     const trimmedName = name.trim();
 
     if (!isBuiltInImportType(selectedType)) {
-      if (!pluginFile || !workspaceId) return;
+      if (!pluginFile || !workspaceUuid) return;
       runPluginImporter.mutate(
-        { importerId: selectedType, file: pluginFile, workspaceUuid: workspaceId },
+        { importerId: selectedType, file: pluginFile, workspaceUuid: workspaceUuid },
         {
           onSuccess: (result) => {
             setPluginReport(result);
@@ -468,7 +468,7 @@ export function ImportOptionsModal({
         },
       });
     }
-  }, [isSubmitEnabled, name, selectedType, jsonFile, importWorkspace, createWorkspace, parsedExport, folderResult, pluginFile, workspaceId, runPluginImporter, onSuccess]);
+  }, [isSubmitEnabled, name, selectedType, jsonFile, importWorkspace, createWorkspace, parsedExport, folderResult, pluginFile, workspaceUuid, runPluginImporter, onSuccess]);
 
   // Enter anywhere inside the modal = submit (capture phase)
   useEffect(() => {

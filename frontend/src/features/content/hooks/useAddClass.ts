@@ -7,6 +7,8 @@ import {
   findNodeInCache,
   getRuntimeBlockIdForServerId,
   applyNodeIntent,
+  getClassUuidByServerId,
+  getNodeUuidByServerId,
 } from './useNodeMutations.utils';
 import { waitForOperationAck } from '@/sync/waitForOperation';
 import * as nodesApi from '@/api/nodes';
@@ -20,28 +22,32 @@ import * as nodesApi from '@/api/nodes';
 export function useAddClass() {
   const queryClient = useQueryClient();
 
-  return useMutation<Node | null, Error, { nodeId: number; classId: number }>({
+  return useMutation<Node | null, Error, { nodeId: string | number; classId: string | number }>({
     mutationFn: async ({ nodeId, classId }) => {
       await awaitAllContentSaves();
 
-      const blockId = getRuntimeBlockIdForServerId(nodeId);
+      const nodeUuid = typeof nodeId === 'string' ? nodeId : getNodeUuidByServerId(queryClient, nodeId);
+      if (!nodeUuid) throw new Error('Node UUID not found');
+      const classUuid = typeof classId === 'string' ? classId : getClassUuidByServerId(queryClient, classId);
+      if (!classUuid) throw new Error('Class UUID not found');
+      const blockId = typeof nodeId === 'string' ? null : getRuntimeBlockIdForServerId(nodeId);
       if (!blockId) {
         // Runtime fallback for nodes that are not loaded in the client graph.
-        return nodesApi.addClass(nodeId, classId);
+        return nodesApi.addClass(nodeUuid, classUuid);
       }
 
       const operationId = applyNodeIntent({
         type: 'add_class',
         blockId,
-        classId: String(classId),
+        classId: classUuid,
       });
       await waitForOperationAck(operationId);
-      return findNodeInCache(queryClient, nodeId);
+      return typeof nodeId === 'string' ? null : findNodeInCache(queryClient, nodeId);
     },
     onSuccess: (updatedNode, { nodeId, classId }) => {
       if (!updatedNode) return;
 
-      const oldNode = findNodeInCache(queryClient, nodeId);
+      const oldNode = typeof nodeId === 'string' ? null : findNodeInCache(queryClient, nodeId);
 
       if (oldNode && oldNode.is_page !== updatedNode.is_page) {
         queryClient.invalidateQueries({ queryKey: nodeKeys.allPages() });

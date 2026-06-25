@@ -17,6 +17,7 @@ import {
   hasTableClass,
   getRuntimeBlockIdForServerId,
   applyNodeIntent,
+  getNodeUuidByServerId,
 } from './useNodeMutations.utils';
 import { waitForOperationAck } from '@/sync/waitForOperation';
 
@@ -42,7 +43,7 @@ export function useDeleteNode() {
         nodeData = findNodeInCache(queryClient, id) ?? undefined;
       }
 
-      let tableCellInfo: { parentId: number; sequence: number } | null = null;
+      let tableCellInfo: { parentId: number; parentUuid: string; sequence: number } | null = null;
 
       if (nodeData && nodeData.parent_id) {
         const parentNode = findNodeInCache(queryClient, nodeData.parent_id);
@@ -50,10 +51,14 @@ export function useDeleteNode() {
           const grandparentNode = findNodeInCache(queryClient, parentNode.parent_id);
           const allClasses = queryClient.getQueryData<Node[]>(nodeKeys.classes());
           if (grandparentNode && hasTableClass(grandparentNode, allClasses)) {
-            tableCellInfo = {
-              parentId: nodeData.parent_id,
-              sequence: nodeData.sequence ?? 0,
-            };
+            const parentUuid = getNodeUuidByServerId(queryClient, nodeData.parent_id);
+            if (parentUuid) {
+              tableCellInfo = {
+                parentId: nodeData.parent_id,
+                parentUuid,
+                sequence: nodeData.sequence ?? 0,
+              };
+            }
           }
         }
       }
@@ -63,13 +68,15 @@ export function useDeleteNode() {
         const operationId = applyNodeIntent({ type: 'delete_block', blockId });
         await waitForOperationAck(operationId);
       } else {
-        await nodesApi.deleteNode(id);
+        const nodeUuid = getNodeUuidByServerId(queryClient, id);
+        if (!nodeUuid) throw new Error('Node UUID not found');
+        await nodesApi.deleteNode(nodeUuid);
       }
 
       if (tableCellInfo) {
         await nodesApi.createNode({
           name: '',
-          parent_id: tableCellInfo.parentId,
+          parent_uuid: tableCellInfo.parentUuid,
           sequence: tableCellInfo.sequence,
         });
       }
@@ -78,16 +85,17 @@ export function useDeleteNode() {
     },
     onMutate: async (deletedId) => {
       // Immediately remove from favorites and recents
-      if (isFavorite(deletedId)) {
-        removeFavorite(deletedId).catch(() => {});
+      const deletedNodeUuid = getNodeUuidByServerId(queryClient, deletedId);
+      if (deletedNodeUuid && isFavorite(deletedNodeUuid)) {
+        removeFavorite(deletedNodeUuid).catch(() => {});
       }
       removeRecent(deletedId);
 
       // Navigate away if viewing the deleted node
-      const currentNodeId = useNavigationStore.getState().currentNodeId;
-      if (currentNodeId === deletedId) {
+      const currentNodeUuid = useNavigationStore.getState().currentNodeUuid;
+      if (currentNodeUuid && currentNodeUuid === deletedNodeUuid) {
         useNavigationStore.setState({
-          currentNodeId: null,
+          currentNodeUuid: null,
           mainViewType: 'node',
         });
         navigate(workspaceId ? `/${workspaceId}` : '/', { replace: true });
@@ -107,11 +115,12 @@ export function useDeleteNode() {
     },
     onSuccess: async ({ deletedNode, tableCellInfo }, deletedId) => {
       const { useNavigationStore } = await import('@/stores');
-      const currentNodeId = useNavigationStore.getState().currentNodeId;
+      const currentNodeUuid = useNavigationStore.getState().currentNodeUuid;
+      const deletedNodeUuid2 = getNodeUuidByServerId(queryClient, deletedId);
 
-      if (currentNodeId === deletedId) {
+      if (currentNodeUuid && currentNodeUuid === deletedNodeUuid2) {
         useNavigationStore.setState({
-          currentNodeId: null,
+          currentNodeUuid: null,
           mainViewType: 'node',
         });
         navigate(workspaceId ? `/${workspaceId}` : '/', { replace: true });
@@ -140,8 +149,9 @@ export function useDeleteNode() {
         refetchType: 'none',
       });
 
-      if (isFavorite(deletedId)) {
-        removeFavorite(deletedId).catch(() => {});
+      const successNodeUuid = getNodeUuidByServerId(queryClient, deletedId);
+      if (successNodeUuid && isFavorite(successNodeUuid)) {
+        removeFavorite(successNodeUuid).catch(() => {});
       }
       removeRecent(deletedId);
 

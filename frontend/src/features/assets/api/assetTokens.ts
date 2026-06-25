@@ -76,15 +76,15 @@ export async function getAssetToken(assetUuid: string): Promise<string> {
 /**
  * Get asset URL synchronously with an optional pre-fetched token.
  * 
- * @param uuid - The asset UUID
+ * @param assetUuid - The asset UUID
  * @param assetToken - Optional pre-fetched asset token
  * @returns The URL to access the asset
  */
-export function getAssetUrlSync(uuid: string, assetToken?: string): string {
+export function getAssetUrlSync(assetUuid: string, assetToken?: string): string {
   if (assetToken) {
-    return `/api/assets/${uuid}?asset_token=${encodeURIComponent(assetToken)}`;
+    return `/api/assets/${assetUuid}?asset_token=${encodeURIComponent(assetToken)}`;
   }
-  return `/api/assets/${uuid}`;
+  return `/api/assets/${assetUuid}`;
 }
 
 /**

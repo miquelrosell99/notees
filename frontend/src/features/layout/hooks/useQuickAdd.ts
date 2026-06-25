@@ -196,7 +196,7 @@ export function useQuickAdd(options: UseQuickAddOptions = {}): UseQuickAddReturn
       });
       
       if (navigateOnSuccess) {
-        openNode(newPage.id);
+        openNode(newPage.uuid);
       }
       
       onSuccess?.();

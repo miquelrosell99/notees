@@ -23,11 +23,11 @@ const SharesUnifiedView = React.lazy(() => import('@/features/shares/pages/Share
 
 interface MainContentPaneProps {
   tab: Tab;
-  onNavigateToNode?: (nodeId: number) => void;
+  onNavigateToNode?: (nodeId: string | number) => void;
 }
 
 export function MainContentPane({ tab, onNavigateToNode }: MainContentPaneProps) {
-  const { data: currentNode } = useNode(tab.nodeId ?? null);
+  const { data: currentNode } = useNode(tab.nodeUuid ?? null);
   const { data: allClasses } = useClasses();
   const { systemClassIds } = useSystemClasses();
   const viewMode = useNavigationStore(s => s.viewMode);
@@ -112,12 +112,12 @@ export function MainContentPane({ tab, onNavigateToNode }: MainContentPaneProps)
     );
   }
 
-  if (viewType === 'property' && tab.propertyId) {
+  if (viewType === 'property' && tab.propertyUuid) {
     return (
       <div className="main-content-wrapper">
         <Suspense fallback={<LoadingScreen fullscreen={false} label="Loading…" />}>
           <PropertyViewFull
-            propertyId={tab.propertyId}
+            propertyId={tab.propertyUuid}
             onNavigateToNode={onNavigateToNode}
           />
         </Suspense>
@@ -158,7 +158,7 @@ export function MainContentPane({ tab, onNavigateToNode }: MainContentPaneProps)
   }
 
   // Default: node view (page or block)
-  if (!tab.nodeId) {
+  if (!tab.nodeUuid) {
     return (
       <div className="main-content">
         <div className="empty-state">
@@ -182,15 +182,23 @@ export function MainContentPane({ tab, onNavigateToNode }: MainContentPaneProps)
     );
   }
 
+  if (!currentNode) {
+    return (
+      <div className="main-content">
+        <LoadingScreen fullscreen={false} label="Loading…" />
+      </div>
+    );
+  }
+
   return (
     <div className="main-content-wrapper" style={nodeColorStyle}>
-      <NodeViewWrapper nodeId={tab.nodeId} viewMode={viewMode} liveSync />
+      <NodeViewWrapper nodeId={currentNode.id} viewMode={viewMode} liveSync />
       <div
         id="main-content"
         className={`main-content${nodeColorStyle ? ' has-node-border' : ''}`}
         style={nodeColorStyle}
       >
-        <NodeViewContent nodeId={tab.nodeId} viewMode={viewMode} liveSync />
+        <NodeViewContent nodeId={currentNode.id} viewMode={viewMode} liveSync />
       </div>
     </div>
   );

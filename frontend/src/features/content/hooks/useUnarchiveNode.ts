@@ -5,6 +5,7 @@ import { nodeKeys } from '@/hooks/queryKeys';
 import { nodeViewKeys } from './useNodeViews';
 import { isFavorite, removeFavorite } from './useFavorites';
 import { removeRecent } from './useRecents';
+import { getNodeUuidByServerId } from './useNodeMutations.utils';
 
 
 /**
@@ -14,12 +15,17 @@ export function useUnarchiveNode() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (id: number) => nodesApi.unarchiveNode(id),
+    mutationFn: (id: number) => {
+      const nodeUuid = getNodeUuidByServerId(queryClient, id);
+      if (!nodeUuid) throw new Error('Node UUID not found');
+      return nodesApi.unarchiveNode(nodeUuid);
+    },
     onMutate: (nodeId) => {
       // Remove from favorites and recents immediately so the sidebar updates
       // even if the triggering component unmounts before onSuccess fires.
-      if (isFavorite(nodeId)) {
-        removeFavorite(nodeId).catch(() => {});
+      const nodeUuid = getNodeUuidByServerId(queryClient, nodeId);
+      if (nodeUuid && isFavorite(nodeUuid)) {
+        removeFavorite(nodeUuid).catch(() => {});
       }
       removeRecent(nodeId);
     },

@@ -2,7 +2,7 @@
  * mutationMap — maps Operation values to TanStack Query mutations and cache updates.
  *
  * This module knows how to turn a runtime operation into:
- * - API request parameters (NodeCreate / NodeUpdate / delete id)
+ * - API request parameters (NodeCreate / NodeUpdate / delete uuid)
  * - Targeted cache writes after the mutation succeeds
  *
  * It does not contain React hooks; SyncManager wires the actual useMutation calls.
@@ -27,17 +27,16 @@ import type {
 } from '@/runtime';
 import { writeCreate, writeUpdate, writeDelete, writeMove } from './cacheWriter';
 import { getOperationRuntime } from '@/runtime';
-import { resolveParentServerId } from '@/runtime/serverIdMap';
 
 export interface SyncApi {
   createNode: (data: NodeCreate) => Promise<Node>;
-  updateNode: (id: number, data: NodeUpdate) => Promise<Node>;
-  deleteNode: (id: number) => Promise<void>;
-  addClass: (id: number, classId: number) => Promise<Node>;
-  removeClass: (id: number, classId: number) => Promise<Node>;
-  addTag: (id: number, tagId: number) => Promise<Node>;
-  removeTag: (id: number, tagId: number) => Promise<Node>;
-  moveNode: (id: number, parentId: number | null, position?: number) => Promise<Node>;
+  updateNode: (uuid: string, data: NodeUpdate) => Promise<Node>;
+  deleteNode: (uuid: string) => Promise<void>;
+  addClass: (nodeUuid: string, classUuid: string) => Promise<Node>;
+  removeClass: (nodeUuid: string, classUuid: string) => Promise<Node>;
+  addTag: (nodeUuid: string, tagUuid: string) => Promise<Node>;
+  removeTag: (nodeUuid: string, tagUuid: string) => Promise<Node>;
+  moveNode: (nodeUuid: string, parentUuid: string | null, position?: number) => Promise<Node>;
 }
 
 export const defaultSyncApi: SyncApi = {
@@ -46,30 +45,32 @@ export const defaultSyncApi: SyncApi = {
   deleteNode: nodesApi.deleteNode,
   addClass: nodesApi.addClass,
   removeClass: nodesApi.removeClass,
-  addTag: async (id: number, tagId: number) => {
-    await nodesApi.addTagLink(id, tagId);
-    return buildTagNodeFromRuntime(id);
+  addTag: async (nodeUuid: string, tagUuid: string) => {
+    await nodesApi.addTagLink(nodeUuid, tagUuid);
+    return buildTagNodeFromRuntime(nodeUuid);
   },
-  removeTag: async (id: number, tagId: number) => {
-    await nodesApi.removeTagLink(id, tagId);
-    return buildTagNodeFromRuntime(id);
+  removeTag: async (nodeUuid: string, tagUuid: string) => {
+    await nodesApi.removeTagLink(nodeUuid, tagUuid);
+    return buildTagNodeFromRuntime(nodeUuid);
   },
   moveNode: nodesApi.moveNode,
 };
 
-export function buildTagNodeFromRuntime(id: number): Node {
+export function buildTagNodeFromRuntime(uuid: string): Node {
   const runtime = getOperationRuntime();
   const coreNode = runtime.snapshot().projectedNodes.values();
   for (const node of coreNode) {
-    if (node.serverId === id) {
+    if (node.blockId === uuid) {
       return {
-        id,
-        uuid: node.blockId,
+        id: node.serverId ?? -1,
+        uuid,
         name: node.name ?? '',
         icon: node.icon ?? null,
         color: node.color ?? null,
         parent_id: null,
+        parent_uuid: null,
         page_id: null,
+        page_uuid: null,
         sequence: node.orderIndex,
         collapsed: node.collapsed,
         active: !node.isDeleted,
@@ -80,7 +81,7 @@ export function buildTagNodeFromRuntime(id: number): Node {
       };
     }
   }
-  throw new Error(`Node ${id} not found in runtime for tag update`);
+  throw new Error(`Node ${uuid} not found in runtime for tag update`);
 }
 
 function serializeContentAST(contentAST: UpdateContentPayload['contentAST']): string {
@@ -97,7 +98,9 @@ function apiNodeFromOperation(operation: Operation): Node {
     icon: null,
     color: null,
     parent_id: null,
+    parent_uuid: null,
     page_id: null,
+    page_uuid: null,
     sequence: 0,
     collapsed: false,
     active: true,
@@ -110,23 +113,22 @@ function apiNodeFromOperation(operation: Operation): Node {
 /**
  * Build the API request for an operation.
  *
- * When an operation was created before its block had a server-side id (e.g. a
- * content update on a block that is still being created), the current server id
- * is resolved from the runtime at dispatch time.
+ * Operations are keyed by the runtime block UUID (blockId). When an operation
+ * was created before its block had a server-side id, the uuid is still known
+ * from the runtime and is used for the API call.
  */
 export function operationToApiRequest(operation: Operation):
   | { type: 'create'; data: NodeCreate }
-  | { type: 'update'; id: number; data: NodeUpdate }
-  | { type: 'delete'; id: number }
-  | { type: 'add_class'; id: number; classId: number }
-  | { type: 'remove_class'; id: number; classId: number }
-  | { type: 'add_tag'; id: number; tagId: number }
-  | { type: 'remove_tag'; id: number; tagId: number }
-  | { type: 'move_node'; id: number; parentId: number; position: number }
+  | { type: 'update'; uuid: string; data: NodeUpdate }
+  | { type: 'delete'; uuid: string }
+  | { type: 'add_class'; uuid: string; classUuid: string }
+  | { type: 'remove_class'; uuid: string; classUuid: string }
+  | { type: 'add_tag'; uuid: string; tagUuid: string }
+  | { type: 'remove_tag'; uuid: string; tagUuid: string }
+  | { type: 'move_node'; uuid: string; parentUuid: string | null; position: number }
   | { type: 'unsupported' } {
   const runtime = getOperationRuntime();
-  const runtimeServerId =
-    operation.serverId ?? runtime.getNode(operation.blockId)?.serverId;
+  const nodeUuid = operation.blockId;
 
   switch (operation.type) {
     case 'create': {
@@ -135,92 +137,82 @@ export function operationToApiRequest(operation: Operation):
         type: 'create',
         data: {
           name: serializeContentAST(payload.contentAST),
-          parent_id: payload.parentId ? resolveParentServerId(runtime, payload.parentId) : null,
+          parent_uuid: payload.parentId ? runtime.getNode(payload.parentId)?.blockId ?? null : null,
           sequence: 0, // computed server-side from parent/after
           uuid: operation.blockId,
         },
       };
     }
     case 'update_content': {
-      if (runtimeServerId == null) return { type: 'unsupported' };
       return {
         type: 'update',
-        id: runtimeServerId,
+        uuid: nodeUuid,
         data: { name: serializeContentAST((operation.payload as UpdateContentPayload).contentAST) },
       };
     }
     case 'move': {
-      if (runtimeServerId == null) return { type: 'unsupported' };
       const payload = operation.payload as MovePayload;
       return {
         type: 'update',
-        id: runtimeServerId,
+        uuid: nodeUuid,
         data: {
-          parent_id: payload.parentId ? resolveParentServerId(runtime, payload.parentId) : null,
+          parent_uuid: payload.parentId ? runtime.getNode(payload.parentId)?.blockId ?? null : null,
           sequence: 0, // computed server-side from parent/after
         },
       };
     }
     case 'set_collapsed': {
-      if (runtimeServerId == null) return { type: 'unsupported' };
       const collapsedPayload = operation.payload as SetCollapsedPayload;
       return {
         type: 'update',
-        id: runtimeServerId,
+        uuid: nodeUuid,
         data: { collapsed: collapsedPayload.collapsed },
       };
     }
     case 'set_classes': {
-      if (runtimeServerId == null) return { type: 'unsupported' };
       const classesPayload = operation.payload as SetClassesPayload;
       return {
         type: 'update',
-        id: runtimeServerId,
-        data: { classes: classesPayload.classIds.map((id) => parseInt(id, 10)) },
+        uuid: nodeUuid,
+        data: { class_uuids: classesPayload.classIds },
       };
     }
     case 'set_tags': {
-      if (runtimeServerId == null) return { type: 'unsupported' };
       return {
         type: 'update',
-        id: runtimeServerId,
+        uuid: nodeUuid,
         data: {}, // Tags use a separate endpoint; treat as unsupported for now.
       };
     }
     case 'add_class': {
-      if (runtimeServerId == null) return { type: 'unsupported' };
       return {
         type: 'add_class',
-        id: runtimeServerId,
-        classId: parseInt((operation.payload as AddClassPayload).classId, 10),
+        uuid: nodeUuid,
+        classUuid: (operation.payload as AddClassPayload).classId,
       };
     }
     case 'remove_class': {
-      if (runtimeServerId == null) return { type: 'unsupported' };
       return {
         type: 'remove_class',
-        id: runtimeServerId,
-        classId: parseInt((operation.payload as RemoveClassPayload).classId, 10),
+        uuid: nodeUuid,
+        classUuid: (operation.payload as RemoveClassPayload).classId,
       };
     }
     case 'add_tag': {
-      if (runtimeServerId == null) return { type: 'unsupported' };
       return {
         type: 'add_tag',
-        id: runtimeServerId,
-        tagId: parseInt((operation.payload as AddTagPayload).tagId, 10),
+        uuid: nodeUuid,
+        tagUuid: (operation.payload as AddTagPayload).tagId,
       };
     }
     case 'remove_tag': {
-      if (runtimeServerId == null) return { type: 'unsupported' };
       return {
         type: 'remove_tag',
-        id: runtimeServerId,
-        tagId: parseInt((operation.payload as RemoveTagPayload).tagId, 10),
+        uuid: nodeUuid,
+        tagUuid: (operation.payload as RemoveTagPayload).tagId,
       };
     }
     case 'update_node': {
-      if (runtimeServerId == null) return { type: 'unsupported' };
       const updatePayload = operation.payload as UpdateNodePayload;
       const data: NodeUpdate = {};
       if (updatePayload.updates.name !== undefined) data.name = updatePayload.updates.name ?? null;
@@ -228,12 +220,11 @@ export function operationToApiRequest(operation: Operation):
       if (updatePayload.updates.color !== undefined) data.color = updatePayload.updates.color;
       if (updatePayload.updates.isPage !== undefined) data.is_page = updatePayload.updates.isPage;
       if (updatePayload.updates.collapsed !== undefined) data.collapsed = updatePayload.updates.collapsed;
-      return { type: 'update', id: runtimeServerId, data };
+      return { type: 'update', uuid: nodeUuid, data };
     }
     case 'move_node': {
-      if (runtimeServerId == null) return { type: 'unsupported' };
       const movePayload = operation.payload as MoveNodePayload;
-      const parentId = movePayload.parentId ? resolveParentServerId(runtime, movePayload.parentId) : null;
+      const parentUuid = movePayload.parentId ? runtime.getNode(movePayload.parentId)?.blockId ?? null : null;
       const siblings = movePayload.parentId ? runtime.getChildren(movePayload.parentId) : [];
       const afterIndex = movePayload.afterBlockId
         ? siblings.findIndex((s) => s.blockId === movePayload.afterBlockId)
@@ -241,14 +232,13 @@ export function operationToApiRequest(operation: Operation):
       const position = afterIndex >= 0 ? afterIndex + 1 : 0;
       return {
         type: 'move_node',
-        id: runtimeServerId,
-        parentId: parentId ?? 0,
+        uuid: nodeUuid,
+        parentUuid,
         position,
       };
     }
     case 'delete': {
-      if (runtimeServerId == null) return { type: 'unsupported' };
-      return { type: 'delete', id: runtimeServerId };
+      return { type: 'delete', uuid: nodeUuid };
     }
     default:
       return { type: 'unsupported' };
@@ -268,20 +258,20 @@ export async function executeOperation(
     case 'create':
       return api.createNode(request.data);
     case 'update':
-      return api.updateNode(request.id, request.data);
+      return api.updateNode(request.uuid, request.data);
     case 'delete':
-      await api.deleteNode(request.id);
+      await api.deleteNode(request.uuid);
       return null;
     case 'add_class':
-      return api.addClass(request.id, request.classId);
+      return api.addClass(request.uuid, request.classUuid);
     case 'remove_class':
-      return api.removeClass(request.id, request.classId);
+      return api.removeClass(request.uuid, request.classUuid);
     case 'add_tag':
-      return api.addTag(request.id, request.tagId);
+      return api.addTag(request.uuid, request.tagUuid);
     case 'remove_tag':
-      return api.removeTag(request.id, request.tagId);
+      return api.removeTag(request.uuid, request.tagUuid);
     case 'move_node':
-      return api.moveNode(request.id, request.parentId, request.position);
+      return api.moveNode(request.uuid, request.parentUuid, request.position);
     case 'unsupported':
       throw new Error(`Unsupported operation: ${operation.type}`);
   }

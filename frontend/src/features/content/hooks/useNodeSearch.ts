@@ -46,7 +46,7 @@ export function useNodeSearch(
     excludeNodeId,
     maxResults = 10,
     pinnedNodeId,
-    uuid,
+    nodeUuid,
     isPage,
     isClass,
     isDaily,
@@ -62,7 +62,7 @@ export function useNodeSearch(
   // Core search queries - pass class_filters to backend for server-side filtering
   const searchFilterOptions = {
     ...(classFiltersParam ? { classFilters: classFiltersParam } : {}),
-    ...(uuid ? { uuid } : {}),
+    ...(nodeUuid ? { nodeUuid } : {}),
     ...(isPage !== undefined ? { isPage } : {}),
     ...(isClass !== undefined ? { isClass } : {}),
     ...(isDaily !== undefined ? { isDaily } : {}),
@@ -78,7 +78,7 @@ export function useNodeSearch(
   const useSuggestionsForEmpty = mode === 'pages' || mode === 'all';
   const { data: suggestions } = useSuggestions(
     classFiltersParam,
-    useSuggestionsForEmpty && !uuid && isPage === undefined && isClass === undefined && isDaily === undefined && isUserPage === undefined,
+    useSuggestionsForEmpty && !nodeUuid && isPage === undefined && isClass === undefined && isDaily === undefined && isUserPage === undefined,
   );
   // Filtered pages query for when class_filters are present (empty-query case)
   const { data: filteredPages } = useQuery({

@@ -6,10 +6,12 @@ Handles logging and retrieving node activity (edits, link additions, etc.)
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, get_node_repository
 from app.domain.stringify_ast import ParseMode, StringifyMode, StringifyOptions, parse_ast, stringify_ast
 from app.features.activity.dependencies import get_activity_repository
 from app.features.activity.port import ActivityRepository
+from app.features.nodes.port import NodeRepository
+from app.features.nodes.router.dependencies import resolve_node_uuid
 from app.logging_config import get_logger
 from app.models import User
 from app.utils import utc_now
@@ -25,6 +27,7 @@ class NodeActivityResponse(BaseModel):
     """Node activity response."""
 
     id: int
+    activity_uuid: str
     node_id: int
     action: str  # created, edited, link_added, link_removed, link_inserted, archived, unarchived, type_added, type_removed, property_changed, moved
     details: str | None = None
@@ -57,6 +60,7 @@ class LinkClickHistoryResponse(BaseModel):
     """Individual link click record."""
 
     id: int
+    link_click_uuid: str
     source_node_id: int
     target_node_id: int
     node_link_uuid: str | None = None
@@ -74,14 +78,16 @@ class LinkClickRequest(BaseModel):
 # ============== Activity Endpoints ==============
 
 
-@router.get("/node/{node_id}", response_model=list[NodeActivityResponse])
+@router.get("/node/{node_uuid}", response_model=list[NodeActivityResponse])
 async def get_node_activity(
-    node_id: int,
+    node_uuid: str,
     limit: int = 50,
     user: User = Depends(get_current_user),
     repo: ActivityRepository = Depends(get_activity_repository),
+    node_repo: NodeRepository = Depends(get_node_repository),
 ):
     """Get activity log for a node."""
+    node_id = await resolve_node_uuid(node_uuid, node_repo)
     if not await repo.verify_node_in_workspace(node_id):
         raise HTTPException(404, "Node not found")
 
@@ -100,6 +106,7 @@ async def get_node_activity(
     return [
         NodeActivityResponse(
             id=row["id"],
+            activity_uuid=str(row["uuid"]),
             node_id=row["node_id"],
             action=row["action"],
             details=row["details"],
@@ -112,17 +119,19 @@ async def get_node_activity(
     ]
 
 
-@router.post("/node/{node_id}", response_model=NodeActivityResponse)
+@router.post("/node/{node_uuid}", response_model=NodeActivityResponse)
 async def create_node_activity(
-    node_id: int,
+    node_uuid: str,
     data: NodeActivityCreate,
     user: User = Depends(get_current_user),
     repo: ActivityRepository = Depends(get_activity_repository),
+    node_repo: NodeRepository = Depends(get_node_repository),
 ):
     """Create a new activity entry for a node.
 
     Only tracks activity for page nodes (is_page=1).
     """
+    node_id = await resolve_node_uuid(node_uuid, node_repo)
     is_page = await repo.get_node_is_page(node_id)
     if is_page is None:
         raise HTTPException(404, "Node not found")
@@ -130,7 +139,9 @@ async def create_node_activity(
         raise HTTPException(400, "Activity tracking only available for page nodes")
 
     now = utc_now()
-    activity_id = await repo.create_node_activity(node_id, data.action, data.details, data.target_node_id, now)
+    activity_id, activity_uuid = await repo.create_node_activity(
+        node_id, data.action, data.details, data.target_node_id, now
+    )
 
     target_name = None
     target_uuid = None
@@ -147,6 +158,7 @@ async def create_node_activity(
 
     return NodeActivityResponse(
         id=activity_id,
+        activity_uuid=activity_uuid,
         node_id=node_id,
         action=data.action,
         details=data.details,
@@ -157,17 +169,21 @@ async def create_node_activity(
     )
 
 
-@router.delete("/node/{node_id}/{activity_id}")
+@router.delete("/node/{node_uuid}/{activity_uuid}")
 async def delete_node_activity(
-    node_id: int,
-    activity_id: int,
+    node_uuid: str,
+    activity_uuid: str,
     user: User = Depends(get_current_user),
     repo: ActivityRepository = Depends(get_activity_repository),
+    node_repo: NodeRepository = Depends(get_node_repository),
 ):
     """Delete a node activity entry."""
+    node_id = await resolve_node_uuid(node_uuid, node_repo)
     if not await repo.verify_node_in_workspace(node_id):
         raise HTTPException(404, "Node not found")
-    await repo.delete_node_activity(activity_id, node_id)
+    deleted = await repo.delete_node_activity_by_uuid(activity_uuid, node_id)
+    if not deleted:
+        raise HTTPException(404, "Activity not found")
     return {"success": True}
 
 
@@ -197,13 +213,15 @@ async def track_link_click(
     )
 
 
-@router.get("/link/clicks/{source_node_id}", response_model=list[LinkClickResponse])
+@router.get("/link/clicks/{source_node_uuid}", response_model=list[LinkClickResponse])
 async def get_link_clicks(
-    source_node_id: int,
+    source_node_uuid: str,
     user: User = Depends(get_current_user),
     repo: ActivityRepository = Depends(get_activity_repository),
+    node_repo: NodeRepository = Depends(get_node_repository),
 ):
     """Get all link click counts from a source node (aggregated)."""
+    source_node_id = await resolve_node_uuid(source_node_uuid, node_repo)
     rows = await repo.get_link_clicks_aggregated(source_node_id)
     return [
         LinkClickResponse(
@@ -216,14 +234,17 @@ async def get_link_clicks(
     ]
 
 
-@router.get("/link/click/{source_node_id}/{target_node_id}", response_model=LinkClickResponse)
+@router.get("/link/click/{source_node_uuid}/{target_node_uuid}", response_model=LinkClickResponse)
 async def get_link_click(
-    source_node_id: int,
-    target_node_id: int,
+    source_node_uuid: str,
+    target_node_uuid: str,
     user: User = Depends(get_current_user),
     repo: ActivityRepository = Depends(get_activity_repository),
+    node_repo: NodeRepository = Depends(get_node_repository),
 ):
     """Get click count for a specific link."""
+    source_node_id = await resolve_node_uuid(source_node_uuid, node_repo)
+    target_node_id = await resolve_node_uuid(target_node_uuid, node_repo)
     row = await repo.get_link_click(source_node_id, target_node_id)
     return LinkClickResponse(
         source_node_id=source_node_id,
@@ -233,34 +254,42 @@ async def get_link_click(
     )
 
 
-@router.get("/link/history/{source_node_id}/{target_node_id}", response_model=list[LinkClickHistoryResponse])
+@router.get("/link/history/{source_node_uuid}/{target_node_uuid}", response_model=list[LinkClickHistoryResponse])
 async def get_link_click_history(
-    source_node_id: int,
-    target_node_id: int,
+    source_node_uuid: str,
+    target_node_uuid: str,
     limit: int = 100,
     user: User = Depends(get_current_user),
     repo: ActivityRepository = Depends(get_activity_repository),
+    node_repo: NodeRepository = Depends(get_node_repository),
 ):
     """Get click history for a specific link."""
+    source_node_id = await resolve_node_uuid(source_node_uuid, node_repo)
+    target_node_id = await resolve_node_uuid(target_node_uuid, node_repo)
     rows = await repo.get_link_click_history(source_node_id, target_node_id, limit)
     return [
         LinkClickHistoryResponse(
             id=row["id"],
+            link_click_uuid=str(row["uuid"]) if row["uuid"] else None,
             source_node_id=row["source_node_id"],
             target_node_id=row["target_node_id"],
+            node_link_uuid=str(row["node_link_uuid"]) if row["node_link_uuid"] else None,
             click_date=row["click_date"].isoformat() if row["click_date"] else "",
         )
         for row in rows
     ]
 
 
-@router.post("/link/reset/{source_node_id}/{target_node_id}")
+@router.post("/link/reset/{source_node_uuid}/{target_node_uuid}")
 async def reset_link_click(
-    source_node_id: int,
-    target_node_id: int,
+    source_node_uuid: str,
+    target_node_uuid: str,
     user: User = Depends(get_current_user),
     repo: ActivityRepository = Depends(get_activity_repository),
+    node_repo: NodeRepository = Depends(get_node_repository),
 ):
     """Reset click counter for a specific link (deletes all click records)."""
+    source_node_id = await resolve_node_uuid(source_node_uuid, node_repo)
+    target_node_id = await resolve_node_uuid(target_node_uuid, node_repo)
     await repo.reset_link_clicks(source_node_id, target_node_id)
     return {"success": True}

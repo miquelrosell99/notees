@@ -13,8 +13,8 @@ export interface NodeSearchFilters {
   maxResults?: number;
   /** Node ID to pin at the top of results (current value in single-select pickers) */
   pinnedNodeId?: number | null;
-  /** UUID to search for directly */
-  uuid?: string;
+  /** Node UUID to search for directly */
+  nodeUuid?: string;
   /** Filter to pages only */
   isPage?: boolean;
   /** Filter to class definitions */

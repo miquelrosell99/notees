@@ -2,7 +2,7 @@ import { useState, useCallback, memo, useEffect } from 'react';
 import { useNavigationStore } from '@/stores';
 import { useShallow } from 'zustand/react/shallow';
 import { useIsMobile } from '@/hooks';
-import { useNode } from '@/features/content';
+import { useNodeByUuid } from '@/features/content';
 import { nodeNameToText } from '@/features/queries';
 import { useListDragSort } from '@/hooks/useListDragSort';
 import { useFavorites, useRemoveFavoriteMutation, useReorderFavoritesMutation, removeFavorite, useNodeDisplay, NodeInline, NodeBreadcrumbs } from '@/features/content';
@@ -16,19 +16,19 @@ import {
 } from '@/components/ui/icons';
 
 interface SortableFavoriteItemProps {
-  nodeId: number;
+  nodeUuid: string;
   index: number;
   isActive: boolean;
   isDragging: boolean;
   style: React.CSSProperties;
   onDragStart: (index: number, e: React.MouseEvent) => void;
-  onNavigate: (nodeId: number, e?: React.MouseEvent) => void;
-  onRemove: (nodeId: number) => void;
-  onContextMenu: (nodeId: number, e: React.MouseEvent) => void;
+  onNavigate: (nodeUuid: string | number, e?: React.MouseEvent) => void;
+  onRemove: (nodeUuid: string) => void;
+  onContextMenu: (nodeUuid: string, e: React.MouseEvent) => void;
 }
 
 const SortableFavoriteItem = memo(function SortableFavoriteItem({
-  nodeId,
+  nodeUuid,
   index,
   isActive,
   isDragging,
@@ -38,15 +38,15 @@ const SortableFavoriteItem = memo(function SortableFavoriteItem({
   onRemove,
   onContextMenu,
 }: SortableFavoriteItemProps) {
-  const { data: node, error } = useNode(nodeId, { meta: { skipGlobalError: true } });
+  const { data: node, error } = useNodeByUuid(nodeUuid, { meta: { skipGlobalError: true } });
   const { effectiveIcon } = useNodeDisplay(node);
 
   // Auto-remove stale favorites for deleted nodes
   useEffect(() => {
     if (error && isApiError(error) && error.response?.status === 404) {
-      removeFavorite(nodeId).catch(() => {});
+      removeFavorite(nodeUuid).catch(() => {});
     }
-  }, [error, nodeId]);
+  }, [error, nodeUuid]);
 
   const handleClick = useCallback((e: React.MouseEvent | { target?: never }) => {
     // Don't navigate if clicking drag handle, remove button, or breadcrumbs
@@ -54,8 +54,9 @@ const SortableFavoriteItem = memo(function SortableFavoriteItem({
     if (target?.closest('.sidebar-drag-handle, .sidebar-favorite-remove, .sidebar-item-breadcrumbs-wrapper')) {
       return;
     }
-    onNavigate(nodeId, e as React.MouseEvent);
-  }, [nodeId, onNavigate]);
+    if (!node) return;
+    onNavigate(node.uuid, e as React.MouseEvent);
+  }, [node, onNavigate]);
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     // Don't show context menu if clicking drag handle or remove button
@@ -64,15 +65,17 @@ const SortableFavoriteItem = memo(function SortableFavoriteItem({
     }
     e.preventDefault();
     e.stopPropagation();
-    onContextMenu(nodeId, e);
-  }, [nodeId, onContextMenu]);
+    if (!node) return;
+    onContextMenu(node.uuid, e);
+  }, [node, onContextMenu]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLButtonElement>) => {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
-      onNavigate(nodeId);
+      if (!node) return;
+      onNavigate(node.uuid);
     }
-  }, [nodeId, onNavigate]);
+  }, [node, onNavigate]);
 
   const handleDragHandleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -126,7 +129,6 @@ const SortableFavoriteItem = memo(function SortableFavoriteItem({
           name={node.name}
           icon={effectiveIcon}
           isPage={node.is_page}
-          nodeId={node.id}
           nodeUuid={node.uuid}
           showBullet={true}
           suppressColor={true}
@@ -142,7 +144,7 @@ const SortableFavoriteItem = memo(function SortableFavoriteItem({
         className="sidebar-favorite-remove hover-reveal"
         onClick={(e) => {
           e.stopPropagation();
-          onRemove(nodeId);
+          onRemove(nodeUuid);
         }}
         title="Remove from favorites"
       />
@@ -151,7 +153,7 @@ const SortableFavoriteItem = memo(function SortableFavoriteItem({
 });
 
 interface SidebarFavoritesProps {
-  onContextMenu: (nodeId: number, e: React.MouseEvent) => void;
+  onContextMenu: (nodeUuid: string, e: React.MouseEvent) => void;
   onItemClick?: () => void;
 }
 
@@ -161,7 +163,7 @@ export function SidebarFavorites({ onContextMenu, onItemClick }: SidebarFavorite
   const favorites = favoritesData ?? [];
   const {
     mainViewType,
-    currentNodeId,
+    currentNodeUuid,
     openNode,
     openNodeInNewTab,
     isSidebarCollapsed,
@@ -169,7 +171,7 @@ export function SidebarFavorites({ onContextMenu, onItemClick }: SidebarFavorite
   } = useNavigationStore(
     useShallow((s) => ({
       mainViewType: s.mainViewType,
-      currentNodeId: s.currentNodeId,
+      currentNodeUuid: s.currentNodeUuid,
       openNode: s.openNode,
       openNodeInNewTab: s.openNodeInNewTab,
       isSidebarCollapsed: s.isSidebarCollapsed,
@@ -182,11 +184,11 @@ export function SidebarFavorites({ onContextMenu, onItemClick }: SidebarFavorite
     if (isMobile && !isSidebarCollapsed) toggleSidebar();
   }, [isMobile, isSidebarCollapsed, toggleSidebar]);
 
-  const handleNavigate = useCallback((nodeId: number, e?: React.MouseEvent) => {
+  const handleNavigate = useCallback((nodeUuid: string | number, e?: React.MouseEvent) => {
     if (e?.ctrlKey || e?.metaKey) {
-      openNodeInNewTab(nodeId);
+      openNodeInNewTab(nodeUuid);
     } else {
-      openNode(nodeId);
+      openNode(nodeUuid);
       closeMobileDrawer();
     }
     onItemClick?.();
@@ -195,8 +197,8 @@ export function SidebarFavorites({ onContextMenu, onItemClick }: SidebarFavorite
   const removeFavoriteMutation = useRemoveFavoriteMutation();
   const reorderFavoritesMutation = useReorderFavoritesMutation();
 
-  const handleRemove = useCallback((nodeId: number) => {
-    removeFavoriteMutation.mutate(nodeId);
+  const handleRemove = useCallback((nodeUuid: string) => {
+    removeFavoriteMutation.mutate(nodeUuid);
   }, [removeFavoriteMutation]);
 
   const {
@@ -236,9 +238,9 @@ export function SidebarFavorites({ onContextMenu, onItemClick }: SidebarFavorite
             favorites.map((fav, index) => (
               <SortableFavoriteItem
                 key={fav}
-                nodeId={fav}
+                nodeUuid={fav}
                 index={index}
-                isActive={currentNodeId === fav && mainViewType === 'node'}
+                isActive={currentNodeUuid === fav && mainViewType === 'node'}
                 isDragging={dragState?.dragIndex === index}
                 style={getItemStyle(index)}
                 onDragStart={handleDragStart}

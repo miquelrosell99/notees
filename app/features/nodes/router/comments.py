@@ -9,17 +9,24 @@ from app.db.schema.constants import SYSTEM_CLASS_UUIDS
 from app.dependencies import get_current_user, get_node_repository
 from app.domain.entities import NodeCreateData
 from app.features.nodes.port import NodeRepository
+from app.features.nodes.router.dependencies import resolve_comment_uuid, resolve_node_uuid
 from app.models import PaginatedResponse, User
 
-from .helpers import _build_children_response, _get_class_ids_batch, _get_node_service, _node_to_response
+from .helpers import (
+    _build_children_response,
+    _enrich_node_responses_uuids,
+    _get_class_ids_batch,
+    _get_node_service,
+    _node_to_response,
+)
 from .models import CommentCreateRequest, NodeResponse
 
 router = APIRouter()
 
 
-@router.get("/{node_id}/comments")
+@router.get("/{node_uuid}/comments")
 async def get_comments(
-    node_id: int,
+    node_id: int = Depends(resolve_node_uuid),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=500),
     user: User = Depends(get_current_user),
@@ -74,6 +81,8 @@ async def get_comments(
             resp.children = _build_children_response(children, class_ids_map) if children else []
             comments.append(resp)
 
+    await _enrich_node_responses_uuids(comments, repo)
+
     return PaginatedResponse[NodeResponse](
         items=comments,
         total=total,
@@ -84,10 +93,10 @@ async def get_comments(
     )
 
 
-@router.post("/{node_id}/comments")
+@router.post("/{node_uuid}/comments")
 async def create_comment(
-    node_id: int,
     request: CommentCreateRequest,
+    node_id: int = Depends(resolve_node_uuid),
     user: User = Depends(get_current_user),
     repo: NodeRepository = Depends(get_node_repository),
 ):
@@ -114,11 +123,16 @@ async def create_comment(
 
     # Determine the actual parent (target node or parent comment for replies)
     actual_parent_id = node_id
-    if request.parent_comment_id:
-        parent_comment = await service.get_node(request.parent_comment_id)
-        if not parent_comment or not parent_comment.is_comment:
+    parent_comment_uuid = request.parent_comment_uuid
+    if parent_comment_uuid is None and request.parent_comment_id is not None:
+        parent_comment_node = await repo.get_by_id(request.parent_comment_id)
+        if parent_comment_node is not None:
+            parent_comment_uuid = parent_comment_node.uuid
+    if parent_comment_uuid:
+        parent_comment = await repo.get_by_uuid(parent_comment_uuid)
+        if not parent_comment or not parent_comment.is_comment or parent_comment.id is None:
             raise HTTPException(404, "Parent comment not found")
-        actual_parent_id = request.parent_comment_id
+        actual_parent_id = parent_comment.id
 
     # Get the next sequence number for comments under the parent
     next_seq = await repo.get_next_comment_sequence(actual_parent_id)
@@ -137,13 +151,15 @@ async def create_comment(
         raise HTTPException(500, "Failed to create comment node")
 
     classes = await _get_class_ids_batch(service, [comment_node.id])
-    return _node_to_response(comment_node, classes=classes.get(comment_node.id, []))
+    response = _node_to_response(comment_node, classes=classes.get(comment_node.id, []))
+    await _enrich_node_responses_uuids(response, repo)
+    return response
 
 
-@router.delete("/{node_id}/comments/{comment_id}")
+@router.delete("/{node_uuid}/comments/{comment_uuid}")
 async def delete_comment(
-    node_id: int,
-    comment_id: int,
+    node_id: int = Depends(resolve_node_uuid),
+    comment_id: int = Depends(resolve_comment_uuid),
     user: User = Depends(get_current_user),
 ):
     """Delete a comment from a node.
@@ -166,9 +182,9 @@ async def delete_comment(
     return {"status": "ok"}
 
 
-@router.get("/{node_id}/comment-count")
+@router.get("/{node_uuid}/comment-count")
 async def get_comment_count(
-    node_id: int,
+    node_id: int = Depends(resolve_node_uuid),
     user: User = Depends(get_current_user),
     repo: NodeRepository = Depends(get_node_repository),
 ):

@@ -92,12 +92,12 @@ export async function uploadAsset(
  * Note: This still works but passes the asset UUID without a token.
  * The backend will fall back to Authorization header authentication.
  * 
- * @param uuid - The asset UUID
+ * @param assetUuid - The asset UUID
  * @returns The URL to access the asset
  */
-export function getAssetUrl(uuid: string): string {
+export function getAssetUrl(assetUuid: string): string {
   // Return URL without token - will use Authorization header
-  return `/api/assets/${uuid}`;
+  return `/api/assets/${assetUuid}`;
 }
 
 /**
@@ -106,39 +106,39 @@ export function getAssetUrl(uuid: string): string {
  * Uses short-lived asset tokens instead of passing JWTs in URLs.
  * Preferred for new code.
  * 
- * @param uuid - The asset UUID
+ * @param assetUuid - The asset UUID
  * @returns Promise resolving to the URL to access the asset with token
  */
-export async function getAssetUrlAsync(uuid: string): Promise<string> {
+export async function getAssetUrlAsync(assetUuid: string): Promise<string> {
   try {
-    const token = await getAssetToken(uuid);
-    return getAssetUrlSync(uuid, token);
+    const token = await getAssetToken(assetUuid);
+    return getAssetUrlSync(assetUuid, token);
   } catch (error) {
-    log.error(`Failed to get asset token for ${uuid}:`, error);
+    log.error(`Failed to get asset token for ${assetUuid}:`, error);
     // Fallback to URL without token (will use Authorization header)
-    return `/api/assets/${uuid}`;
+    return `/api/assets/${assetUuid}`;
   }
 }
 
 /**
  * Get asset metadata.
  * 
- * @param uuid - The asset UUID
+ * @param assetUuid - The asset UUID
  * @returns Asset info
  */
-export async function getAssetInfo(uuid: string): Promise<Asset> {
-  const response = await api.get<Asset>(`/assets/${uuid}/info`);
+export async function getAssetInfo(assetUuid: string): Promise<Asset> {
+  const response = await api.get<Asset>(`/assets/${assetUuid}/info`);
   return response.data;
 }
 
 /**
  * Delete an asset.
  * 
- * @param uuid - The asset UUID
+ * @param assetUuid - The asset UUID
  * @returns Success response
  */
-export async function deleteAsset(uuid: string): Promise<{ success: boolean; deleted_file: boolean }> {
-  const response = await api.delete<{ success: boolean; deleted_file: boolean }>(`/assets/${uuid}`);
+export async function deleteAsset(assetUuid: string): Promise<{ success: boolean; deleted_file: boolean }> {
+  const response = await api.delete<{ success: boolean; deleted_file: boolean }>(`/assets/${assetUuid}`);
   return response.data;
 }
 

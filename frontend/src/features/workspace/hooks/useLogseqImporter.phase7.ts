@@ -22,7 +22,7 @@ export async function runPhase7(ctx: ImportContext): Promise<void> {
         try {
           const aliasNode = await mutations.createNode.mutateAsync({ name: aliasTitle, classes: [pageClassId] });
           titleToNodeInfo.set(aliasTitle, { id: aliasNode.id, uuid: aliasNode.uuid });
-          await addAlias(mainInfo.id, aliasNode.id);
+          await addAlias(mainInfo.uuid, aliasNode.uuid);
           p7.succeeded++;
           tick();
         } catch (e) {
@@ -33,7 +33,7 @@ export async function runPhase7(ctx: ImportContext): Promise<void> {
       } else {
         setImportStatus(`Assigning alias: ${aliasTitle} → ${page.title}`);
         try {
-          await addAlias(mainInfo.id, aliasInfo.id);
+          await addAlias(mainInfo.uuid, aliasInfo.uuid);
           p7.succeeded++;
           tick();
         } catch (e) {
@@ -42,9 +42,9 @@ export async function runPhase7(ctx: ImportContext): Promise<void> {
             p7.succeeded++;
           } else if (msg.includes('page nodes') || msg.includes('is_page')) {
             try {
-              await updateNode(mainInfo.id, { classes: [pageClassId] });
-              await updateNode(aliasInfo.id, { classes: [pageClassId] });
-              await addAlias(mainInfo.id, aliasInfo.id);
+              await updateNode(mainInfo.uuid, { classes: [pageClassId] });
+              await updateNode(aliasInfo.uuid, { classes: [pageClassId] });
+              await addAlias(mainInfo.uuid, aliasInfo.uuid);
               p7.succeeded++;
             } catch (retryErr) {
               const retryMsg = errorMessage(retryErr);
@@ -76,7 +76,7 @@ export async function runPhase7(ctx: ImportContext): Promise<void> {
         if (!thisPageInfo) continue;
         setImportStatus(`Assigning alias: UUID ${aliasUuid} → ${page.title}`);
         try {
-          await addAlias(thisPageInfo.id, aliasInfo.id);
+          await addAlias(thisPageInfo.uuid, aliasInfo.uuid);
           p7.succeeded++;
           tick();
         } catch (e) {
@@ -85,9 +85,9 @@ export async function runPhase7(ctx: ImportContext): Promise<void> {
             p7.succeeded++;
           } else if (msg.includes('page nodes') || msg.includes('is_page')) {
             try {
-              await updateNode(thisPageInfo.id, { classes: [pageClassId] });
-              await updateNode(aliasInfo.id, { classes: [pageClassId] });
-              await addAlias(thisPageInfo.id, aliasInfo.id);
+              await updateNode(thisPageInfo.uuid, { classes: [pageClassId] });
+              await updateNode(aliasInfo.uuid, { classes: [pageClassId] });
+              await addAlias(thisPageInfo.uuid, aliasInfo.uuid);
               p7.succeeded++;
             } catch (retryErr) {
               const retryMsg = errorMessage(retryErr);

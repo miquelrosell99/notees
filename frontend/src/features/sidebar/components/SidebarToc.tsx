@@ -6,6 +6,7 @@ import './SidebarToc.css';
 
 interface TocEntry {
   id: number;
+  uuid: string;
   text: string;
   level: number;
 }
@@ -40,7 +41,7 @@ export function SidebarToc({ entries, onTocClick }: SidebarTocProps) {
               nodeId={entry.id}
               interactive
               size="sm"
-              onClick={() => openNode(entry.id)}
+              onClick={() => openNode(entry.uuid)}
             />
             <button
               type="button"

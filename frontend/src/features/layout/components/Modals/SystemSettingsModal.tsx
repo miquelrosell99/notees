@@ -117,13 +117,13 @@ export function SystemSettingsModal({ isOpen, onClose }: SystemSettingsModalProp
     });
   };
 
-  const handleRoleChange = (userId: string, newRole: string | null) => {
+  const handleRoleChange = (userUuid: string, newRole: string | null) => {
     if (!newRole) return;
-    updateUserMutation.mutate({ id: userId, data: { role: newRole } });
+    updateUserMutation.mutate({ userUuid, data: { role: newRole } });
   };
 
-  const handleActiveChange = (userId: string, active: boolean) => {
-    updateUserMutation.mutate({ id: userId, data: { active } });
+  const handleActiveChange = (userUuid: string, active: boolean) => {
+    updateUserMutation.mutate({ userUuid, data: { active } });
   };
 
   const formatBytes = (bytes: number) => {

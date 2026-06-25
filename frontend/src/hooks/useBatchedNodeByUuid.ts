@@ -105,22 +105,22 @@ function queueForBatch(uuid: string, queryClient: QueryClient): Promise<Record<s
  * (no children, backlinks, or properties) — e.g., NodeRef, NodeNameContent,
  * link previews, table cells.
  */
-export function useBatchedNodeByUuid(uuid: string | null, meta?: Record<string, unknown>) {
+export function useBatchedNodeByUuid(nodeUuid: string | null, meta?: Record<string, unknown>) {
   const queryClient = useQueryClient();
 
   return useQuery({
-    queryKey: nodeKeys.byUuid(uuid ?? ''),
+    queryKey: nodeKeys.byUuid(nodeUuid ?? ''),
     queryFn: async () => {
-      if (!uuid) throw new Error('No node UUID');
+      if (!nodeUuid) throw new Error('No node UUID');
 
-      const result = await queueForBatch(uuid, queryClient);
-      const node = result[uuid];
+      const result = await queueForBatch(nodeUuid, queryClient);
+      const node = result[nodeUuid];
       if (!node) {
-        throw new Error(`Node ${uuid} not found`);
+        throw new Error(`Node ${nodeUuid} not found`);
       }
       return node;
     },
-    enabled: !!uuid,
+    enabled: !!nodeUuid,
     staleTime: 1000 * 60 * 10, // 10 minutes — metadata is stable
     retry: (failureCount, error) => {
       // Don't retry on "not found"

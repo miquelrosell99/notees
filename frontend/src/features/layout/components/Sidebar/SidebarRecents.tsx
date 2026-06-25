@@ -2,7 +2,7 @@ import { useState, useCallback, memo } from 'react';
 import { useNavigationStore } from '@/stores';
 import { useShallow } from 'zustand/react/shallow';
 import { useIsMobile } from '@/hooks';
-import { useNode } from '@/features/content';
+import { useNodeByUuid } from '@/features/content';
 import { nodeNameToText } from '@/features/queries';
 import { useRecents, useNodeDisplay, NodeInline, NodeBreadcrumbs } from '@/features/content';
 import {
@@ -12,15 +12,15 @@ import {
 } from '@/components/ui/icons';
 
 interface RecentItemProps {
-  nodeId: number;
+  nodeUuid: string;
   isActive: boolean;
   onClick: (event: React.MouseEvent) => void;
-  onNavigate: (nodeId: number) => void;
+  onNavigate: (nodeUuid: string | number) => void;
   onContextMenu?: (event: React.MouseEvent) => void;
 }
 
-const RecentItem = memo(function RecentItem({ nodeId, isActive, onClick, onNavigate, onContextMenu }: RecentItemProps) {
-  const { data: node } = useNode(nodeId);
+const RecentItem = memo(function RecentItem({ nodeUuid, isActive, onClick, onNavigate, onContextMenu }: RecentItemProps) {
+  const { data: node } = useNodeByUuid(nodeUuid);
   const { effectiveIcon } = useNodeDisplay(node);
 
   const handleClick = useCallback((e: React.MouseEvent | { target?: never }) => {
@@ -35,9 +35,9 @@ const RecentItem = memo(function RecentItem({ nodeId, isActive, onClick, onNavig
   const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLButtonElement>) => {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
-      onNavigate(nodeId);
+      onNavigate(nodeUuid);
     }
-  }, [nodeId, onNavigate]);
+  }, [nodeUuid, onNavigate]);
 
   if (!node) return <div className="sidebar-item-skeleton" />;
 
@@ -63,7 +63,6 @@ const RecentItem = memo(function RecentItem({ nodeId, isActive, onClick, onNavig
           name={node.name}
           icon={effectiveIcon}
           isPage={node.is_page}
-          nodeId={node.id}
           nodeUuid={node.uuid}
           showBullet={true}
           suppressColor={true}
@@ -75,7 +74,7 @@ const RecentItem = memo(function RecentItem({ nodeId, isActive, onClick, onNavig
 });
 
 interface SidebarRecentsProps {
-  onContextMenu: (nodeId: number, e: React.MouseEvent) => void;
+  onContextMenu: (nodeUuid: string, e: React.MouseEvent) => void;
   onItemClick?: () => void;
 }
 
@@ -85,7 +84,7 @@ export function SidebarRecents({ onContextMenu, onItemClick }: SidebarRecentsPro
   const recents = recentsData ?? [];
   const {
     mainViewType,
-    currentNodeId,
+    currentNodeUuid,
     openNode,
     openNodeInNewTab,
     isSidebarCollapsed,
@@ -93,7 +92,7 @@ export function SidebarRecents({ onContextMenu, onItemClick }: SidebarRecentsPro
   } = useNavigationStore(
     useShallow((s) => ({
       mainViewType: s.mainViewType,
-      currentNodeId: s.currentNodeId,
+      currentNodeUuid: s.currentNodeUuid,
       openNode: s.openNode,
       openNodeInNewTab: s.openNodeInNewTab,
       isSidebarCollapsed: s.isSidebarCollapsed,
@@ -106,18 +105,18 @@ export function SidebarRecents({ onContextMenu, onItemClick }: SidebarRecentsPro
     if (isMobile && !isSidebarCollapsed) toggleSidebar();
   }, [isMobile, isSidebarCollapsed, toggleSidebar]);
 
-  const handleNavigate = useCallback((nodeId: number, e?: React.MouseEvent) => {
+  const handleNavigate = useCallback((nodeUuid: string | number, e?: React.MouseEvent) => {
     if (e?.ctrlKey || e?.metaKey) {
-      openNodeInNewTab(nodeId);
+      openNodeInNewTab(nodeUuid);
     } else {
-      openNode(nodeId);
+      openNode(nodeUuid);
       closeMobileDrawer();
     }
     onItemClick?.();
   }, [openNode, openNodeInNewTab, closeMobileDrawer, onItemClick]);
 
-  const handleBreadcrumbNavigate = useCallback((nodeId: number) => {
-    openNode(nodeId);
+  const handleBreadcrumbNavigate = useCallback((nodeUuid: string | number) => {
+    openNode(nodeUuid);
     closeMobileDrawer();
     onItemClick?.();
   }, [openNode, closeMobileDrawer, onItemClick]);
@@ -141,12 +140,12 @@ export function SidebarRecents({ onContextMenu, onItemClick }: SidebarRecentsPro
           ) : (
             recents.map((recent) => (
               <RecentItem
-                key={recent.nodeId}
-                nodeId={recent.nodeId}
-                isActive={currentNodeId === recent.nodeId && mainViewType === 'node'}
-                onClick={(e) => handleNavigate(recent.nodeId, e)}
+                key={recent.nodeUuid}
+                nodeUuid={recent.nodeUuid}
+                isActive={currentNodeUuid === recent.nodeUuid && mainViewType === 'node'}
+                onClick={(e) => handleNavigate(recent.nodeUuid, e)}
                 onNavigate={handleBreadcrumbNavigate}
-                onContextMenu={(e) => onContextMenu(recent.nodeId, e)}
+                onContextMenu={(e) => onContextMenu(recent.nodeUuid, e)}
               />
             ))
           )}

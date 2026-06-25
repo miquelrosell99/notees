@@ -255,12 +255,12 @@ export const NodeCard = memo(function NodeCard({
 
   const handleOpenInView = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
-    openNode(node.id);
+    openNode(node.uuid);
   }, [node.id, openNode]);
 
   const handleOpenInSidebar = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
-    addSidebarCard(node.id, node.is_page ? 'page' : 'block');
+    addSidebarCard(node.uuid, node.is_page ? 'page' : 'block');
   }, [node.id, node.is_page, addSidebarCard]);
 
   const handleContentChange = useCallback((nodeId: number | string, content: string) => {

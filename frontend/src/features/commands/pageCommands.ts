@@ -18,7 +18,7 @@ registerCommand({
   requiresPage: true,
   palette: { category: 'page' },
   execute: () => {
-    const currentId = useNavigationStore.getState().currentNodeId;
+    const currentId = useNavigationStore.getState().currentNodeUuid;
     if (currentId) {
       useModalStore.getState().setExportPageModalOpen(true);
     }
@@ -33,7 +33,7 @@ registerCommand({
   requiresPage: true,
   palette: { category: 'page' },
   execute: () => {
-    const currentId = useNavigationStore.getState().currentNodeId;
+    const currentId = useNavigationStore.getState().currentNodeUuid;
     if (currentId) {
       useModalStore.getState().setShareModalOpen(true);
     }

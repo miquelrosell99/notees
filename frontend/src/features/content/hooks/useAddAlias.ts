@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import * as nodesApi from '@/api/nodes';
 import type { Node } from '@/types/api';
 import { nodeKeys } from '@/hooks/queryKeys';
+import { getNodeUuidByServerId } from './useNodeMutations.utils';
 
 /**
  * Hook to add an alias to a node
@@ -10,8 +11,12 @@ export function useAddAlias() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ nodeId, aliasNodeId }: { nodeId: number; aliasNodeId: number }) =>
-      nodesApi.addAlias(nodeId, aliasNodeId),
+    mutationFn: ({ nodeId, aliasNodeId }: { nodeId: number; aliasNodeId: number }) => {
+      const nodeUuid = getNodeUuidByServerId(queryClient, nodeId);
+      const aliasNodeUuid = getNodeUuidByServerId(queryClient, aliasNodeId);
+      if (!nodeUuid || !aliasNodeUuid) throw new Error('Node UUID not found');
+      return nodesApi.addAlias(nodeUuid, aliasNodeUuid);
+    },
     onSuccess: (updatedNode, { nodeId, aliasNodeId }) => {
       // Update cache directly with the returned node (includes updated aliases array)
       queryClient.setQueriesData<Node>(

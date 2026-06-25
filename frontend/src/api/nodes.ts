@@ -31,6 +31,14 @@ import type {
   BreadcrumbsResponse,
 } from '@/types/api';
 
+export interface NodeVersion {
+  id: number;
+  uuid: string;
+  name: string | null;
+  created_at: string;
+  user: string | null;
+}
+
 const BASE = '/nodes';
 
 /**
@@ -45,8 +53,8 @@ const BASE = '/nodes';
  */
 export async function listNodes(params?: {
   pages_only?: boolean;
-  parent_id?: number;
-  tag_id?: number;
+  parent_uuid?: string;
+  tag_uuid?: string;
   type_filters?: string;
   class_filters?: string;
   include_children?: boolean;
@@ -64,14 +72,14 @@ export async function listNodes(params?: {
  * Get a node by ID
  */
 export async function getNode(
-  id: number,
+  nodeUuid: string,
   options?: {
     include_children?: boolean;
     include_backlinks?: boolean;
     include_properties?: boolean;
   }
 ): Promise<Node> {
-  const response = await api.get<Node>(`${BASE}/${id}`, { params: options });
+  const response = await api.get<Node>(`${BASE}/${nodeUuid}`, { params: options });
   return response.data;
 }
 
@@ -79,21 +87,21 @@ export async function getNode(
  * Get a node by UUID
  */
 export async function getNodeByUuid(
-  uuid: string,
+  nodeUuid: string,
   options?: {
     include_children?: boolean;
     include_backlinks?: boolean;
   }
 ): Promise<Node> {
-  const response = await api.get<Node>(`${BASE}/uuid/${uuid}`, { params: options });
+  const response = await api.get<Node>(`${BASE}/${nodeUuid}`, { params: options });
   return response.data;
 }
 
 /**
  * Get page content with blocks, properties, and backlinks
  */
-export async function getPageContent(pageId: number): Promise<Node> {
-  const response = await api.get<Node>(`${BASE}/page/${pageId}/content`);
+export async function getPageContent(nodeUuid: string): Promise<Node> {
+  const response = await api.get<Node>(`${BASE}/page/${nodeUuid}/content`);
   return response.data;
 }
 
@@ -122,8 +130,8 @@ export async function batchGetNodesByUuid(request: BatchGetNodesByUuidRequest): 
  * Returns ordered list from root ancestor to immediate parent.
  * Uses closure table for O(1) lookup — much faster than chaining GET requests.
  */
-export async function getBreadcrumbs(nodeId: number): Promise<BreadcrumbsResponse> {
-  const response = await api.get<BreadcrumbsResponse>(`${BASE}/${nodeId}/breadcrumbs`);
+export async function getBreadcrumbs(nodeUuid: string): Promise<BreadcrumbsResponse> {
+  const response = await api.get<BreadcrumbsResponse>(`${BASE}/${nodeUuid}/breadcrumbs`);
   return response.data;
 }
 
@@ -143,7 +151,7 @@ export async function createPage(
   name: string,
   icon?: string | null,
   color?: string | null,
-  additionalTags?: number[]
+  additionalTags?: string[]
 ): Promise<Node> {
   const response = await api.post<Node>(`${BASE}/page`, null, {
     params: { name, icon, color, additional_tags: additionalTags },
@@ -210,8 +218,8 @@ export async function getOrCreateYearly(year: number): Promise<Node> {
 /**
  * Update a node
  */
-export async function updateNode(id: number, data: NodeUpdate): Promise<Node> {
-  const response = await api.put<Node>(`${BASE}/${id}`, data);
+export async function updateNode(nodeUuid: string, data: NodeUpdate): Promise<Node> {
+  const response = await api.put<Node>(`${BASE}/${nodeUuid}`, data);
   return response.data;
 }
 
@@ -252,23 +260,23 @@ export async function batchDeleteNodes(request: BatchNodeDeleteRequest): Promise
 /**
  * Delete a node
  */
-export async function deleteNode(id: number): Promise<void> {
-  await api.delete(`${BASE}/${id}`);
+export async function deleteNode(nodeUuid: string): Promise<void> {
+  await api.delete(`${BASE}/${nodeUuid}`);
 }
 
 /**
  * Archive a node (set active to false)
  */
-export async function archiveNode(id: number): Promise<Node> {
-  const response = await api.post<Node>(`${BASE}/${id}/archive`);
+export async function archiveNode(nodeUuid: string): Promise<Node> {
+  const response = await api.post<Node>(`${BASE}/${nodeUuid}/archive`);
   return response.data;
 }
 
 /**
  * Unarchive a node (set active to true)
  */
-export async function unarchiveNode(id: number): Promise<Node> {
-  const response = await api.post<Node>(`${BASE}/${id}/unarchive`);
+export async function unarchiveNode(nodeUuid: string): Promise<Node> {
+  const response = await api.post<Node>(`${BASE}/${nodeUuid}/unarchive`);
   return response.data;
 }
 
@@ -277,11 +285,11 @@ export async function unarchiveNode(id: number): Promise<Node> {
  * Moves all blocks from source to target, redirects backlinks, then deletes source.
  */
 export async function mergePages(
-  sourceId: number,
-  targetId: number,
+  sourceNodeUuid: string,
+  targetNodeUuid: string,
 ): Promise<{ children_moved: number; target_id: number }> {
   const response = await api.post<{ children_moved: number; target_id: number }>(
-    `${BASE}/${sourceId}/merge-into/${targetId}`,
+    `${BASE}/${sourceNodeUuid}/merge-into/${targetNodeUuid}`,
   );
   return response.data;
 }
@@ -317,12 +325,12 @@ export async function getNodesWithClass(
  * Set a property value on a node
  */
 export async function setProperty(
-  nodeId: number,
-  propertyId: number,
+  nodeUuid: string,
+  propertyUuid: string,
   value: unknown
 ): Promise<Node> {
-  const response = await api.post<Node>(`${BASE}/${nodeId}/properties`, {
-    property_id: propertyId,
+  const response = await api.post<Node>(`${BASE}/${nodeUuid}/properties`, {
+    property_uuid: propertyUuid,
     value,
   });
   return response.data;
@@ -332,27 +340,27 @@ export async function setProperty(
  * Remove a property value from a node
  */
 export async function removeProperty(
-  nodeId: number,
-  propertyId: number
+  nodeUuid: string,
+  propertyUuid: string
 ): Promise<Node> {
   const response = await api.delete<Node>(
-    `${BASE}/${nodeId}/properties/${propertyId}`
+    `${BASE}/${nodeUuid}/properties/${propertyUuid}`
   );
   return response.data;
 }
 
 /**
  * Batch-fetch property values for multiple nodes in a single request.
- * Returns { nodeId -> { propertyId -> value } }.
+ * Returns { nodeUuid -> { propertyUuid -> value } }.
  */
 export type BatchPropertiesResult = Record<string, Record<string, unknown>>;
 
 export async function batchGetPropertyValues(
-  nodeIds: number[]
+  nodeUuids: string[]
 ): Promise<BatchPropertiesResult> {
   const response = await api.post<BatchPropertiesResult>(
     `${BASE}/batch/properties`,
-    { node_ids: nodeIds }
+    { node_uuids: nodeUuids }
   );
   return response.data;
 }
@@ -361,11 +369,11 @@ export async function batchGetPropertyValues(
  * Get backlinks to a node
  */
 export async function getBacklinks(
-  nodeId: number,
+  nodeUuid: string,
   includeInherited = true
 ): Promise<Backlink[]> {
   const data = await nodeQueryWorkerClient.get<BacklinksResponse>(
-    `/api/nodes/${nodeId}/backlinks?include_inherited=${includeInherited}`,
+    `/api/nodes/${nodeUuid}/backlinks?include_inherited=${includeInherited}`,
   );
   return data.backlinks ?? [];
 }
@@ -374,7 +382,7 @@ export async function getBacklinks(
  * Get linked references to a node with context
  */
 export async function getLinkedReferences(
-  nodeId: number,
+  nodeUuid: string,
   params?: { limit?: number; offset?: number }
 ): Promise<{ linked_references: LinkedReference[]; total_count: number }> {
   const query = new URLSearchParams();
@@ -382,7 +390,7 @@ export async function getLinkedReferences(
   if (params?.offset !== undefined) query.set('offset', String(params.offset));
   const qs = query.toString();
   const data = await nodeQueryWorkerClient.get<LinkedReferencesResponse>(
-    `/api/nodes/${nodeId}/linked-references${qs ? '?' + qs : ''}`,
+    `/api/nodes/${nodeUuid}/linked-references${qs ? '?' + qs : ''}`,
   );
   return { linked_references: data.linked_references ?? [], total_count: data.total_count ?? 0 };
 }
@@ -391,12 +399,12 @@ export async function getLinkedReferences(
  * Move a node to a new parent and/or position
  */
 export async function moveNode(
-  id: number,
-  parentId: number | null,
+  nodeUuid: string,
+  parentNodeUuid: string | null,
   position?: number
 ): Promise<Node> {
-  const response = await api.put<Node>(`${BASE}/${id}/move`, {
-    parent_id: parentId,
+  const response = await api.put<Node>(`${BASE}/${nodeUuid}/move`, {
+    parent_uuid: parentNodeUuid,
     position,
   });
   return response.data;
@@ -405,8 +413,8 @@ export async function moveNode(
 /**
  * Convert a block into a root page.
  */
-export async function convertToPage(id: number, name?: string): Promise<Node> {
-  const response = await api.post<Node>(`${BASE}/${id}/convert-to-page`, { name });
+export async function convertToPage(nodeUuid: string, name?: string): Promise<Node> {
+  const response = await api.post<Node>(`${BASE}/${nodeUuid}/convert-to-page`, { name });
   return response.data;
 }
 
@@ -414,12 +422,12 @@ export async function convertToPage(id: number, name?: string): Promise<Node> {
  * Convert a page into a block under a destination page.
  */
 export async function convertToBlock(
-  id: number,
-  parentId: number,
+  nodeUuid: string,
+  parentNodeUuid: string,
   position?: number
 ): Promise<Node> {
-  const response = await api.post<Node>(`${BASE}/${id}/convert-to-block`, {
-    parent_id: parentId,
+  const response = await api.post<Node>(`${BASE}/${nodeUuid}/convert-to-block`, {
+    parent_uuid: parentNodeUuid,
     position,
   });
   return response.data;
@@ -433,7 +441,7 @@ export async function convertToBlock(
  */
 export async function searchNodes(query: string, options?: {
   class_filters?: string;
-  uuid?: string;
+  node_uuid?: string;
   is_page?: boolean;
   is_class?: boolean;
   is_daily?: boolean;
@@ -441,7 +449,7 @@ export async function searchNodes(query: string, options?: {
 }): Promise<Node[]> {
   const params: Record<string, string | boolean> = { q: query };
   if (options?.class_filters) params.class_filters = options.class_filters;
-  if (options?.uuid) params.uuid = options.uuid;
+  if (options?.node_uuid) params.uuid = options.node_uuid;
   if (options?.is_page !== undefined) params.is_page = options.is_page;
   if (options?.is_class !== undefined) params.is_class = options.is_class;
   if (options?.is_daily !== undefined) params.is_daily = options.is_daily;
@@ -471,9 +479,9 @@ export async function searchClasses(query: string): Promise<Node[]> {
 /**
  * Add a class to a node (sets the "classes" property)
  */
-export async function addClass(nodeId: number, classNodeId: number): Promise<Node> {
-  const response = await api.post<Node>(`${BASE}/${nodeId}/classes`, {
-    class_node_id: classNodeId,
+export async function addClass(nodeUuid: string, classNodeUuid: string): Promise<Node> {
+  const response = await api.post<Node>(`${BASE}/${nodeUuid}/classes`, {
+    class_node_uuid: classNodeUuid,
   });
   return response.data;
 }
@@ -481,8 +489,8 @@ export async function addClass(nodeId: number, classNodeId: number): Promise<Nod
 /**
  * Remove a class from a node
  */
-export async function removeClass(nodeId: number, classNodeId: number): Promise<Node> {
-  const response = await api.delete<Node>(`${BASE}/${nodeId}/classes/${classNodeId}`);
+export async function removeClass(nodeUuid: string, classNodeUuid: string): Promise<Node> {
+  const response = await api.delete<Node>(`${BASE}/${nodeUuid}/classes/${classNodeUuid}`);
   return response.data;
 }
 
@@ -588,19 +596,19 @@ export async function getGraphNodes(
  * @param scope - "between" (default): both ends in set. "touching": at least one end in set.
  */
 export async function getLinksForNodes(
-  nodeIds: number[],
+  nodeUuids: string[],
   scope: 'between' | 'touching' = 'between',
   cooccurrence = false,
-  contextNodeId?: number | null,
+  contextNodeUuid?: string | null,
 ): Promise<GraphLink[]> {
-  if (nodeIds.length === 0) return [];
+  if (nodeUuids.length === 0) return [];
   const body: Record<string, unknown> = {
-    node_ids: nodeIds,
+    node_uuids: nodeUuids,
     scope,
     cooccurrence,
   };
-  if (contextNodeId != null) {
-    body.context_node_id = contextNodeId;
+  if (contextNodeUuid != null) {
+    body.context_node_uuid = contextNodeUuid;
   }
   const response = await api.post<{ links: GraphLink[] }>(`${BASE}/links`, body);
   return response.data.links;
@@ -637,9 +645,9 @@ export interface PropertyBacklink {
 /**
  * Get property backlinks (pages that reference via date or node properties)
  */
-export async function getPropertyBacklinks(nodeId: number): Promise<PropertyBacklink[]> {
+export async function getPropertyBacklinks(nodeUuid: string): Promise<PropertyBacklink[]> {
   const data = await nodeQueryWorkerClient.get<{ property_backlinks: PropertyBacklink[] }>(
-    `/api/nodes/${nodeId}/property-backlinks`,
+    `/api/nodes/${nodeUuid}/property-backlinks`,
   );
   return data.property_backlinks ?? [];
 }
@@ -658,11 +666,11 @@ export interface CommentsResponse {
  * Get all comments for a node
  */
 export async function getComments(
-  nodeId: number,
+  nodeUuid: string,
   page: number = 1,
   page_size: number = 50,
 ): Promise<PaginatedResponse<Node>> {
-  const response = await api.get<PaginatedResponse<Node>>(`${BASE}/${nodeId}/comments`, {
+  const response = await api.get<PaginatedResponse<Node>>(`${BASE}/${nodeUuid}/comments`, {
     params: { page, page_size },
   });
   return response.data;
@@ -671,25 +679,25 @@ export async function getComments(
 /**
  * Create a new comment on a node
  */
-export async function createComment(nodeId: number, name: string, parentCommentId?: number): Promise<Node> {
+export async function createComment(nodeUuid: string, name: string, parentCommentUuid?: string): Promise<Node> {
   const body: Record<string, unknown> = { name };
-  if (parentCommentId) body.parent_comment_id = parentCommentId;
-  const response = await api.post<Node>(`${BASE}/${nodeId}/comments`, body);
+  if (parentCommentUuid) body.parent_comment_uuid = parentCommentUuid;
+  const response = await api.post<Node>(`${BASE}/${nodeUuid}/comments`, body);
   return response.data;
 }
 
 /**
  * Delete a comment from a node
  */
-export async function deleteComment(nodeId: number, commentId: number): Promise<void> {
-  await api.delete(`${BASE}/${nodeId}/comments/${commentId}`);
+export async function deleteComment(nodeUuid: string, commentUuid: string): Promise<void> {
+  await api.delete(`${BASE}/${nodeUuid}/comments/${commentUuid}`);
 }
 
 /**
  * Get the count of comments for a node (useful for showing indicators)
  */
-export async function getCommentCount(nodeId: number): Promise<number> {
-  const response = await api.get<{ count: number }>(`${BASE}/${nodeId}/comment-count`);
+export async function getCommentCount(nodeUuid: string): Promise<number> {
+  const response = await api.get<{ count: number }>(`${BASE}/${nodeUuid}/comment-count`);
   return response.data.count;
 }
 
@@ -708,8 +716,8 @@ export interface TextLink {
 /**
  * Get all text links from a node
  */
-export async function getTextLinks(nodeId: number): Promise<TextLink[]> {
-  const response = await api.get<{ links: TextLink[] }>(`${BASE}/${nodeId}/text-links`);
+export async function getTextLinks(nodeUuid: string): Promise<TextLink[]> {
+  const response = await api.get<{ links: TextLink[] }>(`${BASE}/${nodeUuid}/text-links`);
   return response.data.links ?? [];
 }
 
@@ -717,10 +725,10 @@ export async function getTextLinks(nodeId: number): Promise<TextLink[]> {
  * Get text links for multiple nodes in a single request.
  * Returns a map of node ID to its text links.
  */
-export async function batchGetTextLinks(nodeIds: number[]): Promise<Record<string, TextLink[]>> {
-  if (nodeIds.length === 0) return {};
+export async function batchGetTextLinks(nodeUuids: string[]): Promise<Record<string, TextLink[]>> {
+  if (nodeUuids.length === 0) return {};
   const response = await api.post<{ links_by_node: Record<string, TextLink[]> }>(`${BASE}/batch-text-links`, {
-    node_ids: nodeIds,
+    node_uuids: nodeUuids,
   });
   return response.data.links_by_node ?? {};
 }
@@ -728,9 +736,9 @@ export async function batchGetTextLinks(nodeIds: number[]): Promise<Record<strin
 /**
  * Add a tag to a node
  */
-export async function addTagLink(nodeId: number, targetNodeId: number): Promise<{ success: boolean }> {
-  const response = await api.post<{ success: boolean }>(`${BASE}/${nodeId}/tag-links`, {
-    target_node_id: targetNodeId,
+export async function addTagLink(nodeUuid: string, targetNodeUuid: string): Promise<{ success: boolean }> {
+  const response = await api.post<{ success: boolean }>(`${BASE}/${nodeUuid}/tag-links`, {
+    target_node_uuid: targetNodeUuid,
   });
   return response.data;
 }
@@ -738,8 +746,8 @@ export async function addTagLink(nodeId: number, targetNodeId: number): Promise<
 /**
  * Remove a tag from a node
  */
-export async function removeTagLink(nodeId: number, targetId: number): Promise<{ removed: boolean }> {
-  const response = await api.delete<{ removed: boolean }>(`${BASE}/${nodeId}/tag-links/${targetId}`);
+export async function removeTagLink(nodeUuid: string, targetNodeUuid: string): Promise<{ removed: boolean }> {
+  const response = await api.delete<{ removed: boolean }>(`${BASE}/${nodeUuid}/tag-links/${targetNodeUuid}`);
   return response.data;
 }
 
@@ -748,17 +756,17 @@ export async function removeTagLink(nodeId: number, targetId: number): Promise<{
 /**
  * Get all aliases for a node
  */
-export async function getAliases(nodeId: number): Promise<Node[]> {
-  const response = await api.get<{ aliases: Node[] }>(`${BASE}/${nodeId}/aliases`);
+export async function getAliases(nodeUuid: string): Promise<Node[]> {
+  const response = await api.get<{ aliases: Node[] }>(`${BASE}/${nodeUuid}/aliases`);
   return response.data.aliases ?? [];
 }
 
 /**
  * Add a page as an alias of a node
  */
-export async function addAlias(nodeId: number, aliasNodeId: number): Promise<Node> {
-  const response = await api.post<Node>(`${BASE}/${nodeId}/aliases`, {
-    alias_node_id: aliasNodeId,
+export async function addAlias(nodeUuid: string, aliasNodeUuid: string): Promise<Node> {
+  const response = await api.post<Node>(`${BASE}/${nodeUuid}/aliases`, {
+    alias_node_uuid: aliasNodeUuid,
   });
   return response.data;
 }
@@ -766,8 +774,8 @@ export async function addAlias(nodeId: number, aliasNodeId: number): Promise<Nod
 /**
  * Remove an alias from a node
  */
-export async function removeAlias(nodeId: number, aliasId: number): Promise<void> {
-  await api.delete(`${BASE}/${nodeId}/aliases/${aliasId}`);
+export async function removeAlias(nodeUuid: string, aliasNodeUuid: string): Promise<void> {
+  await api.delete(`${BASE}/${nodeUuid}/aliases/${aliasNodeUuid}`);
 }
 
 // ============== Page View Tracking & Recents ==============
@@ -775,8 +783,8 @@ export async function removeAlias(nodeId: number, aliasId: number): Promise<void
 /**
  * Mark a page as opened/viewed (updates open_date)
  */
-export async function markPageOpened(nodeId: number): Promise<{ status: string; open_date: string }> {
-  const response = await api.patch<{ status: string; open_date: string }>(`${BASE}/${nodeId}/open`);
+export async function markPageOpened(nodeUuid: string): Promise<{ status: string; open_date: string }> {
+  const response = await api.patch<{ status: string; open_date: string }>(`${BASE}/${nodeUuid}/open`);
   return response.data;
 }
 
@@ -844,34 +852,27 @@ export async function getSuggestions(limit: number = 20, class_filters?: string)
 
 // ============== Version History ==============
 
-export interface NodeVersion {
-  id: number;
-  name: string | null;
-  created_at: string;
-  user: string | null;
-}
-
 /**
  * Get version history for a node
  */
-export async function getNodeVersions(nodeId: number, limit: number = 50): Promise<NodeVersion[]> {
-  const response = await api.get<{ versions: NodeVersion[] }>(`${BASE}/${nodeId}/versions`, { params: { limit } });
+export async function getNodeVersions(nodeUuid: string, limit: number = 50): Promise<NodeVersion[]> {
+  const response = await api.get<{ versions: NodeVersion[] }>(`${BASE}/${nodeUuid}/versions`, { params: { limit } });
   return response.data.versions ?? [];
 }
 
 /**
- * Get a specific version of a node
+ * Get a specific version of a node by UUID
  */
-export async function getNodeVersion(nodeId: number, versionId: number): Promise<NodeVersion> {
-  const response = await api.get<NodeVersion>(`${BASE}/${nodeId}/versions/${versionId}`);
+export async function getNodeVersion(nodeUuid: string, versionUuid: string): Promise<NodeVersion> {
+  const response = await api.get<NodeVersion>(`${BASE}/${nodeUuid}/versions/${versionUuid}`);
   return response.data;
 }
 
 /**
- * Restore a node to a previous version
+ * Restore a node to a previous version by UUID
  */
-export async function restoreNodeVersion(nodeId: number, versionId: number): Promise<Node> {
-  const response = await api.post<Node>(`${BASE}/${nodeId}/versions/${versionId}/restore`);
+export async function restoreNodeVersion(nodeUuid: string, versionUuid: string): Promise<Node> {
+  const response = await api.post<Node>(`${BASE}/${nodeUuid}/versions/${versionUuid}/restore`);
   return response.data;
 }
 
@@ -893,32 +894,32 @@ export async function getFavorites(
 /**
  * Set the entire list of favorite page IDs
  */
-export async function setFavorites(favorites: number[]): Promise<number[]> {
-  const response = await api.put<{ status: string; favorites: number[] }>(`${BASE}/favorites`, { favorites });
+export async function setFavorites(favorites: string[]): Promise<string[]> {
+  const response = await api.put<{ status: string; favorites: string[] }>(`${BASE}/favorites`, { favorites });
   return response.data.favorites ?? [];
 }
 
 /**
  * Add a page to favorites
  */
-export async function addFavorite(nodeId: number): Promise<number[]> {
-  const response = await api.post<{ status: string; favorites: number[] }>(`${BASE}/favorites/${nodeId}`);
+export async function addFavorite(nodeUuid: string): Promise<string[]> {
+  const response = await api.post<{ status: string; favorites: string[] }>(`${BASE}/favorites/${nodeUuid}`);
   return response.data.favorites ?? [];
 }
 
 /**
  * Remove a page from favorites
  */
-export async function removeFavorite(nodeId: number): Promise<number[]> {
-  const response = await api.delete<{ status: string; favorites: number[] }>(`${BASE}/favorites/${nodeId}`);
+export async function removeFavorite(nodeUuid: string): Promise<string[]> {
+  const response = await api.delete<{ status: string; favorites: string[] }>(`${BASE}/favorites/${nodeUuid}`);
   return response.data.favorites ?? [];
 }
 
 /**
  * Reorder favorites
  */
-export async function reorderFavorites(fromIndex: number, toIndex: number): Promise<number[]> {
-  const response = await api.put<{ status: string; favorites: number[] }>(`${BASE}/favorites/reorder`, {
+export async function reorderFavorites(fromIndex: number, toIndex: number): Promise<string[]> {
+  const response = await api.put<{ status: string; favorites: string[] }>(`${BASE}/favorites/reorder`, {
     from_index: fromIndex,
     to_index: toIndex,
   });
@@ -941,16 +942,16 @@ export async function getTrash(
 /**
  * Restore a soft-deleted node
  */
-export async function restoreNode(nodeId: number): Promise<Node> {
-  const response = await api.post<Node>(`${BASE}/${nodeId}/restore`);
+export async function restoreNode(nodeUuid: string): Promise<Node> {
+  const response = await api.post<Node>(`${BASE}/${nodeUuid}/restore`);
   return response.data;
 }
 
 /**
  * Permanently delete a node (hard delete)
  */
-export async function permanentlyDeleteNode(nodeId: number): Promise<void> {
-  await api.delete(`${BASE}/${nodeId}/permanent`);
+export async function permanentlyDeleteNode(nodeUuid: string): Promise<void> {
+  await api.delete(`${BASE}/${nodeUuid}/permanent`);
 }
 
 /**
@@ -1036,20 +1037,20 @@ export interface FixLinksForUuidResponse {
   total_errors: number;
 }
 
-export async function fixLinksForUuid(uuid: string): Promise<FixLinksForUuidResponse> {
-  const response = await api.post<FixLinksForUuidResponse>(`${BASE}/fix-links-for-uuid/${encodeURIComponent(uuid)}`);
+export async function fixLinksForUuid(nodeUuid: string): Promise<FixLinksForUuidResponse> {
+  const response = await api.post<FixLinksForUuidResponse>(`${BASE}/fix-links-for-uuid/${encodeURIComponent(nodeUuid)}`);
   return response.data;
 }
 
 // ==================== Templates ====================
 
 export interface TemplateInstantiateOptions {
-  parent_id?: number;
+  parent_uuid?: string;
   name?: string;
   variables?: Record<string, string>;
   dynamic_context?: Record<string, string>;
   as_blocks?: boolean;
-  after_id?: number;
+  after_uuid?: string;
 }
 
 export interface TemplateInstantiateResult {
@@ -1073,16 +1074,16 @@ export interface TemplateVariablesResult {
   dynamic_variables: string[];
 }
 
-export async function getTemplateVariables(nodeId: number): Promise<TemplateVariablesResult> {
-  const response = await api.get<TemplateVariablesResult>(`${BASE}/${nodeId}/template-variables`);
+export async function getTemplateVariables(nodeUuid: string): Promise<TemplateVariablesResult> {
+  const response = await api.get<TemplateVariablesResult>(`${BASE}/${nodeUuid}/template-variables`);
   return response.data;
 }
 
 export async function instantiateTemplate(
-  nodeId: number,
+  nodeUuid: string,
   options: TemplateInstantiateOptions,
 ): Promise<TemplateInstantiateResult> {
-  const response = await api.post<TemplateInstantiateResult>(`${BASE}/${nodeId}/instantiate`, options);
+  const response = await api.post<TemplateInstantiateResult>(`${BASE}/${nodeUuid}/instantiate`, options);
   return response.data;
 }
 
@@ -1091,8 +1092,8 @@ export async function instantiateTemplate(
 /**
  * Get unlinked mention candidates for a node.
  */
-export async function getUnlinkedMentions(nodeId: number): Promise<Mention[]> {
-  const response = await api.get<MentionsResponse>(`${BASE}/${nodeId}/mentions`);
+export async function getUnlinkedMentions(nodeUuid: string): Promise<Mention[]> {
+  const response = await api.get<MentionsResponse>(`${BASE}/${nodeUuid}/mentions`);
   return response.data.mentions ?? [];
 }
 
@@ -1100,11 +1101,11 @@ export async function getUnlinkedMentions(nodeId: number): Promise<Mention[]> {
  * Promote an unlinked mention into a real node link.
  */
 export async function promoteMention(
-  nodeId: number,
-  mentionId: number,
+  nodeUuid: string,
+  mentionUuid: string,
 ): Promise<{ success: boolean; source_node_id: number | null }> {
   const response = await api.post<{ success: boolean; source_node_id: number | null }>(
-    `${BASE}/${nodeId}/mentions/${mentionId}/promote`,
+    `${BASE}/${nodeUuid}/mentions/${mentionUuid}/promote`,
   );
   return response.data;
 }
@@ -1113,11 +1114,11 @@ export async function promoteMention(
  * Ignore an unlinked mention candidate.
  */
 export async function ignoreMention(
-  nodeId: number,
-  mentionId: number,
+  nodeUuid: string,
+  mentionUuid: string,
 ): Promise<{ success: boolean; is_ignored: boolean }> {
   const response = await api.post<{ success: boolean; is_ignored: boolean }>(
-    `${BASE}/${nodeId}/mentions/${mentionId}/ignore`,
+    `${BASE}/${nodeUuid}/mentions/${mentionUuid}/ignore`,
   );
   return response.data;
 }
@@ -1126,11 +1127,11 @@ export async function ignoreMention(
  * Restore a previously ignored mention candidate.
  */
 export async function unignoreMention(
-  nodeId: number,
-  mentionId: number,
+  nodeUuid: string,
+  mentionUuid: string,
 ): Promise<{ success: boolean; is_ignored: boolean }> {
   const response = await api.post<{ success: boolean; is_ignored: boolean }>(
-    `${BASE}/${nodeId}/mentions/${mentionId}/unignore`,
+    `${BASE}/${nodeUuid}/mentions/${mentionUuid}/unignore`,
   );
   return response.data;
 }

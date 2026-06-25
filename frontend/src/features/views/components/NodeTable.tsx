@@ -143,9 +143,9 @@ export interface NodeTableProps<T> {
   /** Callback when expanded keys change */
   onExpandedChange?: (keys: Set<string | number>) => void;
   /** Callback when a node should be opened (for Node cell auto-rendering) */
-  onNodeOpen?: (nodeId: number, type: 'page' | 'block') => void;
+  onNodeOpen?: (nodeId: string | number, type: 'page' | 'block') => void;
   /** Callback when a node should be opened in sidebar (for Node cell auto-rendering) */
-  onNodeOpenInSidebar?: (nodeId: number, type: 'page' | 'block') => void;
+  onNodeOpenInSidebar?: (nodeId: string | number, type: 'page' | 'block') => void;
   /** Whether node name cells should be editable on click */
   nodeEditable?: boolean;
   /** Initial sort state — columns are sorted in this order on first render */

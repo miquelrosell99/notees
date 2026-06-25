@@ -97,7 +97,7 @@ export function ArchivedNodeContextMenu({ node, position, onClose }: ArchivedNod
       label: 'Open in sidebar',
       icon: 'mdi-dock-right',
       onClick: () => {
-        addSidebarCard(node.id, node.is_page ? 'page' : 'block');
+        addSidebarCard(node.uuid, node.is_page ? 'page' : 'block');
         onClose();
       }
     },
@@ -106,7 +106,7 @@ export function ArchivedNodeContextMenu({ node, position, onClose }: ArchivedNod
       label: 'Show local graph',
       icon: 'mdi-graph-outline',
       onClick: () => {
-        openLocalGraph(node.id);
+        openLocalGraph(node.uuid);
         onClose();
       }
     },

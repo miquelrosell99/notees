@@ -1,5 +1,6 @@
 import { listProperties, updateProperty, addSelectionOption } from '@/api/properties';
 import { SYSTEM_PROPERTY_UUIDS } from '@/constants';
+import type { Property } from '@/types/api';
 import type { ImportContext } from './useLogseqImporter.types';
 import { createPhase, errorMessage, mapPropertyType } from './useLogseqImporter.utils';
 
@@ -29,7 +30,7 @@ export async function runPhase2(ctx: ImportContext): Promise<void> {
         propIdMap.set(prop.id, existingProp.id);
         if (existingProp.multi !== isMulti && !existingProp.is_system) {
           try {
-            await updateProperty(existingProp.id, { multi: isMulti });
+            await updateProperty(existingProp.uuid, { multi: isMulti });
           } catch (e) {
             p2.errors.push({ item: prop.title, message: `Failed to update multi flag: ${errorMessage(e)}` });
           }
@@ -43,7 +44,7 @@ export async function runPhase2(ctx: ImportContext): Promise<void> {
               uuidMap.set(opt.uuid, { id: matching.id, uuid: '' });
             } else {
               try {
-                const newOpt = await addSelectionOption(existingProp.id, String(opt.value));
+                const newOpt = await addSelectionOption(existingProp.uuid, String(opt.value));
                 uuidMap.set(opt.uuid, { id: newOpt.id, uuid: '' });
               } catch (optErr) {
                 console.warn(`[IMPORT] Failed to create selection option "${opt.value}" on property "${prop.title}":`, optErr);
@@ -56,14 +57,14 @@ export async function runPhase2(ctx: ImportContext): Promise<void> {
         continue;
       }
 
-      let created: { id: number; options?: { name: string; id: number }[] } | undefined;
+      let created: Property | undefined;
       try {
         created = await mutations.createProperty.mutateAsync({
           name: prop.title,
           type: finalType,
           is_multi: isMulti,
           selection_lines: selectionLines,
-        }) as { id: number; options?: { name: string; id: number }[] };
+        }) as Property;
       } catch (createErr) {
         const resp = (createErr as { response?: { status?: number } }).response;
         if (resp?.status === 409) {
@@ -81,7 +82,7 @@ export async function runPhase2(ctx: ImportContext): Promise<void> {
                   uuidMap.set(opt.uuid, { id: matching.id, uuid: '' });
                 } else {
                   try {
-                    const newOpt = await addSelectionOption(found.id, String(opt.value));
+                    const newOpt = await addSelectionOption(found.uuid, String(opt.value));
                     uuidMap.set(opt.uuid, { id: newOpt.id, uuid: '' });
                   } catch (optErr) {
                     console.warn(`[IMPORT] Failed to create selection option "${opt.value}":`, optErr);
@@ -107,7 +108,7 @@ export async function runPhase2(ctx: ImportContext): Promise<void> {
             uuidMap.set(opt.uuid, { id: matching.id, uuid: '' });
           } else {
             try {
-              const newOpt = await addSelectionOption(created!.id, String(opt.value));
+              const newOpt = await addSelectionOption(created!.uuid, String(opt.value));
               uuidMap.set(opt.uuid, { id: newOpt.id, uuid: '' });
             } catch (optErr) {
               console.warn(`[IMPORT] Failed to create selection option "${opt.value}":`, optErr);

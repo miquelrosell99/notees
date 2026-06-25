@@ -26,7 +26,7 @@ export function AllPagesView({ className = '' }: AllPagesViewProps) {
   const PSEUDO_NODE_UUID = '00000000-0000-0000-0000-000000000000';
   
   const handleSearchSelect = useCallback((node: Node) => {
-    openNode(node.id);
+    openNode(node.uuid);
   }, [openNode]);
   
   return (

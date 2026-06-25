@@ -42,12 +42,12 @@ export function NotificationPanel({ filterType, title, onClose }: NotificationPa
         ) : (
           notifications.map((n) => (
             <button
-              key={n.id}
+              key={n.uuid}
               type="button"
               aria-label={`Notification from ${n.actor_name || 'Someone'}: ${n.message || 'notified you'}`}
               className={`notification-bell__item ${n.is_read ? 'notification-bell__item--read' : ''}`}
               onClick={() => {
-                if (!n.is_read) markRead.mutate(Number(n.id));
+                if (!n.is_read && n.uuid) markRead.mutate(n.uuid);
                 if (n.node_id) {
                   window.location.href = `/node/${n.node_id}`;
                 }

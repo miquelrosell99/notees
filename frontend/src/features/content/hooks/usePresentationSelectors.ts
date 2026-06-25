@@ -5,7 +5,7 @@ export const usePresentationState = () =>
   usePresentationStore(
     useShallow((s) => ({
       isOpen: s.isOpen,
-      nodeId: s.nodeId,
+      nodeUuid: s.nodeUuid,
       closePresentation: s.closePresentation,
     })),
   );

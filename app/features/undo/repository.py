@@ -223,6 +223,17 @@ class PostgresUndoRepository(BasePostgresRepository, UndoRepository):
             )
         return [self._entry_from_row(r) for r in rows]
 
+    async def get_undo_entry_id_by_uuid(self, entry_uuid: str) -> int | None:
+        """Resolve an undo log entry UUID to its internal ID."""
+        async with acquire_connection(self._pool) as conn:
+            row = await conn.fetchrow(
+                "SELECT id FROM undo_log WHERE workspace_id = $1 AND user_id = $2 AND uuid = $3",
+                self._workspace_id,
+                self._user_id,
+                entry_uuid,
+            )
+            return row["id"] if row else None
+
     async def undo_to(self, entry_id: int) -> list[dict]:
         """Undo all operations from the top of the stack down to (and including) entry_id."""
         results: list[dict] = []
@@ -330,6 +341,7 @@ class PostgresUndoRepository(BasePostgresRepository, UndoRepository):
 
         return {
             "id": row["id"],
+            "uuid": str(row["uuid"]) if row["uuid"] else None,
             "operation": row["operation"],
             "entity_type": row["entity_type"],
             "entity_id": row["entity_id"],
@@ -338,6 +350,30 @@ class PostgresUndoRepository(BasePostgresRepository, UndoRepository):
             "description": row["description"],
             "created_at": row["created_at"],
         }
+
+    async def get_entry_by_uuid(self, entry_uuid: str) -> dict[str, Any] | None:
+        """Get a single undo log entry by its public UUID."""
+        async with acquire_connection(self._pool) as conn:
+            row = await conn.fetchrow(
+                "SELECT * FROM undo_log WHERE uuid = $1 AND workspace_id = $2 AND user_id = $3",
+                entry_uuid,
+                self._workspace_id,
+                self._user_id,
+            )
+            return self._entry_from_row(row) if row else None
+
+    async def get_entry_uuids_by_ids(self, entry_ids: list[int]) -> dict[int, str]:
+        """Return a mapping of internal undo entry IDs to public UUIDs."""
+        if not entry_ids:
+            return {}
+        async with acquire_connection(self._pool) as conn:
+            rows = await conn.fetch(
+                "SELECT id, uuid FROM undo_log WHERE id = ANY($1) AND workspace_id = $2 AND user_id = $3",
+                entry_ids,
+                self._workspace_id,
+                self._user_id,
+            )
+            return {row["id"]: str(row["uuid"]) for row in rows}
 
     # ------------------------------------------------------------------
     # Apply helpers

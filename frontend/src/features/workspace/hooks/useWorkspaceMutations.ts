@@ -21,17 +21,17 @@ export function useWorkspaceMutations() {
     onMutate: () => {
       useNavigationStore.setState({ isSwitchingWorkspace: true });
     },
-    onSuccess: (_data, switchedUuid) => {
+    onSuccess: (_data, switchedWorkspaceUuid) => {
       useNavigationStore.setState({
-        currentNodeId: null,
-        activeNodeId: null,
+        currentNodeUuid: null,
+        activeNodeUuid: null,
         sidebarNode: null,
-        localGraphNodeId: null,
+        localGraphNodeUuid: null,
         mainViewType: 'node',
       });
       queryClient.removeQueries({ queryKey: favoriteKeys.all });
       queryClient.removeQueries({ queryKey: recentKeys.all });
-      navigate(`/${switchedUuid}`, { replace: true });
+      navigate(`/${switchedWorkspaceUuid}`, { replace: true });
       queryClient.clear();
       useNavigationStore.setState({ isSwitchingWorkspace: false });
     },
@@ -56,7 +56,7 @@ export function useWorkspaceMutations() {
   });
 
   const restoreWorkspaceMutation = useMutation({
-    mutationFn: ({ uuid, file }: { uuid: string; file: File }) => restoreWorkspace(uuid, file),
+    mutationFn: ({ workspaceUuid, file }: { workspaceUuid: string; file: File }) => restoreWorkspace(workspaceUuid, file),
     onSuccess: () => {
       queryClient.clear();
     },

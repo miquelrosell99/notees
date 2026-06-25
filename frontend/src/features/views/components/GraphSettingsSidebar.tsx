@@ -31,7 +31,7 @@ export interface GraphSettingsSidebarProps {
   viewMode: 'normal' | 'circle' | 'tree';
   onCollapse: () => void;
   localGraphMode?: boolean;
-  currentNodeId?: number | null;
+  currentNodeUuid?: number | null;
   levels?: number;
   onLevelsChange?: (levels: number) => void;
 }
@@ -64,7 +64,7 @@ export function GraphSettingsSidebar({
   viewMode,
   onCollapse,
   localGraphMode = false,
-  currentNodeId,
+  currentNodeUuid,
   levels,
   onLevelsChange,
 }: GraphSettingsSidebarProps) {
@@ -99,7 +99,7 @@ export function GraphSettingsSidebar({
         </GraphSidebarSection>
       )}
 
-      {currentNodeId != null && onLevelsChange && (
+      {currentNodeUuid != null && onLevelsChange && (
         <GraphSidebarSection title="Neighborhood" icon="mdi mdi-layers-triple" defaultOpen={true}>
           <div className="visibility-option visibility-option--slider">
             <span className="visibility-option__label">Levels</span>

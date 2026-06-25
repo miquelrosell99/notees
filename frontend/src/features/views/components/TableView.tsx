@@ -167,9 +167,9 @@ export const TableView = memo(function TableView({
     try {
       const dailyNode = await nodesApi.getOrCreateDaily(formattedDate);
       if (inSidebar) {
-        addSidebarCard(dailyNode.id, 'page');
+        addSidebarCard(dailyNode.uuid, 'page');
       } else {
-        openNode(dailyNode.id);
+        openNode(dailyNode.uuid);
       }
     } catch (error) {
       console.error('Failed to open daily page:', error);
@@ -251,7 +251,7 @@ export const TableView = memo(function TableView({
                   renderPill={(classNode) => (
                     <NodeRef
                       node={classNode}
-                      onClick={() => openNode(classNode.id)}
+                      onClick={() => openNode(classNode.uuid)}
                       onRemove={
                         editable && !isNonRemovableClass(classNode.uuid)
                           ? () => removeClass.mutate({ nodeId: node.id, classId: classNode.id })

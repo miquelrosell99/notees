@@ -40,7 +40,7 @@ registerCommand({
   requiresPage: true,
   palette: { category: 'view' },
   execute: () => {
-    const currentId = useNavigationStore.getState().currentNodeId;
+    const currentId = useNavigationStore.getState().currentNodeUuid;
     if (currentId) {
       useNavigationStore.getState().openLocalGraph(currentId);
     }
@@ -55,7 +55,7 @@ registerCommand({
   requiresPage: true,
   palette: { category: 'view' },
   execute: () => {
-    const currentId = useNavigationStore.getState().currentNodeId;
+    const currentId = useNavigationStore.getState().currentNodeUuid;
     if (currentId) {
       usePresentationStore.getState().openPresentation(currentId);
     }

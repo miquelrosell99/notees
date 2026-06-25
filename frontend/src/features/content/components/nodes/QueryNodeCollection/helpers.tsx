@@ -88,7 +88,7 @@ export function extractUuidsFromAST(ast: QueryAST | undefined | null): Set<strin
 /**
  * Render prose text with clickable markdown links
  */
-export function renderProseWithLinks(text: string, onLinkClick: (uuid: string) => void): React.ReactNode {
+export function renderProseWithLinks(text: string, onLinkClick: (nodeUuid: string) => void): React.ReactNode {
   const linkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
   const parts: React.ReactNode[] = [];
   let lastIndex = 0;
@@ -100,12 +100,12 @@ export function renderProseWithLinks(text: string, onLinkClick: (uuid: string) =
     }
 
     const linkText = match[1];
-    const uuid = match[2];
+    const nodeUuid = match[2];
     parts.push(
       <button
         key={match.index}
         type="button"
-        onClick={() => onLinkClick(uuid)}
+        onClick={() => onLinkClick(nodeUuid)}
         style={{
           color: 'var(--color-primary)',
           textDecoration: 'none',

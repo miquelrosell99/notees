@@ -107,7 +107,7 @@ export function useCommandPaletteState({ isOpen, onClose }: UseCommandPaletteSta
     debouncedSearchTerm,
     {
       classFilters: classFilter,
-      uuid: uuidSearch ?? undefined,
+      nodeUuid: uuidSearch ?? undefined,
       ...booleanFilters,
     }
   );
