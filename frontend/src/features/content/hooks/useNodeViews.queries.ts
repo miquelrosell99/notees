@@ -15,7 +15,7 @@ import type {
   NodeView,
   QueryExecuteRequest,
 } from '@/types/nodeView';
-import { resolveNodeUuid } from '@/utils/resolveNodeUuid';
+import { resolveNodeUuid, resolveNodeViewUuid } from '@/utils/resolveNodeUuid';
 import { nodeViewKeys } from '@/hooks/queryKeys';
 export { nodeViewKeys } from '@/hooks/queryKeys';
 
@@ -85,17 +85,21 @@ export function useNodeViewsByType(
  * Fetch a single NodeView by ID
  */
 export function useNodeView(
-  viewId: number,
+  viewId: string | number,
   options?: {
     enabled?: boolean;
   }
 ) {
   const { enabled = true } = options ?? {};
+  const viewUuid = typeof viewId === 'string' ? viewId : resolveNodeViewUuid(viewId);
 
   return useQuery({
     queryKey: nodeViewKeys.detail(viewId),
-    queryFn: () => getNodeView(viewId),
-    enabled: enabled && viewId > 0,
+    queryFn: () => {
+      if (!viewUuid) throw new Error(`Unable to resolve UUID for view ${viewId}`);
+      return getNodeView(viewUuid);
+    },
+    enabled: enabled && !!viewUuid,
   });
 }
 
@@ -103,7 +107,7 @@ export function useNodeView(
  * Fetch the default NodeView for a view_type
  */
 export function useDefaultNodeView(
-  nodeId: number,
+  nodeId: string | number,
   viewType: string,
   options?: {
     enabled?: boolean;
@@ -114,7 +118,7 @@ export function useDefaultNodeView(
   return useQuery({
     queryKey: nodeViewKeys.default(nodeId, viewType),
     queryFn: () => getDefaultNodeView(resolveNodeUuid(nodeId), viewType),
-    enabled: enabled && nodeId > 0 && viewType.length > 0,
+    enabled: enabled && !!nodeId && viewType.length > 0,
   });
 }
 
@@ -122,7 +126,7 @@ export function useDefaultNodeView(
  * Execute a NodeView's query and return results
  */
 export function useNodeViewQuery(
-  viewId: number,
+  viewId: string | number,
   options?: {
     runtimeParams?: Record<string, unknown>;
     limit?: number;
@@ -138,10 +142,13 @@ export function useNodeViewQuery(
 ) {
   const { runtimeParams, limit, offset, orderBy, includeChildren, includeAllChildren, pagesOnly, includeProperties, enrich, enabled = true } = options ?? {};
 
+  const viewUuid = typeof viewId === 'string' ? viewId : resolveNodeViewUuid(viewId);
+
   return useQuery({
     queryKey: nodeViewKeys.queryResult(viewId, { runtimeParams, limit, offset, orderBy, includeChildren, includeAllChildren, pagesOnly, includeProperties, enrich }),
     queryFn: async () => {
-      const response = await executeNodeViewQuery(viewId, {
+      if (!viewUuid) throw new Error(`Unable to resolve UUID for view ${viewId}`);
+      const response = await executeNodeViewQuery(viewUuid, {
         runtime_params: runtimeParams,
         limit,
         offset,
@@ -155,7 +162,7 @@ export function useNodeViewQuery(
       // Return nodes for backward compatibility, but store full response
       return response.nodes;
     },
-    enabled: enabled && viewId > 0,
+    enabled: enabled && !!viewUuid,
     staleTime: 30_000,  // 30s stale time for view queries
     placeholderData: keepPreviousData,
   });

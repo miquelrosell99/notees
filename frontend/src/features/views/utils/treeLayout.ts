@@ -42,7 +42,7 @@ export function applyTreeLayout(
   if (nodes.length === 0) return;
 
   // ---- Step 1: build parent → children map (visible nodes only) ----
-  const childrenByParent = new Map<number, GraphNode[]>();
+  const childrenByParent = new Map<string, GraphNode[]>();
   for (const node of nodes) {
     if (node.parentId !== null) {
       const siblings = childrenByParent.get(node.parentId) || [];
@@ -53,7 +53,7 @@ export function applyTreeLayout(
 
   // ---- Step 2: BFS depth assignment ----
   // Class nodes go first (depth 0…maxClassDepth), regular roots follow.
-  const nodeDepth = new Map<number, number>();
+  const nodeDepth = new Map<string, number>();
   const visibleNodeIds = new Set(nodes.map(n => n.id));
 
   const classRoots   = nodes.filter(n =>  n.isClassNode && (n.parentId === null || !visibleNodeIds.has(n.parentId)));
@@ -209,16 +209,16 @@ function _applyEquidistantRings(
  */
 function _applyPhysicsAngularWidth(
   nodesByDepth:    Map<number, GraphNode[]>,
-  childrenByParent: Map<number, GraphNode[]>,
+  childrenByParent: Map<string, GraphNode[]>,
   radiusByDepth:   Map<number, number>,
   maxDepth:        number,
   centerX:         number,
   centerY:         number,
   nodeSpacing:     number,
-  nodeDepth:       Map<number, number>,
+  nodeDepth:       Map<string, number>,
 ): void {
   // ---- Bottom-up: compute subtree angular width ----
-  const subtreeAngularWidth = new Map<number, number>();
+  const subtreeAngularWidth = new Map<string, number>();
 
   for (let depth = maxDepth; depth >= 0; depth--) {
     const nodesAtDepth = nodesByDepth.get(depth) || [];
@@ -243,7 +243,7 @@ function _applyPhysicsAngularWidth(
   }
 
   // ---- Top-down: allocate arc ranges and place nodes ----
-  const nodeAngleRange = new Map<number, { start: number; end: number }>();
+  const nodeAngleRange = new Map<string, { start: number; end: number }>();
 
   // Depth 0 (innermost ring)
   const level0Nodes = nodesByDepth.get(0) || [];
@@ -295,7 +295,7 @@ function _applyPhysicsAngularWidth(
     }
 
     // Group children by their parent and assign arcs inside the parent's arc.
-    const siblingGroups = new Map<number, GraphNode[]>();
+    const siblingGroups = new Map<string, GraphNode[]>();
     for (const node of nodesWithParent) {
       const parentId = node.parentId!;
       const group    = siblingGroups.get(parentId) || [];

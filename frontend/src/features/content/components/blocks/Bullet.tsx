@@ -18,8 +18,8 @@ export type BulletSize = 'xs' | 'sm' | 'md';
 export type BulletVariant = 'default' | 'interactive' | 'decorative';
 
 export interface BulletProps {
-  /** Node ID if attached to a node */
-  nodeId?: number;
+  /** Node ID or UUID if attached to a node */
+  nodeId?: string | number;
   /** Icon to display instead of the dot */
   icon?: string | null;
   /** Whether this is a page (affects icon display) */
@@ -37,9 +37,9 @@ export interface BulletProps {
   /** Click handler (regular click - opens focused view) */
   onClick?: (e: React.MouseEvent) => void;
   /** Shift+click handler (opens in sidebar) */
-  onShiftClick?: (nodeId: number) => void;
+  onShiftClick?: (nodeId: string | number) => void;
   /** Right-click/context menu handler */
-  onContextMenu?: (nodeId: number, event: React.MouseEvent) => void;
+  onContextMenu?: (nodeId: string | number, event: React.MouseEvent) => void;
   /** @dnd-kit activator ref for drag handle */
   activatorRef?: (element: HTMLElement | null) => void;
   /** @dnd-kit activator listeners for drag handle */

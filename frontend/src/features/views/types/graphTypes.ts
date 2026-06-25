@@ -37,7 +37,7 @@ export const GRAPH_VIEW_MODES: GraphViewMode[] = ['normal', 'circle', 'tree'];
  * Graph node representation for physics simulation
  */
 export interface GraphNode {
-  id: number;
+  id: string;
   uuid: string;
   /** Physics x coordinate. Undefined means "use preserved or initial layout". */
   x?: number;
@@ -55,8 +55,8 @@ export interface GraphNode {
   isYearly: boolean;
   isSystemPage: boolean;
   tags: string[];
-  types: number[];
-  parentId: number | null;
+  types: string[];
+  parentId: string | null;
   glare: GlareState;
   pinned: boolean;
   color?: string;
@@ -67,15 +67,15 @@ export interface GraphNode {
   createdAt?: string;
   visible: boolean;
   isClassNode: boolean;
-  aliased_id?: number | null;
+  aliased_id?: string | null;
 }
 
 /**
  * Link between two graph nodes
  */
 export interface GraphLink {
-  source: number;
-  target: number;
+  source: string;
+  target: string;
   type: 'parent' | 'reference' | 'property-reference' | 'class' | 'extends' | 'cooccurrence' | 'temporal' | 'alias';
   /** Co-occurrence strength (number of shared blocks/contexts). Higher = stronger relation. */
   weight?: number;
@@ -85,7 +85,7 @@ export interface GraphLink {
  * Class color configuration
  */
 export interface ClassColor {
-  classId: number;
+  classId: string;
   className: string;
   color: string;
   order: number;
@@ -203,7 +203,7 @@ export interface Dimensions {
 export interface FrameData {
   visibleNodes: GraphNode[];
   visibleLinks: GraphLink[];
-  nodeMap: Map<number, GraphNode>;
+  nodeMap: Map<string, GraphNode>;
   maxConnections: number;
   maxMass: number;
   maxContentSize: number;

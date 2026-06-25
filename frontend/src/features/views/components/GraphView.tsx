@@ -21,10 +21,9 @@ import { useReducedMotion } from '@/hooks';
 import { useClasses, useGraphLinks } from '@/features/content';
 import { useSettingsQuery, setSetting } from '@/features/workspace';
 import { useNavigationStore } from '@/stores';
-import { getServerId } from '@/runtime/serverIdMap';
 import { nodeNameToText } from '@/features/queries';
 import { NodeIcon } from '@/components/ui/icons';
-import type { GraphNode as ApiGraphNode } from '@/api/nodes';
+import type { GraphNode as ApiGraphNode, GraphLink as ApiGraphLink } from '@/api/nodes';
 import { GraphRenderer, type GraphRendererRef } from '../renderers/GraphRenderer';
 import type {
   GraphNode,
@@ -68,13 +67,13 @@ export interface GraphViewProps {
   /** Show view mode switcher (normal, circle, tree). Default: true */
   showViewModes?: boolean;
   /** Node click handler override */
-  onNodeClick?: (nodeId: number) => void;
+  onNodeClick?: (nodeId: string) => void;
   /** When true, activates local-graph behaviour (hide-self default, collapsed sidebar, no filter persistence) */
   localGraphMode?: boolean;
 }
 
 interface SelectedNodeItem {
-  id: number;
+  id: string;
   name: string;
   order: number;
 }
@@ -118,12 +117,12 @@ function buildSGEPhysicsConfig(settings: GraphSettings): SGEPhysicsConfig {
  */
 function getNeighborhoodNodeIds(
   links: GraphLink[],
-  startNodeId: number,
+  startNodeId: string,
   maxDepth: number,
-): Set<number> {
+): Set<string> {
   if (maxDepth <= 0) return new Set([startNodeId]);
 
-  const adjacency = new Map<number, number[]>();
+  const adjacency = new Map<string, string[]>();
   for (const link of links) {
     if (!adjacency.has(link.source)) adjacency.set(link.source, []);
     if (!adjacency.has(link.target)) adjacency.set(link.target, []);
@@ -131,9 +130,9 @@ function getNeighborhoodNodeIds(
     adjacency.get(link.target)!.push(link.source);
   }
 
-  const visited = new Set<number>([startNodeId]);
-  const distances = new Map<number, number>([[startNodeId, 0]]);
-  const queue: number[] = [startNodeId];
+  const visited = new Set<string>([startNodeId]);
+  const distances = new Map<string, number>([[startNodeId, 0]]);
+  const queue: string[] = [startNodeId];
 
   while (queue.length > 0) {
     const current = queue.shift()!;
@@ -154,13 +153,13 @@ function getNeighborhoodNodeIds(
 
 /** Compute shortest path highlights between consecutive selected nodes. */
 function computePathHighlights(
-  selectedIds: number[],
+  selectedIds: string[],
   links: GraphLink[],
-): { pathNodeIds: Set<number>; pathEdgeKeys: Set<string> } {
+): { pathNodeIds: Set<string>; pathEdgeKeys: Set<string> } {
   if (selectedIds.length < 2) return { pathNodeIds: new Set(), pathEdgeKeys: new Set() };
 
   // Build adjacency list
-  const adjacency = new Map<number, number[]>();
+  const adjacency = new Map<string, string[]>();
   const edgeKeys = new Map<string, string>(); // "a-b" -> "min-max"
   for (const link of links) {
     const a = link.source, b = link.target;
@@ -168,12 +167,12 @@ function computePathHighlights(
     if (!adjacency.has(b)) adjacency.set(b, []);
     adjacency.get(a)!.push(b);
     adjacency.get(b)!.push(a);
-    const key = `${Math.min(a, b)}-${Math.max(a, b)}`;
+    const key = [a, b].sort().join('-');
     edgeKeys.set(`${a}-${b}`, key);
     edgeKeys.set(`${b}-${a}`, key);
   }
 
-  const pathNodeIds = new Set<number>();
+  const pathNodeIds = new Set<string>();
   const pathEdgeKeys = new Set<string>();
 
   // Find shortest path between each consecutive pair using BFS
@@ -182,9 +181,9 @@ function computePathHighlights(
     const end = selectedIds[i + 1];
     if (!adjacency.has(start) || !adjacency.has(end)) continue;
 
-    const parent = new Map<number, number>();
-    const visited = new Set<number>();
-    const queue: number[] = [start];
+    const parent = new Map<string, string>();
+    const visited = new Set<string>();
+    const queue: string[] = [start];
     visited.add(start);
     let found = false;
 
@@ -251,11 +250,7 @@ const GraphView = memo(function GraphView({
   }, [reducedMotion]);
 
   // Fetch links between the provided nodes
-  const nodeIds = useMemo(() => apiNodes.map(n => n.id), [apiNodes]);
-
-  // Convert the active page UUID (when provided) back to the numeric server id
-  // used by the graph data model.
-  const currentNodeId = currentNodeUuid ? getServerId(currentNodeUuid) ?? null : null;
+  const nodeIds = useMemo(() => apiNodes.map(n => n.uuid), [apiNodes]);
 
   // Graph data mode: standard (explicit links) vs co-occurrence inference
   const [graphDataMode, setGraphDataMode] = useState<GraphDataMode>(() => {
@@ -271,8 +266,22 @@ const GraphView = memo(function GraphView({
 
   const { data: apiLinks = [], isLoading: linksLoading } = useGraphLinks(nodeIds, {
     cooccurrence: graphDataMode === 'cooccurrence',
-    contextNodeId: localGraphMode ? currentNodeId : null,
+    contextNodeUuid: localGraphMode ? currentNodeUuid : null,
   });
+
+  // API links already use UUID strings for source/target.
+  const internalLinks = useMemo<GraphLink[]>(() => {
+    const result: GraphLink[] = [];
+    for (const link of apiLinks as ApiGraphLink[]) {
+      result.push({
+        source: link.source,
+        target: link.target,
+        type: link.type as GraphLink['type'],
+        weight: link.weight,
+      });
+    }
+    return result;
+  }, [apiLinks]);
   
   const { data: classes } = useClasses();
   const { data: serverSettings } = useSettingsQuery();
@@ -280,7 +289,7 @@ const GraphView = memo(function GraphView({
   
   // View state
   const [selectedNodes, setSelectedNodes] = useState<SelectedNodeItem[]>([]);
-  const [pinnedNodes, setPinnedNodes] = useState<Set<number>>(new Set());
+  const [pinnedNodes, setPinnedNodes] = useState<Set<string>>(new Set());
   const [simulationPaused, setSimulationPaused] = useState(false);
   
   // Settings state
@@ -333,6 +342,7 @@ const GraphView = memo(function GraphView({
     showSystemPages: false,
     hideSelfNode: localGraphMode || false,
     hideOrphans: false,
+    showAliases: false,
   });
   const visibilityFiltersLoadedRef = useRef(false);
   
@@ -483,12 +493,22 @@ const GraphView = memo(function GraphView({
     }
   }, [levels, viewId]);
 
-  // Build class ID set
-  const classIds = useMemo(() => {
-    const set = new Set<number>();
+  // Class UUID lookups
+  const classUuidById = useMemo(() => {
+    const map = new Map<number, string>();
     if (classes) {
       for (const c of classes) {
-        set.add(c.id);
+        map.set(c.id, c.uuid);
+      }
+    }
+    return map;
+  }, [classes]);
+
+  const classUuidSet = useMemo(() => {
+    const set = new Set<string>();
+    if (classes) {
+      for (const c of classes) {
+        set.add(c.uuid);
       }
     }
     return set;
@@ -497,26 +517,26 @@ const GraphView = memo(function GraphView({
   // Data source: nodes from props, links from hook
   // When centered on an active node, filter to the BFS neighborhood within `levels` hops
   const neighborhoodNodeIds = useMemo(() => {
-    if (currentNodeId == null || levels < 1 || apiLinks.length === 0) return null;
-    return getNeighborhoodNodeIds(apiLinks, currentNodeId, levels);
-  }, [apiLinks, currentNodeId, levels]);
+    if (currentNodeUuid == null || levels < 1 || internalLinks.length === 0) return null;
+    return getNeighborhoodNodeIds(internalLinks, currentNodeUuid, levels);
+  }, [internalLinks, currentNodeUuid, levels]);
 
   const sourceNodes = useMemo(() => {
     if (neighborhoodNodeIds == null) return apiNodes;
-    return apiNodes.filter(n => neighborhoodNodeIds.has(n.id));
+    return apiNodes.filter(n => neighborhoodNodeIds.has(n.uuid));
   }, [apiNodes, neighborhoodNodeIds]);
 
   const sourceLinks = useMemo(() => {
-    if (neighborhoodNodeIds == null) return apiLinks;
-    return apiLinks.filter(l => neighborhoodNodeIds.has(l.source) && neighborhoodNodeIds.has(l.target));
-  }, [apiLinks, neighborhoodNodeIds]);
+    if (neighborhoodNodeIds == null) return internalLinks;
+    return internalLinks.filter(l => neighborhoodNodeIds.has(l.source) && neighborhoodNodeIds.has(l.target));
+  }, [internalLinks, neighborhoodNodeIds]);
   
   // Convert API data to renderer format, applying visibility filters and class colors.
   // Split into smaller memoized selectors so React can skip unrelated work.
 
   // Link-derived indexes (parent relationships and connection counts).
   const linkMetrics = useMemo(() => {
-    const parentMap = new Map<number, number>();
+    const parentMap = new Map<string, string | null>();
     for (const link of sourceLinks) {
       if (link.type === 'parent') {
         parentMap.set(link.target, link.source);
@@ -525,9 +545,9 @@ const GraphView = memo(function GraphView({
       }
     }
 
-    const connectionCounts = new Map<number, number>();
-    const inLinkCounts = new Map<number, number>();
-    const outLinkCounts = new Map<number, number>();
+    const connectionCounts = new Map<string, number>();
+    const inLinkCounts = new Map<string, number>();
+    const outLinkCounts = new Map<string, number>();
     for (const link of sourceLinks) {
       connectionCounts.set(link.source, (connectionCounts.get(link.source) ?? 0) + 1);
       connectionCounts.set(link.target, (connectionCounts.get(link.target) ?? 0) + 1);
@@ -541,8 +561,8 @@ const GraphView = memo(function GraphView({
   // Eval context is expensive to build but only needed when color groups exist.
   const evalContext = useMemo(() => {
     if (colorGroups.length === 0 || sourceNodes.length === 0) return null;
-    return buildEvalContext(sourceNodes, sourceLinks, classes ?? []);
-  }, [colorGroups.length, sourceNodes, sourceLinks, classes]);
+    return buildEvalContext(sourceNodes, apiLinks as ApiGraphLink[], classes ?? []);
+  }, [colorGroups.length, sourceNodes, apiLinks, classes]);
 
   // Build full nodes (heavy O(N) transformation from API to renderer format).
   const allNodes = useMemo<GraphNode[]>(() => {
@@ -554,7 +574,7 @@ const GraphView = memo(function GraphView({
       const isSystemPage = DEFAULT_SYSTEM_PAGES.some(
         sysName => sysName.toLowerCase() === nodeName.toLowerCase()
       );
-      const isClassNode = apiNode.is_class || classIds.has(apiNode.id);
+      const isClassNode = apiNode.is_class || classUuidSet.has(apiNode.uuid);
 
       // Color resolution: explicit → query groups → tag fallback
       let resolvedColor = (apiNode.properties?.color as string) || undefined;
@@ -570,8 +590,14 @@ const GraphView = memo(function GraphView({
         resolvedColor = getTagColor(apiNode.tags[0]);
       }
 
+      const types = apiNode.class_uuids
+        ?? apiNode.class_ids
+          ?.map(id => classUuidById.get(id))
+          .filter((uuid): uuid is string => !!uuid)
+        ?? [];
+
       return {
-        id: apiNode.id,
+        id: apiNode.uuid,
         uuid: apiNode.uuid,
         x: undefined,
         y: undefined,
@@ -587,31 +613,31 @@ const GraphView = memo(function GraphView({
         isYearly: apiNode.is_yearly || false,
         isSystemPage,
         tags: apiNode.tags || [],
-        types: apiNode.class_ids || [],
-        parentId: parentMap.get(apiNode.id) ?? null,
+        types,
+        parentId: parentMap.get(apiNode.uuid) ?? null,
         glare: 'normal',
-        pinned: pinnedNodes.has(apiNode.id),
+        pinned: pinnedNodes.has(apiNode.uuid),
         color: resolvedColor,
         connectionCount:
           graphSettings.linkDirection === 'in'
-            ? (inLinkCounts.get(apiNode.id) ?? 0)
+            ? (inLinkCounts.get(apiNode.uuid) ?? 0)
             : graphSettings.linkDirection === 'out'
-              ? (outLinkCounts.get(apiNode.id) ?? 0)
-              : (connectionCounts.get(apiNode.id) ?? 0),
-        inLinkCount: inLinkCounts.get(apiNode.id) ?? 0,
-        outLinkCount: outLinkCounts.get(apiNode.id) ?? 0,
+              ? (outLinkCounts.get(apiNode.uuid) ?? 0)
+              : (connectionCounts.get(apiNode.uuid) ?? 0),
+        inLinkCount: inLinkCounts.get(apiNode.uuid) ?? 0,
+        outLinkCount: outLinkCounts.get(apiNode.uuid) ?? 0,
         contentSize: apiNode.block_count || 0,
         createdAt: apiNode.created_at,
         visible: true,
         isClassNode,
-        aliased_id: apiNode.aliased_id ?? null,
+        aliased_id: apiNode.aliased_uuid ?? null,
       };
     });
-  }, [sourceNodes, linkMetrics, classIds, evalContext, colorGroups, pinnedNodes, graphSettings.linkDirection]);
+  }, [sourceNodes, linkMetrics, classUuidSet, classUuidById, evalContext, colorGroups, pinnedNodes, graphSettings.linkDirection]);
 
   // Build alias resolution map: alias node ID → main node ID (follows chains).
   const aliasMap = useMemo(() => {
-    const map = new Map<number, number>();
+    const map = new Map<string, string>();
     const nodeMap = new Map(allNodes.map(n => [n.id, n]));
     for (const n of allNodes) {
       if (n.aliased_id) {
@@ -636,12 +662,12 @@ const GraphView = memo(function GraphView({
       if (!visibilityFilters.showYearPages  && n.isYearly)   return false;
       if (!visibilityFilters.showSystemPages && n.isSystemPage) return false;
       if (!visibilityFilters.showAliases && aliasMap.has(n.id)) return false;
-      if (localGraphMode && visibilityFilters.hideSelfNode && currentNodeId != null && n.id === currentNodeId) {
+      if (localGraphMode && visibilityFilters.hideSelfNode && currentNodeUuid != null && n.id === currentNodeUuid) {
         return false;
       }
       return true;
     });
-  }, [allNodes, aliasMap, visibilityFilters, localGraphMode, currentNodeId]);
+  }, [allNodes, aliasMap, visibilityFilters, localGraphMode, currentNodeUuid]);
 
   // Apply circle/tree initial positions so view modes are visible immediately.
   const positionedVisibleNodes = useMemo(() => {
@@ -681,8 +707,8 @@ const GraphView = memo(function GraphView({
         if (graphDataMode === 'cooccurrence' && graphSettings.minLinkWeight > 0) {
           if ((link.weight ?? 0) < graphSettings.minLinkWeight) return false;
         }
-        if (localGraphMode && visibilityFilters.hideSelfNode && currentNodeId != null) {
-          if (src === currentNodeId || tgt === currentNodeId) return false;
+        if (localGraphMode && visibilityFilters.hideSelfNode && currentNodeUuid != null) {
+          if (src === currentNodeUuid || tgt === currentNodeUuid) return false;
         }
         return true;
       })
@@ -700,14 +726,14 @@ const GraphView = memo(function GraphView({
     const result: GraphLink[] = [];
     for (const link of rawVisibleLinks) {
       if (link.source === link.target) continue;
-      const key = `${Math.min(link.source, link.target)}-${Math.max(link.source, link.target)}-${link.type}`;
+      const key = `${[link.source, link.target].sort().join('-')}-${link.type}`;
       if (!linkKeySet.has(key)) {
         linkKeySet.add(key);
         result.push(link);
       }
     }
     return result;
-  }, [sourceLinks, positionedVisibleNodes, aliasMap, visibilityFilters, graphDataMode, graphSettings.minLinkWeight, localGraphMode, currentNodeId]);
+  }, [sourceLinks, positionedVisibleNodes, aliasMap, visibilityFilters, graphDataMode, graphSettings.minLinkWeight, localGraphMode, currentNodeUuid]);
 
   // Temporal link injection: connect consecutive daily/monthly/yearly pages.
   const temporalLinks = useMemo(() => {
@@ -750,7 +776,7 @@ const GraphView = memo(function GraphView({
     links.push(...temporalLinks);
 
     if (visibilityFilters.hideOrphans) {
-      const linkedIds = new Set<number>();
+      const linkedIds = new Set<string>();
       for (const link of links) {
         linkedIds.add(link.source);
         linkedIds.add(link.target);
@@ -769,7 +795,7 @@ const GraphView = memo(function GraphView({
   // Compute path highlights between selected nodes
   const { pathNodeIds, pathEdgeKeys } = useMemo(() => {
     if (!graphSettings.highlightPaths || selectedNodes.length < 2) {
-      return { pathNodeIds: new Set<number>(), pathEdgeKeys: new Set<string>() };
+      return { pathNodeIds: new Set<string>(), pathEdgeKeys: new Set<string>() };
     }
     const selectedIds = selectedNodes.map(s => s.id);
     return computePathHighlights(selectedIds, links);
@@ -781,8 +807,8 @@ const GraphView = memo(function GraphView({
     rendererRef.current?.setConfig(sgePhysicsConfig);
   }, [sgePhysicsConfig]);
 
-  // Event handlers — SGEGraphView fires (nodeId: number) without event objects
-  const handleNodeClick = useCallback((nodeId: number) => {
+  // Event handlers — SGEGraphView fires (nodeId: string) without event objects
+  const handleNodeClick = useCallback((nodeId: string) => {
     if (customNodeClick) {
       customNodeClick(nodeId);
       return;
@@ -796,14 +822,14 @@ const GraphView = memo(function GraphView({
     });
   }, [customNodeClick, nodes]);
 
-  const handleNodeDoubleClick = useCallback((nodeId: number) => {
+  const handleNodeDoubleClick = useCallback((nodeId: string) => {
     openNode(nodeId);
     setSelectedNodes([]);
   }, [openNode]);
 
   
   // Selection handlers
-  const removeFromSelection = useCallback((nodeId: number) => {
+  const removeFromSelection = useCallback((nodeId: string) => {
     setSelectedNodes(prev => prev.filter(s => s.id !== nodeId));
   }, []);
   
@@ -816,7 +842,7 @@ const GraphView = memo(function GraphView({
     });
   }, []);
 
-  const togglePin = useCallback((nodeId: number) => {
+  const togglePin = useCallback((nodeId: string) => {
     setPinnedNodes(prev => {
       const next = new Set(prev);
       if (next.has(nodeId)) {
@@ -834,9 +860,9 @@ const GraphView = memo(function GraphView({
   // searchResults can then read O(1) from this map instead of calling
   // nodeNameToText (parseAST + stringifyAST) on every keystroke.
   const nodeNamesMap = useMemo(() => {
-    const map = new Map<number, string>();
+    const map = new Map<string, string>();
     for (const n of sourceNodes ?? []) {
-      map.set(n.id, nodeNameToText(n.name) || 'Untitled');
+      map.set(n.uuid, nodeNameToText(n.name) || 'Untitled');
     }
     return map;
   }, [sourceNodes]);
@@ -903,12 +929,12 @@ const GraphView = memo(function GraphView({
     if (!deferredSearchQuery.trim() || !sourceNodes) return [];
     const q = deferredSearchQuery.toLowerCase();
     return sourceNodes
-      .filter(p => (nodeNamesMap.get(p.id) ?? '').toLowerCase().includes(q))
+      .filter(p => (nodeNamesMap.get(p.uuid) ?? '').toLowerCase().includes(q))
       .slice(0, 10)
-      .map(p => ({ id: p.id, uuid: p.uuid, name: nodeNamesMap.get(p.id) ?? 'Untitled', icon: p.icon }));
+      .map(p => ({ id: p.uuid, uuid: p.uuid, name: nodeNamesMap.get(p.uuid) ?? 'Untitled', icon: p.icon }));
   }, [deferredSearchQuery, sourceNodes, nodeNamesMap]);
   
-  const addToSelection = useCallback((node: { id: number; name?: string }) => {
+  const addToSelection = useCallback((node: { id: string; name?: string }) => {
     setSelectedNodes(prev => {
       if (prev.find(s => s.id === node.id)) return prev;
       return [...prev, { id: node.id, name: node.name || 'Untitled', order: prev.length }];
@@ -959,7 +985,7 @@ const GraphView = memo(function GraphView({
           viewMode={viewMode}
           onCollapse={() => setSidebarCollapsed(true)}
           localGraphMode={localGraphMode}
-          currentNodeUuid={currentNodeId}
+          currentNodeUuid={currentNodeUuid}
           levels={levels}
           onLevelsChange={setLevels}
         />
