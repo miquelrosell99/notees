@@ -83,8 +83,8 @@ async def test_completion_crud(authenticated_client, test_user):
     completions = r.json()
     assert len(completions) == 1
 
-    completion_id = completions[0]["id"]
-    r = await authenticated_client.delete(f"/api/tasks/{node_uuid}/completions/{completion_id}")
+    completion_uuid = completions[0]["uuid"]
+    r = await authenticated_client.delete(f"/api/tasks/{node_uuid}/completions/{completion_uuid}")
     assert r.status_code == 200
     assert r.json()["deleted"] is True
 

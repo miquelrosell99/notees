@@ -311,11 +311,11 @@ export async function getArchivedPages(
  * Get all nodes with a specific class
  */
 export async function getNodesWithClass(
-  classId: number,
+  classUuid: string,
   page: number = 1,
   page_size: number = 50,
 ): Promise<PaginatedResponse<Node>> {
-  const response = await api.get<PaginatedResponse<Node>>(`${BASE}/classes/${classId}/nodes`, {
+  const response = await api.get<PaginatedResponse<Node>>(`${BASE}/classes/${classUuid}/nodes`, {
     params: { page, page_size },
   });
   return response.data;

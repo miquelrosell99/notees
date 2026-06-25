@@ -667,7 +667,7 @@ export function NodeView({
   }, [extendsData, allClasses]);
   
   // Check if node is used as a class — skip if queries are hidden to avoid API call
-  const { data: classedNodes } = useNodesWithClass(showQueries ? (node?.id ?? 0) : null);
+  const { data: classedNodes } = useNodesWithClass(showQueries ? (node?.uuid ?? null) : null);
   
   // Section metadata hooks — skip if queries are hidden to avoid API calls
   useLinkedReferencesCount(showQueries ? nodeId : 0);

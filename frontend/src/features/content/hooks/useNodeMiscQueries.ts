@@ -20,11 +20,11 @@ export function useTasks(includeComplete = false) {
  * Hook to fetch nodes with a specific class
  */
 
-export function useNodesWithClass(classId: number | null) {
+export function useNodesWithClass(classUuid: string | null) {
   return useQuery<PaginatedResponse<Node>, Error, Node[]>({
-    queryKey: nodeKeys.byClass(classId ?? 0),
-    queryFn: () => nodesApi.getNodesWithClass(classId!),
-    enabled: !!classId,
+    queryKey: nodeKeys.byClass(classUuid ?? ''),
+    queryFn: () => nodesApi.getNodesWithClass(classUuid!),
+    enabled: !!classUuid,
     select: (data) => data.items,
   });
 }
