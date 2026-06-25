@@ -760,6 +760,16 @@ class PostgresPropertyRepository(BasePostgresRepository, PropertyRepository):
             )
             return [self._row_to_scalar_value(row) for row in rows]
 
+    async def get_scalar_value_by_uuid(self, value_uuid: str) -> PropertyValueScalar | None:
+        """Get a specific scalar value by its public UUID."""
+        async with acquire_connection(self._pool) as conn:
+            row = await conn.fetchrow(
+                "SELECT * FROM property_value_scalar WHERE uuid = $1", value_uuid
+            )
+            if not row:
+                return None
+            return self._row_to_scalar_value(row)
+
     async def remove_scalar_value(self, value_id: int) -> bool:
         """Remove a specific scalar value."""
         async with acquire_connection(self._pool) as conn:
@@ -819,6 +829,16 @@ class PostgresPropertyRepository(BasePostgresRepository, PropertyRepository):
                 "SELECT * FROM property_value_relation WHERE node_id = $1 AND property_id = $2", node_id, property_id
             )
             return [self._row_to_relation_value(row) for row in rows]
+
+    async def get_relation_value_by_uuid(self, value_uuid: str) -> PropertyValueRelation | None:
+        """Get a specific relation value by its public UUID."""
+        async with acquire_connection(self._pool) as conn:
+            row = await conn.fetchrow(
+                "SELECT * FROM property_value_relation WHERE uuid = $1", value_uuid
+            )
+            if not row:
+                return None
+            return self._row_to_relation_value(row)
 
     async def remove_relation_value(self, value_id: int, delete_target_node: bool = False) -> bool:
         """Remove a specific relation value."""
@@ -1040,6 +1060,16 @@ class PostgresPropertyRepository(BasePostgresRepository, PropertyRepository):
                 "SELECT * FROM property_value_selection WHERE node_id = $1 AND property_id = $2", node_id, property_id
             )
             return [self._row_to_selection_value(row) for row in rows]
+
+    async def get_selection_value_by_uuid(self, value_uuid: str) -> PropertyValueSelection | None:
+        """Get a specific selection value by its public UUID."""
+        async with acquire_connection(self._pool) as conn:
+            row = await conn.fetchrow(
+                "SELECT * FROM property_value_selection WHERE uuid = $1", value_uuid
+            )
+            if not row:
+                return None
+            return self._row_to_selection_value(row)
 
     async def remove_selection_value(self, value_id: int) -> bool:
         """Remove a specific selection value."""
