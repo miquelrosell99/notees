@@ -17,6 +17,7 @@ from app.features.nodes.router.dependencies import resolve_node_uuid
 from app.features.tasks.dependencies import (
     get_task_completion_repository,
     get_task_recurrence_repository,
+    resolve_task_completion_uuid,
 )
 from app.features.tasks.models import (
     RecurrenceRuleRequest,
@@ -190,10 +191,10 @@ async def record_task_completion(
     return _entity_to_completion_response(saved)
 
 
-@router.delete("/{node_uuid}/completions/{completion_id}")
+@router.delete("/{node_uuid}/completions/{completion_uuid}")
 async def delete_task_completion(
     node_uuid: str,
-    completion_id: int,
+    completion_id: int = Depends(resolve_task_completion_uuid),
     user: User = Depends(get_current_user),
     node_service: NodeService = Depends(get_node_service),
     completion_repo: TaskCompletionRepository = Depends(get_task_completion_repository),
