@@ -25,6 +25,23 @@ interface PluginModule {
   setup?: (context: PluginContext) => void | Promise<void>;
 }
 
+// Vite cannot resolve @/ aliases inside dynamic import() templates, so we
+// statically discover every built-in plugin setup module. The directory name
+// under src/plugins/builtin/ is assumed to be the plugin id suffix (e.g.
+// "bibtex" for "notees.bibtex").
+const builtinSetupModules = import.meta.glob<PluginModule>([
+  '/src/plugins/builtin/*/setup.ts',
+  '/src/plugins/builtin/*/setup.tsx',
+]);
+
+const builtinSetupLoaderById = new Map<string, () => Promise<PluginModule>>();
+for (const [filePath, loader] of Object.entries(builtinSetupModules)) {
+  const match = filePath.match(/\/src\/plugins\/builtin\/([^/]+)\/setup\.tsx?$/);
+  if (!match) continue;
+  const dirName = match[1];
+  builtinSetupLoaderById.set(`notees.${dirName}`, loader);
+}
+
 interface LoadedPlugin {
   manifest: PluginStatus;
   module: PluginModule | null;
@@ -200,14 +217,12 @@ class PluginManager {
 
   private async importPlugin(manifest: PluginManifest): Promise<PluginModule | null> {
     if (manifest.builtin) {
-      const safeId = manifest.id.replace(/\./g, '_');
-      try {
-        const module = await import(`@/plugins/builtin/${safeId}/setup`);
-        return module as PluginModule;
-      } catch {
-        const module = await import(`@/plugins/builtin/${manifest.id}/setup`);
+      const loader = builtinSetupLoaderById.get(manifest.id);
+      if (loader) {
+        const module = await loader();
         return module as PluginModule;
       }
+      return null;
     }
 
     const baseUrl = `/data/plugins/${manifest.id}`;
