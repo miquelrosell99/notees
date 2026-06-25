@@ -114,6 +114,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_workspace_name_per_user ON workspace(name,
 -- Workspace sharing with granular permissions
 CREATE TABLE IF NOT EXISTS workspace_share (
     id SERIAL PRIMARY KEY,
+    uuid UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
     workspace_id INTEGER NOT NULL REFERENCES workspace(id) ON DELETE CASCADE,
     user_id INTEGER NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
     can_read BOOLEAN DEFAULT TRUE,
@@ -343,6 +344,7 @@ CREATE INDEX IF NOT EXISTS idx_pending_invite_uuid ON pending_invite(uuid);
 -- Notifications (mentions, shares, comments)
 CREATE TABLE IF NOT EXISTS notification (
     id SERIAL PRIMARY KEY,
+    uuid UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
     user_id INTEGER NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
     type VARCHAR(50) NOT NULL,
     actor_user_id INTEGER REFERENCES "user"(id) ON DELETE SET NULL,
@@ -396,6 +398,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_property_name_scoped ON property(name, nod
 -- Property class filters
 CREATE TABLE IF NOT EXISTS property_class_filter (
     id SERIAL PRIMARY KEY,
+    uuid UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
     property_id INTEGER NOT NULL REFERENCES property(id) ON DELETE CASCADE,
     class_node_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
     UNIQUE(property_id, class_node_id)
@@ -517,6 +520,7 @@ CREATE INDEX IF NOT EXISTS idx_pvsel_property_line_node ON property_value_select
 -- Class properties (properties associated with a class)
 CREATE TABLE IF NOT EXISTS class_property (
     id SERIAL PRIMARY KEY,
+    uuid UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
     class_node_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
     property_id INTEGER NOT NULL REFERENCES property(id) ON DELETE CASCADE,
     sequence INTEGER DEFAULT 0,
@@ -536,6 +540,7 @@ CREATE INDEX IF NOT EXISTS idx_class_property_property_id ON class_property(prop
 -- Class extends (inheritance)
 CREATE TABLE IF NOT EXISTS class_extend (
     id SERIAL PRIMARY KEY,
+    uuid UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
     target_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
     source_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
     sequence INTEGER DEFAULT 0,
@@ -752,6 +757,7 @@ CREATE TABLE IF NOT EXISTS setting_system (
 -- Node activity log
 CREATE TABLE IF NOT EXISTS node_activity (
     id SERIAL PRIMARY KEY,
+    uuid UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
     node_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
     action VARCHAR(100) NOT NULL,
     details TEXT,
@@ -768,6 +774,7 @@ CREATE INDEX IF NOT EXISTS idx_node_activity_create_date ON node_activity(create
 -- Link click tracking (per link instance via node_link.uuid)
 CREATE TABLE IF NOT EXISTS link_click (
     id SERIAL PRIMARY KEY,
+    uuid UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
     source_node_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
     target_node_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
     node_link_uuid UUID,
@@ -809,6 +816,7 @@ CREATE INDEX IF NOT EXISTS idx_link_click_node_link_uuid ON link_click(node_link
 -- Stores snapshots of node content for version history / undo
 CREATE TABLE IF NOT EXISTS node_version (
     id SERIAL PRIMARY KEY,
+    uuid UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
     node_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
     workspace_id INTEGER NOT NULL REFERENCES workspace(id) ON DELETE CASCADE,
     name TEXT,
@@ -1620,6 +1628,7 @@ CREATE TRIGGER node_update_workspace_write_date
 
 CREATE TABLE IF NOT EXISTS undo_log (
     id          BIGSERIAL PRIMARY KEY,
+    uuid UUID UNIQUE NOT NULL DEFAULT uuid_generate_v4(),
     workspace_id INTEGER NOT NULL REFERENCES workspace(id) ON DELETE CASCADE,
     user_id     INTEGER NOT NULL,
     operation   TEXT NOT NULL,

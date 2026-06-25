@@ -51,7 +51,7 @@ export async function createBlocksRecursively(
           const existing = await getNodeByUuid(block.uuid);
           if (existing) {
             if (existing.parent_id !== parentId) {
-              await updateNode(existing.id, { parent_id: parentId, sequence: startSequence + result.index });
+              await updateNode(existing.uuid, { parent_id: parentId, sequence: startSequence + result.index });
             }
             uuidMap.set(block.uuid, { id: existing.id, uuid: existing.uuid });
             if (block.title) {

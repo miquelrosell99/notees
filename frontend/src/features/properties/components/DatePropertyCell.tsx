@@ -35,9 +35,9 @@ export function DatePropertyCell({
   // Derive ISO date from the day node's UUID (format: YYYYMMDD)
   const isoDate = useMemo(() => {
     if (!dayNode?.uuid) return undefined;
-    const u = dayNode.uuid;
-    if (u.length === 8 && /^\d{8}$/.test(u)) {
-      return `${u.slice(0, 4)}-${u.slice(4, 6)}-${u.slice(6, 8)}`;
+    const dayNodeUuid = dayNode.uuid;
+    if (dayNodeUuid.length === 8 && /^\d{8}$/.test(dayNodeUuid)) {
+      return `${dayNodeUuid.slice(0, 4)}-${dayNodeUuid.slice(4, 6)}-${dayNodeUuid.slice(6, 8)}`;
     }
     return undefined;
   }, [dayNode?.uuid]);

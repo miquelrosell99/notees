@@ -452,6 +452,7 @@ export const ListView = memo(function ListView({
             <div key={node.id} className="node-list-view__breadcrumb-group">
               <NodeBreadcrumbs
                 nodeId={node.id}
+                nodeUuid={node.uuid}
                 nodeType={node.is_page ? 'page' : 'block'}
                 onNavigate={(id) => onNodeClick?.({ id, is_page: true } as Node)}
                 compact
@@ -648,6 +649,7 @@ function ListViewGroup({
                   <div key={node.id} className="node-list-view__breadcrumb-group">
                     <NodeBreadcrumbs
                       nodeId={node.id}
+                      nodeUuid={node.uuid}
                       nodeType={node.is_page ? 'page' : 'block'}
                       onNavigate={(id) => onNodeClick?.({ id, is_page: true } as Node)}
                       stopAtPageLevel

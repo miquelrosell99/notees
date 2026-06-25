@@ -11,7 +11,7 @@ import type { NodeUpdate, Node } from '@/types/api';
 import { nodeKeys } from '@/hooks/queryKeys';
 import { nodeViewKeys } from './useNodeViews';
 import { scheduleAutoExport } from '@/utils/autoExport';
-import { invalidateNodeCaches, findNodeInCache, getRuntimeBlockIdForServerId, applyNodeIntent } from './useNodeMutations.utils';
+import { invalidateNodeCaches, findNodeInCache, getRuntimeBlockIdForServerId, applyNodeIntent, getNodeUuidByServerId } from './useNodeMutations.utils';
 import { waitForOperationAck } from '@/sync/waitForOperation';
 import type { GraphNode } from '@/runtime/types';
 
@@ -22,7 +22,9 @@ export function useUpdateNode() {
     mutationFn: async ({ id, data }) => {
       const blockId = getRuntimeBlockIdForServerId(id);
       if (!blockId) {
-        return nodesApi.updateNode(id, data);
+        const nodeUuid = getNodeUuidByServerId(queryClient, id);
+        if (!nodeUuid) throw new Error('Node UUID not found');
+        return nodesApi.updateNode(nodeUuid, data);
       }
 
       const updates: Partial<GraphNode> = {};

@@ -41,9 +41,9 @@ const CALLOUT_UUID_TO_TYPE: Record<string, string> = {
 function resolveCalloutType(classIds: number[] | undefined, uuidMap?: Map<number, string>): string | null {
   if (!classIds || classIds.length === 0 || !uuidMap) return null;
   for (const id of classIds) {
-    const uuid = uuidMap.get(id);
-    if (uuid) {
-      const type = CALLOUT_UUID_TO_TYPE[uuid];
+    const classUuid = uuidMap.get(id);
+    if (classUuid) {
+      const type = CALLOUT_UUID_TO_TYPE[classUuid];
       if (type) return type;
     }
   }
@@ -266,9 +266,9 @@ function inferNodeType(node: Node, classIdToUuidMap?: Map<number, string>): Grap
   // Resolve class server IDs to UUIDs via the cached class list
   const map = classIdToUuidMap || buildClassIdToUuidMap();
   for (const classId of classes) {
-    const uuid = map.get(classId);
-    if (uuid) {
-      const nodeType = CLASS_UUID_TO_NODE_TYPE[uuid];
+    const classUuid = map.get(classId);
+    if (classUuid) {
+      const nodeType = CLASS_UUID_TO_NODE_TYPE[classUuid];
       if (nodeType) return nodeType;
     }
   }

@@ -10,7 +10,7 @@ import { useCommandPaletteSelection } from './useCommandPaletteSelection';
 
 export function useCommandPalette({ isOpen, onClose, onSelect }: CommandPaletteProps) {
   const state = useCommandPaletteState({ isOpen, onClose });
-  const currentNodeId = useNavigationStore((s) => s.currentNodeId);
+  const currentNodeUuid = useNavigationStore((s) => s.currentNodeUuid);
   const showDevOptions = useSettingsStore((s) => s.showDevOptions);
 
   const allItems = useCommandPaletteItems({
@@ -37,7 +37,7 @@ export function useCommandPalette({ isOpen, onClose, onSelect }: CommandPaletteP
     suggestedPrefixes: state.suggestedPrefixes,
     activeFilter: state.activeFilter,
     formatParsedDateLabel: state.formatParsedDateLabel,
-    currentNodeId,
+    currentNodeUuid,
     showDevOptions,
     isTypingColon: state.isTypingColon,
   });

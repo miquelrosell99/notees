@@ -13,7 +13,7 @@ import { NodeSelector, nodeViewKeys } from '@/features/content';
 import { mergePages } from '@/api/nodes';
 import { useQueryClient } from '@tanstack/react-query';
 import { nodeKeys } from '@/hooks/queryKeys';
-import { useCurrentNodeId, useOpenNode } from '@/features/layout';
+import { useCurrentNodeUuid, useOpenNode } from '@/features/layout';
 import { nodeNameToText } from '@/features/queries';
 import { useNode } from '@/features/content';
 import type { Node } from '@/types';
@@ -25,9 +25,9 @@ export interface MergePagesModalProps {
 }
 
 export function MergePagesModal({ isOpen, onClose }: MergePagesModalProps) {
-  const currentNodeId = useCurrentNodeId();
+  const currentNodeUuid = useCurrentNodeUuid();
   const openNode = useOpenNode();
-  const { data: currentNode } = useNode(currentNodeId);
+  const { data: currentNode } = useNode(currentNodeUuid);
   const queryClient = useQueryClient();
 
   const [sourceNode, setSourceNode] = useState<Node | null>(null);
@@ -57,7 +57,7 @@ export function MergePagesModal({ isOpen, onClose }: MergePagesModalProps) {
     setIsMerging(true);
     setError(null);
     try {
-      await mergePages(sourceNode.id, targetNode.id);
+      await mergePages(sourceNode.uuid, targetNode.uuid);
 
       // Remove all queries for the deleted source node so they don't refetch
       // and fail with 404 when we invalidate everything else.
@@ -76,7 +76,7 @@ export function MergePagesModal({ isOpen, onClose }: MergePagesModalProps) {
 
       // Switch to the target page before invalidating so the old view
       // unmounts and doesn't try to refetch the deleted source.
-      openNode(targetNode.id);
+      openNode(targetNode.uuid);
 
       // Invalidate general queries that may reference the source or target.
       queryClient.invalidateQueries({ queryKey: nodeKeys.pages() });

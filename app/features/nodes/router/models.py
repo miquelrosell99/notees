@@ -8,13 +8,13 @@ from pydantic import BaseModel, Field
 class BatchTextLinksRequest(BaseModel):
     """Request body for batch text-link resolution."""
 
-    node_ids: list[int]
+    node_uuids: list[str]
 
 
 class SetFavoritesRequest(BaseModel):
     """Request body for replacing the favorites list."""
 
-    favorites: list[int]
+    favorites: list[str]
 
 
 class ReorderFavoritesRequest(BaseModel):
@@ -27,13 +27,17 @@ class ReorderFavoritesRequest(BaseModel):
 class NodeResponse(BaseModel):
     """Node response model."""
 
-    id: int
+    # Internal numeric IDs are kept optional for backwards compatibility during the
+    # UUID migration. New clients should rely on the *_uuid fields.
+    id: int | None = None
     uuid: str
     name: str
     icon: str | None = None
     color: str | None = None
     parent_id: int | None = None
+    parent_uuid: str | None = None
     page_id: int | None = None
+    page_uuid: str | None = None
     sequence: float = 0.0
     collapsed: bool = False
     active: bool = True
@@ -56,10 +60,13 @@ class NodeResponse(BaseModel):
     # Computed fields
     display_name: str | None = None
     tags: list[int] = []  # Tag node IDs (descriptive linking with #)
+    tags_uuid: list[str] = []  # Tag node UUIDs
     classes: list[int] = []  # Class node IDs (categorization with @)
+    classes_uuid: list[str] = []  # Class node UUIDs
     properties: dict[str, Any] = {}
     # Linked references - classes_path (inherited classes from ancestors)
     classes_path: list[int] = []  # Inherited class node IDs from ancestors' classes properties
+    classes_path_uuid: list[str] = []  # Inherited class node UUIDs
     # For tree responses
     children: list["NodeResponse"] | None = None
     has_children: bool = False  # True if node has children (even if not loaded, e.g. collapsed)
@@ -71,9 +78,12 @@ class NodeResponse(BaseModel):
     comment_count: int = 0
     # Alias support
     aliased_id: int | None = None  # If set, this node is an alias of the node with this ID
+    aliased_uuid: str | None = None
     aliases: list[int] = []  # IDs of nodes that are aliases of this node
+    aliases_uuid: list[str] = []  # UUIDs of alias nodes
     # Class extension (Extends chain) - parent class IDs in order
     extends: list[int] = []
+    extends_uuid: list[str] = []
     # Referenced nodes map — uuid → node data for outgoing link targets.
     # Populated by page content endpoint so inline links resolve without N+1 queries.
     referenced_nodes: dict[str, "NodeResponse"] | None = None
@@ -89,6 +99,7 @@ class BreadcrumbSegment(BaseModel):
     """A segment in the breadcrumb path."""
 
     node_id: int | None = None  # None for property segments
+    node_uuid: str | None = None
     name: str
     is_property: bool = False  # True if this is a property name segment
 
@@ -100,7 +111,7 @@ class BacklinkResponse(BaseModel):
     For property links: source is the property owner B
     """
 
-    source_node_id: int
+    source_node_id: int | None = None
     source_node_uuid: str
     source_node_name: str
     source_is_page: bool = False
@@ -109,6 +120,7 @@ class BacklinkResponse(BaseModel):
     source_page_uuid: str | None = None
     # Property info (for node-type property links)
     property_id: int | None = None
+    property_uuid: str | None = None
     property_name: str | None = None
     # Breadcrumb path with property provenance
     breadcrumb_path: list[BreadcrumbSegment] = []
@@ -126,15 +138,18 @@ class LinkedReferenceResponse(BaseModel):
     breadcrumb_path: list[BreadcrumbSegment] = []  # Path from source to page
     # For property-type links
     property_id: int | None = None
+    property_uuid: str | None = None
     property_name: str | None = None
     # For text-property-context links: root block ID of the text property
     text_property_root_block_id: int | None = None
+    text_property_root_block_uuid: str | None = None
 
 
 class PropertyValueResponse(BaseModel):
     """Property value for a node."""
 
-    property_id: int
+    property_id: int | None = None
+    property_uuid: str | None = None
     property_name: str
     property_type: str
     value: Any
@@ -147,11 +162,19 @@ class NodeCreateRequest(BaseModel):
     name: str = ""
     icon: str | None = None
     color: str | None = None
+    # Exactly one of parent_id / parent_uuid should be provided; uuid takes precedence.
     parent_id: int | None = None
+    parent_uuid: str | None = None
     sequence: float = 0.0
+    # Exactly one of classes / class_uuids should be provided; class_uuids takes precedence.
     classes: list[int] = []  # Class node IDs - flags are computed from these
+    class_uuids: list[str] = []
+    # Exactly one of tags / tag_uuids should be provided; tag_uuids takes precedence.
     tags: list[int] = []  # Tag node IDs
+    tag_uuids: list[str] = []
+    # Exactly one of properties / property_uuids should be provided; property_uuids takes precedence.
     properties: dict[int, Any] = {}  # property_id -> value
+    property_uuids: dict[str, Any] = {}  # property_uuid -> value
     uuid: str | None = None  # Optional: override auto-generated UUID (e.g. from Logseq import)
     # For date nodes
     is_daily: bool = False
@@ -169,13 +192,16 @@ class NodeUpdateRequest(BaseModel):
     icon: str | None = None
     color: str | None = None
     parent_id: int | None = None
+    parent_uuid: str | None = None
     sequence: float | None = None
     collapsed: bool | None = None
     is_private: bool | None = None
     # Optional: when provided, reconcile node classes to exactly this set
     classes: list[int] | None = None
+    class_uuids: list[str] | None = None
     # Optional: when provided, apply each property_id -> value pair
     properties: dict[int, Any] | None = None
+    property_uuids: dict[str, Any] | None = None
     # Optional: when provided, update fails if node's version doesn't match (optimistic locking)
     expected_version: int | None = None
 
@@ -183,13 +209,14 @@ class NodeUpdateRequest(BaseModel):
 class ClassRequest(BaseModel):
     """Request to add/remove a class."""
 
-    class_node_id: int
+    class_node_uuid: str
 
 
 class PropertyRequest(BaseModel):
     """Request to set a property value."""
 
-    property_id: int
+    property_id: int | None = None
+    property_uuid: str | None = None
     value: Any
 
 
@@ -197,6 +224,7 @@ class MoveNodeRequest(BaseModel):
     """Request to move a node to a new parent and/or position."""
 
     parent_id: int | None = None
+    parent_uuid: str | None = None
     position: float | None = None
 
 
@@ -209,23 +237,26 @@ class ConvertToPageRequest(BaseModel):
 class ConvertToBlockRequest(BaseModel):
     """Request to convert a page into a block under a destination page."""
 
-    parent_id: int
+    parent_uuid: str
+    after_uuid: str | None = None
     position: float | None = None
 
 
 class TagLinkRequest(BaseModel):
     """Request to add a tag link."""
 
-    target_node_id: int
+    target_node_uuid: str
 
 
 class NodeLinkResponse(BaseModel):
     """Response for a node link."""
 
-    id: int
+    id: int | None = None
     uuid: str  # Unique identifier for this link instance
-    source_node_id: int
-    target_node_id: int
+    source_node_id: int | None = None
+    source_node_uuid: str | None = None
+    target_node_id: int | None = None
+    target_node_uuid: str | None = None
     position: int
     name: str | None = None  # Custom display text for the link
 
@@ -233,7 +264,8 @@ class NodeLinkResponse(BaseModel):
 class InlineClassResponse(BaseModel):
     """Inline class reference in content."""
 
-    class_node_id: int
+    class_node_id: int | None = None
+    class_node_uuid: str | None = None
     class_node_name: str
     class_node_icon: str | None = None
     position: int
@@ -243,20 +275,22 @@ class PropertyBacklinkResponse(BaseModel):
     """A page that references a target node via property."""
 
     source_page: NodeResponse
-    property_id: int
+    property_id: int | None = None
+    property_uuid: str | None = None
     property_name: str
 
 
 class MentionResponse(BaseModel):
     """An unlinked mention candidate for a target node."""
 
-    id: int
+    id: int | None = None
     uuid: str
-    source_node_id: int
+    source_node_id: int | None = None
     source_node_uuid: str
     source_node_name: str
     source_is_page: bool
-    target_id: int
+    target_id: int | None = None
+    target_uuid: str | None = None
     match_text: str
     position: int
     is_ignored: bool = False
@@ -267,12 +301,13 @@ class CommentCreateRequest(BaseModel):
 
     name: str = ""  # Initial comment content
     parent_comment_id: int | None = None  # If set, creates a reply to this comment
+    parent_comment_uuid: str | None = None
 
 
 class AliasRequest(BaseModel):
     """Request to add an alias."""
 
-    alias_node_id: int
+    alias_node_uuid: str
 
 
 class DateFormatUpdateRequest(BaseModel):
@@ -285,7 +320,10 @@ class DateFormatUpdateRequest(BaseModel):
 
 
 class BatchGetNodesRequest(BaseModel):
-    """Request to fetch multiple nodes by ID in a single call."""
+    """Request to fetch multiple nodes by ID in a single call.
+
+    Deprecated: use BatchGetNodesByUuidRequest instead.
+    """
 
     ids: list[int]
     include_properties: bool = False
@@ -314,6 +352,7 @@ class BreadcrumbItem(BaseModel):
     """A single breadcrumb in the ancestor chain."""
 
     id: int
+    uuid: str
     name: str
     display_name: str = ""
     icon: str | None = None
@@ -321,6 +360,7 @@ class BreadcrumbItem(BaseModel):
     parent_locked: bool = False
     is_property: bool = False
     property_id: int | None = None
+    property_uuid: str | None = None
 
 
 class BreadcrumbsResponse(BaseModel):
@@ -338,10 +378,19 @@ class BatchNodeCreateItem(BaseModel):
     name: str = ""
     icon: str | None = None
     color: str | None = None
+    # Exactly one of parent_id / parent_uuid should be provided; uuid takes precedence.
     parent_id: int | None = None
+    parent_uuid: str | None = None
     sequence: float = 0.0
+    # Exactly one of classes / class_uuids should be provided; class_uuids takes precedence.
     classes: list[int] = []
+    class_uuids: list[str] = []
+    # Exactly one of tags / tag_uuids should be provided; tag_uuids takes precedence.
+    tags: list[int] = []
+    tag_uuids: list[str] = []
+    # Exactly one of properties / property_uuids should be provided; property_uuids takes precedence.
     properties: dict[int, Any] = {}
+    property_uuids: dict[str, Any] = {}
     uuid: str | None = None  # Optional: provide a UUID (e.g. from Logseq)
 
 
@@ -373,20 +422,24 @@ class BatchNodeCreateResponse(BaseModel):
 class BatchNodeUpdateItem(BaseModel):
     """A single node update in a batch operation.
 
-    Identifies the node by either id or uuid (at least one required).
+    Identifies the node by uuid (preferred) or legacy id.
     """
 
-    id: int | None = None
+    # uuid is preferred; legacy id is accepted during the UUID transition.
     uuid: str | None = None
+    id: int | None = None
     name: str | None = None
     icon: str | None = None
     color: str | None = None
     parent_id: int | None = None
+    parent_uuid: str | None = None
     sequence: float | None = None
     collapsed: bool | None = None
     # Optional: reconcile classes / apply property values in the same request
     classes: list[int] | None = None
+    class_uuids: list[str] | None = None
     properties: dict[int, Any] | None = None
+    property_uuids: dict[str, Any] | None = None
 
 
 class BatchNodeUpdateRequest(BaseModel):
@@ -438,14 +491,15 @@ class BatchNodeDeleteResponse(BaseModel):
 class BatchPermanentDeleteRequest(BaseModel):
     """Request to permanently delete multiple nodes from trash."""
 
-    ids: list[int]
+    uuids: list[str]
 
 
 class BatchPermanentDeleteResultItem(BaseModel):
     """Result for a single permanent node deletion in a batch."""
 
     index: int
-    id: int
+    uuid: str
+    id: int | None = None
     success: bool
     error: str | None = None
 
@@ -486,11 +540,13 @@ class TemplateInstantiateRequest(BaseModel):
     """Request to instantiate a template node."""
 
     parent_id: int | None = None
+    parent_uuid: str | None = None
     name: str | None = None
     variables: dict[str, str] = {}
     dynamic_context: dict[str, str] = {}  # Computed values for <% ... %> dynamic placeholders
     as_blocks: bool = False  # If True, create children under parent_id without a root page
     after_id: int | None = None  # Insert blocks after this sibling (as_blocks mode)
+    after_uuid: str | None = None
 
 
 class TemplateInstantiateResponse(BaseModel):
@@ -514,7 +570,7 @@ class TemplateVariablesResponse(BaseModel):
 class WorkspaceNodeResponse(BaseModel):
     """A node in the workspace graph visualization."""
 
-    id: int
+    id: int | None = None
     uuid: str
     name: str
     icon: str | None = None
@@ -522,16 +578,17 @@ class WorkspaceNodeResponse(BaseModel):
     is_daily: bool = False
     is_monthly: bool = False
     is_yearly: bool = False
-    class_ids: list[int] = []
+    class_ids: list[int] = []  # Class node integer IDs
     block_count: int = 0
     aliased_id: int | None = None
+    aliased_uuid: str | None = None
 
 
 class WorkspaceLinkResponse(BaseModel):
     """A link between nodes in the workspace graph."""
 
-    source: int
-    target: int
+    source: str
+    target: str
     type: str
     weight: int | None = None
 
@@ -557,10 +614,10 @@ class WorkspaceNodesResponse(BaseModel):
 class LinksRequest(BaseModel):
     """Request body for fetching links between nodes."""
 
-    node_ids: list[int]
+    node_uuids: list[str]
     scope: str = "between"
     cooccurrence: bool = False
-    context_node_id: int | None = None
+    context_node_uuid: str | None = None
 
 
 class LinksResponse(BaseModel):
@@ -578,7 +635,7 @@ class SearchFilterRequest(BaseModel):
     """
 
     query: str = ""
-    class_ids: list[int] = []
+    class_uuids: list[str] = []
     is_page: bool | None = None
     is_task: bool | None = None
     is_daily: bool | None = None

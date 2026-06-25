@@ -8,7 +8,7 @@
 import api from './client';
 
 export interface ExportJobResponse {
-  id: string;
+  job_uuid: string;
   status: string;
   progress: number;
   status_text: string;
@@ -23,10 +23,10 @@ export interface StartExportJobOptions {
 
 export async function startExportJob(options: StartExportJobOptions): Promise<string> {
   const { data } = await api.post('/export', {
-    node_ids: options.nodeUuids,
+    node_uuids: options.nodeUuids,
     ...options.params,
   });
-  return (data as { job_id: string }).job_id;
+  return (data as { job_uuid: string }).job_uuid;
 }
 
 export async function startSingleExportJob(
@@ -34,30 +34,30 @@ export async function startSingleExportJob(
   params: Record<string, unknown>
 ): Promise<string> {
   const { data } = await api.get(`/export/${nodeUuid}`, { params });
-  return (data as { job_id: string }).job_id;
+  return (data as { job_uuid: string }).job_uuid;
 }
 
-export async function getExportJob(jobId: string): Promise<ExportJobResponse> {
-  const { data } = await api.get(`/export/jobs/${jobId}`);
+export async function getExportJob(jobUuid: string): Promise<ExportJobResponse> {
+  const { data } = await api.get(`/export/jobs/${jobUuid}`);
   return data as ExportJobResponse;
 }
 
 /**
  * Poll an export job until it completes or fails.
  *
- * @param jobId - The job id returned by the start endpoint.
+ * @param jobUuid - The job uuid returned by the start endpoint.
  * @param options - Polling configuration.
  * @returns The completed job response.
  */
 export async function pollExportJob(
-  jobId: string,
+  jobUuid: string,
   options: { intervalMs?: number; timeoutMs?: number; onStatus?: (job: ExportJobResponse) => void } = {}
 ): Promise<ExportJobResponse> {
   const { intervalMs = 500, timeoutMs = 60000, onStatus } = options;
   const startedAt = Date.now();
 
   while (true) {
-    const job = await getExportJob(jobId);
+    const job = await getExportJob(jobUuid);
     onStatus?.(job);
 
     if (job.status === 'completed') {
@@ -76,10 +76,10 @@ export async function pollExportJob(
 }
 
 export async function fetchExportResult<T = Blob>(
-  jobId: string,
+  jobUuid: string,
   responseType: 'blob' | 'text'
 ): Promise<{ data: T; headers: Record<string, string> }> {
-  return api.get(`/export/jobs/${jobId}/download`, { responseType }) as Promise<{
+  return api.get(`/export/jobs/${jobUuid}/download`, { responseType }) as Promise<{
     data: T;
     headers: Record<string, string>;
   }>;

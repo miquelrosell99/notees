@@ -2,9 +2,10 @@
  * useNodeGraphQueries
  */
 
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import * as nodesApi from '@/api/nodes';
 import { nodeKeys } from '@/hooks/queryKeys';
+import { getNodeUuidByServerId } from './useNodeMutations.utils';
 
 export function useGraphData(options?: { enabled?: boolean }) {
   return useQuery({
@@ -38,12 +39,19 @@ export function useGraphLinks(
   nodeIds: number[],
   options?: { enabled?: boolean; scope?: 'between' | 'touching'; cooccurrence?: boolean; contextNodeId?: number | null }
 ) {
+  const queryClient = useQueryClient();
   const scope = options?.scope ?? 'between';
   const cooccurrence = options?.cooccurrence ?? false;
   const contextNodeId = options?.contextNodeId ?? null;
   return useQuery({
     queryKey: nodeKeys.graphLinks(nodeIds, scope, cooccurrence, contextNodeId),
-    queryFn: () => nodesApi.getLinksForNodes(nodeIds, scope, cooccurrence, contextNodeId),
+    queryFn: () => {
+      const nodeUuids = nodeIds
+        .map((id) => getNodeUuidByServerId(queryClient, id))
+        .filter((nodeUuid): nodeUuid is string => nodeUuid != null);
+      const contextUuid = contextNodeId ? getNodeUuidByServerId(queryClient, contextNodeId) : undefined;
+      return nodesApi.getLinksForNodes(nodeUuids, scope, cooccurrence, contextUuid ?? undefined);
+    },
     enabled: (options?.enabled ?? true) && nodeIds.length > 0,
   });
 }

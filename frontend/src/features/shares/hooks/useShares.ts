@@ -22,11 +22,11 @@ import {
 
 // ============ Public Shares ============
 
-export function useNodeShares(nodeId: number | null) {
+export function useNodeShares(nodeUuid: string | null) {
   return useQuery({
-    queryKey: sharesKeys.node(nodeId ?? 0),
-    queryFn: () => listNodeShares(nodeId!),
-    enabled: nodeId !== null,
+    queryKey: sharesKeys.node(nodeUuid ?? ''),
+    queryFn: () => listNodeShares(nodeUuid!),
+    enabled: nodeUuid !== null,
   });
 }
 
@@ -40,10 +40,10 @@ export function useWorkspaceShares() {
 export function useCreateShare() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ nodeId, expiryDate, password }: { nodeId: number; expiryDate?: string | null; password?: string | null }) =>
-      createShare(nodeId, expiryDate, password),
-    onSuccess: (_, { nodeId }) => {
-      queryClient.invalidateQueries({ queryKey: sharesKeys.node(nodeId) });
+    mutationFn: ({ nodeUuid, expiryDate, password }: { nodeUuid: string; expiryDate?: string | null; password?: string | null }) =>
+      createShare(nodeUuid, expiryDate, password),
+    onSuccess: (_, { nodeUuid }) => {
+      queryClient.invalidateQueries({ queryKey: sharesKeys.node(nodeUuid) });
       queryClient.invalidateQueries({ queryKey: sharesKeys.workspace() });
     },
   });
@@ -69,11 +69,11 @@ export function usePublicSharedNode(shareUuid: string | null) {
 
 // ============ Node User Shares ============
 
-export function useNodeUserShares(nodeId: number | null) {
+export function useNodeUserShares(nodeUuid: string | null) {
   return useQuery({
-    queryKey: sharesKeys.userShares(nodeId ?? 0),
-    queryFn: () => listNodeUserShares(nodeId!),
-    enabled: nodeId !== null,
+    queryKey: sharesKeys.userShares(nodeUuid ?? ''),
+    queryFn: () => listNodeUserShares(nodeUuid!),
+    enabled: nodeUuid !== null,
   });
 }
 
@@ -81,16 +81,16 @@ export function useCreateUserShare() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({
-      nodeId,
+      nodeUuid,
       email,
       permission,
     }: {
-      nodeId: number;
+      nodeUuid: string;
       email: string;
       permission: 'read' | 'write' | 'comment';
-    }) => createUserShare(nodeId, email, permission),
-    onSuccess: (_, { nodeId }) => {
-      queryClient.invalidateQueries({ queryKey: sharesKeys.userShares(nodeId) });
+    }) => createUserShare(nodeUuid, email, permission),
+    onSuccess: (_, { nodeUuid }) => {
+      queryClient.invalidateQueries({ queryKey: sharesKeys.userShares(nodeUuid) });
     },
   });
 }

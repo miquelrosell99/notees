@@ -129,7 +129,7 @@ export const BulletLineOverlay = memo(function BulletLineOverlay({
       if (activeBlockId) activePath.add(activeBlockId);
 
       // Collect visible rows with coordinates.
-      const rows: { depth: number; uuid: string; y: number; x: number }[] = [];
+      const rows: { depth: number; blockUuid: string; y: number; x: number }[] = [];
 
       if (virtualized && virtualItems) {
         const scrollTop = container.scrollTop;
@@ -138,7 +138,7 @@ export const BulletLineOverlay = memo(function BulletLineOverlay({
           if (!fn || fn.isGhost) continue;
           rows.push({
             depth: fn.depth,
-            uuid: fn.node.uuid,
+            blockUuid: fn.node.uuid,
             y: vi.start + (vi.end - vi.start) / 2 - scrollTop,
             x: fn.depth * step + bulletCenter,
           });
@@ -151,7 +151,7 @@ export const BulletLineOverlay = memo(function BulletLineOverlay({
           const rect = el.getBoundingClientRect();
           rows.push({
             depth: fn.depth,
-            uuid: fn.node.uuid,
+            blockUuid: fn.node.uuid,
             y: rect.top - containerRect.top + rect.height / 2,
             x: rect.left - containerRect.left + bulletCenter,
           });
@@ -196,7 +196,7 @@ export const BulletLineOverlay = memo(function BulletLineOverlay({
           x: row.x,
           yStart,
           yEnd,
-          blockId: row.uuid,
+          blockId: row.blockUuid,
         });
       }
 
@@ -204,7 +204,7 @@ export const BulletLineOverlay = memo(function BulletLineOverlay({
       const newConnectors: Connector[] = [];
       for (let i = 0; i < rows.length; i++) {
         const row = rows[i];
-        if (!activePath.has(row.uuid)) continue;
+        if (!activePath.has(row.blockUuid)) continue;
 
         for (let j = i - 1; j >= 0; j--) {
           if (rows[j].depth === row.depth - 1) {
@@ -221,10 +221,10 @@ export const BulletLineOverlay = memo(function BulletLineOverlay({
       if (activeBlockId) {
         const chain: Point[] = [];
         for (const ancestor of [...activeAncestors].reverse()) {
-          const row = rows.find((r) => r.uuid === ancestor.blockId);
+          const row = rows.find((r) => r.blockUuid === ancestor.blockId);
           if (row) chain.push({ x: row.x, y: row.y });
         }
-        const activeRow = rows.find((r) => r.uuid === activeBlockId);
+        const activeRow = rows.find((r) => r.blockUuid === activeBlockId);
         if (activeRow) chain.push({ x: activeRow.x, y: activeRow.y });
         newActivePathChain.push(...chain);
       }

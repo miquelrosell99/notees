@@ -1,8 +1,23 @@
 import { getOrCreateDaily, searchNodes, getNodeByUuid, createNode as createNodeApi, getNode, removeProperty } from '@/api/nodes';
 import { nodeNameToText } from '@/features/queries';
+import { resolvePropertyUuid } from '@/utils/resolveNodeUuid';
 import type { NodeInfo, PhaseResult } from './useLogseqImporter.types';
 import { buildAstFromLogseqText } from './useLogseqImporter.ast';
 import { errorMessage } from './useLogseqImporter.utils';
+
+function findNodeUuid(
+  nodeId: number,
+  uuidMap: Map<string, NodeInfo>,
+  titleToNodeInfo: Map<string, NodeInfo>,
+): string | null {
+  for (const info of uuidMap.values()) {
+    if (info.id === nodeId) return info.uuid;
+  }
+  for (const info of titleToNodeInfo.values()) {
+    if (info.id === nodeId) return info.uuid;
+  }
+  return null;
+}
 
 export async function resolvePropertyValueForImport(
   value: unknown,
@@ -81,14 +96,14 @@ export async function resolvePropertyValueForImport(
         }
       }
       case 'uuid-ref': {
-        const uuid = typed.uuid as string;
+        const nodeUuid = typed.uuid as string;
         const fallbackTitle = typed.title as string | undefined;
-        const info = uuidMap.get(uuid);
+        const info = uuidMap.get(nodeUuid);
         if (info) return info.id;
         try {
-          const existing = await getNodeByUuid(uuid);
+          const existing = await getNodeByUuid(nodeUuid);
           if (existing) {
-            uuidMap.set(uuid, { id: existing.id, uuid: existing.uuid });
+            uuidMap.set(nodeUuid, { id: existing.id, uuid: existing.uuid });
             if (fallbackTitle) titleToNodeInfo.set(fallbackTitle, { id: existing.id, uuid: existing.uuid });
             return existing.id;
           }
@@ -103,14 +118,14 @@ export async function resolvePropertyValueForImport(
             );
             if (existing) {
               titleToNodeInfo.set(fallbackTitle, { id: existing.id, uuid: existing.uuid });
-              uuidMap.set(uuid, { id: existing.id, uuid: existing.uuid });
+              uuidMap.set(nodeUuid, { id: existing.id, uuid: existing.uuid });
               return existing.id;
             }
           } catch { /* search failed */ }
           try {
             const newPage = await createNodeApi({ name: fallbackTitle, classes: [pageClassId] });
             titleToNodeInfo.set(fallbackTitle, { id: newPage.id, uuid: newPage.uuid });
-            uuidMap.set(uuid, { id: newPage.id, uuid: newPage.uuid });
+            uuidMap.set(nodeUuid, { id: newPage.id, uuid: newPage.uuid });
             return newPage.id;
           } catch (createErr) {
             console.error(`[IMPORT] uuid-ref fallback: failed to create "${fallbackTitle}"`, createErr);
@@ -136,7 +151,7 @@ export async function assignProperties(
   classIdMap: Map<string, number>,
   pageClassId: number,
   setImportStatus: (s: string) => void,
-  setNodePropertyMutation: { mutateAsync: (args: { nodeId: number; propertyId: number; value: unknown }) => Promise<unknown> },
+  setNodePropertyMutation: { mutateAsync: (args: { nodeId: string | number; propertyId: string | number; value: unknown }) => Promise<unknown> },
   phase: PhaseResult,
   override = false,
   isExistingNode = false,
@@ -145,8 +160,9 @@ export async function assignProperties(
   let existingProperties: Record<number, unknown> | undefined;
   if (isExistingNode) {
     try {
-      const fullNode = await getNode(nodeId, { include_properties: true });
-      existingProperties = fullNode.properties ?? {};
+      const nodeUuid = findNodeUuid(nodeId, uuidMap, titleToNodeInfo);
+      const fullNode = nodeUuid ? await getNode(nodeUuid, { include_properties: true }) : null;
+      existingProperties = fullNode?.properties ?? {};
     } catch {
       existingProperties = {};
     }
@@ -161,7 +177,13 @@ export async function assignProperties(
         if (!importedPropIds.has(existingPropId)) {
           try {
             setImportStatus(`Removing old property from: ${label}`);
-            await removeProperty(nodeId, existingPropId);
+            const nodeUuid = findNodeUuid(nodeId, uuidMap, titleToNodeInfo);
+            if (nodeUuid) {
+              const propertyUuid = resolvePropertyUuid(existingPropId);
+              if (propertyUuid) {
+                await removeProperty(nodeUuid, propertyUuid);
+              }
+            }
           } catch { /* ignore */ }
         }
       }
@@ -228,7 +250,7 @@ export async function assignBlockProperties(
   classIdMap: Map<string, number>,
   pageClassId: number,
   setImportStatus: (s: string) => void,
-  setNodePropertyMutation: { mutateAsync: (args: { nodeId: number; propertyId: number; value: unknown }) => Promise<unknown> },
+  setNodePropertyMutation: { mutateAsync: (args: { nodeId: string | number; propertyId: string | number; value: unknown }) => Promise<unknown> },
   phase: PhaseResult,
   override = false,
   existingNodeIds: Set<number> = new Set(),

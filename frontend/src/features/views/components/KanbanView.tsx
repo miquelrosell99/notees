@@ -458,7 +458,7 @@ export const KanbanView = memo(function KanbanView({
     setDndActiveId(null);
     if (!over || !active.data.current) return;
 
-    const activeNodeId = Number(String(active.id).replace('card-dnd-', ''));
+    const activeNodeUuid = Number(String(active.id).replace('card-dnd-', ''));
     const overData = over.data.current as { type?: string; columnId?: string; value?: unknown } | undefined;
 
     if (!overData || overData.type !== 'column') return;
@@ -472,7 +472,7 @@ export const KanbanView = memo(function KanbanView({
 
     const newValue = targetColumn.value;
     setNodeProperty.mutate({
-      nodeId: activeNodeId,
+      nodeId: activeNodeUuid,
       propertyId: groupByProperty.id,
       value: newValue,
     });

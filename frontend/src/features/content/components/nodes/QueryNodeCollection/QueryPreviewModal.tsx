@@ -14,7 +14,7 @@ export interface QueryPreviewModalProps {
   editAST: QueryAST | null;
   nodesMap: Map<string, Node>;
   onClose: () => void;
-  onNodeLinkClick: (uuid: string) => void;
+  onNodeLinkClick: (nodeUuid: string) => void;
 }
 
 export function QueryPreviewModal({ isOpen, editAST, nodesMap, onClose, onNodeLinkClick }: QueryPreviewModalProps) {

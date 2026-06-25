@@ -167,11 +167,11 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid, nodeUuids, nodeName
 
       try {
         const previewFormat = format === 'pdf' ? 'pdf' : formatHasHtmlOptions(format) ? 'html' : format;
-        const jobId = isBatch
+        const jobUuid = isBatch
           ? await startExportJob({ nodeUuids: effectiveNodeUuids, params: { ...params, format: previewFormat } })
           : await startSingleExportJob(effectiveNodeUuids[0], { ...params, format: previewFormat });
 
-        const job = await pollExportJob(jobId, {
+        const job = await pollExportJob(jobUuid, {
           onStatus: (j) => {
             if (!cancelled) {
               // Surface user-visible progress text only when it changes.
@@ -185,7 +185,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid, nodeUuids, nodeName
         if (cancelled) return;
 
         if (format === 'pdf') {
-          const { data } = await fetchExportResult<Blob>(job.id, 'blob');
+          const { data } = await fetchExportResult<Blob>(job.job_uuid, 'blob');
           const blob = data instanceof Blob ? data : new Blob([data as BlobPart], { type: 'application/pdf' });
           const url = URL.createObjectURL(blob);
           setPdfPreviewUrl((prev) => {
@@ -193,7 +193,7 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid, nodeUuids, nodeName
             return url;
           });
         } else {
-          const { data } = await fetchExportResult<string>(job.id, 'text');
+          const { data } = await fetchExportResult<string>(job.job_uuid, 'text');
           setPreviewContent(data as string);
         }
       } catch (e: unknown) {
@@ -273,11 +273,11 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid, nodeUuids, nodeName
         // Preserve custom-CSS path: fetch HTML via async job, inject overrides,
         // then render PDF through the direct render endpoint.
         const htmlParams = { ...baseParams, format: 'html' };
-        const htmlJobId = isBatch
+        const htmlJobUuid = isBatch
           ? await startExportJob({ nodeUuids: effectiveNodeUuids, params: htmlParams })
           : await startSingleExportJob(effectiveNodeUuids[0], htmlParams);
-        const htmlJob = await pollExportJob(htmlJobId);
-        const { data: html } = await fetchExportResult<string>(htmlJob.id, 'text');
+        const htmlJob = await pollExportJob(htmlJobUuid);
+        const { data: html } = await fetchExportResult<string>(htmlJob.job_uuid, 'text');
         const styleTag = `<style>\n${cssOverrides.trim()}\n</style>`;
         const htmlWithCss = html.includes('</head>')
           ? html.replace('</head>', `${styleTag}\n</head>`)
@@ -287,11 +287,11 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid, nodeUuids, nodeName
         return;
       }
 
-      const jobId = isBatch
+      const jobUuid = isBatch
         ? await startExportJob({ nodeUuids: effectiveNodeUuids, params: baseParams })
         : await startSingleExportJob(effectiveNodeUuids[0], baseParams);
-      const job = await pollExportJob(jobId);
-      const { data, headers } = await fetchExportResult<Blob>(job.id, 'blob');
+      const job = await pollExportJob(jobUuid);
+      const { data, headers } = await fetchExportResult<Blob>(job.job_uuid, 'blob');
       const blob = data instanceof Blob ? data : new Blob([data as BlobPart], { type: getExportFormat(format)?.mimeType ?? 'application/octet-stream' });
 
       const disposition = headers['content-disposition'] ?? undefined;

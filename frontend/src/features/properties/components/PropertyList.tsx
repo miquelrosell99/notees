@@ -287,7 +287,7 @@ function PropertyRow({
   
   // Handle shift+click on label - opens property in sidebar
   const handleLabelShiftClick = useCallback(() => {
-    addSidebarCard(property.id, 'block');
+    addSidebarCard(property.uuid, 'block');
   }, [addSidebarCard, property.id]);
   
   // Create a minimal node for NodeInline to display the property name
@@ -298,7 +298,9 @@ function PropertyRow({
     icon: getPropertyIcon(property),
     color: null,
     parent_id: null,
+    parent_uuid: null,
     page_id: null,
+    page_uuid: null,
     sequence: 0,
     collapsed: false,
     active: true,

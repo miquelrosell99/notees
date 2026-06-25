@@ -9,7 +9,7 @@
 
 import { useEffect, useRef } from 'react';
 import { getOperationRuntime } from '@/runtime';
-import { getNode } from '@/runtime/graphHelpers';
+import { getNode, getNodeByServerId } from '@/runtime/graphHelpers';
 import { upsertNodes } from '@/runtime/eventBus';
 import { getUndoEngine } from '@/stores/undoEngine';
 import { getRuntimeEventBus } from '@/runtime/eventBus';
@@ -39,7 +39,9 @@ export function useLazyChildren(): void {
 
       try {
         // Fetch the expanded node with its children from the API
-        const nodeData = await nodesApi.getNode(serverId, {
+        const nodeUuid = getNodeByServerId(runtime, serverId)?.blockId;
+        if (!nodeUuid) return;
+        const nodeData = await nodesApi.getNode(nodeUuid, {
           include_children: true,
           include_properties: false,
         });

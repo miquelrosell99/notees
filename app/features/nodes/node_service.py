@@ -2251,6 +2251,7 @@ class NodeService:
         return [
             {
                 "id": row["id"],
+                "uuid": str(row["uuid"]) if row["uuid"] else None,
                 "name": row["name"],
                 "created_at": (
                     row["created_at"].isoformat() if row["created_at"] else None
@@ -2272,6 +2273,21 @@ class NodeService:
 
         updated = await self.update_node(
             node_id, NodeUpdateData(name=version_name), user_id=user_id
+        )
+        return updated
+
+    async def restore_node_version_by_uuid(
+        self, node_id: int, version_uuid: str, user_id: int
+    ) -> Node | None:
+        """Restore a node to a previous version's content by version UUID."""
+        row = await self._node_repo.get_node_version_detail_by_uuid(
+            version_uuid, node_id
+        )
+        if row is None:
+            return None
+
+        updated = await self.update_node(
+            node_id, NodeUpdateData(name=row["name"]), user_id=user_id
         )
         return updated
 

@@ -8,18 +8,32 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from app.dependencies import _get_node_view_repo, get_current_user, get_property_repository, get_query_executor
+from app.dependencies import (
+    _get_node_view_repo,
+    get_current_user,
+    get_node_repository,
+    get_node_view_repository,
+    get_property_repository,
+    get_query_executor,
+)
 from app.domain.entities.query_ast import QueryAST
 from app.domain.errors import DomainError
 from app.domain.repositories.interfaces import QueryRepository
 from app.domain.services.query_ast_validation import validate_query_ast
 from app.domain.services.query_language import QueryLanguageError, parse_query_language
 from app.features.nodes.node_view_service import NodeViewService
+from app.features.nodes.port import NodeRepository, NodeViewRepository
 from app.features.properties.port import PropertyRepository
 from app.logging_config import get_logger
 from app.models import User
 
-from .helpers import _get_node_service, _resolve_referenced_display_names, extract_properties_dict
+from .dependencies import resolve_node_uuid, resolve_view_uuid, resolve_view_uuids
+from .helpers import (
+    _build_node_uuid_map,
+    _get_node_service,
+    _resolve_referenced_display_names,
+    extract_properties_dict,
+)
 
 logger = get_logger(__name__)
 router = APIRouter(tags=["NodeViews"])
@@ -33,7 +47,7 @@ class NodeViewResponse(BaseModel):
 
     id: int
     uuid: str
-    node_id: int
+    node_uuid: str
     name: str
     view_type: str
     order_index: int
@@ -50,7 +64,7 @@ class NodeViewResponse(BaseModel):
 class NodeViewCreateRequest(BaseModel):
     """Request to create a NodeView."""
 
-    node_id: int
+    node_uuid: str
     name: str
     view_type: str
     order_index: int = 0
@@ -103,7 +117,7 @@ class QueryASTUpdateRequest(BaseModel):
 class NodeViewReorderRequest(BaseModel):
     """Request to reorder NodeViews."""
 
-    view_ids: list[int]
+    view_uuids: list[str]
 
 
 # ==================== Helper Functions ====================
@@ -198,14 +212,14 @@ async def _include_children_for_results(
     if not results:
         return results
 
-    logger.info(f"[_include_children_for_results] Starting with {len(results)} results")
+    logger.info("[_include_children_for_results] Starting with %s results", len(results))
 
     service = await _get_node_service(user)
 
     # Get node IDs from results
     node_ids = [r.get("id") for r in results if r.get("id")]
 
-    logger.info(f"[_include_children_for_results] Fetching children for node_ids: {node_ids}")
+    logger.info("[_include_children_for_results] Fetching children for node_ids: %s", node_ids)
 
     if not node_ids:
         return results
@@ -221,7 +235,10 @@ async def _include_children_for_results(
         """Recursively fetch children and convert to dict format."""
         children = await service.get_node_children(parent_id)
         logger.info(
-            f"[_include_children_for_results] Parent {parent_id} (depth {depth}) has {len(children)} direct children"
+            "[_include_children_for_results] Parent %s (depth %s) has %s direct children",
+            parent_id,
+            depth,
+            len(children),
         )
         child_dicts = []
         for child in children:
@@ -255,7 +272,7 @@ async def _include_children_for_results(
             child_dict["children"] = children_by_parent.get(child.id, [])
             child_dicts.append(child_dict)
         children_by_parent[parent_id] = child_dicts
-        logger.info(f"[_include_children_for_results] Parent {parent_id} has {len(child_dicts)} filtered children")
+        logger.info("[_include_children_for_results] Parent %s has %s filtered children", parent_id, len(child_dicts))
 
     # Fetch children for each result node
     for node_id in node_ids:
@@ -342,6 +359,7 @@ async def _include_properties_for_results(
 
 async def _node_view_to_response(
     view,
+    node_uuid_map: dict[int, str],
     include_query_ast: bool = False,
     user: User | None = None,
 ) -> NodeViewResponse:
@@ -349,7 +367,7 @@ async def _node_view_to_response(
     response = NodeViewResponse(
         id=view.id,
         uuid=view.uuid,
-        node_id=view.node_id,
+        node_uuid=node_uuid_map.get(view.node_id, ""),
         name=view.name,
         view_type=view.view_type,
         order_index=view.order_index,
@@ -373,7 +391,8 @@ async def _node_view_to_response(
 
 @router.get("", response_model=dict[str, list[NodeViewResponse]])
 async def list_node_views(
-    node_id: int,
+    node_uuid: str,
+    node_repo: NodeRepository = Depends(get_node_repository),
     view_type: str | None = None,
     include_query_ast: bool = False,
     user: User = Depends(get_current_user),
@@ -381,20 +400,27 @@ async def list_node_views(
     """List NodeViews for a node.
 
     Args:
-        node_id: The node ID
+        node_uuid: The public node UUID
         view_type: Optional filter by view_type
         include_query_ast: Whether to include query block trees
 
     Returns:
         Dict with 'views' list
     """
+    node = await node_repo.get_by_uuid(node_uuid)
+    if node is None or node.id is None:
+        raise HTTPException(status_code=404, detail="Node not found")
+    node_id = node.id
+
     repo = await _get_node_view_repo(user)
     views = await repo.list_by_node(node_id, view_type=view_type)
 
+    node_uuid_map = await _build_node_uuid_map(node_repo, [node_id])
     responses = []
     for view in views:
         resp = await _node_view_to_response(
             view,
+            node_uuid_map=node_uuid_map,
             include_query_ast=include_query_ast,
             user=user if include_query_ast else None,
         )
@@ -403,30 +429,34 @@ async def list_node_views(
     return {"views": responses}
 
 
-@router.get("/{view_id}", response_model=NodeViewResponse)
+@router.get("/{view_uuid}", response_model=NodeViewResponse)
 async def get_node_view(
-    view_id: int,
+    view_id: int = Depends(resolve_view_uuid),
+    node_repo: NodeRepository = Depends(get_node_repository),
     include_query_ast: bool = True,
     user: User = Depends(get_current_user),
 ):
-    """Get a NodeView by ID."""
+    """Get a NodeView by UUID."""
     repo = await _get_node_view_repo(user)
     view = await repo.get_by_id(view_id)
 
     if not view:
         raise HTTPException(status_code=404, detail="NodeView not found")
 
+    node_uuid_map = await _build_node_uuid_map(node_repo, [view.node_id])
     return await _node_view_to_response(
         view,
+        node_uuid_map=node_uuid_map,
         include_query_ast=include_query_ast,
         user=user if include_query_ast else None,
     )
 
 
-@router.get("/default/{node_id}/{view_type}", response_model=NodeViewResponse | None)
+@router.get("/default/{node_uuid}/{view_type}", response_model=NodeViewResponse | None)
 async def get_default_view(
-    node_id: int,
-    view_type: str,
+    node_id: int = Depends(resolve_node_uuid),
+    node_repo: NodeRepository = Depends(get_node_repository),
+    view_type: str = ...,
     include_query_ast: bool = True,
     user: User = Depends(get_current_user),
 ):
@@ -437,8 +467,10 @@ async def get_default_view(
     if not view:
         return None
 
+    node_uuid_map = await _build_node_uuid_map(node_repo, [node_id])
     return await _node_view_to_response(
         view,
+        node_uuid_map=node_uuid_map,
         include_query_ast=include_query_ast,
         user=user if include_query_ast else None,
     )
@@ -447,6 +479,7 @@ async def get_default_view(
 @router.post("", response_model=NodeViewResponse)
 async def create_node_view(
     request: NodeViewCreateRequest,
+    node_repo: NodeRepository = Depends(get_node_repository),
     user: User = Depends(get_current_user),
 ):
     """Create a new NodeView.
@@ -457,6 +490,11 @@ async def create_node_view(
     repo = await _get_node_view_repo(user)
     view_service = NodeViewService(repo)
 
+    node = await node_repo.get_by_uuid(request.node_uuid)
+    if node is None or node.id is None:
+        raise HTTPException(status_code=404, detail="Node not found")
+    node_id = node.id
+
     try:
         query_json = view_service.prepare_query_ast_for_create(request.query_ast)
     except DomainError as e:
@@ -464,7 +502,7 @@ async def create_node_view(
 
     # Create the NodeView with query_json
     view = await repo.create(
-        node_id=request.node_id,
+        node_id=node_id,
         name=request.name,
         view_type=request.view_type,
         query_json=query_json,
@@ -472,13 +510,15 @@ async def create_node_view(
         is_default=request.is_default,
     )
 
-    return await _node_view_to_response(view, include_query_ast=True, user=user)
+    node_uuid_map = {node_id: request.node_uuid}
+    return await _node_view_to_response(view, node_uuid_map=node_uuid_map, include_query_ast=True, user=user)
 
 
-@router.put("/{view_id}", response_model=NodeViewResponse)
+@router.put("/{view_uuid}", response_model=NodeViewResponse)
 async def update_node_view(
-    view_id: int,
     request: NodeViewUpdateRequest,
+    view_id: int = Depends(resolve_view_uuid),
+    node_repo: NodeRepository = Depends(get_node_repository),
     user: User = Depends(get_current_user),
 ):
     """Update a NodeView."""
@@ -496,13 +536,15 @@ async def update_node_view(
     if not view:
         raise HTTPException(status_code=404, detail="NodeView not found")
 
-    return await _node_view_to_response(view, include_query_ast=True, user=user)
+    node_uuid_map = await _build_node_uuid_map(node_repo, [view.node_id])
+    return await _node_view_to_response(view, node_uuid_map=node_uuid_map, include_query_ast=True, user=user)
 
 
-@router.put("/{view_id}/query-ast", response_model=NodeViewResponse)
+@router.put("/{view_uuid}/query-ast", response_model=NodeViewResponse)
 async def update_query_ast(
-    view_id: int,
     request: QueryASTUpdateRequest,
+    view_id: int = Depends(resolve_view_uuid),
+    node_repo: NodeRepository = Depends(get_node_repository),
     user: User = Depends(get_current_user),
 ):
     """Update the query AST for a NodeView (preferred endpoint).
@@ -522,7 +564,8 @@ async def update_query_ast(
     if not updated_view:
         raise HTTPException(status_code=500, detail="Failed to update query")
 
-    return await _node_view_to_response(updated_view, include_query_ast=True, user=user)
+    node_uuid_map = await _build_node_uuid_map(node_repo, [updated_view.node_id])
+    return await _node_view_to_response(updated_view, node_uuid_map=node_uuid_map, include_query_ast=True, user=user)
 
 
 @router.post("/validate-query-ast", response_model=dict[str, Any])
@@ -566,9 +609,9 @@ async def validate_query_ast_endpoint(
         }
 
 
-@router.delete("/{view_id}", response_model=dict[str, bool])
+@router.delete("/{view_uuid}", response_model=dict[str, bool])
 async def delete_node_view(
-    view_id: int,
+    view_id: int = Depends(resolve_view_uuid),
     user: User = Depends(get_current_user),
 ):
     """Delete a NodeView.
@@ -598,25 +641,29 @@ async def delete_node_view(
     return {"deleted": True}
 
 
-@router.post("/reorder/{node_id}/{view_type}", response_model=dict[str, list[NodeViewResponse]])
+@router.post("/reorder/{node_uuid}/{view_type}", response_model=dict[str, list[NodeViewResponse]])
 async def reorder_node_views(
-    node_id: int,
-    view_type: str,
-    request: NodeViewReorderRequest,
+    node_id: int = Depends(resolve_node_uuid),
+    view_type: str = ...,
+    request: NodeViewReorderRequest = ...,
+    node_repo: NodeRepository = Depends(get_node_repository),
+    view_repo: NodeViewRepository = Depends(get_node_view_repository),
     user: User = Depends(get_current_user),
 ):
     """Reorder NodeViews within a view_type."""
+    view_ids = await resolve_view_uuids(request.view_uuids, view_repo)
+
     repo = await _get_node_view_repo(user)
+    views = await repo.reorder(node_id, view_type, view_ids)
 
-    views = await repo.reorder(node_id, view_type, request.view_ids)
-
-    responses = [await _node_view_to_response(v) for v in views]
+    node_uuid_map = await _build_node_uuid_map(node_repo, [node_id])
+    responses = [await _node_view_to_response(v, node_uuid_map=node_uuid_map) for v in views]
     return {"views": responses}
 
 
-@router.post("/{view_id}/execute", response_model=dict[str, Any])
+@router.post("/{view_uuid}/execute", response_model=dict[str, Any])
 async def execute_node_view_query(
-    view_id: int,
+    view_id: int = Depends(resolve_view_uuid),
     request: QueryExecuteRequest | None = None,
     user: User = Depends(get_current_user),
     executor: QueryRepository = Depends(get_query_executor),
@@ -625,7 +672,7 @@ async def execute_node_view_query(
     """Execute a NodeView's query and return results.
 
     Args:
-        view_id: The NodeView ID
+        view_uuid: The NodeView UUID
         request: Optional query execution parameters (runtime params, limit, offset, etc.)
 
     Returns:
@@ -849,9 +896,10 @@ async def count_query_results(
     return {"count": count}
 
 
-@router.post("/ensure-defaults/{node_id}", response_model=dict[str, list[NodeViewResponse]])
+@router.post("/ensure-defaults/{node_uuid}", response_model=dict[str, list[NodeViewResponse]])
 async def ensure_default_views(
-    node_id: int,
+    node_id: int = Depends(resolve_node_uuid),
+    node_repo: NodeRepository = Depends(get_node_repository),
     view_types: list[str] | None = None,
     user: User = Depends(get_current_user),
 ):
@@ -861,7 +909,7 @@ async def ensure_default_views(
     if they don't exist yet. Safe to call multiple times.
 
     Args:
-        node_id: The node ID to create views for
+        node_uuid: The public node UUID to create views for
         view_types: Optional list of view types to ensure (defaults to all)
 
     Returns:
@@ -890,14 +938,16 @@ async def ensure_default_views(
 
     # Return all views
     all_views = await repo.list_by_node(node_id)
-    responses = [await _node_view_to_response(v, include_query_ast=True, user=user) for v in all_views]
+    node_uuid_map = await _build_node_uuid_map(node_repo, [node_id])
+    responses = [await _node_view_to_response(v, node_uuid_map=node_uuid_map, include_query_ast=True, user=user) for v in all_views]
 
     return {"views": responses}
 
 
-@router.post("/reset/{node_id}", response_model=dict[str, list[NodeViewResponse]])
+@router.post("/reset/{node_uuid}", response_model=dict[str, list[NodeViewResponse]])
 async def reset_node_views(
-    node_id: int,
+    node_id: int = Depends(resolve_node_uuid),
+    node_repo: NodeRepository = Depends(get_node_repository),
     user: User = Depends(get_current_user),
 ):
     """Reset all views for a node to defaults.
@@ -906,7 +956,7 @@ async def reset_node_views(
     a single default "all" view with default filters for each view type.
 
     Args:
-        node_id: The node ID to reset views for
+        node_uuid: The public node UUID to reset views for
 
     Returns:
         Dict with 'views' list of newly created default views
@@ -939,7 +989,8 @@ async def reset_node_views(
     logger.debug("create_default_views returned %s views", len(created_views))
 
     # Convert the created views directly to responses (don't re-query)
-    responses = [await _node_view_to_response(v, include_query_ast=True, user=user) for v in created_views]
+    node_uuid_map = await _build_node_uuid_map(node_repo, [node_id])
+    responses = [await _node_view_to_response(v, node_uuid_map=node_uuid_map, include_query_ast=True, user=user) for v in created_views]
 
     logger.info("Created %s default views for node %s", len(created_views), node_id)
 

@@ -27,6 +27,7 @@ import { useBreadcrumbs } from '@/hooks';
 import { useUpdateNode } from '@/features/content';
 import { useQueryClient } from '@tanstack/react-query';
 import { nodeKeys } from '@/hooks/queryKeys';
+import { tryResolveNodeUuid } from '@/utils/resolveNodeUuid';
 import { nodeNameToText } from '@/features/queries';
 import { useClickOutside } from '@/hooks/useClickOutside';
 import { ChevronRightIcon, NodeIcon } from '@/components/ui/icons';
@@ -184,8 +185,13 @@ function NodeBreadcrumbsList({ items, onClick, variant = 'inline', onEditParent,
  * For blocks: stops at the containing page.
  * Uses the closure table for O(1) lookup — a single API call regardless of depth.
  */
-function useAncestorChain(nodeId: number | null, _nodeType: 'page' | 'block'): { items: BreadcrumbItem[]; isPending: boolean } {
-  const { data: breadcrumbs, isPending } = useBreadcrumbs(nodeId);
+function useAncestorChain(
+  nodeId: number | null,
+  nodeUuid: string | undefined,
+  _nodeType: 'page' | 'block'
+): { items: BreadcrumbItem[]; isPending: boolean; unresolved: boolean } {
+  const effectiveUuid = nodeUuid ?? (nodeId !== null ? tryResolveNodeUuid(nodeId) : null);
+  const { data: breadcrumbs, isPending } = useBreadcrumbs(effectiveUuid);
 
   const items = useMemo(() => {
     if (!breadcrumbs || breadcrumbs.length === 0) return [];
@@ -208,7 +214,7 @@ function useAncestorChain(nodeId: number | null, _nodeType: 'page' | 'block'): {
     return chain;
   }, [breadcrumbs]);
 
-  return { items, isPending: isPending && !!nodeId };
+  return { items, isPending: isPending && !!effectiveUuid, unresolved: effectiveUuid === null };
 }
 
 // ─── NodeBreadcrumbs (main) ──────────────────────────────────────────────────
@@ -216,12 +222,14 @@ function useAncestorChain(nodeId: number | null, _nodeType: 'page' | 'block'): {
 interface NodeBreadcrumbsProps {
   /** The node to show breadcrumbs for */
   nodeId: number;
+  /** Optional backend UUID. If provided, it is used directly and numeric resolution is skipped. */
+  nodeUuid?: string;
   /** Type of node (affects how breadcrumbs are built) */
   nodeType: 'page' | 'block';
   /** Callback when clicking a breadcrumb item */
-  onNavigate?: (nodeId: number) => void;
+  onNavigate?: (nodeId: string | number) => void;
   /** Callback when clicking a property breadcrumb item */
-  onNavigateToProperty?: (propertyId: number) => void;
+  onNavigateToProperty?: (propertyId: string | number) => void;
   /** Property context for when viewing a block from a text property */
   propertyContext?: { propertyId: number; propertyName: string } | null;
   /** When true, only show ancestors below the page level (intermediate blocks) */
@@ -246,6 +254,7 @@ const VISIBLE_END = 2;
 
 export function NodeBreadcrumbs({
   nodeId,
+  nodeUuid,
   nodeType,
   onNavigate,
   onNavigateToProperty,
@@ -282,7 +291,7 @@ export function NodeBreadcrumbs({
   const queryClient = useQueryClient();
 
   // Walk the full ancestor chain (stops at page for blocks)
-  const { items: ancestorBreadcrumbs, isPending: breadcrumbsPending } = useAncestorChain(nodeId, nodeType);
+  const { items: ancestorBreadcrumbs, isPending: breadcrumbsPending, unresolved } = useAncestorChain(nodeId, nodeUuid, nodeType);
 
   // Build final breadcrumbs including property context
   const breadcrumbs = useMemo(() => {
@@ -440,6 +449,12 @@ export function NodeBreadcrumbs({
     : [];
 
   // ─── "+ Add parent" affordance (pages only, when no ancestors) ───────
+  // If the UUID could not be resolved and none was provided, render nothing rather
+  // than throwing and crashing the React tree.
+  if (unresolved) {
+    return null;
+  }
+
   // Show a small spinner while breadcrumbs are loading to avoid flashing the "Add parent" button
   if (breadcrumbsPending) {
     return <span className="node-breadcrumb-spinner" />;

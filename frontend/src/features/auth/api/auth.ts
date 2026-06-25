@@ -111,8 +111,8 @@ export async function listApiKeys(): Promise<ApiKey[]> {
 /**
  * Revoke an API key
  */
-export async function revokeApiKey(keyId: string): Promise<{ success: boolean }> {
-  const response = await api.delete<{ success: boolean }>(`/auth/api-keys/${keyId}`);
+export async function revokeApiKey(keyUuid: string): Promise<{ success: boolean }> {
+  const response = await api.delete<{ success: boolean }>(`/auth/api-keys/${keyUuid}`);
   return response.data;
 }
 

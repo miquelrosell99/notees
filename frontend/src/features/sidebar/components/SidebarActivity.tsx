@@ -4,12 +4,12 @@ import { ClockIcon } from '@/components/ui/icons';
 import { Spinner } from '@/components/ui/Spinner';
 
 interface SidebarActivityProps {
-  nodeId: number;
+  nodeUuid: string;
   count: number;
   loading: boolean;
 }
 
-export function SidebarActivity({ nodeId, count, loading }: SidebarActivityProps) {
+export function SidebarActivity({ nodeUuid, count, loading }: SidebarActivityProps) {
   const [expanded, setExpanded] = useState(false);
 
   if (count === 0 && !loading) return null;
@@ -28,7 +28,7 @@ export function SidebarActivity({ nodeId, count, loading }: SidebarActivityProps
       {loading ? (
         <div className="sidebar-section-loading"><Spinner size="sm" centered /></div>
       ) : (
-        <NodeActivityLogSection nodeId={nodeId} variant="sidebar" />
+        <NodeActivityLogSection nodeId={nodeUuid} variant="sidebar" />
       )}
     </NodeViewSection>
   );

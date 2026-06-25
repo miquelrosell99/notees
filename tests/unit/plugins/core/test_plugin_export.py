@@ -93,7 +93,7 @@ async def test_export_nodes_delegates_to_plugin_exporter(plugin_manager):
     service = ExportService(_FakeExportRepo(), _FakeRenderer())
     content, filename, mime_type = await service.export_nodes(
         workspace_id=1,
-        node_ids=["uuid-1"],
+        node_uuids=["uuid-1"],
         format="hello",
         user_id=42,
     )

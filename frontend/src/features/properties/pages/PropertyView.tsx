@@ -53,11 +53,11 @@ const PROPERTY_TYPES: Record<string, { label: string; icon: string; supportsMult
 
 interface PropertyViewProps {
   /** Property ID to display */
-  propertyId: number;
+  propertyId: string | number;
   /** Navigate to a node */
-  onNavigateToNode?: (nodeId: number) => void;
+  onNavigateToNode?: (nodeId: string | number) => void;
   /** Open a node in sidebar */
-  onOpenInSidebar?: (nodeId: number) => void;
+  onOpenInSidebar?: (nodeId: string | number) => void;
 }
 
 export interface PropertyViewResult {
@@ -118,7 +118,7 @@ export function PropertyView({
     
     try {
       const updated = await updatePropertyMutation.mutateAsync({
-        id: property.id,
+        id: property.uuid,
         data: { name },
       });
       setProperty(updated);
@@ -133,7 +133,7 @@ export function PropertyView({
     
     try {
       const updated = await updatePropertyMutation.mutateAsync({
-        id: property.id,
+        id: property.uuid,
         data: { icon: icon || undefined },
       });
       setProperty(updated);
@@ -148,7 +148,7 @@ export function PropertyView({
     
     try {
       const updated = await updatePropertyMutation.mutateAsync({
-        id: property.id,
+        id: property.uuid,
         data: { multi },
       });
       setProperty(updated);
@@ -162,7 +162,7 @@ export function PropertyView({
     if (!property) return;
     
     try {
-      await deletePropertyMutation.mutateAsync(property.id);
+      await deletePropertyMutation.mutateAsync(property.uuid);
       // Navigate to home or a default page after deletion
       openNode(1); // Navigate to a safe page
     } catch (err) {

@@ -13,14 +13,14 @@ from app.db.schema import SYSTEM_CLASS_UUIDS
 pytestmark = pytest.mark.integration
 
 
-async def _get_template_class_id(authenticated_client: AsyncClient) -> int:
-    """Look up the template system class node ID."""
+async def _get_template_class_uuid(authenticated_client: AsyncClient) -> str:
+    """Look up the template system class node UUID."""
     resp = await authenticated_client.get("/api/nodes/classes")
     assert resp.status_code == 200
     classes = resp.json().get("nodes", [])
     for cls in classes:
         if cls.get("uuid") == SYSTEM_CLASS_UUIDS["template"]:
-            return cls["id"]
+            return cls["uuid"]
     pytest.fail("Template system class not found in workspace")
 
 
@@ -36,10 +36,10 @@ async def _create_template_page(authenticated_client: AsyncClient, name: str) ->
     node = await _create_node(authenticated_client, name=name)
 
     # Add template class
-    template_class_id = await _get_template_class_id(authenticated_client)
+    template_class_uuid = await _get_template_class_uuid(authenticated_client)
     resp = await authenticated_client.post(
-        f"/api/nodes/{node['id']}/classes",
-        json={"class_node_id": template_class_id},
+        f"/api/nodes/{node['uuid']}/classes",
+        json={"class_node_uuid": template_class_uuid},
     )
     assert resp.status_code == 200, resp.text
     return resp.json()
@@ -90,7 +90,7 @@ class TestGetTemplateVariables:
         template = await _create_template_page(authenticated_client, "Plain template")
 
         resp = await authenticated_client.get(
-            f"/api/nodes/{template['id']}/template-variables"
+            f"/api/nodes/{template['uuid']}/template-variables"
         )
         assert resp.status_code == 200
         data = resp.json()
@@ -103,14 +103,14 @@ class TestGetTemplateVariables:
             authenticated_client, name="Hello {{recipient}} from {{sender}}"
         )
 
-        template_class_id = await _get_template_class_id(authenticated_client)
+        template_class_uuid = await _get_template_class_uuid(authenticated_client)
         await authenticated_client.post(
-            f"/api/nodes/{node['id']}/classes",
-            json={"class_node_id": template_class_id},
+            f"/api/nodes/{node['uuid']}/classes",
+            json={"class_node_uuid": template_class_uuid},
         )
 
         resp = await authenticated_client.get(
-            f"/api/nodes/{node['id']}/template-variables"
+            f"/api/nodes/{node['uuid']}/template-variables"
         )
         assert resp.status_code == 200
         variables = resp.json()["variables"]
@@ -122,13 +122,13 @@ class TestGetTemplateVariables:
         node = await _create_node(authenticated_client, name="Not a template")
 
         resp = await authenticated_client.get(
-            f"/api/nodes/{node['id']}/template-variables"
+            f"/api/nodes/{node['uuid']}/template-variables"
         )
         assert resp.status_code == 422
 
     @pytest.mark.asyncio
     async def test_returns_404_for_missing_node(self, authenticated_client: AsyncClient):
-        resp = await authenticated_client.get("/api/nodes/999999/template-variables")
+        resp = await authenticated_client.get("/api/nodes/00000000-0000-0000-0000-000000099999/template-variables")
         assert resp.status_code == 404
 
 
@@ -140,7 +140,7 @@ class TestInstantiateTemplate:
         template = await _create_template_page(authenticated_client, "My Template")
 
         resp = await authenticated_client.post(
-            f"/api/nodes/{template['id']}/instantiate",
+            f"/api/nodes/{template['uuid']}/instantiate",
             json={"as_blocks": False},
         )
         assert resp.status_code == 200, resp.text
@@ -155,14 +155,14 @@ class TestInstantiateTemplate:
         template = await _create_template_page(authenticated_client, "My Template")
 
         resp = await authenticated_client.post(
-            f"/api/nodes/{template['id']}/instantiate",
+            f"/api/nodes/{template['uuid']}/instantiate",
             json={"as_blocks": False},
         )
         data = resp.json()
         new_node = data["node"]
 
         # Fetch details of the new node
-        detail = await authenticated_client.get(f"/api/nodes/{new_node['id']}")
+        detail = await authenticated_client.get(f"/api/nodes/{new_node['uuid']}")
         assert detail.status_code == 200
         # is_template must be False on the copy
         assert detail.json().get("is_template") is not True
@@ -171,14 +171,14 @@ class TestInstantiateTemplate:
     async def test_variable_substitution(self, authenticated_client: AsyncClient):
         # Create template with {{variable}}
         node = await _create_node(authenticated_client, name="Hello {{name}}")
-        template_class_id = await _get_template_class_id(authenticated_client)
+        template_class_uuid = await _get_template_class_uuid(authenticated_client)
         await authenticated_client.post(
-            f"/api/nodes/{node['id']}/classes",
-            json={"class_node_id": template_class_id},
+            f"/api/nodes/{node['uuid']}/classes",
+            json={"class_node_uuid": template_class_uuid},
         )
 
         resp = await authenticated_client.post(
-            f"/api/nodes/{node['id']}/instantiate",
+            f"/api/nodes/{node['uuid']}/instantiate",
             json={"variables": {"name": "World"}, "as_blocks": False},
         )
         assert resp.status_code == 200
@@ -194,11 +194,11 @@ class TestInstantiateTemplate:
         # Create template with one child block
         template = await _create_template_page(authenticated_client, "Block Template")
         await _create_node(
-            authenticated_client, name="child block content", parent_id=template["id"]
+            authenticated_client, name="child block content", parent_uuid=template["uuid"]
         )
 
         resp = await authenticated_client.post(
-            f"/api/nodes/{template['id']}/instantiate",
+            f"/api/nodes/{template['uuid']}/instantiate",
             json={"parent_id": parent["id"], "as_blocks": True},
         )
         assert resp.status_code == 200
@@ -213,7 +213,7 @@ class TestInstantiateTemplate:
         node = await _create_node(authenticated_client, name="Not a template")
 
         resp = await authenticated_client.post(
-            f"/api/nodes/{node['id']}/instantiate",
+            f"/api/nodes/{node['uuid']}/instantiate",
             json={"as_blocks": False},
         )
         assert resp.status_code == 422
@@ -221,7 +221,7 @@ class TestInstantiateTemplate:
     @pytest.mark.asyncio
     async def test_returns_404_for_missing_node(self, authenticated_client: AsyncClient):
         resp = await authenticated_client.post(
-            "/api/nodes/999999/instantiate",
+            "/api/nodes/00000000-0000-0000-0000-000000099999/instantiate",
             json={"as_blocks": False},
         )
         assert resp.status_code == 404

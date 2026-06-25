@@ -18,7 +18,7 @@ import { useArchiveNode, useUnarchiveNode, useDeleteNode, useUpdateNode, useLink
 import { nodeNameToText } from '@/features/queries';
 import { useSettingsStore, usePresentationStore } from '@/stores';
 import {
-  useCurrentNodeId,
+  useCurrentNodeUuid,
   useOpenNodeAction,
   useOpenLocalGraphAction,
   useSidebarCards,
@@ -109,7 +109,7 @@ export function NodeContextMenu({
   const archiveNode = useArchiveNode();
   const unarchiveNode = useUnarchiveNode();
   const updateNode = useUpdateNode();
-  const currentNodeId = useCurrentNodeId();
+  const currentNodeUuid = useCurrentNodeUuid();
   const openNode = useOpenNodeAction();
   const openLocalGraph = useOpenLocalGraphAction();
   const sidebarCards = useSidebarCards();
@@ -118,7 +118,7 @@ export function NodeContextMenu({
   const showDevOptions = useSettingsStore((s) => s.showDevOptions);
   const { data: favoriteIds } = useFavorites();
   const favorites = favoriteIds ?? [];
-  const isPageFavorited = favorites.some((id) => id === node.id);
+  const isPageFavorited = favorites.some((favoriteUuid) => favoriteUuid === node.uuid);
   const addFavoriteMutation = useAddFavoriteMutation();
   const removeFavoriteMutation = useRemoveFavoriteMutation();
   const { count: linkedRefsCount } = useLinkedReferencesCount(node.id);
@@ -171,8 +171,8 @@ export function NodeContextMenu({
             label: isPageFavorited ? 'Remove from Favorites' : 'Add to Favorites',
             icon: isPageFavorited ? "mdi mdi-star-outline" : "mdi mdi-star",
             onClick: () => {
-              if (isPageFavorited) removeFavoriteMutation.mutate(node.id);
-              else addFavoriteMutation.mutate(node.id);
+              if (isPageFavorited) removeFavoriteMutation.mutate(node.uuid);
+              else addFavoriteMutation.mutate(node.uuid);
               onClose();
             },
           });
@@ -266,12 +266,12 @@ export function NodeContextMenu({
           break;
 
         case 'open-main-view':
-          if (node.id === currentNodeId) break;
+          if (node.uuid === currentNodeUuid) break;
           items.push({
             id: 'open-main-view',
             label: 'Open in main view',
             icon: 'mdi-open-in-new',
-            onClick: () => { openNode(node.id); onClose(); },
+            onClick: () => { openNode(node.uuid); onClose(); },
           });
           break;
 
@@ -300,7 +300,7 @@ export function NodeContextMenu({
 
         case 'open-sidebar': {
           const existingCard = sidebarCards.find(
-            (c) => c.nodeId === node.id && c.cardType === (node.is_page ? 'page' : 'block')
+            (c) => c.nodeUuid === node.uuid && c.cardType === (node.is_page ? 'page' : 'block')
           );
           items.push({
             id: 'open-sidebar',
@@ -310,7 +310,7 @@ export function NodeContextMenu({
               if (existingCard) {
                 flashSidebarCard(existingCard.id);
               } else {
-                addSidebarCard(node.id, node.is_page ? 'page' : 'block');
+                addSidebarCard(node.uuid, node.is_page ? 'page' : 'block');
               }
               onClose();
             },
@@ -323,7 +323,7 @@ export function NodeContextMenu({
             id: 'local-graph',
             label: 'Show local graph',
             icon: 'mdi-graph-outline',
-            onClick: () => { openLocalGraph(node.id); onClose(); },
+            onClick: () => { openLocalGraph(node.uuid); onClose(); },
           });
           break;
 
@@ -343,7 +343,7 @@ export function NodeContextMenu({
             label: 'Start presentation',
             icon: 'mdi-presentation-play',
             onClick: () => {
-              usePresentationStore.getState().openPresentation(node.id);
+              usePresentationStore.getState().openPresentation(node.uuid);
               onClose();
             },
           });
@@ -367,7 +367,7 @@ export function NodeContextMenu({
             onClick: async (event?) => {
               const flat = event?.shiftKey ?? false;
               try {
-                const jobId = await startSingleExportJob(node.uuid, {
+                const jobUuid = await startSingleExportJob(node.uuid, {
                   format: 'markdown',
                   include_children: true,
                   formatting: false,
@@ -375,8 +375,8 @@ export function NodeContextMenu({
                   layout: flat ? 'flat' : 'outline',
                   properties: 'none',
                 });
-                const job = await pollExportJob(jobId);
-                const { data } = await fetchExportResult<string>(job.id, 'text');
+                const job = await pollExportJob(jobUuid);
+                const { data } = await fetchExportResult<string>(job.job_uuid, 'text');
                 copyToClipboard(data as string);
               } catch {
                 // Silently ignore — this is a quick-action convenience.
@@ -461,7 +461,7 @@ export function NodeContextMenu({
     onConvertToPage, onConvertToBlock, onAddBanner, onCopyBlocks, onPasteBlocks, onClose, onParentChange,
     addSidebarCard, openLocalGraph, openNode, updateNode, unarchiveNode,
     showDevOptions, handleDeleteClick, handleArchiveClick, setShowShareModal,
-    addFavoriteMutation, removeFavoriteMutation, currentNodeId, sidebarCards,
+    addFavoriteMutation, removeFavoriteMutation, currentNodeUuid, sidebarCards,
     flashSidebarCard,
   ]);
 
@@ -474,10 +474,10 @@ export function NodeContextMenu({
   }, [node.id, updateNode]);
 
   const handleFavoriteToggle = useCallback(() => {
-    if (isPageFavorited) removeFavoriteMutation.mutate(node.id);
-    else addFavoriteMutation.mutate(node.id);
+    if (isPageFavorited) removeFavoriteMutation.mutate(node.uuid);
+    else addFavoriteMutation.mutate(node.uuid);
     onClose();
-  }, [node.id, isPageFavorited, onClose, addFavoriteMutation, removeFavoriteMutation]);
+  }, [node.uuid, isPageFavorited, onClose, addFavoriteMutation, removeFavoriteMutation]);
 
   const menuVisible = !showDeleteModal && !showArchiveModal && !showASTModal && !showExportModal && !showShareModal;
   const menuCallbackRef = useCallback((el: HTMLDivElement | null) => {
@@ -539,7 +539,7 @@ export function NodeContextMenu({
         nodeName={node.name}
       />
       <ShareModal
-        nodeId={node.id}
+        nodeUuid={node.uuid}
         isOpen={showShareModal}
         onClose={() => { setShowShareModal(false); onClose(); }}
       />

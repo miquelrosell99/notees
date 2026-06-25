@@ -23,6 +23,7 @@ import './SidebarContextSections.css';
 
 interface TocEntry {
   id: number;
+  uuid: string;
   text: string;
   level: number;
 }
@@ -34,6 +35,7 @@ function extractHeadings(nodes: Node[], depth: number = 0): TocEntry[] {
     if (ast.length > 0 && isHeadingBlock(ast[0])) {
       result.push({
         id: node.id,
+        uuid: node.uuid,
         text: nodeNameToText(node.name, 100) || 'Untitled',
         level: Math.min(depth + 1, 6),
       });
@@ -46,18 +48,18 @@ function extractHeadings(nodes: Node[], depth: number = 0): TocEntry[] {
 }
 
 export function SidebarContextSections() {
-  const currentNodeId = useNavigationStore(state => state.currentNodeId);
+  const currentNodeUuid = useNavigationStore(state => state.currentNodeUuid);
   const mainViewType = useNavigationStore(state => state.mainViewType);
 
   const { data: commentsData, isLoading: commentsLoading } = useComments(
-    mainViewType === 'node' ? currentNodeId : null
+    mainViewType === 'node' ? currentNodeUuid : null
   );
   const { data: activityData, isLoading: activityLoading } = useNodeActivity(
-    mainViewType === 'node' ? currentNodeId : null
+    mainViewType === 'node' ? currentNodeUuid : null
   );
 
   const { data: nodeData } = useNode(
-    mainViewType === 'node' ? currentNodeId : null,
+    mainViewType === 'node' ? currentNodeUuid : null,
     { include_children: true }
   );
 
@@ -78,23 +80,23 @@ export function SidebarContextSections() {
   const commentCount = commentsData?.comments?.length ?? 0;
   const activityCount = activityData?.length ?? 0;
 
-  if (mainViewType !== 'node' || !currentNodeId) return null;
+  if (mainViewType !== 'node' || !currentNodeUuid) return null;
 
   return (
     <div className="sidebar-context-sections">
       <SidebarToc entries={tocEntries} onTocClick={handleTocClick} />
       <SidebarComments
-        nodeId={currentNodeId}
+        nodeUuid={currentNodeUuid}
         comments={commentsData?.comments ?? []}
         count={commentCount}
         loading={commentsLoading}
       />
       <SidebarActivity
-        nodeId={currentNodeId}
+        nodeUuid={currentNodeUuid}
         count={activityCount}
         loading={activityLoading}
       />
-      <SidebarVersions nodeId={currentNodeId} />
+      {nodeData?.uuid && <SidebarVersions nodeUuid={nodeData.uuid} />}
     </div>
   );
 }

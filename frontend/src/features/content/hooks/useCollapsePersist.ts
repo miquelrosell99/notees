@@ -13,6 +13,7 @@
 import { useEffect, useRef } from 'react';
 import { updateNode as updateNodeApi } from '@/api/nodes';
 import { getRuntimeEventBus } from '@/runtime/eventBus';
+import { getRuntimeBlockIdForServerId } from './useNodeMutations.utils';
 
 // ─── Singleton state ──────────────────────────────────────────────
 
@@ -29,7 +30,12 @@ function flushChanges(): void {
   pendingChanges.clear();
 
   for (const [serverId, collapsed] of changes) {
-    updateNodeApi(serverId, { collapsed }).catch((error) => {
+    const blockUuid = getRuntimeBlockIdForServerId(serverId);
+    if (!blockUuid) {
+      console.error('[useCollapsePersist] Failed to resolve UUID for node', serverId);
+      continue;
+    }
+    updateNodeApi(blockUuid, { collapsed }).catch((error) => {
       console.error('[useCollapsePersist] Failed to persist collapse state:', error);
     });
   }

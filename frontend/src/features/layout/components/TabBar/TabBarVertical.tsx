@@ -181,9 +181,10 @@ export function TabBarVertical({ tabs, activeTabId, secondaryTabId, splitOrienta
 
       if (nodeData) {
         try {
-          const nodeInfo = JSON.parse(nodeData) as { nodeId?: number };
-          if (nodeInfo?.nodeId) {
-            replaceTabContent(tabId, nodeInfo.nodeId);
+          const nodeInfo = JSON.parse(nodeData) as { nodeId?: number; nodeUuid?: string };
+          const targetId = nodeInfo?.nodeUuid ?? nodeInfo?.nodeId;
+          if (targetId) {
+            replaceTabContent(tabId, targetId);
           }
         } catch {
           // ignore
@@ -203,9 +204,10 @@ export function TabBarVertical({ tabs, activeTabId, secondaryTabId, splitOrienta
       if (!nodeData) return;
 
       try {
-        const nodeInfo = JSON.parse(nodeData) as { nodeId?: number };
-        if (nodeInfo?.nodeId) {
-          openNodeInNewTab(nodeInfo.nodeId);
+        const nodeInfo = JSON.parse(nodeData) as { nodeId?: number; nodeUuid?: string };
+        const targetId = nodeInfo?.nodeUuid ?? nodeInfo?.nodeId;
+        if (targetId) {
+          openNodeInNewTab(targetId);
         }
       } catch {
         // ignore
@@ -223,7 +225,7 @@ export function TabBarVertical({ tabs, activeTabId, secondaryTabId, splitOrienta
 
   const handleDuplicate = useCallback(
     (tab: Tab) => {
-      openNodeInNewTab(tab.nodeId ?? 0, {
+      openNodeInNewTab(tab.nodeUuid ?? 0, {
         label: tab.label,
         icon: tab.icon,
         color: tab.color,
@@ -234,7 +236,7 @@ export function TabBarVertical({ tabs, activeTabId, secondaryTabId, splitOrienta
 
   const handleSelectNode = useCallback(
     (node: Node) => {
-      openNodeInNewTab(node.id, { label: node.display_name || node.name });
+      openNodeInNewTab(node.uuid, { label: node.display_name || node.name });
       setShowPicker(false);
     },
     [openNodeInNewTab]

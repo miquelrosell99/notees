@@ -383,6 +383,7 @@ class PostgresWorkspaceRepository(WorkspaceRepository):
             rows = await conn.fetch(
                 """
                 SELECT u.id, u.email, u.uuid as user_uuid,
+                       gs.uuid as share_uuid,
                        gs.can_read, gs.can_write, gs.can_create, gs.can_delete, gs.can_comment,
                        gs.create_date
                 FROM workspace_share gs
@@ -400,7 +401,7 @@ class PostgresWorkspaceRepository(WorkspaceRepository):
             if offset == 0:
                 pending_rows = await conn.fetch(
                     """
-                    SELECT email, role, created_at
+                    SELECT uuid as invite_uuid, email, role, created_at
                     FROM pending_invite
                     WHERE workspace_id = $1 AND node_id IS NULL AND active = TRUE
                       AND (expires_at IS NULL OR expires_at > NOW())

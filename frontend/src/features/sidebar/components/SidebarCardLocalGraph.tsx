@@ -11,14 +11,14 @@ import { SidebarLocalGraph } from './SidebarLocalGraph';
 import './SidebarCardLocalGraph.css';
 
 interface SidebarCardLocalGraphProps {
-  /** The node ID to show the local graph for */
-  nodeId: number;
+  /** The node UUID to show the local graph for */
+  nodeUuid: string;
   /** Callback when the card is closed */
   onClose: () => void;
 }
 
-export function SidebarCardLocalGraph({ nodeId, onClose }: SidebarCardLocalGraphProps) {
-  const { data: node, isLoading, error } = useNode(nodeId);
+export function SidebarCardLocalGraph({ nodeUuid, onClose }: SidebarCardLocalGraphProps) {
+  const { data: node, isLoading, error } = useNode(nodeUuid);
   
   const title = nodeNameToText(node?.name) || 'Local Graph';
   
@@ -31,7 +31,7 @@ export function SidebarCardLocalGraph({ nodeId, onClose }: SidebarCardLocalGraph
       loading={isLoading}
       error={error ? 'Failed to load node' : undefined}
     >
-      <SidebarLocalGraph nodeId={nodeId} className="sidebar-card-local-graph__content" />
+      <SidebarLocalGraph nodeUuid={nodeUuid} className="sidebar-card-local-graph__content" />
     </SidebarCard>
   );
 }

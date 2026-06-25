@@ -53,7 +53,7 @@ async def test_breadcrumbs_resolve_links_inside_block_names(
     )
     assert block_d.id is not None
 
-    response = await auth_client.get(f"/api/nodes/{block_d.id}/breadcrumbs")
+    response = await auth_client.get(f"/api/nodes/{block_d.uuid}/breadcrumbs")
     assert response.status_code == 200
 
     breadcrumbs = response.json()["breadcrumbs"]
@@ -104,7 +104,7 @@ async def test_breadcrumbs_resolve_links_inside_block_names_recursively(
     )
     assert block_y.id is not None
 
-    response = await auth_client.get(f"/api/nodes/{block_y.id}/breadcrumbs")
+    response = await auth_client.get(f"/api/nodes/{block_y.uuid}/breadcrumbs")
     assert response.status_code == 200
 
     breadcrumbs = response.json()["breadcrumbs"]
@@ -151,7 +151,7 @@ async def test_breadcrumbs_include_text_property_pseudo_block(
     )
     assert child_block.id is not None
 
-    response = await auth_client.get(f"/api/nodes/{child_block.id}/breadcrumbs")
+    response = await auth_client.get(f"/api/nodes/{child_block.uuid}/breadcrumbs")
     assert response.status_code == 200
 
     breadcrumbs = response.json()["breadcrumbs"]
@@ -210,7 +210,7 @@ async def test_breadcrumbs_for_text_property_value_block_includes_property(
 
     await property_repository.set_relation_value(page.id, prop.id, text_block.id)
 
-    response = await auth_client.get(f"/api/nodes/{text_block.id}/breadcrumbs")
+    response = await auth_client.get(f"/api/nodes/{text_block.uuid}/breadcrumbs")
     assert response.status_code == 200
 
     breadcrumbs = response.json()["breadcrumbs"]

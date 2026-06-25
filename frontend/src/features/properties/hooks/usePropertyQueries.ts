@@ -6,6 +6,7 @@ import * as propertiesApi from '@/api/properties';
 import * as nodesApi from '@/api/nodes';
 import type { BatchPropertiesResult } from '@/api/nodes';
 import { nodeKeys, propertyKeys } from '@/hooks/queryKeys';
+import { resolveNodeUuids } from '@/utils/resolveNodeUuid';
 
 export function useProperties() {
   return useQuery({
@@ -15,8 +16,8 @@ export function useProperties() {
 }
 
 export function useAvailableProperties(opts: {
-  contextNodeId?: number;
-  contextClassIds?: number[];
+  contextNodeId?: string | number;
+  contextClassIds?: (string | number)[];
 } = {}) {
   const hasContext = opts.contextNodeId != null || (opts.contextClassIds?.length ?? 0) > 0;
   return useQuery({
@@ -28,18 +29,18 @@ export function useAvailableProperties(opts: {
   });
 }
 
-export function useProperty(id: number | null) {
+export function useProperty(id: string | number | null) {
   return useQuery({
-    queryKey: propertyKeys.detail(id ?? 0),
+    queryKey: propertyKeys.detail(id ?? ''),
     queryFn: () => propertiesApi.getProperty(id!),
     enabled: !!id,
   });
 }
 
-export function useBatchPropertyValues(nodeIds: number[]) {
+export function useBatchPropertyValues(nodeIds: (string | number)[]) {
   return useQuery<BatchPropertiesResult>({
     queryKey: nodeKeys.batchProperties(nodeIds),
-    queryFn: () => nodesApi.batchGetPropertyValues(nodeIds),
+    queryFn: () => nodesApi.batchGetPropertyValues(resolveNodeUuids(nodeIds)),
     enabled: nodeIds.length > 0,
     staleTime: 30_000,
   });

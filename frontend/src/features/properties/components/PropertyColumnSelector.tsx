@@ -62,7 +62,7 @@ type ColumnItem = Property | typeof CLASSES_VIRTUAL_COLUMN | typeof CREATED_VIRT
 
 interface SortablePropertyItemProps {
   property: ColumnItem;
-  onToggle: (uuid: string) => void;
+  onToggle: (propertyUuid: string) => void;
 }
 
 function SortablePropertyItem({ property, onToggle }: SortablePropertyItemProps) {
@@ -150,7 +150,7 @@ export function PropertyColumnSelector({
   // Create ordered list of selected properties for display
   const selectedProperties = useMemo(() => {
     return selectedPropertyUuids
-      .map(uuid => allColumns.find(p => p.uuid === uuid))
+      .map(propertyUuid => allColumns.find(p => p.uuid === propertyUuid))
       .filter(p => p !== undefined);
   }, [selectedPropertyUuids, allColumns]);
 
@@ -158,7 +158,7 @@ export function PropertyColumnSelector({
   const handleToggle = (propertyUuid: string) => {
     const isSelected = selectedPropertyUuids.includes(propertyUuid);
     if (isSelected) {
-      onSelectionChange(selectedPropertyUuids.filter(uuid => uuid !== propertyUuid));
+      onSelectionChange(selectedPropertyUuids.filter(selectedPropertyUuid => selectedPropertyUuid !== propertyUuid));
     } else {
       onSelectionChange([...selectedPropertyUuids, propertyUuid]);
     }
@@ -166,8 +166,8 @@ export function PropertyColumnSelector({
 
   // Handle select all / deselect all
   const handleSelectAll = () => {
-    const allUuids = filteredProperties.map(p => p.uuid);
-    onSelectionChange(allUuids);
+    const allPropertyUuids = filteredProperties.map(p => p.uuid);
+    onSelectionChange(allPropertyUuids);
   };
 
   const handleDeselectAll = () => {

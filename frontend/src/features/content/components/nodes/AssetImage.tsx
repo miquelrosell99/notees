@@ -9,7 +9,7 @@
  * and supports various display modes and interactions.
  */
 import { useState, useEffect, useCallback } from 'react';
-import { useNode } from '@/features/content';
+import { useNode, useNodeByUuid } from '@/features/content';
 import { useNavigationStore } from '@/stores';
 import { getAssetUrlAsync } from '@/features/assets';
 import { Card, type CardVariant } from '@/components/ui/Card';
@@ -22,8 +22,8 @@ import './AssetImage.css';
 export type AssetImageVariant = 'default' | 'banner' | 'cover' | 'card-cover';
 
 interface AssetImageProps {
-  /** Asset node ID */
-  assetNodeId: number | null;
+  /** Asset node ID (numeric legacy) or UUID */
+  assetNodeId: number | string | null;
   /** Alt text for the image */
   alt?: string;
   /** CSS class for customization */
@@ -89,7 +89,10 @@ export function AssetImage({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [hasError, setHasError] = useState(false);
-  const { data: assetNode, isLoading } = useNode(assetNodeId, { include_children: false });
+  const isUuid = typeof assetNodeId === 'string';
+  const numericNode = useNode(isUuid ? null : assetNodeId, { include_children: false });
+  const uuidNode = useNodeByUuid(isUuid ? assetNodeId : null, { include_children: false });
+  const { data: assetNode, isLoading } = isUuid ? uuidNode : numericNode;
   const openNode = useNavigationStore(s => s.openNode);
   const addSidebarCard = useNavigationStore(s => s.addSidebarCard);
 
@@ -127,13 +130,13 @@ export function AssetImage({
     e.preventDefault();
     e.stopPropagation();
     if (assetNode) {
-      openNode(assetNode.id);
+      openNode(assetNode.uuid);
     }
   }, [assetNode, openNode]);
 
   const handleBulletShiftClick = useCallback(() => {
     if (assetNode) {
-      addSidebarCard(assetNode.id, assetNode.is_page ? 'page' : 'block');
+      addSidebarCard(assetNode.uuid, assetNode.is_page ? 'page' : 'block');
     }
   }, [assetNode, addSidebarCard]);
 

@@ -21,14 +21,14 @@ class TestConvertBlockToPage:
         assert page_response.status_code == 200
         page = page_response.json()
 
-        sample_block_data["parent_id"] = page["id"]
+        sample_block_data["parent_uuid"] = page["uuid"]
         block_response = await authenticated_client.post("/api/nodes/", json=sample_block_data)
         assert block_response.status_code == 200
         block = block_response.json()
         assert block["is_page"] is False
 
         convert_response = await authenticated_client.post(
-            f"/api/nodes/{block['id']}/convert-to-page",
+            f"/api/nodes/{block['uuid']}/convert-to-page",
             json={},
         )
         assert convert_response.status_code == 200
@@ -39,7 +39,7 @@ class TestConvertBlockToPage:
 
         # Original page should no longer list the converted node as a child
         content_response = await authenticated_client.get(
-            f"/api/nodes/page/{page['id']}/content"
+            f"/api/nodes/page/{page['uuid']}/content"
         )
         assert content_response.status_code == 200
         content = content_response.json()
@@ -56,12 +56,12 @@ class TestConvertBlockToPage:
         page_response = await authenticated_client.post("/api/nodes/page", params={"name": "Parent Page"})
         page = page_response.json()
 
-        sample_block_data["parent_id"] = page["id"]
+        sample_block_data["parent_uuid"] = page["uuid"]
         block_response = await authenticated_client.post("/api/nodes/", json=sample_block_data)
         block = block_response.json()
 
         convert_response = await authenticated_client.post(
-            f"/api/nodes/{block['id']}/convert-to-page",
+            f"/api/nodes/{block['uuid']}/convert-to-page",
             json={"name": "Renamed Page"},
         )
         assert convert_response.status_code == 200
@@ -87,13 +87,13 @@ class TestConvertBlockToPage:
         )
         assert query_class is not None
 
-        sample_block_data["parent_id"] = page["id"]
+        sample_block_data["parent_uuid"] = page["uuid"]
         sample_block_data["classes"] = [query_class["id"]]
         block_response = await authenticated_client.post("/api/nodes/", json=sample_block_data)
         block = block_response.json()
 
         convert_response = await authenticated_client.post(
-            f"/api/nodes/{block['id']}/convert-to-page",
+            f"/api/nodes/{block['uuid']}/convert-to-page",
             json={},
         )
         assert convert_response.status_code == 422
@@ -116,8 +116,8 @@ class TestConvertPageToBlock:
         dest = dest_response.json()
 
         convert_response = await authenticated_client.post(
-            f"/api/nodes/{source['id']}/convert-to-block",
-            json={"parent_id": dest["id"]},
+            f"/api/nodes/{source['uuid']}/convert-to-block",
+            json={"parent_uuid": dest["uuid"]},
         )
         assert convert_response.status_code == 200
         converted = convert_response.json()
@@ -137,7 +137,7 @@ class TestConvertPageToBlock:
 
         child_response = await authenticated_client.post("/api/nodes/", json={
             **sample_block_data,
-            "parent_id": source["id"],
+            "parent_uuid": source["uuid"],
         })
         child = child_response.json()
         assert child["page_id"] == source["id"]
@@ -146,12 +146,12 @@ class TestConvertPageToBlock:
         dest = dest_response.json()
 
         convert_response = await authenticated_client.post(
-            f"/api/nodes/{source['id']}/convert-to-block",
-            json={"parent_id": dest["id"]},
+            f"/api/nodes/{source['uuid']}/convert-to-block",
+            json={"parent_uuid": dest["uuid"]},
         )
         assert convert_response.status_code == 200
 
-        child_after = await authenticated_client.get(f"/api/nodes/{child['id']}")
+        child_after = await authenticated_client.get(f"/api/nodes/{child['uuid']}")
         assert child_after.status_code == 200
         child_data = child_after.json()
         assert child_data["page_id"] == dest["id"]
@@ -166,7 +166,7 @@ class TestConvertPageToBlock:
         source = source_response.json()
 
         convert_response = await authenticated_client.post(
-            f"/api/nodes/{source['id']}/convert-to-block",
+            f"/api/nodes/{source['uuid']}/convert-to-block",
             json={},
         )
         assert convert_response.status_code == 422
@@ -183,13 +183,13 @@ class TestConvertPageToBlock:
 
         child_response = await authenticated_client.post("/api/nodes/", json={
             **sample_block_data,
-            "parent_id": source["id"],
+            "parent_uuid": source["uuid"],
         })
         child = child_response.json()
 
         convert_response = await authenticated_client.post(
-            f"/api/nodes/{source['id']}/convert-to-block",
-            json={"parent_id": child["id"]},
+            f"/api/nodes/{source['uuid']}/convert-to-block",
+            json={"parent_uuid": child["uuid"]},
         )
         assert convert_response.status_code == 422
 
@@ -219,8 +219,8 @@ class TestConvertPageToBlock:
         dest = dest_response.json()
 
         convert_response = await authenticated_client.post(
-            f"/api/nodes/{source['id']}/convert-to-block",
-            json={"parent_id": dest["id"]},
+            f"/api/nodes/{source['uuid']}/convert-to-block",
+            json={"parent_uuid": dest["uuid"]},
         )
         assert convert_response.status_code == 422
 

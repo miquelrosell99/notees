@@ -42,7 +42,7 @@ export type RightSidebarContent = 'node' | 'localGraph' | 'activity' | null;
 export type SidebarCardType = 'page' | 'block' | 'localGraph';
 export interface SidebarCard {
   id: number;
-  nodeId: number;
+  nodeUuid: string;
   cardType: SidebarCardType;
   addedAt: number;
 }

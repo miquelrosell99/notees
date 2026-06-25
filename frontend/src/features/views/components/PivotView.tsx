@@ -73,8 +73,8 @@ const MEASURE_FUNCTIONS: { value: 'sum' | 'avg' | 'min' | 'max'; label: string }
 
 // ==================== Helpers ====================
 
-function findPropertyType(uuid: string, properties: { uuid: string; type: string; name: string }[]): DimensionConfig['property_type'] {
-  const prop = properties.find(p => p.uuid === uuid);
+function findPropertyType(propertyUuid: string, properties: { uuid: string; type: string; name: string }[]): DimensionConfig['property_type'] {
+  const prop = properties.find(p => p.uuid === propertyUuid);
   if (!prop) return 'text';
   const map: Record<string, DimensionConfig['property_type']> = {
     text: 'text',

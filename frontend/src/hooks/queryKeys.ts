@@ -14,6 +14,16 @@ function hashNumberArray(ids: number[]): number {
   return hash;
 }
 
+function hashStringArray(ids: string[]): string {
+  let hash = ids.length;
+  for (let i = 0; i < ids.length; i++) {
+    for (let j = 0; j < ids[i].length; j++) {
+      hash = ((hash << 5) - hash + ids[i].charCodeAt(j)) | 0;
+    }
+  }
+  return String(hash);
+}
+
 // ==================== Node Query Keys ====================
 
 export const nodeKeys = {
@@ -22,20 +32,20 @@ export const nodeKeys = {
   list: (filters: { pages_only?: boolean; parent_id?: number; tag_id?: number }) => 
     [...nodeKeys.lists(), filters] as const,
   details: () => [...nodeKeys.all, 'detail'] as const,
-  detail: (id: number, options?: { include_children?: boolean; include_backlinks?: boolean; include_properties?: boolean }) => 
+  detail: (id: string | number, options?: { include_children?: boolean; include_backlinks?: boolean; include_properties?: boolean }) =>
     [...nodeKeys.details(), id, options ?? {}] as const,
   // Use this for cache invalidation - matches all detail queries for a node regardless of options
-  detailBase: (id: number) => [...nodeKeys.details(), id] as const,
+  detailBase: (id: string | number) => [...nodeKeys.details(), id] as const,
   byUuid: (uuid: string) => [...nodeKeys.all, 'uuid', uuid] as const,
-  pageContent: (id: number) => [...nodeKeys.all, 'page-content', id] as const,
-  backlinks: (id: number) => [...nodeKeys.all, 'backlinks', id] as const,
+  pageContent: (id: string | number) => [...nodeKeys.all, 'page-content', id] as const,
+  backlinks: (id: string | number) => [...nodeKeys.all, 'backlinks', id] as const,
   allBacklinks: () => [...nodeKeys.all, 'backlinks'] as const,
-  linkedRefs: (id: number, params?: { limit?: number; offset?: number }) =>
+  linkedRefs: (id: string | number, params?: { limit?: number; offset?: number }) =>
     [...nodeKeys.all, 'linked-refs', id, params ?? {}] as const,
   allLinkedRefs: () => [...nodeKeys.all, 'linked-refs'] as const,
-  mentions: (id: number) => [...nodeKeys.all, 'mentions', id] as const,
+  mentions: (id: string | number) => [...nodeKeys.all, 'mentions', id] as const,
   allMentions: () => [...nodeKeys.all, 'mentions'] as const,
-  propertyBacklinks: (id: number) => [...nodeKeys.all, 'property-backlinks', id] as const,
+  propertyBacklinks: (id: string | number) => [...nodeKeys.all, 'property-backlinks', id] as const,
   allPropertyBacklinks: () => [...nodeKeys.all, 'property-backlinks'] as const,
   dailyList: () => [...nodeKeys.all, 'daily-list'] as const,
   daily: (date: string) => [...nodeKeys.all, 'daily', date] as const,
@@ -58,25 +68,27 @@ export const nodeKeys = {
   
   // PERFORMANCE: Metadata-only keys for lightweight queries
   // These are separate from detail queries to avoid cache pollution
-  metadata: (id: number) => [...nodeKeys.all, 'metadata', id] as const,
-  childrenOnly: (id: number) => [...nodeKeys.all, 'children-only', id] as const,
-  breadcrumbs: (id: number) => [...nodeKeys.all, 'breadcrumbs', id] as const,
-  batchGet: (ids: number[]) => [...nodeKeys.all, 'batch-get', ...ids.sort()] as const,
-  batchProperties: (ids: number[]) => [...nodeKeys.all, 'batch-properties', ...ids.sort()] as const,
+  metadata: (id: string | number) => [...nodeKeys.all, 'metadata', id] as const,
+  childrenOnly: (id: string | number) => [...nodeKeys.all, 'children-only', id] as const,
+  breadcrumbs: (id: string | number) => [...nodeKeys.all, 'breadcrumbs', id] as const,
+  breadcrumbsByUuid: (uuid: string) => [...nodeKeys.all, 'breadcrumbs', 'uuid', uuid] as const,
+  batchGet: (ids: (string | number)[]) => [...nodeKeys.all, 'batch-get', ...ids.slice().sort()] as const,
+  batchProperties: (ids: (string | number)[]) => [...nodeKeys.all, 'batch-properties', ...ids.slice().sort()] as const,
   suggestions: (classFilters?: string) => [...nodeKeys.all, 'suggestions', classFilters ?? ''] as const,
-  aliases: (id: number) => [...nodeKeys.all, 'aliases', id] as const,
+  aliases: (id: string | number) => [...nodeKeys.all, 'aliases', id] as const,
   // Prefix keys for cache-wide invalidation (match all regardless of ID)
   archived: () => [...nodeKeys.all, 'archived'] as const,
-  byClass: (classId: number) => [...nodeKeys.all, 'by-class', classId] as const,
-  byTag: (tagId: number) => [...nodeKeys.all, 'by-tag', tagId] as const,
-  textLinks: (nodeId: number) => ['textLinks', nodeId] as const,
-  inlineClasses: (nodeId: number) => ['inlineClasses', nodeId] as const,
+  byClass: (classId: string | number) => [...nodeKeys.all, 'by-class', classId] as const,
+  byTag: (tagId: string | number) => [...nodeKeys.all, 'by-tag', tagId] as const,
+  textLinks: (nodeId: string | number) => ['textLinks', nodeId] as const,
+  inlineClasses: (nodeId: string | number) => ['inlineClasses', nodeId] as const,
   pageContents: () => [...nodeKeys.all, 'page-content'] as const,
   uuids: () => [...nodeKeys.all, 'uuid'] as const,
   pseudoNodeQuery: () => ['pseudo-node-query'] as const,
   inlineQuery: () => ['inline-query'] as const,
   tabBatch: (nodeIds: number[]) => [...nodeKeys.all, 'tab-batch', ...nodeIds.sort((a, b) => a - b)] as const,
-  ganttDayNodes: (ids: number[]) => [...nodeKeys.all, 'gantt-day-nodes', hashNumberArray(ids)] as const,
+  uuidBatch: (nodeUuids: string[]) => [...nodeKeys.all, 'uuid-batch', hashStringArray(nodeUuids)] as const,
+  ganttDayNodes: (ids: string[]) => [...nodeKeys.all, 'gantt-day-nodes', hashStringArray(ids)] as const,
 };
 
 // ==================== NodeView Query Keys ====================
@@ -84,9 +96,9 @@ export const nodeKeys = {
 export const nodeViewKeys = {
   all: ['nodeViews'] as const,
   lists: () => [...nodeViewKeys.all, 'list'] as const,
-  list: (nodeId: number, viewType?: string) =>
+  list: (nodeId: string | number, viewType?: string) =>
     [...nodeViewKeys.lists(), nodeId, viewType] as const,
-  byType: (nodeId: number) => [...nodeViewKeys.all, 'byType', nodeId] as const,
+  byType: (nodeId: string | number) => [...nodeViewKeys.all, 'byType', nodeId] as const,
   details: () => [...nodeViewKeys.all, 'detail'] as const,
   detail: (viewId: number) => [...nodeViewKeys.details(), viewId] as const,
   default: (nodeId: number, viewType: string) =>
@@ -106,33 +118,33 @@ export const propertyKeys = {
   all: ['properties'] as const,
   lists: () => [...propertyKeys.all, 'list'] as const,
   list: (type?: string) => [...propertyKeys.lists(), { type }] as const,
-  detail: (id: number) => [...propertyKeys.all, 'detail', id] as const,
-  forTag: (tagId: number) => [...propertyKeys.all, 'tag', tagId] as const,
-  forClass: (classId: number) => [...propertyKeys.all, 'class', classId] as const,
-  forClassInherited: (classId: number) => [...propertyKeys.all, 'class-inherited', classId] as const,
-  classExtends: (classId: number) => [...propertyKeys.all, 'class-extends', classId] as const,
-  inheritedProperties: (classId: number) => [...propertyKeys.all, 'inherited', classId] as const,
-  extendedByClasses: (classId: number) => [...propertyKeys.all, 'extended-by', classId] as const,
-  available: (opts: { contextNodeId?: number; contextClassIds?: number[] }) =>
+  detail: (id: string | number) => [...propertyKeys.all, 'detail', id] as const,
+  forTag: (tagId: string | number) => [...propertyKeys.all, 'tag', tagId] as const,
+  forClass: (classId: string | number) => [...propertyKeys.all, 'class', classId] as const,
+  forClassInherited: (classId: string | number) => [...propertyKeys.all, 'class-inherited', classId] as const,
+  classExtends: (classId: string | number) => [...propertyKeys.all, 'class-extends', classId] as const,
+  inheritedProperties: (classId: string | number) => [...propertyKeys.all, 'inherited', classId] as const,
+  extendedByClasses: (classId: string | number) => [...propertyKeys.all, 'extended-by', classId] as const,
+  available: (opts: { contextNodeId?: string | number; contextClassIds?: (string | number)[] }) =>
     [...propertyKeys.all, 'available', opts] as const,
-  nodes: (propertyId: number) => ['property-nodes', propertyId] as const,
+  nodes: (propertyId: string | number) => ['property-nodes', propertyId] as const,
   allNodes: () => ['property-nodes'] as const,
-  suggestions: (contextNodeId?: number) => ['property-suggestions', contextNodeId] as const,
+  suggestions: (contextNodeId?: string | number) => ['property-suggestions', contextNodeId] as const,
 };
 
 // ==================== Comment Query Keys ====================
 
 export const commentKeys = {
   all: ['comments'] as const,
-  forNode: (nodeId: number) => [...commentKeys.all, 'node', nodeId] as const,
-  count: (nodeId: number) => [...commentKeys.all, 'count', nodeId] as const,
+  forNode: (nodeId: string | number) => [...commentKeys.all, 'node', nodeId] as const,
+  count: (nodeId: string | number) => [...commentKeys.all, 'count', nodeId] as const,
 };
 
 // ==================== Activity Query Keys ====================
 
 export const activityKeys = {
   all: ['activity'] as const,
-  forNode: (nodeId: number) => [...activityKeys.all, 'node', nodeId] as const,
+  forNode: (nodeId: string | number) => [...activityKeys.all, 'node', nodeId] as const,
   linkClicks: (sourceNodeId: number) => [...activityKeys.all, 'link-clicks', sourceNodeId] as const,
   linkClick: (sourceNodeId: number, targetNodeId: number) => [...activityKeys.all, 'link-click', sourceNodeId, targetNodeId] as const,
 };
@@ -192,7 +204,7 @@ export const archivedPagesKeys = {
 export const workspaceKeys = {
   all: ['workspaces'] as const,
   list: () => [...workspaceKeys.all, 'list'] as const,
-  exportJob: (jobId: string | number | null | undefined) => ['export-job', jobId] as const,
+  exportJob: (jobUuid: string | number | null | undefined) => ['export-job', jobUuid] as const,
   nameCheck: (name: string) => ['workspace-name-check', name] as const,
 };
 
@@ -230,10 +242,10 @@ export const queryKeys = {
 
 export const sharesKeys = {
   all: ['shares'] as const,
-  node: (nodeId: number) => [...sharesKeys.all, 'node', nodeId] as const,
+  node: (nodeId: string | number) => [...sharesKeys.all, 'node', nodeId] as const,
   workspace: () => [...sharesKeys.all, 'workspace'] as const,
   public: (shareUuid: string) => ['public-share', shareUuid] as const,
-  userShares: (nodeId: number) => [...sharesKeys.all, 'user-shares', nodeId] as const,
+  userShares: (nodeId: string | number) => [...sharesKeys.all, 'user-shares', nodeId] as const,
   inbox: () => [...sharesKeys.all, 'inbox'] as const,
   workspaceMembers: (workspaceUuid: string) => ['workspace-members', workspaceUuid] as const,
 };

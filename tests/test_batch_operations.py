@@ -27,9 +27,9 @@ class TestBatchCreate:
         # Batch create 3 blocks under the page
         batch_payload = {
             "nodes": [
-                {"name": "Block 1", "parent_id": page["id"], "sequence": 0},
-                {"name": "Block 2", "parent_id": page["id"], "sequence": 1},
-                {"name": "Block 3", "parent_id": page["id"], "sequence": 2},
+                {"name": "Block 1", "parent_uuid": page["uuid"], "sequence": 0},
+                {"name": "Block 2", "parent_uuid": page["uuid"], "sequence": 1},
+                {"name": "Block 3", "parent_uuid": page["uuid"], "sequence": 2},
             ]
         }
         resp = await authenticated_client.post("/api/nodes/batch", json=batch_payload)
@@ -73,7 +73,7 @@ class TestBatchCreate:
             "nodes": [
                 {
                     "name": "Imported block",
-                    "parent_id": page["id"],
+                    "parent_uuid": page["uuid"],
                     "sequence": 0,
                     "uuid": custom_uuid,
                 },
@@ -97,10 +97,10 @@ class TestBatchCreate:
 
         batch_payload = {
             "nodes": [
-                {"name": "Good block", "parent_id": page["id"], "sequence": 0},
+                {"name": "Good block", "parent_uuid": page["uuid"], "sequence": 0},
                 # Parent that doesn't exist should cause a failure
                 {"name": "Bad block", "parent_id": 999999, "sequence": 0},
-                {"name": "Another good block", "parent_id": page["id"], "sequence": 1},
+                {"name": "Another good block", "parent_uuid": page["uuid"], "sequence": 1},
             ]
         }
         resp = await authenticated_client.post("/api/nodes/batch", json=batch_payload)
@@ -131,7 +131,7 @@ class TestBatchUpdate:
         for i in range(3):
             br = await authenticated_client.post(
                 "/api/nodes/",
-                json={"name": f"Block {i}", "parent_id": page["id"], "sequence": i},
+                json={"name": f"Block {i}", "parent_uuid": page["uuid"], "sequence": i},
             )
             block_ids.append(br.json()["id"])
 
@@ -166,7 +166,7 @@ class TestBatchUpdate:
         # Create a block and get its UUID
         br = await authenticated_client.post(
             "/api/nodes/",
-            json={"name": "Original", "parent_id": page["id"], "sequence": 0},
+            json={"name": "Original", "parent_uuid": page["uuid"], "sequence": 0},
         )
         block = br.json()
 
@@ -251,7 +251,7 @@ class TestBatchGetByUuid:
         for i in range(2):
             br = await authenticated_client.post(
                 "/api/nodes/",
-                json={"name": f"Block {i}", "parent_id": page["id"], "sequence": i},
+                json={"name": f"Block {i}", "parent_uuid": page["uuid"], "sequence": i},
             )
             blocks.append(br.json())
 
@@ -321,7 +321,7 @@ class TestBatchGetByUuid:
         )
         block_resp = await authenticated_client.post(
             "/api/nodes/",
-            json={"name": link_ast, "parent_id": page["id"]},
+            json={"name": link_ast, "parent_uuid": page["uuid"]},
         )
         assert block_resp.status_code == 200
         block = block_resp.json()
@@ -354,7 +354,7 @@ class TestBatchGetByUuid:
 
         leaf = pages[-1]
         leaf_update = await authenticated_client.put(
-            f"/api/nodes/{leaf['id']}", json={"name": "Leaf Page"}
+            f"/api/nodes/{leaf['uuid']}", json={"name": "Leaf Page"}
         )
         assert leaf_update.status_code == 200
 
@@ -367,7 +367,7 @@ class TestBatchGetByUuid:
                 ']}]'
             )
             update = await authenticated_client.put(
-                f"/api/nodes/{pages[i]['id']}", json={"name": name}
+                f"/api/nodes/{pages[i]['uuid']}", json={"name": name}
             )
             assert update.status_code == 200
 
@@ -383,7 +383,7 @@ class TestBatchGetByUuid:
         )
         block_resp = await authenticated_client.post(
             "/api/nodes/",
-            json={"name": block_name, "parent_id": page["id"]},
+            json={"name": block_name, "parent_uuid": page["uuid"]},
         )
         assert block_resp.status_code == 200
         block = block_resp.json()
@@ -432,11 +432,11 @@ class TestBatchGetByUuid:
             ']}]'
         )
         update_a = await authenticated_client.put(
-            f"/api/nodes/{page_a['id']}", json={"name": name_a}
+            f"/api/nodes/{page_a['uuid']}", json={"name": name_a}
         )
         assert update_a.status_code == 200
         update_b = await authenticated_client.put(
-            f"/api/nodes/{page_b['id']}", json={"name": name_b}
+            f"/api/nodes/{page_b['uuid']}", json={"name": name_b}
         )
         assert update_b.status_code == 200
 
@@ -448,7 +448,7 @@ class TestBatchGetByUuid:
         )
         block_resp = await authenticated_client.post(
             "/api/nodes/",
-            json={"name": block_name, "parent_id": page["id"]},
+            json={"name": block_name, "parent_uuid": page["uuid"]},
         )
         assert block_resp.status_code == 200
         block = block_resp.json()

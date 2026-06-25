@@ -88,6 +88,7 @@ export * from './hooks/useTrash';
 export * from './hooks/useArchivedPages';
 export * from './hooks/usePageAliases';
 export * from './hooks/useBatchNodes';
+export * from './hooks/useBatchNodesByUuid';
 export * from './hooks/useTemplates';
 export * from './hooks/useConvertNode';
 export * from './hooks/dnd';

@@ -526,10 +526,12 @@ if dist_path.exists():
 
 
 
-# Global default rate limit: 120 requests per minute per IP.
-# This is a self-hosted notes app; 120 req/min per client is generous for normal
-# browsing while still protecting against accidental abuse or runaway scripts.
-_default_api_limiter = Limiter(PerKeyBucketFactory([Rate(120, Duration.MINUTE)]))
+# Global default rate limit: 10,000 requests per minute per IP.
+# This is a self-hosted notes app; immersive views (graph, timeline, table) can
+# fire hundreds of parallel GET /nodes/{uuid} requests in a short burst. A high
+# per-IP limit still protects against runaway scripts while avoiding 429s during
+# normal browsing.
+_default_api_limiter = Limiter(PerKeyBucketFactory([Rate(10_000, Duration.MINUTE)]))
 
 api_router = APIRouter(
     prefix="/api",

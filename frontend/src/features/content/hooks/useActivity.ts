@@ -6,17 +6,20 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as activityApi from '../api/activity';
 import { activityKeys } from '@/hooks/queryKeys';
+import { getNodeUuidByServerId } from './useNodeMutations.utils';
 
 // ==================== Activity Queries ====================
 
 /**
  * Hook to fetch activity log for a node
  */
-export function useNodeActivity(nodeId: number | null, limit = 50) {
+export function useNodeActivity(nodeId: string | number | null, limit = 50) {
+  const queryClient = useQueryClient();
+  const nodeUuid = nodeId === null ? null : typeof nodeId === 'string' ? nodeId : getNodeUuidByServerId(queryClient, nodeId);
   return useQuery({
-    queryKey: activityKeys.forNode(nodeId ?? 0),
-    queryFn: () => activityApi.getNodeActivity(nodeId!, limit),
-    enabled: !!nodeId,
+    queryKey: activityKeys.forNode(nodeId ?? ''),
+    queryFn: () => activityApi.getNodeActivity(nodeUuid!, limit),
+    enabled: !!nodeUuid,
   });
 }
 
@@ -43,8 +46,11 @@ export function useDeleteNodeActivity() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ nodeId, activityId }: { nodeId: number; activityId: number }) =>
-      activityApi.deleteNodeActivity(nodeId, activityId),
+    mutationFn: ({ nodeId, activityId }: { nodeId: string | number; activityId: number }) => {
+      const nodeUuid = typeof nodeId === 'string' ? nodeId : getNodeUuidByServerId(queryClient, nodeId);
+      if (!nodeUuid) throw new Error('Node UUID not found');
+      return activityApi.deleteNodeActivity(nodeUuid, activityId);
+    },
     onMutate: ({ nodeId }) => {
       // Invalidate immediately so the UI updates even if the triggering
       // component unmounts before onSuccess fires (TanStack Query v5).

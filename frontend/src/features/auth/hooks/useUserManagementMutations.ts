@@ -17,7 +17,7 @@ export function useUserManagementMutations() {
   });
 
   const updateUser = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: AdminUserUpdate }) => updateAdminUser(id, data),
+    mutationFn: ({ userUuid, data }: { userUuid: string; data: AdminUserUpdate }) => updateAdminUser(userUuid, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: adminKeys.users() });
     },

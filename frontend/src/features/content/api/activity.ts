@@ -60,8 +60,8 @@ export interface LinkClickHistory {
 /**
  * Get activity log for a node
  */
-export async function getNodeActivity(nodeId: number, limit = 50): Promise<NodeActivity[]> {
-  const response = await api.get<NodeActivity[]>(`${BASE}/node/${nodeId}`, {
+export async function getNodeActivity(nodeUuid: string, limit = 50): Promise<NodeActivity[]> {
+  const response = await api.get<NodeActivity[]>(`${BASE}/node/${nodeUuid}`, {
     params: { limit },
   });
   return response.data;
@@ -78,8 +78,8 @@ export async function createNodeActivity(data: NodeActivityCreate): Promise<Node
 /**
  * Delete an activity entry
  */
-export async function deleteNodeActivity(nodeId: number, activityId: number): Promise<void> {
-  await api.delete(`${BASE}/node/${nodeId}/${activityId}`);
+export async function deleteNodeActivity(nodeUuid: string, activityId: number): Promise<void> {
+  await api.delete(`${BASE}/node/${nodeUuid}/${activityId}`);
 }
 
 // ==================== Link Click Tracking ====================

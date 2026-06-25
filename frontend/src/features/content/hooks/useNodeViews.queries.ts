@@ -15,6 +15,7 @@ import type {
   NodeView,
   QueryExecuteRequest,
 } from '@/types/nodeView';
+import { resolveNodeUuid } from '@/utils/resolveNodeUuid';
 import { nodeViewKeys } from '@/hooks/queryKeys';
 export { nodeViewKeys } from '@/hooks/queryKeys';
 
@@ -37,7 +38,7 @@ export function useNodeViews(
   return useQuery({
     queryKey: nodeViewKeys.list(nodeId, viewType),
     queryFn: () =>
-      listNodeViews(nodeId, {
+      listNodeViews(resolveNodeUuid(nodeId), {
         view_type: viewType,
         include_query_ast: includeQueryAST,
       }),
@@ -60,7 +61,7 @@ export function useNodeViewsByType(
   return useQuery({
     queryKey: nodeViewKeys.byType(nodeId),
     queryFn: async () => {
-      const views = await listNodeViews(nodeId, { include_query_ast: true });
+      const views = await listNodeViews(resolveNodeUuid(nodeId), { include_query_ast: true });
 
       const grouped: Record<string, NodeView[]> = {};
       for (const view of views) {
@@ -112,7 +113,7 @@ export function useDefaultNodeView(
 
   return useQuery({
     queryKey: nodeViewKeys.default(nodeId, viewType),
-    queryFn: () => getDefaultNodeView(nodeId, viewType),
+    queryFn: () => getDefaultNodeView(resolveNodeUuid(nodeId), viewType),
     enabled: enabled && nodeId > 0 && viewType.length > 0,
   });
 }
@@ -201,4 +202,3 @@ export function useQueryCount(
     enabled,
   });
 }
-

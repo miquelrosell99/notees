@@ -3,11 +3,11 @@
 from contextlib import suppress
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi_limiter.depends import RateLimiter
 from pyrate_limiter import Duration
 
-from app.dependencies import get_current_user, get_property_repository
+from app.dependencies import get_current_user, get_node_repository, get_property_repository
 from app.domain.entities import NodeCreateData, NodeUpdateData
 from app.domain.errors import (
     DatePageDeletionError,
@@ -18,6 +18,7 @@ from app.domain.errors import (
     SystemClassConstraintError,
 )
 from app.domain.stringify_ast import extract_node_links, parse_ast
+from app.features.nodes.port import NodeRepository
 from app.features.notifications.dependencies import get_notification_repository
 from app.features.notifications.port import NotificationRepository
 from app.features.properties.port import PropertyRepository
@@ -26,8 +27,11 @@ from app.logging_config import get_logger
 from app.models import PaginatedResponse, User
 from app.rate_limit import per_ip_limiter
 
+from .dependencies import resolve_class_uuids, resolve_node_uuid, resolve_node_uuids
 from .helpers import (
     _build_node_detail_response,
+    _build_node_uuid_map,
+    _enrich_node_responses_uuids,
     _get_alias_ids,
     _get_class_ids,
     _get_class_ids_batch,
@@ -41,6 +45,7 @@ from .helpers import (
     _node_to_response,
     _node_to_response_with_permissions,
     _resolve_display_names_for_responses,
+    _resolve_property_uuids,
     extract_properties_dict,
 )
 from .models import (
@@ -127,9 +132,39 @@ async def create_node(
     body: NodeCreateRequest,
     user: User = Depends(get_current_user),
     notification_repo: NotificationRepository = Depends(get_notification_repository),
+    repo: NodeRepository = Depends(get_node_repository),
+    property_repo: PropertyRepository = Depends(get_property_repository),
 ):
     """Create a new node."""
     service = await _get_node_service(user)
+
+    # Resolve optional parent UUID to numeric ID. Explicit parent_id takes
+    # precedence for backwards compatibility during the UUID migration.
+    parent_id = body.parent_id
+    if parent_id is None and body.parent_uuid is not None:
+        parent = await repo.get_by_uuid(body.parent_uuid)
+        if parent is None or parent.id is None:
+            raise HTTPException(404, "Parent node not found")
+        parent_id = parent.id
+
+    # Prefer UUID lists when provided, otherwise fall back to numeric IDs.
+    class_ids = list(body.classes)
+    if body.class_uuids:
+        class_ids = await resolve_class_uuids(body.class_uuids, repo)
+
+    tag_ids = list(body.tags)
+    if body.tag_uuids:
+        tag_ids = await resolve_node_uuids(body.tag_uuids, repo)
+
+    property_values = dict(body.properties)
+    if body.property_uuids:
+        prop_uuids = list(body.property_uuids.keys())
+        prop_map = {prop.uuid: prop.id for prop in await property_repo.get_by_uuids(prop_uuids) if prop.id is not None}
+        missing_props = [u for u in prop_uuids if u not in prop_map]
+        if missing_props:
+            raise HTTPException(404, f"Properties not found: {missing_props}")
+        for prop_uuid, value in body.property_uuids.items():
+            property_values[prop_map[prop_uuid]] = value
 
     # Create node with provided classes
     # The repository will compute is_page, is_class, etc. from the classes
@@ -137,11 +172,11 @@ async def create_node(
         name=body.name,
         icon=body.icon,
         color=body.color,
-        parent_id=body.parent_id,
+        parent_id=parent_id,
         sequence=body.sequence,
-        classes=list(body.classes),
-        tags=list(body.tags),
-        property_values=body.properties,
+        classes=class_ids,
+        tags=tag_ids,
+        property_values=property_values,
         uuid=body.uuid,
     )
 
@@ -175,7 +210,9 @@ async def create_node(
     # Notify mentions
     await _notify_mentions(service, node, int(user.id), notification_repo)
 
-    return _node_to_response(node, tags=list(node.tag_ids), classes=list(node.class_ids))
+    response = _node_to_response(node, tags=list(node.tag_ids), classes=list(node.class_ids))
+    await _enrich_node_responses_uuids(response, repo, property_repo)
+    return response
 
 
 @router.post("/page", response_model=NodeResponse)
@@ -183,21 +220,28 @@ async def create_page(
     name: str,
     icon: str | None = None,
     color: str | None = None,
-    additional_types: list[int] = None,
+    additional_type_uuids: list[str] = None,
     user: User = Depends(get_current_user),
+    repo: NodeRepository = Depends(get_node_repository),
 ):
     """Create a new page (convenience endpoint)."""
-    if additional_types is None:
-        additional_types = []
+    if additional_type_uuids is None:
+        additional_type_uuids = []
     service = await _get_node_service(user)
+    additional_types = []
+    if additional_type_uuids:
+        additional_types = await resolve_class_uuids(additional_type_uuids, repo)
     node = await service.create_page(name, icon, color, additional_types)
-    return _node_to_response(node)
+    response = _node_to_response(node)
+    await _enrich_node_responses_uuids(response, repo)
+    return response
 
 
 @router.get("/recents", response_model=dict[str, list[NodeResponse]])
 async def get_recent_pages(
     limit: int = 10,
     user: User = Depends(get_current_user),
+    repo: NodeRepository = Depends(get_node_repository),
 ):
     """Get recently opened pages, ordered by open_date DESC.
 
@@ -212,6 +256,7 @@ async def get_recent_pages(
         for node in nodes
     ]
     await _resolve_display_names_for_responses(service, nodes, responses)
+    await _enrich_node_responses_uuids(responses, repo)
     return {"nodes": responses}
 
 
@@ -219,6 +264,7 @@ async def get_recent_pages(
 async def get_random_pages(
     limit: int = 5,
     user: User = Depends(get_current_user),
+    repo: NodeRepository = Depends(get_node_repository),
 ):
     """Get random pages from the workspace.
 
@@ -233,6 +279,7 @@ async def get_random_pages(
         for node in nodes
     ]
     await _resolve_display_names_for_responses(service, nodes, responses)
+    await _enrich_node_responses_uuids(responses, repo)
     return {"nodes": responses}
 
 
@@ -240,6 +287,7 @@ async def get_random_pages(
 async def get_recently_created_pages(
     limit: int = 5,
     user: User = Depends(get_current_user),
+    repo: NodeRepository = Depends(get_node_repository),
 ):
     """Get recently created pages, ordered by create_date DESC."""
     service = await _get_node_service(user)
@@ -251,6 +299,7 @@ async def get_recently_created_pages(
         for node in nodes
     ]
     await _resolve_display_names_for_responses(service, nodes, responses)
+    await _enrich_node_responses_uuids(responses, repo)
     return {"nodes": responses}
 
 
@@ -259,6 +308,7 @@ async def get_node_suggestions(
     limit: int = 20,
     class_filters: str | None = None,
     user: User = Depends(get_current_user),
+    repo: NodeRepository = Depends(get_node_repository),
 ):
     """Get suggested pages for node pickers (empty-query state).
 
@@ -276,8 +326,21 @@ async def get_node_suggestions(
     node_ids = [node.id for node in all_nodes if node.id is not None]
     alias_ids_map = await _get_related_ids_batch(service, node_ids, "aliases")
 
+    related_ids: set[int] = set()
+    for node in all_nodes:
+        if node.parent_id is not None:
+            related_ids.add(node.parent_id)
+        if node.page_id is not None:
+            related_ids.add(node.page_id)
+        if node.aliased_id is not None:
+            related_ids.add(node.aliased_id)
+        related_ids.update(node.class_ids or [])
+        related_ids.update(alias_ids_map.get(node.id or 0, []))
+    uuid_map = await _build_node_uuid_map(repo, list(related_ids))
+
     nodes = []
     for node in all_nodes:
+        aliases = alias_ids_map.get(node.id or 0, [])
         nodes.append(
             {
                 "id": node.id,
@@ -286,7 +349,9 @@ async def get_node_suggestions(
                 "icon": node.icon,
                 "color": node.color,
                 "parent_id": node.parent_id,
+                "parent_uuid": uuid_map.get(node.parent_id) if node.parent_id else None,
                 "page_id": node.page_id,
+                "page_uuid": uuid_map.get(node.page_id) if node.page_id else None,
                 "is_page": node.is_page,
                 "is_class": node.is_class,
                 "is_daily": node.is_day,
@@ -295,8 +360,11 @@ async def get_node_suggestions(
                 "create_date": node.create_date,
                 "write_date": node.write_date,
                 "classes": list(node.class_ids or []),
+                "classes_uuid": [uuid_map[c] for c in node.class_ids or [] if c in uuid_map],
                 "aliased_id": node.aliased_id,
-                "aliases": alias_ids_map.get(node.id or 0, []),
+                "aliased_uuid": uuid_map.get(node.aliased_id) if node.aliased_id else None,
+                "aliases": aliases,
+                "aliases_uuid": [uuid_map[a] for a in aliases if a in uuid_map],
             }
         )
 
@@ -308,6 +376,7 @@ async def get_archived_pages(
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=500),
     user: User = Depends(get_current_user),
+    repo: NodeRepository = Depends(get_node_repository),
 ):
     """Get all archived pages."""
     service = await _get_node_service(user)
@@ -331,6 +400,7 @@ async def get_archived_pages(
         )
 
     await _resolve_display_names_for_responses(service, archived_nodes, result)
+    await _enrich_node_responses_uuids(result, repo)
 
     return PaginatedResponse[NodeResponse](
         items=result,
@@ -347,6 +417,7 @@ async def list_templates(
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=500),
     user: User = Depends(get_current_user),
+    repo: NodeRepository = Depends(get_node_repository),
 ):
     """List all template nodes in the current workspace."""
     service = await _get_node_service(user)
@@ -370,6 +441,7 @@ async def list_templates(
         )
 
     await _resolve_display_names_for_responses(service, template_nodes, result)
+    await _enrich_node_responses_uuids(result, repo)
 
     return PaginatedResponse[NodeResponse](
         items=result,
@@ -389,6 +461,7 @@ async def list_tasks(
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=500),
     user: User = Depends(get_current_user),
+    repo: NodeRepository = Depends(get_node_repository),
     property_repo: PropertyRepository = Depends(get_property_repository),
 ):
     """List all task nodes in the current workspace.
@@ -446,6 +519,7 @@ async def list_tasks(
         ))
 
     await _resolve_display_names_for_responses(service, paginated_nodes, result)
+    await _enrich_node_responses_uuids(result, repo, property_repo)
 
     return PaginatedResponse[NodeResponse](
         items=result,
@@ -470,10 +544,11 @@ async def clear_scratchpad(
     return await service.clear_scratchpad(int(user.id))
 
 
-@router.post("/{node_id}/restore", name="restore_node", response_model=NodeResponse)
+@router.post("/{node_uuid}/restore", name="restore_node", response_model=NodeResponse)
 async def restore_node(
-    node_id: int,
+    node_id: int = Depends(resolve_node_uuid),
     user: User = Depends(get_current_user),
+    repo: NodeRepository = Depends(get_node_repository),
 ):
     """Restore a soft-deleted node from trash.
 
@@ -487,13 +562,17 @@ async def restore_node(
         raise HTTPException(404, "Node not found in trash")
 
     types = await service.get_node_classes(node_id)
-    return _node_to_response(node, classes=[t.id for t in types if t.id])
+    response = _node_to_response(node, classes=[t.id for t in types if t.id])
+    await _enrich_node_responses_uuids(response, repo)
+    return response
 
 
-@router.get("/{node_id}/breadcrumbs", name="get_node_breadcrumbs", response_model=BreadcrumbsResponse)
+@router.get("/{node_uuid}/breadcrumbs", name="get_node_breadcrumbs", response_model=BreadcrumbsResponse)
 async def get_node_breadcrumbs(
-    node_id: int = Path(..., ge=1, description="Node ID"),
+    node_id: int = Depends(resolve_node_uuid),
     user: User = Depends(get_current_user),
+    repo: NodeRepository = Depends(get_node_repository),
+    property_repo: PropertyRepository = Depends(get_property_repository),
 ):
     """Get the ancestor breadcrumb chain for a node.
 
@@ -504,10 +583,16 @@ async def get_node_breadcrumbs(
     service = await _get_node_service(user)
 
     breadcrumb_items = await service.get_node_breadcrumbs_with_resolved_links(node_id)
+    node_ids = [item["id"] for item in breadcrumb_items if item.get("id")]
+    property_ids = {item["property_id"] for item in breadcrumb_items if item.get("property_id")}
+    uuid_map = await _build_node_uuid_map(repo, node_ids)
+    property_uuid_map = await _resolve_property_uuids(property_repo, property_ids)
+
     return BreadcrumbsResponse(
         breadcrumbs=[
             BreadcrumbItem(
                 id=item["id"],
+                uuid=uuid_map.get(item["id"], ""),
                 name=item["name"],
                 display_name=item["display_name"],
                 icon=item["icon"],
@@ -515,17 +600,19 @@ async def get_node_breadcrumbs(
                 parent_locked=item["parent_locked"],
                 is_property=item.get("is_property", False),
                 property_id=item.get("property_id"),
+                property_uuid=property_uuid_map.get(item.get("property_id")) if item.get("property_id") else None,
             )
             for item in breadcrumb_items
         ]
     )
 
 
-@router.post("/{node_id}/instantiate", name="instantiate_template", response_model=TemplateInstantiateResponse)
+@router.post("/{node_uuid}/instantiate", name="instantiate_template", response_model=TemplateInstantiateResponse)
 async def instantiate_template(
-    node_id: int = Path(..., ge=1, description="Node ID of the template"),
+    node_id: int = Depends(resolve_node_uuid),
     body: TemplateInstantiateRequest = ...,
     user: User = Depends(get_current_user),
+    repo: NodeRepository = Depends(get_node_repository),
 ):
     """Instantiate a template, creating a deep copy with optional variable substitution.
 
@@ -540,15 +627,30 @@ async def instantiate_template(
     if not node.is_template:
         raise HTTPException(422, "Node is not a template")
 
+    # Resolve public UUIDs to internal IDs (legacy *_id fields take precedence).
+    parent_id = body.parent_id
+    if parent_id is None and body.parent_uuid is not None:
+        parent = await repo.get_by_uuid(body.parent_uuid)
+        if parent is None or parent.id is None:
+            raise HTTPException(404, "Parent node not found")
+        parent_id = parent.id
+
+    after_id = body.after_id
+    if after_id is None and body.after_uuid is not None:
+        after = await repo.get_by_uuid(body.after_uuid)
+        if after is None or after.id is None:
+            raise HTTPException(404, "Anchor node not found")
+        after_id = after.id
+
     result = await service.instantiate_template(
         template_id=node_id,
         user_id=int(user.id),
-        parent_id=body.parent_id,
+        parent_id=parent_id,
         name=body.name,
         variables=body.variables,
         dynamic_context=body.dynamic_context,
         as_blocks=body.as_blocks,
-        after_id=body.after_id,
+        after_id=after_id,
     )
 
     if result["as_blocks"]:
@@ -564,6 +666,7 @@ async def instantiate_template(
             for b in result["blocks"]
             if b
         ]
+        await _enrich_node_responses_uuids(blocks, repo)
         return TemplateInstantiateResponse(node=None, blocks=blocks, as_blocks=True)
     else:
         root = result["node"]
@@ -571,18 +674,21 @@ async def instantiate_template(
             raise HTTPException(500, "Template instantiation failed: no root node returned")
         class_ids = await _get_class_ids(service, root.id)
         response_node = _node_to_response(root, classes=class_ids)
+        await _enrich_node_responses_uuids(response_node, repo)
         return TemplateInstantiateResponse(node=response_node, blocks=[], as_blocks=False)
 
 
-@router.get("/{node_id}", response_model=NodeResponse)
+@router.get("/{node_uuid}", response_model=NodeResponse)
 async def get_node(
-    node_id: int = Path(..., ge=1, description="Node ID (must be a positive integer)"),
+    node_id: int = Depends(resolve_node_uuid),
     include_children: bool = False,
     include_backlinks: bool = False,
     include_properties: bool = False,
     user: User = Depends(get_current_user),
+    repo: NodeRepository = Depends(get_node_repository),
+    property_repo: PropertyRepository = Depends(get_property_repository),
 ):
-    """Get a node by ID."""
+    """Get a node by UUID."""
     service = await _get_node_service(user)
 
     response = await _build_node_detail_response(
@@ -591,6 +697,8 @@ async def get_node(
         include_children=include_children,
         include_backlinks=include_backlinks,
         include_properties=include_properties,
+        node_repo=repo,
+        property_repo=property_repo,
     )
     if response is None:
         raise HTTPException(404, "Node not found")
@@ -604,6 +712,8 @@ async def get_node_by_uuid(
     include_children: bool = False,
     include_backlinks: bool = False,
     user: User = Depends(get_current_user),
+    repo: NodeRepository = Depends(get_node_repository),
+    property_repo: PropertyRepository = Depends(get_property_repository),
 ):
     """Get a node by UUID."""
     service = await _get_node_service(user)
@@ -651,18 +761,21 @@ async def get_node_by_uuid(
                 )
             )
 
+    await _enrich_node_responses_uuids(response, repo, property_repo)
     return response
 
 
-@router.get("/page/{page_id}/content", response_model=NodeResponse)
+@router.get("/page/{node_uuid}/content", response_model=NodeResponse)
 async def get_page_content(
-    page_id: int,
+    node_id: int = Depends(resolve_node_uuid),
     user: User = Depends(get_current_user),
+    repo: NodeRepository = Depends(get_node_repository),
+    property_repo: PropertyRepository = Depends(get_property_repository),
 ):
     """Get a page with all its content (blocks, properties, backlinks)."""
     service = await _get_node_service(user)
 
-    content = await service.get_page_content(page_id)
+    content = await service.get_page_content(node_id)
     if not content:
         raise HTTPException(404, "Page not found")
 
@@ -673,11 +786,11 @@ async def get_page_content(
     # Get block IDs for batch queries
     block_ids = [b.id for b in blocks if b.id is not None]
 
-    references = await service.load_page_references(page_id, block_ids)
+    references = await service.load_page_references(node_id, block_ids)
     backlink_counts = references["backlink_counts"]
 
     # Get classes for all nodes in one batch (from node.class_ids column)
-    all_node_ids = [page_id] + block_ids
+    all_node_ids = [node_id] + block_ids
     node_class_map = await _get_class_ids_batch(service, all_node_ids)
 
     # Get tags for all nodes in one batch (from node.tag_ids column)
@@ -686,7 +799,7 @@ async def get_page_content(
     # Build tree structure from flat list
     block_map = {}
     for b in blocks:
-        if b.id != page_id and b.id is not None:
+        if b.id != node_id and b.id is not None:
             bcount = backlink_counts.get(b.id, 0)
             class_ids = node_class_map.get(b.id, [])
             tag_ids = node_tag_map.get(b.id, [])
@@ -695,12 +808,12 @@ async def get_page_content(
     root_children = []
 
     for b in blocks:
-        if b.id == page_id:
+        if b.id == node_id:
             continue
         if b.id is None:
             continue
         response = block_map[b.id]
-        if b.parent_id == page_id:
+        if b.parent_id == node_id:
             root_children.append(response)
         elif b.parent_id in block_map:
             parent = block_map[b.parent_id]
@@ -708,11 +821,11 @@ async def get_page_content(
                 parent.children = []
             parent.children.append(response)
 
-    page_class_ids = node_class_map.get(page_id, [])
-    page_tag_ids = node_tag_map.get(page_id, [])
+    page_class_ids = node_class_map.get(node_id, [])
+    page_tag_ids = node_tag_map.get(node_id, [])
 
     # Get aliases for the page
-    page_alias_ids = await _get_alias_ids(service, page_id)
+    page_alias_ids = await _get_alias_ids(service, node_id)
 
     page_response = await _node_to_response_with_permissions(
         page, service.permissions, tags=page_tag_ids, classes=page_class_ids, aliases=page_alias_ids
@@ -720,8 +833,8 @@ async def get_page_content(
     page_response.children = root_children
 
     # Add properties - get the full property values
-    all_prop_values = await service.get_node_properties(page_id)
-    logger.info(f"Page {page_id} properties: {list(all_prop_values.keys())}")
+    all_prop_values = await service.get_node_properties(node_id)
+    logger.info(f"Page {node_id} properties: {list(all_prop_values.keys())}")
     page_response.properties = extract_properties_dict(all_prop_values)
 
     # Add backlinks with context — batch fetch source nodes and pages
@@ -753,6 +866,8 @@ async def get_page_content(
                     source_page=_node_to_response(source_page) if source_page else None,
                     link_type="property" if link.property_id else "text",
                     context=context,
+                    property_id=link.property_id,
+                    property_name=link.property_name,
                 )
             )
 
@@ -764,7 +879,7 @@ async def get_page_content(
         for target in referenced_targets:
             uuid_str = str(target.uuid)
             referenced_nodes[uuid_str] = NodeResponse(
-                id=target.id or 0,
+                id=target.id,
                 uuid=uuid_str,
                 name=target.name or "",
                 icon=target.icon,
@@ -783,29 +898,55 @@ async def get_page_content(
             )
         page_response.referenced_nodes = referenced_nodes
 
+    await _enrich_node_responses_uuids(page_response, repo, property_repo)
     return page_response
 
 
 @router.put(
-    "/{node_id}",
+    "/{node_uuid}",
     response_model=NodeResponse,
     dependencies=[Depends(RateLimiter(limiter=_crud_limiter))],
 )
 async def update_node(
     request: Request,
-    node_id: int,
-    body: NodeUpdateRequest,
+    node_id: int = Depends(resolve_node_uuid),
+    body: NodeUpdateRequest = ...,  # required body, placed after dependency defaults
     user: User = Depends(get_current_user),
     notification_repo: NotificationRepository = Depends(get_notification_repository),
+    repo: NodeRepository = Depends(get_node_repository),
+    property_repo: PropertyRepository = Depends(get_property_repository),
 ):
     """Update a node."""
     from app.logging_config import get_logger
 
     logger = get_logger(__name__)
 
+    service = await _get_node_service(user)
+
     logger.debug("[UPDATE_NODE] node_id=%s, fields_set=%s", node_id, body.model_fields_set)
 
-    service = await _get_node_service(user)
+    # Resolve public UUIDs to internal IDs (legacy *_id fields take precedence).
+    parent_id = body.parent_id
+    if parent_id is None and body.parent_uuid is not None:
+        parent = await repo.get_by_uuid(body.parent_uuid)
+        if parent is None or parent.id is None:
+            raise HTTPException(404, "Parent node not found")
+        parent_id = parent.id
+
+    class_ids = body.classes
+    if body.class_uuids is not None:
+        class_ids = await resolve_class_uuids(body.class_uuids, repo)
+
+    property_values = dict(body.properties) if body.properties is not None else None
+    if body.property_uuids:
+        prop_uuids = list(body.property_uuids.keys())
+        prop_map = {prop.uuid: prop.id for prop in await property_repo.get_by_uuids(prop_uuids) if prop.id is not None}
+        missing_props = [u for u in prop_uuids if u not in prop_map]
+        if missing_props:
+            raise HTTPException(404, f"Properties not found: {missing_props}")
+        property_values = property_values or {}
+        for prop_uuid, value in body.property_uuids.items():
+            property_values[prop_map[prop_uuid]] = value
 
     data = NodeUpdateData(
         name=body.name,
@@ -815,7 +956,7 @@ async def update_node(
         clear_icon="icon" in body.model_fields_set and body.icon is None,
         clear_color="color" in body.model_fields_set and body.color is None,
         clear_parent="parent_id" in body.model_fields_set and body.parent_id is None,
-        parent_id=body.parent_id,
+        parent_id=parent_id,
         sequence=body.sequence,
         collapsed=body.collapsed,
         is_private=body.is_private,
@@ -833,8 +974,8 @@ async def update_node(
             node_id,
             data,
             user_id=int(user.id),
-            classes=body.classes,
-            properties=body.properties,
+            classes=class_ids,
+            properties=property_values,
         )
     except OptimisticLockError as e:
         raise HTTPException(
@@ -885,19 +1026,22 @@ async def update_node(
     # Notify mentions
     await _notify_mentions(service, node, int(user.id), notification_repo)
 
-    return _node_to_response(node)
+    response = _node_to_response(node)
+    await _enrich_node_responses_uuids(response, repo, property_repo)
+    return response
 
 
-@router.put("/{node_id}/move", response_model=NodeResponse)
+@router.put("/{node_uuid}/move", response_model=NodeResponse)
 async def move_node(
-    node_id: int,
     request: MoveNodeRequest,
+    node_id: int = Depends(resolve_node_uuid),
     user: User = Depends(get_current_user),
+    repo: NodeRepository = Depends(get_node_repository),
 ):
     """Move a node to a new parent and/or position.
 
     Used for indent/outdent operations and drag-drop reordering.
-    - parent_id: New parent ID (required for blocks - they must always have a parent)
+    - parent_uuid: New parent UUID (required for blocks - they must always have a parent)
     - position: New sequence position among siblings (0-indexed)
 
     Note: page_id is automatically computed from parent_id hierarchy.
@@ -905,8 +1049,16 @@ async def move_node(
     """
     service = await _get_node_service(user)
 
+    # Resolve parent from UUID or numeric ID
+    parent_id: int | None = request.parent_id
+    if parent_id is None and request.parent_uuid is not None:
+        parent = await repo.get_by_uuid(request.parent_uuid)
+        if parent is None or parent.id is None:
+            raise HTTPException(404, "Parent node not found")
+        parent_id = parent.id
+
     # Validate parent_id is provided
-    if request.parent_id is None:
+    if parent_id is None:
         raise HTTPException(400, "parent_id is required for move operation")
 
     # Default position to 0 if not specified
@@ -917,7 +1069,7 @@ async def move_node(
     before = _node_snapshot(old_node) if old_node else None
 
     try:
-        node = await service.move_node(node_id, request.parent_id, position)
+        node = await service.move_node(node_id, parent_id, position)
         if not node:
             raise HTTPException(404, "Node not found")
 
@@ -940,14 +1092,17 @@ async def move_node(
     except ValueError as e:
         raise HTTPException(422, str(e)) from e
 
-    return _node_to_response(node)
+    response = _node_to_response(node)
+    await _enrich_node_responses_uuids(response, repo)
+    return response
 
 
-@router.post("/{node_id}/convert-to-page", response_model=NodeResponse)
+@router.post("/{node_uuid}/convert-to-page", response_model=NodeResponse)
 async def convert_block_to_page(
-    node_id: int,
     request: ConvertToPageRequest,
+    node_id: int = Depends(resolve_node_uuid),
     user: User = Depends(get_current_user),
+    repo: NodeRepository = Depends(get_node_repository),
 ):
     """Convert a block into a root page.
 
@@ -993,14 +1148,17 @@ async def convert_block_to_page(
         except (ValueError, TypeError, LookupError):
             pass
 
-    return _node_to_response(node)
+    response = _node_to_response(node)
+    await _enrich_node_responses_uuids(response, repo)
+    return response
 
 
-@router.post("/{node_id}/convert-to-block", response_model=NodeResponse)
+@router.post("/{node_uuid}/convert-to-block", response_model=NodeResponse)
 async def convert_page_to_block(
-    node_id: int,
     request: ConvertToBlockRequest,
+    node_id: int = Depends(resolve_node_uuid),
     user: User = Depends(get_current_user),
+    repo: NodeRepository = Depends(get_node_repository),
 ):
     """Convert a page into a block under the given destination page.
 
@@ -1008,13 +1166,27 @@ async def convert_page_to_block(
     """
     service = await _get_node_service(user)
 
+    # Resolve destination and anchor UUIDs to numeric IDs
+    parent = await repo.get_by_uuid(request.parent_uuid)
+    if parent is None or parent.id is None:
+        raise HTTPException(404, "Parent node not found")
+    parent_id = parent.id
+
+    _after_id: int | None = None
+    if request.after_uuid is not None:
+        after = await repo.get_by_uuid(request.after_uuid)
+        if after is None or after.id is None:
+            raise HTTPException(404, "Anchor node not found")
+        _after_id = after.id
+    # TODO: pass _after_id to the service once convert_page_to_block supports ordering
+
     old_node = await service.get_node(node_id)
     before = _node_snapshot(old_node) if old_node else None
 
     try:
         node = await service.convert_page_to_block(
             node_id,
-            parent_id=request.parent_id,
+            parent_id=parent_id,
             position=request.position,
             user_id=int(user.id),
         )
@@ -1041,17 +1213,20 @@ async def convert_page_to_block(
         except (ValueError, TypeError, LookupError):
             pass
 
-    return _node_to_response(node)
+    response = _node_to_response(node)
+    await _enrich_node_responses_uuids(response, repo)
+    return response
 
 
 @router.delete(
-    "/{node_id}",
+    "/{node_uuid}",
     response_model=dict[str, str],
     dependencies=[Depends(RateLimiter(limiter=_crud_limiter))],
 )
 async def delete_node(
     request: Request,
-    node_id: int,
+    node_id: int = Depends(resolve_node_uuid),
+    repo: NodeRepository = Depends(get_node_repository),
     user: User = Depends(get_current_user),
 ):
     """Delete a node and all its children.
@@ -1105,10 +1280,11 @@ async def delete_node(
     return {"status": "ok"}
 
 
-@router.post("/{node_id}/archive", response_model=NodeResponse)
+@router.post("/{node_uuid}/archive", response_model=NodeResponse)
 async def archive_node(
-    node_id: int,
+    node_id: int = Depends(resolve_node_uuid),
     user: User = Depends(get_current_user),
+    repo: NodeRepository = Depends(get_node_repository),
 ):
     """Archive a node (set active to false)."""
     service = await _get_node_service(user)
@@ -1133,14 +1309,17 @@ async def archive_node(
         pass
 
     types = await service.get_node_classes(node_id)
-    return _node_to_response(node, classes=[t.id for t in types if t.id])
+    response = _node_to_response(node, classes=[t.id for t in types if t.id])
+    await _enrich_node_responses_uuids(response, repo)
+    return response
 
 
-@router.post("/{node_id}/merge-into/{target_id}", name="merge_pages", response_model=dict[str, Any])
+@router.post("/{node_uuid}/merge-into/{target_uuid}", name="merge_pages", response_model=dict[str, Any])
 async def merge_pages(
-    node_id: int = Path(..., description="Source page ID (will be deleted)"),
-    target_id: int = Path(..., description="Target page ID (merge destination)"),
+    target_uuid: str,
+    node_id: int = Depends(resolve_node_uuid),
     user: User = Depends(get_current_user),
+    repo: NodeRepository = Depends(get_node_repository),
 ):
     """Merge source page into target page.
 
@@ -1148,6 +1327,12 @@ async def merge_pages(
     source so they point to target instead, then soft-deletes the source page.
     """
     service = await _get_node_service(user)
+
+    target = await repo.get_by_uuid(target_uuid)
+    if target is None or target.id is None:
+        raise HTTPException(404, "Target node not found")
+    target_id = target.id
+
     try:
         result = await service.merge_pages(node_id, target_id, user_id=int(user.id))
     except ValueError as e:
@@ -1155,10 +1340,11 @@ async def merge_pages(
     return result
 
 
-@router.post("/{node_id}/unarchive", response_model=NodeResponse)
+@router.post("/{node_uuid}/unarchive", response_model=NodeResponse)
 async def unarchive_node(
-    node_id: int,
+    node_id: int = Depends(resolve_node_uuid),
     user: User = Depends(get_current_user),
+    repo: NodeRepository = Depends(get_node_repository),
 ):
     """Unarchive a node (set active to true)."""
     service = await _get_node_service(user)
@@ -1183,12 +1369,14 @@ async def unarchive_node(
         pass
 
     types = await service.get_node_classes(node_id)
-    return _node_to_response(node, classes=[t.id for t in types if t.id])
+    response = _node_to_response(node, classes=[t.id for t in types if t.id])
+    await _enrich_node_responses_uuids(response, repo)
+    return response
 
 
-@router.patch("/{node_id}/open", response_model=dict[str, Any])
+@router.patch("/{node_uuid}/open", response_model=dict[str, Any])
 async def mark_page_opened(
-    node_id: int,
+    node_id: int = Depends(resolve_node_uuid),
     user: User = Depends(get_current_user),
 ):
     """Mark a page as opened/viewed (updates open_date).
@@ -1211,9 +1399,9 @@ async def mark_page_opened(
     return {"status": "ok", "open_date": open_date}
 
 
-@router.get("/{node_id}/versions", name="get_node_versions", response_model=dict[str, list[Any]])
+@router.get("/{node_uuid}/versions", name="get_node_versions", response_model=dict[str, list[Any]])
 async def get_node_versions(
-    node_id: int,
+    node_id: int = Depends(resolve_node_uuid),
     limit: int = 50,
     user: User = Depends(get_current_user),
 ):
@@ -1223,23 +1411,26 @@ async def get_node_versions(
     return {"versions": versions}
 
 
-@router.post("/{node_id}/versions/{version_id}/restore", name="restore_node_version", response_model=NodeResponse)
+@router.post("/{node_uuid}/versions/{version_uuid}/restore", name="restore_node_version", response_model=NodeResponse)
 async def restore_node_version(
-    node_id: int,
-    version_id: int,
+    version_uuid: str,
+    node_id: int = Depends(resolve_node_uuid),
     user: User = Depends(get_current_user),
+    repo: NodeRepository = Depends(get_node_repository),
 ):
     """Restore a node to a previous version's content."""
     service = await _get_node_service(user)
 
-    updated = await service.restore_node_version(
-        node_id, version_id, user_id=int(user.id)
+    updated = await service.restore_node_version_by_uuid(
+        node_id, version_uuid, user_id=int(user.id)
     )
     if not updated:
         raise HTTPException(404, "Version or node not found")
 
     types = await service.get_node_classes(node_id)
-    return _node_to_response(updated, classes=[t.id for t in types if t.id])
+    response = _node_to_response(updated, classes=[t.id for t in types if t.id])
+    await _enrich_node_responses_uuids(response, repo)
+    return response
 
 
 

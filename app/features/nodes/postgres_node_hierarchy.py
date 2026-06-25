@@ -35,6 +35,40 @@ class PostgresNodeHierarchyMixin(_PostgresNodeBase):
             effective_parent_id = new_parent_id if new_parent_id is not None else old_parent_id
             effective_sequence = new_sequence if new_sequence is not None else old_sequence
 
+            # Old clients or race conditions may send sequence=0 into a parent that
+            # already has a sibling at sequence=0. In that case append after the
+            # current max so ordering stays deterministic.
+            if effective_sequence == 0 and effective_parent_id is not None:
+                collision = await conn.fetchval(
+                    """
+                    SELECT COUNT(*) FROM node
+                    WHERE parent_id = $1
+                      AND id != $2
+                      AND workspace_id = $3
+                      AND active = TRUE
+                      AND is_deleted = FALSE
+                      AND sequence = 0
+                    """,
+                    effective_parent_id,
+                    node_id,
+                    self._workspace_id,
+                )
+                if collision and collision > 0:
+                    max_seq = await conn.fetchval(
+                        """
+                        SELECT MAX(sequence) FROM node
+                        WHERE parent_id = $1
+                          AND id != $2
+                          AND workspace_id = $3
+                          AND active = TRUE
+                          AND is_deleted = FALSE
+                        """,
+                        effective_parent_id,
+                        node_id,
+                        self._workspace_id,
+                    )
+                    effective_sequence = (max_seq or 0) + 1024
+
             # Pages never have page_id - only blocks do
             if node.is_page:
                 new_page_id = None

@@ -2,10 +2,11 @@
  * useNodeListQueries
  */
 
-import { useQuery, keepPreviousData } from '@tanstack/react-query';
+import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import * as nodesApi from '@/api/nodes';
 import { nodeKeys } from '@/hooks/queryKeys';
 import { useAuthStore } from '@/stores';
+import { getTagUuidByServerId } from './useNodeMutations.utils';
 
 export function usePages(options?: { includeChildren?: boolean; rootOnly?: boolean }) {
   const { includeChildren = false, rootOnly = false } = options ?? {};
@@ -23,12 +24,12 @@ export function usePages(options?: { includeChildren?: boolean; rootOnly?: boole
 /**
  * Hook to search nodes
  * @param query - Search query string
- * @param filters - Optional search filters (class_filters, uuid, is_page, is_class, is_daily)
+ * @param filters - Optional search filters (class_filters, node_uuid, is_page, is_class, is_daily)
  */
 
 export function useSearch(query: string, filters?: {
   classFilters?: string;
-  uuid?: string;
+  nodeUuid?: string;
   isPage?: boolean;
   isClass?: boolean;
   isDaily?: boolean;
@@ -36,7 +37,7 @@ export function useSearch(query: string, filters?: {
 }) {
   const searchFilters: Record<string, string | boolean | undefined> = {
     classFilters: filters?.classFilters,
-    uuid: filters?.uuid,
+    nodeUuid: filters?.nodeUuid,
     isPage: filters?.isPage,
     isClass: filters?.isClass,
     isDaily: filters?.isDaily,
@@ -46,13 +47,13 @@ export function useSearch(query: string, filters?: {
     queryKey: nodeKeys.search(query, searchFilters),
     queryFn: () => nodesApi.searchNodes(query, {
       class_filters: filters?.classFilters,
-      uuid: filters?.uuid,
+      node_uuid: filters?.nodeUuid,
       is_page: filters?.isPage,
       is_class: filters?.isClass,
       is_daily: filters?.isDaily,
       is_user_page: filters?.isUserPage,
     }),
-    enabled: query.length > 0 || !!filters?.uuid || !!filters?.classFilters || filters?.isPage !== undefined || filters?.isClass !== undefined || filters?.isDaily !== undefined || filters?.isUserPage !== undefined,
+    enabled: query.length > 0 || !!filters?.nodeUuid || !!filters?.classFilters || filters?.isPage !== undefined || filters?.isClass !== undefined || filters?.isDaily !== undefined || filters?.isUserPage !== undefined,
     placeholderData: keepPreviousData,
     staleTime: 1000 * 30, // 30s - search results change less often than typed
   });
@@ -105,9 +106,14 @@ export function useSearchClasses(query: string) {
  */
 
 export function useNodesByTag(tagId: number | null) {
+  const queryClient = useQueryClient();
   return useQuery({
     queryKey: nodeKeys.list({ tag_id: tagId ?? 0 }),
-    queryFn: () => nodesApi.listNodes({ tag_id: tagId! }),
+    queryFn: () => {
+      const tagUuid = getTagUuidByServerId(queryClient, tagId!);
+      if (!tagUuid) throw new Error('Tag UUID not found');
+      return nodesApi.listNodes({ tag_uuid: tagUuid });
+    },
     enabled: !!tagId,
     placeholderData: [],
   });

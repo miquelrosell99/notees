@@ -299,7 +299,7 @@ export function QueryNodeCollection({
     return {
       id: -1,
       uuid: '',
-      node_id: nodeId,
+      node_uuid: nodeUuid,
       name: '',
       view_type: viewType as string,
       order_index: 0,
@@ -311,7 +311,7 @@ export function QueryNodeCollection({
       write_date: '',
       query_ast: inlineQueryAST,
     };
-  }, [isInlineMode, nodeId, viewType, inlineQueryAST]);
+  }, [isInlineMode, nodeUuid, viewType, inlineQueryAST]);
 
   const activeView = useMemo(() => {
     if (isInlineMode) return syntheticInlineView;
@@ -710,21 +710,21 @@ export function QueryNodeCollection({
     });
     // Scan query cache for any nodes referenced in the AST
     const astUuids = extractUuidsFromAST(editAST);
-    astUuids.forEach(uuid => {
-      if (map.has(uuid)) return;
-      const cached = queryClient.getQueryData<Node>(['nodes', 'uuid', uuid]);
+    astUuids.forEach(nodeUuid => {
+      if (map.has(nodeUuid)) return;
+      const cached = queryClient.getQueryData<Node>(['nodes', 'uuid', nodeUuid]);
       if (cached) {
-        map.set(uuid, cached);
+        map.set(nodeUuid, cached);
       }
     });
     return map;
   }, [previewResults, allClasses, editAST, queryClient]);
 
   // Handle clicking on a node link in prose preview
-  const handleNodeLinkClick = useCallback((uuid: string) => {
-    const node = nodesMap.get(uuid);
+  const handleNodeLinkClick = useCallback((nodeUuid: string) => {
+    const node = nodesMap.get(nodeUuid);
     if (node) {
-      openNode(node.id);
+      openNode(node.uuid);
     }
   }, [nodesMap, openNode]);
 
@@ -819,7 +819,7 @@ export function QueryNodeCollection({
   const handleAddView = useCallback(async () => {
     try {
       const newView = await createViewMutation.mutateAsync({
-        node_id: nodeId,
+        node_uuid: nodeUuid,
         name: 'New View',
         view_type: viewType,
         order_index: views.length,
@@ -830,7 +830,7 @@ export function QueryNodeCollection({
     } catch (error) {
       console.error('Failed to create view:', error);
     }
-  }, [nodeId, viewType, views.length, createViewMutation, handleEditView]);
+  }, [nodeUuid, viewType, views.length, createViewMutation, handleEditView]);
 
   const handleAddNode = useCallback(async () => {
     try {
@@ -973,7 +973,7 @@ export function QueryNodeCollection({
           {/* Main results - blocks only when separating, all results otherwise */}
           <NodeCollection
             nodes={showPageSeparation ? resultBlocks : windowedResultNodes}
-            viewId={activeView?.id}
+            viewUuid={activeView?.uuid}
             view={activeView ?? undefined}
             viewMode={collectionViewMode}
             availableViewModes={queryAvailableViewModes}
@@ -1045,7 +1045,7 @@ export function QueryNodeCollection({
 
               {resultPages.length > 0 && <NodeCollection
                 nodes={resultPages}
-                viewId={activeView?.id}
+                viewUuid={activeView?.uuid}
                 view={activeView ?? undefined}
                 viewMode={collectionViewMode}
                 availableViewModes={queryAvailableViewModes}

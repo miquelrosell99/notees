@@ -1,22 +1,32 @@
 """Backlinks, linked references, tag links, alias, and property endpoints."""
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Path
 
-from app.dependencies import get_current_user, get_property_repository
+from app.dependencies import get_current_user, get_node_repository, get_property_repository
 from app.domain.entities import BacklinkInfo
 from app.domain.errors import NodeNotFoundError, NodeValidationError
 from app.features.nodes.link_service import LinkParsingService
 from app.features.nodes.node_service import MAX_DESCENDANTS_LOAD
+from app.features.nodes.port import NodeRepository
 from app.features.properties.port import PropertyRepository
 from app.logging_config import get_logger
 from app.models import User
 
+from .dependencies import (
+    resolve_alias_uuid,
+    resolve_node_uuid,
+    resolve_node_uuids,
+    resolve_target_uuid,
+)
 from .helpers import (
     _build_children_response,
+    _build_node_uuid_map,
+    _enrich_node_responses_uuids,
     _get_node_service,
     _get_undo_service,
     _node_to_response,
     _resolve_display_names_for_responses,
+    _resolve_property_uuids,
     extract_properties_dict,
 )
 from .models import (
@@ -36,10 +46,11 @@ logger = get_logger(__name__)
 router = APIRouter()
 
 
-@router.get("/{node_id}/text-links")
+@router.get("/{node_uuid}/text-links")
 async def get_text_links(
-    node_id: int,
+    node_id: int = Depends(resolve_node_uuid),
     user: User = Depends(get_current_user),
+    repo: NodeRepository = Depends(get_node_repository),
 ):
     """Get all text links from a node.
 
@@ -48,13 +59,18 @@ async def get_text_links(
     service = await _get_node_service(user)
     links = await service.get_text_links(node_id)
 
+    link_node_ids = [node_id for link in links for node_id in (link.source_id, link.target_id)]
+    uuid_map = await _build_node_uuid_map(repo, link_node_ids)
+
     return {
         "links": [
             NodeLinkResponse(
                 id=link.id,
                 uuid=str(link.uuid) if link.uuid else "",
                 source_node_id=link.source_id,
+                source_node_uuid=uuid_map.get(link.source_id),
                 target_node_id=link.target_id,
+                target_node_uuid=uuid_map.get(link.target_id),
                 position=link.position or 0,
                 name=link.name,
             )
@@ -67,33 +83,42 @@ async def get_text_links(
 async def get_batch_text_links(
     body: BatchTextLinksRequest,
     user: User = Depends(get_current_user),
+    repo: NodeRepository = Depends(get_node_repository),
 ):
     """Get text links for multiple nodes in a single request.
 
-    Request body: { "node_ids": [1, 2, 3, ...] }
-    Returns: { "links_by_node": { "1": [...], "2": [...], ... } }
+    Request body: { "node_uuids": ["uuid-1", "uuid-2", ...] }
+    Returns: { "links_by_node": { "uuid-1": [...], "uuid-2": [...], ... } }
 
     Used for efficiently resolving node names in table views.
     """
-    node_ids = body.node_ids
-    if not node_ids:
+    if not body.node_uuids:
         return {"links_by_node": {}}
 
     # Limit to prevent abuse
-    if len(node_ids) > 5000:
-        raise HTTPException(status_code=400, detail="Too many node IDs (max 5000)")
+    if len(body.node_uuids) > 5000:
+        raise HTTPException(status_code=400, detail="Too many node UUIDs (max 5000)")
 
+    node_ids = await resolve_node_uuids(body.node_uuids, repo=repo)
     service = await _get_node_service(user)
     grouped = await service.get_text_links_batch(node_ids)
 
+    link_node_ids = [node_id for links in grouped.values() for link in links for node_id in (link.source_id, link.target_id)]
+    uuid_map = await _build_node_uuid_map(repo, link_node_ids)
+
     links_by_node: dict[str, list[NodeLinkResponse]] = {}
     for source_id, links in grouped.items():
-        links_by_node[str(source_id)] = [
+        source_uuid = uuid_map.get(source_id)
+        if source_uuid is None:
+            continue
+        links_by_node[source_uuid] = [
             NodeLinkResponse(
                 id=link.id,
                 uuid=str(link.uuid) if link.uuid else "",
                 source_node_id=link.source_id,
+                source_node_uuid=uuid_map.get(link.source_id),
                 target_node_id=link.target_id,
+                target_node_uuid=uuid_map.get(link.target_id),
                 position=link.position or 0,
                 name=link.name,
             )
@@ -103,11 +128,12 @@ async def get_batch_text_links(
     return {"links_by_node": links_by_node}
 
 
-@router.post("/{node_id}/tag-links")
+@router.post("/{node_uuid}/tag-links")
 async def add_tag_link(
-    node_id: int,
     request: TagLinkRequest,
+    node_id: int = Depends(resolve_node_uuid),
     user: User = Depends(get_current_user),
+    repo: NodeRepository = Depends(get_node_repository),
 ):
     """Add a tag to a node.
 
@@ -115,13 +141,18 @@ async def add_tag_link(
     """
     service = await _get_node_service(user)
 
+    target_node = await repo.get_by_uuid(request.target_node_uuid)
+    if target_node is None or target_node.id is None:
+        raise HTTPException(status_code=404, detail="Target node not found")
+    target_node_id = target_node.id
+
     node = await service.get_node(node_id)
     if not node:
         raise HTTPException(404, "Node not found")
     before_tag_ids = list(node.tag_ids)
 
     try:
-        node = await service.add_tag_link_atomic(node_id, request.target_node_id)
+        node = await service.add_tag_link_atomic(node_id, target_node_id)
     except NodeNotFoundError as e:
         raise HTTPException(404, str(e)) from e
     except NodeValidationError as e:
@@ -144,10 +175,10 @@ async def add_tag_link(
     return {"success": True}
 
 
-@router.delete("/{node_id}/tag-links/{target_id}")
+@router.delete("/{node_uuid}/tag-links/{target_uuid}")
 async def remove_tag_link(
-    node_id: int,
-    target_id: int,
+    node_id: int = Depends(resolve_node_uuid),
+    target_id: int = Depends(resolve_target_uuid),
     user: User = Depends(get_current_user),
 ):
     """Remove a tag from a node."""
@@ -180,11 +211,13 @@ async def remove_tag_link(
     return {"removed": True}
 
 
-@router.get("/{node_id}/backlinks")
+@router.get("/{node_uuid}/backlinks")
 async def get_backlinks(
-    node_id: int,
+    node_id: int = Depends(resolve_node_uuid),
     include_inherited: bool = True,
     user: User = Depends(get_current_user),
+    repo: NodeRepository = Depends(get_node_repository),
+    property_repo: PropertyRepository = Depends(get_property_repository),
 ):
     """Get backlinks to a node."""
     service = await _get_node_service(user)
@@ -203,6 +236,10 @@ async def get_backlinks(
     # Resolve inline node links so backlink surfaces show target names.
     source_display_names = await service.resolve_node_display_names(list(source_nodes.values()))
     page_display_names = await service.resolve_node_display_names(list(page_nodes.values()))
+
+    # Batch-resolve property UUIDs for property-type backlinks.
+    property_ids = {link.property_id for link in backlinks if link.property_id}
+    property_uuid_map = await _resolve_property_uuids(property_repo, property_ids)
 
     result = []
     for link in backlinks:
@@ -224,8 +261,13 @@ async def get_backlinks(
                 source_node_id=link.source_node_id,
                 source_node_uuid=str(source.uuid) if source and source.uuid else "",
                 source_node_name=source_node_name,
+                source_is_page=source.is_page if source else False,
                 source_page_id=source.page_id if source else None,
                 source_page_name=source_page_name,
+                source_page_uuid=str(source_page.uuid) if source_page and source_page.uuid else None,
+                property_id=link.property_id,
+                property_uuid=property_uuid_map.get(link.property_id) if link.property_id else None,
+                property_name=link.property_name,
                 link_type=link_type,
                 position=link.link.position if link.link else 0,
             )
@@ -234,14 +276,15 @@ async def get_backlinks(
     return {"backlinks": result}
 
 
-@router.get("/{node_id}/linked-references")
+@router.get("/{node_uuid}/linked-references")
 async def get_linked_references(
-    node_id: int,
+    node_id: int = Depends(resolve_node_uuid),
     limit: int = 50,
     offset: int = 0,
     count: bool = False,
     user: User = Depends(get_current_user),
     property_repo: PropertyRepository = Depends(get_property_repository),
+    repo: NodeRepository = Depends(get_node_repository),
 ):
     """Get linked references to a node with context, including children hierarchy.
 
@@ -383,13 +426,40 @@ async def get_linked_references(
         [r.source_page for r in result if r.source_page is not None],
     )
 
+    # Enrich UUID fields on source/page nodes, property IDs, and breadcrumb segments.
+    all_node_responses = [r.source_node for r in result] + [
+        r.source_page for r in result if r.source_page is not None
+    ]
+    await _enrich_node_responses_uuids(all_node_responses, repo, property_repo)
+
+    property_ids = {r.property_id for r in result if r.property_id}
+    property_uuid_map = await _resolve_property_uuids(property_repo, property_ids)
+
+    extra_node_ids: set[int] = set()
+    for r in result:
+        for seg in r.breadcrumb_path:
+            if seg.node_id:
+                extra_node_ids.add(seg.node_id)
+        if r.text_property_root_block_id:
+            extra_node_ids.add(r.text_property_root_block_id)
+    extra_uuid_map = await _build_node_uuid_map(repo, list(extra_node_ids))
+
+    for r in result:
+        r.property_uuid = property_uuid_map.get(r.property_id) if r.property_id else None
+        r.text_property_root_block_uuid = (
+            extra_uuid_map.get(r.text_property_root_block_id) if r.text_property_root_block_id else None
+        )
+        for seg in r.breadcrumb_path:
+            seg.node_uuid = extra_uuid_map.get(seg.node_id) if seg.node_id else None
+
     return {"linked_references": result, "total_count": total_count}
 
 
-@router.get("/{node_id}/inline-classes")
+@router.get("/{node_uuid}/inline-classes")
 async def get_inline_classes(
-    node_id: int,
+    node_id: int = Depends(resolve_node_uuid),
     user: User = Depends(get_current_user),
+    repo: NodeRepository = Depends(get_node_repository),
 ):
     """Get inline class references for a node.
 
@@ -398,6 +468,9 @@ async def get_inline_classes(
     service = await _get_node_service(user)
 
     inline_classes = await service.get_inline_classes_for_node(node_id)
+
+    target_ids = [inline_link.target_id for inline_link in inline_classes]
+    uuid_map = await _build_node_uuid_map(repo, target_ids)
 
     result = []
     for inline_link in inline_classes:
@@ -408,6 +481,7 @@ async def get_inline_classes(
         result.append(
             InlineClassResponse(
                 class_node_id=inline_link.target_id,
+                class_node_uuid=uuid_map.get(inline_link.target_id),
                 class_node_name=class_node.name or "",
                 class_node_icon=class_node.icon,
                 position=inline_link.position,
@@ -417,11 +491,12 @@ async def get_inline_classes(
     return {"inline_classes": result}
 
 
-@router.get("/{node_id}/property-backlinks")
+@router.get("/{node_uuid}/property-backlinks")
 async def get_property_backlinks(
-    node_id: int,
+    node_id: int = Depends(resolve_node_uuid),
     user: User = Depends(get_current_user),
     property_repo: PropertyRepository = Depends(get_property_repository),
+    repo: NodeRepository = Depends(get_node_repository),
 ):
     """Get pages that reference this node via date or node properties.
 
@@ -465,16 +540,25 @@ async def get_property_backlinks(
 
     await _resolve_display_names_for_responses(service, page_nodes, [r.source_page for r in result])
 
+    await _enrich_node_responses_uuids([r.source_page for r in result], repo, property_repo)
+
+    property_ids = {r.property_id for r in result if r.property_id}
+    property_uuid_map = await _resolve_property_uuids(property_repo, property_ids)
+    for r in result:
+        r.property_uuid = property_uuid_map.get(r.property_id) if r.property_id else None
+
     return {"property_backlinks": result}
 
 
 # ==================== ALIAS ENDPOINTS ==
 
 
-@router.get("/{node_id}/aliases")
+@router.get("/{node_uuid}/aliases")
 async def get_aliases(
-    node_id: int,
+    node_id: int = Depends(resolve_node_uuid),
     user: User = Depends(get_current_user),
+    repo: NodeRepository = Depends(get_node_repository),
+    property_repo: PropertyRepository = Depends(get_property_repository),
 ):
     """Get all aliases for a node (pages that are aliases of this node)."""
     service = await _get_node_service(user)
@@ -491,15 +575,18 @@ async def get_aliases(
             aliases.append(_node_to_response(alias_node))
 
     await _resolve_display_names_for_responses(service, alias_nodes, aliases)
+    await _enrich_node_responses_uuids(aliases, repo, property_repo)
 
     return {"aliases": aliases}
 
 
-@router.post("/{node_id}/aliases")
+@router.post("/{node_uuid}/aliases")
 async def add_alias(
-    node_id: int,
     request: AliasRequest,
+    node_id: int = Depends(resolve_node_uuid),
     user: User = Depends(get_current_user),
+    repo: NodeRepository = Depends(get_node_repository),
+    property_repo: PropertyRepository = Depends(get_property_repository),
 ):
     """Add a page as an alias of this node.
 
@@ -511,13 +598,15 @@ async def add_alias(
     """
     service = await _get_node_service(user)
 
-    alias_node = await service.get_node_by_id(request.alias_node_id)
-    if not alias_node:
+    alias_node = await repo.get_by_uuid(request.alias_node_uuid)
+    if alias_node is None or alias_node.id is None:
         raise HTTPException(404, "Alias node not found")
+    alias_node_id = alias_node.id
+
     before_aliased_id = alias_node.aliased_id
 
     try:
-        node = await service.add_alias_atomic(node_id, request.alias_node_id)
+        node = await service.add_alias_atomic(node_id, alias_node_id)
     except NodeNotFoundError as e:
         raise HTTPException(404, str(e)) from e
     except NodeValidationError as e:
@@ -530,22 +619,24 @@ async def add_alias(
             "add_alias",
             "node",
             node_id,
-            before_state={"alias_node_id": request.alias_node_id, "aliased_id": before_aliased_id},
-            after_state={"alias_node_id": request.alias_node_id, "aliased_id": node_id},
-            description=f"Added alias {request.alias_node_id} to node {node_id}",
+            before_state={"alias_node_id": alias_node_id, "aliased_id": before_aliased_id},
+            after_state={"alias_node_id": alias_node_id, "aliased_id": node_id},
+            description=f"Added alias {alias_node_id} to node {node_id}",
         )
     except (ValueError, TypeError, LookupError):
         pass
 
     # Return updated target node with aliases
     alias_ids = await service.get_alias_ids(node_id)
-    return _node_to_response(node, aliases=alias_ids)
+    response = _node_to_response(node, aliases=alias_ids)
+    await _enrich_node_responses_uuids(response, repo, property_repo)
+    return response
 
 
-@router.delete("/{node_id}/aliases/{alias_id}")
+@router.delete("/{node_uuid}/aliases/{alias_uuid}")
 async def remove_alias(
-    node_id: int,
-    alias_id: int,
+    node_id: int = Depends(resolve_node_uuid),
+    alias_id: int = Depends(resolve_alias_uuid),
     user: User = Depends(get_current_user),
 ):
     """Remove an alias from a node (clears aliased_id on the alias node)."""
@@ -660,9 +751,9 @@ async def fix_links_for_uuid(
 # ==================== UNLINKED MENTIONS ENDPOINTS ====================
 
 
-@router.get("/{node_id}/mentions")
+@router.get("/{node_uuid}/mentions")
 async def get_unlinked_mentions(
-    node_id: int,
+    node_id: int = Depends(resolve_node_uuid),
     user: User = Depends(get_current_user),
 ):
     """Get unlinked mention candidates for a node."""
@@ -687,10 +778,10 @@ async def get_unlinked_mentions(
     }
 
 
-@router.post("/{node_id}/mentions/{mention_id}/promote")
+@router.post("/{node_uuid}/mentions/{mention_id}/promote")
 async def promote_mention(
-    node_id: int,
-    mention_id: int,
+    node_id: int = Depends(resolve_node_uuid),
+    mention_id: int = Path(...),
     user: User = Depends(get_current_user),
 ):
     """Promote an unlinked mention to a real [[node link]]."""
@@ -708,10 +799,10 @@ async def promote_mention(
     return {"success": True, "source_node_id": updated.id}
 
 
-@router.post("/{node_id}/mentions/{mention_id}/ignore")
+@router.post("/{node_uuid}/mentions/{mention_id}/ignore")
 async def ignore_mention(
-    node_id: int,
-    mention_id: int,
+    node_id: int = Depends(resolve_node_uuid),
+    mention_id: int = Path(...),
     user: User = Depends(get_current_user),
 ):
     """Ignore an unlinked mention candidate."""
@@ -722,10 +813,10 @@ async def ignore_mention(
     return {"success": True, "is_ignored": True}
 
 
-@router.post("/{node_id}/mentions/{mention_id}/unignore")
+@router.post("/{node_uuid}/mentions/{mention_id}/unignore")
 async def unignore_mention(
-    node_id: int,
-    mention_id: int,
+    node_id: int = Depends(resolve_node_uuid),
+    mention_id: int = Path(...),
     user: User = Depends(get_current_user),
 ):
     """Restore a previously ignored mention candidate."""

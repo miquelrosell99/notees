@@ -202,11 +202,11 @@ export function BlockList({
   const focusNextBlock = useEditorFocusStore((s) => s.focusNextBlock);
   const setPendingFocus = useEditorFocusStore((s) => s.setPendingFocus);
 
-  const setRowRef = useCallback((uuid: string, ref: BlockRowHandle | null) => {
+  const setRowRef = useCallback((blockUuid: string, ref: BlockRowHandle | null) => {
     if (ref) {
-      rowRefs.current.set(uuid, ref);
+      rowRefs.current.set(blockUuid, ref);
     } else {
-      rowRefs.current.delete(uuid);
+      rowRefs.current.delete(blockUuid);
     }
   }, []);
 

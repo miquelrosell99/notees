@@ -13,7 +13,7 @@ import { useNavigationStore } from '@/stores';
 import { useShallow } from 'zustand/react/shallow';
 import type { MainViewType } from '@/stores';
 import { useIsMobile } from '@/hooks';
-import { useNode, useNodeByUuid } from '@/features/content';
+import { useNodeByUuid } from '@/features/content';
 
 import { WorkspaceSwitcher, WorkspaceModal, useWorkspaceSettings, useEmptyTrash } from '@/features/workspace';
 import { GraphSettingsModal, UserSettingsModal, SystemSettingsModal } from '@/features/layout/components/Modals';
@@ -69,14 +69,14 @@ interface CollapsedSidebarViewProps {
   showInbox: boolean;
   showWhiteboards: boolean;
   showTasks: boolean;
-  inboxNode?: { id: number } | null;
+  inboxNode?: { uuid: string } | null;
   mainViewType: MainViewType;
   setMainViewType: (view: MainViewType) => void;
-  openNode: (id: number) => void;
-  openNodeInNewTab: (id: number) => void;
+  openNode: (nodeUuid: string) => void;
+  openNodeInNewTab: (nodeUuid: string) => void;
   closeMobileDrawer: () => void;
-  onFavoriteContextMenu: (nodeId: number, e: React.MouseEvent) => void;
-  onRecentContextMenu: (nodeId: number, e: React.MouseEvent) => void;
+  onFavoriteContextMenu: (nodeUuid: string, e: React.MouseEvent) => void;
+  onRecentContextMenu: (nodeUuid: string, e: React.MouseEvent) => void;
   onTrashContextMenu: (e: React.MouseEvent) => void;
   onOpenGraphSettings: () => void;
   onOpenUserSettings: () => void;
@@ -153,11 +153,11 @@ function CollapsedSidebarView({
   );
 
   const handleOpenInbox = useCallback((e?: React.MouseEvent) => {
-    if (inboxNode?.id) {
+    if (inboxNode?.uuid) {
       if (e?.ctrlKey || e?.metaKey) {
-        openNodeInNewTab(inboxNode.id);
+        openNodeInNewTab(inboxNode.uuid);
       } else {
-        openNode(inboxNode.id);
+        openNode(inboxNode.uuid);
       }
       closeMobileDrawer();
     }
@@ -403,7 +403,7 @@ export function Sidebar({ collapsed }: SidebarProps) {
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isUserSettingsOpen, setIsUserSettingsOpen] = useState(false);
   const [isSystemSettingsOpen, setIsSystemSettingsOpen] = useState(false);
-  const [contextMenuNode, setContextMenuNode] = useState<number | null>(null);
+  const [contextMenuNode, setContextMenuNode] = useState<string | null>(null);
   const [contextMenuPos, setContextMenuPos] = useState({ x: 0, y: 0 });
   const [trashContextMenuPos, setTrashContextMenuPos] = useState<{ x: number; y: number } | null>(null);
   const [showEmptyTrashConfirm, setShowEmptyTrashConfirm] = useState(false);
@@ -442,7 +442,7 @@ export function Sidebar({ collapsed }: SidebarProps) {
   });
 
   // Fetch the context menu node data
-  const { data: contextNode } = useNode(contextMenuNode);
+  const { data: contextNode } = useNodeByUuid(contextMenuNode);
 
   const isMobile = useIsMobile();
 
@@ -469,16 +469,16 @@ export function Sidebar({ collapsed }: SidebarProps) {
   }, []);
 
   // Handle context menu for favorites
-  const handleFavoriteContextMenu = useCallback((nodeId: number, e: React.MouseEvent) => {
-    setContextMenuNode(nodeId);
+  const handleFavoriteContextMenu = useCallback((nodeUuid: string, e: React.MouseEvent) => {
+    setContextMenuNode(nodeUuid);
     setContextMenuPos({ x: e.clientX, y: e.clientY });
   }, []);
 
   // Handle context menu for recents
-  const handleRecentContextMenu = useCallback((nodeId: number, e: React.MouseEvent) => {
+  const handleRecentContextMenu = useCallback((nodeUuid: string, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    setContextMenuNode(nodeId);
+    setContextMenuNode(nodeUuid);
     setContextMenuPos({ x: e.clientX, y: e.clientY });
   }, []);
 
@@ -496,11 +496,11 @@ export function Sidebar({ collapsed }: SidebarProps) {
 
   // Open the real Inbox system page
   const handleOpenInbox = useCallback((e?: React.MouseEvent) => {
-    if (inboxNode?.id) {
+    if (inboxNode?.uuid) {
       if (e?.ctrlKey || e?.metaKey) {
-        openNodeInNewTab(inboxNode.id);
+        openNodeInNewTab(inboxNode.uuid);
       } else {
-        openNode(inboxNode.id);
+        openNode(inboxNode.uuid);
       }
       closeMobileDrawer();
     }

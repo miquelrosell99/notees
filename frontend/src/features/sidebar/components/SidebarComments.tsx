@@ -39,18 +39,18 @@ function CommentsList({ comments }: CommentsListProps) {
         hideToolbar
         showEmpty={false}
         size="sm"
-        onNodeClick={(node) => openNode(node.id)}
+        onNodeClick={(node) => openNode(node.uuid)}
       />
     </div>
   );
 }
 
 interface QuickAddCommentProps {
-  nodeId: number;
+  nodeUuid: string;
   onClose: () => void;
 }
 
-function QuickAddComment({ nodeId, onClose }: QuickAddCommentProps) {
+function QuickAddComment({ nodeUuid, onClose }: QuickAddCommentProps) {
   const [text, setText] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const createComment = useCreateComment();
@@ -62,7 +62,7 @@ function QuickAddComment({ nodeId, onClose }: QuickAddCommentProps) {
   const handleSubmit = () => {
     if (!text.trim()) return;
     createComment.mutate(
-      { nodeId, name: text.trim() },
+      { nodeId: nodeUuid, name: text.trim() },
       { onSuccess: () => { setText(''); onClose(); } }
     );
   };
@@ -105,13 +105,13 @@ function QuickAddComment({ nodeId, onClose }: QuickAddCommentProps) {
 }
 
 interface SidebarCommentsProps {
-  nodeId: number;
+  nodeUuid: string;
   comments: Node[];
   count: number;
   loading: boolean;
 }
 
-export function SidebarComments({ nodeId, comments, count, loading }: SidebarCommentsProps) {
+export function SidebarComments({ nodeUuid, comments, count, loading }: SidebarCommentsProps) {
   const [expanded, setExpanded] = useState(false);
   const [quickAddOpen, setQuickAddOpen] = useState(false);
 
@@ -138,7 +138,7 @@ export function SidebarComments({ nodeId, comments, count, loading }: SidebarCom
         </div>
       }
     >
-      {quickAddOpen && <QuickAddComment nodeId={nodeId} onClose={() => setQuickAddOpen(false)} />}
+      {quickAddOpen && <QuickAddComment nodeUuid={nodeUuid} onClose={() => setQuickAddOpen(false)} />}
       {loading ? (
         <div className="sidebar-section-loading"><Spinner size="sm" centered /></div>
       ) : (

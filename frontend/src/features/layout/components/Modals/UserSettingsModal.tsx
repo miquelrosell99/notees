@@ -112,10 +112,10 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
     }
   };
 
-  const handleRevokeApiKey = async (keyId: string) => {
+  const handleRevokeApiKey = async (keyUuid: string) => {
     setApiKeyError(null);
     try {
-      await revokeApiKey(keyId);
+      await revokeApiKey(keyUuid);
       await loadApiKeys();
     } catch (err) {
       setApiKeyError(err instanceof Error ? err.message : 'Failed to revoke API key');

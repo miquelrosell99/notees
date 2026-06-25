@@ -109,7 +109,7 @@ export function InlineLink({ linkId, refType, url, label }: InlineLinkProps) {
       const { getNodeByUuid } = await import('@/api/nodes');
       const node = await getNodeByUuid(nodeUuid);
       if (node) {
-        openNode(node.id);
+        openNode(node.uuid);
       }
     } catch {
       // Node not found or network error — silently ignore
@@ -134,7 +134,7 @@ export function InlineLink({ linkId, refType, url, label }: InlineLinkProps) {
       const node = await getNodeByUuid(nodeUuid);
       if (node) {
         const cardType: SidebarCardType = node.is_page ? 'page' : 'block';
-        addSidebarCard(node.id, cardType);
+        addSidebarCard(node.uuid, cardType);
       }
     } catch {
       // Silently ignore

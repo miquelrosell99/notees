@@ -34,10 +34,11 @@ class TestPagePrivacy:
         assert create_resp.status_code == 200
         page = create_resp.json()
         page_id = page["id"]
+        page_uuid = page["uuid"]
 
         # Set page to private
         update_resp = await authenticated_client.put(
-            f"/api/nodes/{page_id}", json={"is_private": True}
+            f"/api/nodes/{page_uuid}", json={"is_private": True}
         )
         assert update_resp.status_code == 200
 
@@ -62,7 +63,7 @@ class TestPagePrivacy:
         other_client.headers.update({"Authorization": f"Bearer {other_token}"})
 
         # Attempt to read the private page
-        get_resp = await other_client.get(f"/api/nodes/{page_id}")
+        get_resp = await other_client.get(f"/api/nodes/{page_uuid}")
         assert get_resp.status_code == 404
 
         # Clean up other client headers
@@ -78,13 +79,14 @@ class TestPagePrivacy:
         assert create_resp.status_code == 200
         page = create_resp.json()
         page_id = page["id"]
+        page_uuid = page["uuid"]
 
         update_resp = await authenticated_client.put(
-            f"/api/nodes/{page_id}", json={"is_private": True}
+            f"/api/nodes/{page_uuid}", json={"is_private": True}
         )
         assert update_resp.status_code == 200
 
-        get_resp = await authenticated_client.get(f"/api/nodes/{page_id}")
+        get_resp = await authenticated_client.get(f"/api/nodes/{page_uuid}")
         assert get_resp.status_code == 200
         data = get_resp.json()
         assert data["id"] == page_id
@@ -103,10 +105,11 @@ class TestPagePrivacy:
         assert create_resp.status_code == 200
         page = create_resp.json()
         page_id = page["id"]
+        page_uuid = page["uuid"]
 
         # Default is not private; ensure it explicitly
         update_resp = await authenticated_client.put(
-            f"/api/nodes/{page_id}", json={"is_private": False}
+            f"/api/nodes/{page_uuid}", json={"is_private": False}
         )
         assert update_resp.status_code == 200
 
@@ -129,7 +132,7 @@ class TestPagePrivacy:
         other_client = client
         other_client.headers.update({"Authorization": f"Bearer {other_token}"})
 
-        get_resp = await other_client.get(f"/api/nodes/{page_id}")
+        get_resp = await other_client.get(f"/api/nodes/{page_uuid}")
         assert get_resp.status_code == 200
         data = get_resp.json()
         assert data["id"] == page_id
@@ -148,14 +151,15 @@ class TestPagePrivacy:
         assert create_resp.status_code == 200
         page = create_resp.json()
         page_id = page["id"]
+        page_uuid = page["uuid"]
 
         update_resp = await authenticated_client.put(
-            f"/api/nodes/{page_id}", json={"is_private": False}
+            f"/api/nodes/{page_uuid}", json={"is_private": False}
         )
         assert update_resp.status_code == 200
 
         # Create a public share for the page
-        share_resp = await authenticated_client.post(f"/api/nodes/{page_id}/shares", json={})
+        share_resp = await authenticated_client.post(f"/api/nodes/{page_uuid}/shares", json={})
         assert share_resp.status_code == 200
         share_data = share_resp.json()
         share_uuid = share_data["share_uuid"]
@@ -183,8 +187,9 @@ class TestPublicShareStaticHtml:
         assert create_resp.status_code == 200
         page = create_resp.json()
         page_id = page["id"]
+        page_uuid = page["uuid"]
 
-        share_resp = await authenticated_client.post(f"/api/nodes/{page_id}/shares", json={})
+        share_resp = await authenticated_client.post(f"/api/nodes/{page_uuid}/shares", json={})
         assert share_resp.status_code == 200
         share_uuid = share_resp.json()["share_uuid"]
 
@@ -202,8 +207,9 @@ class TestPublicShareStaticHtml:
         create_resp = await authenticated_client.post("/api/nodes/page", params={"name": "Served Page"})
         assert create_resp.status_code == 200
         page_id = create_resp.json()["id"]
+        page_uuid = create_resp.json()["uuid"]
 
-        share_resp = await authenticated_client.post(f"/api/nodes/{page_id}/shares", json={})
+        share_resp = await authenticated_client.post(f"/api/nodes/{page_uuid}/shares", json={})
         assert share_resp.status_code == 200
         share_uuid = share_resp.json()["share_uuid"]
 
@@ -223,8 +229,9 @@ class TestPublicShareStaticHtml:
         assert create_resp.status_code == 200
         page = create_resp.json()
         page_id = page["id"]
+        page_uuid = page["uuid"]
 
-        share_resp = await authenticated_client.post(f"/api/nodes/{page_id}/shares", json={})
+        share_resp = await authenticated_client.post(f"/api/nodes/{page_uuid}/shares", json={})
         assert share_resp.status_code == 200
         share_uuid = share_resp.json()["share_uuid"]
 
@@ -234,7 +241,7 @@ class TestPublicShareStaticHtml:
 
         # Update the page content
         update_resp = await authenticated_client.put(
-            f"/api/nodes/{page_id}", json={"name": "Updated Content"}
+            f"/api/nodes/{page_uuid}", json={"name": "Updated Content"}
         )
         assert update_resp.status_code == 200
 
@@ -252,9 +259,11 @@ class TestPublicShareStaticHtml:
         """Deleting a share should remove the static HTML file."""
         create_resp = await authenticated_client.post("/api/nodes/page", params={"name": "Removable Page"})
         assert create_resp.status_code == 200
-        page_id = create_resp.json()["id"]
+        page = create_resp.json()
+        page_id = page["id"]
+        page_uuid = page["uuid"]
 
-        share_resp = await authenticated_client.post(f"/api/nodes/{page_id}/shares", json={})
+        share_resp = await authenticated_client.post(f"/api/nodes/{page_uuid}/shares", json={})
         assert share_resp.status_code == 200
         share_uuid = share_resp.json()["share_uuid"]
 

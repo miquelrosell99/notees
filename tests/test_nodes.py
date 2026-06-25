@@ -46,7 +46,7 @@ class TestNodeCreation:
         page = page_response.json()
 
         # Then create a block under it
-        sample_block_data["parent_id"] = page["id"]
+        sample_block_data["parent_uuid"] = page["uuid"]
         block_response = await authenticated_client.post(
             "/api/nodes/",
             json=sample_block_data
@@ -91,7 +91,7 @@ class TestNodeRetrieval:
         node = create_response.json()
 
         # Retrieve it
-        get_response = await authenticated_client.get(f"/api/nodes/{node['id']}")
+        get_response = await authenticated_client.get(f"/api/nodes/{node['uuid']}")
         assert get_response.status_code == 200
 
         retrieved = get_response.json()
@@ -100,7 +100,7 @@ class TestNodeRetrieval:
     @pytest.mark.asyncio
     async def test_get_nonexistent_node(self, authenticated_client: AsyncClient):
         """Test retrieving a node that doesn't exist."""
-        response = await authenticated_client.get("/api/nodes/999999")
+        response = await authenticated_client.get("/api/nodes/00000000-0000-0000-0000-000000099999")
         assert response.status_code == 404
 
     @pytest.mark.asyncio
@@ -242,7 +242,7 @@ class TestNodeUpdate:
 
         # Update it - use name field
         update_response = await authenticated_client.put(
-            f"/api/nodes/{node['id']}",
+            f"/api/nodes/{node['uuid']}",
             json={"name": "Updated content"}
         )
         assert update_response.status_code == 200
@@ -270,9 +270,9 @@ class TestNodeDeletion:
         node = create_response.json()
 
         # Delete it
-        delete_response = await authenticated_client.delete(f"/api/nodes/{node['id']}")
+        delete_response = await authenticated_client.delete(f"/api/nodes/{node['uuid']}")
         assert delete_response.status_code == 200
 
         # Verify it's gone
-        get_response = await authenticated_client.get(f"/api/nodes/{node['id']}")
+        get_response = await authenticated_client.get(f"/api/nodes/{node['uuid']}")
         assert get_response.status_code == 404

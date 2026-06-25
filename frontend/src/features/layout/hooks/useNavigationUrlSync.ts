@@ -12,7 +12,6 @@ import { useNavigationHistoryStore } from '@/stores/navigationHistoryStore';
 import { buildUrl } from './url';
 import { getNode } from '@/api/nodes';
 import { getLogger } from '@/utils/logger';
-
 const log = getLogger('NavigationUrlSync');
 
 interface NavigationUrlSyncRefs {
@@ -27,8 +26,8 @@ export function useNavigationUrlSync({ hasInitialized, isProcessingUrl }: Naviga
 
   const {
     mainViewType,
-    currentNodeId,
-    currentPropertyId,
+    currentNodeUuid,
+    currentPropertyUuid,
     tabs,
     activeTabId,
     secondaryTabId,
@@ -36,8 +35,8 @@ export function useNavigationUrlSync({ hasInitialized, isProcessingUrl }: Naviga
   } = useNavigationStore(
     useShallow((s) => ({
       mainViewType: s.mainViewType,
-      currentNodeId: s.currentNodeId,
-      currentPropertyId: s.currentPropertyId,
+      currentNodeUuid: s.currentNodeUuid,
+      currentPropertyUuid: s.currentPropertyUuid,
       tabs: s.tabs,
       activeTabId: s.activeTabId,
       secondaryTabId: s.secondaryTabId,
@@ -47,8 +46,8 @@ export function useNavigationUrlSync({ hasInitialized, isProcessingUrl }: Naviga
 
   const prevStateRef = useRef<{
     mainViewType: MainViewType;
-    currentNodeId: number | null;
-    currentPropertyId: number | null;
+    currentNodeUuid: string | null;
+    currentPropertyUuid: string | null;
     activeTabId: string | null;
     secondaryTabId: string | null;
     splitOrientation: 'horizontal' | 'vertical' | null;
@@ -61,8 +60,8 @@ export function useNavigationUrlSync({ hasInitialized, isProcessingUrl }: Naviga
     const stateChanged =
       !prevState ||
       prevState.mainViewType !== mainViewType ||
-      prevState.currentNodeId !== currentNodeId ||
-      prevState.currentPropertyId !== currentPropertyId ||
+      prevState.currentNodeUuid !== currentNodeUuid ||
+      prevState.currentPropertyUuid !== currentPropertyUuid ||
       prevState.activeTabId !== activeTabId ||
       prevState.secondaryTabId !== secondaryTabId ||
       prevState.splitOrientation !== splitOrientation;
@@ -71,8 +70,8 @@ export function useNavigationUrlSync({ hasInitialized, isProcessingUrl }: Naviga
 
     prevStateRef.current = {
       mainViewType,
-      currentNodeId,
-      currentPropertyId,
+      currentNodeUuid,
+      currentPropertyUuid,
       activeTabId: activeTabId ?? null,
       secondaryTabId: secondaryTabId ?? null,
       splitOrientation: splitOrientation ?? null,
@@ -84,17 +83,17 @@ export function useNavigationUrlSync({ hasInitialized, isProcessingUrl }: Naviga
       const secondaryTab = tabs.find((t) => t.id === secondaryTabId);
 
       if (secondaryTab && splitOrient) {
-        if (secondaryTab.nodeId) {
+        if (secondaryTab.nodeUuid) {
           try {
-            const node = await getNode(secondaryTab.nodeId);
+            const node = await getNode(secondaryTab.nodeUuid);
             splitUuid = node.uuid;
           } catch {
             /* ignore */
           }
-        } else if (secondaryTab.propertyId) {
+        } else if (secondaryTab.propertyUuid) {
           try {
             const { getProperty } = await import('@/api/properties');
-            const property = await getProperty(secondaryTab.propertyId);
+            const property = await getProperty(secondaryTab.propertyUuid);
             splitUuid = property.uuid;
           } catch {
             /* ignore */
@@ -110,10 +109,10 @@ export function useNavigationUrlSync({ hasInitialized, isProcessingUrl }: Naviga
       };
 
       const build = async (): Promise<string> => {
-        if (mainViewType === 'property' && currentPropertyId) {
+        if (mainViewType === 'property' && currentPropertyUuid) {
           try {
             const { getProperty } = await import('@/api/properties');
-            const property = await getProperty(currentPropertyId);
+            const property = await getProperty(currentPropertyUuid);
             return buildUrl({ ...baseParams, nodeUuid: null, propertyUuid: property.uuid });
           } catch (err) {
             log.error('Failed to get property UUID for URL', err);
@@ -125,14 +124,14 @@ export function useNavigationUrlSync({ hasInitialized, isProcessingUrl }: Naviga
           return buildUrl({ ...baseParams, nodeUuid: null, propertyUuid: null });
         }
 
-        if (mainViewType === 'node' && currentNodeId) {
+        if (mainViewType === 'node' && currentNodeUuid) {
           try {
-            const node = await getNode(currentNodeId);
+            const node = await getNode(currentNodeUuid);
             return buildUrl({ ...baseParams, nodeUuid: node.uuid, propertyUuid: null });
           } catch (err) {
             log.error('Failed to get node UUID for URL', err);
-            return buildUrl({ ...baseParams, nodeUuid: null, propertyUuid: null });
           }
+          return buildUrl({ ...baseParams, nodeUuid: null, propertyUuid: null });
         }
 
         return buildUrl({ ...baseParams, nodeUuid: null, propertyUuid: null });
@@ -151,8 +150,8 @@ export function useNavigationUrlSync({ hasInitialized, isProcessingUrl }: Naviga
     updateUrlAsync();
   }, [
     mainViewType,
-    currentNodeId,
-    currentPropertyId,
+    currentNodeUuid,
+    currentPropertyUuid,
     tabs,
     activeTabId,
     secondaryTabId,

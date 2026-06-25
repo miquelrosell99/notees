@@ -32,6 +32,7 @@ async def list_notifications(
         notifications.append(
             NotificationResponse(
                 id=str(r["id"]),
+                notification_uuid=str(r["uuid"]) if r["uuid"] else "",
                 type=r["type"],
                 actor_user_id=str(r["actor_user_id"]) if r["actor_user_id"] else None,
                 actor_name=r["actor_name"],
@@ -46,14 +47,14 @@ async def list_notifications(
     return {"notifications": notifications, "unread_count": sum(1 for n in notifications if not n.is_read)}
 
 
-@router.post("/{notification_id}/read")
+@router.post("/{notification_uuid}/read")
 async def mark_notification_read(
-    notification_id: int,
+    notification_uuid: str,
     user: User = Depends(get_current_user),
     service: NotificationService = Depends(get_notification_service),
 ):
     """Mark a notification as read."""
-    updated = await service._repo.mark_notification_read(notification_id, int(user.id))
+    updated = await service._repo.mark_notification_read_by_uuid(notification_uuid, int(user.id))
     if not updated:
         raise HTTPException(status_code=404, detail="Notification not found")
 

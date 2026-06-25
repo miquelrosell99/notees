@@ -7,9 +7,12 @@ from app.dependencies import (
 )
 from app.dependencies import (
     get_current_user,
+    get_node_repository,
 )
+from app.features.nodes.port import NodeRepository
 from app.models import PaginatedResponse, User
 
+from .dependencies import resolve_class_uuid, resolve_node_uuid
 from .helpers import (
     _get_class_ids_batch,
     _get_extends_batch,
@@ -120,16 +123,22 @@ async def get_nodes_with_class(
     )
 
 
-@router.post("/{node_id}/classes")
+@router.post("/{node_uuid}/classes")
 async def add_node_class(
-    node_id: int,
     request: ClassRequest,
+    node_id: int = Depends(resolve_node_uuid),
     user: User = Depends(get_current_user),
+    repo: NodeRepository = Depends(get_node_repository),
 ):
     """Add a class to a node."""
     from app.domain.errors import SystemClassConstraintError
 
     service = await _get_node_service(user)
+
+    class_node = await repo.get_by_uuid(request.class_node_uuid)
+    if class_node is None or class_node.id is None:
+        raise HTTPException(status_code=404, detail="Class not found")
+    class_node_id = class_node.id
 
     # Snapshot full node state before add
     before_node = await service.get_node(node_id)
@@ -141,11 +150,11 @@ async def add_node_class(
         "classes_path": list(before_node.classes_path),
     }
 
-    if request.class_node_id in before_state["class_ids"]:
+    if class_node_id in before_state["class_ids"]:
         raise HTTPException(400, "Class already present")
 
     try:
-        node = await service.add_class_with_side_effects(node_id, request.class_node_id)
+        node = await service.add_class_with_side_effects(node_id, class_node_id)
     except SystemClassConstraintError as e:
         raise HTTPException(400, e.message) from e
 
@@ -172,10 +181,10 @@ async def add_node_class(
     return _node_to_response(node, classes=[c.id for c in classes if c.id])
 
 
-@router.delete("/{node_id}/classes/{class_id}")
+@router.delete("/{node_uuid}/classes/{class_uuid}")
 async def remove_node_class_endpoint(
-    node_id: int,
-    class_id: int,
+    node_id: int = Depends(resolve_node_uuid),
+    class_id: int = Depends(resolve_class_uuid),
     user: User = Depends(get_current_user),
 ):
     """Remove a class from a node."""

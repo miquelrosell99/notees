@@ -188,6 +188,7 @@ class PostgresPropertyRepository(BasePostgresRepository, PropertyRepository):
 
         return PropertySelectionLine(
             id=row["id"],
+            uuid=str(row.get("uuid", "")) if row.get("uuid") else generate_uuid(),
             property_id=row["property_id"],
             name=row["name"],
             icon=row.get("icon"),
@@ -201,6 +202,7 @@ class PostgresPropertyRepository(BasePostgresRepository, PropertyRepository):
         """Convert database row to ClassProperty entity."""
         return ClassProperty(
             id=row["id"],
+            uuid=str(row.get("uuid", "")) if row.get("uuid") else generate_uuid(),
             class_node_id=row["class_node_id"],
             property_id=row["property_id"],
             sequence=row.get("sequence", 0),
@@ -308,6 +310,20 @@ class PostgresPropertyRepository(BasePostgresRepository, PropertyRepository):
             if not row:
                 return None
             return await self.get_by_id(row["id"])
+
+    async def get_by_uuids(self, uuids: list[str]) -> list[Property]:
+        """Get multiple properties by UUID in a single query, preserving order."""
+        if not uuids:
+            return []
+        async with acquire_connection(self._pool) as conn:
+            rows = await conn.fetch(
+                "SELECT * FROM property WHERE uuid = ANY($1) AND active = TRUE",
+                uuids,
+            )
+            uuid_to_row = {str(row["uuid"]): row for row in rows}
+            properties = [self._row_to_property(uuid_to_row[uuid]) for uuid in uuids if uuid in uuid_to_row]
+            await self._load_property_extras(conn, properties)
+            return properties
 
     async def get_by_name(self, name: str, node_id: int | None = None) -> Property | None:
         """Get property by name."""
@@ -621,6 +637,14 @@ class PostgresPropertyRepository(BasePostgresRepository, PropertyRepository):
             )
             return self._row_to_node_property(row) if row else None
 
+    async def get_node_property_by_id(self, node_property_id: int) -> NodeProperty | None:
+        """Get a node_property assignment by its internal ID."""
+        async with acquire_connection(self._pool) as conn:
+            row = await conn.fetchrow(
+                "SELECT * FROM node_property WHERE id = $1", node_property_id
+            )
+            return self._row_to_node_property(row) if row else None
+
     async def get_node_properties(self, node_id: int) -> list[NodeProperty]:
         """Get all property assignments for a node."""
         async with acquire_connection(self._pool) as conn:
@@ -865,6 +889,39 @@ class PostgresPropertyRepository(BasePostgresRepository, PropertyRepository):
             )
             return [self._row_to_selection_line(row) for row in rows]
 
+    async def get_selection_line_by_uuid(self, uuid: str) -> PropertySelectionLine | None:
+        """Get a selection option by its public UUID."""
+        async with acquire_connection(self._pool) as conn:
+            row = await conn.fetchrow(
+                "SELECT * FROM property_selection_line WHERE uuid = $1", uuid
+            )
+            return self._row_to_selection_line(row) if row else None
+
+    async def get_selection_lines_by_ids(self, ids: list[int]) -> list[PropertySelectionLine]:
+        """Get multiple selection options by internal ID in a single query."""
+        if not ids:
+            return []
+        async with acquire_connection(self._pool) as conn:
+            rows = await conn.fetch(
+                "SELECT * FROM property_selection_line WHERE id = ANY($1)", ids
+            )
+            return [self._row_to_selection_line(row) for row in rows]
+
+    async def get_selection_lines_by_uuids(self, uuids: list[str]) -> list[PropertySelectionLine]:
+        """Get multiple selection options by public UUID in a single query, preserving order."""
+        if not uuids:
+            return []
+        async with acquire_connection(self._pool) as conn:
+            rows = await conn.fetch(
+                "SELECT * FROM property_selection_line WHERE uuid = ANY($1)", uuids
+            )
+            uuid_to_row = {str(row["uuid"]): row for row in rows}
+            return [
+                self._row_to_selection_line(uuid_to_row[uuid])
+                for uuid in uuids
+                if uuid in uuid_to_row
+            ]
+
     async def update_selection_line(
         self,
         line_id: int,
@@ -1008,25 +1065,66 @@ class PostgresPropertyRepository(BasePostgresRepository, PropertyRepository):
                 INSERT INTO property_class_filter (property_id, class_node_id)
                 VALUES ($1, $2)
                 ON CONFLICT DO NOTHING
-                RETURNING id
+                RETURNING id, uuid
             """,
                 property_id,
                 class_node_id,
             )
 
+            if row is None:
+                row = await conn.fetchrow(
+                    """
+                    SELECT id, uuid FROM property_class_filter
+                    WHERE property_id = $1 AND class_node_id = $2
+                """,
+                    property_id,
+                    class_node_id,
+                )
+
             return PropertyClassFilter(
                 id=row["id"] if row else 0,
+                uuid=str(row["uuid"]) if row and row.get("uuid") else generate_uuid(),
                 property_id=property_id,
                 class_node_id=class_node_id,
             )
 
-    async def get_class_filters(self, property_id: int) -> list[int]:
-        """Get all class filter node IDs for a property."""
+    async def get_class_filters(self, property_id: int) -> list[PropertyClassFilter]:
+        """Get all class filters for a property."""
         async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch(
-                "SELECT class_node_id FROM property_class_filter WHERE property_id = $1", property_id
+                "SELECT id, uuid, class_node_id FROM property_class_filter WHERE property_id = $1", property_id
             )
-            return [row["class_node_id"] for row in rows]
+            return [
+                PropertyClassFilter(
+                    id=row["id"],
+                    uuid=str(row["uuid"]),
+                    property_id=property_id,
+                    class_node_id=row["class_node_id"],
+                )
+                for row in rows
+            ]
+
+    async def get_class_filter_by_uuid(self, uuid: str) -> PropertyClassFilter | None:
+        """Get a class filter by its public UUID."""
+        async with acquire_connection(self._pool) as conn:
+            row = await conn.fetchrow(
+                """
+                SELECT pcf.id, pcf.uuid, pcf.property_id, pcf.class_node_id
+                FROM property_class_filter pcf
+                JOIN property p ON p.id = pcf.property_id
+                WHERE pcf.uuid = $1 AND (p.workspace_id = $2 OR p.workspace_id IS NULL)
+            """,
+                uuid,
+                self._workspace_id,
+            )
+            if not row:
+                return None
+            return PropertyClassFilter(
+                id=row["id"],
+                uuid=str(row["uuid"]),
+                property_id=row["property_id"],
+                class_node_id=row["class_node_id"],
+            )
 
     async def remove_class_filter(self, property_id: int, class_node_id: int) -> bool:
         """Remove a class filter from a property."""
@@ -1331,6 +1429,21 @@ class PostgresPropertyRepository(BasePostgresRepository, PropertyRepository):
             )
             return [self._row_to_class_property(row) for row in rows]
 
+    async def get_class_property_by_uuid(self, uuid: str) -> ClassProperty | None:
+        """Get a class property binding by its public UUID."""
+        async with acquire_connection(self._pool) as conn:
+            row = await conn.fetchrow(
+                """
+                SELECT cp.*
+                FROM class_property cp
+                JOIN node n ON n.id = cp.class_node_id
+                WHERE cp.uuid = $1 AND n.workspace_id = $2
+            """,
+                uuid,
+                self._workspace_id,
+            )
+            return self._row_to_class_property(row) if row else None
+
     async def add_class_property(
         self,
         class_node_id: int,
@@ -1441,15 +1554,16 @@ class PostgresPropertyRepository(BasePostgresRepository, PropertyRepository):
             rows = await conn.fetch(
                 """
                 SELECT np.property_id,
+                       p.uuid AS property_uuid,
                        COUNT(DISTINCT np.node_id) AS usage_count
                 FROM node_property np
                 JOIN property p ON np.property_id = p.id
                 WHERE p.workspace_id = $1 OR p.workspace_id IS NULL
-                GROUP BY np.property_id
+                GROUP BY np.property_id, p.uuid
                 """,
                 self._workspace_id,
             )
-        return [{"property_id": r["property_id"], "usage_count": r["usage_count"]} for r in rows]
+        return [{"property_id": r["property_id"], "property_uuid": str(r["property_uuid"]), "usage_count": r["usage_count"]} for r in rows]
 
     async def get_property_suggestions(self, node_id: int | None) -> list[dict[str, Any]]:
         """Return property suggestions for a node, ranked by usage frequency."""
@@ -1464,14 +1578,14 @@ class PostgresPropertyRepository(BasePostgresRepository, PropertyRepository):
 
             rows = await conn.fetch(
                 """
-                SELECT p.id, p.name, p.icon, p.type,
+                SELECT p.id, p.uuid, p.name, p.icon, p.type,
                        COUNT(DISTINCT np.node_id) AS usage_count
                 FROM property p
                 LEFT JOIN node_property np ON np.property_id = p.id
                 WHERE (p.workspace_id = $1 OR p.workspace_id IS NULL)
                   AND p.active = TRUE
                   AND p.scope = 'global'
-                GROUP BY p.id, p.name, p.icon, p.type
+                GROUP BY p.id, p.uuid, p.name, p.icon, p.type
                 ORDER BY usage_count DESC, p.name
                 LIMIT 20
                 """,
@@ -1480,6 +1594,7 @@ class PostgresPropertyRepository(BasePostgresRepository, PropertyRepository):
         return [
             {
                 "property_id": r["id"],
+                "property_uuid": str(r["uuid"]),
                 "name": r["name"],
                 "icon": r["icon"],
                 "type": r["type"],

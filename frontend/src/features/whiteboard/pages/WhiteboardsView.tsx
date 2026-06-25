@@ -54,12 +54,12 @@ export function WhiteboardsView({ className = '' }: WhiteboardsViewProps) {
     queryClient.invalidateQueries({ queryKey: nodeKeys.byClass(whiteboardClassId) });
 
     // Open the newly created whiteboard
-    openNode(newNode.id);
+    openNode(newNode.uuid);
   }, [whiteboardClassId, pageClassId, createNode, queryClient, openNode]);
 
   const handleNodeClick = useCallback(
     (node: Node) => {
-      openNode(node.id);
+      openNode(node.uuid);
     },
     [openNode],
   );
@@ -67,7 +67,7 @@ export function WhiteboardsView({ className = '' }: WhiteboardsViewProps) {
   const handleNodeShiftClick = useCallback(
     (node: Node) => {
       // Shift+click opens in sidebar as a page card
-      useNavigationStore.getState().addSidebarCard(node.id, 'page');
+      useNavigationStore.getState().addSidebarCard(node.uuid, 'page');
     },
     [],
   );

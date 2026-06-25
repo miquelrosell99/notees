@@ -180,7 +180,7 @@ export function WorkspaceManagementView({
   const handleRestoreConfirm = () => {
     if (restoreState.confirming && restoreState.file) {
       restoreMutation.mutate(
-        { uuid: restoreState.confirming, file: restoreState.file },
+        { workspaceUuid: restoreState.confirming, file: restoreState.file },
         {
           onSuccess: () => {
             setRestoreState({ confirming: null, file: null });

@@ -147,6 +147,7 @@ class PropertySelectionLine:
     """
 
     id: int | None = None
+    uuid: str = field(default_factory=generate_uuid)
     property_id: int = 0
     name: str = ""
     icon: str | None = None
@@ -164,6 +165,7 @@ class PropertyClassFilter:
     """
 
     id: int | None = None
+    uuid: str = field(default_factory=generate_uuid)
     property_id: int = 0
     class_node_id: int = 0  # The class node that filters
 
@@ -374,6 +376,7 @@ class ClassProperty:
     """
 
     id: int | None = None
+    uuid: str = field(default_factory=generate_uuid)
     class_node_id: int = 0  # The class node
     property_id: int = 0  # The property to apply
     sequence: int = 0  # Order of properties on the class

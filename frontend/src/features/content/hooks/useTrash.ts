@@ -6,6 +6,7 @@ import * as nodesApi from '@/api/nodes';
 import { trashKeys, nodeKeys, favoriteKeys, recentKeys } from '@/hooks/queryKeys';
 import { isFavorite, removeFavorite } from './useFavorites';
 import { removeRecent } from './useRecents';
+import { getNodeUuidByServerId } from './useNodeMutations.utils';
 import type { Node, PaginatedResponse } from '@/types/api';
 
 function invalidateTrash(queryClient: ReturnType<typeof useQueryClient>) {
@@ -16,9 +17,10 @@ function invalidateTrash(queryClient: ReturnType<typeof useQueryClient>) {
   queryClient.invalidateQueries({ queryKey: nodeKeys.allBacklinks(), refetchType: 'active' });
 }
 
-function cleanupNode(nodeId: number) {
-  if (isFavorite(nodeId)) {
-    removeFavorite(nodeId).catch(() => {});
+function cleanupNode(queryClient: ReturnType<typeof useQueryClient>, nodeId: number) {
+  const nodeUuid = getNodeUuidByServerId(queryClient, nodeId);
+  if (nodeUuid && isFavorite(nodeUuid)) {
+    removeFavorite(nodeUuid).catch(() => {});
   }
   removeRecent(nodeId);
 }
@@ -35,15 +37,23 @@ export function useTrashMutations() {
   const queryClient = useQueryClient();
 
   const restore = useMutation({
-    mutationFn: nodesApi.restoreNode,
+    mutationFn: async (nodeId: number) => {
+      const nodeUuid = getNodeUuidByServerId(queryClient, nodeId);
+      if (!nodeUuid) throw new Error('Node UUID not found');
+      return nodesApi.restoreNode(nodeUuid);
+    },
     onSuccess: () => invalidateTrash(queryClient),
   });
 
   const permanentDelete = useMutation({
-    mutationFn: nodesApi.permanentlyDeleteNode,
+    mutationFn: async (nodeId: number) => {
+      const nodeUuid = getNodeUuidByServerId(queryClient, nodeId);
+      if (!nodeUuid) throw new Error('Node UUID not found');
+      return nodesApi.permanentlyDeleteNode(nodeUuid);
+    },
     onSuccess: (_data, nodeId) => {
       invalidateTrash(queryClient);
-      cleanupNode(nodeId);
+      cleanupNode(queryClient, nodeId);
     },
   });
 
@@ -61,7 +71,7 @@ export function useTrashMutations() {
     onSuccess: (_data, ids) => {
       invalidateTrash(queryClient);
       for (const nodeId of ids) {
-        cleanupNode(nodeId);
+        cleanupNode(queryClient, nodeId);
       }
     },
   });

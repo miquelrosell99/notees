@@ -84,7 +84,7 @@ export function useCommandPaletteSelection(params: UseCommandPaletteSelectionPar
           if (onSelect) {
             onSelect(dateNode);
           } else {
-            openNode(dateNode.id);
+            openNode(dateNode.uuid);
           }
         } catch {
           notifyError('Failed to navigate to date', 'Could not open or create the date page.');
@@ -146,7 +146,7 @@ export function useCommandPaletteSelection(params: UseCommandPaletteSelectionPar
               classes,
             });
             onClose();
-            openNode(newNode.id);
+            openNode(newNode.uuid);
           } catch (createErr: unknown) {
             const axiosErr = createErr as { response?: { status?: number; data?: { detail?: { message?: string; conflicting_classes?: string[] } | string } } };
             if (axiosErr.response?.status === 409) {

@@ -5,7 +5,8 @@
  */
 import { useCallback, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { restoreNode, permanentlyDeleteNode } from '@/api/nodes';
+import * as nodesApi from '@/api/nodes';
+import { getNodeUuidByServerId } from '@/features/content/hooks/useNodeMutations.utils';
 import { nodeNameToText } from '@/features/queries';
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/ContextMenu';
 import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
@@ -34,7 +35,11 @@ export function TrashNodeContextMenu({ node, position, onClose }: TrashNodeConte
   
   // Restore mutation
   const restoreMutation = useMutation({
-    mutationFn: restoreNode,
+    mutationFn: async (nodeId: number) => {
+      const nodeUuid = getNodeUuidByServerId(queryClient, nodeId);
+      if (!nodeUuid) throw new Error('Node UUID not found');
+      return nodesApi.restoreNode(nodeUuid);
+    },
     onMutate: () => {
       // Close menu immediately; invalidate caches optimistically so the UI
       // updates even if this component unmounts before onSuccess fires.
@@ -51,7 +56,11 @@ export function TrashNodeContextMenu({ node, position, onClose }: TrashNodeConte
 
   // Permanent delete mutation
   const permanentDeleteMutation = useMutation({
-    mutationFn: permanentlyDeleteNode,
+    mutationFn: async (nodeId: number) => {
+      const nodeUuid = getNodeUuidByServerId(queryClient, nodeId);
+      if (!nodeUuid) throw new Error('Node UUID not found');
+      return nodesApi.permanentlyDeleteNode(nodeUuid);
+    },
     onMutate: () => {
       onClose();
     },

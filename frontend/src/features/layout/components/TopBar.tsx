@@ -153,7 +153,7 @@ export function TopBar() {
       id: String(entry.id),
       label: `${i + 1}. ${entry.description}`,
       onClick: () => {
-        performUndoTo(queryClient, entry.id);
+        performUndoTo(queryClient, entry);
         setUndoMenuOpen(false);
       },
     })),
@@ -166,7 +166,7 @@ export function TopBar() {
       id: String(entry.id),
       label: `${i + 1}. ${entry.description}`,
       onClick: () => {
-        performRedoTo(queryClient, entry.id);
+        performRedoTo(queryClient, entry);
         setRedoMenuOpen(false);
       },
     })),
@@ -182,11 +182,11 @@ export function TopBar() {
     if (result.data) openNode(result.data.id);
   }, [refetchToday, openNode]);
 
-  const currentNodeId = useNavigationStore(s => s.currentNodeId);
+  const currentNodeUuid = useNavigationStore(s => s.currentNodeUuid);
   const sidebarCards = useNavigationStore(s => s.sidebarCards);
   
   // Comment count for the active node
-  const { data: commentCount } = useCommentCount(currentNodeId);
+  const { data: commentCount } = useCommentCount(currentNodeUuid);
 
   // Build badges for the right sidebar toggle button
   const sidebarBadges = useMemo(() => {

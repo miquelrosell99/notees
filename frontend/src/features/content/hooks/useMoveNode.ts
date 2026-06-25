@@ -6,6 +6,7 @@ import {
   findNodeInCache,
   getRuntimeBlockIdForServerId,
   applyNodeIntent,
+  getNodeUuidByServerId,
 } from './useNodeMutations.utils';
 import { waitForOperationAck } from '@/sync/waitForOperation';
 import * as nodesApi from '@/api/nodes';
@@ -23,7 +24,10 @@ export function useMoveNode() {
     mutationFn: async ({ id, parentId, position }) => {
       const blockId = getRuntimeBlockIdForServerId(id);
       if (!blockId) {
-        return nodesApi.moveNode(id, parentId, position);
+        const nodeUuid = getNodeUuidByServerId(queryClient, id);
+        const parentNodeUuid = parentId ? getNodeUuidByServerId(queryClient, parentId) : null;
+        if (!nodeUuid) throw new Error('Node UUID not found');
+        return nodesApi.moveNode(nodeUuid, parentNodeUuid, position);
       }
 
       // Resolve the runtime parent block id and the sibling to insert after.

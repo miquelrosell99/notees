@@ -389,25 +389,25 @@ export const TimelineView = memo(function TimelineView({
           const formattedDate = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
           const dailyNode = await nodesApi.getOrCreateDaily(formattedDate);
           if (e.shiftKey) {
-            addSidebarCard(dailyNode.id, 'page');
+            addSidebarCard(dailyNode.uuid, 'page');
           } else {
-            openNode(dailyNode.id);
+            openNode(dailyNode.uuid);
           }
         } else if (interval >= 30 * 24 * 60 * 60 * 1000 && interval <= 90 * 24 * 60 * 60 * 1000) {
           // Monthly marker (30 days or 3 months)
           const monthlyNode = await nodesApi.getOrCreateMonthly(date.getFullYear(), date.getMonth() + 1);
           if (e.shiftKey) {
-            addSidebarCard(monthlyNode.id, 'page');
+            addSidebarCard(monthlyNode.uuid, 'page');
           } else {
-            openNode(monthlyNode.id);
+            openNode(monthlyNode.uuid);
           }
         } else if (interval >= 365 * 24 * 60 * 60 * 1000) {
           // Yearly marker
           const yearlyNode = await nodesApi.getOrCreateYearly(date.getFullYear());
           if (e.shiftKey) {
-            addSidebarCard(yearlyNode.id, 'page');
+            addSidebarCard(yearlyNode.uuid, 'page');
           } else {
-            openNode(yearlyNode.id);
+            openNode(yearlyNode.uuid);
           }
         }
         return; // Don't check for events if marker was clicked
@@ -770,8 +770,8 @@ export const TimelineView = memo(function TimelineView({
               editable={false}
               showClasses={true}
               pagesOnly={true}
-              onNodeClick={(node) => openNode(node.id)}
-              onNodeShiftClick={(node) => addSidebarCard(node.id, node.is_page ? 'page' : 'block')}
+              onNodeClick={(node) => openNode(node.uuid)}
+              onNodeShiftClick={(node) => addSidebarCard(node.uuid, node.is_page ? 'page' : 'block')}
             />
           </div>
         </Card>

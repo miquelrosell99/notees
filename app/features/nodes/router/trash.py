@@ -6,10 +6,12 @@ from pyrate_limiter import Duration, Limiter, Rate
 
 from app.dependencies import get_current_user, get_node_repository
 from app.features.nodes.port import NodeRepository
+from app.features.nodes.router.dependencies import resolve_node_uuid, resolve_node_uuids
 from app.logging_config import get_logger
 from app.models import PaginatedResponse, User
 
 from .helpers import (
+    _enrich_node_responses_uuids,
     _get_class_ids_batch,
     _get_node_service,
     _node_to_response,
@@ -55,6 +57,7 @@ async def get_trash(
         responses.append(_node_to_response(node, classes=class_ids_map.get(node.id or 0, [])))
 
     await _resolve_display_names_for_responses(service, nodes, responses)
+    await _enrich_node_responses_uuids(responses, repo)
 
     return PaginatedResponse[NodeResponse](
         items=responses,
@@ -84,10 +87,11 @@ async def empty_trash(
 async def batch_permanent_delete(
     request: BatchPermanentDeleteRequest,
     user: User = Depends(get_current_user),
+    repo: NodeRepository = Depends(get_node_repository),
 ):
-    """Permanently delete multiple nodes from trash by ID.
+    """Permanently delete multiple nodes from trash by UUID.
 
-    Accepts an array of node IDs and hard-deletes each independently.
+    Accepts an array of node UUIDs and hard-deletes each independently.
     Only works on nodes that are already soft-deleted (in trash).
     A failure on one node does not prevent the others from being deleted.
     """
@@ -96,7 +100,8 @@ async def batch_permanent_delete(
     logger = get_logger(__name__)
 
     service = await _get_node_service(user)
-    raw_results = await service.batch_permanent_delete(request.ids)
+    node_ids = await resolve_node_uuids(request.uuids, repo)
+    raw_results = await service.batch_permanent_delete(node_ids)
 
     results = []
     deleted = 0
@@ -107,7 +112,8 @@ async def batch_permanent_delete(
             results.append(
                 BatchPermanentDeleteResultItem(
                     index=i,
-                    id=request.ids[i],
+                    uuid=request.uuids[i],
+                    id=node_ids[i],
                     success=True,
                 )
             )
@@ -116,25 +122,27 @@ async def batch_permanent_delete(
             results.append(
                 BatchPermanentDeleteResultItem(
                     index=i,
-                    id=request.ids[i],
+                    uuid=request.uuids[i],
+                    id=node_ids[i],
                     success=False,
                     error=r["error"],
                 )
             )
 
-    logger.info(f"[BATCH_PERMANENT_DELETE] {deleted} deleted, {failed} failed out of {len(request.ids)}")
+    logger.info(f"[BATCH_PERMANENT_DELETE] {deleted} deleted, {failed} failed out of {len(request.uuids)}")
     return BatchPermanentDeleteResponse(results=results, deleted=deleted, failed=failed)
 
 
 @router.delete(
-    "/{node_id}/permanent",
+    "/{node_uuid}/permanent",
     name="permanently_delete_node",
     dependencies=[Depends(RateLimiter(limiter=_trash_limiter))],
 )
 async def permanently_delete_node(
     request: Request,
-    node_id: int,
+    node_uuid: str,
     user: User = Depends(get_current_user),
+    repo: NodeRepository = Depends(get_node_repository),
 ):
     """Permanently delete a node from trash (hard delete from database).
 
@@ -142,6 +150,7 @@ async def permanently_delete_node(
     The node and all its relationships will be removed from the database.
     """
     service = await _get_node_service(user)
+    node_id = await resolve_node_uuid(node_uuid, repo)
 
     success = await service.permanently_delete_node(node_id)
     if not success:

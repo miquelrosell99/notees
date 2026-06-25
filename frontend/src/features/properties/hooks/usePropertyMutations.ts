@@ -22,10 +22,10 @@ export function useUpdateProperty() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ id, data }: { id: number; data: { name?: string; icon?: string; multi?: boolean; icon_visibility?: PropertyIconVisibility | null; validation_rules?: Record<string, unknown> | null } }) =>
+    mutationFn: ({ id, data }: { id: string | number; data: { name?: string; icon?: string; multi?: boolean; icon_visibility?: PropertyIconVisibility | null; validation_rules?: Record<string, unknown> | null } }) =>
       propertiesApi.updateProperty(id, data),
-    onSuccess: (updated) => {
-      queryClient.setQueryData(propertyKeys.detail(updated.id), updated);
+    onSuccess: (updated, { id }) => {
+      queryClient.setQueryData(propertyKeys.detail(id), updated);
       queryClient.invalidateQueries({ queryKey: propertyKeys.lists() });
     },
   });
@@ -35,7 +35,7 @@ export function useDeleteProperty() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (id: number) =>
+    mutationFn: (id: string | number) =>
       propertiesApi.deleteProperty(id),
     onSuccess: (_, id) => {
       queryClient.removeQueries({ queryKey: propertyKeys.detail(id) });

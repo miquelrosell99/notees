@@ -21,21 +21,22 @@ export function CommandRegistrations() {
   const { pageClassId } = usePageClass();
   const { data: allClasses } = useClasses();
   const openNode = useNavigationStore((s) => s.openNode);
-  const currentNodeId = useNavigationStore((s) => s.currentNodeId);
+  const currentNodeUuid = useNavigationStore((s) => s.currentNodeUuid);
   const { notifyError, notifyWarning, notifySuccess } = useNotifyActions();
 
   // Toggle page privacy — needs queryClient and current node data
   useCommand(
     COMMAND_IDS.TOGGLE_PRIVATE,
     () => {
-      if (!currentNodeId) return;
+      if (!currentNodeUuid) return;
       const allDetails = queryClient.getQueriesData<{ is_private?: boolean }>({ queryKey: nodeKeys.details() });
-      const currentNodeEntry = allDetails.find(([key]) => Array.isArray(key) && key[2] === currentNodeId);
+      const currentNodeEntry = allDetails.find(([key]) => Array.isArray(key) && key[2] === currentNodeUuid);
       const currentNode = currentNodeEntry?.[1];
       if (currentNode) {
-        updateNode(currentNodeId, { is_private: !currentNode.is_private })
+        const nodeUuid = (currentNode as { uuid?: string }).uuid ?? String(currentNodeUuid);
+        updateNode(nodeUuid, { is_private: !currentNode.is_private })
           .then(() => {
-            queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(currentNodeId) });
+            queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(currentNodeUuid) });
           })
           .catch(() => {
             notifyError('Failed to toggle privacy', 'Please try again.');
@@ -56,13 +57,13 @@ export function CommandRegistrations() {
   useCommand(
     COMMAND_IDS.RESET_VIEWS,
     () => {
-      if (!currentNodeId) return;
-      resetNodeViews(currentNodeId)
+      if (!currentNodeUuid) return;
+      resetNodeViews(currentNodeUuid)
         .then(() => {
           queryClient.removeQueries({ queryKey: nodeViewKeys.details() });
           queryClient.removeQueries({ queryKey: nodeViewKeys.queryResults() });
-          queryClient.invalidateQueries({ queryKey: nodeViewKeys.list(currentNodeId) });
-          queryClient.invalidateQueries({ queryKey: nodeViewKeys.byType(currentNodeId) });
+          queryClient.invalidateQueries({ queryKey: nodeViewKeys.list(currentNodeUuid) });
+          queryClient.invalidateQueries({ queryKey: nodeViewKeys.byType(currentNodeUuid) });
           notifySuccess('Views reset', 'All views for this node have been reset to defaults.');
         })
         .catch(() => {
@@ -96,7 +97,7 @@ export function CommandRegistrations() {
         classes: [pageClassId, taskClassId],
       })
         .then((newNode) => {
-          openNode(newNode.id);
+          openNode(newNode.uuid);
         })
         .catch(() => {
           notifyError('Failed to create task', 'Please try again.');

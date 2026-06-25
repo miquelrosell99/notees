@@ -28,6 +28,7 @@ class TestPagesHierarchy:
         assert root_response.status_code == 200
         root = root_response.json()
         root_id = root["id"]
+        root_uuid = root["uuid"]
 
         # Create a child page under the root
         child_response = await authenticated_client.post(
@@ -35,7 +36,7 @@ class TestPagesHierarchy:
             json={
                 "name": "Child Page",
                 "classes": [page_class_id],
-                "parent_id": root_id,
+                "parent_uuid": root_uuid,
             },
         )
         assert child_response.status_code == 200
@@ -91,6 +92,7 @@ class TestPagesHierarchy:
         assert root_response.status_code == 200
         root = root_response.json()
         root_id = root["id"]
+        root_uuid = root["uuid"]
 
         # Create a child page under the root
         child_response = await authenticated_client.post(
@@ -98,7 +100,7 @@ class TestPagesHierarchy:
             json={
                 "name": "Child Page",
                 "classes": [page_class_id],
-                "parent_id": root_id,
+                "parent_uuid": root_uuid,
             },
         )
         assert child_response.status_code == 200

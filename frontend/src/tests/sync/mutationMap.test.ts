@@ -38,7 +38,7 @@ describe('operationToApiRequest', () => {
       type: 'create',
       data: {
         name: '[{"type":"paragraph","children":[{"type":"text","text":"hello"}]}]',
-        parent_id: 1,
+        parent_uuid: null,
         sequence: 0,
         uuid: 'new-uuid',
       },
@@ -57,7 +57,7 @@ describe('operationToApiRequest', () => {
     const request = operationToApiRequest(operation);
     expect(request).toEqual({
       type: 'update',
-      id: 42,
+      uuid: 'a',
       data: { name: '[{"type":"paragraph","children":[{"type":"text","text":"updated"}]}]' },
     });
   });
@@ -74,8 +74,8 @@ describe('operationToApiRequest', () => {
     const request = operationToApiRequest(operation);
     expect(request).toEqual({
       type: 'update',
-      id: 42,
-      data: { parent_id: 7, sequence: 0 },
+      uuid: 'a',
+      data: { parent_uuid: null, sequence: 0 },
     });
   });
 
@@ -83,7 +83,7 @@ describe('operationToApiRequest', () => {
     const operation = op({ id: 'op-1', type: 'delete', blockId: 'a', serverId: 42, payload: {} });
 
     const request = operationToApiRequest(operation);
-    expect(request).toEqual({ type: 'delete', id: 42 });
+    expect(request).toEqual({ type: 'delete', uuid: 'a' });
   });
 
   it('builds an add_class request', () => {
@@ -96,7 +96,7 @@ describe('operationToApiRequest', () => {
     });
 
     const request = operationToApiRequest(operation);
-    expect(request).toEqual({ type: 'add_class', id: 42, classId: 5 });
+    expect(request).toEqual({ type: 'add_class', uuid: 'a', classUuid: '5' });
   });
 
   it('builds a remove_class request', () => {
@@ -109,7 +109,7 @@ describe('operationToApiRequest', () => {
     });
 
     const request = operationToApiRequest(operation);
-    expect(request).toEqual({ type: 'remove_class', id: 42, classId: 5 });
+    expect(request).toEqual({ type: 'remove_class', uuid: 'a', classUuid: '5' });
   });
 
   it('builds a move_node request', () => {
@@ -122,10 +122,10 @@ describe('operationToApiRequest', () => {
     });
 
     const request = operationToApiRequest(operation);
-    expect(request).toEqual({ type: 'move_node', id: 42, parentId: 7, position: 0 });
+    expect(request).toEqual({ type: 'move_node', uuid: 'a', parentUuid: null, position: 0 });
   });
 
-  it('marks operations without serverId as unsupported', () => {
+  it('uses the blockId as uuid when serverId is missing', () => {
     const operation = op({
       id: 'op-1',
       type: 'update_content',
@@ -134,7 +134,11 @@ describe('operationToApiRequest', () => {
     });
 
     const request = operationToApiRequest(operation);
-    expect(request).toEqual({ type: 'unsupported' });
+    expect(request).toEqual({
+      type: 'update',
+      uuid: 'a',
+      data: { name: '[]' },
+    });
   });
 });
 
@@ -147,7 +151,9 @@ describe('executeOperation', () => {
       icon: null,
       color: null,
       parent_id: 1,
+      parent_uuid: 'parent-uuid-1',
       page_id: null,
+      page_uuid: null,
       sequence: 0,
       collapsed: false,
       active: true,
@@ -187,7 +193,9 @@ describe('executeOperation', () => {
       icon: null,
       color: null,
       parent_id: null,
+      parent_uuid: null,
       page_id: null,
+      page_uuid: null,
       sequence: 0,
       collapsed: false,
       active: true,
@@ -216,7 +224,7 @@ describe('executeOperation', () => {
 
     const result = await executeOperation(operation, api);
 
-    expect(api.updateNode).toHaveBeenCalledWith(42, { name: '[]' });
+    expect(api.updateNode).toHaveBeenCalledWith('a', { name: '[]' });
     expect(result).toBe(updated);
   });
 
@@ -236,7 +244,7 @@ describe('executeOperation', () => {
 
     await executeOperation(operation, api);
 
-    expect(api.deleteNode).toHaveBeenCalledWith(42);
+    expect(api.deleteNode).toHaveBeenCalledWith('a');
   });
 
   it('calls addClass API for add_class operations', async () => {
@@ -247,7 +255,9 @@ describe('executeOperation', () => {
       icon: null,
       color: null,
       parent_id: null,
+      parent_uuid: null,
       page_id: null,
+      page_uuid: null,
       sequence: 0,
       collapsed: false,
       active: true,
@@ -277,7 +287,7 @@ describe('executeOperation', () => {
 
     const result = await executeOperation(operation, api);
 
-    expect(api.addClass).toHaveBeenCalledWith(42, 5);
+    expect(api.addClass).toHaveBeenCalledWith('a', '5');
     expect(result).toBe(updated);
   });
 
@@ -289,7 +299,9 @@ describe('executeOperation', () => {
       icon: null,
       color: null,
       parent_id: 7,
+      parent_uuid: 'parent-uuid-7',
       page_id: null,
+      page_uuid: null,
       sequence: 1,
       collapsed: false,
       active: true,
@@ -318,7 +330,7 @@ describe('executeOperation', () => {
 
     const result = await executeOperation(operation, api);
 
-    expect(api.moveNode).toHaveBeenCalledWith(42, 7, 0);
+    expect(api.moveNode).toHaveBeenCalledWith('a', null, 0);
     expect(result).toBe(moved);
   });
 });
@@ -362,7 +374,7 @@ describe('operationToApiRequest with runtime state', () => {
     const request = operationToApiRequest(operation);
     expect(request).toEqual({
       type: 'update',
-      id: 123,
+      uuid: 'runtime-block',
       data: { name: '[{"type":"paragraph","children":[{"type":"text","text":"hi"}]}]' },
     });
   });

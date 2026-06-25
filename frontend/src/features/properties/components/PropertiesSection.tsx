@@ -232,7 +232,7 @@ export function PropertiesSection({
         if (data.selection_options && data.selection_options.length > 0) {
           await Promise.all(
             data.selection_options.map((opt, idx) =>
-              addSelectionOption(newProperty.id, opt.name, opt.icon ?? null, idx)
+              addSelectionOption(newProperty.uuid, opt.name, opt.icon ?? null, idx)
             )
           );
         }
@@ -256,7 +256,7 @@ export function PropertiesSection({
 
   // Handler for text property bullet click - opens block in focused view with property context
   const handleTextPropertyBulletClick = useCallback((blockId: number, property: Property) => {
-    openNode(blockId, { propertyId: property.id, propertyName: property.name });
+    openNode(blockId, { propertyUuid: property.uuid, propertyName: property.name });
   }, [openNode]);
 
   // Get IDs of properties already applied to this node

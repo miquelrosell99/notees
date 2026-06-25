@@ -80,7 +80,7 @@ export function ClassPropertiesEditor({
         {
           onSuccess: (created) => {
             addPropertyMutation.mutate(
-              { classId: classNodeId, propertyId: created.id },
+              { classId: classNodeId, propertyId: created.uuid },
               { onSuccess: () => setShowPropertyPopup(false) }
             );
           },
@@ -106,15 +106,15 @@ export function ClassPropertiesEditor({
       .filter((item): item is SortablePropertyItem => item !== null);
   }, [classProperties, allProperties]);
 
-  const handleAddProperty = useCallback((property: { id: number }) => {
+  const handleAddProperty = useCallback((property: Property) => {
     addPropertyMutation.mutate(
-      { classId: classNodeId, propertyId: property.id },
+      { classId: classNodeId, propertyId: property.uuid },
       { onSuccess: () => setShowPropertyPopup(false) }
     );
   }, [classNodeId, addPropertyMutation]);
 
-  const handleRemoveProperty = useCallback((propertyId: number) => {
-    removePropertyMutation.mutate({ classId: classNodeId, propertyId });
+  const handleRemoveProperty = useCallback((property: Property) => {
+    removePropertyMutation.mutate({ classId: classNodeId, propertyId: property.uuid });
   }, [classNodeId, removePropertyMutation]);
 
   const handleReorder = useCallback((fromIndex: number, toIndex: number) => {
@@ -145,7 +145,7 @@ export function ClassPropertiesEditor({
         label: 'Remove from class',
         danger: true,
         disabled: contextMenu.property.is_system,
-        onClick: () => handleRemoveProperty(contextMenu.property.id),
+        onClick: () => handleRemoveProperty(contextMenu.property),
       },
     ];
   }, [contextMenu, openPropertyView, handleRemoveProperty]);
@@ -188,7 +188,7 @@ export function ClassPropertiesEditor({
                       e.stopPropagation();
                       updateClassPropertyMutation.mutate({
                         classId: classNodeId,
-                        propertyId: item.property.id,
+                        propertyId: item.property.uuid,
                         data: { required: !item.required },
                       });
                     }}

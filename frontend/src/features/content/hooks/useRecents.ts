@@ -8,9 +8,10 @@ import { useQuery } from '@tanstack/react-query';
 import * as nodesApi from '@/api/nodes';
 import { queryClient } from '@/lib/queryClient';
 import { recentKeys } from '@/hooks/queryKeys';
+import { resolveNodeUuid } from '@/utils/resolveNodeUuid';
 
 export interface RecentItem {
-  nodeId: number;
+  nodeUuid: string;
   openDate: string;
 }
 
@@ -19,13 +20,14 @@ export function useRecents(limit = 10) {
     queryKey: recentKeys.list(limit),
     queryFn: async () => {
       const pages = await nodesApi.getRecentPages(limit);
-      return pages.map((page) => ({ nodeId: page.id, openDate: page.open_date }));
+      return pages.map((page) => ({ nodeUuid: page.uuid, openDate: page.open_date }));
     },
   });
 }
 
-export function removeRecent(nodeId: number): void {
+export function removeRecent(nodeUuid: string | number): void {
+  const uuid = typeof nodeUuid === 'string' ? nodeUuid : resolveNodeUuid(nodeUuid);
   queryClient.setQueriesData<RecentItem[]>({ queryKey: recentKeys.all }, (prev) =>
-    prev?.filter((item) => item.nodeId !== nodeId)
+    prev?.filter((item) => item.nodeUuid !== uuid)
   );
 }

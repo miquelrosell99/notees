@@ -125,11 +125,11 @@ const WORKSPACES_BASE = '/workspaces';
  * Create a public share for a node
  */
 export async function createShare(
-  nodeId: number,
+  nodeUuid: string,
   expiryDate?: string | null,
   password?: string | null
 ): Promise<Share> {
-  const response = await api.post<Share>(`${BASE}/${nodeId}/shares`, {
+  const response = await api.post<Share>(`${BASE}/${nodeUuid}/shares`, {
     expiry_date: expiryDate ?? null,
     password: password ?? null,
   });
@@ -139,8 +139,8 @@ export async function createShare(
 /**
  * List public shares for a node
  */
-export async function listNodeShares(nodeId: number): Promise<SharesResponse> {
-  const response = await api.get<SharesResponse>(`${BASE}/${nodeId}/shares`);
+export async function listNodeShares(nodeUuid: string): Promise<SharesResponse> {
+  const response = await api.get<SharesResponse>(`${BASE}/${nodeUuid}/shares`);
   return response.data;
 }
 
@@ -176,11 +176,11 @@ export async function getPublicSharedNode(shareUuid: string, password?: string):
  * Share a node with a specific user
  */
 export async function createUserShare(
-  nodeId: number,
+  nodeUuid: string,
   email: string,
   permission: 'read' | 'write' | 'comment' = 'read'
 ): Promise<UserShare> {
-  const response = await api.post<UserShare>(`${BASE}/${nodeId}/user-shares`, {
+  const response = await api.post<UserShare>(`${BASE}/${nodeUuid}/user-shares`, {
     email,
     permission,
   });
@@ -190,8 +190,8 @@ export async function createUserShare(
 /**
  * List user shares for a node
  */
-export async function listNodeUserShares(nodeId: number): Promise<UserSharesResponse> {
-  const response = await api.get<UserSharesResponse>(`${BASE}/${nodeId}/user-shares`);
+export async function listNodeUserShares(nodeUuid: string): Promise<UserSharesResponse> {
+  const response = await api.get<UserSharesResponse>(`${BASE}/${nodeUuid}/user-shares`);
   return response.data;
 }
 

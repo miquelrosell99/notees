@@ -157,6 +157,7 @@ async def init_pool() -> asyncpg.Pool:
 
         async def _init_conn(conn: asyncpg.Connection) -> None:
             await setup_jsonb_codec(conn)
+            await conn.execute("SET search_path TO public, extensions")
 
         _pool = await asyncpg.create_pool(
             host=parsed.hostname or settings.postgres_host,

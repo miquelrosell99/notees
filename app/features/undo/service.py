@@ -104,6 +104,7 @@ def _summary(entry: dict) -> dict:
     raw_desc = entry.get("description") or entry["operation"].replace("_", " ").title()
     return {
         "id": entry["id"],
+        "uuid": entry.get("uuid"),
         "operation": entry["operation"],
         "entity_type": entry["entity_type"],
         "entity_id": entry["entity_id"],

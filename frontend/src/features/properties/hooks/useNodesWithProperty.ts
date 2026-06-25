@@ -5,9 +5,9 @@ import { useQuery } from '@tanstack/react-query';
 import type { Node } from '@/types/api';
 import { propertyKeys } from '@/hooks/queryKeys';
 
-export function useNodesWithProperty(propertyId: number | null) {
+export function useNodesWithProperty(propertyId: string | number | null) {
   return useQuery({
-    queryKey: propertyKeys.nodes(propertyId ?? 0),
+    queryKey: propertyKeys.nodes(propertyId ?? ''),
     queryFn: async () => {
       if (!propertyId) return [];
       const { getNodesWithProperty } = await import('@/api/properties');

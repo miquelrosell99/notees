@@ -70,8 +70,8 @@ export interface NodeCollectionProps {
   /** UUID of the parent node (enables real-root mode in BlockEditor) */
   nodeUuid?: string;
   
-  /** Optional view ID for persisting configuration (property columns, etc.) */
-  viewId?: number;
+  /** Optional view UUID for persisting configuration (property columns, etc.) */
+  viewUuid?: string;
   
   /** Optional view object for loading persisted configuration */
   view?: NodeView;

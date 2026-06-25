@@ -92,14 +92,14 @@ async def create_workspace_endpoint(data: WorkspaceCreate, user: User = Depends(
         raise HTTPException(status_code=400, detail=str(e)) from e
 
 
-@router.post("/{workspace_id}/switch")
-async def switch_workspace_endpoint(workspace_id: str, user: User = Depends(get_current_user)):
+@router.post("/{workspace_uuid}/switch")
+async def switch_workspace_endpoint(workspace_uuid: str, user: User = Depends(get_current_user)):
     """Switch to a different workspace by UUID."""
-    success = await switch_workspace(user.id, workspace_id)
+    success = await switch_workspace(user.id, workspace_uuid)
     if not success:
-        raise HTTPException(status_code=404, detail=f"Workspace '{workspace_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Workspace '{workspace_uuid}' not found")
     invalidate_workspace_cache(int(user.id))
-    return {"status": "ok", "active": workspace_id}
+    return {"status": "ok", "active": workspace_uuid}
 
 
 @router.put("/{name}/rename")
@@ -169,9 +169,9 @@ async def export_workspace(
         raise HTTPException(status_code=404, detail=str(e)) from e
 
 
-@router.get("/{workspace_id}/export-by-uuid")
+@router.get("/{workspace_uuid}/export-by-uuid")
 async def export_workspace_by_id(
-    workspace_id: str,
+    workspace_uuid: str,
     format: str = "dump",
     include_assets: bool = False,
     workspace_io_service: WorkspaceIOService = Depends(get_workspace_io_service),
@@ -180,7 +180,7 @@ async def export_workspace_by_id(
     """Export a workspace by UUID."""
     try:
         if format == "dump":
-            export_path = await workspace_io_service.export_workspace_by_uuid(user.id, workspace_id)
+            export_path = await workspace_io_service.export_workspace_by_uuid(user.id, workspace_uuid)
             return FileResponse(
                 export_path,
                 filename=export_path.name,
@@ -191,7 +191,7 @@ async def export_workspace_by_id(
             raise HTTPException(status_code=400, detail=f"Invalid format: {format}")
 
         zip_path = await workspace_io_service.export_workspace_formatted_zip(
-            user.id, workspace_id, format, include_assets=include_assets
+            user.id, workspace_uuid, format, include_assets=include_assets
         )
         return FileResponse(
             zip_path,
@@ -202,24 +202,24 @@ async def export_workspace_by_id(
         raise HTTPException(status_code=404, detail=str(e)) from e
 
 
-@router.get("/{workspace_id}/export-zip")
+@router.get("/{workspace_uuid}/export-zip")
 async def export_workspace_zip_endpoint(
-    workspace_id: str,
+    workspace_uuid: str,
     workspace_io_service: WorkspaceIOService = Depends(get_workspace_io_service),
     user: User = Depends(get_current_user),
 ):
     """Export a workspace as a ZIP containing the JSON dump and all asset files."""
     try:
-        zip_path = await workspace_io_service.export_workspace_zip(user.id, workspace_id)
+        zip_path = await workspace_io_service.export_workspace_zip(user.id, workspace_uuid)
         return FileResponse(zip_path, filename=zip_path.name, media_type="application/zip")
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e)) from e
 
 
 async def _run_export_job(
-    job_id: str,
+    job_uuid: str,
     user_id: str,
-    workspace_id: str,
+    workspace_uuid: str,
     format: str,
     include_assets: bool,
 ) -> None:
@@ -229,10 +229,10 @@ async def _run_export_job(
     clear_request_conn()
 
     try:
-        update_job(job_id, status="running")
+        update_job(job_uuid, status="running")
         from app.export_jobs import make_progress_callback
 
-        callback = make_progress_callback(job_id)
+        callback = make_progress_callback(job_uuid)
 
         # Build a fresh service instance; request-scoped dependencies must not
         # be passed into background tasks.
@@ -244,28 +244,28 @@ async def _run_export_job(
         if format == "dump":
             if include_assets:
                 path = await workspace_io_service.export_workspace_zip(
-                    user_id, workspace_id, progress_callback=callback
+                    user_id, workspace_uuid, progress_callback=callback
                 )
             else:
-                path = await workspace_io_service.export_workspace_by_uuid(user_id, workspace_id)
-                update_job(job_id, progress=100, status_text="Export complete")
+                path = await workspace_io_service.export_workspace_by_uuid(user_id, workspace_uuid)
+                update_job(job_uuid, progress=100, status_text="Export complete")
         elif format in ("markdown", "text", "json"):
             path = await workspace_io_service.export_workspace_formatted_zip(
-                user_id, workspace_id, format, include_assets, progress_callback=callback
+                user_id, workspace_uuid, format, include_assets, progress_callback=callback
             )
         else:
-            update_job(job_id, status="failed", error=f"Invalid format: {format}")
+            update_job(job_uuid, status="failed", error=f"Invalid format: {format}")
             return
 
-        update_job(job_id, status="completed", progress=100, result_path=str(path))
+        update_job(job_uuid, status="completed", progress=100, result_path=str(path))
     except Exception as exc:
-        logger.error(f"Export job {job_id} failed: {exc}", exc_info=True)
-        update_job(job_id, status="failed", error=str(exc))
+        logger.error(f"Export job {job_uuid} failed: {exc}", exc_info=True)
+        update_job(job_uuid, status="failed", error=str(exc))
 
 
-@router.post("/{workspace_id}/export-job")
+@router.post("/{workspace_uuid}/export-job")
 async def create_workspace_export_job(
-    workspace_id: str,
+    workspace_uuid: str,
     format: str = "dump",
     include_assets: bool = False,
     user: User = Depends(get_current_user),
@@ -274,20 +274,20 @@ async def create_workspace_export_job(
     try:
         job = create_job()
         logger.info(
-            f"Created export job {job.id} for workspace {workspace_id} "
+            f"Created export job {job.id} for workspace {workspace_uuid} "
             f"(format={format}, assets={include_assets})"
         )
         asyncio.create_task(
-            _run_export_job(job.id, user.id, workspace_id, format, include_assets)
+            _run_export_job(job.id, user.id, workspace_uuid, format, include_assets)
         )
-        return {"job_id": job.id}
+        return {"job_uuid": job.id}
     except Exception as exc:
         logger.error(f"Failed to create export job: {exc}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 class ExportJobResponse(BaseModel):
-    id: str
+    job_uuid: str
     status: str
     progress: int
     status_text: str
@@ -295,10 +295,10 @@ class ExportJobResponse(BaseModel):
     error: str | None = None
 
 
-@router.get("/export-jobs/{job_id}", response_model=ExportJobResponse)
-async def get_workspace_export_job(job_id: str, user: User = Depends(get_current_user)):
+@router.get("/export-jobs/{job_uuid}", response_model=ExportJobResponse)
+async def get_workspace_export_job(job_uuid: str, user: User = Depends(get_current_user)):
     """Get the status of an export job."""
-    job = get_job(job_id)
+    job = get_job(job_uuid)
     if job is None:
         raise HTTPException(status_code=404, detail="Export job not found")
 
@@ -307,7 +307,7 @@ async def get_workspace_export_job(job_id: str, user: User = Depends(get_current
         download_url = f"/api/workspaces/export-jobs/{job.id}/download"
 
     return ExportJobResponse(
-        id=job.id,
+        job_uuid=job.id,
         status=job.status,
         progress=job.progress,
         status_text=job.status_text,
@@ -316,10 +316,10 @@ async def get_workspace_export_job(job_id: str, user: User = Depends(get_current
     )
 
 
-@router.get("/export-jobs/{job_id}/download")
-async def download_workspace_export_job(job_id: str, user: User = Depends(get_current_user)):
+@router.get("/export-jobs/{job_uuid}/download")
+async def download_workspace_export_job(job_uuid: str, user: User = Depends(get_current_user)):
     """Download the result of a completed export job."""
-    job = get_job(job_id)
+    job = get_job(job_uuid)
     if job is None:
         raise HTTPException(status_code=404, detail="Export job not found")
     if job.status != "completed":
@@ -382,9 +382,9 @@ async def import_workspace(
         tmp_path.unlink(missing_ok=True)
 
 
-@router.post("/{workspace_id}/restore")
+@router.post("/{workspace_uuid}/restore")
 async def restore_workspace(
-    workspace_id: str,
+    workspace_uuid: str,
     file: UploadFile = File(...),
     cleanup_invalid_cloze: bool = Query(False, description="Strip cloze class from blocks that are not inside a card"),
     workspace_io_service: WorkspaceIOService = Depends(get_workspace_io_service),
@@ -401,7 +401,7 @@ async def restore_workspace(
 
         result = await workspace_io_service.restore_workspace_from_dump(
             user_id_str=user.id,
-            workspace_uuid=workspace_id,
+            workspace_uuid=workspace_uuid,
             dump_data=dump_data,
             cleanup_invalid_cloze=cleanup_invalid_cloze,
         )

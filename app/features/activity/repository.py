@@ -7,6 +7,7 @@ from typing import Any
 import asyncpg
 
 from app.db.connection import acquire_connection
+from app.domain.entities import generate_uuid
 from app.domain.repositories.base import BasePostgresRepository
 from app.features.activity.port import ActivityRepository
 
@@ -43,6 +44,7 @@ class PostgresActivityRepository(BasePostgresRepository, ActivityRepository):
                 """
                 SELECT
                     a.id,
+                    a.uuid,
                     a.node_id,
                     a.action,
                     a.details,
@@ -71,15 +73,17 @@ class PostgresActivityRepository(BasePostgresRepository, ActivityRepository):
         target_node_id: int | None,
         now: Any,
         user_id: int | None = None,
-    ) -> int:
+    ) -> tuple[int, str]:
         uid = user_id if user_id is not None else self._user_id
+        activity_uuid = generate_uuid()
         async with acquire_connection(self._pool) as conn:
             activity_id = await conn.fetchval(
                 """
-                INSERT INTO node_activity (node_id, action, details, target_node_id, user_id, create_uid, create_date)
-                VALUES ($1, $2, $3, $4, $5, $5, $6)
+                INSERT INTO node_activity (uuid, node_id, action, details, target_node_id, user_id, create_uid, create_date)
+                VALUES ($1, $2, $3, $4, $5, $6, $6, $7)
                 RETURNING id
                 """,
+                activity_uuid,
                 node_id,
                 action,
                 details,
@@ -87,7 +91,7 @@ class PostgresActivityRepository(BasePostgresRepository, ActivityRepository):
                 uid,
                 now,
             )
-        return activity_id
+        return activity_id, activity_uuid
 
     async def get_target_node(self, target_node_id: int) -> tuple | None:
         async with acquire_connection(self._pool) as conn:
@@ -107,6 +111,44 @@ class PostgresActivityRepository(BasePostgresRepository, ActivityRepository):
                 activity_id,
                 node_id,
             )
+
+    async def get_node_activity_by_uuid(
+        self, activity_uuid: str, node_id: int
+    ) -> dict[str, Any] | None:
+        async with acquire_connection(self._pool) as conn:
+            row = await conn.fetchrow(
+                """
+                SELECT
+                    a.id,
+                    a.uuid,
+                    a.node_id,
+                    a.action,
+                    a.details,
+                    a.target_node_id,
+                    t.name  AS target_node_name,
+                    t.uuid  AS target_node_uuid,
+                    a.create_date
+                FROM node_activity a
+                LEFT JOIN node t
+                    ON a.target_node_id = t.id AND t.workspace_id = $2
+                WHERE a.uuid = $1 AND a.node_id = $3
+                """,
+                activity_uuid,
+                self._workspace_id,
+                node_id,
+            )
+        return dict(row) if row else None
+
+    async def delete_node_activity_by_uuid(
+        self, activity_uuid: str, node_id: int
+    ) -> bool:
+        async with acquire_connection(self._pool) as conn:
+            result = await conn.execute(
+                "DELETE FROM node_activity WHERE uuid = $1 AND node_id = $2",
+                activity_uuid,
+                node_id,
+            )
+            return result.split()[-1] != "0"
 
     async def track_link_click(
         self,
@@ -179,7 +221,7 @@ class PostgresActivityRepository(BasePostgresRepository, ActivityRepository):
         async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch(
                 """
-                SELECT id, source_node_id, target_node_id, click_date
+                SELECT id, uuid, source_node_id, target_node_id, click_date
                 FROM link_click
                 WHERE source_node_id = $1 AND target_node_id = $2
                 ORDER BY click_date DESC

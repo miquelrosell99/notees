@@ -20,7 +20,7 @@ import type { NodeActivity } from '../../api/activity';
 import './NodeActivityLogSection.css';
 
 interface NodeActivityLogSectionProps {
-  nodeId: number;
+  nodeId: string | number;
   defaultExpanded?: boolean;
   /** Visual variant passed to the underlying section chrome. */
   variant?: 'default' | 'sidebar-node' | 'sidebar';
@@ -105,11 +105,11 @@ function ActivityMessage({ activity }: { activity: NodeActivity }) {
   const time = formatDate(activity.create_date);
   const segments = splitTextWithLinks(message);
 
-  const handleLinkClick = useCallback(async (uuid: string) => {
+  const handleLinkClick = useCallback(async (nodeUuid: string) => {
     try {
-      const node = await getNodeByUuid(uuid);
+      const node = await getNodeByUuid(nodeUuid);
       if (node?.id) {
-        openNode(node.id);
+        openNode(node.uuid);
       }
     } catch {
       // Node may have been deleted

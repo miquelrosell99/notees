@@ -172,13 +172,21 @@ def temp_data_dir(tmp_path: Path) -> Generator[Path, None, None]:
         auth_module.USERS_DIR = original_users_dir
 
 
+# In-process lock used to serialize per-test schema resets.  Pytest-asyncio
+# can schedule overlapping fixture lifecycles for the shared database, which
+# leads to deadlocks between concurrent DROP/CREATE SCHEMA statements.  Holding
+# this lock for the full db_pool fixture lifetime prevents that overlap.
+_schema_reset_lock = asyncio.Lock()
+
+
 @pytest_asyncio.fixture(scope="function")
 async def db_pool(database_url: str, temp_data_dir: Path):
     """Initialize the PostgreSQL connection pool and schema for each test.
 
     This creates a fresh schema for each test by:
-    1. Dropping and recreating the public schema
-    2. Re-running schema initialization
+    1. Acquiring an in-process lock to serialize schema resets
+    2. Dropping and recreating the public schema
+    3. Re-running schema initialization
     """
     import asyncpg
 
@@ -190,111 +198,127 @@ async def db_pool(database_url: str, temp_data_dir: Path):
     # instance explicitly so the app under test uses the test database.
     settings.database_url = database_url
 
-    # Close any pool left open by a previously aborted test so the fresh
-    # schema init below does not race with stale pooled connections.
-    await connection.close_pool()
-
-    # Clean database before each test and re-initialize schema on a dedicated,
-    # non-pooled connection. Keeping DDL out of the pool guarantees all locks
-    # are released and the transaction is fully closed before test code acquires
-    # any pool connections.
-    setup_conn = await asyncpg.connect(database_url)
+    # Serialize schema resets across tests.  The lock is held for the entire
+    # fixture lifetime (setup + test + teardown) so overlapping fixtures cannot
+    # run conflicting DROP/CREATE SCHEMA statements concurrently.
+    await _schema_reset_lock.acquire()
     try:
-        # uuid-ossp lives in schema public; drop it first so that a stale
-        # extension catalog entry does not survive the schema drop and block
-        # re-creation of the uuid_generate_v4() function on the next test run.
-        # Note: dropping pg_trgm here can segfault Postgres 17-alpine, so we
-        # leave it alone and only re-create it below.
-        await setup_conn.execute('DROP EXTENSION IF EXISTS "uuid-ossp" CASCADE')
+        # Close any pool left open by a previously aborted test so the fresh
+        # schema init below does not race with stale pooled connections.
+        await connection.close_pool()
 
-        # Forcibly terminate any other backends still connected to this test
-        # database. Leaked connections from background tasks or aborted tests
-        # would otherwise block DROP SCHEMA or cause deadlocks. We re-try the
-        # drop briefly so transient connections have time to exit.
-        for _ in range(5):
-            try:
-                await setup_conn.execute("DROP SCHEMA IF EXISTS public CASCADE")
-                break
-            except (
-                asyncpg.exceptions.DependentObjectsStillExistError,
-                asyncpg.exceptions.DeadlockDetectedError,
-            ):
+        # Clean database before each test and re-initialize schema on a
+        # dedicated, non-pooled connection. Keeping DDL out of the pool
+        # guarantees all locks are released and the transaction is fully closed
+        # before test code acquires any pool connections.
+        setup_conn = await asyncpg.connect(database_url)
+        try:
+            # Make sure uuid-ossp lives in a dedicated schema so recreating
+            # public does not disturb it. If an older database has the extension
+            # installed in public, move it; otherwise create it in extensions.
+            await setup_conn.execute("CREATE SCHEMA IF NOT EXISTS extensions")
+            ext_row = await setup_conn.fetchrow(
+                "SELECT extnamespace::regnamespace AS nsp FROM pg_extension WHERE extname = 'uuid-ossp'"
+            )
+            if ext_row is None:
                 await setup_conn.execute(
-                    """
-                    SELECT pg_terminate_backend(pid)
-                    FROM pg_stat_activity
-                    WHERE datname = current_database()
-                      AND pid <> pg_backend_pid()
-                """
+                    'CREATE EXTENSION IF NOT EXISTS "uuid-ossp" SCHEMA extensions'
                 )
-                await asyncio.sleep(0.05)
-        else:
-            await setup_conn.execute("DROP SCHEMA IF EXISTS public CASCADE")
+            elif ext_row["nsp"] == "public":
+                await setup_conn.execute(
+                    'ALTER EXTENSION "uuid-ossp" SET SCHEMA extensions'
+                )
 
-        await setup_conn.execute("CREATE SCHEMA public")
-        await setup_conn.execute("GRANT ALL ON SCHEMA public TO public")
-        await setup_conn.execute("SET search_path TO public")
+            # pg_trgm can live in public; make sure it exists.
+            await setup_conn.execute("CREATE EXTENSION IF NOT EXISTS pg_trgm")
 
-        # Re-create required extensions in the fresh public schema.
-        # pg_trgm is created here; uuid-ossp is also created explicitly to avoid
-        # a visibility race where init_database's SCHEMA_SQL can execute before
-        # the extension functions are resolvable in the same connection.
-        await setup_conn.execute("CREATE EXTENSION IF NOT EXISTS pg_trgm")
-        await setup_conn.execute('CREATE EXTENSION IF NOT EXISTS "uuid-ossp"')
+            # Re-create the public schema.
+            for _ in range(5):
+                try:
+                    await setup_conn.execute(
+                        "DROP SCHEMA IF EXISTS public CASCADE"
+                    )
+                    break
+                except (
+                    asyncpg.exceptions.DependentObjectsStillExistError,
+                    asyncpg.exceptions.DeadlockDetectedError,
+                ):
+                    await asyncio.sleep(0.05)
+            else:
+                await setup_conn.execute("DROP SCHEMA IF EXISTS public CASCADE")
 
-        # Initialize fresh schema on the same connection
-        await schema.init_database(setup_conn)
+            # If a concurrent connection recreated public while we were waiting,
+            # drop it once more before creating the fresh schema.
+            if await setup_conn.fetchval(
+                "SELECT 1 FROM pg_namespace WHERE nspname = 'public'"
+            ):
+                await setup_conn.execute("DROP SCHEMA IF EXISTS public CASCADE")
+
+            await setup_conn.execute("CREATE SCHEMA public")
+            await setup_conn.execute("GRANT ALL ON SCHEMA public TO public")
+
+            # Make the extension functions visible on this connection and for
+            # the schema initialization below.
+            await setup_conn.execute("SET search_path TO public, extensions")
+
+            # Initialize fresh schema on the same connection
+            await schema.init_database(setup_conn)
+        finally:
+            await setup_conn.close()
+
+        # Initialize the connection pool *after* the schema is ready so all
+        # pooled connections see the freshly-created tables.
+        pool = await connection.init_pool()
+
+        # Clear in-memory auth cache so tests don't see stale user data
+        from app.features.auth import auth
+
+        auth._user_cache.clear()
+
+        # Reset per-key rate-limit buckets so leftover request budgets from a
+        # previous test do not cause 429 failures on the next test.
+        from app.rate_limit import PerKeyBucketFactory
+
+        PerKeyBucketFactory.reset_all()
+
+        yield pool
+
+        # Cancel known application background tasks (e.g. export jobs) so they
+        # don't hold pooled connections open across test boundaries. We identify
+        # tasks by coroutine function name to avoid cancelling pytest-asyncio
+        # internals.
+        def _task_coro_name(task: asyncio.Task) -> str | None:
+            coro = task.get_coro()
+            if coro is None:
+                return None
+            return getattr(coro, "__qualname__", None) or getattr(
+                getattr(coro, "cr_code", None), "co_name", None
+            )
+
+        background_task_names = {
+            "_run_batch_export",
+            "_run_export_job",
+            "_run_lock_timer",
+            "_run_redis_loop",
+            "_run_node_export_job",
+        }
+        current_task = asyncio.current_task()
+        pending = [
+            t
+            for t in asyncio.all_tasks()
+            if t is not current_task
+            and not t.done()
+            and _task_coro_name(t) in background_task_names
+        ]
+        for task in pending:
+            task.cancel()
+        if pending:
+            await asyncio.gather(*pending, return_exceptions=True)
+
+        # Close pool after test.
+        await connection.close_pool()
     finally:
-        await setup_conn.close()
-
-    # Initialize the connection pool *after* the schema is ready so all pooled
-    # connections see the freshly-created tables.
-    pool = await connection.init_pool()
-
-    # Clear in-memory auth cache so tests don't see stale user data
-    from app.features.auth import auth
-    auth._user_cache.clear()
-
-    # Reset per-key rate-limit buckets so leftover request budgets from a
-    # previous test do not cause 429 failures on the next test.
-    from app.rate_limit import PerKeyBucketFactory
-    PerKeyBucketFactory.reset_all()
-
-    yield pool
-
-    # Cancel known application background tasks (e.g. export jobs) so they don't
-    # hold pooled connections open across test boundaries. We identify tasks by
-    # their coroutine function name to avoid cancelling pytest-asyncio internals.
-    def _task_coro_name(task: asyncio.Task) -> str | None:
-        coro = task.get_coro()
-        if coro is None:
-            return None
-        return getattr(coro, "__qualname__", None) or getattr(
-            getattr(coro, "cr_code", None), "co_name", None
-        )
-
-    background_task_names = {
-        "_run_batch_export",
-        "_run_export_job",
-        "_run_lock_timer",
-        "_run_redis_loop",
-        "_run_node_export_job",
-    }
-    current_task = asyncio.current_task()
-    pending = [
-        t
-        for t in asyncio.all_tasks()
-        if t is not current_task
-        and not t.done()
-        and _task_coro_name(t) in background_task_names
-    ]
-    for task in pending:
-        task.cancel()
-    if pending:
-        await asyncio.gather(*pending, return_exceptions=True)
-
-    # Close pool after test
-    await connection.close_pool()
+        _schema_reset_lock.release()
 
 
 @pytest_asyncio.fixture(scope="function")

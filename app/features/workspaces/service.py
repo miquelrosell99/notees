@@ -276,6 +276,7 @@ class WorkspaceService:
                     "user_id": r["id"],
                     "email": r["email"],
                     "user_uuid": str(r["user_uuid"]),
+                    "share_uuid": str(r["share_uuid"]) if r.get("share_uuid") else None,
                     "role": role,
                     "joined_at": r["create_date"].isoformat() if r["create_date"] else None,
                 }
@@ -286,6 +287,7 @@ class WorkspaceService:
                     "user_id": None,
                     "email": p["email"],
                     "user_uuid": None,
+                    "invite_uuid": str(p["invite_uuid"]) if p.get("invite_uuid") else None,
                     "role": p["role"],
                     "joined_at": None,
                     "status": "pending",

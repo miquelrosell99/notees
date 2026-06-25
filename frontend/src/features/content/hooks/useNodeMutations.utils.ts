@@ -200,6 +200,86 @@ export function getRuntimeBlockIdForServerId(nodeId: number): string | null {
   return getNodeByServerId(runtime, nodeId)?.blockId ?? null;
 }
 
+function findNodeUuidInCache(queryClient: QueryClient, nodeId: number): string | null {
+  const queryCache = queryClient.getQueryCache();
+  const candidates = [
+    ...queryCache.findAll({ queryKey: nodeKeys.details() }),
+    ...queryCache.findAll({ queryKey: nodeKeys.pageContents() }),
+    ...queryCache.findAll({ queryKey: nodeKeys.uuids() }),
+    ...queryCache.findAll({ queryKey: nodeKeys.graphNodes() }),
+  ];
+  for (const query of candidates) {
+    const data = query.state.data;
+    if (!data) continue;
+    const found = findNodeInData(data, nodeId);
+    if (found) return found.uuid;
+  }
+  return null;
+}
+
+function findNodeInData(data: unknown, nodeId: number): Node | null {
+  if (Array.isArray(data)) {
+    for (const item of data) {
+      const found = findNodeInData(item, nodeId);
+      if (found) return found;
+    }
+    return null;
+  }
+  if (data && typeof data === 'object') {
+    const maybeNode = data as Record<string, unknown>;
+    if (typeof maybeNode.id === 'number' && maybeNode.id === nodeId && typeof maybeNode.uuid === 'string') {
+      return maybeNode as unknown as Node;
+    }
+    if (Array.isArray(maybeNode.items)) {
+      const found = findNodeInData(maybeNode.items, nodeId);
+      if (found) return found;
+    }
+    if (Array.isArray(maybeNode.pages)) {
+      const found = findNodeInData(maybeNode.pages, nodeId);
+      if (found) return found;
+    }
+    if (Array.isArray(maybeNode.children)) {
+      const found = findNodeInData(maybeNode.children, nodeId);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+/**
+ * Resolve a server-side numeric node ID to its public UUID.
+ * Prefers the runtime graph, then falls back to the query cache.
+ */
+export function getNodeUuidByServerId(queryClient: QueryClient, nodeId: number): string | null {
+  const runtimeNodeUuid = getRuntimeBlockIdForServerId(nodeId);
+  if (runtimeNodeUuid) return runtimeNodeUuid;
+  return findNodeUuidInCache(queryClient, nodeId);
+}
+
+/**
+ * Resolve a server-side numeric class ID to its public UUID.
+ */
+export function getClassUuidByServerId(queryClient: QueryClient, classId: number): string | null {
+  const runtime = getOperationRuntime();
+  const runtimeNode = getNodeByServerId(runtime, classId);
+  if (runtimeNode) return runtimeNode.blockId;
+  const classes = queryClient.getQueryData<Node[]>(nodeKeys.classes());
+  if (!classes) return null;
+  return classes.find((c) => c.id === classId)?.uuid ?? null;
+}
+
+/**
+ * Resolve a server-side numeric tag ID to its public UUID.
+ */
+export function getTagUuidByServerId(queryClient: QueryClient, tagId: number): string | null {
+  const runtime = getOperationRuntime();
+  const runtimeNode = getNodeByServerId(runtime, tagId);
+  if (runtimeNode) return runtimeNode.blockId;
+  const pages = queryClient.getQueryData<Node[]>(nodeKeys.pages());
+  if (!pages) return null;
+  return pages.find((p) => p.id === tagId)?.uuid ?? null;
+}
+
 /**
  * Apply a runtime mutation intent and return the operation ID so callers can
  * wait for SyncManager to acknowledge it.

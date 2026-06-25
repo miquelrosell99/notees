@@ -18,9 +18,10 @@ import type {
   SidebarCardType,
 } from './appStore';
 import type { QueryAST } from '@/types/queryAST';
+import { resolveNodeUuid, resolvePropertyUuid } from '@/utils/resolveNodeUuid';
 
 interface SidebarNode {
-  id: number;
+  id: string;
   type: SidebarNodeType;
 }
 
@@ -28,8 +29,8 @@ export type SplitOrientation = 'horizontal' | 'vertical';
 
 export interface TabHistoryEntry {
   type: MainViewType;
-  nodeId?: number;
-  propertyId?: number;
+  nodeUuid?: string;
+  propertyUuid?: string;
   label: string;
   icon?: string;
   color?: string;
@@ -38,8 +39,8 @@ export interface TabHistoryEntry {
 export interface Tab {
   id: string;
   type: MainViewType;
-  nodeId?: number;
-  propertyId?: number;
+  nodeUuid?: string;
+  propertyUuid?: string;
   label: string;
   icon?: string;
   color?: string;
@@ -75,10 +76,10 @@ function makeTabLabel(type: MainViewType, label?: string): string {
 }
 
 interface NavigationState {
-  // Active / current node IDs only (full Node objects live in TanStack Query cache)
-  activeNodeId: number | null;
-  currentNodeId: number | null;
-  currentPropertyContext: { propertyId: number; propertyName: string } | null;
+  // Active / current node UUIDs only (full Node objects live in TanStack Query cache)
+  activeNodeUuid: string | null;
+  currentNodeUuid: string | null;
+  currentPropertyContext: { propertyUuid: string; propertyName: string } | null;
 
   // Left sidebar
   sidebarOpen: boolean;
@@ -90,7 +91,7 @@ interface NavigationState {
   rightSidebarContent: RightSidebarContent;
   sidebarNode: SidebarNode | null;
   sidebarCards: SidebarCard[];
-  localGraphNodeId: number | null;
+  localGraphNodeUuid: string | null;
   flashSidebarCardId: number | null;
 
   // View / layout
@@ -98,15 +99,15 @@ interface NavigationState {
   /** Sidebar collapsed state captured on focus-mode entry, restored on exit */
   preFocusModeSidebarCollapsed: boolean | null;
   mainViewType: MainViewType;
-  currentPropertyId: number | null;
+  currentPropertyUuid: string | null;
 
   // Workspace switching
   isSwitchingWorkspace: boolean;
 
-  // Temporary node collection view (IDs only; full nodes fetched on demand)
+  // Temporary node collection view (UUIDs only; full nodes fetched on demand)
   nodeCollectionTitle: string | null;
   nodeCollectionQueryAST: QueryAST | null;
-  nodeCollectionNodeIds: number[] | null;
+  nodeCollectionNodeUuids: string[] | null;
 
   // ── Tabs ────────────────────────────────────────────────────────────────
   tabs: Tab[];
@@ -115,29 +116,29 @@ interface NavigationState {
   splitOrientation: SplitOrientation | null;
 
   // Actions
-  setActiveNodeId: (id: number | null) => void;
-  openNode: (nodeId: number, propertyContext?: { propertyId: number; propertyName: string }) => void;
-  openNodeInNewTab: (nodeId: number, opts?: { label?: string; icon?: string; color?: string }) => void;
-  openViewInNewTab: (viewType: MainViewType, opts?: { label?: string; nodeId?: number; propertyId?: number }) => void;
+  setActiveNodeUuid: (uuid: string | null) => void;
+  openNode: (nodeUuid: string | number, propertyContext?: { propertyUuid: string; propertyName: string }) => void;
+  openNodeInNewTab: (nodeUuid: string | number, opts?: { label?: string; icon?: string; color?: string }) => void;
+  openViewInNewTab: (viewType: MainViewType, opts?: { label?: string; nodeUuid?: string | number; propertyUuid?: string }) => void;
   toggleSidebar: () => void;
   toggleRightSidebar: () => void;
   setViewMode: (mode: ViewMode) => void;
   toggleFocusMode: () => void;
   setMainViewType: (viewType: MainViewType) => void;
   setSwitchingWorkspace: (value: boolean) => void;
-  openPropertyView: (propertyId: number) => void;
+  openPropertyView: (propertyUuid: string | number) => void;
   openNodeCollection: (title: string, queryAST: QueryAST) => void;
-  openNodeCollectionFromNodes: (title: string, nodeIds: number[]) => void;
+  openNodeCollectionFromNodes: (title: string, nodeUuids: (string | number)[]) => void;
   closeNodeCollection: () => void;
   setSidebarTab: (tab: SidebarTab) => void;
-  openNodeInSidebar: (nodeId: number, nodeType: SidebarNodeType) => void;
+  openNodeInSidebar: (nodeUuid: string | number, nodeType: SidebarNodeType) => void;
   closeSidebarNode: () => void;
-  addSidebarCard: (nodeId: number, cardType: SidebarCardType) => void;
-  addSidebarCards: (nodeIds: number[], cardType: SidebarCardType) => void;
+  addSidebarCard: (nodeUuid: string | number, cardType: SidebarCardType) => void;
+  addSidebarCards: (nodeUuids: (string | number)[], cardType: SidebarCardType) => void;
   removeSidebarCard: (cardId: number) => void;
   clearSidebarCards: () => void;
   flashSidebarCard: (cardId: number) => void;
-  openLocalGraph: (nodeId: number) => void;
+  openLocalGraph: (nodeUuid: string | number) => void;
   closeLocalGraph: () => void;
 
   // Tab actions
@@ -152,7 +153,7 @@ interface NavigationState {
   splitTab: (tabId: string, orientation: SplitOrientation) => void;
   unsplit: () => void;
   swapSplit: () => void;
-  replaceTabContent: (tabId: string, nodeId: number, opts?: { label?: string; icon?: string; color?: string }) => void;
+  replaceTabContent: (tabId: string, nodeUuid: string | number, opts?: { label?: string; icon?: string; color?: string }) => void;
   addTabAt: (index: number, tab: Tab) => void;
   goBack: () => boolean;
   goForward: () => boolean;
@@ -164,8 +165,8 @@ interface NavigationState {
 export const useNavigationStore = create<NavigationState>()((set, get) => {
   const makeHistoryEntry = (tab: Tab): TabHistoryEntry => ({
     type: tab.type,
-    nodeId: tab.nodeId,
-    propertyId: tab.propertyId,
+    nodeUuid: tab.nodeUuid,
+    propertyUuid: tab.propertyUuid,
     label: tab.label,
     icon: tab.icon,
     color: tab.color,
@@ -179,8 +180,8 @@ export const useNavigationStore = create<NavigationState>()((set, get) => {
     if (
       last &&
       last.type === entry.type &&
-      last.nodeId === entry.nodeId &&
-      last.propertyId === entry.propertyId
+      last.nodeUuid === entry.nodeUuid &&
+      last.propertyUuid === entry.propertyUuid
     ) {
       return tab;
     }
@@ -193,8 +194,8 @@ export const useNavigationStore = create<NavigationState>()((set, get) => {
   };
 
   return {
-    activeNodeId: null,
-    currentNodeId: null,
+    activeNodeUuid: null,
+    currentNodeUuid: null,
     currentPropertyContext: null,
     sidebarOpen: true,
     rightSidebarOpen: false,
@@ -203,16 +204,16 @@ export const useNavigationStore = create<NavigationState>()((set, get) => {
     rightSidebarContent: null,
     sidebarNode: null,
     sidebarCards: [],
-    localGraphNodeId: null,
+    localGraphNodeUuid: null,
     flashSidebarCardId: null,
     viewMode: 'default',
     preFocusModeSidebarCollapsed: null,
     mainViewType: 'node' as MainViewType,
-    currentPropertyId: null,
+    currentPropertyUuid: null,
     isSwitchingWorkspace: false,
     nodeCollectionTitle: null,
     nodeCollectionQueryAST: null,
-    nodeCollectionNodeIds: null,
+    nodeCollectionNodeUuids: null,
 
     // Tabs
     tabs: [],
@@ -220,27 +221,28 @@ export const useNavigationStore = create<NavigationState>()((set, get) => {
     secondaryTabId: null,
     splitOrientation: null,
 
-    setActiveNodeId: (id) => set({ activeNodeId: id }),
+    setActiveNodeUuid: (uuid) => set({ activeNodeUuid: uuid }),
 
-    openNode: (nodeId, propertyContext) => {
+    openNode: (nodeUuidArg, propertyContext) => {
+      const nodeUuid = typeof nodeUuidArg === 'string' ? nodeUuidArg : resolveNodeUuid(nodeUuidArg);
       const state = get();
 
       // If this node is already open in a tab, activate that tab instead of
       // replacing the current one (browser-like tab navigation)
-      const existingTab = state.tabs.find((t) => t.nodeId === nodeId && t.type === 'node');
+      const existingTab = state.tabs.find((t) => t.nodeUuid === nodeUuid && t.type === 'node');
       if (existingTab) {
         set({
           activeTabId: existingTab.id,
-          currentNodeId: existingTab.nodeId ?? null,
+          currentNodeUuid: existingTab.nodeUuid ?? null,
           mainViewType: existingTab.type,
-          currentPropertyId: existingTab.propertyId ?? null,
+          currentPropertyUuid: existingTab.propertyUuid ?? null,
           currentPropertyContext: propertyContext ?? null,
         });
         return;
       }
 
       const activeTab = state.tabs.find((t) => t.id === state.activeTabId);
-      const isNewNode = activeTab?.nodeId !== nodeId;
+      const isNewNode = activeTab?.nodeUuid !== nodeUuid;
       const newTabId = generateTabId();
       const newTabs = activeTab
         ? state.tabs.map((t) => {
@@ -249,30 +251,31 @@ export const useNavigationStore = create<NavigationState>()((set, get) => {
             return {
               ...updated,
               type: 'node' as MainViewType,
-              nodeId,
-              propertyId: undefined,
+              nodeUuid,
+              propertyUuid: undefined,
               label: isNewNode ? 'Node' : t.label,
               icon: isNewNode ? undefined : t.icon,
               color: isNewNode ? undefined : t.color,
             };
           })
-        : [...state.tabs, { id: newTabId, type: 'node' as MainViewType, nodeId, label: 'Node', pinned: false, history: [], historyIndex: -1 }];
+        : [...state.tabs, { id: newTabId, type: 'node' as MainViewType, nodeUuid, label: 'Node', pinned: false, history: [], historyIndex: -1 }];
       set({
         tabs: newTabs,
         activeTabId: activeTab ? state.activeTabId : newTabId,
-        currentNodeId: nodeId,
+        currentNodeUuid: nodeUuid,
         currentPropertyContext: propertyContext ?? null,
         mainViewType: 'node',
-        currentPropertyId: null,
+        currentPropertyUuid: null,
       });
     },
 
-    openNodeInNewTab: (nodeId, opts) => {
+    openNodeInNewTab: (nodeUuidArg, opts) => {
+      const nodeUuid = typeof nodeUuidArg === 'string' ? nodeUuidArg : resolveNodeUuid(nodeUuidArg);
       const state = get();
       const newTab: Tab = {
         id: generateTabId(),
         type: 'node',
-        nodeId,
+        nodeUuid,
         label: opts?.label || 'Node',
         icon: opts?.icon,
         color: opts?.color,
@@ -284,16 +287,17 @@ export const useNavigationStore = create<NavigationState>()((set, get) => {
       const activeIdx = state.tabs.findIndex((t) => t.id === state.activeTabId);
       const insertIdx = activeIdx >= 0 ? activeIdx + 1 : state.tabs.length;
       const newTabs = [...state.tabs.slice(0, insertIdx), newTab, ...state.tabs.slice(insertIdx)];
-      set({ tabs: newTabs, activeTabId: newTab.id, currentNodeId: nodeId, mainViewType: 'node', currentPropertyId: null });
+      set({ tabs: newTabs, activeTabId: newTab.id, currentNodeUuid: nodeUuid, mainViewType: 'node', currentPropertyUuid: null });
     },
 
     openViewInNewTab: (viewType, opts) => {
       const state = get();
+      const nodeUuid = opts?.nodeUuid === undefined ? undefined : typeof opts.nodeUuid === 'string' ? opts.nodeUuid : resolveNodeUuid(opts.nodeUuid);
       const newTab: Tab = {
         id: generateTabId(),
         type: viewType,
-        nodeId: opts?.nodeId,
-        propertyId: opts?.propertyId,
+        nodeUuid,
+        propertyUuid: opts?.propertyUuid,
         label: opts?.label || makeTabLabel(viewType),
         pinned: false,
         history: [],
@@ -306,8 +310,8 @@ export const useNavigationStore = create<NavigationState>()((set, get) => {
         tabs: newTabs,
         activeTabId: newTab.id,
         mainViewType: viewType,
-        currentNodeId: opts?.nodeId ?? null,
-        currentPropertyId: opts?.propertyId ?? null,
+        currentNodeUuid: nodeUuid ?? null,
+        currentPropertyUuid: opts?.propertyUuid ?? null,
       });
     },
 
@@ -342,26 +346,28 @@ export const useNavigationStore = create<NavigationState>()((set, get) => {
         ? state.tabs.map((t) => {
             if (t.id !== state.activeTabId) return t;
             const updated = pushTabHistory(t, makeHistoryEntry(t));
-            return { ...updated, type: viewType, nodeId: undefined, propertyId: undefined, icon: undefined, color: undefined, label: makeTabLabel(viewType) };
+            return { ...updated, type: viewType, nodeUuid: undefined, propertyUuid: undefined, icon: undefined, color: undefined, label: makeTabLabel(viewType) };
           })
         : [...state.tabs, { id: generateTabId(), type: viewType, label: makeTabLabel(viewType), pinned: false, history: [], historyIndex: -1 }];
-      set({ tabs: newTabs, mainViewType: viewType, currentNodeId: null, currentPropertyId: null });
+      set({ tabs: newTabs, mainViewType: viewType, currentNodeUuid: null, currentPropertyUuid: null });
     },
 
-    openPropertyView: (propertyId) => {
+    openPropertyView: (propertyUuidArg) => {
+      const propertyUuid = typeof propertyUuidArg === 'string' ? propertyUuidArg : resolvePropertyUuid(propertyUuidArg);
+      if (!propertyUuid) return;
       const state = get();
       const activeTab = state.tabs.find((t) => t.id === state.activeTabId);
       const newTabs = activeTab
         ? state.tabs.map((t) => {
             if (t.id !== state.activeTabId) return t;
             const updated = pushTabHistory(t, makeHistoryEntry(t));
-            return { ...updated, type: 'property' as MainViewType, propertyId, nodeId: undefined, icon: undefined, color: undefined, label: 'Property' };
+            return { ...updated, type: 'property' as MainViewType, propertyUuid, nodeUuid: undefined, icon: undefined, color: undefined, label: 'Property' };
           })
         : [
             ...state.tabs,
-            { id: generateTabId(), type: 'property' as MainViewType, propertyId, label: 'Property', pinned: false, history: [], historyIndex: -1 },
+            { id: generateTabId(), type: 'property' as MainViewType, propertyUuid, label: 'Property', pinned: false, history: [], historyIndex: -1 },
           ];
-      set({ tabs: newTabs, mainViewType: 'property', currentPropertyId: propertyId, currentNodeId: null });
+      set({ tabs: newTabs, mainViewType: 'property', currentPropertyUuid: propertyUuid, currentNodeUuid: null });
     },
 
     openNodeCollection: (title, queryAST) => {
@@ -371,33 +377,37 @@ export const useNavigationStore = create<NavigationState>()((set, get) => {
         ? state.tabs.map((t) => {
             if (t.id !== state.activeTabId) return t;
             const updated = pushTabHistory(t, makeHistoryEntry(t));
-            return { ...updated, type: 'node-collection' as MainViewType, nodeId: undefined, propertyId: undefined, icon: undefined, color: undefined, label: title };
+            return { ...updated, type: 'node-collection' as MainViewType, nodeUuid: undefined, propertyUuid: undefined, icon: undefined, color: undefined, label: title };
           })
         : [...state.tabs, { id: generateTabId(), type: 'node-collection' as MainViewType, label: title, pinned: false, history: [], historyIndex: -1 }];
-      set({ tabs: newTabs, mainViewType: 'node-collection', nodeCollectionTitle: title, nodeCollectionQueryAST: queryAST, nodeCollectionNodeIds: null, currentNodeId: null, currentPropertyId: null });
+      set({ tabs: newTabs, mainViewType: 'node-collection', nodeCollectionTitle: title, nodeCollectionQueryAST: queryAST, nodeCollectionNodeUuids: null, currentNodeUuid: null, currentPropertyUuid: null });
     },
-    openNodeCollectionFromNodes: (title, nodeIds) => {
+    openNodeCollectionFromNodes: (title, nodeUuids) => {
+      const resolvedUuids = nodeUuids.map((id) => typeof id === 'string' ? id : resolveNodeUuid(id));
       const state = get();
       const activeTab = state.tabs.find((t) => t.id === state.activeTabId);
       const newTabs = activeTab
         ? state.tabs.map((t) => {
             if (t.id !== state.activeTabId) return t;
             const updated = pushTabHistory(t, makeHistoryEntry(t));
-            return { ...updated, type: 'node-collection' as MainViewType, nodeId: undefined, propertyId: undefined, icon: undefined, color: undefined, label: title };
+            return { ...updated, type: 'node-collection' as MainViewType, nodeUuid: undefined, propertyUuid: undefined, icon: undefined, color: undefined, label: title };
           })
         : [...state.tabs, { id: generateTabId(), type: 'node-collection' as MainViewType, label: title, pinned: false, history: [], historyIndex: -1 }];
-      set({ tabs: newTabs, mainViewType: 'node-collection', nodeCollectionTitle: title, nodeCollectionQueryAST: null, nodeCollectionNodeIds: nodeIds, currentNodeId: null, currentPropertyId: null });
+      set({ tabs: newTabs, mainViewType: 'node-collection', nodeCollectionTitle: title, nodeCollectionQueryAST: null, nodeCollectionNodeUuids: resolvedUuids, currentNodeUuid: null, currentPropertyUuid: null });
     },
     closeNodeCollection: () =>
-      set({ mainViewType: 'node', nodeCollectionTitle: null, nodeCollectionQueryAST: null, nodeCollectionNodeIds: null }),
+      set({ mainViewType: 'node', nodeCollectionTitle: null, nodeCollectionQueryAST: null, nodeCollectionNodeUuids: null }),
     setSidebarTab: (tab) => set({ sidebarTab: tab }),
-    openNodeInSidebar: (nodeId, nodeType) =>
-      set({ rightSidebarOpen: true, rightSidebarContent: 'node', sidebarNode: { id: nodeId, type: nodeType } }),
+    openNodeInSidebar: (nodeUuidArg, nodeType) => {
+      const nodeUuid = typeof nodeUuidArg === 'string' ? nodeUuidArg : resolveNodeUuid(nodeUuidArg);
+      set({ rightSidebarOpen: true, rightSidebarContent: 'node', sidebarNode: { id: nodeUuid, type: nodeType } });
+    },
     closeSidebarNode: () => set({ rightSidebarOpen: false, rightSidebarContent: null, sidebarNode: null }),
-    addSidebarCard: (nodeId, cardType) =>
+    addSidebarCard: (nodeUuidArg, cardType) => {
+      const nodeUuid = typeof nodeUuidArg === 'string' ? nodeUuidArg : resolveNodeUuid(nodeUuidArg);
       set((s) => {
         const existingIndex = s.sidebarCards.findIndex(
-          (c) => c.nodeId === nodeId && c.cardType === cardType,
+          (c) => c.nodeUuid === nodeUuid && c.cardType === cardType,
         );
         if (existingIndex >= 0) {
           const existing = s.sidebarCards[existingIndex];
@@ -408,28 +418,30 @@ export const useNavigationStore = create<NavigationState>()((set, get) => {
           ];
           return { sidebarCards: newCards, rightSidebarOpen: true, rightSidebarContent: 'node' };
         }
-        const newCard: SidebarCard = { id: Date.now(), nodeId, cardType, addedAt: Date.now() };
+        const newCard: SidebarCard = { id: Date.now(), nodeUuid, cardType, addedAt: Date.now() };
         return {
           sidebarCards: [newCard, ...s.sidebarCards],
           rightSidebarOpen: true,
           rightSidebarContent: 'node',
         };
-      }),
-    addSidebarCards: (nodeIds, cardType) =>
+      });
+    },
+    addSidebarCards: (nodeUuids, cardType) => {
+      const resolvedUuids = nodeUuids.map((id) => typeof id === 'string' ? id : resolveNodeUuid(id));
       set((s) => {
         const baseTime = Date.now();
         const newCards: SidebarCard[] = [];
         const existingCards = [...s.sidebarCards];
 
-        nodeIds.forEach((nodeId, index) => {
+        resolvedUuids.forEach((nodeUuid, index) => {
           const existingIndex = existingCards.findIndex(
-            (c) => c.nodeId === nodeId && c.cardType === cardType,
+            (c) => c.nodeUuid === nodeUuid && c.cardType === cardType,
           );
           if (existingIndex >= 0) {
             const existing = existingCards.splice(existingIndex, 1)[0];
             newCards.push({ ...existing, addedAt: baseTime + index });
           } else {
-            newCards.push({ id: baseTime + index, nodeId, cardType, addedAt: baseTime + index });
+            newCards.push({ id: baseTime + index, nodeUuid, cardType, addedAt: baseTime + index });
           }
         });
 
@@ -438,7 +450,8 @@ export const useNavigationStore = create<NavigationState>()((set, get) => {
           rightSidebarOpen: true,
           rightSidebarContent: 'node',
         };
-      }),
+      });
+    },
     removeSidebarCard: (cardId) =>
       set((s) => {
         const newCards = s.sidebarCards.filter((c) => c.id !== cardId);
@@ -454,10 +467,11 @@ export const useNavigationStore = create<NavigationState>()((set, get) => {
         set({ flashSidebarCardId: null });
       }, 1500);
     },
-    openLocalGraph: (nodeId) =>
+    openLocalGraph: (nodeUuidArg) => {
+      const nodeUuid = typeof nodeUuidArg === 'string' ? nodeUuidArg : resolveNodeUuid(nodeUuidArg);
       set((s) => {
         const existingIndex = s.sidebarCards.findIndex(
-          (c) => c.nodeId === nodeId && c.cardType === 'localGraph',
+          (c) => c.nodeUuid === nodeUuid && c.cardType === 'localGraph',
         );
         if (existingIndex >= 0) {
           const existing = s.sidebarCards[existingIndex];
@@ -470,12 +484,12 @@ export const useNavigationStore = create<NavigationState>()((set, get) => {
             sidebarCards: newCards,
             rightSidebarOpen: true,
             rightSidebarContent: 'node',
-            localGraphNodeId: nodeId,
+            localGraphNodeUuid: nodeUuid,
           };
         }
         const newCard: SidebarCard = {
           id: Date.now(),
-          nodeId,
+          nodeUuid,
           cardType: 'localGraph',
           addedAt: Date.now(),
         };
@@ -483,16 +497,17 @@ export const useNavigationStore = create<NavigationState>()((set, get) => {
           sidebarCards: [newCard, ...s.sidebarCards],
           rightSidebarOpen: true,
           rightSidebarContent: 'node',
-          localGraphNodeId: nodeId,
+          localGraphNodeUuid: nodeUuid,
         };
-      }),
+      });
+    },
     closeLocalGraph: () =>
       set((s) => {
         const newCards = s.sidebarCards.filter((c) => c.cardType !== 'localGraph');
         if (newCards.length === 0) {
-          return { sidebarCards: newCards, rightSidebarOpen: false, rightSidebarContent: null, localGraphNodeId: null };
+          return { sidebarCards: newCards, rightSidebarOpen: false, rightSidebarContent: null, localGraphNodeUuid: null };
         }
-        return { sidebarCards: newCards, localGraphNodeId: null };
+        return { sidebarCards: newCards, localGraphNodeUuid: null };
       }),
 
     // ── Tab actions ───────────────────────────────────────────────────────
@@ -502,9 +517,9 @@ export const useNavigationStore = create<NavigationState>()((set, get) => {
       if (!tab) return;
       set({
         activeTabId: tabId,
-        currentNodeId: tab.nodeId ?? null,
+        currentNodeUuid: tab.nodeUuid ?? null,
         mainViewType: tab.type,
-        currentPropertyId: tab.propertyId ?? null,
+        currentPropertyUuid: tab.propertyUuid ?? null,
       });
     },
 
@@ -529,9 +544,9 @@ export const useNavigationStore = create<NavigationState>()((set, get) => {
         activeTabId: newActiveId,
         secondaryTabId: newSecondaryId,
         splitOrientation: newSecondaryId ? state.splitOrientation : null,
-        currentNodeId: activeTab?.nodeId ?? null,
+        currentNodeUuid: activeTab?.nodeUuid ?? null,
         mainViewType: activeTab?.type ?? 'node',
-        currentPropertyId: activeTab?.propertyId ?? null,
+        currentPropertyUuid: activeTab?.propertyUuid ?? null,
       });
     },
 
@@ -544,9 +559,9 @@ export const useNavigationStore = create<NavigationState>()((set, get) => {
         activeTabId: keep.length > 0 ? tabId : null,
         secondaryTabId: null,
         splitOrientation: null,
-        currentNodeId: activeTab?.nodeId ?? null,
+        currentNodeUuid: activeTab?.nodeUuid ?? null,
         mainViewType: activeTab?.type ?? 'node',
-        currentPropertyId: activeTab?.propertyId ?? null,
+        currentPropertyUuid: activeTab?.propertyUuid ?? null,
       });
     },
 
@@ -571,9 +586,9 @@ export const useNavigationStore = create<NavigationState>()((set, get) => {
             activeTabId: null,
             secondaryTabId: null,
             splitOrientation: null,
-            currentNodeId: null,
+            currentNodeUuid: null,
             mainViewType: 'node',
-            currentPropertyId: null,
+            currentPropertyUuid: null,
           });
           return;
         }
@@ -582,9 +597,9 @@ export const useNavigationStore = create<NavigationState>()((set, get) => {
           activeTabId: fallback.id,
           secondaryTabId: newSecondaryId,
           splitOrientation: newSecondaryId ? state.splitOrientation : null,
-          currentNodeId: fallback.nodeId ?? null,
+          currentNodeUuid: fallback.nodeUuid ?? null,
           mainViewType: fallback.type,
-          currentPropertyId: fallback.propertyId ?? null,
+          currentPropertyUuid: fallback.propertyUuid ?? null,
         });
       } else {
         set({ tabs: newTabs, secondaryTabId: newSecondaryId, splitOrientation: newSecondaryId ? state.splitOrientation : null });
@@ -643,7 +658,8 @@ export const useNavigationStore = create<NavigationState>()((set, get) => {
       set({ activeTabId: state.secondaryTabId, secondaryTabId: state.activeTabId });
     },
 
-    replaceTabContent: (tabId, nodeId, opts) => {
+    replaceTabContent: (tabId, nodeUuidArg, opts) => {
+      const nodeUuid = typeof nodeUuidArg === 'string' ? nodeUuidArg : resolveNodeUuid(nodeUuidArg);
       set((s) => {
         const tab = s.tabs.find((t) => t.id === tabId);
         if (!tab) return s;
@@ -651,8 +667,8 @@ export const useNavigationStore = create<NavigationState>()((set, get) => {
         const newTab: Tab = {
           ...updated,
           type: 'node',
-          nodeId,
-          propertyId: undefined,
+          nodeUuid,
+          propertyUuid: undefined,
           label: opts?.label || tab.label,
           icon: opts?.icon ?? tab.icon,
           color: opts?.color ?? tab.color,
@@ -660,9 +676,9 @@ export const useNavigationStore = create<NavigationState>()((set, get) => {
         const newTabs = s.tabs.map((t) => (t.id === tabId ? newTab : t));
         const patch: Partial<NavigationState> = { tabs: newTabs };
         if (s.activeTabId === tabId) {
-          patch.currentNodeId = nodeId;
+          patch.currentNodeUuid = nodeUuid;
           patch.mainViewType = 'node';
-          patch.currentPropertyId = null;
+          patch.currentPropertyUuid = null;
         }
         return patch;
       });
@@ -678,9 +694,9 @@ export const useNavigationStore = create<NavigationState>()((set, get) => {
       const newTabs = state.tabs.map((t) => (t.id === activeTab.id ? newTab : t));
       set({
         tabs: newTabs,
-        currentNodeId: entry.nodeId ?? null,
+        currentNodeUuid: entry.nodeUuid ?? null,
         mainViewType: entry.type,
-        currentPropertyId: entry.propertyId ?? null,
+        currentPropertyUuid: entry.propertyUuid ?? null,
       });
       return true;
     },
@@ -695,9 +711,9 @@ export const useNavigationStore = create<NavigationState>()((set, get) => {
       const newTabs = state.tabs.map((t) => (t.id === activeTab.id ? newTab : t));
       set({
         tabs: newTabs,
-        currentNodeId: entry.nodeId ?? null,
+        currentNodeUuid: entry.nodeUuid ?? null,
         mainViewType: entry.type,
-        currentPropertyId: entry.propertyId ?? null,
+        currentPropertyUuid: entry.propertyUuid ?? null,
       });
       return true;
     },
@@ -723,9 +739,9 @@ export const useNavigationStore = create<NavigationState>()((set, get) => {
       const newTabs = state.tabs.map((t) => (t.id === tabId ? newTab : t));
       const patch: Partial<NavigationState> = { tabs: newTabs };
       if (state.activeTabId === tabId) {
-        patch.currentNodeId = entry.nodeId ?? null;
+        patch.currentNodeUuid = entry.nodeUuid ?? null;
         patch.mainViewType = entry.type;
-        patch.currentPropertyId = entry.propertyId ?? null;
+        patch.currentPropertyUuid = entry.propertyUuid ?? null;
       }
       set(patch);
     },

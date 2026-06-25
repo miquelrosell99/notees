@@ -278,7 +278,7 @@ class ExportService:
     async def export_nodes(
         self,
         workspace_id: int,
-        node_ids: list[str],
+        node_uuids: list[str],
         format: Any,
         user_id: int | None = None,
         include_children: bool = True,
@@ -306,7 +306,7 @@ class ExportService:
 
         Args:
             workspace_id: Workspace ID to export from.
-            node_ids: List of node UUIDs to export.
+            node_uuids: List of node UUIDs to export.
             format: Export format (markdown, html, pdf, text, json).
             asset_path_map: Optional dict mapping asset node UUIDs to relative
                 file paths (e.g. './assets/uuid/filename.ext').
@@ -319,7 +319,7 @@ class ExportService:
         """
         nodes_data: list[dict[str, Any]] = []
         seen_uuids: set[str] = set()
-        for node_uuid in node_ids:
+        for node_uuid in node_uuids:
             fetched = await self.get_export_node_tree(
                 workspace_id, node_uuid, include_children, include_child_pages
             )
@@ -348,7 +348,7 @@ class ExportService:
         exporter_reg = plugin_manager.get_exporter_registration(fmt_str)
         if exporter_reg is not None:
             plugin_id, adapter = exporter_reg
-            resolved_ids = await self._export_repo.resolve_node_ids(workspace_id, node_ids)
+            resolved_ids = await self._export_repo.resolve_node_ids(workspace_id, node_uuids)
             if not resolved_ids:
                 raise ValueError("No nodes found to export")
 
@@ -458,9 +458,9 @@ class ExportService:
         strip_links = link_style == "text"
 
         cover_metadata = None
-        if cover_page and node_ids and fmt_str in {"html", "pdf"}:
+        if cover_page and node_uuids and fmt_str in {"html", "pdf"}:
             cover_metadata = await self.get_page_metadata(
-                workspace_id, node_ids[0], include_properties=False
+                workspace_id, node_uuids[0], include_properties=False
             )
 
         if fmt_str == "markdown":
@@ -477,8 +477,8 @@ class ExportService:
                 highlight_syntax=highlight_syntax,
                 link_target_brackets=link_target_brackets,
             )
-            if frontmatter and node_ids:
-                root_uuid = node_ids[0]
+            if frontmatter and node_uuids:
+                root_uuid = node_uuids[0]
                 metadata = await self.get_page_metadata(
                     workspace_id, root_uuid, include_properties=properties != "none"
                 )
@@ -574,7 +574,7 @@ class ExportService:
         """Generate a static HTML export for a shared node."""
         content_bytes, _filename, _mime = await self.export_nodes(
             workspace_id=workspace_id,
-            node_ids=[node_uuid],
+            node_uuids=[node_uuid],
             format="html",
             include_children=True,
             layout="outline",

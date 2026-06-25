@@ -11,12 +11,14 @@ from datetime import datetime
 from typing import Any
 
 from app.domain.entities import (
+    ClassExtend,
     ClassProperty,
     Node,
     NodeCreateData,
     NodeProperty,
     NodeUpdateData,
     Property,
+    PropertyClassFilter,
     PropertySelectionLine,
     PropertyType,
     PropertyValueRelation,
@@ -829,6 +831,9 @@ class FakePropertyRepository:
                 return prop
         return None
 
+    async def get_by_uuids(self, uuids: list[str]) -> list[Property]:
+        return [prop for prop in self._properties.values() if prop.uuid in uuids]
+
     async def get_by_name(self, name: str, node_id: int | None = None) -> Property | None:
         for prop in self._properties.values():
             if prop.name == name:
@@ -887,6 +892,9 @@ class FakePropertyRepository:
             property_id=property_id,
             property_type=prop.type if prop else None,
         )
+
+    async def get_node_property_by_id(self, node_property_id: int) -> NodeProperty | None:
+        return None
 
     async def get_node_properties(self, node_id: int) -> list[NodeProperty]:
         return []
@@ -1011,6 +1019,7 @@ class FakePropertyRepository:
     ) -> PropertySelectionLine:
         line = PropertySelectionLine(
             id=self._bump_id(),
+            uuid=generate_uuid(),
             property_id=property_id,
             name=name,
             icon=icon,
@@ -1021,6 +1030,31 @@ class FakePropertyRepository:
 
     async def get_selection_lines(self, property_id: int) -> list[PropertySelectionLine]:
         return list(self._selection_lines.get(property_id, []))
+
+    async def get_selection_line_by_uuid(self, uuid: str) -> PropertySelectionLine | None:
+        for lines in self._selection_lines.values():
+            for line in lines:
+                if line.uuid == uuid:
+                    return line
+        return None
+
+    async def get_selection_lines_by_ids(self, ids: list[int]) -> list[PropertySelectionLine]:
+        result = []
+        for lines in self._selection_lines.values():
+            for line in lines:
+                if line.id in ids:
+                    result.append(line)
+        return result
+
+    async def get_selection_lines_by_uuids(self, uuids: list[str]) -> list[PropertySelectionLine]:
+        result = []
+        seen = set()
+        for lines in self._selection_lines.values():
+            for line in lines:
+                if line.uuid in uuids and line.uuid not in seen:
+                    result.append(line)
+                    seen.add(line.uuid)
+        return result
 
     async def update_selection_line(
         self,
@@ -1097,15 +1131,19 @@ class FakePropertyRepository:
 
     async def add_class_filter(
         self, property_id: int, class_node_id: int
-    ) -> ClassProperty:
-        return ClassProperty(
+    ) -> PropertyClassFilter:
+        return PropertyClassFilter(
             id=self._bump_value_id(),
+            uuid=generate_uuid(),
             class_node_id=class_node_id,
             property_id=property_id,
         )
 
-    async def get_class_filters(self, property_id: int) -> list[int]:
+    async def get_class_filters(self, property_id: int) -> list[PropertyClassFilter]:
         return []
+
+    async def get_class_filter_by_uuid(self, uuid: str) -> PropertyClassFilter | None:
+        return None
 
     async def remove_class_filter(
         self, property_id: int, class_node_id: int
@@ -1145,6 +1183,9 @@ class FakePropertyRepository:
     async def get_class_properties(self, class_node_id: int) -> list[ClassProperty]:
         return []
 
+    async def get_class_property_by_uuid(self, uuid: str) -> ClassProperty | None:
+        return None
+
     async def add_class_property(
         self,
         class_node_id: int,
@@ -1155,7 +1196,10 @@ class FakePropertyRepository:
         hidden: bool | None = None,
     ) -> ClassProperty:
         return ClassProperty(
-            id=self._bump_id(), class_node_id=class_node_id, property_id=property_id
+            id=self._bump_id(),
+            uuid=generate_uuid(),
+            class_node_id=class_node_id,
+            property_id=property_id,
         )
 
     async def remove_class_property(
@@ -1178,6 +1222,9 @@ class FakePropertyRepository:
         return []
 
     async def get_property_stats(self) -> list[dict[str, Any]]:
+        return []
+
+    async def get_property_suggestions(self, node_id: int | None) -> list[dict[str, Any]]:
         return []
 
 
@@ -1272,6 +1319,9 @@ class FakeClassExtendRepository:
         sequence: int = 0,
     ) -> Any:
         raise NotImplementedError
+
+    async def get_class_extend_by_uuid(self, uuid: str) -> ClassExtend | None:
+        return None
 
     async def remove_extends(
         self, class_node_id: int, extends_class_id: int

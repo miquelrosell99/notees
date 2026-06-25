@@ -33,8 +33,8 @@ class ActivityRepository(ABC):
         target_node_id: int | None,
         now: Any,
         user_id: int | None = None,
-    ) -> int:
-        """Insert activity record and return its new id."""
+    ) -> tuple[int, str]:
+        """Insert activity record and return its new (id, uuid)."""
         pass
 
     @abstractmethod
@@ -44,7 +44,21 @@ class ActivityRepository(ABC):
 
     @abstractmethod
     async def delete_node_activity(self, activity_id: int, node_id: int) -> None:
-        """Delete a specific activity record."""
+        """Delete a specific activity record by internal ID."""
+        pass
+
+    @abstractmethod
+    async def get_node_activity_by_uuid(
+        self, activity_uuid: str, node_id: int
+    ) -> Any | None:
+        """Fetch a single activity row by its public UUID, verifying node ownership."""
+        pass
+
+    @abstractmethod
+    async def delete_node_activity_by_uuid(
+        self, activity_uuid: str, node_id: int
+    ) -> bool:
+        """Delete a specific activity record by its public UUID."""
         pass
 
     @abstractmethod

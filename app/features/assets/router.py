@@ -13,7 +13,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 
 from app.config import settings
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, get_node_repository
 from app.features.assets.dependencies import (
     get_asset_service,
     get_asset_service_with_token,
@@ -29,6 +29,8 @@ from app.features.assets.utils import (
     check_magic_bytes,
     get_extension_from_content_type,
 )
+from app.features.nodes.port import NodeRepository
+from app.features.nodes.router.dependencies import resolve_node_uuid
 from app.logging_config import get_logger
 from app.models import User
 
@@ -85,10 +87,11 @@ class AssetTokenResponse(BaseModel):
 @router.post("/upload", response_model=AssetResponse)
 async def upload_asset(
     file: UploadFile = File(...),
-    parent_id: int | None = None,
-    existing_node_id: int | None = None,
+    parent_uuid: str | None = None,
+    existing_node_uuid: str | None = None,
     content: str | None = Form(None),
     asset_service: AssetService = Depends(get_asset_service),
+    node_repo: NodeRepository = Depends(get_node_repository),
 ):
     """Upload a new asset file.
 
@@ -119,6 +122,9 @@ async def upload_asset(
             detail=f"File content does not match declared type '{content_type}'. "
             "Upload rejected to prevent content-type spoofing.",
         )
+
+    parent_id = await resolve_node_uuid(parent_uuid, node_repo) if parent_uuid else None
+    existing_node_id = await resolve_node_uuid(existing_node_uuid, node_repo) if existing_node_uuid else None
 
     try:
         result = await asset_service.upload_asset(

@@ -14,20 +14,20 @@ import { SidebarNodeView } from './SidebarNodeView';
 import './SidebarCardNode.css';
 
 interface SidebarCardNodeProps {
-  /** The node ID to display */
-  nodeId: number;
+  /** The node UUID to display */
+  nodeUuid: string;
   /** Whether this is a page or block */
   cardType: 'page' | 'block';
   /** Callback when the card is closed */
   onClose: () => void;
 }
 
-export function SidebarCardNode({ nodeId, cardType, onClose }: SidebarCardNodeProps) {
-  const { data: node, isLoading, error } = useNode(nodeId);
+export function SidebarCardNode({ nodeUuid, cardType, onClose }: SidebarCardNodeProps) {
+  const { data: node, isLoading, error } = useNode(nodeUuid);
   const openNode = useNavigationStore((state) => state.openNode);
 
   const handleOpen = useCallback(() => {
-    if (node) openNode(node.id);
+    if (node) openNode(node.uuid);
   }, [node, openNode]);
 
   const handleDragStart = useCallback((e: React.DragEvent) => {
@@ -67,7 +67,7 @@ export function SidebarCardNode({ nodeId, cardType, onClose }: SidebarCardNodePr
       loading={isLoading}
       error={error ? 'Failed to load node' : undefined}
     >
-      <SidebarNodeView nodeId={nodeId} nodeType={cardType} />
+      <SidebarNodeView nodeUuid={nodeUuid} nodeType={cardType} />
     </SidebarCard>
   );
 }

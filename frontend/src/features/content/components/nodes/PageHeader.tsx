@@ -424,7 +424,7 @@ export function PageHeader({
   const handleHeaderClick = useCallback((e: React.MouseEvent) => {
     if (e.shiftKey) {
       e.preventDefault();
-      addSidebarCard(page.id, 'page');
+      addSidebarCard(page.uuid, 'page');
     }
   }, [page.id, addSidebarCard]);
 

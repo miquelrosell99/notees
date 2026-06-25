@@ -19,19 +19,19 @@ import { Button } from '@/components/ui/Button';
 import './SidebarNodeView.css';
 
 interface SidebarNodeViewProps {
-  nodeId: number;
+  nodeUuid: string;
   nodeType: SidebarNodeType;
 }
 
-export function SidebarNodeView({ nodeId, nodeType }: SidebarNodeViewProps) {
-  const { data: node, isLoading, error } = useNode(nodeId);
+export function SidebarNodeView({ nodeUuid, nodeType }: SidebarNodeViewProps) {
+  const { data: node, isLoading, error } = useNode(nodeUuid);
   const { openNode, viewMode } = useNavigationStore(
     useShallow((state) => ({ openNode: state.openNode, viewMode: state.viewMode })),
   );
 
   const handleOpenFull = useCallback(() => {
     if (!node) return;
-    openNode(node.id);
+    openNode(node.uuid);
   }, [node, openNode]);
 
   // Loading state
@@ -83,7 +83,7 @@ export function SidebarNodeView({ nodeId, nodeType }: SidebarNodeViewProps) {
       {/* Content - just NodeViewContent */}
       <div className="sidebar-node-view__content">
         <NodeViewContent
-          nodeId={nodeId}
+          nodeId={node?.id ?? 0}
           viewMode={viewMode}
           sidebarMode={true}
         />

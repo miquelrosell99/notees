@@ -11,7 +11,7 @@
  */
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { useQueries } from '@tanstack/react-query';
+import { useQueries, useQueryClient } from '@tanstack/react-query';
 import { useKeyboardListNav } from '@/hooks/useKeyboardListNav';
 import { useViewportFlip } from '@/hooks/useViewportFlip';
 import { NodeRef } from './NodeRef';
@@ -28,6 +28,7 @@ import { useNodeSearch, usePages, useClasses, useCreateNode, usePageClass, useCl
 import { parseQueryWithFilters, type AppliedFilter } from '@/utils/searchFilters';
 import * as nodesApi from '@/api/nodes';
 import { nodeNameToText } from '@/features/queries';
+import { getNodeUuidByServerId } from '@/features/content/hooks/useNodeMutations.utils';
 import { SYSTEM_CLASS_UUIDS } from '@/constants';
 import type { Node } from '@/types';
 import './NodeSelector.css';
@@ -133,6 +134,7 @@ export function NodeSelector({
   const [appliedFilters, setAppliedFilters] = useState<AppliedFilter[]>([]);
   const [displayLimit, setDisplayLimit] = useState(trigger === 'select' ? 15 : 10);
   const [pickerPos, setPickerPos] = useState<{ top: number; left: number } | null>(null);
+  const queryClient = useQueryClient();
   const pickerRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLDivElement>(null);
   const arrowBtnRef = useRef<HTMLButtonElement>(null);
@@ -150,7 +152,11 @@ export function NodeSelector({
   const nodeQueries = useQueries({
     queries: nodesProp ? [] : valueIds.map((nodeId) => ({
       queryKey: nodeKeys.detail(nodeId, { include_children: false }),
-      queryFn: () => nodesApi.getNode(nodeId, { include_children: false }),
+      queryFn: () => {
+        const nodeUuid = getNodeUuidByServerId(queryClient, nodeId);
+        if (!nodeUuid) throw new Error('Node UUID not found');
+        return nodesApi.getNode(nodeUuid, { include_children: false });
+      },
       staleTime: 5 * 60 * 1000,
       enabled: !!nodeId,
     })),
@@ -249,7 +255,7 @@ export function NodeSelector({
       excludeNodeId,
       maxResults: displayLimit,
       pinnedNodeId: pinnedNodeId ?? undefined,
-      uuid: parsedFilters.uuidSearch ?? undefined,
+      nodeUuid: parsedFilters.uuidSearch ?? undefined,
       ...derivedBooleanFilters,
     }
   );

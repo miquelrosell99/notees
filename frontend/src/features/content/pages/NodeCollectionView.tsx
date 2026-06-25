@@ -99,8 +99,8 @@ export function NodeCollectionView({ title, queryAST, nodes }: NodeCollectionVie
             viewMode={viewMode}
             availableViewModes={AVAILABLE_VIEW_MODES}
             onViewModeChange={setViewMode}
-            onNodeClick={(node) => openNode(node.id)}
-            onNodeShiftClick={(node) => addSidebarCard(node.id, node.is_page ? 'page' : 'block')}
+            onNodeClick={(node) => openNode(node.uuid)}
+            onNodeShiftClick={(node) => addSidebarCard(node.uuid, node.is_page ? 'page' : 'block')}
             showAddButton={false}
           />
         ) : (

@@ -386,7 +386,7 @@ async def test_linked_references_dedup_self_and_child_links(auth_client, link_se
     assert len(colombia_backlinks) == 2, f'Expected 2 backlinks to Colombia, got {len(colombia_backlinks)}'
 
     # But the linked-references endpoint should deduplicate and return 1
-    response = await auth_client.get(f"/api/nodes/{colombia.id}/linked-references")
+    response = await auth_client.get(f"/api/nodes/{colombia.uuid}/linked-references")
     assert response.status_code == 200
     data = response.json()
     linked_refs = data.get("linked_references", [])
@@ -444,7 +444,7 @@ async def test_linked_references_dedup_child_of_source(auth_client, link_service
     assert len(backlinks) == 2, f'Expected 2 backlinks, got {len(backlinks)}'
 
     # linked-references endpoint should return 1 top-level entry (parent) with child nested
-    response = await auth_client.get(f"/api/nodes/{target.id}/linked-references")
+    response = await auth_client.get(f"/api/nodes/{target.uuid}/linked-references")
     assert response.status_code == 200
     data = response.json()
     linked_refs = data.get("linked_references", [])

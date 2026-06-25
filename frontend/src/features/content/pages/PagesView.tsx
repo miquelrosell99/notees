@@ -89,7 +89,7 @@ export function PagesView({ initialViewMode }: PagesViewProps) {
   }, [viewMode, pages, flatAllPages]);
 
   const handleSearchSelect = useCallback((node: Node) => {
-    openNode(node.id);
+    openNode(node.uuid);
   }, [openNode]);
 
   return (
@@ -160,7 +160,7 @@ export function PagesView({ initialViewMode }: PagesViewProps) {
             hideToolbar={true}
             editable={true}
             onContentChange={saveContent}
-            onNodeClick={(node) => openNode(node.id)}
+            onNodeClick={(node) => openNode(node.uuid)}
             showClasses={true}
             showEmpty={true}
             emptyMessage="Create a page to get started"

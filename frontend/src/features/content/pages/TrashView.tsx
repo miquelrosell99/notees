@@ -183,7 +183,7 @@ export function TrashView({ className = '' }: TrashViewProps) {
             hideToolbar={true}
             customContextMenu={TrashNodeContextMenu}
             customContextMenuItems={generateContextMenuItems}
-            onNodeClick={(node) => openNode(node.id)}
+            onNodeClick={(node) => openNode(node.uuid)}
             onNodeShiftClick={handleNodeShiftClick}
           />
         </DataStateView>

@@ -94,8 +94,8 @@ function buildChartDataFromGroups(groups: QueryGroupResult[]): ChartDatum[] {
     }));
 }
 
-function findPropertyType(uuid: string, properties: Property[]) {
-  const prop = properties.find(p => p.uuid === uuid);
+function findPropertyType(propertyUuid: string, properties: Property[]) {
+  const prop = properties.find(p => p.uuid === propertyUuid);
   if (!prop) return undefined;
   // Map API property type to QueryAST property type.
   const typeMap: Record<string, string> = {

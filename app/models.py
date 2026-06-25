@@ -324,6 +324,7 @@ class NotificationResponse(BaseModel):
     """Notification item."""
 
     id: str
+    notification_uuid: str
     type: str
     actor_user_id: str | None = None
     actor_name: str | None = None

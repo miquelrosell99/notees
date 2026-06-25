@@ -10,10 +10,10 @@ import { useQueryClient } from '@tanstack/react-query';
 import { nodeKeys } from '@/hooks/queryKeys';
 
 interface SidebarVersionsProps {
-  nodeId: number;
+  nodeUuid: string;
 }
 
-export function SidebarVersions({ nodeId }: SidebarVersionsProps) {
+export function SidebarVersions({ nodeUuid }: SidebarVersionsProps) {
   const [expanded, setExpanded] = useState(false);
   const [versions, setVersions] = useState<NodeVersion[]>([]);
   const [loading, setLoading] = useState(false);
@@ -22,25 +22,25 @@ export function SidebarVersions({ nodeId }: SidebarVersionsProps) {
   const { success: notifySuccess, error: notifyError } = useNotifications();
 
   useEffect(() => {
-    if (expanded && nodeId) {
+    if (expanded && nodeUuid) {
       setLoading(true);
-      getNodeVersions(nodeId, 30)
+      getNodeVersions(nodeUuid, 30)
         .then(v => setVersions(v))
         .catch(() => setVersions([]))
         .finally(() => setLoading(false));
     }
-  }, [expanded, nodeId]);
+  }, [expanded, nodeUuid]);
 
-  const handleRestore = useCallback(async (versionId: number) => {
+  const handleRestore = useCallback(async (versionUuid: string) => {
     try {
-      await restoreNodeVersion(nodeId, versionId);
-      queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(nodeId) });
+      await restoreNodeVersion(nodeUuid, versionUuid);
+      queryClient.invalidateQueries({ queryKey: nodeKeys.byUuid(nodeUuid) });
       notifySuccess('Version restored', 'The node content has been restored.');
-      getNodeVersions(nodeId, 30).then(setVersions).catch(() => {});
+      getNodeVersions(nodeUuid, 30).then(setVersions).catch(() => {});
     } catch {
       notifyError('Failed to restore', 'Could not restore this version.');
     }
-  }, [nodeId, queryClient, notifySuccess, notifyError]);
+  }, [nodeUuid, queryClient, notifySuccess, notifyError]);
 
   return (
     <NodeViewSection
@@ -59,20 +59,20 @@ export function SidebarVersions({ nodeId }: SidebarVersionsProps) {
         <div className="sidebar-section-empty">No version history yet</div>
       ) : (
         <div className="sidebar-versions-list">
-          {versions.map((v) => (
-            <div key={v.id} className="sidebar-version-item">
+          {versions.map(({ id, uuid: versionUuid, created_at, name }) => (
+            <div key={id} className="sidebar-version-item">
               <div className="sidebar-version-item__info">
                 <span className="sidebar-version-item__date">
-                  {v.created_at ? formatDate(new Date(v.created_at), dateFormat) : ''}
+                  {created_at ? formatDate(new Date(created_at), dateFormat) : ''}
                 </span>
               </div>
               <div className="sidebar-version-item__preview">
-                {v.name ? v.name.substring(0, 80) || 'Empty' : 'Empty'}
+                {name ? name.substring(0, 80) || 'Empty' : 'Empty'}
               </div>
               <Button
                 variant="ghost"
                 size="xs"
-                onClick={() => handleRestore(v.id)}
+                onClick={() => handleRestore(versionUuid)}
                 title="Restore this version"
                 className="sidebar-version-item__restore"
               >

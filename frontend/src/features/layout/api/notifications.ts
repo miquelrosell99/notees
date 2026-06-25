@@ -16,8 +16,8 @@ export async function listNotifications(includeRead = false): Promise<Notificati
   return response.data;
 }
 
-export async function markNotificationRead(id: number): Promise<{ status: string }> {
-  const response = await api.post<{ status: string }>(`/notifications/${id}/read`);
+export async function markNotificationRead(notificationUuid: string): Promise<{ status: string }> {
+  const response = await api.post<{ status: string }>(`/notifications/${notificationUuid}/read`);
   return response.data;
 }
 

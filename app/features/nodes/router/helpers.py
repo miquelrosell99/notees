@@ -10,6 +10,8 @@ from app.dependencies import (
 from app.domain.entities import Node
 from app.domain.permissions import PermissionChecker
 from app.features.nodes.node_service import NodeService
+from app.features.nodes.port import NodeRepository
+from app.features.properties.port import PropertyRepository
 from app.logging_config import get_logger
 
 from .models import NodeResponse
@@ -40,6 +42,10 @@ __all__ = [
     "_format_date_with_pattern",
     "_format_month_with_pattern",
     "_format_year",
+    "_build_node_uuid_map",
+    "_resolve_property_uuids",
+    "_enrich_node_responses_uuids",
+    "_enrich_node_response_uuids",
 ]
 
 
@@ -125,7 +131,7 @@ def _node_to_response(
     automatically updated when classes change (via add_class/remove_class).
     """
     return NodeResponse(
-        id=node.id or 0,
+        id=node.id,
         uuid=node.uuid,
         name=node.name or "",
         icon=node.icon,
@@ -199,6 +205,123 @@ async def _resolve_display_names_for_responses(
             resolved = display_names.get(node.id)
             if resolved:
                 response.display_name = resolved
+
+
+async def _build_node_uuid_map(repo: NodeRepository, node_ids: list[int]) -> dict[int, str]:
+    """Build a mapping of internal node IDs to public UUIDs."""
+    unique_ids = [node_id for node_id in set(node_ids) if node_id is not None]
+    if not unique_ids:
+        return {}
+    nodes = await repo.get_by_ids(unique_ids)
+    return {node.id: node.uuid for node in nodes if node.id is not None}
+
+
+async def _resolve_property_uuids(
+    property_repo: PropertyRepository, property_ids: set[int]
+) -> dict[int, str]:
+    """Build a mapping of internal property IDs to public UUIDs."""
+    uuid_map: dict[int, str] = {}
+    for prop_id in property_ids:
+        prop = await property_repo.get_by_id(prop_id)
+        if prop is not None:
+            uuid_map[prop_id] = prop.uuid
+    return uuid_map
+
+
+def _enrich_node_response_uuids(
+    response: NodeResponse,
+    uuid_map: dict[int, str],
+    property_uuid_map: dict[int, str] | None = None,
+) -> None:
+    """Populate *_uuid fields on a single NodeResponse using ID -> UUID maps.
+
+    Mutates the response in place and recurses into children, backlinks and
+    linked references when present.
+    """
+    response.parent_uuid = uuid_map.get(response.parent_id) if response.parent_id else None
+    response.page_uuid = uuid_map.get(response.page_id) if response.page_id else None
+    response.aliased_uuid = uuid_map.get(response.aliased_id) if response.aliased_id else None
+
+    response.tags_uuid = [uuid_map[t] for t in response.tags if t in uuid_map]
+    response.classes_uuid = [uuid_map[c] for c in response.classes if c in uuid_map]
+    response.classes_path_uuid = [uuid_map[c] for c in response.classes_path if c in uuid_map]
+    response.aliases_uuid = [uuid_map[a] for a in response.aliases if a in uuid_map]
+    response.extends_uuid = [uuid_map[e] for e in response.extends if e in uuid_map]
+
+    if response.children:
+        for child in response.children:
+            _enrich_node_response_uuids(child, uuid_map, property_uuid_map)
+
+    if response.backlinks and property_uuid_map is not None:
+        for backlink in response.backlinks:
+            if backlink.property_id is not None:
+                backlink.property_uuid = property_uuid_map.get(backlink.property_id)
+
+    if response.linked_references and property_uuid_map is not None:
+        for ref in response.linked_references:
+            if ref.property_id is not None:
+                ref.property_uuid = property_uuid_map.get(ref.property_id)
+            if ref.text_property_root_block_id is not None:
+                ref.text_property_root_block_uuid = uuid_map.get(ref.text_property_root_block_id)
+
+    if response.referenced_nodes:
+        for ref in response.referenced_nodes.values():
+            _enrich_node_response_uuids(ref, uuid_map, property_uuid_map)
+
+
+async def _enrich_node_responses_uuids(
+    responses: list[NodeResponse] | NodeResponse,
+    repo: NodeRepository,
+    property_repo: PropertyRepository | None = None,
+) -> None:
+    """Batch-resolve public UUIDs for all integer references in NodeResponse objects."""
+    if isinstance(responses, NodeResponse):
+        responses = [responses]
+    if not responses:
+        return
+
+    all_ids: set[int] = set()
+    property_ids: set[int] = set()
+
+    def _collect(response: NodeResponse) -> None:
+        if response.parent_id is not None:
+            all_ids.add(response.parent_id)
+        if response.page_id is not None:
+            all_ids.add(response.page_id)
+        if response.aliased_id is not None:
+            all_ids.add(response.aliased_id)
+        all_ids.update(response.tags)
+        all_ids.update(response.classes)
+        all_ids.update(response.classes_path)
+        all_ids.update(response.aliases)
+        all_ids.update(response.extends)
+        if response.children:
+            for child in response.children:
+                _collect(child)
+        if response.backlinks:
+            for backlink in response.backlinks:
+                if backlink.property_id is not None:
+                    property_ids.add(backlink.property_id)
+        if response.linked_references:
+            for ref in response.linked_references:
+                if ref.property_id is not None:
+                    property_ids.add(ref.property_id)
+                if ref.text_property_root_block_id is not None:
+                    all_ids.add(ref.text_property_root_block_id)
+        if response.referenced_nodes:
+            for ref in response.referenced_nodes.values():
+                _collect(ref)
+
+    for response in responses:
+        _collect(response)
+
+    uuid_map = await _build_node_uuid_map(repo, list(all_ids))
+    property_uuid_map = (
+        await _resolve_property_uuids(property_repo, property_ids) if property_repo else {}
+    )
+
+    for response in responses:
+        _enrich_node_response_uuids(response, uuid_map, property_uuid_map)
 
 
 def _build_children_response(
@@ -481,6 +604,8 @@ async def _build_node_detail_response(
     include_children: bool = False,
     include_backlinks: bool = False,
     include_properties: bool = False,
+    node_repo: NodeRepository | None = None,
+    property_repo: PropertyRepository | None = None,
 ) -> NodeResponse | None:
     """Build a fully-assembled NodeResponse for a single node.
 
@@ -615,6 +740,9 @@ async def _build_node_detail_response(
     if include_properties:
         all_prop_values = await service.get_node_properties(node_id)
         response.properties = extract_properties_dict(all_prop_values)
+
+    if node_repo is not None:
+        await _enrich_node_responses_uuids(response, node_repo, property_repo)
 
     return response
 

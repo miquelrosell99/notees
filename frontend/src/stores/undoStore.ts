@@ -25,8 +25,8 @@ interface UndoState {
   syncRuntimeState: () => void;
   performUndo: (queryClient: QueryClient) => Promise<void>;
   performRedo: (queryClient: QueryClient) => Promise<void>;
-  performUndoTo: (queryClient: QueryClient, entryId: number) => Promise<void>;
-  performRedoTo: (queryClient: QueryClient, entryId: number) => Promise<void>;
+  performUndoTo: (queryClient: QueryClient, entry: UnifiedUndoEntry) => Promise<void>;
+  performRedoTo: (queryClient: QueryClient, entry: UnifiedUndoEntry) => Promise<void>;
   clearHistory: () => Promise<void>;
 }
 
@@ -42,6 +42,7 @@ function buildRuntimeEntries(stack: UndoEntry[]): UnifiedUndoEntry[] {
   // are returned: undo newest-first (reverse of storage), redo oldest-first.
   return stack.map((entry, displayIndex) => ({
     id: -(displayIndex + 1),
+    uuid: '',
     operation: entry.forward.type === 'batch' ? 'batch' : entry.forward.type,
     entity_type: 'node',
     entity_id: 0,
@@ -189,7 +190,7 @@ export const useUndoStore = create<UndoState>()((set, get) => ({
     }
   },
 
-  performUndoTo: async (queryClient: QueryClient, entryId: number) => {
+  performUndoTo: async (queryClient: QueryClient, entry: UnifiedUndoEntry) => {
     const engine = getUndoEngine();
 
     try {
@@ -198,13 +199,13 @@ export const useUndoStore = create<UndoState>()((set, get) => ({
       // Proceed even if flush times out.
     }
 
-    if (entryId < 0) {
+    if (entry.id < 0) {
       // Target is a runtime entry — undo N times where N is the display position.
-      const steps = Math.abs(entryId);
+      const steps = Math.abs(entry.id);
       let lastDescription = '';
       for (let i = 0; i < steps; i++) {
-        const entry = engine.undo();
-        if (entry) lastDescription = runtimeEntryDescription(entry);
+        const localEntry = engine.undo();
+        if (localEntry) lastDescription = runtimeEntryDescription(localEntry);
       }
       if (lastDescription) notifyUndo(lastDescription);
       await queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
@@ -214,7 +215,7 @@ export const useUndoStore = create<UndoState>()((set, get) => ({
 
     // Target is a backend entry
     try {
-      const results = await undoApi.undoTo(entryId);
+      const results = await undoApi.undoTo(entry.uuid);
       if (results.length > 0) {
         notifyUndo(results[0].description);
       }
@@ -228,7 +229,7 @@ export const useUndoStore = create<UndoState>()((set, get) => ({
     }
   },
 
-  performRedoTo: async (queryClient: QueryClient, entryId: number) => {
+  performRedoTo: async (queryClient: QueryClient, entry: UnifiedUndoEntry) => {
     const engine = getUndoEngine();
 
     try {
@@ -237,13 +238,13 @@ export const useUndoStore = create<UndoState>()((set, get) => ({
       // Proceed even if flush times out.
     }
 
-    if (entryId < 0) {
+    if (entry.id < 0) {
       // Target is a runtime entry — redo N times where N is the display position.
-      const steps = Math.abs(entryId);
+      const steps = Math.abs(entry.id);
       let lastDescription = '';
       for (let i = 0; i < steps; i++) {
-        const entry = engine.redo();
-        if (entry) lastDescription = runtimeEntryDescription(entry);
+        const localEntry = engine.redo();
+        if (localEntry) lastDescription = runtimeEntryDescription(localEntry);
       }
       if (lastDescription) notifyRedo(lastDescription);
       await queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
@@ -253,7 +254,7 @@ export const useUndoStore = create<UndoState>()((set, get) => ({
 
     // Target is a backend entry
     try {
-      const results = await undoApi.redoTo(entryId);
+      const results = await undoApi.redoTo(entry.uuid);
       if (results.length > 0) {
         notifyRedo(results[results.length - 1].description);
       }

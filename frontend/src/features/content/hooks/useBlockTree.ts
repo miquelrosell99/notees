@@ -108,7 +108,9 @@ function createGhostFlatNode(parentUuid: string, depth: number): FlatNode {
       icon: null,
       color: null,
       parent_id: null,
+      parent_uuid: null,
       page_id: null,
+      page_uuid: null,
       sequence: Number.MAX_SAFE_INTEGER,
       collapsed: false,
       active: true,
@@ -182,7 +184,9 @@ function flattenNodesFromRuntime(
       icon: gn.icon ?? null,
       color: gn.color ?? null,
       parent_id: null,
+      parent_uuid: null,
       page_id: null,
+      page_uuid: null,
       sequence: gn.orderIndex,
       collapsed: gn.collapsed,
       active: true,
@@ -214,21 +218,21 @@ function flattenNodesFromRuntime(
     });
   }
 
-  const flatten = (uuids: string[], depth: number): FlatNode[] => {
+  const flatten = (nodeUuids: string[], depth: number): FlatNode[] => {
     if (maxDepth >= 0 && depth > maxDepth) return [];
     const result: FlatNode[] = [];
-    for (const uuid of uuids) {
-      const node = nodeMap.get(uuid);
+    for (const nodeUuid of nodeUuids) {
+      const node = nodeMap.get(nodeUuid);
       if (!node) continue;
       if (node.is_comment) continue;
       if (pagesOnly && !node.is_page) continue;
       if (skipPages && node.is_page) continue;
-      const graphNode = getNode(runtime, uuid);
+      const graphNode = getNode(runtime, nodeUuid);
       const effectiveCollapsed = expandAll ? false : (graphNode?.collapsed ?? node.collapsed);
       result.push({ node, depth, effectiveCollapsed });
 
       if (!effectiveCollapsed && (maxDepth < 0 || depth < maxDepth)) {
-        const children = byParent.get(uuid) || [];
+        const children = byParent.get(nodeUuid) || [];
         result.push(...flatten(children.map(c => c.uuid), depth + 1));
         // Trailing pseudo-block for creating children of this parent.
         // Skip nested ghosts when page filtering is active to avoid orphan rows.
@@ -237,7 +241,7 @@ function flattenNodesFromRuntime(
         // serves as the "new child of the focused block" placeholder.
         const isRootLevel = depth === 0;
         if (!readOnly && showNewBlock && !pagesOnly && !skipPages && !(rootIsBlock && isRootLevel)) {
-          result.push(createGhostFlatNode(uuid, depth + 1));
+          result.push(createGhostFlatNode(nodeUuid, depth + 1));
         }
       }
     }
@@ -245,9 +249,9 @@ function flattenNodesFromRuntime(
   };
 
   const topLevel: string[] = [];
-  for (const [uuid, node] of nodeMap) {
+  for (const [nodeUuid, node] of nodeMap) {
     const parentId = resolveParentId(node);
-    if (!nodeMap.has(parentId)) topLevel.push(uuid);
+    if (!nodeMap.has(parentId)) topLevel.push(nodeUuid);
   }
 
   topLevel.sort((a, b) => {

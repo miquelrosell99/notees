@@ -47,8 +47,8 @@ function isAfterDay(a: Date, b: Date): boolean {
   return isBeforeDay(b, a);
 }
 
-function resolveDate(val: unknown, map: Map<number, Node>): Date | null {
-  if (typeof val !== 'number') return null;
+function resolveDate(val: unknown, map: Map<string, Node>): Date | null {
+  if (typeof val !== 'string') return null;
   const n = map.get(val);
   return n ? dateFromUuid(n.uuid) : null;
 }
@@ -66,30 +66,30 @@ export function useCalendarData(
   startDateProperty: Property | undefined,
   endDateProperty: Property | undefined
 ) {
-  const dayNodeIds = useMemo<number[]>(() => {
-    const ids = new Set<number>();
+  const dayNodeUuids = useMemo<string[]>(() => {
+    const uuids = new Set<string>();
     for (const node of nodes) {
-      const props = node.properties as Record<number, unknown> | undefined;
+      const props = node.properties as Record<string, unknown> | undefined;
       if (!props) continue;
       if (startDateProperty) {
-        const v = props[startDateProperty.id];
-        if (typeof v === 'number') ids.add(v);
+        const v = props[startDateProperty.uuid];
+        if (typeof v === 'string') uuids.add(v);
       }
       if (endDateProperty) {
-        const v = props[endDateProperty.id];
-        if (typeof v === 'number') ids.add(v);
+        const v = props[endDateProperty.uuid];
+        if (typeof v === 'string') uuids.add(v);
       }
     }
-    return Array.from(ids);
+    return Array.from(uuids);
   }, [nodes, startDateProperty, endDateProperty]);
 
-  const { data: dayNodeMap = new Map<number, Node>(), isLoading } = useQuery({
-    queryKey: nodeKeys.ganttDayNodes(dayNodeIds),
-    queryFn: async (): Promise<Map<number, Node>> => {
-      const fetched = await Promise.all(dayNodeIds.map((id) => getNode(id)));
-      return new Map(fetched.map((n) => [n.id, n]));
+  const { data: dayNodeMap = new Map<string, Node>(), isLoading } = useQuery({
+    queryKey: nodeKeys.ganttDayNodes(dayNodeUuids),
+    queryFn: async (): Promise<Map<string, Node>> => {
+      const fetched = await Promise.all(dayNodeUuids.map((nodeUuid) => getNode(nodeUuid)));
+      return new Map(fetched.map((n) => [n.uuid, n]));
     },
-    enabled: dayNodeIds.length > 0,
+    enabled: dayNodeUuids.length > 0,
     staleTime: 5 * 60 * 1000,
   });
 
@@ -97,11 +97,11 @@ export function useCalendarData(
     if (!startDateProperty) return [];
     return nodes
       .flatMap((node) => {
-        const props = node.properties as Record<number, unknown> | undefined;
-        const startDate = resolveDate(props?.[startDateProperty.id], dayNodeMap);
+        const props = node.properties as Record<string, unknown> | undefined;
+        const startDate = resolveDate(props?.[startDateProperty.uuid], dayNodeMap);
         if (!startDate) return [];
         const endDate = endDateProperty
-          ? resolveDate(props?.[endDateProperty.id], dayNodeMap)
+          ? resolveDate(props?.[endDateProperty.uuid], dayNodeMap)
           : null;
         return [{ node, startDate, endDate }];
       })

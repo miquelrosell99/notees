@@ -150,7 +150,7 @@ export function SuggestionPopup({
   // Extract inline filters from query using regex
   const extractedFilters = useMemo(() => {
     const filters: {
-      uuid?: string;
+      nodeUuid?: string;
       isPage?: boolean;
       isClass?: boolean;
       isDaily?: boolean;
@@ -158,7 +158,7 @@ export function SuggestionPopup({
     } = { classFilterIds: [] };
 
     const uuidMatch = query.match(/\buuid:([^\s]+)/);
-    if (uuidMatch) filters.uuid = uuidMatch[1];
+    if (uuidMatch) filters.nodeUuid = uuidMatch[1];
 
     if (/\bis_page:true\b/i.test(query)) filters.isPage = true;
     else if (/\bis_page:false\b/i.test(query)) filters.isPage = false;
@@ -198,7 +198,7 @@ export function SuggestionPopup({
     excludeNodeId,
     classFilters: [...(classFilters ?? []), ...extractedFilters.classFilterIds],
     maxResults: displayLimit,
-    uuid: extractedFilters.uuid ?? parsedFilters.uuidSearch ?? undefined,
+    nodeUuid: extractedFilters.nodeUuid ?? parsedFilters.uuidSearch ?? undefined,
     isPage: extractedFilters.isPage,
     isClass: extractedFilters.isClass,
     isDaily: extractedFilters.isDaily,
@@ -224,8 +224,8 @@ export function SuggestionPopup({
   // Check if the date page already exists by looking up its deterministic UUID
   const existingDateNode = useMemo(() => {
     if (!parsedDate || !allPagesForDate) return null;
-    const uuid = generateDateUuid(parsedDate);
-    return allPagesForDate.find(p => p.uuid === uuid) ?? null;
+    const datePageUuid = generateDateUuid(parsedDate);
+    return allPagesForDate.find(p => p.uuid === datePageUuid) ?? null;
   }, [parsedDate, allPagesForDate]);
   
   const queryClient = useQueryClient();
@@ -487,7 +487,7 @@ export function SuggestionPopup({
   if (!isOpen) return null;
 
   // Determine if any inline filters are active
-  const hasActiveFilters = extractedFilters.uuid !== undefined ||
+  const hasActiveFilters = extractedFilters.nodeUuid !== undefined ||
     extractedFilters.isPage !== undefined ||
     extractedFilters.isClass !== undefined ||
     extractedFilters.isDaily !== undefined ||
@@ -495,7 +495,7 @@ export function SuggestionPopup({
     parsedFilters.uuidSearch !== null;
 
   const filterHintParts: string[] = [];
-  if (extractedFilters.uuid ?? parsedFilters.uuidSearch) filterHintParts.push('UUID');
+  if (extractedFilters.nodeUuid ?? parsedFilters.uuidSearch) filterHintParts.push('UUID');
   if (extractedFilters.isPage !== undefined) filterHintParts.push('Page');
   if (extractedFilters.isClass !== undefined) filterHintParts.push('Class');
   if (extractedFilters.isDaily !== undefined) filterHintParts.push('Daily');

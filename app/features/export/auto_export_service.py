@@ -64,7 +64,7 @@ class AutoExportService:
         """
         content_bytes, _filename, _mime = await self._node_export_service.export_nodes(
             workspace_id=self._workspace_id,
-            node_ids=[node_uuid],
+            node_uuids=[node_uuid],
             format="markdown",
             include_children=True,
             layout="outline",

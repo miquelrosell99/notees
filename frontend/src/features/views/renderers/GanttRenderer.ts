@@ -96,8 +96,8 @@ export function formatDateForApi(d: Date): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
-export function resolveDate(val: unknown, map: Map<number, Node>): Date | null {
-  if (typeof val !== 'number') return null;
+export function resolveDate(val: unknown, map: Map<string, Node>): Date | null {
+  if (typeof val !== 'string') return null;
   const n = map.get(val);
   return n ? dateFromUuid(n.uuid) : null;
 }
