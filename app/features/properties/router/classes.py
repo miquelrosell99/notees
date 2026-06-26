@@ -173,14 +173,10 @@ async def add_class_property(
     user: User = Depends(get_current_user),
 ):
     """Link a property to a class."""
-    property_id: int | None = request.property_id
-    if request.property_uuid is not None:
-        prop = await service.get_property_by_uuid(request.property_uuid)
-        if prop is None or prop.id is None:
-            raise HTTPException(status_code=404, detail="Property not found")
-        property_id = prop.id
-    if property_id is None:
-        raise HTTPException(status_code=400, detail="property_id or property_uuid is required")
+    prop = await service.get_property_by_uuid(request.property_uuid)
+    if prop is None or prop.id is None:
+        raise HTTPException(status_code=404, detail="Property not found")
+    property_id = prop.id
 
     try:
         cp, prop = await service.add_class_property(

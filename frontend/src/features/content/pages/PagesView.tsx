@@ -66,11 +66,11 @@ export function PagesView({ initialViewMode }: PagesViewProps) {
   // so they receive all pages including child pages, not just root pages.
   const flatAllPages = useMemo(() => {
     if (!pages) return [];
-    const seen = new Set<number>();
+    const seen = new Set<string>();
     const result: Node[] = [];
     const collect = (n: Node) => {
-      if (n.is_page && !seen.has(n.id)) {
-        seen.add(n.id);
+      if (n.is_page && !seen.has(n.uuid)) {
+        seen.add(n.uuid);
         result.push(n);
       }
       if (n.children) {

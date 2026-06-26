@@ -40,7 +40,7 @@ async def test_page_content_load_time(
     """Measure GET /api/nodes/page/{id}/content response time for large pages."""
     # Create a test page
     page = await node_service.create_page(name=_build_ast("Benchmark Page"))
-    page_id = page.id
+    page_uuid = page.uuid
 
     # Batch-create blocks under the page via API
     batch_size = 500
@@ -50,7 +50,7 @@ async def test_page_content_load_time(
         nodes = [
             {
                 "name": _build_ast(f"Block {created + i}"),
-                "parent_id": page_id,
+                "parent_uuid": page_uuid,
                 "sequence": created + i,
             }
             for i in range(chunk)

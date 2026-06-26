@@ -44,7 +44,7 @@ interface NodeTableColumn {
   key: string;
   label: string;
   width?: string;
-  headerNode?: { id: number; uuid: string; name: string; icon: string | null };
+  headerNode?: { nodeUuid: string; uuid: string; name: string; icon: string | null };
   render?: (node: Node) => ReactNode;
   sortable?: boolean;
   sortFn?: (a: Node, b: Node) => number;
@@ -140,7 +140,7 @@ export const TableView = memo(function TableView({
   const removeClass = useRemoveClass();
 
   // Internal selection state (used when not controlled)
-  const [internalSelectedIds, setInternalSelectedIds] = useState<Set<number>>(new Set());
+  const [internalSelectedIds, setInternalSelectedIds] = useState<Set<string>>(new Set());
 
   // Context menu state
   const [contextMenuNode, setContextMenuNode] = useState<Node | null>(null);
@@ -148,12 +148,11 @@ export const TableView = memo(function TableView({
 
   // Use controlled or internal selection state
   const selectedIds = controlledSelectedIds ?? internalSelectedIds;
-  const handleSelectionChange = useCallback((keys: Set<string | number>) => {
-    const numericKeys = keys as Set<number>;
+  const handleSelectionChange = useCallback((keys: Set<string>) => {
     if (onSelectionChange) {
-      onSelectionChange(numericKeys);
+      onSelectionChange(keys);
     } else {
-      setInternalSelectedIds(numericKeys);
+      setInternalSelectedIds(keys);
     }
   }, [onSelectionChange]);
 
@@ -240,21 +239,21 @@ export const TableView = memo(function TableView({
             label: 'Classes',
             width: 'var(--layout-size-2xl)',
             render: (node: Node): ReactNode => {
-              const classNodes = (node.classes || [])
-                .map(classId => allClasses.find(c => c.id === classId))
+              const classNodes = (node.classes_uuid || [])
+                .map(classId => allClasses.find(c => c.uuid === classId))
                 .filter((c): c is Node => c !== undefined && c.uuid !== SYSTEM_CLASS_UUIDS.page);
 
               return (
                 <CollapsiblePillRow
                   items={classNodes}
-                  getKey={(classNode) => classNode.id}
+                  getKey={(classNode) => classNode.uuid}
                   renderPill={(classNode) => (
                     <NodeRef
                       node={classNode}
                       onClick={() => openNode(classNode.uuid)}
                       onRemove={
                         editable && !isNonRemovableClass(classNode.uuid)
-                          ? () => removeClass.mutate({ nodeId: node.id, classId: classNode.id })
+                          ? () => removeClass.mutate({ nodeUuid: node.uuid, classId: classNode.uuid })
                           : undefined
                       }
                       readOnly={!editable}
@@ -269,7 +268,7 @@ export const TableView = memo(function TableView({
                             emptyText=""
                             searchPlaceholder="Search classes..."
                             onAdd={(classNode) => {
-                              addClass.mutate({ nodeId: node.id, classId: classNode.id });
+                              addClass.mutate({ nodeUuid: node.uuid, classId: classNode.uuid });
                             }}
                             readOnly={false}
                           />
@@ -308,19 +307,19 @@ export const TableView = memo(function TableView({
         if (!property) return null;
 
         return {
-          key: `property_${property.id}`,
+          key: `property_${property.uuid}`,
           label: property.name,
           width: 'var(--layout-size-lg)',
           headerNode: {
-            id: property.id,
+            nodeUuid: property.uuid,
             uuid: property.uuid,
             name: property.name,
             icon: property.icon,
           },
           sortable: true,
           sortFn: (a: Node, b: Node): number => {
-            const aVal = a.properties?.[property.id];
-            const bVal = b.properties?.[property.id];
+            const aVal = a.properties_uuid?.[property.uuid];
+            const bVal = b.properties_uuid?.[property.uuid];
             // Handle nulls
             if (aVal == null && bVal == null) return 0;
             if (aVal == null) return 1;
@@ -333,7 +332,7 @@ export const TableView = memo(function TableView({
             return String(aVal).localeCompare(String(bVal));
           },
           render: (node: Node): ReactNode => {
-            const value = node.properties?.[property.id];
+            const value = node.properties_uuid?.[property.uuid];
             return (
               <PropertyCell
                 node={node}
@@ -371,10 +370,7 @@ export const TableView = memo(function TableView({
     return hasModifiedCol ? [{ key: 'write_date', direction: 'desc' }] : [];
   }, [nodeColumns]);
 
-  // Convert Set<number> to Set<string | number> for Table component
-  const selectedKeys = useMemo(() => {
-    return selectedIds as Set<string | number>;
-  }, [selectedIds]);
+  const selectedKeys = selectedIds;
 
   // Expandable configuration
   const expandableConfig: ExpandableConfig<Node> | undefined = useMemo(() => {
@@ -413,7 +409,7 @@ export const TableView = memo(function TableView({
         <NodeTable<Node>
           data={nodes}
           columns={tableColumns}
-          getRowKey={(node) => node.id}
+          getRowKey={(node) => node.uuid}
           size="md"
           variant="bordered"
           selectable={selectable}
@@ -425,8 +421,8 @@ export const TableView = memo(function TableView({
           depth={depth}
           className={`node-table-view ${className}`}
           getRowClassName={(_, __, rowDepth) => `node-table__row--depth-${rowDepth}`}
-          onNodeOpen={(nodeId) => openNode(nodeId)}
-          onNodeOpenInSidebar={(nodeId) => addSidebarCard(nodeId, 'block')}
+          onNodeOpen={(nodeUuid) => openNode(nodeUuid)}
+          onNodeOpenInSidebar={(nodeUuid) => addSidebarCard(nodeUuid, 'block')}
           nodeEditable={editable}
           defaultSort={defaultSort}
           sort={sort}

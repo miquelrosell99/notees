@@ -17,19 +17,19 @@ function resolveFromExtendsChain(
   allClasses: Node[],
   getter: (n: Node) => string | null | undefined,
 ): string | null | undefined {
-  const visited = new Set<number>();
-  const stack = [...(classNode.extends ?? [])];
+  const visited = new Set<string>();
+  const stack = [...(classNode.extends_uuid ?? [])];
   while (stack.length > 0) {
     const parentId = stack.shift()!;
     if (visited.has(parentId)) continue;
     visited.add(parentId);
-    const parent = allClasses.find(c => c.id === parentId);
+    const parent = allClasses.find(c => c.uuid === parentId);
     if (!parent) continue;
     const val = getter(parent);
     if (val) return val;
     // Continue up the chain
-    if (parent.extends) {
-      for (const grandparentId of parent.extends) {
+    if (parent.extends_uuid) {
+      for (const grandparentId of parent.extends_uuid) {
         if (!visited.has(grandparentId)) stack.push(grandparentId);
       }
     }
@@ -72,12 +72,12 @@ function resolveClassColor(classNode: Node, allClasses: Node[]): string | null |
 export function getEffectiveIcon(
   node: Node | null | undefined,
   allClasses?: Node[] | null,
-  effectiveClassIds?: number[],
+  effectiveClassIds?: string[],
   aliasedNode?: Node | null,
 ): string | null | undefined {
   if (!node) return undefined;
 
-  const classIds = effectiveClassIds ?? node.classes;
+  const classIds = effectiveClassIds ?? node.classes_uuid;
 
   if (node.icon) {
     const { icon: iconName, color } = parseIconField(node.icon);
@@ -86,7 +86,7 @@ export function getEffectiveIcon(
     // Color-only: find inherited icon and re-encode with node's color
     if (color) {
       // Check own extends chain first (for class nodes)
-      if (node.extends && node.extends.length > 0 && allClasses && allClasses.length > 0) {
+      if (node.extends_uuid && node.extends_uuid.length > 0 && allClasses && allClasses.length > 0) {
         const extendsIcon = resolveFromExtendsChain(node, allClasses, n => n.icon);
         if (extendsIcon) {
           const { icon: inheritedIcon } = parseIconField(extendsIcon);
@@ -95,7 +95,7 @@ export function getEffectiveIcon(
       }
       if (classIds && classIds.length > 0 && allClasses && allClasses.length > 0) {
         for (const classId of classIds) {
-          const classNode = allClasses.find(c => c.id === classId);
+          const classNode = allClasses.find(c => c.uuid === classId);
           if (!classNode) continue;
           const classIcon = resolveClassIcon(classNode, allClasses);
           if (classIcon) {
@@ -110,7 +110,7 @@ export function getEffectiveIcon(
   }
 
   // Check own extends chain first (for class nodes)
-  if (node.extends && node.extends.length > 0 && allClasses && allClasses.length > 0) {
+  if (node.extends_uuid && node.extends_uuid.length > 0 && allClasses && allClasses.length > 0) {
     const extendsIcon = resolveFromExtendsChain(node, allClasses, n => n.icon);
     if (extendsIcon) return extendsIcon;
   }
@@ -124,7 +124,7 @@ export function getEffectiveIcon(
   // If the node has classes and we have class data, try to inherit icon from first class with an icon
   if (classIds && classIds.length > 0 && allClasses && allClasses.length > 0) {
     for (const classId of classIds) {
-      const classNode = allClasses.find(c => c.id === classId);
+      const classNode = allClasses.find(c => c.uuid === classId);
       if (!classNode) continue;
       const classIcon = resolveClassIcon(classNode, allClasses);
       if (classIcon) {
@@ -158,7 +158,7 @@ export function getEffectiveIconFromClasses(
     if (iconName) return node.icon;
     if (color) {
       // Check own extends chain first (for class nodes)
-      if (node.extends && node.extends.length > 0 && classes.length > 0) {
+      if (node.extends_uuid && node.extends_uuid.length > 0 && classes.length > 0) {
         const extendsIcon = resolveFromExtendsChain(node, classes, n => n.icon);
         if (extendsIcon) {
           const { icon: inheritedIcon } = parseIconField(extendsIcon);
@@ -179,7 +179,7 @@ export function getEffectiveIconFromClasses(
   }
 
   // Check own extends chain first (for class nodes)
-  if (node.extends && node.extends.length > 0 && classes.length > 0) {
+  if (node.extends_uuid && node.extends_uuid.length > 0 && classes.length > 0) {
     const extendsIcon = resolveFromExtendsChain(node, classes, n => n.icon);
     if (extendsIcon) return extendsIcon;
   }
@@ -211,14 +211,14 @@ export function getEffectiveIconFromClasses(
 export function getEffectiveColor(
   node: Node | null | undefined,
   allClasses?: Node[] | null,
-  effectiveClassIds?: number[],
+  effectiveClassIds?: string[],
   aliasedNode?: Node | null,
 ): string | null | undefined {
   if (!node) return undefined;
   if (node.color) return node.color;
 
   // Check own extends chain first (for class nodes)
-  if (node.extends && node.extends.length > 0 && allClasses && allClasses.length > 0) {
+  if (node.extends_uuid && node.extends_uuid.length > 0 && allClasses && allClasses.length > 0) {
     const extendsColor = resolveFromExtendsChain(node, allClasses, n => n.color);
     if (extendsColor) return extendsColor;
   }
@@ -229,10 +229,10 @@ export function getEffectiveColor(
     if (aliasedColor) return aliasedColor;
   }
 
-  const classIds = effectiveClassIds ?? node.classes;
+  const classIds = effectiveClassIds ?? node.classes_uuid;
   if (classIds && classIds.length > 0 && allClasses && allClasses.length > 0) {
     for (const classId of classIds) {
-      const classNode = allClasses.find(c => c.id === classId);
+      const classNode = allClasses.find(c => c.uuid === classId);
       if (!classNode) continue;
       const classColor = resolveClassColor(classNode, allClasses);
       if (classColor) return classColor;

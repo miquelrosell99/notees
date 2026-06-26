@@ -158,7 +158,7 @@ export function EmbedBlock({
     // BlockList passes UUIDs; look up server ID via runtime
     const runtime = getOperationRuntime();
     const graphNode = getNode(runtime, blockId);
-    const serverId = graphNode?.serverId;
+    const serverId = graphNode?.blockId;
     if (serverId != null) {
       handleContentChange(serverId, content);
     }

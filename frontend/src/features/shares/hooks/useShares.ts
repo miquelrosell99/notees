@@ -81,10 +81,9 @@ export function useCreateUserShare() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({
-      nodeUuid,
-      email,
-      permission,
-    }: {
+              nodeUuid,
+              email,
+              permission }: {
       nodeUuid: string;
       email: string;
       permission: 'read' | 'write' | 'comment';

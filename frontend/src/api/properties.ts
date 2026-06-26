@@ -28,18 +28,18 @@ export async function listProperties(): Promise<Property[]> {
 
 /**
  * Get properties available in a given context:
- * global properties + class-scoped properties (if contextClassIds) + node-scoped (if contextNodeId)
+ * global properties + class-scoped properties (if contextClassUuids) + node-scoped (if contextNodeUuid)
  */
 export async function getAvailableProperties(opts: {
-  contextNodeId?: string;
-  contextClassIds?: string[];
+  contextNodeUuid?: string;
+  contextClassUuids?: string[];
 }): Promise<Property[]> {
   const params: Record<string, string> = {};
-  if (opts.contextNodeId != null) {
-    params.context_node_uuid = opts.contextNodeId;
+  if (opts.contextNodeUuid != null) {
+    params.context_node_uuid = opts.contextNodeUuid;
   }
-  if (opts.contextClassIds?.length) {
-    params.context_class_ids = opts.contextClassIds.join(',');
+  if (opts.contextClassUuids?.length) {
+    params.context_class_ids = opts.contextClassUuids.join(',');
   }
   const response = await api.get<PropertiesResponse>(`${BASE}/available`, { params });
   return response.data.properties ?? [];
@@ -254,13 +254,13 @@ export async function updateClassProperty(
 }
 
 /**
- * Get property usage stats (usage_count per property_id)
+ * Get property usage stats (usage_count per property_uuid)
  */
 export async function getPropertyStats(): Promise<
-  Array<{ property_id: number; property_uuid: string; usage_count: number }>
+  Array<{ property_uuid: string; usage_count: number }>
 > {
   const response = await api.get<{
-    stats: Array<{ property_id: number; property_uuid: string; usage_count: number }>;
+    stats: Array<{ property_uuid: string; usage_count: number }>;
   }>(`${BASE}/stats`);
   return response.data.stats ?? [];
 }
@@ -270,7 +270,6 @@ export async function getPropertyStats(): Promise<
  */
 export async function getPropertySuggestions(nodeUuid?: string): Promise<
   Array<{
-    property_id: number;
     property_uuid: string;
     name: string;
     icon: string | null;
@@ -282,7 +281,6 @@ export async function getPropertySuggestions(nodeUuid?: string): Promise<
   const params = nodeUuid != null ? { node_uuid: nodeUuid } : {};
   const response = await api.get<{
     suggestions: Array<{
-      property_id: number;
       property_uuid: string;
       name: string;
       icon: string | null;
@@ -431,14 +429,11 @@ export async function batchAddClassProperties(
  * Node with property value response
  */
 export interface NodeWithPropertyValue {
-  node_id: number; // deprecated: use node_uuid
   node_uuid: string;
   node_name: string;
   node_icon: string | null;
   node_color: string | null;
-  parent_id: number | null; // deprecated: use parent_uuid
   parent_uuid: string | null;
-  page_id: number | null; // deprecated: use page_uuid
   page_uuid: string | null;
   is_page: boolean;
   is_class: boolean;
@@ -446,7 +441,6 @@ export interface NodeWithPropertyValue {
   write_date: string;
   property_value: unknown;
   properties?: Record<string, unknown>;
-  class_ids?: number[]; // deprecated: use class_uuids
   class_uuids?: string[];
 }
 

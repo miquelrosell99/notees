@@ -27,7 +27,7 @@ export interface DragData {
   /** Type of item being dragged */
   type: DragItemType;
   /** Unique identifier for the item */
-  id: string | number;
+  nodeUuid: string;
   /** Additional payload specific to the drag type */
   payload?: unknown;
 }
@@ -37,14 +37,14 @@ export interface DragData {
  */
 export interface BlockDragData extends DragData {
   type: 'block';
-  id: number;
+  nodeUuid: string;
   payload: {
     /** The primary block being dragged */
-    blockId: number;
+    blockUuid: string;
     /** Additional selected blocks being dragged together */
-    selectedBlockIds?: number[];
-    /** Parent ID for context */
-    parentId: number | null;
+    selectedBlockUuids?: string[];
+    /** Parent UUID for context */
+    parentUuid: string | null;
     /** Whether this is a page block */
     isPage: boolean;
   };
@@ -55,9 +55,9 @@ export interface BlockDragData extends DragData {
  */
 export interface NodeDragData extends DragData {
   type: 'card' | 'list-item';
-  id: number;
+  nodeUuid: string;
   payload: {
-    nodeId: number;
+    nodeUuid: string;
     nodeName: string;
     isPage: boolean;
   };
@@ -74,8 +74,8 @@ export type DropPosition = 'before' | 'after' | 'inside';
  * Drop target information
  */
 export interface DropTarget {
-  /** ID of the target item */
-  id: string | number;
+  /** UUID of the target item */
+  uuid: string;
   /** Position relative to target */
   position: DropPosition;
   /** Type of the target */
@@ -140,7 +140,7 @@ export interface TreeDragData {
   /** Whether item is expanded */
   isExpanded?: boolean;
   /** Parent chain for detecting invalid drops (prevent drop into own children) */
-  ancestorIds: Array<string | number>;
+  ancestorUuids: string[];
 }
 
 /**

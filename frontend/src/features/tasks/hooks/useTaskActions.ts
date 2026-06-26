@@ -61,9 +61,9 @@ function nextStatus(current: TaskStatus | null): TaskStatus {
  */
 function resolveTaskStatusIds(
   statusName: TaskStatus
-): { propertyId: number; optionId: number } | null {
+): { propertyId: string; optionId: string } | null {
   const allProperties = queryClient.getQueryData<
-    { id: number; uuid: string; options?: { id: number; name: string }[] }[]
+    { uuid: string; options?: { uuid: string; name: string }[] }[]
   >(propertyKeys.lists());
   const statusProp = allProperties?.find(
     (p) => p.uuid === SYSTEM_PROPERTY_UUIDS.task_status
@@ -71,7 +71,7 @@ function resolveTaskStatusIds(
   if (!statusProp) return null;
   const option = statusProp.options?.find((o) => o.name === statusName);
   if (!option) return null;
-  return { propertyId: statusProp.id, optionId: option.id };
+  return { propertyId: statusProp.uuid, optionId: option.uuid };
 }
 
 /**
@@ -96,17 +96,17 @@ export function useTaskActions(node: Node) {
         console.warn('[useTaskActions] Could not resolve task status property IDs');
         return;
       }
-      if (!node.id) {
-        console.warn('[useTaskActions] Node has no serverId yet');
+      if (!node.uuid) {
+        console.warn('[useTaskActions] Node has no UUID yet');
         return;
       }
       setProperty.mutate({
-        nodeId: node.id,
+        nodeUuid: node.uuid,
         propertyId: ids.propertyId,
         value: ids.optionId,
       });
     },
-    [node.id, setProperty]
+    [node.uuid, setProperty]
   );
 
   const toggleTask = useCallback(() => {

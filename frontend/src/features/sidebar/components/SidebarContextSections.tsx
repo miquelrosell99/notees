@@ -22,7 +22,7 @@ import { SidebarVersions } from './SidebarVersions';
 import './SidebarContextSections.css';
 
 interface TocEntry {
-  id: number;
+  nodeUuid: string;
   uuid: string;
   text: string;
   level: number;
@@ -34,7 +34,7 @@ function extractHeadings(nodes: Node[], depth: number = 0): TocEntry[] {
     const ast = parseAST(node.name);
     if (ast.length > 0 && isHeadingBlock(ast[0])) {
       result.push({
-        id: node.id,
+        nodeUuid: node.uuid,
         uuid: node.uuid,
         text: nodeNameToText(node.name, 100) || 'Untitled',
         level: Math.min(depth + 1, 6),
@@ -68,7 +68,7 @@ export function SidebarContextSections() {
     return extractHeadings(nodeData.children);
   }, [nodeData]);
 
-  const handleTocClick = useCallback((blockId: number) => {
+  const handleTocClick = useCallback((blockId: string) => {
     const el = document.querySelector(`[data-block-id="${blockId}"]`);
     if (el) {
       el.scrollIntoView({ behavior: 'smooth', block: 'center' });

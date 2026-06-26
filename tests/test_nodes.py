@@ -3,6 +3,7 @@
 These tests verify node creation, reading, updating, and deletion.
 """
 import pytest
+from app.db.schema.constants import SYSTEM_CLASS_UUIDS
 from httpx import AsyncClient
 
 pytestmark = pytest.mark.integration
@@ -128,12 +129,12 @@ class TestNodeRetrieval:
         test_user: dict,
     ):
         """pages_only honors page/page_size and returns bounded slices."""
-        page_class_id = test_user["page_class_id"]
+        page_class_uuid = SYSTEM_CLASS_UUIDS["page"]
         names = ["PgTest-A", "PgTest-B", "PgTest-C", "PgTest-D", "PgTest-E"]
         for name in names:
             response = await authenticated_client.post(
                 "/api/nodes/",
-                json={"name": name, "classes": [page_class_id]},
+                json={"name": name, "class_uuids": [page_class_uuid]},
             )
             assert response.status_code == 200
 
@@ -172,11 +173,11 @@ class TestNodeRetrieval:
         test_user: dict,
     ):
         """Excessive page_size for pages_only is capped at 5000."""
-        page_class_id = test_user["page_class_id"]
+        page_class_uuid = SYSTEM_CLASS_UUIDS["page"]
         for name in ("PgTest-One", "PgTest-Two"):
             response = await authenticated_client.post(
                 "/api/nodes/",
-                json={"name": name, "classes": [page_class_id]},
+                json={"name": name, "class_uuids": [page_class_uuid]},
             )
             assert response.status_code == 200
 
@@ -202,10 +203,10 @@ class TestNodeRetrieval:
         test_user: dict,
     ):
         """pages_only defaults to a bounded result set when page_size is omitted."""
-        page_class_id = test_user["page_class_id"]
+        page_class_uuid = SYSTEM_CLASS_UUIDS["page"]
         response = await authenticated_client.post(
             "/api/nodes/",
-            json={"name": "PgTest-Solo", "classes": [page_class_id]},
+            json={"name": "PgTest-Solo", "class_uuids": [page_class_uuid]},
         )
         assert response.status_code == 200
 

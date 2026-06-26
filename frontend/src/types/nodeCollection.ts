@@ -66,7 +66,7 @@ export interface NodeCollectionProps {
   nodes: Node[];
   
   /** Server ID of the parent page (enables real-root mode in BlockEditor) */
-  pageId?: number;
+  pageId?: string;
   /** UUID of the parent node (enables real-root mode in BlockEditor) */
   nodeUuid?: string;
   
@@ -107,22 +107,22 @@ export interface NodeCollectionProps {
   onNodeShiftClick?: (node: Node) => void;
   
   /** Called when node content changes (only in edit mode) */
-  onContentChange?: (nodeId: number | string, content: string) => void;
+  onContentChange?: (nodeUuid: string, content: string) => void;
   
   /** Called when a class is added to a node via + menu (plain Enter) */
-  onAddClass?: (nodeId: number, classId: number) => void;
+  onAddClass?: (nodeUuid: string, classId: string) => void;
   
   /** Called when an action-type slash command is selected (table, query, image, audio, file, comment) */
-  onSlashCommand?: (commandId: string, blockServerId: number | undefined) => void;
+  onSlashCommand?: (commandId: string, blockServerId: string | undefined) => void;
   
   /** Called when an image is pasted into a block */
-  onPasteImage?: (blockServerId: number, file: File, hasContent: boolean) => void;
+  onPasteImage?: (blockServerId: string, file: File, hasContent: boolean) => void;
 
   /** Called when a template node is selected for instantiation */
-  onTemplateInstantiate?: (templateNodeId: number, blockServerId: number | undefined) => void;
+  onTemplateInstantiate?: (templateNodeId: string, blockServerId: string | undefined) => void;
 
-  /** Class IDs to filter the template picker to (typically just the template system class) */
-  templateClassFilters?: number[];
+  /** Class UUIDs to filter the template picker to (typically just the template system class) */
+  templateClassFilters?: string[];
   
   /** Called when Enter is pressed on the root block (instead of creating a child) */
   onEnterAtRoot?: () => void;
@@ -145,8 +145,8 @@ export interface NodeCollectionProps {
   /** Whether to show classes for each node in list view (default: false) */
   showClasses?: boolean;
   
-  /** Page map for resolving page nodes by ID (needed for groupBy='page') */
-  pageMap?: Map<number, Node>;
+  /** Page map for resolving page nodes by UUID (needed for groupBy='page') */
+  pageMap?: Map<string, Node>;
   
   /** Columns for table view (optional, uses defaults if not provided) */
   tableColumns?: {
@@ -175,7 +175,7 @@ export interface NodeCollectionProps {
   containerCard?: boolean;
 
   /** Active/current node to include in graph views (e.g., the page being viewed) */
-  activeNode?: { id: number; uuid: string; name: string };
+  activeNode?: { nodeUuid: string; uuid: string; name: string };
   
   /** Element to render between the header and content (e.g., property references section) */
   beforeContent?: ReactNode;
@@ -300,7 +300,7 @@ export interface NodeCollectionViewBaseProps {
   nodes: Node[];
   
   /** Server ID of the parent page */
-  pageId?: number;
+  pageId?: string;
   /** UUID of the parent node */
   nodeUuid?: string;
   
@@ -320,22 +320,22 @@ export interface NodeCollectionViewBaseProps {
   onNodeShiftClick?: (node: Node) => void;
   
   /** Content change handler */
-  onContentChange?: (nodeId: number | string, content: string) => void;
+  onContentChange?: (nodeUuid: string, content: string) => void;
   
   /** Add class handler (called when + menu adds class via plain Enter) */
-  onAddClass?: (nodeId: number, classId: number) => void;
+  onAddClass?: (nodeUuid: string, classId: string) => void;
   
   /** Called when an action-type slash command is selected (table, query, image, audio, file, comment, property, url) */
-  onSlashCommand?: (commandId: string, blockServerId: number | undefined) => void;
+  onSlashCommand?: (commandId: string, blockServerId: string | undefined) => void;
   
   /** Called when an image is pasted into a block */
-  onPasteImage?: (blockServerId: number, file: File, hasContent: boolean) => void;
+  onPasteImage?: (blockServerId: string, file: File, hasContent: boolean) => void;
 
   /** Called when a template node is selected for instantiation */
-  onTemplateInstantiate?: (templateNodeId: number, blockServerId: number | undefined) => void;
+  onTemplateInstantiate?: (templateNodeId: string, blockServerId: string | undefined) => void;
 
-  /** Class IDs to filter the template picker to (typically just the template system class) */
-  templateClassFilters?: number[];
+  /** Class UUIDs to filter the template picker to (typically just the template system class) */
+  templateClassFilters?: string[];
   
   /** Called when Enter is pressed on the root block (instead of creating a child) */
   onEnterAtRoot?: () => void;
@@ -401,7 +401,7 @@ export interface NodeListViewProps extends NodeCollectionViewBaseProps {
   renderItemAction?: (node: Node, index: number) => ReactNode;
   
   /** Page map for breadcrumb resolution */
-  pageMap?: Map<number, Node>;
+  pageMap?: Map<string, Node>;
   
   /** Group by option (default: 'none' when showGroupBy is false) */
   groupBy?: NodeCollectionGroupBy;
@@ -466,11 +466,11 @@ export interface NodeKanbanViewProps extends NodeCollectionViewBaseProps {
   /** Callback when Add button is clicked */
   onAdd?: () => void;
 
-  /** Controlled selected node IDs */
-  selectedIds?: Set<number>;
+  /** Controlled selected node UUIDs */
+  selectedIds?: Set<string>;
 
   /** Called when selection changes */
-  onSelectionChange?: (selectedIds: Set<number>) => void;
+  onSelectionChange?: (selectedIds: Set<string>) => void;
 
   /** Group by option - property UUID for property-based kanban columns; 'none' for masonry grid */
   groupBy?: NodeCollectionGroupBy;
@@ -506,14 +506,14 @@ export interface NodeTableViewProps extends NodeCollectionViewBaseProps {
   /** Whether rows are selectable (shows checkbox column) */
   selectable?: boolean;
   
-  /** Controlled selected node IDs */
-  selectedIds?: Set<number>;
-  
+  /** Controlled selected node UUIDs */
+  selectedIds?: Set<string>;
+
   /** Property UUIDs to show as columns */
   propertyUuids?: string[];
-  
+
   /** Called when selection changes */
-  onSelectionChange?: (selectedIds: Set<number>) => void;
+  onSelectionChange?: (selectedIds: Set<string>) => void;
   
   /** Controlled sort columns */
   sort?: SortEntry[];
@@ -564,8 +564,8 @@ export interface NodeChartViewProps extends NodeCollectionViewBaseProps {
   groupByProperty?: Property;
   /** QueryAST so the chart can request backend aggregation */
   queryAst?: QueryAST;
-  /** NodeView ID for executing backend aggregation */
-  viewId?: number;
+  /** NodeView UUID for executing backend aggregation */
+  viewId?: string;
 }
 
 /**
@@ -574,8 +574,8 @@ export interface NodeChartViewProps extends NodeCollectionViewBaseProps {
 export interface NodePivotViewProps extends NodeCollectionViewBaseProps {
   /** QueryAST for the base query (used for drill-down) */
   queryAst?: QueryAST;
-  /** NodeView ID for executing backend aggregation */
-  viewId?: number;
+  /** NodeView UUID for executing backend aggregation */
+  viewId?: string;
 }
 
 // ==================== Context ====================
@@ -594,7 +594,7 @@ export interface NodeCollectionContextValue {
   onNodeShiftClick?: (node: Node) => void;
   
   /** Content change handler */
-  onContentChange?: (nodeId: number | string, content: string) => void;
+  onContentChange?: (nodeUuid: string, content: string) => void;
   
   /** Current depth */
   depth: number;

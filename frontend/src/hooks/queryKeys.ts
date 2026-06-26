@@ -21,23 +21,23 @@ function hashStringArray(ids: string[]): string {
 export const nodeKeys = {
   all: ['nodes'] as const,
   lists: () => [...nodeKeys.all, 'list'] as const,
-  list: (filters: { pages_only?: boolean; parent_id?: number; tag_id?: number }) => 
+  list: (filters: { pages_only?: boolean; parent_uuid?: string; tag_uuid?: string }) =>
     [...nodeKeys.lists(), filters] as const,
   details: () => [...nodeKeys.all, 'detail'] as const,
-  detail: (id: string | number, options?: { include_children?: boolean; include_backlinks?: boolean; include_properties?: boolean }) =>
+  detail: (id: string, options?: { include_children?: boolean; include_backlinks?: boolean; include_properties?: boolean }) =>
     [...nodeKeys.details(), id, options ?? {}] as const,
   // Use this for cache invalidation - matches all detail queries for a node regardless of options
-  detailBase: (id: string | number) => [...nodeKeys.details(), id] as const,
+  detailBase: (id: string) => [...nodeKeys.details(), id] as const,
   byUuid: (uuid: string) => [...nodeKeys.all, 'uuid', uuid] as const,
-  pageContent: (id: string | number) => [...nodeKeys.all, 'page-content', id] as const,
-  backlinks: (id: string | number) => [...nodeKeys.all, 'backlinks', id] as const,
+  pageContent: (id: string) => [...nodeKeys.all, 'page-content', id] as const,
+  backlinks: (id: string) => [...nodeKeys.all, 'backlinks', id] as const,
   allBacklinks: () => [...nodeKeys.all, 'backlinks'] as const,
-  linkedRefs: (id: string | number, params?: { limit?: number; offset?: number }) =>
+  linkedRefs: (id: string, params?: { limit?: number; offset?: number }) =>
     [...nodeKeys.all, 'linked-refs', id, params ?? {}] as const,
   allLinkedRefs: () => [...nodeKeys.all, 'linked-refs'] as const,
-  mentions: (id: string | number) => [...nodeKeys.all, 'mentions', id] as const,
+  mentions: (id: string) => [...nodeKeys.all, 'mentions', id] as const,
   allMentions: () => [...nodeKeys.all, 'mentions'] as const,
-  propertyBacklinks: (id: string | number) => [...nodeKeys.all, 'property-backlinks', id] as const,
+  propertyBacklinks: (id: string) => [...nodeKeys.all, 'property-backlinks', id] as const,
   allPropertyBacklinks: () => [...nodeKeys.all, 'property-backlinks'] as const,
   dailyList: () => [...nodeKeys.all, 'daily-list'] as const,
   daily: (date: string) => [...nodeKeys.all, 'daily', date] as const,
@@ -60,25 +60,24 @@ export const nodeKeys = {
   
   // PERFORMANCE: Metadata-only keys for lightweight queries
   // These are separate from detail queries to avoid cache pollution
-  metadata: (id: string | number) => [...nodeKeys.all, 'metadata', id] as const,
-  childrenOnly: (id: string | number) => [...nodeKeys.all, 'children-only', id] as const,
-  breadcrumbs: (id: string | number) => [...nodeKeys.all, 'breadcrumbs', id] as const,
+  metadata: (id: string) => [...nodeKeys.all, 'metadata', id] as const,
+  childrenOnly: (id: string) => [...nodeKeys.all, 'children-only', id] as const,
+  breadcrumbs: (id: string) => [...nodeKeys.all, 'breadcrumbs', id] as const,
   breadcrumbsByUuid: (uuid: string) => [...nodeKeys.all, 'breadcrumbs', 'uuid', uuid] as const,
-  batchGet: (ids: (string | number)[]) => [...nodeKeys.all, 'batch-get', ...ids.slice().sort()] as const,
-  batchProperties: (ids: (string | number)[]) => [...nodeKeys.all, 'batch-properties', ...ids.slice().sort()] as const,
+  batchGet: (ids: string[]) => [...nodeKeys.all, 'batch-get', ...ids.slice().sort()] as const,
+  batchProperties: (ids: string[]) => [...nodeKeys.all, 'batch-properties', ...ids.slice().sort()] as const,
   suggestions: (classFilters?: string) => [...nodeKeys.all, 'suggestions', classFilters ?? ''] as const,
-  aliases: (id: string | number) => [...nodeKeys.all, 'aliases', id] as const,
+  aliases: (id: string) => [...nodeKeys.all, 'aliases', id] as const,
   // Prefix keys for cache-wide invalidation (match all regardless of ID)
   archived: () => [...nodeKeys.all, 'archived'] as const,
-  byClass: (classId: string | number) => [...nodeKeys.all, 'by-class', classId] as const,
-  byTag: (tagId: string | number) => [...nodeKeys.all, 'by-tag', tagId] as const,
-  textLinks: (nodeId: string | number) => ['textLinks', nodeId] as const,
-  inlineClasses: (nodeId: string | number) => ['inlineClasses', nodeId] as const,
+  byClass: (classId: string) => [...nodeKeys.all, 'by-class', classId] as const,
+  byTag: (tagId: string) => [...nodeKeys.all, 'by-tag', tagId] as const,
+  textLinks: (nodeUuid: string) => ['textLinks', nodeUuid] as const,
+  inlineClasses: (nodeUuid: string) => ['inlineClasses', nodeUuid] as const,
   pageContents: () => [...nodeKeys.all, 'page-content'] as const,
   uuids: () => [...nodeKeys.all, 'uuid'] as const,
   pseudoNodeQuery: () => ['pseudo-node-query'] as const,
   inlineQuery: () => ['inline-query'] as const,
-  tabBatch: (nodeIds: number[]) => [...nodeKeys.all, 'tab-batch', ...nodeIds.sort((a, b) => a - b)] as const,
   uuidBatch: (nodeUuids: string[]) => [...nodeKeys.all, 'uuid-batch', hashStringArray(nodeUuids)] as const,
   ganttDayNodes: (ids: string[]) => [...nodeKeys.all, 'gantt-day-nodes', hashStringArray(ids)] as const,
 };
@@ -88,19 +87,19 @@ export const nodeKeys = {
 export const nodeViewKeys = {
   all: ['nodeViews'] as const,
   lists: () => [...nodeViewKeys.all, 'list'] as const,
-  list: (nodeId: string | number, viewType?: string) =>
-    [...nodeViewKeys.lists(), nodeId, viewType] as const,
-  byType: (nodeId: string | number) => [...nodeViewKeys.all, 'byType', nodeId] as const,
+  list: (nodeUuid: string, viewType?: string) =>
+    [...nodeViewKeys.lists(), nodeUuid, viewType] as const,
+  byType: (nodeUuid: string) => [...nodeViewKeys.all, 'byType', nodeUuid] as const,
   details: () => [...nodeViewKeys.all, 'detail'] as const,
-  detail: (viewId: string | number) => [...nodeViewKeys.details(), viewId] as const,
-  default: (nodeId: string | number, viewType: string) =>
-    [...nodeViewKeys.all, 'default', nodeId, viewType] as const,
+  detail: (viewId: string) => [...nodeViewKeys.details(), viewId] as const,
+  default: (nodeUuid: string, viewType: string) =>
+    [...nodeViewKeys.all, 'default', nodeUuid, viewType] as const,
   queryResults: () => [...nodeViewKeys.all, 'queryResults'] as const,
-  queryResult: (viewId: string | number, params?: Record<string, unknown>) =>
+  queryResult: (viewId: string, params?: Record<string, unknown>) =>
     [...nodeViewKeys.queryResults(), viewId, params] as const,
-  count: (viewId?: string | number | null, request?: unknown) =>
+  count: (viewId?: string | null, request?: unknown) =>
     [...nodeViewKeys.queryResults(), 'count', viewId ?? 'all', request ?? {}] as const,
-  aggregate: (viewId: string | number | null | undefined, aggregation: unknown, nodeUuid?: string) =>
+  aggregate: (viewId: string | null | undefined, aggregation: unknown, nodeUuid?: string) =>
     ['node-view-aggregate', viewId, aggregation, nodeUuid ?? ''] as const,
 };
 
@@ -110,35 +109,35 @@ export const propertyKeys = {
   all: ['properties'] as const,
   lists: () => [...propertyKeys.all, 'list'] as const,
   list: (type?: string) => [...propertyKeys.lists(), { type }] as const,
-  detail: (id: string | number) => [...propertyKeys.all, 'detail', id] as const,
-  forTag: (tagId: string | number) => [...propertyKeys.all, 'tag', tagId] as const,
-  forClass: (classId: string | number) => [...propertyKeys.all, 'class', classId] as const,
-  forClassInherited: (classId: string | number) => [...propertyKeys.all, 'class-inherited', classId] as const,
-  classExtends: (classId: string | number) => [...propertyKeys.all, 'class-extends', classId] as const,
-  inheritedProperties: (classId: string | number) => [...propertyKeys.all, 'inherited', classId] as const,
-  extendedByClasses: (classId: string | number) => [...propertyKeys.all, 'extended-by', classId] as const,
-  available: (opts: { contextNodeId?: string | number; contextClassIds?: (string | number)[] }) =>
+  detail: (id: string) => [...propertyKeys.all, 'detail', id] as const,
+  forTag: (tagId: string) => [...propertyKeys.all, 'tag', tagId] as const,
+  forClass: (classId: string) => [...propertyKeys.all, 'class', classId] as const,
+  forClassInherited: (classId: string) => [...propertyKeys.all, 'class-inherited', classId] as const,
+  classExtends: (classId: string) => [...propertyKeys.all, 'class-extends', classId] as const,
+  inheritedProperties: (classId: string) => [...propertyKeys.all, 'inherited', classId] as const,
+  extendedByClasses: (classId: string) => [...propertyKeys.all, 'extended-by', classId] as const,
+  available: (opts: { contextNodeUuid?: string; contextClassUuids?: string[] }) =>
     [...propertyKeys.all, 'available', opts] as const,
-  nodes: (propertyId: string | number) => ['property-nodes', propertyId] as const,
+  nodes: (propertyUuid: string) => ['property-nodes', propertyUuid] as const,
   allNodes: () => ['property-nodes'] as const,
-  suggestions: (contextNodeId?: string | number) => ['property-suggestions', contextNodeId] as const,
+  suggestions: (contextNodeUuid?: string) => ['property-suggestions', contextNodeUuid] as const,
 };
 
 // ==================== Comment Query Keys ====================
 
 export const commentKeys = {
   all: ['comments'] as const,
-  forNode: (nodeId: string | number) => [...commentKeys.all, 'node', nodeId] as const,
-  count: (nodeId: string | number) => [...commentKeys.all, 'count', nodeId] as const,
+  forNode: (nodeUuid: string) => [...commentKeys.all, 'node', nodeUuid] as const,
+  count: (nodeUuid: string) => [...commentKeys.all, 'count', nodeUuid] as const,
 };
 
 // ==================== Activity Query Keys ====================
 
 export const activityKeys = {
   all: ['activity'] as const,
-  forNode: (nodeId: string | number) => [...activityKeys.all, 'node', nodeId] as const,
-  linkClicks: (sourceNodeId: string | number) => [...activityKeys.all, 'link-clicks', sourceNodeId] as const,
-  linkClick: (sourceNodeId: string | number, targetNodeId: string | number) => [...activityKeys.all, 'link-click', sourceNodeId, targetNodeId] as const,
+  forNode: (nodeUuid: string) => [...activityKeys.all, 'node', nodeUuid] as const,
+  linkClicks: (sourceNodeUuid: string) => [...activityKeys.all, 'link-clicks', sourceNodeUuid] as const,
+  linkClick: (sourceNodeUuid: string, targetNodeUuid: string) => [...activityKeys.all, 'link-click', sourceNodeUuid, targetNodeUuid] as const,
 };
 
 // ==================== Settings Query Keys ====================
@@ -171,9 +170,9 @@ export const recentKeys = {
 
 export const taskKeys = {
   all: ['tasks'] as const,
-  recurrence: (nodeId: string | number) => [...taskKeys.all, 'recurrence', nodeId] as const,
-  completions: (nodeId: string | number, limit?: number, offset?: number) =>
-    [...taskKeys.all, 'completions', nodeId, { limit: limit ?? 50, offset: offset ?? 0 }] as const,
+  recurrence: (nodeUuid: string) => [...taskKeys.all, 'recurrence', nodeUuid] as const,
+  completions: (nodeUuid: string, limit?: number, offset?: number) =>
+    [...taskKeys.all, 'completions', nodeUuid, { limit: limit ?? 50, offset: offset ?? 0 }] as const,
   view: (activeTab?: string) => ['tasks-view', activeTab] as const,
 };
 
@@ -196,8 +195,10 @@ export const archivedPagesKeys = {
 export const workspaceKeys = {
   all: ['workspaces'] as const,
   list: () => [...workspaceKeys.all, 'list'] as const,
-  exportJob: (jobUuid: string | number | null | undefined) => ['export-job', jobUuid] as const,
+  exportJob: (jobUuid: string | null | undefined) => ['export-job', jobUuid] as const,
   nameCheck: (name: string) => ['workspace-name-check', name] as const,
+  syncProtocolVersion: (workspaceUuid: string) =>
+    [...workspaceKeys.all, 'sync-protocol-version', workspaceUuid] as const,
 };
 
 // ==================== Auth Query Keys ====================
@@ -222,22 +223,22 @@ export const searchKeys = {
 // ==================== Ad-hoc Query Keys ====================
 
 export const queryKeys = {
-  pseudoNodeQuery: (viewType: string, nodeId: number, viewMode: string) =>
-    ['pseudo-node-query', viewType, nodeId, viewMode] as const,
-  inlineQuery: (nodeId: number, ast: unknown, viewMode: string) =>
-    ['inline-query', nodeId, ast, viewMode] as const,
-  previewQuery: (nodeId: number, ast: unknown, viewMode: string) =>
-    ['preview-query', nodeId, ast, viewMode] as const,
+  pseudoNodeQuery: (viewType: string, nodeUuid: string, viewMode: string) =>
+    ['pseudo-node-query', viewType, nodeUuid, viewMode] as const,
+  inlineQuery: (nodeUuid: string, ast: unknown, viewMode: string) =>
+    ['inline-query', nodeUuid, ast, viewMode] as const,
+  previewQuery: (nodeUuid: string, ast: unknown, viewMode: string) =>
+    ['preview-query', nodeUuid, ast, viewMode] as const,
 };
 
 // ==================== Shares Query Keys ====================
 
 export const sharesKeys = {
   all: ['shares'] as const,
-  node: (nodeId: string | number) => [...sharesKeys.all, 'node', nodeId] as const,
+  node: (nodeUuid: string) => [...sharesKeys.all, 'node', nodeUuid] as const,
   workspace: () => [...sharesKeys.all, 'workspace'] as const,
   public: (shareUuid: string) => ['public-share', shareUuid] as const,
-  userShares: (nodeId: string | number) => [...sharesKeys.all, 'user-shares', nodeId] as const,
+  userShares: (nodeUuid: string) => [...sharesKeys.all, 'user-shares', nodeUuid] as const,
   inbox: () => [...sharesKeys.all, 'inbox'] as const,
   workspaceMembers: (workspaceUuid: string) => ['workspace-members', workspaceUuid] as const,
 };
@@ -247,7 +248,7 @@ export const sharesKeys = {
 export const templateKeys = {
   all: ['templates'] as const,
   list: () => [...templateKeys.all, 'list'] as const,
-  variables: (nodeId: number) => [...templateKeys.all, 'variables', nodeId] as const,
+  variables: (nodeUuid: string) => [...templateKeys.all, 'variables', nodeUuid] as const,
 };
 
 // ==================== Plugin Query Keys ====================

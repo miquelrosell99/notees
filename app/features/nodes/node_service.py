@@ -6,11 +6,12 @@ Orchestrates node operations with link parsing and property management.
 from __future__ import annotations
 
 import re
+import shutil
 from datetime import UTC, date, datetime
 from typing import TYPE_CHECKING, Any
 
-from app.db.connection import get_transaction
-from app.domain.entities import Node, NodeCreateData, NodeUpdateData
+from app.db.connection import get_transaction, get_workspace_assets_dir
+from app.domain.entities import Node, NodeCreateData, NodeUpdateData, generate_uuid
 from app.domain.entities.constants import SYSTEM_CLASS_UUIDS, generate_day_uuid
 from app.domain.errors import (
     DatePageDeletionError,
@@ -35,13 +36,12 @@ from app.features.nodes.class_management_service import BLOCK_ONLY_CLASS_UUIDS, 
 from app.logging_config import get_logger
 
 if TYPE_CHECKING:
-    from app.domain.services.asset_service import AssetFileService
-
     from app.domain.repositories.interfaces import (
         PermissionRepository,
         SettingsRepository,
     )
     from app.features.activity.port import ActivityRepository
+    from app.features.assets.service import AssetFileService
     from app.features.auth.port import UserRepository
     from app.features.nodes.link_service import LinkParsingService
     from app.features.nodes.mention_service import MentionService
@@ -1403,16 +1403,13 @@ class NodeService:
         # Remove from all users' favorites
         await self._cleanup_favorites(node_id)
 
-        # If this is an asset node, delete the asset folder on hard-delete
-        if node.is_asset and node.uuid and self._workspace_uuid:
+        # If this is an asset node, drop its reference to the content file on hard-delete
+        if node.is_asset and node.asset_file_id is not None and self._workspace_uuid and self._asset_file_service is not None:
             try:
-                from ...domain.services.asset_service import AssetFileService
-
-                asset_file_service = AssetFileService(self._workspace_uuid)
-                asset_file_service.delete_asset(node.uuid)
-                logger.info("Deleted asset folder for node %s", node_id)
+                await self._asset_file_service.delete_asset(node.asset_file_id)
+                logger.info("Deleted asset file reference for node %s", node_id)
             except Exception as e:
-                logger.error(f"[PERM_DELETE] Failed to delete asset folder for node {node_id}: {e}", exc_info=True)
+                logger.error(f"[PERM_DELETE] Failed to delete asset file for node {node_id}: {e}", exc_info=True)
 
         return result
 
@@ -1685,8 +1682,6 @@ class NodeService:
         siblings are shifted to make room and the new blocks are sequenced
         starting after the after_id node.
         """
-        import uuid as uuid_module
-
         # 1. Load the template root
         template_node = await self._node_repo.get_by_id(template_id)
         if not template_node or not template_node.is_template:
@@ -1704,7 +1699,7 @@ class NodeService:
 
         # 4. Build old-id → new-uuid mapping for every node in the tree
         all_old_ids = [template_node.id] + [n.id for n in desc_nodes]
-        old_id_to_new_uuid: dict[int, str] = {old_id: str(uuid_module.uuid4()) for old_id in all_old_ids}
+        old_id_to_new_uuid: dict[int, str] = {old_id: generate_uuid() for old_id in all_old_ids}
 
         # old string UUID → new string UUID (for content rewriting)
         old_uuid_to_new_uuid: dict[str, str] = {}
@@ -2153,8 +2148,6 @@ class NodeService:
                 filtered.append(d)
             all_descendants = filtered
 
-        # Prune collapsed subtrees
-        collapsed_ids: set = set()
         children_of: dict[int, list] = {}
         visible_descendants: list[Node] = []
 
@@ -2164,15 +2157,7 @@ class NodeService:
             pid = d.parent_id
             if pid is not None:
                 children_of.setdefault(pid, []).append(d.id)
-
-            if pid in collapsed_ids:
-                collapsed_ids.add(d.id)
-                continue
-
             visible_descendants.append(d)
-
-            if d.collapsed:
-                collapsed_ids.add(d.id)
 
         descendant_ids = [d.id for d in visible_descendants if d.id is not None]
 
@@ -2310,31 +2295,28 @@ class NodeService:
             "color": node.color,
             "parent_id": node.parent_id,
             "sequence": node.sequence,
-            "collapsed": node.collapsed,
             "deleted_ids": [node_id] + desc_ids,
         }
 
     async def delete_node_assets(self, node_uuid: str, workspace_uuid: str) -> None:
-        """Delete any asset files stored for a node UUID."""
-        if self._asset_file_service is not None:
+        """Delete any asset file reference and legacy per-node folder for a node UUID."""
+        node = await self._node_repo.get_by_uuid(node_uuid)
+        if node is not None and node.asset_file_id is not None and self._asset_file_service is not None:
             try:
-                self._asset_file_service.delete_asset(node_uuid)
-                logger.info("Deleted asset folder %s", node_uuid)
+                await self._asset_file_service.delete_asset(node.asset_file_id)
+                logger.info("Deleted asset file reference for node %s", node_uuid)
             except Exception as e:
-                logger.warning("Failed to delete asset folder %s: %s", node_uuid, e)
-            return
+                logger.warning("Failed to delete asset file for node %s: %s", node_uuid, e)
 
-        # Fallback only used when the service was constructed without an
-        # AssetFileService (legacy/test paths). Prefer injecting the port.
-        from app.utils.paths import get_workspace_assets_dir
-
-        assets_dir = get_workspace_assets_dir(workspace_uuid)
-        for asset_file in assets_dir.glob(f"{node_uuid}.*"):
-            try:
-                asset_file.unlink()
-                logger.info("Deleted asset file %s", asset_file)
-            except Exception as e:
-                logger.warning("Failed to delete asset file %s: %s", asset_file, e)
+        # Clean up legacy per-node asset folder (thumbnails, pre-deduplication files).
+        try:
+            assets_dir = get_workspace_assets_dir(workspace_uuid)
+            asset_folder = assets_dir / node_uuid
+            if asset_folder.exists():
+                shutil.rmtree(asset_folder, ignore_errors=True)
+                logger.info("Deleted asset folder for node %s", node_uuid)
+        except Exception as e:
+            logger.warning("Failed to delete asset folder for node %s: %s", node_uuid, e)
 
     async def get_nodes_by_uuids(self, uuids: list[str]) -> dict[str, Node]:
         """Get nodes by UUID, returning a dict keyed by UUID."""

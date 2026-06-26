@@ -18,7 +18,7 @@ interface UseCommandPaletteItemsParams {
   parsedDate: ParsedDate | null;
   existingDateNode: Node | null;
   commands: Command[];
-  pageMap: Map<number, Node>;
+  pageMap: Map<string, Node>;
   recentAccessedPages: RecentPage[];
   recentCreatedPages: RecentPage[];
   randomPages: RecentPage[];
@@ -132,12 +132,12 @@ export function useCommandPaletteItems(params: UseCommandPaletteItemsParams): It
     displayedPages.forEach(({ node }) => {
       // Build ancestor breadcrumb using allPages map (worker only has search results)
       let breadcrumb: string | undefined;
-      if (node.parent_id != null) {
+      if (node.parent_uuid != null) {
         const parts: string[] = [];
-        let current = pageMap.get(node.parent_id);
+        let current = pageMap.get(node.parent_uuid);
         while (current) {
           parts.unshift(nodeNameToText(current.name) || 'Untitled');
-          current = current.parent_id != null ? pageMap.get(current.parent_id) : undefined;
+          current = current.parent_uuid != null ? pageMap.get(current.parent_uuid) : undefined;
         }
         if (parts.length > 0) breadcrumb = parts.join(' / ');
       }

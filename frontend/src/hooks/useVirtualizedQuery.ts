@@ -94,21 +94,20 @@ export function useVirtualizedQuery(
   options: UseVirtualizedQueryOptions
 ): UseVirtualizedQueryResult {
   const {
-    viewId,
-    runtimeParams,
-    ast,
-    viewType,
-    nodeUuid,
-    includeChildren = false,
-    includeProperties = false,
-    enrich,
-    debounceMs = 300,
-    windowSize = 500,
-    limit,
-    offset,
-    enabled = true,
-    staleTime,
-  } = options;
+          viewId,
+          runtimeParams,
+          ast,
+          viewType,
+          nodeUuid,
+          includeChildren = false,
+          includeProperties = false,
+          enrich,
+          debounceMs = 300,
+          windowSize = 500,
+          limit,
+          offset,
+          enabled = true,
+          staleTime } = options;
 
   // Debounce the AST to avoid hammering the backend during edits
   const debouncedAST = useDebouncedValue(ast, debounceMs);

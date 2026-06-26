@@ -18,7 +18,6 @@ import { registerView } from './registry';
 import { getOperationRuntime } from '@/runtime';
 import { getNode } from '@/runtime/graphHelpers';
 import { upsertNodes, getRuntimeEventBus } from '@/runtime/eventBus';
-import { registerParentServerId } from '@/runtime/serverIdMap';
 import { getUndoEngine } from '@/stores/undoEngine';
 import type { MutationIntent } from '@/runtime/types';
 
@@ -65,9 +64,9 @@ export const DocumentView = memo(function DocumentView({
 
   // Resolve alias: if node is an alias, return the main node instead
   const resolveAlias = useCallback((node: Node): Node => {
-    if (node.aliased_id) {
-      const mainNode = allNodes.find(n => n.id === node.aliased_id);
-      return mainNode ?? { id: node.aliased_id, is_page: true } as Node;
+    if (node.aliased_uuid) {
+      const mainNode = allNodes.find(n => n.uuid === node.aliased_uuid);
+      return mainNode ?? ({ uuid: node.aliased_uuid, is_page: true } as unknown as Node);
     }
     return node;
   }, [allNodes]);
@@ -76,12 +75,12 @@ export const DocumentView = memo(function DocumentView({
   const handleNavigateToNode = useCallback(async (linkId: string) => {
     const runtime = getOperationRuntime();
     const graphNode = getNode(runtime, linkId);
-    if (graphNode?.serverId) {
-      const targetNode = allNodes.find(n => n.id === graphNode.serverId);
+    if (graphNode?.blockId) {
+      const targetNode = allNodes.find(n => n.uuid === graphNode.blockId);
       if (targetNode) {
         onNodeClick?.(resolveAlias(targetNode));
       } else {
-        onNodeClick?.({ id: graphNode.serverId, is_page: graphNode.isPage } as Node);
+        onNodeClick?.({ uuid: graphNode.blockId, is_page: graphNode.isPage } as unknown as Node);
       }
       return;
     }
@@ -107,7 +106,6 @@ export const DocumentView = memo(function DocumentView({
   // Handler for external file drops — creates asset blocks
   const handleDropFiles = useCallback(async (files: File[]) => {
     if (!_pageId) return;
-    registerParentServerId(_nodeUuid ?? '', _pageId);
 
     for (const file of files) {
       try {
@@ -128,7 +126,6 @@ export const DocumentView = memo(function DocumentView({
         if (asset.node_id) {
           upsertNodes([{
             blockId: newBlockId,
-            serverId: asset.node_id,
             parentId: _nodeUuid ?? '',
             orderIndex: 0,
             nodeType: 'block',
@@ -173,7 +170,6 @@ export const DocumentView = memo(function DocumentView({
         onTemplateInstantiate={onTemplateInstantiate}
         templateClassFilters={templateClassFilters}
         nodeUuid={_nodeUuid}
-        nodeId={_pageId}
         onNavigateToNode={handleNavigateToNode}
         onPillClick={handleNavigateToNode}
         maxDepth={maxDepth}

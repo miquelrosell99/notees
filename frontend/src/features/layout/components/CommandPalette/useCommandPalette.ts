@@ -47,7 +47,7 @@ export function useCommandPalette({ isOpen, onClose, onSelect }: CommandPaletteP
     searchTerm: state.searchTerm,
     pageNameForCreation: state.pageNameForCreation,
     selectedClasses: state.selectedClasses,
-    pageClassId: state.pageClassId,
+    pageClassUuid: state.pageClassUuid,
     destinationPage: state.destinationPage,
     onSelect,
     onClose,
@@ -104,7 +104,7 @@ export function useCommandPalette({ isOpen, onClose, onSelect }: CommandPaletteP
         e.stopPropagation();
         openNodeCollectionFromNodes(
           searchTerm.trim() ? `Search: "${searchTerm}"` : 'Search results',
-          (searchResults as Node[]).map((n) => n.id),
+          (searchResults as Node[]).map((n) => n.uuid),
         );
         onClose();
         return;
@@ -201,7 +201,7 @@ export function useCommandPalette({ isOpen, onClose, onSelect }: CommandPaletteP
     handleBackdropClick: state.handleBackdropClick,
     refreshRandomPages: state.refreshRandomPages,
     groupedItems,
-    pageClassId: state.pageClassId,
+    pageClassUuid: state.pageClassUuid,
     allClasses: state.allClasses,
     allPages: state.allPages,
     searchResults: state.searchResults,

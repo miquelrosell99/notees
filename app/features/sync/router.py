@@ -24,9 +24,16 @@ from app.dependencies import (
     get_current_user,
     get_settings_repository,
     get_sync_service,
+    get_sync_service_v2,
+)
+from app.domain.entities.sync_v2 import (
+    SyncBatchRequest,
+    SyncBatchResponse,
+    SyncConflictResponse,
 )
 from app.domain.repositories.interfaces import SettingsRepository
 from app.features.sync.service import SyncService
+from app.features.sync.service_v2 import SyncServiceV2
 from app.features.workspaces.manager import get_active_workspace_id
 from app.logging_config import get_logger
 from app.models import (
@@ -66,6 +73,38 @@ async def sync(
     - conflicts: nodes modified by both client and server since last_sync
     """
     return await sync_service.sync(request)
+
+
+@router.post(
+    "/sync/batch",
+    response_model=SyncBatchResponse,
+    responses={409: {"model": SyncConflictResponse}},
+)
+async def sync_batch(
+    request: SyncBatchRequest,
+    user: User = Depends(get_current_user),
+    sync_service_v2: SyncServiceV2 = Depends(get_sync_service_v2),
+):
+    """Apply a batch of client operations using optimistic vector-clock sync.
+
+    Client sends:
+    - ops: list of OperationIntent operations to apply
+    - base_vector: last server-confirmed version vectors per affected node
+    - workspace_uuid: optional target workspace (defaults to active)
+
+    Server returns either:
+    - 200 SyncBatchResponse with updated version vectors, or
+    - 409 SyncConflictResponse with stale nodes and current server vectors.
+    """
+    import sys
+
+    base_vector_bytes = sys.getsizeof(str(request.base_vector))
+    logger.info("sync/batch base_vector payload size: %s bytes", base_vector_bytes)
+
+    result = await sync_service_v2.apply_batch(request)
+    if isinstance(result, SyncConflictResponse):
+        raise HTTPException(status_code=409, detail=result.model_dump())
+    return result
 
 
 @router.get("/settings")

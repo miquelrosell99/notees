@@ -10,9 +10,8 @@ import * as nodesApi from '@/api/nodes';
 import { nodeKeys } from '@/hooks/queryKeys';
 import type { Node } from '@/types/api';
 import { findNodeInTreeByUuid } from './useNodeQueries.utils';
-import { getNodeUuidByServerId } from './useNodeMutations.utils';
 
-export function useNodes(filters?: { pages_only?: boolean; parent_id?: number; tag_id?: number; page_size?: number } | null) {
+export function useNodes(filters?: { pages_only?: boolean; parent_uuid?: string; tag_uuid?: string; page_size?: number } | null) {
   return useQuery({
     queryKey: nodeKeys.list(filters ?? {}),
     queryFn: () => nodesApi.listNodes(filters ?? undefined),
@@ -26,7 +25,7 @@ export function useNodes(filters?: { pages_only?: boolean; parent_id?: number; t
  */
 
 export function useNode(
-  id: string | number | null,
+  id: string | null,
   options?: {
     include_children?: boolean;
     include_backlinks?: boolean;
@@ -39,7 +38,7 @@ export function useNode(
   const navigate = useNavigate();
   const { workspaceId } = useParams<{ workspaceId?: string }>();
   const { meta, staleTime, ...apiOptions } = options || {};
-  const nodeUuid = id === null ? null : typeof id === 'string' ? id : getNodeUuidByServerId(queryClient, id);
+  const nodeUuid = id;
   const result = useQuery({
     queryKey: nodeKeys.detail(id ?? '', apiOptions),
     queryFn: () => nodesApi.getNode(nodeUuid!, apiOptions),
@@ -103,9 +102,8 @@ export function useNode(
  * This uses a separate cache key to avoid polluting the full detail cache.
  */
 
-export function useNodeMetadata(id: string | number | null) {
-  const queryClient = useQueryClient();
-  const nodeUuid = id === null ? null : typeof id === 'string' ? id : getNodeUuidByServerId(queryClient, id);
+export function useNodeMetadata(id: string | null) {
+  const nodeUuid = id;
   return useQuery({
     queryKey: nodeKeys.metadata(id ?? ''),
     queryFn: () => nodesApi.getNode(nodeUuid!, {
@@ -126,9 +124,8 @@ export function useNodeMetadata(id: string | number | null) {
  * Results are normalized into the main node cache on success.
  */
 
-export function useNodeChildren(parentId: string | number | null) {
-  const queryClient = useQueryClient();
-  const parentUuid = parentId === null ? null : typeof parentId === 'string' ? parentId : getNodeUuidByServerId(queryClient, parentId);
+export function useNodeChildren(parentId: string | null) {
+  const parentUuid = parentId;
   return useQuery({
     queryKey: nodeKeys.childrenOnly(parentId ?? ''),
     queryFn: async () => {
@@ -165,9 +162,8 @@ export function useNodeByUuid(
  * Hook to fetch page content (blocks, properties, backlinks)
  */
 
-export function usePageContent(pageId: string | number | null) {
-  const queryClient = useQueryClient();
-  const pageUuid = pageId === null ? null : typeof pageId === 'string' ? pageId : getNodeUuidByServerId(queryClient, pageId);
+export function usePageContent(pageId: string | null) {
+  const pageUuid = pageId;
   return useQuery({
     queryKey: nodeKeys.pageContent(pageId ?? ''),
     queryFn: () => nodesApi.getPageContent(pageUuid!),

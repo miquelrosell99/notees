@@ -3,7 +3,7 @@ import type { ImportContext } from './useLogseqImporter.types';
 import { createPhase, errorMessage } from './useLogseqImporter.utils';
 
 export async function runPhase7(ctx: ImportContext): Promise<void> {
-  const { parsed, uuidMap, titleToNodeInfo, pageClassId, mutations, phases, setImportStatus, tick } = ctx;
+  const { parsed, uuidMap, titleToNodeInfo, pageClassUuid, mutations, phases, setImportStatus, tick } = ctx;
 
   const pagesWithAliases = parsed.pages.filter(p => (p.aliases && p.aliases.length > 0) || (p.aliasOfUuids && p.aliasOfUuids.length > 0));
   if (pagesWithAliases.length === 0) return;
@@ -20,8 +20,8 @@ export async function runPhase7(ctx: ImportContext): Promise<void> {
       if (!aliasInfo) {
         setImportStatus(`Creating alias page: ${aliasTitle}`);
         try {
-          const aliasNode = await mutations.createNode.mutateAsync({ name: aliasTitle, classes: [pageClassId] });
-          titleToNodeInfo.set(aliasTitle, { id: aliasNode.id, uuid: aliasNode.uuid });
+          const aliasNode = await mutations.createNode.mutateAsync({ name: aliasTitle, class_uuids: [pageClassUuid] });
+          titleToNodeInfo.set(aliasTitle, { nodeUuid: aliasNode.uuid, uuid: aliasNode.uuid });
           await addAlias(mainInfo.uuid, aliasNode.uuid);
           p7.succeeded++;
           tick();
@@ -42,8 +42,8 @@ export async function runPhase7(ctx: ImportContext): Promise<void> {
             p7.succeeded++;
           } else if (msg.includes('page nodes') || msg.includes('is_page')) {
             try {
-              await updateNode(mainInfo.uuid, { classes: [pageClassId] });
-              await updateNode(aliasInfo.uuid, { classes: [pageClassId] });
+              await updateNode(mainInfo.uuid, { class_uuids: [pageClassUuid] });
+              await updateNode(aliasInfo.uuid, { class_uuids: [pageClassUuid] });
               await addAlias(mainInfo.uuid, aliasInfo.uuid);
               p7.succeeded++;
             } catch (retryErr) {
@@ -85,8 +85,8 @@ export async function runPhase7(ctx: ImportContext): Promise<void> {
             p7.succeeded++;
           } else if (msg.includes('page nodes') || msg.includes('is_page')) {
             try {
-              await updateNode(thisPageInfo.uuid, { classes: [pageClassId] });
-              await updateNode(aliasInfo.uuid, { classes: [pageClassId] });
+              await updateNode(thisPageInfo.uuid, { class_uuids: [pageClassUuid] });
+              await updateNode(aliasInfo.uuid, { class_uuids: [pageClassUuid] });
               await addAlias(thisPageInfo.uuid, aliasInfo.uuid);
               p7.succeeded++;
             } catch (retryErr) {

@@ -7,8 +7,6 @@ import {
   findNodeInCache,
   getRuntimeBlockIdForServerId,
   applyNodeIntent,
-  getNodeUuidByServerId,
-  getTagUuidByServerId,
 } from './useNodeMutations.utils';
 import { waitForOperationAck } from '@/sync/waitForOperation';
 import * as nodesApi from '@/api/nodes';
@@ -22,18 +20,16 @@ import * as nodesApi from '@/api/nodes';
 export function useAddTag() {
   const queryClient = useQueryClient();
 
-  return useMutation<Node | null, Error, { nodeId: string | number; tagId: string | number }>({
-    mutationFn: async ({ nodeId, tagId }) => {
+  return useMutation<Node | null, Error, { nodeUuid: string; tagId: string }>({
+    mutationFn: async ({ nodeUuid, tagId }) => {
       await awaitAllContentSaves();
-
-      const nodeUuid = typeof nodeId === 'string' ? nodeId : getNodeUuidByServerId(queryClient, nodeId);
       if (!nodeUuid) throw new Error('Node UUID not found');
-      const tagUuid = typeof tagId === 'string' ? tagId : getTagUuidByServerId(queryClient, tagId);
+      const tagUuid = tagId;
       if (!tagUuid) throw new Error('Tag UUID not found');
-      const blockId = typeof nodeId === 'string' ? null : getRuntimeBlockIdForServerId(nodeId);
+      const blockId = getRuntimeBlockIdForServerId(nodeUuid);
       if (!blockId) {
         await nodesApi.addTagLink(nodeUuid, tagUuid);
-        return typeof nodeId === 'string' ? null : findNodeInCache(queryClient, nodeId);
+        return findNodeInCache(queryClient, nodeUuid);
       }
 
       const operationId = applyNodeIntent({
@@ -42,15 +38,15 @@ export function useAddTag() {
         tagId: tagUuid,
       });
       await waitForOperationAck(operationId);
-      return typeof nodeId === 'string' ? null : findNodeInCache(queryClient, nodeId);
+      return findNodeInCache(queryClient, nodeUuid);
     },
-    onSuccess: (_data, { nodeId, tagId }) => {
-      queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(nodeId) });
-      queryClient.invalidateQueries({ queryKey: nodeKeys.pageContent(nodeId) });
+    onSuccess: (_data, { nodeUuid, tagId }) => {
+      queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(nodeUuid) });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.pageContent(nodeUuid) });
       queryClient.invalidateQueries({ queryKey: nodeKeys.searchAll() });
       queryClient.invalidateQueries({ queryKey: nodeKeys.graph() });
-      queryClient.invalidateQueries({ queryKey: nodeViewKeys.list(nodeId) });
-      queryClient.invalidateQueries({ queryKey: nodeViewKeys.byType(nodeId) });
+      queryClient.invalidateQueries({ queryKey: nodeViewKeys.list(nodeUuid) });
+      queryClient.invalidateQueries({ queryKey: nodeViewKeys.byType(nodeUuid) });
       queryClient.invalidateQueries({ queryKey: nodeViewKeys.queryResults() });
       queryClient.invalidateQueries({ queryKey: nodeKeys.byTag(tagId) });
     },

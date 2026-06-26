@@ -38,7 +38,7 @@ export function buildResolver(linkMap: Map<string, LinkMapEntry>): NodeLinkResol
     return {
       targetAST: parseAST(entry.targetNode.name),
       label: entry.label,
-      targetId: String(entry.targetNode.id),
+      targetId: String(entry.targetNode.uuid),
     };
   };
 }

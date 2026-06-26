@@ -6,7 +6,7 @@ import * as propertiesApi from '@/api/properties';
 import * as nodesApi from '@/api/nodes';
 import type { BatchPropertiesResult } from '@/api/nodes';
 import { nodeKeys, propertyKeys } from '@/hooks/queryKeys';
-import { resolveNodeUuids, resolvePropertyUuid, resolveNodeUuid } from '@/utils/resolveNodeUuid';
+
 
 export function useProperties() {
   return useQuery({
@@ -16,35 +16,34 @@ export function useProperties() {
 }
 
 export function useAvailableProperties(opts: {
-  contextNodeId?: string | number;
-  contextClassIds?: (string | number)[];
+  contextNodeId?: string;
+  contextClassIds?: string[];
 } = {}) {
   const hasContext = opts.contextNodeId != null || (opts.contextClassIds?.length ?? 0) > 0;
-  const contextNodeUuid = opts.contextNodeId == null ? undefined : typeof opts.contextNodeId === 'string' ? opts.contextNodeId : resolveNodeUuid(opts.contextNodeId);
-  const contextClassUuids = opts.contextClassIds?.map((id) => typeof id === 'string' ? id : resolveNodeUuid(id));
+  const contextNodeUuid = opts.contextNodeId;
+  const contextClassUuids = opts.contextClassIds;
   return useQuery({
-    queryKey: propertyKeys.available({ contextNodeId: contextNodeUuid, contextClassIds: contextClassUuids }),
+    queryKey: propertyKeys.available({ contextNodeUuid, contextClassUuids }),
     queryFn: () =>
       hasContext
-        ? propertiesApi.getAvailableProperties({ contextNodeId: contextNodeUuid, contextClassIds: contextClassUuids })
+        ? propertiesApi.getAvailableProperties({ contextNodeUuid, contextClassUuids })
         : propertiesApi.listProperties(),
   });
 }
 
-export function useProperty(id: string | number | null) {
-  const propertyUuid = id == null ? null : typeof id === 'string' ? id : resolvePropertyUuid(id);
+export function useProperty(id: string | null) {
   return useQuery({
-    queryKey: propertyKeys.detail(propertyUuid ?? ''),
-    queryFn: () => propertiesApi.getProperty(propertyUuid!),
-    enabled: !!propertyUuid,
+    queryKey: propertyKeys.detail(id ?? ''),
+    queryFn: () => propertiesApi.getProperty(id!),
+    enabled: !!id,
   });
 }
 
-export function useBatchPropertyValues(nodeIds: (string | number)[]) {
+export function useBatchPropertyValues(nodeUuids: string[]) {
   return useQuery<BatchPropertiesResult>({
-    queryKey: nodeKeys.batchProperties(resolveNodeUuids(nodeIds)),
-    queryFn: () => nodesApi.batchGetPropertyValues(resolveNodeUuids(nodeIds)),
-    enabled: nodeIds.length > 0,
+    queryKey: nodeKeys.batchProperties(nodeUuids),
+    queryFn: () => nodesApi.batchGetPropertyValues(nodeUuids),
+    enabled: nodeUuids.length > 0,
     staleTime: 30_000,
   });
 }

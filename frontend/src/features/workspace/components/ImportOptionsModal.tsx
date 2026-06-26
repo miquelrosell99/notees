@@ -26,6 +26,9 @@ import {
   type WorkspaceInfo,
 } from '@/features/workspace/api/workspaces';
 import { useWorkspaceImport, useWorkspaceNameCheck } from '@/features/workspace';
+import { useImportMarkdown, useImportOpml } from '@/features/workspace';
+import { useWorkspaces } from '@/features/workspace';
+import type { MarkdownImportResult } from '@/features/workspace/api/import';
 import { useNavigationStore, useModalStore } from '@/stores';
 import type { LogseqExport } from '@/utils/ednParser';
 import { parseEdnInWorker, parseSqliteInWorker } from '@/utils/logseqParserClient';
@@ -101,12 +104,33 @@ const BUILTIN_SOURCE_OPTIONS: RadioOption[] = [
     description: 'Import .md files from Logseq or Obsidian',
     badge: 'file',
   },
+  {
+    value: 'markdown-file',
+    label: 'Markdown file',
+    description: 'Import a single Markdown file into the current workspace',
+    badge: 'file',
+  },
+  {
+    value: 'opml-file',
+    label: 'OPML file',
+    description: 'Import an outline as a page tree',
+    badge: 'file',
+  },
 ];
 
 const BUILTIN_IMPORT_TYPES = new Set(BUILTIN_SOURCE_OPTIONS.map((o) => o.value));
 
 function isBuiltInImportType(type: string): boolean {
   return BUILTIN_IMPORT_TYPES.has(type);
+}
+
+function readTextFile(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(new Error('Failed to read file'));
+    reader.readAsText(file);
+  });
 }
 
 // -- Helpers ---------------------------------------------------------------
@@ -143,6 +167,13 @@ export function ImportOptionsModal({
   const [pluginFile, setPluginFile] = useState<File | null>(null);
   const [pluginReport, setPluginReport] = useState<ImporterRunResult | null>(null);
 
+  // Direct file import state (Markdown/OPML into current workspace)
+  const [singleImportFile, setSingleImportFile] = useState<File | null>(null);
+  const [directReport, setDirectReport] = useState<MarkdownImportResult[] | null>(null);
+  const [directImportError, setDirectImportError] = useState<string | null>(null);
+  const [directImportType, setDirectImportType] = useState<ImportType | null>(null);
+  const [directImportLoading, setDirectImportLoading] = useState(false);
+
   const nameInputRef = useRef<HTMLInputElement>(null);
   const ednTextareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -157,6 +188,7 @@ export function ImportOptionsModal({
     } else if (selectedType === 'logseq-edn') {
       ednTextareaRef.current?.focus();
     }
+    // markdown-file/opml-file do not use the name field
   }, [isOpen, phase, selectedType]);
 
   const workspaceUuidRef = useRef<string | null>(null);
@@ -190,7 +222,7 @@ export function ImportOptionsModal({
     error: hookError,
     reset: resetImport,
     runImport,
-    pageClassId,
+    pageClassUuid,
   } = useLogseqImporter();
 
   // Folder import pipeline — shared hook
@@ -202,8 +234,19 @@ export function ImportOptionsModal({
     done: folderDone,
     reset: resetFolderImport,
     runImport: runFolderImport,
-    pageClassId: folderPageClassId,
+    pageClassUuid: folderPageClassUuid,
   } = useLogseqFolderImporter();
+
+  // Direct file import mutations
+  const importMarkdownMutation = useImportMarkdown();
+  const importOpmlMutation = useImportOpml();
+
+  // Current workspace lookup for direct file imports
+  const { data: workspacesData } = useWorkspaces({ enabled: isOpen });
+  const currentWorkspace = useMemo(() => {
+    if (!workspacesData || !workspaceUuid) return null;
+    return workspacesData.items.find((w) => w.uuid === workspaceUuid) ?? null;
+  }, [workspacesData, workspaceUuid]);
 
   // -- Reset when modal opens ---------------------------------------------
   useEffect(() => {
@@ -228,6 +271,11 @@ export function ImportOptionsModal({
       setPluginFile(null);
       setPluginReport(null);
       setUuidOverrides({});
+      setSingleImportFile(null);
+      setDirectReport(null);
+      setDirectImportError(null);
+      setDirectImportType(null);
+      setDirectImportLoading(false);
       if (folderInputRef.current) folderInputRef.current.value = '';
       resetImport();
       resetFolderImport();
@@ -244,6 +292,11 @@ export function ImportOptionsModal({
     setPluginFile(null);
     setPluginReport(null);
     setUuidOverrides({});
+    setSingleImportFile(null);
+    setDirectReport(null);
+    setDirectImportError(null);
+    setDirectImportType(null);
+    setDirectImportLoading(false);
     if (folderInputRef.current) folderInputRef.current.value = '';
   }, [selectedType]);
 
@@ -281,24 +334,24 @@ export function ImportOptionsModal({
     return () => { cancelled = true; };
   }, [phase, queryClient, navigate]);
 
-  // -- Start import once workspace is ready and pageClassId available ------
+  // -- Start import once workspace is ready and pageClassUuid available ------
   useEffect(() => {
-    if (phase !== 'importing' || !pendingParsedRef.current || !pageClassId || importing) return;
+    if (phase !== 'importing' || !pendingParsedRef.current || !pageClassUuid || importing) return;
     // Clear ref BEFORE calling runImport to prevent double-invocation:
     // when the import finishes, `importing` flips false → the effect re-fires,
     // but pendingParsedRef is already null so the guard exits early.
     const parsed = pendingParsedRef.current;
     pendingParsedRef.current = null;
     runImport(parsed, { importMode: 'additive', uuidOverrides });
-  }, [phase, pageClassId, importing, runImport, uuidOverrides]);
+  }, [phase, pageClassUuid, importing, runImport, uuidOverrides]);
 
   // -- Start folder import once workspace is ready ------------------------
   useEffect(() => {
-    if (phase !== 'importing' || !pendingFolderRef.current || !folderPageClassId || folderImporting) return;
+    if (phase !== 'importing' || !pendingFolderRef.current || !folderPageClassUuid || folderImporting) return;
     const folder = pendingFolderRef.current;
     pendingFolderRef.current = null;
     runFolderImport(folder);
-  }, [phase, folderPageClassId, folderImporting, runFolderImport]);
+  }, [phase, folderPageClassUuid, folderImporting, runFolderImport]);
 
   // -- Transition to report when hook finishes ----------------------------
   useEffect(() => {
@@ -393,11 +446,13 @@ export function ImportOptionsModal({
   // -- Workspace import / creation mutations -------------------------------
   const { importWorkspace, createWorkspace } = useWorkspaceImport();
 
-  const isPending = importWorkspace.isPending || createWorkspace.isPending || runPluginImporter.isPending;
+  const isPending = importWorkspace.isPending || createWorkspace.isPending || runPluginImporter.isPending || directImportLoading;
 
   const isSubmitEnabled = (() => {
     if (isPending) return false;
     if (isBuiltInImportType(selectedType)) {
+      if (selectedType === 'markdown-file') return singleImportFile !== null && !!workspaceUuid;
+      if (selectedType === 'opml-file') return singleImportFile !== null && !!workspaceUuid;
       if (!nameIsValid || isCheckingName) return false;
       if (selectedType === 'json') return jsonFile !== null;
       if (selectedType === 'logseq-edn') return parsedExport !== null;
@@ -410,10 +465,31 @@ export function ImportOptionsModal({
     return pluginFile !== null && !!workspaceUuid;
   })();
 
-  const handleSubmit = useCallback(() => {
+  const handleSubmit = useCallback(async () => {
     if (!isSubmitEnabled) return;
     setSubmitError(null);
+    setDirectImportError(null);
     const trimmedName = name.trim();
+
+    if (selectedType === 'markdown-file' || selectedType === 'opml-file') {
+      if (!singleImportFile || !workspaceUuid || !currentWorkspace) return;
+      setDirectImportLoading(true);
+      try {
+        const content = await readTextFile(singleImportFile);
+        const results =
+          selectedType === 'markdown-file'
+            ? await importMarkdownMutation.mutateAsync({ items: [{ content }] })
+            : await importOpmlMutation.mutateAsync({ content });
+        setDirectReport(results);
+        setDirectImportType(selectedType);
+        setPhase('report');
+      } catch (err: unknown) {
+        setDirectImportError(err instanceof Error ? err.message : 'Import failed');
+      } finally {
+        setDirectImportLoading(false);
+      }
+      return;
+    }
 
     if (!isBuiltInImportType(selectedType)) {
       if (!pluginFile || !workspaceUuid) return;
@@ -468,7 +544,7 @@ export function ImportOptionsModal({
         },
       });
     }
-  }, [isSubmitEnabled, name, selectedType, jsonFile, importWorkspace, createWorkspace, parsedExport, folderResult, pluginFile, workspaceUuid, runPluginImporter, onSuccess]);
+  }, [isSubmitEnabled, name, selectedType, jsonFile, importWorkspace, createWorkspace, parsedExport, folderResult, pluginFile, workspaceUuid, runPluginImporter, onSuccess, singleImportFile, currentWorkspace, importMarkdownMutation, importOpmlMutation]);
 
   // Enter anywhere inside the modal = submit (capture phase)
   useEffect(() => {
@@ -523,9 +599,12 @@ export function ImportOptionsModal({
   // Bug 2: was missing onFinish() call  workspace opened but ImportLogseqModal
   //        would reappear because isImportLogseqModalOpen stayed true.
   const handleOpenWorkspace = useCallback(() => {
+    if (directReport && currentWorkspace && directImportType) {
+      onSuccess({ workspace: currentWorkspace, type: directImportType });
+    }
     onFinish?.();
     onClose();
-  }, [onFinish, onClose]);
+  }, [directReport, currentWorkspace, directImportType, onSuccess, onFinish, onClose]);
 
   // -- Progress overlay (workspace creation mutation running) ------------
   if (isPending) {
@@ -534,7 +613,11 @@ export function ImportOptionsModal({
         <div className="import-unified__progress-overlay">
           <SyncIcon size="lg" className="import-unified__progress-spin" />
           <p className="import-unified__progress-label">
-            {selectedType === 'json' ? 'Importing workspace' : 'Creating workspace'}
+            {selectedType === 'json'
+              ? 'Importing workspace'
+              : selectedType === 'markdown-file' || selectedType === 'opml-file'
+              ? 'Importing file'
+              : 'Creating workspace'}
           </p>
         </div>
       </Modal>
@@ -623,6 +706,44 @@ export function ImportOptionsModal({
         </Modal>
       );
     }
+    if (directReport) {
+      const created = directReport.filter((r) => r.created).length;
+      const existing = directReport.filter((r) => r.existing).length;
+      return (
+        <Modal
+          isOpen={isOpen}
+          onClose={handleOpenWorkspace}
+          title="Import Complete"
+          size="md"
+          footer={
+            <Button variant="primary" onClick={handleOpenWorkspace}>
+              Done
+            </Button>
+          }
+        >
+          <div className="import-unified__report-message">
+            <p className="import-unified__report-success">
+              Imported {directReport.length} item{directReport.length !== 1 ? 's' : ''}.
+            </p>
+            <ul className="import-unified__preview-list">
+              <li><span>Created</span><span>{created}</span></li>
+              {existing > 0 && <li><span>Existing</span><span>{existing}</span></li>}
+            </ul>
+            {directReport.length > 0 && (
+              <details className="import-unified__preview">
+                <summary className="import-unified__preview-summary">Imported nodes</summary>
+                <ul className="import-unified__preview-list">
+                  {directReport.map((r) => (
+                    <li key={r.node_uuid}><span title={r.node_uuid}>{r.title}</span></li>
+                  ))}
+                </ul>
+              </details>
+            )}
+          </div>
+        </Modal>
+      );
+    }
+
     if (pluginReport) {
       const total =
         pluginReport.created_node_ids.length +
@@ -678,7 +799,7 @@ export function ImportOptionsModal({
       className="import-unified"
       footer={
         <div className="import-unified__footer">
-          {isBuiltInImportType(selectedType) && (
+          {isBuiltInImportType(selectedType) && selectedType !== 'markdown-file' && selectedType !== 'opml-file' && (
             <div className="import-unified__footer-name">
             <TextField
               ref={nameInputRef}
@@ -791,6 +912,28 @@ export function ImportOptionsModal({
               A workspace will be created and an import panel will open where you
               can select your Markdown files.
             </p>
+          </div>
+        )}
+
+        {(selectedType === 'markdown-file' || selectedType === 'opml-file') && (
+          <div className="import-unified__field-group">
+            <span className="import-unified__section-label">
+              {selectedType === 'markdown-file' ? 'Markdown file' : 'OPML file'}
+            </span>
+            <FileDropZone
+              file={singleImportFile}
+              accept={selectedType === 'markdown-file' ? '.md' : '.opml,.xml'}
+              onSelect={setSingleImportFile}
+              onClear={() => setSingleImportFile(null)}
+              placeholder={`Drop your ${selectedType === 'markdown-file' ? '.md' : '.opml/.xml'} file here`}
+              disabled={isPending}
+            />
+            {!workspaceUuid && (
+              <div className="import-unified__error">
+                <AlertIcon size="sm" />
+                Open a workspace before importing files.
+              </div>
+            )}
           </div>
         )}
 
@@ -951,6 +1094,13 @@ export function ImportOptionsModal({
           <div className="import-unified__error">
             <AlertIcon size="sm" />
             {submitError}
+          </div>
+        )}
+
+        {directImportError && (
+          <div className="import-unified__error">
+            <AlertIcon size="sm" />
+            {directImportError}
           </div>
         )}
       </div>

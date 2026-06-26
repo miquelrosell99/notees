@@ -12,6 +12,9 @@ export {
   InlineDateRangeNode,
   $createInlineDateRangeNode,
   $isInlineDateRangeNode,
+  MathNode,
+  $createMathNode,
+  $isMathNode,
 } from './nodes';
 
 // Plugins

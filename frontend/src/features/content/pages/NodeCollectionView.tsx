@@ -43,15 +43,15 @@ export function NodeCollectionView({ title, queryAST, nodes }: NodeCollectionVie
   }, [nodes]);
 
   const handleNodeClick = useCallback(
-    (nodeId: number) => {
-      openNode(nodeId);
+    (nodeUuid: string) => {
+      openNode(nodeUuid);
     },
     [openNode],
   );
 
   const handleBlockCreated = useCallback(
-    (nodeId: number) => {
-      addSidebarCard(nodeId, 'block');
+    (nodeUuid: string) => {
+      addSidebarCard(nodeUuid, 'block');
     },
     [addSidebarCard],
   );
@@ -79,7 +79,6 @@ export function NodeCollectionView({ title, queryAST, nodes }: NodeCollectionVie
       <div className="node-collection-view__results">
         {queryAST ? (
           <QueryNodeCollection
-            nodeId={0}
             nodeUuid="00000000-0000-0000-0000-000000000000"
             viewType="all_pages"
             queryAST={queryAST}

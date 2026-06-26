@@ -44,7 +44,7 @@ export function SharesView() {
             <div key={share.share_uuid} className="shares-view__item">
               <button
                 className="shares-view__item-name"
-                onClick={() => share.node_id && openNode(share.node_id)}
+                onClick={() => share.node_uuid && openNode(share.node_uuid)}
               >
                 {share.node_name || 'Untitled'}
               </button>

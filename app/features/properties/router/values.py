@@ -467,12 +467,7 @@ async def set_relation_value(
     user: User = Depends(get_current_user),
 ):
     """Set a relation property value for a node."""
-    if request.target_node_uuid:
-        target_node_id = await resolve_target_uuid(request.target_node_uuid, repo)
-    elif request.target_node_id is not None:
-        target_node_id = request.target_node_id
-    else:
-        raise HTTPException(400, "target_node_uuid or target_node_id is required")
+    target_node_id = await resolve_target_uuid(request.target_node_uuid, repo)
 
     try:
         val = await service.set_relation_value(
@@ -564,14 +559,9 @@ async def set_selection_value(
     user: User = Depends(get_current_user),
 ):
     """Set a selection property value for a node."""
-    if request.selection_line_uuid:
-        selection_line_id = await resolve_selection_line_uuid(
-            request.selection_line_uuid, property_repo
-        )
-    elif request.selection_line_id is not None:
-        selection_line_id = request.selection_line_id
-    else:
-        raise HTTPException(400, "selection_line_uuid or selection_line_id is required")
+    selection_line_id = await resolve_selection_line_uuid(
+        request.selection_line_uuid, property_repo
+    )
 
     try:
         val = await service.set_selection_value(

@@ -79,6 +79,16 @@ class WorkspaceRepository(ABC):
         pass
 
     @abstractmethod
+    async def get_sync_protocol_version(self, workspace_id: int) -> str:
+        """Return the sync protocol version for a workspace."""
+        pass
+
+    @abstractmethod
+    async def set_sync_protocol_version(self, workspace_id: int, version: str) -> None:
+        """Set the sync protocol version for a workspace."""
+        pass
+
+    @abstractmethod
     async def is_workspace_member(self, workspace_id: int, user_id: int) -> bool:
         """Return True if the user has an active workspace_share record."""
         pass

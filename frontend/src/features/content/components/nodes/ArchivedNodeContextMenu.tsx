@@ -32,17 +32,17 @@ export function ArchivedNodeContextMenu({ node, position, onClose }: ArchivedNod
   const deleteNode = useDeleteNode();
   const addSidebarCard = useAddSidebarCardAction();
   const openLocalGraph = useOpenLocalGraphAction();
-  const { count: linkedRefsCount } = useLinkedReferencesCount(node.id);
+  const { count: linkedRefsCount } = useLinkedReferencesCount(node.uuid);
   
   const handleUnarchiveClick = useCallback(() => {
     setShowUnarchiveModal(true);
   }, []);
   
   const handleConfirmUnarchive = useCallback(() => {
-    unarchiveNode.mutate(node.id);
+    unarchiveNode.mutate(node.uuid);
     setShowUnarchiveModal(false);
     onClose();
-  }, [node.id, unarchiveNode, onClose]);
+  }, [node.uuid, unarchiveNode, onClose]);
   
   const handleCancelUnarchive = useCallback(() => {
     setShowUnarchiveModal(false);
@@ -54,10 +54,10 @@ export function ArchivedNodeContextMenu({ node, position, onClose }: ArchivedNod
   }, []);
   
   const handleConfirmDelete = useCallback(() => {
-    deleteNode.mutate(node.id);
+    deleteNode.mutate(node.uuid);
     setShowDeleteModal(false);
     onClose();
-  }, [node.id, deleteNode, onClose]);
+  }, [node.uuid, deleteNode, onClose]);
   
   const handleCancelDelete = useCallback(() => {
     setShowDeleteModal(false);

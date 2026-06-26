@@ -44,6 +44,7 @@ from app.features.collab import live_sync_ws_router
 from app.features.collab import router as events_router
 from app.features.export import auto_export_router
 from app.features.export.router import router as export_router
+from app.features.import_ import router as import_router
 from app.features.properties.router import router as properties_router
 from app.features.shares import public_router
 from app.features.shares.router import workspace_shares_router as shares_router
@@ -550,6 +551,7 @@ routers = [
     sync_router,
     tasks_router,
     export_router,
+    import_router,
     auto_export_router,
     assets_router,
     activity_router,

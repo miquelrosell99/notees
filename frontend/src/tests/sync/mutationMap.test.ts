@@ -20,6 +20,23 @@ function op(overrides: Partial<Operation> & { id: string; type: Operation['type'
   } as Operation;
 }
 
+function makeNode(overrides: Partial<Node> & { uuid: string }): Node {
+  return {
+    name: 'node',
+    icon: null,
+    color: null,
+    parent_uuid: null,
+    page_uuid: null,
+    sequence: 0,
+    collapsed: false,
+    active: true,
+    is_page: false,
+    create_date: new Date().toISOString(),
+    write_date: new Date().toISOString(),
+    ...overrides,
+  } as Node;
+}
+
 describe('operationToApiRequest', () => {
   it('builds a create request', () => {
     const operation = op({
@@ -27,7 +44,7 @@ describe('operationToApiRequest', () => {
       type: 'create',
       blockId: 'new-uuid',
       payload: {
-        parentId: '1',
+        parentId: 'parent-uuid',
         afterBlockId: null,
         contentAST: [{ type: 'paragraph', children: [{ type: 'text', text: 'hello' }] }],
       },
@@ -50,7 +67,6 @@ describe('operationToApiRequest', () => {
       id: 'op-1',
       type: 'update_content',
       blockId: 'a',
-      serverId: 42,
       payload: { contentAST: [{ type: 'paragraph', children: [{ type: 'text', text: 'updated' }] }] },
     });
 
@@ -67,7 +83,6 @@ describe('operationToApiRequest', () => {
       id: 'op-1',
       type: 'move',
       blockId: 'a',
-      serverId: 42,
       payload: { parentId: '7', afterBlockId: 'other' },
     });
 
@@ -80,7 +95,7 @@ describe('operationToApiRequest', () => {
   });
 
   it('builds a delete request', () => {
-    const operation = op({ id: 'op-1', type: 'delete', blockId: 'a', serverId: 42, payload: {} });
+    const operation = op({ id: 'op-1', type: 'delete', blockId: 'a', payload: {} });
 
     const request = operationToApiRequest(operation);
     expect(request).toEqual({ type: 'delete', uuid: 'a' });
@@ -91,7 +106,6 @@ describe('operationToApiRequest', () => {
       id: 'op-1',
       type: 'add_class',
       blockId: 'a',
-      serverId: 42,
       payload: { classId: '5' },
     });
 
@@ -104,7 +118,6 @@ describe('operationToApiRequest', () => {
       id: 'op-1',
       type: 'remove_class',
       blockId: 'a',
-      serverId: 42,
       payload: { classId: '5' },
     });
 
@@ -117,7 +130,6 @@ describe('operationToApiRequest', () => {
       id: 'op-1',
       type: 'move_node',
       blockId: 'a',
-      serverId: 42,
       payload: { parentId: '7', afterBlockId: null },
     });
 
@@ -144,23 +156,7 @@ describe('operationToApiRequest', () => {
 
 describe('executeOperation', () => {
   it('calls createNode API for create operations', async () => {
-    const created: Node = {
-      id: 99,
-      uuid: 'new-uuid',
-      name: 'created',
-      icon: null,
-      color: null,
-      parent_id: 1,
-      parent_uuid: 'parent-uuid-1',
-      page_id: null,
-      page_uuid: null,
-      sequence: 0,
-      collapsed: false,
-      active: true,
-      is_page: false,
-      create_date: new Date().toISOString(),
-      write_date: new Date().toISOString(),
-    };
+    const created = makeNode({ uuid: 'new-uuid', name: 'created' });
     const api = {
       createNode: vi.fn().mockResolvedValue(created),
       updateNode: vi.fn(),
@@ -176,7 +172,7 @@ describe('executeOperation', () => {
       id: 'op-1',
       type: 'create',
       blockId: 'new-uuid',
-      payload: { parentId: '1', afterBlockId: null, contentAST: [] },
+      payload: { parentId: 'parent-uuid', afterBlockId: null, contentAST: [] },
     });
 
     const result = await executeOperation(operation, api);
@@ -186,23 +182,7 @@ describe('executeOperation', () => {
   });
 
   it('calls updateNode API for update_content operations', async () => {
-    const updated: Node = {
-      id: 42,
-      uuid: 'a',
-      name: 'updated',
-      icon: null,
-      color: null,
-      parent_id: null,
-      parent_uuid: null,
-      page_id: null,
-      page_uuid: null,
-      sequence: 0,
-      collapsed: false,
-      active: true,
-      is_page: false,
-      create_date: new Date().toISOString(),
-      write_date: new Date().toISOString(),
-    };
+    const updated = makeNode({ uuid: 'a', name: 'updated' });
     const api = {
       createNode: vi.fn(),
       updateNode: vi.fn().mockResolvedValue(updated),
@@ -218,7 +198,6 @@ describe('executeOperation', () => {
       id: 'op-1',
       type: 'update_content',
       blockId: 'a',
-      serverId: 42,
       payload: { contentAST: [] },
     });
 
@@ -240,7 +219,7 @@ describe('executeOperation', () => {
       moveNode: vi.fn(),
     };
 
-    const operation = op({ id: 'op-1', type: 'delete', blockId: 'a', serverId: 42, payload: {} });
+    const operation = op({ id: 'op-1', type: 'delete', blockId: 'a', payload: {} });
 
     await executeOperation(operation, api);
 
@@ -248,24 +227,7 @@ describe('executeOperation', () => {
   });
 
   it('calls addClass API for add_class operations', async () => {
-    const updated: Node = {
-      id: 42,
-      uuid: 'a',
-      name: 'updated',
-      icon: null,
-      color: null,
-      parent_id: null,
-      parent_uuid: null,
-      page_id: null,
-      page_uuid: null,
-      sequence: 0,
-      collapsed: false,
-      active: true,
-      is_page: false,
-      classes: [5],
-      create_date: new Date().toISOString(),
-      write_date: new Date().toISOString(),
-    };
+    const updated = makeNode({ uuid: 'a', name: 'updated', classes_uuid: ['5'] });
     const api = {
       createNode: vi.fn(),
       updateNode: vi.fn(),
@@ -281,7 +243,6 @@ describe('executeOperation', () => {
       id: 'op-1',
       type: 'add_class',
       blockId: 'a',
-      serverId: 42,
       payload: { classId: '5' },
     });
 
@@ -292,23 +253,7 @@ describe('executeOperation', () => {
   });
 
   it('calls moveNode API for move_node operations', async () => {
-    const moved: Node = {
-      id: 42,
-      uuid: 'a',
-      name: 'moved',
-      icon: null,
-      color: null,
-      parent_id: 7,
-      parent_uuid: 'parent-uuid-7',
-      page_id: null,
-      page_uuid: null,
-      sequence: 1,
-      collapsed: false,
-      active: true,
-      is_page: false,
-      create_date: new Date().toISOString(),
-      write_date: new Date().toISOString(),
-    };
+    const moved = makeNode({ uuid: 'a', name: 'moved', parent_uuid: 'parent-uuid-7', sequence: 1 });
     const api = {
       createNode: vi.fn(),
       updateNode: vi.fn(),
@@ -324,7 +269,6 @@ describe('executeOperation', () => {
       id: 'op-1',
       type: 'move_node',
       blockId: 'a',
-      serverId: 42,
       payload: { parentId: '7', afterBlockId: null },
     });
 
@@ -340,12 +284,11 @@ describe('operationToApiRequest with runtime state', () => {
     setOperationRuntime(new OperationRuntime());
   });
 
-  it('resolves the server id from the runtime when the operation lacks one', () => {
+  it('uses the runtime block id as uuid', () => {
     const runtime = getOperationRuntime();
     runtime.loadBaseNodes([
       {
         blockId: 'runtime-block',
-        serverId: 123,
         parentId: null,
         orderIndex: 0,
         nodeType: 'block',

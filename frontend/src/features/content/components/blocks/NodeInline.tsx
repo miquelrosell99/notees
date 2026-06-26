@@ -20,8 +20,6 @@ export interface NodeInlineProps {
   icon?: string | null;
   /** Whether this is a page node */
   isPage?: boolean;
-  /** Node ID or UUID (for bullet / navigation) */
-  nodeId?: string | number;
   /** Node UUID (for drag-and-drop) */
   nodeUuid?: string;
   /** Show a bullet/icon on the left */
@@ -53,22 +51,20 @@ export interface NodeInlineProps {
  * Use for read-only display of a node's name with optional icon/bullet.
  */
 export function NodeInline({
-  name,
-  icon,
-  isPage = false,
-  nodeId,
-  nodeUuid,
-  showBullet = false,
-  showIcon = false,
-  onClick,
-  onShiftClick,
-  className = '',
-  propertyName,
-  displayText: providedDisplayText,
-  title,
-  draggable = false,
-  variant = 'default',
-}: NodeInlineProps) {
+      name,
+      icon,
+      isPage = false,
+      nodeUuid,
+      showBullet = false,
+      showIcon = false,
+      onClick,
+      onShiftClick,
+      className = '',
+      propertyName,
+      displayText: providedDisplayText,
+      title,
+      draggable = false,
+      variant = 'default' }: NodeInlineProps) {
   const displayText = providedDisplayText || propertyName || nodeNameToText(name) || 'Untitled';
 
   const handleClick = useCallback((e: React.MouseEvent) => {
@@ -84,11 +80,11 @@ export function NodeInline({
     if (nodeUuid) {
       e.dataTransfer.setData(
         'application/x-notees-node',
-        JSON.stringify({ nodeId, nodeUuid, name: providedDisplayText || displayText })
+        JSON.stringify({ nodeUuid, name: providedDisplayText || displayText })
       );
       e.dataTransfer.effectAllowed = 'link';
     }
-  }, [nodeUuid, nodeId, providedDisplayText, displayText]);
+  }, [nodeUuid, nodeUuid, providedDisplayText, displayText]);
 
   const href = onClick && nodeUuid ? `/node/${nodeUuid}` : undefined;
   const Tag = onClick ? 'a' : 'span' as const;
@@ -105,7 +101,7 @@ export function NodeInline({
     >
       {showBullet && (
         <Bullet
-          nodeId={nodeId}
+          nodeUuid={nodeUuid}
           icon={icon}
           isPage={isPage}
           interactive={false}

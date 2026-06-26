@@ -23,8 +23,8 @@ from app.features.nodes.postgres_node_search import PostgresNodeSearchMixin
 from app.utils import utc_now
 
 _NODE_SELECT_COLUMNS = (
-    "id, uuid, workspace_id, name, icon, color, parent_id, page_id, sequence, collapsed, active, "
-    "is_shared, is_page, is_class, is_day, is_month, is_year, is_asset, is_template, is_comment, is_task, is_table, is_card, is_cloze, "
+    "id, uuid, workspace_id, name, icon, color, parent_id, page_id, sequence, active, "
+    "is_shared, is_page, is_class, is_day, is_month, is_year, is_asset, asset_file_id, is_template, is_comment, is_task, is_table, is_card, is_cloze, "
     "parent_locked, is_private, is_deleted, deleted_at, class_ids, tag_ids, classes_path, "
     "create_date, write_date, open_date, create_uid, write_uid, version, aliased_id"
 )
@@ -66,14 +66,14 @@ class PostgresNodeRepository(
         flags = compute_node_flags(class_nodes)
 
         is_class = flags.get("is_class", False)
-        is_page = flags.get("is_page", False)
-        is_day = flags.get("is_day", False)
-        is_month = flags.get("is_month", False)
-        is_year = flags.get("is_year", False)
+        is_page = data.is_page or flags.get("is_page", False)
+        is_day = data.is_daily or flags.get("is_day", False)
+        is_month = data.is_monthly or flags.get("is_month", False)
+        is_year = data.is_yearly or flags.get("is_year", False)
         is_asset = flags.get("is_asset", False)
         is_template = flags.get("is_template", False)
         is_comment = flags.get("is_comment", False)
-        is_task = flags.get("is_task", False)
+        is_task = data.is_task or flags.get("is_task", False)
         is_table = flags.get("is_table", False)
         is_card = flags.get("is_card", False)
         is_cloze = flags.get("is_cloze", False)
@@ -87,9 +87,9 @@ class PostgresNodeRepository(
                 """
                 INSERT INTO node (
                     uuid, workspace_id, name, icon, color, parent_id, page_id,
-                    sequence, collapsed,
+                    sequence,
                     is_class, is_page, is_day, is_month, is_year,
-                    is_asset, is_template, is_comment, is_task, is_table, is_card, is_cloze,
+                    is_asset, asset_file_id, is_template, is_comment, is_task, is_table, is_card, is_cloze,
                     class_ids, tag_ids,
                     create_date, write_date, create_uid, write_uid
                 )
@@ -104,13 +104,13 @@ class PostgresNodeRepository(
                 data.parent_id,
                 page_id,
                 data.sequence,
-                data.collapsed,
                 is_class,
                 is_page,
                 is_day,
                 is_month,
                 is_year,
                 is_asset,
+                data.asset_file_id,
                 is_template,
                 is_comment,
                 is_task,
@@ -137,7 +137,6 @@ class PostgresNodeRepository(
             parent_id=data.parent_id,
             page_id=page_id,
             sequence=data.sequence,
-            collapsed=data.collapsed,
             active=True,
             is_class=is_class,
             is_page=is_page,
@@ -145,6 +144,7 @@ class PostgresNodeRepository(
             is_month=is_month,
             is_year=is_year,
             is_asset=is_asset,
+            asset_file_id=data.asset_file_id,
             class_ids=data.classes if data.classes else [],
             tag_ids=data.tags if data.tags else [],
             is_template=is_template,
@@ -277,11 +277,6 @@ class PostgresNodeRepository(
         if data.sequence is not None:
             set_clauses.append(f"sequence = ${param_idx}")
             params.append(data.sequence)
-            param_idx += 1
-
-        if data.collapsed is not None:
-            set_clauses.append(f"collapsed = ${param_idx}")
-            params.append(data.collapsed)
             param_idx += 1
 
         if data.is_private is not None:
@@ -499,7 +494,7 @@ class PostgresNodeRepository(
                 """
                 SELECT
                     id, uuid, workspace_id, name, icon, color, parent_id, page_id,
-                    sequence, collapsed, active, is_shared, version, is_deleted,
+                    sequence, active, is_shared, version, is_deleted,
                     deleted_at, is_class, is_page, is_day, is_month, is_year,
                     is_asset, is_template, is_comment, is_table, parent_locked, is_private,
                     class_ids, classes_path, open_date, create_date, write_date,
@@ -924,7 +919,7 @@ class PostgresNodeRepository(
                     WHERE n.workspace_id = $2 AND n.active = TRUE
                 )
                 SELECT n.id, n.uuid, n.name, n.icon, n.color, n.parent_id, n.sequence,
-                       n.class_ids, n.collapsed
+                       n.class_ids
                 FROM descendants d
                 JOIN node n ON n.id = d.id
                 WHERE d.depth > 0

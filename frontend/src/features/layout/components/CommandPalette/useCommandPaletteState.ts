@@ -40,7 +40,7 @@ export function useCommandPaletteState({ isOpen, onClose }: UseCommandPaletteSta
     pageName: '',
     conflictingClasses: [],
     originalClasses: [],
-    parentId: null,
+    parentUuid: null,
   });
   const [maxPages, setMaxPages] = useState(INITIAL_MAX_PAGES);
   const [maxBlocks, setMaxBlocks] = useState(INITIAL_MAX_BLOCKS);
@@ -53,8 +53,8 @@ export function useCommandPaletteState({ isOpen, onClose }: UseCommandPaletteSta
 
   const { error: notifyError } = useNotifications();
   const createNodeMutation = useCreateNode();
-  const { pageClassId } = usePageClass();
-  const { classClassId } = useClassClass();
+  const { pageClassUuid } = usePageClass();
+  const { classClassUuid } = useClassClass();
   const { data: allClasses } = useClasses();
 
   // Fetch all properties for search
@@ -86,7 +86,7 @@ export function useCommandPaletteState({ isOpen, onClose }: UseCommandPaletteSta
 
   // Build class filter for search from applied class filters
   const classFilter = selectedClasses.length > 0
-    ? selectedClasses.map(c => c.id).join(',')
+    ? selectedClasses.map(c => c.uuid).join(',')
     : undefined;
 
   // Build boolean filters from applied filters
@@ -128,8 +128,8 @@ export function useCommandPaletteState({ isOpen, onClose }: UseCommandPaletteSta
 
   // O(1) page lookup map for building parent breadcrumbs
   const pageMap = useMemo(() => {
-    const map = new Map<number, Node>();
-    for (const p of allPages ?? []) map.set(p.id, p);
+    const map = new Map<string, Node>();
+    for (const p of allPages ?? []) map.set(p.uuid, p);
     return map;
   }, [allPages]);
   const inboxPage = allPages?.find(p => nodeNameToText(p.name) === 'Inbox');
@@ -242,7 +242,7 @@ export function useCommandPaletteState({ isOpen, onClose }: UseCommandPaletteSta
   // Handle class selection from popup
   const handleClassSelect = useCallback((classNode: Node) => {
     // Add class to applied filters if not already there
-    if (!selectedClasses.find(c => c.id === classNode.id)) {
+    if (!selectedClasses.find(c => c.uuid === classNode.uuid)) {
       setAppliedFilters(prev => [...prev, { type: 'class', classNode }]);
     }
     // Remove the class: text from query
@@ -305,11 +305,11 @@ export function useCommandPaletteState({ isOpen, onClose }: UseCommandPaletteSta
 
   // Handle creating a new class from popup
   const handleClassCreate = useCallback(async (name: string) => {
-    if (!classClassId || !pageClassId) return;
+    if (!classClassUuid || !pageClassUuid) return;
     try {
       const newClass = await createNodeMutation.mutateAsync({
         name,
-        classes: [classClassId, pageClassId],
+        class_uuids: [classClassUuid, pageClassUuid],
       });
       // Add the new class to applied filters
       setAppliedFilters(prev => [...prev, { type: 'class', classNode: newClass }]);
@@ -320,7 +320,7 @@ export function useCommandPaletteState({ isOpen, onClose }: UseCommandPaletteSta
     } catch {
       notifyError('Failed to create class', 'Please try again.');
     }
-  }, [classClassId, pageClassId, query, createNodeMutation, notifyError]);
+  }, [classClassUuid, pageClassUuid, query, createNodeMutation, notifyError]);
 
   // Refresh random pages
   const refreshRandomPages = useCallback(async () => {
@@ -401,9 +401,9 @@ export function useCommandPaletteState({ isOpen, onClose }: UseCommandPaletteSta
     handleFilterPrefixClose,
     handleClassCreate,
     handleBackdropClick,
-    pageClassId,
+    pageClassUuid,
     allClasses,
-    classClassId,
+    classClassUuid,
     createNodeMutation,
     allProperties,
   };

@@ -52,13 +52,13 @@ import { getAllNodes } from '@/runtime/graphHelpers';
 import { upsertNodes } from '@/runtime/eventBus';
 import { queryKeys } from '@/hooks/queryKeys';
 
+const PSEUDO_NODE_UUID = '00000000-0000-0000-0000-000000000000';
+
 
 
 // ==================== Types ====================
 
 export interface QueryNodeCollectionProps {
-  /** The node ID to display views for */
-  nodeId: number;
   /** The node UUID for query placeholders */
   nodeUuid: string;
   /** The node name (used to include the active node in graph views) */
@@ -66,9 +66,9 @@ export interface QueryNodeCollectionProps {
   /** The view type (e.g., 'linked_references', 'child_pages') */
   viewType: NodeViewType | string;
   /** Callback when a node is clicked */
-  onNodeClick?: (nodeId: number, isPage?: boolean) => void;
+  onNodeClick?: (nodeUuid: string, isPage?: boolean) => void;
   /** Callback when a block is created (for opening in sidebar) */
-  onBlockCreated?: (nodeId: number) => void;
+  onBlockCreated?: (nodeUuid: string) => void;
   /** Additional CSS class */
   className?: string;
   /** Whether to hide the toolbar completely (for inline/headless use like query blocks) */
@@ -125,28 +125,26 @@ export interface QueryNodeCollectionResult {
 
 // ==================== Main Component ====================
 
-export function QueryNodeCollection({
-  nodeId,
-  nodeUuid,
-  nodeName,
-  viewType,
-  onNodeClick,
-  onBlockCreated,
-  hideToolbar = false,
-  showAddButton = true,
-  leftElement,
-  hideToolbarControls = false,
-  hideContent = false,
-  hideViewManagement = false,
-  showClasses = true,
-  can_create = true,
-  can_edit = true,
-  can_delete = true,
-  queryAST: inlineQueryAST,
-  onQueryASTChange,
-  onCountChange,
-  children,
-}: QueryNodeCollectionProps): React.ReactNode {
+export function QueryNodeCollection({ 
+      nodeUuid,
+      nodeName,
+      viewType,
+      onNodeClick,
+      onBlockCreated,
+      hideToolbar = false,
+      showAddButton = true,
+      leftElement,
+      hideToolbarControls = false,
+      hideContent = false,
+      hideViewManagement = false,
+      showClasses = true,
+      can_create = true,
+      can_edit = true,
+      can_delete = true,
+      queryAST: inlineQueryAST,
+      onQueryASTChange,
+      onCountChange,
+      children }: QueryNodeCollectionProps): React.ReactNode {
   // Inline mode: query AST comes directly, not from a NodeView.
   // onQueryASTChange is optional — when absent the inline query is read-only.
   const isInlineMode = inlineQueryAST !== undefined;
@@ -158,7 +156,7 @@ export function QueryNodeCollection({
   const { handleContentChange: saveContent } = useContentSave();
   
   // State
-  const [activeViewId, setActiveViewId] = useState<number | null>(null);
+  const [activeViewId, setActiveViewId] = useState<string | null>(null);
   const [editingView, setEditingView] = useState<NodeView | null>(null);
   const [editViewName, setEditViewName] = useState('');
   const [editAST, setEditAST] = useState<QueryAST | null>(null);
@@ -197,7 +195,7 @@ export function QueryNodeCollection({
   // Always reset to the default view mode when the node or section changes.
   useEffect(() => {
     setCollectionViewMode(getDefaultViewMode(viewType));
-  }, [nodeId, viewType]);
+  }, [nodeUuid, viewType]);
 
   const handleViewModeChange = (mode: NodeCollectionViewMode) => {
     setCollectionViewMode(mode);
@@ -217,19 +215,19 @@ export function QueryNodeCollection({
   // Default to 'page' — group by page automatically in list view
   const defaultGroupBy: NodeCollectionGroupBy = 'page';
   const [groupBy, setGroupByState] = useState<NodeCollectionGroupBy>(
-    getNodeGroupBy(nodeId, viewType) ?? defaultGroupBy
+    getNodeGroupBy(nodeUuid, viewType) ?? defaultGroupBy
   );
   const setGroupBy = (value: NodeCollectionGroupBy) => {
     setGroupByState(value);
-    setNodeGroupBy(nodeId, viewType, value);
+    setNodeGroupBy(nodeUuid, viewType, value);
   };
   // Property column selection state (for table view)
   // Default to Created and Modified columns (matches default table columns)
   const [selectedPropertyUuids, setSelectedPropertyUuids] = useState<string[]>([]);
   const [hasInitialized, setHasInitialized] = useState(false);
 
-  // Check if this is a pseudo-node (nodeId <= 0, used for all_pages view)
-  const isPseudoNode = nodeId <= 0;
+  // Check if this is a pseudo-node (used for all_pages view)
+  const isPseudoNode = nodeUuid === PSEUDO_NODE_UUID;
 
   // In inline mode the AST comes directly from the node's name — no NodeViews needed.
   // Ensure default views exist for normal mode — uses microtask batching so all
@@ -239,24 +237,24 @@ export function QueryNodeCollection({
       setHasInitialized(true);
       return;
     }
-    if (nodeId > 0) {
-      batchEnsureDefaults(nodeId, viewType as string).then(
+    if (!isPseudoNode) {
+      batchEnsureDefaults(nodeUuid, viewType as string).then(
         () => setHasInitialized(true),
         () => setHasInitialized(true)
       );
     } else {
       setHasInitialized(true);
     }
-  }, [nodeId, viewType, isInlineMode]);
+  }, [nodeUuid, viewType, isInlineMode]);
 
   const isInitializing = !hasInitialized;
 
   // Add class mutation
   const addClass = useAddClass();
-  const handleAddClass = useCallback((blockId: number, classId: number) => {
+  const handleAddClass = useCallback((blockId: string, classId: string) => {
     // Optimistically update the runtime for immediate visual feedback
     const runtime = getOperationRuntime();
-    const graphNode = getAllNodes(runtime).find(n => n.serverId === blockId);
+    const graphNode = getAllNodes(runtime).find(n => n.blockId === blockId);
     if (graphNode) {
       const classStrId = String(classId);
       if (!graphNode.classIds.includes(classStrId)) {
@@ -266,7 +264,7 @@ export function QueryNodeCollection({
         }]);
       }
     }
-    addClass.mutate({ nodeId: blockId, classId });
+    addClass.mutate({ nodeUuid: blockId, classId });
   }, [addClass]);
 
   // Fetch views for this node and view type (skipped in inline mode)
@@ -274,9 +272,9 @@ export function QueryNodeCollection({
     data: viewsRaw, 
     isLoading: viewsLoading,
     refetch: refetchViews,
-  } = useNodeViews(nodeId, { 
+  } = useNodeViews(nodeUuid, { 
     viewType, 
-    enabled: !isInlineMode && nodeId > 0 && hasInitialized,
+    enabled: !isInlineMode && !isPseudoNode && hasInitialized,
   });
   const views = useMemo(() => viewsRaw ?? [], [viewsRaw]);
 
@@ -287,7 +285,7 @@ export function QueryNodeCollection({
   const deleteViewMutation = useDeleteNodeView();
   const resetNodeViewsMutation = useResetNodeViews();
   const createNodeMutation = useCreateNode();
-  const { pageClassId } = usePageClass();
+  const { pageClassUuid } = usePageClass();
   
   // Fetch all classes for prose rendering
   const { data: allClasses = [] } = useClasses();
@@ -297,7 +295,7 @@ export function QueryNodeCollection({
   const syntheticInlineView = useMemo((): NodeView | null => {
     if (!isInlineMode) return null;
     return {
-      id: -1,
+      nodeUuid: '',
       uuid: '',
       node_uuid: nodeUuid,
       name: '',
@@ -316,7 +314,7 @@ export function QueryNodeCollection({
   const activeView = useMemo(() => {
     if (isInlineMode) return syntheticInlineView;
     if (activeViewId) {
-      return views.find(v => v.id === activeViewId) ?? views[0] ?? null;
+      return views.find(v => v.nodeUuid === activeViewId) ?? views[0] ?? null;
     }
     const defaultView = views.find(v => v.is_default);
     return defaultView ?? views[0] ?? null;
@@ -335,7 +333,7 @@ export function QueryNodeCollection({
   // Create SelectionButton options from views
   const viewOptions = useMemo(() => {
     return views.map(v => ({
-      value: String(v.id),
+      value: String(v.nodeUuid),
       icon: "mdi mdi-eye-outline",
       label: v.name,
     }));
@@ -378,17 +376,18 @@ export function QueryNodeCollection({
   const {
     data: queryResults,
     isLoading: queryLoading,
-  } = useNodeViewQuery(activeView?.id ?? 0, {
-    runtimeParams: { 
+  } = useNodeViewQuery(activeView?.nodeUuid ?? '', {
+    runtimeParams: {
       current_node_uuid: nodeUuid,
-      current_node_id: nodeId,
+      current_node_id: nodeUuid,
       current_node_name: nodeNameToText(nodeName),
     },
     includeChildren: needsChildren,
     includeAllChildren: collectionViewMode === 'kanban',
     pagesOnly: queryPagesOnly,
     includeProperties: true,
-    enabled: !!activeView && nodeId > 0 && viewType !== 'linked_references',
+    enabled: !!activeView && !isPseudoNode && viewType !== 'linked_references',
+    ast: activeView?.query_ast ?? undefined,
   });
 
   // Pagination for linked references
@@ -401,7 +400,7 @@ export function QueryNodeCollection({
     isLoading: linkedReferencesLoading,
     isFetching: linkedRefsFetching,
   } = useLinkedReferences(
-    viewType === 'linked_references' ? nodeId : null,
+    viewType === 'linked_references' ? nodeUuid : null,
     { limit: LINKED_REFS_PAGE_SIZE, offset: linkedRefsOffset }
   );
 
@@ -412,10 +411,10 @@ export function QueryNodeCollection({
   // deduplicate, but this prevents any duplicate display in the UI).
   const dedupedLinkedRefs = useMemo(() => {
     if (!linkedReferencesData) return [];
-    const seen = new Set<number>();
+    const seen = new Set<string>();
     return linkedReferencesData.linked_references.filter((ref) => {
-      if (seen.has(ref.source_node.id)) return false;
-      seen.add(ref.source_node.id);
+      if (seen.has(ref.source_node.uuid)) return false;
+      seen.add(ref.source_node.uuid);
       return true;
     });
   }, [linkedReferencesData]);
@@ -432,7 +431,7 @@ export function QueryNodeCollection({
     const pages: Node[] = [];
     // Deduplicate property-referencing pages by ID so each source
     // page appears once even if multiple blocks on it have a property pointing to this node.
-    const seenPropertyPageIds = new Set<number>();
+    const seenPropertyPageIds = new Set<string>();
     
     for (const ref of dedupedLinkedRefs) {
       // Check if link has property context (direct property link or text link in text property)
@@ -448,18 +447,18 @@ export function QueryNodeCollection({
         const pageNode = ref.source_node.is_page
           ? ref.source_node
           : ref.source_page ?? ref.source_node;
-        if (seenPropertyPageIds.has(pageNode.id)) continue;
-        seenPropertyPageIds.add(pageNode.id);
-        const node = {
+        if (seenPropertyPageIds.has(pageNode.uuid)) continue;
+        seenPropertyPageIds.add(pageNode.uuid);
+        const node: Node = {
           ...pageNode,
           _linkedRefMetadata: {
             linkType: ref.link_type,
-            propertyId: ref.property_id,
+            propertyUuid: ref.property_uuid,
             propertyName: ref.property_name,
-            targetNodeId: nodeId,
-            sourceNodeId: ref.source_node.id,
+            targetNodeUuid: nodeUuid,
+            sourceNodeUuid: ref.source_node.uuid,
           },
-        } as Node;
+        };
         blocks.push(applyCollapseLevelToChildren(node, linkedRefsCollapseLevel, 0));
         continue;
       }
@@ -475,12 +474,11 @@ export function QueryNodeCollection({
       
       // For non-page-collapsed cases, add page info for breadcrumbs / card grouping
       const pageInfo = (!showPageCollapsed && ref.source_page) ? {
-        page_id: ref.source_page.id,
         page_name: ref.source_page.name,
         page_uuid: ref.source_page.uuid,
       } : {};
-      
-      const node = {
+
+      const node: Node = {
         ...displayNode,
         ...pageInfo,
         // Set collapsed state for pages in list view - always collapsed on load
@@ -488,13 +486,13 @@ export function QueryNodeCollection({
         // Attach metadata for property references
         _linkedRefMetadata: {
           linkType: ref.link_type,
-          propertyId: ref.property_id,
+          propertyUuid: ref.property_uuid,
           propertyName: ref.property_name,
-          targetNodeId: nodeId,
-          // Store the actual node ID (for fetching properties in PropertyReferencesDisplay)
-          sourceNodeId: ref.source_node.id,
+          targetNodeUuid: nodeUuid,
+          // Store the actual source node UUID (for fetching properties in PropertyReferencesDisplay)
+          sourceNodeUuid: ref.source_node.uuid,
         },
-      } as Node;
+      };
       
       // Apply collapse level to children based on settings (independent of page's collapsed state)
       // This ensures that when a page is expanded, its children are collapsed according to the settings
@@ -505,8 +503,8 @@ export function QueryNodeCollection({
         if (displayNode.is_page) {
           // Deduplicate property-context pages (same page may have multiple links)
           if (isPropertyContext) {
-            if (seenPropertyPageIds.has(displayNode.id)) continue;
-            seenPropertyPageIds.add(displayNode.id);
+            if (seenPropertyPageIds.has(displayNode.uuid)) continue;
+            seenPropertyPageIds.add(displayNode.uuid);
           }
           pages.push(nodeWithCollapsedChildren);
         } else {
@@ -519,7 +517,7 @@ export function QueryNodeCollection({
     }
     
     return { linkedReferencesBlocks: blocks, linkedReferencesPages: pages };
-  }, [dedupedLinkedRefs, nodeId, collectionViewMode, linkedRefsCollapseLevel]);
+  }, [dedupedLinkedRefs, nodeUuid, collectionViewMode, linkedRefsCollapseLevel]);
 
   // Execute ad-hoc query for pseudo-nodes
   const {
@@ -530,7 +528,7 @@ export function QueryNodeCollection({
       query_ast: pseudoNodeAST ?? undefined,
       runtime_params: {
         current_node_uuid: nodeUuid,
-        current_node_id: nodeId,
+        current_node_id: nodeUuid,
         current_node_name: nodeNameToText(nodeName),
       },
       include_children: needsChildren,
@@ -540,7 +538,7 @@ export function QueryNodeCollection({
     },
     {
       enabled: isPseudoNode && !!pseudoNodeAST,
-      queryKey: queryKeys.pseudoNodeQuery(viewType, nodeId, collectionViewMode),
+      queryKey: queryKeys.pseudoNodeQuery(viewType, nodeUuid, collectionViewMode),
     }
   );
 
@@ -553,7 +551,7 @@ export function QueryNodeCollection({
       query_ast: inlineQueryAST,
       runtime_params: {
         current_node_uuid: nodeUuid,
-        current_node_id: nodeId,
+        current_node_id: nodeUuid,
         current_node_name: nodeNameToText(nodeName),
       },
       include_children: needsChildren,
@@ -563,7 +561,7 @@ export function QueryNodeCollection({
     },
     {
       enabled: isInlineMode && !!inlineQueryAST,
-      queryKey: queryKeys.inlineQuery(nodeId, inlineQueryAST, collectionViewMode),
+      queryKey: queryKeys.inlineQuery(nodeUuid, inlineQueryAST, collectionViewMode),
     }
   );
 
@@ -608,7 +606,7 @@ export function QueryNodeCollection({
   // Reset linked refs pagination when node changes
   useEffect(() => {
     setLinkedRefsOffset(0);
-  }, [nodeId]);
+  }, [nodeUuid]);
   
   // Windowed result set — bypass windowing in immersive/visualization modes
   // (gantt, graph, timeline) so all items are available for rendering.
@@ -679,7 +677,7 @@ export function QueryNodeCollection({
       query_ast: debouncedPreviewAST,
       runtime_params: {
         current_node_uuid: nodeUuid,
-        current_node_id: nodeId,
+        current_node_id: nodeUuid,
         current_node_name: nodeNameToText(nodeName),
       },
       include_children: needsChildren,
@@ -689,7 +687,7 @@ export function QueryNodeCollection({
     },
     {
       enabled: !!debouncedPreviewAST,
-      queryKey: queryKeys.previewQuery(nodeId, debouncedPreviewAST, collectionViewMode),
+      queryKey: queryKeys.previewQuery(nodeUuid, debouncedPreviewAST, collectionViewMode),
     }
   );
 
@@ -733,7 +731,7 @@ export function QueryNodeCollection({
     setEditingView(view);
     setEditViewName(view.name);
     
-    const queryId = `view-${view.id}-${view.uuid}`;
+    const queryId = `view-${view.nodeUuid}-${view.uuid}`;
     let ast: QueryAST;
     
     if (view.query_ast && typeof view.query_ast === 'object' && view.query_ast.type === 'query') {
@@ -765,11 +763,11 @@ export function QueryNodeCollection({
       } else {
         await Promise.all([
           updateQueryMutation.mutateAsync({
-            viewId: editingView.id,
+            viewId: editingView.nodeUuid,
             queryAST: normalizedAST,
           }),
           editViewName !== editingView.name && updateViewMutation.mutateAsync({
-            viewId: editingView.id,
+            viewId: editingView.nodeUuid,
             data: { name: editViewName },
           }),
         ].filter(Boolean));
@@ -788,12 +786,12 @@ export function QueryNodeCollection({
   const handleDeleteView = useCallback(async () => {
     if (!editingView) return;
     try {
-      await deleteViewMutation.mutateAsync(editingView.id);
+      await deleteViewMutation.mutateAsync(editingView.nodeUuid);
       setEditingView(null);
       setEditAST(null);
       setValidation(null);
       setEditViewName('');
-      if (activeViewId === editingView.id) {
+      if (activeViewId === editingView.nodeUuid) {
         setActiveViewId(null);
       }
     } catch (error) {
@@ -803,14 +801,14 @@ export function QueryNodeCollection({
 
   const handleResetViews = useCallback(async () => {
     try {
-      await resetNodeViewsMutation.mutateAsync(nodeId);
+      await resetNodeViewsMutation.mutateAsync(nodeUuid);
       setEditingView(null);
       setEditAST(null);
       setEditViewName('');
     } catch (error) {
       console.error('Failed to reset views:', error);
     }
-  }, [nodeId, resetNodeViewsMutation]);
+  }, [nodeUuid, resetNodeViewsMutation]);
 
   const handlePropertyColumnsChange = useCallback((propertyUuids: string[]) => {
     setSelectedPropertyUuids(propertyUuids);
@@ -825,7 +823,7 @@ export function QueryNodeCollection({
         order_index: views.length,
         is_default: views.length === 0,
       });
-      setActiveViewId(newView.id);
+      setActiveViewId(newView.nodeUuid);
       handleEditView(newView);
     } catch (error) {
       console.error('Failed to create view:', error);
@@ -834,12 +832,12 @@ export function QueryNodeCollection({
 
   const handleAddNode = useCallback(async () => {
     try {
-      if (!pageClassId) {
+      if (!pageClassUuid) {
         console.error('Page class not found');
         return;
       }
 
-      let nodeData: { name: string; classes?: number[]; parent_id?: number } = {
+      let nodeData: { name: string; class_uuids?: string[]; parent_uuid?: string } = {
         name: '',
       };
 
@@ -847,23 +845,23 @@ export function QueryNodeCollection({
         case 'child_pages':
           nodeData = {
             name: '',
-            classes: [pageClassId],
-            parent_id: nodeId,
+            class_uuids: [pageClassUuid],
+            parent_uuid: nodeUuid,
           };
           break;
-        
+
         case 'classed_nodes':
           nodeData = {
             name: '',
-            parent_id: nodeId,
-            classes: [nodeId],
+            parent_uuid: nodeUuid,
+            class_uuids: [nodeUuid],
           };
           break;
         
         case 'all_pages':
           nodeData = {
             name: '',
-            classes: [pageClassId],
+            class_uuids: [pageClassUuid],
           };
           break;
         
@@ -874,14 +872,14 @@ export function QueryNodeCollection({
       const newNode = await createNodeMutation.mutateAsync(nodeData);
       
       if (newNode.is_page) {
-        onNodeClick?.(newNode.id, true);
+        onNodeClick?.(newNode.uuid, true);
       } else {
-        onBlockCreated?.(newNode.id);
+        onBlockCreated?.(newNode.uuid);
       }
     } catch (error) {
       console.error('Failed to create node:', error);
     }
-  }, [viewType, nodeId, pageClassId, createNodeMutation, onNodeClick, onBlockCreated]);
+  }, [viewType, nodeUuid, pageClassUuid, createNodeMutation, onNodeClick, onBlockCreated]);
 
   const resultCount = resultNodes.length;
 
@@ -919,8 +917,8 @@ export function QueryNodeCollection({
           {views.length > 1 && (
             <SelectionButton
               options={viewOptions}
-              value={String(activeView?.id ?? '')}
-              onChange={(value) => setActiveViewId(Number(value))}
+              value={activeView?.nodeUuid ?? ''}
+              onChange={(value) => setActiveViewId(value)}
               size="sm"
             />
           )}
@@ -997,13 +995,13 @@ export function QueryNodeCollection({
             showClasses={showClasses}
             selectedPropertyUuids={selectedPropertyUuids}
             onPropertyColumnsChange={handlePropertyColumnsChange}
-            onNodeClick={(node) => onNodeClick?.(node.id, node.is_page)}
+            onNodeClick={(node) => onNodeClick?.(node.uuid, node.is_page)}
             emptyMessage={filterBlockCount > 0 ? "No items match the filters" : "No items found"}
             showEmpty={!showPagesSection}
             autoCollapse={true}
             containerCard={showPagesSection ? false : viewType !== 'all_pages'}
             defaultSort={viewType === 'all_pages' ? [{ key: 'name', direction: 'asc' }] : undefined}
-            activeNode={nodeName ? { id: nodeId, uuid: nodeUuid, name: nodeName } : undefined}
+            activeNode={nodeName ? { nodeUuid: nodeUuid, uuid: nodeUuid, name: nodeName } : undefined}
             onAddClass={handleAddClass}
             showBreadcrumbs={viewType !== 'all_pages' && viewType !== 'child_pages'}
             hideProperties={viewType === 'all_pages' || viewType === 'child_pages'}
@@ -1061,7 +1059,7 @@ export function QueryNodeCollection({
                 showClasses={showClasses}
                 selectedPropertyUuids={selectedPropertyUuids}
                 onPropertyColumnsChange={handlePropertyColumnsChange}
-                onNodeClick={(node) => onNodeClick?.(node.id, node.is_page)}
+                onNodeClick={(node) => onNodeClick?.(node.uuid, node.is_page)}
                 showEmpty={false}
                 autoCollapse={true}
                 containerCard={false}

@@ -234,11 +234,11 @@ export const GanttView = memo(function GanttView({
     startDateProperty,
     endDateProperty,
     {
-      onMutate: ({ nodeId, newStart, newEnd }) => {
-        setOptimisticOverride(nodeId, { startDate: newStart, endDate: newEnd });
+      onMutate: ({ nodeUuid, newStart, newEnd }) => {
+        setOptimisticOverride(nodeUuid, { startDate: newStart, endDate: newEnd });
       },
-      onSettled: (nodeId) => {
-        setOptimisticOverride(nodeId, null);
+      onSettled: (nodeUuid) => {
+        setOptimisticOverride(nodeUuid, null);
       },
     }
   );
@@ -304,11 +304,11 @@ export const GanttView = memo(function GanttView({
   // ── Bar hit-testing ─────────────────────────────────────────────────────
   const getHitMode = useCallback((
     mx: number, my: number,
-  ): { mode: 'move' | 'resize-end'; nodeId: number } | null => {
+  ): { mode: 'move' | 'resize-end'; nodeUuid: string } | null => {
     for (const br of rendererRef.current.getBarRects()) {
       if (my >= br.top && my <= br.bottom && mx >= br.left && mx <= br.right) {
         const mode = !br.isMilestone && mx >= br.right - RESIZE_HANDLE ? 'resize-end' : 'move';
-        return { mode, nodeId: br.nodeId };
+        return { mode, nodeUuid: br.nodeUuid };
       }
     }
     return null;
@@ -347,12 +347,12 @@ export const GanttView = memo(function GanttView({
     const hit = getHitMode(mx, my);
     if (!hit) return;
 
-    const item = ganttNodeItems.find(it => it.node.id === hit.nodeId);
+    const item = ganttNodeItems.find(it => it.node.uuid === hit.nodeUuid);
     if (!item) return;
 
     e.preventDefault();
     const drag: DragState = {
-      nodeId: hit.nodeId,
+      nodeUuid: hit.nodeUuid,
       mode: hit.mode,
       startX: mx,
       origStart: item.startDate,
@@ -381,14 +381,14 @@ export const GanttView = memo(function GanttView({
       const newEnd = drag.origEnd
         ? addDays(drag.origEnd, drag.deltaDays)
         : null;
-      persistDates({ nodeId: drag.nodeId, mode: drag.mode, newStart, newEnd });
+      persistDates({ nodeUuid: drag.nodeUuid, mode: drag.mode, newStart, newEnd });
     } else {
       const rect = canvas.getBoundingClientRect();
       const mx = e.clientX - rect.left;
       const my = e.clientY - rect.top;
       for (const br of rendererRef.current.getBarRects()) {
         if (my >= br.top && my <= br.bottom && mx >= br.left && mx <= br.right) {
-          const item = ganttNodeItems.find(it => it.node.id === br.nodeId);
+          const item = ganttNodeItems.find(it => it.node.uuid === br.nodeUuid);
           if (item) {
             if (e.shiftKey) onNodeShiftClick?.(item.node);
             else onNodeClick?.(item.node);
@@ -417,7 +417,7 @@ export const GanttView = memo(function GanttView({
     const my = e.clientY - rect.top;
     for (const br of rendererRef.current.getBarRects()) {
       if (my >= br.top && my <= br.bottom && mx >= br.left && mx <= br.right) {
-        const item = ganttNodeItems.find(it => it.node.id === br.nodeId);
+        const item = ganttNodeItems.find(it => it.node.uuid === br.nodeUuid);
         if (item) setContextMenu({ node: item.node, x: e.clientX, y: e.clientY });
         break;
       }
@@ -492,7 +492,7 @@ export const GanttView = memo(function GanttView({
                     name={row.item.node.name}
                     icon={row.item.node.icon}
                     isPage={row.item.node.is_page}
-                    nodeId={row.item.node.id}
+                    nodeUuid={row.item.node.uuid}
                     showBullet={true}
                     onClick={() => onNodeClick?.(row.item.node)}
                     onShiftClick={() => onNodeShiftClick?.(row.item.node)}

@@ -59,7 +59,7 @@ function getPageGroupInfo(node: Node): { key: string; label: string; icon: strin
   if (node.is_page) {
     return {
       missing: false,
-      key: `page-${node.id}`,
+      key: `page-${node.uuid}`,
       label: node.name || 'Untitled',
       icon: node.icon ?? null,
       page: node,
@@ -70,7 +70,6 @@ function getPageGroupInfo(node: Node): { key: string; label: string; icon: strin
   if (!pageId) return { missing: true };
 
   const pageName = (node as { page_name?: string }).page_name || 'Untitled';
-  const pageUuid = (node as { page_uuid?: string }).page_uuid || '';
   const pageIcon = (node as { page_icon?: string | null }).page_icon ?? null;
 
   return {
@@ -79,12 +78,11 @@ function getPageGroupInfo(node: Node): { key: string; label: string; icon: strin
     label: pageName,
     icon: pageIcon,
     page: {
-      id: pageId,
+      uuid: pageId,
       name: pageName,
-      uuid: pageUuid,
       is_page: true,
       icon: pageIcon,
-    } as Node,
+    } as unknown as Node,
   };
 }
 
@@ -96,7 +94,7 @@ function getLevelGroupInfo(
     return getPageGroupInfo(node);
   }
 
-  const rawValue = (node.properties as Record<string, unknown> | undefined)?.[String(level.property.id)] ?? null;
+  const rawValue = (node.properties_uuid as Record<string, unknown> | undefined)?.[String(level.property.uuid)] ?? null;
   if (rawValue === null || rawValue === undefined) return { missing: true };
 
   const { label, icon } = getPropertyGroupInfo(level.property, rawValue);
@@ -222,9 +220,9 @@ export const ListView = memo(function ListView({
 
   // Resolve alias: if node is an alias, return the main node instead
   const resolveAlias = useCallback((node: Node): Node => {
-    if (node.aliased_id) {
-      const mainNode = allNodes.find(n => n.id === node.aliased_id);
-      return mainNode ?? { id: node.aliased_id, is_page: true } as Node;
+    if (node.aliased_uuid) {
+      const mainNode = allNodes.find(n => n.uuid === node.aliased_uuid);
+      return mainNode ?? { uuid: node.aliased_uuid, is_page: true } as unknown as Node;
     }
     return node;
   }, [allNodes]);
@@ -235,12 +233,12 @@ export const ListView = memo(function ListView({
     const runtime = getOperationRuntime();
     const graphNode = getNode(runtime, blockId);
 
-    if (graphNode?.serverId) {
-      const targetNode = allNodes.find(n => n.id === graphNode.serverId);
+    if (graphNode?.blockId) {
+      const targetNode = allNodes.find(n => n.uuid === graphNode.blockId);
       if (targetNode) {
         onNodeClick?.(resolveAlias(targetNode));
       } else {
-        onNodeClick?.({ id: graphNode.serverId, is_page: graphNode.isPage } as Node);
+        onNodeClick?.({ uuid: graphNode.blockId, is_page: graphNode.isPage } as unknown as Node);
       }
       return;
     }
@@ -260,12 +258,12 @@ export const ListView = memo(function ListView({
   const handleOpenInSidebar = useCallback((blockId: string) => {
     const runtime = getOperationRuntime();
     const graphNode = getNode(runtime, blockId);
-    if (graphNode?.serverId) {
-      const targetNode = allNodes.find(n => n.id === graphNode.serverId);
+    if (graphNode?.blockId) {
+      const targetNode = allNodes.find(n => n.uuid === graphNode.blockId);
       if (targetNode) {
         onNodeShiftClick?.(targetNode);
       } else {
-        onNodeShiftClick?.({ id: graphNode.serverId, is_page: graphNode.isPage } as Node);
+        onNodeShiftClick?.({ uuid: graphNode.blockId, is_page: graphNode.isPage } as unknown as Node);
       }
       return;
     }
@@ -351,7 +349,6 @@ export const ListView = memo(function ListView({
                 onOpenInSidebar={handleOpenInSidebar}
                 onContentChange={handleContentChangeBridge}
                 nodeUuid={_nodeUuid}
-                nodeId={_pageId}
                 onAddClass={onAddClass}
                 onSlashCommand={onSlashCommand}
                 onPasteImage={onPasteImage}
@@ -388,7 +385,6 @@ export const ListView = memo(function ListView({
             onNodeShiftClick={onNodeShiftClick}
             showBreadcrumbs={showBreadcrumbs}
             nodeUuid={_nodeUuid}
-            nodeId={_pageId}
             showClasses={showClasses}
             expandAll={expandAll}
             inPropertyEditor={inPropertyEditor}
@@ -406,7 +402,7 @@ export const ListView = memo(function ListView({
   if (sortable && onReorder) {
     return (
       <ListSortable
-        items={nodes.map(n => ({ id: n.id, node: n }))}
+        items={nodes.map(n => ({ id: n.uuid, node: n }))}
         onReorder={onReorder}
         onItemClick={(item) => onNodeClick?.(item.node)}
         className={`node-list-view node-list-view--sortable ${sizeClass} ${className}`}
@@ -414,7 +410,7 @@ export const ListView = memo(function ListView({
         showDragHandle={true}
         renderIcon={(item) => (
           <Bullet
-            nodeId={item.node.id}
+            nodeUuid={item.node.uuid}
             icon={item.node.icon}
             isPage={item.node.is_page}
             interactive={false}
@@ -449,12 +445,11 @@ export const ListView = memo(function ListView({
           const sorted = sortBySequence(nodeFlat);
           if (sorted.length === 0) return null;
           return (
-            <div key={node.id} className="node-list-view__breadcrumb-group">
+            <div key={node.uuid} className="node-list-view__breadcrumb-group">
               <NodeBreadcrumbs
-                nodeId={node.id}
                 nodeUuid={node.uuid}
                 nodeType={node.is_page ? 'page' : 'block'}
-                onNavigate={(id) => onNodeClick?.({ id, is_page: true } as Node)}
+                onNavigate={(id) => onNodeClick?.({ uuid: id, is_page: true } as unknown as Node)}
                 compact
                 listView
                 className="node-list-view__breadcrumb-header"
@@ -466,7 +461,6 @@ export const ListView = memo(function ListView({
                 onOpenInSidebar={handleOpenInSidebar}
                 onContentChange={handleContentChangeBridge}
                 nodeUuid={_nodeUuid}
-                nodeId={_pageId}
                 onAddClass={onAddClass}
                 onSlashCommand={onSlashCommand}
                 onPasteImage={onPasteImage}
@@ -502,7 +496,6 @@ export const ListView = memo(function ListView({
         onOpenInSidebar={handleOpenInSidebar}
         onPillClick={handleNavigateToNode}
         nodeUuid={_nodeUuid}
-        nodeId={_pageId}
         maxDepth={maxDepth}
         pagesOnly={pagesOnly}
         skipPages={!pagesOnly}
@@ -534,46 +527,43 @@ registerView({
  * of leaf nodes. Each group manages its own collapsed state.
  */
 function ListViewGroup({
-  group,
-  editable,
-  pagesOnly = false,
-  handleNavigateToNode,
-  handleOpenInSidebar,
-  handleContentChangeBridge,
-  onAddClass,
-  onSlashCommand,
-  onPasteImage,
-  onTemplateInstantiate,
-  templateClassFilters,
-  onNodeClick,
-  onNodeShiftClick,
-  showBreadcrumbs = false,
-  nodeUuid,
-  nodeId,
-  showClasses = false,
-  expandAll = false,
-  inPropertyEditor = false,
-  showNewBlock = true,
-  hideRootBullet = false,
-  rootIsBlock = false,
-  size,
-}: {
+      group,
+      editable,
+      pagesOnly = false,
+      handleNavigateToNode,
+      handleOpenInSidebar,
+      handleContentChangeBridge,
+      onAddClass,
+      onSlashCommand,
+      onPasteImage,
+      onTemplateInstantiate,
+      templateClassFilters,
+      onNodeClick,
+      onNodeShiftClick,
+      showBreadcrumbs = false,
+      nodeUuid,
+      showClasses = false,
+      expandAll = false,
+      inPropertyEditor = false,
+      showNewBlock = true,
+      hideRootBullet = false,
+      rootIsBlock = false,
+      size }: {
   group: GroupTreeNode;
   editable: boolean;
   pagesOnly?: boolean;
   handleNavigateToNode: (blockId: string) => Promise<void>;
   handleOpenInSidebar: (blockId: string) => void;
   handleContentChangeBridge: (blockId: string, content: string) => void;
-  onAddClass?: (nodeId: number, classId: number) => void;
-  onSlashCommand?: (commandId: string, blockServerId: number | undefined) => void;
-  onPasteImage?: (blockServerId: number, file: File, hasContent: boolean) => void;
-  onTemplateInstantiate?: (templateNodeId: number, blockServerId: number | undefined) => void;
-  templateClassFilters?: number[];
+  onAddClass?: (nodeUuid: string, classId: string) => void;
+  onSlashCommand?: (commandId: string, blockServerId: string | undefined) => void;
+  onPasteImage?: (blockServerId: string, file: File, hasContent: boolean) => void;
+  onTemplateInstantiate?: (templateNodeId: string, blockServerId: string | undefined) => void;
+  templateClassFilters?: string[];
   onNodeClick?: (node: Node) => void;
   onNodeShiftClick?: (node: Node) => void;
   showBreadcrumbs?: boolean;
   nodeUuid?: string;
-  nodeId?: number;
   showClasses?: boolean;
   expandAll?: boolean;
   inPropertyEditor?: boolean;
@@ -616,7 +606,7 @@ function ListViewGroup({
               name={group.page.name}
               icon={group.page.icon}
               isPage={group.page.is_page}
-              nodeId={group.page.id}
+              nodeUuid={group.page.uuid}
               showBullet={false}
               onClick={() => onNodeClick?.(group.page!)}
               onShiftClick={() => onNodeShiftClick?.(group.page!)}
@@ -646,12 +636,11 @@ function ListViewGroup({
                 const sorted = sortBySequence(nodeFlat);
                 if (sorted.length === 0) return null;
                 return (
-                  <div key={node.id} className="node-list-view__breadcrumb-group">
+                  <div key={node.uuid} className="node-list-view__breadcrumb-group">
                     <NodeBreadcrumbs
-                      nodeId={node.id}
                       nodeUuid={node.uuid}
                       nodeType={node.is_page ? 'page' : 'block'}
-                      onNavigate={(id) => onNodeClick?.({ id, is_page: true } as Node)}
+                      onNavigate={(id) => onNodeClick?.({ uuid: id, is_page: true } as unknown as Node)}
                       stopAtPageLevel
                       compact
                       listView
@@ -664,7 +653,6 @@ function ListViewGroup({
                       onOpenInSidebar={handleOpenInSidebar}
                       onContentChange={handleContentChangeBridge}
                       nodeUuid={nodeUuid}
-                      nodeId={nodeId}
                       onAddClass={onAddClass}
                       onSlashCommand={onSlashCommand}
                       onPasteImage={onPasteImage}
@@ -695,7 +683,6 @@ function ListViewGroup({
                 templateClassFilters={templateClassFilters}
                 showClasses={showClasses}
                 nodeUuid={nodeUuid}
-                nodeId={nodeId}
                 expandAll={expandAll}
                 listSize={size === 'sm' ? 'sm' : undefined}
                 inPropertyEditor={inPropertyEditor}
@@ -723,7 +710,6 @@ function ListViewGroup({
                 onNodeShiftClick={onNodeShiftClick}
                 showBreadcrumbs={showBreadcrumbs}
                 nodeUuid={nodeUuid}
-                nodeId={nodeId}
                 showClasses={showClasses}
                 expandAll={expandAll}
                 inPropertyEditor={inPropertyEditor}

@@ -59,8 +59,8 @@ export function SidebarVersions({ nodeUuid }: SidebarVersionsProps) {
         <div className="sidebar-section-empty">No version history yet</div>
       ) : (
         <div className="sidebar-versions-list">
-          {versions.map(({ id, uuid: versionUuid, created_at, name }) => (
-            <div key={id} className="sidebar-version-item">
+          {versions.map(({ uuid: versionUuid, created_at, name }) => (
+            <div key={versionUuid} className="sidebar-version-item">
               <div className="sidebar-version-item__info">
                 <span className="sidebar-version-item__date">
                   {created_at ? formatDate(new Date(created_at), dateFormat) : ''}

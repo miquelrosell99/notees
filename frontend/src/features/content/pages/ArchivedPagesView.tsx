@@ -42,7 +42,7 @@ export function ArchivedPagesView({ className = '' }: ArchivedPagesViewProps) {
         icon: "mdi mdi-archive-arrow-up",
         onClick: () => {
           if (confirm('Unarchive this page?')) {
-            unarchiveMutation.mutate(node.id);
+            unarchiveMutation.mutate(node.uuid);
           }
           closeMenu();
         },
@@ -53,7 +53,7 @@ export function ArchivedPagesView({ className = '' }: ArchivedPagesViewProps) {
         icon: "mdi mdi-delete",
         onClick: () => {
           if (confirm('Delete this page permanently? This action cannot be undone.')) {
-            deleteMutation.mutate(node.id);
+            deleteMutation.mutate(node.uuid);
           }
           closeMenu();
         },

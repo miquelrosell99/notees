@@ -12,7 +12,6 @@ import type { CoreNode } from './operation';
 export function graphNodeToCoreNode(node: GraphNode): CoreNode {
   return {
     blockId: node.blockId,
-    serverId: node.serverId,
     parentId: node.parentId,
     orderIndex: node.orderIndex,
     nodeType: node.nodeType,
@@ -38,7 +37,6 @@ export function graphNodeToCoreNode(node: GraphNode): CoreNode {
 export function coreNodeToGraphNode(node: CoreNode): GraphNode {
   return {
     blockId: node.blockId,
-    serverId: node.serverId,
     parentId: node.parentId,
     orderIndex: node.orderIndex,
     nodeType: node.nodeType,

@@ -26,7 +26,7 @@ interface BlockUIProps {
   onCollapseToggle?: () => void;
   onNavigate?: (blockId: string) => void;
   onOpenInSidebar?: (blockId: string) => void;
-  onContextMenu?: (nodeId: string | number, event: React.MouseEvent) => void;
+  onContextMenu?: (nodeUuid: string, event: React.MouseEvent) => void;
   /** Whether the bullet should be interactive (clickable/draggable). */
   interactive?: boolean;
   /** Whether this block is on the active editing path. */
@@ -129,7 +129,7 @@ export function BlockUI({
         </button>
       )}
       <Bullet
-        nodeId={node.id}
+        nodeUuid={node.uuid}
         icon={iconOverride ?? node.icon}
         isPage={node.is_page}
         interactive={interactive}
@@ -154,7 +154,7 @@ export function BlockUI({
         <div className="block-ui__presence">
           {presenceUsers.map((u) => (
             <span
-              key={u.id}
+              key={u.nodeUuid}
               className="block-ui__presence-avatar"
               title={`${u.name} is here`}
               style={{ backgroundColor: u.color || 'var(--color-on-surface-variant)' }}
@@ -178,7 +178,7 @@ export function BlockUI({
         <div className="block-ui__typing">
           {typingUsers.map((u) => (
             <span
-              key={u.id}
+              key={u.nodeUuid}
               className="block-ui__typing-dot"
               title={`${u.name} is typing…`}
               style={{ backgroundColor: u.color || 'var(--color-on-surface-variant)' }}
@@ -210,10 +210,12 @@ export function BlockUI({
           <span className="block-ui__conflict-text">
             {conflict.reason === 'lock_expired'
               ? 'Your lock expired.'
-              : 'This block was edited by someone else.'}
+              : conflict.reason === '409_conflict'
+                ? 'Sync conflict on this block.'
+                : 'This block was edited by someone else.'}
           </span>
           <Button variant="primary" size="sm" onClick={onResolveConflict}>
-            Refresh
+            {conflict.reason === '409_conflict' ? 'Resolve' : 'Refresh'}
           </Button>
         </div>
       )}

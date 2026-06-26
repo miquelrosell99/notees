@@ -18,6 +18,7 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { Spinner } from '@/components/ui/Spinner';
 import { useNode, useCreateNode, useMoveNode, useNodeNavigation } from '@/features/content';
+
 import { useContentSave } from '@/features/editor';
 import { isApiError } from '@/api/client';
 import type { Property } from '@/types/api';
@@ -33,19 +34,19 @@ interface TextPropertyBlockProps {
   /** The property definition */
   property: Property;
   /** The node ID that has this property */
-  nodeId: number;
-  /** The block node ID stored as the text property value (null if empty) — for single mode */
-  blockNodeId: number | null;
-  /** Array of block node IDs — for multi mode */
-  blockNodeIds?: number[];
+  nodeUuid: string;
+  /** The block node UUID stored as the text property value (null if empty) — for single mode */
+  blockNodeId: string | null;
+  /** Array of block node UUIDs — for multi mode */
+  blockNodeIds?: string[];
   /** Whether the component is read-only */
   readOnly?: boolean;
   /** Callback when the block is shift-clicked */
-  onOpenInSidebar?: (blockId: number) => void;
+  onOpenInSidebar?: (blockId: string) => void;
   /** Callback when property value changes (single mode) */
-  onPropertyChange: (propertyId: number, value: number | number[] | null) => void;
+  onPropertyChange: (propertyId: string, value: string | string[] | null) => void;
   /** Callback when bullet is clicked (opens focused block view) */
-  onBulletClick?: (blockId: number) => void;
+  onBulletClick?: (blockId: string) => void;
 }
 
 /**
@@ -59,12 +60,12 @@ function SingleTextBlock({
   onEnterAtRoot,
   onMissing,
 }: {
-  blockNodeId: number;
+  blockNodeId: string;
   readOnly: boolean;
-  onOpenInSidebar?: (blockId: number) => void;
-  onOpenNode?: (blockId: number) => void;
+  onOpenInSidebar?: (blockId: string) => void;
+  onOpenNode?: (blockId: string) => void;
   onEnterAtRoot?: () => void;
-  onMissing?: (blockId: number) => void;
+  onMissing?: (blockId: string) => void;
 }) {
   const { data: blockNode, isLoading, error } = useNode(blockNodeId, {
     include_children: true,
@@ -80,7 +81,7 @@ function SingleTextBlock({
   const { handleContentChange } = useContentSave();
 
   const handleNodeShiftClick = useCallback((clickedNode: Node) => {
-    onOpenInSidebar?.(clickedNode.id);
+    onOpenInSidebar?.(clickedNode.uuid);
   }, [onOpenInSidebar]);
 
   if (isLoading) {
@@ -129,7 +130,7 @@ function SingleTextBlock({
         onNodeClick={handleNodeClick}
         onNodeShiftClick={handleNodeShiftClick}
         onContentChange={handleContentChange}
-        pageId={blockNode.id}
+        pageId={blockNode.uuid}
         nodeUuid={blockNode.uuid}
         hideToolbar={true}
         showClasses={true}
@@ -146,15 +147,14 @@ function SingleTextBlock({
  * TextPropertyBlock Component
  */
 export function TextPropertyBlock({
-  property,
-  nodeId,
-  blockNodeId,
-  blockNodeIds,
-  readOnly = false,
-  onOpenInSidebar,
-  onPropertyChange,
-  onBulletClick: _onBulletClick,
-}: TextPropertyBlockProps) {
+      property,
+      nodeUuid,
+      blockNodeId,
+      blockNodeIds,
+      readOnly = false,
+      onOpenInSidebar,
+      onPropertyChange,
+      onBulletClick: _onBulletClick }: TextPropertyBlockProps) {
   const [isCreating, setIsCreating] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   
@@ -180,9 +180,9 @@ export function TextPropertyBlock({
       !isMulti &&
       !readOnly
     ) {
-      onPropertyChange(property.id, null);
+      onPropertyChange(property.uuid, null);
     }
-  }, [singleBlockError, blockNodeId, isMulti, readOnly, property.id, onPropertyChange]);
+  }, [singleBlockError, blockNodeId, isMulti, readOnly, property.uuid, onPropertyChange]);
   
   const createNode = useCreateNode();
   const moveNode = useMoveNode();
@@ -196,16 +196,16 @@ export function TextPropertyBlock({
     try {
       createNode.mutate({
         name: '',
-        parent_id: nodeId,
+        parent_uuid: nodeUuid,
       }, {
         onSuccess: (newBlock) => {
           if (isMulti) {
             // Multi: append new block ID to the array
-            const newIds = [...ids, newBlock.id];
-            onPropertyChange(property.id, newIds);
+            const newIds = [...ids, newBlock.uuid];
+            onPropertyChange(property.uuid, newIds);
           } else {
             // Single: set the property value to the new block's ID
-            onPropertyChange(property.id, newBlock.id);
+            onPropertyChange(property.uuid, newBlock.uuid);
           }
           setIsCreating(false);
         },
@@ -217,7 +217,7 @@ export function TextPropertyBlock({
       console.error('Failed to create text block:', error);
       setIsCreating(false);
     }
-  }, [readOnly, isCreating, createNode, nodeId, property.id, onPropertyChange, isMulti, ids]);
+  }, [readOnly, isCreating, createNode, nodeUuid, property.uuid, onPropertyChange, isMulti, ids]);
   
   // ─── DragCoordinator-based drop zone ─────────────────────────
   const [isDragOver, setIsDragOver] = useState(false);
@@ -262,7 +262,7 @@ export function TextPropertyBlock({
       // Resolve the dragged block's server ID from the runtime
       const runtime = getOperationRuntime();
       const graphNode = getNode(runtime, payload.blockId);
-      const serverId = graphNode?.serverId;
+      const serverId = graphNode?.blockId;
       if (!serverId) return;
 
       // Don't allow dropping on self
@@ -276,12 +276,12 @@ export function TextPropertyBlock({
       // The useMoveNode optimistic cache update removes the block from its
       // old parent's children, which causes the page body's BlockEditor to
       // remove it from the runtime via stale-child cleanup on re-render.
-      moveNode.mutate({ id: serverId, parentId: nodeId });
+      moveNode.mutate({ nodeUuid: serverId, parentId: nodeUuid });
 
       if (isMulti) {
-        onPropertyChange(property.id, [...ids, serverId]);
+        onPropertyChange(property.uuid, [...ids, serverId]);
       } else {
-        onPropertyChange(property.id, serverId);
+        onPropertyChange(property.uuid, serverId);
       }
 
       setIsDragOver(false);
@@ -296,7 +296,7 @@ export function TextPropertyBlock({
       el.removeEventListener('mouseleave', handleMouseLeave);
       el.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [readOnly, isDragActive, ids, nodeId, property.id, moveNode, onPropertyChange, isMulti]);
+  }, [readOnly, isDragActive, ids, nodeUuid, property.uuid, moveNode, onPropertyChange, isMulti]);
 
   const dropZoneClass = isDragOver ? ' text-property-block--drop-target' : '';
 
@@ -333,11 +333,11 @@ export function TextPropertyBlock({
             blockNodeId={id}
             readOnly={readOnly}
             onOpenInSidebar={onOpenInSidebar}
-            onOpenNode={(blockId) => handleNodeClick({ id: blockId } as Node)}
+            onOpenNode={(blockId) => handleNodeClick({ uuid: blockId } as unknown as Node)}
             onEnterAtRoot={handleAddText}
             onMissing={(missingId) => {
               if (!readOnly) {
-                onPropertyChange(property.id, ids.filter((i) => i !== missingId));
+                onPropertyChange(property.uuid, ids.filter((i) => i !== missingId));
               }
             }}
           />
@@ -388,7 +388,7 @@ export function TextPropertyBlock({
         blockNodeId={blockNodeId}
         readOnly={readOnly}
         onOpenInSidebar={onOpenInSidebar}
-        onOpenNode={(blockId) => handleNodeClick({ id: blockId } as Node)}
+        onOpenNode={(blockId) => handleNodeClick({ uuid: blockId } as unknown as Node)}
       />
     </div>
   );

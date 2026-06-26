@@ -182,7 +182,7 @@ export function SystemSettingsModal({ isOpen, onClose }: SystemSettingsModalProp
                   <span aria-hidden="true" />
                 </div>
                 {usersData?.users.map((user) => {
-                  const isSelf = String(user.id) === String(currentUser?.id);
+                  const isSelf = String(user.id) === String(currentUser?.nodeUuid);
                   const isLastAdmin = user.role === 'admin' && adminCount <= 1;
                   const canChangeRole = !(isSelf && user.role === 'admin') && !isLastAdmin;
                   const canDeactivate = !(isSelf || isLastAdmin);

@@ -15,19 +15,27 @@
 import { useCallback, useRef, useEffect } from 'react';
 import { parseAST, convertMarkdownInAST } from '@/lib/astBuilder';
 import { getOperationRuntime } from '@/runtime';
-import { getNode, getNodeByServerId } from '@/runtime/graphHelpers';
+import { getNode } from '@/runtime/graphHelpers';
 import type { MutationIntent } from '@/runtime/types';
 import { getUndoEngine } from '@/stores/undoEngine';
 import { liveSyncManager } from '@/features/collab';
+import { localSyncEngine } from '@/features/sync/engine/localSyncEngine';
 import { flushRegistry } from '@/hooks/contentSaveTracker';
 
 export { flushAllContentSaves, awaitAllContentSaves } from '@/hooks/contentSaveTracker';
 
+/** Number of keystrokes between forced text-edit flushes. */
+const KEYSTROKE_FLUSH_INTERVAL = 10;
+
+/** Default debounce for text edits in the v2 local-first sync path. */
+const DEFAULT_TEXT_DEBOUNCE_MS = 150;
+
 /** Pending change entry */
 interface PendingChange {
-  blockId: number | string;
+  blockId: string;
   content: string;
   timeoutId: ReturnType<typeof setTimeout>;
+  keystrokes: number;
 }
 
 interface UseContentSaveOptions {
@@ -39,18 +47,15 @@ interface UseContentSaveOptions {
  * Hook for debounced content saving through the runtime.
  */
 export function useContentSave(options: UseContentSaveOptions = {}) {
-  const { delay = 500 } = options;
-  const pendingChangesRef = useRef<Map<number | string, PendingChange>>(new Map());
+  const { delay = DEFAULT_TEXT_DEBOUNCE_MS } = options;
+  const pendingChangesRef = useRef<Map<string, PendingChange>>(new Map());
 
-  const resolveGraphNode = useCallback((blockId: number | string) => {
+  const resolveGraphNode = useCallback((blockId: string) => {
     const runtime = getOperationRuntime();
-    if (typeof blockId === 'number') {
-      return getNodeByServerId(runtime, blockId);
-    }
     return getNode(runtime, blockId);
   }, []);
 
-  const saveBlock = useCallback((blockId: number | string, content: string) => {
+  const saveBlock = useCallback((blockId: string, content: string) => {
     const ast = parseAST(content);
     const converted = convertMarkdownInAST(ast);
 
@@ -61,7 +66,7 @@ export function useContentSave(options: UseContentSaveOptions = {}) {
 
     if (typeof navigator !== 'undefined' && navigator.onLine) {
       try {
-        liveSyncManager.sendBlockUpdate(graphNode.blockId, graphNode.serverId ?? 0, finalContent);
+        liveSyncManager.sendBlockUpdate(graphNode.blockId, graphNode.blockId, finalContent);
       } catch {
         // Ignore broadcast errors — REST save is the source of truth.
       }
@@ -75,7 +80,7 @@ export function useContentSave(options: UseContentSaveOptions = {}) {
     getUndoEngine().applyIntent(intent, { sourceEditorId: intent.sourceEditorId });
   }, [resolveGraphNode]);
 
-  const flushBlock = useCallback((blockId: number | string) => {
+  const flushBlock = useCallback((blockId: string) => {
     const pending = pendingChangesRef.current.get(blockId);
     if (pending) {
       clearTimeout(pending.timeoutId);
@@ -92,7 +97,7 @@ export function useContentSave(options: UseContentSaveOptions = {}) {
     pendingChangesRef.current.clear();
   }, [saveBlock]);
 
-  const cancel = useCallback((blockId: number | string) => {
+  const cancel = useCallback((blockId: string) => {
     const pending = pendingChangesRef.current.get(blockId);
     if (pending) {
       clearTimeout(pending.timeoutId);
@@ -107,10 +112,19 @@ export function useContentSave(options: UseContentSaveOptions = {}) {
     pendingChangesRef.current.clear();
   }, []);
 
-  const handleContentChange = useCallback((blockId: number | string, content: string) => {
+  const handleContentChange = useCallback((blockId: string, content: string) => {
     const existing = pendingChangesRef.current.get(blockId);
     if (existing) {
       clearTimeout(existing.timeoutId);
+    }
+
+    const keystrokes = (existing?.keystrokes ?? 0) + 1;
+    const shouldFlushNow = keystrokes >= KEYSTROKE_FLUSH_INTERVAL;
+
+    if (shouldFlushNow) {
+      pendingChangesRef.current.delete(blockId);
+      saveBlock(blockId, content);
+      return;
     }
 
     const timeoutId = setTimeout(() => {
@@ -122,15 +136,16 @@ export function useContentSave(options: UseContentSaveOptions = {}) {
       blockId,
       content,
       timeoutId,
+      keystrokes,
     });
   }, [delay, saveBlock]);
 
-  const saveImmediate = useCallback((blockId: number | string, content: string) => {
+  const saveImmediate = useCallback((blockId: string, content: string) => {
     cancel(blockId);
     saveBlock(blockId, content);
   }, [cancel, saveBlock]);
 
-  const hasPendingChanges = useCallback((blockId?: number | string) => {
+  const hasPendingChanges = useCallback((blockId?: string) => {
     if (blockId !== undefined) {
       return pendingChangesRef.current.has(blockId);
     }
@@ -145,6 +160,7 @@ export function useContentSave(options: UseContentSaveOptions = {}) {
         saveBlock(blockId, pendingItem.content);
       });
       pending.clear();
+      void localSyncEngine.flush();
     };
   }, [saveBlock]);
 
@@ -156,10 +172,22 @@ export function useContentSave(options: UseContentSaveOptions = {}) {
   useEffect(() => {
     const handleBeforeUnload = () => {
       flushAll();
+      void localSyncEngine.flush();
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        flushAll();
+        void localSyncEngine.flush();
+      }
     };
 
     window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, [flushAll]);
 
   return {

@@ -66,16 +66,14 @@ export function getAllPages(runtime: OperationRuntime): GraphNode[] {
 export function getUnpersistedNodes(runtime: OperationRuntime): GraphNode[] {
   const result: GraphNode[] = [];
   for (const node of runtime.snapshot().projectedNodes.values()) {
-    if (node.serverId == null && !node.blockId.startsWith('__')) {
+    if (!node.blockId.startsWith('__')) {
       result.push(coreNodeToGraphNode(node));
     }
   }
   return result;
 }
 
-export function getNodeByServerId(runtime: OperationRuntime, serverId: number): GraphNode | null {
-  for (const node of runtime.snapshot().projectedNodes.values()) {
-    if (node.serverId === serverId) return coreNodeToGraphNode(node);
-  }
-  return null;
+export function getNodeByServerId(runtime: OperationRuntime, blockId: string): GraphNode | null {
+  const node = runtime.getNode(blockId);
+  return node ? coreNodeToGraphNode(node) : null;
 }

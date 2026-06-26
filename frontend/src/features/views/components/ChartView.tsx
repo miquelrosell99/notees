@@ -51,13 +51,13 @@ function getPropertyGroupLabel(property: Property, rawValue: unknown): string {
     case 'boolean':
       return rawValue ? 'Yes' : 'No';
     case 'selection': {
-      const getId = (v: unknown): number | null =>
-        typeof v === 'number' ? v
-          : (v && typeof v === 'object' && 'id' in v ? (v as { id: number }).id : null);
+      const getId = (v: unknown): string | null =>
+        typeof v === 'string' ? v
+          : (v && typeof v === 'object' && 'uuid' in v ? (v as unknown as { uuid: string }).uuid : null);
       const ids = (Array.isArray(rawValue) ? rawValue : [rawValue])
         .map(getId)
-        .filter((x): x is number => x !== null);
-      const opts = ids.map(id => property.options?.find(o => o.id === id));
+        .filter((x): x is string => x !== null);
+      const opts = ids.map(id => property.options?.find(o => o.uuid === id));
       return opts.map(o => o?.name ?? '?').join(', ') || '(No value)';
     }
     default:
@@ -68,9 +68,9 @@ function getPropertyGroupLabel(property: Property, rawValue: unknown): string {
 function buildChartData(nodes: Node[], property: Property | undefined): ChartDatum[] {
   if (!property) return [];
   const counts = new Map<string, number>();
-  const propId = String(property.id);
+  const propId = property.uuid;
   for (const node of nodes) {
-    const rawValue = (node.properties as Record<string, unknown> | undefined)?.[propId] ?? null;
+    const rawValue = (node.properties_uuid as Record<string, unknown> | undefined)?.[propId] ?? null;
     const label = getPropertyGroupLabel(property, rawValue);
     counts.set(label, (counts.get(label) ?? 0) + 1);
   }
@@ -325,13 +325,12 @@ interface MeasureConfig {
 }
 
 export const ChartView = memo(function ChartView({
-  nodes,
-  groupByProperty: groupByPropertyProp,
-  onNodeClick,
-  className = '',
-  viewId,
-  nodeUuid,
-}: NodeChartViewProps) {
+      nodes,
+      groupByProperty: groupByPropertyProp,
+      onNodeClick,
+      className = '',
+      viewId,
+      nodeUuid }: NodeChartViewProps) {
   const [chartType, setChartType] = useState<ChartType>('bar');
   const [groupByField, setGroupByField] = useState<string>(groupByPropertyProp?.uuid ?? '');
   const [measure, setMeasure] = useState<MeasureConfig>({ function: 'count', label: 'Count of nodes' });
@@ -381,9 +380,9 @@ export const ChartView = memo(function ChartView({
   const handleBarClick = useCallback((label: string) => {
     if (aggregateResult?.groups) return;
     if (!activeProperty) return;
-    const propId = String(activeProperty.id);
+    const propId = activeProperty.uuid;
     const match = nodes.find(n => {
-      const rawValue = (n.properties as Record<string, unknown> | undefined)?.[propId] ?? null;
+      const rawValue = (n.properties_uuid as Record<string, unknown> | undefined)?.[propId] ?? null;
       return getPropertyGroupLabel(activeProperty, rawValue) === label;
     });
     if (match) onNodeClick?.(match);

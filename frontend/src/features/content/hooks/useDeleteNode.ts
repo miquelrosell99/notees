@@ -17,7 +17,6 @@ import {
   hasTableClass,
   getRuntimeBlockIdForServerId,
   applyNodeIntent,
-  getNodeUuidByServerId,
 } from './useNodeMutations.utils';
 import { waitForOperationAck } from '@/sync/waitForOperation';
 
@@ -33,43 +32,37 @@ export function useDeleteNode() {
   const { workspaceId } = useParams<{ workspaceId?: string }>();
 
   return useMutation<
-    { deletedNode: Node | undefined; tableCellInfo: { parentId: number; sequence: number } | null },
+    { deletedNode: Node | undefined; tableCellInfo: { parentUuid: string; sequence: number } | null },
     Error,
-    number
+    string
   >({
-    mutationFn: async (id: number) => {
-      let nodeData = queryClient.getQueryData<Node>(nodeKeys.detail(id, {}));
+    mutationFn: async (nodeUuid) => {
+      let nodeData = queryClient.getQueryData<Node>(nodeKeys.detail(nodeUuid, {}));
       if (!nodeData) {
-        nodeData = findNodeInCache(queryClient, id) ?? undefined;
+        nodeData = findNodeInCache(queryClient, nodeUuid) ?? undefined;
       }
 
-      let tableCellInfo: { parentId: number; parentUuid: string; sequence: number } | null = null;
+      let tableCellInfo: { parentUuid: string; sequence: number } | null = null;
 
-      if (nodeData && nodeData.parent_id) {
-        const parentNode = findNodeInCache(queryClient, nodeData.parent_id);
-        if (parentNode && parentNode.parent_id) {
-          const grandparentNode = findNodeInCache(queryClient, parentNode.parent_id);
+      if (nodeData && nodeData.parent_uuid) {
+        const parentNode = findNodeInCache(queryClient, nodeData.parent_uuid);
+        if (parentNode && parentNode.parent_uuid) {
+          const grandparentNode = findNodeInCache(queryClient, parentNode.parent_uuid);
           const allClasses = queryClient.getQueryData<Node[]>(nodeKeys.classes());
           if (grandparentNode && hasTableClass(grandparentNode, allClasses)) {
-            const parentUuid = getNodeUuidByServerId(queryClient, nodeData.parent_id);
-            if (parentUuid) {
-              tableCellInfo = {
-                parentId: nodeData.parent_id,
-                parentUuid,
-                sequence: nodeData.sequence ?? 0,
-              };
-            }
+            tableCellInfo = {
+              parentUuid: nodeData.parent_uuid,
+              sequence: nodeData.sequence ?? 0,
+            };
           }
         }
       }
 
-      const blockId = getRuntimeBlockIdForServerId(id);
+      const blockId = getRuntimeBlockIdForServerId(nodeUuid);
       if (blockId) {
         const operationId = applyNodeIntent({ type: 'delete_block', blockId });
         await waitForOperationAck(operationId);
       } else {
-        const nodeUuid = getNodeUuidByServerId(queryClient, id);
-        if (!nodeUuid) throw new Error('Node UUID not found');
         await nodesApi.deleteNode(nodeUuid);
       }
 
@@ -83,17 +76,16 @@ export function useDeleteNode() {
 
       return { deletedNode: nodeData, tableCellInfo };
     },
-    onMutate: async (deletedId) => {
+    onMutate: async (nodeUuid) => {
       // Immediately remove from favorites and recents
-      const deletedNodeUuid = getNodeUuidByServerId(queryClient, deletedId);
-      if (deletedNodeUuid && isFavorite(deletedNodeUuid)) {
-        removeFavorite(deletedNodeUuid).catch(() => {});
+      if (nodeUuid && isFavorite(nodeUuid)) {
+        removeFavorite(nodeUuid).catch(() => {});
       }
-      removeRecent(deletedId);
+      removeRecent(nodeUuid);
 
       // Navigate away if viewing the deleted node
       const currentNodeUuid = useNavigationStore.getState().currentNodeUuid;
-      if (currentNodeUuid && currentNodeUuid === deletedNodeUuid) {
+      if (currentNodeUuid && currentNodeUuid === nodeUuid) {
         useNavigationStore.setState({
           currentNodeUuid: null,
           mainViewType: 'node',
@@ -109,16 +101,14 @@ export function useDeleteNode() {
       await queryClient.cancelQueries({ queryKey: nodeKeys.inlineQuery() });
 
       // Remove from all caches using unified helper
-      removeNodeFromAllCaches(queryClient, deletedId);
-      removeNodeFromLinkedRefCaches(queryClient, deletedId);
-      removeNodeFromPropertyBacklinkCaches(queryClient, deletedId);
+      removeNodeFromAllCaches(queryClient, nodeUuid);
+      removeNodeFromLinkedRefCaches(queryClient, nodeUuid);
+      removeNodeFromPropertyBacklinkCaches(queryClient, nodeUuid);
     },
-    onSuccess: async ({ deletedNode, tableCellInfo }, deletedId) => {
-      const { useNavigationStore } = await import('@/stores');
+    onSuccess: async ({ deletedNode, tableCellInfo }, nodeUuid) => {
       const currentNodeUuid = useNavigationStore.getState().currentNodeUuid;
-      const deletedNodeUuid2 = getNodeUuidByServerId(queryClient, deletedId);
 
-      if (currentNodeUuid && currentNodeUuid === deletedNodeUuid2) {
+      if (currentNodeUuid && currentNodeUuid === nodeUuid) {
         useNavigationStore.setState({
           currentNodeUuid: null,
           mainViewType: 'node',
@@ -127,18 +117,18 @@ export function useDeleteNode() {
       }
 
       // Remove the deleted node's queries (all variations)
-      queryClient.removeQueries({ queryKey: nodeKeys.detailBase(deletedId) });
+      queryClient.removeQueries({ queryKey: nodeKeys.detailBase(nodeUuid) });
 
       if (tableCellInfo) {
         queryClient.invalidateQueries({
-          queryKey: nodeKeys.detailBase(tableCellInfo.parentId),
+          queryKey: nodeKeys.detailBase(tableCellInfo.parentUuid),
           refetchType: 'active',
         });
       }
 
-      if (deletedNode?.parent_id) {
+      if (deletedNode?.parent_uuid) {
         invalidateNodeCaches(queryClient, {
-          nodeId: deletedNode.parent_id,
+          nodeUuid: deletedNode.parent_uuid,
           refetch: true,
         });
       }
@@ -149,22 +139,25 @@ export function useDeleteNode() {
         refetchType: 'none',
       });
 
-      const successNodeUuid = getNodeUuidByServerId(queryClient, deletedId);
-      if (successNodeUuid && isFavorite(successNodeUuid)) {
-        removeFavorite(successNodeUuid).catch(() => {});
+      if (nodeUuid && isFavorite(nodeUuid)) {
+        removeFavorite(nodeUuid).catch(() => {});
       }
-      removeRecent(deletedId);
+      removeRecent(nodeUuid);
 
       queryClient.invalidateQueries({ queryKey: nodeKeys.lists(), refetchType: 'none' });
       queryClient.invalidateQueries({ queryKey: nodeKeys.pages(), refetchType: 'active' });
-      queryClient.invalidateQueries({ queryKey: nodeKeys.allBacklinks(), refetchType: 'none' });
-      queryClient.invalidateQueries({ queryKey: nodeKeys.allLinkedRefs(), refetchType: 'none' });
-      queryClient.invalidateQueries({ queryKey: nodeKeys.pageContents(), refetchType: 'none' });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.searchAll(), refetchType: 'active' });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.allBacklinks(), refetchType: 'active' });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.allLinkedRefs(), refetchType: 'active' });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.graph(), refetchType: 'active' });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.breadcrumbsAll(), refetchType: 'active' });
+      queryClient.invalidateQueries({
+        queryKey: nodeKeys.allPropertyBacklinks(),
+        refetchType: 'active',
+      });
       queryClient.invalidateQueries({ queryKey: nodeViewKeys.queryResults(), refetchType: 'active' });
       queryClient.invalidateQueries({ queryKey: nodeKeys.pseudoNodeQuery(), refetchType: 'active' });
       queryClient.invalidateQueries({ queryKey: nodeKeys.inlineQuery(), refetchType: 'active' });
-      queryClient.invalidateQueries({ queryKey: nodeKeys.graph(), refetchType: 'none' });
-      queryClient.invalidateQueries({ queryKey: nodeKeys.graphNodes(), refetchType: 'none' });
     },
   });
 }

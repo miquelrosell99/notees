@@ -39,9 +39,9 @@ export async function runPhase3a(ctx: ImportContext, p3: PhaseResult): Promise<v
             const result = batchDailyResult.results[i];
             const page = chunk[i];
             if (result.success && result.node) {
-              existingNodeIds.add(result.node.id);
-              if (page.uuid) uuidMap.set(page.uuid, { id: result.node.id, uuid: result.node.uuid });
-              titleToNodeInfo.set(page.title, { id: result.node.id, uuid: result.node.uuid });
+              existingNodeIds.add(result.node.uuid);
+              if (page.uuid) uuidMap.set(page.uuid, { nodeUuid: result.node.uuid, uuid: result.node.uuid });
+              titleToNodeInfo.set(page.title, { nodeUuid: result.node.uuid, uuid: result.node.uuid });
               p3.succeeded++;
             } else {
               p3.failed++;
@@ -72,7 +72,7 @@ export async function runPhase3a(ctx: ImportContext, p3: PhaseResult): Promise<v
   // 3c: Batch-create regular pages (UUID-based dedup)
   regularPageClasses.length = 0;
   regularPageClasses.push(...regularPages.map(page => {
-    const cls = [ctx.pageClassId];
+    const cls = [ctx.pageClassUuid];
     if (page.tags) {
       for (const tag of page.tags) {
         const mapped = ctx.classIdMap.get(tag);
@@ -108,11 +108,11 @@ export async function runPhase3a(ctx: ImportContext, p3: PhaseResult): Promise<v
               const page = chunk[i];
               if (result.success && result.node) {
                 if (result.existing) {
-                  existingNodeIds.add(result.node.id);
+                  existingNodeIds.add(result.node.uuid);
                   existingPageMap.set(page.title, result.node);
                 }
-                if (page.uuid) uuidMap.set(page.uuid, { id: result.node.id, uuid: result.node.uuid });
-                titleToNodeInfo.set(page.title, { id: result.node.id, uuid: result.node.uuid });
+                if (page.uuid) uuidMap.set(page.uuid, { nodeUuid: result.node.uuid, uuid: result.node.uuid });
+                titleToNodeInfo.set(page.title, { nodeUuid: result.node.uuid, uuid: result.node.uuid });
                 p3.succeeded++;
               } else {
                 p3.failed++;
@@ -137,16 +137,16 @@ export async function runPhase3a(ctx: ImportContext, p3: PhaseResult): Promise<v
   // 3d: Override mode — delete existing blocks
   if (override) {
     const { deleteExistingBlocks } = await import('./useLogseqImporter.utils');
-    const existingPageIds = [...existingPageMap.values()].map(p => p.id);
-    const journalIdsToDelete = journalPages
+    const existingPageUuids = [...existingPageMap.values()].map(p => p.uuid);
+    const journalUuidsToDelete = journalPages
       .filter(p => p.blocks.length > 0)
-      .map(p => titleToNodeInfo.get(p.title)?.id)
-      .filter((id): id is number => id != null);
-    const idsToDelete = [...new Set([...journalIdsToDelete, ...existingPageIds])];
-    if (idsToDelete.length > 0) {
+      .map(p => titleToNodeInfo.get(p.title)?.uuid)
+      .filter((uuid): uuid is string => uuid != null);
+    const uuidsToDelete = [...new Set([...journalUuidsToDelete, ...existingPageUuids])];
+    if (uuidsToDelete.length > 0) {
       await Promise.all(
-        idsToDelete.map(async (id) => {
-          try { await deleteExistingBlocks(id, ctx.queryClient); } catch (e) {
+        uuidsToDelete.map(async (uuid) => {
+          try { await deleteExistingBlocks(uuid, ctx.queryClient); } catch (e) {
             console.error('Failed to delete existing blocks:', e);
           }
         }),

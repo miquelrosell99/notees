@@ -2,11 +2,14 @@
  * useNodeListQueries
  */
 
-import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import * as nodesApi from '@/api/nodes';
 import { nodeKeys } from '@/hooks/queryKeys';
 import { useAuthStore } from '@/stores';
-import { getTagUuidByServerId } from './useNodeMutations.utils';
+import { useOnlineStatus } from '@/hooks/useOnlineStatus';
+import { useConnectionStore } from '@/stores/connectionStore';
+import { useWorkspaces } from '@/features/workspace';
+import { queryNodesLocal } from '@/features/sync/local/localQuery';
 
 export function usePages(options?: { includeChildren?: boolean; rootOnly?: boolean }) {
   const { includeChildren = false, rootOnly = false } = options ?? {};
@@ -35,6 +38,14 @@ export function useSearch(query: string, filters?: {
   isDaily?: boolean;
   isUserPage?: boolean;
 }) {
+  const isOnline = useOnlineStatus();
+  const backendHealthy = useConnectionStore((s) => s.healthy);
+  const isOffline = !isOnline || backendHealthy === false;
+
+  const { data: workspacesData } = useWorkspaces({ enabled: isOffline });
+  const activeWorkspace = workspacesData?.items?.find((ws) => ws.is_active) ?? workspacesData?.items?.[0];
+  const workspaceUuid = activeWorkspace?.uuid;
+
   const searchFilters: Record<string, string | boolean | undefined> = {
     classFilters: filters?.classFilters,
     nodeUuid: filters?.nodeUuid,
@@ -43,17 +54,42 @@ export function useSearch(query: string, filters?: {
     isDaily: filters?.isDaily,
     isUserPage: filters?.isUserPage,
   };
+
+  const hasFilters =
+    !!filters?.nodeUuid ||
+    !!filters?.classFilters ||
+    filters?.isPage !== undefined ||
+    filters?.isClass !== undefined ||
+    filters?.isDaily !== undefined ||
+    filters?.isUserPage !== undefined;
+
+  const serverEnabled = !isOffline && (query.length > 0 || hasFilters);
+  const localEnabled = isOffline && !!workspaceUuid && (query.length > 0 || hasFilters);
+
   return useQuery({
     queryKey: nodeKeys.search(query, searchFilters),
-    queryFn: () => nodesApi.searchNodes(query, {
-      class_filters: filters?.classFilters,
-      node_uuid: filters?.nodeUuid,
-      is_page: filters?.isPage,
-      is_class: filters?.isClass,
-      is_daily: filters?.isDaily,
-      is_user_page: filters?.isUserPage,
-    }),
-    enabled: query.length > 0 || !!filters?.nodeUuid || !!filters?.classFilters || filters?.isPage !== undefined || filters?.isClass !== undefined || filters?.isDaily !== undefined || filters?.isUserPage !== undefined,
+    queryFn: async () => {
+      if (isOffline) {
+        if (!workspaceUuid) return [];
+        const classIds = filters?.classFilters ? filters.classFilters.split(',') : undefined;
+        return queryNodesLocal(workspaceUuid, {
+          query,
+          isPage: filters?.isPage,
+          isClass: filters?.isClass,
+          isDaily: filters?.isDaily,
+          classIds,
+        });
+      }
+      return nodesApi.searchNodes(query, {
+        class_filters: filters?.classFilters,
+        node_uuid: filters?.nodeUuid,
+        is_page: filters?.isPage,
+        is_class: filters?.isClass,
+        is_daily: filters?.isDaily,
+        is_user_page: filters?.isUserPage,
+      });
+    },
+    enabled: serverEnabled || localEnabled,
     placeholderData: keepPreviousData,
     staleTime: 1000 * 30, // 30s - search results change less often than typed
   });
@@ -105,16 +141,14 @@ export function useSearchClasses(query: string) {
  * Hook to fetch nodes by tag
  */
 
-export function useNodesByTag(tagId: number | null) {
-  const queryClient = useQueryClient();
+export function useNodesByTag(tagUuid: string | null) {
   return useQuery({
-    queryKey: nodeKeys.list({ tag_id: tagId ?? 0 }),
+    queryKey: nodeKeys.list({ tag_uuid: tagUuid ?? '' }),
     queryFn: () => {
-      const tagUuid = getTagUuidByServerId(queryClient, tagId!);
       if (!tagUuid) throw new Error('Tag UUID not found');
       return nodesApi.listNodes({ tag_uuid: tagUuid });
     },
-    enabled: !!tagId,
+    enabled: !!tagUuid,
     placeholderData: [],
   });
 }

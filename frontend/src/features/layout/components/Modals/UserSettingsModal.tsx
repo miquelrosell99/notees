@@ -6,7 +6,7 @@
  */
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useSettingsStore, applyTheme, DATE_FORMAT_OPTIONS, FIRST_DAY_OF_WEEK_OPTIONS, ACCENT_COLOR_OPTIONS, isValidHexColor, getContrastColor, isSupportBadgeVisible } from '@/stores';
+import { useSettingsStore, applyTheme, DATE_FORMAT_OPTIONS, FIRST_DAY_OF_WEEK_OPTIONS, ACCENT_COLOR_OPTIONS, isValidHexColor, getContrastColor, isSupportBadgeVisible, useEncryptionStore } from '@/stores';
 import { useAuthUser, useAuthActions } from '@/features/layout/hooks/useAuthSelectors';
 import type { ThemePreference, DateFormat, HashtagPasteMode, DefaultView, QuickAddDestination, FirstDayOfWeek, AccentColor } from '@/stores';
 import { setSetting } from '@/features/workspace';
@@ -28,7 +28,7 @@ interface UserSettingsModalProps {
   onClose: () => void;
 }
 
-type BuiltInSettingsTab = 'appearance' | 'editor' | 'general' | 'account' | 'support' | 'about';
+type BuiltInSettingsTab = 'appearance' | 'editor' | 'general' | 'account' | 'security' | 'support' | 'about';
 
 export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
   const [activeTab, setActiveTab] = useState<BuiltInSettingsTab | string>('appearance');
@@ -79,6 +79,16 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
   const setSupportBadgeHidden = useSettingsStore((s) => s.setSupportBadgeHidden);
   const setSupportBadgeHiddenUntil = useSettingsStore((s) => s.setSupportBadgeHiddenUntil);
   const [customHexInput, setCustomHexInput] = useState(customAccentHex);
+  const [encryptionPassword, setEncryptionPassword] = useState('');
+  const [encryptionConfirm, setEncryptionConfirm] = useState('');
+  const [encryptionError, setEncryptionError] = useState<string | null>(null);
+  const [encryptionSuccess, setEncryptionSuccess] = useState(false);
+  const encryptionEnabled = useEncryptionStore((s) => s.enabled);
+  const encryptionUnlocked = useEncryptionStore((s) => s.isUnlocked);
+  const setEncryptionPasswordAction = useEncryptionStore((s) => s.setPassword);
+  const unlockEncryption = useEncryptionStore((s) => s.unlock);
+  const lockEncryption = useEncryptionStore((s) => s.lock);
+  const disableEncryption = useEncryptionStore((s) => s.disable);
 
   // Keep the custom hex text input in sync with the persisted value.
   useEffect(() => {
@@ -120,6 +130,50 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
     } catch (err) {
       setApiKeyError(err instanceof Error ? err.message : 'Failed to revoke API key');
     }
+  };
+
+  const handleSetEncryptionPassword = async () => {
+    setEncryptionError(null);
+    setEncryptionSuccess(false);
+    if (encryptionPassword.length < 8) {
+      setEncryptionError('Password must be at least 8 characters');
+      return;
+    }
+    if (encryptionPassword !== encryptionConfirm) {
+      setEncryptionError('Passwords do not match');
+      return;
+    }
+    try {
+      await setEncryptionPasswordAction(encryptionPassword);
+      setEncryptionPassword('');
+      setEncryptionConfirm('');
+      setEncryptionSuccess(true);
+    } catch (err) {
+      setEncryptionError(err instanceof Error ? err.message : 'Failed to enable encryption');
+    }
+  };
+
+  const handleUnlockEncryption = async () => {
+    setEncryptionError(null);
+    setEncryptionSuccess(false);
+    if (!encryptionPassword) {
+      setEncryptionError('Please enter your encryption password');
+      return;
+    }
+    try {
+      await unlockEncryption(encryptionPassword);
+      setEncryptionPassword('');
+      setEncryptionSuccess(true);
+    } catch (err) {
+      setEncryptionError(err instanceof Error ? err.message : 'Failed to unlock');
+    }
+  };
+
+  const handleDisableEncryption = () => {
+    if (!window.confirm('Disabling encryption will remove local protection. Make sure you remember your current password before continuing.')) {
+      return;
+    }
+    disableEncryption();
   };
 
   useEffect(() => {
@@ -263,6 +317,7 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
     { id: 'editor', label: 'Editor' },
     { id: 'general', label: 'General' },
     { id: 'account', label: 'Account' },
+    { id: 'security', label: 'Security' },
     { id: 'support', label: 'Support' },
     { id: 'about', label: 'About' },
   ];
@@ -765,6 +820,67 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
                   <Button className="settings-btn settings-btn--logout" variant="danger" size="md" onClick={handleLogout}>
                     Log out
                   </Button>
+                </Card>
+              </div>
+            </>
+          )}
+
+          {activeTab === 'security' && (
+            <>
+              <div className="settings-section">
+                <h3 className="settings-section__title">Encryption at Rest</h3>
+                <Card>
+                  <p className="settings-section__subtitle">
+                    When enabled, your local offline cache is encrypted with AES-GCM using a key derived from your password. This protects data on shared devices.
+                  </p>
+
+                  {!encryptionEnabled && (
+                    <div className="settings-form-stack">
+                      <TextField
+                        id="encryption-password"
+                        type="password"
+                        label="Encryption password"
+                        value={encryptionPassword}
+                        onChange={(e) => setEncryptionPassword(e.target.value)}
+                        autoComplete="new-password"
+                      />
+                      <TextField
+                        id="encryption-confirm"
+                        type="password"
+                        label="Confirm encryption password"
+                        value={encryptionConfirm}
+                        onChange={(e) => setEncryptionConfirm(e.target.value)}
+                        autoComplete="new-password"
+                      />
+                      <Button onClick={handleSetEncryptionPassword}>Enable Encryption</Button>
+                    </div>
+                  )}
+
+                  {encryptionEnabled && !encryptionUnlocked && (
+                    <div className="settings-form-stack">
+                      <p>Your local cache is encrypted. Enter your password to unlock this session.</p>
+                      <TextField
+                        id="encryption-unlock"
+                        type="password"
+                        label="Encryption password"
+                        value={encryptionPassword}
+                        onChange={(e) => setEncryptionPassword(e.target.value)}
+                        autoComplete="current-password"
+                      />
+                      <Button onClick={handleUnlockEncryption}>Unlock</Button>
+                    </div>
+                  )}
+
+                  {encryptionEnabled && encryptionUnlocked && (
+                    <div className="settings-form-stack">
+                      <p>Encryption is active and this session is unlocked.</p>
+                      <Button variant="ghost" onClick={lockEncryption}>Lock Now</Button>
+                      <Button variant="danger" onClick={handleDisableEncryption}>Disable Encryption</Button>
+                    </div>
+                  )}
+
+                  {encryptionError && <div className="settings-error">{encryptionError}</div>}
+                  {encryptionSuccess && <div className="settings-success">Saved successfully.</div>}
                 </Card>
               </div>
             </>

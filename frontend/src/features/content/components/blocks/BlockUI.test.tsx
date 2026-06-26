@@ -8,14 +8,11 @@ import { BlockUI } from './BlockUI';
 import type { Node } from '@/types/api';
 
 const baseNode: Node = {
-  id: 1,
   uuid: 'block-a',
   name: 'Hello',
   icon: null,
   color: null,
-  parent_id: null,
   parent_uuid: null,
-  page_id: null,
   page_uuid: null,
   sequence: 0,
   collapsed: false,
@@ -30,7 +27,7 @@ describe('BlockUI', () => {
     render(
       <BlockUI
         node={baseNode}
-        lockedBy={[{ id: 2, name: 'Alice', color: '#ef4444' }]}
+        lockedBy={[{ nodeUuid: 'user-2', name: 'Alice', color: '#ef4444' }]}
       />,
     );
 
@@ -41,7 +38,7 @@ describe('BlockUI', () => {
     render(
       <BlockUI
         node={baseNode}
-        presenceUsers={[{ id: 2, name: 'Alice', color: '#ef4444' }]}
+        presenceUsers={[{ nodeUuid: 'user-2', name: 'Alice', color: '#ef4444' }]}
       />,
     );
 
@@ -53,7 +50,7 @@ describe('BlockUI', () => {
     render(
       <BlockUI
         node={baseNode}
-        lockedBy={[{ id: 2, name: 'Alice', color: '#ef4444' }]}
+        lockedBy={[{ nodeUuid: 'user-2', name: 'Alice', color: '#ef4444' }]}
         onRequestLock={onRequestLock}
       />,
     );
@@ -90,7 +87,7 @@ describe('BlockUI', () => {
     render(
       <BlockUI
         node={baseNode}
-        lockedBy={[{ id: 2, name: 'Alice', color: '#ef4444' }]}
+        lockedBy={[{ nodeUuid: 'user-2', name: 'Alice', color: '#ef4444' }]}
         isQueued
         onRequestLock={vi.fn()}
       />,

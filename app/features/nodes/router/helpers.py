@@ -139,7 +139,6 @@ def _node_to_response(
         parent_id=node.parent_id,
         page_id=node.page_id,
         sequence=node.sequence,
-        collapsed=node.collapsed,
         active=node.active,
         is_page=node.is_page,
         is_class=node.is_class,
@@ -574,7 +573,6 @@ def _node_snapshot(node) -> dict:
         "color": node.color,
         "parent_id": node.parent_id,
         "sequence": node.sequence,
-        "collapsed": node.collapsed,
     }
 
 
@@ -708,7 +706,6 @@ async def _build_node_detail_response(
                     parent_id=target.parent_id,
                     page_id=target.page_id,
                     sequence=target.sequence,
-                    collapsed=target.collapsed,
                     active=target.active,
                     display_name=display_names.get(uuid_str) or _name_text(target.name, max_len=None),
                     classes=list(target.class_ids or []),

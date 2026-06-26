@@ -48,6 +48,7 @@ const InviteAcceptView = React.lazy(() => import('@/features/auth/pages/InviteAc
 const PublicShareView = React.lazy(() => import('@/features/shares/pages/PublicShareView').then((m) => ({ default: m.PublicShareView })));
 const OnboardingView = React.lazy(() => import('@/features/auth/pages/OnboardingView').then((m) => ({ default: m.OnboardingView })));
 const QuickAddModal = React.lazy(() => import('./QuickAddModal').then((m) => ({ default: m.QuickAddModal })));
+const CrdtSpikePage = React.lazy(() => import('@/features/editor/spike/CrdtSpikePage').then((m) => ({ default: m.CrdtSpikePage })));
 
 /**
  * Apply user settings returned by the backend so the local Zustand store (and
@@ -116,17 +117,16 @@ function syncUserSettingsFromBackend(settings: Record<string, unknown>) {
 }
 
 function NodeRedirect() {
-  const { nodeId } = useParams<{ nodeId: string }>();
+  const { nodeUuid } = useParams<{ nodeUuid: string }>();
   const navigate = useNavigate();
   const openNode = useNavigationStore((s) => s.openNode);
 
   useLayoutEffect(() => {
-    const id = parseInt(nodeId || '', 10);
-    if (Number.isFinite(id)) {
-      openNode(id);
+    if (nodeUuid) {
+      openNode(nodeUuid);
     }
     navigate('/', { replace: true });
-  }, [nodeId, navigate, openNode]);
+  }, [nodeUuid, navigate, openNode]);
 
   return null;
 }
@@ -394,6 +394,7 @@ export function AppRoutes() {
             <Route path="/" element={<WorkspaceRedirect />} />
             <Route path="/workspaces" element={<Outlet />} />
             <Route path="/node/:nodeId" element={<NodeRedirect />} />
+            <Route path="/spike/crdt" element={<CrdtSpikePage />} />
             <Route path="/:workspaceId/*" element={<Layout />} />
           </Route>
         </Routes>

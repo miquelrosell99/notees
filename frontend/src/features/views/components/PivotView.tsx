@@ -245,13 +245,12 @@ function buildDrilldownAst(baseAst: QueryAST | undefined, dimensions: DimensionC
 // ==================== Components ====================
 
 export const PivotView = memo(function PivotView({
-  nodes: _nodes,
-  className = '',
-  queryAst,
-  viewId,
-  nodeUuid,
-  onNodeClick,
-}: NodePivotViewProps) {
+      nodes: _nodes,
+      className = '',
+      queryAst,
+      viewId,
+      nodeUuid,
+      onNodeClick }: NodePivotViewProps) {
   const { data: allProperties = [] } = useProperties();
   const dimensionOptions = useMemo(() => buildDimensionOptions(allProperties), [allProperties]);
   const measureOptions = useMemo(() => buildMeasureOptions(allProperties), [allProperties]);

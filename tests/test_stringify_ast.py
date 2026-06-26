@@ -387,11 +387,17 @@ class TestParseAST:
         import json
         ast = [{"type": "paragraph", "children": [{"type": "text", "text": "hi"}]}]
         result = parse_ast(json.dumps(ast))
-        assert result == ast
+        assert result == [
+            {
+                "type": "paragraph",
+                "children": [{"type": "text", "text": "hi", "schema_version": 1}],
+                "schema_version": 1,
+            }
+        ]
 
     def test_list_passthrough(self):
         ast = [{"type": "paragraph", "children": []}]
-        assert parse_ast(ast) == ast
+        assert parse_ast(ast) == [{"type": "paragraph", "children": [], "schema_version": 1}]
 
     def test_plain_string_returns_empty(self):
         """Plain text is NOT valid AST - use parse_ast(text, ParseMode.PLAIN) to create content."""
@@ -431,7 +437,9 @@ class TestParseASTPlain:
         ast = parse_ast("Hello World", ParseMode.PLAIN)
         result = serialize_ast(ast)
         parsed = json.loads(result)
-        assert parsed == [{"type": "paragraph", "children": [{"type": "text", "text": "Hello World"}]}]
+        assert parsed[0]["type"] == "paragraph"
+        assert parsed[0]["schema_version"] == 1
+        assert parsed[0]["children"] == [{"type": "text", "text": "Hello World", "schema_version": 1}]
 
     def test_roundtrip(self):
         from app.domain.stringify_ast import ParseMode, parse_ast, serialize_ast

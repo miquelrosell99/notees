@@ -42,7 +42,7 @@ export function ImportMarkdownModal({ isOpen, onClose }: ImportMarkdownModalProp
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const createNodeMutation = useCreateNode();
-  const { pageClassId } = usePageClass();
+  const { pageClassUuid } = usePageClass();
 
   const handleReset = useCallback(() => {
     setPages([]);
@@ -82,24 +82,24 @@ export function ImportMarkdownModal({ isOpen, onClose }: ImportMarkdownModalProp
   );
 
   const handleImport = useCallback(async () => {
-    if (pages.length === 0 || !pageClassId) return;
+    if (pages.length === 0 || !pageClassUuid) return;
     setImporting(true);
     setError(null);
 
     const createBlocksRecursively = async (
       blocks: LogseqMdBlock[],
-      parentId: number,
+      parentUuid: string,
       startSeq: number,
     ) => {
       for (let i = 0; i < blocks.length; i++) {
         const block = blocks[i];
         const node = await createNodeMutation.mutateAsync({
           name: block.content,
-          parent_id: parentId,
+          parent_uuid: parentUuid,
           sequence: startSeq + i,
         });
         if (block.children.length > 0) {
-          await createBlocksRecursively(block.children, node.id, 0);
+          await createBlocksRecursively(block.children, node.uuid, 0);
         }
       }
     };
@@ -110,11 +110,11 @@ export function ImportMarkdownModal({ isOpen, onClose }: ImportMarkdownModalProp
         try {
           const pageNode = await createNodeMutation.mutateAsync({
             name: page.title,
-            classes: [pageClassId],
+            class_uuids: [pageClassUuid],
           });
 
           if (page.blocks.length > 0) {
-            await createBlocksRecursively(page.blocks, pageNode.id, 0);
+            await createBlocksRecursively(page.blocks, pageNode.uuid, 0);
           }
         } catch {
           console.warn(`Failed to create page: ${page.title}`);
@@ -131,7 +131,7 @@ export function ImportMarkdownModal({ isOpen, onClose }: ImportMarkdownModalProp
     } finally {
       setImporting(false);
     }
-  }, [pages, pageClassId, createNodeMutation, onClose, handleReset]);
+  }, [pages, pageClassUuid, createNodeMutation, onClose, handleReset]);
 
   const totalBlocks = pages.reduce((s, p) => s + countMdBlocks(p.blocks), 0);
 

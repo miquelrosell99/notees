@@ -34,8 +34,8 @@ export interface DuplicateModalState {
   isOpen: boolean;
   pageName: string;
   conflictingClasses: string[];
-  originalClasses: number[];
-  parentId: number | null;
+  originalClasses: string[];
+  parentUuid: string | null;
 }
 
 // Initial items shown per section — expandable via "Show more"

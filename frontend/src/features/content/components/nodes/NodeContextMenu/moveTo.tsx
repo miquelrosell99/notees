@@ -6,28 +6,34 @@ import type { Node } from '@/types';
 interface MoveToSubmenuProps {
   node: Node;
   onClose: () => void;
-  onParentChange?: (parentId: number | null) => void;
+  onParentChange?: (parentId: string | null) => void;
 }
 
 export function MoveToSubmenu({ node, onClose, onParentChange }: MoveToSubmenuProps) {
   const updateNode = useUpdateNode();
 
   const handleSelect = useCallback(
-    (val: number | number[] | null) => {
-      const parentId = typeof val === 'number' ? val : null;
-      updateNode.mutate({ id: node.id, data: { parent_id: parentId } });
-      onParentChange?.(parentId);
+    (val: string | string[] | null) => {
+      if (val == null) {
+        updateNode.mutate({ nodeUuid: node.uuid, data: { parent_uuid: null } });
+        onParentChange?.(null);
+        onClose();
+        return;
+      }
+      const selectedUuid = typeof val === 'string' ? val : val[0];
+      updateNode.mutate({ nodeUuid: node.uuid, data: { parent_uuid: selectedUuid } });
+      onParentChange?.(selectedUuid);
       onClose();
     },
-    [node.id, updateNode, onParentChange, onClose],
+    [node.uuid, updateNode, onParentChange, onClose],
   );
 
   return (
     <NodeSelector
       trigger="select"
-      value={node.parent_id ?? null}
+      value={node.parent_uuid ?? null}
       searchMode={node.is_page ? 'pages' : 'all'}
-      excludeNodeId={node.id}
+      excludeNodeId={node.uuid}
       placeholder={node.is_page ? 'Search pages...' : 'Search pages & blocks...'}
       onChange={handleSelect}
       allowCreate={false}
