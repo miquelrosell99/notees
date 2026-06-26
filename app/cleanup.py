@@ -18,9 +18,10 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from .config import settings
-from .db.connection import get_data_dir, get_pool
+from .db.connection import get_data_dir, get_pool, get_workspace_assets_dir
 from .domain.repositories.factories import make_cleanup_repository
 from .domain.repositories.interfaces import CleanupRepository
+from .features.assets.repository import PostgresAssetRepository
 from .features.assets.service import AssetFileService
 from .logging_config import get_logger
 from .system_settings import get_system_setting
@@ -196,7 +197,9 @@ class CleanupScheduler:
                 continue
 
             cutoff = datetime.now(UTC) - timedelta(days=retention_days)
-            file_service = AssetFileService(workspace_uuid)
+            pool = await get_pool()
+            asset_repo = PostgresAssetRepository(pool, workspace_id, 0)
+            file_service = AssetFileService(workspace_uuid, asset_repo)
 
             while True:
                 rows = await (await self._get_repo()).hard_delete_trashed_nodes_batch(
@@ -206,9 +209,20 @@ class CleanupScheduler:
                     break
 
                 for row in rows:
+                    if row["is_asset"] and row.get("asset_file_id"):
+                        try:
+                            await file_service.delete_asset(int(row["asset_file_id"]))
+                        except Exception as e:
+                            logger.error(
+                                f"[TRASH_CLEANUP] Failed to delete asset file "
+                                f"{row['uuid']} in workspace {workspace_id}: {e}"
+                            )
+
                     if row["is_asset"]:
                         try:
-                            file_service.delete_asset(str(row["uuid"]))
+                            asset_folder = get_workspace_assets_dir(workspace_uuid) / str(row["uuid"])
+                            if asset_folder.exists():
+                                shutil.rmtree(asset_folder, ignore_errors=True)
                         except Exception as e:
                             logger.error(
                                 f"[TRASH_CLEANUP] Failed to delete asset folder "

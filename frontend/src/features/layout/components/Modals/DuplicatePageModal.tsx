@@ -23,9 +23,9 @@ export interface DuplicatePageModalProps {
   /** Classes that are already taken for this name */
   conflictingClasses: string[];
   /** The classes the user originally tried to create with */
-  originalClasses: number[];
-  /** Parent ID for the page (for hierarchical pages) */
-  parentId: number | null;
+  originalClasses: string[];
+  /** Parent UUID for the page (for hierarchical pages) */
+  parentUuid: string | null;
   /** Callback when the page is successfully created */
   onSuccess: (node: Node) => void;
 }
@@ -42,7 +42,7 @@ export function DuplicatePageModal({
   pageName,
   conflictingClasses,
   originalClasses: _originalClasses,
-  parentId,
+  parentUuid,
   onSuccess,
 }: DuplicatePageModalProps) {
   const [classQuery, setClassQuery] = useState('');
@@ -52,8 +52,8 @@ export function DuplicatePageModal({
   const inputRef = useRef<HTMLInputElement>(null);
   const { data: allClasses = [] } = useClasses();
   const createNodeMutation = useCreateNode();
-  const { pageClassId } = usePageClass();
-  const { classClassId } = useClassClass();
+  const { pageClassUuid } = usePageClass();
+  const { classClassUuid } = useClassClass();
 
   // Filter classes based on search query, excluding system classes and conflicting ones
   const filteredClasses = allClasses.filter(c => {
@@ -78,21 +78,21 @@ export function DuplicatePageModal({
   }, [isOpen]);
 
   const handleCreate = useCallback(async () => {
-    if (!selectedClass || !pageClassId) return;
+    if (!selectedClass || !pageClassUuid) return;
     
     setIsCreating(true);
     setError(null);
     
     try {
       // Build classes: page class + selected class (excluding any conflicting ones from original)
-      const classes = [pageClassId, selectedClass.id];
+      const classUuids = [pageClassUuid, selectedClass.uuid];
       
       const newNode = await createNodeMutation.mutateAsync({
         name: pageName,
-        parent_id: parentId,
-        classes,
+        parent_uuid: parentUuid,
+        class_uuids: classUuids,
       });
-      
+
       onSuccess(newNode);
       onClose();
     } catch (err: unknown) {
@@ -107,10 +107,10 @@ export function DuplicatePageModal({
     } finally {
       setIsCreating(false);
     }
-  }, [selectedClass, pageClassId, pageName, parentId, createNodeMutation, onSuccess, onClose]);
+  }, [selectedClass, pageClassUuid, pageName, parentUuid, createNodeMutation, onSuccess, onClose]);
 
   const handleCreateNewClass = useCallback(async () => {
-    if (!classQuery.trim() || !classClassId || !pageClassId) return;
+    if (!classQuery.trim() || !classClassUuid || !pageClassUuid) return;
     
     setIsCreating(true);
     setError(null);
@@ -119,14 +119,14 @@ export function DuplicatePageModal({
       // Create the new class first
       const newClass = await createNodeMutation.mutateAsync({
         name: classQuery.trim(),
-        classes: [classClassId, pageClassId],
+        class_uuids: [classClassUuid, pageClassUuid],
       });
       
       // Then create the page with the new class
       const newNode = await createNodeMutation.mutateAsync({
         name: pageName,
-        parent_id: parentId,
-        classes: [pageClassId, newClass.id],
+        parent_uuid: parentUuid,
+        class_uuids: [pageClassUuid, newClass.uuid],
       });
       
       onSuccess(newNode);
@@ -136,7 +136,7 @@ export function DuplicatePageModal({
     } finally {
       setIsCreating(false);
     }
-  }, [classQuery, classClassId, pageClassId, pageName, parentId, createNodeMutation, onSuccess, onClose]);
+  }, [classQuery, classClassUuid, pageClassUuid, pageName, parentUuid, createNodeMutation, onSuccess, onClose]);
 
   return (
     <Modal
@@ -196,10 +196,10 @@ export function DuplicatePageModal({
 
         <div className="duplicate-page-modal__class-list">
           {filteredClasses.map(classNode => {
-            const isSelected = selectedClass?.id === classNode.id;
+            const isSelected = selectedClass?.uuid === classNode.uuid;
             return (
               <button
-                key={classNode.id}
+                key={classNode.uuid}
                 className={`duplicate-page-modal__class-item ${isSelected ? 'duplicate-page-modal__class-item--selected' : ''}`}
                 onClick={() => setSelectedClass(isSelected ? null : classNode)}
               >

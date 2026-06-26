@@ -7,7 +7,6 @@ import * as nodesApi from '@/api/nodes';
 import { archivedPagesKeys, nodeKeys } from '@/hooks/queryKeys';
 import { isFavorite, removeFavorite } from './useFavorites';
 import { removeRecent } from './useRecents';
-import { getNodeUuidByServerId } from './useNodeMutations.utils';
 import type { Node } from '@/types/api';
 
 function invalidateArchived(queryClient: ReturnType<typeof useQueryClient>) {
@@ -17,12 +16,11 @@ function invalidateArchived(queryClient: ReturnType<typeof useQueryClient>) {
   queryClient.invalidateQueries({ queryKey: nodeKeys.allBacklinks(), refetchType: 'active' });
 }
 
-function cleanupNode(queryClient: ReturnType<typeof useQueryClient>, nodeId: number) {
-  const nodeUuid = getNodeUuidByServerId(queryClient, nodeId);
+function cleanupNode(nodeUuid: string) {
   if (nodeUuid && isFavorite(nodeUuid)) {
     removeFavorite(nodeUuid).catch(() => {});
   }
-  removeRecent(nodeId);
+  removeRecent(nodeUuid);
 }
 
 export function useArchivedPages() {
@@ -39,8 +37,7 @@ export function useArchivedPagesMutations() {
   const queryClient = useQueryClient();
 
   const unarchive = useMutation({
-    mutationFn: async (nodeId: number) => {
-      const nodeUuid = getNodeUuidByServerId(queryClient, nodeId);
+    mutationFn: async (nodeUuid: string) => {
       if (!nodeUuid) throw new Error('Node UUID not found');
       return nodesApi.unarchiveNode(nodeUuid);
     },
@@ -48,13 +45,12 @@ export function useArchivedPagesMutations() {
   });
 
   const deleteNode = useMutation({
-    mutationFn: async (nodeId: number) => {
-      const nodeUuid = getNodeUuidByServerId(queryClient, nodeId);
+    mutationFn: async (nodeUuid: string) => {
       if (!nodeUuid) throw new Error('Node UUID not found');
       return nodesApi.deleteNode(nodeUuid);
     },
-    onSuccess: (_data, nodeId) => {
-      cleanupNode(queryClient, nodeId);
+    onSuccess: (_data, nodeUuid) => {
+      cleanupNode(nodeUuid);
       invalidateArchived(queryClient);
     },
   });

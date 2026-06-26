@@ -201,7 +201,6 @@ export interface BaseConditionNode {
 export interface ClassCondition extends BaseConditionNode {
   condition_type: 'class';
   class_uuid: string;
-  class_id?: number;
   // For dynamic mode: comma-separated UUIDs
   class_uuids?: string[];
   operator?: 'is' | 'is_not' | 'contains' | 'does_not_contain' | 'defined' | 'not_defined';  // Default: 'contains'
@@ -213,7 +212,6 @@ export interface ClassCondition extends BaseConditionNode {
 export interface ExtendsCondition extends BaseConditionNode {
   condition_type: 'extends';
   extends_class_uuid: string;
-  extends_class_id?: number;
 }
 
 /**
@@ -223,7 +221,6 @@ export interface PropertyCondition extends BaseConditionNode {
   condition_type: 'property';
   property_name: string;
   property_uuid?: string;
-  property_id?: number;
   property_type: QueryPropertyType;
   operator: PropertyOperator;
   value?: unknown;
@@ -256,7 +253,6 @@ export interface StyleCondition extends BaseConditionNode {
 export interface ReferenceCondition extends BaseConditionNode {
   condition_type: 'reference';
   target_uuid: string;
-  target_id?: number;
   // For dynamic mode: comma-separated UUIDs
   target_uuids?: string[];
   operator?: 'references' | 'does_not_reference' | 'has_references' | 'has_no_references';  // Default: 'references'
@@ -271,7 +267,6 @@ export interface ReferencePathCondition extends BaseConditionNode {
   condition_type: 'reference_path';
   // Static mode: specific target node(s) being referenced
   target_uuids?: string[];
-  target_ids?: number[];
   // Dynamic mode: target nodes matching criteria
   nested_group?: GroupNode;
 }
@@ -284,8 +279,6 @@ export interface ParentCondition extends BaseConditionNode {
   // Static mode: specific parent(s)
   parent_uuid?: string;  // Legacy: single parent
   parent_uuids?: string[];  // Multiple parents
-  parent_id?: number;
-  parent_ids?: number[];
   // Dynamic mode: parent matching criteria
   nested_group?: GroupNode;
   operator?: 'has_parent' | 'not_has_parent' | 'has_no_parent' | 'has_any_parent';  // Default: 'has_parent'
@@ -298,7 +291,6 @@ export interface ParentPathCondition extends BaseConditionNode {
   condition_type: 'parent_path';
   // Static mode: specific ancestor(s)
   ancestor_uuids?: string[];
-  ancestor_ids?: number[];
   // Dynamic mode: ancestors matching criteria
   nested_group?: GroupNode;
   max_depth?: number;
@@ -312,7 +304,6 @@ export interface ChildCondition extends BaseConditionNode {
   condition_type: 'child';
   // Static mode: specific children
   child_uuids?: string[];
-  child_ids?: number[];
   // Dynamic mode: children matching criteria
   nested_group?: GroupNode;
   operator?: 'has_child' | 'not_has_child' | 'has_no_child' | 'has_any_child';  // Default: 'has_child'
@@ -325,7 +316,6 @@ export interface ChildPathCondition extends BaseConditionNode {
   condition_type: 'child_path';
   // Static mode: specific descendant(s)
   descendant_uuids?: string[];
-  descendant_ids?: number[];
   // Dynamic mode: descendants matching criteria
   nested_group?: GroupNode;
   max_depth?: number;
@@ -333,30 +323,26 @@ export interface ChildPathCondition extends BaseConditionNode {
 }
 
 /**
- * Page condition - filter by containing page (via page_id)
+ * Page condition - filter by containing page (via page_uuid)
  */
 export interface PageCondition extends BaseConditionNode {
   condition_type: 'page';
   // Static mode: specific page(s)
   page_uuid?: string;
   page_uuids?: string[];
-  page_id?: number;
-  page_ids?: number[];
   // Dynamic mode: page matching criteria
   nested_group?: GroupNode;
   operator?: 'is_page' | 'is_not_page' | 'has_no_page' | 'has_any_page';
 }
 
 /**
- * Tag condition - filter by descriptive tags (node.tag_ids)
+ * Tag condition - filter by descriptive tags (node.tag_uuids)
  */
 export interface TagCondition extends BaseConditionNode {
   condition_type: 'tag';
   // Static mode: specific tag page(s)
   tag_uuid?: string;
   tag_uuids?: string[];
-  tag_id?: number;
-  tag_ids?: number[];
   operator?: 'is' | 'is_not' | 'has_any_tag' | 'has_no_tag';
 }
 
@@ -545,12 +531,11 @@ export function createNotNode(child: ConditionNode | GroupNode): NotNode {
 /**
  * Create a class condition
  */
-export function createClassCondition(classUuid: string, classId?: number): ClassCondition {
+export function createClassCondition(classUuid: string): ClassCondition {
   return {
     type: 'condition',
     condition_type: 'class',
     class_uuid: classUuid,
-    class_id: classId,
   };
 }
 

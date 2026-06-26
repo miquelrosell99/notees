@@ -5,7 +5,7 @@ const flashcardKeys = {
   all: ['flashcards'] as const,
   due: () => [...flashcardKeys.all, 'due'] as const,
   stats: () => [...flashcardKeys.all, 'stats'] as const,
-  byNode: (nodeId: number) => [...flashcardKeys.all, 'node', nodeId] as const,
+  byNode: (nodeUuid: string) => [...flashcardKeys.all, 'node', nodeUuid] as const,
 };
 
 export function useDueFlashcards(limit: number = 100) {
@@ -24,11 +24,11 @@ export function useFlashcardStats() {
   });
 }
 
-export function useFlashcardByNodeId(nodeId: number | null | undefined) {
+export function useFlashcardByNodeId(nodeUuid: string | null | undefined) {
   return useQuery({
-    queryKey: flashcardKeys.byNode(nodeId ?? 0),
-    queryFn: () => flashcardsApi.getFlashcardByNodeId(nodeId ?? 0),
-    enabled: nodeId != null && nodeId > 0,
+    queryKey: flashcardKeys.byNode(nodeUuid ?? ''),
+    queryFn: () => flashcardsApi.getFlashcardByNodeId(nodeUuid ?? ''),
+    enabled: nodeUuid != null && nodeUuid !== '',
     staleTime: 30_000,
   });
 }
@@ -36,8 +36,8 @@ export function useFlashcardByNodeId(nodeId: number | null | undefined) {
 export function useReviewFlashcard() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ nodeId, grade }: { nodeId: number; grade: number }) =>
-      flashcardsApi.reviewFlashcard(nodeId, grade),
+    mutationFn: ({ nodeUuid, grade }: { nodeUuid: string; grade: number }) =>
+      flashcardsApi.reviewFlashcard(nodeUuid, grade),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: flashcardKeys.due() });
       queryClient.invalidateQueries({ queryKey: flashcardKeys.stats() });
@@ -48,12 +48,12 @@ export function useReviewFlashcard() {
 export function useCreateFlashcard() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ nodeId, frontText, backText }: { nodeId: number; frontText: string; backText: string }) =>
-      flashcardsApi.createFlashcard(nodeId, frontText, backText),
+    mutationFn: ({ nodeUuid, frontText, backText }: { nodeUuid: string; frontText: string; backText: string }) =>
+      flashcardsApi.createFlashcard(nodeUuid, frontText, backText),
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: flashcardKeys.stats() });
       queryClient.invalidateQueries({ queryKey: flashcardKeys.due() });
-      queryClient.invalidateQueries({ queryKey: flashcardKeys.byNode(variables.nodeId) });
+      queryClient.invalidateQueries({ queryKey: flashcardKeys.byNode(variables.nodeUuid) });
     },
   });
 }
@@ -61,12 +61,12 @@ export function useCreateFlashcard() {
 export function useUpdateFlashcard() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ nodeId, frontText, backText }: { nodeId: number; frontText: string; backText: string }) =>
-      flashcardsApi.updateFlashcard(nodeId, frontText, backText),
+    mutationFn: ({ nodeUuid, frontText, backText }: { nodeUuid: string; frontText: string; backText: string }) =>
+      flashcardsApi.updateFlashcard(nodeUuid, frontText, backText),
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: flashcardKeys.stats() });
       queryClient.invalidateQueries({ queryKey: flashcardKeys.due() });
-      queryClient.invalidateQueries({ queryKey: flashcardKeys.byNode(variables.nodeId) });
+      queryClient.invalidateQueries({ queryKey: flashcardKeys.byNode(variables.nodeUuid) });
     },
   });
 }

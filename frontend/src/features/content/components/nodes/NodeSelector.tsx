@@ -11,7 +11,7 @@
  */
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { useQueries, useQueryClient } from '@tanstack/react-query';
+import { useQueries } from '@tanstack/react-query';
 import { useKeyboardListNav } from '@/hooks/useKeyboardListNav';
 import { useViewportFlip } from '@/hooks/useViewportFlip';
 import { NodeRef } from './NodeRef';
@@ -28,7 +28,6 @@ import { useNodeSearch, usePages, useClasses, useCreateNode, usePageClass, useCl
 import { parseQueryWithFilters, type AppliedFilter } from '@/utils/searchFilters';
 import * as nodesApi from '@/api/nodes';
 import { nodeNameToText } from '@/features/queries';
-import { getNodeUuidByServerId } from '@/features/content/hooks/useNodeMutations.utils';
 import { SYSTEM_CLASS_UUIDS } from '@/constants';
 import type { Node } from '@/types';
 import './NodeSelector.css';
@@ -38,12 +37,12 @@ type TriggerMode = 'pill-row' | 'select' | 'inline';
 interface NodeSelectorProps {
   /** The nodes to display as pills (or selected values in 'select' mode) */
   nodes?: Node[];
-  /** Alternative: provide node IDs instead of Node objects ('select' mode will fetch them) */
-  value?: number | number[] | null;
+  /** Alternative: provide node UUIDs instead of Node objects ('select' mode will fetch them) */
+  value?: string | string[] | null;
   /** Search mode for the picker - determines what types of nodes to show */
   searchMode?: NodeSearchMode;
   /** Class IDs to filter search results by (nodes must have at least one of these classes) */
-  classFilters?: number[];
+  classFilters?: string[];
   /** Trigger style: 'pill-row' (default) or 'select' (dropdown) */
   trigger?: TriggerMode;
   /** Whether multi-select is enabled (only applies to 'select' mode) */
@@ -63,7 +62,7 @@ interface NodeSelectorProps {
   /** Callback when adding a node from the picker (single-select: replaces; multi-select: adds) */
   onAdd?: (node: Node) => void;
   /** Callback when value changes (for 'select' mode with value prop) */
-  onChange?: (value: number | number[] | null) => void;
+  onChange?: (value: string | string[] | null) => void;
   /** Callback when creating a new node (if provided, overrides built-in create) */
   onCreateNew?: (name: string) => void | Promise<Node>;
   /** Whether to show the "Create" option when no match is found (default: true for page/class/tag modes) */
@@ -76,8 +75,8 @@ interface NodeSelectorProps {
   canRemove?: (node: Node) => boolean;
   /** Function to determine if a node can be added (filters search results) */
   canAdd?: (node: Node) => boolean;
-  /** Node ID to exclude from search results (e.g., current node) */
-  excludeNodeId?: number;
+  /** Node UUID to exclude from search results (e.g., current node) */
+  excludeNodeId?: string;
   /** Whether pills are read-only (hides remove button) */
   readOnly?: boolean;
   /** Initial search query to pre-fill when the picker opens */
@@ -134,7 +133,6 @@ export function NodeSelector({
   const [appliedFilters, setAppliedFilters] = useState<AppliedFilter[]>([]);
   const [displayLimit, setDisplayLimit] = useState(trigger === 'select' ? 15 : 10);
   const [pickerPos, setPickerPos] = useState<{ top: number; left: number } | null>(null);
-  const queryClient = useQueryClient();
   const pickerRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLDivElement>(null);
   const arrowBtnRef = useRef<HTMLButtonElement>(null);
@@ -150,15 +148,11 @@ export function NodeSelector({
 
   // Fetch each node by ID individually - reliable regardless of pagination
   const nodeQueries = useQueries({
-    queries: nodesProp ? [] : valueIds.map((nodeId) => ({
-      queryKey: nodeKeys.detail(nodeId, { include_children: false }),
-      queryFn: () => {
-        const nodeUuid = getNodeUuidByServerId(queryClient, nodeId);
-        if (!nodeUuid) throw new Error('Node UUID not found');
-        return nodesApi.getNode(nodeUuid, { include_children: false });
-      },
+    queries: nodesProp ? [] : valueIds.map((nodeUuid) => ({
+      queryKey: nodeKeys.detail(nodeUuid, { include_children: false }),
+      queryFn: () => nodesApi.getNode(nodeUuid, { include_children: false }),
       staleTime: 5 * 60 * 1000,
-      enabled: !!nodeId,
+      enabled: !!nodeUuid,
     })),
   });
 
@@ -186,7 +180,7 @@ export function NodeSelector({
   const derivedClassFilters = useMemo(() => {
     const appliedClassIds = appliedFilters
       .filter((f): f is AppliedFilter & { type: 'class' } => f.type === 'class')
-      .map(f => f.classNode.id);
+      .map(f => f.classNode.uuid);
     return [...(classFilters ?? []), ...appliedClassIds];
   }, [appliedFilters, classFilters]);
 
@@ -237,8 +231,8 @@ export function NodeSelector({
   // Track pinned node ID for single-value pickers:
   // - Current value if set
   // - Last non-null value if cleared during the same picker session
-  const currentSingleValue = !multi && typeof value === 'number' ? value : null;
-  const [lastNonNullValue, setLastNonNullValue] = useState<number | null>(currentSingleValue);
+  const currentSingleValue = !multi && typeof value === 'string' ? value : null;
+  const [lastNonNullValue, setLastNonNullValue] = useState<string | null>(currentSingleValue);
   useEffect(() => {
     if (currentSingleValue !== null) {
       setLastNonNullValue(currentSingleValue);
@@ -270,24 +264,24 @@ export function NodeSelector({
 
   // Built-in create support — hooks must be called unconditionally
   const createNodeMutation = useCreateNode();
-  const { pageClassId } = usePageClass();
-  const { classClassId } = useClassClass();
+  const { pageClassUuid } = usePageClass();
+  const { classClassUuid } = useClassClass();
 
   // Resolve whether create is enabled: default true for page/class/tag modes, false for blocks
   const createEnabled = allowCreate ?? (searchMode !== 'blocks');
 
   // Internal default create handler based on searchMode
   const defaultCreateNew = useCallback(async (name: string): Promise<Node> => {
-    const classes: number[] = [];
-    if (pageClassId) classes.push(pageClassId);
-    if ((searchMode === 'classes') && classClassId) classes.push(classClassId);
+    const classUuids: string[] = [];
+    if (pageClassUuid) classUuids.push(pageClassUuid);
+    if ((searchMode === 'classes') && classClassUuid) classUuids.push(classClassUuid);
     return new Promise((resolve, reject) => {
-      createNodeMutation.mutate({ name, classes }, {
+      createNodeMutation.mutate({ name, class_uuids: classUuids }, {
         onSuccess: resolve,
         onError: reject,
       });
     });
-  }, [createNodeMutation, pageClassId, classClassId, searchMode]);
+  }, [createNodeMutation, pageClassUuid, classClassUuid, searchMode]);
 
   // Effective create handler: external overrides internal
   const effectiveCreateNew = onCreateNew ?? (createEnabled ? defaultCreateNew : undefined);
@@ -300,7 +294,7 @@ export function NodeSelector({
   // Filter out already assigned nodes and nodes that cannot be added
   // Use raw value IDs (not resolved nodes) to ensure exclusion works even when nodes haven't loaded
   const assignedIds = useMemo(() => {
-    const ids = new Set(nodes.map(n => n.id));
+    const ids = new Set(nodes.map(n => n.uuid));
     // Also include raw value IDs to cover unresolved nodes
     for (const id of valueIds) {
       ids.add(id);
@@ -310,7 +304,7 @@ export function NodeSelector({
   
   const filteredResults = useMemo(() => {
     return searchResults
-      .filter(node => !assignedIds.has(node.id))
+      .filter(node => !assignedIds.has(node.uuid))
       .filter(node => !canAdd || canAdd(node));
   }, [searchResults, assignedIds, canAdd]);
 
@@ -322,7 +316,7 @@ export function NodeSelector({
     if (!onConvertToClass || !parsedFilters.searchTerm.trim()) return [];
     return pageConvertResults
       .map(r => r.node)
-      .filter(n => !n.is_class && !assignedIds.has(n.id));
+      .filter(n => !n.is_class && !assignedIds.has(n.uuid));
   }, [onConvertToClass, parsedFilters.searchTerm, pageConvertResults, assignedIds]);
 
   // For multi-select dropdown: selected nodes first, then unselected search results
@@ -330,11 +324,11 @@ export function NodeSelector({
     if (!multi) return [];
     // Get all search results that can be added (without excluding assigned ones)
     const allSearchable = searchResults.filter(node => !canAdd || canAdd(node));
-    const selected = allSearchable.filter(node => assignedIds.has(node.id));
-    const unselected = allSearchable.filter(node => !assignedIds.has(node.id));
+    const selected = allSearchable.filter(node => assignedIds.has(node.uuid));
+    const unselected = allSearchable.filter(node => !assignedIds.has(node.uuid));
     // Also include assigned nodes that aren't in search results (when no search query)
-    const searchIds = new Set(allSearchable.map(n => n.id));
-    const assignedNotInSearch = nodes.filter(n => !searchIds.has(n.id));
+    const searchIds = new Set(allSearchable.map(n => n.uuid));
+    const assignedNotInSearch = nodes.filter(n => !searchIds.has(n.uuid));
     return [...assignedNotInSearch, ...selected, ...unselected];
   }, [multi, searchResults, assignedIds, canAdd, nodes]);
 
@@ -459,13 +453,13 @@ export function NodeSelector({
 
   const handleAdd = useCallback((node: Node) => {
     // Prevent adding duplicates
-    if (assignedIds.has(node.id)) return;
+    if (assignedIds.has(node.uuid)) return;
     
     if (onChange) {
       // Value-based API: update value
       const newValue = multi
-        ? [...(Array.isArray(value) ? value : []), node.id]
-        : node.id;
+        ? [...(Array.isArray(value) ? value : []), node.uuid]
+        : node.uuid;
       onChange(newValue);
     } else {
       // Node-based API: call onAdd
@@ -483,7 +477,7 @@ export function NodeSelector({
     if (onChange) {
       // Value-based API: update value
       if (multi && Array.isArray(value)) {
-        onChange(value.filter(id => id !== node.id));
+        onChange(value.filter(id => id !== node.uuid));
       } else {
         onChange(null);
       }
@@ -495,7 +489,7 @@ export function NodeSelector({
 
   // Toggle handler for multi-select dropdown: add if not selected, remove if selected
   const handleToggle = useCallback((node: Node) => {
-    if (assignedIds.has(node.id)) {
+    if (assignedIds.has(node.uuid)) {
       handleRemove(node);
     } else {
       handleAdd(node);
@@ -547,7 +541,7 @@ export function NodeSelector({
   // Filter suggestion handlers
   const handleAddClassFilter = useCallback((classNode: Node) => {
     setAppliedFilters(prev => {
-      if (prev.some(f => f.type === 'class' && f.classNode.id === classNode.id)) return prev;
+      if (prev.some(f => f.type === 'class' && f.classNode.uuid === classNode.uuid)) return prev;
       return [...prev, { type: 'class' as const, classNode }];
     });
     setSearchQuery(prev => prev.replace(/\S+:\S*$/, '').trim());
@@ -624,14 +618,14 @@ export function NodeSelector({
 
   // Build parent page path (e.g. "Root / Parent /") for a page node
   const buildParentPath = useCallback((node: Node): string => {
-    if (!node.parent_id) return '';
+    if (!node.parent_uuid) return '';
     const segments: string[] = [];
-    let currentId: number | null = node.parent_id;
+    let currentId: string | null = node.parent_uuid;
     while (currentId !== null) {
-      const parent = allPages.find(p => p.id === currentId && p.is_page);
+      const parent = allPages.find(p => p.uuid === currentId && p.is_page);
       if (!parent) break;
       segments.unshift(nodeNameToText(parent.name) || 'Untitled');
-      currentId = parent.parent_id ?? null;
+      currentId = parent.parent_uuid ?? null;
     }
     if (segments.length === 0) return '';
     const fullPath = segments.join(' / ') + ' /';
@@ -648,8 +642,8 @@ export function NodeSelector({
 
   // Build breadcrumb path for a block node using its page_id
   const buildBlockParentPath = useCallback((node: Node): string => {
-    if (!node.page_id) return '';
-    const page = allPages.find(p => p.id === node.page_id);
+    if (!node.page_uuid) return '';
+    const page = allPages.find(p => p.uuid === node.page_uuid);
     if (!page) return '';
     const pageName = nodeNameToText(page.name) || 'Untitled';
     const ancestors = buildParentPath(page);
@@ -659,17 +653,17 @@ export function NodeSelector({
   }, [allPages, buildParentPath]);
 
   // Get display classes for a node, excluding the system "page" class
-  const getDisplayClasses = useCallback((node: Node): Array<{ id: number; name: string }> => {
-    if (!node.classes || node.classes.length === 0) return [];
-    return node.classes
-      .map(classId => {
-        const classNode = allClasses.find(c => c.id === classId);
+  const getDisplayClasses = useCallback((node: Node): Array<{ nodeUuid: string; name: string }> => {
+    if (!node.classes_uuid || node.classes_uuid.length === 0) return [];
+    return node.classes_uuid
+      .map(classUuid => {
+        const classNode = allClasses.find(c => c.uuid === classUuid);
         if (!classNode || classNode.uuid === SYSTEM_CLASS_UUIDS.page) return null;
         const name = nodeNameToText(classNode.name);
         if (!name) return null;
-        return { id: classId, name };
+        return { nodeUuid: classUuid, name };
       })
-      .filter((c): c is { id: number; name: string } => c !== null);
+      .filter((c): c is { nodeUuid: string; name: string } => c !== null);
   }, [allClasses]);
 
   // 'inline' mode is always active; other modes are active when picker is open
@@ -694,7 +688,7 @@ export function NodeSelector({
             <div className="node-selector__selected-list">
               {nodes.map(node => (
                 <button
-                  key={node.id}
+                  key={node.uuid}
                   className="node-selector__chip node-selector__chip--readonly"
                   onClick={() => onNodeClick?.(node)}
                 >
@@ -718,8 +712,8 @@ export function NodeSelector({
             <div className="node-selector__selected-pills">
               {nodes.map(node => (
                 <NodeRef
-                  key={node.id}
-                  nodeId={node.id}
+                  key={node.uuid}
+                  nodeUuid={node.uuid}
                   onClick={() => onNodeClick?.(node)}
                   onRemove={readOnly ? undefined : () => handleRemove(node)}
                   readOnly={readOnly}
@@ -766,7 +760,7 @@ export function NodeSelector({
                     {displayCls.length > 0 && (
                       <span className="node-selector__single-value-classes">
                         {displayCls.map(cls => (
-                          <span key={cls.id} className="node-selector__single-value-class-pill">{cls.name}</span>
+                          <span key={cls.nodeUuid} className="node-selector__single-value-class-pill">{cls.name}</span>
                         ))}
                       </span>
                     )}
@@ -1034,7 +1028,7 @@ export function NodeSelector({
         const isRemovable = onRemove && (!canRemove || canRemove(node));
         return (
           <NodeRef
-            key={node.id}
+            key={node.uuid}
             node={node}
             onClick={() => onNodeClick?.(node)}
             onRemove={isRemovable ? () => onRemove(node) : undefined}

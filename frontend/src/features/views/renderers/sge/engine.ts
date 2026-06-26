@@ -57,17 +57,17 @@ class SeededRNG {
 
 function detectCommunities(
   nodeCount: number,
-  nodeIds: number[],
-  adjacency: Map<number, Set<number>>,
+  nodeIds: string[],
+  adjacency: Map<string, Set<string>>,
   edgeCount: number,
   rng: SeededRNG,
-  priorCommunities?: Map<number, number>,
-): Map<number, number> {
-  const idToIdx = new Map<number, number>();
+  priorCommunities?: Map<string, number>,
+): Map<string, number> {
+  const idToIdx = new Map<string, number>();
   for (let i = 0; i < nodeIds.length; i++) idToIdx.set(nodeIds[i], i);
 
   if (edgeCount === 0) {
-    const r = new Map<number, number>();
+    const r = new Map<string, number>();
     for (let i = 0; i < nodeIds.length; i++) r.set(nodeIds[i], i);
     return r;
   }
@@ -161,7 +161,7 @@ function detectCommunities(
     if (!commRemap.has(c)) commRemap.set(c, nextId++);
   }
 
-  const result = new Map<number, number>();
+  const result = new Map<string, number>();
   for (let i = 0; i < nodeCount; i++) result.set(nodeIds[i], commRemap.get(nodeCommunity[i])!);
   return result;
 }
@@ -169,13 +169,13 @@ function detectCommunities(
 // ─── Connected components (BFS) ───────────────────────────────────────────────
 
 function findConnectedComponents(
-  nodeIds: number[],
-  adjacency: Map<number, Set<number>>,
-): Map<number, number> {
-  const component = new Map<number, number>();
+  nodeIds: string[],
+  adjacency: Map<string, Set<string>>,
+): Map<string, number> {
+  const component = new Map<string, number>();
   let componentId = 0;
-  const visited = new Set<number>();
-  const queue: number[] = [];
+  const visited = new Set<string>();
+  const queue: string[] = [];
 
   for (const startId of nodeIds) {
     if (visited.has(startId)) continue;
@@ -223,7 +223,7 @@ export class SGEEngine {
   compIdArr:  Int32Array   = new Int32Array(0);
   degArr:     Int32Array   = new Int32Array(0);
   iRadArr:    Float32Array = new Float32Array(0);
-  nodeIdArr:  Int32Array   = new Int32Array(0);
+  nodeIdArr:  string[]     = [];
   activeNodeIndices: Int32Array = new Int32Array(0);
   activeCount = 0;
 
@@ -249,10 +249,10 @@ export class SGEEngine {
 
   // Topology
   private edges: SGEEdge[] = [];
-  private adjacency = new Map<number, Set<number>>();
-  private nodeIndex = new Map<number, number>();
-  private componentMap = new Map<number, number>();
-  private clusterMap = new Map<number, number>();
+  private adjacency = new Map<string, Set<string>>();
+  private nodeIndex = new Map<string, number>();
+  private componentMap = new Map<string, number>();
+  private clusterMap = new Map<string, number>();
 
   // Simulation state
   energy = Infinity;
@@ -325,7 +325,9 @@ export class SGEEngine {
     this.compIdArr = grow(this.compIdArr, Int32Array);
     this.degArr    = grow(this.degArr, Int32Array);
     this.iRadArr   = grow(this.iRadArr, Float32Array);
-    this.nodeIdArr = grow(this.nodeIdArr, Int32Array);
+    const nextNodeIdArr = new Array<string>(c);
+    for (let i = 0; i < old; i++) nextNodeIdArr[i] = this.nodeIdArr[i];
+    this.nodeIdArr = nextNodeIdArr;
     this.activeNodeIndices = new Int32Array(Math.max(c, 256));
 
     this.cap = c;
@@ -351,18 +353,18 @@ export class SGEEngine {
 
     // Preserve positions of nodes that survive a topology change so that
     // toggling filters or changing levels does not throw away the layout.
-    const oldPositions = new Map<number, { x: number; y: number }>();
+    const oldPositions = new Map<string, { x: number; y: number }>();
     for (const [id, idx] of this.nodeIndex) {
       oldPositions.set(id, { x: this.posX[idx], y: this.posY[idx] });
     }
 
     this.adjacency.clear();
     this.nodeIndex.clear();
-    for (const nd of nodes) this.adjacency.set(nd.id, new Set());
+    for (const nd of nodes) this.adjacency.set(nd.nodeUuid, new Set());
 
     this.edges = [];
     let edgeCount = 0;
-    const nodeIdSet = new Set(nodes.map(nd => nd.id));
+    const nodeIdSet = new Set(nodes.map(nd => nd.nodeUuid));
     for (const e of edges) {
       if (nodeIdSet.has(e.source) && nodeIdSet.has(e.target) && e.source !== e.target) {
         this.edges.push({ source: e.source, target: e.target, type: e.type, weight: e.weight });
@@ -372,29 +374,29 @@ export class SGEEngine {
       }
     }
 
-    const nodeIds = nodes.map(nd => nd.id);
+    const nodeIds = nodes.map(nd => nd.nodeUuid);
     this.componentMap = findConnectedComponents(nodeIds, this.adjacency);
     const priorClusters = this.clusterMap.size > 0 ? this.clusterMap : undefined;
     this.clusterMap = detectCommunities(N, nodeIds, this.adjacency, edgeCount, this.rng, priorClusters);
 
     for (let i = 0; i < N; i++) {
       const inp = nodes[i];
-      this.nodeIdArr[i] = inp.id;
+      this.nodeIdArr[i] = inp.nodeUuid;
       this.posX[i] = 0; this.posY[i] = 0;
       this.velX[i] = 0; this.velY[i] = 0;
       this.oldAx[i] = 0; this.oldAy[i] = 0;
       this.pinnedArr[i] = inp.pinned ? 1 : 0;
-      this.clIdArr[i] = this.clusterMap.get(inp.id) ?? 0;
-      this.compIdArr[i] = this.componentMap.get(inp.id) ?? 0;
-      this.degArr[i] = this.adjacency.get(inp.id)?.size ?? 0;
+      this.clIdArr[i] = this.clusterMap.get(inp.nodeUuid) ?? 0;
+      this.compIdArr[i] = this.componentMap.get(inp.nodeUuid) ?? 0;
+      this.degArr[i] = this.adjacency.get(inp.nodeUuid)?.size ?? 0;
       this.iRadArr[i] = 0;
-      this.nodeIndex.set(inp.id, i);
+      this.nodeIndex.set(inp.nodeUuid, i);
     }
 
     this._computeInitialPositions();
     for (let i = 0; i < N; i++) {
       const inp = nodes[i];
-      const old = oldPositions.get(inp.id);
+      const old = oldPositions.get(inp.nodeUuid);
       const explicitX = inp.x !== undefined && inp.x !== 0;
       const explicitY = inp.y !== undefined && inp.y !== 0;
       if (explicitX) {
@@ -600,23 +602,23 @@ export class SGEEngine {
       posY: this.posY.subarray(0, this.n),
       velX: this.velX.subarray(0, this.n),
       velY: this.velY.subarray(0, this.n),
-      nodeIdArr: this.nodeIdArr.subarray(0, this.n),
+      nodeIdArr: this.nodeIdArr.slice(0, this.n),
       nodeCount: this.n,
       energy: this.energy,
       ticks: this.ticks,
     };
   }
 
-  pinNode(id: number): void {
-    const idx = this.nodeIndex.get(id);
+  pinNode(nodeUuid: string): void {
+    const idx = this.nodeIndex.get(nodeUuid);
     if (idx !== undefined) {
       this.pinnedArr[idx] = 1;
       this._rebuildActiveIndices();
     }
   }
 
-  unpinNode(id: number): void {
-    const idx = this.nodeIndex.get(id);
+  unpinNode(nodeUuid: string): void {
+    const idx = this.nodeIndex.get(nodeUuid);
     if (idx !== undefined) {
       this.pinnedArr[idx] = 0;
       this.velX[idx] = 0; this.velY[idx] = 0;
@@ -624,13 +626,13 @@ export class SGEEngine {
     }
   }
 
-  isPinned(id: number): boolean {
-    const idx = this.nodeIndex.get(id);
+  isPinned(nodeUuid: string): boolean {
+    const idx = this.nodeIndex.get(nodeUuid);
     return idx !== undefined && this.pinnedArr[idx] === 1;
   }
 
-  moveNode(id: number, x: number, y: number): void {
-    const idx = this.nodeIndex.get(id);
+  moveNode(nodeUuid: string, x: number, y: number): void {
+    const idx = this.nodeIndex.get(nodeUuid);
     if (idx !== undefined) { this.posX[idx] = x; this.posY[idx] = y; }
   }
 
@@ -641,15 +643,15 @@ export class SGEEngine {
     if (partial.linkCountAttraction !== undefined) this._rebuildEdgeArrays();
   }
 
-  applyForce(id: number, fx: number, fy: number): void {
-    const idx = this.nodeIndex.get(id);
+  applyForce(nodeUuid: string, fx: number, fy: number): void {
+    const idx = this.nodeIndex.get(nodeUuid);
     if (idx === undefined || this.pinnedArr[idx]) return;
     this.axBuf[idx] += fx;
     this.ayBuf[idx] += fy;
   }
 
-  getNodePosition(id: number): { x: number; y: number } | undefined {
-    const idx = this.nodeIndex.get(id);
+  getNodePosition(nodeUuid: string): { x: number; y: number } | undefined {
+    const idx = this.nodeIndex.get(nodeUuid);
     if (idx === undefined) return undefined;
     return { x: this.posX[idx], y: this.posY[idx] };
   }

@@ -26,14 +26,14 @@ import { NodeIcon, Icon } from '@/components/ui/icons';
 import { EmojiPicker } from '@/components/ui/EmojiPicker';
 import { SuggestionPopup } from './SuggestionPopup';
 import { isSystemPage } from '@/utils/systemPages';
-import { parseHierarchicalPath, resolveHierarchicalParent } from '@/utils/hierarchicalPath';
+import { parseHierarchicalPath, resolveHierarchicalParentUuid } from '@/utils/hierarchicalPath';
 import './PageHeader.css';
 
 interface PageHeaderProps {
   /** The page node to display */
   page: Node;
-  /** Effective class IDs (may include inherited classes from aliased node) */
-  effectiveClasses?: number[];
+  /** Effective class UUIDs (may include inherited classes from aliased node) */
+  effectiveClasses?: string[];
   /** The aliased (main) node, if this page is an alias */
   aliasedNode?: Node | null;
   /** Callback when right-clicking the header (for context menu) */
@@ -61,10 +61,10 @@ export function PageHeader({
   focusMode = false,
   className = '',
 }: PageHeaderProps) {
-  const currentUserId = useAuthStore((s) => s.user?.id ?? 0);
+  const currentUserId = useAuthStore((s) => s.user?.nodeUuid ?? 0);
   const titleUsers = useLivePresenceStore((s) => s.presence[page.uuid]?.[page.uuid]);
   const titleLockedBy = useMemo(
-    () => (titleUsers ?? []).filter((u) => u.id !== currentUserId),
+    () => (titleUsers ?? []).filter((u) => u.nodeUuid !== currentUserId),
     [titleUsers, currentUserId],
   );
   const isTitleLocked = titleLockedBy.length > 0;
@@ -73,8 +73,8 @@ export function PageHeader({
   const updateNode = useUpdateNode();
   const createNode = useCreateNode();
   const addClass = useAddClass();
-  const { pageClassId } = usePageClass();
-  const { classClassId } = useClassClass();
+  const { pageClassUuid } = usePageClass();
+  const { classClassUuid } = useClassClass();
   const addSidebarCard = useNavigationStore((state) => state.addSidebarCard);
   
   // Icon picker state
@@ -179,22 +179,22 @@ export function PageHeader({
   // Handle class selection from + popup
   const handleClassSelect = useCallback((classNode: Node) => {
     // Add class to this page
-    addClass.mutate({ nodeId: page.id, classId: classNode.id });
+    addClass.mutate({ nodeUuid: page.uuid, classId: classNode.uuid });
     // Remove the +query text from the title
     const beforeAt = inputValue.substring(0, inputValue.lastIndexOf('+'));
     setInputValue(beforeAt.trimEnd());
     setClassPopupOpen(false);
     // Keep focus on textarea
     titleRef.current?.focus();
-  }, [page.id, addClass, inputValue]);
+  }, [page.uuid, addClass, inputValue]);
 
   // Handle creating a new class from + popup
   const handleClassCreate = useCallback((name: string) => {
-    if (!classClassId || !pageClassId) return;
-    createNode.mutate({ name, classes: [classClassId, pageClassId] }, {
+    if (!classClassUuid || !pageClassUuid) return;
+    createNode.mutate({ name, class_uuids: [classClassUuid, pageClassUuid] }, {
       onSuccess: (newClass) => {
         // Add the new class to this page
-        addClass.mutate({ nodeId: page.id, classId: newClass.id });
+        addClass.mutate({ nodeUuid: page.uuid, classId: newClass.uuid });
       }
     });
     // Remove the +query text from the title
@@ -202,7 +202,7 @@ export function PageHeader({
     setInputValue(beforeAt.trimEnd());
     setClassPopupOpen(false);
     titleRef.current?.focus();
-  }, [page.id, classClassId, pageClassId, createNode, addClass, inputValue]);
+  }, [page.uuid, classClassUuid, pageClassUuid, createNode, addClass, inputValue]);
 
   // Close class popup
   const handleClassPopupClose = useCallback(() => {
@@ -223,7 +223,7 @@ export function PageHeader({
     const isDatePage = page.is_daily || page.is_monthly || page.is_yearly;
     
     // Check if the new name contains "/" and this is not a date page
-    if (cleanName.includes('/') && !isDatePage && pageClassId) {
+    if (cleanName.includes('/') && !isDatePage && pageClassUuid) {
       const parsed = parseHierarchicalPath(cleanName);
       const originalName = page.name || '';
       
@@ -240,35 +240,35 @@ export function PageHeader({
           // Build lookup map for O(1) access
           const pageMap = new Map<string, Node>();
           for (const p of freshPages) {
-            const key = `${p.name}|${p.parent_id ?? 'null'}`;
+            const key = `${p.name}|${p.parent_uuid ?? 'null'}`;
             pageMap.set(key, p);
           }
-          
+
           // Resolve or create intermediate child pages
-          let currentParent = page.id;
+          let currentParent = page.uuid;
           for (const segment of childSegments) {
             const key = `${segment}|${currentParent}`;
             let node = pageMap.get(key);
-            
+
             if (!node) {
               node = await createNode.mutateAsync({
                 name: segment,
-                classes: [pageClassId],
-                parent_id: currentParent,
+                class_uuids: [pageClassUuid],
+                parent_uuid: currentParent,
               });
               // Add to map so subsequent iterations can find it
               pageMap.set(key, node);
             }
-            
-            currentParent = node.id;
+
+            currentParent = node.uuid;
           }
-          
+
           // Create the final leaf page
           if (parsed.leaf) {
             createNode.mutate({
               name: parsed.leaf,
-              classes: [pageClassId],
-              parent_id: currentParent,
+              class_uuids: [pageClassUuid],
+              parent_uuid: currentParent,
             });
           }
           
@@ -290,22 +290,22 @@ export function PageHeader({
           const freshPages = await listNodes({ pages_only: true, include_children: true });
           
           // Resolve or create parent pages (supports multiple levels)
-          const parentId = await resolveHierarchicalParent(
+          const parentUuid = await resolveHierarchicalParentUuid(
             parsed.parentSegments,
             freshPages,
             async (name, parent) => {
               return await createNode.mutateAsync({
                 name,
-                parent_id: parent,
-                classes: [pageClassId],
+                parent_uuid: parent,
+                class_uuids: [pageClassUuid],
               });
             }
           );
-          
+
           // Move current page under the new parent
-          updateNode.mutate({ 
-            id: page.id, 
-            data: { parent_id: parentId } 
+          updateNode.mutate({
+            nodeUuid: page.uuid,
+            data: { parent_uuid: parentUuid }
           });
           // Reset input to original name
           setInputValue(originalName);
@@ -325,25 +325,25 @@ export function PageHeader({
           const freshPages = await listNodes({ pages_only: true, include_children: true });
           
           // Resolve or create parent pages (supports multiple levels)
-          const parentId = await resolveHierarchicalParent(
+          const parentUuid = await resolveHierarchicalParentUuid(
             parsed.parentSegments,
             freshPages,
             async (name, parent) => {
               return await createNode.mutateAsync({
                 name,
-                parent_id: parent,
-                classes: [pageClassId],
+                parent_uuid: parent,
+                class_uuids: [pageClassUuid],
               });
             }
           );
-          
+
           // Update page with new name and parent
-          updateNode.mutate({ 
-            id: page.id, 
-            data: { 
+          updateNode.mutate({
+            nodeUuid: page.uuid,
+            data: {
               name: parsed.leaf,
-              parent_id: parentId 
-            } 
+              parent_uuid: parentUuid
+            }
           });
           return;
         } catch (error) {
@@ -358,9 +358,9 @@ export function PageHeader({
       onNameChange(cleanName);
     } else {
       const data: NodeUpdate = { name: cleanName };
-      updateNode.mutate({ id: page.id, data });
+      updateNode.mutate({ nodeUuid: page.uuid, data });
     }
-  }, [page.id, page.name, page.is_daily, page.is_monthly, page.is_yearly, pageClassId, updateNode, createNode, onNameChange]);
+  }, [page.uuid, page.uuid, page.name, page.is_daily, page.is_monthly, page.is_yearly, pageClassUuid, updateNode, createNode, onNameChange]);
 
   // Handle icon change via emoji picker
   const handleIconClick = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
@@ -381,17 +381,17 @@ export function PageHeader({
     if (onIconChange) {
       onIconChange(encoded ?? '');
     } else {
-      updateNode.mutate({ id: page.id, data: { icon: encoded } });
+      updateNode.mutate({ nodeUuid: page.uuid, data: { icon: encoded } });
     }
     setShowIconPicker(false);
-  }, [page.id, page.icon, updateNode, onIconChange]);
+  }, [page.uuid, page.icon, updateNode, onIconChange]);
 
   const handleIconColorChange = useCallback((color: string | null) => {
     const { icon: iconName } = parseIconField(page.icon ?? '');
     // Always store color even with no explicit icon so the inherited/default icon can be tinted
     const encoded = color ? formatIconField(iconName ?? '', color) : (iconName || null);
-    updateNode.mutate({ id: page.id, data: { icon: encoded } });
-  }, [page.id, page.icon, updateNode]);
+    updateNode.mutate({ nodeUuid: page.uuid, data: { icon: encoded } });
+  }, [page.uuid, page.icon, updateNode]);
 
   // Handle Ctrl+C on page title to copy page link when nothing is selected
   const handlePageTitleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -426,7 +426,7 @@ export function PageHeader({
       e.preventDefault();
       addSidebarCard(page.uuid, 'page');
     }
-  }, [page.id, addSidebarCard]);
+  }, [page.uuid, addSidebarCard]);
 
   return (
     <>

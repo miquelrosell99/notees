@@ -13,7 +13,6 @@ function loadNode(runtime: OperationRuntime, overrides: Partial<CoreNode> & { bl
   runtime.loadBaseNodes([
     {
       blockId: overrides.blockId,
-      serverId: overrides.serverId,
       parentId: overrides.parentId ?? null,
       orderIndex: overrides.orderIndex ?? 0,
       nodeType: overrides.nodeType ?? 'block',

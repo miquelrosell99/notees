@@ -4,8 +4,8 @@
  */
 import { useLinkedReferences, usePropertyBacklinks } from './useNodes';
 
-export function useLinkedReferencesCount(nodeId: number | null) {
-  const effectiveId = nodeId || null;
+export function useLinkedReferencesCount(nodeUuid: string | null) {
+  const effectiveId = nodeUuid || null;
   const { data: refsData, isLoading: refsLoading } = useLinkedReferences(effectiveId);
   const { data: propertyBacklinks, isLoading: propLoading } = usePropertyBacklinks(effectiveId);
   

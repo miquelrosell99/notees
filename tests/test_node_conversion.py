@@ -88,7 +88,7 @@ class TestConvertBlockToPage:
         assert query_class is not None
 
         sample_block_data["parent_uuid"] = page["uuid"]
-        sample_block_data["classes"] = [query_class["id"]]
+        sample_block_data["class_uuids"] = [query_class["uuid"]]
         block_response = await authenticated_client.post("/api/nodes/", json=sample_block_data)
         block = block_response.json()
 
@@ -210,7 +210,7 @@ class TestConvertPageToBlock:
 
         source_response = await authenticated_client.post("/api/nodes/", json={
             **sample_node_data,
-            "classes": [test_user["page_class_id"], class_class["id"]],
+            "class_uuids": [SYSTEM_CLASS_UUIDS["page"], class_class["uuid"]],
         })
         source = source_response.json()
         assert source["is_page"] is True

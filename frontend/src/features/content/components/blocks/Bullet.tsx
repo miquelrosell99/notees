@@ -19,7 +19,7 @@ export type BulletVariant = 'default' | 'interactive' | 'decorative';
 
 export interface BulletProps {
   /** Node ID or UUID if attached to a node */
-  nodeId?: string | number;
+  nodeUuid?: string;
   /** Icon to display instead of the dot */
   icon?: string | null;
   /** Whether this is a page (affects icon display) */
@@ -37,9 +37,9 @@ export interface BulletProps {
   /** Click handler (regular click - opens focused view) */
   onClick?: (e: React.MouseEvent) => void;
   /** Shift+click handler (opens in sidebar) */
-  onShiftClick?: (nodeId: string | number) => void;
+  onShiftClick?: (nodeUuid: string) => void;
   /** Right-click/context menu handler */
-  onContextMenu?: (nodeId: string | number, event: React.MouseEvent) => void;
+  onContextMenu?: (nodeUuid: string, event: React.MouseEvent) => void;
   /** @dnd-kit activator ref for drag handle */
   activatorRef?: (element: HTMLElement | null) => void;
   /** @dnd-kit activator listeners for drag handle */
@@ -73,33 +73,32 @@ export interface BulletProps {
 }
 
 export function Bullet({
-  nodeId,
-  icon,
-  isPage = false,
-  interactive = true,
-  hasChildren = false,
-  collapsed = false,
-  isActivePath = false,
-  showMiniBullet = false,
-  onClick,
-  onShiftClick,
-  onContextMenu,
-  activatorRef,
-  activatorListeners,
-  isDragging = false,
-  className = '',
-  title,
-  size = 'sm',
-  disableOpticalOffset = false,
-  isGhost = false,
-  listSize,
-  inPropertyEditor,
-  documentMode,
-  hideBullet,
-  dimmed,
-  spacing = 'default',
-  focusMode,
-}: BulletProps) {
+      nodeUuid,
+      icon,
+      isPage = false,
+      interactive = true,
+      hasChildren = false,
+      collapsed = false,
+      isActivePath = false,
+      showMiniBullet = false,
+      onClick,
+      onShiftClick,
+      onContextMenu,
+      activatorRef,
+      activatorListeners,
+      isDragging = false,
+      className = '',
+      title,
+      size = 'sm',
+      disableOpticalOffset = false,
+      isGhost = false,
+      listSize,
+      inPropertyEditor,
+      documentMode,
+      hideBullet,
+      dimmed,
+      spacing = 'default',
+      focusMode }: BulletProps) {
   const bulletRef = useRef<HTMLElement>(null);
 
   // Handle click on bullet
@@ -109,21 +108,21 @@ export function Bullet({
     e.preventDefault();
     e.stopPropagation();
     
-    if (e.shiftKey && onShiftClick && nodeId) {
-      onShiftClick(nodeId);
+    if (e.shiftKey && onShiftClick && nodeUuid) {
+      onShiftClick(nodeUuid);
     } else if (onClick) {
       onClick(e);
     }
-  }, [interactive, nodeId, onClick, onShiftClick]);
+  }, [interactive, nodeUuid, onClick, onShiftClick]);
   
   // Handle context menu (right-click)
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
-    if (!interactive || !nodeId || !onContextMenu) return;
+    if (!interactive || !nodeUuid || !onContextMenu) return;
     
     e.preventDefault();
     e.stopPropagation();
-    onContextMenu(nodeId, e);
-  }, [interactive, nodeId, onContextMenu]);
+    onContextMenu(nodeUuid, e);
+  }, [interactive, nodeUuid, onContextMenu]);
   
   // Compute class names
   const classNames = useMemo(() => {

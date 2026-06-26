@@ -199,7 +199,7 @@ class TestInstantiateTemplate:
 
         resp = await authenticated_client.post(
             f"/api/nodes/{template['uuid']}/instantiate",
-            json={"parent_id": parent["id"], "as_blocks": True},
+            json={"parent_uuid": parent["uuid"], "as_blocks": True},
         )
         assert resp.status_code == 200
         data = resp.json()

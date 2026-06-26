@@ -18,16 +18,16 @@ import type { Property, Node } from '@/types/api';
 
 export interface PropertyValueProps {
   property: Property;
-  nodeId: number;
+  nodeUuid: string;
   value: unknown;
   readOnly?: boolean;
   onChange: (value: unknown) => void;
-  onNavigateToNode?: (nodeId: number) => void;
-  onCreatePage?: (name: string, additionalClasses?: number[]) => Promise<Node>;
-  onOpenInSidebar?: (nodeId: number) => void;
-  onPropertyChange: (propertyId: number, value: unknown) => void;
+  onNavigateToNode?: (nodeUuid: string) => void;
+  onCreatePage?: (name: string, additionalClasses?: string[]) => Promise<Node>;
+  onOpenInSidebar?: (nodeUuid: string) => void;
+  onPropertyChange: (propertyId: string, value: unknown) => void;
   /** Callback when text property bullet is clicked (opens focused block view) */
-  onBulletClick?: (blockId: number) => void;
+  onBulletClick?: (blockId: string) => void;
 }
 
 export interface PropertyCellProps {

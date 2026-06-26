@@ -205,20 +205,8 @@ function evaluateCondition(condition: ConditionNode, node: ApiGraphNode, ctx: Ev
 
 // ----- Class -----
 
-function resolveClassUuid(raw: string | number | undefined, ctx: EvalContext): string | undefined {
-  if (raw == null) return undefined;
-  if (typeof raw === 'string') return raw;
-  return ctx.classes.find(c => c.id === raw)?.uuid;
-}
-
-function getNodeClassUuids(node: ApiGraphNode, ctx: EvalContext): string[] {
-  if (node.class_uuids) return node.class_uuids;
-  if (node.class_ids) {
-    return node.class_ids
-      .map(id => ctx.classes.find(c => c.id === id)?.uuid)
-      .filter((uuid): uuid is string => !!uuid);
-  }
-  return [];
+function getNodeClassUuids(node: ApiGraphNode): string[] {
+  return node.class_uuids ?? [];
 }
 
 function evaluateClassCondition(
@@ -226,8 +214,8 @@ function evaluateClassCondition(
   node: ApiGraphNode,
   ctx: EvalContext,
 ): boolean {
-  const nodeClassUuids = getNodeClassUuids(node, ctx);
-  const targetUuid = resolveClassUuid(cond.class_uuid ?? cond.class_id, ctx);
+  const nodeClassUuids = getNodeClassUuids(node);
+  const targetUuid = cond.class_uuid;
 
   if (!targetUuid) return false;
 
@@ -269,8 +257,8 @@ function evaluateExtendsCondition(
   node: ApiGraphNode,
   ctx: EvalContext,
 ): boolean {
-  const nodeClassUuids = getNodeClassUuids(node, ctx);
-  const targetUuid = resolveClassUuid(cond.extends_class_uuid ?? cond.extends_class_id, ctx);
+  const nodeClassUuids = getNodeClassUuids(node);
+  const targetUuid = cond.extends_class_uuid;
 
   if (!targetUuid) return false;
 
@@ -374,12 +362,6 @@ function evaluateParentCondition(
       if (cond.parent_uuids && cond.parent_uuids.length > 0) {
         return !cond.parent_uuids.some(uuid => parentUuids.includes(uuid));
       }
-      if (cond.parent_ids && cond.parent_ids.length > 0) {
-        return !cond.parent_ids.some(pid => {
-          const uuid = ctx.nodeByUuid.get(String(pid))?.uuid ?? ctx.classes.find(c => c.id === pid)?.uuid;
-          return uuid && parentUuids.includes(uuid);
-        });
-      }
       return parentUuids.length === 0;
     }
     case 'has_parent': {
@@ -393,12 +375,6 @@ function evaluateParentCondition(
       // Static mode
       if (cond.parent_uuids && cond.parent_uuids.length > 0) {
         return cond.parent_uuids.some(uuid => parentUuids.includes(uuid));
-      }
-      if (cond.parent_ids && cond.parent_ids.length > 0) {
-        return cond.parent_ids.some(pid => {
-          const uuid = ctx.nodeByUuid.get(String(pid))?.uuid ?? ctx.classes.find(c => c.id === pid)?.uuid;
-          return uuid && parentUuids.includes(uuid);
-        });
       }
       return parentUuids.length > 0;
     }
@@ -426,12 +402,6 @@ function evaluateParentPathCondition(
       if (cond.ancestor_uuids && cond.ancestor_uuids.length > 0) {
         return !cond.ancestor_uuids.some(uuid => ancestors.has(uuid));
       }
-      if (cond.ancestor_ids && cond.ancestor_ids.length > 0) {
-        return !cond.ancestor_ids.some(aid => {
-          const uuid = ctx.nodeByUuid.get(String(aid))?.uuid ?? ctx.classes.find(c => c.id === aid)?.uuid;
-          return uuid && ancestors.has(uuid);
-        });
-      }
       return ancestors.size === 0;
     }
     case 'has_ancestor': {
@@ -443,12 +413,6 @@ function evaluateParentPathCondition(
       }
       if (cond.ancestor_uuids && cond.ancestor_uuids.length > 0) {
         return cond.ancestor_uuids.some(uuid => ancestors.has(uuid));
-      }
-      if (cond.ancestor_ids && cond.ancestor_ids.length > 0) {
-        return cond.ancestor_ids.some(aid => {
-          const uuid = ctx.nodeByUuid.get(String(aid))?.uuid ?? ctx.classes.find(c => c.id === aid)?.uuid;
-          return uuid && ancestors.has(uuid);
-        });
       }
       return ancestors.size > 0;
     }
@@ -476,12 +440,6 @@ function evaluateChildCondition(
       if (cond.child_uuids && cond.child_uuids.length > 0) {
         return !cond.child_uuids.some(uuid => childUuids.includes(uuid));
       }
-      if (cond.child_ids && cond.child_ids.length > 0) {
-        return !cond.child_ids.some(cid => {
-          const uuid = ctx.nodeByUuid.get(String(cid))?.uuid ?? ctx.classes.find(c => c.id === cid)?.uuid;
-          return uuid && childUuids.includes(uuid);
-        });
-      }
       return childUuids.length === 0;
     }
     case 'has_child': {
@@ -493,12 +451,6 @@ function evaluateChildCondition(
       }
       if (cond.child_uuids && cond.child_uuids.length > 0) {
         return cond.child_uuids.some(uuid => childUuids.includes(uuid));
-      }
-      if (cond.child_ids && cond.child_ids.length > 0) {
-        return cond.child_ids.some(cid => {
-          const uuid = ctx.nodeByUuid.get(String(cid))?.uuid ?? ctx.classes.find(c => c.id === cid)?.uuid;
-          return uuid && childUuids.includes(uuid);
-        });
       }
       return childUuids.length > 0;
     }
@@ -526,12 +478,6 @@ function evaluateChildPathCondition(
       if (cond.descendant_uuids && cond.descendant_uuids.length > 0) {
         return !cond.descendant_uuids.some(uuid => descendants.has(uuid));
       }
-      if (cond.descendant_ids && cond.descendant_ids.length > 0) {
-        return !cond.descendant_ids.some(did => {
-          const uuid = ctx.nodeByUuid.get(String(did))?.uuid ?? ctx.classes.find(c => c.id === did)?.uuid;
-          return uuid && descendants.has(uuid);
-        });
-      }
       return descendants.size === 0;
     }
     case 'has_descendant': {
@@ -543,12 +489,6 @@ function evaluateChildPathCondition(
       }
       if (cond.descendant_uuids && cond.descendant_uuids.length > 0) {
         return cond.descendant_uuids.some(uuid => descendants.has(uuid));
-      }
-      if (cond.descendant_ids && cond.descendant_ids.length > 0) {
-        return cond.descendant_ids.some(did => {
-          const uuid = ctx.nodeByUuid.get(String(did))?.uuid ?? ctx.classes.find(c => c.id === did)?.uuid;
-          return uuid && descendants.has(uuid);
-        });
       }
       return descendants.size > 0;
     }
@@ -579,10 +519,6 @@ function evaluateReferenceCondition(
       if (cond.target_uuids && cond.target_uuids.length > 0) {
         return !cond.target_uuids.some(uuid => refs.includes(uuid));
       }
-      if (cond.target_id) {
-        const targetUuid = ctx.nodeByUuid.get(String(cond.target_id))?.uuid ?? ctx.classes.find(c => c.id === cond.target_id)?.uuid;
-        return targetUuid ? !refs.includes(targetUuid) : refs.length === 0;
-      }
       return refs.length === 0;
     }
     case 'references': {
@@ -597,10 +533,6 @@ function evaluateReferenceCondition(
       }
       if (cond.target_uuids && cond.target_uuids.length > 0) {
         return cond.target_uuids.some(uuid => refs.includes(uuid));
-      }
-      if (cond.target_id) {
-        const targetUuid = ctx.nodeByUuid.get(String(cond.target_id))?.uuid ?? ctx.classes.find(c => c.id === cond.target_id)?.uuid;
-        return targetUuid ? refs.includes(targetUuid) : false;
       }
       return refs.length > 0;
     }
@@ -629,13 +561,6 @@ function evaluateReferencePathCondition(
 
   if (cond.target_uuids && cond.target_uuids.length > 0) {
     return cond.target_uuids.some(uuid => refs.includes(uuid));
-  }
-
-  if (cond.target_ids && cond.target_ids.length > 0) {
-    return cond.target_ids.some((tid: number) => {
-      const uuid = ctx.nodeByUuid.get(String(tid))?.uuid ?? ctx.classes.find(c => c.id === tid)?.uuid;
-      return uuid && refs.includes(uuid);
-    });
   }
 
   return refs.length > 0;
@@ -753,7 +678,7 @@ function buildClassDescendants(classes: Node[], links: GraphLink[]): Map<string,
 
   // From class nodes' own classes (if available)
   for (const cls of classes) {
-    const classUuids = cls.classes_uuid ?? cls.classes?.map(id => classes.find(c => c.id === id)?.uuid).filter((uuid): uuid is string => !!uuid) ?? [];
+    const classUuids = cls.classes_uuid ?? [];
     for (const parentUuid of classUuids) {
       const siblings = children.get(parentUuid) ?? [];
       siblings.push(cls.uuid);

@@ -82,7 +82,7 @@ interface PopupState {
   type: TriggerPopupType;
   position: { top: number; left: number; caretTop: number };
   context?: 'template' | 'embed';
-  classFilters?: number[];
+  classFilters?: string[];
 }
 
 interface Placeholder {
@@ -93,13 +93,13 @@ interface Placeholder {
 
 export interface TriggerPluginProps {
   /** Called when a class should be added silently (Plain Enter on +) */
-  onAddClass?: (blockServerId: number, classId: number) => void;
+  onAddClass?: (blockServerId: string, classId: string) => void;
   /** Called when a slash command is selected */
-  onSlashCommand?: (commandId: string, blockServerId: number | undefined) => void;
+  onSlashCommand?: (commandId: string, blockServerId: string | undefined) => void;
   /** Called when a template is selected in template mode */
-  onTemplateInstantiate?: (templateNodeId: number, blockServerId: number | undefined) => void;
-  /** Class IDs used to pre-filter the link popup when in templateMode */
-  templateClassFilters?: number[];
+  onTemplateInstantiate?: (templateNodeId: string, blockServerId: string | undefined) => void;
+  /** Class UUIDs used to pre-filter the link popup when in templateMode */
+  templateClassFilters?: string[];
   /** Block ID for the inline editor hosting this trigger. */
   blockId: string;
 }
@@ -115,7 +115,7 @@ export function TriggerPlugin({
   const [popup, setPopup] = useState<PopupState | null>(null);
   const [dateRangePickerOpen, setDateRangePickerOpen] = useState(false);
   const placeholderRef = useRef<Placeholder | null>(null);
-  const blockServerIdRef = useRef<number | undefined>(undefined);
+  const blockServerIdRef = useRef<string | undefined>(undefined);
   const popupOpenRef = useRef(false);
   const hadFocusBeforeRef = useRef(false);
   const selectionMadeRef = useRef(false);
@@ -190,7 +190,7 @@ export function TriggerPlugin({
 
             const runtime = getOperationRuntime();
             const graphNode = getNode(runtime, blockIdProp);
-            blockServerIdRef.current = graphNode?.serverId;
+            blockServerIdRef.current = graphNode?.blockId;
           }
         });
 
@@ -281,7 +281,7 @@ export function TriggerPlugin({
 
         const runtime = getOperationRuntime();
         const graphNode = getNode(runtime, blockIdProp);
-        blockServerIdRef.current = graphNode?.serverId;
+        blockServerIdRef.current = graphNode?.blockId;
 
         let triggerType: TriggerPopupType;
         switch (insertedText) {
@@ -556,7 +556,7 @@ export function TriggerPlugin({
       removePlaceholder();
 
       if (popup.context === 'template') {
-        onTemplateInstantiate?.(node.id, blockServerIdRef.current);
+        onTemplateInstantiate?.(node.uuid, blockServerIdRef.current);
         handleClose();
         return;
       }
@@ -579,7 +579,7 @@ export function TriggerPlugin({
             flushAllContentSaves();
           }
           if (blockServerIdRef.current != null) {
-            onAddClass?.(blockServerIdRef.current, node.id);
+            onAddClass?.(blockServerIdRef.current, node.uuid);
           }
           break;
         }
@@ -662,7 +662,7 @@ export function TriggerPlugin({
     }
 
     const runtime = getOperationRuntime();
-    const blockNode = getAllNodes(runtime).find((n) => n.serverId === blockServerId);
+    const blockNode = getAllNodes(runtime).find((n) => n.blockId === blockServerId);
     if (!blockNode?.parentId) {
       hidden.add('cloze');
       return hidden;

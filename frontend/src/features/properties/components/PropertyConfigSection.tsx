@@ -56,7 +56,7 @@ export function PropertyConfigSection({
   // Mutations
   const updatePropertyMutation = useUpdateProperty();
   
-  // Get all classes to resolve class_filters IDs to Node objects
+  // Get all classes to resolve class_filter_uuids to Node objects
   const { data: allClasses } = useClasses();
   
   // Sync isMultiValue with property.multi when property changes
@@ -77,7 +77,7 @@ export function PropertyConfigSection({
   // Convert property options to form format (id holds the option UUID)
   const selectionOptions: SelectionOptionWithId[] = useMemo(() =>
     (property.options || []).map(opt => ({
-      id: opt.uuid ?? String(opt.id),
+      id: opt.uuid,
       name: opt.name,
       icon: opt.icon || undefined,
     })),
@@ -122,7 +122,7 @@ export function PropertyConfigSection({
       // Update property without the deleted option
       const updatedProperty: Property = {
         ...property,
-        options: property.options.filter(o => (o.uuid ?? String(o.id)) !== id),
+        options: property.options.filter(o => o.uuid !== id),
       };
       onUpdate(updatedProperty);
       setError(null);
@@ -140,7 +140,7 @@ export function PropertyConfigSection({
       const updatedProperty: Property = {
         ...property,
         options: property.options.map(o =>
-          (o.uuid ?? String(o.id)) === id ? { ...o, icon: iconField, color: parsedColor || null } : o
+          o.uuid === id ? { ...o, icon: iconField, color: parsedColor || null } : o
         ),
       };
       onUpdate(updatedProperty);
@@ -160,7 +160,6 @@ export function PropertyConfigSection({
       const updatedProperty: Property = {
         ...property,
         options: reordered.map((opt, index) => ({
-          id: 0,
           uuid: opt.id,
           name: opt.name,
           icon: opt.icon ?? null,
@@ -427,7 +426,7 @@ function ValidationRulesSection({
     } catch {
       onError('Failed to update validation rules');
     }
-  }, [property.id, updatePropertyMutation, onUpdate, onError]);
+  }, [property.uuid, updatePropertyMutation, onUpdate, onError]);
 
   if (property.type === 'integer' || property.type === 'float') {
     return (

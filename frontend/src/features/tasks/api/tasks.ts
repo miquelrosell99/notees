@@ -5,7 +5,7 @@
  * dedicated source of truth for recurring task rules and their history.
  */
 import api from '@/api/client';
-import type { RecurrenceRule, TaskCompletion, TaskCompletionInput } from '@/types/api';
+import type { RecurrenceRule, RecurrenceRuleInput, TaskCompletion, TaskCompletionInput } from '@/types/api';
 
 export async function getRecurrenceRule(nodeUuid: string): Promise<RecurrenceRule | null> {
   const { data } = await api.get<RecurrenceRule | null>(`/tasks/${nodeUuid}/recurrence`);
@@ -14,7 +14,7 @@ export async function getRecurrenceRule(nodeUuid: string): Promise<RecurrenceRul
 
 export async function setRecurrenceRule(
   nodeUuid: string,
-  rule: Omit<RecurrenceRule, 'id' | 'uuid' | 'task_node_id' | 'task_node_uuid' | 'create_date' | 'write_date' | 'description'>
+  rule: RecurrenceRuleInput
 ): Promise<RecurrenceRule> {
   const { data } = await api.put<RecurrenceRule>(`/tasks/${nodeUuid}/recurrence`, rule);
   return data;

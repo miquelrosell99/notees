@@ -263,7 +263,6 @@ async def _include_children_for_results(
                     "is_month": child.is_month,
                     "is_year": child.is_year,
                     "sequence": child.sequence,
-                    "collapsed": child.collapsed,
                 }
             )
             # Recursively fetch this child's children (skip recursion in blocks_only mode)

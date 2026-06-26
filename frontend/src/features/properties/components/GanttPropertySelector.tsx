@@ -94,8 +94,8 @@ export function GanttPropertySelector({
         </button>
         {dateProperties.map((prop) => (
           <button
-            key={prop.id}
-            className={`gantt-property-selector__item ${selected?.id === prop.id ? 'gantt-property-selector__item--active' : ''}`}
+            key={prop.uuid}
+            className={`gantt-property-selector__item ${selected?.uuid === prop.uuid ? 'gantt-property-selector__item--active' : ''}`}
             onClick={() => onChange(prop)}
           >
             {prop.icon && <Icon path={prop.icon} size={0.6} />}

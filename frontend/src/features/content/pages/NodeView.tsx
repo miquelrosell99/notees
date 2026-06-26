@@ -25,6 +25,7 @@ import { useEffectiveNodePermissions } from '@/hooks';
 import { useProperties, useSetNodeProperty, useClassExtends, useAddClassExtends, useRemoveClassExtends, useCreateProperty } from '@/features/properties';
 import { useNode, useClasses, useNodesWithClass, useUpdateNode, useAddTag, useAddClass, useCreateNode, useRemoveClass, useRemoveTag, useTags, useLinkedReferencesCount, usePageClass, useResolvedClassDetails, useNodeNavigation, useAddAlias, useRemoveAlias, useLivePageSync } from '@/features/content';
 import { useContentSave } from '@/features/editor';
+import { useFoldKeyboardShortcut } from '@/features/sync';
 import { nodeNameToText } from '@/features/queries';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { usePageAliases } from '@/features/content';
@@ -91,7 +92,7 @@ const BANNER_COLLAPSED_KEY = 'notees:banner-collapsed';
 /**
  * Get collapsed state for a specific node from localStorage
  */
-function getCollapsedState(key: string, pageId: number, hasImage: boolean): boolean {
+function getCollapsedState(key: string, pageId: string, hasImage: boolean): boolean {
   try {
     const stored = localStorage.getItem(key);
     if (stored) {
@@ -111,7 +112,7 @@ function getCollapsedState(key: string, pageId: number, hasImage: boolean): bool
 /**
  * Save collapsed state for a specific node to localStorage
  */
-function setCollapsedState(key: string, pageId: number, collapsed: boolean): void {
+function setCollapsedState(key: string, pageId: string, collapsed: boolean): void {
   try {
     const stored = localStorage.getItem(key);
     const states = stored ? JSON.parse(stored) as Record<string, boolean> : {};
@@ -131,7 +132,7 @@ function setCollapsedState(key: string, pageId: number, collapsed: boolean): voi
  */
 interface FocusedBlockContentProps {
   node: Node;
-  onAddSidebarCard: (nodeId: number) => void;
+  onAddSidebarCard: (nodeUuid: string) => void;
   displayMode?: 'bullet' | 'document' | 'kanban';
   editable?: boolean;
 }
@@ -146,13 +147,13 @@ function FocusedBlockContent({ node, onAddSidebarCard, displayMode = 'bullet', e
 
   // Handle shift+click (open in sidebar)
   const handleNodeShiftClick = useCallback((clickedNode: Node) => {
-    onAddSidebarCard(clickedNode.id);
+    onAddSidebarCard(clickedNode.uuid);
   }, [onAddSidebarCard]);
 
-  const handleAddClass = useCallback((blockId: number, classId: number) => {
+  const handleAddClass = useCallback((blockId: string, classId: string) => {
     // Optimistically update the runtime for immediate visual feedback
     const runtime = getOperationRuntime();
-    const graphNode = getAllNodes(runtime).find(n => n.serverId === blockId);
+    const graphNode = getAllNodes(runtime).find(n => n.blockId === blockId);
     if (graphNode) {
       const classStrId = String(classId);
       if (!graphNode.classIds.includes(classStrId)) {
@@ -162,7 +163,7 @@ function FocusedBlockContent({ node, onAddSidebarCard, displayMode = 'bullet', e
         }]);
       }
     }
-    addClass.mutate({ nodeId: blockId, classId });
+    addClass.mutate({ nodeUuid: blockId, classId });
   }, [addClass]);
 
   // Register page-level keyboard commands
@@ -201,7 +202,7 @@ function FocusedBlockContent({ node, onAddSidebarCard, displayMode = 'bullet', e
             onNodeShiftClick={handleNodeShiftClick}
             onContentChange={handleContentChange}
             showClasses={true}
-            pageId={node.id}
+            pageId={node.uuid}
             nodeUuid={node.uuid}
             maxDepth={0}
             onAddClass={handleAddClass}
@@ -216,7 +217,7 @@ function FocusedBlockContent({ node, onAddSidebarCard, displayMode = 'bullet', e
             onNodeShiftClick={handleNodeShiftClick}
             onContentChange={handleContentChange}
             showClasses={true}
-            pageId={node.id}
+            pageId={node.uuid}
             nodeUuid={node.uuid}
             onAddClass={handleAddClass}
           />
@@ -237,7 +238,7 @@ function FocusedBlockContent({ node, onAddSidebarCard, displayMode = 'bullet', e
         onNodeShiftClick={handleNodeShiftClick}
         onContentChange={handleContentChange}
         showClasses={true}
-        pageId={node.id}
+        pageId={node.uuid}
         nodeUuid={node.uuid}
         onAddClass={handleAddClass}
         rootIsBlock
@@ -248,7 +249,7 @@ function FocusedBlockContent({ node, onAddSidebarCard, displayMode = 'bullet', e
 
 interface NodeViewProps {
   /** Node ID to display */
-  nodeId: number;
+  nodeUuid: string;
 
   /** View mode (document, etc.) */
   viewMode: ViewMode;
@@ -325,21 +326,20 @@ function WordCount({ node }: { node: Node }) {
 }
 
 export function NodeView({ 
-  nodeId, 
-  viewMode, 
-  sidebarMode = false,
-  hideBanner,
-  hidePageHeader,
-  hideProperties,
-  hideQueries,
-  hideFooter,
-  propertiesCollapsed = false, 
-  linkedRefsCollapsed = false,
-  liveSync = false,
-  className = '',
-  pageHeaderClassName = '',
-  breadcrumbsClassName = '',
-}: NodeViewProps): NodeViewResult {
+      nodeUuid, 
+      viewMode, 
+      sidebarMode = false,
+      hideBanner,
+      hidePageHeader,
+      hideProperties,
+      hideQueries,
+      hideFooter,
+      propertiesCollapsed = false, 
+      linkedRefsCollapsed = false,
+      liveSync = false,
+      className = '',
+      pageHeaderClassName = '',
+      breadcrumbsClassName = '' }: NodeViewProps): NodeViewResult {
   // Compute section visibility from mode flags and explicit overrides
   const showBanner = hideBanner !== undefined ? !hideBanner : !sidebarMode;
   const showPageHeader = hidePageHeader !== undefined ? !hidePageHeader : !sidebarMode;
@@ -350,7 +350,7 @@ export function NodeView({
   // Fetch the node — include properties/backlinks if we're showing properties or queries
   // staleTime: 0 ensures we always get fresh metadata (classes, tags, aliases) when
   // navigating, avoiding stale cache from placeholderData or previous incomplete loads.
-  const { data: node, isLoading, error } = useNode(nodeId, { 
+  const { data: node, isLoading, error } = useNode(nodeUuid, { 
     include_children: true, 
     include_properties: showProperties || showQueries,
     include_backlinks: showProperties || showQueries,
@@ -360,9 +360,9 @@ export function NodeView({
   // Hooks (needed for page header sections)
   const { data: allClasses } = useClasses();
   const { data: allTags } = useTags();
-  const { data: aliasedNodeData } = useNode(node?.aliased_id ?? null);
+  const { data: aliasedNodeData } = useNode(node?.aliased_uuid ?? null);
   const { data: allProperties } = useProperties();
-  const { pageClassId } = usePageClass();
+  const { pageClassUuid } = usePageClass();
   const { addSidebarCard, openNode, openPropertyView, currentPropertyContext } = useNavigationStore(
     useShallow((state) => ({
       addSidebarCard: state.addSidebarCard,
@@ -374,6 +374,7 @@ export function NodeView({
   const contentDisplayMode = useAppStore((state) => state.contentDisplayMode);
   const isMobile = useIsMobile();
   const { canWrite: workspaceCanWrite, canCreate: workspaceCanCreate, isOwner } = useEffectiveNodePermissions(node);
+  useFoldKeyboardShortcut(workspaceCanWrite);
   const { navigateToNode } = useNodeNavigation();
   const updateNode = useUpdateNode();
   const removeClass = useRemoveClass();
@@ -387,7 +388,7 @@ export function NodeView({
   // Property popup state
   const [showPropertyPopup, setShowPropertyPopup] = useState(false);
   // When set, the property popup targets a specific block; otherwise the current node
-  const [propertyTargetNodeId, setPropertyTargetNodeId] = useState<number | null>(null);
+  const [propertyTargetNodeId, setPropertyTargetNodeId] = useState<string | null>(null);
   
   const navigateToDay = useCallback(async (dateStr: string) => {
     const date = new Date(dateStr);
@@ -404,31 +405,31 @@ export function NodeView({
   // Resolve page class details from IDs (excluding the implicit "page" class)
   // For system classes (like "day", "month", etc.), we show their "class" class but make it non-removable
   // For aliases, inherit classes from the aliased (main) node
-  const isAlias = !!node?.aliased_id;
+  const isAlias = !!node?.aliased_uuid;
   const aliasedNode = useMemo(() => {
-    if (!isAlias || !node?.aliased_id) return null;
+    if (!isAlias || !node?.aliased_uuid) return null;
     return aliasedNodeData ?? null;
-  }, [isAlias, node?.aliased_id, aliasedNodeData]);
-  const effectiveClasses = isAlias ? (aliasedNode?.classes ?? []) : node?.classes;
+  }, [isAlias, node?.aliased_uuid, aliasedNodeData]);
+  const effectiveClasses = isAlias ? (aliasedNode?.classes_uuid ?? []) : node?.classes_uuid;
   const pageClassDetails = useResolvedClassDetails(effectiveClasses);
   
   // Resolve page tag details from IDs (excluding class definitions)
   const pageTagDetails = useMemo(() => {
-    if (!node?.tags || node.tags.length === 0) return [];
-    return node.tags
-      .map(tagId => allTags?.find(t => t.id === tagId))
+    if (!node?.tags_uuid || node.tags_uuid.length === 0) return [];
+    return node.tags_uuid
+      .map(tagId => allTags?.find(t => t.uuid === tagId))
       .filter((t): t is Node => {
         if (t === undefined) return false;
         // Hide class definitions (they shouldn't show as tags)
         if (t.is_class) return false;
         return true;
       });
-  }, [node?.tags, allTags]);
+  }, [node?.tags_uuid, allTags]);
   
   // Handle adding a class via NodeSelector
   const handleAddClass = useCallback((classNode: Node) => {
     if (!node) return;
-    addClass.mutate({ nodeId: node.id, classId: classNode.id });
+    addClass.mutate({ nodeUuid: node.uuid, classId: classNode.uuid });
   }, [node, addClass]);
   
   // Handle creating a new class via NodeSelector
@@ -438,14 +439,14 @@ export function NodeView({
     const pageClass = allClasses?.find(t => t.uuid === SYSTEM_CLASS_UUIDS.page);
     
     // Create with Page and Class classes - backend will compute is_page and is_class flags
-    const classes = [];
-    if (pageClass) classes.push(pageClass.id);
-    if (classClass) classes.push(classClass.id);
-    
-    createNode.mutate({ name, classes }, {
+    const classUuids = [];
+    if (pageClass) classUuids.push(pageClass.uuid);
+    if (classClass) classUuids.push(classClass.uuid);
+
+    createNode.mutate({ name, class_uuids: classUuids }, {
       onSuccess: (newPage) => {
         // Add the new class to the current node
-        addClass.mutate({ nodeId: node.id, classId: newPage.id });
+        addClass.mutate({ nodeUuid: node.uuid, classId: newPage.uuid });
       }
     });
   }, [node, createNode, addClass, allClasses]);
@@ -453,7 +454,7 @@ export function NodeView({
   // Handle removing a class via NodeSelector
   const handleRemoveClass = useCallback((classNode: Node) => {
     if (!node) return;
-    removeClass.mutate({ nodeId: node.id, classId: classNode.id });
+    removeClass.mutate({ nodeUuid: node.uuid, classId: classNode.uuid });
   }, [node, removeClass]);
 
   // Handle converting an existing page to a class by adding the "class" class to it
@@ -462,41 +463,41 @@ export function NodeView({
     const classClass = allClasses?.find(t => t.uuid === SYSTEM_CLASS_UUIDS.class);
     if (!classClass) return;
     // Add the "class" class to the target page, then add it to the current node
-    addClass.mutate({ nodeId: pageNode.id, classId: classClass.id }, {
+    addClass.mutate({ nodeUuid: pageNode.uuid, classId: classClass.uuid }, {
       onSuccess: () => {
-        addClass.mutate({ nodeId: node.id, classId: pageNode.id });
+        addClass.mutate({ nodeUuid: node.uuid, classId: pageNode.uuid });
       }
     });
   }, [node, addClass, allClasses]);
   
   // Navigate to the destination page after a page has been converted to a block
   const handleConvertedToBlock = useCallback((converted: Node) => {
-    if (converted.page_id) {
-      openNodeAction(converted.page_id);
+    if (converted.page_uuid) {
+      openNodeAction(converted.page_uuid);
     }
   }, [openNodeAction]);
 
   // Handle adding a tag via NodeSelector
   const handleAddTag = useCallback((tagNode: Node) => {
     if (!node) return;
-    addTag.mutate({ nodeId: node.id, tagId: tagNode.id });
+    addTag.mutate({ nodeUuid: node.uuid, tagId: tagNode.uuid });
   }, [node, addTag]);
   
   // Handle creating a new tag via NodeSelector
   const handleCreateTag = useCallback((name: string) => {
-    if (!node || !pageClassId) return;
+    if (!node || !pageClassUuid) return;
     // Create as a page (tags are just pages linked to nodes)
-    createNode.mutate({ name, classes: [pageClassId] }, {
+    createNode.mutate({ name, class_uuids: [pageClassUuid] }, {
       onSuccess: (newPage) => {
-        addTag.mutate({ nodeId: node.id, tagId: newPage.id });
+        addTag.mutate({ nodeUuid: node.uuid, tagId: newPage.uuid });
       }
     });
-  }, [node, createNode, addTag, pageClassId]);
+  }, [node, createNode, addTag, pageClassUuid]);
   
   // Handle removing a tag via NodeSelector
   const handleRemoveTag = useCallback((tagNode: Node) => {
     if (!node) return;
-    removeTag.mutate({ nodeId: node.id, tagId: tagNode.id });
+    removeTag.mutate({ nodeUuid: node.uuid, tagId: tagNode.uuid });
   }, [node, removeTag]);
 
   // ---- Alias support ----
@@ -504,39 +505,39 @@ export function NodeView({
   const removeAlias = useRemoveAlias();
   
   // Fetch alias nodes directly (allNodes excludes aliased pages)
-  const { data: pageAliasDetailsRaw = [] } = usePageAliases(nodeId, {
+  const { data: pageAliasDetailsRaw = [] } = usePageAliases(nodeUuid, {
     // Always fetch for main pages — don't gate on node.aliases because it can
     // be stale (default staleTime is 5 min) and miss recently-added aliases.
-    enabled: !!nodeId && node?.is_page === true && !node?.aliased_id,
+    enabled: !!nodeUuid && node?.is_page === true && !node?.aliased_uuid,
   });
 
   // Defensive: filter out any self-referencing aliases that may have been
   // created by old bugs or cache corruption.
   const pageAliasDetails = useMemo(
-    () => pageAliasDetailsRaw.filter((a) => a.id !== nodeId),
-    [pageAliasDetailsRaw, nodeId]
+    () => pageAliasDetailsRaw.filter((a) => a.uuid !== nodeUuid),
+    [pageAliasDetailsRaw, nodeUuid]
   );
 
   // Handle adding an alias via NodeSelector
   const handleAddAlias = useCallback((aliasNode: Node) => {
     if (!node) return;
-    if (aliasNode.id === node.id) {
+    if (aliasNode.uuid === node.uuid) {
       console.warn('Cannot add a node as an alias of itself');
       return;
     }
-    addAlias.mutate({ nodeId: node.id, aliasNodeId: aliasNode.id });
+    addAlias.mutate({ nodeUuid: node.uuid, aliasNodeUuid: aliasNode.uuid });
   }, [node, addAlias]);
 
   // Handle removing an alias via NodeSelector
   const handleRemoveAlias = useCallback((aliasNode: Node) => {
     if (!node) return;
-    removeAlias.mutate({ nodeId: node.id, aliasId: aliasNode.id });
+    removeAlias.mutate({ nodeUuid: node.uuid, aliasNodeUuid: aliasNode.uuid });
   }, [node, removeAlias]);
 
   // Register toggle-private command for command palette
   const togglePrivate = useCallback(() => {
     if (!node || !isOwner) return;
-    updateNode.mutate({ id: node.id, data: { is_private: !node.is_private } });
+    updateNode.mutate({ nodeUuid: node.uuid, data: { is_private: !node.is_private } });
   }, [node, isOwner, updateNode]);
 
   useCommand(
@@ -550,8 +551,8 @@ export function NodeView({
     }
   );
   
-  const handleNavigateToNode = useCallback((id: number) => {
-    openNode(id);
+  const handleNavigateToNode = useCallback((nodeUuid: string) => {
+    openNode(nodeUuid);
   }, [openNode]);
 
   // Handle navigating to an alias node (skip redirection to show the alias itself)
@@ -562,7 +563,7 @@ export function NodeView({
   // Handler for selecting an existing property to add
   const handleSelectProperty = useCallback((property: Property) => {
     if (!node) return;
-    const targetNodeId = propertyTargetNodeId ?? node.id;
+    const targetNodeId = propertyTargetNodeId ?? node.uuid;
     
     // Set a default value based on property type
     const renderer = getPropertyValueRenderer(property.type);
@@ -570,7 +571,7 @@ export function NodeView({
     if (defaultValue === null || defaultValue === undefined) {
       defaultValue = '';
     }
-    setPropertyMutation.mutate({ nodeId: targetNodeId, propertyId: property.id, value: defaultValue });
+    setPropertyMutation.mutate({ nodeUuid: targetNodeId, propertyId: property.uuid, value: defaultValue });
     setShowPropertyPopup(false);
     setPropertyTargetNodeId(null);
   }, [node, propertyTargetNodeId, setPropertyMutation]);
@@ -579,14 +580,14 @@ export function NodeView({
   const handleCreateNewProperty = useCallback((data: PropertyCreate & { selection_options?: { name: string; icon?: string }[] }) => {
     if (!node) return;
     setShowPropertyPopup(false);
-    const targetNodeId = propertyTargetNodeId ?? node.id;
+    const targetNodeId = propertyTargetNodeId ?? node.uuid;
     setPropertyTargetNodeId(null);
     
     createPropertyMutation.mutate(data, {
       onSuccess: async (newProperty) => {
         // Add the property to the target node with appropriate default value
         const defaultValue = newProperty.type === 'boolean' ? 'false' : '';
-        setPropertyMutation.mutate({ nodeId: targetNodeId, propertyId: newProperty.id, value: defaultValue });
+        setPropertyMutation.mutate({ nodeUuid: targetNodeId, propertyId: newProperty.uuid, value: defaultValue });
       },
     });
   }, [node, propertyTargetNodeId, createPropertyMutation, setPropertyMutation]);
@@ -596,7 +597,7 @@ export function NodeView({
     if (!node) return;
     
     // Try to detect the focused block from the DOM
-    let targetId: number | null = null;
+    let targetId: string | null = null;
     const active = document.activeElement;
     if (active) {
       const blockEl = active.closest('[data-block-id]') as HTMLElement | null;
@@ -605,28 +606,28 @@ export function NodeView({
         if (blockId) {
           const runtime = getOperationRuntime();
           const graphNode = getNode(runtime, blockId);
-          if (graphNode?.serverId) {
-            targetId = graphNode.serverId;
+          if (graphNode?.blockId) {
+            targetId = graphNode.blockId;
           }
         }
       }
     }
     
     // Use detected block, or fall back to current node
-    setPropertyTargetNodeId(targetId ?? node.id);
+    setPropertyTargetNodeId(targetId ?? node.uuid);
     setShowPropertyPopup(true);
   });
   
   // Handle color change for class/tag nodes via NodeSelector
   const handleNodeColorChange = useCallback((targetNode: Node, color: string | null) => {
-    updateNode.mutate({ id: targetNode.id, data: { color } });
+    updateNode.mutate({ nodeUuid: targetNode.uuid, data: { color } });
   }, [updateNode]);
 
   // Handle adding an extends (inheritance) relationship
   const addClassExtends = useAddClassExtends();
   const handleAddExtends = useCallback((extendsClass: Node) => {
     if (!node) return;
-    addClassExtends.mutate({ classId: node.id, extendsClassId: extendsClass.id });
+    addClassExtends.mutate({ classId: node.uuid, extendsClassId: extendsClass.uuid });
   }, [node, addClassExtends]);
 
   // Handle creating a new class and adding it as extends
@@ -636,13 +637,13 @@ export function NodeView({
     const pageClass = allClasses?.find(t => t.uuid === SYSTEM_CLASS_UUIDS.page);
     
     // Create with Page and Class classes
-    const classes = [];
-    if (pageClass) classes.push(pageClass.id);
-    if (classClass) classes.push(classClass.id);
-    
-    createNode.mutate({ name, classes }, {
+    const classUuids = [];
+    if (pageClass) classUuids.push(pageClass.uuid);
+    if (classClass) classUuids.push(classClass.uuid);
+
+    createNode.mutate({ name, class_uuids: classUuids }, {
       onSuccess: (newClass) => {
-        addClassExtends.mutate({ classId: node.id, extendsClassId: newClass.id });
+        addClassExtends.mutate({ classId: node.uuid, extendsClassId: newClass.uuid });
       }
     });
   }, [node, createNode, addClassExtends, allClasses]);
@@ -651,18 +652,18 @@ export function NodeView({
   const removeClassExtends = useRemoveClassExtends();
   const handleRemoveExtends = useCallback((extendsClass: Node) => {
     if (!node) return;
-    removeClassExtends.mutate({ classId: node.id, extendsClassId: extendsClass.id });
+    removeClassExtends.mutate({ classId: node.uuid, extendsClassId: extendsClass.uuid });
   }, [node, removeClassExtends]);
 
   // Fetch class extends (inheritance) data for classes
-  const { data: extendsData } = useClassExtends(node?.is_class ? node.id : null);
+  const { data: extendsData } = useClassExtends(node?.is_class ? node.uuid : null);
 
   // Resolve extends details from IDs.
   // allClasses is unpaginated and contains all class nodes.
   const extendsDetails = useMemo(() => {
     if (!extendsData || extendsData.length === 0) return [];
     return extendsData
-      .map(ext => allClasses?.find(n => n.id === ext.extends_class_node_id))
+      .map(ext => allClasses?.find(n => n.uuid === ext.extends_class_node_uuid))
       .filter((n): n is Node => n !== undefined);
   }, [extendsData, allClasses]);
   
@@ -670,7 +671,7 @@ export function NodeView({
   const { data: classedNodes } = useNodesWithClass(showQueries ? (node?.uuid ?? null) : null);
   
   // Section metadata hooks — skip if queries are hidden to avoid API calls
-  useLinkedReferencesCount(showQueries ? nodeId : 0);
+  useLinkedReferencesCount(showQueries ? nodeUuid : null);
   
   // Context menu state
   const [showContextMenu, setShowContextMenu] = useState(false);
@@ -695,7 +696,7 @@ export function NodeView({
   // Auto-enable lightweight live sync when viewing a page in the main content pane
   const liveSyncStatus = useLivePageSync({
     nodeUuid: node?.is_page ? node?.uuid ?? null : null,
-    pageId: node?.id ?? null,
+    pageId: node?.uuid ?? null,
     enabled: liveSync,
   });
   
@@ -705,7 +706,7 @@ export function NodeView({
   // A node is a "class node" if it's in the classes list OR has nodes using it as their class
   const isClassNode = useMemo(() => {
     if (!node) return false;
-    return (allClasses?.some(t => t.id === node.id) || (classedNodes && classedNodes.length > 0)) ?? false;
+    return (allClasses?.some(t => t.uuid === node.uuid) || (classedNodes && classedNodes.length > 0)) ?? false;
   }, [node, allClasses, classedNodes]);
   
   // Find the cover property by UUID
@@ -715,10 +716,10 @@ export function NodeView({
   
   // Get cover image ID from properties
   const coverImageId = useMemo(() => {
-    if (!coverProperty?.id) return null;
-    const coverValue = node?.properties?.[coverProperty.id];
-    return typeof coverValue === 'number' ? coverValue : null;
-  }, [node?.properties, coverProperty?.id]);
+    if (!coverProperty?.uuid) return null;
+    const coverValue = node?.properties_uuid?.[coverProperty.uuid];
+    return typeof coverValue === 'string' ? coverValue : null;
+  }, [node?.properties_uuid, coverProperty?.uuid]);
   
   // Find the banner property by UUID
   const bannerProperty = useMemo(() => {
@@ -727,26 +728,26 @@ export function NodeView({
   
   // Get banner image ID from properties
   const bannerImageId = useMemo(() => {
-    if (!bannerProperty?.id) return null;
-    const bannerValue = node?.properties?.[bannerProperty.id];
-    return typeof bannerValue === 'number' ? bannerValue : null;
-  }, [node?.properties, bannerProperty?.id]);
+    if (!bannerProperty?.uuid) return null;
+    const bannerValue = node?.properties_uuid?.[bannerProperty.uuid];
+    return typeof bannerValue === 'string' ? bannerValue : null;
+  }, [node?.properties_uuid, bannerProperty?.uuid]);
   
   // Initialize and persist collapse states
   React.useEffect(() => {
-    if (node?.id) {
-      setIsBannerCollapsed(getCollapsedState(BANNER_COLLAPSED_KEY, node.id, !!bannerImageId));
+    if (node?.uuid) {
+      setIsBannerCollapsed(getCollapsedState(BANNER_COLLAPSED_KEY, node.uuid, !!bannerImageId));
       // Cover: derive from whether a cover image is set. No per-node persistence.
       setIsCoverCollapsed(!coverImageId);
     }
-  }, [node?.id, bannerImageId, coverImageId]);
+  }, [node?.uuid, bannerImageId, coverImageId]);
   
   // Collapse handlers
   const handleToggleBannerCollapse = useCallback(() => {
     if (!node) return;
     setIsBannerCollapsed(prev => {
       const newState = !prev;
-      setCollapsedState(BANNER_COLLAPSED_KEY, node.id, newState);
+      setCollapsedState(BANNER_COLLAPSED_KEY, node.uuid, newState);
       return newState;
     });
   }, [node]);
@@ -760,8 +761,8 @@ export function NodeView({
   const handleRemoveBanner = useCallback(() => {
     if (!bannerProperty || !node) return;
     setPropertyMutation.mutate({
-      nodeId: node.id,
-      propertyId: bannerProperty.id,
+      nodeUuid: node.uuid,
+      propertyId: bannerProperty.uuid,
       value: null
     });
   }, [node, bannerProperty, setPropertyMutation]);
@@ -770,8 +771,8 @@ export function NodeView({
   const handleRemoveCover = useCallback(() => {
     if (!coverProperty || !node) return;
     setPropertyMutation.mutate({
-      nodeId: node.id,
-      propertyId: coverProperty.id,
+      nodeUuid: node.uuid,
+      propertyId: coverProperty.uuid,
       value: null
     });
   }, [node, coverProperty, setPropertyMutation]);
@@ -801,13 +802,13 @@ export function NodeView({
       if (result) {
         const asset = await uploadAsset(result.file);
         setPropertyMutation.mutate({
-          nodeId: node.id,
-          propertyId: bannerProperty.id,
+          nodeUuid: node.uuid,
+          propertyId: bannerProperty.uuid,
           value: asset.node_id
         });
         if (isBannerCollapsed) {
           setIsBannerCollapsed(false);
-          setCollapsedState(BANNER_COLLAPSED_KEY, node.id, false);
+          setCollapsedState(BANNER_COLLAPSED_KEY, node.uuid, false);
         }
       }
     } catch (error) {
@@ -840,8 +841,8 @@ export function NodeView({
       if (result) {
         const asset = await uploadAsset(result.file);
         setPropertyMutation.mutate({
-          nodeId: node.id,
-          propertyId: coverProperty.id,
+          nodeUuid: node.uuid,
+          propertyId: coverProperty.uuid,
           value: asset.node_id
         });
         if (isCoverCollapsed) {
@@ -855,27 +856,27 @@ export function NodeView({
   
   // Collect block IDs that are referenced by text properties (these should not appear in content)
   const textPropertyBlockIds = useMemo(() => {
-    if (!node?.properties || !allProperties) return new Set<number>();
+    if (!node?.properties_uuid || !allProperties) return new Set<string>();
     
-    const blockIds = new Set<number>();
-    const nodeProps = node.properties as Record<number, unknown>;
-    
+    const blockIds = new Set<string>();
+    const nodeProps = node.properties_uuid as Record<string, unknown>;
+
     for (const prop of allProperties) {
       if (prop.type === 'text') {
-        const value = nodeProps[prop.id];
-        if (typeof value === 'number') {
+        const value = nodeProps[prop.uuid];
+        if (typeof value === 'string') {
           blockIds.add(value);
         } else if (Array.isArray(value)) {
           // Multi-value text properties store an array of block IDs
           for (const v of value) {
-            if (typeof v === 'number') blockIds.add(v);
+            if (typeof v === 'string') blockIds.add(v);
           }
         }
       }
     }
     
     return blockIds;
-  }, [node?.properties, allProperties]);
+  }, [node?.properties_uuid, allProperties]);
   
   // Separate block children from page children
   const { blockChildren } = useMemo(() => {
@@ -886,13 +887,13 @@ export function NodeView({
     
     for (const child of node.children) {
       // Skip children with this node as their class (they appear in classed_nodes view)
-      if (child.classes?.includes(node.id)) continue;
+      if (child.classes_uuid?.includes(node.uuid)) continue;
       
       // Skip comment blocks (they appear in the comments sidebar section)
       if (child.is_comment) continue;
       
       // Skip blocks that are referenced by text properties (they appear in PropertiesSection)
-      if (textPropertyBlockIds.has(child.id)) continue;
+      if (textPropertyBlockIds.has(child.uuid)) continue;
       
       if (child.is_page) {
         pages.push(child);
@@ -902,7 +903,7 @@ export function NodeView({
     }
     
     return { blockChildren: blocks, pageChildren: pages };
-  }, [node?.children, node?.id, textPropertyBlockIds]);
+  }, [node?.children, node?.uuid, textPropertyBlockIds]);
   
   // Context menu handlers
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
@@ -936,8 +937,8 @@ export function NodeView({
     setIsCoverImagePickerOpen(false);
     if (coverProperty && 'node_id' in asset && asset.node_id && node) {
       setPropertyMutation.mutate({
-        nodeId: node.id,
-        propertyId: coverProperty.id,
+        nodeUuid: node.uuid,
+        propertyId: coverProperty.uuid,
         value: asset.node_id
       });
     }
@@ -955,8 +956,8 @@ export function NodeView({
     setIsBannerImagePickerOpen(false);
     if (bannerProperty && 'node_id' in asset && asset.node_id && node) {
       setPropertyMutation.mutate({
-        nodeId: node.id,
-        propertyId: bannerProperty.id,
+        nodeUuid: node.uuid,
+        propertyId: bannerProperty.uuid,
         value: asset.node_id
       });
     }
@@ -995,11 +996,11 @@ export function NodeView({
       focusMode={isFocusMode}
       left={
         <NodeBreadcrumbs
-          nodeId={nodeId}
+          nodeUuid={nodeUuid}
           nodeType={resolvedType}
           onNavigate={(id) => openNode(id)}
           onNavigateToProperty={(id) => openPropertyView(id)}
-          propertyContext={currentPropertyContext as unknown as { propertyId: number; propertyName: string } | null}
+          propertyContext={currentPropertyContext as unknown as { propertyId: string; propertyName: string } | null}
           parentLocked={node.parent_locked}
           editable={!isAlias}
           inHeader
@@ -1278,7 +1279,7 @@ export function NodeView({
           {showProperties && (
             <div className="page-properties-section">
               <PropertiesSection
-                nodeId={node.id}
+                nodeUuid={node.uuid}
                 showHiddenSection={true}
                 showAddProperty={true}
                 isMainNode={true}
@@ -1293,7 +1294,7 @@ export function NodeView({
           {showProperties && node.is_task && (
             <div className="page-recurrence-section">
               <TaskRecurrenceSection
-                nodeId={node.uuid}
+                nodeUuid={node.uuid}
                 readOnly={!workspaceCanWrite}
               />
             </div>
@@ -1321,7 +1322,7 @@ export function NodeView({
       
       {/* Class properties definition - only for class nodes (pages used as classes) */}
       {isClassNode && resolvedType === 'page' && (
-        <ClassPropertiesEditor classNodeId={node.id} defaultExpanded={false} />
+        <ClassPropertiesEditor classNodeUuid={node.uuid} defaultExpanded={false} />
       )}
       
       {/* Node Content - Children blocks (pages only, blocks use focused block view) */}
@@ -1354,7 +1355,6 @@ export function NodeView({
           {/* Extended By section - shows classes that extend this class (class nodes only) */}
           {isClassNode && (
             <QuerySection
-              nodeId={node.id}
               nodeUuid={node.uuid}
               nodeName={node.name}
               viewType="extended_by"
@@ -1375,7 +1375,6 @@ export function NodeView({
           {/* Show nodes that have this node as their class - only for class nodes */}
           {isClassNode && (
             <QuerySection
-              nodeId={node.id}
               nodeUuid={node.uuid}
               nodeName={node.name}
               viewType="classed_nodes"
@@ -1394,7 +1393,6 @@ export function NodeView({
           {/* Child pages section - shows pages that have this node as parent (pages only) */}
           {resolvedType === 'page' && (
             <QuerySection
-              nodeId={node.id}
               nodeUuid={node.uuid}
               nodeName={node.name}
               viewType="child_pages"
@@ -1415,7 +1413,6 @@ export function NodeView({
           {isDayUuid(node.uuid) && (
             <>
               <QuerySection
-                nodeId={node.id}
                 nodeUuid={node.uuid}
                 nodeName={node.name}
                 viewType="classed_nodes"
@@ -1433,7 +1430,6 @@ export function NodeView({
               />
               {node.uuid === getTodayDayUuid() && (
                 <QuerySection
-                  nodeId={node.id}
                   nodeUuid={node.uuid}
                   nodeName={node.name}
                   viewType="classed_nodes"
@@ -1455,7 +1451,6 @@ export function NodeView({
           
           {/* Linked References - shows all references to this node (universal for all nodes) */}
           <QuerySection
-            nodeId={node.id}
             nodeUuid={node.uuid}
             nodeName={node.name}
             viewType="linked_references"
@@ -1472,15 +1467,15 @@ export function NodeView({
           {/* Unlinked Mentions - occurrences of this page's name that are not yet links */}
           {resolvedType === 'page' && (
             <UnlinkedMentionsSection
-              nodeId={node.id}
+              nodeUuid={node.uuid}
               defaultExpanded={false}
               onNodeClick={(targetNodeId) => openNode(targetNodeId)}
             />
           )}
-          
+
           {/* Activity Log — chronological history of edits, links, property changes */}
           <NodeActivityLogSection
-            nodeId={node.id}
+            nodeUuid={node.uuid}
             defaultExpanded={false}
             variant={sectionVariant}
             focusMode={isFocusMode}

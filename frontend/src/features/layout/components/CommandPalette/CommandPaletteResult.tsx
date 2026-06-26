@@ -13,7 +13,7 @@ interface ResultItemProps {
   onClick: () => void;
   allNodes?: Node[];
   allClasses?: Node[];
-  pageClassId?: number | null;
+  pageClassUuid?: string | null;
   searchTerm?: string;
   id?: string;
 }
@@ -27,15 +27,15 @@ export function ResultItem({
   onClick,
   allNodes,
   allClasses,
-  pageClassId,
+  pageClassUuid,
   searchTerm = '',
   id,
 }: ResultItemProps) {
   const ref = useRef<HTMLButtonElement>(null);
 
   // Resolve aliased node name if this node is an alias
-  const aliasedNodeName = result.node?.aliased_id && allNodes
-    ? nodeNameToText(allNodes.find(n => n.id === result.node?.aliased_id)?.name) || null
+  const aliasedNodeName = result.node?.aliased_uuid && allNodes
+    ? nodeNameToText(allNodes.find(n => n.uuid === result.node?.aliased_uuid)?.name) || null
     : null;
 
   // Scroll into view when selected
@@ -80,11 +80,11 @@ export function ResultItem({
   // Handle node results
   if (!result.node) return null;
 
-  const displayClasses = (result.node.classes ?? [])
-    .filter(cid => cid !== pageClassId)
-    .map(cid => allClasses?.find(c => c.id === cid))
+  const displayClasses = (result.node.classes_uuid ?? [])
+    .filter(uuid => uuid !== pageClassUuid)
+    .map(uuid => allClasses?.find(c => c.uuid === uuid))
     .filter((c): c is Node => c !== undefined)
-    .map(c => ({ id: c.id, name: nodeNameToText(c.name) }))
+    .map(c => ({ id: c.uuid, name: nodeNameToText(c.name) }))
     .filter(cls => cls.name);
 
   return (

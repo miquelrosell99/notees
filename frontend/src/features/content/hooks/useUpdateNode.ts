@@ -11,19 +11,17 @@ import type { NodeUpdate, Node } from '@/types/api';
 import { nodeKeys } from '@/hooks/queryKeys';
 import { nodeViewKeys } from './useNodeViews';
 import { scheduleAutoExport } from '@/utils/autoExport';
-import { invalidateNodeCaches, findNodeInCache, getRuntimeBlockIdForServerId, applyNodeIntent, getNodeUuidByServerId } from './useNodeMutations.utils';
+import { invalidateNodeCaches, findNodeInCache, getRuntimeBlockIdForServerId, applyNodeIntent } from './useNodeMutations.utils';
 import { waitForOperationAck } from '@/sync/waitForOperation';
 import type { GraphNode } from '@/runtime/types';
 
 export function useUpdateNode() {
   const queryClient = useQueryClient();
 
-  return useMutation<Node | null, Error, { id: number; data: NodeUpdate }>({
-    mutationFn: async ({ id, data }) => {
-      const blockId = getRuntimeBlockIdForServerId(id);
+  return useMutation<Node | null, Error, { nodeUuid: string; data: NodeUpdate }>({
+    mutationFn: async ({ nodeUuid, data }) => {
+      const blockId = getRuntimeBlockIdForServerId(nodeUuid);
       if (!blockId) {
-        const nodeUuid = getNodeUuidByServerId(queryClient, id);
-        if (!nodeUuid) throw new Error('Node UUID not found');
         return nodesApi.updateNode(nodeUuid, data);
       }
 
@@ -38,11 +36,11 @@ export function useUpdateNode() {
 
       const operationId = applyNodeIntent({ type: 'update_node', blockId, updates });
       await waitForOperationAck(operationId);
-      return findNodeInCache(queryClient, id);
+      return findNodeInCache(queryClient, nodeUuid);
     },
     onSuccess: (updatedNode, variables) => {
-      const { id, data } = variables;
-      const cachedNode = updatedNode ?? findNodeInCache(queryClient, id);
+      const { nodeUuid, data } = variables;
+      const cachedNode = updatedNode ?? findNodeInCache(queryClient, nodeUuid);
 
       // Only invalidate lists/pages if fields that affect display changed
       const displayFieldsChanged =
@@ -53,7 +51,7 @@ export function useUpdateNode() {
 
       if (displayFieldsChanged && cachedNode) {
         invalidateNodeCaches(queryClient, {
-          nodeId: id,
+          nodeUuid: nodeUuid,
           lists: true,
           pages: true,
           search: true,
@@ -71,31 +69,31 @@ export function useUpdateNode() {
       // Invalidate inline classes query to update pill display (only if color changed)
       if (data.color !== undefined) {
         queryClient.invalidateQueries({
-          queryKey: nodeKeys.inlineClasses(id),
+          queryKey: nodeKeys.inlineClasses(nodeUuid),
           refetchType: 'none',
         });
       }
 
-      // If parent_id was updated, invalidate parent's view queries
-      if (data.parent_id !== undefined) {
-        const newParentId = data.parent_id;
+      // If parent_uuid was updated, invalidate parent's view queries
+      if (data.parent_uuid !== undefined) {
+        const newParentUuid = data.parent_uuid;
 
-        if (newParentId) {
+        if (newParentUuid) {
           queryClient.invalidateQueries({
             queryKey: nodeViewKeys.queryResults(),
             refetchType: 'none',
           });
         }
 
-        const oldParentId = cachedNode?.parent_id;
-        if (oldParentId && oldParentId !== newParentId) {
+        const oldParentUuid = cachedNode?.parent_uuid;
+        if (oldParentUuid && oldParentUuid !== newParentUuid) {
           queryClient.invalidateQueries({
             queryKey: nodeViewKeys.queryResults(),
             refetchType: 'none',
           });
         }
 
-        queryClient.invalidateQueries({ queryKey: nodeKeys.breadcrumbs(id) });
+        queryClient.invalidateQueries({ queryKey: nodeKeys.breadcrumbs(nodeUuid) });
         queryClient.invalidateQueries({ queryKey: nodeKeys.pages(), refetchType: 'none' });
         queryClient.invalidateQueries({ queryKey: nodeKeys.searchAll(), refetchType: 'none' });
       }
@@ -115,16 +113,16 @@ export function useUpdateNode() {
           queryClient.invalidateQueries({ queryKey: nodeKeys.classes() });
         }
 
-        if (cachedNode.page_id) {
-          invalidateNodeCaches(queryClient, { nodeId: cachedNode.page_id });
-        } else if (cachedNode.parent_id) {
-          invalidateNodeCaches(queryClient, { nodeId: cachedNode.parent_id });
+        if (cachedNode.page_uuid) {
+          invalidateNodeCaches(queryClient, { nodeUuid: cachedNode.page_uuid });
+        } else if (cachedNode.parent_uuid) {
+          invalidateNodeCaches(queryClient, { nodeUuid: cachedNode.parent_uuid });
         }
 
         if (cachedNode.is_page && cachedNode.uuid) {
           scheduleAutoExport(cachedNode.uuid);
-        } else if (cachedNode.page_id) {
-          const pageNode = findNodeInCache(queryClient, cachedNode.page_id);
+        } else if (cachedNode.page_uuid) {
+          const pageNode = findNodeInCache(queryClient, cachedNode.page_uuid);
           if (pageNode?.uuid) {
             scheduleAutoExport(pageNode.uuid);
           }
@@ -134,7 +132,7 @@ export function useUpdateNode() {
     onError: (error: Error & { response?: { status: number } }, variables) => {
       if (error.response?.status === 409) {
         console.warn('[useUpdateNode] Conflict detected - node was modified by another user/session');
-        queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(variables.id) });
+        queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(variables.nodeUuid) });
         console.error('Conflict: The node was modified by another user. Please refresh and try again.');
       }
     },

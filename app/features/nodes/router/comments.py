@@ -124,10 +124,6 @@ async def create_comment(
     # Determine the actual parent (target node or parent comment for replies)
     actual_parent_id = node_id
     parent_comment_uuid = request.parent_comment_uuid
-    if parent_comment_uuid is None and request.parent_comment_id is not None:
-        parent_comment_node = await repo.get_by_id(request.parent_comment_id)
-        if parent_comment_node is not None:
-            parent_comment_uuid = parent_comment_node.uuid
     if parent_comment_uuid:
         parent_comment = await repo.get_by_uuid(parent_comment_uuid)
         if not parent_comment or not parent_comment.is_comment or parent_comment.id is None:

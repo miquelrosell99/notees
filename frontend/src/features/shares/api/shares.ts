@@ -20,7 +20,7 @@ export interface SharesResponse {
 
 export interface PublicSharedNode {
   node: {
-    id: number; // deprecated
+    nodeUuid: string; // deprecated
     uuid: string;
     name: string;
     display_name: string;
@@ -43,7 +43,6 @@ export interface PublicSharedNode {
   };
   children: (Omit<PublicSharedNode['node'], 'properties'> & { depth: number })[];
   property_definitions: Array<{
-    id: number; // deprecated
     uuid: string;
     name: string;
     icon: string | null;
@@ -51,16 +50,13 @@ export interface PublicSharedNode {
     multi: boolean;
     is_system: boolean;
     scope: string;
-    node_id: number | null; // deprecated: use node_uuid
     node_uuid: string | null;
     icon_visibility: string;
     validation_rules: Record<string, unknown> | null;
     create_date: string;
     write_date: string;
-    class_filters: number[]; // deprecated: use class_filter_uuids
     class_filter_uuids: string[];
     options: Array<{
-      id: number; // deprecated
       uuid: string;
       name: string;
       icon: string | null;

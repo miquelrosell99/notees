@@ -23,8 +23,8 @@ interface Props {
 
 // ─── Card wrapper — fetches node by numeric ID and renders via NodeCard ─────
 
-const WhiteboardNodeCard: React.FC<{ nodeId: number; element: WhiteboardCardElement; zoom: number }> = ({ nodeId, element, zoom }) => {
-  const { data: node } = useNode(nodeId, { include_children: true });
+const WhiteboardNodeCard: React.FC<{ nodeUuid: string; element: WhiteboardCardElement; zoom: number }> = ({ nodeUuid, element, zoom }) => {
+  const { data: node } = useNode(nodeUuid, { include_children: true });
 
   // Sync node + children into OperationRuntime so BlockEditor can find their content.
   // Mirrors the same useMemo pattern used by CardView.
@@ -92,5 +92,5 @@ const WhiteboardNodeCard: React.FC<{ nodeId: number; element: WhiteboardCardElem
 export const WhiteboardCardRenderer: React.FC<Props> = ({ element, zoom }) => {
   // Block card: use the block's own nodeId
   // Reference card: use the referenced node's nodeId
-  return <WhiteboardNodeCard nodeId={element.nodeId} element={element} zoom={zoom} />;
+  return <WhiteboardNodeCard nodeUuid={element.nodeUuid} element={element} zoom={zoom} />;
 };

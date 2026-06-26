@@ -102,8 +102,10 @@ CREATE TABLE IF NOT EXISTS workspace (
     write_uid INTEGER REFERENCES "user"(id) ON DELETE SET NULL,
     active BOOLEAN DEFAULT TRUE,
     is_shared BOOLEAN DEFAULT FALSE,
+    sync_protocol_version VARCHAR(10) NOT NULL DEFAULT 'v1',
     create_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    write_date TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    write_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT chk_workspace_sync_protocol_version CHECK (sync_protocol_version IN ('v1', 'v2'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_workspace_create_uid ON workspace(create_uid);
@@ -148,7 +150,6 @@ CREATE TABLE IF NOT EXISTS node (
     parent_id INTEGER REFERENCES node(id) ON DELETE SET NULL,
     page_id INTEGER REFERENCES node(id) ON DELETE SET NULL,
     sequence DOUBLE PRECISION DEFAULT 0.0,
-    collapsed BOOLEAN NOT NULL DEFAULT FALSE,
     active BOOLEAN NOT NULL DEFAULT TRUE,
     is_shared BOOLEAN NOT NULL DEFAULT FALSE,
     version INTEGER DEFAULT 1,
@@ -225,6 +226,45 @@ BEGIN
     ) THEN
         ALTER TABLE node ADD COLUMN search_text TEXT;
     END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'node' AND column_name = 'asset_file_id'
+    ) THEN
+        ALTER TABLE node ADD COLUMN asset_file_id INTEGER;
+    END IF;
+END $$;
+
+-- Content-addressed asset files (deduplicated per workspace)
+CREATE TABLE IF NOT EXISTS asset_file (
+    id SERIAL PRIMARY KEY,
+    uuid UUID NOT NULL DEFAULT uuid_generate_v4(),
+    workspace_id INTEGER NOT NULL REFERENCES workspace(id) ON DELETE CASCADE,
+    hash VARCHAR(64) NOT NULL,
+    size_bytes INTEGER NOT NULL,
+    extension VARCHAR(20) NOT NULL,
+    storage_path TEXT NOT NULL,
+    ref_count INTEGER NOT NULL DEFAULT 1,
+    create_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (workspace_id, hash)
+);
+
+CREATE INDEX IF NOT EXISTS idx_asset_file_workspace_hash ON asset_file(workspace_id, hash);
+CREATE INDEX IF NOT EXISTS idx_asset_file_storage_path ON asset_file(storage_path);
+
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'node' AND column_name = 'asset_file_id'
+    ) AND NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints
+        WHERE table_name = 'node' AND constraint_name = 'fk_node_asset_file'
+    ) THEN
+        ALTER TABLE node
+        ADD CONSTRAINT fk_node_asset_file
+        FOREIGN KEY (asset_file_id) REFERENCES asset_file(id) ON DELETE SET NULL;
+    END IF;
 END $$;
 
 -- Node indexes
@@ -235,7 +275,7 @@ CREATE INDEX IF NOT EXISTS idx_node_parent_id ON node(parent_id);
 CREATE INDEX IF NOT EXISTS idx_node_page_id ON node(page_id);
 CREATE INDEX IF NOT EXISTS idx_node_page_sequence ON node(page_id, sequence);
 CREATE INDEX IF NOT EXISTS idx_node_page_content ON node(page_id, sequence)
-INCLUDE (id, uuid, icon, color, parent_id, collapsed, active, class_ids)
+INCLUDE (id, uuid, icon, color, parent_id, active, class_ids)
 WHERE active = TRUE AND is_deleted = FALSE AND is_comment = FALSE;
 CREATE INDEX IF NOT EXISTS idx_node_is_private ON node(workspace_id, is_private) WHERE active = TRUE AND is_deleted = FALSE;
 -- HASH index: node names can be large AST JSON blobs exceeding B-tree's 2704-byte limit.
@@ -826,6 +866,21 @@ CREATE TABLE IF NOT EXISTS node_version (
 
 CREATE INDEX IF NOT EXISTS idx_node_version_node_id ON node_version(node_id);
 CREATE INDEX IF NOT EXISTS idx_node_version_created_at ON node_version(created_at);
+
+-- ============================================================
+-- NODE REVISION VECTORS (v2 sync protocol)
+-- ============================================================
+
+-- Per-node per-client version vectors for the v2 optimistic sync protocol.
+CREATE TABLE IF NOT EXISTS node_revision (
+    node_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
+    client_id TEXT NOT NULL,
+    seq INTEGER NOT NULL,
+    applied_at TIMESTAMPTZ DEFAULT now(),
+    PRIMARY KEY (node_id, client_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_node_revision_node ON node_revision(node_id);
 
 -- Trigger function: capture node content before update (when name or class changes)
 -- (Phase 0: broadened from name-only to catch all meaningful edits)

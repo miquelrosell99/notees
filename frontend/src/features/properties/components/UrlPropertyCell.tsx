@@ -38,14 +38,14 @@ export function UrlPropertyCell({
     if (trimmed === urlValue) return;
     try {
       await setPropertyMutation.mutateAsync({
-        nodeId: node.id,
-        propertyId: property.id,
+        nodeUuid: node.uuid,
+        propertyId: property.uuid,
         value: trimmed || null,
       });
     } catch (error) {
       console.error('Failed to save URL property:', error);
     }
-  }, [editValue, urlValue, node.id, property.id, setPropertyMutation]);
+  }, [editValue, urlValue, node.uuid, property.uuid, setPropertyMutation]);
 
   useEffect(() => {
     if (isEditing && inputRef.current) {

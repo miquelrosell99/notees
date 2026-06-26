@@ -107,8 +107,6 @@ function renderNameInlineNodes(nodes: ASTInlineNode[]): React.ReactNode[] {
 export interface NodeRefProps {
   /** The node to display (if provided, nodeId/nodeUuid are ignored) */
   node?: Node;
-  /** Node ID to fetch by numeric ID (used if node is not provided) */
-  nodeId?: number;
   /** Node UUID to resolve (via ReferencedNodesContext then API fallback). Used by Lexical decorators. */
   nodeUuid?: string;
   /** Display variant: 'default' for class pills, 'link' for inline links, 'inline' for bare icon+text */
@@ -148,13 +146,13 @@ export const NodeRef = memo(function NodeRef(props: NodeRefProps) {
   // Custom comparator: skip re-render when only function props change
   // (all callers use inline callbacks that change every render)
   return (
-    prev.node?.id === next.node?.id &&
+    prev.node?.uuid === next.node?.uuid &&
     prev.node?.name === next.node?.name &&
     prev.node?.color === next.node?.color &&
     prev.node?.icon === next.node?.icon &&
     prev.node?.is_page === next.node?.is_page &&
-    prev.node?.classes?.join(',') === next.node?.classes?.join(',') &&
-    prev.nodeId === next.nodeId &&
+    prev.node?.classes_uuid?.join(',') === next.node?.classes_uuid?.join(',') &&
+    prev.nodeUuid === next.nodeUuid &&
     prev.nodeUuid === next.nodeUuid &&
     prev.variant === next.variant &&
     prev.refType === next.refType &&
@@ -170,17 +168,15 @@ export const NodeRef = memo(function NodeRef(props: NodeRefProps) {
 
 /** Lightweight renderer for Lexical decorator nodes — icon + text only. */
 function NodeRefInline({
-  node: providedNode,
-  nodeId,
-  nodeUuid,
-  refType = 'node',
-  customName,
-}: NodeRefProps) {
+      node: providedNode,
+      nodeUuid,
+      refType = 'node',
+      customName }: NodeRefProps) {
   const depth = useContext(NodeRefDepth);
   const queryClient = useQueryClient();
 
   // Resolve to a UUID for fetching/navigation
-  const resolvedNodeUuid = nodeUuid ?? (nodeId ? getNodeUuidByServerId(queryClient, nodeId) : null);
+  const resolvedNodeUuid = nodeUuid ?? (nodeUuid ? getNodeUuidByServerId(queryClient, nodeUuid) : null);
 
   // Resolve node: provided > uuid context > batched UUID fetch
   const refNode = useReferencedNode(resolvedNodeUuid ?? null);
@@ -246,21 +242,19 @@ function NodeRefInline({
 // ─── Interactive variant (Pill + context menu + navigation) ──────────────
 
 function NodeRefInteractive({
-  node: providedNode,
-  nodeId,
-  nodeUuid,
-  variant = 'default',
-  refType = 'node',
-  editMode = false,
-  clickCount = 0,
-  onClick,
-  onRemove,
-  onColorChange,
-  onEditLink,
-  readOnly = false,
-  className = '',
-  customName,
-}: NodeRefProps) {
+      node: providedNode,
+      nodeUuid,
+      variant = 'default',
+      refType = 'node',
+      editMode = false,
+      clickCount = 0,
+      onClick,
+      onRemove,
+      onColorChange,
+      onEditLink,
+      readOnly = false,
+      className = '',
+      customName }: NodeRefProps) {
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [colorPickerPos, setColorPickerPos] = useState({ x: 0, y: 0 });
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
@@ -275,7 +269,7 @@ function NodeRefInteractive({
   const addSidebarCard = useNavigationStore(s => s.addSidebarCard);
 
   // Resolve to a UUID for fetching/navigation
-  const resolvedNodeUuid = nodeUuid ?? (nodeId ? getNodeUuidByServerId(queryClient, nodeId) : null);
+  const resolvedNodeUuid = nodeUuid ?? (nodeUuid ? getNodeUuidByServerId(queryClient, nodeUuid) : null);
   
   // Batch-fetch when no node is provided
   const refNode = useReferencedNode(resolvedNodeUuid ?? null);

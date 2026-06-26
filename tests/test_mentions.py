@@ -1,6 +1,7 @@
 """Tests for the unlinked mentions index and promote/ignore actions."""
 
 import pytest
+from app.db.schema.constants import SYSTEM_CLASS_UUIDS
 from httpx import AsyncClient
 
 pytestmark = pytest.mark.integration
@@ -16,11 +17,11 @@ class TestUnlinkedMentions:
         test_user: dict,
     ):
         """A block containing a page name should produce an unlinked mention."""
-        page_class_id = test_user["page_class_id"]
+        page_class_uuid = SYSTEM_CLASS_UUIDS["page"]
 
         target = await authenticated_client.post(
             "/api/nodes/",
-            json={"name": "TargetPage", "classes": [page_class_id]},
+            json={"name": "TargetPage", "class_uuids": [page_class_uuid]},
         )
         assert target.status_code == 200
         target_data = target.json()
@@ -28,7 +29,7 @@ class TestUnlinkedMentions:
 
         source = await authenticated_client.post(
             "/api/nodes/",
-            json={"name": "SourcePage", "classes": [page_class_id]},
+            json={"name": "SourcePage", "class_uuids": [page_class_uuid]},
         )
         assert source.status_code == 200
         source_data = source.json()
@@ -59,17 +60,17 @@ class TestUnlinkedMentions:
         test_user: dict,
     ):
         """Promoting a mention should turn it into a real node link."""
-        page_class_id = test_user["page_class_id"]
+        page_class_uuid = SYSTEM_CLASS_UUIDS["page"]
 
         target = await authenticated_client.post(
             "/api/nodes/",
-            json={"name": "TargetPage", "classes": [page_class_id]},
+            json={"name": "TargetPage", "class_uuids": [page_class_uuid]},
         )
         target_uuid = target.json()["uuid"]
 
         source = await authenticated_client.post(
             "/api/nodes/",
-            json={"name": "SourcePage", "classes": [page_class_id]},
+            json={"name": "SourcePage", "class_uuids": [page_class_uuid]},
         )
         source_uuid = source.json()["uuid"]
 
@@ -108,17 +109,17 @@ class TestUnlinkedMentions:
         test_user: dict,
     ):
         """Ignoring a mention should remove it from the unlinked list."""
-        page_class_id = test_user["page_class_id"]
+        page_class_uuid = SYSTEM_CLASS_UUIDS["page"]
 
         target = await authenticated_client.post(
             "/api/nodes/",
-            json={"name": "TargetPage", "classes": [page_class_id]},
+            json={"name": "TargetPage", "class_uuids": [page_class_uuid]},
         )
         target_uuid = target.json()["uuid"]
 
         source = await authenticated_client.post(
             "/api/nodes/",
-            json={"name": "SourcePage", "classes": [page_class_id]},
+            json={"name": "SourcePage", "class_uuids": [page_class_uuid]},
         )
         source_uuid = source.json()["uuid"]
 

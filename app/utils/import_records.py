@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import json
 import re
-import uuid as uuid_module
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
+
+from app.domain.entities import generate_uuid
 
 from ..logging_config import get_logger
 
@@ -120,49 +121,49 @@ def _build_uuid_map(dump_data: dict, remap_uuids: bool) -> dict[str, str]:
 
     for node in dump_data.get("nodes", []):
         old = str(node["uuid"]).lower()
-        uuid_map[old] = str(uuid_module.uuid4())
+        uuid_map[old] = generate_uuid()
 
     for link in dump_data.get("links", []):
         old = str(link["uuid"]).lower()
-        uuid_map[old] = str(uuid_module.uuid4())
+        uuid_map[old] = generate_uuid()
 
     for prop in dump_data.get("properties", []):
         old = str(prop["uuid"]).lower()
-        uuid_map[old] = str(uuid_module.uuid4())
+        uuid_map[old] = generate_uuid()
 
     for sl in dump_data.get("property_selection_lines", []):
         if "uuid" in sl:
             old = str(sl["uuid"]).lower()
-            uuid_map[old] = str(uuid_module.uuid4())
+            uuid_map[old] = generate_uuid()
 
     for np in dump_data.get("node_properties", []):
         if "uuid" in np:
             old = str(np["uuid"]).lower()
-            uuid_map[old] = str(uuid_module.uuid4())
+            uuid_map[old] = generate_uuid()
 
     for vs in dump_data.get("property_value_scalars", []):
         if "uuid" in vs:
             old = str(vs["uuid"]).lower()
-            uuid_map[old] = str(uuid_module.uuid4())
+            uuid_map[old] = generate_uuid()
 
     for vr in dump_data.get("property_value_relations", []):
         if "uuid" in vr:
             old = str(vr["uuid"]).lower()
-            uuid_map[old] = str(uuid_module.uuid4())
+            uuid_map[old] = generate_uuid()
 
     for vsel in dump_data.get("property_value_selections", []):
         if "uuid" in vsel:
             old = str(vsel["uuid"]).lower()
-            uuid_map[old] = str(uuid_module.uuid4())
+            uuid_map[old] = generate_uuid()
 
     for nv in dump_data.get("node_views", []):
         if "uuid" in nv:
             old = str(nv["uuid"]).lower()
-            uuid_map[old] = str(uuid_module.uuid4())
+            uuid_map[old] = generate_uuid()
 
     ws_uuid = str(dump_data.get("workspace", {}).get("uuid", "")).lower()
     if ws_uuid:
-        uuid_map[ws_uuid] = str(uuid_module.uuid4())
+        uuid_map[ws_uuid] = generate_uuid()
 
     logger.info(f"UUID remap: {len(uuid_map)} UUIDs will be remapped")
     return uuid_map
@@ -241,7 +242,7 @@ def build_import_records(
 
     def map_uuid(old_val: Any) -> str:
         if old_val is None:
-            return str(uuid_module.uuid4())
+            return generate_uuid()
         s = str(old_val).lower()
         return uuid_map.get(s, str(old_val))
 
@@ -273,7 +274,6 @@ def build_import_records(
                 node_data.get("icon"),
                 node_data.get("color"),
                 _to_int(node_data.get("sequence", 0)),
-                _to_bool(node_data.get("collapsed", False)),
                 _to_bool(node_data.get("active", True)),
                 _to_int(node_data.get("version", 1)),
                 _to_bool(node_data.get("is_class", False)),

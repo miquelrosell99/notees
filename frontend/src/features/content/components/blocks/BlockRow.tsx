@@ -6,11 +6,14 @@
  */
 
 import { useRef, useMemo, useEffect, useLayoutEffect, forwardRef, useImperativeHandle, useState, useCallback, memo, startTransition } from 'react';
+import { useParams } from 'react-router-dom';
 import { InlineEditor, type InlineEditorHandle } from '@/features/editor';
 import { BlockUI } from './BlockUI';
 import { BlockAfterContent } from './BlockAfterContent';
 import { BulletLine } from './BulletLine';
 import { useEditorFocusStore } from '@/stores/editorFocusStore';
+import { useModalStore } from '@/stores/modalStore';
+import { useUIStateStore } from '@/features/sync';
 import { liveSyncManager, useLivePresenceStore } from '@/features/collab';
 import { parseAST, parseLinkId } from '@/lib/astBuilder';
 import { nodeNameToText } from '@/features/queries';
@@ -37,13 +40,6 @@ import type { Node, Property } from '@/types/api';
 import type { JSX } from 'react';
 import { getOperationRuntime } from '@/runtime';
 import { getNode, getChildren } from '@/runtime/graphHelpers';
-import { getRuntimeEventBus } from '@/runtime/eventBus';
-import { getUndoEngine } from '@/stores/undoEngine';
-import type { MutationIntent } from '@/runtime/types';
-
-function applyRuntimeIntent(intent: MutationIntent): void {
-  getUndoEngine().applyIntent(intent, intent.type === 'update_content' ? { sourceEditorId: intent.sourceEditorId } : undefined);
-}
 
 // ─── Types ────────────────────────────────────────────────────────
 
@@ -65,11 +61,11 @@ interface BlockRowProps {
   onCollapseToggle?: (blockId: string) => void;
   onNavigate?: (blockId: string) => void;
   onOpenInSidebar?: (blockId: string) => void;
-  onAddClass?: (blockServerId: number, classId: number) => void;
-  onSlashCommand?: (commandId: string, blockServerId: number | undefined) => void;
-  onPasteImage?: (blockServerId: number, file: File, hasContent: boolean) => void;
-  onTemplateInstantiate?: (templateNodeId: number, blockServerId: number | undefined) => void;
-  templateClassFilters?: number[];
+  onAddClass?: (blockServerId: string, classId: string) => void;
+  onSlashCommand?: (commandId: string, blockServerId: string | undefined) => void;
+  onPasteImage?: (blockServerId: string, file: File, hasContent: boolean) => void;
+  onTemplateInstantiate?: (templateNodeId: string, blockServerId: string | undefined) => void;
+  templateClassFilters?: string[];
   onEnter?: (blockId: string) => void;
   onBackspaceAtStart?: (blockId: string) => void;
   onDeleteAtEnd?: (blockId: string) => void;
@@ -106,60 +102,61 @@ interface BlockRowProps {
 export const BlockRow = memo(
   forwardRef<BlockRowHandle, BlockRowProps>(function BlockRow(
     {
-      node,
-      depth = 0,
-      readOnly = false,
-      placeholder,
-      onContentChange,
-      onPillClick,
-      onPillRemove,
-      onCollapseToggle,
-      onNavigate,
-      onOpenInSidebar,
-      onAddClass,
-      onSlashCommand,
-      onPasteImage,
-      onTemplateInstantiate,
-      templateClassFilters,
-      onEnter,
-      onBackspaceAtStart,
-      onDeleteAtEnd,
-      onEscape,
-      nodeUuid,
-      showClasses = false,
-      effectiveCollapsed,
-      isGhost = false,
-      onGhostRealize,
-      isOnActiveTrail = false,
-      useOverlayForGuides = false,
-      inCard = false,
-      listSize,
-      inPropertyEditor,
-      hideBullet,
-      documentMode,
-    },
+            node,
+            depth = 0,
+            readOnly = false,
+            placeholder,
+            onContentChange,
+            onPillClick,
+            onPillRemove,
+            onCollapseToggle,
+            onNavigate,
+            onOpenInSidebar,
+            onAddClass,
+            onSlashCommand,
+            onPasteImage,
+            onTemplateInstantiate,
+            templateClassFilters,
+            onEnter,
+            onBackspaceAtStart,
+            onDeleteAtEnd,
+            onEscape,
+            nodeUuid,
+            showClasses = false,
+            effectiveCollapsed,
+            isGhost = false,
+            onGhostRealize,
+            isOnActiveTrail = false,
+            useOverlayForGuides = false,
+            inCard = false,
+            listSize,
+            inPropertyEditor,
+            hideBullet,
+            documentMode },
     ref,
   ): JSX.Element {
     const editorRef = useRef<InlineEditorHandle>(null);
     const pendingFocusBlockId = useEditorFocusStore((s) => s.pendingFocusBlockId);
     const activeBlockId = useEditorFocusStore((s) => s.activeBlockId);
+    const { workspaceId } = useParams<{ workspaceId?: string }>();
+    const setCollapsed = useUIStateStore((s) => s.setCollapsed);
     const isActive = activeBlockId === node.uuid;
 
     // Check if another user holds the server-enforced lock for this block
     const lockOwner = useLivePresenceStore(
       (s) => (nodeUuid ? s.locks[nodeUuid]?.[node.uuid] : undefined),
     );
-    const currentUserId = useAuthStore((s) => s.user?.id ?? 0);
-    const lockedBy = lockOwner && Number(lockOwner.id) !== Number(currentUserId) ? [lockOwner] : undefined;
+    const currentUserId = useAuthStore((s) => s.user?.nodeUuid ?? 0);
+    const lockedBy = lockOwner && Number(lockOwner.nodeUuid) !== Number(currentUserId) ? [lockOwner] : undefined;
     const isLocked = lockedBy != null && lockedBy.length > 0;
 
     // Show remote presence and typing indicators
     // Use useShallow so identical arrays don't trigger re-renders.
     const presenceUsers = useLivePresenceStore(
-      useShallow((s) => (nodeUuid ? s.getUsersOnBlock(nodeUuid, node.uuid).filter((u) => u.id !== currentUserId) : [])),
+      useShallow((s) => (nodeUuid ? s.getUsersOnBlock(nodeUuid, node.uuid).filter((u) => u.nodeUuid !== currentUserId) : [])),
     );
     const typingUsers = useLivePresenceStore(
-      useShallow((s) => (nodeUuid ? s.getTypingUsersOnBlock(nodeUuid, node.uuid).filter((u) => u.id !== currentUserId) : [])),
+      useShallow((s) => (nodeUuid ? s.getTypingUsersOnBlock(nodeUuid, node.uuid).filter((u) => u.nodeUuid !== currentUserId) : [])),
     );
     const isQueued = useLivePresenceStore(
       (s) => (nodeUuid ? s.isQueued(nodeUuid, node.uuid) : false),
@@ -243,6 +240,7 @@ export const BlockRow = memo(
 
     const handleThreadLineClick = useCallback((e?: React.MouseEvent | React.KeyboardEvent) => {
       e?.stopPropagation();
+      if (!workspaceId) return;
       const runtime = getOperationRuntime();
       const graphNode = getNode(runtime, node.uuid);
       if (!graphNode?.parentId) return;
@@ -250,19 +248,13 @@ export const BlockRow = memo(
       const siblings = getChildren(runtime, graphNode.parentId);
       if (siblings.length === 0) return;
 
-      const anyExpanded = siblings.some((s) => !s.collapsed);
+      const anyExpanded = siblings.some((s) => !(s.collapsed ?? false));
       const targetCollapsed = anyExpanded;
 
-      applyRuntimeIntent({
-        type: 'batch',
-        intents: siblings.map((s) => ({
-          type: 'set_collapsed',
-          blockId: s.blockId,
-          collapsed: targetCollapsed,
-        })),
-      });
-      getRuntimeEventBus().flushEvents();
-    }, [node.uuid]);
+      for (const sibling of siblings) {
+        setCollapsed(workspaceId, sibling.blockId, targetCollapsed);
+      }
+    }, [node.uuid, workspaceId, setCollapsed]);
 
     const handleBulletContextMenu = useCallback(
       (_nodeId: string | number, event: React.MouseEvent) => {
@@ -303,12 +295,17 @@ export const BlockRow = memo(
 
     const handleResolveConflict = useCallback(() => {
       if (!nodeUuid) return;
+      const conflict = useLivePresenceStore.getState().getConflict(nodeUuid, node.uuid);
+      if (conflict?.reason === '409_conflict') {
+        useModalStore.getState().setConflictResolutionModalOpen(true, node.uuid);
+        return;
+      }
       useLivePresenceStore.getState().setConflict(nodeUuid, node.uuid, null);
       liveSyncManager.sendFocus(node.uuid);
     }, [node.uuid, nodeUuid]);
 
     const plainTextFallback = useMemo(() => nodeNameToText(node.name), [node.name]);
-    const classDetails = useResolvedClassDetails(node.classes, { skipNodesFallback: true });
+    const classDetails = useResolvedClassDetails(node.classes_uuid, { skipNodesFallback: true });
 
     // Determine the icon to show on the bullet
     // Priority: block's own icon > first class's icon
@@ -362,12 +359,12 @@ export const BlockRow = memo(
       if (!allClasses) return null;
       return allClasses.find((c) => c.uuid === SYSTEM_CLASS_UUIDS.query) ?? null;
     }, [allClasses]);
-    const hasQueryClass = !!(queryClass && node.classes?.includes(queryClass.id));
+    const hasQueryClass = !!(queryClass && node.classes_uuid?.includes(queryClass.uuid));
 
     // Property icons inline based on icon_visibility
     const { data: allProperties } = useProperties();
     const propertyIcons = useMemo(() => {
-      if (!node.properties || !allProperties) return { beforeContent: [] as Array<{ property: Property; value: unknown }>, afterBullet: [] as Array<{ property: Property; value: unknown }> };
+      if (!node.properties_uuid || !allProperties) return { beforeContent: [] as Array<{ property: Property; value: unknown }>, afterBullet: [] as Array<{ property: Property; value: unknown }> };
 
       const beforeContent: Array<{ property: Property; value: unknown }> = [];
       const afterBullet: Array<{ property: Property; value: unknown }> = [];
@@ -375,8 +372,8 @@ export const BlockRow = memo(
       for (const prop of allProperties) {
         if (prop.icon_visibility === 'hidden') continue;
 
-        const propIdKey = prop.id;
-        const value = node.properties[propIdKey];
+        const propIdKey = prop.uuid;
+        const value = node.properties_uuid[propIdKey];
         if (value === undefined || value === null) continue;
 
         if (prop.icon_visibility === 'before_content') {
@@ -387,7 +384,7 @@ export const BlockRow = memo(
       }
 
       return { beforeContent, afterBullet };
-    }, [node.properties, allProperties]);
+    }, [node.properties_uuid, allProperties]);
 
     const colorStyle = useMemo(() => {
       if (!node.color) return undefined;
@@ -498,7 +495,7 @@ export const BlockRow = memo(
             <div className="block-property-icons">
               {propertyIcons.afterBullet.map(({ property: prop, value: val }) => (
                 <PropertyIconButton
-                  key={prop.id}
+                  key={prop.uuid}
                   property={prop}
                   node={node}
                   value={val}
@@ -521,7 +518,7 @@ export const BlockRow = memo(
                   <span className="block-property-icons--before-content">
                     {propertyIcons.beforeContent.map(({ property: prop, value: val }) => (
                       <PropertyIconButton
-                        key={prop.id}
+                        key={prop.uuid}
                         property={prop}
                         node={node}
                         value={val}
@@ -545,7 +542,7 @@ export const BlockRow = memo(
                 </Button>
               )}
               {hasClasses && (
-                <ClassPillsRow classes={visibleClassDetails} nodeId={node.id} readOnly={readOnly} onAddClass={onAddClass} />
+                <ClassPillsRow classes={visibleClassDetails} nodeUuid={node.uuid} readOnly={readOnly} onAddClass={onAddClass} />
               )}
             </div>
           ) : (
@@ -555,7 +552,7 @@ export const BlockRow = memo(
                 <span className="block-property-icons--before-content">
                   {propertyIcons.beforeContent.map(({ property: prop, value: val }) => (
                     <PropertyIconButton
-                      key={prop.id}
+                      key={prop.uuid}
                       property={prop}
                       node={node}
                       value={val}

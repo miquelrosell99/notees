@@ -52,8 +52,8 @@ export function useCommandPaletteSearch(
   const [isPending, startTransition] = useTransition();
 
   // Fresh node/property maps so the onmessage closure always reads current data
-  const nodeMapRef = useRef<Map<number, Node>>(new Map());
-  const propMapRef = useRef<Map<number, Property>>(new Map());
+  const nodeMapRef = useRef<Map<string, Node>>(new Map());
+  const propMapRef = useRef<Map<string, Property>>(new Map());
 
   // Boot worker once
   useEffect(() => {
@@ -76,17 +76,17 @@ export function useCommandPaletteSearch(
       const propMap = propMapRef.current;
 
       const pages = rawPages.flatMap(r => {
-        const node = nodeMap.get(r.nodeId);
+        const node = nodeMap.get(r.uuid);
         return node ? [{ node, breadcrumb: r.breadcrumb }] : [];
       });
 
       const blocks = rawBlocks.flatMap(r => {
-        const node = nodeMap.get(r.nodeId);
+        const node = nodeMap.get(r.uuid);
         return node ? [{ node, breadcrumb: r.breadcrumb }] : [];
       });
 
       const properties = rawProps.flatMap(r => {
-        const prop = propMap.get(r.propertyId);
+        const prop = propMap.get(r.uuid);
         return prop ? [prop] : [];
       });
 
@@ -105,14 +105,14 @@ export function useCommandPaletteSearch(
 
   // Keep fresh node/property maps the worker response can look up
   useEffect(() => {
-    const map = new Map<number, Node>();
-    for (const n of searchResults ?? []) map.set(n.id, n);
+    const map = new Map<string, Node>();
+    for (const n of searchResults ?? []) map.set(n.uuid, n);
     nodeMapRef.current = map;
   }, [searchResults]);
 
   useEffect(() => {
-    const map = new Map<number, Property>();
-    for (const p of allProperties) map.set(p.id, p);
+    const map = new Map<string, Property>();
+    for (const p of allProperties) map.set(p.uuid, p);
     propMapRef.current = map;
   }, [allProperties]);
 
@@ -125,17 +125,17 @@ export function useCommandPaletteSearch(
 
     const id = ++seqRef.current;
 
-    // Send slim node representation — worker only needs id, name, parent_id, page_id, is_page
+    // Send slim node representation — worker only needs uuid, name, parent_uuid, page_uuid, is_page
     const nodes = searchResults.map(n => ({
-      id: n.id,
+      uuid: n.uuid,
       name: n.name,
-      parent_id: n.parent_id,
-      page_id: n.page_id,
+      parent_uuid: n.parent_uuid,
+      page_uuid: n.page_uuid,
       is_page: n.is_page,
     }));
 
     const properties = allProperties.map(p => ({
-      id: p.id,
+      uuid: p.uuid,
       name: p.name,
       icon: p.icon,
     }));

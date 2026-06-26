@@ -20,7 +20,7 @@ import type { NodeActivity } from '../../api/activity';
 import './NodeActivityLogSection.css';
 
 interface NodeActivityLogSectionProps {
-  nodeId: string | number;
+  nodeUuid: string;
   defaultExpanded?: boolean;
   /** Visual variant passed to the underlying section chrome. */
   variant?: 'default' | 'sidebar-node' | 'sidebar';
@@ -108,7 +108,7 @@ function ActivityMessage({ activity }: { activity: NodeActivity }) {
   const handleLinkClick = useCallback(async (nodeUuid: string) => {
     try {
       const node = await getNodeByUuid(nodeUuid);
-      if (node?.id) {
+      if (node?.uuid) {
         openNode(node.uuid);
       }
     } catch {
@@ -118,7 +118,7 @@ function ActivityMessage({ activity }: { activity: NodeActivity }) {
 
   return (
     <span className="activity-message">
-      <Bullet nodeId={activity.id} interactive={false} size="sm" dimmed />
+      <Bullet nodeUuid={activity.nodeUuid} interactive={false} size="sm" dimmed />
       <span className="activity-message__text">
         {segments.map((seg, i) =>
           seg.type === 'link' ? (
@@ -141,17 +141,17 @@ function ActivityMessage({ activity }: { activity: NodeActivity }) {
 }
 
 
-export function NodeActivityLogSection({ nodeId, defaultExpanded = false, variant = 'default', focusMode = false }: NodeActivityLogSectionProps) {
+export function NodeActivityLogSection({ nodeUuid, defaultExpanded = false, variant = 'default', focusMode = false }: NodeActivityLogSectionProps) {
   const internalVariant = variant;
-  const { data: activities, isLoading } = useNodeActivity(nodeId);
+  const { data: activities, isLoading } = useNodeActivity(nodeUuid);
   const deleteActivity = useDeleteNodeActivity();
   
   const [contextMenu, setContextMenu] = useState<{
-    activityId: number;
+    activityId: string;
     position: { x: number; y: number };
   } | null>(null);
 
-  const handleContextMenu = useCallback((activityId: number, e: React.MouseEvent) => {
+  const handleContextMenu = useCallback((activityId: string, e: React.MouseEvent) => {
     e.preventDefault();
     setContextMenu({
       activityId,
@@ -159,10 +159,10 @@ export function NodeActivityLogSection({ nodeId, defaultExpanded = false, varian
     });
   }, []);
 
-  const handleDeleteActivity = useCallback((activityId: number) => {
-    deleteActivity.mutate({ nodeId, activityId });
+  const handleDeleteActivity = useCallback((activityId: string) => {
+    deleteActivity.mutate({ nodeUuid, activityId });
     setContextMenu(null);
-  }, [nodeId, deleteActivity]);
+  }, [nodeUuid, deleteActivity]);
 
   const contextMenuItems: ContextMenuItem[] = contextMenu ? [
     {
@@ -195,10 +195,10 @@ export function NodeActivityLogSection({ nodeId, defaultExpanded = false, varian
           ) : (
             activities.map(activity => (
               <div
-                key={activity.id}
+                key={activity.nodeUuid}
                 className="node-activity-item"
                 data-variant={internalVariant}
-                onContextMenu={(e) => handleContextMenu(activity.id, e)}
+                onContextMenu={(e) => handleContextMenu(activity.nodeUuid, e)}
               >
                 <ActivityMessage activity={activity} />
               </div>

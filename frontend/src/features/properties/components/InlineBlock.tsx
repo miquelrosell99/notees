@@ -7,8 +7,8 @@ import './PropertyCell.css';
  * InlineBlock - Fetches a node by ID and renders it as a read-only Block.
  * Used for text properties (value is a block node ID) and single-value node properties.
  */
-export function InlineBlock({ nodeId }: { nodeId: number }) {
-  const { data: blockNode } = useNode(nodeId);
+export function InlineBlock({ nodeUuid }: { nodeUuid: string }) {
+  const { data: blockNode } = useNode(nodeUuid);
 
   if (!blockNode) {
     return (
@@ -23,7 +23,7 @@ export function InlineBlock({ nodeId }: { nodeId: number }) {
       name={blockNode.name}
       icon={blockNode.icon}
       isPage={blockNode.is_page}
-      nodeId={blockNode.id}
+      nodeUuid={blockNode.uuid}
     />
   );
 }

@@ -1,118 +1,157 @@
-"""Tests for asset operations and lifecycle."""
+"""Tests for asset file operations and lifecycle with content-addressed storage."""
 import shutil
-import uuid
+from pathlib import Path
+from typing import Any
 
 import pytest
 
+from app.features.assets.port import AssetRepository
 
-@pytest.mark.asyncio
-async def test_asset_folder_deletion(node_service, tmp_path):
-    """Test that asset folders are deleted when asset nodes are soft-deleted."""
+
+class _FakeAssetRepository(AssetRepository):
+    """In-memory stub for AssetRepository used in AssetFileService unit tests."""
+
+    def __init__(self):
+        self._files: dict[int, dict[str, Any]] = {}
+        self._next_id = 1
+
+    async def get_page_and_asset_class_ids(self, user_id: int) -> tuple[int, int]:
+        return 1, 2
+
+    async def convert_node_to_asset(
+        self,
+        node_id: int,
+        asset_uuid: str,
+        name: str,
+        asset_class_id: int,
+        user_id: int,
+        asset_file_id: int | None = None,
+    ) -> None:
+        pass
+
+    async def asset_exists_by_uuid(self, uuid: str) -> bool:
+        return False
+
+    async def create_asset_file(
+        self,
+        hash: str,
+        size_bytes: int,
+        extension: str,
+        storage_path: str,
+        user_id: int,
+    ) -> int:
+        file_id = self._next_id
+        self._next_id += 1
+        self._files[file_id] = {
+            "id": file_id,
+            "hash": hash,
+            "size_bytes": size_bytes,
+            "extension": extension,
+            "storage_path": storage_path,
+            "ref_count": 1,
+        }
+        return file_id
+
+    async def find_asset_file_by_hash(self, hash: str) -> dict[str, Any] | None:
+        for row in self._files.values():
+            if row["hash"] == hash:
+                return dict(row)
+        return None
+
+    async def get_asset_file_by_id(self, asset_file_id: int) -> dict[str, Any] | None:
+        row = self._files.get(asset_file_id)
+        return dict(row) if row else None
+
+    async def increment_asset_file_ref_count(self, asset_file_id: int) -> None:
+        if asset_file_id in self._files:
+            self._files[asset_file_id]["ref_count"] += 1
+
+    async def decrement_asset_file_ref_count(self, asset_file_id: int) -> int:
+        if asset_file_id not in self._files:
+            return 0
+        self._files[asset_file_id]["ref_count"] -= 1
+        return self._files[asset_file_id]["ref_count"]
+
+
+@pytest.fixture
+def asset_file_service(tmp_path):
+    """Return an AssetFileService using a temporary assets directory."""
     from app.features.assets.service import AssetFileService
 
-    workspace_id = node_service._workspace_id
-
-    test_assets_dir = tmp_path / "test_assets"
-    test_assets_dir.mkdir(parents=True, exist_ok=True)
-
-    asset_service = AssetFileService(workspace_uuid=str(workspace_id))
-
-    original_assets_dir = asset_service.assets_dir
-    asset_service.assets_dir = test_assets_dir
-
+    service = AssetFileService(str(tmp_path), _FakeAssetRepository())
+    original_dir = service.assets_dir
+    service.assets_dir = tmp_path
     try:
-        test_file_content = b"Test image content"
-        asset_uuid, extension = await asset_service.create_asset(
-            file_bytes=test_file_content,
-            original_filename="test.jpg",
-            content_type="image/jpeg"
-        )
-
-        asset_folder = asset_service.get_asset_folder(asset_uuid)
-        assert asset_folder.exists()
-        assert asset_folder.is_dir()
-
-        asset_node = await node_service.create_page("Test Asset")
-
-        await node_service.delete_node(asset_node.id)
-
-        success = asset_service.delete_asset(asset_uuid)
-        assert success, "Asset folder deletion should succeed"
-
-        assert not asset_folder.exists(), "Asset folder should be deleted"
-
+        yield service
     finally:
-        asset_service.assets_dir = original_assets_dir
-        if test_assets_dir.exists():
-            shutil.rmtree(test_assets_dir)
-
+        service.assets_dir = original_dir
+        if tmp_path.exists():
+            shutil.rmtree(tmp_path)
 
 
 @pytest.mark.asyncio
-async def test_asset_service_rejects_invalid_uuid(node_service, tmp_path):
-    """AssetFileService must reject malformed asset UUIDs."""
-    from app.features.assets.service import AssetFileService, AssetPermissionError
-
-    workspace_id = node_service._workspace_id
-    test_assets_dir = tmp_path / "test_assets"
-    test_assets_dir.mkdir(parents=True, exist_ok=True)
-
-    asset_service = AssetFileService(workspace_uuid=str(workspace_id))
-    original_assets_dir = asset_service.assets_dir
-    asset_service.assets_dir = test_assets_dir
-
-    try:
-        for bad_uuid in ["not-a-uuid", "../etc/passwd", "..", "550e8400-e29b-41d4-a716-44665544000g"]:
-            with pytest.raises(AssetPermissionError):
-                asset_service.get_asset_folder(bad_uuid)
-    finally:
-        asset_service.assets_dir = original_assets_dir
-        if test_assets_dir.exists():
-            shutil.rmtree(test_assets_dir)
+async def test_asset_file_deduplication(asset_file_service):
+    """Uploading the same bytes twice reuses the same content file."""
+    content = b"duplicate me"
+    id1, ext1, path1 = await asset_file_service.create_asset(
+        file_bytes=content,
+        original_filename="a.jpg",
+        content_type="image/jpeg",
+    )
+    id2, ext2, path2 = await asset_file_service.create_asset(
+        file_bytes=content,
+        original_filename="b.jpg",
+        content_type="image/jpeg",
+    )
+    assert id1 == id2
+    assert ext1 == ext2 == ".jpg"
+    assert path1 == path2
+    assert path1.exists()
 
 
 @pytest.mark.asyncio
-async def test_asset_service_blocks_path_traversal(node_service, tmp_path):
-    """AssetFileService must block UUIDs that resolve outside the assets directory."""
-    from app.features.assets.service import AssetFileService, AssetPermissionError
+async def test_asset_file_deletes_when_unref_count_zero(asset_file_service):
+    """Deleting the last reference removes the content file."""
+    content = b"test image content"
+    file_id, _ext, source_path = await asset_file_service.create_asset(
+        file_bytes=content,
+        original_filename="test.jpg",
+        content_type="image/jpeg",
+    )
+    assert source_path.exists()
 
-    workspace_id = node_service._workspace_id
-    test_assets_dir = tmp_path / "test_assets"
-    test_assets_dir.mkdir(parents=True, exist_ok=True)
-
-    asset_service = AssetFileService(workspace_uuid=str(workspace_id))
-    original_assets_dir = asset_service.assets_dir
-    asset_service.assets_dir = test_assets_dir
-
-    try:
-        # A valid UUID cannot contain "..", but if a caller somehow passed a
-        # path-like name, resolve()+is_relative_to() must reject it.
-        with pytest.raises(AssetPermissionError):
-            asset_service.get_asset_folder("../../../../etc/passwd")
-    finally:
-        asset_service.assets_dir = original_assets_dir
-        if test_assets_dir.exists():
-            shutil.rmtree(test_assets_dir)
+    deleted = await asset_file_service.delete_asset(file_id)
+    assert deleted is True
+    assert not source_path.exists()
 
 
 @pytest.mark.asyncio
-async def test_asset_service_accepts_valid_uuid(node_service, tmp_path):
-    """AssetFileService must accept a valid UUID and return a contained path."""
-    from app.features.assets.service import AssetFileService
+async def test_asset_file_deletion_keeps_file_with_refs(asset_file_service):
+    """Deleting one reference keeps the file when others remain."""
+    content = b"shared content"
+    file_id, _ext, source_path = await asset_file_service.create_asset(
+        file_bytes=content,
+        original_filename="x.png",
+        content_type="image/png",
+    )
+    # Simulate a second reference by incrementing the count.
+    await asset_file_service._asset_repo.increment_asset_file_ref_count(file_id)
 
-    workspace_id = node_service._workspace_id
-    test_assets_dir = tmp_path / "test_assets"
-    test_assets_dir.mkdir(parents=True, exist_ok=True)
+    deleted = await asset_file_service.delete_asset(file_id)
+    assert deleted is False
+    assert source_path.exists()
 
-    asset_service = AssetFileService(workspace_uuid=str(workspace_id))
-    original_assets_dir = asset_service.assets_dir
-    asset_service.assets_dir = test_assets_dir
 
-    try:
-        valid_uuid = str(uuid.uuid4())
-        folder = asset_service.get_asset_folder(valid_uuid)
-        assert folder.is_relative_to(test_assets_dir.resolve())
-    finally:
-        asset_service.assets_dir = original_assets_dir
-        if test_assets_dir.exists():
-            shutil.rmtree(test_assets_dir)
+@pytest.mark.asyncio
+async def test_asset_file_storage_path_is_content_addressed(asset_file_service):
+    """Files are stored under assets/files/<hash prefix>/<hash>."""
+    content = b"hello world"
+    _file_id, _ext, source_path = await asset_file_service.create_asset(
+        file_bytes=content,
+        original_filename="doc.txt",
+        content_type="text/plain",
+    )
+    parts = source_path.relative_to(asset_file_service.assets_dir).parts
+    assert parts[0] == "files"
+    assert len(parts[1]) == 2
+    assert len(parts[2]) == 2

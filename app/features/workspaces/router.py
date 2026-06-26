@@ -533,3 +533,40 @@ async def remove_pending_invite(
         raise HTTPException(status_code=404, detail=str(e)) from e
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e)) from e
+
+
+class SyncProtocolVersionUpdate(BaseModel):
+    version: str
+
+
+@router.get("/{workspace_uuid}/sync-protocol-version")
+async def get_sync_protocol_version(
+    workspace_uuid: str,
+    workspace_service: WorkspaceService = Depends(get_workspace_service),
+    user: User = Depends(get_current_user),
+):
+    """Get the sync protocol version for a workspace."""
+    try:
+        version = await workspace_service.get_sync_protocol_version(workspace_uuid, int(user.id))
+        return {"sync_protocol_version": version}
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+
+
+@router.patch("/{workspace_uuid}/sync-protocol-version")
+async def update_sync_protocol_version(
+    workspace_uuid: str,
+    body: SyncProtocolVersionUpdate,
+    workspace_service: WorkspaceService = Depends(get_workspace_service),
+    user: User = Depends(get_current_user),
+):
+    """Update the sync protocol version for a workspace (owner only)."""
+    try:
+        await workspace_service.set_sync_protocol_version(
+            workspace_uuid, int(user.id), body.version
+        )
+        return {"sync_protocol_version": body.version}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e)) from e

@@ -12,7 +12,7 @@ export function getClassesResults(
   classSearchResults: Node[] | undefined,
   allClassNodes: Node[] | undefined,
   allPages: Node[] | undefined,
-  excludeNodeId: number | undefined,
+  excludeNodeId: string | undefined,
   maxResults: number,
 ): { pageResults: NodeSearchItem[]; blockResults: NodeSearchItem[]; truncated: boolean } {
   const parsed = parseHierarchicalPath(debouncedQuery);
@@ -27,7 +27,7 @@ export function getClassesResults(
   }
 
   if (excludeNodeId !== undefined) {
-    results = results.filter(n => n.id !== excludeNodeId);
+    results = results.filter(n => n.uuid !== excludeNodeId);
   }
 
   const truncatedClasses = results.length > maxResults;
@@ -44,7 +44,7 @@ export function getClassesResults(
 export function getUsersResults(
   debouncedQuery: string,
   searchResults: Node[] | undefined,
-  excludeNodeId: number | undefined,
+  excludeNodeId: string | undefined,
   maxResults: number,
 ): { pageResults: NodeSearchItem[]; blockResults: NodeSearchItem[]; truncated: boolean } {
   const parsed = parseHierarchicalPath(debouncedQuery);
@@ -55,7 +55,7 @@ export function getUsersResults(
     : [];
 
   if (excludeNodeId !== undefined) {
-    results = results.filter(n => n.id !== excludeNodeId);
+    results = results.filter(n => n.uuid !== excludeNodeId);
   }
 
   const truncatedUsers = results.length > maxResults;
@@ -74,8 +74,8 @@ export function getTagsResults(
   query: string,
   searchResults: Node[] | undefined,
   allPages: Node[] | undefined,
-  classFilters: number[],
-  excludeNodeId: number | undefined,
+  classFilters: string[],
+  excludeNodeId: string | undefined,
   maxResults: number,
 ): { pageResults: NodeSearchItem[]; blockResults: NodeSearchItem[]; truncated: boolean } {
   const parsed = parseHierarchicalPath(debouncedQuery);
@@ -92,15 +92,15 @@ export function getTagsResults(
 
   if (classFilters.length > 0) {
     results = results.filter(node => {
-      if (node.classes && node.classes.length > 0) {
-        return classFilters.some(filterId => node.classes!.includes(filterId));
+      if (node.classes_uuid && node.classes_uuid.length > 0) {
+        return classFilters.some(filterId => node.classes_uuid!.includes(filterId));
       }
       return false;
     });
   }
 
   if (excludeNodeId !== undefined) {
-    results = results.filter(n => n.id !== excludeNodeId);
+    results = results.filter(n => n.uuid !== excludeNodeId);
   }
 
   const truncatedTags = results.length > maxResults;
@@ -121,7 +121,7 @@ export function getAliasesResults(
   query: string,
   searchResults: Node[] | undefined,
   allPages: Node[] | undefined,
-  excludeNodeId: number | undefined,
+  excludeNodeId: string | undefined,
   maxResults: number,
 ): { pageResults: NodeSearchItem[]; blockResults: NodeSearchItem[]; truncated: boolean } {
   const parsed = parseHierarchicalPath(debouncedQuery);
@@ -130,14 +130,14 @@ export function getAliasesResults(
   let results = (searchQuery.length > 0
     ? (searchResults ?? []).filter(n => n.is_page)
     : (allPages ?? []).slice(0, maxResults * 3)
-  ).filter(n => !isClassDef(n) && !n.aliased_id && (!n.aliases || n.aliases.length === 0));
+  ).filter(n => !isClassDef(n) && !n.aliased_uuid && (!n.aliases_uuid || n.aliases_uuid.length === 0));
 
   if (parsed.isHierarchical && allPages) {
     results = filterNodesByHierarchy(query, results, allPages);
   }
 
   if (excludeNodeId !== undefined) {
-    results = results.filter(n => n.id !== excludeNodeId);
+    results = results.filter(n => n.uuid !== excludeNodeId);
   }
 
   const truncatedAliases = results.length > maxResults;
@@ -160,9 +160,9 @@ export function getPagesResults(
   suggestions: Node[] | undefined,
   filteredPages: Node[] | undefined,
   allPages: Node[] | undefined,
-  classFilters: number[],
-  excludeNodeId: number | undefined,
-  pinnedNodeId: number | null | undefined,
+  classFilters: string[],
+  excludeNodeId: string | undefined,
+  pinnedNodeId: string | null | undefined,
   maxResults: number,
 ): { pageResults: NodeSearchItem[]; blockResults: NodeSearchItem[]; truncated: boolean } {
   const parsed = parseHierarchicalPath(debouncedQuery);
@@ -170,7 +170,7 @@ export function getPagesResults(
 
   let results: Node[];
   if (searchQuery.length > 0) {
-    results = (searchResults ?? []).filter(n => n.is_page || n.parent_id === null);
+    results = (searchResults ?? []).filter(n => n.is_page || n.parent_uuid === null);
   } else if (suggestions && suggestions.length > 0) {
     results = suggestions;
   } else if (classFilters.length > 0) {
@@ -184,16 +184,16 @@ export function getPagesResults(
   }
 
   if (excludeNodeId !== undefined) {
-    results = results.filter(n => n.id !== excludeNodeId);
+    results = results.filter(n => n.uuid !== excludeNodeId);
   }
 
   if (pinnedNodeId && searchQuery.length === 0) {
-    const pinnedIdx = results.findIndex(n => n.id === pinnedNodeId);
+    const pinnedIdx = results.findIndex(n => n.uuid === pinnedNodeId);
     if (pinnedIdx > 0) {
       const [pinned] = results.splice(pinnedIdx, 1);
       results.unshift(pinned);
     } else if (pinnedIdx === -1 && allPages) {
-      const pinnedNode = allPages.find(n => n.id === pinnedNodeId);
+      const pinnedNode = allPages.find(n => n.uuid === pinnedNodeId);
       if (pinnedNode) results.unshift(pinnedNode);
     }
   }
@@ -218,7 +218,7 @@ export function getBlocksResults(
   const searchQuery = parsed.isHierarchical ? parsed.leaf : debouncedQuery;
 
   const results = searchQuery.length > 0
-    ? (searchResults ?? []).filter(n => !n.is_page && n.parent_id !== null)
+    ? (searchResults ?? []).filter(n => !n.is_page && n.parent_uuid !== null)
     : (allNodes ?? []).filter(n => !n.is_page).slice(0, maxResults);
 
   return {
@@ -238,9 +238,9 @@ export function getAllResults(
   suggestions: Node[] | undefined,
   allPages: Node[] | undefined,
   allNodes: Node[] | undefined,
-  classFilters: number[],
-  excludeNodeId: number | undefined,
-  pinnedNodeId: number | null | undefined,
+  classFilters: string[],
+  excludeNodeId: string | undefined,
+  pinnedNodeId: string | null | undefined,
   maxResults: number,
 ): { pageResults: NodeSearchItem[]; blockResults: NodeSearchItem[]; truncated: boolean } {
   const parsed = parseHierarchicalPath(debouncedQuery);
@@ -251,40 +251,40 @@ export function getAllResults(
     : suggestions && suggestions.length > 0
       ? [
           ...suggestions.slice(0, Math.floor(maxResults / 2)),
-          ...(allNodes ?? []).filter(n => n.parent_id !== null).slice(0, Math.floor(maxResults / 2)),
+          ...(allNodes ?? []).filter(n => n.parent_uuid !== null).slice(0, Math.floor(maxResults / 2)),
         ]
       : [
           ...(allPages ?? []).slice(0, Math.floor(maxResults / 2)),
-          ...(allNodes ?? []).filter(n => n.parent_id !== null).slice(0, Math.floor(maxResults / 2)),
+          ...(allNodes ?? []).filter(n => n.parent_uuid !== null).slice(0, Math.floor(maxResults / 2)),
         ];
 
   if (parsed.isHierarchical && allPages) {
-    const pagesOnly = baseResults.filter(n => n.is_page || n.parent_id === null);
-    const blocksOnly = baseResults.filter(n => !n.is_page && n.parent_id !== null);
+    const pagesOnly = baseResults.filter(n => n.is_page || n.parent_uuid === null);
+    const blocksOnly = baseResults.filter(n => !n.is_page && n.parent_uuid !== null);
     const filteredPages = filterNodesByHierarchy(query, pagesOnly, allPages);
     baseResults = [...filteredPages, ...blocksOnly];
   }
 
   if (classFilters.length > 0) {
     baseResults = baseResults.filter(node => {
-      if (node.classes && node.classes.length > 0) {
-        return classFilters.some(filterId => node.classes!.includes(filterId));
+      if (node.classes_uuid && node.classes_uuid.length > 0) {
+        return classFilters.some(filterId => node.classes_uuid!.includes(filterId));
       }
       return false;
     });
   }
 
   if (excludeNodeId !== undefined) {
-    baseResults = baseResults.filter(n => n.id !== excludeNodeId);
+    baseResults = baseResults.filter(n => n.uuid !== excludeNodeId);
   }
 
   if (pinnedNodeId && searchQuery.length === 0) {
-    const pinnedIdx = baseResults.findIndex(n => n.id === pinnedNodeId);
+    const pinnedIdx = baseResults.findIndex(n => n.uuid === pinnedNodeId);
     if (pinnedIdx > 0) {
       const [pinned] = baseResults.splice(pinnedIdx, 1);
       baseResults.unshift(pinned);
     } else if (pinnedIdx === -1 && allPages) {
-      const pinnedNode = allPages.find(n => n.id === pinnedNodeId);
+      const pinnedNode = allPages.find(n => n.uuid === pinnedNodeId);
       if (pinnedNode) baseResults.unshift(pinnedNode);
     }
   }
@@ -293,7 +293,7 @@ export function getAllResults(
   const blocks: NodeSearchItem[] = [];
 
   for (const node of baseResults) {
-    if (node.is_page || node.parent_id === null) {
+    if (node.is_page || node.parent_uuid === null) {
       if (pages.length < maxResults) {
         pages.push({
           node,

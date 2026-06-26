@@ -97,7 +97,7 @@ export function BlockPresenceOverlay({ nodeUuid }: BlockPresenceOverlayProps) {
         >
           {users.map((u, idx) => (
             <div
-              key={u.id}
+              key={u.nodeUuid}
               className="block-presence-dot"
               style={{
                 width: 'var(--icon-size-sm)',

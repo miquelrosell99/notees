@@ -12,6 +12,7 @@ from datetime import date
 import pytest
 import pytest_asyncio
 
+from app.db.schema.constants import SYSTEM_CLASS_UUIDS
 from app.domain.entities import Property, PropertyType
 from app.domain.services.query_language import parse_query_language
 
@@ -37,7 +38,7 @@ async def sample_page(authenticated_client, test_user):
     """Create a simple page node."""
     response = await authenticated_client.post(
         "/api/nodes/",
-        json={"name": "Sample Page", "classes": [test_user["page_class_id"]]},
+        json={"name": "Sample Page", "class_uuids": [SYSTEM_CLASS_UUIDS["page"]]},
     )
     assert response.status_code == 200
     data = response.json()
@@ -153,7 +154,7 @@ async def test_aggregation_count_by_text_property(
     created = []
     for name, value in (("Page A", "active"), ("Page B", "active"), ("Page C", "done")):
         resp = await authenticated_client.post(
-            "/api/nodes/", json={"name": name, "classes": [test_user["page_class_id"]]}
+            "/api/nodes/", json={"name": name, "class_uuids": [SYSTEM_CLASS_UUIDS["page"]]}
         )
         assert resp.status_code == 200
         page_id = resp.json()["id"]
@@ -218,7 +219,7 @@ async def test_query_language_executes_with_property_name_resolution(
     """A text query using a property name is resolved to its UUID at execution time."""
     resp = await authenticated_client.post(
         "/api/nodes/",
-        json={"name": "Priority Page", "classes": [test_user["page_class_id"]]},
+        json={"name": "Priority Page", "class_uuids": [SYSTEM_CLASS_UUIDS["page"]]},
     )
     assert resp.status_code == 200
     page_id = resp.json()["id"]

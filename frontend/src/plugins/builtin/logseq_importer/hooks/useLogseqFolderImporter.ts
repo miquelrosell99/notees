@@ -44,7 +44,7 @@ export function useLogseqFolderImporter() {
   const [done, setDone] = useState(false);
 
   const queryClient = useQueryClient();
-  const { pageClassId } = usePageClass();
+  const { pageClassUuid } = usePageClass();
 
   const reset = useCallback(() => {
     setImporting(false);
@@ -55,7 +55,7 @@ export function useLogseqFolderImporter() {
   }, []);
 
   const runImport = useCallback(async (folderResult: LogseqFolderResult) => {
-    if (!pageClassId) {
+    if (!pageClassUuid) {
       setError('Page class not available. Please try again.');
       return;
     }
@@ -95,7 +95,7 @@ export function useLogseqFolderImporter() {
             if (item.success && item.node) {
               const journal = journals.find((j) => j.journalDate === item.date);
               if (journal) {
-                const info = { id: item.node.id, uuid: item.node.uuid };
+                const info = { nodeUuid: item.node.uuid, uuid: item.node.uuid };
                 titleMap.set(journal.title, info);
                 titleMap.set(journal.title.toLowerCase(), info);
                 if (journal.journalDate) {
@@ -116,7 +116,7 @@ export function useLogseqFolderImporter() {
           const batch = pages.slice(i, i + BATCH_SIZE);
           const createItems = batch.map((p) => ({
             name: p.title,
-            classes: [pageClassId],
+            class_uuids: [pageClassUuid],
             uuid: generateUUID(),
           }));
 
@@ -129,8 +129,8 @@ export function useLogseqFolderImporter() {
             const item = resp.results[j];
             if (item.success && item.node) {
               const page = batch[j];
-              titleMap.set(page.title, { id: item.node.id, uuid: item.node.uuid });
-              titleMap.set(page.title.toLowerCase(), { id: item.node.id, uuid: item.node.uuid });
+              titleMap.set(page.title, { nodeUuid: item.node.uuid, uuid: item.node.uuid });
+              titleMap.set(page.title.toLowerCase(), { nodeUuid: item.node.uuid, uuid: item.node.uuid });
             }
           }
 
@@ -156,7 +156,7 @@ export function useLogseqFolderImporter() {
             const resp = await batchGetOrCreateDaily(batch);
             for (const item of resp.results) {
               if (item.success && item.node) {
-                const info = { id: item.node.id, uuid: item.node.uuid };
+                const info = { nodeUuid: item.node.uuid, uuid: item.node.uuid };
                 registerDateVariants(item.date, info, titleMap);
               }
             }
@@ -173,7 +173,7 @@ export function useLogseqFolderImporter() {
           try {
             setStatusText(`Uploading asset: ${filename}`);
             const asset = await uploadAsset(file);
-            assetMap.set(filename, { id: asset.node_id, uuid: asset.uuid });
+            assetMap.set(filename, { nodeUuid: asset.uuid, uuid: asset.uuid });
           } catch (err) {
             console.warn(`[FolderImport] Failed to upload asset ${filename}:`, err);
           }
@@ -197,7 +197,7 @@ export function useLogseqFolderImporter() {
 
         await createBlocksRecursively(
           entry.page.blocks,
-          parentInfo.id,
+          parentInfo.uuid,
           0,
           titleMap,
           assetMap,
@@ -217,7 +217,7 @@ export function useLogseqFolderImporter() {
     } finally {
       setImporting(false);
     }
-  }, [pageClassId, queryClient]);
+  }, [pageClassUuid, queryClient]);
 
-  return { importing, progress, statusText, error, done, reset, runImport, pageClassId };
+  return { importing, progress, statusText, error, done, reset, runImport, pageClassUuid };
 }

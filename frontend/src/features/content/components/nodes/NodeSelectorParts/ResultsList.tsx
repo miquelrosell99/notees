@@ -16,7 +16,7 @@ interface ResultsListProps {
   mode: ResultsListMode;
   items: Node[];
   filterSuggestions: FilterSuggestionItem[];
-  assignedIds: Set<number>;
+  assignedIds: Set<string>;
   selectedIndex: number;
   setSelectedIndex: (index: number) => void;
   isLoading: boolean;
@@ -26,7 +26,7 @@ interface ResultsListProps {
   convertCandidates?: Node[];
   buildParentPath: (node: Node) => string;
   buildBlockParentPath: (node: Node) => string;
-  getDisplayClasses: (node: Node) => Array<{ id: number; name: string }>;
+  getDisplayClasses: (node: Node) => Array<{ nodeUuid: string; name: string }>;
   allClasses: Node[];
   onAdd: (node: Node) => void;
   onToggle?: (node: Node) => void;
@@ -104,7 +104,7 @@ export function ResultsList({
         if (item.type === 'class') {
           return (
             <NodeResultItem
-              key={`filter-class-${item.node.id}`}
+              key={`filter-class-${item.node.uuid}`}
               node={item.node}
               isHighlighted={isHighlighted}
               onClick={() => onAddClassFilter(item.node)}
@@ -137,10 +137,10 @@ export function ResultsList({
 
       {items.map((node, index) => {
         const globalIndex = filterSuggestions.length + index;
-        const isAssigned = assignedIds.has(node.id);
+        const isAssigned = assignedIds.has(node.uuid);
         return (
           <NodeResultItem
-            key={node.id}
+            key={node.uuid}
             node={node}
             parentPath={node.is_page ? buildParentPath(node) : buildBlockParentPath(node)}
             displayClasses={getDisplayClasses(node)}
@@ -170,7 +170,7 @@ export function ResultsList({
             const idx = filterSuggestions.length + items.length + index;
             return (
               <NodeResultItem
-                key={`convert-${node.id}`}
+                key={`convert-${node.uuid}`}
                 node={node}
                 parentPath={buildParentPath(node)}
                 displayClasses={getDisplayClasses(node)}

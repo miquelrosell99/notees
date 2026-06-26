@@ -21,8 +21,7 @@ export function AllPagesView({ className = '' }: AllPagesViewProps) {
   const openNode = useNavigationStore((state) => state.openNode);
   const setCommandPaletteOpen = useModalStore((state) => state.setCommandPaletteOpen);
   
-  // Special pseudo-node ID and UUID for all_pages view
-  const PSEUDO_NODE_ID = 0;
+  // Special pseudo-node UUID for all_pages view
   const PSEUDO_NODE_UUID = '00000000-0000-0000-0000-000000000000';
   
   const handleSearchSelect = useCallback((node: Node) => {
@@ -55,7 +54,6 @@ export function AllPagesView({ className = '' }: AllPagesViewProps) {
       
       {/* Pages Section - use QuerySection with all_pages view type */}
       <QuerySection
-        nodeId={PSEUDO_NODE_ID}
         nodeUuid={PSEUDO_NODE_UUID}
         viewType="all_pages"
         title="Pages"

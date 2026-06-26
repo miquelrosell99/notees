@@ -27,7 +27,6 @@ import { useBreadcrumbs } from '@/hooks';
 import { useUpdateNode } from '@/features/content';
 import { useQueryClient } from '@tanstack/react-query';
 import { nodeKeys } from '@/hooks/queryKeys';
-import { tryResolveNodeUuid } from '@/utils/resolveNodeUuid';
 import { nodeNameToText } from '@/features/queries';
 import { useClickOutside } from '@/hooks/useClickOutside';
 import { ChevronRightIcon, NodeIcon } from '@/components/ui/icons';
@@ -41,15 +40,15 @@ import './NodeBreadcrumbs.css';
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface BreadcrumbItem {
-  id: number;
+  nodeUuid: string;
   name: string;
   displayName?: string;
   icon?: string | null;
   isPage: boolean;
   /** If this is a property breadcrumb item */
   isProperty?: boolean;
-  /** Property ID for property items */
-  propertyId?: number;
+  /** Property UUID for property items */
+  propertyUuid?: string;
   /** Whether this node's parent is locked */
   parentLocked?: boolean;
   /** Whether the child node's parent is locked (computed — controls edit affordance) */
@@ -147,7 +146,7 @@ function NodeBreadcrumbsList({ items, onClick, variant = 'inline', onEditParent,
       <div className="node-breadcrumbs-popup">
         {items.map((item) => (
           <button
-            key={item.isProperty ? `prop-${item.id}` : item.id}
+            key={item.isProperty ? `prop-${item.nodeUuid}` : item.nodeUuid}
             className={`node-breadcrumbs-popup-item ${item.isProperty ? 'node-breadcrumb-property' : ''}`}
             onClick={() => onClick(item)}
           >
@@ -163,7 +162,7 @@ function NodeBreadcrumbsList({ items, onClick, variant = 'inline', onEditParent,
     <>
       {items.map((item, index) => (
         <NodeBreadcrumbsElement
-          key={item.isProperty ? `prop-${item.id}` : item.id}
+          key={item.isProperty ? `prop-${item.nodeUuid}` : item.nodeUuid}
           item={item}
           onClick={onClick}
           showSeparator={index < items.length - 1}
@@ -186,11 +185,10 @@ function NodeBreadcrumbsList({ items, onClick, variant = 'inline', onEditParent,
  * Uses the closure table for O(1) lookup — a single API call regardless of depth.
  */
 function useAncestorChain(
-  nodeId: number | null,
-  nodeUuid: string | undefined,
+  nodeUuid: string | null | undefined,
   _nodeType: 'page' | 'block'
 ): { items: BreadcrumbItem[]; isPending: boolean; unresolved: boolean } {
-  const effectiveUuid = nodeUuid ?? (nodeId !== null ? tryResolveNodeUuid(nodeId) : null);
+  const effectiveUuid = nodeUuid ?? null;
   const { data: breadcrumbs, isPending } = useBreadcrumbs(effectiveUuid);
 
   const items = useMemo(() => {
@@ -200,13 +198,13 @@ function useAncestorChain(
     for (const item of breadcrumbs) {
       const isProperty = item.is_property ?? false;
       chain.push({
-        id: item.id,
+        nodeUuid: item.uuid,
         name: item.name || '',
         displayName: item.display_name || undefined,
         icon: isProperty ? (item.icon || PROPERTY_TYPE_ICONS.text) : item.icon,
         isPage: item.is_page,
         isProperty,
-        propertyId: isProperty ? (item.property_id ?? item.id) : undefined,
+        propertyUuid: isProperty ? (item.property_uuid ?? item.uuid) : undefined,
         parentLocked: item.parent_locked,
       });
     }
@@ -220,18 +218,16 @@ function useAncestorChain(
 // ─── NodeBreadcrumbs (main) ──────────────────────────────────────────────────
 
 interface NodeBreadcrumbsProps {
-  /** The node to show breadcrumbs for */
-  nodeId: number;
   /** Optional backend UUID. If provided, it is used directly and numeric resolution is skipped. */
   nodeUuid?: string;
   /** Type of node (affects how breadcrumbs are built) */
   nodeType: 'page' | 'block';
   /** Callback when clicking a breadcrumb item */
-  onNavigate?: (nodeId: string | number) => void;
+  onNavigate?: (nodeUuid: string) => void;
   /** Callback when clicking a property breadcrumb item */
-  onNavigateToProperty?: (propertyId: string | number) => void;
+  onNavigateToProperty?: (propertyId: string) => void;
   /** Property context for when viewing a block from a text property */
-  propertyContext?: { propertyId: number; propertyName: string } | null;
+  propertyContext?: { propertyId: string; propertyName: string } | null;
   /** When true, only show ancestors below the page level (intermediate blocks) */
   stopAtPageLevel?: boolean;
   /** Additional CSS class */
@@ -252,21 +248,19 @@ interface NodeBreadcrumbsProps {
 const VISIBLE_START = 2;
 const VISIBLE_END = 2;
 
-export function NodeBreadcrumbs({
-  nodeId,
-  nodeUuid,
-  nodeType,
-  onNavigate,
-  onNavigateToProperty,
-  propertyContext,
-  stopAtPageLevel = false,
-  className = '',
-  parentLocked = false,
-  editable = false,
-  compact = false,
-  inHeader = false,
-  listView = false,
-}: NodeBreadcrumbsProps) {
+export function NodeBreadcrumbs({ 
+      nodeUuid,
+      nodeType,
+      onNavigate,
+      onNavigateToProperty,
+      propertyContext,
+      stopAtPageLevel = false,
+      className = '',
+      parentLocked = false,
+      editable = false,
+      compact = false,
+      inHeader = false,
+      listView = false }: NodeBreadcrumbsProps) {
   const isEditable = editable && !compact;
   const [isOverflowing, setIsOverflowing] = useState(false);
   const [popupOpen, setPopupOpen] = useState(false);
@@ -277,8 +271,8 @@ export function NodeBreadcrumbs({
 
   // ─── Parent editing state ─────────────────────────────────────────────
   const [pickerState, setPickerState] = useState<{
-    targetNodeId: number;
-    currentParentId: number | null;
+    targetNodeUuid: string;
+    currentParentUuid: string | null;
     anchorEl: HTMLElement;
   } | null>(null);
   const [contextMenuState, setContextMenuState] = useState<{
@@ -291,7 +285,7 @@ export function NodeBreadcrumbs({
   const queryClient = useQueryClient();
 
   // Walk the full ancestor chain (stops at page for blocks)
-  const { items: ancestorBreadcrumbs, isPending: breadcrumbsPending, unresolved } = useAncestorChain(nodeId, nodeUuid, nodeType);
+  const { items: ancestorBreadcrumbs, isPending: breadcrumbsPending, unresolved } = useAncestorChain(nodeUuid, nodeType);
 
   // Build final breadcrumbs including property context
   const breadcrumbs = useMemo(() => {
@@ -311,18 +305,18 @@ export function NodeBreadcrumbs({
     // If we have property context, insert it after the last page (or at the end).
     // Skip if the backend already returned the same property in the ancestor chain.
     if (propertyContext && nodeType === 'block' &&
-        !items.some((b) => b.isProperty && b.propertyId === propertyContext.propertyId)) {
+        !items.some((b) => b.isProperty && b.propertyUuid === propertyContext.propertyId)) {
       let insertAt = items.length;
       for (let i = items.length - 1; i >= 0; i--) {
         if (items[i].isPage) { insertAt = i + 1; break; }
       }
       items.splice(insertAt, 0, {
-        id: propertyContext.propertyId,
+        nodeUuid: propertyContext.propertyId,
         name: propertyContext.propertyName,
         icon: PROPERTY_TYPE_ICONS.text,
         isPage: false,
         isProperty: true,
-        propertyId: propertyContext.propertyId,
+        propertyUuid: propertyContext.propertyId,
       });
     }
 
@@ -360,10 +354,10 @@ export function NodeBreadcrumbs({
   const handleClick = useCallback(
     (item: BreadcrumbItem) => {
       setPopupOpen(false);
-      if (item.isProperty && item.propertyId) {
-        onNavigateToProperty?.(item.propertyId);
+      if (item.isProperty && item.propertyUuid) {
+        onNavigateToProperty?.(item.propertyUuid);
       } else {
-        onNavigate?.(item.id);
+        onNavigate?.(item.nodeUuid);
       }
     },
     [onNavigate, onNavigateToProperty],
@@ -382,19 +376,26 @@ export function NodeBreadcrumbs({
    */
   const handleEditParent = useCallback((item: BreadcrumbItem, anchorEl: HTMLElement) => {
     if (item.isProperty || item.childParentLocked) return;
-    const idx = breadcrumbs.findIndex((b) => b.id === item.id && b.isProperty === item.isProperty);
-    const childNodeId = idx < breadcrumbs.length - 1 ? breadcrumbs[idx + 1].id : nodeId;
-    setPickerState({ targetNodeId: childNodeId, currentParentId: item.id, anchorEl });
-  }, [breadcrumbs, nodeId]);
+    const idx = breadcrumbs.findIndex((b) => b.nodeUuid === item.nodeUuid && b.isProperty === item.isProperty);
+    const childNodeUuid = idx < breadcrumbs.length - 1 ? breadcrumbs[idx + 1].nodeUuid : (nodeUuid ?? '');
+    setPickerState({ targetNodeUuid: childNodeUuid, currentParentUuid: item.nodeUuid, anchorEl });
+  }, [breadcrumbs, nodeUuid]);
 
   /** Called when the picker selects a new parent (or null to remove) */
-  const handlePickerSelect = useCallback((val: number | number[] | null) => {
+  const handlePickerSelect = useCallback((val: string | string[] | null) => {
     if (!pickerState) return;
-    const newParentId = typeof val === 'number' ? val : null;
-    const { targetNodeId } = pickerState;
+    const { targetNodeUuid } = pickerState;
     setPickerState(null);
+    if (val == null) {
+      updateNode.mutate(
+        { nodeUuid: targetNodeUuid, data: { parent_uuid: null } },
+        { onSuccess: invalidateBreadcrumbs },
+      );
+      return;
+    }
+    const parentUuid = Array.isArray(val) ? val[0] : val;
     updateNode.mutate(
-      { id: targetNodeId, data: { parent_id: newParentId } },
+      { nodeUuid: targetNodeUuid, data: { parent_uuid: parentUuid } },
       { onSuccess: invalidateBreadcrumbs },
     );
   }, [pickerState, updateNode, invalidateBreadcrumbs]);
@@ -427,16 +428,16 @@ export function NodeBreadcrumbs({
         danger: true,
         onClick: () => {
           setContextMenuState(null);
-          const idx = breadcrumbs.findIndex((b) => b.id === item.id && b.isProperty === item.isProperty);
-          const childNodeId = idx < breadcrumbs.length - 1 ? breadcrumbs[idx + 1].id : nodeId;
+          const idx = breadcrumbs.findIndex((b) => b.nodeUuid === item.nodeUuid && b.isProperty === item.isProperty);
+          const childNodeUuid = idx < breadcrumbs.length - 1 ? breadcrumbs[idx + 1].nodeUuid : (nodeUuid ?? '');
           updateNode.mutate(
-            { id: childNodeId, data: { parent_id: null } },
+            { nodeUuid: childNodeUuid, data: { parent_uuid: null } },
             { onSuccess: invalidateBreadcrumbs },
           );
         },
       },
     ];
-  }, [contextMenuState, breadcrumbs, nodeId, handleEditParent, updateNode, invalidateBreadcrumbs]);
+  }, [contextMenuState, breadcrumbs, nodeUuid, handleEditParent, updateNode, invalidateBreadcrumbs]);
 
   // ─── Splitting for overflow ──────────────────────────────────────────
   const needsCollapse = isOverflowing && breadcrumbs.length > VISIBLE_START + VISIBLE_END;
@@ -472,17 +473,17 @@ export function NodeBreadcrumbs({
           title="Add parent"
           onClick={() => {
             if (addParentRef.current) {
-              setPickerState({ targetNodeId: nodeId, currentParentId: null, anchorEl: addParentRef.current });
+              setPickerState({ targetNodeUuid: nodeUuid ?? '', currentParentUuid: null, anchorEl: addParentRef.current });
             }
           }}
           aria-label="Add parent page"
         />
-        {pickerState && pickerState.targetNodeId === nodeId && (
+        {pickerState && pickerState.targetNodeUuid === nodeUuid && (
           <NodeSelector
             anchorEl={pickerState.anchorEl}
             onClose={() => setPickerState(null)}
             searchMode="pages"
-            excludeNodeId={pickerState.targetNodeId}
+            excludeNodeId={pickerState.targetNodeUuid}
             searchPlaceholder="Search pages..."
             onChange={handlePickerSelect}
             allowCreate
@@ -506,7 +507,7 @@ export function NodeBreadcrumbs({
         {/* Start items (always visible) */}
         {startItems.map((item, index) => (
           <NodeBreadcrumbsElement
-            key={item.isProperty ? `prop-${item.id}` : item.id}
+            key={item.isProperty ? `prop-${item.nodeUuid}` : item.nodeUuid}
             item={item}
             onClick={handleClick}
             showSeparator={needsCollapse || index < startItems.length - 1}
@@ -546,7 +547,7 @@ export function NodeBreadcrumbs({
         {needsCollapse &&
           endItems.map((item, index) => (
             <NodeBreadcrumbsElement
-              key={item.isProperty ? `prop-${item.id}` : item.id}
+              key={item.isProperty ? `prop-${item.nodeUuid}` : item.nodeUuid}
               item={item}
               onClick={handleClick}
               showSeparator={index < endItems.length - 1}
@@ -562,8 +563,8 @@ export function NodeBreadcrumbs({
           anchorEl={pickerState.anchorEl}
           onClose={() => setPickerState(null)}
           searchMode="pages"
-          excludeNodeId={pickerState.targetNodeId}
-          value={pickerState.currentParentId}
+          excludeNodeId={pickerState.targetNodeUuid}
+          value={pickerState.currentParentUuid}
           searchPlaceholder="Search pages..."
           onChange={handlePickerSelect}
           allowCreate={false}

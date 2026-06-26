@@ -9,7 +9,7 @@
  * and supports various display modes and interactions.
  */
 import { useState, useEffect, useCallback } from 'react';
-import { useNode, useNodeByUuid } from '@/features/content';
+import { useNodeByUuid } from '@/features/content';
 import { useNavigationStore } from '@/stores';
 import { getAssetUrlAsync } from '@/features/assets';
 import { Card, type CardVariant } from '@/components/ui/Card';
@@ -22,8 +22,8 @@ import './AssetImage.css';
 export type AssetImageVariant = 'default' | 'banner' | 'cover' | 'card-cover';
 
 interface AssetImageProps {
-  /** Asset node ID (numeric legacy) or UUID */
-  assetNodeId: number | string | null;
+  /** Asset node UUID */
+  assetNodeId: string | null;
   /** Alt text for the image */
   alt?: string;
   /** CSS class for customization */
@@ -89,10 +89,7 @@ export function AssetImage({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [hasError, setHasError] = useState(false);
-  const isUuid = typeof assetNodeId === 'string';
-  const numericNode = useNode(isUuid ? null : assetNodeId, { include_children: false });
-  const uuidNode = useNodeByUuid(isUuid ? assetNodeId : null, { include_children: false });
-  const { data: assetNode, isLoading } = isUuid ? uuidNode : numericNode;
+  const { data: assetNode, isLoading } = useNodeByUuid(assetNodeId, { include_children: false });
   const openNode = useNavigationStore(s => s.openNode);
   const addSidebarCard = useNavigationStore(s => s.addSidebarCard);
 
@@ -272,7 +269,7 @@ export function AssetImage({
           bullet={
             showModalBullet && assetNode ? (
               <Bullet
-                nodeId={assetNode.id}
+                nodeUuid={assetNode.uuid}
                 icon={assetNode.icon}
                 isPage={assetNode.is_page}
                 interactive={true}

@@ -45,7 +45,7 @@ async def test_multi_child_as_blocks(authenticated_client: AsyncClient):
     # Instantiate as blocks
     resp = await c.post(
         f"/api/nodes/{template['uuid']}/instantiate",
-        json={"parent_id": parent["id"], "as_blocks": True},
+        json={"parent_uuid": parent["uuid"], "as_blocks": True},
     )
     assert resp.status_code == 200, resp.text
     data = resp.json()

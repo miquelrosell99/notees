@@ -39,7 +39,6 @@ class NodeResponse(BaseModel):
     page_id: int | None = None
     page_uuid: str | None = None
     sequence: float = 0.0
-    collapsed: bool = False
     active: bool = True
     is_page: bool = False  # Whether this node is a page
     is_class: bool = False  # Whether this node defines a class
@@ -70,7 +69,7 @@ class NodeResponse(BaseModel):
     classes_path_uuid: list[str] = []  # Inherited class node UUIDs
     # For tree responses
     children: list["NodeResponse"] | None = None
-    has_children: bool = False  # True if node has children (even if not loaded, e.g. collapsed)
+    has_children: bool = False  # True if node has children (even if not loaded)
     # Backlinks
     backlinks: list["BacklinkResponse"] | None = None
     linked_references: list["LinkedReferenceResponse"] | None = None
@@ -163,18 +162,10 @@ class NodeCreateRequest(BaseModel):
     name: str = ""
     icon: str | None = None
     color: str | None = None
-    # Exactly one of parent_id / parent_uuid should be provided; uuid takes precedence.
-    parent_id: int | None = None
     parent_uuid: str | None = None
     sequence: float = 0.0
-    # Exactly one of classes / class_uuids should be provided; class_uuids takes precedence.
-    classes: list[int] = []  # Class node IDs - flags are computed from these
     class_uuids: list[str] = []
-    # Exactly one of tags / tag_uuids should be provided; tag_uuids takes precedence.
-    tags: list[int] = []  # Tag node IDs
     tag_uuids: list[str] = []
-    # Exactly one of properties / property_uuids should be provided; property_uuids takes precedence.
-    properties: dict[int, Any] = {}  # property_id -> value
     property_uuids: dict[str, Any] = {}  # property_uuid -> value
     uuid: str | None = None  # Optional: override auto-generated UUID (e.g. from Logseq import)
     # For date nodes
@@ -192,16 +183,12 @@ class NodeUpdateRequest(BaseModel):
     name: str | None = None
     icon: str | None = None
     color: str | None = None
-    parent_id: int | None = None
     parent_uuid: str | None = None
     sequence: float | None = None
-    collapsed: bool | None = None
     is_private: bool | None = None
     # Optional: when provided, reconcile node classes to exactly this set
-    classes: list[int] | None = None
     class_uuids: list[str] | None = None
-    # Optional: when provided, apply each property_id -> value pair
-    properties: dict[int, Any] | None = None
+    # Optional: when provided, apply each property_uuid -> value pair
     property_uuids: dict[str, Any] | None = None
     # Optional: when provided, update fails if node's version doesn't match (optimistic locking)
     expected_version: int | None = None
@@ -216,15 +203,13 @@ class ClassRequest(BaseModel):
 class PropertyRequest(BaseModel):
     """Request to set a property value."""
 
-    property_id: int | None = None
-    property_uuid: str | None = None
+    property_uuid: str
     value: Any
 
 
 class MoveNodeRequest(BaseModel):
     """Request to move a node to a new parent and/or position."""
 
-    parent_id: int | None = None
     parent_uuid: str | None = None
     position: float | None = None
 
@@ -301,8 +286,7 @@ class CommentCreateRequest(BaseModel):
     """Request to create a comment on a node."""
 
     name: str = ""  # Initial comment content
-    parent_comment_id: int | None = None  # If set, creates a reply to this comment
-    parent_comment_uuid: str | None = None
+    parent_comment_uuid: str | None = None  # If set, creates a reply to this comment
 
 
 class AliasRequest(BaseModel):
@@ -379,18 +363,10 @@ class BatchNodeCreateItem(BaseModel):
     name: str = ""
     icon: str | None = None
     color: str | None = None
-    # Exactly one of parent_id / parent_uuid should be provided; uuid takes precedence.
-    parent_id: int | None = None
     parent_uuid: str | None = None
     sequence: float = 0.0
-    # Exactly one of classes / class_uuids should be provided; class_uuids takes precedence.
-    classes: list[int] = []
     class_uuids: list[str] = []
-    # Exactly one of tags / tag_uuids should be provided; tag_uuids takes precedence.
-    tags: list[int] = []
     tag_uuids: list[str] = []
-    # Exactly one of properties / property_uuids should be provided; property_uuids takes precedence.
-    properties: dict[int, Any] = {}
     property_uuids: dict[str, Any] = {}
     uuid: str | None = None  # Optional: provide a UUID (e.g. from Logseq)
 
@@ -423,23 +399,17 @@ class BatchNodeCreateResponse(BaseModel):
 class BatchNodeUpdateItem(BaseModel):
     """A single node update in a batch operation.
 
-    Identifies the node by uuid (preferred) or legacy id.
+    Identifies the node by uuid.
     """
 
-    # uuid is preferred; legacy id is accepted during the UUID transition.
-    uuid: str | None = None
-    id: int | None = None
+    uuid: str
     name: str | None = None
     icon: str | None = None
     color: str | None = None
-    parent_id: int | None = None
     parent_uuid: str | None = None
     sequence: float | None = None
-    collapsed: bool | None = None
     # Optional: reconcile classes / apply property values in the same request
-    classes: list[int] | None = None
     class_uuids: list[str] | None = None
-    properties: dict[int, Any] | None = None
     property_uuids: dict[str, Any] | None = None
 
 
@@ -540,14 +510,12 @@ class BatchNodeDailyResponse(BaseModel):
 class TemplateInstantiateRequest(BaseModel):
     """Request to instantiate a template node."""
 
-    parent_id: int | None = None
     parent_uuid: str | None = None
     name: str | None = None
     variables: dict[str, str] = {}
     dynamic_context: dict[str, str] = {}  # Computed values for <% ... %> dynamic placeholders
-    as_blocks: bool = False  # If True, create children under parent_id without a root page
-    after_id: int | None = None  # Insert blocks after this sibling (as_blocks mode)
-    after_uuid: str | None = None
+    as_blocks: bool = False  # If True, create children under parent_uuid without a root page
+    after_uuid: str | None = None  # Insert blocks after this sibling (as_blocks mode)
 
 
 class TemplateInstantiateResponse(BaseModel):

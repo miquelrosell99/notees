@@ -31,14 +31,11 @@ describe('SyncManager', () => {
     const queryClient = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity } } });
 
     const parent: Node = {
-      id: 1,
       uuid: 'parent-uuid',
       name: 'parent',
       icon: null,
       color: null,
-      parent_id: null,
       parent_uuid: null,
-      page_id: null,
       page_uuid: null,
       sequence: 0,
       collapsed: false,
@@ -47,18 +44,15 @@ describe('SyncManager', () => {
       create_date: new Date().toISOString(),
       write_date: new Date().toISOString(),
       children: [],
-    };
-    queryClient.setQueryData(nodeKeys.detailBase(1), parent);
+    } as Node;
+    queryClient.setQueryData(nodeKeys.detailBase('parent-uuid'), parent);
 
     const created: Node = {
-      id: 99,
       uuid: 'new-uuid',
       name: 'created',
       icon: null,
       color: null,
-      parent_id: 1,
       parent_uuid: 'parent-uuid',
-      page_id: null,
       page_uuid: null,
       sequence: 0,
       collapsed: false,
@@ -66,7 +60,7 @@ describe('SyncManager', () => {
       is_page: false,
       create_date: new Date().toISOString(),
       write_date: new Date().toISOString(),
-    };
+    } as Node;
 
     const api = {
       createNode: vi.fn().mockResolvedValue(created),
@@ -85,39 +79,32 @@ describe('SyncManager', () => {
       id: 'op-create',
       type: 'create',
       blockId: 'new-uuid',
-      serverId: undefined,
       state: 'pending',
       dependsOn: [],
       retryCount: 0,
       maxRetries: 3,
       createdAt: Date.now(),
       payload: {
-        parentId: '1',
+        parentId: 'parent-uuid',
         afterBlockId: null,
         contentAST: [{ type: 'paragraph', children: [{ type: 'text', text: 'hello' }] }],
       },
     });
 
     await waitFor(() => expect(api.createNode).toHaveBeenCalledTimes(1));
-    // The operation is marked acknowledged but stays in the runtime until the
-    // next base-state update absorbs it.
     await waitFor(() => {
       const ops = runtime.getOperations();
       expect(ops).toHaveLength(1);
       expect(ops[0].state).toBe('acknowledged');
     });
 
-    const cached = queryClient.getQueryData<Node>(nodeKeys.detailBase(1));
-    expect(cached?.children?.some((c) => c.id === 99)).toBe(true);
+    const cached = queryClient.getQueryData<Node>(nodeKeys.detailBase('parent-uuid'));
+    expect(cached?.children?.some((c) => c.uuid === 'new-uuid')).toBe(true);
 
-    // Simulate the base-state sync that normally happens via useRuntimeSync /
-    // useBlockTree: once the created node is upserted into base, the operation
-    // is removed.
     runtime.upsertBaseNodes([
       {
         blockId: created.uuid,
-        serverId: created.id,
-        parentId: String(created.parent_id),
+        parentId: created.parent_uuid,
         orderIndex: created.sequence ?? 0,
         nodeType: 'block',
         contentAST: [{ type: 'paragraph', children: [{ type: 'text', text: 'hello' }] }],
@@ -144,7 +131,6 @@ describe('SyncManager', () => {
     runtime.loadBaseNodes([
       {
         blockId: 'node-uuid',
-        serverId: 42,
         parentId: null,
         orderIndex: 0,
         nodeType: 'block',
@@ -164,23 +150,20 @@ describe('SyncManager', () => {
     ]);
 
     const updated: Node = {
-      id: 42,
       uuid: 'node-uuid',
       name: 'hello',
       icon: null,
       color: 'red',
-      parent_id: null,
       parent_uuid: null,
-      page_id: null,
       page_uuid: null,
       sequence: 0,
       collapsed: false,
       active: true,
       is_page: false,
-      classes: [5],
+      classes_uuid: ['5'],
       create_date: new Date().toISOString(),
       write_date: new Date().toISOString(),
-    };
+    } as Node;
 
     const api = {
       createNode: vi.fn(),
@@ -199,7 +182,6 @@ describe('SyncManager', () => {
       id: 'op-add-class',
       type: 'add_class',
       blockId: 'node-uuid',
-      serverId: 42,
       state: 'pending',
       dependsOn: [],
       retryCount: 0,
@@ -245,7 +227,7 @@ describe('SyncManager', () => {
       maxRetries: 3,
       createdAt: Date.now(),
       payload: {
-        parentId: '1',
+        parentId: 'parent-uuid',
         afterBlockId: null,
         contentAST: [{ type: 'paragraph', children: [{ type: 'text', text: 'hello' }] }],
       },

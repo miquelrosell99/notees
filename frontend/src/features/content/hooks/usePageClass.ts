@@ -23,7 +23,7 @@ export function usePageClass() {
   
   return {
     pageClass,
-    pageClassId: pageClass?.id ?? null,
+    pageClassUuid: pageClass?.uuid ?? null,
     isLoading,
   };
 }
@@ -41,7 +41,7 @@ export function useClassClass() {
   
   return {
     classClass,
-    classClassId: classClass?.id ?? null,
+    classClassUuid: classClass?.uuid ?? null,
     isLoading,
   };
 }
@@ -75,28 +75,6 @@ export function useSystemClasses() {
     };
   }, [allClasses]);
   
-  const systemClassIds = useMemo(() => {
-    if (!systemClasses) return null;
-
-    return {
-      page: systemClasses.page?.id ?? null,
-      class: systemClasses.class?.id ?? null,
-      day: systemClasses.day?.id ?? null,
-      month: systemClasses.month?.id ?? null,
-      year: systemClasses.year?.id ?? null,
-      comment: systemClasses.comment?.id ?? null,
-      task: systemClasses.task?.id ?? null,
-      template: systemClasses.template?.id ?? null,
-      asset: systemClasses.asset?.id ?? null,
-      quote: systemClasses.quote?.id ?? null,
-      query: systemClasses.query?.id ?? null,
-      code: systemClasses.code?.id ?? null,
-      whiteboard: systemClasses.whiteboard?.id ?? null,
-      card: systemClasses.card?.id ?? null,
-      cloze: systemClasses.cloze?.id ?? null,
-    };
-  }, [systemClasses]);
-
   const systemClassUuids = useMemo(() => {
     if (!systemClasses) return null;
 
@@ -121,7 +99,6 @@ export function useSystemClasses() {
 
   return {
     systemClasses,
-    systemClassIds,
     systemClassUuids,
     isLoading,
   };

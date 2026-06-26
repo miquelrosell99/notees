@@ -69,7 +69,7 @@ export function useCalendarData(
   const dayNodeUuids = useMemo<string[]>(() => {
     const uuids = new Set<string>();
     for (const node of nodes) {
-      const props = node.properties as Record<string, unknown> | undefined;
+      const props = node.properties_uuid as Record<string, unknown> | undefined;
       if (!props) continue;
       if (startDateProperty) {
         const v = props[startDateProperty.uuid];
@@ -97,7 +97,7 @@ export function useCalendarData(
     if (!startDateProperty) return [];
     return nodes
       .flatMap((node) => {
-        const props = node.properties as Record<string, unknown> | undefined;
+        const props = node.properties_uuid as Record<string, unknown> | undefined;
         const startDate = resolveDate(props?.[startDateProperty.uuid], dayNodeMap);
         if (!startDate) return [];
         const endDate = endDateProperty

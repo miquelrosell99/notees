@@ -4,13 +4,18 @@
  * Workspace management components.
  */
 
-export { ExportPageModal } from './ExportPageModal';
-export { ImportDataModal } from './ImportDataModal';
-export { ImportLogseqModal } from './ImportLogseqModal';
-export { ImportMarkdownModal } from './ImportMarkdownModal';
-export { ImportOptionsModal } from './ImportOptionsModal';
+// Heavy modals are lazy-loaded via tiny Suspense wrappers
+export {
+  ExportPageModal,
+  ImportDataModal,
+  ImportLogseqModal,
+  ImportMarkdownModal,
+  ImportOptionsModal,
+  AutoExportProgressModal,
+  WorkspaceExportModal,
+} from './lazyModals';
+
+// Lightweight components remain eager
 export { WorkspaceModal } from './WorkspaceModal';
 export { WorkspaceNameModal } from './WorkspaceNameModal';
 export { WorkspaceSwitcher } from './WorkspaceSwitcher';
-export { AutoExportProgressModal } from './AutoExportProgressModal';
-export { WorkspaceExportModal } from './WorkspaceExportModal';

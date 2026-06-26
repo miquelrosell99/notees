@@ -8,6 +8,8 @@ SCHEMA VERSION: 2 - Workspace-based architecture.
 
 from __future__ import annotations
 
+import hashlib
+import shutil
 from datetime import UTC, datetime
 
 import asyncpg
@@ -138,6 +140,87 @@ async def init_database(conn: asyncpg.Connection) -> None:
     await _run_migration("normalize_settings_jsonb", conn, _run_normalize_settings_jsonb)
     await _run_migration("add_user_device_token", conn, _add_user_device_token)
     await _run_migration("add_uuid_columns_to_remaining_tables", conn, _add_uuid_columns_to_remaining_tables)
+    await _run_migration("add_node_revision", conn, _add_node_revision)
+    await _run_migration("add_sync_protocol_version", conn, _add_sync_protocol_version)
+    await _run_migration("remove_collapsed_column", conn, _remove_collapsed_column)
+    await _run_migration("migrate_assets_to_content_addressed", conn, _migrate_assets_to_content_addressed)
+
+
+async def _migrate_assets_to_content_addressed(conn: asyncpg.Connection) -> None:
+    """Move legacy per-asset UUID folders into content-addressed storage."""
+    from app.utils.paths import get_workspace_assets_dir
+
+    rows = await conn.fetch(
+        """
+        SELECT n.id, n.uuid, n.workspace_id, w.uuid::text AS workspace_uuid
+        FROM node n
+        JOIN workspace w ON w.id = n.workspace_id
+        WHERE n.is_asset = TRUE AND n.asset_file_id IS NULL AND n.active = TRUE
+        """
+    )
+    if not rows:
+        return
+
+    hash_to_file_id: dict[tuple[int, str], int] = {}
+    for row in rows:
+        assets_dir = get_workspace_assets_dir(row["workspace_uuid"])
+        asset_folder = assets_dir / str(row["uuid"])
+        if not asset_folder.exists():
+            continue
+
+        source_files = [
+            f for f in asset_folder.iterdir()
+            if f.is_file() and f.stem == "main" and f.name != "thumbnail.webp"
+        ]
+        if len(source_files) != 1:
+            continue
+
+        source_path = source_files[0]
+        file_bytes = source_path.read_bytes()
+        file_hash = hashlib.sha256(file_bytes).hexdigest()
+        extension = source_path.suffix.lower()
+        size_bytes = len(file_bytes)
+
+        key = (row["workspace_id"], file_hash)
+        if key in hash_to_file_id:
+            asset_file_id = hash_to_file_id[key]
+            await conn.execute(
+                "UPDATE asset_file SET ref_count = ref_count + 1 WHERE id = $1",
+                asset_file_id,
+            )
+        else:
+            storage_path = assets_dir / "files" / file_hash[:2] / file_hash[2:4] / f"{file_hash}{extension}"
+            storage_path.parent.mkdir(parents=True, exist_ok=True)
+            if not storage_path.exists():
+                shutil.move(str(source_path), str(storage_path))
+            else:
+                source_path.unlink(missing_ok=True)
+
+            asset_file_id = await conn.fetchval(
+                """
+                INSERT INTO asset_file (
+                    workspace_id, hash, size_bytes, extension, storage_path, ref_count, create_date
+                )
+                VALUES ($1, $2, $3, $4, $5, 1, NOW())
+                RETURNING id
+                """,
+                row["workspace_id"],
+                file_hash,
+                size_bytes,
+                extension,
+                str(storage_path),
+            )
+            if asset_file_id is not None:
+                hash_to_file_id[key] = asset_file_id
+
+        if asset_file_id is not None:
+            await conn.execute(
+                "UPDATE node SET asset_file_id = $1 WHERE id = $2",
+                asset_file_id,
+                row["id"],
+            )
+
+
 
 
 
@@ -1649,3 +1732,77 @@ async def _add_uuid_columns_to_remaining_tables(conn: asyncpg.Connection) -> Non
             """
         )
         logger.info(f"Added uuid column to {table}")
+
+
+async def _add_node_revision(conn: asyncpg.Connection) -> None:
+    """Add node_revision table for the v2 sync protocol."""
+    from ...logging_config import get_logger
+
+    logger = get_logger(__name__)
+
+    has_table = await conn.fetchval(
+        "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'node_revision')"
+    )
+    if not has_table:
+        await conn.execute("""
+            CREATE TABLE node_revision (
+                node_id INTEGER NOT NULL REFERENCES node(id) ON DELETE CASCADE,
+                client_id TEXT NOT NULL,
+                seq INTEGER NOT NULL,
+                applied_at TIMESTAMPTZ DEFAULT now(),
+                PRIMARY KEY (node_id, client_id)
+            )
+        """)
+        await conn.execute("CREATE INDEX idx_node_revision_node ON node_revision(node_id)")
+        logger.info("Created node_revision table")
+
+
+async def _add_sync_protocol_version(conn: asyncpg.Connection) -> None:
+    """Add sync_protocol_version column to workspace table."""
+    from ...logging_config import get_logger
+
+    logger = get_logger(__name__)
+
+    has_column = await conn.fetchval(
+        """
+        SELECT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = 'workspace' AND column_name = 'sync_protocol_version'
+        )
+        """
+    )
+    if not has_column:
+        await conn.execute("""
+            ALTER TABLE workspace
+            ADD COLUMN sync_protocol_version VARCHAR(10) NOT NULL DEFAULT 'v1',
+            ADD CONSTRAINT chk_workspace_sync_protocol_version
+                CHECK (sync_protocol_version IN ('v1', 'v2'))
+        """)
+        logger.info("Added sync_protocol_version column to workspace")
+
+
+async def _remove_collapsed_column(conn: asyncpg.Connection) -> None:
+    """Drop the legacy collapsed column from node and rebuild the affected index."""
+    from ...logging_config import get_logger
+
+    logger = get_logger(__name__)
+
+    has_column = await conn.fetchval(
+        """
+        SELECT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = 'node' AND column_name = 'collapsed'
+        )
+        """
+    )
+    if not has_column:
+        return
+
+    await conn.execute("DROP INDEX IF EXISTS idx_node_page_content")
+    await conn.execute("ALTER TABLE node DROP COLUMN collapsed")
+    await conn.execute("""
+        CREATE INDEX idx_node_page_content ON node(page_id, sequence)
+        INCLUDE (id, uuid, icon, color, parent_id, active, class_ids)
+        WHERE active = TRUE AND is_deleted = FALSE AND is_comment = FALSE
+    """)
+    logger.info("Dropped collapsed column and rebuilt idx_node_page_content")
