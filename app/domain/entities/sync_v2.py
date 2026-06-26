@@ -30,7 +30,7 @@ class OperationIntent(BaseModel):
         ...,
         description=(
             "Operation type: create, update_content, move, delete, restore, "
-            "add_class, remove_class, add_tag, remove_tag, update_node."
+            "add_class, remove_class, add_tag, remove_tag, update_node, set_property."
         ),
     )
     client_id: str = Field(..., description="Stable client/device UUID.")
@@ -54,6 +54,13 @@ class OperationIntent(BaseModel):
     # Extra node properties (icon, color, etc.)
     properties: dict[str, Any] | None = Field(
         None, description="Arbitrary node property updates for update_node ops."
+    )
+    # Property value ops
+    property_uuid: str | None = Field(
+        None, description="Property UUID for set_property ops."
+    )
+    property_value: Any | None = Field(
+        None, description="Property value for set_property ops."
     )
     # Node type flags for create ops
     is_page: bool = Field(False, description="Create as a page.")
