@@ -151,3 +151,58 @@ class TestSyncBatchV2:
         data = response.json()
         assert data["new_vectors"][page["uuid"]][client_id] == 1
         assert data["new_vectors"][new_block_uuid][client_id] == 1
+
+    @pytest.mark.asyncio
+    async def test_set_property_op_advances_vector(
+        self, authenticated_client: AsyncClient, sample_node_data: dict
+    ):
+        """A set_property op resolves UUIDs, applies the value, and advances the vector."""
+        page_response = await authenticated_client.post("/api/nodes/", json=sample_node_data)
+        assert page_response.status_code == 200
+        page = page_response.json()
+
+        prop_response = await authenticated_client.post(
+            "/api/properties/",
+            json={"name": "SyncStatus", "type": "selection"},
+        )
+        assert prop_response.status_code == 200
+        prop = prop_response.json()
+
+        line_response = await authenticated_client.post(
+            f"/api/properties/{prop['uuid']}/selection-lines",
+            json={"name": "Done"},
+        )
+        assert line_response.status_code == 200
+        line = line_response.json()
+
+        client_id = str(uuid.uuid4())
+        response = await authenticated_client.post(
+            "/api/sync/batch",
+            json={
+                "ops": [
+                    {
+                        "type": "set_property",
+                        "client_id": client_id,
+                        "seq": 1,
+                        "node_uuid": page["uuid"],
+                        "property_uuid": prop["uuid"],
+                        "property_value": line["uuid"],
+                    }
+                ],
+                "base_vector": {},
+            },
+            headers={"X-Notees-Sync-Protocol": "v2"},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["applied"] is True
+        assert data["new_vectors"][page["uuid"]][client_id] == 1
+
+        props_response = await authenticated_client.get(f"/api/nodes/{page['uuid']}/properties")
+        assert props_response.status_code == 200
+        props = props_response.json()["properties"]
+        matching = [p for p in props if p["property"]["uuid"] == prop["uuid"]]
+        assert len(matching) == 1
+        values = matching[0]["values"]
+        assert any(v.get("selection_line_uuid") == line["uuid"] for v in values)

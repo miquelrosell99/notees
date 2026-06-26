@@ -71,9 +71,13 @@ from .features.notifications.repository import (
 from .features.notifications.service import NotificationService
 from .features.properties.port import PropertyRepository
 from .features.properties.repository import PostgresPropertyRepository
+from .features.properties.service import PropertyService
 from .features.sync.dependencies import _make_sync_repository
 from .features.sync.service import SyncService
 from .features.sync.service_v2 import SyncServiceV2
+from .features.tasks.repository import PostgresTaskRecurrenceRepository
+from .features.tasks.repository_completion import PostgresTaskCompletionRepository
+from .features.tasks.service import TaskAutomationService
 from .features.undo.repository import PostgresUndoRepository
 from .features.undo.service import UndoService
 from .features.workspaces.dependencies import (
@@ -425,7 +429,34 @@ async def _get_sync_service_v2(
     node_service = await _get_node_service_for_workspace(user, workspace_id, page_class_id)
     permission_repo = _make_permission_repository(pool, workspace_id, user_id)
     permission_checker = PermissionChecker(user_id, permission_repo)
-    return SyncServiceV2(sync_repo, node_service, permission_checker, workspace_id, user_id, workspace_uuid)
+    property_repo = _make_property_repository(pool, workspace_id, user_id)
+    recurrence_repo = PostgresTaskRecurrenceRepository(pool, workspace_id, user_id)
+    completion_repo = PostgresTaskCompletionRepository(pool, workspace_id, user_id)
+    task_service = TaskAutomationService(
+        node_service,
+        property_repo,
+        recurrence_repo,
+        completion_repo,
+        user_id=user_id,
+    )
+    activity_repo = PostgresActivityRepository(pool, workspace_id, user_id)
+    property_service = PropertyService(
+        workspace_id,
+        property_repo,
+        node_service,
+        task_service=task_service,
+        activity_repo=activity_repo,
+        user_id=user_id,
+    )
+    return SyncServiceV2(
+        sync_repo,
+        node_service,
+        permission_checker,
+        workspace_id,
+        user_id,
+        workspace_uuid,
+        property_service=property_service,
+    )
 
 
 async def get_sync_service_v2(

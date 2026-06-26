@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from app.dependencies import get_current_user, get_node_repository, get_property_repository
-from app.domain.entities import RELATION_TYPES, SCALAR_TYPES, PropertyType
+from app.domain.entities import RELATION_TYPES, SCALAR_TYPES
 from app.features.nodes.port import NodeRepository
 from app.features.nodes.router.dependencies import (
     resolve_node_uuid,
@@ -40,7 +40,7 @@ from app.features.properties.router.helpers import (
     _scalar_value_to_response,
     _selection_value_to_response,
 )
-from app.features.properties.service import PropertyService
+from app.features.properties.service import PropertyNotFoundError, PropertyService
 from app.logging_config import get_logger
 from app.models import User
 
@@ -118,70 +118,6 @@ def _extract_property_value(val: Any) -> Any:
     return None
 
 
-async def _resolve_property_value(
-    prop: Any,
-    value: Any,
-    node_repo: NodeRepository,
-    property_repo: PropertyRepository,
-) -> Any:
-    """Resolve public UUIDs inside a property value to internal IDs for the service.
-
-    Relation-type values may be a single target node UUID or a list of UUIDs.
-    Selection-type values may be a single selection line UUID or a list of UUIDs.
-    Integer IDs are accepted as a backwards-compatibility fallback.
-    """
-    if value is None or value == "":
-        return value
-
-    if prop.type in RELATION_TYPES:
-        if isinstance(value, list):
-            resolved: list[int] = []
-            for item in value:
-                if isinstance(item, int):
-                    resolved.append(item)
-                elif isinstance(item, str):
-                    node = await node_repo.get_by_uuid(item)
-                    if node is None or node.id is None:
-                        raise HTTPException(404, f"Target node {item} not found")
-                    resolved.append(node.id)
-                else:
-                    raise HTTPException(400, f"Invalid relation value: {item}")
-            return resolved
-        if isinstance(value, int):
-            return value
-        if isinstance(value, str):
-            node = await node_repo.get_by_uuid(value)
-            if node is None or node.id is None:
-                raise HTTPException(404, f"Target node {value} not found")
-            return node.id
-        raise HTTPException(400, f"Relation property expects node UUID or array of UUIDs, got {type(value)}")
-
-    if prop.type == PropertyType.SELECTION:
-        if isinstance(value, list):
-            resolved = []
-            for item in value:
-                if isinstance(item, int):
-                    resolved.append(item)
-                elif isinstance(item, str):
-                    line = await property_repo.get_selection_line_by_uuid(item)
-                    if line is None or line.id is None:
-                        raise HTTPException(404, f"Selection line {item} not found")
-                    resolved.append(line.id)
-                else:
-                    raise HTTPException(400, f"Invalid selection value: {item}")
-            return resolved
-        if isinstance(value, int):
-            return value
-        if isinstance(value, str):
-            line = await property_repo.get_selection_line_by_uuid(value)
-            if line is None or line.id is None:
-                raise HTTPException(404, f"Selection line {value} not found")
-            return line.id
-        raise HTTPException(400, f"Selection property expects selection line UUID or array of UUIDs, got {type(value)}")
-
-    return value
-
-
 class SetPropertyRequest(BaseModel):
     """Unified property value request."""
 
@@ -195,8 +131,6 @@ async def set_property_value(
     node_id: int = Depends(resolve_node_uuid),
     request: SetPropertyRequest = ...,
     service: PropertyService = Depends(get_property_service),
-    repo: NodeRepository = Depends(get_node_repository),
-    property_repo: PropertyRepository = Depends(get_property_repository),
     user: User = Depends(get_current_user),
 ):
     """Set a property value for a node (auto-detects type and dispatches to the correct handler).
@@ -218,12 +152,11 @@ async def set_property_value(
 
     assert property_id is not None
 
-    resolved_value = await _resolve_property_value(
-        prop, request.value, repo, property_repo
-    )
-
     try:
+        resolved_value = await service.resolve_property_value(prop, request.value)
         await service.set_property_value(node_id, property_id, resolved_value)
+    except PropertyNotFoundError as e:
+        raise HTTPException(404, str(e)) from e
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
 
@@ -701,9 +634,12 @@ async def batch_set_property_values(
         prop = await property_repo.get_by_id(property_id)
         if prop is None:
             raise HTTPException(404, f"Property {property_id} not found")
-        resolved_value = await _resolve_property_value(
-            prop, item.value, repo, property_repo
-        )
+        try:
+            resolved_value = await service.resolve_property_value(prop, item.value)
+        except PropertyNotFoundError as e:
+            raise HTTPException(404, str(e)) from e
+        except ValueError as e:
+            raise HTTPException(400, str(e)) from e
         items.append((node_id, property_id, resolved_value))
 
     service_results = await service.batch_set_property_values(items)

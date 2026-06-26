@@ -17,6 +17,7 @@ from app.domain.entities.sync_v2 import (
 )
 from app.domain.permissions import PermissionChecker
 from app.features.nodes.node_service import NodeService
+from app.features.properties.service import PropertyNotFoundError, PropertyService
 from app.features.sync.port import SyncRepository
 from app.logging_config import get_logger
 
@@ -34,6 +35,7 @@ class SyncServiceV2:
         workspace_id: int,
         user_id: int,
         workspace_uuid: str | None = None,
+        property_service: PropertyService | None = None,
     ):
         self._sync_repo = sync_repo
         self._node_service = node_service
@@ -41,6 +43,7 @@ class SyncServiceV2:
         self._workspace_id = workspace_id
         self._user_id = user_id
         self._workspace_uuid = workspace_uuid
+        self._property_service = property_service
 
     async def apply_batch(self, request: SyncBatchRequest) -> SyncBatchResponse | SyncConflictResponse:
         """Validate vectors and apply a batch of operations atomically."""
@@ -265,6 +268,31 @@ class SyncServiceV2:
                 tag_id = await self._node_service._node_repo.find_node_id_by_uuid(op.tag_uuid)
                 if tag_id:
                     await self._node_service.remove_tag_link(target_id, tag_id)
+
+        elif op.type == "set_property":
+            if not self._property_service:
+                logger.warning("Skipping set_property op: no property service available")
+                return None
+            if not op.property_uuid:
+                logger.warning("Skipping set_property op for node %s: missing property_uuid", op.node_uuid)
+                return None
+            try:
+                await self._property_service.set_property_value_by_uuid(
+                    target_id, op.property_uuid, op.property_value
+                )
+            except PropertyNotFoundError:
+                logger.warning(
+                    "Skipping set_property op: property %s or target not found",
+                    op.property_uuid,
+                )
+                return None
+            except ValueError:
+                logger.warning(
+                    "Skipping set_property op: invalid value for property %s",
+                    op.property_uuid,
+                    exc_info=True,
+                )
+                return None
 
         else:
             logger.warning("Unknown sync v2 op type: %s", op.type)

@@ -467,6 +467,79 @@ class PropertyService:
                 now=utc_now(),
             )
 
+    async def resolve_property_value(self, prop: Property, value: Any) -> Any:
+        """Resolve public UUIDs inside a property value to internal IDs.
+
+        Relation-type values may be a single target node UUID or a list of UUIDs.
+        Selection-type values may be a single selection line UUID or a list of UUIDs.
+        Integer IDs are accepted as a backwards-compatibility fallback.
+
+        Raises:
+            PropertyNotFoundError: If a referenced target node or selection line
+                cannot be found.
+            ValueError: If the value shape is invalid for the property type.
+        """
+        if value is None or value == "":
+            return value
+
+        if prop.type in RELATION_TYPES:
+            async def _resolve_relation_item(item: Any) -> int:
+                if isinstance(item, int):
+                    return item
+                if isinstance(item, str):
+                    node = await self._node_service.get_node_by_uuid(item)
+                    if node is None or node.id is None:
+                        raise PropertyNotFoundError(f"Target node {item} not found")
+                    return node.id
+                raise ValueError(
+                    f"Relation property expects node UUID or array of UUIDs, got {type(item)}"
+                )
+
+            if isinstance(value, list):
+                return [await _resolve_relation_item(item) for item in value]
+            return await _resolve_relation_item(value)
+
+        if prop.type == PropertyType.SELECTION:
+            async def _resolve_selection_item(item: Any) -> int:
+                if isinstance(item, int):
+                    return item
+                if isinstance(item, str):
+                    line = await self._property_repo.get_selection_line_by_uuid(item)
+                    if line is None or line.id is None:
+                        raise PropertyNotFoundError(f"Selection line {item} not found")
+                    return line.id
+                raise ValueError(
+                    f"Selection property expects selection line UUID or array of UUIDs, got {type(item)}"
+                )
+
+            if isinstance(value, list):
+                return [await _resolve_selection_item(item) for item in value]
+            return await _resolve_selection_item(value)
+
+        return value
+
+    async def set_property_value_by_uuid(
+        self,
+        node_id: int,
+        property_uuid: str,
+        value: Any,
+        *,
+        run_automations: bool = True,
+        log_activity: bool = True,
+    ) -> None:
+        """Set a property value for a node using the property's public UUID."""
+        prop = await self.get_property_by_uuid(property_uuid)
+        if prop is None or prop.id is None:
+            raise PropertyNotFoundError(f"Property {property_uuid} not found")
+        resolved_value = await self.resolve_property_value(prop, value)
+        await self.set_property_value(
+            node_id,
+            prop.id,
+            resolved_value,
+            run_automations=run_automations,
+            log_activity=log_activity,
+        )
+
     async def set_property_value(
         self,
         node_id: int,
