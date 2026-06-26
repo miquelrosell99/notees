@@ -26,60 +26,45 @@ export function intentToOperations(
   intent: MutationIntent,
   runtime: OperationRuntime,
 ): Operation[] {
-  const resolveServerId = (blockId: string) => runtime.getNode(blockId)?.serverId;
-
   switch (intent.type) {
     case 'update_content': {
-      const serverId = resolveServerId(intent.blockId);
-      const dependsOn = serverId == null ? findPendingCreateOperationId(runtime, intent.blockId) : undefined;
-      return [contentOperation(intent.blockId, serverId, intent.contentAST, dependsOn ? [dependsOn] : [])];
+      const dependsOn = findPendingCreateOperationId(runtime, intent.blockId);
+      return [contentOperation(intent.blockId, intent.contentAST, dependsOn ? [dependsOn] : [])];
     }
 
     case 'create_block':
       return [createOperation(intent.blockId, intent)];
 
     case 'delete_block':
-      return [deleteOperation(intent.blockId, resolveServerId(intent.blockId))];
+      return [deleteOperation(intent.blockId)];
 
     case 'move_block':
-      return [moveOperation(intent.blockId, resolveServerId(intent.blockId), intent.newParentId, intent.afterBlockId)];
+      return [moveOperation(intent.blockId, intent.newParentId, intent.afterBlockId)];
 
     case 'set_collapsed':
-      return [collapsedOperation(intent.blockId, resolveServerId(intent.blockId), intent.collapsed)];
+      return [collapsedOperation(intent.blockId, intent.collapsed)];
 
     case 'set_node_type':
       // Node type changes are currently folded into class assignments.
       return [];
 
-    case 'add_class': {
-      const serverId = resolveServerId(intent.blockId);
-      return [addClassOperation(intent.blockId, serverId, intent.classId)];
-    }
+    case 'add_class':
+      return [addClassOperation(intent.blockId, intent.classId)];
 
-    case 'remove_class': {
-      const serverId = resolveServerId(intent.blockId);
-      return [removeClassOperation(intent.blockId, serverId, intent.classId)];
-    }
+    case 'remove_class':
+      return [removeClassOperation(intent.blockId, intent.classId)];
 
-    case 'add_tag': {
-      const serverId = resolveServerId(intent.blockId);
-      return [addTagOperation(intent.blockId, serverId, intent.tagId)];
-    }
+    case 'add_tag':
+      return [addTagOperation(intent.blockId, intent.tagId)];
 
-    case 'remove_tag': {
-      const serverId = resolveServerId(intent.blockId);
-      return [removeTagOperation(intent.blockId, serverId, intent.tagId)];
-    }
+    case 'remove_tag':
+      return [removeTagOperation(intent.blockId, intent.tagId)];
 
-    case 'update_node': {
-      const serverId = resolveServerId(intent.blockId);
-      return [updateNodeOperation(intent.blockId, serverId, intent.updates)];
-    }
+    case 'update_node':
+      return [updateNodeOperation(intent.blockId, intent.updates)];
 
-    case 'move_node': {
-      const serverId = resolveServerId(intent.blockId);
-      return [moveNodeOperation(intent.blockId, serverId, intent.parentId, intent.afterBlockId)];
-    }
+    case 'move_node':
+      return [moveNodeOperation(intent.blockId, intent.parentId, intent.afterBlockId)];
 
     case 'batch':
       return intent.intents.flatMap((sub) => intentToOperations(sub, runtime));
@@ -108,18 +93,21 @@ export function intentToOperations(
     case 'toggle_collapsed': {
       const node = runtime.getNode(intent.blockId);
       if (!node) return [];
-      return [collapsedOperation(intent.blockId, node.serverId, !node.collapsed)];
+      return [collapsedOperation(intent.blockId, !node.collapsed)];
     }
   }
 }
 
 /**
  * Expand an intent to operations and apply them to the runtime.
+ * Returns the generated operations so callers can persist or inspect them.
  */
-export function applyIntent(runtime: OperationRuntime, intent: MutationIntent): void {
-  for (const operation of intentToOperations(intent, runtime)) {
+export function applyIntent(runtime: OperationRuntime, intent: MutationIntent): Operation[] {
+  const operations = intentToOperations(intent, runtime);
+  for (const operation of operations) {
     runtime.applyOperation(operation);
   }
+  return operations;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────
@@ -155,7 +143,7 @@ function splitBlockOperations(
   }
 
   return [
-    contentOperation(intent.blockId, node.serverId, before),
+    contentOperation(intent.blockId, before),
     createOperation(intent.newBlockId, {
       parentId: newParentId,
       afterBlockId,
@@ -174,17 +162,17 @@ function mergeBlocksOperations(
   if (!source || !target) return [];
 
   const mergedAST = mergeContentASTs(target.contentAST, source.contentAST);
-  const ops: Operation[] = [contentOperation(intent.targetBlockId, target.serverId, mergedAST)];
+  const ops: Operation[] = [contentOperation(intent.targetBlockId, mergedAST)];
 
   const targetChildren = runtime.getChildren(intent.targetBlockId);
   const sourceChildren = runtime.getChildren(intent.sourceBlockId);
   let lastAfter = targetChildren[targetChildren.length - 1]?.blockId ?? null;
   for (const child of sourceChildren) {
-    ops.push(moveOperation(child.blockId, child.serverId, intent.targetBlockId, lastAfter));
+    ops.push(moveOperation(child.blockId, intent.targetBlockId, lastAfter));
     lastAfter = child.blockId;
   }
 
-  ops.push(deleteOperation(intent.sourceBlockId, source.serverId));
+  ops.push(deleteOperation(intent.sourceBlockId));
   return ops;
 }
 
@@ -203,7 +191,7 @@ function indentBlockOperations(
   const newParentChildren = runtime.getChildren(newParentId);
   const afterBlockId = newParentChildren[newParentChildren.length - 1]?.blockId ?? null;
 
-  return [moveOperation(intent.blockId, node.serverId, newParentId, afterBlockId)];
+  return [moveOperation(intent.blockId, newParentId, afterBlockId)];
 }
 
 function outdentBlockOperations(
@@ -219,7 +207,7 @@ function outdentBlockOperations(
   const grandparentId = parent.parentId;
   const ops: Operation[] = [];
 
-  ops.push(moveOperation(intent.blockId, node.serverId, grandparentId, parent.blockId));
+  ops.push(moveOperation(intent.blockId, grandparentId, parent.blockId));
 
   const siblings = runtime.getChildren(node.parentId);
   const myIndex = siblings.findIndex((s) => s.blockId === intent.blockId);
@@ -228,7 +216,7 @@ function outdentBlockOperations(
   const existingChildren = runtime.getChildren(intent.blockId);
   let lastAfter = existingChildren[existingChildren.length - 1]?.blockId ?? null;
   for (const sibling of subsequentSiblings) {
-    ops.push(moveOperation(sibling.blockId, sibling.serverId, intent.blockId, lastAfter));
+    ops.push(moveOperation(sibling.blockId, intent.blockId, lastAfter));
     lastAfter = sibling.blockId;
   }
 
@@ -250,7 +238,7 @@ function moveUpOperations(
 
   if (myIndex > 0) {
     const beforePrev = myIndex > 1 ? siblings[myIndex - 2] : null;
-    return [moveOperation(intent.blockId, node.serverId, node.parentId, beforePrev?.blockId ?? null)];
+    return [moveOperation(intent.blockId, node.parentId, beforePrev?.blockId ?? null)];
   } else if (myIndex === 0 && parent.parentId) {
     const grandparentChildren = runtime.getChildren(parent.parentId);
     const parentIndex = grandparentChildren.findIndex((s) => s.blockId === node.parentId);
@@ -258,7 +246,7 @@ function moveUpOperations(
       const prevParentId = grandparentChildren[parentIndex - 1].blockId;
       const prevParentChildren = runtime.getChildren(prevParentId);
       const afterBlockId = prevParentChildren[prevParentChildren.length - 1]?.blockId ?? null;
-      return [moveOperation(intent.blockId, node.serverId, prevParentId, afterBlockId)];
+      return [moveOperation(intent.blockId, prevParentId, afterBlockId)];
     }
   }
   return [];
@@ -279,13 +267,13 @@ function moveDownOperations(
 
   if (myIndex < siblings.length - 1) {
     const nextSibling = siblings[myIndex + 1];
-    return [moveOperation(intent.blockId, node.serverId, node.parentId, nextSibling.blockId)];
+    return [moveOperation(intent.blockId, node.parentId, nextSibling.blockId)];
   } else if (myIndex === siblings.length - 1 && parent.parentId) {
     const grandparentChildren = runtime.getChildren(parent.parentId);
     const parentIndex = grandparentChildren.findIndex((s) => s.blockId === node.parentId);
     if (parentIndex < grandparentChildren.length - 1) {
       const nextParentId = grandparentChildren[parentIndex + 1].blockId;
-      return [moveOperation(intent.blockId, node.serverId, nextParentId, null)];
+      return [moveOperation(intent.blockId, nextParentId, null)];
     }
   }
   return [];
@@ -300,7 +288,7 @@ function reorderBlocksOperations(
   for (const blockId of intent.orderedBlockIds) {
     const node = runtime.getNode(blockId);
     if (!node) continue;
-    ops.push(moveOperation(blockId, node.serverId, intent.parentId, lastAfter));
+    ops.push(moveOperation(blockId, intent.parentId, lastAfter));
     lastAfter = blockId;
   }
   return ops;
@@ -310,7 +298,6 @@ function reorderBlocksOperations(
 
 export function contentOperation(
   blockId: string,
-  serverId: number | undefined,
   contentAST: UpdateContentPayload['contentAST'],
   dependsOn: readonly string[] = [],
 ): Operation {
@@ -318,7 +305,6 @@ export function contentOperation(
     id: generateUUID(),
     type: 'update_content',
     blockId,
-    serverId,
     state: 'pending',
     dependsOn,
     retryCount: 0,
@@ -358,7 +344,6 @@ export function createOperation(
 
 export function moveOperation(
   blockId: string,
-  serverId: number | undefined,
   parentId: string | null,
   afterBlockId: string | null,
   dependsOn: readonly string[] = [],
@@ -367,7 +352,6 @@ export function moveOperation(
     id: generateUUID(),
     type: 'move',
     blockId,
-    serverId,
     state: 'pending',
     dependsOn,
     retryCount: 0,
@@ -379,14 +363,12 @@ export function moveOperation(
 
 export function deleteOperation(
   blockId: string,
-  serverId: number | undefined,
   dependsOn: readonly string[] = [],
 ): Operation {
   return {
     id: generateUUID(),
     type: 'delete',
     blockId,
-    serverId,
     state: 'pending',
     dependsOn,
     retryCount: 0,
@@ -398,7 +380,6 @@ export function deleteOperation(
 
 export function collapsedOperation(
   blockId: string,
-  serverId: number | undefined,
   collapsed: boolean,
   dependsOn: readonly string[] = [],
 ): Operation {
@@ -406,7 +387,6 @@ export function collapsedOperation(
     id: generateUUID(),
     type: 'set_collapsed',
     blockId,
-    serverId,
     state: 'pending',
     dependsOn,
     retryCount: 0,
@@ -418,7 +398,6 @@ export function collapsedOperation(
 
 export function addClassOperation(
   blockId: string,
-  serverId: number | undefined,
   classId: string,
   dependsOn: readonly string[] = [],
 ): Operation {
@@ -426,7 +405,6 @@ export function addClassOperation(
     id: generateUUID(),
     type: 'add_class',
     blockId,
-    serverId,
     state: 'pending',
     dependsOn,
     retryCount: 0,
@@ -438,7 +416,6 @@ export function addClassOperation(
 
 export function removeClassOperation(
   blockId: string,
-  serverId: number | undefined,
   classId: string,
   dependsOn: readonly string[] = [],
 ): Operation {
@@ -446,7 +423,6 @@ export function removeClassOperation(
     id: generateUUID(),
     type: 'remove_class',
     blockId,
-    serverId,
     state: 'pending',
     dependsOn,
     retryCount: 0,
@@ -458,7 +434,6 @@ export function removeClassOperation(
 
 export function addTagOperation(
   blockId: string,
-  serverId: number | undefined,
   tagId: string,
   dependsOn: readonly string[] = [],
 ): Operation {
@@ -466,7 +441,6 @@ export function addTagOperation(
     id: generateUUID(),
     type: 'add_tag',
     blockId,
-    serverId,
     state: 'pending',
     dependsOn,
     retryCount: 0,
@@ -478,7 +452,6 @@ export function addTagOperation(
 
 export function removeTagOperation(
   blockId: string,
-  serverId: number | undefined,
   tagId: string,
   dependsOn: readonly string[] = [],
 ): Operation {
@@ -486,7 +459,6 @@ export function removeTagOperation(
     id: generateUUID(),
     type: 'remove_tag',
     blockId,
-    serverId,
     state: 'pending',
     dependsOn,
     retryCount: 0,
@@ -498,7 +470,6 @@ export function removeTagOperation(
 
 export function updateNodeOperation(
   blockId: string,
-  serverId: number | undefined,
   updates: Partial<GraphNode>,
   dependsOn: readonly string[] = [],
 ): Operation {
@@ -506,7 +477,6 @@ export function updateNodeOperation(
     id: generateUUID(),
     type: 'update_node',
     blockId,
-    serverId,
     state: 'pending',
     dependsOn,
     retryCount: 0,
@@ -518,7 +488,6 @@ export function updateNodeOperation(
 
 export function moveNodeOperation(
   blockId: string,
-  serverId: number | undefined,
   parentId: string | null,
   afterBlockId: string | null,
   dependsOn: readonly string[] = [],
@@ -527,7 +496,6 @@ export function moveNodeOperation(
     id: generateUUID(),
     type: 'move_node',
     blockId,
-    serverId,
     state: 'pending',
     dependsOn,
     retryCount: 0,

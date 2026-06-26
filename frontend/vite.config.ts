@@ -11,6 +11,7 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['notees-icon.svg', 'apple-touch-icon.png'],
       workbox: {
+        importScripts: ['/sw-sync.js'],
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         // Don't precache large on-demand files:
         // - sql-wasm.wasm: loaded only for Logseq import

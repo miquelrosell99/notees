@@ -18,8 +18,8 @@ function stepTimes(engine: SGEEngine, n: number): void {
 describe('SGEEngine', () => {
   it('initialises deterministically with the same seed', () => {
     const cfg = makeConfig();
-    const nodes = [{ id: 1 }, { id: 2 }, { id: 3 }];
-    const edges = [{ source: 1, target: 2 }, { source: 2, target: 3 }];
+    const nodes = [{ nodeUuid: 'a' }, { nodeUuid: 'b' }, { nodeUuid: 'c' }];
+    const edges = [{ source: 'a', target: 'b' }, { source: 'b', target: 'c' }];
     const a = new SGEEngine(nodes, edges, cfg).getState();
     const b = new SGEEngine(nodes, edges, cfg).getState();
     expect(Array.from(a.posX)).toEqual(Array.from(b.posX));
@@ -32,13 +32,13 @@ describe('SGEEngine', () => {
     cfg.idealDistance = 100;
     cfg.componentCenterStrength = 0;
     const engine = new SGEEngine(
-      [{ id: 1 }, { id: 2 }],
-      [{ source: 1, target: 2, type: 'reference' }],
+      [{ nodeUuid: 'a' }, { nodeUuid: 'b' }],
+      [{ source: 'a', target: 'b', type: 'reference' }],
       cfg,
     );
-    engine.pinNode(1);
-    engine.moveNode(1, 0, 0);
-    engine.moveNode(2, 200, 0);
+    engine.pinNode('a');
+    engine.moveNode('a', 0, 0);
+    engine.moveNode('b', 200, 0);
     stepTimes(engine, 5);
     const s = engine.getState();
     expect(s.posX[0]).toBe(0);
@@ -50,15 +50,15 @@ describe('SGEEngine', () => {
   it('preserves positions of surviving nodes across topology changes', () => {
     const cfg = makeConfig();
     const engine = new SGEEngine(
-      [{ id: 1 }, { id: 2 }, { id: 3 }],
-      [{ source: 1, target: 2 }],
+      [{ nodeUuid: 'a' }, { nodeUuid: 'b' }, { nodeUuid: 'c' }],
+      [{ source: 'a', target: 'b' }],
       cfg,
     );
-    engine.moveNode(1, 123, 456);
-    engine.moveNode(2, -100, -200);
+    engine.moveNode('a', 123, 456);
+    engine.moveNode('b', -100, -200);
     engine.setTopology(
-      [{ id: 1 }, { id: 2 }],
-      [{ source: 1, target: 2 }],
+      [{ nodeUuid: 'a' }, { nodeUuid: 'b' }],
+      [{ source: 'a', target: 'b' }],
     );
     const s = engine.getState();
     expect(s.posX[0]).toBeCloseTo(123);
@@ -70,14 +70,14 @@ describe('SGEEngine', () => {
   it('uses explicit incoming positions over preserved ones', () => {
     const cfg = makeConfig();
     const engine = new SGEEngine(
-      [{ id: 1 }, { id: 2 }],
-      [{ source: 1, target: 2 }],
+      [{ nodeUuid: 'a' }, { nodeUuid: 'b' }],
+      [{ source: 'a', target: 'b' }],
       cfg,
     );
-    engine.moveNode(1, 999, 999);
+    engine.moveNode('a', 999, 999);
     engine.setTopology(
-      [{ id: 1, x: 50, y: 60 }, { id: 2 }],
-      [{ source: 1, target: 2 }],
+      [{ nodeUuid: 'a', x: 50, y: 60 }, { nodeUuid: 'b' }],
+      [{ source: 'a', target: 'b' }],
     );
     const s = engine.getState();
     expect(s.posX[0]).toBe(50);
@@ -87,12 +87,12 @@ describe('SGEEngine', () => {
   it('initialises pinned state from node descriptors', () => {
     const cfg = makeConfig();
     const engine = new SGEEngine(
-      [{ id: 1, pinned: true }, { id: 2 }],
-      [{ source: 1, target: 2, type: 'reference' }],
+      [{ nodeUuid: 'a', pinned: true }, { nodeUuid: 'b' }],
+      [{ source: 'a', target: 'b', type: 'reference' }],
       cfg,
     );
-    engine.moveNode(1, 0, 0);
-    engine.moveNode(2, 200, 0);
+    engine.moveNode('a', 0, 0);
+    engine.moveNode('b', 200, 0);
     stepTimes(engine, 5);
     const s = engine.getState();
     expect(s.posX[0]).toBe(0);

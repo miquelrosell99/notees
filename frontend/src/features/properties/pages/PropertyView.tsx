@@ -12,6 +12,7 @@
  * - Delete property action in context menu
  */
 import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Spinner } from '@/components/ui/Spinner';
 import type { Property, Node, PropertyType } from '@/types/api';
 import type { QueryAST, QueryPropertyType } from '@/types/queryAST';
@@ -19,7 +20,7 @@ import { useDeleteProperty } from '../hooks';
 import { useProperty, useUpdateProperty } from '../hooks';
 import { useNavigationStore } from '@/stores';
 import { createEmptyQueryAST, createPropertyCondition, markAsSystemNode } from '@/types/queryAST';
-import { MainContentTopbar, useOpenNode } from '@/features/layout';
+import { MainContentTopbar } from '@/features/layout';
 import { QuerySection } from '@/features/content';
 import { PropertyConfigSection } from '../components/PropertyConfigSection';
 import { PageHeader } from '@/features/content';
@@ -53,11 +54,11 @@ const PROPERTY_TYPES: Record<string, { label: string; icon: string; supportsMult
 
 interface PropertyViewProps {
   /** Property ID to display */
-  propertyId: string | number;
+  propertyId: string;
   /** Navigate to a node */
-  onNavigateToNode?: (nodeId: string | number) => void;
+  onNavigateToNode?: (nodeUuid: string) => void;
   /** Open a node in sidebar */
-  onOpenInSidebar?: (nodeId: string | number) => void;
+  onOpenInSidebar?: (nodeUuid: string) => void;
 }
 
 export interface PropertyViewResult {
@@ -95,8 +96,6 @@ export function PropertyView({
     setProperty(updatedProperty);
   }, []);
   
-  // Get navigation function
-  const openNode = useOpenNode();
   const deletePropertyMutation = useDeleteProperty();
   const updatePropertyMutation = useUpdateProperty();
   
@@ -158,17 +157,19 @@ export function PropertyView({
   }, [property, updatePropertyMutation]);
   
   // Handle property deletion
+  const navigate = useNavigate();
+
   const handlePropertyDelete = useCallback(async () => {
     if (!property) return;
-    
+
     try {
       await deletePropertyMutation.mutateAsync(property.uuid);
-      // Navigate to home or a default page after deletion
-      openNode(1); // Navigate to a safe page
+      // Navigate to home after deletion
+      navigate('/');
     } catch (err) {
       console.error('Failed to delete property:', err);
     }
-  }, [property, deletePropertyMutation, openNode]);
+  }, [property, deletePropertyMutation, navigate]);
   
   // Context menu handlers
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
@@ -289,7 +290,6 @@ export function PropertyView({
       
       {/* Nodes with this property */}
       <QuerySection
-        nodeId={0}
         nodeUuid="00000000-0000-0000-0000-000000000000"
         viewType="inline"
         title={`Nodes with "${property.name}"`}
@@ -297,7 +297,7 @@ export function PropertyView({
         defaultExpanded={true}
         queryAST={propertyQueryAST}
         onQueryASTChange={setPropertyQueryAST}
-        onNodeClick={(nodeId) => onNavigateToNode?.(nodeId)}
+        onNodeClick={(nodeUuid) => onNavigateToNode?.(nodeUuid)}
         can_create={false}
       />
       

@@ -27,7 +27,7 @@ export async function runPhase2(ctx: ImportContext): Promise<void> {
 
       const existingProp = existingPropByName.get(prop.title.toLowerCase());
       if (existingProp) {
-        propIdMap.set(prop.id, existingProp.id);
+        propIdMap.set(prop.id, existingProp.uuid);
         if (existingProp.multi !== isMulti && !existingProp.is_system) {
           try {
             await updateProperty(existingProp.uuid, { multi: isMulti });
@@ -41,11 +41,11 @@ export async function runPhase2(ctx: ImportContext): Promise<void> {
             const optValue = String(opt.value).toLowerCase();
             const matching = existingProp.options.find(o => o.name.toLowerCase() === optValue);
             if (matching) {
-              uuidMap.set(opt.uuid, { id: matching.id, uuid: '' });
+              uuidMap.set(opt.uuid, { nodeUuid: matching.uuid, uuid: '' });
             } else {
               try {
                 const newOpt = await addSelectionOption(existingProp.uuid, String(opt.value));
-                uuidMap.set(opt.uuid, { id: newOpt.id, uuid: '' });
+                uuidMap.set(opt.uuid, { nodeUuid: newOpt.uuid, uuid: '' });
               } catch (optErr) {
                 console.warn(`[IMPORT] Failed to create selection option "${opt.value}" on property "${prop.title}":`, optErr);
               }
@@ -71,7 +71,7 @@ export async function runPhase2(ctx: ImportContext): Promise<void> {
           const refreshed = await listProperties();
           const found = refreshed.find(p => p.name.toLowerCase() === prop.title.toLowerCase());
           if (found) {
-            propIdMap.set(prop.id, found.id);
+            propIdMap.set(prop.id, found.uuid);
             existingPropByName.set(prop.title.toLowerCase(), found);
             if (prop.selectionOptions && found.options) {
               for (const opt of prop.selectionOptions) {
@@ -79,11 +79,11 @@ export async function runPhase2(ctx: ImportContext): Promise<void> {
                 const optValue = String(opt.value).toLowerCase();
                 const matching = found.options.find(o => o.name.toLowerCase() === optValue);
                 if (matching) {
-                  uuidMap.set(opt.uuid, { id: matching.id, uuid: '' });
+                  uuidMap.set(opt.uuid, { nodeUuid: matching.uuid, uuid: '' });
                 } else {
                   try {
                     const newOpt = await addSelectionOption(found.uuid, String(opt.value));
-                    uuidMap.set(opt.uuid, { id: newOpt.id, uuid: '' });
+                    uuidMap.set(opt.uuid, { nodeUuid: newOpt.uuid, uuid: '' });
                   } catch (optErr) {
                     console.warn(`[IMPORT] Failed to create selection option "${opt.value}":`, optErr);
                   }
@@ -97,7 +97,7 @@ export async function runPhase2(ctx: ImportContext): Promise<void> {
         }
         throw createErr;
       }
-      propIdMap.set(prop.id, created!.id);
+      propIdMap.set(prop.id, created!.uuid);
 
       if (prop.selectionOptions && created!.options) {
         for (const opt of prop.selectionOptions) {
@@ -105,11 +105,11 @@ export async function runPhase2(ctx: ImportContext): Promise<void> {
           const optValue = String(opt.value).toLowerCase();
           const matching = created!.options.find(o => o.name.toLowerCase() === optValue);
           if (matching) {
-            uuidMap.set(opt.uuid, { id: matching.id, uuid: '' });
+            uuidMap.set(opt.uuid, { nodeUuid: matching.uuid, uuid: '' });
           } else {
             try {
               const newOpt = await addSelectionOption(created!.uuid, String(opt.value));
-              uuidMap.set(opt.uuid, { id: newOpt.id, uuid: '' });
+              uuidMap.set(opt.uuid, { nodeUuid: newOpt.uuid, uuid: '' });
             } catch (optErr) {
               console.warn(`[IMPORT] Failed to create selection option "${opt.value}":`, optErr);
             }
@@ -127,7 +127,7 @@ export async function runPhase2(ctx: ImportContext): Promise<void> {
 
   // Map logseq.property/description → Notees description system property
   const descriptionProp = existingProperties.find(p => p.uuid === SYSTEM_PROPERTY_UUIDS.description);
-  if (descriptionProp) propIdMap.set('logseq.property/description', descriptionProp.id);
+  if (descriptionProp) propIdMap.set('logseq.property/description', descriptionProp.uuid);
 
   // Map logseq system task properties
   const LOGSEQ_SYSTEM_PROP_MAP: Array<{ logseqId: string; notesUuid: string }> = [
@@ -137,7 +137,7 @@ export async function runPhase2(ctx: ImportContext): Promise<void> {
   for (const { logseqId, notesUuid } of LOGSEQ_SYSTEM_PROP_MAP) {
     const sysProp = existingProperties.find(p => p.uuid === notesUuid);
     if (!sysProp) continue;
-    propIdMap.set(logseqId, sysProp.id);
+    propIdMap.set(logseqId, sysProp.uuid);
     const logseqProp = parsed.properties.find(lp => lp.id === logseqId);
     if (logseqProp?.selectionOptions && sysProp.options) {
       const LOGSEQ_TO_NOTEES_NAME: Record<string, string> = {
@@ -150,12 +150,12 @@ export async function runPhase2(ctx: ImportContext): Promise<void> {
         const lsName = String(lsOpt.value).toLowerCase();
         const notesName = LOGSEQ_TO_NOTEES_NAME[lsName] ?? lsName;
         const notesOpt = sysProp.options.find(o => o.name.toLowerCase() === notesName);
-        if (notesOpt) uuidMap.set(lsOpt.uuid, { id: notesOpt.id, uuid: '' });
+        if (notesOpt) uuidMap.set(lsOpt.uuid, { nodeUuid: notesOpt.uuid, uuid: '' });
       }
     }
   }
 
-  ctx.textPropIds = new Set<number>(
-    existingProperties.filter(p => p.type === 'text').map(p => p.id)
+  ctx.textPropIds = new Set<string>(
+    existingProperties.filter(p => p.type === 'text').map(p => p.uuid)
   );
 }

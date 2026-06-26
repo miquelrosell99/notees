@@ -33,10 +33,10 @@ export function findUuidCaches(queryCache: QueryCache): Query[] {
 }
 
 /**
- * Find all detail queries for a specific node ID.
+ * Find all detail queries for a specific node UUID.
  */
-export function findDetailCachesForNode(queryCache: QueryCache, nodeId: number): Query[] {
-  return queryCache.findAll({ queryKey: nodeKeys.detailBase(nodeId) });
+export function findDetailCachesForNode(queryCache: QueryCache, nodeUuid: string): Query[] {
+  return queryCache.findAll({ queryKey: nodeKeys.detailBase(nodeUuid) });
 }
 
 /**
@@ -82,12 +82,12 @@ export function findPropertyBacklinkCaches(queryCache: QueryCache): Query[] {
 // Internal Tree Traversal Helpers
 // =============================================================================
 
-function applyUpdateToNode(node: Node, targetId: number, updater: (node: Node) => Node): Node {
-  if (node.id === targetId) {
+function applyUpdateToNode(node: Node, targetUuid: string, updater: (node: Node) => Node): Node {
+  if (node.uuid === targetUuid) {
     return updater(node);
   }
   if (node.children && node.children.length > 0) {
-    const newChildren = node.children.map(child => applyUpdateToNode(child, targetId, updater));
+    const newChildren = node.children.map(child => applyUpdateToNode(child, targetUuid, updater));
     if (newChildren !== node.children) {
       return { ...node, children: newChildren };
     }
@@ -95,11 +95,11 @@ function applyUpdateToNode(node: Node, targetId: number, updater: (node: Node) =
   return node;
 }
 
-function removeNodeFromTree(node: Node, targetId: number): Node {
+function removeNodeFromTree(node: Node, targetUuid: string): Node {
   if (node.children && node.children.length > 0) {
     const newChildren = node.children
-      .filter(child => child.id !== targetId)
-      .map(child => removeNodeFromTree(child, targetId));
+      .filter(child => child.uuid !== targetUuid)
+      .map(child => removeNodeFromTree(child, targetUuid));
     if (newChildren.length !== node.children.length) {
       return { ...node, children: newChildren };
     }
@@ -107,10 +107,10 @@ function removeNodeFromTree(node: Node, targetId: number): Node {
   return node;
 }
 
-function insertChildIntoNode(node: Node, parentId: number, childNode: Node): Node {
-  if (node.id === parentId) {
+function insertChildIntoNode(node: Node, parentUuid: string, childNode: Node): Node {
+  if (node.uuid === parentUuid) {
     const existing = node.children || [];
-    if (existing.some(c => c.id === childNode.id)) return node;
+    if (existing.some(c => c.uuid === childNode.uuid)) return node;
     const insertIdx = existing.findIndex(c => (c.sequence ?? 0) > (childNode.sequence ?? 0));
     const newChildren =
       insertIdx === -1
@@ -121,7 +121,7 @@ function insertChildIntoNode(node: Node, parentId: number, childNode: Node): Nod
   if (node.children && node.children.length > 0) {
     let changed = false;
     const newChildren = node.children.map(child => {
-      const updated = insertChildIntoNode(child, parentId, childNode);
+      const updated = insertChildIntoNode(child, parentUuid, childNode);
       if (updated !== child) changed = true;
       return updated;
     });
@@ -130,14 +130,14 @@ function insertChildIntoNode(node: Node, parentId: number, childNode: Node): Nod
   return node;
 }
 
-function replaceNodeInTree(node: Node, oldId: number, newNode: Node): Node {
+function replaceNodeInTree(node: Node, oldUuid: string, newNode: Node): Node {
   if (node.children && node.children.length > 0) {
     const newChildren = node.children.map(child => {
-      if (child.id === oldId) {
+      if (child.uuid === oldUuid) {
         // Preserve children from the optimistic node if the real node has none
         return { ...newNode, children: newNode.children?.length ? newNode.children : child.children };
       }
-      return replaceNodeInTree(child, oldId, newNode);
+      return replaceNodeInTree(child, oldUuid, newNode);
     });
     if (newChildren !== node.children) {
       return { ...node, children: newChildren };
@@ -153,15 +153,15 @@ function insertAtPosition(children: Node[], nodeToInsert: Node, pos: number): No
   return newChildren.map((child, idx) => ({ ...child, sequence: idx }));
 }
 
-function insertNodeAtParent(node: Node, nodeToInsert: Node, targetParentId: number, pos: number): Node {
-  if (node.id === targetParentId) {
+function insertNodeAtParent(node: Node, nodeToInsert: Node, targetParentUuid: string, pos: number): Node {
+  if (node.uuid === targetParentUuid) {
     const currentChildren = node.children || [];
     return { ...node, children: insertAtPosition(currentChildren, nodeToInsert, pos) };
   }
   if (node.children && node.children.length > 0) {
     return {
       ...node,
-      children: node.children.map(child => insertNodeAtParent(child, nodeToInsert, targetParentId, pos)),
+      children: node.children.map(child => insertNodeAtParent(child, nodeToInsert, targetParentUuid, pos)),
     };
   }
   return node;
@@ -177,7 +177,7 @@ function insertNodeAtParent(node: Node, nodeToInsert: Node, targetParentId: numb
  */
 export function updateNodeInTreeCaches(
   queryClient: QueryClient,
-  nodeId: number,
+  nodeUuid: string,
   updater: (node: Node) => Node
 ): boolean {
   const queryCache = queryClient.getQueryCache();
@@ -186,7 +186,7 @@ export function updateNodeInTreeCaches(
   const applyToQuery = (query: Query) => {
     const oldData = query.state.data as Node | undefined;
     if (!oldData) return;
-    const newData = applyUpdateToNode(oldData, nodeId, updater);
+    const newData = applyUpdateToNode(oldData, nodeUuid, updater);
     if (newData !== oldData) {
       queryClient.setQueryData(query.queryKey, newData);
       modified = true;
@@ -195,7 +195,7 @@ export function updateNodeInTreeCaches(
 
   for (const query of findPageContentCaches(queryCache)) applyToQuery(query);
   for (const query of findUuidCaches(queryCache)) applyToQuery(query);
-  for (const query of findDetailCachesForNode(queryCache, nodeId)) applyToQuery(query);
+  for (const query of findDetailCachesForNode(queryCache, nodeUuid)) applyToQuery(query);
 
   return modified;
 }
@@ -205,14 +205,14 @@ export function updateNodeInTreeCaches(
  * Also removes the node from flat Node[] result caches.
  * Returns true if any cache was modified.
  */
-export function removeNodeFromAllCaches(queryClient: QueryClient, nodeId: number): boolean {
+export function removeNodeFromAllCaches(queryClient: QueryClient, nodeUuid: string): boolean {
   const queryCache = queryClient.getQueryCache();
   let modified = false;
 
   const removeFromTree = (query: Query) => {
     const oldData = query.state.data as Node | undefined;
     if (!oldData) return;
-    const newData = removeNodeFromTree(oldData, nodeId);
+    const newData = removeNodeFromTree(oldData, nodeUuid);
     if (newData !== oldData) {
       queryClient.setQueryData(query.queryKey, newData);
       modified = true;
@@ -221,13 +221,13 @@ export function removeNodeFromAllCaches(queryClient: QueryClient, nodeId: number
 
   for (const query of findPageContentCaches(queryCache)) removeFromTree(query);
   for (const query of findUuidCaches(queryCache)) removeFromTree(query);
-  for (const query of findDetailCachesForNode(queryCache, nodeId)) removeFromTree(query);
+  for (const query of findDetailCachesForNode(queryCache, nodeUuid)) removeFromTree(query);
 
   // Also remove from flat result caches
   for (const query of findFlatNodeCaches(queryCache)) {
     const oldData = query.state.data as Node[] | undefined;
     if (oldData && Array.isArray(oldData)) {
-      const newData = oldData.filter(n => n.id !== nodeId);
+      const newData = oldData.filter(n => n.uuid !== nodeUuid);
       if (newData.length !== oldData.length) {
         queryClient.setQueryData(query.queryKey, newData);
         modified = true;
@@ -245,7 +245,7 @@ export function removeNodeFromAllCaches(queryClient: QueryClient, nodeId: number
  */
 export function insertChildIntoTreeCaches(
   queryClient: QueryClient,
-  parentId: number,
+  parentUuid: string,
   childNode: Node
 ): boolean {
   const queryCache = queryClient.getQueryCache();
@@ -254,7 +254,7 @@ export function insertChildIntoTreeCaches(
   const applyToQuery = (query: Query) => {
     const oldData = query.state.data as Node | undefined;
     if (!oldData) return;
-    const newData = insertChildIntoNode(oldData, parentId, childNode);
+    const newData = insertChildIntoNode(oldData, parentUuid, childNode);
     if (newData !== oldData) {
       queryClient.setQueryData(query.queryKey, newData);
       modified = true;
@@ -275,7 +275,7 @@ export function insertChildIntoTreeCaches(
  */
 export function replaceNodeInTreeCaches(
   queryClient: QueryClient,
-  oldId: number,
+  oldUuid: string,
   newNode: Node
 ): boolean {
   const queryCache = queryClient.getQueryCache();
@@ -284,7 +284,7 @@ export function replaceNodeInTreeCaches(
   const applyToQuery = (query: Query) => {
     const oldData = query.state.data as Node | undefined;
     if (!oldData) return;
-    const newData = replaceNodeInTree(oldData, oldId, newNode);
+    const newData = replaceNodeInTree(oldData, oldUuid, newNode);
     if (newData !== oldData) {
       queryClient.setQueryData(query.queryKey, newData);
       modified = true;
@@ -305,26 +305,26 @@ export function replaceNodeInTreeCaches(
  */
 export function moveNodeInTreeCaches(
   queryClient: QueryClient,
-  nodeId: number,
-  newParentId: number | null,
+  nodeUuid: string,
+  newParentUuid: string | null,
   newSequence: number,
   movedNode: Node
 ): boolean {
   const queryCache = queryClient.getQueryCache();
   let modified = false;
 
-  const updatedNode = { ...movedNode, parent_id: newParentId, sequence: newSequence };
+  const updatedNode = { ...movedNode, parent_uuid: newParentUuid, sequence: newSequence };
 
   const applyToQuery = (query: Query) => {
     const oldData = query.state.data as Node | undefined;
     if (!oldData) return;
 
     // First remove from anywhere in the tree
-    let result = removeNodeFromTree(oldData, nodeId);
+    let result = removeNodeFromTree(oldData, nodeUuid);
 
     // Then insert at new parent if applicable
-    if (newParentId !== null) {
-      result = insertNodeAtParent(result, updatedNode, newParentId, newSequence);
+    if (newParentUuid !== null) {
+      result = insertNodeAtParent(result, updatedNode, newParentUuid, newSequence);
     }
 
     if (result !== oldData) {
@@ -350,7 +350,7 @@ export function moveNodeInTreeCaches(
  */
 export function updateNodeInFlatCaches(
   queryClient: QueryClient,
-  nodeId: number,
+  nodeUuid: string,
   updater: (node: Node) => Node
 ): boolean {
   const queryCache = queryClient.getQueryCache();
@@ -361,7 +361,7 @@ export function updateNodeInFlatCaches(
     if (oldData && Array.isArray(oldData)) {
       let changed = false;
       const newData = oldData.map(n => {
-        if (n.id === nodeId) {
+        if (n.uuid === nodeUuid) {
           changed = true;
           return updater(n);
         }
@@ -381,14 +381,14 @@ export function updateNodeInFlatCaches(
  * Remove a node from flat array caches (queryResults, pseudoNodeQuery, inlineQuery).
  * Returns true if any cache was modified.
  */
-export function removeNodeFromFlatCaches(queryClient: QueryClient, nodeId: number): boolean {
+export function removeNodeFromFlatCaches(queryClient: QueryClient, nodeUuid: string): boolean {
   const queryCache = queryClient.getQueryCache();
   let modified = false;
 
   for (const query of findFlatNodeCaches(queryCache)) {
     const oldData = query.state.data as Node[] | undefined;
     if (oldData && Array.isArray(oldData)) {
-      const newData = oldData.filter(n => n.id !== nodeId);
+      const newData = oldData.filter(n => n.uuid !== nodeUuid);
       if (newData.length !== oldData.length) {
         queryClient.setQueryData(query.queryKey, newData);
         modified = true;
@@ -405,7 +405,7 @@ export function removeNodeFromFlatCaches(queryClient: QueryClient, nodeId: numbe
  */
 export function updateNodeInListCaches(
   queryClient: QueryClient,
-  nodeId: number,
+  nodeUuid: string,
   updater: (node: Node) => Node
 ): boolean {
   const queryCache = queryClient.getQueryCache();
@@ -416,7 +416,7 @@ export function updateNodeInListCaches(
     if (oldData && Array.isArray(oldData)) {
       let changed = false;
       const newData = oldData.map(n => {
-        if (n.id === nodeId) {
+        if (n.uuid === nodeUuid) {
           changed = true;
           return updater(n);
         }
@@ -440,14 +440,14 @@ export function updateNodeInListCaches(
  * Remove a node from linked-references caches.
  * Returns true if any cache was modified.
  */
-export function removeNodeFromLinkedRefCaches(queryClient: QueryClient, nodeId: number): boolean {
+export function removeNodeFromLinkedRefCaches(queryClient: QueryClient, nodeUuid: string): boolean {
   const queryCache = queryClient.getQueryCache();
   let modified = false;
 
   for (const query of findLinkedRefCaches(queryCache)) {
     const oldData = query.state.data as { linked_references: LinkedReference[]; total_count: number } | undefined;
     if (oldData && oldData.linked_references) {
-      const newRefs = oldData.linked_references.filter(ref => ref.source_node.id !== nodeId);
+      const newRefs = oldData.linked_references.filter(ref => ref.source_node.uuid !== nodeUuid);
       if (newRefs.length !== oldData.linked_references.length) {
         queryClient.setQueryData(query.queryKey, {
           ...oldData,
@@ -468,7 +468,7 @@ export function removeNodeFromLinkedRefCaches(queryClient: QueryClient, nodeId: 
  */
 export function removeNodeFromPropertyBacklinkCaches(
   queryClient: QueryClient,
-  nodeId: number
+  nodeUuid: string
 ): boolean {
   const queryCache = queryClient.getQueryCache();
   let modified = false;
@@ -476,7 +476,7 @@ export function removeNodeFromPropertyBacklinkCaches(
   for (const query of findPropertyBacklinkCaches(queryCache)) {
     const oldData = query.state.data as PropertyBacklink[] | undefined;
     if (oldData && Array.isArray(oldData)) {
-      const newData = oldData.filter(ref => ref.source_page.id !== nodeId);
+      const newData = oldData.filter(ref => ref.source_page.uuid !== nodeUuid);
       if (newData.length !== oldData.length) {
         queryClient.setQueryData(query.queryKey, newData);
         modified = true;
@@ -497,11 +497,11 @@ export function removeNodeFromPropertyBacklinkCaches(
  * This is what mutation hooks should call instead of inline cache manipulation.
  */
 export type CacheMutationOperation =
-  | { type: 'update'; nodeId: number; updater: (node: Node) => Node }
-  | { type: 'remove'; nodeId: number }
-  | { type: 'insertChild'; parentId: number; childNode: Node }
-  | { type: 'replace'; oldId: number; newNode: Node }
-  | { type: 'move'; nodeId: number; newParentId: number | null; newSequence: number; movedNode: Node };
+  | { type: 'update'; nodeUuid: string; updater: (node: Node) => Node }
+  | { type: 'remove'; nodeUuid: string }
+  | { type: 'insertChild'; parentUuid: string; childNode: Node }
+  | { type: 'replace'; oldUuid: string; newNode: Node }
+  | { type: 'move'; nodeUuid: string; newParentUuid: string | null; newSequence: number; movedNode: Node };
 
 export function mutateNodeTree(
   queryClient: QueryClient,
@@ -509,18 +509,18 @@ export function mutateNodeTree(
 ): boolean {
   switch (operation.type) {
     case 'update':
-      return updateNodeInTreeCaches(queryClient, operation.nodeId, operation.updater);
+      return updateNodeInTreeCaches(queryClient, operation.nodeUuid, operation.updater);
     case 'remove':
-      return removeNodeFromAllCaches(queryClient, operation.nodeId);
+      return removeNodeFromAllCaches(queryClient, operation.nodeUuid);
     case 'insertChild':
-      return insertChildIntoTreeCaches(queryClient, operation.parentId, operation.childNode);
+      return insertChildIntoTreeCaches(queryClient, operation.parentUuid, operation.childNode);
     case 'replace':
-      return replaceNodeInTreeCaches(queryClient, operation.oldId, operation.newNode);
+      return replaceNodeInTreeCaches(queryClient, operation.oldUuid, operation.newNode);
     case 'move':
       return moveNodeInTreeCaches(
         queryClient,
-        operation.nodeId,
-        operation.newParentId,
+        operation.nodeUuid,
+        operation.newParentUuid,
         operation.newSequence,
         operation.movedNode
       );

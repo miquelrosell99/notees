@@ -58,7 +58,7 @@ registerCommand({
     try {
       const pages = await getRandomPages(1);
       if (pages.length > 0) {
-        useNavigationStore.getState().openNode(pages[0].id);
+        useNavigationStore.getState().openNode(pages[0].uuid);
       } else {
         useNotificationStore.getState().warning('No pages', 'No pages found in workspace.');
       }

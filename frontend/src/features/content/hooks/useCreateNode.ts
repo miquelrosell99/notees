@@ -3,12 +3,12 @@
  *
  * TanStack Query mutation hook for creating nodes.
  *
- * For blocks (parent_id present): integrates with the runtime intent system.
+ * For blocks (parent_uuid present): integrates with the runtime intent system.
  * The runtime records a `create_block` intent which provides optimistic
  * rendering. The API is still fired directly (preserving mutateAsync for
  * programmatic callers). On success the intent is consumed.
  *
- * For pages/tags/classes (no parent_id): fires the API directly and patches
+ * For pages/tags/classes (no parent_uuid): fires the API directly and patches
  * caches through the unified cache helpers.
  */
 
@@ -18,9 +18,9 @@ import type { NodeCreate, Node } from '@/types/api';
 import { nodeKeys } from '@/hooks/queryKeys';
 import { nodeViewKeys } from './useNodeViews';
 import { getOperationRuntime } from '@/runtime';
-import { getNodeByServerId } from '@/runtime/graphHelpers';
+import { getNode } from '@/runtime/graphHelpers';
 import { removeNodes } from '@/runtime/eventBus';
-import { setServerId, remapBlockId } from '@/runtime/serverIdMap';
+import { remapBlockId } from '@/runtime/serverIdMap';
 import { getUndoEngine } from '@/stores/undoEngine';
 import { getRuntimeEventBus } from '@/runtime/eventBus';
 import { invalidateNodeCaches } from './useNodeMutations.utils';
@@ -33,24 +33,23 @@ export function useCreateNode() {
   return useMutation({
     mutationFn: (data: NodeCreate) => nodesApi.createNode(data),
     onMutate: async (variables) => {
-      if (!variables.parent_id) {
+      if (!variables.parent_uuid) {
         return { optimisticNode: null, runtimeBlockId: null, mutationKey: null };
       }
 
-      const parentId = variables.parent_id;
+      const parentUuid = variables.parent_uuid;
       const runtime = getOperationRuntime();
 
-      // Look up parent's UUID in the runtime
-      const parentGraphNode = getNodeByServerId(runtime, parentId);
-      const parentUuid = parentGraphNode?.blockId;
-      if (!parentUuid) {
+      // Verify the parent exists in the runtime for optimistic rendering
+      const parentGraphNode = getNode(runtime, parentUuid);
+      if (!parentGraphNode) {
         // Parent not in runtime — fall back to direct API without optimistic state
         return { optimisticNode: null, runtimeBlockId: null, mutationKey: null };
       }
 
       // Cancel outgoing refetches
-      await queryClient.cancelQueries({ queryKey: nodeKeys.detailBase(parentId) });
-      await queryClient.cancelQueries({ queryKey: nodeKeys.pageContent(parentId) });
+      await queryClient.cancelQueries({ queryKey: nodeKeys.detailBase(parentUuid) });
+      await queryClient.cancelQueries({ queryKey: nodeKeys.pageContent(parentUuid) });
       await queryClient.cancelQueries({ queryKey: nodeKeys.pageContents() });
 
       // Create a runtime intent for optimistic rendering
@@ -86,22 +85,20 @@ export function useCreateNode() {
 
       // Add the new node to its own detail cache
       queryClient.setQueriesData<Node>(
-        { queryKey: nodeKeys.detailBase(newNode.id) },
+        { queryKey: nodeKeys.detailBase(newNode.uuid) },
         () => newNode
       );
 
-      if (variables.parent_id && runtimeBlockId) {
-        const runtime = getOperationRuntime();
-        setServerId(runtime, runtimeBlockId, newNode.id);
+      if (variables.parent_uuid && runtimeBlockId) {
         remapBlockId(runtimeBlockId, newNode.uuid);
         // Acknowledge the runtime create operation so SyncManager does not
         // dispatch a duplicate create request.
         if (operationId) {
           getOperationRuntime().acknowledgeOperation(operationId);
         }
-      } else if (variables.parent_id) {
-        // No runtime optimistic state — insert into caches directly
-        insertChildIntoTreeCaches(queryClient, variables.parent_id, newNode);
+      } else if (variables.parent_uuid && newNode.parent_uuid) {
+        // No runtime optimistic state — insert into caches directly.
+        insertChildIntoTreeCaches(queryClient, newNode.parent_uuid, newNode);
       }
 
       // Invalidate common caches
@@ -128,9 +125,9 @@ export function useCreateNode() {
         });
       }
 
-      if (newNode.is_page && newNode.parent_id) {
+      if (newNode.is_page && newNode.parent_uuid) {
         invalidateNodeCaches(queryClient, {
-          nodeId: newNode.parent_id,
+          nodeUuid: newNode.parent_uuid,
           refetch: true,
         });
       }
@@ -142,7 +139,7 @@ export function useCreateNode() {
         inFlightBlocks.delete(runtimeBlockId);
       }
 
-      if (variables.parent_id && runtimeBlockId) {
+      if (variables.parent_uuid && runtimeBlockId) {
         // Roll back the optimistic block from the runtime
         removeNodes([runtimeBlockId]);
       }

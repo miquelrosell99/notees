@@ -50,6 +50,7 @@ const AutoExportProgressModal = React.lazy(() => import('@/features/workspace/co
 import { Card } from '@/components/ui/Card';
 import { PresentationModal } from '@/features/content';
 import { PluginManagerModal, PluginCommandRegistrations } from '@/plugins/core';
+import { ConflictResolutionModal } from '@/features/sync';
 import './Layout.css';
 
 export function Layout() {
@@ -194,9 +195,9 @@ export function Layout() {
       if (!data) return;
 
       try {
-        const nodeInfo = JSON.parse(data) as { nodeId?: number };
-        if (nodeInfo?.nodeId) {
-          openNode(nodeInfo.nodeId);
+        const nodeInfo = JSON.parse(data) as { nodeUuid?: string };
+        if (nodeInfo?.nodeUuid) {
+          openNode(nodeInfo.nodeUuid);
           e.preventDefault();
         }
       } catch {
@@ -500,6 +501,9 @@ export function Layout() {
             onClose={() => setAutoExportProgressModalOpen(false)}
           />
         </Suspense>
+
+        {/* Conflict resolution modal */}
+        <ConflictResolutionModal />
 
         {/* Plugin Manager */}
         <PluginCommandRegistrations onOpenPluginManager={() => setPluginManagerOpen(true)} />

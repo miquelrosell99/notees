@@ -5,7 +5,7 @@ import { useNavigationStore } from '@/stores';
 import './SidebarToc.css';
 
 interface TocEntry {
-  id: number;
+  nodeUuid: string;
   uuid: string;
   text: string;
   level: number;
@@ -13,7 +13,7 @@ interface TocEntry {
 
 interface SidebarTocProps {
   entries: TocEntry[];
-  onTocClick: (blockId: number) => void;
+  onTocClick: (blockId: string) => void;
 }
 
 export function SidebarToc({ entries, onTocClick }: SidebarTocProps) {
@@ -33,12 +33,12 @@ export function SidebarToc({ entries, onTocClick }: SidebarTocProps) {
       <nav className="sidebar-toc-list">
         {entries.map((entry) => (
           <div
-            key={entry.id}
+            key={entry.nodeUuid}
             className="sidebar-toc-item"
             style={{ '--toc-level': entry.level - 1 } as CSSProperties}
           >
             <Bullet
-              nodeId={entry.id}
+              nodeUuid={entry.nodeUuid}
               interactive
               size="sm"
               onClick={() => openNode(entry.uuid)}
@@ -46,7 +46,7 @@ export function SidebarToc({ entries, onTocClick }: SidebarTocProps) {
             <button
               type="button"
               className="sidebar-toc-item__text"
-              onClick={() => onTocClick(entry.id)}
+              onClick={() => onTocClick(entry.nodeUuid)}
               title={entry.text}
             >
               {entry.text}

@@ -61,15 +61,15 @@ export function MergePagesModal({ isOpen, onClose }: MergePagesModalProps) {
 
       // Remove all queries for the deleted source node so they don't refetch
       // and fail with 404 when we invalidate everything else.
-      queryClient.removeQueries({ queryKey: nodeKeys.detailBase(sourceNode.id) });
-      queryClient.removeQueries({ queryKey: nodeKeys.metadata(sourceNode.id) });
-      queryClient.removeQueries({ queryKey: nodeKeys.pageContent(sourceNode.id) });
-      queryClient.removeQueries({ queryKey: nodeKeys.backlinks(sourceNode.id) });
-      queryClient.removeQueries({ queryKey: nodeKeys.linkedRefs(sourceNode.id) });
-      queryClient.removeQueries({ queryKey: nodeKeys.propertyBacklinks(sourceNode.id) });
-      queryClient.removeQueries({ queryKey: nodeKeys.breadcrumbs(sourceNode.id) });
-      queryClient.removeQueries({ queryKey: nodeKeys.childrenOnly(sourceNode.id) });
-      queryClient.removeQueries({ queryKey: nodeKeys.aliases(sourceNode.id) });
+      queryClient.removeQueries({ queryKey: nodeKeys.detailBase(sourceNode.uuid) });
+      queryClient.removeQueries({ queryKey: nodeKeys.metadata(sourceNode.uuid) });
+      queryClient.removeQueries({ queryKey: nodeKeys.pageContent(sourceNode.uuid) });
+      queryClient.removeQueries({ queryKey: nodeKeys.backlinks(sourceNode.uuid) });
+      queryClient.removeQueries({ queryKey: nodeKeys.linkedRefs(sourceNode.uuid) });
+      queryClient.removeQueries({ queryKey: nodeKeys.propertyBacklinks(sourceNode.uuid) });
+      queryClient.removeQueries({ queryKey: nodeKeys.breadcrumbs(sourceNode.uuid) });
+      queryClient.removeQueries({ queryKey: nodeKeys.childrenOnly(sourceNode.uuid) });
+      queryClient.removeQueries({ queryKey: nodeKeys.aliases(sourceNode.uuid) });
       if (sourceNode.uuid) {
         queryClient.removeQueries({ queryKey: nodeKeys.byUuid(sourceNode.uuid) });
       }
@@ -107,7 +107,7 @@ export function MergePagesModal({ isOpen, onClose }: MergePagesModalProps) {
   const isSameNode =
     sourceNode !== null &&
     targetNode !== null &&
-    (sourceNode.id === targetNode.id || (sourceNode.uuid && targetNode.uuid && sourceNode.uuid === targetNode.uuid));
+    (sourceNode.uuid === targetNode.uuid || (sourceNode.uuid && targetNode.uuid && sourceNode.uuid === targetNode.uuid));
 
   const canProceed =
     sourceNode !== null &&
@@ -158,11 +158,11 @@ export function MergePagesModal({ isOpen, onClose }: MergePagesModalProps) {
           <NodeSelector
             id="merge-source"
             trigger="select"
-            value={sourceNode?.id ?? null}
+            value={sourceNode?.uuid ?? null}
             searchMode="pages"
             placeholder="Select source page…"
             searchPlaceholder="Search pages…"
-            excludeNodeId={targetNode?.id}
+            excludeNodeId={targetNode?.uuid}
             onAdd={(node: Node) => setSourceNode(node)}
             onClearAll={() => setSourceNode(null)}
           />
@@ -175,11 +175,11 @@ export function MergePagesModal({ isOpen, onClose }: MergePagesModalProps) {
           <NodeSelector
             id="merge-target"
             trigger="select"
-            value={targetNode?.id ?? null}
+            value={targetNode?.uuid ?? null}
             searchMode="pages"
             placeholder="Select target page…"
             searchPlaceholder="Search pages…"
-            excludeNodeId={sourceNode?.id}
+            excludeNodeId={sourceNode?.uuid}
             onAdd={(node: Node) => setTargetNode(node)}
             onClearAll={() => setTargetNode(null)}
           />

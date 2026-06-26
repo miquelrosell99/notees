@@ -3,7 +3,7 @@
 from collections.abc import Awaitable, Callable
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, Request, Response
 from fastapi_limiter.depends import RateLimiter as _RateLimiter
 from pyrate_limiter import Duration, Limiter, Rate
 
@@ -19,7 +19,7 @@ from app.features.properties.port import PropertyRepository
 from app.logging_config import get_logger
 from app.models import User
 
-from .dependencies import resolve_class_uuids, resolve_node_uuids, resolve_property_uuids
+from .dependencies import resolve_class_uuids, resolve_property_uuids
 from .helpers import (
     _enrich_node_responses_uuids,
     _get_class_ids_batch,
@@ -107,54 +107,72 @@ async def batch_create_nodes(
     service = await _get_node_service(user)
 
     # Batch-resolve all public UUIDs referenced in the request.
-    parent_uuids = [item.parent_uuid for item in body.nodes if item.parent_uuid]
+    # Missing UUIDs are recorded as per-item failures rather than failing the
+    # whole batch, preserving the independent-failure contract of batch create.
+    parent_uuids = list({item.parent_uuid for item in body.nodes if item.parent_uuid})
     class_uuids = list({uuid for item in body.nodes for uuid in item.class_uuids})
     tag_uuids = list({uuid for item in body.nodes for uuid in item.tag_uuids})
     property_uuids = list({uuid for item in body.nodes for uuid in item.property_uuids})
 
     parent_map: dict[str, int] = {}
     if parent_uuids:
-        parent_ids = await resolve_node_uuids(parent_uuids, repo=repo)
-        parent_map = dict(zip(parent_uuids, parent_ids, strict=True))
+        parent_map = {
+            node.uuid: node.id
+            for node in await repo.get_by_uuids(parent_uuids)
+            if node.id is not None
+        }
 
     class_map: dict[str, int] = {}
     if class_uuids:
-        class_ids = await resolve_class_uuids(class_uuids, repo=repo)
-        class_map = dict(zip(class_uuids, class_ids, strict=True))
+        class_map = {
+            node.uuid: node.id
+            for node in await repo.get_by_uuids(class_uuids)
+            if node.id is not None
+        }
 
     tag_map: dict[str, int] = {}
     if tag_uuids:
-        tag_ids = await resolve_node_uuids(tag_uuids, repo=repo)
-        tag_map = dict(zip(tag_uuids, tag_ids, strict=True))
+        tag_map = {
+            node.uuid: node.id
+            for node in await repo.get_by_uuids(tag_uuids)
+            if node.id is not None
+        }
 
     prop_map: dict[str, int] = {}
     if property_uuids:
-        prop_ids = await resolve_property_uuids(property_uuids, repo=property_repo)
-        prop_map = dict(zip(property_uuids, prop_ids, strict=True))
+        prop_map = {
+            prop.uuid: prop.id
+            for prop in await property_repo.get_by_uuids(property_uuids)
+            if prop.id is not None
+        }
 
     # Build NodeCreateData list, resolving public UUIDs to internal IDs.
-    create_items = []
-    for item in body.nodes:
-        parent_id = item.parent_id
+    create_items: list[NodeCreateData] = []
+    create_item_indices: list[int] = []
+    resolve_errors: list[tuple[int, str]] = []
+    for i, item in enumerate(body.nodes):
+        parent_id: int | None = None
         if item.parent_uuid is not None:
             parent_id = parent_map.get(item.parent_uuid)
             if parent_id is None:
-                raise HTTPException(404, f"Parent node not found: {item.parent_uuid}")
+                resolve_errors.append((i, f"Parent node not found: {item.parent_uuid}"))
+                continue
 
-        class_ids = list(item.classes)
+        class_ids: list[int] = []
         if item.class_uuids:
             class_ids = [class_map[uuid] for uuid in item.class_uuids]
 
-        tag_ids = list(item.tags)
+        tag_ids: list[int] = []
         if item.tag_uuids:
             tag_ids = [tag_map[uuid] for uuid in item.tag_uuids]
 
-        property_values = dict(item.properties)
+        property_values: dict[int, Any] = {}
         if item.property_uuids:
             for prop_uuid, value in item.property_uuids.items():
                 prop_id = prop_map.get(prop_uuid)
                 if prop_id is None:
-                    raise HTTPException(404, f"Property not found: {prop_uuid}")
+                    resolve_errors.append((i, f"Property not found: {prop_uuid}"))
+                    continue
                 property_values[prop_id] = value
 
         create_items.append(
@@ -170,6 +188,7 @@ async def batch_create_nodes(
                 uuid=item.uuid,
             )
         )
+        create_item_indices.append(i)
 
     raw_results = await service.batch_create_nodes(
         create_items,
@@ -182,7 +201,18 @@ async def batch_create_nodes(
     failed = 0
     existing = 0
     successful_responses: list[NodeResponse] = []
+    for idx, error in resolve_errors:
+        failed += 1
+        results.append(
+            BatchNodeCreateResultItem(
+                index=idx,
+                success=False,
+                error=error,
+            )
+        )
+
     for i, r in enumerate(raw_results):
+        original_index = create_item_indices[i]
         if r["success"]:
             if r.get("existing"):
                 existing += 1
@@ -193,7 +223,7 @@ async def batch_create_nodes(
             successful_responses.append(response)
             results.append(
                 BatchNodeCreateResultItem(
-                    index=i,
+                    index=original_index,
                     success=True,
                     node=response,
                     existing=r.get("existing", False),
@@ -203,7 +233,7 @@ async def batch_create_nodes(
             failed += 1
             results.append(
                 BatchNodeCreateResultItem(
-                    index=i,
+                    index=original_index,
                     success=False,
                     error=r["error"],
                 )
@@ -212,6 +242,7 @@ async def batch_create_nodes(
     if successful_responses:
         await _enrich_node_responses_uuids(successful_responses, repo, property_repo)
 
+    results.sort(key=lambda r: r.index)
     logger.info(f"[BATCH_CREATE] {created} created, {existing} existing, {failed} failed out of {len(body.nodes)}")
     return BatchNodeCreateResponse(results=results, created=created, failed=failed)
 
@@ -259,20 +290,13 @@ async def batch_update_nodes(
         prop_map = dict(zip(property_uuids, prop_ids, strict=True))
 
     for i, item in enumerate(body.nodes):
-        # Resolve node identity: prefer uuid, fall back to legacy id
-        node_id = item.id
-        if item.uuid:
-            resolved = uuid_to_node.get(item.uuid)
-            if resolved:
-                node_id = resolved.id
-            else:
-                resolve_errors.append((i, f"Node with uuid '{item.uuid}' not found"))
-                continue
-        elif node_id is None:
-            resolve_errors.append((i, "Either 'id' or 'uuid' must be provided"))
+        resolved = uuid_to_node.get(item.uuid)
+        if resolved is None:
+            resolve_errors.append((i, f"Node with uuid '{item.uuid}' not found"))
             continue
+        node_id = resolved.id
 
-        parent_id = item.parent_id
+        parent_id: int | None = None
         if item.parent_uuid is not None:
             parent = await repo.get_by_uuid(item.parent_uuid)
             if parent is None or parent.id is None:
@@ -280,15 +304,13 @@ async def batch_update_nodes(
                 continue
             parent_id = parent.id
 
-        class_ids = item.classes
+        class_ids: list[int] | None = None
         if item.class_uuids is not None:
             class_ids = await resolve_class_uuids(item.class_uuids, repo)
 
-        # Merge legacy integer property map with UUID property map.
-        item_properties: dict[int, Any] | None = dict(item.properties) if item.properties else None
-        if item.property_uuids:
-            if item_properties is None:
-                item_properties = {}
+        item_properties: dict[int, Any] | None = None
+        if item.property_uuids is not None:
+            item_properties = {}
             for prop_uuid, value in item.property_uuids.items():
                 prop_id = prop_map.get(prop_uuid)
                 if prop_id is None:
@@ -306,7 +328,6 @@ async def batch_update_nodes(
             clear_color=False,
             parent_id=parent_id,
             sequence=item.sequence,
-            collapsed=item.collapsed,
         )
 
         update_items.append(

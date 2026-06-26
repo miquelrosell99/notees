@@ -42,7 +42,7 @@ const META_TICKS = 2;
 let engine: SGEEngine | null = null;
 let tickTimeout: ReturnType<typeof setTimeout> | undefined;
 let running = false;
-let nodeIds: Int32Array = new Int32Array(0);
+let nodeIds: string[] = [];
 let dragWasPinned = false;
 
 // SharedArrayBuffer path
@@ -164,7 +164,7 @@ function fastForward(ticks: number, dtMult: number): void {
 function initEngine(nodes: SGENode[], edges: SGEEdge[], cfg: SGEPhysicsConfig): void {
   const config = buildSGEConfig(cfg);
   engine = new SGEEngine(nodes, edges, config);
-  nodeIds = new Int32Array(nodes.map(n => n.id));
+  nodeIds = nodes.map(n => n.nodeUuid);
   ensureSABs(nodes.length);
   ensureFallbackBuffers(nodes.length);
   running = true;
@@ -191,7 +191,7 @@ self.onmessage = (e: MessageEvent) => {
         // Engine already exists — treat as topology update to preserve warm state
         engine.setTopology(msg.nodes, msg.edges);
         engine.setConfig(buildSGEConfig(msg.config));
-        nodeIds = new Int32Array(msg.nodes.map((n: SGENode) => n.id));
+        nodeIds = msg.nodes.map((n: SGENode) => n.nodeUuid);
         ensureSABs(nodeIds.length);
         ensureFallbackBuffers(nodeIds.length);
         if (SAB_ENABLED) postSharedBufferRefs();
@@ -205,7 +205,7 @@ self.onmessage = (e: MessageEvent) => {
     case 'setTopology': {
       if (!engine) break;
       engine.setTopology(msg.nodes, msg.edges);
-      nodeIds = new Int32Array(msg.nodes.map((n: SGENode) => n.id));
+      nodeIds = msg.nodes.map((n: SGENode) => n.nodeUuid);
       ensureSABs(nodeIds.length);
       ensureFallbackBuffers(nodeIds.length);
       if (SAB_ENABLED) postSharedBufferRefs();
@@ -219,32 +219,32 @@ self.onmessage = (e: MessageEvent) => {
     }
     case 'dragStart': {
       if (!engine) break;
-      dragWasPinned = engine.isPinned(msg.nodeId);
-      engine.pinNode(msg.nodeId);
+      dragWasPinned = engine.isPinned(msg.nodeUuid);
+      engine.pinNode(msg.nodeUuid);
       break;
     }
     case 'dragMove': {
       if (!engine) break;
-      engine.moveNode(msg.nodeId, msg.x, msg.y);
+      engine.moveNode(msg.nodeUuid, msg.x, msg.y);
       break;
     }
     case 'dragEnd': {
       if (!engine) break;
       // Only unpin nodes that were not already pinned by the user.
       if (!dragWasPinned) {
-        engine.unpinNode(msg.nodeId);
+        engine.unpinNode(msg.nodeUuid);
       }
       dragWasPinned = false;
       break;
     }
     case 'pin': {
       if (!engine) break;
-      engine.pinNode(msg.nodeId);
+      engine.pinNode(msg.nodeUuid);
       break;
     }
     case 'unpin': {
       if (!engine) break;
-      engine.unpinNode(msg.nodeId);
+      engine.unpinNode(msg.nodeUuid);
       break;
     }
     case 'pause': {

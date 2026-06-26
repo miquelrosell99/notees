@@ -1,10 +1,8 @@
 /**
- * Query components module exports
+ * Lightweight query components barrel.
+ *
+ * Heavy query-builder UI (ViewBuilder, ProseScopeSelector, ProseConditionBuilder)
+ * is intentionally excluded here so it can be lazy-loaded from
+ * `@/features/queries/components/<Component>` only when the query editor is open.
  */
 export { QuerySQLPreview } from './QuerySQLPreview';
-
-// ViewBuilder components (prose-based UI)
-export { ViewBuilder } from './ViewBuilder';
-export { ProseConditionBuilder } from './ProseConditionBuilder';
-export { ProseScopeSelector } from './ProseScopeSelector';
-

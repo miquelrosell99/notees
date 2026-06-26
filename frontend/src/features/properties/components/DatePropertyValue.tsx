@@ -7,7 +7,7 @@ import { nodeNameToText } from '@/features/queries';
 import './DatePropertyValue.css';
 
 interface DatePropertyValueProps {
-  value: number | null;
+  value: string | null;
   readOnly: boolean;
   onChange: (value: unknown) => void;
   onDelete?: () => void;
@@ -47,7 +47,7 @@ export function DatePropertyValue({
     setLoading(true);
     try {
       const newDayNode = await getOrCreateDaily(isoDate);
-      onChange(newDayNode.id);
+      onChange(newDayNode.uuid);
     } catch (err) {
       console.error('Failed to create/get day page:', err);
     } finally {

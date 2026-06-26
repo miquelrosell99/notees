@@ -5,16 +5,16 @@
 import { useNodeViews } from './useNodeViews.queries';
 
 export function useActiveNodeView(
-  nodeId: number,
+  nodeUuid: string,
   viewType: string,
-  activeViewId?: number
+  activeViewId?: string
 ) {
-  const { data: views = [], isLoading } = useNodeViews(nodeId, {
+  const { data: views = [], isLoading } = useNodeViews(nodeUuid, {
     viewType,
   });
 
   const activeView = activeViewId
-    ? views.find((v) => v.id === activeViewId)
+    ? views.find((v) => v.nodeUuid === activeViewId)
     : views[0]; // First view (lowest order_index) is default
 
   return {
@@ -28,8 +28,8 @@ export function useActiveNodeView(
 /**
  * Hook to manage NodeView tab state
  */
-export function useNodeViewTabs(nodeId: number, viewType: string) {
-  const { data: views = [], isLoading, isError } = useNodeViews(nodeId, {
+export function useNodeViewTabs(nodeUuid: string, viewType: string) {
+  const { data: views = [], isLoading, isError } = useNodeViews(nodeUuid, {
     viewType,
   });
 

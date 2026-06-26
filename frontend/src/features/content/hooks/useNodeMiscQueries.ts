@@ -2,11 +2,10 @@
  * useNodeMiscQueries
  */
 
-import { useQuery, keepPreviousData, useQueryClient } from '@tanstack/react-query';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import * as nodesApi from '@/api/nodes';
 import { nodeKeys } from '@/hooks/queryKeys';
 import type { Node, PaginatedResponse } from '@/types/api';
-import { getNodeUuidByServerId } from './useNodeMutations.utils';
 
 export function useTasks(includeComplete = false) {
   return useQuery<PaginatedResponse<Node>, Error, Node[]>({
@@ -33,16 +32,14 @@ export function useNodesWithClass(classUuid: string | null) {
  * Hook to fetch text links for a node
  */
 
-export function useTextLinks(nodeId: number | null) {
-  const queryClient = useQueryClient();
+export function useTextLinks(nodeUuid: string | null) {
   return useQuery({
-    queryKey: nodeKeys.textLinks(nodeId ?? 0),
+    queryKey: nodeKeys.textLinks(nodeUuid ?? ''),
     queryFn: () => {
-      const nodeUuid = getNodeUuidByServerId(queryClient, nodeId!);
       if (!nodeUuid) throw new Error('Node UUID not found');
       return nodesApi.getTextLinks(nodeUuid);
     },
-    enabled: !!nodeId,
+    enabled: !!nodeUuid,
     staleTime: 30000,
   });
 }

@@ -13,7 +13,7 @@ import type { TaskCompletion } from '@/types/api';
 import './TaskCompletionHistory.css';
 
 interface TaskCompletionHistoryProps {
-  nodeId: string;
+  nodeUuid: string;
   readOnly?: boolean;
 }
 
@@ -29,9 +29,9 @@ const STATUS_LABELS: Record<TaskCompletion['status'], string> = {
   skipped: 'Skipped',
 };
 
-export function TaskCompletionHistory({ nodeId, readOnly = false }: TaskCompletionHistoryProps) {
+export function TaskCompletionHistory({ nodeUuid, readOnly = false }: TaskCompletionHistoryProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const { data: completions, isLoading } = useTaskCompletions(nodeId, { limit: 50 });
+  const { data: completions, isLoading } = useTaskCompletions(nodeUuid, { limit: 50 });
   const { deleteCompletion, isPending: isDeleting } = useDeleteTaskCompletion();
   const dateFormat = useSettingsStore((state) => state.dateFormat);
 
@@ -67,7 +67,7 @@ export function TaskCompletionHistory({ nodeId, readOnly = false }: TaskCompleti
         ) : (
           <ul className="task-completion-history__list">
             {completions.map((completion) => (
-              <li key={completion.id} className="task-completion-history__item">
+              <li key={completion.uuid} className="task-completion-history__item">
                 <span className={`task-completion-history__status ${`task-completion-history__status--${completion.status}`}`}>
                   <span className={`mdi ${STATUS_ICONS[completion.status]}`} aria-hidden="true" />
                   <span>{STATUS_LABELS[completion.status]}</span>
@@ -94,7 +94,7 @@ export function TaskCompletionHistory({ nodeId, readOnly = false }: TaskCompleti
                     size="xs"
                     variant="ghost"
                     disabled={isDeleting}
-                    onClick={() => deleteCompletion(nodeId, completion.uuid)}
+                    onClick={() => deleteCompletion(nodeUuid, completion.uuid)}
                   />
                 )}
               </li>

@@ -41,17 +41,16 @@ export function useNodeSearch(
   filters: NodeSearchFilters = {}
 ): UseNodeSearchReturn {
   const {
-    mode = 'all',
-    classFilters = [],
-    excludeNodeId,
-    maxResults = 10,
-    pinnedNodeId,
-    nodeUuid,
-    isPage,
-    isClass,
-    isDaily,
-    isUserPage,
-  } = filters;
+          mode = 'all',
+          classFilters = [],
+          excludeNodeId,
+          maxResults = 10,
+          pinnedNodeId,
+          nodeUuid,
+          isPage,
+          isClass,
+          isDaily,
+          isUserPage } = filters;
 
   // Debounce the search query to avoid firing API on every keystroke
   const debouncedQuery = useDebouncedValue(query, 150);
@@ -156,21 +155,21 @@ export function useNodeSearch(
     // For hierarchical paths, only show create if the parent path exists
     if (parsed.isHierarchical && allPages) {
       // Check if we can resolve all parent segments
-      let currentParentId: number | null = null;
+      let currentParentId: string | null = null;
       for (const segment of parsed.parentSegments) {
         const matchingPage = allPages.find(
-          p => p.name === segment && p.parent_id === currentParentId
+          p => p.name === segment && p.parent_uuid === currentParentId
         );
         if (!matchingPage) {
           // Parent path doesn't exist, can't create - but we could show "Create Page1/Page2..."
           return true; // Allow creation to create intermediate pages
         }
-        currentParentId = matchingPage.id;
+        currentParentId = matchingPage.uuid;
       }
 
       // Parent path exists, check if leaf exists
       const leafExists = pageResults.some(
-        r => nodeNameToText(r.node.name) === parsed.leaf && r.node.parent_id === currentParentId
+        r => nodeNameToText(r.node.name) === parsed.leaf && r.node.parent_uuid === currentParentId
       );
       return !leafExists;
     }

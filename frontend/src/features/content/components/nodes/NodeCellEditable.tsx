@@ -58,7 +58,7 @@ export function NodeCellEditable({ node }: NodeCellEditableProps) {
           editable={true}
           onNodeClick={handleNodeClick}
           onContentChange={handleContentChange}
-          pageId={node.id}
+          pageId={node.uuid}
           nodeUuid={node.uuid}
           hideToolbar={true}
           hideProperties={true}

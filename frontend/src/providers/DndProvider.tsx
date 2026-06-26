@@ -136,19 +136,19 @@ export function DndProvider({ children }: DndProviderProps) {
       // Perform the move based on drop position
       if (dropPosition === 'inside') {
         moveNode.mutate({
-          id: activeBlockId,
+          nodeUuid: activeBlockId,
           parentId: overBlockId,
           position: 0,
         });
       } else if (dropPosition === 'before') {
         moveNode.mutate({
-          id: activeBlockId,
+          nodeUuid: activeBlockId,
           parentId: overParentId ?? null,
           position: overSequence ?? 0,
         });
       } else if (dropPosition === 'after') {
         moveNode.mutate({
-          id: activeBlockId,
+          nodeUuid: activeBlockId,
           parentId: overParentId ?? null,
           position: (overSequence ?? 0) + 1,
         });

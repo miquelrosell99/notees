@@ -17,17 +17,16 @@ import './ClassPillsRow.css';
 
 interface ClassPillsRowProps {
   classes: Node[];
-  nodeId: number;
+  nodeUuid: string;
   readOnly?: boolean;
-  onAddClass?: (nodeId: number, classId: number) => void;
+  onAddClass?: (nodeUuid: string, classId: string) => void;
 }
 
 export const ClassPillsRow = memo(function ClassPillsRow({
-  classes,
-  nodeId,
-  readOnly = false,
-  onAddClass,
-}: ClassPillsRowProps) {
+      classes,
+      nodeUuid,
+      readOnly = false,
+      onAddClass }: ClassPillsRowProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [overflowCount, setOverflowCount] = useState(0);
   const [showPopup, setShowPopup] = useState(false);
@@ -35,12 +34,12 @@ export const ClassPillsRow = memo(function ClassPillsRow({
   const [popupPos, setPopupPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const removeClass = useRemoveClass();
   const { data: allClasses } = useClasses();
-  const { data: node } = useNode(nodeId);
-  const parentId = node?.parent_id ?? null;
+  const { data: node } = useNode(nodeUuid);
+  const parentId = node?.parent_uuid ?? null;
   const { data: parentNode } = useNode(parentId);
-  const { systemClassIds } = useSystemClasses();
+  const { systemClassUuids } = useSystemClasses();
 
-  const classIdsKey = classes.map((c) => c.id).join(',');
+  const classIdsKey = classes.map((c) => c.uuid).join(',');
 
   // Detect overflow using scrollWidth vs clientWidth
   useEffect(() => {
@@ -76,20 +75,20 @@ export const ClassPillsRow = memo(function ClassPillsRow({
   );
 
   const handleRemove = useCallback(
-    (classId: number) => {
-      removeClass.mutate({ nodeId, classId });
+    (classId: string) => {
+      removeClass.mutate({ nodeUuid, classId });
     },
-    [nodeId, removeClass]
+    [nodeUuid, removeClass]
   );
 
   const handleClosePopup = useCallback(() => {
     setShowPopup(false);
   }, []);
 
-  const appliedClassIds = new Set(classes.map((c) => c.id));
-  const parentIsCard = parentId != null && parentNode?.classes?.includes(systemClassIds?.card ?? -1);
+  const appliedClassIds = new Set(classes.map((c) => c.uuid));
+  const parentIsCard = parentId != null && parentNode?.classes_uuid?.includes(systemClassUuids?.card ?? '');
   const availableClasses = allClasses?.filter((c) => {
-    if (appliedClassIds.has(c.id)) return false;
+    if (appliedClassIds.has(c.uuid)) return false;
     if (c.uuid === SYSTEM_CLASS_UUIDS.cloze) return parentIsCard;
     return true;
   }) ?? [];
@@ -101,7 +100,7 @@ export const ClassPillsRow = memo(function ClassPillsRow({
       <div ref={containerRef} className="class-pills-row">
         {visibleClasses.map((cls) => (
           <NodeRef
-            key={cls.id}
+            key={cls.uuid}
             node={cls}
             readOnly={true}
             className="class-pills-row__pill"
@@ -168,7 +167,7 @@ export const ClassPillsRow = memo(function ClassPillsRow({
               {classes.map((cls) => {
                 const canRemove = !readOnly && !isNonRemovableClass(cls.uuid);
                 return (
-                  <div key={cls.id} className="class-pills-popup__item">
+                  <div key={cls.uuid} className="class-pills-popup__item">
                     <NodeRef node={cls} readOnly={true} />
                     {canRemove && (
                       <Button
@@ -176,7 +175,7 @@ export const ClassPillsRow = memo(function ClassPillsRow({
                         size="xs"
                         icon="mdi mdi-close"
                         className="class-pills-popup__remove"
-                        onClick={() => handleRemove(cls.id)}
+                        onClick={() => handleRemove(cls.uuid)}
                         aria-label={`Remove ${cls.name}`}
                         title="Remove"
                       />
@@ -219,10 +218,10 @@ export const ClassPillsRow = memo(function ClassPillsRow({
             <div className="class-pills-popup__list">
               {availableClasses.map((cls) => (
                 <button
-                  key={cls.id}
+                  key={cls.uuid}
                   className="class-pills-popup__item class-pills-popup__item--button"
                   onClick={() => {
-                    onAddClass?.(nodeId, cls.id);
+                    onAddClass?.(nodeUuid, cls.uuid);
                     setShowAddPopup(false);
                   }}
                 >

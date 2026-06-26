@@ -62,7 +62,7 @@ function QuickAddComment({ nodeUuid, onClose }: QuickAddCommentProps) {
   const handleSubmit = () => {
     if (!text.trim()) return;
     createComment.mutate(
-      { nodeId: nodeUuid, name: text.trim() },
+      { nodeUuid: nodeUuid, name: text.trim() },
       { onSuccess: () => { setText(''); onClose(); } }
     );
   };

@@ -131,20 +131,19 @@ export function numberCompareValues(a: unknown, b: unknown): number {
 // ==================== Text ====================
 
 export function TextPropertyValue({
-  property,
-  nodeId,
-  value,
-  readOnly,
-  onOpenInSidebar,
-  onPropertyChange,
-  onBulletClick,
-}: PropertyValueProps) {
+      property,
+      nodeUuid,
+      value,
+      readOnly,
+      onOpenInSidebar,
+      onPropertyChange,
+      onBulletClick }: PropertyValueProps) {
   return (
     <TextPropertyBlock
       property={property}
-      nodeId={nodeId}
-      blockNodeId={typeof value === 'number' ? value : null}
-      blockNodeIds={property.multi && Array.isArray(value) ? value as number[] : undefined}
+      nodeUuid={nodeUuid}
+      blockNodeId={typeof value === 'string' ? value : null}
+      blockNodeIds={property.multi && Array.isArray(value) ? value as string[] : undefined}
       readOnly={readOnly}
       onOpenInSidebar={onOpenInSidebar}
       onPropertyChange={onPropertyChange}
@@ -180,28 +179,28 @@ export function NodePropertyValue({
   onCreatePage,
 }: PropertyValueProps) {
   const handleCreateNodeForProperty = useCallback(async (name: string) => {
-    const newPage = await onCreatePage?.(name, property.class_filters);
+    const newPage = await onCreatePage?.(name, property.class_filter_uuids ?? []);
     if (!newPage) throw new Error('Failed to create page');
     return newPage;
-  }, [onCreatePage, property.class_filters]);
+  }, [onCreatePage, property.class_filter_uuids]);
 
   if (property.multi) {
     return (
       <NodeSelector
-        value={value as number[] | null}
+        value={value as string[] | null}
         searchMode="pages"
-        classFilters={property.class_filters}
+        classFilters={property.class_filter_uuids ?? []}
         emptyText="Add"
         searchPlaceholder="Search pages..."
         readOnly={readOnly}
-        onNodeClick={onNavigateToNode ? (n) => onNavigateToNode(n.id) : undefined}
+        onNodeClick={onNavigateToNode ? (n) => onNavigateToNode(n.uuid) : undefined}
         onAdd={readOnly ? undefined : (selectedNode) => {
           const currentValue = Array.isArray(value) ? value : (value ? [value] : []);
-          onChange([...currentValue, selectedNode.id]);
+          onChange([...currentValue, selectedNode.uuid]);
         }}
         onRemove={readOnly ? undefined : (selectedNode) => {
           const currentValue = Array.isArray(value) ? value : [];
-          onChange(currentValue.filter((id: number) => id !== selectedNode.id));
+          onChange(currentValue.filter((nodeUuid: string) => nodeUuid !== selectedNode.uuid));
         }}
         onCreateNew={readOnly ? undefined : handleCreateNodeForProperty}
       />
@@ -211,13 +210,13 @@ export function NodePropertyValue({
   return (
     <NodeSelector
       trigger="select"
-      value={value as number | null}
+      value={value as string | null}
       searchMode="pages"
-      classFilters={property.class_filters}
+      classFilters={property.class_filter_uuids ?? []}
       placeholder="Empty"
       searchPlaceholder="Search pages..."
       readOnly={readOnly}
-      onNodeClick={onNavigateToNode ? (n) => onNavigateToNode(n.id) : undefined}
+      onNodeClick={onNavigateToNode ? (n) => onNavigateToNode(n.uuid) : undefined}
       onChange={(newValue) => onChange(newValue)}
       onCreateNew={readOnly ? undefined : handleCreateNodeForProperty}
     />
@@ -256,7 +255,7 @@ export function SelectionPropertyValue({
     return opts.map(opt => {
       const color = opt.color || parseIconField(opt.icon || '').color || null;
       return {
-        value: opt.id,
+        value: opt.uuid,
         label: opt.name,
         iconNode: color
           ? <span className="selection-color-dot" style={{ background: color }} />
@@ -265,11 +264,17 @@ export function SelectionPropertyValue({
     });
   }, [property.options]);
 
+  const resolveSelectionUuid = (v: unknown): string | null => {
+    if (typeof v === 'string') return v;
+    if (typeof v === 'object' && v !== null && 'uuid' in v) return (v as { uuid: string }).uuid;
+    return null;
+  };
+
   if (property.multi) {
     return (
       <Dropdown
         options={selectionOptions}
-        values={Array.isArray(value) ? value.map(v => typeof v === 'object' && v !== null && 'id' in v ? (v as { id: number }).id : v) : []}
+        values={Array.isArray(value) ? value.map(v => resolveSelectionUuid(v)).filter((uuid): uuid is string => !!uuid) : []}
         onChangeMultiple={(newValues) => onChange(newValues)}
         placeholder="Empty"
         multiple
@@ -280,11 +285,11 @@ export function SelectionPropertyValue({
     );
   }
 
-  const currentValue = typeof value === 'object' && value !== null && 'id' in value ? (value as { id: number }).id : value;
+  const currentValue = resolveSelectionUuid(value);
   return (
     <Dropdown
       options={selectionOptions}
-      value={typeof currentValue === 'number' ? currentValue : null}
+      value={currentValue}
       onChange={(newValue) => onChange(newValue)}
       placeholder="Empty"
       searchable
@@ -303,33 +308,33 @@ export function selectionFormatValue(_value: unknown): string {
 }
 
 export function selectionGetGroupInfo(property: Property, rawValue: unknown): { label: string; icon: string | null } {
-  const resolveId = (v: unknown): number | null => {
-    if (typeof v === 'number') return v;
-    if (typeof v === 'object' && v !== null && 'id' in v) return (v as { id: number }).id;
+  const resolveId = (v: unknown): string | null => {
+    if (typeof v === 'string') return v;
+    if (typeof v === 'object' && v !== null && 'uuid' in v) return (v as { uuid: string }).uuid;
     return null;
   };
   if (Array.isArray(rawValue)) {
     const opts = rawValue
       .map(resolveId)
-      .filter((id): id is number => id !== null)
-      .map(id => property.options?.find(o => o.id === id));
+      .filter((id): id is string => id !== null)
+      .map(id => property.options?.find(o => o.uuid === id));
     const names = opts.map(o => o?.name ?? '?').join(', ');
     const icon = opts.length === 1 ? (opts[0]?.icon ?? null) : null;
     return { label: names || '(No value)', icon };
   }
   const optId = resolveId(rawValue);
   if (optId === null) return { label: String(rawValue), icon: null };
-  const opt = property.options?.find(o => o.id === optId);
+  const opt = property.options?.find(o => o.uuid === optId);
   return { label: opt?.name ?? String(optId), icon: opt?.icon ?? null };
 }
 
 export function selectionCompareValues(a: unknown, b: unknown, property: Property): number {
   const getOptionName = (v: unknown): string => {
-    if (typeof v === 'number') {
-      return property.options?.find(o => o.id === v)?.name ?? String(v);
+    if (typeof v === 'string') {
+      return property.options?.find(o => o.uuid === v)?.name ?? String(v);
     }
-    if (v && typeof v === 'object' && 'id' in v) {
-      return property.options?.find(o => o.id === (v as { id: number }).id)?.name ?? String(v);
+    if (v && typeof v === 'object' && 'uuid' in v) {
+      return property.options?.find(o => o.uuid === (v as { uuid: string }).uuid)?.name ?? String(v);
     }
     return String(v);
   };
@@ -345,7 +350,7 @@ export function DatePropertyValueRenderer({
 }: Pick<PropertyValueProps, 'value' | 'readOnly' | 'onChange'> & { readOnly?: boolean }) {
   return (
     <DatePropertyValue
-      value={typeof value === 'number' ? value : null}
+      value={typeof value === 'string' ? value : null}
       readOnly={readOnly}
       onChange={onChange}
       onDelete={!readOnly && value != null ? () => onChange(null) : undefined}

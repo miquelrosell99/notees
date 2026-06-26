@@ -12,7 +12,7 @@ interface WhiteboardContextMenuProps {
   position: { x: number; y: number } | null;
   elementId: string | null;
   onClose: () => void;
-  onOpenNode: (nodeId: number) => void;
+  onOpenNode: (nodeUuid: string) => void;
   onAddCardAtPosition: (x: number, y: number) => void;
   onAddReferenceCardAtPosition: (x: number, y: number) => void;
 }
@@ -53,7 +53,7 @@ export const WhiteboardContextMenu: React.FC<WhiteboardContextMenuProps> = ({
         id: 'open-node',
         label: 'Open Page',
         icon: "mdi mdi-open-in-new",
-        onClick: () => { onOpenNode((element as WhiteboardCardElement).nodeId); onClose(); },
+        onClick: () => { onOpenNode((element as WhiteboardCardElement).nodeUuid); onClose(); },
       });
       items.push({
         id: 'toggle-collapse',

@@ -479,8 +479,6 @@ class FakeNodeRepository:
             node.parent_id = data.parent_id
         if data.sequence is not None:
             node.sequence = data.sequence
-        if data.collapsed is not None:
-            node.collapsed = data.collapsed
         if data.is_private is not None:
             node.is_private = data.is_private
         if data.classes is not None:

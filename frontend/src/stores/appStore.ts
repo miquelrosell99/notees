@@ -41,7 +41,6 @@ export type SidebarNodeType = 'page' | 'block';
 export type RightSidebarContent = 'node' | 'localGraph' | 'activity' | null;
 export type SidebarCardType = 'page' | 'block' | 'localGraph';
 export interface SidebarCard {
-  id: number;
   nodeUuid: string;
   cardType: SidebarCardType;
   addedAt: number;
@@ -64,8 +63,8 @@ interface DisplayPrefsState {
   toggleContentDisplayMode: () => void;
   setContentDisplayMode: (mode: ContentDisplayMode) => void;
   setCardLayout: (layout: CardLayoutMode) => void;
-  setNodeGroupBy: (nodeId: number, viewType: string, groupBy: NodeCollectionGroupBy) => void;
-  getNodeGroupBy: (nodeId: number, viewType: string) => NodeCollectionGroupBy | undefined;
+  setNodeGroupBy: (nodeUuid: string, viewType: string, groupBy: NodeCollectionGroupBy) => void;
+  getNodeGroupBy: (nodeUuid: string, viewType: string) => NodeCollectionGroupBy | undefined;
   setGanttStartDatePropertyUuid: (uuid: string) => void;
   setGanttEndDatePropertyUuid: (uuid: string) => void;
   setGanttTimeScale: (scale: 'day' | 'week' | 'month') => void;
@@ -93,9 +92,9 @@ export const useAppStore = create<DisplayPrefsState>()(
       setContentDisplayMode: (mode) => set({ contentDisplayMode: mode }),
       setCardLayout: (layout) => set({ cardLayout: layout }),
 
-      setNodeGroupBy: (nodeId, viewType, groupBy) =>
-        set((s) => ({ nodeGroupBy: { ...s.nodeGroupBy, [`${nodeId}-${viewType}`]: groupBy } })),
-      getNodeGroupBy: (nodeId, viewType) => get().nodeGroupBy[`${nodeId}-${viewType}`],
+      setNodeGroupBy: (nodeUuid, viewType, groupBy) =>
+        set((s) => ({ nodeGroupBy: { ...s.nodeGroupBy, [`${nodeUuid}-${viewType}`]: groupBy } })),
+      getNodeGroupBy: (nodeUuid, viewType) => get().nodeGroupBy[`${nodeUuid}-${viewType}`],
 
       setGanttStartDatePropertyUuid: (uuid) => set({ ganttStartDatePropertyUuid: uuid }),
       setGanttEndDatePropertyUuid: (uuid) => set({ ganttEndDatePropertyUuid: uuid }),

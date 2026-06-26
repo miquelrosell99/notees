@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from app.db.connection import acquire_connection
+from app.domain.entities.sync_v2 import VersionVector
 from app.domain.repositories.base import BasePostgresRepository
 from app.features.sync.port import SyncRepository
 
@@ -88,3 +89,57 @@ class PostgresSyncRepository(BasePostgresRepository, SyncRepository):
                 user_id,
                 node_id,
             )
+
+    async def get_vectors(self, node_ids: list[int]) -> dict[int, VersionVector]:
+        """Fetch version vectors for a list of node IDs."""
+        if not node_ids:
+            return {}
+        async with acquire_connection(self._pool) as conn:
+            rows = await conn.fetch(
+                "SELECT node_id, client_id, seq FROM node_revision WHERE node_id = ANY($1)",
+                node_ids,
+            )
+        result: dict[int, VersionVector] = {}
+        for row in rows:
+            vec = result.setdefault(row["node_id"], {})
+            vec[row["client_id"]] = row["seq"]
+        return result
+
+    async def get_vectors_by_uuids(self, uuids: list[str]) -> dict[str, VersionVector]:
+        """Fetch version vectors for a list of node UUIDs."""
+        if not uuids:
+            return {}
+        async with acquire_connection(self._pool) as conn:
+            rows = await conn.fetch(
+                """
+                SELECT n.uuid AS node_uuid, r.client_id, r.seq
+                FROM node_revision r
+                JOIN node n ON n.id = r.node_id
+                WHERE n.uuid::text = ANY($1)
+                """,
+                uuids,
+            )
+        result: dict[str, VersionVector] = {}
+        for row in rows:
+            vec = result.setdefault(row["node_uuid"], {})
+            vec[row["client_id"]] = row["seq"]
+        return result
+
+    async def advance_vectors(
+        self, updates: list[tuple[int, str, int]]
+    ) -> dict[int, VersionVector]:
+        """Upsert (node_id, client_id) -> seq and return updated vectors per node."""
+        if not updates:
+            return {}
+        node_ids = [node_id for node_id, _, _ in updates]
+        async with acquire_connection(self._pool) as conn:
+            await conn.executemany(
+                """
+                INSERT INTO node_revision (node_id, client_id, seq)
+                VALUES ($1, $2, $3)
+                ON CONFLICT (node_id, client_id)
+                DO UPDATE SET seq = EXCLUDED.seq, applied_at = NOW()
+                """,
+                updates,
+            )
+        return await self.get_vectors(node_ids)

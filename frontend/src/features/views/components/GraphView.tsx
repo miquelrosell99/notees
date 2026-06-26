@@ -67,7 +67,7 @@ export interface GraphViewProps {
   /** Show view mode switcher (normal, circle, tree). Default: true */
   showViewModes?: boolean;
   /** Node click handler override */
-  onNodeClick?: (nodeId: string) => void;
+  onNodeClick?: (nodeUuid: string) => void;
   /** When true, activates local-graph behaviour (hide-self default, collapsed sidebar, no filter persistence) */
   localGraphMode?: boolean;
 }
@@ -493,16 +493,7 @@ const GraphView = memo(function GraphView({
     }
   }, [levels, viewId]);
 
-  // Class UUID lookups
-  const classUuidById = useMemo(() => {
-    const map = new Map<number, string>();
-    if (classes) {
-      for (const c of classes) {
-        map.set(c.id, c.uuid);
-      }
-    }
-    return map;
-  }, [classes]);
+
 
   const classUuidSet = useMemo(() => {
     const set = new Set<string>();
@@ -590,11 +581,7 @@ const GraphView = memo(function GraphView({
         resolvedColor = getTagColor(apiNode.tags[0]);
       }
 
-      const types = apiNode.class_uuids
-        ?? apiNode.class_ids
-          ?.map(id => classUuidById.get(id))
-          .filter((uuid): uuid is string => !!uuid)
-        ?? [];
+      const types = apiNode.class_uuids ?? [];
 
       return {
         id: apiNode.uuid,
@@ -633,7 +620,7 @@ const GraphView = memo(function GraphView({
         aliased_id: apiNode.aliased_uuid ?? null,
       };
     });
-  }, [sourceNodes, linkMetrics, classUuidSet, classUuidById, evalContext, colorGroups, pinnedNodes, graphSettings.linkDirection]);
+  }, [sourceNodes, linkMetrics, classUuidSet, evalContext, colorGroups, pinnedNodes, graphSettings.linkDirection]);
 
   // Build alias resolution map: alias node ID → main node ID (follows chains).
   const aliasMap = useMemo(() => {
@@ -807,30 +794,30 @@ const GraphView = memo(function GraphView({
     rendererRef.current?.setConfig(sgePhysicsConfig);
   }, [sgePhysicsConfig]);
 
-  // Event handlers — SGEGraphView fires (nodeId: string) without event objects
-  const handleNodeClick = useCallback((nodeId: string) => {
+  // Event handlers — SGEGraphView fires (nodeUuid: string) without event objects
+  const handleNodeClick = useCallback((nodeUuid: string) => {
     if (customNodeClick) {
-      customNodeClick(nodeId);
+      customNodeClick(nodeUuid);
       return;
     }
     // Toggle selection
     setSelectedNodes(prev => {
-      const exists = prev.find(s => s.id === nodeId);
-      if (exists) return prev.filter(s => s.id !== nodeId);
-      const name = nodes.find(n => n.id === nodeId)?.displayName ?? 'Untitled';
-      return [...prev, { id: nodeId, name, order: prev.length }];
+      const exists = prev.find(s => s.id === nodeUuid);
+      if (exists) return prev.filter(s => s.id !== nodeUuid);
+      const name = nodes.find(n => n.id === nodeUuid)?.displayName ?? 'Untitled';
+      return [...prev, { id: nodeUuid, name, order: prev.length }];
     });
   }, [customNodeClick, nodes]);
 
-  const handleNodeDoubleClick = useCallback((nodeId: string) => {
-    openNode(nodeId);
+  const handleNodeDoubleClick = useCallback((nodeUuid: string) => {
+    openNode(nodeUuid);
     setSelectedNodes([]);
   }, [openNode]);
 
   
   // Selection handlers
-  const removeFromSelection = useCallback((nodeId: string) => {
-    setSelectedNodes(prev => prev.filter(s => s.id !== nodeId));
+  const removeFromSelection = useCallback((nodeUuid: string) => {
+    setSelectedNodes(prev => prev.filter(s => s.id !== nodeUuid));
   }, []);
   
   const moveSelectionItem = useCallback((fromIndex: number, toIndex: number) => {
@@ -842,15 +829,15 @@ const GraphView = memo(function GraphView({
     });
   }, []);
 
-  const togglePin = useCallback((nodeId: string) => {
+  const togglePin = useCallback((nodeUuid: string) => {
     setPinnedNodes(prev => {
       const next = new Set(prev);
-      if (next.has(nodeId)) {
-        next.delete(nodeId);
-        rendererRef.current?.unpinNode(nodeId);
+      if (next.has(nodeUuid)) {
+        next.delete(nodeUuid);
+        rendererRef.current?.unpinNode(nodeUuid);
       } else {
-        next.add(nodeId);
-        rendererRef.current?.pinNode(nodeId);
+        next.add(nodeUuid);
+        rendererRef.current?.pinNode(nodeUuid);
       }
       return next;
     });
@@ -1021,7 +1008,7 @@ const GraphView = memo(function GraphView({
               <div className="graph-search-results">
                 {searchResults.map((page) => (
                   <Button
-                    key={page.id}
+                    key={page.uuid}
                     variant="ghost"
                     className="graph-search-result"
                     onClick={() => addToSelection(page)}

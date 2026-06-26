@@ -21,7 +21,6 @@ import type { Node as ApiNode } from '@/types';
 import './Scratchpad.css';
 import { getOperationRuntime } from '@/runtime';
 import { getChildren } from '@/runtime/graphHelpers';
-import { registerParentServerId } from '@/runtime/serverIdMap';
 import { getUndoEngine } from '@/stores/undoEngine';
 import { useEditorFocusStore } from '@/stores/editorFocusStore';
 import type { MutationIntent } from '@/runtime/types';
@@ -100,7 +99,6 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
     if (autoCreatedRef.current) return;
 
     const runtime = getOperationRuntime();
-    registerParentServerId(scratchpadPage.uuid, scratchpadPage.id);
 
     if (!didCheckOnMountRef.current) {
       didCheckOnMountRef.current = true;
@@ -154,8 +152,8 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
 
       for (const child of children) {
         await moveNodeMutation.mutateAsync({
-          id: child.id,
-          parentId: destinationPage.id,
+          nodeUuid: child.uuid,
+          parentId: destinationPage.uuid,
         });
       }
 
@@ -174,7 +172,7 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
     if (!scratchpadPage?.children?.length) return;
     flushAllContentSaves();
     for (const child of scratchpadPage.children) {
-      await deleteNode.mutateAsync(child.id);
+      await deleteNode.mutateAsync(child.uuid);
     }
     onEntryCountChange?.(0);
   }, [scratchpadPage, deleteNode, onEntryCountChange]);
@@ -200,7 +198,6 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
   const handleAddBlock = useCallback(() => {
     if (!scratchpadPage) return;
     const runtime = getOperationRuntime();
-    registerParentServerId(scratchpadPage.uuid, scratchpadPage.id);
     const children = getChildren(runtime, scratchpadPage.uuid);
     const blockId = generateUUID();
     const intent: MutationIntent = {
@@ -360,7 +357,6 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
             nodes={scratchpadPage.children ?? []}
             onContentChange={handleContentChange}
             nodeUuid={scratchpadPage.uuid}
-            nodeId={scratchpadPage.id}
             showClasses={true}
           />
         )}

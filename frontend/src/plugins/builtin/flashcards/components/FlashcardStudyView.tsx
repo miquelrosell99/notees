@@ -21,7 +21,7 @@ export function FlashcardStudyView() {
 
   const handleGrade = useCallback(async (grade: number) => {
     if (!currentCard) return;
-    await review.mutateAsync({ nodeId: currentCard.node_id, grade });
+    await review.mutateAsync({ nodeUuid: currentCard.nodeUuid, grade });
     setShowBack(false);
   }, [currentCard, review]);
 

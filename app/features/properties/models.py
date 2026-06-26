@@ -257,7 +257,6 @@ class RelationValueRequest(BaseModel):
     """Request to set a relation value."""
 
     target_node_uuid: str
-    target_node_id: int | None = None  # Backwards compatibility during migration
     order: int = 0
 
 
@@ -265,15 +264,13 @@ class SelectionValueRequest(BaseModel):
     """Request to set a selection value."""
 
     selection_line_uuid: str
-    selection_line_id: int | None = None  # Backwards compatibility during migration
     order: int = 0
 
 
 class ClassPropertyRequest(BaseModel):
     """Request to link a property to a class."""
 
-    property_id: int | None = None  # Backwards compatibility during migration
-    property_uuid: str | None = None  # Preferred public identifier
+    property_uuid: str
     sequence: int = 0
     default_value: Any | None = None
     required: bool = False

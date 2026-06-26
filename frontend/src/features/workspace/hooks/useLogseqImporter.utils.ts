@@ -1,4 +1,4 @@
-import { getNode, batchGetNodes, batchDeleteNodes, batchPermanentlyDeleteNodes } from '@/api/nodes';
+import { getNode, batchGetNodesByUuid, batchDeleteNodes, batchPermanentlyDeleteNodes } from '@/api/nodes';
 import type { Node, PropertyType } from '@/types/api';
 import type { QueryClient } from '@tanstack/react-query';
 import type { PhaseResult } from './useLogseqImporter.types';
@@ -32,31 +32,27 @@ export function errorMessage(e: unknown): string {
  * Collect UUIDs and IDs recursively from children for deletion.
  * Used in override mode to delete existing blocks before importing.
  */
-function collectChildInfo(node: Node): { uuids: string[]; ids: number[] } {
+function collectChildInfo(node: Node): string[] {
   const uuids: string[] = [];
-  const ids: number[] = [];
   if (node.children && node.children.length > 0) {
     for (const child of node.children) {
       uuids.push(child.uuid);
-      ids.push(child.id);
-      const childInfo = collectChildInfo(child);
-      uuids.push(...childInfo.uuids);
-      ids.push(...childInfo.ids);
+      uuids.push(...collectChildInfo(child));
     }
   }
-  return { uuids, ids };
+  return uuids;
 }
 
 /**
  * Delete all children of a page in override mode.
  * Two-step: soft-delete first, then hard-delete to free UUIDs.
  */
-export async function deleteExistingBlocks(pageId: number, queryClient: QueryClient): Promise<number> {
-  const batchResult = await batchGetNodes({ ids: [pageId] });
-  const pageUuid = Object.values(batchResult.nodes)[0]?.uuid;
-  if (!pageUuid) return 0;
-  const fullPage = await getNode(pageUuid, { include_children: true });
-  const { uuids: childUuids } = collectChildInfo(fullPage);
+export async function deleteExistingBlocks(pageUuid: string, queryClient: QueryClient): Promise<number> {
+  const batchResult = await batchGetNodesByUuid({ uuids: [pageUuid] });
+  const resolvedUuid = Object.values(batchResult.nodes)[0]?.uuid;
+  if (!resolvedUuid) return 0;
+  const fullPage = await getNode(resolvedUuid, { include_children: true });
+  const childUuids = collectChildInfo(fullPage);
 
   if (childUuids.length === 0) return 0;
 
@@ -70,7 +66,7 @@ export async function deleteExistingBlocks(pageId: number, queryClient: QueryCli
     }
   }
 
-  queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(pageId) });
+  queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(pageUuid) });
 
   return result.deleted;
 }

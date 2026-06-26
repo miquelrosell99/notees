@@ -19,7 +19,7 @@ import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-quer
 import * as nodesApi from '@/api/nodes';
 import { nodeKeys } from './queryKeys';
 import type { Node } from '@/types/api';
-import { tryResolveNodeUuid } from '@/utils/resolveNodeUuid';
+
 
 // ─── Global Batcher ──────────────────────────────────────────────────────────
 
@@ -106,10 +106,8 @@ function queueForBatch(nodeUuid: string, queryClient: QueryClient): Promise<Reco
  * (no children, backlinks, or properties) — e.g., NodeRef, breadcrumbs,
  * link previews, table cells.
  */
-export function useBatchedNode(nodeId: string | number | null, meta?: Record<string, unknown>) {
+export function useBatchedNode(nodeUuid: string | null, meta?: Record<string, unknown>) {
   const queryClient = useQueryClient();
-  const nodeUuid = nodeId === null ? null : typeof nodeId === 'string' ? nodeId : tryResolveNodeUuid(nodeId);
-
   return useQuery({
     queryKey: nodeKeys.byUuid(nodeUuid ?? '__unresolved__'),
     queryFn: async () => {
@@ -141,8 +139,7 @@ export function useBatchedNode(nodeId: string | number | null, meta?: Record<str
  * Returns an ordered list of ancestors from root to immediate parent.
  * Uses the closure table — O(1) regardless of depth.
  */
-export function useBreadcrumbs(nodeId: string | number | null) {
-  const nodeUuid = nodeId === null ? null : typeof nodeId === 'string' ? nodeId : tryResolveNodeUuid(nodeId);
+export function useBreadcrumbs(nodeUuid: string | null) {
   return useQuery({
     queryKey: nodeKeys.breadcrumbsByUuid(nodeUuid ?? '__unresolved__'),
     queryFn: async () => {

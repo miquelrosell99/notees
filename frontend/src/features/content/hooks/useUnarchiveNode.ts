@@ -5,8 +5,6 @@ import { nodeKeys } from '@/hooks/queryKeys';
 import { nodeViewKeys } from './useNodeViews';
 import { isFavorite, removeFavorite } from './useFavorites';
 import { removeRecent } from './useRecents';
-import { getNodeUuidByServerId } from './useNodeMutations.utils';
-
 
 /**
  * Hook to unarchive a node
@@ -15,23 +13,21 @@ export function useUnarchiveNode() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (id: number) => {
-      const nodeUuid = getNodeUuidByServerId(queryClient, id);
+    mutationFn: (nodeUuid: string) => {
       if (!nodeUuid) throw new Error('Node UUID not found');
       return nodesApi.unarchiveNode(nodeUuid);
     },
-    onMutate: (nodeId) => {
+    onMutate: (nodeUuid) => {
       // Remove from favorites and recents immediately so the sidebar updates
       // even if the triggering component unmounts before onSuccess fires.
-      const nodeUuid = getNodeUuidByServerId(queryClient, nodeId);
       if (nodeUuid && isFavorite(nodeUuid)) {
         removeFavorite(nodeUuid).catch(() => {});
       }
-      removeRecent(nodeId);
+      removeRecent(nodeUuid);
     },
     onSuccess: (node) => {
       queryClient.setQueriesData<Node>(
-        { queryKey: nodeKeys.detailBase(node.id) },
+        { queryKey: nodeKeys.detailBase(node.uuid) },
         () => node
       );
       queryClient.invalidateQueries({
@@ -51,20 +47,7 @@ export function useUnarchiveNode() {
         refetchType: 'active',
       });
       queryClient.invalidateQueries({
-        queryKey: nodeKeys.archived(),
-        refetchType: 'none',
-      });
-      queryClient.invalidateQueries({
-        queryKey: nodeKeys.graph(),
-        refetchType: 'none',
-      });
-      // Invalidate backlinks and linked references since the unarchived node may now be referenced
-      queryClient.invalidateQueries({
-        queryKey: nodeKeys.allLinkedRefs(),
-        refetchType: 'active',
-      });
-      queryClient.invalidateQueries({
-        queryKey: nodeKeys.allPropertyBacklinks(),
+        queryKey: nodeKeys.searchAll(),
         refetchType: 'active',
       });
       queryClient.invalidateQueries({

@@ -207,7 +207,7 @@ async def get_asset(
     if not await asset_service.asset_exists(asset_uuid):
         raise HTTPException(status_code=404, detail="Asset not found")
 
-    file_path = asset_service.get_asset_file_path(asset_uuid)
+    file_path = await asset_service.get_asset_file_path(asset_uuid)
     if file_path is None:
         raise HTTPException(status_code=404, detail="Asset not found")
 

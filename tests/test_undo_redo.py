@@ -10,10 +10,10 @@ from app.db.schema.constants import SYSTEM_CLASS_UUIDS
 pytestmark = [pytest.mark.asyncio, pytest.mark.integration]
 
 
-async def _create_page(client, page_class_id: int, name: str, extra_classes: list[int] | None = None):
+async def _create_page(client, page_class_uuid: str, name: str, extra_classes: list[str] | None = None):
     payload: dict = {
         "name": name,
-        "classes": [page_class_id] + (extra_classes or []),
+        "class_uuids": [page_class_uuid] + (extra_classes or []),
     }
     r = await client.post("/api/nodes/", json=payload)
     assert r.status_code == 200, r.text
@@ -26,18 +26,18 @@ async def _get_node(client, node):
     return r.json()
 
 
-async def _class_class_id(client) -> int:
+async def _class_class_uuid(client) -> str:
     r = await client.get("/api/nodes/classes")
     assert r.status_code == 200, r.text
     for node in r.json()["nodes"]:
         if node["uuid"] == SYSTEM_CLASS_UUIDS["class"]:
-            return node["id"]
+            return node["uuid"]
     raise RuntimeError("class class not found")
 
 
 async def test_undo_redo_create_node(authenticated_client, test_user):
-    page_class_id = test_user["page_class_id"]
-    page = await _create_page(authenticated_client, page_class_id, "Undo Create")
+    page_class_uuid = SYSTEM_CLASS_UUIDS["page"]
+    page = await _create_page(authenticated_client, page_class_uuid, "Undo Create")
 
     stack = await authenticated_client.get("/api/undo/stack")
     assert stack.status_code == 200
@@ -59,8 +59,8 @@ async def test_undo_redo_create_node(authenticated_client, test_user):
 
 
 async def test_undo_redo_update_node(authenticated_client, test_user):
-    page_class_id = test_user["page_class_id"]
-    page = await _create_page(authenticated_client, page_class_id, "Before")
+    page_class_uuid = SYSTEM_CLASS_UUIDS["page"]
+    page = await _create_page(authenticated_client, page_class_uuid, "Before")
 
     r = await authenticated_client.put(f"/api/nodes/{page['uuid']}", json={"name": "After"})
     assert r.status_code == 200, r.text
@@ -79,9 +79,9 @@ async def test_undo_redo_update_node(authenticated_client, test_user):
 
 
 async def test_undo_redo_move_node(authenticated_client, test_user):
-    page_class_id = test_user["page_class_id"]
-    parent_a = await _create_page(authenticated_client, page_class_id, "Parent A")
-    parent_b = await _create_page(authenticated_client, page_class_id, "Parent B")
+    page_class_uuid = SYSTEM_CLASS_UUIDS["page"]
+    parent_a = await _create_page(authenticated_client, page_class_uuid, "Parent A")
+    parent_b = await _create_page(authenticated_client, page_class_uuid, "Parent B")
 
     block = await authenticated_client.post(
         "/api/nodes/",
@@ -106,9 +106,9 @@ async def test_undo_redo_move_node(authenticated_client, test_user):
 
 
 async def test_undo_redo_tag_link(authenticated_client, test_user):
-    page_class_id = test_user["page_class_id"]
-    source = await _create_page(authenticated_client, page_class_id, "Source")
-    tag = await _create_page(authenticated_client, page_class_id, "Tag Page")
+    page_class_uuid = SYSTEM_CLASS_UUIDS["page"]
+    source = await _create_page(authenticated_client, page_class_uuid, "Source")
+    tag = await _create_page(authenticated_client, page_class_uuid, "Tag Page")
 
     add = await authenticated_client.post(
         f"/api/nodes/{source['uuid']}/tag-links",
@@ -129,9 +129,9 @@ async def test_undo_redo_tag_link(authenticated_client, test_user):
 
 
 async def test_undo_redo_alias(authenticated_client, test_user):
-    page_class_id = test_user["page_class_id"]
-    source = await _create_page(authenticated_client, page_class_id, "Source")
-    alias = await _create_page(authenticated_client, page_class_id, "Alias Page")
+    page_class_uuid = SYSTEM_CLASS_UUIDS["page"]
+    source = await _create_page(authenticated_client, page_class_uuid, "Source")
+    alias = await _create_page(authenticated_client, page_class_uuid, "Alias Page")
 
     add = await authenticated_client.post(
         f"/api/nodes/{source['uuid']}/aliases",
@@ -158,13 +158,13 @@ async def test_undo_redo_alias(authenticated_client, test_user):
 
 
 async def test_undo_redo_add_remove_class(authenticated_client, test_user):
-    page_class_id = test_user["page_class_id"]
-    class_class_id = await _class_class_id(authenticated_client)
+    page_class_uuid = SYSTEM_CLASS_UUIDS["page"]
+    class_class_uuid = await _class_class_uuid(authenticated_client)
 
     custom_class = await _create_page(
-        authenticated_client, page_class_id, "Custom Class", extra_classes=[class_class_id]
+        authenticated_client, page_class_uuid, "Custom Class", extra_classes=[class_class_uuid]
     )
-    page = await _create_page(authenticated_client, page_class_id, "Classed Page")
+    page = await _create_page(authenticated_client, page_class_uuid, "Classed Page")
 
     # Add class
     add = await authenticated_client.post(

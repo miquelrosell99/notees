@@ -6,16 +6,13 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as activityApi from '../api/activity';
 import { activityKeys } from '@/hooks/queryKeys';
-import { getNodeUuidByServerId } from './useNodeMutations.utils';
 
 // ==================== Activity Queries ====================
 
 /**
  * Hook to fetch activity log for a node
  */
-export function useNodeActivity(nodeId: string | number | null, limit = 50) {
-  const queryClient = useQueryClient();
-  const nodeUuid = nodeId === null ? null : typeof nodeId === 'string' ? nodeId : getNodeUuidByServerId(queryClient, nodeId);
+export function useNodeActivity(nodeUuid: string | null, limit = 50) {
   return useQuery({
     queryKey: activityKeys.forNode(nodeUuid ?? ''),
     queryFn: () => activityApi.getNodeActivity(nodeUuid!, limit),
@@ -46,21 +43,18 @@ export function useDeleteNodeActivity() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ nodeId, activityId }: { nodeId: string | number; activityId: number }) => {
-      const nodeUuid = typeof nodeId === 'string' ? nodeId : getNodeUuidByServerId(queryClient, nodeId);
+    mutationFn: ({ nodeUuid, activityId }: { nodeUuid: string; activityId: string }) => {
       if (!nodeUuid) throw new Error('Node UUID not found');
       return activityApi.deleteNodeActivity(nodeUuid, activityId);
     },
-    onMutate: ({ nodeId }) => {
-      const nodeUuid = typeof nodeId === 'string' ? nodeId : getNodeUuidByServerId(queryClient, nodeId);
+    onMutate: ({ nodeUuid }) => {
       // Invalidate immediately so the UI updates even if the triggering
       // component unmounts before onSuccess fires (TanStack Query v5).
       if (nodeUuid) {
         queryClient.invalidateQueries({ queryKey: activityKeys.forNode(nodeUuid) });
       }
     },
-    onSuccess: (_, { nodeId }) => {
-      const nodeUuid = typeof nodeId === 'string' ? nodeId : getNodeUuidByServerId(queryClient, nodeId);
+    onSuccess: (_, { nodeUuid }) => {
       if (nodeUuid) {
         queryClient.invalidateQueries({ queryKey: activityKeys.forNode(nodeUuid) });
       }
@@ -70,21 +64,14 @@ export function useDeleteNodeActivity() {
 
 // ==================== Link Click Tracking ====================
 
-function resolveNodeIdArg(queryClient: ReturnType<typeof useQueryClient>, nodeId: string | number | null | undefined): string | null {
-  if (nodeId == null) return null;
-  return typeof nodeId === 'string' ? nodeId : getNodeUuidByServerId(queryClient, nodeId);
-}
-
 /**
  * Hook to fetch all link click counts from a source node
  */
-export function useLinkClicks(sourceNodeId: string | number | null) {
-  const queryClient = useQueryClient();
-  const sourceUuid = resolveNodeIdArg(queryClient, sourceNodeId);
+export function useLinkClicks(sourceNodeUuid: string | null) {
   return useQuery({
-    queryKey: activityKeys.linkClicks(sourceUuid ?? ''),
-    queryFn: () => activityApi.getLinkClicks(sourceUuid!),
-    enabled: !!sourceUuid,
+    queryKey: activityKeys.linkClicks(sourceNodeUuid ?? ''),
+    queryFn: () => activityApi.getLinkClicks(sourceNodeUuid!),
+    enabled: !!sourceNodeUuid,
     staleTime: 60000, // Cache for 1 minute
   });
 }
@@ -92,14 +79,11 @@ export function useLinkClicks(sourceNodeId: string | number | null) {
 /**
  * Hook to fetch click count for a specific link
  */
-export function useLinkClick(sourceNodeId: string | number | null, targetNodeId: string | number | null) {
-  const queryClient = useQueryClient();
-  const sourceUuid = resolveNodeIdArg(queryClient, sourceNodeId);
-  const targetUuid = resolveNodeIdArg(queryClient, targetNodeId);
+export function useLinkClick(sourceNodeUuid: string | null, targetNodeUuid: string | null) {
   return useQuery({
-    queryKey: activityKeys.linkClick(sourceUuid ?? '', targetUuid ?? ''),
-    queryFn: () => activityApi.getLinkClick(sourceUuid!, targetUuid!),
-    enabled: !!sourceUuid && !!targetUuid,
+    queryKey: activityKeys.linkClick(sourceNodeUuid ?? '', targetNodeUuid ?? ''),
+    queryFn: () => activityApi.getLinkClick(sourceNodeUuid!, targetNodeUuid!),
+    enabled: !!sourceNodeUuid && !!targetNodeUuid,
     staleTime: 60000,
   });
 }
@@ -111,18 +95,14 @@ export function useTrackLinkClick() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ sourceNodeId, targetNodeId, nodeLinkUuid }: { sourceNodeId: string | number; targetNodeId: string | number; nodeLinkUuid?: string }) => {
-      const sourceUuid = resolveNodeIdArg(queryClient, sourceNodeId);
-      const targetUuid = resolveNodeIdArg(queryClient, targetNodeId);
-      if (!sourceUuid || !targetUuid) throw new Error('Node UUID not found');
-      return activityApi.trackLinkClick(sourceUuid, targetUuid, nodeLinkUuid);
+    mutationFn: ({ sourceNodeUuid, targetNodeUuid, nodeLinkUuid }: { sourceNodeUuid: string; targetNodeUuid: string; nodeLinkUuid?: string }) => {
+      if (!sourceNodeUuid || !targetNodeUuid) throw new Error('Node UUID not found');
+      return activityApi.trackLinkClick(sourceNodeUuid, targetNodeUuid, nodeLinkUuid);
     },
-    onSuccess: (_, { sourceNodeId, targetNodeId }) => {
-      const sourceUuid = resolveNodeIdArg(queryClient, sourceNodeId);
-      const targetUuid = resolveNodeIdArg(queryClient, targetNodeId);
-      if (sourceUuid && targetUuid) {
-        queryClient.invalidateQueries({ queryKey: activityKeys.linkClicks(sourceUuid) });
-        queryClient.invalidateQueries({ queryKey: activityKeys.linkClick(sourceUuid, targetUuid) });
+    onSuccess: (_, { sourceNodeUuid, targetNodeUuid }) => {
+      if (sourceNodeUuid && targetNodeUuid) {
+        queryClient.invalidateQueries({ queryKey: activityKeys.linkClicks(sourceNodeUuid) });
+        queryClient.invalidateQueries({ queryKey: activityKeys.linkClick(sourceNodeUuid, targetNodeUuid) });
       }
     },
   });
@@ -135,18 +115,14 @@ export function useResetLinkClick() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ sourceNodeId, targetNodeId }: { sourceNodeId: string | number; targetNodeId: string | number }) => {
-      const sourceUuid = resolveNodeIdArg(queryClient, sourceNodeId);
-      const targetUuid = resolveNodeIdArg(queryClient, targetNodeId);
-      if (!sourceUuid || !targetUuid) throw new Error('Node UUID not found');
-      return activityApi.resetLinkClick(sourceUuid, targetUuid);
+    mutationFn: ({ sourceNodeUuid, targetNodeUuid }: { sourceNodeUuid: string; targetNodeUuid: string }) => {
+      if (!sourceNodeUuid || !targetNodeUuid) throw new Error('Node UUID not found');
+      return activityApi.resetLinkClick(sourceNodeUuid, targetNodeUuid);
     },
-    onSuccess: (_, { sourceNodeId, targetNodeId }) => {
-      const sourceUuid = resolveNodeIdArg(queryClient, sourceNodeId);
-      const targetUuid = resolveNodeIdArg(queryClient, targetNodeId);
-      if (sourceUuid && targetUuid) {
-        queryClient.invalidateQueries({ queryKey: activityKeys.linkClicks(sourceUuid) });
-        queryClient.invalidateQueries({ queryKey: activityKeys.linkClick(sourceUuid, targetUuid) });
+    onSuccess: (_, { sourceNodeUuid, targetNodeUuid }) => {
+      if (sourceNodeUuid && targetNodeUuid) {
+        queryClient.invalidateQueries({ queryKey: activityKeys.linkClicks(sourceNodeUuid) });
+        queryClient.invalidateQueries({ queryKey: activityKeys.linkClick(sourceNodeUuid, targetNodeUuid) });
       }
     },
   });

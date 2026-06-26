@@ -18,13 +18,13 @@ import type { Node } from '@/types';
 
 /** Resolve effective class IDs for a node, inheriting from aliased node if needed. */
 function useEffectiveClassIds(node: Node | null | undefined, aliasedNode: Node | null | undefined) {
-  const hasOwnClasses = !!node?.classes?.length;
-  return hasOwnClasses ? node!.classes : aliasedNode?.classes;
+  const hasOwnClasses = !!node?.classes_uuid?.length;
+  return hasOwnClasses ? node!.classes_uuid : aliasedNode?.classes_uuid;
 }
 
 /** Fetch the aliased (main) node for an alias, or null. */
 function useAliasedNode(node: Node | null | undefined) {
-  const aliasedId = node?.aliased_id ?? null;
+  const aliasedId = node?.aliased_uuid ?? null;
   const { data: aliasedNode } = useBatchedNode(aliasedId);
   return aliasedNode ?? null;
 }

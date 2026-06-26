@@ -497,7 +497,7 @@ class PostgresUndoRepository(BasePostgresRepository, UndoRepository):
         vals: list[Any] = []
         idx = 1
 
-        for col in ("name", "icon", "color", "parent_id", "sequence", "collapsed"):
+        for col in ("name", "icon", "color", "parent_id", "sequence"):
             if col in state:
                 idx += 1
                 sets.append(f"{col} = ${idx}")

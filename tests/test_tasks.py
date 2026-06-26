@@ -169,9 +169,9 @@ class TestIsTaskFlag:
     async def test_is_task_set_on_creation_with_task_class(
         self, authenticated_client: AsyncClient
     ):
-        task_class_id = await _get_task_class_id(authenticated_client)
+        task_class_uuid = await _get_task_class_uuid(authenticated_client)
         task = await _create_node(
-            authenticated_client, name="Task on Create", classes=[task_class_id]
+            authenticated_client, name="Task on Create", class_uuids=[task_class_uuid]
         )
         assert task.get("is_task") is True
 
@@ -205,10 +205,9 @@ class TestIsTaskFlag:
     async def test_is_task_cleared_when_removing_task_class(
         self, authenticated_client: AsyncClient
     ):
-        task_class_id = await _get_task_class_id(authenticated_client)
         task_class_uuid = await _get_task_class_uuid(authenticated_client)
         task = await _create_node(
-            authenticated_client, name="Former Task", classes=[task_class_id]
+            authenticated_client, name="Former Task", class_uuids=[task_class_uuid]
         )
         assert task.get("is_task") is True
 

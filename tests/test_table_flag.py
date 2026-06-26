@@ -46,9 +46,9 @@ class TestIsTableFlag:
     async def test_is_table_set_on_creation_with_table_class(
         self, authenticated_client: AsyncClient
     ):
-        table_class_id = await _get_table_class_id(authenticated_client)
+        table_class_uuid = await _get_table_class_uuid(authenticated_client)
         table = await _create_node(
-            authenticated_client, name="Table on Create", classes=[table_class_id]
+            authenticated_client, name="Table on Create", class_uuids=[table_class_uuid]
         )
         assert table.get("is_table") is True
 
@@ -82,10 +82,9 @@ class TestIsTableFlag:
     async def test_is_table_cleared_when_removing_table_class(
         self, authenticated_client: AsyncClient
     ):
-        table_class_id = await _get_table_class_id(authenticated_client)
         table_class_uuid = await _get_table_class_uuid(authenticated_client)
         table = await _create_node(
-            authenticated_client, name="Former Table", classes=[table_class_id]
+            authenticated_client, name="Former Table", class_uuids=[table_class_uuid]
         )
         assert table.get("is_table") is True
 

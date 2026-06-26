@@ -1,0 +1,86 @@
+.conflict-resolution-modal__hint {
+  margin: 0 0 var(--space-4) 0;
+  color: var(--color-on-surface-variant);
+  font-size: var(--font-size-sm);
+}
+
+.conflict-resolution-modal__panes {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.conflict-resolution-modal__pane {
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  background: var(--color-surface-container-low);
+  min-height: 120px;
+}
+
+.conflict-resolution-modal__pane--wide {
+  grid-column: 1 / -1;
+}
+
+.conflict-resolution-modal__pane-title {
+  margin: 0 0 var(--space-2) 0;
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-on-surface-variant);
+}
+
+.conflict-resolution-modal__empty {
+  color: var(--color-on-surface-variant);
+  font-style: italic;
+}
+
+.conflict-resolution-modal__diff {
+  white-space: pre-wrap;
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+}
+
+.conflict-resolution-modal__diff-removed {
+  background-color: var(--color-error-container);
+  color: var(--color-on-error-container);
+  text-decoration: line-through;
+}
+
+.conflict-resolution-modal__diff-added {
+  background-color: var(--color-success-container);
+  color: var(--color-on-success-container);
+}
+
+.conflict-resolution-modal__diff-equal {
+  color: var(--color-on-surface);
+}
+
+.conflict-resolution-modal__tree-node {
+  padding-left: var(--space-2);
+}
+
+.conflict-resolution-modal__tree-label {
+  font-weight: 500;
+}
+
+.conflict-resolution-modal__tree-children {
+  margin: var(--space-1) 0 0 var(--space-3);
+  padding-left: var(--space-3);
+  border-left: 1px solid var(--color-outline-variant);
+  list-style: none;
+}
+
+.conflict-resolution-modal__tree-child {
+  padding: var(--space-1) 0;
+  color: var(--color-on-surface-variant);
+}
+
+.conflict-resolution-modal__footer {
+  display: flex;
+  gap: var(--space-3);
+  justify-content: flex-end;
+}

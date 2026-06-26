@@ -13,15 +13,16 @@
  * projection → flat list for the renderer.
  */
 
-import { useState, useEffect, useMemo, useLayoutEffect } from 'react';
+import { useState, useEffect, useMemo, useLayoutEffect, useCallback } from 'react';
+import { useParams } from 'react-router-dom';
 import { getOperationRuntime } from '@/runtime';
 import type { OperationRuntime } from '@/runtime';
 import { getNode, getAllNodes } from '@/runtime/graphHelpers';
 import { upsertNodes } from '@/runtime/eventBus';
-import { registerParentServerId } from '@/runtime/serverIdMap';
-import { getUndoEngine } from '@/stores/undoEngine';
+
 import { getRuntimeEventBus } from '@/runtime/eventBus';
 import { apiNodesToGraphNodes } from './useRuntimeSync';
+import { useUIStateStore } from '@/features/sync';
 import type { Node } from '@/types/api';
 
 export interface FlatNode {
@@ -37,7 +38,6 @@ interface UseBlockTreeOptions {
   pagesOnly?: boolean;
   skipPages?: boolean;
   expandAll?: boolean;
-  nodeId?: number;
   nodeUuid?: string;
   /** If false (default), a ghost block is appended as the last sibling. */
   readOnly?: boolean;
@@ -55,6 +55,7 @@ function flattenNodes(
   maxDepth: number,
   pagesOnly: boolean,
   skipPages: boolean,
+  collapsedLookup: (nodeUuid: string) => boolean | undefined,
   currentDepth = 0,
   expandAll = false,
 ): FlatNode[] {
@@ -64,7 +65,7 @@ function flattenNodes(
     if (pagesOnly && !node.is_page) continue;
     if (skipPages && node.is_page) continue;
 
-    const effectiveCollapsed = expandAll ? false : node.collapsed;
+    const effectiveCollapsed = expandAll ? false : (collapsedLookup(node.uuid) ?? node.collapsed ?? false);
     result.push({ node, depth: currentDepth, effectiveCollapsed });
     if (
       node.children &&
@@ -72,7 +73,7 @@ function flattenNodes(
       !effectiveCollapsed &&
       (maxDepth < 0 || currentDepth < maxDepth)
     ) {
-      result.push(...flattenNodes(node.children, maxDepth, pagesOnly, skipPages, currentDepth + 1, expandAll));
+      result.push(...flattenNodes(node.children, maxDepth, pagesOnly, skipPages, collapsedLookup, currentDepth + 1, expandAll));
     }
   }
   return result;
@@ -102,14 +103,11 @@ export function parseGhostParentUuid(ghostUuid: string): string | null {
 function createGhostFlatNode(parentUuid: string, depth: number): FlatNode {
   return {
     node: {
-      id: -1,
       uuid: buildGhostId(parentUuid),
       name: '',
       icon: null,
       color: null,
-      parent_id: null,
       parent_uuid: null,
-      page_id: null,
       page_uuid: null,
       sequence: Number.MAX_SAFE_INTEGER,
       collapsed: false,
@@ -120,9 +118,9 @@ function createGhostFlatNode(parentUuid: string, depth: number): FlatNode {
       children: [],
       create_date: '',
       write_date: '',
-      classes: [],
-      tags: [],
-      properties: {},
+      classes_uuid: [],
+      tags_uuid: [],
+      properties_uuid: {},
     },
     depth,
     effectiveCollapsed: false,
@@ -136,6 +134,7 @@ function flattenNodesFromRuntime(
   pagesOnly: boolean,
   skipPages: boolean,
   runtime: OperationRuntime,
+  collapsedLookup: (nodeUuid: string) => boolean | undefined,
   expandAll = false,
   readOnly = false,
   showNewBlock = true,
@@ -143,27 +142,19 @@ function flattenNodesFromRuntime(
   rootIsBlock = false,
 ): FlatNode[] {
   const nodeMap = new Map<string, Node>();
-  const idToUuid = new Map<number, string>();
   const collect = (n: Node) => {
     nodeMap.set(n.uuid, n);
-    idToUuid.set(n.id, n.uuid);
     if (n.children) for (const c of n.children) collect(c);
   };
   for (const n of nodes) collect(n);
 
   function resolveParentId(node: Node): string {
     const graphNode = getNode(runtime, node.uuid);
-    const propParentId = node.parent_id?.toString() || '__root__';
-    const runtimeParentId = graphNode?.parentId;
-    let parentId = (runtimeParentId && nodeMap.has(runtimeParentId))
-      ? runtimeParentId
-      : propParentId;
-    // Fall back from numeric parent_id to UUID when the runtime hasn't synced yet.
-    if (!nodeMap.has(parentId) && node.parent_id != null) {
-      const parentUuid = idToUuid.get(node.parent_id);
-      if (parentUuid) parentId = parentUuid;
-    }
-    return parentId;
+    const propParentUuid = node.parent_uuid || '__root__';
+    const runtimeParentUuid = graphNode?.parentId;
+    return (runtimeParentUuid && nodeMap.has(runtimeParentUuid))
+      ? runtimeParentUuid
+      : propParentUuid;
   }
 
   const byParent = new Map<string, Node[]>();
@@ -178,17 +169,14 @@ function flattenNodesFromRuntime(
     if (nodeMap.has(gn.blockId)) continue;
     if (!gn.parentId || !nodeMap.has(gn.parentId)) continue;
     const syntheticNode: Node = {
-      id: gn.serverId ?? -1,
       uuid: gn.blockId,
       name: JSON.stringify(gn.contentAST),
       icon: gn.icon ?? null,
       color: gn.color ?? null,
-      parent_id: null,
       parent_uuid: null,
-      page_id: null,
       page_uuid: null,
       sequence: gn.orderIndex,
-      collapsed: gn.collapsed,
+      collapsed: collapsedLookup(gn.blockId) ?? gn.collapsed ?? false,
       active: true,
       is_page: false,
       is_deleted: false,
@@ -196,9 +184,9 @@ function flattenNodesFromRuntime(
       children: [],
       create_date: gn.createdAt,
       write_date: gn.updatedAt,
-      classes: gn.classIds.map(id => parseInt(id, 10)).filter(n => !isNaN(n)),
-      tags: gn.tagIds.map(id => parseInt(id, 10)).filter(n => !isNaN(n)),
-      properties: {},
+      classes_uuid: gn.classIds,
+      tags_uuid: gn.tagIds,
+      properties_uuid: {},
     };
     nodeMap.set(gn.blockId, syntheticNode);
     if (!byParent.has(gn.parentId)) byParent.set(gn.parentId, []);
@@ -227,8 +215,9 @@ function flattenNodesFromRuntime(
       if (node.is_comment) continue;
       if (pagesOnly && !node.is_page) continue;
       if (skipPages && node.is_page) continue;
-      const graphNode = getNode(runtime, nodeUuid);
-      const effectiveCollapsed = expandAll ? false : (graphNode?.collapsed ?? node.collapsed);
+      const effectiveCollapsed = expandAll
+        ? false
+        : (collapsedLookup(nodeUuid) ?? node.collapsed ?? false);
       result.push({ node, depth, effectiveCollapsed });
 
       if (!effectiveCollapsed && (maxDepth < 0 || depth < maxDepth)) {
@@ -283,16 +272,22 @@ export function useBlockTree(
   options: UseBlockTreeOptions = {}
 ): { flatNodes: FlatNode[]; structureVersion: number } {
   const {
-    maxDepth = -1,
-    pagesOnly = false,
-    skipPages = false,
-    expandAll = false,
-    nodeId,
-    nodeUuid,
-    readOnly = false,
-    showNewBlock = true,
-    rootIsBlock = false,
-  } = options;
+          maxDepth = -1,
+          pagesOnly = false,
+          skipPages = false,
+          expandAll = false,
+          nodeUuid,
+          readOnly = false,
+          showNewBlock = true,
+          rootIsBlock = false } = options;
+  const { workspaceId } = useParams<{ workspaceId?: string }>();
+  const workspaceStates = useUIStateStore(
+    useMemo(() => (s) => (workspaceId ? s.states[workspaceId] ?? {} : {}), [workspaceId])
+  );
+  const collapsedLookup = useCallback(
+    (nodeUuid: string) => workspaceStates[nodeUuid]?.collapsed,
+    [workspaceStates]
+  );
 
   // Sync prop nodes into the runtime so structural ops have graph data.
   useLayoutEffect(() => {
@@ -304,20 +299,10 @@ export function useBlockTree(
     for (const n of nodes) collect(n);
 
     if (allNodes.length > 0) {
-      const { graphNodes } = apiNodesToGraphNodes(allNodes, nodeId, nodeUuid);
+      const { graphNodes } = apiNodesToGraphNodes(allNodes, nodeUuid);
       upsertNodes(graphNodes);
-      if (expandAll) {
-        for (const gn of graphNodes) {
-          getUndoEngine().applyIntent({ type: 'set_collapsed', blockId: gn.blockId, collapsed: false });
-        }
-        getRuntimeEventBus().flushEvents();
-      }
     }
-
-    if (nodeId != null && nodeUuid) {
-      registerParentServerId(nodeUuid, nodeId);
-    }
-  }, [nodes, nodeId, nodeUuid, expandAll]);
+  }, [nodes, nodeUuid]);
 
   // Subscribe to runtime structural changes
   const [structureVersion, setStructureVersion] = useState(0);
@@ -334,11 +319,23 @@ export function useBlockTree(
     const runtime = getOperationRuntime();
     const hasRuntimeData = nodeUuid != null || nodes.some((n) => getNode(runtime, n.uuid) != null);
     if (!hasRuntimeData) {
-      return flattenNodes(nodes, maxDepth, pagesOnly, skipPages, 0, expandAll);
+      return flattenNodes(nodes, maxDepth, pagesOnly, skipPages, collapsedLookup, 0, expandAll);
     }
-    return flattenNodesFromRuntime(nodes, maxDepth, pagesOnly, skipPages, runtime, expandAll, readOnly, showNewBlock, nodeUuid, rootIsBlock);
+    return flattenNodesFromRuntime(
+      nodes,
+      maxDepth,
+      pagesOnly,
+      skipPages,
+      runtime,
+      collapsedLookup,
+      expandAll,
+      readOnly,
+      showNewBlock,
+      nodeUuid,
+      rootIsBlock,
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nodes, maxDepth, pagesOnly, skipPages, expandAll, readOnly, showNewBlock, nodeUuid, rootIsBlock, structureVersion]);
+  }, [nodes, maxDepth, pagesOnly, skipPages, expandAll, readOnly, showNewBlock, nodeUuid, rootIsBlock, structureVersion, collapsedLookup]);
 
   return { flatNodes, structureVersion };
 }

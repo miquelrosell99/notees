@@ -12,6 +12,7 @@ import { getOperationRuntime } from './runtimeInstance';
 import type { GraphNode, MutationIntent, RuntimeEvent, RuntimeEventHandler } from './types';
 import type { CoreNode } from './operation';
 import { applyIntent as applyIntentOperations } from '@/sync/intents';
+import { localSyncEngine } from '@/features/sync/engine/localSyncEngine';
 import { graphNodeToCoreNode } from './nodeMapping';
 
 // ─── Global singleton ─────────────────────────────────────────────
@@ -41,9 +42,9 @@ export class RuntimeEventBus {
   private pendingFlush: number | null = null;
   private pendingChangedBlockIds = new Set<string>();
   private pendingStructureParentIds = new Set<string>();
-  private pendingDeleted: { blockId: string; serverId?: number }[] = [];
-  private pendingCollapseChanged: { blockId: string; serverId?: number; collapsed: boolean }[] = [];
-  private pendingExpandNeeded: { blockId: string; serverId?: number }[] = [];
+  private pendingDeleted: { blockId: string }[] = [];
+  private pendingCollapseChanged: { blockId: string; collapsed: boolean }[] = [];
+  private pendingExpandNeeded: { blockId: string }[] = [];
   private pendingSource?: 'intent' | 'sync' | 'undo' | 'redo';
   private pendingSourceEditorId?: string;
 
@@ -80,8 +81,12 @@ export class RuntimeEventBus {
     options?: { source?: 'intent' | 'undo' | 'redo'; sourceEditorId?: string },
   ): void {
     const source = options?.source ?? 'intent';
-    this.withSource(source as 'intent' | 'sync' | 'undo' | 'redo', options?.sourceEditorId, () => {
-      applyIntentOperations(this.runtime, intent);
+    this.withSource(source, options?.sourceEditorId, () => {
+      const operations = applyIntentOperations(this.runtime, intent);
+      // Local intents are staged in the persisted outbox so they survive crashes.
+      if (operations.length > 0) {
+        localSyncEngine.stageOperationsFireAndForget(operations);
+      }
     });
   }
 
@@ -168,7 +173,6 @@ export class RuntimeEventBus {
       if (beforeNode && beforeNode.collapsed !== afterNode.collapsed) {
         this.pendingCollapseChanged.push({
           blockId,
-          serverId: afterNode.serverId,
           collapsed: afterNode.collapsed,
         });
         if (
@@ -176,14 +180,14 @@ export class RuntimeEventBus {
           afterNode.hasServerChildren &&
           this.runtime.getChildren(blockId).length === 0
         ) {
-          this.pendingExpandNeeded.push({ blockId, serverId: afterNode.serverId });
+          this.pendingExpandNeeded.push({ blockId });
         }
       }
     }
 
     for (const [blockId, beforeNode] of before) {
       if (!after.has(blockId)) {
-        this.pendingDeleted.push({ blockId, serverId: beforeNode.serverId });
+        this.pendingDeleted.push({ blockId });
         if (beforeNode.parentId) this.pendingStructureParentIds.add(beforeNode.parentId);
       }
     }
@@ -225,7 +229,7 @@ export class RuntimeEventBus {
     }
 
     for (const ev of this.pendingDeleted) {
-      this.emit({ type: 'block_deleted', blockId: ev.blockId, serverId: ev.serverId });
+      this.emit({ type: 'block_deleted', blockId: ev.blockId });
     }
     this.pendingDeleted = [];
 
@@ -233,14 +237,13 @@ export class RuntimeEventBus {
       this.emit({
         type: 'collapse_changed',
         blockId: ev.blockId,
-        serverId: ev.serverId,
         collapsed: ev.collapsed,
       });
     }
     this.pendingCollapseChanged = [];
 
     for (const ev of this.pendingExpandNeeded) {
-      this.emit({ type: 'expand_children_needed', blockId: ev.blockId, serverId: ev.serverId });
+      this.emit({ type: 'expand_children_needed', blockId: ev.blockId });
     }
     this.pendingExpandNeeded = [];
   }

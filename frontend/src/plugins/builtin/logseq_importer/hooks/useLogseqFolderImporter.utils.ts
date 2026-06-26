@@ -121,7 +121,7 @@ export function cleanBlockContent(content: string): string {
 
 export async function createBlocksRecursively(
   blocks: LogseqMdBlock[],
-  parentId: number,
+  parentUuid: string,
   startSeq: number,
   titleMap: Map<string, PageInfo>,
   assetMap: Map<string, PageInfo>,
@@ -131,9 +131,9 @@ export async function createBlocksRecursively(
 
   const createItems = blocks.map((block, i) => {
     const cleaned = cleanBlockContent(block.content);
-    if (!cleaned) return { name: '', sequence: startSeq + i };
+    if (!cleaned) return { name: '', parent_uuid: parentUuid, sequence: startSeq + i };
     const name = buildBlockAst(cleaned, titleMap, assetMap);
-    return { name, parent_id: parentId, sequence: startSeq + i };
+    return { name, parent_uuid: parentUuid, sequence: startSeq + i };
   });
 
   const resp = await batchCreateNodes({
@@ -148,7 +148,7 @@ export async function createBlocksRecursively(
     if (item.success && item.node && blocks[i].children.length > 0) {
       await createBlocksRecursively(
         blocks[i].children,
-        item.node.id,
+        item.node.uuid,
         0,
         titleMap,
         assetMap,

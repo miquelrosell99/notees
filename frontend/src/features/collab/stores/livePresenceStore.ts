@@ -6,7 +6,7 @@
 import { create } from 'zustand';
 
 export interface PresenceUser {
-  id: number;
+  nodeUuid: string;
   name: string;
   color: string;
 }
@@ -56,8 +56,8 @@ interface LivePresenceState {
   localFocus: Record<string, string | null>;
 
   setUserFocus(nodeUuid: string, blockUuid: string, user: PresenceUser): void;
-  removeUserFocus(nodeUuid: string, blockUuid: string, userId: number): void;
-  removeUserFromPage(nodeUuid: string, userId: number): void;
+  removeUserFocus(nodeUuid: string, blockUuid: string, userId: string): void;
+  removeUserFromPage(nodeUuid: string, userId: string): void;
   setLocalFocus(nodeUuid: string, blockUuid: string | null): void;
   getUsersOnBlock(nodeUuid: string, blockUuid: string): PresenceUser[];
   getLocalFocus(nodeUuid: string): string | null;
@@ -67,7 +67,7 @@ interface LivePresenceState {
   getLockOwner(nodeUuid: string, blockUuid: string): PresenceUser | undefined;
 
   setUserTyping(nodeUuid: string, blockUuid: string, user: PresenceUser, ttlMs?: number): void;
-  clearUserTyping(nodeUuid: string, blockUuid: string, userId: number): void;
+  clearUserTyping(nodeUuid: string, blockUuid: string, userId: string): void;
   getTypingUsersOnBlock(nodeUuid: string, blockUuid: string): PresenceUser[];
 
   setQueued(nodeUuid: string, blockUuid: string, queued: boolean): void;
@@ -92,7 +92,7 @@ export const useLivePresenceStore = create<LivePresenceState>((set, get) => ({
       const page = state.presence[nodeUuid] ?? {};
       const list = page[blockUuid] ?? [];
       // Replace existing entry for this user
-      const filtered = list.filter((u) => u.id !== user.id);
+      const filtered = list.filter((u) => u.nodeUuid !== user.nodeUuid);
       const nextPage = {
         ...page,
         [blockUuid]: [...filtered, user],
@@ -109,7 +109,7 @@ export const useLivePresenceStore = create<LivePresenceState>((set, get) => ({
       if (!page) return state;
       const list = page[blockUuid];
       if (!list) return state;
-      const filtered = list.filter((u) => u.id !== userId);
+      const filtered = list.filter((u) => u.nodeUuid !== userId);
       if (filtered.length === list.length) return state;
       const nextPage = { ...page };
       if (filtered.length === 0) {
@@ -130,7 +130,7 @@ export const useLivePresenceStore = create<LivePresenceState>((set, get) => ({
       const nextPage: PagePresence = {};
       let changed = false;
       for (const [blockUuid, list] of Object.entries(page)) {
-        const filtered = list.filter((u) => u.id !== userId);
+        const filtered = list.filter((u) => u.nodeUuid !== userId);
         if (filtered.length !== list.length) changed = true;
         if (filtered.length > 0) nextPage[blockUuid] = filtered;
       }
@@ -193,7 +193,7 @@ export const useLivePresenceStore = create<LivePresenceState>((set, get) => ({
     set((state) => {
       const page = state.typing[nodeUuid] ?? {};
       const list = page[blockUuid] ?? [];
-      const filtered = list.filter((e) => e.user.id !== user.id);
+      const filtered = list.filter((e) => e.user.nodeUuid !== user.nodeUuid);
       const nextPage = {
         ...page,
         [blockUuid]: [...filtered, { user, expiresAt }],
@@ -210,7 +210,7 @@ export const useLivePresenceStore = create<LivePresenceState>((set, get) => ({
       if (!page) return state;
       const list = page[blockUuid];
       if (!list) return state;
-      const filtered = list.filter((e) => e.user.id !== userId);
+      const filtered = list.filter((e) => e.user.nodeUuid !== userId);
       if (filtered.length === list.length) return state;
       const nextPage = { ...page };
       if (filtered.length === 0) {

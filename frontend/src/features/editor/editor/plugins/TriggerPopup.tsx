@@ -136,8 +136,8 @@ export interface TriggerPopupProps {
   onDeletePlaceholder?: () => void;
   /** Slash command ids that should not be shown in this popup */
   hiddenSlashCommandIds?: Set<string>;
-  /** Server ID of the block that opened this popup, used for context-aware filtering */
-  contextBlockServerId?: number;
+  /** Server ID (UUID) of the block that opened this popup, used for context-aware filtering */
+  contextBlockServerId?: string;
 }
 
 export function TriggerPopup({
@@ -226,7 +226,7 @@ export function TriggerPopup({
   const parentIsCard = useMemo(() => {
     if (contextBlockServerId == null) return false;
     const runtime = getOperationRuntime();
-    const blockNode = getAllNodes(runtime).find((n) => n.serverId === contextBlockServerId);
+    const blockNode = getAllNodes(runtime).find((n) => n.blockId === contextBlockServerId);
     if (!blockNode?.parentId) return false;
     const parentNode = getAllNodes(runtime).find((n) => n.blockId === blockNode.parentId);
     return parentNode?.classIds.includes(SYSTEM_CLASS_UUIDS.card) ?? false;
@@ -395,31 +395,31 @@ export function TriggerPopup({
 
   // Create new node
   const createNode = useCreateNode();
-  const { pageClassId } = usePageClass();
-  const { classClassId } = useClassClass();
+  const { pageClassUuid } = usePageClass();
+  const { classClassUuid } = useClassClass();
 
   const pageById = useMemo(() => {
-    const m = new Map<number, Node>();
-    for (const p of allPages) m.set(p.id, p);
+    const m = new Map<string, Node>();
+    for (const p of allPages) m.set(p.uuid, p);
     return m;
   }, [allPages]);
 
   const buildParentPath = useCallback((node: Node): string => {
-    if (!node.parent_id) return '';
+    if (!node.parent_uuid) return '';
     const segments: string[] = [];
-    let currentId: number | null = node.parent_id;
+    let currentId: string | null = node.parent_uuid;
     while (currentId !== null) {
       const parent = pageById.get(currentId);
       if (!parent || !parent.is_page) break;
       segments.unshift(nodeNameToText(parent.name) || 'Untitled');
-      currentId = parent.parent_id ?? null;
+      currentId = parent.parent_uuid ?? null;
     }
     return segments.join(' / ');
   }, [pageById]);
 
   const buildBlockParentPath = useCallback((node: Node): string => {
-    if (!node.page_id) return '';
-    const page = pageById.get(node.page_id);
+    if (!node.page_uuid) return '';
+    const page = pageById.get(node.page_uuid);
     if (!page) return '';
     const pageName = nodeNameToText(page.name) || 'Untitled';
     const ancestors = buildParentPath(page);
@@ -437,12 +437,12 @@ export function TriggerPopup({
 
   const handleCreate = useCallback(
     (name: string, mode: 'default' | 'alternative' = 'default') => {
-      if (!pageClassId) return;
-      const classes: number[] = [pageClassId];
-      if (type === 'class' && classClassId) classes.push(classClassId);
+      if (!pageClassUuid) return;
+      const classUuids: string[] = [pageClassUuid];
+      if (type === 'class' && classClassUuid) classUuids.push(classClassUuid);
 
       createNode.mutate(
-        { name, classes },
+        { name, class_uuids: classUuids },
         {
           onSuccess: (newNode) => {
             onSelectNode?.(newNode, mode, false);
@@ -450,20 +450,20 @@ export function TriggerPopup({
         }
       );
     },
-    [createNode, pageClassId, classClassId, type, onSelectNode]
+    [createNode, pageClassUuid, classClassUuid, type, onSelectNode]
   );
 
-  const getDisplayClasses = useCallback((node: Node): Array<{ id: number; name: string }> => {
-    if (!node.classes || node.classes.length === 0) return [];
-    return node.classes
+  const getDisplayClasses = useCallback((node: Node): Array<{ nodeUuid: string; name: string }> => {
+    if (!node.classes_uuid || node.classes_uuid.length === 0) return [];
+    return node.classes_uuid
       .map(classId => {
-        const classNode = allClasses.find(c => c.id === classId);
+        const classNode = allClasses.find(c => c.uuid === classId);
         if (!classNode || classNode.uuid === SYSTEM_CLASS_UUIDS.page) return null;
         const name = nodeNameToText(classNode.name);
         if (!name) return null;
-        return { id: classId, name };
+        return { nodeUuid: classId, name };
       })
-      .filter((c): c is { id: number; name: string } => c !== null);
+      .filter((c): c is { nodeUuid: string; name: string } => c !== null);
   }, [allClasses]);
 
   // ─── Filter actions ──────────────────────────────────────────────
@@ -692,7 +692,7 @@ export function TriggerPopup({
           ) : (
             userPickerResults.map((item, index) => (
               <NodeResultItem
-                key={item.node.id}
+                key={item.node.uuid}
                 node={item.node}
                 parentPath={item.node.is_page ? buildParentPath(item.node) : buildBlockParentPath(item.node)}
                 displayClasses={getDisplayClasses(item.node)}
@@ -751,7 +751,7 @@ export function TriggerPopup({
             if (item.kind === 'node') {
               return (
                 <NodeResultItem
-                  key={item.item.node.id}
+                  key={item.item.node.uuid}
                   node={item.item.node}
                   parentPath={item.item.node.is_page ? buildParentPath(item.item.node) : buildBlockParentPath(item.item.node)}
                   displayClasses={getDisplayClasses(item.item.node)}

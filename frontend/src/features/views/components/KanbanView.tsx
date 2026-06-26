@@ -31,7 +31,7 @@ import {
 } from '@dnd-kit/core';
 
 import { apiNodesToGraphNodes } from '@/features/content';
-import { useCollapsePersist } from '@/features/content';
+
 import type { Node } from '@/types';
 import type { NodeKanbanViewProps } from '@/types/nodeCollection';
 
@@ -85,7 +85,7 @@ interface KanbanCardProps {
   allTags?: Node[];
   onNodeClick?: (node: Node) => void;
   onNodeShiftClick?: (node: Node) => void;
-  onContentChange?: (nodeId: number | string, content: string) => void;
+  onContentChange?: (nodeUuid: string, content: string) => void;
   customContextMenu?: React.ComponentType<{
     node: Node;
     position: { x: number; y: number };
@@ -110,8 +110,8 @@ function KanbanCard({
   context = 'masonry',
 }: KanbanCardProps) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
-    id: `card-dnd-${node.id}`,
-    data: { type: 'card', nodeId: node.id },
+    id: `card-dnd-${node.uuid}`,
+    data: { type: 'card', nodeUuid: node.uuid },
   });
 
   return (
@@ -154,7 +154,7 @@ interface KanbanColumnProps {
   allTags?: Node[];
   onNodeClick?: (node: Node) => void;
   onNodeShiftClick?: (node: Node) => void;
-  onContentChange?: (nodeId: number | string, content: string) => void;
+  onContentChange?: (nodeUuid: string, content: string) => void;
   customContextMenu?: React.ComponentType<{
     node: Node;
     position: { x: number; y: number };
@@ -213,7 +213,7 @@ function KanbanColumn({
         <div className="node-kanban-view__kanban-cards">
           {column.nodes.map((node) => (
             <KanbanCard
-              key={node.id}
+              key={node.uuid}
               node={node}
               editable={editable}
               layout={layout}
@@ -255,7 +255,7 @@ export const KanbanView = memo(function KanbanView({
   showBreadcrumbs = false,
 }: NodeKanbanViewProps): JSX.Element {
   // ─── Persist collapse state to database ─────────────────────
-  useCollapsePersist();
+
 
   // ─── Sync nodes to runtime ──────────────────────────────────
   useMemo(() => {
@@ -282,26 +282,26 @@ export const KanbanView = memo(function KanbanView({
       return null;
     }
 
-    const propId = String(groupByProperty.id);
+    const propId = String(groupByProperty.uuid);
     const valueMap = new Map<string, PropertyColumnData>();
 
     // Seed columns from property options (for selection properties)
     if (groupByProperty.type === 'selection' && groupByProperty.options) {
       for (const opt of groupByProperty.options) {
-        const key = `opt-${opt.id}`;
+        const key = `opt-${opt.uuid}`;
         valueMap.set(key, {
           id: key,
           label: opt.name,
           icon: opt.icon ?? null,
           nodes: [],
-          value: opt.id,
+          value: opt.uuid,
         });
       }
     }
 
     // Distribute nodes into columns
     for (const node of sortedNodes) {
-      const rawValue = (node.properties as Record<string, unknown> | undefined)?.[propId] ?? null;
+      const rawValue = (node.properties_uuid as Record<string, unknown> | undefined)?.[propId] ?? null;
 
       if (rawValue === null || rawValue === undefined) {
         if (!valueMap.has('none')) {
@@ -311,10 +311,12 @@ export const KanbanView = memo(function KanbanView({
       } else {
         const { label, icon } = getPropertyGroupInfo(groupByProperty, rawValue);
         let key: string;
-        if (typeof rawValue === 'number') {
+        if (typeof rawValue === 'string') {
           key = `opt-${rawValue}`;
-        } else if (typeof rawValue === 'object' && rawValue !== null && 'id' in rawValue) {
-          key = `opt-${(rawValue as { id: number }).id}`;
+        } else if (typeof rawValue === 'number') {
+          key = `opt-${String(rawValue)}`;
+        } else if (typeof rawValue === 'object' && rawValue !== null && 'uuid' in rawValue) {
+          key = `opt-${(rawValue as unknown as { uuid: string }).uuid}`;
         } else {
           key = `val-${label}`;
         }
@@ -334,8 +336,8 @@ export const KanbanView = memo(function KanbanView({
       if (aIsNone !== bIsNone) return aIsNone - bIsNone;
 
       if (groupByProperty.type === 'selection' && groupByProperty.options) {
-        const aOpt = groupByProperty.options.find((o: { id: string | number; sequence?: number }) => `opt-${o.id}` === a.id);
-        const bOpt = groupByProperty.options.find((o: { id: string | number; sequence?: number }) => `opt-${o.id}` === b.id);
+        const aOpt = groupByProperty.options.find((o: { uuid: string; sequence?: number }) => `opt-${o.uuid}` === a.id);
+        const bOpt = groupByProperty.options.find((o: { uuid: string; sequence?: number }) => `opt-${o.uuid}` === b.id);
         if (aOpt && bOpt) return (aOpt.sequence ?? 0) - (bOpt.sequence ?? 0);
       }
 
@@ -351,7 +353,7 @@ export const KanbanView = memo(function KanbanView({
   const { data: allTags } = useTags();
 
   // Internal selection state when selectable but not controlled
-  const [internalSelectedIds, setInternalSelectedIds] = useState<Set<number>>(new Set());
+  const [internalSelectedIds, setInternalSelectedIds] = useState<Set<string>>(new Set());
 
   const selectedIds = selectable ? (controlledSelectedIds ?? internalSelectedIds) : undefined;
   const onSelectionChange = selectable ? (controlledOnSelectionChange ?? setInternalSelectedIds) : undefined;
@@ -363,13 +365,13 @@ export const KanbanView = memo(function KanbanView({
   const cardRectsRef = useRef<DOMRect[]>([]);
 
   // Handle selection change for individual card
-  const handleCardSelectionChange = useCallback((nodeId: number, selected: boolean) => {
+  const handleCardSelectionChange = useCallback((nodeUuid: string, selected: boolean) => {
     if (!onSelectionChange) return;
     const newSelectedIds = new Set(selectedIds || []);
     if (selected) {
-      newSelectedIds.add(nodeId);
+      newSelectedIds.add(nodeUuid);
     } else {
-      newSelectedIds.delete(nodeId);
+      newSelectedIds.delete(nodeUuid);
     }
     onSelectionChange(newSelectedIds);
   }, [selectedIds, onSelectionChange]);
@@ -432,8 +434,8 @@ export const KanbanView = memo(function KanbanView({
 
   const dndActiveNode = useMemo(() => {
     if (!dndActiveId) return null;
-    const nodeId = Number(dndActiveId.replace('card-dnd-', ''));
-    return nodes.find((n: Node) => n.id === nodeId) ?? null;
+    const nodeUuid = dndActiveId.replace('card-dnd-', '');
+    return nodes.find((n: Node) => n.uuid === nodeUuid) ?? null;
   }, [dndActiveId, nodes]);
 
   const sensors = useSensors(
@@ -458,7 +460,7 @@ export const KanbanView = memo(function KanbanView({
     setDndActiveId(null);
     if (!over || !active.data.current) return;
 
-    const activeNodeUuid = Number(String(active.id).replace('card-dnd-', ''));
+    const activeNodeUuid = String(active.id).replace('card-dnd-', '');
     const overData = over.data.current as { type?: string; columnId?: string; value?: unknown } | undefined;
 
     if (!overData || overData.type !== 'column') return;
@@ -466,14 +468,14 @@ export const KanbanView = memo(function KanbanView({
     const targetColumn = propertyColumns?.find((c) => c.id === overData.columnId);
     if (!targetColumn || !groupByProperty) return;
 
-    const activeNodeData = active.data.current as { type?: string; nodeId?: number } | undefined;
-    const sourceColumn = propertyColumns?.find((c) => c.nodes.some((n) => n.id === activeNodeData?.nodeId));
+    const activeNodeData = active.data.current as { type?: string; nodeUuid?: string } | undefined;
+    const sourceColumn = propertyColumns?.find((c) => c.nodes.some((n) => n.uuid === activeNodeData?.nodeUuid));
     if (sourceColumn && sourceColumn.id === targetColumn.id) return;
 
     const newValue = targetColumn.value;
     setNodeProperty.mutate({
-      nodeId: activeNodeUuid,
-      propertyId: groupByProperty.id,
+      nodeUuid: activeNodeUuid,
+      propertyId: groupByProperty.uuid,
       value: newValue,
     });
   }, [propertyColumns, groupByProperty, setNodeProperty]);
@@ -549,7 +551,7 @@ export const KanbanView = memo(function KanbanView({
     <div className={gridClassName} ref={containerRef}>
       {sortedNodes.map((node, index) => (
         <LazyNodeCard
-          key={node.id}
+          key={node.uuid}
           node={node}
           index={index}
           layout={layout}
@@ -560,7 +562,7 @@ export const KanbanView = memo(function KanbanView({
           allClasses={allClasses}
           allNodes={allNodes}
           allTags={allTags}
-          isSelected={selectable && selectedIds?.has(node.id)}
+          isSelected={selectable && selectedIds?.has(node.uuid)}
           onNodeClick={onNodeClick}
           onNodeShiftClick={onNodeShiftClick}
           onContentChange={onContentChange}

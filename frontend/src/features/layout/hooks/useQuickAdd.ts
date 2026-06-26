@@ -15,12 +15,14 @@
  */
 import { useState, useCallback } from 'react';
 import { useCreateNode, usePageClass } from '@/features/content';
+import { generateUUID } from '@/utils/uuid';
+import type { Node } from '@/types';
 import { listNodes } from '@/api/nodes';
 import { useOpenNode } from '@/features/layout';
-import { parseHierarchicalPath, resolveHierarchicalParent } from '@/utils/hierarchicalPath';
+import { parseHierarchicalPath, resolveHierarchicalParentUuid } from '@/utils/hierarchicalPath';
 
 export interface DraftBlock {
-  id: number;
+  nodeUuid: string;
   content: string;
 }
 
@@ -39,17 +41,17 @@ export interface UseQuickAddReturn {
   /** Reset draft blocks to initial state */
   resetBlocks: () => void;
   /** Update a specific block's content */
-  handleBlockChange: (blockId: number, content: string) => void;
+  handleBlockChange: (blockId: string, content: string) => void;
   /** Add a new empty block */
   handleAddBlock: () => void;
   /** Remove a block by ID */
-  handleRemoveBlock: (blockId: number) => void;
+  handleRemoveBlock: (blockId: string) => void;
   /** Handle keyboard events in block input (Enter/Backspace) */
-  handleBlockKeyDown: (blockId: number, e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
+  handleBlockKeyDown: (blockId: string, e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
   /** Create blocks to a destination page */
-  createBlocks: (destinationPageId: number) => Promise<void>;
+  createBlocks: (destinationPageUuid: string) => Promise<void>;
   /** Create a new page with given name */
-  createPage: (name: string) => Promise<{ id: number } | undefined>;
+  createPage: (name: string) => Promise<Node | undefined>;
   /** Whether creation is in progress */
   isCreating: boolean;
   /** Whether there are non-empty blocks to send */
@@ -75,55 +77,50 @@ export interface UseQuickAddReturn {
  */
 export function useQuickAdd(options: UseQuickAddOptions = {}): UseQuickAddReturn {
   const {
-    initialBlocks = [{ id: 1, content: '' }],
+    initialBlocks = [{ nodeUuid: generateUUID(), content: '' }],
     onSuccess,
     navigateOnSuccess = false,
   } = options;
 
   const [draftBlocks, setDraftBlocks] = useState<DraftBlock[]>(initialBlocks);
-  const [nextBlockId, setNextBlockId] = useState(
-    Math.max(...initialBlocks.map(b => b.id), 0) + 1
-  );
-  
+
   const createNodeMutation = useCreateNode();
   const openNode = useOpenNode();
-  const { pageClassId } = usePageClass();
+  const { pageClassUuid } = usePageClass();
 
   // Reset blocks to initial state
   const resetBlocks = useCallback(() => {
-    setDraftBlocks([{ id: nextBlockId, content: '' }]);
-    setNextBlockId(id => id + 1);
-  }, [nextBlockId]);
+    setDraftBlocks([{ nodeUuid: generateUUID(), content: '' }]);
+  }, []);
 
   // Update a block's content
-  const handleBlockChange = useCallback((blockId: number, content: string) => {
+  const handleBlockChange = useCallback((blockId: string, content: string) => {
     setDraftBlocks(blocks =>
-      blocks.map(b => (b.id === blockId ? { ...b, content } : b))
+      blocks.map(b => (b.nodeUuid === blockId ? { ...b, content } : b))
     );
   }, []);
 
   // Add a new empty block
   const handleAddBlock = useCallback(() => {
-    setDraftBlocks(blocks => [...blocks, { id: nextBlockId, content: '' }]);
-    setNextBlockId(id => id + 1);
-  }, [nextBlockId]);
+    setDraftBlocks(blocks => [...blocks, { nodeUuid: generateUUID(), content: '' }]);
+  }, []);
 
   // Remove a block (keep at least one)
-  const handleRemoveBlock = useCallback((blockId: number) => {
+  const handleRemoveBlock = useCallback((blockId: string) => {
     setDraftBlocks(blocks => {
       if (blocks.length <= 1) return blocks;
-      return blocks.filter(b => b.id !== blockId);
+      return blocks.filter(b => b.nodeUuid !== blockId);
     });
   }, []);
 
   // Handle keyboard events in block textarea
   const handleBlockKeyDown = useCallback(
-    (blockId: number, e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    (blockId: string, e: React.KeyboardEvent<HTMLTextAreaElement>) => {
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         handleAddBlock();
       } else if (e.key === 'Backspace') {
-        const block = draftBlocks.find(b => b.id === blockId);
+        const block = draftBlocks.find(b => b.nodeUuid === blockId);
         if (block?.content === '' && draftBlocks.length > 1) {
           e.preventDefault();
           handleRemoveBlock(blockId);
@@ -135,7 +132,7 @@ export function useQuickAdd(options: UseQuickAddOptions = {}): UseQuickAddReturn
 
   // Create blocks to a destination page
   const createBlocks = useCallback(
-    async (destinationPageId: number) => {
+    async (destinationPageUuid: string) => {
       const nonEmptyBlocks = draftBlocks.filter(b => b.content.trim());
       if (nonEmptyBlocks.length === 0) return;
 
@@ -143,7 +140,7 @@ export function useQuickAdd(options: UseQuickAddOptions = {}): UseQuickAddReturn
       for (const block of nonEmptyBlocks) {
         await createNodeMutation.mutateAsync({
           name: block.content.trim(),
-          parent_id: destinationPageId,
+          parent_uuid: destinationPageUuid,
         });
       }
 
@@ -152,7 +149,7 @@ export function useQuickAdd(options: UseQuickAddOptions = {}): UseQuickAddReturn
 
       // Navigate if requested
       if (navigateOnSuccess) {
-        openNode(destinationPageId);
+        openNode(destinationPageUuid);
       }
 
       // Call success callback
@@ -164,35 +161,35 @@ export function useQuickAdd(options: UseQuickAddOptions = {}): UseQuickAddReturn
   // Create a new page (supports hierarchical paths like "Page1/Page2")
   const createPage = useCallback(
     async (name: string) => {
-      if (!name.trim() || !pageClassId) return undefined;
+      if (!name.trim() || !pageClassUuid) return undefined;
       
       const trimmedName = name.trim();
       const parsed = parseHierarchicalPath(trimmedName);
       
-      let parentId: number | null = null;
-      
+      let parentUuid: string | null = null;
+
       // If hierarchical path, resolve parent (creating intermediate pages if needed)
       if (parsed.isHierarchical) {
         // Fetch fresh pages from API to avoid stale cache issues
         const freshPages = await listNodes({ pages_only: true, include_children: true });
-        parentId = await resolveHierarchicalParent(
+        parentUuid = await resolveHierarchicalParentUuid(
           parsed.parentSegments,
           freshPages,
-          async (segmentName, parentIdForCreation) => {
+          async (segmentName, parentUuidForCreation) => {
             return await createNodeMutation.mutateAsync({
               name: segmentName,
-              classes: [pageClassId],
-              parent_id: parentIdForCreation,
+              class_uuids: [pageClassUuid],
+              parent_uuid: parentUuidForCreation,
             });
           }
         );
       }
-      
+
       // Create the final page with resolved parent
       const newPage = await createNodeMutation.mutateAsync({
         name: parsed.leaf || trimmedName,
-        classes: [pageClassId],
-        parent_id: parentId,
+        class_uuids: [pageClassUuid],
+        parent_uuid: parentUuid,
       });
       
       if (navigateOnSuccess) {
@@ -203,7 +200,7 @@ export function useQuickAdd(options: UseQuickAddOptions = {}): UseQuickAddReturn
       
       return newPage;
     },
-    [createNodeMutation, navigateOnSuccess, openNode, onSuccess, pageClassId]
+    [createNodeMutation, navigateOnSuccess, openNode, onSuccess, pageClassUuid]
   );
 
   // Check if there's any content to send

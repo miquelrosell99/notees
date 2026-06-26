@@ -16,7 +16,7 @@ export interface NodeResultItemProps {
   /** Pre-computed ancestor breadcrumb string, e.g. "Root / Parent" */
   parentPath?: string;
   /** Pre-computed display classes (excluding system page class) */
-  displayClasses?: Array<{ id: number; name: string }>;
+  displayClasses?: Array<{ nodeUuid: string; name: string }>;
   /** Whether this row is keyboard-highlighted */
   isHighlighted?: boolean;
   /** Whether this item is already selected — renders a checkmark */
@@ -80,7 +80,7 @@ export function NodeResultItem({
         {displayClasses && displayClasses.length > 0 && (
           <span className="node-result-item__class-pills">
             {displayClasses.map(cls => (
-              <span key={cls.id} className="node-result-item__class-pill">{cls.name}</span>
+              <span key={cls.nodeUuid} className="node-result-item__class-pill">{cls.name}</span>
             ))}
           </span>
         )}

@@ -20,8 +20,8 @@ import { useWhiteboardCreators } from './useWhiteboard.creators';
 import { useWhiteboardAlign } from './useWhiteboard.align';
 import { useWhiteboardGroups } from './useWhiteboard.groups';
 
-export function useWhiteboard(nodeId: number | null) {
-  const { data: node } = useNode(nodeId, { include_children: true });
+export function useWhiteboard(nodeUuid: string | null) {
+  const { data: node } = useNode(nodeUuid, { include_children: true });
   const updateNode = useUpdateNode();
   const mutateRef = useRef(updateNode.mutate);
   mutateRef.current = updateNode.mutate;
@@ -48,7 +48,7 @@ export function useWhiteboard(nodeId: number | null) {
   });
 
   // Sub-hooks
-  const { flushSave, saveToBackend, saveTimeoutRef, latestDataRef } = useWhiteboardSave(nodeId, titleRef, mutateRef);
+  const { flushSave, saveToBackend, saveTimeoutRef, latestDataRef } = useWhiteboardSave(nodeUuid, titleRef, mutateRef);
   const { historyRef, historyIndexRef, pushHistory, undo, redo } = useWhiteboardHistory(setData, saveToBackend);
   const creators = useWhiteboardCreators(data, settings);
   const { alignElements, distributeElements } = useWhiteboardAlign(
@@ -73,7 +73,7 @@ export function useWhiteboard(nodeId: number | null) {
       historyIndexRef.current = 0;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- Only reset when the node identity changes; refs and full node object are intentionally excluded.
-  }, [node?.id]);
+  }, [node?.uuid]);
 
   // Element manipulation
   const updateElements = useCallback((updater: (elements: WhiteboardElement[]) => WhiteboardElement[]) => {

@@ -101,7 +101,7 @@ describe('navigationStore — sidebarCards', () => {
   it('removeSidebarCard removes a card by id', () => {
     useNavigationStore.getState().addSidebarCard('node-uuid-5', 'block');
     const { sidebarCards } = useNavigationStore.getState();
-    const cardId = sidebarCards[0].id;
+    const cardId = sidebarCards[0].nodeUuid;
     useNavigationStore.getState().removeSidebarCard(cardId);
     expect(useNavigationStore.getState().sidebarCards).toHaveLength(0);
   });

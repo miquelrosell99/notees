@@ -22,7 +22,7 @@ import type { Node } from '@/types';
  * @returns Array of resolved Node objects for the classes
  */
 export function useResolvedClassDetails(
-  classIds: number[] | undefined | null,
+  classIds: string[] | undefined | null,
   options?: { includePageClass?: boolean; skipNodesFallback?: boolean }
 ): Node[] {
   const { data: allClasses } = useClasses();
@@ -34,17 +34,17 @@ export function useResolvedClassDetails(
     if (!classIds || classIds.length === 0) return [];
 
     // Build O(1) lookup maps once instead of O(n) .find() per classId
-    const classMap = new Map<number, Node>();
-    for (const c of allClasses ?? []) classMap.set(c.id, c);
+    const classMap = new Map<string, Node>();
+    for (const c of allClasses ?? []) classMap.set(c.uuid, c);
 
     const nodeMap = options?.skipNodesFallback ? null : (() => {
-      const m = new Map<number, Node>();
-      for (const n of allNodes ?? []) m.set(n.id, n);
+      const m = new Map<string, Node>();
+      for (const n of allNodes ?? []) m.set(n.uuid, n);
       return m;
     })();
 
     return classIds
-      .map((classId: number) => classMap.get(classId) ?? nodeMap?.get(classId))
+      .map((classId: string) => classMap.get(classId) ?? nodeMap?.get(classId))
       .filter((c): c is Node =>
         c !== undefined &&
         (options?.includePageClass || c.uuid !== SYSTEM_CLASS_UUIDS.page)

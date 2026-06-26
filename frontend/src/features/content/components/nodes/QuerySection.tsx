@@ -14,8 +14,6 @@ import type { QueryAST } from '@/types/queryAST';
 import './NodeViewSection.css';
 
 export interface QuerySectionProps {
-  /** The node ID to display views for */
-  nodeId: number;
   /** The node UUID for query placeholders */
   nodeUuid: string;
   /** The node name (used to include the active node in graph views) */
@@ -31,9 +29,9 @@ export interface QuerySectionProps {
   /** Default expanded state */
   defaultExpanded?: boolean;
   /** Callback when a node is clicked */
-  onNodeClick?: (nodeId: number, isPage?: boolean) => void;
+  onNodeClick?: (nodeUuid: string, isPage?: boolean) => void;
   /** Callback when a block is created (for opening in sidebar) */
-  onBlockCreated?: (nodeId: number) => void;
+  onBlockCreated?: (nodeUuid: string) => void;
   /** Additional CSS class */
   className?: string;
   /** Hide view management controls (view selector, filter button, add view button) */
@@ -55,26 +53,24 @@ export interface QuerySectionProps {
   focusMode?: boolean;
 }
 
-export function QuerySection({
-  nodeId,
-  nodeUuid,
-  nodeName,
-  viewType,
-  title,
-  icon,
-  hideWhenEmpty = true,
-  defaultExpanded = true,
-  onNodeClick,
-  onBlockCreated,
-  className = '',
-  hideViewManagement = false,
-  can_create = true,
-  showClasses = true,
-  queryAST,
-  onQueryASTChange,
-  variant = 'default',
-  focusMode = false,
-}: QuerySectionProps): React.JSX.Element | null {
+export function QuerySection({ 
+      nodeUuid,
+      nodeName,
+      viewType,
+      title,
+      icon,
+      hideWhenEmpty = true,
+      defaultExpanded = true,
+      onNodeClick,
+      onBlockCreated,
+      className = '',
+      hideViewManagement = false,
+      can_create = true,
+      showClasses = true,
+      queryAST,
+      onQueryASTChange,
+      variant = 'default',
+      focusMode = false }: QuerySectionProps): React.JSX.Element | null {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
   
   const handleToggle = useCallback(() => {
@@ -112,7 +108,6 @@ export function QuerySection({
 
   return (
     <QueryNodeCollection
-      nodeId={nodeId}
       nodeUuid={nodeUuid}
       nodeName={nodeName}
       viewType={viewType}

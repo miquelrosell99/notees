@@ -172,12 +172,12 @@ function TaskBadges({ node }: { node: Node }): JSX.Element | null {
 // ─── Asset Preview ───────────────────────────────────────────────
 
 function AssetPreview({ node }: { node: Node }): JSX.Element | null {
-  if (!node.id) return null;
+  if (!node.uuid) return null;
 
   return (
     <div className="block-after-content__asset">
       <AssetImage
-        assetNodeId={node.id}
+        assetNodeId={node.uuid}
         showCard={false}
         elevation="none"
         radius="sm"
@@ -295,7 +295,6 @@ function BacklinkPreview({ node, expanded }: { node: Node; expanded?: boolean })
           <Card variant="filled" radius="sm" paddingSize="sm" className="backlink-preview__card">
             {showQuery ? (
               <QuerySection
-                nodeId={node.id}
                 nodeUuid={node.uuid}
                 viewType="linked_references"
                 title="Linked References"
@@ -323,12 +322,11 @@ function QueryPreview({ node }: { node: Node }): JSX.Element | null {
   const addSidebarCard = useNavigationStore((s) => s.addSidebarCard);
   const runtime = getOperationRuntime();
   const graphNode = getNode(runtime, node.uuid);
-  const { queryAST, saveQueryAST } = useQueryBlock(node.id);
+  const { queryAST, saveQueryAST } = useQueryBlock(node.uuid);
 
   return (
     <div className="block-after-content__query">
       <QueryNodeCollection
-        nodeId={node.id}
         nodeUuid={node.uuid}
         nodeName={graphNode?.name}
         viewType="main_content"
@@ -357,7 +355,7 @@ function QueryPreview({ node }: { node: Node }): JSX.Element | null {
 // ─── Table Preview ───────────────────────────────────────────────
 
 function TableRow({ row, isHeader }: { row: Node; isHeader: boolean }): JSX.Element {
-  const { data: rowNode } = useNode(row.id, { include_children: true });
+  const { data: rowNode } = useNode(row.uuid, { include_children: true });
 
   const cells = rowNode?.children
     ? rowNode.children.slice().sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0))
@@ -374,7 +372,7 @@ function TableRow({ row, isHeader }: { row: Node; isHeader: boolean }): JSX.Elem
   return (
     <tr className={`table-block-row ${isHeader ? 'table-block-row--header' : ''}`}>
       {cells.map((cell) => (
-        <TableCell key={cell.id} cell={cell} isHeader={isHeader} />
+        <TableCell key={cell.uuid} cell={cell} isHeader={isHeader} />
       ))}
     </tr>
   );
@@ -390,7 +388,7 @@ function TableCell({ cell, isHeader }: { cell: Node; isHeader: boolean }): JSX.E
 }
 
 function TablePreview({ node }: { node: Node }): JSX.Element | null {
-  const { data: tableNode } = useNode(node.id, { include_children: true });
+  const { data: tableNode } = useNode(node.uuid, { include_children: true });
 
   const rows = useMemo(() => {
     if (!tableNode?.children) return [];
@@ -410,7 +408,7 @@ function TablePreview({ node }: { node: Node }): JSX.Element | null {
       <table className="table-block-table">
         <tbody>
           {rows.map((row, rowIndex) => (
-            <TableRow key={row.id} row={row} isHeader={rowIndex === 0} />
+            <TableRow key={row.uuid} row={row} isHeader={rowIndex === 0} />
           ))}
         </tbody>
       </table>

@@ -3,7 +3,7 @@ import api from './client';
 const FLASHCARDS_BASE = '/plugins/notees.flashcards/flashcards';
 
 export interface Flashcard {
-  id: number;
+  nodeUuid: string;
   uuid: string;
   node_id: number;
   front_text: string;
@@ -37,27 +37,27 @@ export async function getDueFlashcards(limit: number = 100): Promise<{ cards: Fl
   return response.data;
 }
 
-export async function getFlashcardByNodeId(nodeId: number): Promise<Flashcard> {
-  const response = await api.get<Flashcard>(`${FLASHCARDS_BASE}/node/${nodeId}`);
+export async function getFlashcardByNodeId(nodeUuid: string): Promise<Flashcard> {
+  const response = await api.get<Flashcard>(`${FLASHCARDS_BASE}/node/${nodeUuid}`);
   return response.data;
 }
 
-export async function createFlashcard(nodeId: number, frontText: string, backText: string): Promise<Flashcard> {
+export async function createFlashcard(nodeUuid: string, frontText: string, backText: string): Promise<Flashcard> {
   const response = await api.post<Flashcard>(`${FLASHCARDS_BASE}/`, {
-    node_id: nodeId,
+    node_id: nodeUuid,
     front_text: frontText,
     back_text: backText,
   });
   return response.data;
 }
 
-export async function updateFlashcard(nodeId: number, frontText: string, backText: string): Promise<Flashcard> {
+export async function updateFlashcard(nodeUuid: string, frontText: string, backText: string): Promise<Flashcard> {
   // The backend create endpoint upserts on node_id, so updates reuse the same route.
-  return createFlashcard(nodeId, frontText, backText);
+  return createFlashcard(nodeUuid, frontText, backText);
 }
 
-export async function reviewFlashcard(nodeId: number, grade: number): Promise<ReviewResult> {
-  const response = await api.post<ReviewResult>(`${FLASHCARDS_BASE}/node/${nodeId}/review`, { grade });
+export async function reviewFlashcard(nodeUuid: string, grade: number): Promise<ReviewResult> {
+  const response = await api.post<ReviewResult>(`${FLASHCARDS_BASE}/node/${nodeUuid}/review`, { grade });
   return response.data;
 }
 

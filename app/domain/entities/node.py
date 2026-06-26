@@ -24,8 +24,9 @@ Class flags are stored directly on nodes for fast queries. They are NOT mutually
 
 from __future__ import annotations
 
-import uuid as uuid_module
 from dataclasses import dataclass, field
+
+from uuid_extensions import uuid7
 
 from ...utils import utc_now_iso
 
@@ -34,8 +35,12 @@ NodeId = int
 
 
 def generate_uuid() -> str:
-    """Generate a new UUID."""
-    return str(uuid_module.uuid4())
+    """Generate a new UUIDv7 for public identifiers.
+
+    UUIDv7 is time-ordered and DB-friendly, giving better index locality than
+    v4 for the document model (nodes, blocks, graph edges).
+    """
+    return str(uuid7())
 
 
 @dataclass
@@ -61,7 +66,6 @@ class Node:
     parent_id: int | None = None  # Parent node (NULL for root pages)
     page_id: int | None = None  # Containing page (NULL for pages, computed for blocks)
     sequence: float = 0.0  # Order among siblings
-    collapsed: bool = False  # UI state
     active: bool = True  # Whether node is active (soft-delete flag)
     is_shared: bool = False  # Whether this node is shared with other users
     is_private: bool = False  # If true, only the owner can access this node
@@ -77,6 +81,7 @@ class Node:
     is_month: bool = False  # Monthly journal page
     is_year: bool = False  # Yearly journal page
     is_asset: bool = False  # Asset/file block
+    asset_file_id: int | None = None  # Content-addressed file backing this asset
     is_template: bool = False  # Template page
     is_comment: bool = False  # Comment block
     is_task: bool = False  # Task item (synchronized with task class assignment)
@@ -148,11 +153,16 @@ class NodeCreateData:
     color: str | None = None
     parent_id: int | None = None
     sequence: float = 0.0
-    collapsed: bool = False
     classes: list[int] = field(default_factory=list)  # Class node IDs to apply
     tags: list[int] = field(default_factory=list)  # Tag node IDs to apply
     property_values: dict = field(default_factory=dict)  # property_id -> value
     uuid: str | None = None  # Optional: override auto-generated UUID (for assets)
+    asset_file_id: int | None = None  # Content-addressed file for asset nodes
+    is_page: bool = False
+    is_task: bool = False
+    is_daily: bool = False
+    is_monthly: bool = False
+    is_yearly: bool = False
 
 
 @dataclass
@@ -168,7 +178,6 @@ class NodeUpdateData:
     clear_parent: bool = False
     parent_id: int | None = None
     sequence: float | None = None
-    collapsed: bool | None = None
     is_private: bool | None = None
     classes: list[int] | None = None
     property_values: dict | None = None

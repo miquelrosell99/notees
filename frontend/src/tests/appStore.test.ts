@@ -48,12 +48,12 @@ describe('appStore — card layout', () => {
 
 describe('appStore — node group by', () => {
   it('setNodeGroupBy stores groupBy keyed by nodeId+viewType', () => {
-    useAppStore.getState().setNodeGroupBy(1, 'children', 'type');
-    expect(useAppStore.getState().getNodeGroupBy(1, 'children')).toBe('type');
+    useAppStore.getState().setNodeGroupBy('00000000-0000-0000-0000-000000000001', 'children', 'type');
+    expect(useAppStore.getState().getNodeGroupBy('00000000-0000-0000-0000-000000000001', 'children')).toBe('type');
   });
 
   it('getNodeGroupBy returns undefined for unknown key', () => {
-    expect(useAppStore.getState().getNodeGroupBy(999, 'children')).toBeUndefined();
+    expect(useAppStore.getState().getNodeGroupBy('00000000-0000-0000-0000-000000000999', 'children')).toBeUndefined();
   });
 });
 

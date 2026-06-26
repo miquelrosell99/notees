@@ -35,7 +35,6 @@ export function SidebarCardNode({ nodeUuid, cardType, onClose }: SidebarCardNode
     e.dataTransfer.setData(
       'application/x-notees-node',
       JSON.stringify({
-        nodeId: node.id,
         nodeUuid: node.uuid,
         name: nodeNameToText(node.name) || 'Untitled',
       })
