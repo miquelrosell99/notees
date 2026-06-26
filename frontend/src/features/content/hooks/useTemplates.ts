@@ -5,7 +5,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as nodesApi from '@/api/nodes';
 import type { TemplateInstantiateOptions } from '@/api/nodes';
 import { templateKeys, nodeKeys } from '@/hooks/queryKeys';
-import { getNodeUuidByServerId } from './useNodeMutations.utils';
 
 export function useTemplates() {
   return useQuery({
@@ -15,16 +14,14 @@ export function useTemplates() {
   });
 }
 
-export function useTemplateVariables(nodeId: number | null) {
-  const queryClient = useQueryClient();
+export function useTemplateVariables(nodeUuid: string | null) {
   return useQuery({
-    queryKey: templateKeys.variables(nodeId!),
+    queryKey: templateKeys.variables(nodeUuid!),
     queryFn: () => {
-      const nodeUuid = getNodeUuidByServerId(queryClient, nodeId!);
       if (!nodeUuid) throw new Error('Node UUID not found');
       return nodesApi.getTemplateVariables(nodeUuid);
     },
-    enabled: nodeId != null,
+    enabled: nodeUuid != null,
     staleTime: 60_000,
   });
 }
@@ -32,8 +29,7 @@ export function useTemplateVariables(nodeId: number | null) {
 export function useInstantiateTemplate() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ nodeId, options }: { nodeId: number; options: TemplateInstantiateOptions }) => {
-      const nodeUuid = getNodeUuidByServerId(queryClient, nodeId);
+    mutationFn: ({ nodeUuid, options }: { nodeUuid: string; options: TemplateInstantiateOptions }) => {
       if (!nodeUuid) throw new Error('Node UUID not found');
       return nodesApi.instantiateTemplate(nodeUuid, options);
     },

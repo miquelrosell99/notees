@@ -77,13 +77,13 @@ export function parseHierarchicalPath(query: string): ParsedPath {
 export function findNodeByPath(segments: string[], allPages: Node[]): Node | null {
   if (segments.length === 0) return null;
   
-  let currentParentId: number | null = null;
+  let currentParentUuid: string | null = null;
   let currentNode: Node | null = null;
   
   for (const segment of segments) {
     // Find a page with this name that has the current parent
     const matchingNode = allPages.find(
-      page => page.name === segment && page.parent_id === currentParentId
+      page => page.name === segment && page.parent_uuid === currentParentUuid
     );
     
     if (!matchingNode) {
@@ -91,7 +91,7 @@ export function findNodeByPath(segments: string[], allPages: Node[]): Node | nul
     }
     
     currentNode = matchingNode;
-    currentParentId = currentNode.id;
+    currentParentUuid = currentNode.uuid;
   }
   
   return currentNode;
@@ -127,12 +127,12 @@ export function filterNodesByHierarchy(
     return [];
   }
   
-  const expectedParentId = parentNode?.id ?? null;
+  const expectedParentUuid = parentNode?.uuid ?? null;
   
   // Filter nodes to only those with the correct parent and matching the leaf name
   return nodes.filter(node => {
     // Check if this node has the right parent
-    if (node.parent_id !== expectedParentId) {
+    if (node.parent_uuid !== expectedParentUuid) {
       return false;
     }
     
@@ -144,62 +144,62 @@ export function filterNodesByHierarchy(
 }
 
 /**
- * Resolve the parent ID for a hierarchical path when creating a new page
- * Creates intermediate pages if they don't exist
- * 
- * IMPORTANT: Pages are matched by name AND parent_id at each level.
+ * Resolve the parent UUID for a hierarchical path when creating a new page.
+ * Creates intermediate pages if they don't exist.
+ *
+ * IMPORTANT: Pages are matched by name AND parent_uuid at each level.
  * Example: If you have "Company/Pokemon" and create "Pokemon/Charizard",
  * a NEW root-level "Pokemon" page will be created (not reusing Company/Pokemon).
- * 
+ *
  * @param pathSegments - Path segments (excluding the leaf/final page)
  * @param allPages - All available pages
  * @param createPageFn - Function to create a page (returns the created node)
- * @returns The parent ID to use, or null for root level
+ * @returns The parent UUID to use, or null for root level
  */
 export async function resolveHierarchicalParent(
   pathSegments: string[],
   allPages: Node[],
-  createPageFn: (name: string, parentId: number | null) => Promise<Node>
-): Promise<number | null> {
+  createPageFn: (name: string, parentUuid: string | null) => Promise<Node>
+): Promise<string | null> {
   if (pathSegments.length === 0) {
     return null; // Root level
   }
-  
-  // Build a lookup map for O(1) access: "name|parentId" -> Node
-  // This includes both existing pages and newly created ones
+
+  // Build a lookup map for O(1) access: "name|parentUuid" -> Node
   const pageMap = new Map<string, Node>();
   for (const page of allPages) {
-    const key = `${page.name}|${page.parent_id ?? 'null'}`;
+    const key = `${page.name}|${page.parent_uuid ?? 'null'}`;
     pageMap.set(key, page);
   }
-  
-  let currentParentId: number | null = null;
-  
+
+  let currentParentUuid: string | null = null;
+
   for (const segment of pathSegments) {
-    const key = `${segment}|${currentParentId ?? 'null'}`;
+    const key = `${segment}|${currentParentUuid ?? 'null'}`;
     let node = pageMap.get(key);
-    
+
     if (!node) {
-      // Create the intermediate page
-      node = await createPageFn(segment, currentParentId);
-      // Add to map so subsequent iterations can find it
+      node = await createPageFn(segment, currentParentUuid);
       pageMap.set(key, node);
     }
-    
-    currentParentId = node.id;
+
+    currentParentUuid = node.uuid;
   }
-  
-  return currentParentId;
+
+  return currentParentUuid;
 }
+
+/** @deprecated Use resolveHierarchicalParent (now UUID-native). */
+export const resolveHierarchicalParentUuid = resolveHierarchicalParent;
 
 /**
  * Analyze a hierarchical path to determine which pages exist and which need to be created
  * Useful for showing path previews, validation, etc.
  * 
- * IMPORTANT: Pages are matched by name AND parent_id at each level.
+ * IMPORTANT: Pages are matched by name AND parent_uuid at each level.
  * Example: If you have "Company/Pokemon" and analyze "Pokemon/Charizard",
  * it will show Pokemon as "needs to be created" (not reusing Company/Pokemon).
- * 
+ *
  * @param path - The path string to analyze (e.g., "Pokemon/Charizard")
  * @param allPages - All available pages
  * @param includeLeaf - Whether to include the leaf segment in the analysis (default: true)
@@ -211,26 +211,26 @@ export function analyzeHierarchicalPath(
   includeLeaf: boolean = true
 ): HierarchicalPathAnalysis | null {
   if (!path.trim()) return null;
-  
+
   const parsed = parseHierarchicalPath(path.trim());
   if (!parsed.isHierarchical) return null;
-  
-  // Build a lookup map: "name|parentId" -> Node[]
+
+  // Build a lookup map: "name|parentUuid" -> Node[]
   // Multiple pages can have the same name at the same level (conflicts)
   const pageMap = new Map<string, Node[]>();
   for (const page of allPages) {
-    const key = `${page.name}|${page.parent_id ?? 'null'}`;
+    const key = `${page.name}|${page.parent_uuid ?? 'null'}`;
     const existing = pageMap.get(key) || [];
     existing.push(page);
     pageMap.set(key, existing);
   }
-  
+
   const segments: PathSegmentInfo[] = [];
-  let currentParentId: number | null = null;
+  let currentParentUuid: string | null = null;
   
   // Analyze parent segments
   for (const segment of parsed.parentSegments) {
-    const key: string = `${segment}|${currentParentId ?? 'null'}`;
+    const key: string = `${segment}|${currentParentUuid ?? 'null'}`;
     const matchingNodes: Node[] = pageMap.get(key) || [];
     
     const hasConflict = matchingNodes.length > 1;
@@ -247,15 +247,15 @@ export function analyzeHierarchicalPath(
     // If there's a conflict, we can't determine the next parent
     // Stop here and let the caller resolve it
     if (hasConflict) {
-      currentParentId = null;
+      currentParentUuid = null;
     } else {
-      currentParentId = singleNode?.id ?? null;
+      currentParentUuid = singleNode?.uuid ?? null;
     }
   }
   
   // Optionally add the leaf segment
   if (includeLeaf) {
-    const key = `${parsed.leaf}|${currentParentId ?? 'null'}`;
+    const key = `${parsed.leaf}|${currentParentUuid ?? 'null'}`;
     const leafMatches = pageMap.get(key) || [];
     
     const hasConflict = leafMatches.length > 1;

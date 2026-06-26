@@ -17,7 +17,7 @@ import { DataStateView } from '@/components/ui/DataStateView';
 import { JournalIcon } from '@/components/ui/icons';
 
 interface JournalEntryProps {
-  dailyPageId: number;
+  dailyPageId: string;
 }
 
 function JournalEntry({ dailyPageId }: JournalEntryProps) {
@@ -42,7 +42,7 @@ function JournalEntry({ dailyPageId }: JournalEntryProps) {
           } as React.CSSProperties}
         >
           <NodeViewContent
-            nodeId={dailyPageId}
+            nodeUuid={dailyPageId}
             viewMode={viewMode}
             className="journal-entry__node-view"
             pageHeaderClassName="journal-entry__page-header"
@@ -51,7 +51,7 @@ function JournalEntry({ dailyPageId }: JournalEntryProps) {
         </Card>
       ) : (
         <NodeViewContent
-          nodeId={dailyPageId}
+          nodeUuid={dailyPageId}
           viewMode={viewMode}
           className="journal-entry__node-view"
           pageHeaderClassName="journal-entry__page-header"
@@ -74,7 +74,7 @@ export function JournalsView({ className = '' }: JournalsViewProps) {
 
   const handleOpenToday = useCallback(async () => {
     const result = await refetchToday();
-    if (result.data) openNode(result.data.id);
+    if (result.data) openNode(result.data.uuid);
   }, [refetchToday, openNode]);
   
   // Sort daily pages in descending order (newest first)
@@ -129,7 +129,7 @@ export function JournalsView({ className = '' }: JournalsViewProps) {
           skeletonShowHeading
         >
           {visiblePages.map((page) => (
-            <JournalEntry key={page.id} dailyPageId={page.id} />
+            <JournalEntry key={page.uuid} dailyPageId={page.uuid} />
           ))}
           {hasMore && (
             <div className="journals-load-more">

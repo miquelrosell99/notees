@@ -25,7 +25,7 @@ export function useNodesDisplayData(nodeUuids: string[]): Record<string, TabNode
 
     for (const node of Object.values(nodes) as Node[]) {
       if (!node) continue;
-      const effectiveClassIds = node.classes?.length ? node.classes : undefined;
+      const effectiveClassIds = node.classes_uuid?.length ? node.classes_uuid : undefined;
       const effectiveIcon = getEffectiveIcon(node, allClasses, effectiveClassIds ?? undefined, null);
       const effectiveColor = getEffectiveColor(node, allClasses, effectiveClassIds, null);
       const text = (node.display_name && node.display_name !== node.name)

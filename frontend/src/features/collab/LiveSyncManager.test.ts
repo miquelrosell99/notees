@@ -42,12 +42,12 @@ describe('LiveSyncManager', () => {
   it('sends focus, blur, and block_update messages', () => {
     manager.sendFocus('block-a');
     manager.sendBlur('block-a');
-    manager.sendBlockUpdate('block-a', 42, 'hello');
+    manager.sendBlockUpdate('block-a', 'block-a', 'hello');
 
     expect(socket.sent).toEqual([
       { type: 'focus', block_uuid: 'block-a' },
       { type: 'blur', block_uuid: 'block-a' },
-      { type: 'block_update', block_uuid: 'block-a', block_id: 42, name: 'hello' },
+      { type: 'block_update', block_uuid: 'block-a', block_id: 'block-a', name: 'hello' },
     ]);
   });
 

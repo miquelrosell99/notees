@@ -3,12 +3,12 @@ import { useFlashcardByNodeId, useCreateFlashcard } from '../hooks/useFlashcards
 import './FlashcardEditor.css';
 
 interface FlashcardEditorProps {
-  nodeId: number;
+  nodeUuid: string;
   readOnly?: boolean;
 }
 
-export function FlashcardEditor({ nodeId, readOnly = false }: FlashcardEditorProps) {
-  const { data: card, isLoading } = useFlashcardByNodeId(nodeId);
+export function FlashcardEditor({ nodeUuid, readOnly = false }: FlashcardEditorProps) {
+  const { data: card, isLoading } = useFlashcardByNodeId(nodeUuid);
   const create = useCreateFlashcard();
 
   if (isLoading) {
@@ -30,7 +30,7 @@ export function FlashcardEditor({ nodeId, readOnly = false }: FlashcardEditorPro
           <Button
             size="sm"
             variant="primary"
-            onClick={() => create.mutate({ nodeId, frontText: '', backText: '' })}
+            onClick={() => create.mutate({ nodeUuid, frontText: '', backText: '' })}
             disabled={create.isPending}
           >
             Create flashcard

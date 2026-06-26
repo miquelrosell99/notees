@@ -26,7 +26,7 @@ interface PropertyRefItem {
   /** The page node (source_page or source_node if it is a page) */
   pageNode: Node;
   /** Property ID that contains the reference */
-  propertyId: number;
+  propertyId: string;
   /** Property name for display */
   propertyName: string;
 }
@@ -41,7 +41,7 @@ interface PropertyReferencesSectionProps {
   /** Callback when a node is shift-clicked (open in sidebar) */
   onNodeShiftClick?: (node: Node) => void;
   /** Callback when a class is added to a block */
-  onAddClass?: (blockId: number, classId: number) => void;
+  onAddClass?: (blockId: string, classId: string) => void;
 }
 
 /**
@@ -153,12 +153,12 @@ export function PropertyReferencesSection({
   const handleOpenInSidebar = useCallback((blockId: string) => {
     const runtime = getOperationRuntime();
     const graphNode = getNode(runtime, blockId);
-    if (graphNode?.serverId) {
-      const targetNode = allNodes.find(n => n.id === graphNode.serverId);
+    if (graphNode?.blockId) {
+      const targetNode = allNodes.find(n => n.uuid === graphNode.blockId);
       if (targetNode) {
         onNodeShiftClick?.(targetNode);
       } else {
-        onNodeShiftClick?.({ id: graphNode.serverId, is_page: graphNode.isPage } as Node);
+        onNodeShiftClick?.({ uuid: graphNode.blockId, is_page: graphNode.isPage } as unknown as Node);
       }
       return;
     }
@@ -173,7 +173,7 @@ export function PropertyReferencesSection({
   const handleContentChange = useCallback((blockId: string, content: string) => {
     const runtime = getOperationRuntime();
     const graphNode = getNode(runtime, blockId);
-    const serverId = graphNode?.serverId;
+    const serverId = graphNode?.blockId;
     if (serverId != null) {
       saveContent(serverId, content);
     }
@@ -191,11 +191,11 @@ export function PropertyReferencesSection({
             ? { propertyId: item.propertyId, propertyName: item.propertyName }
             : undefined;
           return (
-            <div key={pageNode.id} className="property-references-section__entry">
+            <div key={pageNode.uuid} className="property-references-section__entry">
               <NodeBreadcrumbs
-                nodeId={pageNode.id}
+                nodeUuid={pageNode.uuid}
                 nodeType={pageNode.is_page ? 'page' : 'block'}
-                onNavigate={(id) => onNodeClick?.({ id, is_page: true } as Node)}
+                onNavigate={(id) => onNodeClick?.({ uuid: id, is_page: true } as unknown as Node)}
                 propertyContext={propertyCtx}
                 className="property-references-section__breadcrumbs"
               />
@@ -207,7 +207,6 @@ export function PropertyReferencesSection({
                 onContentChange={handleContentChange}
                 onAddClass={onAddClass}
                 nodeUuid={pageNode.uuid}
-                nodeId={pageNode.id}
               />
             </div>
           );

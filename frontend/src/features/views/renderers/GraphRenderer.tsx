@@ -66,9 +66,9 @@ export interface GraphRendererProps {
   /** CSS class applied to the root element. */
   className?: string;
   /** Called when user clicks (not drags) a node. */
-  onNodeClick?: (nodeId: string) => void;
+  onNodeClick?: (nodeUuid: string) => void;
   /** Called when user double-clicks a node. */
-  onNodeDblClick?: (nodeId: string) => void;
+  onNodeDblClick?: (nodeUuid: string) => void;
   /** Called when user clicks on empty canvas space (no node hit). */
   onEmptyClick?: () => void;
   /** Enable curved edges. Default: true */

@@ -158,7 +158,7 @@ export function SharesUnifiedView({ initialTab = 'shared-out' }: SharesUnifiedVi
                       name={item.node_name}
                       icon={item.node_icon}
                       isPage={item.is_page}
-                      nodeId={item.node_uuid}
+                      nodeUuid={item.node_uuid}
                       showBullet={false}
                       className="shares-unified-view__item-inline"
                     />

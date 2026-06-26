@@ -6,7 +6,6 @@
 import { useCallback, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import * as nodesApi from '@/api/nodes';
-import { getNodeUuidByServerId } from '@/features/content/hooks/useNodeMutations.utils';
 import { nodeNameToText } from '@/features/queries';
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/ContextMenu';
 import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
@@ -35,8 +34,7 @@ export function TrashNodeContextMenu({ node, position, onClose }: TrashNodeConte
   
   // Restore mutation
   const restoreMutation = useMutation({
-    mutationFn: async (nodeId: number) => {
-      const nodeUuid = getNodeUuidByServerId(queryClient, nodeId);
+    mutationFn: async (nodeUuid: string) => {
       if (!nodeUuid) throw new Error('Node UUID not found');
       return nodesApi.restoreNode(nodeUuid);
     },
@@ -56,8 +54,7 @@ export function TrashNodeContextMenu({ node, position, onClose }: TrashNodeConte
 
   // Permanent delete mutation
   const permanentDeleteMutation = useMutation({
-    mutationFn: async (nodeId: number) => {
-      const nodeUuid = getNodeUuidByServerId(queryClient, nodeId);
+    mutationFn: async (nodeUuid: string) => {
       if (!nodeUuid) throw new Error('Node UUID not found');
       return nodesApi.permanentlyDeleteNode(nodeUuid);
     },
@@ -78,9 +75,9 @@ export function TrashNodeContextMenu({ node, position, onClose }: TrashNodeConte
   }, []);
   
   const handleConfirmRestore = useCallback(() => {
-    restoreMutation.mutate(node.id);
+    restoreMutation.mutate(node.uuid);
     setShowRestoreModal(false);
-  }, [node.id, restoreMutation]);
+  }, [node.uuid, restoreMutation]);
   
   const handleCancelRestore = useCallback(() => {
     setShowRestoreModal(false);
@@ -92,9 +89,9 @@ export function TrashNodeContextMenu({ node, position, onClose }: TrashNodeConte
   }, []);
   
   const handleConfirmPermanentDelete = useCallback(() => {
-    permanentDeleteMutation.mutate(node.id);
+    permanentDeleteMutation.mutate(node.uuid);
     setShowPermanentDeleteModal(false);
-  }, [node.id, permanentDeleteMutation]);
+  }, [node.uuid, permanentDeleteMutation]);
   
   const handleCancelPermanentDelete = useCallback(() => {
     setShowPermanentDeleteModal(false);

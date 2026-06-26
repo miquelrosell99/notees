@@ -6,9 +6,9 @@ import type { ImportContext } from './useLogseqImporter.types';
 import { createPhase, errorMessage } from './useLogseqImporter.utils';
 
 export async function runPhase1(ctx: ImportContext, existingClasses: Node[]): Promise<void> {
-  const { parsed, classClassId, pageClassId, mutations, classIdMap, uuidMap, phases, override, setImportStatus, tick } = ctx;
+  const { parsed, classClassUuid, pageClassUuid, mutations, classIdMap, uuidMap, phases, override, setImportStatus, tick } = ctx;
 
-  if (!classClassId) return;
+  if (!classClassUuid) return;
 
   const p1 = createPhase('Create classes');
   phases.push(p1);
@@ -22,10 +22,10 @@ export async function runPhase1(ctx: ImportContext, existingClasses: Node[]): Pr
     try {
       const existing = existingClassByName.get(cls.title.toLowerCase());
       if (existing) {
-        classIdMap.set(cls.id, existing.id);
-        if (cls.uuid) uuidMap.set(cls.uuid, { id: existing.id, uuid: existing.uuid });
+        classIdMap.set(cls.id, existing.uuid);
+        if (cls.uuid) uuidMap.set(cls.uuid, { nodeUuid: existing.uuid, uuid: existing.uuid });
         if (override && nodeNameToText(existing.name) !== cls.title) {
-          await mutations.updateNode.mutateAsync({ id: existing.id, data: { name: cls.title } });
+          await mutations.updateNode.mutateAsync({ id: existing.uuid, data: { name: cls.title } });
         }
         p1.succeeded++;
         tick();
@@ -33,11 +33,11 @@ export async function runPhase1(ctx: ImportContext, existingClasses: Node[]): Pr
       }
       const node = await mutations.createNode.mutateAsync({
         name: cls.title,
-        classes: [classClassId, pageClassId],
+        class_uuids: [classClassUuid, pageClassUuid],
         ...(cls.uuid ? { uuid: cls.uuid } : {}),
       });
-      classIdMap.set(cls.id, node.id);
-      if (cls.uuid) uuidMap.set(cls.uuid, { id: node.id, uuid: node.uuid });
+      classIdMap.set(cls.id, node.uuid);
+      if (cls.uuid) uuidMap.set(cls.uuid, { nodeUuid: node.uuid, uuid: node.uuid });
       p1.succeeded++;
       tick();
     } catch (e) {

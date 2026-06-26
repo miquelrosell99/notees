@@ -1,21 +1,20 @@
 /**
  * Comment Hooks
- * 
+ *
  * React Query hooks for comments queries and mutations.
  */
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as nodesApi from '@/api/nodes';
 import { commentKeys } from '@/hooks/queryKeys';
-import { getNodeUuidByServerId } from './useNodeMutations.utils';
 import type { Node } from '@/types/api';
 
-function findCommentUuid(queryClient: ReturnType<typeof useQueryClient>, nodeId: string | number, commentId: number): string | null {
-  const pages = queryClient.getQueryData<{ items: Node[] }>(commentKeys.forNode(nodeId));
+function findCommentUuid(queryClient: ReturnType<typeof useQueryClient>, nodeUuid: string, commentUuid: string): string | null {
+  const pages = queryClient.getQueryData<{ items: Node[] }>(commentKeys.forNode(nodeUuid));
   if (pages) {
-    const found = pages.items.find((c) => c.id === commentId);
+    const found = pages.items.find((c) => c.uuid === commentUuid);
     if (found?.uuid) return found.uuid;
   }
-  return getNodeUuidByServerId(queryClient, commentId);
+  return commentUuid;
 }
 
 // ==================== Comments Queries ====================
@@ -23,11 +22,9 @@ function findCommentUuid(queryClient: ReturnType<typeof useQueryClient>, nodeId:
 /**
  * Hook to fetch comments for a node
  */
-export function useComments(nodeId: string | number | null) {
-  const queryClient = useQueryClient();
-  const nodeUuid = nodeId === null ? null : typeof nodeId === 'string' ? nodeId : getNodeUuidByServerId(queryClient, nodeId);
+export function useComments(nodeUuid: string | null) {
   return useQuery({
-    queryKey: commentKeys.forNode(nodeId ?? ''),
+    queryKey: commentKeys.forNode(nodeUuid ?? ''),
     queryFn: () => {
       if (!nodeUuid) throw new Error('Node UUID not found');
       return nodesApi.getComments(nodeUuid);
@@ -40,11 +37,9 @@ export function useComments(nodeId: string | number | null) {
 /**
  * Hook to fetch comment count for a node (useful for showing indicators)
  */
-export function useCommentCount(nodeId: string | number | null) {
-  const queryClient = useQueryClient();
-  const nodeUuid = nodeId === null ? null : typeof nodeId === 'string' ? nodeId : getNodeUuidByServerId(queryClient, nodeId);
+export function useCommentCount(nodeUuid: string | null) {
   return useQuery({
-    queryKey: commentKeys.count(nodeId ?? ''),
+    queryKey: commentKeys.count(nodeUuid ?? ''),
     queryFn: () => {
       if (!nodeUuid) throw new Error('Node UUID not found');
       return nodesApi.getCommentCount(nodeUuid);
@@ -63,15 +58,13 @@ export function useCreateComment() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ nodeId, name, parentCommentId }: { nodeId: string | number; name: string; parentCommentId?: number }) => {
-      const nodeUuid = typeof nodeId === 'string' ? nodeId : getNodeUuidByServerId(queryClient, nodeId);
+    mutationFn: ({ nodeUuid, name, parentCommentUuid }: { nodeUuid: string; name: string; parentCommentUuid?: string }) => {
       if (!nodeUuid) throw new Error('Node UUID not found');
-      const parentCommentUuid = parentCommentId ? findCommentUuid(queryClient, nodeId, parentCommentId) : undefined;
-      return nodesApi.createComment(nodeUuid, name, parentCommentUuid ?? undefined);
+      return nodesApi.createComment(nodeUuid, name, parentCommentUuid);
     },
-    onSuccess: (_, { nodeId }) => {
-      queryClient.invalidateQueries({ queryKey: commentKeys.forNode(nodeId) });
-      queryClient.invalidateQueries({ queryKey: commentKeys.count(nodeId) });
+    onSuccess: (_, { nodeUuid }) => {
+      queryClient.invalidateQueries({ queryKey: commentKeys.forNode(nodeUuid) });
+      queryClient.invalidateQueries({ queryKey: commentKeys.count(nodeUuid) });
     },
   });
 }
@@ -83,16 +76,15 @@ export function useDeleteComment() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ nodeId, commentId }: { nodeId: string | number; commentId: number }) => {
-      const nodeUuid = typeof nodeId === 'string' ? nodeId : getNodeUuidByServerId(queryClient, nodeId);
+    mutationFn: ({ nodeUuid, commentUuid }: { nodeUuid: string; commentUuid: string }) => {
       if (!nodeUuid) throw new Error('Node UUID not found');
-      const commentUuid = findCommentUuid(queryClient, nodeId, commentId);
-      if (!commentUuid) throw new Error('Comment UUID not found');
-      return nodesApi.deleteComment(nodeUuid, commentUuid);
+      const resolvedCommentUuid = findCommentUuid(queryClient, nodeUuid, commentUuid);
+      if (!resolvedCommentUuid) throw new Error('Comment UUID not found');
+      return nodesApi.deleteComment(nodeUuid, resolvedCommentUuid);
     },
-    onSuccess: (_, { nodeId }) => {
-      queryClient.invalidateQueries({ queryKey: commentKeys.forNode(nodeId) });
-      queryClient.invalidateQueries({ queryKey: commentKeys.count(nodeId) });
+    onSuccess: (_, { nodeUuid }) => {
+      queryClient.invalidateQueries({ queryKey: commentKeys.forNode(nodeUuid) });
+      queryClient.invalidateQueries({ queryKey: commentKeys.count(nodeUuid) });
     },
   });
 }

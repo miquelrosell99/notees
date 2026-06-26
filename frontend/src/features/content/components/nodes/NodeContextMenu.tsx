@@ -72,7 +72,7 @@ export interface NodeContextMenuProps extends BaseContextMenuProps {
    */
   actions?: ActionConfig[];
   /** Callback when parent changes (move-to action) */
-  onParentChange?: (parentId: number | null) => void;
+  onParentChange?: (parentId: string | null) => void;
   /** Enables 'convert-to-page' action (block-scoped) */
   onConvertToPage?: () => void;
   /** Enables 'convert-to-block' action (page-scoped) */
@@ -121,7 +121,7 @@ export function NodeContextMenu({
   const isPageFavorited = favorites.some((favoriteUuid) => favoriteUuid === node.uuid);
   const addFavoriteMutation = useAddFavoriteMutation();
   const removeFavoriteMutation = useRemoveFavoriteMutation();
-  const { count: linkedRefsCount } = useLinkedReferencesCount(node.id);
+  const { count: linkedRefsCount } = useLinkedReferencesCount(node.uuid);
   const clipboardMode = useClipboardStore((state) => state.mode);
 
   const nodeScope: 'page' | 'block' = node.is_page ? 'page' : 'block';
@@ -131,20 +131,20 @@ export function NodeContextMenu({
       setShowDeleteModal(true);
     } else {
       if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
-      deleteNode.mutate(node.id);
+      deleteNode.mutate(node.uuid);
       onClose();
     }
-  }, [node.is_page, node.id, deleteNode, onClose]);
+  }, [node.is_page, node.uuid, deleteNode, onClose]);
 
   const handleArchiveClick = useCallback(() => {
     // Always warn for blocks (they always have a parent); warn for pages only if they have a parent
-    if (!node.is_page || node.parent_id) {
+    if (!node.is_page || node.parent_uuid) {
       setShowArchiveModal(true);
     } else {
-      archiveNode.mutate(node.id);
+      archiveNode.mutate(node.uuid);
       onClose();
     }
-  }, [node.is_page, node.parent_id, node.id, archiveNode, onClose]);
+  }, [node.is_page, node.parent_uuid, node.uuid, archiveNode, onClose]);
 
   const isHeader = useMemo(() => {
     try {
@@ -239,7 +239,7 @@ export function NodeContextMenu({
                 }
 
                 // Also persist to backend
-                updateNode.mutate({ id: node.id, data: { name: JSON.stringify(newAst) } });
+                updateNode.mutate({ nodeUuid: node.uuid, data: { name: JSON.stringify(newAst) } });
               } catch { /* ignore */ }
               onClose();
             },
@@ -308,7 +308,7 @@ export function NodeContextMenu({
             icon: 'mdi-dock-right',
             onClick: () => {
               if (existingCard) {
-                flashSidebarCard(existingCard.id);
+                flashSidebarCard(existingCard.nodeUuid);
               } else {
                 addSidebarCard(node.uuid, node.is_page ? 'page' : 'block');
               }
@@ -404,7 +404,7 @@ export function NodeContextMenu({
             label: node.is_private ? 'Make public' : 'Make private',
             icon: node.is_private ? 'mdi-eye-outline' : 'mdi-eye-off-outline',
             onClick: () => {
-              updateNode.mutate({ id: node.id, data: { is_private: !node.is_private } });
+              updateNode.mutate({ nodeUuid: node.uuid, data: { is_private: !node.is_private } });
               onClose();
             },
           });
@@ -437,7 +437,7 @@ export function NodeContextMenu({
               id: 'unarchive',
               label: 'Unarchive',
               icon: 'mdi-archive-arrow-up-outline',
-              onClick: () => { unarchiveNode.mutate(node.id); onClose(); },
+              onClick: () => { unarchiveNode.mutate(node.uuid); onClose(); },
             });
           }
           break;
@@ -466,12 +466,12 @@ export function NodeContextMenu({
   ]);
 
   const handleColorChange = useCallback((color: string | null) => {
-    updateNode.mutate({ id: node.id, data: { color } as NodeUpdate });
-  }, [node.id, updateNode]);
+    updateNode.mutate({ nodeUuid: node.uuid, data: { color } as NodeUpdate });
+  }, [node.uuid, updateNode]);
 
   const handleIconChange = useCallback((icon: string | null) => {
-    updateNode.mutate({ id: node.id, data: { icon } as NodeUpdate });
-  }, [node.id, updateNode]);
+    updateNode.mutate({ nodeUuid: node.uuid, data: { icon } as NodeUpdate });
+  }, [node.uuid, updateNode]);
 
   const handleFavoriteToggle = useCallback(() => {
     if (isPageFavorited) removeFavoriteMutation.mutate(node.uuid);
@@ -509,7 +509,7 @@ export function NodeContextMenu({
         confirmLabel="Delete"
         cancelLabel="Cancel"
         variant="danger"
-        onConfirm={() => { deleteNode.mutate(node.id); setShowDeleteModal(false); onClose(); }}
+        onConfirm={() => { deleteNode.mutate(node.uuid); setShowDeleteModal(false); onClose(); }}
         onCancel={() => { setShowDeleteModal(false); onClose(); }}
       />
       <ConfirmationModal
@@ -524,7 +524,7 @@ export function NodeContextMenu({
         confirmLabel="Archive"
         cancelLabel="Cancel"
         variant="danger"
-        onConfirm={() => { archiveNode.mutate(node.id); setShowArchiveModal(false); onClose(); }}
+        onConfirm={() => { archiveNode.mutate(node.uuid); setShowArchiveModal(false); onClose(); }}
         onCancel={() => { setShowArchiveModal(false); onClose(); }}
       />
       <ASTViewerModal

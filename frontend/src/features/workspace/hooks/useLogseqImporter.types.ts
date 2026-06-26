@@ -9,7 +9,7 @@ export type { TaskReportData as LogseqImportReport };
 
 /** Info stored per created Notees node, keyed by Logseq UUID */
 export interface NodeInfo {
-  id: number;
+  nodeUuid: string;
   uuid: string;
 }
 
@@ -21,18 +21,18 @@ export interface ImportContext {
   override: boolean;
 
   uuidMap: Map<string, NodeInfo>;
-  propIdMap: Map<string, number>;
-  classIdMap: Map<string, number>;
+  propIdMap: Map<string, string>;
+  classIdMap: Map<string, string>;
   titleToNodeInfo: Map<string, NodeInfo>;
-  contentQueue: Array<{ id: number; title: string }>;
-  existingNodeIds: Set<number>;
+  contentQueue: Array<{ nodeUuid: string; title: string }>;
+  existingNodeIds: Set<string>;
   phases: PhaseResult[];
 
-  pageClassId: number;
-  classClassId: number | null;
+  pageClassUuid: string;
+  classClassUuid: string | null;
 
   mutations: {
-    createNode: { mutateAsync: (...args: any[]) => Promise<{ id: number; uuid: string }> };
+    createNode: { mutateAsync: (...args: any[]) => Promise<Node> };
     updateNode: { mutateAsync: (...args: any[]) => Promise<Node | null> };
     createProperty: { mutateAsync: (...args: any[]) => Promise<unknown> };
   };
@@ -46,15 +46,15 @@ export interface ImportContext {
   tickN: (n: number) => void;
 
   // Phase-local state
-  textPropIds: Set<number>;
+  textPropIds: Set<string>;
   existingPageMap: Map<string, Node>;
   journalStartSeqs: Map<string, number>;
   tempIdxToNodeInfo: Map<number, NodeInfo>;
-  nodeIdToProperties: Map<number, Record<number, unknown>>;
-  regularPageClasses: number[][];
+  nodeIdToProperties: Map<string, Record<string, unknown>>;
+  regularPageClasses: string[][];
   flatBlocks: Array<{
     block: { title?: string; uuid?: string; children?: unknown[]; tags?: string[] };
-    classes: number[];
+    classes: string[];
     parent: { kind: 'page'; title: string } | { kind: 'block'; tempIdx: number };
     sequence: number;
     tempIdx: number;

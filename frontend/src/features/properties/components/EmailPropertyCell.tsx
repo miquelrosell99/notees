@@ -38,14 +38,14 @@ export function EmailPropertyCell({
     if (trimmed === emailValue) return;
     try {
       await setPropertyMutation.mutateAsync({
-        nodeId: node.id,
-        propertyId: property.id,
+        nodeUuid: node.uuid,
+        propertyId: property.uuid,
         value: trimmed || null,
       });
     } catch (error) {
       console.error('Failed to save email property:', error);
     }
-  }, [editValue, emailValue, node.id, property.id, setPropertyMutation]);
+  }, [editValue, emailValue, node.uuid, property.uuid, setPropertyMutation]);
 
   useEffect(() => {
     if (isEditing && inputRef.current) {

@@ -18,6 +18,7 @@ import { App } from './App.tsx'
 import { useSettingsStore, applyTheme, applyAccentColor } from './stores'
 import { restoreOperations, saveOperations } from './lib/operationStorage'
 import { restoreUndoStacks } from './lib/undoStackStorage'
+import { useUIStateStore } from './features/sync'
 
 // Apply saved theme and accent on startup — wrapped in try/catch so a corrupt
 // store never prevents the app from mounting at all.
@@ -29,12 +30,15 @@ try {
   console.error('[main] Failed to apply saved theme/accent, falling back to default:', e);
 }
 
-// Restore pending operations and undo stacks from previous session (offline support)
+// Restore pending operations, undo stacks, and local UI state from previous session
 restoreOperations().catch((e) => {
   console.error('[main] Failed to restore pending operations:', e);
 });
 restoreUndoStacks().catch((e) => {
   console.error('[main] Failed to restore undo stacks:', e);
+});
+useUIStateStore.getState().load().catch((e) => {
+  console.error('[main] Failed to restore UI state:', e);
 });
 
 // Save pending operations before page unload

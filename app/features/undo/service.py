@@ -7,7 +7,7 @@ every domain detail — it simply writes the snapshot back.
 
 Supported operations
 --------------------
-* update_node   — name, icon, color, collapsed changes
+* update_node   — name, icon, color changes
 * move_node     — parent_id + sequence changes
 * delete_node   — soft-delete (is_deleted flag)
 * create_node   — records the created node for undo (delete it)

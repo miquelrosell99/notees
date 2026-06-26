@@ -5,19 +5,20 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import * as nodesApi from '@/api/nodes';
 import { nodeKeys } from '@/hooks/queryKeys';
-import { getNodeUuidByServerId } from './useNodeMutations.utils';
+import { useOnlineStatus } from '@/hooks/useOnlineStatus';
+import { useConnectionStore } from '@/stores/connectionStore';
+import { useWorkspaceRole } from '@/features/workspace';
+import { buildOfflineLinkedReferences } from '@/features/sync/local/buildOfflineLinkedReferences';
 import type { MentionsResponse } from '@/types/api';
 
-export function useBacklinks(nodeId: number | null) {
-  const queryClient = useQueryClient();
+export function useBacklinks(nodeUuid: string | null) {
   return useQuery({
-    queryKey: nodeKeys.backlinks(nodeId ?? 0),
+    queryKey: nodeKeys.backlinks(nodeUuid ?? ''),
     queryFn: () => {
-      const nodeUuid = getNodeUuidByServerId(queryClient, nodeId!);
       if (!nodeUuid) throw new Error('Node UUID not found');
       return nodesApi.getBacklinks(nodeUuid);
     },
-    enabled: !!nodeId,
+    enabled: !!nodeUuid,
     placeholderData: [],
   });
 }
@@ -27,18 +28,27 @@ export function useBacklinks(nodeId: number | null) {
  */
 
 export function useLinkedReferences(
-  nodeId: number | null,
+  nodeUuid: string | null,
   params?: { limit?: number; offset?: number }
 ) {
-  const queryClient = useQueryClient();
+  const isOnline = useOnlineStatus();
+  const backendHealthy = useConnectionStore((s) => s.healthy);
+  const isOffline = !isOnline || backendHealthy === false;
+  const { activeWorkspace } = useWorkspaceRole();
+  const workspaceUuid = activeWorkspace?.uuid ?? null;
+  const offlineReady = isOffline && !!workspaceUuid;
+
   return useQuery({
-    queryKey: nodeKeys.linkedRefs(nodeId ?? 0, params),
+    queryKey: nodeKeys.linkedRefs(nodeUuid ?? '', params),
     queryFn: () => {
-      const nodeUuid = getNodeUuidByServerId(queryClient, nodeId!);
       if (!nodeUuid) throw new Error('Node UUID not found');
+      if (offlineReady) {
+        return buildOfflineLinkedReferences(workspaceUuid, nodeUuid, params);
+      }
       return nodesApi.getLinkedReferences(nodeUuid, params);
     },
-    enabled: !!nodeId,
+    enabled: !!nodeUuid && (!isOffline || offlineReady),
+    staleTime: isOffline ? 0 : 30_000,
     placeholderData: (previousData) => previousData,
   });
 }
@@ -47,16 +57,14 @@ export function useLinkedReferences(
  * Hook to fetch property backlinks (pages referencing via date/node properties)
  */
 
-export function usePropertyBacklinks(nodeId: number | null) {
-  const queryClient = useQueryClient();
+export function usePropertyBacklinks(nodeUuid: string | null) {
   return useQuery({
-    queryKey: nodeKeys.propertyBacklinks(nodeId ?? 0),
+    queryKey: nodeKeys.propertyBacklinks(nodeUuid ?? ''),
     queryFn: () => {
-      const nodeUuid = getNodeUuidByServerId(queryClient, nodeId!);
       if (!nodeUuid) throw new Error('Node UUID not found');
       return nodesApi.getPropertyBacklinks(nodeUuid);
     },
-    enabled: !!nodeId,
+    enabled: !!nodeUuid,
     placeholderData: [],
   });
 }
@@ -64,24 +72,22 @@ export function usePropertyBacklinks(nodeId: number | null) {
 /**
  * Hook to fetch unlinked mention candidates for a node.
  */
-export function useUnlinkedMentions(nodeId: number | null) {
-  const queryClient = useQueryClient();
+export function useUnlinkedMentions(nodeUuid: string | null) {
   return useQuery({
-    queryKey: nodeKeys.mentions(nodeId ?? 0),
+    queryKey: nodeKeys.mentions(nodeUuid ?? ''),
     queryFn: () => {
-      const nodeUuid = getNodeUuidByServerId(queryClient, nodeId!);
       if (!nodeUuid) throw new Error('Node UUID not found');
       return nodesApi.getUnlinkedMentions(nodeUuid);
     },
-    enabled: !!nodeId,
+    enabled: !!nodeUuid,
     placeholderData: [],
   });
 }
 
-function findMentionUuid(queryClient: ReturnType<typeof useQueryClient>, nodeId: number, mentionId: number): string | null {
-  const data = queryClient.getQueryData<MentionsResponse>(nodeKeys.mentions(nodeId));
-  const mention = data?.mentions.find((m) => m.id === mentionId);
-  return mention?.uuid ?? null;
+function findMentionUuid(queryClient: ReturnType<typeof useQueryClient>, nodeUuid: string, mentionUuid: string): string | null {
+  const data = queryClient.getQueryData<MentionsResponse>(nodeKeys.mentions(nodeUuid));
+  const mention = data?.mentions.find((m) => m.uuid === mentionUuid);
+  return mention?.uuid ?? mentionUuid;
 }
 
 /**
@@ -90,17 +96,16 @@ function findMentionUuid(queryClient: ReturnType<typeof useQueryClient>, nodeId:
 export function usePromoteMention() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ nodeId, mentionId }: { nodeId: number; mentionId: number }) => {
-      const nodeUuid = getNodeUuidByServerId(queryClient, nodeId);
+    mutationFn: ({ nodeUuid, mentionUuid }: { nodeUuid: string; mentionUuid: string }) => {
       if (!nodeUuid) throw new Error('Node UUID not found');
-      const mentionUuid = findMentionUuid(queryClient, nodeId, mentionId);
-      if (!mentionUuid) throw new Error('Mention UUID not found');
-      return nodesApi.promoteMention(nodeUuid, mentionUuid);
+      const resolvedMentionUuid = findMentionUuid(queryClient, nodeUuid, mentionUuid);
+      if (!resolvedMentionUuid) throw new Error('Mention UUID not found');
+      return nodesApi.promoteMention(nodeUuid, resolvedMentionUuid);
     },
     onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: nodeKeys.mentions(variables.nodeId) });
-      queryClient.invalidateQueries({ queryKey: nodeKeys.backlinks(variables.nodeId) });
-      queryClient.invalidateQueries({ queryKey: nodeKeys.linkedRefs(variables.nodeId) });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.mentions(variables.nodeUuid) });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.backlinks(variables.nodeUuid) });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.linkedRefs(variables.nodeUuid) });
       queryClient.invalidateQueries({ queryKey: nodeKeys.allLinkedRefs() });
     },
   });
@@ -112,15 +117,14 @@ export function usePromoteMention() {
 export function useIgnoreMention() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ nodeId, mentionId }: { nodeId: number; mentionId: number }) => {
-      const nodeUuid = getNodeUuidByServerId(queryClient, nodeId);
+    mutationFn: ({ nodeUuid, mentionUuid }: { nodeUuid: string; mentionUuid: string }) => {
       if (!nodeUuid) throw new Error('Node UUID not found');
-      const mentionUuid = findMentionUuid(queryClient, nodeId, mentionId);
-      if (!mentionUuid) throw new Error('Mention UUID not found');
-      return nodesApi.ignoreMention(nodeUuid, mentionUuid);
+      const resolvedMentionUuid = findMentionUuid(queryClient, nodeUuid, mentionUuid);
+      if (!resolvedMentionUuid) throw new Error('Mention UUID not found');
+      return nodesApi.ignoreMention(nodeUuid, resolvedMentionUuid);
     },
     onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: nodeKeys.mentions(variables.nodeId) });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.mentions(variables.nodeUuid) });
     },
   });
 }
@@ -131,15 +135,14 @@ export function useIgnoreMention() {
 export function useUnignoreMention() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ nodeId, mentionId }: { nodeId: number; mentionId: number }) => {
-      const nodeUuid = getNodeUuidByServerId(queryClient, nodeId);
+    mutationFn: ({ nodeUuid, mentionUuid }: { nodeUuid: string; mentionUuid: string }) => {
       if (!nodeUuid) throw new Error('Node UUID not found');
-      const mentionUuid = findMentionUuid(queryClient, nodeId, mentionId);
-      if (!mentionUuid) throw new Error('Mention UUID not found');
-      return nodesApi.unignoreMention(nodeUuid, mentionUuid);
+      const resolvedMentionUuid = findMentionUuid(queryClient, nodeUuid, mentionUuid);
+      if (!resolvedMentionUuid) throw new Error('Mention UUID not found');
+      return nodesApi.unignoreMention(nodeUuid, resolvedMentionUuid);
     },
     onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({ queryKey: nodeKeys.mentions(variables.nodeId) });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.mentions(variables.nodeUuid) });
     },
   });
 }

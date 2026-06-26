@@ -22,7 +22,7 @@ export type NodeActivityAction =
   | 'deleted';
 
 export interface NodeActivity {
-  id: number;
+  nodeUuid: string;
   node_id: number; // deprecated: use node_uuid
   node_uuid: string;
   action: NodeActivityAction;
@@ -51,7 +51,7 @@ export interface LinkClick {
 }
 
 export interface LinkClickHistory {
-  id: number;
+  nodeUuid: string;
   source_node_id: number; // deprecated: use source_node_uuid
   source_node_uuid: string;
   target_node_id: number; // deprecated: use target_node_uuid
@@ -83,7 +83,7 @@ export async function createNodeActivity(data: NodeActivityCreate): Promise<Node
 /**
  * Delete an activity entry
  */
-export async function deleteNodeActivity(nodeUuid: string, activityId: number): Promise<void> {
+export async function deleteNodeActivity(nodeUuid: string, activityId: string): Promise<void> {
   await api.delete(`${BASE}/node/${nodeUuid}/${activityId}`);
 }
 

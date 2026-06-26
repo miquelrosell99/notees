@@ -9,22 +9,23 @@
 
 
 export interface LiveSyncUser {
-  id: number;
+  nodeUuid: string;
   name: string;
   color: string;
 }
 
 export type LiveSyncMessage =
   | { type: 'user_focus'; block_uuid: string; user: LiveSyncUser }
-  | { type: 'user_blur'; block_uuid: string; user_id: number }
+  | { type: 'user_blur'; block_uuid: string; user_id: string }
   | { type: 'user_typing'; block_uuid: string; user: LiveSyncUser }
-  | { type: 'block_locked'; block_uuid: string; user_id: number }
+  | { type: 'block_locked'; block_uuid: string; user_id: string }
   | { type: 'block_lock_denied'; block_uuid: string; reason: string; queued?: boolean; locked_by?: LiveSyncUser }
-  | { type: 'lock_granted'; block_uuid: string; user_id: number }
-  | { type: 'block_lock_released'; block_uuid: string; user_id: number }
-  | { type: 'lock_expired'; block_uuid: string; user_id: number }
-  | { type: 'block_updated'; block_uuid: string; block_id: number; name: string; user_id: number }
-  | { type: 'users_list'; users: Array<LiveSyncUser & { block_uuid: string }> };
+  | { type: 'lock_granted'; block_uuid: string; user_id: string }
+  | { type: 'block_lock_released'; block_uuid: string; user_id: string }
+  | { type: 'lock_expired'; block_uuid: string; user_id: string }
+  | { type: 'block_updated'; block_uuid: string; block_id: string; name: string; user_id: string }
+  | { type: 'users_list'; users: Array<LiveSyncUser & { block_uuid: string }> }
+  | { type: 'ops_applied'; ops: Array<Record<string, unknown>> };
 
 type MessageListener = (msg: LiveSyncMessage) => void;
 type StatusListener = (status: 'connected' | 'disconnected' | 'connecting' | 'error' | 'idle') => void;
@@ -32,6 +33,8 @@ type StatusListener = (status: 'connected' | 'disconnected' | 'connecting' | 'er
 export class LiveSyncManager {
   private ws: WebSocket | null = null;
   private nodeUuid: string | null = null;
+  private workspaceUuid: string | null = null;
+  private protocolVersion: 'v1' | 'v2' = 'v1';
   private listeners = new Set<MessageListener>();
   private statusListeners = new Set<StatusListener>();
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -77,14 +80,25 @@ export class LiveSyncManager {
     }
   }
 
-  /** Open (or re-open) the WebSocket for a given page.
+  /** Open (or re-open) the WebSocket for a given page or workspace.
+   *
+   * For v1 the path is the page UUID (page-scoped presence). For v2 the path
+   * is the workspace UUID (workspace-scoped presence + applied-op broadcast).
    *
    * The actual open is deferred briefly so that React Strict Mode / initial
    * render storms do not create visible connect/disconnect cycles in the
    * browser console.
    */
-  connect(nodeUuid: string): void {
-    if (this.nodeUuid === nodeUuid) {
+  connect(
+    nodeUuid: string,
+    workspaceUuid: string | null = null,
+    protocolVersion: 'v1' | 'v2' = 'v1',
+  ): void {
+    const sameRoom =
+      this.nodeUuid === nodeUuid &&
+      this.workspaceUuid === workspaceUuid &&
+      this.protocolVersion === protocolVersion;
+    if (sameRoom) {
       const state = this.ws?.readyState;
       if (state === WebSocket.OPEN || state === WebSocket.CONNECTING) {
         return;
@@ -93,10 +107,14 @@ export class LiveSyncManager {
     this.disconnect();
     this.intentionalClose = false;
     this.nodeUuid = nodeUuid;
+    this.workspaceUuid = workspaceUuid;
+    this.protocolVersion = protocolVersion;
     this._setStatus('connecting');
     this.connectTimer = setTimeout(() => {
       this.connectTimer = null;
-      if (this.nodeUuid === nodeUuid) this._open();
+      if (this.nodeUuid === nodeUuid && this.workspaceUuid === workspaceUuid && this.protocolVersion === protocolVersion) {
+        this._open();
+      }
     }, 300);
   }
 
@@ -125,6 +143,8 @@ export class LiveSyncManager {
       this.ws = null;
     }
     this.nodeUuid = null;
+    this.workspaceUuid = null;
+    this.protocolVersion = 'v1';
     this.pendingMessages = [];
     this.reconnectAttempts = 0;
     this._setStatus('idle');
@@ -133,8 +153,8 @@ export class LiveSyncManager {
   private _open(): void {
     if (this.ws) return;
 
-    const nodeUuid = this.nodeUuid;
-    if (!nodeUuid) return;
+    const roomId = this.protocolVersion === 'v2' ? this.workspaceUuid : this.nodeUuid;
+    if (!roomId) return;
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     // Optional VITE_WS_URL lets deployments bypass the Vite dev proxy and
@@ -142,9 +162,10 @@ export class LiveSyncManager {
     // Authentication is provided by the HTTPOnly access_token cookie, which
     // is sent automatically for same-origin WebSocket handshakes.
     const configuredUrl = import.meta.env.VITE_WS_URL as string | undefined;
-    const url = configuredUrl
-      ? `${configuredUrl}/api/ws/live/${nodeUuid}`
-      : `${protocol}//${window.location.host}/api/ws/live/${nodeUuid}`;
+    const base = configuredUrl
+      ? `${configuredUrl}/api/ws/live/${roomId}`
+      : `${protocol}//${window.location.host}/api/ws/live/${roomId}`;
+    const url = `${base}?sync_protocol_version=${this.protocolVersion}`;
 
     let ws: WebSocket;
     try {
@@ -202,12 +223,15 @@ export class LiveSyncManager {
   }
 
   private _scheduleReconnect(): void {
-    if (this.reconnectTimer || !this.nodeUuid || this.ws) return;
+    const roomId = this.protocolVersion === 'v2' ? this.workspaceUuid : this.nodeUuid;
+    if (this.reconnectTimer || !roomId || this.ws) return;
     const delay = Math.min(30000, 1000 * Math.pow(2, this.reconnectAttempts));
     this.reconnectAttempts += 1;
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
-      if (this.nodeUuid && !this.ws) this._open();
+      if ((this.protocolVersion === 'v2' ? this.workspaceUuid : this.nodeUuid) && !this.ws) {
+        this._open();
+      }
     }, delay);
   }
 
@@ -230,7 +254,7 @@ export class LiveSyncManager {
   }
 
   /** Broadcast a block content update to other clients. */
-  sendBlockUpdate(blockUuid: string, blockId: number, name: string, _version?: number | null): void {
+  sendBlockUpdate(blockUuid: string, blockId: string, name: string, _version?: number | null): void {
     this._send({ type: 'block_update', block_uuid: blockUuid, block_id: blockId, name });
   }
 

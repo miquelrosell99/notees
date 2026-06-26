@@ -32,6 +32,7 @@ import type {
   ASTExternalLink,
   ASTInlineNode,
 } from '@/types/ast';
+import { migrateASTDocument } from '@/types/ast';
 import type { WhiteboardData } from '@/features/whiteboard/types/whiteboard';
 import type { QueryAST } from '@/types/queryAST';
 
@@ -127,7 +128,7 @@ export function buildLinkId(nodeUuid: string, linkUuid: string): string {
  *   - nodeUuid: target node UUID (for display / damage control)
  *   - linkUuid: unique per-link-instance UUID
  *
- * Legacy format "nodeId:linkUuid" (numeric first part) is also handled.
+ * Legacy format "nodeUuid:linkUuid" (numeric first part) is also handled.
  */
 export function parseLinkId(linkId: string): ParsedLinkId {
   const colonIdx = linkId.indexOf(':');
@@ -209,23 +210,28 @@ export function inlineDoc(...children: ASTInlineNode[]): ASTDocument {
  * @param mode  — How to interpret the input. Defaults to `ParseMode.JSON`.
  */
 export function parseAST(input: unknown, mode: ParseMode = ParseMode.JSON): ASTDocument {
+  let doc: ASTDocument;
   switch (mode) {
     case ParseMode.JSON:
-      return parseJSON(input);
+      doc = parseJSON(input);
+      break;
 
     case ParseMode.PLAIN: {
       if (typeof input !== 'string' || !input) return [];
-      return [paragraph(text(input))];
+      doc = [paragraph(text(input))];
+      break;
     }
 
     case ParseMode.MARKDOWN: {
       if (typeof input !== 'string' || !input) return [];
-      return parseMdDocument(input);
+      doc = parseMdDocument(input);
+      break;
     }
 
     default:
       return [];
   }
+  return migrateASTDocument(doc);
 }
 
 // ── JSON parsing ───────────────────────────────────────────────────

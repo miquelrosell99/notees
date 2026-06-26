@@ -8,6 +8,7 @@ import type { Persister, PersistedClient } from '@tanstack/react-query-persist-c
 
 import { useNotificationStore } from '@/stores/notificationStore';
 import { useUndoStore } from '@/stores/undoStore';
+import { encryptString, decryptString, type EncryptedPayload } from '@/utils/encryption';
 
 /**
  * Extract user-friendly error message from various error types
@@ -141,4 +142,30 @@ export const asyncStoragePersister: Persister = {
   },
 };
 
-
+/**
+ * Creates a persister that encrypts the dehydrated query cache with the given
+ * AES-GCM key before writing to IndexedDB.
+ */
+export function createEncryptedPersister(key: CryptoKey): Persister {
+  return {
+    async persistClient(client: PersistedClient): Promise<void> {
+      const serialized = JSON.stringify(client);
+      const payload = await encryptString(serialized, key);
+      await set(PERSIST_KEY, JSON.stringify(payload));
+    },
+    async restoreClient(): Promise<PersistedClient | undefined> {
+      const raw = await get(PERSIST_KEY);
+      if (typeof raw !== 'string') return undefined;
+      try {
+        const payload = JSON.parse(raw) as EncryptedPayload;
+        const decrypted = await decryptString(payload, key);
+        return JSON.parse(decrypted) as PersistedClient;
+      } catch {
+        return undefined;
+      }
+    },
+    async removeClient(): Promise<void> {
+      await del(PERSIST_KEY);
+    },
+  };
+}

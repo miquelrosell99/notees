@@ -83,7 +83,7 @@ export function SidebarNodeView({ nodeUuid, nodeType }: SidebarNodeViewProps) {
       {/* Content - just NodeViewContent */}
       <div className="sidebar-node-view__content">
         <NodeViewContent
-          nodeId={node?.id ?? 0}
+          nodeUuid={node?.uuid ?? ''}
           viewMode={viewMode}
           sidebarMode={true}
         />

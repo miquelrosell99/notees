@@ -19,7 +19,7 @@ interface NodeMetadataSectionProps {
   pageAliasDetails: Node[];
   aliasedNode: Node | null;
   isAlias: boolean;
-  onNavigateToNode: (id: number) => void;
+  onNavigateToNode: (nodeUuid: string) => void;
   onNavigateToAlias: (node: Node) => void;
   onRemoveClass?: (node: Node) => void;
   onAddClass?: (node: Node) => void;
@@ -98,7 +98,7 @@ export function NodeMetadataSection({
             searchMode="classes"
             emptyText={isAlias ? '' : 'Add class'}
             searchPlaceholder="Search classes..."
-            onNodeClick={(n) => onNavigateToNode(n.id)}
+            onNodeClick={(n) => onNavigateToNode(n.uuid)}
             onRemove={isAlias ? undefined : onRemoveClass}
             onColorChange={isAlias ? undefined : onNodeColorChange}
             onAdd={isAlias ? undefined : onAddClass}
@@ -117,8 +117,8 @@ export function NodeMetadataSection({
             searchMode="tags"
             emptyText="Add tag"
             searchPlaceholder="Search tags..."
-            excludeNodeId={node.id}
-            onNodeClick={(n) => onNavigateToNode(n.id)}
+            excludeNodeId={node.uuid}
+            onNodeClick={(n) => onNavigateToNode(n.uuid)}
             onRemove={onRemoveTag}
             onColorChange={onNodeColorChange}
             onAdd={onAddTag}
@@ -135,7 +135,7 @@ export function NodeMetadataSection({
               searchMode="aliases"
               emptyText="Add alias"
               searchPlaceholder="Search pages..."
-              excludeNodeId={node.id}
+              excludeNodeId={node.uuid}
               onNodeClick={onNavigateToAlias}
               onRemove={onRemoveAlias}
               onAdd={onAddAlias}
@@ -148,7 +148,7 @@ export function NodeMetadataSection({
             <button
               type="button"
               className="alias-of-link"
-              onClick={() => onNavigateToNode(aliasedNode.id)}
+              onClick={() => onNavigateToNode(aliasedNode.uuid)}
               title={nodeNameToText(aliasedNode.name) || 'Untitled'}
             >
               {nodeNameToText(aliasedNode.name) || 'Untitled'}
@@ -165,8 +165,8 @@ export function NodeMetadataSection({
               searchMode="classes"
               emptyText="Add extend"
               searchPlaceholder="Search classes to extend..."
-              excludeNodeId={node.id}
-              onNodeClick={(n) => onNavigateToNode(n.id)}
+              excludeNodeId={node.uuid}
+              onNodeClick={(n) => onNavigateToNode(n.uuid)}
               onRemove={onRemoveExtends}
               onColorChange={onNodeColorChange}
               onAdd={onAddExtends}

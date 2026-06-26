@@ -56,7 +56,7 @@ export function CommandPalette(props: CommandPaletteProps) {
     handleClassCreate,
     handleBackdropClick,
     groupedItems,
-    pageClassId,
+    pageClassUuid,
     allClasses,
     allPages,
     searchResults,
@@ -126,7 +126,7 @@ export function CommandPalette(props: CommandPaletteProps) {
               {appliedFilters.map((filter, idx) => (
                 filter.type === 'class' ? (
                   <NodeRef
-                    key={`class-${filter.classNode.id}`}
+                    key={`class-${filter.classNode.uuid}`}
                     node={filter.classNode}
                     onRemove={() => handleRemoveFilter(idx)}
                     readOnly={false}
@@ -278,14 +278,14 @@ export function CommandPalette(props: CommandPaletteProps) {
                         const globalIndex = indexMap.get(item)!;
                         return (
                           <ResultItem
-                            key={item.result?.node?.id}
+                            key={item.result?.node?.uuid}
                             id={getResultId(globalIndex)}
                             result={item.result!}
                             isSelected={selectedIndex === globalIndex}
                             onClick={() => handleSelect(globalIndex)}
                             allNodes={allPages}
                             allClasses={allClasses}
-                            pageClassId={pageClassId}
+                            pageClassUuid={pageClassUuid}
                           />
                         );
                       })}
@@ -298,14 +298,14 @@ export function CommandPalette(props: CommandPaletteProps) {
                         const globalIndex = indexMap.get(item)!;
                         return (
                           <ResultItem
-                            key={item.result?.node?.id}
+                            key={item.result?.node?.uuid}
                             id={getResultId(globalIndex)}
                             result={item.result!}
                             isSelected={selectedIndex === globalIndex}
                             onClick={() => handleSelect(globalIndex)}
                             allNodes={allPages}
                             allClasses={allClasses}
-                            pageClassId={pageClassId}
+                            pageClassUuid={pageClassUuid}
                           />
                         );
                       })}
@@ -332,14 +332,14 @@ export function CommandPalette(props: CommandPaletteProps) {
                         const globalIndex = indexMap.get(item)!;
                         return (
                           <ResultItem
-                            key={item.result?.node?.id}
+                            key={item.result?.node?.uuid}
                             id={getResultId(globalIndex)}
                             result={item.result!}
                             isSelected={selectedIndex === globalIndex}
                             onClick={() => handleSelect(globalIndex)}
                             allNodes={allPages}
                             allClasses={allClasses}
-                            pageClassId={pageClassId}
+                            pageClassUuid={pageClassUuid}
                           />
                         );
                       })}
@@ -454,14 +454,14 @@ export function CommandPalette(props: CommandPaletteProps) {
                 }
                 return (
                   <ResultItem
-                    key={item.result?.node?.id}
+                    key={item.result?.node?.uuid}
                     id={getResultId(globalIndex)}
                     result={item.result!}
                     isSelected={selectedIndex === globalIndex}
                     onClick={() => handleSelect(globalIndex)}
                     allNodes={searchResults}
                     allClasses={allClasses}
-                    pageClassId={pageClassId}
+                    pageClassUuid={pageClassUuid}
                     searchTerm={debouncedSearchTerm}
                   />
                 );
@@ -493,14 +493,14 @@ export function CommandPalette(props: CommandPaletteProps) {
                 }
                 return (
                   <ResultItem
-                    key={item.result?.node?.id}
+                    key={item.result?.node?.uuid}
                     id={getResultId(globalIndex)}
                     result={item.result!}
                     isSelected={selectedIndex === globalIndex}
                     onClick={() => handleSelect(globalIndex)}
                     allNodes={searchResults}
                     allClasses={allClasses}
-                    pageClassId={pageClassId}
+                    pageClassUuid={pageClassUuid}
                     searchTerm={debouncedSearchTerm}
                   />
                 );
@@ -532,7 +532,7 @@ export function CommandPalette(props: CommandPaletteProps) {
                 }
                 return (
                   <ResultItem
-                    key={item.result?.property?.id}
+                    key={item.result?.property?.uuid}
                     id={getResultId(globalIndex)}
                     result={item.result!}
                     isSelected={selectedIndex === globalIndex}
@@ -601,7 +601,7 @@ export function CommandPalette(props: CommandPaletteProps) {
         pageName={duplicateModal.pageName}
         conflictingClasses={duplicateModal.conflictingClasses}
         originalClasses={duplicateModal.originalClasses}
-        parentId={duplicateModal.parentId}
+        parentUuid={duplicateModal.parentUuid}
         onSuccess={(node) => {
           onClose();
           openNode(node.uuid);

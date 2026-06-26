@@ -99,7 +99,6 @@ function applyCreate(nodes: Map<string, CoreNode>, operation: Operation, now: nu
 
   const newNode: CoreNode = {
     blockId: operation.blockId,
-    serverId: operation.serverId,
     parentId: payload.parentId,
     orderIndex,
     nodeType: payload.nodeType ?? 'block',

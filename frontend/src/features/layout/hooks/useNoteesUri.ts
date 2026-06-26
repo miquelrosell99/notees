@@ -26,7 +26,7 @@ export function useNoteesUri() {
   const navigateToUuid = useCallback(async (nodeUuid: string): Promise<boolean> => {
     try {
       const node = await getNodeByUuid(nodeUuid);
-      if (node?.id) {
+      if (node?.uuid) {
         openNode(node.uuid);
         return true;
       }

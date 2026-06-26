@@ -4,40 +4,30 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import * as propertiesApi from '@/api/properties';
 import { nodeKeys, propertyKeys, nodeViewKeys } from '@/hooks/queryKeys';
-import { tryResolveNodeUuid, resolveNodeUuid, resolvePropertyUuid } from '@/utils/resolveNodeUuid';
 
-function resolveClassId(classId: string | number): string {
-  return typeof classId === 'string' ? classId : resolveNodeUuid(classId);
+
+function resolveClassId(classId: string): string {
+  return classId;
 }
 
-function resolvePropertyId(propertyId: string | number): string {
-  if (typeof propertyId === 'string') return propertyId;
-  const uuid = resolvePropertyUuid(propertyId);
-  if (!uuid) throw new Error(`Unable to resolve UUID for property id ${propertyId}`);
-  return uuid;
+function resolvePropertyId(propertyId: string): string {
+  return propertyId;
 }
 
 function invalidateClassQueries(
   queryClient: ReturnType<typeof useQueryClient>,
-  classId: string | number
+  classId: string
 ) {
   queryClient.invalidateQueries({ queryKey: propertyKeys.forClass(classId) });
   queryClient.invalidateQueries({ queryKey: propertyKeys.forClassInherited(classId) });
   queryClient.invalidateQueries({ queryKey: nodeKeys.byClass(classId) });
-
-  const classUuid = tryResolveNodeUuid(classId);
-  if (classUuid && classUuid !== String(classId)) {
-    queryClient.invalidateQueries({ queryKey: propertyKeys.forClass(classUuid) });
-    queryClient.invalidateQueries({ queryKey: propertyKeys.forClassInherited(classUuid) });
-    queryClient.invalidateQueries({ queryKey: nodeKeys.byClass(classUuid) });
-  }
 }
 
 export function useAddPropertyToClass() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ classId, propertyId }: { classId: string | number; propertyId: string | number }) =>
+    mutationFn: ({ classId, propertyId }: { classId: string; propertyId: string }) =>
       propertiesApi.addClassProperty(resolveClassId(classId), resolvePropertyId(propertyId)),
     onSuccess: (_, { classId }) => {
       invalidateClassQueries(queryClient, classId);
@@ -53,7 +43,7 @@ export function useRemovePropertyFromClass() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ classId, propertyId }: { classId: string | number; propertyId: string | number }) =>
+    mutationFn: ({ classId, propertyId }: { classId: string; propertyId: string }) =>
       propertiesApi.removeClassProperty(resolveClassId(classId), resolvePropertyId(propertyId)),
     onSuccess: (_, { classId }) => {
       invalidateClassQueries(queryClient, classId);
@@ -69,7 +59,7 @@ export function useReorderClassProperties() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ classId, propertyIds }: { classId: string | number; propertyIds: (string | number)[] }) =>
+    mutationFn: ({ classId, propertyIds }: { classId: string; propertyIds: string[] }) =>
       propertiesApi.reorderClassProperties(resolveClassId(classId), propertyIds.map(resolvePropertyId)),
     onSuccess: (_, { classId }) => {
       invalidateClassQueries(queryClient, classId);
@@ -90,8 +80,8 @@ export function useUpdateClassProperty() {
       propertyId,
       data,
     }: {
-      classId: string | number;
-      propertyId: string | number;
+      classId: string;
+      propertyId: string;
       data: { required?: boolean; hidden?: boolean };
     }) => propertiesApi.updateClassProperty(resolveClassId(classId), resolvePropertyId(propertyId), data),
     onSuccess: (_, { classId }) => {
@@ -108,7 +98,7 @@ export function useAddClassExtends() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ classId, extendsClassId }: { classId: string | number; extendsClassId: string | number }) =>
+    mutationFn: ({ classId, extendsClassId }: { classId: string; extendsClassId: string }) =>
       propertiesApi.addClassExtends(resolveClassId(classId), resolveClassId(extendsClassId)),
     onSuccess: (_, { classId, extendsClassId }) => {
       queryClient.invalidateQueries({ queryKey: propertyKeys.classExtends(classId) });
@@ -116,16 +106,6 @@ export function useAddClassExtends() {
       queryClient.invalidateQueries({ queryKey: propertyKeys.extendedByClasses(extendsClassId) });
       queryClient.invalidateQueries({ queryKey: nodeViewKeys.queryResults() });
       queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
-
-      const classUuid = tryResolveNodeUuid(classId);
-      if (classUuid && classUuid !== String(classId)) {
-        queryClient.invalidateQueries({ queryKey: propertyKeys.classExtends(classUuid) });
-        queryClient.invalidateQueries({ queryKey: propertyKeys.forClassInherited(classUuid) });
-      }
-      const extendsUuid = tryResolveNodeUuid(extendsClassId);
-      if (extendsUuid && extendsUuid !== String(extendsClassId)) {
-        queryClient.invalidateQueries({ queryKey: propertyKeys.extendedByClasses(extendsUuid) });
-      }
     },
   });
 }
@@ -134,7 +114,7 @@ export function useRemoveClassExtends() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ classId, extendsClassId }: { classId: string | number; extendsClassId: string | number }) =>
+    mutationFn: ({ classId, extendsClassId }: { classId: string; extendsClassId: string }) =>
       propertiesApi.removeClassExtends(resolveClassId(classId), resolveClassId(extendsClassId)),
     onSuccess: (_, { classId, extendsClassId }) => {
       queryClient.invalidateQueries({ queryKey: propertyKeys.classExtends(classId) });
@@ -142,16 +122,6 @@ export function useRemoveClassExtends() {
       queryClient.invalidateQueries({ queryKey: propertyKeys.extendedByClasses(extendsClassId) });
       queryClient.invalidateQueries({ queryKey: nodeViewKeys.queryResults() });
       queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
-
-      const classUuid = tryResolveNodeUuid(classId);
-      if (classUuid && classUuid !== String(classId)) {
-        queryClient.invalidateQueries({ queryKey: propertyKeys.classExtends(classUuid) });
-        queryClient.invalidateQueries({ queryKey: propertyKeys.forClassInherited(classUuid) });
-      }
-      const extendsUuid = tryResolveNodeUuid(extendsClassId);
-      if (extendsUuid && extendsUuid !== String(extendsClassId)) {
-        queryClient.invalidateQueries({ queryKey: propertyKeys.extendedByClasses(extendsUuid) });
-      }
     },
   });
 }

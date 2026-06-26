@@ -31,14 +31,15 @@ function getPropertyIconPath(property: Property): string | null {
 }
 
 interface SortablePropertyItem {
-  id: number;
+  id: string;
+  nodeUuid: string;
   property: Property;
   required: boolean;
 }
 
 interface ClassPropertiesEditorProps {
-  /** The class node ID being edited */
-  classNodeId: number;
+  /** The class node UUID being edited */
+  classNodeUuid: string;
   /** Optional className for styling */
   className?: string;
   /** Whether the editor is read-only */
@@ -51,7 +52,7 @@ interface ClassPropertiesEditorProps {
  * Editor for managing properties on a class
  */
 export function ClassPropertiesEditor({
-  classNodeId,
+  classNodeUuid,
   className = '',
   readOnly = false,
   defaultExpanded = true,
@@ -60,7 +61,7 @@ export function ClassPropertiesEditor({
   const [contextMenu, setContextMenu] = useState<{ property: Property; x: number; y: number } | null>(null);
 
   // Fetch current class properties (direct only, not inherited)
-  const { data: classProperties, isLoading } = useClassProperties(classNodeId, false);
+  const { data: classProperties, isLoading } = useClassProperties(classNodeUuid, false);
   const { data: allProperties } = useProperties();
 
   // Mutations
@@ -74,25 +75,25 @@ export function ClassPropertiesEditor({
   const handleCreateProperty = useCallback(
     (data: PropertyCreate & { selection_options?: { name: string; icon?: string }[] }) => {
       const scope = data.scope ?? 'global';
-      const node_id = scope === 'class' ? classNodeId : data.node_id;
+      const node_uuid = scope === 'class' ? classNodeUuid : data.node_uuid;
       createPropertyMutation.mutate(
-        { ...data, scope, node_id } as PropertyCreate,
+        { ...data, scope, node_uuid } as PropertyCreate,
         {
           onSuccess: (created) => {
             addPropertyMutation.mutate(
-              { classId: classNodeId, propertyId: created.uuid },
+              { classId: classNodeUuid, propertyId: created.uuid },
               { onSuccess: () => setShowPropertyPopup(false) }
             );
           },
         }
       );
     },
-    [classNodeId, createPropertyMutation, addPropertyMutation]
+    [classNodeUuid, createPropertyMutation, addPropertyMutation]
   );
 
-  // Get IDs of properties already applied to this class
+  // Get UUIDs of properties already applied to this class
   const appliedPropertyIds = useMemo(() => {
-    return classProperties?.map(cp => cp.property_id) ?? [];
+    return classProperties?.map(cp => cp.property_uuid).filter((uuid): uuid is string => !!uuid) ?? [];
   }, [classProperties]);
 
   // Build sortable items from class properties
@@ -100,22 +101,23 @@ export function ClassPropertiesEditor({
     if (!classProperties || !allProperties) return [];
     return classProperties
       .map(cp => {
-        const property = allProperties.find(p => p.id === cp.property_id);
-        return property ? { id: cp.property_id, property, required: cp.required ?? false } : null;
+        const propertyUuid = cp.property_uuid;
+        const property = propertyUuid ? allProperties.find(p => p.uuid === propertyUuid) : undefined;
+        return property ? { id: property.uuid, nodeUuid: property.uuid, property, required: cp.required ?? false } : null;
       })
       .filter((item): item is SortablePropertyItem => item !== null);
   }, [classProperties, allProperties]);
 
   const handleAddProperty = useCallback((property: Property) => {
     addPropertyMutation.mutate(
-      { classId: classNodeId, propertyId: property.uuid },
+      { classId: classNodeUuid, propertyId: property.uuid },
       { onSuccess: () => setShowPropertyPopup(false) }
     );
-  }, [classNodeId, addPropertyMutation]);
+  }, [classNodeUuid, addPropertyMutation]);
 
   const handleRemoveProperty = useCallback((property: Property) => {
-    removePropertyMutation.mutate({ classId: classNodeId, propertyId: property.uuid });
-  }, [classNodeId, removePropertyMutation]);
+    removePropertyMutation.mutate({ classId: classNodeUuid, propertyId: property.uuid });
+  }, [classNodeUuid, removePropertyMutation]);
 
   const handleReorder = useCallback((fromIndex: number, toIndex: number) => {
     if (!classProperties) return;
@@ -123,10 +125,10 @@ export function ClassPropertiesEditor({
     const [moved] = newOrder.splice(fromIndex, 1);
     newOrder.splice(toIndex, 0, moved);
     reorderMutation.mutate({
-      classId: classNodeId,
-      propertyIds: newOrder.map(cp => cp.property_id),
+      classId: classNodeUuid,
+      propertyIds: newOrder.map(cp => cp.property_uuid).filter((uuid): uuid is string => !!uuid),
     });
-  }, [classProperties, classNodeId, reorderMutation]);
+  }, [classProperties, classNodeUuid, reorderMutation]);
 
   // Get openPropertyView from store
   const openPropertyView = useNavigationStore(state => state.openPropertyView);
@@ -138,7 +140,7 @@ export function ClassPropertiesEditor({
       {
         id: 'open-property',
         label: 'Open property',
-        onClick: () => openPropertyView(contextMenu.property.id),
+        onClick: () => openPropertyView(contextMenu.property.uuid),
       },
       {
         id: 'remove-property',
@@ -187,7 +189,7 @@ export function ClassPropertiesEditor({
                     onClick={(e) => {
                       e.stopPropagation();
                       updateClassPropertyMutation.mutate({
-                        classId: classNodeId,
+                        classId: classNodeUuid,
                         propertyId: item.property.uuid,
                         data: { required: !item.required },
                       });
@@ -235,7 +237,7 @@ export function ClassPropertiesEditor({
               onSelect={handleAddProperty}
               onCreate={handleCreateProperty}
               excludeIds={appliedPropertyIds}
-              contextClassIds={[classNodeId]}
+              contextClassIds={[classNodeUuid]}
               defaultScope="class"
             />
           </div>
@@ -253,4 +255,3 @@ export function ClassPropertiesEditor({
     </NodeViewSection>
   );
 }
-

@@ -63,9 +63,9 @@ export interface PropertyListProps {
   /** Additional className */
   className?: string;
   /** Handler when clicking on a node value */
-  onNodeValueClick?: (nodeId: number) => void;
+  onNodeValueClick?: (nodeUuid: string) => void;
   /** Handler when shift+clicking on a node value */
-  onNodeValueShiftClick?: (nodeId: number) => void;
+  onNodeValueShiftClick?: (nodeUuid: string) => void;
 }
 
 /** Check if an entry is a multi-value text property with multiple values */
@@ -81,18 +81,18 @@ function renderPropertyRows(
   onNameClick: PropertyListProps['onPropertyNameClick'],
   onPropertyContextMenu: PropertyListProps['onPropertyContextMenu'],
   getContextMenuItems: PropertyListProps['getContextMenuItems'],
-  onValueClick: (nodeId: number) => void,
-  onValueShiftClick: (nodeId: number) => void,
+  onValueClick: (nodeUuid: string) => void,
+  onValueShiftClick: (nodeUuid: string) => void,
 ) {
   return entries.map(entry => {
     if (isMultiTextEntry(entry)) {
       // Expand into multiple rows, one per block ID
       const blockIds = entry.value;
       return (
-        <div key={entry.property.id} className="property-row-group">
+        <div key={entry.property.uuid} className="property-row-group">
           {blockIds.map((blockId, idx) => (
             <PropertyRow
-              key={`${entry.property.id}-${blockId}`}
+              key={`${entry.property.uuid}-${blockId}`}
               entry={{ ...entry, value: blockId }}
               readOnly={readOnly}
               renderValue={renderValue}
@@ -109,7 +109,7 @@ function renderPropertyRows(
     }
     return (
       <PropertyRow
-        key={entry.property.id}
+        key={entry.property.uuid}
         entry={entry}
         readOnly={readOnly}
         renderValue={renderValue}
@@ -145,19 +145,19 @@ export function PropertyList({
   const openNode = useNavigationStore(state => state.openNode);
   const addSidebarCard = useNavigationStore(state => state.addSidebarCard);
   
-  const handleNodeValueClick = useCallback((nodeId: number) => {
+  const handleNodeValueClick = useCallback((nodeUuid: string) => {
     if (onNodeValueClick) {
-      onNodeValueClick(nodeId);
+      onNodeValueClick(nodeUuid);
     } else {
-      openNode(nodeId);
+      openNode(nodeUuid);
     }
   }, [onNodeValueClick, openNode]);
   
-  const handleNodeValueShiftClick = useCallback((nodeId: number) => {
+  const handleNodeValueShiftClick = useCallback((nodeUuid: string) => {
     if (onNodeValueShiftClick) {
-      onNodeValueShiftClick(nodeId);
+      onNodeValueShiftClick(nodeUuid);
     } else {
-      addSidebarCard(nodeId, 'block');
+      addSidebarCard(nodeUuid, 'block');
     }
   }, [onNodeValueShiftClick, addSidebarCard]);
   
@@ -220,9 +220,9 @@ interface PropertyRowProps {
   onPropertyContextMenu?: (property: Property, event: React.MouseEvent) => void;
   getContextMenuItems?: (property: Property) => ContextMenuItem[];
   /** Handler when clicking on a node value */
-  onValueClick?: (nodeId: number) => void;
+  onValueClick?: (nodeUuid: string) => void;
   /** Handler when shift+clicking on a node value */
-  onValueShiftClick?: (nodeId: number) => void;
+  onValueShiftClick?: (nodeUuid: string) => void;
   /** Whether to hide the label (for multi-row continuation) */
   hideLabel?: boolean;
 }
@@ -250,7 +250,7 @@ function PropertyRow({
   const [_nodeValueContextMenuPosition, _setNodeValueContextMenuPosition] = useState({ x: 0, y: 0 });
   
   // Fetch the node for the value if it's a node or date property
-  const nodeValueId = (property.type === 'node' || property.type === 'date') && !property.multi && typeof value === 'number' ? value : null;
+  const nodeValueId = (property.type === 'node' || property.type === 'date') && !property.multi && typeof value === 'string' ? value : null;
   const { data: nodeValueData } = useNode(nodeValueId);
   
   // Get navigation functions from store
@@ -282,24 +282,21 @@ function PropertyRow({
   
   // Handle label click - opens property page
   const handleLabelClick = useCallback(() => {
-    openPropertyView(property.id);
-  }, [openPropertyView, property.id]);
+    openPropertyView(property.uuid);
+  }, [openPropertyView, property.uuid]);
   
   // Handle shift+click on label - opens property in sidebar
   const handleLabelShiftClick = useCallback(() => {
     addSidebarCard(property.uuid, 'block');
-  }, [addSidebarCard, property.id]);
+  }, [addSidebarCard, property.uuid]);
   
   // Create a minimal node for NodeInline to display the property name
   const propertyAsNode = useMemo<Node>(() => ({
-    id: property.id,
     uuid: property.uuid,
     name: property.name,
     icon: getPropertyIcon(property),
     color: null,
-    parent_id: null,
     parent_uuid: null,
-    page_id: null,
     page_uuid: null,
     sequence: 0,
     collapsed: false,
@@ -323,7 +320,7 @@ function PropertyRow({
                 name={propertyAsNode.name}
                 icon={propertyAsNode.icon}
                 isPage={false}
-                nodeId={propertyAsNode.id}
+                nodeUuid={propertyAsNode.uuid}
                 showBullet={false}
                 onClick={handleLabelClick}
                 onShiftClick={handleLabelShiftClick}

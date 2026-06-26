@@ -5,12 +5,11 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { setProperty, getOrCreateDaily } from '@/api/nodes';
 import { nodeKeys } from '@/hooks/queryKeys';
 import { nodeViewKeys } from '@/features/content';
-import { resolveNodeUuid } from '@/utils/resolveNodeUuid';
 import { formatDateForApi } from '../renderers/GanttRenderer';
 import type { Property } from '@/types/api';
 
 export interface PersistGanttDatesInput {
-  nodeId: string | number;
+  nodeUuid: string;
   mode: 'move' | 'resize-end';
   newStart: Date;
   newEnd: Date | null;
@@ -21,15 +20,14 @@ export function useGanttDateMutation(
   endDateProperty: Property | undefined,
   options?: {
     onMutate?: (input: PersistGanttDatesInput) => void;
-    onSettled?: (nodeId: string | number) => void;
+    onSettled?: (nodeUuid: string) => void;
   }
 ) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ nodeId, mode, newStart, newEnd }: PersistGanttDatesInput) => {
+    mutationFn: async ({ nodeUuid, mode, newStart, newEnd }: PersistGanttDatesInput) => {
       if (!startDateProperty) return;
-      const nodeUuid = resolveNodeUuid(nodeId);
       if (mode === 'move') {
         const startDayNode = await getOrCreateDaily(formatDateForApi(newStart));
         await setProperty(nodeUuid, startDateProperty.uuid, startDayNode.uuid);
@@ -42,13 +40,13 @@ export function useGanttDateMutation(
     onMutate: (input) => {
       options?.onMutate?.(input);
     },
-    onSuccess: async (_, { nodeId }) => {
+    onSuccess: async (_, { nodeUuid }) => {
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(nodeId) }),
+        queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(nodeUuid) }),
         queryClient.invalidateQueries({ queryKey: nodeKeys.ganttDayNodes([]) }),
         queryClient.invalidateQueries({ queryKey: nodeViewKeys.queryResults() }),
       ]);
-      options?.onSettled?.(nodeId);
+      options?.onSettled?.(nodeUuid);
     },
   });
 }

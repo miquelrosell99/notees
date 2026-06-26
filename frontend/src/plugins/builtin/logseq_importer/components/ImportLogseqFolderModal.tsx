@@ -40,7 +40,7 @@ export function ImportLogseqFolderModal({ isOpen, onClose }: ImportLogseqFolderM
     error: importError,
     reset: resetImporter,
     runImport,
-    pageClassId,
+    pageClassUuid,
   } = useLogseqFolderImporter();
 
   const handleReset = useCallback(() => {
@@ -117,7 +117,7 @@ export function ImportLogseqFolderModal({ isOpen, onClose }: ImportLogseqFolderM
           <Button
             variant="primary"
             onClick={handleImport}
-            disabled={!folderResult || importing || !pageClassId}
+            disabled={!folderResult || importing || !pageClassUuid}
             icon={"mdi mdi-import"}
           >
             {importing ? 'Importing…' : 'Import'}

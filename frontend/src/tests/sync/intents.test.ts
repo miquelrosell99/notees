@@ -24,7 +24,6 @@ function makeRuntime(): OperationRuntime {
   runtime.loadBaseNodes([
     {
       blockId: 'server-block',
-      serverId: 42,
       parentId: null,
       orderIndex: 0,
       nodeType: 'block',
@@ -55,7 +54,7 @@ describe('intentToOperations', () => {
 
     expect(ops).toHaveLength(1);
     expect(ops[0].type).toBe('update_content');
-    expect(ops[0].serverId).toBe(42);
+    expect(ops[0].blockId).toBe('server-block');
     expect(ops[0].payload).toEqual({ contentAST: intent.contentAST });
   });
 
@@ -84,7 +83,7 @@ describe('intentToOperations', () => {
 
     expect(ops).toHaveLength(1);
     expect(ops[0].type).toBe('delete');
-    expect(ops[0].serverId).toBe(42);
+    expect(ops[0].blockId).toBe('server-block');
   });
 
   it('converts move_block to an operation', () => {
@@ -127,7 +126,7 @@ describe('intentToOperations', () => {
 
     expect(ops).toHaveLength(1);
     expect(ops[0].type).toBe('add_class');
-    expect(ops[0].serverId).toBe(42);
+    expect(ops[0].blockId).toBe('server-block');
     expect(ops[0].payload).toEqual({ classId: '5' });
   });
 
@@ -194,10 +193,9 @@ describe('intentToOperations', () => {
 });
 
 describe('operation factories', () => {
-  it('contentOperation includes server id when provided', () => {
-    const op = contentOperation('a', 7, [{ type: 'paragraph', children: [{ type: 'text', text: 'x' }] }]);
+  it('contentOperation stores the block id', () => {
+    const op = contentOperation('a', [{ type: 'paragraph', children: [{ type: 'text', text: 'x' }] }]);
     expect(op.blockId).toBe('a');
-    expect(op.serverId).toBe(7);
     expect(op.type).toBe('update_content');
   });
 
@@ -213,50 +211,50 @@ describe('operation factories', () => {
   });
 
   it('moveOperation stores parent and after block', () => {
-    const op = moveOperation('a', 1, 'p', 'b');
+    const op = moveOperation('a', 'p', 'b');
     expect(op.type).toBe('move');
     expect(op.payload).toEqual({ parentId: 'p', afterBlockId: 'b' });
   });
 
-  it('deleteOperation stores server id', () => {
-    const op = deleteOperation('a', 99);
+  it('deleteOperation stores the block id', () => {
+    const op = deleteOperation('a');
     expect(op.type).toBe('delete');
-    expect(op.serverId).toBe(99);
+    expect(op.blockId).toBe('a');
   });
 
   it('addClassOperation stores class id', () => {
-    const op = addClassOperation('a', 99, '5');
+    const op = addClassOperation('a', '5');
     expect(op.type).toBe('add_class');
-    expect(op.serverId).toBe(99);
+    expect(op.blockId).toBe('a');
     expect(op.payload).toEqual({ classId: '5' });
   });
 
   it('removeClassOperation stores class id', () => {
-    const op = removeClassOperation('a', 99, '5');
+    const op = removeClassOperation('a', '5');
     expect(op.type).toBe('remove_class');
     expect(op.payload).toEqual({ classId: '5' });
   });
 
   it('addTagOperation stores tag id', () => {
-    const op = addTagOperation('a', 99, '10');
+    const op = addTagOperation('a', '10');
     expect(op.type).toBe('add_tag');
     expect(op.payload).toEqual({ tagId: '10' });
   });
 
   it('removeTagOperation stores tag id', () => {
-    const op = removeTagOperation('a', 99, '10');
+    const op = removeTagOperation('a', '10');
     expect(op.type).toBe('remove_tag');
     expect(op.payload).toEqual({ tagId: '10' });
   });
 
   it('updateNodeOperation stores updates', () => {
-    const op = updateNodeOperation('a', 99, { icon: '⭐' });
+    const op = updateNodeOperation('a', { icon: '⭐' });
     expect(op.type).toBe('update_node');
     expect(op.payload).toEqual({ updates: { icon: '⭐' } });
   });
 
   it('moveNodeOperation stores parent and after block', () => {
-    const op = moveNodeOperation('a', 99, 'p', 'b');
+    const op = moveNodeOperation('a', 'p', 'b');
     expect(op.type).toBe('move_node');
     expect(op.payload).toEqual({ parentId: 'p', afterBlockId: 'b' });
   });
@@ -296,7 +294,7 @@ describe('intentToOperations with runtime state', () => {
 
     expect(ops).toHaveLength(1);
     expect(ops[0].type).toBe('update_content');
-    expect(ops[0].serverId).toBeUndefined();
+    expect(ops[0].blockId).toBe(blockId);
     expect(ops[0].dependsOn).toContain('create-op');
   });
 });

@@ -22,12 +22,12 @@ describe('SpringForce', () => {
     cfg.idealDistance = 100;
     cfg.componentCenterStrength = 0;
     const engine = new SGEEngine(
-      [{ id: 1 }, { id: 2 }],
-      [{ source: 1, target: 2, type: 'reference' }],
+      [{ nodeUuid: 'a' }, { nodeUuid: 'b' }],
+      [{ source: 'a', target: 'b', type: 'reference' }],
       cfg,
     );
-    engine.moveNode(1, 0, 0);
-    engine.moveNode(2, 200, 0);
+    engine.moveNode('a', 0, 0);
+    engine.moveNode('b', 200, 0);
     stepTimes(engine, 5);
     const s = engine.getState();
     expect(s.posX[0]).toBeGreaterThan(0);
@@ -40,12 +40,12 @@ describe('SpringForce', () => {
     cfg.idealDistance = 100;
     cfg.componentCenterStrength = 0;
     const engine = new SGEEngine(
-      [{ id: 1 }, { id: 2 }],
-      [{ source: 1, target: 2, type: 'reference' }],
+      [{ nodeUuid: 'a' }, { nodeUuid: 'b' }],
+      [{ source: 'a', target: 'b', type: 'reference' }],
       cfg,
     );
-    engine.moveNode(1, 0, 0);
-    engine.moveNode(2, 10, 0);
+    engine.moveNode('a', 0, 0);
+    engine.moveNode('b', 10, 0);
     stepTimes(engine, 5);
     const s = engine.getState();
     expect(s.posX[0]).toBeLessThan(0);
@@ -59,22 +59,22 @@ describe('SpringForce', () => {
     cfg.componentCenterStrength = 0;
 
     const referenceEngine = new SGEEngine(
-      [{ id: 1 }, { id: 2 }],
-      [{ source: 1, target: 2, type: 'reference' }],
+      [{ nodeUuid: 'a' }, { nodeUuid: 'b' }],
+      [{ source: 'a', target: 'b', type: 'reference' }],
       cfg,
     );
-    referenceEngine.moveNode(1, 0, 0);
-    referenceEngine.moveNode(2, 10, 0);
+    referenceEngine.moveNode('a', 0, 0);
+    referenceEngine.moveNode('b', 10, 0);
     stepTimes(referenceEngine, 5);
     const refSep = referenceEngine.getState().posX[1] - referenceEngine.getState().posX[0];
 
     const parentEngine = new SGEEngine(
-      [{ id: 1 }, { id: 2 }],
-      [{ source: 1, target: 2, type: 'parent' }],
+      [{ nodeUuid: 'a' }, { nodeUuid: 'b' }],
+      [{ source: 'a', target: 'b', type: 'parent' }],
       cfg,
     );
-    parentEngine.moveNode(1, 0, 0);
-    parentEngine.moveNode(2, 10, 0);
+    parentEngine.moveNode('a', 0, 0);
+    parentEngine.moveNode('b', 10, 0);
     stepTimes(parentEngine, 5);
     const parentSep = parentEngine.getState().posX[1] - parentEngine.getState().posX[0];
 

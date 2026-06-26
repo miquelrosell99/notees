@@ -8,7 +8,6 @@ import { nodeKeys } from '@/hooks/queryKeys';
 import { nodeViewKeys } from './useNodeViews';
 import { findNodeInRootTree } from '@/utils/nodeTree';
 import { getOperationRuntime } from '@/runtime';
-import { getNodeByServerId } from '@/runtime/graphHelpers';
 import { getRuntimeEventBus } from '@/runtime/eventBus';
 import { getUndoEngine } from '@/stores/undoEngine';
 import { waitForOperationAck } from '@/sync/waitForOperation';
@@ -39,104 +38,100 @@ export function invalidateNodeCaches(
     /** Invalidate breadcrumbs queries */
     breadcrumbs?: boolean;
     /** Invalidate a specific node's detail cache */
-    nodeId?: number;
+    nodeUuid?: string;
     /** Whether to actively refetch (default: false for soft invalidation) */
     refetch?: boolean;
   } = {}
 ) {
   const {
-    lists = false,
-    pages = false,
-    classes = false,
-    search = false,
-    linkedRefs = false,
-    backlinks = false,
-    propertyBacklinks = false,
-    queryResults = false,
-    graph = false,
-    breadcrumbs = false,
-    nodeId,
-    refetch = false,
-  } = options;
+          lists = false,
+          pages = false,
+          classes = false,
+          search = false,
+          linkedRefs = false,
+          backlinks = false,
+          propertyBacklinks = false,
+          queryResults = false,
+          graph = false,
+          breadcrumbs = false,
+          nodeUuid,
+          refetch = false } = options;
 
   const refetchType = refetch ? 'active' : 'none';
 
   if (lists) {
-    queryClient.invalidateQueries({ 
+    queryClient.invalidateQueries({
       queryKey: nodeKeys.lists(),
       refetchType,
     });
   }
 
   if (pages) {
-    // Use ['nodes', 'pages'] prefix (without options) so ALL usePages() variants
-    // are matched — e.g. usePages({ includeChildren: true }) which uses a different
-    // options object and would otherwise be missed.
-    queryClient.invalidateQueries({ 
+    queryClient.invalidateQueries({
       queryKey: nodeKeys.allPages(),
       refetchType,
     });
   }
 
   if (classes) {
-    queryClient.invalidateQueries({ 
+    queryClient.invalidateQueries({
       queryKey: nodeKeys.classes(),
       refetchType,
     });
   }
 
   if (search) {
-    queryClient.invalidateQueries({ 
+    queryClient.invalidateQueries({
       queryKey: nodeKeys.searchAll(),
       refetchType,
     });
   }
 
   if (linkedRefs) {
-    queryClient.invalidateQueries({ 
+    queryClient.invalidateQueries({
       queryKey: nodeKeys.allLinkedRefs(),
       refetchType,
     });
   }
 
   if (backlinks) {
-    queryClient.invalidateQueries({ 
+    queryClient.invalidateQueries({
       queryKey: nodeKeys.allBacklinks(),
       refetchType,
     });
   }
 
   if (propertyBacklinks) {
-    queryClient.invalidateQueries({ 
+    queryClient.invalidateQueries({
       queryKey: nodeKeys.allPropertyBacklinks(),
       refetchType,
     });
   }
 
   if (queryResults) {
-    queryClient.invalidateQueries({ 
+    queryClient.invalidateQueries({
       queryKey: nodeViewKeys.queryResults(),
       refetchType,
     });
   }
 
   if (graph) {
-    queryClient.invalidateQueries({ 
+    queryClient.invalidateQueries({
       queryKey: nodeKeys.graph(),
       refetchType,
     });
   }
 
   if (breadcrumbs) {
-    queryClient.invalidateQueries({ 
+    queryClient.invalidateQueries({
       queryKey: nodeKeys.breadcrumbsAll(),
       refetchType,
     });
   }
 
-  if (nodeId !== undefined) {
-    queryClient.invalidateQueries({ 
-      queryKey: nodeKeys.detailBase(nodeId),
+  if (nodeUuid !== undefined) {
+    queryClient.invalidateQueries({
+      queryKey: nodeKeys.detailBase(nodeUuid),
       refetchType,
     });
   }
@@ -144,140 +139,40 @@ export function invalidateNodeCaches(
 
 // ==================== Node Mutations ====================
 
-// Counter for optimistic IDs - negative to avoid collision with real IDs
-// Module-level to ensure uniqueness across all hook instances
-
 export const TABLE_CLASS_UUID = '00000000-0000-0000-0001-000000000015';
 
 /**
- * Helper to find a node in the query cache by ID
- * Searches through all detail and page-content queries
+ * Helper to find a node in the query cache by UUID.
+ * Searches through all detail and page-content queries.
  */
-export function findNodeInCache(queryClient: QueryClient, nodeId: number): Node | null {
+export function findNodeInCache(queryClient: QueryClient, nodeUuid: string): Node | null {
   const queryCache = queryClient.getQueryCache();
-  
-  // Search all detail queries
-  const detailQueries = queryCache.findAll({ queryKey: nodeKeys.details() });
-  for (const query of detailQueries) {
-    const data = query.state.data as Node | undefined;
-    if (data) {
-      const found = findNodeInRootTree(data, nodeId);
-      if (found) return found;
-    }
-  }
-  
-  // Search all page-content queries
-  const pageContentQueries = queryCache.findAll({ queryKey: nodeKeys.pageContents() });
-  for (const query of pageContentQueries) {
-    const data = query.state.data as Node | undefined;
-    if (data) {
-      const found = findNodeInRootTree(data, nodeId);
-      if (found) return found;
-    }
-  }
-  
-  return null;
-}
 
-/**
- * Check if a node has the table class
- */
-export function hasTableClass(node: Node, allClasses: Node[] | undefined): boolean {
-  if (!node.classes || !allClasses) return false;
-  
-  const tableClass = allClasses.find(c => c.uuid === TABLE_CLASS_UUID);
-  if (!tableClass) return false;
-  
-  return node.classes.includes(tableClass.id);
-}
-
-/**
- * Resolve a server-side node ID to the runtime block ID (UUID).
- * Returns null if the node is not currently loaded in the runtime.
- */
-export function getRuntimeBlockIdForServerId(nodeId: number): string | null {
-  const runtime = getOperationRuntime();
-  return getNodeByServerId(runtime, nodeId)?.blockId ?? null;
-}
-
-function findNodeUuidInCache(queryClient: QueryClient, nodeId: number): string | null {
-  const queryCache = queryClient.getQueryCache();
   const candidates = [
     ...queryCache.findAll({ queryKey: nodeKeys.details() }),
     ...queryCache.findAll({ queryKey: nodeKeys.pageContents() }),
-    ...queryCache.findAll({ queryKey: nodeKeys.uuids() }),
-    ...queryCache.findAll({ queryKey: nodeKeys.graphNodes() }),
   ];
   for (const query of candidates) {
-    const data = query.state.data;
-    if (!data) continue;
-    const found = findNodeInData(data, nodeId);
-    if (found) return found.uuid;
+    const data = query.state.data as Node | undefined;
+    if (data) {
+      const found = findNodeInRootTree(data, nodeUuid);
+      if (found) return found;
+    }
   }
-  return null;
-}
 
-function findNodeInData(data: unknown, nodeId: number): Node | null {
-  if (Array.isArray(data)) {
-    for (const item of data) {
-      const found = findNodeInData(item, nodeId);
-      if (found) return found;
-    }
-    return null;
-  }
-  if (data && typeof data === 'object') {
-    const maybeNode = data as Record<string, unknown>;
-    if (typeof maybeNode.id === 'number' && maybeNode.id === nodeId && typeof maybeNode.uuid === 'string') {
-      return maybeNode as unknown as Node;
-    }
-    if (Array.isArray(maybeNode.items)) {
-      const found = findNodeInData(maybeNode.items, nodeId);
-      if (found) return found;
-    }
-    if (Array.isArray(maybeNode.pages)) {
-      const found = findNodeInData(maybeNode.pages, nodeId);
-      if (found) return found;
-    }
-    if (Array.isArray(maybeNode.children)) {
-      const found = findNodeInData(maybeNode.children, nodeId);
-      if (found) return found;
-    }
-  }
   return null;
 }
 
 /**
- * Resolve a server-side numeric node ID to its public UUID.
- * Prefers the runtime graph, then falls back to the query cache.
+ * Check if a node has the table class.
  */
-export function getNodeUuidByServerId(queryClient: QueryClient, nodeId: number): string | null {
-  const runtimeNodeUuid = getRuntimeBlockIdForServerId(nodeId);
-  if (runtimeNodeUuid) return runtimeNodeUuid;
-  return findNodeUuidInCache(queryClient, nodeId);
-}
+export function hasTableClass(node: Node, allClasses: Node[] | undefined): boolean {
+  if (!node.classes_uuid || !allClasses) return false;
 
-/**
- * Resolve a server-side numeric class ID to its public UUID.
- */
-export function getClassUuidByServerId(queryClient: QueryClient, classId: number): string | null {
-  const runtime = getOperationRuntime();
-  const runtimeNode = getNodeByServerId(runtime, classId);
-  if (runtimeNode) return runtimeNode.blockId;
-  const classes = queryClient.getQueryData<Node[]>(nodeKeys.classes());
-  if (!classes) return null;
-  return classes.find((c) => c.id === classId)?.uuid ?? null;
-}
+  const tableClass = allClasses.find(c => c.uuid === TABLE_CLASS_UUID);
+  if (!tableClass) return false;
 
-/**
- * Resolve a server-side numeric tag ID to its public UUID.
- */
-export function getTagUuidByServerId(queryClient: QueryClient, tagId: number): string | null {
-  const runtime = getOperationRuntime();
-  const runtimeNode = getNodeByServerId(runtime, tagId);
-  if (runtimeNode) return runtimeNode.blockId;
-  const pages = queryClient.getQueryData<Node[]>(nodeKeys.pages());
-  if (!pages) return null;
-  return pages.find((p) => p.id === tagId)?.uuid ?? null;
+  return node.classes_uuid.includes(tableClass.uuid);
 }
 
 /**
@@ -293,20 +188,50 @@ export function applyNodeIntent(intent: MutationIntent): string {
 }
 
 /**
- * Emit a runtime intent for a server-side node and wait for acknowledgement.
+ * Emit a runtime intent for a node UUID and wait for acknowledgement.
  * Returns false if the node is not in the runtime (caller should fall back to
  * a direct API mutation).
  */
 export async function emitNodeIntentAndWait(
-  nodeId: number,
+  nodeUuid: string,
   intent: MutationIntent,
 ): Promise<boolean> {
-  const blockId = getRuntimeBlockIdForServerId(nodeId);
-  if (!blockId) return false;
+  const runtime = getOperationRuntime();
+  if (!runtime.getNode(nodeUuid)) return false;
 
   const operationId = applyNodeIntent(intent);
   if (!operationId) return false;
 
   await waitForOperationAck(operationId);
   return true;
+}
+
+// ─── UUID bridge helpers (legacy numeric names kept for minimal caller churn) ───
+
+function findNodeUuidInCache(queryClient: QueryClient, nodeUuid: string): string | null {
+  const node = findNodeInCache(queryClient, nodeUuid);
+  return node?.uuid ?? null;
+}
+
+export function getRuntimeBlockIdForServerId(nodeUuid: string): string | null {
+  const runtime = getOperationRuntime();
+  return runtime.getNode(nodeUuid)?.blockId ?? null;
+}
+
+export function getNodeUuidByServerId(queryClient: QueryClient, nodeUuid: string): string | null {
+  const runtimeNodeUuid = getRuntimeBlockIdForServerId(nodeUuid);
+  if (runtimeNodeUuid) return runtimeNodeUuid;
+  return findNodeUuidInCache(queryClient, nodeUuid);
+}
+
+export function getClassUuidByServerId(queryClient: QueryClient, classUuid: string): string | null {
+  const classes = queryClient.getQueryData<Node[]>(nodeKeys.classes());
+  if (!classes) return null;
+  return classes.find((c) => c.uuid === classUuid)?.uuid ?? null;
+}
+
+export function getTagUuidByServerId(queryClient: QueryClient, tagUuid: string): string | null {
+  const pages = queryClient.getQueryData<Node[]>(nodeKeys.pages());
+  if (!pages) return null;
+  return pages.find((p) => p.uuid === tagUuid)?.uuid ?? null;
 }

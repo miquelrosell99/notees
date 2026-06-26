@@ -6,13 +6,13 @@ export interface NodeSearchFilters {
   /** What types of nodes to include */
   mode?: NodeSearchMode;
   /** Class IDs to filter by (nodes must have at least one of these classes) */
-  classFilters?: number[];
-  /** Node ID to exclude from results (e.g., self-reference) */
-  excludeNodeId?: number;
+  classFilters?: string[];
+  /** Node UUID to exclude from results (e.g., self-reference) */
+  excludeNodeId?: string;
   /** Maximum number of results per section */
   maxResults?: number;
-  /** Node ID to pin at the top of results (current value in single-select pickers) */
-  pinnedNodeId?: number | null;
+  /** Node UUID to pin at the top of results (current value in single-select pickers) */
+  pinnedNodeId?: string | null;
   /** Node UUID to search for directly */
   nodeUuid?: string;
   /** Filter to pages only */

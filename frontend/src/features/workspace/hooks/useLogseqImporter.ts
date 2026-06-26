@@ -15,7 +15,7 @@
  * 7. Assign aliases between pages
  *
  * Usage:
- *   const { importing, importStatus, importProgress, report, error, reset, runImport, pageClassId } = useLogseqImporter();
+ *   const { importing, importStatus, importProgress, report, error, reset, runImport, pageClassUuid } = useLogseqImporter();
  *   await runImport(parsedExport, { importMode: 'additive' });
  */
 import { useState, useCallback } from 'react';
@@ -37,8 +37,8 @@ export function useLogseqImporter() {
   const createNodeMutation = useCreateNode();
   const updateNodeMutation = useUpdateNode();
   const createPropertyMutation = useCreateProperty();
-  const { pageClassId } = usePageClass();
-  const { classClassId } = useClassClass();
+  const { pageClassUuid } = usePageClass();
+  const { classClassUuid } = useClassClass();
 
   const [importing, setImporting] = useState(false);
   const [importStatus, setImportStatus] = useState('');
@@ -58,11 +58,11 @@ export function useLogseqImporter() {
     parsed: LogseqExport,
     options: { importMode: ImportMode; uuidOverrides?: Record<string, string> },
   ) => {
-    if (!parsed || !pageClassId) return;
+    if (!parsed || !pageClassUuid) return;
 
     await runImport(parsed, options, {
-      pageClassId,
-      classClassId,
+      pageClassUuid,
+      classClassUuid,
       mutations: {
         createNode: createNodeMutation,
         updateNode: updateNodeMutation,
@@ -77,7 +77,7 @@ export function useLogseqImporter() {
         setError,
       },
     });
-  }, [createNodeMutation, updateNodeMutation, createPropertyMutation, pageClassId, classClassId, queryClient]);
+  }, [createNodeMutation, updateNodeMutation, createPropertyMutation, pageClassUuid, classClassUuid, queryClient]);
 
   return {
     importing,
@@ -88,7 +88,7 @@ export function useLogseqImporter() {
     reset,
     runImport: runImportCallback,
     /** null until system classes are loaded — callers should wait before calling runImport */
-    pageClassId,
-    classClassId,
+    pageClassUuid,
+    classClassUuid,
   };
 }

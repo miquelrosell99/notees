@@ -15,11 +15,11 @@ Pages reference other pages with [[Page Name]], blocks with ((block-uuid)).
 Journal pages use tags: 'day', 'month', 'year' with YYYYMMdd format names.
 """
 
-import uuid
 from datetime import datetime
 from typing import TypeVar
 
 from pydantic import BaseModel, field_validator
+from uuid_extensions import uuid7
 
 # Sync DTOs are defined in the domain layer; re-export them here for the API.
 from app.domain.entities.sync import (  # noqa: F401
@@ -69,8 +69,12 @@ def _validate_admin_password_strength(v: str | None) -> str | None:
 
 
 def generate_uuid() -> str:
-    """Generate a unique UUID for nodes."""
-    return str(uuid.uuid4())
+    """Generate a unique UUIDv7 for public identifiers.
+
+    UUIDv7 is time-ordered and DB-friendly, giving better index locality than
+    v4 for the document model (nodes, blocks, graph edges).
+    """
+    return str(uuid7())
 
 
 # Re-exported from the feature-first export module for backward compatibility.

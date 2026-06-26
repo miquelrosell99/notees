@@ -105,26 +105,26 @@ export function NodeContent({
   const { data: allClasses } = useClasses();
   const systemClassMap = useMemo(() => {
     if (!allClasses) return null;
-    const map: Record<string, number | undefined> = {};
+    const map: Record<string, string | undefined> = {};
     for (const [key, classUuid] of Object.entries(SYSTEM_CLASS_UUIDS)) {
       const found = allClasses.find(c => c.uuid === classUuid);
-      if (found) map[key] = found.id;
+      if (found) map[key] = found.uuid;
     }
     return map;
   }, [allClasses]);
 
   // State for manual asset class addition
-  const [manualAssetBlockId, setManualAssetBlockId] = useState<number | null>(null);
+  const [manualAssetBlockId, setManualAssetBlockId] = useState<string | null>(null);
 
-  const handleAddClass = useCallback((blockId: number, classId: number) => {
+  const handleAddClass = useCallback((blockId: string, classId: string) => {
     // Optimistically update the runtime so the block's color/icon change
     // immediately, without waiting for the API round-trip + cache sync.
     const runtime = getOperationRuntime();
-    const graphNode = getAllNodes(runtime).find(n => n.serverId === blockId);
+    const graphNode = getAllNodes(runtime).find(n => n.blockId === blockId);
     if (graphNode && allClasses) {
       const classStrId = String(classId);
       if (!graphNode.classIds.includes(classStrId)) {
-        const classNode = allClasses.find(c => c.id === classId);
+        const classNode = allClasses.find(c => c.uuid === classId);
         upsertNodes([{
           ...graphNode,
           classIds: [...graphNode.classIds, classStrId],
@@ -137,7 +137,7 @@ export function NodeContent({
     // Check if this is adding the asset class manually
     if (systemClassMap?.asset != null && classId === systemClassMap.asset) {
       // Add the class first
-      addClass.mutate({ nodeId: blockId, classId });
+      addClass.mutate({ nodeUuid: blockId, classId });
       // Store state for the upload modal
       setManualAssetBlockId(blockId);
       // Open asset upload modal
@@ -147,39 +147,39 @@ export function NodeContent({
       setIsAssetUploadOpen(true);
       return;
     }
-    addClass.mutate({ nodeId: blockId, classId });
+    addClass.mutate({ nodeUuid: blockId, classId });
   }, [addClass, systemClassMap, allClasses]);
 
   // Asset upload state
   const [isAssetUploadOpen, setIsAssetUploadOpen] = useState(false);
-  const [targetBlockId, setTargetBlockId] = useState<number | null>(null);
+  const [targetBlockId, setTargetBlockId] = useState<string | null>(null);
   const [convertToAsset, setConvertToAsset] = useState(false); // Whether to convert block to asset
   const [assetTypeFilter, setAssetTypeFilter] = useState<AssetCategory[] | undefined>(undefined);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
 
   // Table creation modal state
   const [isTableModalOpen, setIsTableModalOpen] = useState(false);
-  const [tableTargetBlockId, setTableTargetBlockId] = useState<number | null>(null);
+  const [tableTargetBlockId, setTableTargetBlockId] = useState<string | null>(null);
 
   // Move-to-page modal state (/move slash command)
-  const [moveTargetBlockId, setMoveTargetBlockId] = useState<number | null>(null);
+  const [moveTargetBlockId, setMoveTargetBlockId] = useState<string | null>(null);
   const updateNode = useUpdateNode();
   const queryClient = useQueryClient();
 
   // Template instantiation state
   const [pendingTemplate, setPendingTemplate] = useState<{
-    templateNodeId: number;
+    templateNodeId: string;
     templateName: string;
-    blockServerId: number | undefined;
+    blockServerId: string | undefined;
   } | null>(null);
   const { data: templateVariablesData } = useTemplateVariables(pendingTemplate?.templateNodeId ?? null);
   const currentUser = useAuthStore(state => state.user);
 
   // Handle template instantiation from the inline /template picker
-  const handleTemplateInstantiate = useCallback((templateNodeId: number, blockServerId: number | undefined) => {
+  const handleTemplateInstantiate = useCallback((templateNodeId: string, blockServerId: string | undefined) => {
     const runtime = getOperationRuntime();
     const allRuntimeNodes = getAllNodes(runtime);
-    const templateNode = allRuntimeNodes.find(n => n.serverId === templateNodeId);
+    const templateNode = allRuntimeNodes.find(n => n.blockId === templateNodeId);
     setPendingTemplate({
       templateNodeId,
       templateName: templateNode?.name ?? 'Template',
@@ -188,8 +188,8 @@ export function NodeContent({
   }, []);
 
   const executeTemplateInstantiation = useCallback(async (
-    templateNodeId: number,
-    blockServerId: number | undefined,
+    templateNodeId: string,
+    blockServerId: string | undefined,
     variables: Record<string, string>,
     dynamicContext: Record<string, string>,
   ) => {
@@ -199,18 +199,16 @@ export function NodeContent({
       const runtime = getOperationRuntime();
 
       // Insert template children as children of the block where /template was typed
-      const parentId = blockServerId ?? node.id;
+      const parentId = blockServerId ?? node.uuid;
       let parentUuid = node.uuid;
       if (blockServerId != null) {
         const allRuntimeNodes = getAllNodes(runtime);
-        const blockNode = allRuntimeNodes.find(n => n.serverId === blockServerId);
+        const blockNode = allRuntimeNodes.find(n => n.blockId === blockServerId);
         if (blockNode) {
           parentUuid = blockNode.blockId;
         }
       }
-      const templateUuid = getNodeUuidByServerId(queryClient, templateNodeId);
-      if (!templateUuid) throw new Error('Template UUID not found');
-      const result = await instantiateTemplate(templateUuid, {
+      const result = await instantiateTemplate(templateNodeId, {
         parent_uuid: parentUuid,
         as_blocks: true,
         variables,
@@ -218,22 +216,22 @@ export function NodeContent({
       });
       if (result.blocks.length > 0) {
         const { apiNodesToGraphNodes } = await import('@/features/content/hooks/useRuntimeSync');
-        const { graphNodes } = apiNodesToGraphNodes(result.blocks, parentId, parentUuid);
+        const { graphNodes } = apiNodesToGraphNodes(result.blocks, parentUuid);
         upsertNodes(graphNodes);
 
         // Optimistically update the TanStack query cache so that BlockEditor's
         // stale-cleanup sees the new blocks in the `nodes` prop immediately,
         // rather than waiting for an async refetch.
         // The API returns blocks as a flat list; build a nested tree first.
-        const blockMap = new Map<number, Node>();
-        for (const b of result.blocks) blockMap.set(b.id, { ...b, children: [] });
+        const blockMap = new Map<string, Node>();
+        for (const b of result.blocks) blockMap.set(b.uuid, { ...b, children: [] });
         const topLevel: Node[] = [];
         for (const b of result.blocks) {
-          const mapped = blockMap.get(b.id)!;
-          if (b.parent_id === parentId) {
+          const mapped = blockMap.get(b.uuid)!;
+          if (b.parent_uuid === parentId) {
             topLevel.push(mapped);
           } else {
-            const parent = blockMap.get(b.parent_id!);
+            const parent = blockMap.get(b.parent_uuid!);
             if (parent) {
               parent.children = parent.children || [];
               parent.children.push(mapped);
@@ -246,7 +244,7 @@ export function NodeContent({
         const { nodeKeys } = await import('@/hooks/queryKeys');
         const { queryClient } = await import('@/lib/queryClient');
         const addBlocksToParent = (n: Node): Node => {
-          if (n.id === parentId) {
+          if (n.uuid === parentId) {
             return {
               ...n,
               children: [...(n.children || []), ...topLevel],
@@ -283,20 +281,20 @@ export function NodeContent({
         // above provides instant visual feedback; this refetch ensures the
         // data is authoritative and fixes edge-cases the optimistic update
         // might miss (e.g. deeply nested structures or collapsed state).
-        queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(node.id) });
+        queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(node.uuid) });
       }
     } catch (e) {
       console.error('[NodeContent] template instantiation failed', e);
     }
-  }, [node.id, node.uuid]);
+  }, [node.uuid, node.uuid, queryClient]);
 
   // Handle slash commands from the editor
-  const handleSlashCommand = useCallback((commandId: string, blockServerId: number | undefined) => {
+  const handleSlashCommand = useCallback((commandId: string, blockServerId: string | undefined) => {
     switch (commandId) {
       case 'query': {
         const classId = systemClassMap?.query;
         if (classId != null && blockServerId != null) {
-          addClass.mutate({ nodeId: blockServerId, classId });
+          addClass.mutate({ nodeUuid: blockServerId, classId });
         }
         break;
       }
@@ -310,22 +308,22 @@ export function NodeContent({
       case 'code': {
         const classId = systemClassMap?.code;
         if (classId != null && blockServerId != null) {
-          addClass.mutate({ nodeId: blockServerId, classId });
+          addClass.mutate({ nodeUuid: blockServerId, classId });
         }
         break;
       }
       case 'task': {
         const classId = systemClassMap?.task;
         if (classId != null && blockServerId != null) {
-          addClass.mutate({ nodeId: blockServerId, classId });
+          addClass.mutate({ nodeUuid: blockServerId, classId });
           // Also set task_status to 'Pending' so the checkbox appears immediately
           const statusProp = allProperties?.find(p => p.uuid === SYSTEM_PROPERTY_UUIDS.task_status);
           const pendingOption = statusProp?.options?.find(o => o.name === 'Pending');
           if (statusProp && pendingOption) {
             setNodeProperty.mutate({
-              nodeId: blockServerId,
-              propertyId: statusProp.id,
-              value: pendingOption.id,
+              nodeUuid: blockServerId,
+              propertyId: statusProp.uuid,
+              value: pendingOption.uuid,
             });
           }
         }
@@ -339,24 +337,24 @@ export function NodeContent({
       case 'success': {
         const classId = systemClassMap?.[commandId];
         if (classId != null && blockServerId != null) {
-          addClass.mutate({ nodeId: blockServerId, classId });
+          addClass.mutate({ nodeUuid: blockServerId, classId });
         }
         break;
       }
       case 'image':
-        setTargetBlockId(blockServerId ?? node.id);
+        setTargetBlockId(blockServerId ?? node.uuid);
         setConvertToAsset(true);
         setAssetTypeFilter(['image']);
         setIsAssetUploadOpen(true);
         break;
       case 'audio':
-        setTargetBlockId(blockServerId ?? node.id);
+        setTargetBlockId(blockServerId ?? node.uuid);
         setConvertToAsset(true);
         setAssetTypeFilter(['audio']);
         setIsAssetUploadOpen(true);
         break;
       case 'file':
-        setTargetBlockId(blockServerId ?? node.id);
+        setTargetBlockId(blockServerId ?? node.uuid);
         setConvertToAsset(true);
         setAssetTypeFilter(undefined);
         setIsAssetUploadOpen(true);
@@ -370,15 +368,15 @@ export function NodeContent({
         const classId = systemClassMap?.card;
         if (classId == null || blockServerId == null) break;
         addClass.mutate(
-          { nodeId: blockServerId, classId },
+          { nodeUuid: blockServerId, classId },
           {
             onSuccess: () => {
               const runtime = getOperationRuntime();
-              const graphNode = getAllNodes(runtime).find(n => n.serverId === blockServerId);
+              const graphNode = getAllNodes(runtime).find(n => n.blockId === blockServerId);
               const frontText = graphNode
                 ? stringifyAST(graphNode.contentAST, { mode: StringifyMode.TEXT_ONLY }).trim()
                 : '';
-              createFlashcard.mutate({ nodeId: blockServerId, frontText, backText: '' });
+              createFlashcard.mutate({ nodeUuid: blockServerId, frontText, backText: '' });
             },
           },
         );
@@ -387,11 +385,11 @@ export function NodeContent({
       case 'cloze': {
         const clozeClassId = systemClassMap?.cloze;
         if (clozeClassId == null || blockServerId == null) break;
-        addClass.mutate({ nodeId: blockServerId, classId: clozeClassId });
+        addClass.mutate({ nodeUuid: blockServerId, classId: clozeClassId });
         break;
       }
     }
-  }, [systemClassMap, addClass, node.id, allProperties, setNodeProperty, createFlashcard]);
+  }, [systemClassMap, addClass, node.uuid, allProperties, setNodeProperty, createFlashcard]);
 
   // Handle table creation from modal — new table with selected dimensions
   const handleTableConfirm = useCallback(async (size: TableGridSize) => {
@@ -399,22 +397,24 @@ export function NodeContent({
     const classId = systemClassMap?.table;
     if (classId == null) return;
 
-    addClass.mutate({ nodeId: tableTargetBlockId, classId });
+    addClass.mutate({ nodeUuid: tableTargetBlockId, classId });
 
     try {
+      const parentUuid = children.find(c => c.uuid === tableTargetBlockId)?.uuid;
+      if (!parentUuid) return;
       // Create header row
-      const headerRow = await createNode({ name: '', parent_id: tableTargetBlockId, sequence: 0 });
+      const headerRow = await createNode({ name: '', parent_uuid: parentUuid, sequence: 0 });
       await Promise.all(
         Array.from({ length: size.columns }, (_, i) =>
-          createNode({ name: `Column ${i + 1}`, parent_id: headerRow.id, sequence: i })
+          createNode({ name: `Column ${i + 1}`, parent_uuid: headerRow.uuid, sequence: i })
         )
       );
       // Create data rows
       for (let r = 1; r < size.rows; r++) {
-        const row = await createNode({ name: '', parent_id: tableTargetBlockId, sequence: r });
+        const row = await createNode({ name: '', parent_uuid: parentUuid, sequence: r });
         await Promise.all(
           Array.from({ length: size.columns }, (_, c) =>
-            createNode({ name: '', parent_id: row.id, sequence: c })
+            createNode({ name: '', parent_uuid: row.uuid, sequence: c })
           )
         );
       }
@@ -423,14 +423,14 @@ export function NodeContent({
     }
     setIsTableModalOpen(false);
     setTableTargetBlockId(null);
-  }, [tableTargetBlockId, systemClassMap, addClass]);
+  }, [tableTargetBlockId, systemClassMap, addClass, children]);
 
   // Handle table creation — adapt existing children as columns
   const handleTableAdaptExisting = useCallback(() => {
     if (tableTargetBlockId == null) return;
     const classId = systemClassMap?.table;
     if (classId != null) {
-      addClass.mutate({ nodeId: tableTargetBlockId, classId });
+      addClass.mutate({ nodeUuid: tableTargetBlockId, classId });
     }
     setIsTableModalOpen(false);
     setTableTargetBlockId(null);
@@ -449,7 +449,7 @@ export function NodeContent({
   //   overwrites name with filename when existing_node_id is passed)
   const handleAssetUploaded = useCallback(async (asset: Asset) => {
     if (targetBlockId && !convertToAsset) {
-      const block = children.find(c => c.id === targetBlockId);
+      const block = children.find(c => c.uuid === targetBlockId);
       if (block) {
         // Insert asset link
         const assetLink = `[[${asset.node_id}]]`;
@@ -476,9 +476,9 @@ export function NodeContent({
   // Handle image paste in a block
   // - Convert the block to an asset via existing_node_uuid
   // - Pass the original content so the backend preserves it
-  const handlePasteImage = useCallback(async (blockServerId: number, file: File, _hasContent: boolean) => {
+  const handlePasteImage = useCallback(async (blockServerId: string, file: File, _hasContent: boolean) => {
     try {
-      const block = children.find(c => c.id === blockServerId);
+      const block = children.find(c => c.uuid === blockServerId);
       const savedContent = block?.name || '';
       const blockUuid = block?.uuid;
       if (!blockUuid) return;
@@ -511,7 +511,7 @@ export function NodeContent({
           onContentChange={handleBlockChange}
           showEmpty={false}
           showClasses={true}
-          pageId={node.id}
+          pageId={node.uuid}
           nodeUuid={node.uuid}
           onAddClass={handleAddClass}
           onSlashCommand={handleSlashCommand}
@@ -527,7 +527,7 @@ export function NodeContent({
         onClose={() => { 
           // If this was a manual asset class addition, remove the class on cancel
           if (manualAssetBlockId && systemClassMap?.asset != null) {
-            removeClass.mutate({ nodeId: manualAssetBlockId, classId: systemClassMap.asset });
+            removeClass.mutate({ nodeUuid: manualAssetBlockId, classId: systemClassMap.asset });
           }
           setIsAssetUploadOpen(false);
           setTargetBlockId(null);
@@ -537,8 +537,8 @@ export function NodeContent({
           setManualAssetBlockId(null);
         }}
         onUpload={handleAssetUploaded}
-        parentId={(targetBlockId ? children.find(c => c.id === targetBlockId)?.uuid : undefined) || node.uuid}
-        existingNodeId={convertToAsset ? (targetBlockId ? children.find(c => c.id === targetBlockId)?.uuid : undefined) : undefined}
+        parentId={(targetBlockId ? children.find(c => c.uuid === targetBlockId)?.uuid : undefined) || node.uuid}
+        existingNodeId={convertToAsset ? (targetBlockId ? children.find(c => c.uuid === targetBlockId)?.uuid : undefined) : undefined}
         acceptedTypes={assetTypeFilter}
         initialFile={pendingFile}
       />
@@ -566,7 +566,10 @@ export function NodeContent({
           placeholder="Search pages..."
           onChange={(val) => {
             if (typeof val === 'number' && moveTargetBlockId != null) {
-              updateNode.mutate({ id: moveTargetBlockId, data: { parent_id: val } });
+              const parentUuid = getNodeUuidByServerId(queryClient, val);
+              if (parentUuid) {
+                updateNode.mutate({ nodeUuid: moveTargetBlockId, data: { parent_uuid: parentUuid } });
+              }
               setMoveTargetBlockId(null);
             }
           }}

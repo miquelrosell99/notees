@@ -121,11 +121,11 @@ export function useAndroidBridge() {
       },
 
       onDeepLink(path: string) {
-        // Route to the path — parse node id from /node/42 etc.
-        const nodeMatch = path.match(/^\/node\/(\d+)/);
+        // Route to the path — parse node UUID from /node/:uuid
+        const nodeMatch = path.match(/^\/node\/([^/]+)/);
         if (nodeMatch) {
-          const id = parseInt(nodeMatch[1], 10);
-          if (Number.isFinite(id)) openNode(id);
+          const nodeUuid = nodeMatch[1];
+          if (nodeUuid) openNode(nodeUuid);
           return;
         }
 

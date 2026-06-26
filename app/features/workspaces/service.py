@@ -71,6 +71,7 @@ class WorkspaceService:
                     "created_at": row["create_date"].isoformat() if row["create_date"] else None,
                     "updated_at": row["write_date"].isoformat() if row["write_date"] else None,
                     "is_shared": row["is_shared"],
+                    "sync_protocol_version": row["sync_protocol_version"],
                     "role": role,
                     "is_active": str(row["uuid"]) == active_uuid,
                 }
@@ -362,3 +363,24 @@ class WorkspaceService:
             raise PermissionError("Only workspace owners can remove invites")
 
         await self._workspace_repo.remove_pending_invite(ws_id, email)
+
+    async def get_sync_protocol_version(self, workspace_uuid: str, user_id: int) -> str:
+        """Get the sync protocol version for a workspace."""
+        workspace = await self._workspace_repo.get_by_uuid_for_user(workspace_uuid, user_id)
+        if not workspace:
+            raise ValueError("Workspace not found")
+        return await self._workspace_repo.get_sync_protocol_version(workspace["id"])
+
+    async def set_sync_protocol_version(
+        self, workspace_uuid: str, user_id: int, version: str
+    ) -> None:
+        """Set the sync protocol version for a workspace (owner only)."""
+        ws = await self._workspace_repo.get_workspace_id_owner(workspace_uuid)
+        if not ws:
+            raise ValueError("Workspace not found")
+        ws_id, ws_owner_id = ws
+        if ws_owner_id != user_id:
+            raise PermissionError("Only workspace owners can change sync protocol")
+        if version not in {"v1", "v2"}:
+            raise ValueError("Invalid sync protocol version")
+        await self._workspace_repo.set_sync_protocol_version(ws_id, version)

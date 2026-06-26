@@ -17,16 +17,6 @@ import { getEffectiveIcon, getEffectiveColor } from '@/utils/nodeIcon';
 import { propertyKeys } from '@/hooks/queryKeys';
 import { upsertNodes } from '@/runtime/eventBus';
 
-/** Resolve class icon from numeric class IDs using a prebuilt map */
-function resolveClassIcon(classIds: number[] | undefined, iconMap?: Map<number, string>): string | null {
-  if (!classIds || classIds.length === 0 || !iconMap) return null;
-  for (const id of classIds) {
-    const icon = iconMap.get(id);
-    if (icon) return icon;
-  }
-  return null;
-}
-
 /** Map of system class UUIDs to callout banner types */
 const CALLOUT_UUID_TO_TYPE: Record<string, string> = {
   [SYSTEM_CLASS_UUIDS.warning]: 'warning',
@@ -37,58 +27,40 @@ const CALLOUT_UUID_TO_TYPE: Record<string, string> = {
   [SYSTEM_CLASS_UUIDS.success]: 'success',
 };
 
-/** Resolve callout type from numeric class IDs using a prebuilt map */
-function resolveCalloutType(classIds: number[] | undefined, uuidMap?: Map<number, string>): string | null {
-  if (!classIds || classIds.length === 0 || !uuidMap) return null;
-  for (const id of classIds) {
-    const classUuid = uuidMap.get(id);
-    if (classUuid) {
-      const type = CALLOUT_UUID_TO_TYPE[classUuid];
-      if (type) return type;
-    }
+/** Resolve callout type from class UUIDs. */
+function resolveCalloutType(classUuids: string[] | undefined): string | null {
+  if (!classUuids || classUuids.length === 0) return null;
+  for (const classUuid of classUuids) {
+    const type = CALLOUT_UUID_TO_TYPE[classUuid];
+    if (type) return type;
   }
   return null;
 }
 
 /**
  * Convert an API Node to a GraphNode for the runtime.
- * Note: parentId will be set as the parent's UUID if idToUuidMap is provided.
  */
 export function apiNodeToGraphNode(
   node: Node,
-  idToUuidMap?: Map<number, string>,
-  classIdToUuidMap?: Map<number, string>,
-  classIdToIconMap?: Map<number, string>,
   allClasses?: Node[],
 ): GraphNode {
-  // Convert parent_id (server ID) to parent UUID
-  let parentUuid: string | null = null;
-  if (node.parent_id) {
-    if (idToUuidMap) {
-      parentUuid = idToUuidMap.get(node.parent_id) ?? null;
-    }
-    // Fallback: if no map or not found, leave as null
-    // (node won't be linked to parent but at least won't crash)
-  }
-  
   // Parse AST once — reuse for both contentAST and the plain-text name
   const ast = parseAST(node.name);
   return {
     blockId: node.uuid,
-    serverId: node.id,
-    parentId: parentUuid,
+    parentId: node.parent_uuid,
     orderIndex: node.sequence ?? 0,
-    nodeType: inferNodeType(node, classIdToUuidMap),
+    nodeType: inferNodeType(node),
     contentAST: ast as ContentAST,
     collapsed: node.collapsed ?? false,
     isDeleted: node.is_deleted ?? false,
     isPage: node.is_page ?? false,
     name: stringifyAST(ast, { mode: StringifyMode.TEXT_ONLY }),
-    icon: getEffectiveIcon(node, allClasses) ?? resolveClassIcon(node.classes, classIdToIconMap) ?? null,
+    icon: getEffectiveIcon(node, allClasses) ?? null,
     color: getEffectiveColor(node, allClasses) ?? null,
-    classIds: (node.classes || []).map(String),
-    tagIds: (node.tags || []).map(String),
-    calloutType: resolveCalloutType(node.classes, classIdToUuidMap),
+    classIds: node.classes_uuid || [],
+    tagIds: node.tags_uuid || [],
+    calloutType: resolveCalloutType(node.classes_uuid),
     taskStatus: resolveTaskStatus(node),
     createdAt: node.create_date || new Date().toISOString(),
     updatedAt: node.write_date || new Date().toISOString(),
@@ -99,67 +71,35 @@ export function apiNodeToGraphNode(
 }
 
 /**
- * Convert an array of API Nodes to GraphNodes with proper parent UUID resolution.
+ * Convert an array of API Nodes to GraphNodes.
  * Simple version used by sync hooks.
  */
 function convertNodesToGraphNodes(nodes: Node[]): GraphNode[] {
-  const idToUuidMap = new Map<number, string>();
-  for (const node of nodes) {
-    idToUuidMap.set(node.id, node.uuid);
-  }
-  const classIdToUuidMap = buildClassIdToUuidMap();
-  const classIdToIconMap = buildClassIdToIconMap();
   const allClasses = queryClient.getQueryData<Node[]>(nodeKeys.classes());
-  return nodes.map(n => apiNodeToGraphNode(n, idToUuidMap, classIdToUuidMap, classIdToIconMap, allClasses ?? undefined));
+  return nodes.map(n => apiNodeToGraphNode(n, allClasses ?? undefined));
 }
 
 /**
  * Convert API nodes to GraphNodes for the editor.
  * No virtual root is created. Instead:
- * - If pageId/nodeUuid are provided, they're added to the ID→UUID map so
- *   children's parent_id resolves correctly. rootBlockId = nodeUuid.
+ * - If nodeUuid is provided, rootBlockId = nodeUuid.
  * - Otherwise, auto-detects the root from the array structure.
  *
- * The parent node is NOT added as a GraphNode — only its serverId is registered
- * via runtime.registerParentServerId() by the caller.
+ * The parent node is NOT added as a GraphNode.
  */
 export function apiNodesToGraphNodes(
   nodes: Node[],
-  pageId?: number,
   nodeUuid?: string,
 ): { graphNodes: GraphNode[]; rootBlockId: string } {
-  console.log('[apiNodesToGraphNodes] called', { nodeCount: nodes.length, pageId, nodeUuid, topLevelUuids: nodes.map((n) => n.uuid) });
-  const idToUuidMap = new Map<number, string>();
-  const nodeIdSet = new Set<number>();
-  const classIdToUuidMap = buildClassIdToUuidMap();
-  const classIdToIconMap = buildClassIdToIconMap();
+  console.log('[apiNodesToGraphNodes] called', { nodeCount: nodes.length, nodeUuid, topLevelUuids: nodes.map((n) => n.uuid) });
   const allClasses = queryClient.getQueryData<Node[]>(nodeKeys.classes());
 
-  // Include parent/page in map so children's parent_id resolves to nodeUuid
-  if (pageId != null && nodeUuid) {
-    idToUuidMap.set(pageId, nodeUuid);
-  }
-
-  // With the intent-aware upsertNodes, the runtime preserves locally-mutated
-  // fields for nodes with pending intents and accepts server state for all
-  // other fields. The old serverId→runtimeBlockId reconciliation hack is no
-  // longer needed because remapBlockId is called before cache invalidation
-  // in the bridge hooks, so the runtime and API data use the same UUID.
-  for (const node of nodes) {
-    idToUuidMap.set(node.id, node.uuid);
-    nodeIdSet.add(node.id);
-  }
-
-  const graphNodes = nodes.map(n =>
-    apiNodeToGraphNode(n, idToUuidMap, classIdToUuidMap, classIdToIconMap, allClasses ?? undefined)
-  );
+  const graphNodes = nodes.map(n => apiNodeToGraphNode(n, allClasses ?? undefined));
 
   console.log('[apiNodesToGraphNodes] output', {
     firstGraphNode: graphNodes[0]?.blockId,
     firstParentId: graphNodes[0]?.parentId,
     firstOrderIndex: graphNodes[0]?.orderIndex,
-    idToUuidMapSize: idToUuidMap.size,
-    idToUuidMapHasPageId: pageId != null ? idToUuidMap.has(pageId) : null,
   });
 
   // Determine rootBlockId — the parent ID used for project() traversal
@@ -167,27 +107,25 @@ export function apiNodesToGraphNodes(
     return { graphNodes, rootBlockId: nodeUuid };
   }
 
+  const nodeUuidSet = new Set(nodes.map(n => n.uuid));
+
   // Auto-detect: find nodes whose parent is not in the set
-  const topLevelNodes = nodes.filter(n => !n.parent_id || !nodeIdSet.has(n.parent_id));
+  const topLevelNodes = nodes.filter(n => !n.parent_uuid || !nodeUuidSet.has(n.parent_uuid));
 
   if (topLevelNodes.length === 1 && nodes.length > 1) {
     // Single top-level node with children in the array — it's the natural root
     return { graphNodes, rootBlockId: topLevelNodes[0].uuid };
   }
 
-  if (topLevelNodes.length > 0 && topLevelNodes[0].parent_id) {
+  if (topLevelNodes.length > 0 && topLevelNodes[0].parent_uuid) {
     // Multiple top-level nodes share a common parent not in the set
-    const parentUuid = idToUuidMap.get(topLevelNodes[0].parent_id);
-    if (parentUuid) {
-      return { graphNodes, rootBlockId: parentUuid };
-    }
+    return { graphNodes, rootBlockId: topLevelNodes[0].parent_uuid };
   }
 
   // Multiple top-level nodes without a common resolvable parent.
   // Create a stable virtual root so project() can find all of them.
   if (topLevelNodes.length > 1) {
-    // Use count + first/last IDs for a compact, stable identifier
-    const sorted = topLevelNodes.map(n => n.id).sort((a, b) => a - b);
+    const sorted = topLevelNodes.map(n => n.uuid).sort((a, b) => a.localeCompare(b));
     const virtualRootId = `vroot-${sorted[0]}-${sorted[sorted.length - 1]}-${sorted.length}`;
     const topLevelUuids = new Set(topLevelNodes.map(n => n.uuid));
     for (const gn of graphNodes) {
@@ -216,61 +154,32 @@ const CLASS_UUID_TO_NODE_TYPE: Partial<Record<string, GraphNodeType>> = {
 };
 
 /**
- * Build a class server-ID → UUID map from the TanStack Query cache.
- * Used to resolve numeric class IDs to UUIDs for type inference.
- */
-function buildClassIdToUuidMap(): Map<number, string> {
-  const allClasses = queryClient.getQueryData<Node[]>(nodeKeys.classes());
-  if (!allClasses) return new Map();
-  const map = new Map<number, string>();
-  for (const cls of allClasses) {
-    map.set(cls.id, cls.uuid);
-  }
-  return map;
-}
-
-function buildClassIdToIconMap(): Map<number, string> {
-  const allClasses = queryClient.getQueryData<Node[]>(nodeKeys.classes());
-  if (!allClasses) return new Map();
-  const map = new Map<number, string>();
-  for (const cls of allClasses) {
-    if (cls.icon) map.set(cls.id, cls.icon);
-  }
-  return map;
-}
-
-/**
  * Resolve task status name from a node's properties.
  * Looks up the task_status property value in the node's cached properties
  * and maps the selection option ID to its display name.
  */
 function resolveTaskStatus(node: Node): string | null {
-  const allProperties = queryClient.getQueryData<{ id: number; uuid: string; options?: { id: number; name: string }[] }[]>(propertyKeys.lists());
+  const allProperties = queryClient.getQueryData<{ uuid: string; options?: { uuid: string; name: string }[] }[]>(propertyKeys.lists());
   const statusProp = allProperties?.find(p => p.uuid === SYSTEM_PROPERTY_UUIDS.task_status);
-  if (!statusProp || !node.properties) return null;
-  const selId = node.properties[statusProp.id];
-  if (typeof selId !== 'number') return null;
-  const option = statusProp.options?.find(o => o.id === selId);
+  if (!statusProp || !node.properties_uuid) return null;
+  const selId = node.properties_uuid[statusProp.uuid];
+  if (typeof selId !== 'string') return null;
+  const option = statusProp.options?.find(o => o.uuid === selId);
   return option?.name ?? null;
 }
 
-function inferNodeType(node: Node, classIdToUuidMap?: Map<number, string>): GraphNodeType {
+function inferNodeType(node: Node): GraphNodeType {
   if (node.is_page) return 'page';
   if (node.is_daily) return 'day';
   if (node.is_monthly) return 'month';
   if (node.is_yearly) return 'year';
   // Check classes for special types
-  const classes = node.classes || [];
+  const classes = node.classes_uuid || [];
   if (classes.length === 0) return 'block';
 
-  // Resolve class server IDs to UUIDs via the cached class list
-  const map = classIdToUuidMap || buildClassIdToUuidMap();
-  for (const classId of classes) {
-    const classUuid = map.get(classId);
-    if (classUuid) {
-      const nodeType = CLASS_UUID_TO_NODE_TYPE[classUuid];
-      if (nodeType) return nodeType;
-    }
+  for (const classUuid of classes) {
+    const nodeType = CLASS_UUID_TO_NODE_TYPE[classUuid];
+    if (nodeType) return nodeType;
   }
   return 'block';
 }

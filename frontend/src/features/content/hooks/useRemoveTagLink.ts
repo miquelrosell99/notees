@@ -11,14 +11,13 @@ export function useRemoveTagLink() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ nodeId, targetId }: { nodeId: number; targetId: number }) => {
-      const nodeUuid = getNodeUuidByServerId(queryClient, nodeId);
+    mutationFn: ({ nodeUuid, targetId }: { nodeUuid: string; targetId: string }) => {
       const targetNodeUuid = getNodeUuidByServerId(queryClient, targetId);
       if (!nodeUuid || !targetNodeUuid) throw new Error('Node UUID not found');
       return nodesApi.removeTagLink(nodeUuid, targetNodeUuid);
     },
-    onSuccess: (_, { nodeId }) => {
-      queryClient.invalidateQueries({ queryKey: nodeKeys.textLinks(nodeId) });
+    onSuccess: (_, { nodeUuid }) => {
+      queryClient.invalidateQueries({ queryKey: nodeKeys.textLinks(nodeUuid) });
     },
   });
 }

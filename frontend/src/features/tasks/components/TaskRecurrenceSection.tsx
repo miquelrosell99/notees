@@ -17,19 +17,19 @@ import { TaskRecurrencePicker } from './TaskRecurrencePicker';
 import './TaskRecurrenceSection.css';
 
 interface TaskRecurrenceSectionProps {
-  nodeId: string;
+  nodeUuid: string;
   readOnly?: boolean;
 }
 
-export function TaskRecurrenceSection({ nodeId, readOnly = false }: TaskRecurrenceSectionProps) {
-  const { data: rule } = useTaskRecurrence(nodeId);
+export function TaskRecurrenceSection({ nodeUuid, readOnly = false }: TaskRecurrenceSectionProps) {
+  const { data: rule } = useTaskRecurrence(nodeUuid);
   const setMutation = useSetTaskRecurrence();
   const deleteMutation = useDeleteTaskRecurrence();
   const { error: notifyError } = useNotifications();
 
   const handleChange = (input: RecurrenceRuleInput) => {
     setMutation.mutate(
-      { nodeId, rule: input },
+      { nodeUuid, rule: input },
       {
         onError: () => notifyError('Failed to save recurrence rule', 'Please try again.'),
       }
@@ -38,7 +38,7 @@ export function TaskRecurrenceSection({ nodeId, readOnly = false }: TaskRecurren
 
   const handleDelete = () => {
     deleteMutation.mutate(
-      { nodeId },
+      { nodeUuid },
       {
         onError: () => notifyError('Failed to remove recurrence rule', 'Please try again.'),
       }
@@ -60,7 +60,7 @@ export function TaskRecurrenceSection({ nodeId, readOnly = false }: TaskRecurren
           onDelete={rule ? handleDelete : undefined}
           readOnly={readOnly || setMutation.isPending || deleteMutation.isPending}
         />
-        <TaskCompletionHistory nodeId={nodeId} readOnly={readOnly} />
+        <TaskCompletionHistory nodeUuid={nodeUuid} readOnly={readOnly} />
       </div>
     </NodeViewSection>
   );

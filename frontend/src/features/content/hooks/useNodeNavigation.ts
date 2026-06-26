@@ -57,18 +57,18 @@ export function useNodeNavigation() {
     // show stale (blank) content because the save fires too late.
     flushAllContentSaves();
     // Redirect to main node if this is an alias (unless opted out)
-    const targetId = (!options?.skipAliasRedirect && node.aliased_id) 
-      ? node.aliased_id 
-      : node.id;
+    const targetId = (!options?.skipAliasRedirect && node.aliased_uuid) 
+      ? node.aliased_uuid 
+      : node.uuid;
     openNode(targetId);
   }, [openNode]);
 
   /** Open a node in the sidebar */
   const openInSidebar = useCallback((node: Node, options?: NavigationOptions) => {
     // Redirect to main node if this is an alias (unless opted out)
-    const targetId = (!options?.skipAliasRedirect && node.aliased_id) 
-      ? node.aliased_id 
-      : node.id;
+    const targetId = (!options?.skipAliasRedirect && node.aliased_uuid) 
+      ? node.aliased_uuid 
+      : node.uuid;
     addSidebarCard(targetId, getNodeViewType(node) as SidebarCardType);
   }, [addSidebarCard]);
 
@@ -76,18 +76,18 @@ export function useNodeNavigation() {
   const handleNodeClick = useCallback((node: Node, options?: NavigationOptions) => {
     flushAllContentSaves();
     // Redirect to main node if this is an alias (unless opted out)
-    const targetId = (!options?.skipAliasRedirect && node.aliased_id) 
-      ? node.aliased_id 
-      : node.id;
+    const targetId = (!options?.skipAliasRedirect && node.aliased_uuid) 
+      ? node.aliased_uuid 
+      : node.uuid;
     openNode(targetId);
   }, [openNode]);
 
   /** Shift+click handler: opens in sidebar. Pass directly as onNodeShiftClick. */
   const handleNodeShiftClick = useCallback((node: Node, options?: NavigationOptions) => {
     // Redirect to main node if this is an alias (unless opted out)
-    const targetId = (!options?.skipAliasRedirect && node.aliased_id) 
-      ? node.aliased_id 
-      : node.id;
+    const targetId = (!options?.skipAliasRedirect && node.aliased_uuid) 
+      ? node.aliased_uuid 
+      : node.uuid;
     addSidebarCard(targetId, getNodeViewType(node) as SidebarCardType);
   }, [addSidebarCard]);
 

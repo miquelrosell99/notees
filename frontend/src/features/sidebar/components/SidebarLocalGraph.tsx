@@ -23,9 +23,9 @@ export interface SidebarLocalGraphProps {
 }
 
 export function SidebarLocalGraph({ 
-  nodeUuid,
-  className = '' 
-}: SidebarLocalGraphProps) {
+      nodeUuid,
+      className = '' 
+    }: SidebarLocalGraphProps) {
   const { data: allNodes, isLoading } = useGraphNodes();
   
   if (isLoading) {

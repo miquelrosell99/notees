@@ -10,12 +10,14 @@
  * - Forward presence events into livePresenceStore
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { liveSyncManager, useLivePresenceStore, type PresenceUser } from '@/features/collab';
 import { useAuthStore } from '@/features/auth';
 import { useEditorFocusStore } from '@/stores/editorFocusStore';
 import { useNotificationStore } from '@/stores/notificationStore';
+import { useWorkspaces } from '@/features/workspace';
+import { useSyncProtocolVersion } from '@/features/workspace/hooks/useSyncProtocolVersion';
 import type { Node } from '@/types';
 import { updateNodeInTreeCaches, updateNodeInFlatCaches, updateNodeInListCaches } from '@/hooks/cacheUtils';
 
@@ -23,7 +25,7 @@ interface UseLivePageSyncOptions {
   /** Page UUID to sync.  If null/empty the hook is a no-op. */
   nodeUuid: string | null | undefined;
   /** Server node ID of the page (for cache invalidation). */
-  pageId?: number | null;
+  pageId?: string | null;
   /** When false, the hook is a no-op and always reports 'idle'. */
   enabled?: boolean;
 }
@@ -35,7 +37,7 @@ interface UseLivePageSyncOptions {
  */
 function applyRemoteBlockUpdate(
   queryClient: ReturnType<typeof useQueryClient>,
-  blockId: number,
+  blockId: string,
   name: string,
 ) {
   const updater = (node: Node): Node => ({ ...node, name });
@@ -51,13 +53,25 @@ export function useLivePageSync({ nodeUuid, enabled = true }: UseLivePageSyncOpt
   const authVerified = useAuthStore((s) => s.authVerified);
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'connecting' | 'error' | 'idle'>('idle');
 
+  const { data: workspacesData } = useWorkspaces({ enabled: authVerified });
+  const activeWorkspace = useMemo(() => {
+    if (!workspacesData?.items) return null;
+    return workspacesData.items.find((ws) => ws.is_active) ?? workspacesData.items[0] ?? null;
+  }, [workspacesData]);
+  const { data: protocolData } = useSyncProtocolVersion(activeWorkspace?.uuid);
+  const protocolVersion = (protocolData?.sync_protocol_version as 'v1' | 'v2') ?? 'v1';
+
   useEffect(() => {
     if (!enabled || !nodeUuid || !authVerified) return;
 
     const unsubStatus = liveSyncManager.onStatusChange(setConnectionStatus);
 
     try {
-      liveSyncManager.connect(nodeUuid);
+      liveSyncManager.connect(
+        nodeUuid,
+        activeWorkspace?.uuid ?? null,
+        protocolVersion,
+      );
     } catch (err) {
       console.warn('[useLivePageSync] Failed to connect live sync, retrying...', err);
     }
@@ -84,12 +98,12 @@ export function useLivePageSync({ nodeUuid, enabled = true }: UseLivePageSyncOpt
           }
           case 'block_locked': {
             const user: PresenceUser = {
-              id: msg.user_id,
+              nodeUuid: msg.user_id,
               name: 'User',
               color: '',
             };
             const usersOnBlock = presence.getUsersOnBlock(nodeUuid, msg.block_uuid);
-            const existing = usersOnBlock.find((u) => u.id === msg.user_id);
+            const existing = usersOnBlock.find((u) => u.nodeUuid === msg.user_id);
             if (existing) {
               user.name = existing.name;
               user.color = existing.color;
@@ -161,12 +175,12 @@ export function useLivePageSync({ nodeUuid, enabled = true }: UseLivePageSyncOpt
               msg.name,
             );
             const typingUser: PresenceUser = {
-              id: msg.user_id,
+              nodeUuid: msg.user_id,
               name: 'User',
               color: '',
             };
             const usersOnBlock = presence.getUsersOnBlock(nodeUuid, msg.block_uuid);
-            const existing = usersOnBlock.find((u) => u.id === msg.user_id);
+            const existing = usersOnBlock.find((u) => u.nodeUuid === msg.user_id);
             if (existing) {
               typingUser.name = existing.name;
               typingUser.color = existing.color;
@@ -198,7 +212,7 @@ export function useLivePageSync({ nodeUuid, enabled = true }: UseLivePageSyncOpt
         }));
       }
     };
-  }, [nodeUuid, queryClient, enabled, authVerified]);
+  }, [nodeUuid, queryClient, enabled, authVerified, activeWorkspace?.uuid, protocolVersion]);
 
   return connectionStatus;
 }

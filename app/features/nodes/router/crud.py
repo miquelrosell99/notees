@@ -138,25 +138,23 @@ async def create_node(
     """Create a new node."""
     service = await _get_node_service(user)
 
-    # Resolve optional parent UUID to numeric ID. Explicit parent_id takes
-    # precedence for backwards compatibility during the UUID migration.
-    parent_id = body.parent_id
-    if parent_id is None and body.parent_uuid is not None:
+    # Resolve optional parent UUID to numeric ID.
+    parent_id: int | None = None
+    if body.parent_uuid is not None:
         parent = await repo.get_by_uuid(body.parent_uuid)
         if parent is None or parent.id is None:
             raise HTTPException(404, "Parent node not found")
         parent_id = parent.id
 
-    # Prefer UUID lists when provided, otherwise fall back to numeric IDs.
-    class_ids = list(body.classes)
+    class_ids: list[int] = []
     if body.class_uuids:
         class_ids = await resolve_class_uuids(body.class_uuids, repo)
 
-    tag_ids = list(body.tags)
+    tag_ids: list[int] = []
     if body.tag_uuids:
         tag_ids = await resolve_node_uuids(body.tag_uuids, repo)
 
-    property_values = dict(body.properties)
+    property_values: dict[int, Any] = {}
     if body.property_uuids:
         prop_uuids = list(body.property_uuids.keys())
         prop_map = {prop.uuid: prop.id for prop in await property_repo.get_by_uuids(prop_uuids) if prop.id is not None}
@@ -627,16 +625,16 @@ async def instantiate_template(
     if not node.is_template:
         raise HTTPException(422, "Node is not a template")
 
-    # Resolve public UUIDs to internal IDs (legacy *_id fields take precedence).
-    parent_id = body.parent_id
-    if parent_id is None and body.parent_uuid is not None:
+    # Resolve public UUIDs to internal IDs.
+    parent_id: int | None = None
+    if body.parent_uuid is not None:
         parent = await repo.get_by_uuid(body.parent_uuid)
         if parent is None or parent.id is None:
             raise HTTPException(404, "Parent node not found")
         parent_id = parent.id
 
-    after_id = body.after_id
-    if after_id is None and body.after_uuid is not None:
+    after_id: int | None = None
+    if body.after_uuid is not None:
         after = await repo.get_by_uuid(body.after_uuid)
         if after is None or after.id is None:
             raise HTTPException(404, "Anchor node not found")
@@ -891,7 +889,6 @@ async def get_page_content(
                 parent_id=target.parent_id,
                 page_id=target.page_id,
                 sequence=target.sequence,
-                collapsed=target.collapsed,
                 active=target.active,
                 display_name=_name_text(target.name, max_len=None),
                 classes=list(target.class_ids or []),
@@ -925,26 +922,29 @@ async def update_node(
 
     logger.debug("[UPDATE_NODE] node_id=%s, fields_set=%s", node_id, body.model_fields_set)
 
-    # Resolve public UUIDs to internal IDs (legacy *_id fields take precedence).
-    parent_id = body.parent_id
-    if parent_id is None and body.parent_uuid is not None:
-        parent = await repo.get_by_uuid(body.parent_uuid)
-        if parent is None or parent.id is None:
-            raise HTTPException(404, "Parent node not found")
-        parent_id = parent.id
+    # Resolve public UUIDs to internal IDs.
+    parent_id: int | None = None
+    clear_parent = False
+    if "parent_uuid" in body.model_fields_set:
+        clear_parent = body.parent_uuid is None
+        if body.parent_uuid is not None:
+            parent = await repo.get_by_uuid(body.parent_uuid)
+            if parent is None or parent.id is None:
+                raise HTTPException(404, "Parent node not found")
+            parent_id = parent.id
 
-    class_ids = body.classes
+    class_ids: list[int] | None = None
     if body.class_uuids is not None:
         class_ids = await resolve_class_uuids(body.class_uuids, repo)
 
-    property_values = dict(body.properties) if body.properties is not None else None
-    if body.property_uuids:
+    property_values: dict[int, Any] | None = None
+    if body.property_uuids is not None:
         prop_uuids = list(body.property_uuids.keys())
         prop_map = {prop.uuid: prop.id for prop in await property_repo.get_by_uuids(prop_uuids) if prop.id is not None}
         missing_props = [u for u in prop_uuids if u not in prop_map]
         if missing_props:
             raise HTTPException(404, f"Properties not found: {missing_props}")
-        property_values = property_values or {}
+        property_values = {}
         for prop_uuid, value in body.property_uuids.items():
             property_values[prop_map[prop_uuid]] = value
 
@@ -955,10 +955,9 @@ async def update_node(
         # Set clear flags when field was explicitly provided as None
         clear_icon="icon" in body.model_fields_set and body.icon is None,
         clear_color="color" in body.model_fields_set and body.color is None,
-        clear_parent="parent_id" in body.model_fields_set and body.parent_id is None,
+        clear_parent=clear_parent,
         parent_id=parent_id,
         sequence=body.sequence,
-        collapsed=body.collapsed,
         is_private=body.is_private,
         expected_version=body.expected_version,
     )
@@ -1049,17 +1048,13 @@ async def move_node(
     """
     service = await _get_node_service(user)
 
-    # Resolve parent from UUID or numeric ID
-    parent_id: int | None = request.parent_id
-    if parent_id is None and request.parent_uuid is not None:
-        parent = await repo.get_by_uuid(request.parent_uuid)
-        if parent is None or parent.id is None:
-            raise HTTPException(404, "Parent node not found")
-        parent_id = parent.id
-
-    # Validate parent_id is provided
-    if parent_id is None:
-        raise HTTPException(400, "parent_id is required for move operation")
+    # Resolve parent from UUID
+    if request.parent_uuid is None:
+        raise HTTPException(400, "parent_uuid is required for move operation")
+    parent = await repo.get_by_uuid(request.parent_uuid)
+    if parent is None or parent.id is None:
+        raise HTTPException(404, "Parent node not found")
+    parent_id = parent.id
 
     # Default position to 0 if not specified
     position = request.position if request.position is not None else 0

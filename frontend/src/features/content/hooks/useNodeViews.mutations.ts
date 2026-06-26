@@ -61,7 +61,7 @@ export function useUpdateNodeView() {
       updateNodeView(requireViewUuid(viewId), data),
     onSuccess: (updatedView) => {
       // Update the cache for this view
-      queryClient.setQueryData(nodeViewKeys.detail(updatedView.id), updatedView);
+      queryClient.setQueryData(nodeViewKeys.detail(updatedView.nodeUuid), updatedView);
       // Invalidate list queries
       queryClient.invalidateQueries({
         queryKey: nodeViewKeys.list(updatedView.node_uuid),
@@ -80,18 +80,18 @@ export function useUpdateQueryAST() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ viewId, queryAST }: { viewId: number; queryAST: Record<string, any> }) =>
+    mutationFn: ({ viewId, queryAST }: { viewId: string; queryAST: Record<string, any> }) =>
       updateQueryAST(requireViewUuid(viewId), queryAST),
     onSuccess: (updatedView) => {
       // Update the cache for this view
-      queryClient.setQueryData(nodeViewKeys.detail(updatedView.id), updatedView);
+      queryClient.setQueryData(nodeViewKeys.detail(updatedView.nodeUuid), updatedView);
       // Invalidate ALL query results for this view (regardless of parameters)
       queryClient.invalidateQueries({
         queryKey: nodeViewKeys.queryResults(),
         predicate: (query) => {
           const key = query.queryKey;
           // Match ['nodeViews', 'queryResults', viewId, ...]
-          return key[0] === 'nodeViews' && key[1] === 'queryResults' && key[2] === updatedView.id;
+          return key[0] === 'nodeViews' && key[1] === 'queryResults' && key[2] === updatedView.nodeUuid;
         },
       });
       // Also invalidate the list queries since the view was updated
@@ -109,7 +109,7 @@ export function useDeleteNodeView() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (viewId: number) => deleteNodeView(requireViewUuid(viewId)),
+    mutationFn: (viewId: string) => deleteNodeView(requireViewUuid(viewId)),
     onSuccess: (_, viewId) => {
       // Remove from cache
       queryClient.removeQueries({
@@ -130,8 +130,8 @@ export function useResetNodeViews() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (nodeId: number) => resetNodeViews(resolveNodeUuid(nodeId)),
-    onSuccess: async (newViews, nodeId) => {
+    mutationFn: (nodeUuid: string) => resetNodeViews(resolveNodeUuid(nodeUuid)),
+    onSuccess: async (newViews, nodeUuid) => {
       // First, remove all old view details and query results to prevent stale queries
       queryClient.removeQueries({
         queryKey: nodeViewKeys.details(),
@@ -142,7 +142,7 @@ export function useResetNodeViews() {
       
       // Set the new views in cache for individual view queries
       newViews.forEach((view) => {
-        queryClient.setQueryData(nodeViewKeys.detail(view.id), view);
+        queryClient.setQueryData(nodeViewKeys.detail(view.nodeUuid), view);
       });
       
       // Group views by view_type and set list queries to prevent duplicate creation
@@ -157,20 +157,20 @@ export function useResetNodeViews() {
       // Set list query cache for each view type
       viewsByType.forEach((views, viewType) => {
         queryClient.setQueryData(
-          nodeViewKeys.list(nodeId, viewType),
+          nodeViewKeys.list(nodeUuid, viewType),
           views
         );
       });
       
       // Also set the full list (all view types)
       queryClient.setQueryData(
-        nodeViewKeys.list(nodeId),
+        nodeViewKeys.list(nodeUuid),
         newViews
       );
       
       // Invalidate byType queries
       await queryClient.invalidateQueries({
-        queryKey: nodeViewKeys.byType(nodeId),
+        queryKey: nodeViewKeys.byType(nodeUuid),
         refetchType: 'none', // Don't refetch, we just set the data
       });
     },
@@ -185,29 +185,28 @@ export function useReorderNodeViews() {
 
   return useMutation({
     mutationFn: ({
-      nodeId,
-      viewType,
-      viewIds,
-    }: {
-      nodeId: number;
+              nodeUuid,
+              viewType,
+              viewIds }: {
+      nodeUuid: string;
       viewType: string;
-      viewIds: number[];
+      viewIds: string[];
     }) => reorderNodeViews(
-      resolveNodeUuid(nodeId),
+      resolveNodeUuid(nodeUuid),
       viewType,
       viewIds.map(requireViewUuid)
     ),
-    onSuccess: (updatedViews, { nodeId }) => {
+    onSuccess: (updatedViews, { nodeUuid }) => {
       // Update list cache
       queryClient.invalidateQueries({
-        queryKey: nodeViewKeys.list(nodeId),
+        queryKey: nodeViewKeys.list(nodeUuid),
       });
       queryClient.invalidateQueries({
-        queryKey: nodeViewKeys.byType(nodeId),
+        queryKey: nodeViewKeys.byType(nodeUuid),
       });
       // Update individual view caches
       for (const view of updatedViews) {
-        queryClient.setQueryData(nodeViewKeys.detail(view.id), view);
+        queryClient.setQueryData(nodeViewKeys.detail(view.nodeUuid), view);
       }
     },
   });
@@ -219,11 +218,11 @@ export function useReorderNodeViews() {
 // fire on the journal view (4 view-types × 10 day-nodes) down to ~10.
 
 /** Nodes already ensured this browser session (cleared on full-page reload). */
-const _ensuredNodes = new Set<number>();
+const _ensuredNodes = new Set<string>();
 
-/** Pending batch: nodeId → { viewTypes to include, resolvers to notify }. */
+/** Pending batch: nodeUuid → { viewTypes to include, resolvers to notify }. */
 const _pendingBatch = new Map<
-  number,
+  string,
   { viewTypes: Set<string>; resolvers: Array<() => void> }
 >();
 let _flushScheduled = false;
@@ -270,17 +269,17 @@ function _flushBatch() {
  * Returns a Promise that resolves once the API call completes (or is skipped).
  */
 export function batchEnsureDefaults(
-  nodeId: number,
+  nodeUuid: string,
   viewType: string
 ): Promise<void> {
   // Fast path: already ensured this session
-  if (_ensuredNodes.has(nodeId)) return Promise.resolve();
+  if (_ensuredNodes.has(nodeUuid)) return Promise.resolve();
 
   return new Promise<void>((resolve) => {
-    let entry = _pendingBatch.get(nodeId);
+    let entry = _pendingBatch.get(nodeUuid);
     if (!entry) {
       entry = { viewTypes: new Set(), resolvers: [] };
-      _pendingBatch.set(nodeId, entry);
+      _pendingBatch.set(nodeUuid, entry);
     }
     entry.viewTypes.add(viewType);
     entry.resolvers.push(resolve);
@@ -304,20 +303,20 @@ export function useEnsureDefaultViews() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ nodeId, viewTypes }: { nodeId: number; viewTypes?: string[] }) => {
-      if (_ensuredNodes.has(nodeId)) return [];
-      const views = await ensureDefaultViews(resolveNodeUuid(nodeId), viewTypes);
-      _ensuredNodes.add(nodeId);
+    mutationFn: async ({ nodeUuid, viewTypes }: { nodeUuid: string; viewTypes?: string[] }) => {
+      if (_ensuredNodes.has(nodeUuid)) return [];
+      const views = await ensureDefaultViews(resolveNodeUuid(nodeUuid), viewTypes);
+      _ensuredNodes.add(nodeUuid);
       return views;
     },
     onSuccess: (views) => {
       if (views.length > 0) {
-        const nodeId = views[0].node_uuid;
+        const nodeUuid = views[0].node_uuid;
         queryClient.invalidateQueries({
-          queryKey: nodeViewKeys.list(nodeId),
+          queryKey: nodeViewKeys.list(nodeUuid),
         });
         queryClient.invalidateQueries({
-          queryKey: nodeViewKeys.byType(nodeId),
+          queryKey: nodeViewKeys.byType(nodeUuid),
         });
       }
     },

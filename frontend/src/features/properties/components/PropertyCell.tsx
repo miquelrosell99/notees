@@ -48,15 +48,15 @@ export function PropertyCell({
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
   const setPropertyMutation = useSetNodeProperty();
 
-  // Detect asset-type node properties by checking if class_filters includes the asset class
+  // Detect asset-type node properties by checking if class_filter_uuids includes the asset class
   const { data: allClasses } = useClasses();
   const isAssetProperty = useMemo(() => {
-    if (property.type !== 'node' || !property.class_filters?.length || !allClasses) return false;
-    return property.class_filters.some(classId => {
-      const classNode = allClasses.find(c => c.id === classId);
+    if (property.type !== 'node' || !property.class_filter_uuids?.length || !allClasses) return false;
+    return property.class_filter_uuids.some(classUuid => {
+      const classNode = allClasses.find(c => c.uuid === classUuid);
       return classNode?.uuid === SYSTEM_CLASS_UUIDS.asset;
     });
-  }, [property.type, property.class_filters, allClasses]);
+  }, [property.type, property.class_filter_uuids, allClasses]);
 
   // Format value for display (used for non-node, non-selection types)
   const displayValue = useMemo(() => {
@@ -114,14 +114,14 @@ export function PropertyCell({
 
     try {
       await setPropertyMutation.mutateAsync({
-        nodeId: node.id,
-        propertyId: property.id,
+        nodeUuid: node.uuid,
+        propertyId: property.uuid,
         value: finalValue,
       });
     } catch (error) {
       console.error('Failed to save property:', error);
     }
-  }, [isEditing, editValue, displayValue, property, node.id, setPropertyMutation]);
+  }, [isEditing, editValue, displayValue, property, node.uuid, setPropertyMutation]);
 
   // Cancel editing
   const handleCancel = useCallback(() => {
@@ -160,13 +160,13 @@ export function PropertyCell({
       }
       return (
         <div className="property-cell property-cell--multi-text">
-          {(value as number[]).map((id) => (
-            <InlineBlock key={id} nodeId={id} />
+          {(value as string[]).map((id) => (
+            <InlineBlock key={id} nodeUuid={id} />
           ))}
         </div>
       );
     }
-    if (value === null || value === undefined || typeof value !== 'number') {
+    if (value === null || value === undefined || typeof value !== 'string') {
       return (
         <div className={`property-cell ${editable ? 'property-cell--editable' : ''} property-cell--empty`}>
           <span className="property-placeholder">Empty</span>
@@ -174,12 +174,12 @@ export function PropertyCell({
       );
     }
 
-    return <InlineBlock nodeId={value} />;
+    return <InlineBlock nodeUuid={value} />;
   }
 
   // Image-type property: always render with AssetImage
   if (property.type === 'image') {
-    const imageId = typeof value === 'number' ? value : null;
+    const imageId = typeof value === 'string' ? value : null;
     if (!imageId) {
       return (
         <div className={`property-cell ${editable ? 'property-cell--editable' : ''} property-cell--empty`}>

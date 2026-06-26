@@ -32,7 +32,7 @@ export function ConvertToPageModal({ node, isOpen, onClose }: ConvertToPageModal
       const newName = trimmed === nodeNameToText(node.name) ? undefined : trimmed;
 
       try {
-        await convert.mutateAsync({ nodeId: node.id, name: newName, oldParentId: node.parent_id });
+        await convert.mutateAsync({ nodeUuid: node.uuid, name: newName, oldParentId: node.parent_uuid });
         handleClose();
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Conversion failed');

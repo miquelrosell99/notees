@@ -43,7 +43,7 @@ function applyRuntimeIntent(intent: MutationIntent): void {
 
 interface InlineCopyPastePluginProps {
   blockId: string;
-  onPasteImage?: (blockServerId: number, file: File, hasContent: boolean) => void;
+  onPasteImage?: (blockServerId: string, file: File, hasContent: boolean) => void;
 }
 
 function isBlockEmpty(contentAST: ASTDocument | null | undefined): boolean {
@@ -134,8 +134,8 @@ function insertLinkPillAtOffset(
   const newAST: ASTDocument = [newPara];
   const serialized = serializeContentAST(newAST);
   applyRuntimeIntent({ type: 'update_content', blockId, contentAST: newAST });
-  if (graphNode.serverId) {
-    liveSyncManager.sendBlockUpdate(blockId, graphNode.serverId, serialized);
+  if (graphNode.blockId) {
+    liveSyncManager.sendBlockUpdate(blockId, graphNode.blockId, serialized);
   }
   useEditorFocusStore.getState().setPendingFocus(blockId, cursorOffset + 1);
   getRuntimeEventBus().flushEvents();
@@ -221,7 +221,7 @@ export function InlineCopyPastePlugin({ blockId, onPasteImage }: InlineCopyPaste
           if (analysis.file) {
             const runtime = getOperationRuntime();
             const graphNode = getNode(runtime, blockId);
-            const blockServerId = graphNode?.serverId;
+            const blockServerId = graphNode?.blockId;
             if (blockServerId != null && onPasteImageRef.current) {
               const hasContent = !isBlockEmpty(graphNode?.contentAST);
               onPasteImageRef.current(blockServerId, analysis.file, hasContent);
@@ -271,8 +271,8 @@ export function InlineCopyPastePlugin({ blockId, onPasteImage }: InlineCopyPaste
           const firstAST = parseBlockName(firstBlock.name);
           const serializedFirst = serializeContentAST(firstAST);
           applyRuntimeIntent({ type: 'update_content', blockId, contentAST: firstAST });
-          if (currentNode.serverId) {
-            liveSyncManager.sendBlockUpdate(blockId, currentNode.serverId, serializedFirst);
+          if (currentNode.blockId) {
+            liveSyncManager.sendBlockUpdate(blockId, currentNode.blockId, serializedFirst);
           }
 
           if (firstBlock.children && firstBlock.children.length > 0) {

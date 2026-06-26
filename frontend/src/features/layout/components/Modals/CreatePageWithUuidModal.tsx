@@ -5,10 +5,12 @@
  * a page or a block. For blocks, a parent page is required.
  */
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { ToggleSwitch } from '@/components/ui/ToggleSwitch';
 import { NodeSelector, useCreateNode, usePageClass } from '@/features/content';
+import { getNodeUuidByServerId } from '@/features/content/hooks/useNodeMutations.utils';
 import { getNodeByUuid } from '@/api/nodes';
 import type { Node } from '@/types';
 import { generateUUID } from '@/utils/uuid';
@@ -34,12 +36,13 @@ export function CreatePageWithUuidModal({
   const [nodeName, setNodeName] = useState('');
   const [uuid, setUuid] = useState('');
   const [isPage, setIsPage] = useState(true);
-  const [parentId, setParentId] = useState<number | null>(null);
+  const [parentUuid, setParentUuid] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const nameRef = useRef<HTMLInputElement>(null);
+  const queryClient = useQueryClient();
   const createNodeMutation = useCreateNode();
-  const { pageClassId } = usePageClass();
+  const { pageClassUuid } = usePageClass();
 
   // Reset and generate a fresh UUID each time the modal opens
   useEffect(() => {
@@ -47,7 +50,7 @@ export function CreatePageWithUuidModal({
       setNodeName('');
         setUuid(prefillUuid ?? generateUUID());
         setIsPage(true);
-        setParentId(null);
+        setParentUuid(null);
         setError(null);
         setIsCreating(false);;
       setTimeout(() => nameRef.current?.focus(), 100);
@@ -70,11 +73,11 @@ export function CreatePageWithUuidModal({
       setError('UUID must be a valid v4 UUID (e.g. 550e8400-e29b-41d4-a716-446655440000).');
       return;
     }
-    if (isPage && !pageClassId) {
+    if (isPage && !pageClassUuid) {
       setError('Page class not available. Please try again.');
       return;
     }
-    if (!isPage && parentId == null) {
+    if (!isPage && parentUuid == null) {
       setError('Parent page is required for blocks.');
       return;
     }
@@ -101,17 +104,17 @@ export function CreatePageWithUuidModal({
       const payload: {
         name: string;
         uuid: string;
-        classes?: number[];
-        parent_id?: number | null;
+        class_uuids?: string[];
+        parent_uuid?: string | null;
       } = {
         name: trimmedName,
         uuid: trimmedUuid,
       };
 
       if (isPage) {
-        payload.classes = [pageClassId!];
+        payload.class_uuids = [pageClassUuid!];
       } else {
-        payload.parent_id = parentId;
+        payload.parent_uuid = parentUuid;
       }
 
       const newNode = await createNodeMutation.mutateAsync(payload);
@@ -125,7 +128,7 @@ export function CreatePageWithUuidModal({
     } finally {
       setIsCreating(false);
     }
-  }, [nodeName, uuid, isPage, parentId, pageClassId, isValidUuid, createNodeMutation, onSuccess, onClose]);
+  }, [nodeName, uuid, isPage, parentUuid, pageClassUuid, isValidUuid, createNodeMutation, onSuccess, onClose]);
 
   const handleCreate = useCallback(() => doCreate(false), [doCreate]);
   const handleCreateAndOpen = useCallback(() => doCreate(true), [doCreate]);
@@ -216,11 +219,16 @@ export function CreatePageWithUuidModal({
               trigger="select"
               searchMode="pages"
               multi={false}
-              value={parentId}
+              value={null}
               placeholder="Select a parent page…"
               searchPlaceholder="Search pages…"
               onChange={(val) => {
-                setParentId(typeof val === 'number' ? val : null);
+                if (val == null) {
+                  setParentUuid(null);
+                } else {
+                  const selectedId = typeof val === 'number' ? val : val[0];
+                  setParentUuid(getNodeUuidByServerId(queryClient, selectedId));
+                }
                 setError(null);
               }}
               allowCreate={false}

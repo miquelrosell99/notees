@@ -20,12 +20,12 @@ const SETTINGS_REGISTRY: Record<string, SettingMeta> = {
   graphDataMode: { scope: 'local' },
 };
 
-function getLocalStorageKey(nodeId: number | string, viewMode: string, key: string): string {
-  return `viewsettings_${nodeId}_${viewMode}_${key}`;
+function getLocalStorageKey(nodeUuid: string, viewMode: string, key: string): string {
+  return `viewsettings_${nodeUuid}_${viewMode}_${key}`;
 }
 
-function getSessionKey(nodeId: number | string, viewMode: string, key: string): string {
-  return `session_viewsettings_${nodeId}_${viewMode}_${key}`;
+function getSessionKey(nodeUuid: string, viewMode: string, key: string): string {
+  return `session_viewsettings_${nodeUuid}_${viewMode}_${key}`;
 }
 
 /**
@@ -37,7 +37,7 @@ function getSessionKey(nodeId: number | string, viewMode: string, key: string): 
  * - session: Ephemeral, resets on page reload
  */
 export function useViewSettings(
-  nodeId: number | string,
+  nodeUuid: string,
   viewMode: string,
 ) {
   const { data: serverSettings } = useSettingsQuery();
@@ -55,7 +55,7 @@ export function useViewSettings(
       }
 
       if (meta.scope === 'local') {
-        const stored = localStorage.getItem(getLocalStorageKey(nodeId, viewMode, key));
+        const stored = localStorage.getItem(getLocalStorageKey(nodeUuid, viewMode, key));
         if (stored !== null) {
           try {
             return JSON.parse(stored) as T;
@@ -66,7 +66,7 @@ export function useViewSettings(
         return defaultValue;
       }
 
-      const stored = sessionStorage.getItem(getSessionKey(nodeId, viewMode, key));
+      const stored = sessionStorage.getItem(getSessionKey(nodeUuid, viewMode, key));
       if (stored !== null) {
         try {
           return JSON.parse(stored) as T;
@@ -76,7 +76,7 @@ export function useViewSettings(
       }
       return defaultValue;
     },
-    [nodeId, viewMode, serverSettings]
+    [nodeUuid, viewMode, serverSettings]
   );
 
   const setSettingValue = useCallback(
@@ -91,14 +91,14 @@ export function useViewSettings(
 
       if (meta.scope === 'local') {
         const serialized = JSON.stringify(value);
-        localStorage.setItem(getLocalStorageKey(nodeId, viewMode, key), serialized);
+        localStorage.setItem(getLocalStorageKey(nodeUuid, viewMode, key), serialized);
         return;
       }
 
       const serialized = JSON.stringify(value);
-      sessionStorage.setItem(getSessionKey(nodeId, viewMode, key), serialized);
+      sessionStorage.setItem(getSessionKey(nodeUuid, viewMode, key), serialized);
     },
-    [nodeId, viewMode]
+    [nodeUuid, viewMode]
   );
 
   return useMemo(

@@ -174,7 +174,7 @@ export const CalendarView = memo(function CalendarView({
     (day: Date) => {
       if (!dragEvent) return;
       if (!isSameDay(dragEvent.startDate, day)) {
-        persistDate({ nodeId: dragEvent.node.id, newDate: day });
+        persistDate({ nodeUuid: dragEvent.node.uuid, newDate: day });
       }
       setDragEvent(null);
     },
@@ -290,7 +290,7 @@ export const CalendarView = memo(function CalendarView({
         <div className="calendar-view__day-events">
           {dayEvents.map((ev) => (
             <EventCard
-              key={ev.node.id}
+              key={ev.node.uuid}
               ev={ev}
               day={day}
               onNodeClick={onNodeClick}

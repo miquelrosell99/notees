@@ -10,8 +10,7 @@ import { useNotificationStore } from '@/stores/notificationStore';
 
 interface UnifiedUndoEntry extends UndoStackEntry {
   /** Negative IDs indicate runtime (local) entries. */
-  id: number;
-  description: string;
+  runtimeId?: number;
 }
 
 interface UndoState {
@@ -41,12 +40,13 @@ function buildRuntimeEntries(stack: UndoEntry[]): UnifiedUndoEntry[] {
   // For both undo and redo stacks we display in the same order the arrays
   // are returned: undo newest-first (reverse of storage), redo oldest-first.
   return stack.map((entry, displayIndex) => ({
-    id: -(displayIndex + 1),
+    nodeUuid: '',
     uuid: '',
     operation: entry.forward.type === 'batch' ? 'batch' : entry.forward.type,
     entity_type: 'node',
-    entity_id: 0,
+    entity_id: '',
     description: runtimeEntryDescription(entry),
+    runtimeId: -(displayIndex + 1),
   }));
 }
 
@@ -105,8 +105,8 @@ export const useUndoStore = create<UndoState>()((set, get) => ({
   syncRuntimeState: () => {
     const engine = getUndoEngine();
     // Preserve backend entries that are already in state
-    const backendUndoEntries = get().undoEntries.filter(e => e.id > 0);
-    const backendRedoEntries = get().redoEntries.filter(e => e.id > 0);
+    const backendUndoEntries = get().undoEntries.filter(e => e.runtimeId == null);
+    const backendRedoEntries = get().redoEntries.filter(e => e.runtimeId == null);
 
     const runtimeUndo = buildRuntimeEntries([...engine.getUndoStack()].reverse());
     const runtimeRedo = buildRuntimeEntries(engine.getRedoStack());
@@ -199,9 +199,9 @@ export const useUndoStore = create<UndoState>()((set, get) => ({
       // Proceed even if flush times out.
     }
 
-    if (entry.id < 0) {
+    if (entry.runtimeId != null && entry.runtimeId < 0) {
       // Target is a runtime entry — undo N times where N is the display position.
-      const steps = Math.abs(entry.id);
+      const steps = Math.abs(entry.runtimeId);
       let lastDescription = '';
       for (let i = 0; i < steps; i++) {
         const localEntry = engine.undo();
@@ -238,9 +238,9 @@ export const useUndoStore = create<UndoState>()((set, get) => ({
       // Proceed even if flush times out.
     }
 
-    if (entry.id < 0) {
+    if (entry.runtimeId != null && entry.runtimeId < 0) {
       // Target is a runtime entry — redo N times where N is the display position.
-      const steps = Math.abs(entry.id);
+      const steps = Math.abs(entry.runtimeId);
       let lastDescription = '';
       for (let i = 0; i < steps; i++) {
         const localEntry = engine.redo();
@@ -281,12 +281,12 @@ export const useUndoStore = create<UndoState>()((set, get) => ({
   },
 }));
 
-async function invalidateForEntity(queryClient: QueryClient, _entityType: string, entityId: number) {
+async function invalidateForEntity(queryClient: QueryClient, _entityType: string, entityUuid: string) {
   // Broad invalidation to ensure UI consistency after undo/redo
-  await queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(entityId) });
-  await queryClient.invalidateQueries({ queryKey: nodeKeys.pageContent(entityId) });
-  await queryClient.invalidateQueries({ queryKey: nodeKeys.backlinks(entityId) });
-  await queryClient.invalidateQueries({ queryKey: nodeKeys.linkedRefs(entityId) });
+  await queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(entityUuid) });
+  await queryClient.invalidateQueries({ queryKey: nodeKeys.pageContent(entityUuid) });
+  await queryClient.invalidateQueries({ queryKey: nodeKeys.backlinks(entityUuid) });
+  await queryClient.invalidateQueries({ queryKey: nodeKeys.linkedRefs(entityUuid) });
   await queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
   await queryClient.invalidateQueries({ queryKey: nodeKeys.classes() });
   await queryClient.invalidateQueries({ queryKey: propertyKeys.all });

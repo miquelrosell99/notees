@@ -12,17 +12,37 @@
 import { get, set } from 'idb-keyval';
 import { getOperationRuntime } from '@/runtime';
 import type { Operation } from '@/runtime';
+import type { BaseVector } from '@/features/sync';
 
 const STORAGE_KEY = 'notees-pending-operations';
+const OUTBOX_STATE_KEY = 'notees-outbox-state-v2';
+
+// In environments without IndexedDB (e.g. jsdom during tests) fall back to a
+// simple in-memory store so that LocalSyncEngine never throws.
+const memoryStore = new Map<string, unknown>();
+const hasIndexedDB = typeof indexedDB !== 'undefined';
+
+async function idbGet<T>(key: string): Promise<T | undefined> {
+  if (hasIndexedDB) return get<T>(key);
+  return memoryStore.get(key) as T | undefined;
+}
+
+async function idbSet(key: string, value: unknown): Promise<void> {
+  if (hasIndexedDB) {
+    await set(key, value);
+  } else {
+    memoryStore.set(key, value);
+  }
+}
 
 async function getStored(): Promise<Operation[]> {
-  const value = await get(STORAGE_KEY);
+  const value = await idbGet<Operation[]>(STORAGE_KEY);
   if (Array.isArray(value)) return value;
   return [];
 }
 
 async function setStored(operations: Operation[]): Promise<void> {
-  await set(STORAGE_KEY, operations);
+  await idbSet(STORAGE_KEY, operations);
 }
 
 function getAffectedBlockIds(operation: Operation): string[] {
@@ -87,4 +107,68 @@ export async function restoreOperations(): Promise<void> {
  */
 export async function clearOperationStorage(): Promise<void> {
   await setStored([]);
+}
+
+export interface OutboxEntry {
+  op: Operation;
+  attemptCount: number;
+  lastError: string | null;
+  nextRetryAt: number | null;
+  createdAt: number;
+}
+
+export interface OutboxStateV2 {
+  entries: OutboxEntry[];
+  ackedVector: BaseVector;
+  nextSeq: number;
+}
+
+function migrateLegacyOutboxState(value: unknown): OutboxStateV2 | null {
+  if (!value || typeof value !== 'object') return null;
+  const state = value as Record<string, unknown>;
+  if (!Array.isArray(state.operations)) return null;
+  // Legacy format stored plain Operation[]; migrate to OutboxEntry[].
+  const entries: OutboxEntry[] = (state.operations as Operation[]).map((op) => ({
+    op,
+    attemptCount: 0,
+    lastError: null,
+    nextRetryAt: null,
+    createdAt: Date.now(),
+  }));
+  return {
+    entries,
+    ackedVector: (state.ackedVector as BaseVector) ?? {},
+    nextSeq: typeof state.nextSeq === 'number' ? state.nextSeq : 0,
+  };
+}
+
+/**
+ * Save the v2 outbox state (pending entries + last acked vector + next seq).
+ */
+export async function saveOutboxStateV2(state: OutboxStateV2): Promise<void> {
+  await idbSet(OUTBOX_STATE_KEY, state);
+}
+
+/**
+ * Load the v2 outbox state. Returns a default empty state if missing.
+ * Migrates legacy plain-operation storage on first read.
+ */
+export async function loadOutboxStateV2(): Promise<OutboxStateV2> {
+  const value = await idbGet<OutboxStateV2>(OUTBOX_STATE_KEY);
+  if (value && typeof value === 'object') {
+    const maybeLegacy = migrateLegacyOutboxState(value);
+    if (maybeLegacy) return maybeLegacy;
+    const state = value as OutboxStateV2;
+    if (Array.isArray(state.entries)) {
+      return state;
+    }
+  }
+  return { entries: [], ackedVector: {}, nextSeq: 0 };
+}
+
+/**
+ * Clear the v2 outbox state.
+ */
+export async function clearOutboxStateV2(): Promise<void> {
+  await idbSet(OUTBOX_STATE_KEY, { entries: [], ackedVector: {}, nextSeq: 0 });
 }

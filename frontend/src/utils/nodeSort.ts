@@ -126,11 +126,11 @@ function comparePropertyValues(aVal: unknown, bVal: unknown, prop: Property | un
       return (aVal ? 1 : 0) - (bVal ? 1 : 0);
     case 'selection': {
       const getOptionName = (v: unknown): string => {
-        if (typeof v === 'number') {
-          return prop.options?.find((o) => o.id === v)?.name ?? String(v);
+        if (typeof v === 'string') {
+          return prop.options?.find((o) => o.uuid === v)?.name ?? String(v);
         }
-        if (v && typeof v === 'object' && 'id' in v) {
-          return prop.options?.find((o) => o.id === (v as { id: number }).id)?.name ?? String(v);
+        if (v && typeof v === 'object' && 'nodeUuid' in v) {
+          return prop.options?.find((o) => o.uuid === (v as unknown as { nodeUuid: string }).nodeUuid)?.name ?? String(v);
         }
         return String(v);
       };
@@ -177,10 +177,10 @@ export function compareBySortEntries(
       }
       default: {
         if (entry.key.startsWith('property_')) {
-          const propertyId = parseInt(entry.key.replace('property_', ''), 10);
-          const prop = allProperties.find((p) => p.id === propertyId);
-          const aVal = a.properties?.[propertyId];
-          const bVal = b.properties?.[propertyId];
+          const propertyUuid = entry.key.slice('property_'.length);
+          const prop = allProperties.find((p) => p.uuid === propertyUuid);
+          const aVal = a.properties_uuid?.[propertyUuid];
+          const bVal = b.properties_uuid?.[propertyUuid];
           comparison = comparePropertyValues(aVal, bVal, prop);
         }
         break;

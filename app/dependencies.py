@@ -29,6 +29,7 @@ from app.features.workspaces.port import WorkspaceIORepository, WorkspaceReposit
 from .config import settings
 from .db.connection import acquire_connection, get_pool
 from .db.schema import get_or_create_user_workspace
+from .domain.entities.sync_v2 import SyncBatchRequest
 from .domain.permissions import PermissionChecker
 from .domain.ports import EmailSender, PushNotificationSender
 from .domain.repositories import (
@@ -43,6 +44,7 @@ from .domain.repositories.interfaces import (
     SettingsRepository,
 )
 from .features.activity.repository import PostgresActivityRepository
+from .features.assets.repository import PostgresAssetRepository
 from .features.nodes.class_extension_service import ClassExtensionService
 from .features.nodes.class_management_service import ClassManagementService
 from .features.nodes.dependencies import (
@@ -69,7 +71,9 @@ from .features.notifications.repository import (
 from .features.notifications.service import NotificationService
 from .features.properties.port import PropertyRepository
 from .features.properties.repository import PostgresPropertyRepository
+from .features.sync.dependencies import _make_sync_repository
 from .features.sync.service import SyncService
+from .features.sync.service_v2 import SyncServiceV2
 from .features.undo.repository import PostgresUndoRepository
 from .features.undo.service import UndoService
 from .features.workspaces.dependencies import (
@@ -189,6 +193,14 @@ async def _get_workspace_context_cached(pool: asyncpg.Pool, user_id: int) -> tup
 
     _workspace_context_cache[user_id] = (workspace_id, page_class_id, now)
     return workspace_id, page_class_id
+
+
+async def _get_page_class_id_cached(
+    pool: asyncpg.Pool, workspace_id: int, user_id: int
+) -> int:
+    """Return the page class id for a workspace, independent of active workspace."""
+    node_repo = _make_node_repository(pool, workspace_id, 0, user_id)
+    return await node_repo.get_page_class_id() or 1
 
 
 @asynccontextmanager
@@ -402,6 +414,39 @@ async def get_sync_service(
     yield sync_service
 
 
+async def _get_sync_service_v2(
+    user: User, workspace_id: int, workspace_uuid: str | None = None
+) -> SyncServiceV2:
+    """Build a SyncServiceV2 wired to a specific workspace."""
+    pool = await get_pool()
+    user_id = int(user.id)
+    sync_repo = _make_sync_repository(pool, workspace_id, user_id)
+    page_class_id = await _get_page_class_id_cached(pool, workspace_id, user_id)
+    node_service = await _get_node_service_for_workspace(user, workspace_id, page_class_id)
+    permission_repo = _make_permission_repository(pool, workspace_id, user_id)
+    permission_checker = PermissionChecker(user_id, permission_repo)
+    return SyncServiceV2(sync_repo, node_service, permission_checker, workspace_id, user_id, workspace_uuid)
+
+
+async def get_sync_service_v2(
+    request: SyncBatchRequest,
+    user: User = Depends(get_current_user),
+) -> AsyncGenerator[SyncServiceV2, None]:
+    """Get a SyncServiceV2 for the requested or active workspace."""
+    pool = await get_pool()
+    user_id = int(user.id)
+    workspace_uuid = request.workspace_uuid
+    if workspace_uuid:
+        workspace_repo = _make_workspace_repository(pool)
+        ws_row = await workspace_repo.get_by_uuid_for_user(workspace_uuid, user_id)
+        if not ws_row:
+            raise HTTPException(status_code=404, detail="Workspace not found")
+        workspace_id = ws_row["id"]
+    else:
+        workspace_id, _ = await _get_workspace_context_cached(pool, user_id)
+    yield await _get_sync_service_v2(user, workspace_id, workspace_uuid)
+
+
 async def _get_node_view_repo(user: User) -> NodeViewRepository:
     """Return a NodeView repository for the user's workspace."""
     pool = await get_pool()
@@ -429,6 +474,9 @@ async def _get_node_service_for_workspace(
     user: User, workspace_id: int, page_class_id: int = 0
 ) -> NodeService:
     """Return a NodeService wired to the given workspace."""
+    from app.db.connection import get_workspace_uuid
+    from app.features.assets.service import AssetFileService
+
     pool = await get_pool()
     user_id = int(user.id)
 
@@ -441,11 +489,14 @@ async def _get_node_service_for_workspace(
     settings_repo = _make_settings_repository(pool)
     activity_repo = PostgresActivityRepository(pool, workspace_id, user_id)
     class_extend_repo = _make_class_extend_repository(pool, workspace_id, user_id)
+    asset_repo = PostgresAssetRepository(pool, workspace_id, user_id)
 
     user_repo = make_user_repository(pool)
     link_service = LinkParsingService(node_repo, link_repo)
     mention_repo = _make_mention_repository(pool, workspace_id, user_id)
     mention_service = MentionService(node_repo, mention_repo, link_repo, user_id=user_id)
+    workspace_uuid = await get_workspace_uuid(workspace_id)
+    asset_file_service = AssetFileService(workspace_uuid, asset_repo) if workspace_uuid else None
     return NodeService(
         node_repo,
         property_repo,
@@ -459,6 +510,7 @@ async def _get_node_service_for_workspace(
         user_repository=user_repo,
         mention_service=mention_service,
         permission_repository=permission_repo,
+        asset_file_service=asset_file_service,
     )
 
 

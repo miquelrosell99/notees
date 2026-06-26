@@ -9,6 +9,7 @@ from app.features.admin.router import router as admin_router
 from app.features.assets.router import router as assets_router
 from app.features.auth.router import router as auth_router
 from app.features.export.router import router as export_router
+from app.features.import_.router import router as import_router
 from app.features.nodes.router import router as nodes_router
 from app.features.notifications.router import router as notifications_router
 from app.features.properties.router import router as properties_router
@@ -25,6 +26,7 @@ __all__ = [
     "properties_router",
     "sync_router",
     "export_router",
+    "import_router",
     "assets_router",
     "undo_router",
     "tasks_router",

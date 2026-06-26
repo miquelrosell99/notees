@@ -230,11 +230,11 @@ export function findAllShortestPaths(
   // Reconstruct all nodes in all shortest paths using DFS
   const nodesInPaths = new Set<string>();
   
-  const dfs = (nodeId: string) => {
-    if (nodesInPaths.has(nodeId)) return;
-    nodesInPaths.add(nodeId);
+  const dfs = (nodeUuid: string) => {
+    if (nodesInPaths.has(nodeUuid)) return;
+    nodesInPaths.add(nodeUuid);
     
-    const nodeParents = parents.get(nodeId) || [];
+    const nodeParents = parents.get(nodeUuid) || [];
     for (const parent of nodeParents) {
       dfs(parent);
     }

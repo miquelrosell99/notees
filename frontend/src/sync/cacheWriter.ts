@@ -21,12 +21,12 @@ export type NodePatch = Partial<Pick<
   | 'name'
   | 'icon'
   | 'color'
-  | 'parent_id'
+  | 'parent_uuid'
   | 'sequence'
   | 'collapsed'
-  | 'classes'
-  | 'tags'
-  | 'properties'
+  | 'classes_uuid'
+  | 'tags_uuid'
+  | 'properties_uuid'
   | 'is_private'
   | 'is_page'
   | 'is_class'
@@ -38,24 +38,24 @@ export type NodePatch = Partial<Pick<
 /**
  * Insert a newly created child under its parent in all tree caches.
  */
-export function writeCreate(queryClient: QueryClient, parentId: number, childNode: Node): void {
-  insertChildIntoTreeCaches(queryClient, parentId, childNode);
+export function writeCreate(queryClient: QueryClient, parentUuid: string, childNode: Node): void {
+  insertChildIntoTreeCaches(queryClient, parentUuid, childNode);
 }
 
 /**
  * Patch fields of an existing node everywhere it appears in caches.
  */
-export function writeUpdate(queryClient: QueryClient, nodeId: number, patch: NodePatch): void {
+export function writeUpdate(queryClient: QueryClient, nodeUuid: string, patch: NodePatch): void {
   const updater = (node: Node): Node => ({ ...node, ...patch });
-  updateNodeInTreeCaches(queryClient, nodeId, updater);
-  updateNodeInFlatCaches(queryClient, nodeId, updater);
+  updateNodeInTreeCaches(queryClient, nodeUuid, updater);
+  updateNodeInFlatCaches(queryClient, nodeUuid, updater);
 }
 
 /**
  * Remove a node from all caches (optimistic delete).
  */
-export function writeDelete(queryClient: QueryClient, nodeId: number): void {
-  removeNodeFromAllCaches(queryClient, nodeId);
+export function writeDelete(queryClient: QueryClient, nodeUuid: string): void {
+  removeNodeFromAllCaches(queryClient, nodeUuid);
 }
 
 /**
@@ -63,10 +63,10 @@ export function writeDelete(queryClient: QueryClient, nodeId: number): void {
  */
 export function writeMove(
   queryClient: QueryClient,
-  nodeId: number,
-  newParentId: number | null,
+  nodeUuid: string,
+  newParentUuid: string | null,
   newSequence: number,
   movedNode: Node,
 ): void {
-  moveNodeInTreeCaches(queryClient, nodeId, newParentId, newSequence, movedNode);
+  moveNodeInTreeCaches(queryClient, nodeUuid, newParentUuid, newSequence, movedNode);
 }

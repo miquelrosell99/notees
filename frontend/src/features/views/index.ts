@@ -5,19 +5,23 @@
  * reaching into internal subdirectories.
  */
 
-// View mode components
+// Light view mode components (always loaded)
 export { ListView } from './components/ListView';
 export { DocumentView } from './components/DocumentView';
 export { KanbanView } from './components/KanbanView';
 export { NodeCard, type NodeCardProps } from './components/KanbanCard';
 export { TableView } from './components/TableView';
-export { GanttView } from './components/GanttView';
-export { GraphView } from './components/GraphView';
+
+// Heavy/canvas views are lazy-loaded via the registry below
+export {
+  GanttView,
+  GraphView,
+  TimelineView,
+  CalendarView,
+  ChartView,
+  PivotView,
+} from './components/lazyViews';
 export type { GraphViewProps } from './components/GraphView';
-export { TimelineView } from './components/TimelineView';
-export { CalendarView } from './components/CalendarView';
-export { ChartView } from './components/ChartView';
-export { PivotView } from './components/PivotView';
 
 // View registry
 export {
@@ -28,17 +32,11 @@ export {
 } from './components/registry';
 export type { ViewRegistryEntry, ViewCapabilities } from './components/registry';
 
-// Graph canvas (physics worker + WebGL2 renderer)
-export { GraphRenderer, type GraphRendererRef } from './renderers/GraphRenderer';
-export type { GraphRendererProps } from './renderers/GraphRenderer';
-export { useGraphRenderer } from './hooks/useGraphRenderer';
-export type { GraphRendererOptions, GraphRendererHandle, GraphRendererStats } from './hooks/useGraphRenderer';
-export { GraphWebGLRenderer } from './renderers/graphWebGLRenderer';
-export type { NodeVisual, RendererOptions, CameraState } from './renderers/graphWebGLRenderer';
-
 // Shared view types and helpers
 export * from './types/viewTypes';
 export { calculateMaxConnections, getDirectionalConnectionCount } from './utils/viewHelpers';
+export { evaluateQueryAST, buildEvalContext } from './utils/evaluateQueryAST';
+export type { EvalContext } from './utils/evaluateQueryAST';
 
 // View-specific hooks
 export { useCalendarData, type CalendarEvent } from './hooks/useCalendarData';

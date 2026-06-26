@@ -1,0 +1,99 @@
+.sync-status-indicator {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.sync-status-indicator__label {
+  margin-left: var(--space-1, 4px);
+  font-size: var(--font-size-sm, 0.875rem);
+}
+
+.sync-status-indicator__icon--spin {
+  animation: sync-status-spin 1s linear infinite;
+}
+
+@keyframes sync-status-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.sync-status-indicator__popover {
+  position: absolute;
+  top: calc(100% + var(--space-1, 4px));
+  right: 0;
+  z-index: var(--z-popover, 100);
+  min-width: 280px;
+  max-width: 360px;
+  padding: var(--space-3, 12px);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md, 8px);
+  box-shadow: var(--shadow-md);
+}
+
+.sync-status-indicator__popover-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-2, 8px);
+}
+
+.sync-status-indicator__failed {
+  color: var(--color-danger);
+}
+
+.sync-status-indicator__empty {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm, 0.875rem);
+}
+
+.sync-status-indicator__queue {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.sync-status-indicator__queue-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-1, 4px) 0;
+  border-bottom: 1px solid var(--color-border-subtle);
+  font-size: var(--font-size-sm, 0.875rem);
+}
+
+.sync-status-indicator__queue-item:last-child {
+  border-bottom: none;
+}
+
+.sync-status-indicator__queue-type {
+  text-transform: capitalize;
+  color: var(--color-text);
+}
+
+.sync-status-indicator__queue-meta {
+  margin-left: var(--space-2, 8px);
+  color: var(--color-text-secondary);
+}
+
+.sync-status-indicator__queue-error,
+.sync-status-indicator__last-error {
+  color: var(--color-danger);
+  font-size: var(--font-size-xs, 0.75rem);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sync-status-indicator__last-error {
+  margin-top: var(--space-2, 8px);
+  margin-bottom: 0;
+}

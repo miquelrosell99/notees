@@ -36,7 +36,7 @@ export type { SortDirection, SortEntry } from '@/types/nodeCollection';
 /**
  * Helper to detect if a value is a Node object
  */
-function isNode(value: unknown): value is { id: number; uuid: string; name: string; is_page?: boolean; parent_id?: number | null } {
+function isNode(value: unknown): value is { nodeUuid: string; uuid: string; name: string; is_page?: boolean; parent_id?: number | null } {
   return (
     typeof value === 'object' &&
     value !== null &&
@@ -54,7 +54,7 @@ export interface TableColumn<T> {
   /** Column header text */
   header: string | ReactNode;
   /** Optional Node object for rendering header with Block component (for icons) */
-  headerNode?: { id: number; uuid: string; name: string; icon: string | null };
+  headerNode?: { nodeUuid: string; uuid: string; name: string; icon: string | null };
   /** Accessor function to get cell value */
   accessor: (row: T) => ReactNode;
   /** Column width (CSS value) */
@@ -97,7 +97,7 @@ export interface NodeTableProps<T> {
   /** Column definitions */
   columns: TableColumn<T>[];
   /** Get unique key for each row */
-  getRowKey: (row: T) => string | number;
+  getRowKey: (row: T) => string;
   /** Table size */
   size?: TableSize;
   /** Table variant */
@@ -105,9 +105,9 @@ export interface NodeTableProps<T> {
   /** Whether rows are selectable */
   selectable?: boolean;
   /** Currently selected row keys */
-  selectedKeys?: Set<string | number>;
+  selectedKeys?: Set<string>;
   /** Selection change handler */
-  onSelectionChange?: (keys: Set<string | number>) => void;
+  onSelectionChange?: (keys: Set<string>) => void;
   /** Row click handler */
   onRowClick?: (row: T) => void;
   /** Row shift+click handler */
@@ -143,9 +143,9 @@ export interface NodeTableProps<T> {
   /** Callback when expanded keys change */
   onExpandedChange?: (keys: Set<string | number>) => void;
   /** Callback when a node should be opened (for Node cell auto-rendering) */
-  onNodeOpen?: (nodeId: string | number, type: 'page' | 'block') => void;
+  onNodeOpen?: (nodeUuid: string, type: 'page' | 'block') => void;
   /** Callback when a node should be opened in sidebar (for Node cell auto-rendering) */
-  onNodeOpenInSidebar?: (nodeId: string | number, type: 'page' | 'block') => void;
+  onNodeOpenInSidebar?: (nodeUuid: string, type: 'page' | 'block') => void;
   /** Whether node name cells should be editable on click */
   nodeEditable?: boolean;
   /** Initial sort state — columns are sorted in this order on first render */
@@ -276,7 +276,7 @@ export function NodeTable<T>({
     }
   }, [isControlledSort, onSortChange, userSortColumns]);
 
-  const handleToggleSelect = useCallback((key: string | number) => {
+  const handleToggleSelect = useCallback((key: string) => {
     if (!selectable || !onSelectionChange) return;
 
     const newSelection = new Set(selectedKeys);
@@ -292,7 +292,7 @@ export function NodeTable<T>({
     if (!selectable || !onSelectionChange) return;
 
     // Collect all keys including nested children
-    const allKeys: (string | number)[] = [];
+    const allKeys: string[] = [];
     const collectKeys = (items: T[]) => {
       items.forEach(item => {
         allKeys.push(getRowKey(item));
@@ -425,8 +425,8 @@ export function NodeTable<T>({
   });
 
   // Compute selection state including nested children
-  const computeAllKeys = (items: T[]): (string | number)[] => {
-    const keys: (string | number)[] = [];
+  const computeAllKeys = (items: T[]): string[] => {
+    const keys: string[] = [];
     items.forEach(item => {
       keys.push(getRowKey(item));
       if (expandable) {
@@ -548,7 +548,7 @@ export function NodeTable<T>({
                         {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- Wrapper solely prevents row selection when interacting with breadcrumbs; no semantic action. */}
                         <div onClick={(e) => e.stopPropagation()}>
                           <NodeBreadcrumbs
-                            nodeId={(cellValue as unknown as Node).id}
+                            nodeUuid={(cellValue as unknown as Node).uuid}
                             nodeType={(cellValue as unknown as Node).is_page ? 'page' : 'block'}
                             compact
                             onNavigate={(id) => onNodeOpen?.(id, (cellValue as unknown as Node).is_page ? 'page' : 'block')}
@@ -573,7 +573,7 @@ export function NodeTable<T>({
                           title="Open in sidebar"
                           onClick={(e) => {
                             e.stopPropagation();
-                            onNodeOpenInSidebar(cellValue.id, cellValue.is_page ? 'page' : 'block');
+                            onNodeOpenInSidebar(cellValue.nodeUuid, cellValue.is_page ? 'page' : 'block');
                           }}
                         />
                       )}
@@ -585,7 +585,7 @@ export function NodeTable<T>({
                           title="Open node"
                           onClick={(e) => {
                             e.stopPropagation();
-                            onNodeOpen(cellValue.id, cellValue.is_page ? 'page' : 'block');
+                            onNodeOpen(cellValue.nodeUuid, cellValue.is_page ? 'page' : 'block');
                           }}
                         />
                       )}
@@ -667,11 +667,11 @@ export function NodeTable<T>({
                     <div className="table-header-content">
                       {column.headerNode ? (
                         <NodeInline
-                          name={(column.headerNode as Node).name}
-                          icon={(column.headerNode as Node).icon}
+                          name={column.headerNode.name}
+                          icon={column.headerNode.icon}
                           isPage={false}
-                          nodeId={(column.headerNode as Node).id}
-                          showBullet={!!(column.headerNode as Node).icon}
+                          nodeUuid={column.headerNode.nodeUuid}
+                          showBullet={!!column.headerNode.icon}
                         />
                       ) : (
                         <span>{column.header}</span>

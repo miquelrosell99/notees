@@ -38,8 +38,8 @@ export interface SGEConfig {
 // ─── Edge descriptor ──────────────────────────────────────────────────────────
 
 export interface SGEEdge {
-  source: number;
-  target: number;
+  source: string;
+  target: string;
   type?: string;
   weight?: number;
 }
@@ -52,7 +52,7 @@ export interface SGEState {
   posY: Float32Array;
   velX: Float32Array;
   velY: Float32Array;
-  nodeIdArr: Int32Array;
+  nodeIdArr: string[];
   nodeCount: number;
   energy: number;
   ticks: number;
@@ -62,7 +62,7 @@ export interface SGEState {
 
 /** Compact node used during engine init — no rendering data. */
 export interface SGENode {
-  id: number;
+  nodeUuid: string;
   x?: number;
   y?: number;
   connectionCount?: number;

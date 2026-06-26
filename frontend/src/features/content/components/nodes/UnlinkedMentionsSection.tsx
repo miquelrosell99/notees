@@ -15,18 +15,17 @@ import './NodeViewSection.css';
 import './UnlinkedMentionsSection.css';
 
 interface UnlinkedMentionsSectionProps {
-  nodeId: number;
+  nodeUuid: string;
   defaultExpanded?: boolean;
-  onNodeClick?: (nodeId: number) => void;
+  onNodeClick?: (nodeUuid: string) => void;
 }
 
 export function UnlinkedMentionsSection({
-  nodeId,
-  defaultExpanded = false,
-  onNodeClick,
-}: UnlinkedMentionsSectionProps): React.JSX.Element | null {
+      nodeUuid,
+      defaultExpanded = false,
+      onNodeClick }: UnlinkedMentionsSectionProps): React.JSX.Element | null {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
-  const { data: mentions = [], isLoading } = useUnlinkedMentions(nodeId);
+  const { data: mentions = [], isLoading } = useUnlinkedMentions(nodeUuid);
   const promote = usePromoteMention();
   const ignore = useIgnoreMention();
 
@@ -79,11 +78,11 @@ export function UnlinkedMentionsSection({
           <ul className="unlinked-mentions-list">
             {sortedMentions.map((mention) => (
               <MentionItem
-                key={mention.id}
+                key={mention.uuid}
                 mention={mention}
                 onNodeClick={onNodeClick}
-                onPromote={() => promote.mutate({ nodeId, mentionId: mention.id })}
-                onIgnore={() => ignore.mutate({ nodeId, mentionId: mention.id })}
+                onPromote={() => promote.mutate({ nodeUuid, mentionUuid: mention.uuid })}
+                onIgnore={() => ignore.mutate({ nodeUuid, mentionUuid: mention.uuid })}
                 isPromoting={promote.isPending}
                 isIgnoring={ignore.isPending}
               />
@@ -97,7 +96,7 @@ export function UnlinkedMentionsSection({
 
 interface MentionItemProps {
   mention: Mention;
-  onNodeClick?: (nodeId: number) => void;
+  onNodeClick?: (nodeUuid: string) => void;
   onPromote: () => void;
   onIgnore: () => void;
   isPromoting: boolean;
@@ -119,7 +118,7 @@ function MentionItem({
       <button
         type="button"
         className="unlinked-mention-source"
-        onClick={() => onNodeClick?.(mention.source_node_id)}
+        onClick={() => onNodeClick?.(mention.source_node_uuid)}
         title="Open source node"
       >
         {sourceName}

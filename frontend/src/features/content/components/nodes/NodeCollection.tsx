@@ -73,76 +73,75 @@ function isGroupByActive(value: NodeCollectionGroupBy): boolean {
  * Use hideToolbar=true when rendering the toolbar externally via NodeCollectionToolbar.
  */
 export const NodeCollection = memo(function NodeCollection({
-  nodes,
-  viewUuid,
-  view,
-  viewMode,
-  availableViewModes,
-  onViewModeChange,
-  editable = true,
-  sortable = true,
-  onReorder,
-  renderItemAction,
-  renderNode,
-  onNodeClick,
-  onNodeShiftClick,
-  onContentChange,
-  className = '',
-  groupBy: groupByProp,
-  onGroupByChange,
-  showGroupBy: showGroupByProp = false,
-  pagesOnly = false,
-  showEmpty = true,
-  emptyMessage = 'Nothing to show',
-  maxDepth = Infinity,
-  tableColumns,
-  isolatedBlockState = false,
-  suppressRootColor = false,
-  showBreadcrumbs = false,
-  hideToolbar = false,
-  toolbarPrefix,
-  leftElement,
-  beforeContent,
-  hideToolbarControls = false,
-  hideContent = false,
-  showAddButton = false,
-  onAdd,
-  can_create = true,
-  cardLayout,
-  onCardLayoutChange,
-  selectedPropertyUuids: selectedPropertyUuidsProp,
-  onPropertyColumnsChange,
-  customContextMenu,
-  customContextMenuItems,
-  autoCollapse = false,
-  expandAll = false,
-  defaultSort,
-  sort: sortProp,
-  onSortChange,
-  ganttStartDateProperty: ganttStartDatePropertyProp,
-  ganttEndDateProperty: ganttEndDatePropertyProp,
-  onGanttStartDatePropertyChange,
-  onGanttEndDatePropertyChange,
-  containerCard = false,
-  activeNode,
-  pageId,
-  nodeUuid,
-  onAddClass,
-  onSlashCommand,
-  onPasteImage,
-  onTemplateInstantiate,
-  templateClassFilters,
-  onEnterAtRoot,
-  hideProperties = false,
-  size,
-  showClasses = false,
-  showNewBlock = true,
-  hideRootBullet = false,
-  rootIsBlock = false,
-  queryAst,
-  isTransient = false,
-  inPropertyEditor = false,
-}: NodeCollectionProps) {
+      nodes,
+      viewUuid,
+      view,
+      viewMode,
+      availableViewModes,
+      onViewModeChange,
+      editable = true,
+      sortable = true,
+      onReorder,
+      renderItemAction,
+      renderNode,
+      onNodeClick,
+      onNodeShiftClick,
+      onContentChange,
+      className = '',
+      groupBy: groupByProp,
+      onGroupByChange,
+      showGroupBy: showGroupByProp = false,
+      pagesOnly = false,
+      showEmpty = true,
+      emptyMessage = 'Nothing to show',
+      maxDepth = Infinity,
+      tableColumns,
+      isolatedBlockState = false,
+      suppressRootColor = false,
+      showBreadcrumbs = false,
+      hideToolbar = false,
+      toolbarPrefix,
+      leftElement,
+      beforeContent,
+      hideToolbarControls = false,
+      hideContent = false,
+      showAddButton = false,
+      onAdd,
+      can_create = true,
+      cardLayout,
+      onCardLayoutChange,
+      selectedPropertyUuids: selectedPropertyUuidsProp,
+      onPropertyColumnsChange,
+      customContextMenu,
+      customContextMenuItems,
+      autoCollapse = false,
+      expandAll = false,
+      defaultSort,
+      sort: sortProp,
+      onSortChange,
+      ganttStartDateProperty: ganttStartDatePropertyProp,
+      ganttEndDateProperty: ganttEndDatePropertyProp,
+      onGanttStartDatePropertyChange,
+      onGanttEndDatePropertyChange,
+      containerCard = false,
+      activeNode,
+      pageId,
+      nodeUuid,
+      onAddClass,
+      onSlashCommand,
+      onPasteImage,
+      onTemplateInstantiate,
+      templateClassFilters,
+      onEnterAtRoot,
+      hideProperties = false,
+      size,
+      showClasses = false,
+      showNewBlock = true,
+      hideRootBullet = false,
+      rootIsBlock = false,
+      queryAst,
+      isTransient = false,
+      inPropertyEditor = false }: NodeCollectionProps) {
   // Use store for card layout unless transient or controlled
   const storeCardLayout = useAppStore((state) => state.cardLayout);
   const rawCardLayout = cardLayout ?? (isTransient ? 'no-cover' : storeCardLayout);
@@ -201,7 +200,7 @@ export const NodeCollection = memo(function NodeCollection({
 
     // All properties
     allProperties.forEach((prop) => {
-      columns.push({ key: `property_${prop.id}`, label: prop.name });
+      columns.push({ key: `property_${prop.uuid}`, label: prop.name });
     });
 
     return columns;
@@ -275,7 +274,7 @@ export const NodeCollection = memo(function NodeCollection({
     }
   };
   const updateNodeView = useUpdateNodeView();
-  const viewIdForCharts = view?.id;
+  const viewIdForCharts = view?.nodeUuid;
 
   // Load property columns from view configuration (only for uncontrolled, non-transient mode)
   useEffect(() => {
@@ -479,7 +478,7 @@ export const NodeCollection = memo(function NodeCollection({
       case 'gantt': {
         const ganttNodes = (ganttStartDateProperty
           ? nodes.filter((n) => {
-              const val = (n.properties as Record<number, unknown> | undefined)?.[ganttStartDateProperty.id];
+              const val = (n.properties_uuid as Record<string, unknown> | undefined)?.[ganttStartDateProperty.uuid];
               return val != null;
             })
           : nodes
@@ -498,7 +497,7 @@ export const NodeCollection = memo(function NodeCollection({
       case 'calendar': {
         const calendarNodes = (ganttStartDateProperty
           ? nodes.filter((n) => {
-              const val = (n.properties as Record<number, unknown> | undefined)?.[ganttStartDateProperty.id];
+              const val = (n.properties_uuid as Record<string, unknown> | undefined)?.[ganttStartDateProperty.uuid];
               return val != null;
             })
           : nodes
@@ -534,14 +533,14 @@ export const NodeCollection = memo(function NodeCollection({
 
       case 'graph': {
         const graphNodes = nodes.slice(0, IMMERSIVE_VIEW_NODE_LIMIT).map((n) => ({
-          id: n.id,
+          id: n.uuid,
           uuid: n.uuid || '',
           name: n.name || 'Untitled',
           type: (n.is_page ? 'page' : 'block') as 'page' | 'block',
-          tags: n.tags?.map(String) ?? [],
-          class_ids: n.classes ?? [],
+          tags: n.tags_uuid?.map(String) ?? [],
+          class_ids: n.classes_uuid ?? [],
           properties: Object.fromEntries(
-            Object.entries(n.properties ?? {}).map(([k, v]) => [String(k), v])
+            Object.entries(n.properties_uuid ?? {}).map(([k, v]) => [String(k), v])
           ),
           is_daily: n.is_daily || false,
           is_class: n.is_class,
@@ -549,11 +548,11 @@ export const NodeCollection = memo(function NodeCollection({
           is_yearly: n.is_yearly,
           icon: n.icon ?? undefined,
           backlink_count: n.backlink_count,
-          aliased_id: n.aliased_id,
+          aliased_uuid: n.aliased_uuid,
         }));
-        if (activeNode && !graphNodes.some((n) => n.id === activeNode.id)) {
+        if (activeNode && !graphNodes.some((n) => n.id === activeNode.nodeUuid)) {
           graphNodes.unshift({
-            id: activeNode.id,
+            id: activeNode.nodeUuid,
             uuid: activeNode.uuid,
             name: activeNode.name || 'Untitled',
             type: 'page' as 'page' | 'block',
@@ -566,7 +565,7 @@ export const NodeCollection = memo(function NodeCollection({
             is_yearly: (activeNode as { is_yearly?: boolean }).is_yearly,
             icon: (activeNode as { icon?: string }).icon ?? undefined,
             backlink_count: (activeNode as { backlink_count?: number }).backlink_count,
-            aliased_id: (activeNode as { aliased_id?: number | null }).aliased_id,
+            aliased_uuid: (activeNode as { aliased_uuid?: string | null }).aliased_uuid,
           });
         }
         return {

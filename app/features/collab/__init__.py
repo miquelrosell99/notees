@@ -2,7 +2,7 @@
 
 Provides real-time collaboration endpoints:
 - Server-Sent Events (SSE) for workspace-level changes
-- WebSocket live sync for block-level locking and edits
+- WebSocket live sync for presence and applied-op broadcast (locks removed in v2)
 """
 
 from app.features.collab.live_sync_ws import router as live_sync_ws_router

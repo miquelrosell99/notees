@@ -6,13 +6,17 @@
  * Scope is always locked to 'pages'.
  */
 
-import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef, Suspense } from 'react';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { ColorButton } from '@/components/ui/ColorButton';
 import type { ColorEntry } from '@/components/ui/ColorButton';
 import { TextField } from '@/components/ui/TextField';
-import { ViewBuilder } from '@/features/queries';
+import { Spinner } from '@/components/ui/Spinner';
+
+const ViewBuilder = React.lazy(() =>
+  import('@/features/queries/components/ViewBuilder').then((m) => ({ default: m.ViewBuilder }))
+);
 import type { QueryAST } from '@/types/queryAST';
 import { createEmptyQueryAST } from '@/types/queryAST';
 import { getQueryIntent } from '@/lib/astProseRenderer';
@@ -92,10 +96,10 @@ export function GraphGroupModal({
   const nodesMap = useMemo(() => {
     const map = new Map<string, ApiNode>();
     for (const n of nodes) {
-      map.set(n.uuid, n as ApiNode);
+      map.set(n.uuid, n as unknown as ApiNode);
     }
     for (const c of classes) {
-      map.set(c.uuid, c as ApiNode);
+      map.set(c.uuid, c as unknown as ApiNode);
     }
     return map;
   }, [nodes, classes]);
@@ -174,10 +178,12 @@ export function GraphGroupModal({
             <span className="graph-group-modal__prose">{proseSummary}</span>
           </div>
           <div className="graph-group-modal__query-builder">
-            <ViewBuilder
-              ast={query}
-              onChange={setQuery}
-            />
+            <Suspense fallback={<Spinner size="md" />}>
+              <ViewBuilder
+                ast={query}
+                onChange={setQuery}
+              />
+            </Suspense>
           </div>
         </div>
       </div>

@@ -1,41 +1,27 @@
 import { queryClient } from '@/lib/queryClient';
-import { getOperationRuntime } from '@/runtime';
-import { getNodeByServerId } from '@/runtime/graphHelpers';
-import { nodeViewKeys, propertyKeys } from '@/hooks/queryKeys';
+import { propertyKeys } from '@/hooks/queryKeys';
 
 /**
  * Resolve a frontend node identifier to the backend UUID.
- * String identifiers are assumed to already be UUIDs.
- * Numeric identifiers are resolved through the runtime graph first,
- * then fall back to the TanStack Query cache.
+ * Node identifiers are now UUID strings; numeric resolution is obsolete.
  */
-export function resolveNodeUuid(id: string | number): string {
-  const resolved = tryResolveNodeUuid(id);
-  if (resolved === null) {
-    throw new Error(`Unable to resolve UUID for node id ${id}`);
-  }
-  return resolved;
+export function resolveNodeUuid(id: string): string {
+  return id;
 }
 
 /**
  * Try to resolve a frontend node identifier to the backend UUID.
- * Returns null instead of throwing when the UUID cannot be resolved.
+ * Returns the input string unchanged.
  */
-export function tryResolveNodeUuid(id: string | number): string | null {
-  if (typeof id === 'string') return id;
-
-  const runtime = getOperationRuntime();
-  const runtimeNode = getNodeByServerId(runtime, id);
-  if (runtimeNode) return runtimeNode.blockId;
-
-  return findNodeUuidInCache(id);
+export function tryResolveNodeUuid(id: string): string | null {
+  return id;
 }
 
 /**
  * Resolve an array of node identifiers to UUIDs.
  */
-export function resolveNodeUuids(ids: (string | number)[]): string[] {
-  return ids.map(resolveNodeUuid);
+export function resolveNodeUuids(ids: string[]): string[] {
+  return ids;
 }
 
 /**
@@ -59,35 +45,15 @@ export function resolvePropertyUuid(propertyId: string | number): string | null 
 
 /**
  * Resolve a NodeView identifier to its backend UUID.
- * Strings are assumed to already be UUIDs.
- * Numeric IDs are resolved by scanning node-view query caches.
+ * NodeView identifiers are now UUID strings; numeric IDs are obsolete.
  */
 export function resolveNodeViewUuid(viewId: string | number): string | null {
-  if (typeof viewId === 'string') return viewId;
-
-  const queryCache = queryClient.getQueryCache();
-  const candidates = queryCache.findAll({ queryKey: nodeViewKeys.all });
-  for (const query of candidates) {
-    const uuid = findUuidInData(query.state.data, viewId, { uuidKeys: ['uuid'] });
-    if (uuid) return uuid;
-  }
-  return null;
-}
-
-function findNodeUuidInCache(nodeId: number): string | null {
-  const queryCache = queryClient.getQueryCache();
-  // Scan every cached query. Numeric IDs can appear in list, search, daily,
-  // favorites, recents, and many other queries; hard-coding keys is fragile.
-  for (const query of queryCache.findAll()) {
-    const uuid = findUuidInData(query.state.data, nodeId);
-    if (uuid) return uuid;
-  }
-  return null;
+  return typeof viewId === 'string' ? viewId : null;
 }
 
 function findUuidInData(
   data: unknown,
-  targetId: number,
+  targetId: string | number,
   options: { uuidKeys: string[] } = { uuidKeys: ['uuid'] }
 ): string | null {
   const { uuidKeys } = options;

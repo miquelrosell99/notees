@@ -15,22 +15,20 @@
  *
  * Everything in Notees is a node. Nodes are differentiated by system classes:
  * - Page: has the "page" system class
- * - Block: has parent_id (child of another node)
+ * - Block: has parent_uuid (child of another node)
  * - Date nodes: have "day", "month", or "year" system class
- * - Tags: pages referenced by other nodes' tag_ids array
+ * - Tags: pages referenced by other nodes' tag_uuids array
  */
 export interface Node {
-  id: number; // deprecated: use uuid
   uuid: string;
   name: string;
   icon: string | null;
   color: string | null;
-  parent_id: number | null; // deprecated: use parent_uuid
   parent_uuid: string | null;
-  page_id: number | null; // deprecated: use page_uuid
   page_uuid: string | null;
   sequence: number;
-  collapsed: boolean;
+  /** @deprecated Fold state is device-local and no longer synced. */
+  collapsed?: boolean;
   active: boolean;
   is_page: boolean; // Whether this node is a page
   is_class?: boolean; // Whether this node defines a class
@@ -47,12 +45,9 @@ export interface Node {
 
   // Computed fields
   display_name?: string | null;
-  tags?: number[]; // deprecated: use tags_uuid
   tags_uuid?: string[];
-  classes?: number[]; // deprecated: use classes_uuid
   classes_uuid?: string[];
   classes_path_uuid?: string[];
-  properties?: Record<number, unknown>; // deprecated: use properties_uuid
   properties_uuid?: Record<string, unknown>;
   is_daily?: boolean; // Whether this is a daily note
   is_monthly?: boolean; // Whether this is a monthly note
@@ -78,13 +73,10 @@ export interface Node {
   comment_count?: number;
 
   // Alias support
-  aliased_id?: number | null; // deprecated: use aliased_uuid
   aliased_uuid?: string | null;
-  aliases?: number[]; // deprecated: use aliases_uuid
   aliases_uuid?: string[];
 
-  // Class extension (Extends chain) - parent class IDs in order
-  extends?: number[]; // deprecated: use extends_uuid
+  // Class extension (Extends chain) - parent class UUIDs in order
   extends_uuid?: string[];
 
   // Resolved permissions for the current user on this node.
@@ -103,13 +95,10 @@ export interface Node {
   // Metadata for linked references (attached client-side)
   _linkedRefMetadata?: {
     linkType: 'text' | 'property';
-    propertyId?: number; // deprecated: use propertyUuid
     propertyUuid?: string;
     propertyName?: string;
-    targetNodeId?: number; // deprecated: use targetNodeUuid
     targetNodeUuid?: string;
-    // The actual source node ID (when displaying page in list view, this is the block with the property)
-    sourceNodeId?: number; // deprecated: use sourceNodeUuid
+    // The actual source node UUID (when displaying page in list view, this is the block with the property)
     sourceNodeUuid?: string;
   };
 }
@@ -125,7 +114,7 @@ export function isPage(node: Node): boolean {
  * Helper to check if a node is a block
  */
 export function isBlock(node: Node): boolean {
-  return node.parent_id !== null;
+  return node.parent_uuid !== null;
 }
 
 /**
@@ -196,10 +185,8 @@ export interface DateInfo {
  * Backlink info
  */
 export interface Backlink {
-  source_node_id: number; // deprecated: use source_node_uuid
   source_node_uuid: string;
   source_node_name: string;
-  source_page_id: number | null; // deprecated: use source_page_uuid
   source_page_uuid: string | null;
   source_page_name: string | null;
   link_type: LinkType;
@@ -210,7 +197,7 @@ export interface Backlink {
  * Breadcrumb segment for showing path hierarchy
  */
 export interface BreadcrumbSegment {
-  node_id: number | null;
+  node_uuid: string | null;
   name: string;
   is_property: boolean;
 }
@@ -224,11 +211,9 @@ export interface LinkedReference {
   link_type: 'text' | 'property';
   context: string;
   breadcrumb_path: BreadcrumbSegment[];
-  property_id?: number; // deprecated: use property_uuid
   property_uuid?: string;
   property_name?: string;
-  /** For text-property-context links: root block ID of the text property */
-  text_property_root_block_id?: number; // deprecated: use text_property_root_block_uuid
+  /** For text-property-context links: root block UUID of the text property */
   text_property_root_block_uuid?: string;
 }
 
@@ -241,14 +226,10 @@ export interface NodeCreate {
   name?: string;
   icon?: string | null;
   color?: string | null;
-  parent_id?: number | null; // deprecated: use parent_uuid
   parent_uuid?: string | null;
   sequence?: number;
-  tags?: number[]; // deprecated: use tag_uuids
   tag_uuids?: string[];
-  classes?: number[]; // deprecated: use class_uuids
-  class_uuids?: string[]; // Class node UUIDs (takes precedence over classes)
-  properties?: Record<number, unknown>; // deprecated: use property_uuids
+  class_uuids?: string[];
   property_uuids?: Record<string, unknown>;
   uuid?: string; // Optional: override auto-generated UUID (e.g. from Logseq import)
   // For date nodes
@@ -267,7 +248,6 @@ export interface NodeUpdate {
   name?: string | null;
   icon?: string | null;
   color?: string | null;
-  parent_id?: number | null; // deprecated: use parent_uuid
   parent_uuid?: string | null;
   sequence?: number | null;
   collapsed?: boolean | null;
@@ -275,31 +255,13 @@ export interface NodeUpdate {
   is_page?: boolean | null;
   is_favorite?: boolean | null;
   /** When provided, reconcile node classes to exactly this set (Odoo-style write) */
-  classes?: number[]; // deprecated: use class_uuids
   class_uuids?: string[];
-  tags?: number[]; // deprecated: use tag_uuids
   tag_uuids?: string[];
   /** When provided, apply each property_uuid -> value pair */
-  properties?: Record<number, unknown>; // deprecated: use property_uuids
   property_uuids?: Record<string, unknown>;
 }
 
 // ==================== Batch Read Operations ====================
-
-/**
- * Request to fetch multiple nodes by ID in a single call
- */
-export interface BatchGetNodesRequest {
-  ids: number[];
-  include_properties?: boolean;
-}
-
-/**
- * Response for batch node fetch — keyed by node ID
- */
-export interface BatchGetNodesResponse {
-  nodes: Record<string, Node>;
-}
 
 /**
  * Request to fetch multiple nodes by UUID in a single call
@@ -320,7 +282,6 @@ export interface BatchGetNodesByUuidResponse {
  * A single breadcrumb in the ancestor chain
  */
 export interface BreadcrumbItemResponse {
-  id: number; // deprecated: use uuid
   uuid: string;
   name: string;
   display_name: string;
@@ -328,7 +289,6 @@ export interface BreadcrumbItemResponse {
   is_page: boolean;
   parent_locked: boolean;
   is_property?: boolean;
-  property_id?: number | null; // deprecated: use property_uuid
   property_uuid?: string | null;
 }
 
@@ -348,14 +308,10 @@ export interface BatchNodeCreateItem {
   name?: string;
   icon?: string | null;
   color?: string | null;
-  parent_id?: number | null; // deprecated: use parent_uuid
   parent_uuid?: string | null;
   sequence?: number;
-  tags?: number[]; // deprecated: use tag_uuids
   tag_uuids?: string[];
-  classes?: number[]; // deprecated: use class_uuids
   class_uuids?: string[];
-  properties?: Record<number, unknown>; // deprecated: use property_uuids
   property_uuids?: Record<string, unknown>;
   uuid?: string; // Optional: provide a UUID (e.g. from Logseq)
 }
@@ -396,22 +352,17 @@ export interface BatchNodeCreateResponse {
  * A single node update in a batch operation
  */
 export interface BatchNodeUpdateItem {
-  id?: number; // deprecated: use uuid
-  uuid?: string;
+  uuid: string;
   name?: string | null;
   icon?: string | null;
   color?: string | null;
-  parent_id?: number | null; // deprecated: use parent_uuid
   parent_uuid?: string | null;
   sequence?: number | null;
   collapsed?: boolean | null;
   /** When provided, reconcile node classes to exactly this set */
-  classes?: number[]; // deprecated: use class_uuids
   class_uuids?: string[];
-  tags?: number[]; // deprecated: use tag_uuids
   tag_uuids?: string[];
   /** When provided, apply each property_uuid -> value pair */
-  properties?: Record<number, unknown>; // deprecated: use property_uuids
   property_uuids?: Record<string, unknown>;
 }
 
@@ -471,7 +422,6 @@ export interface BatchNodeDeleteResponse {
  * Request to permanently delete multiple nodes from trash
  */
 export interface BatchPermanentDeleteRequest {
-  ids?: number[]; // deprecated: use uuids
   uuids: string[];
 }
 
@@ -480,7 +430,6 @@ export interface BatchPermanentDeleteRequest {
  */
 export interface BatchPermanentDeleteResultItem {
   index: number;
-  id?: number; // deprecated: use uuid
   uuid: string;
   success: boolean;
   error?: string;
@@ -547,7 +496,6 @@ export type PropertyScope = 'global' | 'class' | 'node';
  * Property definition
  */
 export interface Property {
-  id: number; // deprecated: use uuid
   uuid: string;
   name: string;
   icon: string | null;
@@ -556,15 +504,13 @@ export interface Property {
   multi: boolean;
   is_system: boolean;
   scope: PropertyScope; // 'global' | 'class' | 'node'
-  node_id: number | null; // deprecated: use node_uuid
-  node_uuid?: string | null;
+  node_uuid: string | null;
   icon_visibility: PropertyIconVisibility; // Where to show selection value icon at block level
   validation_rules: Record<string, unknown> | null; // Optional validation constraints
   create_date: string;
   write_date: string;
   // For node-type properties
-  class_filters: number[]; // deprecated: use class_filter_uuids
-  class_filter_uuids?: string[];
+  class_filter_uuids: string[];
   // For selection-type properties
   options: SelectionOption[];
 }
@@ -574,7 +520,6 @@ export interface Property {
  */
 export interface PropertyBacklink {
   source_page: Node;
-  property_id: number; // deprecated: use property_uuid
   property_uuid: string;
   property_name: string;
 }
@@ -583,8 +528,7 @@ export interface PropertyBacklink {
  * Selection option for selection-type properties
  */
 export interface SelectionOption {
-  id: number; // deprecated: use uuid
-  uuid?: string;
+  uuid: string;
   name: string;
   icon: string | null; // plain icon name
   color: string | null; // Hex or CSS color for the pill (#e2e8f0, blue, etc.)
@@ -595,12 +539,9 @@ export interface SelectionOption {
  * Class property (property linked to a class)
  */
 export interface ClassProperty {
-  id: number; // deprecated
-  class_node_id: number; // deprecated: use class_node_uuid
-  class_node_uuid?: string;
+  class_node_uuid: string;
   class_node_name: string;
-  property_id: number; // deprecated: use property_uuid
-  property_uuid?: string;
+  property_uuid: string;
   property_name: string;
   property_type: PropertyType;
   sequence: number;
@@ -613,12 +554,10 @@ export interface ClassProperty {
  * Inherited property (property inherited from an extended class)
  */
 export interface InheritedProperty {
-  property_id: number; // deprecated: use property_uuid
-  property_uuid?: string;
+  property_uuid: string;
   property_name: string;
   property_type: PropertyType;
-  from_class_id: number; // deprecated: use from_class_uuid
-  from_class_uuid?: string;
+  from_class_uuid: string;
   from_class_name: string;
   sequence: number;
   default_value: unknown;
@@ -630,7 +569,7 @@ export interface InheritedProperty {
  * Extended by class info (classes that extend this class)
  */
 export interface ExtendedByClass {
-  id: number;
+  nodeUuid: string;
   uuid: string;
   name: string;
   icon: string | null;
@@ -640,12 +579,9 @@ export interface ExtendedByClass {
  * Class extends (inheritance relationship)
  */
 export interface ClassExtends {
-  id: number; // deprecated
-  class_node_id: number; // deprecated: use class_node_uuid
-  class_node_uuid?: string;
+  class_node_uuid: string;
   class_node_name: string;
-  extends_class_node_id: number; // deprecated: use extends_class_node_uuid
-  extends_class_node_uuid?: string;
+  extends_class_node_uuid: string;
   extends_class_node_name: string;
   extends_class_icon?: string | null;
   sequence: number;
@@ -655,8 +591,7 @@ export interface ClassExtends {
  * Property value for a node
  */
 export interface PropertyValue {
-  property_id: number; // deprecated: use property_uuid
-  property_uuid?: string;
+  property_uuid: string;
   property_name: string;
   property_type: PropertyType;
   value: unknown;
@@ -672,9 +607,7 @@ export interface PropertyCreate {
   type?: PropertyType;
   multi?: boolean;
   scope?: PropertyScope; // 'global' | 'class' | 'node'
-  node_id?: number | null; // deprecated: use node_uuid
   node_uuid?: string | null;
-  class_filters?: number[]; // deprecated: use class_filter_uuids
   class_filter_uuids?: string[];
   options?: string[];
 }
@@ -686,7 +619,6 @@ export interface PropertyUpdate {
   name?: string | null;
   icon?: string | null;
   multi?: boolean | null; // Aligned with backend naming
-  class_filters?: number[] | null; // deprecated: use class_filter_uuids
   class_filter_uuids?: string[] | null;
   icon_visibility?: PropertyIconVisibility | null;
   validation_rules?: Record<string, unknown> | null;
@@ -698,7 +630,7 @@ export interface PropertyUpdate {
  * User entity
  */
 export interface User {
-  id: number;
+  nodeUuid: string;
   uuid: string;
   email: string;
   name: string | null;
@@ -882,13 +814,10 @@ export interface LinkedReferencesResponse {
  * Unlinked mention candidate for a target node.
  */
 export interface Mention {
-  id: number; // deprecated
   uuid: string;
-  source_node_id: number; // deprecated: use source_node_uuid
   source_node_uuid: string;
   source_node_name: string;
   source_is_page: boolean;
-  target_id: number; // deprecated: use target_uuid
   target_uuid: string;
   match_text: string;
   position: number;
@@ -949,14 +878,11 @@ export function generateYearUuid(year: number): string {
  * Notification item
  */
 export interface NotificationResponse {
-  id: string;
-  uuid?: string;
+  uuid: string;
   type: string;
-  actor_user_id: string | null; // deprecated: use actor_user_uuid
-  actor_user_uuid?: string | null;
+  actor_user_uuid: string | null;
   actor_name: string | null;
-  node_id: string | null; // deprecated: use node_uuid
-  node_uuid?: string | null;
+  node_uuid: string | null;
   node_name: string | null;
   message: string | null;
   is_read: boolean;
@@ -981,9 +907,7 @@ export function dateFromUuid(uuid: string): Date | null {
  * Recurrence rule returned by the dedicated task recurrence API.
  */
 export interface RecurrenceRule {
-  id: number; // deprecated
   uuid: string;
-  task_node_id: number; // deprecated: use task_node_uuid
   task_node_uuid: string;
   rule_type: 'daily' | 'weekday' | 'weekly' | 'monthly' | 'yearly';
   interval: number;
@@ -1004,22 +928,19 @@ export interface RecurrenceRule {
  */
 export type RecurrenceRuleInput = Omit<
   RecurrenceRule,
-  'id' | 'uuid' | 'task_node_id' | 'task_node_uuid' | 'create_date' | 'write_date' | 'description'
+  'uuid' | 'task_node_uuid' | 'create_date' | 'write_date' | 'description'
 >;
 
 /**
  * A single recorded completion (or skip) of a recurring task occurrence.
  */
 export interface TaskCompletion {
-  id: number; // deprecated
   uuid: string;
-  task_node_id: number; // deprecated: use task_node_uuid
   task_node_uuid: string;
   scheduled_date: string | null;
   deadline_date: string | null;
   status: 'done' | 'cancelled' | 'skipped';
   completed_at: string;
-  completed_by: number | null; // deprecated: use completed_by_uuid
   completed_by_uuid: string | null;
   create_date: string;
 }

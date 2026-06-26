@@ -28,8 +28,8 @@ export function DatePropertyCell({
   const cellRef = useRef<HTMLButtonElement>(null);
   const setPropertyMutation = useSetNodeProperty();
 
-  // value is a day-page node ID (number)
-  const dayNodeId = typeof value === 'number' ? value : null;
+  // value is a day-page node UUID (string)
+  const dayNodeId = typeof value === 'string' ? value : null;
   const { data: dayNode } = useNode(dayNodeId);
 
   // Derive ISO date from the day node's UUID (format: YYYYMMDD)
@@ -49,14 +49,14 @@ export function DatePropertyCell({
     try {
       const dayPage = await getOrCreateDaily(selectedIsoDate);
       await setPropertyMutation.mutateAsync({
-        nodeId: node.id,
-        propertyId: property.id,
-        value: dayPage.id,
+        nodeUuid: node.uuid,
+        propertyId: property.uuid,
+        value: dayPage.uuid,
       });
     } catch (error) {
       console.error('Failed to save date property:', error);
     }
-  }, [node.id, property.id, setPropertyMutation]);
+  }, [node.uuid, property.uuid, setPropertyMutation]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (!editable) return;

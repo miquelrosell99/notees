@@ -171,6 +171,7 @@ export const COMMAND_IDS = {
   TOGGLE_PRIVATE: 'page.togglePrivate',
   START_PRESENTATION: 'page.present',
   TOGGLE_FOCUS_MODE: 'ui.focusMode',
+  TOGGLE_FOLD: 'ui.toggleFold',
   TOGGLE_WIDE_MODE: 'ui.wideMode',
   TOGGLE_MINIMAP: 'ui.minimap',
   TOGGLE_LOCAL_GRAPH: 'ui.localGraph',

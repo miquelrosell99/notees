@@ -764,7 +764,7 @@ export function generateLinkUuid(): string {
 
 /**
  * Regenerate link UUIDs in content to create new link instances
- * Matches both [[nodeId]] and [[nodeId:oldUuid]] formats
+ * Matches both [[nodeId]] and [[nodeUuid:oldUuid]] formats
  */
 export function regenerateLinkUuids(content: string): string {
   return content.replace(/\[\[([^\]:\s]+)(?::[a-f0-9-]+)?\]\]/g, (_match, nodeId) => {

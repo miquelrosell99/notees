@@ -18,10 +18,10 @@ import { runPhase6 } from './useLogseqImporter.phase6';
 import { runPhase7 } from './useLogseqImporter.phase7';
 
 interface RunImportDeps {
-  pageClassId: number;
-  classClassId: number | null;
+  pageClassUuid: string;
+  classClassUuid: string | null;
   mutations: {
-    createNode: { mutateAsync: (...args: any[]) => Promise<{ id: number; uuid: string }> };
+    createNode: { mutateAsync: (...args: any[]) => Promise<Node> };
     updateNode: { mutateAsync: (...args: any[]) => Promise<Node | null> };
     createProperty: { mutateAsync: (...args: any[]) => Promise<unknown> };
   };
@@ -80,26 +80,26 @@ export async function runImport(
       options,
       override,
       uuidMap: new Map<string, NodeInfo>(),
-      propIdMap: new Map<string, number>(),
-      classIdMap: new Map<string, number>(),
+      propIdMap: new Map<string, string>(),
+      classIdMap: new Map<string, string>(),
       titleToNodeInfo: new Map<string, NodeInfo>(),
-      contentQueue: [] as Array<{ id: number; title: string }>,
-      existingNodeIds: new Set<number>(),
+      contentQueue: [] as Array<{ nodeUuid: string; title: string }>,
+      existingNodeIds: new Set<string>(),
       phases,
-      pageClassId: deps.pageClassId,
-      classClassId: deps.classClassId,
+      pageClassUuid: deps.pageClassUuid,
+      classClassUuid: deps.classClassUuid,
       mutations: deps.mutations,
       queryClient: deps.queryClient,
       setImportStatus,
       setImportProgress,
       tick,
       tickN,
-      textPropIds: new Set<number>(),
+      textPropIds: new Set<string>(),
       existingPageMap: new Map(),
       journalStartSeqs: new Map<string, number>(),
       tempIdxToNodeInfo: new Map<number, NodeInfo>(),
-      nodeIdToProperties: new Map<number, Record<number, unknown>>(),
-      regularPageClasses: [] as number[][],
+      nodeIdToProperties: new Map<string, Record<string, unknown>>(),
+      regularPageClasses: [] as string[][],
       flatBlocks: [] as ImportContext['flatBlocks'],
     };
 
@@ -119,8 +119,8 @@ export async function runImport(
     for (const [logseqKey, noteesUuid] of Object.entries(LOGSEQ_BUILTIN_CLASS_MAP)) {
       const systemClass = existingClasses.find(c => c.uuid === noteesUuid);
       if (systemClass) {
-        ctx.classIdMap.set(logseqKey, systemClass.id);
-        const info = { id: systemClass.id, uuid: systemClass.uuid };
+        ctx.classIdMap.set(logseqKey, systemClass.uuid);
+        const info = { nodeUuid: systemClass.uuid, uuid: systemClass.uuid };
         const displayName = nodeNameToText(systemClass.name);
         if (displayName) {
           ctx.titleToNodeInfo.set(displayName, info);

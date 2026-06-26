@@ -99,8 +99,8 @@ export function InlineLink({ linkId, refType, url, label }: InlineLinkProps) {
     const runtime = getOperationRuntime();
     const graphNode = getNode(runtime, nodeUuid);
 
-    if (graphNode?.serverId) {
-      openNode(graphNode.serverId);
+    if (graphNode?.blockId) {
+      openNode(graphNode.blockId);
       return;
     }
 
@@ -122,9 +122,9 @@ export function InlineLink({ linkId, refType, url, label }: InlineLinkProps) {
     const runtime = getOperationRuntime();
     const graphNode = getNode(runtime, nodeUuid);
 
-    if (graphNode?.serverId) {
+    if (graphNode?.blockId) {
       const cardType: SidebarCardType = graphNode.isPage ? 'page' : 'block';
-      addSidebarCard(graphNode.serverId, cardType);
+      addSidebarCard(graphNode.blockId, cardType);
       return;
     }
 

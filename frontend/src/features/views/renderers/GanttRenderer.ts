@@ -51,7 +51,7 @@ export type GanttRow =
   | { type: 'group-header'; label: string; count: number; icon: string | null };
 
 export interface DragState {
-  nodeId: number;
+  nodeUuid: string;
   mode: 'move' | 'resize-end';
   startX: number; // canvas-space X at mousedown
   origStart: Date;
@@ -60,7 +60,7 @@ export interface DragState {
 }
 
 export interface BarRect {
-  nodeId: number;
+  nodeUuid: string;
   left: number;
   top: number;
   right: number;
@@ -140,7 +140,7 @@ export function buildRows(
   items: GanttNodeItem[],
   groupBy: string | undefined,
   groupByProp: Property | undefined,
-  pageMap: Map<number, Node>,
+  pageMap: Map<string, Node>,
 ): GanttRow[] {
   if (!groupBy || groupBy === 'none') {
     return items.map(item => ({ type: 'node', item }));
@@ -156,11 +156,11 @@ export function buildRows(
       if (item.node.is_page) {
         label = 'Pages';
       } else {
-        const pid = (item.node as unknown as Record<string, unknown>).page_id as number | undefined;
-        label = pid != null ? (pageMap.get(pid)?.name ?? `Page ${pid}`) : 'No page';
+        const pageUuid = item.node.page_uuid;
+        label = pageUuid ? (pageMap.get(pageUuid)?.name ?? 'No page') : 'No page';
       }
     } else if (groupByProp) {
-      const raw = ((item.node as unknown as Record<string, unknown>).properties as Record<string, unknown>)?.[String(groupByProp.id)] ?? null;
+      const raw = ((item.node as unknown as Record<string, unknown>).properties as Record<string, unknown>)?.[String(groupByProp.uuid)] ?? null;
       ({ label, icon } = groupPropertyLabel(groupByProp, raw));
     } else {
       label = '';
@@ -331,7 +331,7 @@ export class GanttRenderer {
 
       if (row.type === 'node' && rowY + rh > 0 && rowY < h) {
         const { item } = row;
-        const dragged = dragState?.nodeId === item.node.id;
+        const dragged = dragState?.nodeUuid === item.node.uuid;
 
         let dStart = item.startDate;
         let dEnd = item.endDate;
@@ -365,7 +365,7 @@ export class GanttRenderer {
           ctx.closePath();
           ctx.fill();
           this.barRects.push({
-            nodeId: item.node.id,
+            nodeUuid: item.node.uuid,
             left: cx - s, top: cy - s, right: cx + s, bottom: cy + s,
             isMilestone: true,
           });
@@ -390,7 +390,7 @@ export class GanttRenderer {
           }
 
           this.barRects.push({
-            nodeId: item.node.id,
+            nodeUuid: item.node.uuid,
             left: barX, top: barY, right: barX + bw, bottom: barY + BAR_HEIGHT,
             isMilestone: false,
           });

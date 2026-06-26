@@ -15,7 +15,7 @@ interface RecentItemProps {
   nodeUuid: string;
   isActive: boolean;
   onClick: (event: React.MouseEvent) => void;
-  onNavigate: (nodeUuid: string | number) => void;
+  onNavigate: (nodeUuid: string) => void;
   onContextMenu?: (event: React.MouseEvent) => void;
 }
 
@@ -53,7 +53,7 @@ const RecentItem = memo(function RecentItem({ nodeUuid, isActive, onClick, onNav
       <div className="sidebar-recent-block">
         <div className="sidebar-item-breadcrumbs-wrapper">
           <NodeBreadcrumbs
-            nodeId={node.id}
+            nodeUuid={node.uuid}
             nodeType="page"
             compact
             onNavigate={onNavigate}
@@ -105,7 +105,7 @@ export function SidebarRecents({ onContextMenu, onItemClick }: SidebarRecentsPro
     if (isMobile && !isSidebarCollapsed) toggleSidebar();
   }, [isMobile, isSidebarCollapsed, toggleSidebar]);
 
-  const handleNavigate = useCallback((nodeUuid: string | number, e?: React.MouseEvent) => {
+  const handleNavigate = useCallback((nodeUuid: string, e?: React.MouseEvent) => {
     if (e?.ctrlKey || e?.metaKey) {
       openNodeInNewTab(nodeUuid);
     } else {
@@ -115,7 +115,7 @@ export function SidebarRecents({ onContextMenu, onItemClick }: SidebarRecentsPro
     onItemClick?.();
   }, [openNode, openNodeInNewTab, closeMobileDrawer, onItemClick]);
 
-  const handleBreadcrumbNavigate = useCallback((nodeUuid: string | number) => {
+  const handleBreadcrumbNavigate = useCallback((nodeUuid: string) => {
     openNode(nodeUuid);
     closeMobileDrawer();
     onItemClick?.();

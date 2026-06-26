@@ -23,13 +23,13 @@ const SharesUnifiedView = React.lazy(() => import('@/features/shares/pages/Share
 
 interface MainContentPaneProps {
   tab: Tab;
-  onNavigateToNode?: (nodeId: string | number) => void;
+  onNavigateToNode?: (nodeUuid: string) => void;
 }
 
 export function MainContentPane({ tab, onNavigateToNode }: MainContentPaneProps) {
   const { data: currentNode } = useNode(tab.nodeUuid ?? null);
   const { data: allClasses } = useClasses();
-  const { systemClassIds } = useSystemClasses();
+  const { systemClassUuids } = useSystemClasses();
   const viewMode = useNavigationStore(s => s.viewMode);
 
   const nodeColorStyle = useMemo(() => {
@@ -169,14 +169,14 @@ export function MainContentPane({ tab, onNavigateToNode }: MainContentPaneProps)
     );
   }
 
-  const isWhiteboard = currentNode && systemClassIds?.whiteboard &&
-    currentNode.classes?.includes(systemClassIds.whiteboard);
+  const isWhiteboard = currentNode && systemClassUuids?.whiteboard &&
+    currentNode.classes_uuid?.includes(systemClassUuids.whiteboard);
 
   if (isWhiteboard && currentNode) {
     return (
       <div className="main-content main-content--whiteboard">
         <Suspense fallback={<LoadingScreen fullscreen={false} label="Loading…" />}>
-          <WhiteboardView nodeId={currentNode.id} nodeUuid={currentNode.uuid} />
+          <WhiteboardView nodeUuid={currentNode.uuid} />
         </Suspense>
       </div>
     );
@@ -192,13 +192,13 @@ export function MainContentPane({ tab, onNavigateToNode }: MainContentPaneProps)
 
   return (
     <div className="main-content-wrapper" style={nodeColorStyle}>
-      <NodeViewWrapper nodeId={currentNode.id} viewMode={viewMode} liveSync />
+      <NodeViewWrapper nodeUuid={currentNode.uuid} viewMode={viewMode} liveSync />
       <div
         id="main-content"
         className={`main-content${nodeColorStyle ? ' has-node-border' : ''}`}
         style={nodeColorStyle}
       >
-        <NodeViewContent nodeId={currentNode.id} viewMode={viewMode} liveSync />
+        <NodeViewContent nodeUuid={currentNode.uuid} viewMode={viewMode} liveSync />
       </div>
     </div>
   );

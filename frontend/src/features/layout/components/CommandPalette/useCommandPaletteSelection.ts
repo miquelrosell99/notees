@@ -12,7 +12,7 @@ import { useCommandRegistry } from '@/stores/commandRegistry';
 import { useNotifications } from '@/stores/notificationStore';
 import { useCreateNode } from '@/features/content';
 import { nodeKeys } from '@/hooks/queryKeys';
-import { parseHierarchicalPath, resolveHierarchicalParent } from '@/utils/hierarchicalPath';
+import { parseHierarchicalPath, resolveHierarchicalParentUuid } from '@/utils/hierarchicalPath';
 import type { ItemEntry, DuplicateModalState } from './CommandPalette.types';
 
 interface UseCommandPaletteSelectionParams {
@@ -20,7 +20,7 @@ interface UseCommandPaletteSelectionParams {
   searchTerm: string;
   pageNameForCreation: string;
   selectedClasses: Node[];
-  pageClassId: number | null | undefined;
+  pageClassUuid: string | null | undefined;
   destinationPage: Node | undefined;
   onSelect?: (node: Node) => void;
   onClose: () => void;
@@ -38,7 +38,7 @@ export function useCommandPaletteSelection(params: UseCommandPaletteSelectionPar
     searchTerm,
     pageNameForCreation,
     selectedClasses,
-    pageClassId,
+    pageClassUuid,
     destinationPage,
     onSelect,
     onClose,
@@ -100,7 +100,7 @@ export function useCommandPaletteSelection(params: UseCommandPaletteSelectionPar
           if (onSelect) {
             onSelect(item.result.node);
           } else {
-            openNode(item.result.node.id);
+            openNode(item.result.node.uuid);
           }
         }
         onClose();
@@ -108,32 +108,32 @@ export function useCommandPaletteSelection(params: UseCommandPaletteSelectionPar
 
       case 'property':
         if (item.result?.property) {
-          openPropertyView(item.result.property.id);
+          openPropertyView(item.result.property.uuid);
         }
         onClose();
         break;
 
       case 'add-page':
         try {
-          if (!pageClassId) {
+          if (!pageClassUuid) {
             notifyWarning('Setup incomplete', 'Page class not found. Please reload the app.');
             break;
           }
 
           const parsed = parseHierarchicalPath(pageNameForCreation);
-          let parentId: number | null = null;
-          const classes = [pageClassId, ...selectedClasses.map(c => c.id)];
+          let parentUuid: string | null = null;
+          const classUuids = [pageClassUuid, ...selectedClasses.map(c => c.uuid)];
 
           if (parsed.isHierarchical) {
             const freshPages = await listNodes({ pages_only: true, include_children: true });
-            parentId = await resolveHierarchicalParent(
+            parentUuid = await resolveHierarchicalParentUuid(
               parsed.parentSegments,
               freshPages,
               async (name, parent) => {
                 return await createNodeMutation.mutateAsync({
                   name,
-                  parent_id: parent,
-                  classes: [pageClassId],
+                  parent_uuid: parent,
+                  class_uuids: [pageClassUuid],
                 });
               }
             );
@@ -142,8 +142,8 @@ export function useCommandPaletteSelection(params: UseCommandPaletteSelectionPar
           try {
             const newNode = await createNodeMutation.mutateAsync({
               name: parsed.leaf || pageNameForCreation,
-              parent_id: parentId,
-              classes,
+              parent_uuid: parentUuid,
+              class_uuids: classUuids,
             });
             onClose();
             openNode(newNode.uuid);
@@ -156,8 +156,8 @@ export function useCommandPaletteSelection(params: UseCommandPaletteSelectionPar
                 isOpen: true,
                 pageName: parsed.leaf || pageNameForCreation,
                 conflictingClasses: conflicting,
-                originalClasses: classes,
-                parentId: parentId,
+                originalClasses: classUuids,
+                parentUuid: parentUuid,
               });
             } else {
               notifyError('Failed to create page', 'Please try again.');
@@ -176,8 +176,8 @@ export function useCommandPaletteSelection(params: UseCommandPaletteSelectionPar
         try {
           await createNodeMutation.mutateAsync({
             name: searchTerm.trim(),
-            parent_id: destinationPage.id,
-            classes: selectedClasses.map(c => c.id),
+            parent_uuid: destinationPage.uuid,
+            class_uuids: selectedClasses.map(c => c.uuid),
           });
         } catch {
           notifyError('Failed to add item', 'Please try again.');
@@ -208,7 +208,7 @@ export function useCommandPaletteSelection(params: UseCommandPaletteSelectionPar
         return;
     }
   }, [
-    allItems, searchTerm, pageNameForCreation, selectedClasses, pageClassId,
+    allItems, searchTerm, pageNameForCreation, selectedClasses, pageClassUuid,
     destinationPage, onSelect, openNode, openPropertyView, createNodeMutation,
     onClose, queryClient, handlePrefixSelect, handleBooleanSelect,
     setDuplicateModal, setMaxPages, setMaxBlocks, setMaxProperties,

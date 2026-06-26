@@ -111,7 +111,7 @@ export function LinkEditModal({
   const isTargetNodeClass = useMemo(() => {
     const targetNode = selectedNode || currentNode;
     if (!targetNode || !allClasses) return false;
-    return allClasses.some(cls => cls.id === targetNode.id);
+    return allClasses.some(cls => cls.uuid === targetNode.uuid);
   }, [selectedNode, currentNode, allClasses]);
 
   // Reset state when modal opens
@@ -125,7 +125,7 @@ export function LinkEditModal({
   }, [isOpen, currentLabel, refType, currentUrl, initialMode]);
 
   // The effective node value (for NodeSelector) is the selected node or the current node
-  const effectiveNodeId = selectedNode?.id ?? currentNode?.id ?? null;
+  const effectiveNodeId = selectedNode?.uuid ?? currentNode?.uuid ?? null;
 
   // ─── Handlers ──────────────────────────────────────────────
 

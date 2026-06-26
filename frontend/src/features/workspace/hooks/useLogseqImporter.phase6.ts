@@ -10,20 +10,22 @@ export async function runPhase6(ctx: ImportContext): Promise<void> {
   phases.push(p6);
 
   if (contentQueue.length > 0) {
-    const nodeIdToUuid = new Map<number, string>();
-    for (const [uuid, info] of uuidMap) nodeIdToUuid.set(info.id, uuid);
-
-    const batchItems: Array<{ id: number; name: string }> = [];
+    const batchItems: Array<{ uuid: string; name: string }> = [];
     const BATCH_SIZE = 50;
 
-    for (const { id, title } of contentQueue) {
+    for (const { nodeUuid, title } of contentQueue) {
       if (!title) continue;
+      if (!nodeUuid) {
+        p6.failed++;
+        p6.errors.push({ item: `Node ${nodeUuid}`, message: 'UUID not found for content update' });
+        continue;
+      }
       try {
         const ast = buildAstFromLogseqText(title, uuidMap, titleToNodeInfo);
-        batchItems.push({ id, name: JSON.stringify(ast) });
+        batchItems.push({ uuid: nodeUuid, name: JSON.stringify(ast) });
       } catch (e) {
         p6.failed++;
-        p6.errors.push({ item: `Node ${id}${nodeIdToUuid.has(id) ? ` [${nodeIdToUuid.get(id)}]` : ''}`, message: errorMessage(e) });
+        p6.errors.push({ item: `Node ${nodeUuid}`, message: errorMessage(e) });
       }
     }
 
@@ -36,8 +38,7 @@ export async function runPhase6(ctx: ImportContext): Promise<void> {
         else {
           p6.failed++; tick();
           const item = chunk[result.index];
-          const itemUuid = item ? nodeIdToUuid.get(item.id) : undefined;
-          p6.errors.push({ item: `Node ${item?.id}${itemUuid ? ` [${itemUuid}]` : ''}`, message: result.error || 'Unknown error' });
+          p6.errors.push({ item: `Node ${item?.uuid}`, message: result.error || 'Unknown error' });
         }
       }
     }

@@ -57,7 +57,7 @@ function ASTBlock({ node, depth = 0 }: { node: Node; depth?: number }) {
       <div className="ast-viewer-block-header">
         <span className="ast-viewer-block-depth">{depth > 0 ? '└─' : ''}</span>
         <span className="ast-viewer-block-type">{node.is_page ? 'Page' : 'Block'}</span>
-        <span className="ast-viewer-block-id">#{node.id}</span>
+        <span className="ast-viewer-block-id">#{node.uuid}</span>
         <span className={`ast-viewer-block-status ${isValid ? 'valid' : 'invalid'}`}>
           {isValid ? '✓' : '✗'}
         </span>
@@ -67,7 +67,7 @@ function ASTBlock({ node, depth = 0 }: { node: Node; depth?: number }) {
         <code>{formatted}</code>
       </pre>
       {node.children?.map((child) => (
-        <ASTBlock key={child.id} node={child} depth={depth + 1} />
+        <ASTBlock key={child.uuid} node={child} depth={depth + 1} />
       ))}
     </div>
   );
@@ -75,7 +75,7 @@ function ASTBlock({ node, depth = 0 }: { node: Node; depth?: number }) {
 
 export function ASTViewerModal({ isOpen, onClose, node }: ASTViewerModalProps) {
   // Fetch node with children when modal is open
-  const { data: nodeWithChildren } = useNode(isOpen && node ? node.id : null, {
+  const { data: nodeWithChildren } = useNode(isOpen && node ? node.uuid : null, {
     include_children: true
   });
   
@@ -96,7 +96,7 @@ export function ASTViewerModal({ isOpen, onClose, node }: ASTViewerModalProps) {
         <div className="ast-viewer-info">
           <div className="ast-viewer-row">
             <span className="ast-viewer-label">ID:</span>
-            <span className="ast-viewer-value">{displayNode.id}</span>
+            <span className="ast-viewer-value">{displayNode.uuid}</span>
           </div>
           <div className="ast-viewer-row">
             <span className="ast-viewer-label">UUID:</span>
@@ -146,7 +146,7 @@ export function ASTViewerModal({ isOpen, onClose, node }: ASTViewerModalProps) {
             </div>
             <div className="ast-viewer-children-list">
               {displayNode.children.map((child) => (
-                <ASTBlock key={child.id} node={child} depth={0} />
+                <ASTBlock key={child.uuid} node={child} depth={0} />
               ))}
             </div>
           </div>

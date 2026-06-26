@@ -125,7 +125,7 @@ export function DatePropertiesPanel({
           placeholder="Search date properties..."
           searchFn={searchProperties}
           filterFn={(prop: Property) => prop.type === 'date' && !existingPropNames.has(prop.name)}
-          getKey={(prop: Property) => prop.id}
+          getKey={(prop: Property) => prop.uuid}
           renderItem={(prop: Property) => (
             <>
               {prop.icon && <Icon path={prop.icon} size={0.6} />}

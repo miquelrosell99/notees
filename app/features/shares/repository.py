@@ -140,7 +140,6 @@ class PostgresShareRepository(BasePostgresRepository, ShareRepository):
             parent_id=row.get("parent_id"),
             page_id=row.get("page_id"),
             sequence=row.get("sequence", 0),
-            collapsed=row.get("collapsed", False),
             active=row.get("active", True),
             is_shared=row.get("is_shared", False),
             is_deleted=row.get("is_deleted", False),

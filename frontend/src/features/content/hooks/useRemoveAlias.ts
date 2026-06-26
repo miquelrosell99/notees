@@ -1,8 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import * as nodesApi from '@/api/nodes';
 import { nodeKeys } from '@/hooks/queryKeys';
-import { getNodeUuidByServerId } from './useNodeMutations.utils';
-
 /**
  * Hook to remove an alias from a node
  */
@@ -10,28 +8,26 @@ export function useRemoveAlias() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ nodeId, aliasId }: { nodeId: number; aliasId: number }) => {
-      const nodeUuid = getNodeUuidByServerId(queryClient, nodeId);
-      const aliasNodeUuid = getNodeUuidByServerId(queryClient, aliasId);
+    mutationFn: ({ nodeUuid, aliasNodeUuid }: { nodeUuid: string; aliasNodeUuid: string }) => {
       if (!nodeUuid || !aliasNodeUuid) throw new Error('Node UUID not found');
       return nodesApi.removeAlias(nodeUuid, aliasNodeUuid);
     },
-    onSuccess: (_, { nodeId, aliasId }) => {
+    onSuccess: (_, { nodeUuid, aliasNodeUuid }) => {
       // Invalidate with active refetch to ensure changes show immediately
       queryClient.invalidateQueries({
-        queryKey: nodeKeys.detailBase(nodeId),
+        queryKey: nodeKeys.detailBase(nodeUuid),
         refetchType: 'active'
       });
       queryClient.invalidateQueries({
-        queryKey: nodeKeys.pageContent(nodeId),
+        queryKey: nodeKeys.pageContent(nodeUuid),
         refetchType: 'active'
       });
       queryClient.invalidateQueries({
-        queryKey: nodeKeys.detailBase(aliasId),
+        queryKey: nodeKeys.detailBase(aliasNodeUuid),
         refetchType: 'active'
       });
       queryClient.invalidateQueries({
-        queryKey: nodeKeys.linkedRefs(nodeId),
+        queryKey: nodeKeys.linkedRefs(nodeUuid),
         refetchType: 'active'
       });
       // Invalidate pages list (aliased_id cleared on the alias node)
@@ -41,7 +37,7 @@ export function useRemoveAlias() {
       });
       // Invalidate aliases query so the UI list updates
       queryClient.invalidateQueries({
-        queryKey: nodeKeys.aliases(nodeId),
+        queryKey: nodeKeys.aliases(nodeUuid),
         refetchType: 'active'
       });
     },

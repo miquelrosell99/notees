@@ -32,7 +32,7 @@ export function useDailyNote(date?: Date) {
     queryFn: async () => {
       const node = await nodesApi.getOrCreateDaily(dateStr);
       // Also populate the detail cache so mutations can update it
-      queryClient.setQueryData(nodeKeys.detail(node.id, { include_children: true }), node);
+      queryClient.setQueryData(nodeKeys.detail(node.uuid, { include_children: true }), node);
       // Invalidate pages list since this might have created new day/month/year pages
       queryClient.invalidateQueries({ queryKey: nodeKeys.pages() });
       queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });

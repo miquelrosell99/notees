@@ -1,5 +1,5 @@
 export interface PageInfo {
-  id: number;
+  nodeUuid: string;
   uuid: string;
 }
 

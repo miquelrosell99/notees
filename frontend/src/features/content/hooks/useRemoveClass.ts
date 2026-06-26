@@ -7,8 +7,6 @@ import {
   findNodeInCache,
   getRuntimeBlockIdForServerId,
   applyNodeIntent,
-  getClassUuidByServerId,
-  getNodeUuidByServerId,
 } from './useNodeMutations.utils';
 import { waitForOperationAck } from '@/sync/waitForOperation';
 import * as nodesApi from '@/api/nodes';
@@ -22,15 +20,13 @@ import * as nodesApi from '@/api/nodes';
 export function useRemoveClass() {
   const queryClient = useQueryClient();
 
-  return useMutation<Node | null, Error, { nodeId: string | number; classId: string | number }>({
-    mutationFn: async ({ nodeId, classId }) => {
+  return useMutation<Node | null, Error, { nodeUuid: string; classId: string }>({
+    mutationFn: async ({ nodeUuid, classId }) => {
       await awaitAllContentSaves();
-
-      const nodeUuid = typeof nodeId === 'string' ? nodeId : getNodeUuidByServerId(queryClient, nodeId);
       if (!nodeUuid) throw new Error('Node UUID not found');
-      const classUuid = typeof classId === 'string' ? classId : getClassUuidByServerId(queryClient, classId);
+      const classUuid = classId;
       if (!classUuid) throw new Error('Class UUID not found');
-      const blockId = typeof nodeId === 'string' ? null : getRuntimeBlockIdForServerId(nodeId);
+      const blockId = getRuntimeBlockIdForServerId(nodeUuid);
       if (!blockId) {
         return nodesApi.removeClass(nodeUuid, classUuid);
       }
@@ -41,15 +37,15 @@ export function useRemoveClass() {
         classId: classUuid,
       });
       await waitForOperationAck(operationId);
-      return typeof nodeId === 'string' ? null : findNodeInCache(queryClient, nodeId);
+      return findNodeInCache(queryClient, nodeUuid);
     },
-    onSuccess: (updatedNode, { nodeId, classId }) => {
+    onSuccess: (updatedNode, { nodeUuid, classId }) => {
       if (!updatedNode) return;
 
-      const oldNode = typeof nodeId === 'string' ? null : findNodeInCache(queryClient, nodeId);
+      const oldNode = findNodeInCache(queryClient, nodeUuid);
 
-      queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(nodeId) });
-      queryClient.invalidateQueries({ queryKey: nodeKeys.pageContent(nodeId) });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(nodeUuid) });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.pageContent(nodeUuid) });
 
       if (oldNode && oldNode.is_page !== updatedNode.is_page) {
         queryClient.invalidateQueries({ queryKey: nodeKeys.allPages() });
@@ -62,15 +58,15 @@ export function useRemoveClass() {
       queryClient.invalidateQueries({ queryKey: nodeKeys.searchAll() });
       queryClient.invalidateQueries({ queryKey: nodeKeys.byClass(classId) });
 
-      if (updatedNode.page_id !== null && updatedNode.page_id !== nodeId) {
-        queryClient.invalidateQueries({ queryKey: nodeKeys.pageContent(updatedNode.page_id) });
+      if (updatedNode.page_uuid !== null && updatedNode.page_uuid !== nodeUuid) {
+        queryClient.invalidateQueries({ queryKey: nodeKeys.pageContent(updatedNode.page_uuid) });
       }
-      if (updatedNode.parent_id !== null && updatedNode.parent_id !== nodeId) {
-        queryClient.invalidateQueries({ queryKey: nodeKeys.pageContent(updatedNode.parent_id) });
+      if (updatedNode.parent_uuid !== null && updatedNode.parent_uuid !== nodeUuid) {
+        queryClient.invalidateQueries({ queryKey: nodeKeys.pageContent(updatedNode.parent_uuid) });
       }
 
-      queryClient.invalidateQueries({ queryKey: nodeViewKeys.list(nodeId) });
-      queryClient.invalidateQueries({ queryKey: nodeViewKeys.byType(nodeId) });
+      queryClient.invalidateQueries({ queryKey: nodeViewKeys.list(nodeUuid) });
+      queryClient.invalidateQueries({ queryKey: nodeViewKeys.byType(nodeUuid) });
       queryClient.invalidateQueries({ queryKey: nodeViewKeys.queryResults() });
       queryClient.invalidateQueries({ queryKey: nodeKeys.graph() });
     },

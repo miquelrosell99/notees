@@ -11,7 +11,7 @@
 
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { GraphWebGLRenderer, type NodeVisual, getCssEdgeColor, getCssEdgeCooccurrenceColor, getCssEdgePathColor, getCssNodePathColor } from '../renderers/graphWebGLRenderer';
-import type { SGEPhysicsConfig, SGENode, SGEEdge } from '../renderers/sge';
+import type { SGEPhysicsConfig, SGEEdge } from '../renderers/sge';
 import type { GraphNode, GraphLink } from '../types/viewTypes';
 import { LINK_TYPE_IDS, LINK_TYPE_CURVATURE } from '../utils/graphConstants';
 
@@ -229,9 +229,9 @@ export interface GraphRendererOptions {
   /** Edge keys on a highlighted path. */
   pathEdgeKeys?: Set<string>;
   /** Callback when user clicks a node (no drag involved). */
-  onNodeClick?: (nodeId: string) => void;
+  onNodeClick?: (nodeUuid: string) => void;
   /** Callback when user double-clicks a node. */
-  onNodeDblClick?: (nodeId: string) => void;
+  onNodeDblClick?: (nodeUuid: string) => void;
   /** Callback when user clicks on empty space. */
   onEmptyClick?: () => void;
   /** Enable curved edges. Default: true. */
@@ -288,7 +288,7 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
   const sabPosRef    = useRef<Float32Array  | null>(null);
   const sabMetaI32   = useRef<Int32Array    | null>(null);
   const sabMetaF32   = useRef<Float32Array  | null>(null);
-  const sabNodeIds   = useRef<Int32Array    | null>(null);
+  const sabNodeIds   = useRef<string[]      | null>(null);
   const sabSeq       = useRef<number>(0);
 
   const camRef = useRef({ x: 0, y: 0, zoom: 1 });
@@ -307,13 +307,13 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
   type DragMode = 'none' | 'camera' | 'node';
   const dragRef = useRef<{
     mode: DragMode;
-    nodeId: string;
+    nodeUuid: string;
     startPx: number; startPy: number;
     startWx: number; startWy: number;
     camStartX: number; camStartY: number;
     moved: boolean;
   }>({
-    mode: 'none', nodeId: '',
+    mode: 'none', nodeUuid: '',
     startPx: 0, startPy: 0,
     startWx: 0, startWy: 0,
     camStartX: 0, camStartY: 0,
@@ -409,13 +409,12 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
       }
 
       if (msg.type === 'frame') {
-        const indexToId = indexToIdRef.current;
         const positions = msg.positions as Float32Array;
-        const ids = msg.nodeIds as Int32Array;
+        const ids = msg.nodeIds as string[];
         const mappedIds: string[] = new Array(ids.length);
         const map = lastPositionsRef.current;
         for (let i = 0; i < msg.nodeCount; i++) {
-          const id = indexToId[ids[i]] ?? String(ids[i]);
+          const id = ids[i];
           mappedIds[i] = id;
           map.set(id, { x: positions[i * 2], y: positions[i * 2 + 1] });
         }
@@ -447,11 +446,10 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
         if (seq !== sabSeq.current) {
           sabSeq.current = seq;
           const n = Atomics.load(metaI32, 1);
-          const indexToId = indexToIdRef.current;
           const mappedIds: string[] = new Array(n);
           const map = lastPositionsRef.current;
           for (let i = 0; i < n; i++) {
-            const id = indexToId[sabNids[i]] ?? String(sabNids[i]);
+            const id = sabNids[i];
             mappedIds[i] = id;
             map.set(id, { x: sabPos[i * 2], y: sabPos[i * 2 + 1] });
           }
@@ -694,22 +692,16 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
       const physNodes = nodes.map(n => {
         const preserved = lastPos.get(n.id);
         return {
-          id: idToIndex.get(n.id)!,
+          nodeUuid: n.id,
           x: n.x ?? preserved?.x,
           y: n.y ?? preserved?.y,
           pinned: n.pinned,
         };
       });
 
-      const physEdges: SGEEdge[] = [];
-      for (const e of edges) {
-        const si = idToIndex.get(e.source);
-        const ti = idToIndex.get(e.target);
-        if (si === undefined || ti === undefined) continue;
-        physEdges.push({ source: si, target: ti });
-      }
+      const physEdges: SGEEdge[] = edges.map(e => ({ source: e.source, target: e.target }));
 
-      workerRef.current?.postMessage({ type: 'init', nodes: physNodes as SGENode[], edges: physEdges, config });
+      workerRef.current?.postMessage({ type: 'init', nodes: physNodes, edges: physEdges, config });
 
       // Display names only change when the node set changes.
       const names = nodeNamesRef.current;
@@ -833,11 +825,10 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
 
     if (hitNode !== null && hitNode !== undefined) {
       d.mode   = 'node';
-      d.nodeId = hitNode;
+      d.nodeUuid = hitNode;
       d.startWx = world.x;
       d.startWy = world.y;
-      const idx = idToIndexRef.current.get(hitNode);
-      if (idx !== undefined) post({ type: 'dragStart', nodeId: idx });
+      post({ type: 'dragStart', nodeUuid: hitNode });
     } else {
       d.mode      = 'camera';
       d.camStartX = camRef.current.x;
@@ -894,10 +885,8 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
     } else if (d.mode === 'node') {
       const world = rend?.screenToWorld(px, py);
       if (!world) return;
-      const idx = idToIndexRef.current.get(d.nodeId);
-      if (idx === undefined) return;
-      post({ type: 'dragMove', nodeId: idx, x: world.x, y: world.y });
-      rend?.overridePosition(d.nodeId, world.x, world.y);
+      post({ type: 'dragMove', nodeUuid: d.nodeUuid, x: world.x, y: world.y });
+      rend?.overridePosition(d.nodeUuid, world.x, world.y);
       dirtyRef.current.positions = true;
     }
   }, [post]);
@@ -906,10 +895,9 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
     const d = dragRef.current;
 
     if (d.mode === 'node') {
-      const idx = idToIndexRef.current.get(d.nodeId);
-      if (idx !== undefined) post({ type: 'dragEnd', nodeId: idx });
+      post({ type: 'dragEnd', nodeUuid: d.nodeUuid });
       if (!d.moved) {
-        const nodeId = d.nodeId;
+        const nodeId = d.nodeUuid;
         selectedRef.current = nodeId;
         setSelectedNodeId(nodeId);
         rendRef.current?.setSelectedNode(nodeId);
@@ -926,7 +914,7 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
       optsRef.current.onEmptyClick?.();
     }
     d.mode   = 'none';
-    d.nodeId = '';
+    d.nodeUuid = '';
     d.moved  = false;
     e.currentTarget.releasePointerCapture(e.pointerId);
   }, [post]);
@@ -976,15 +964,11 @@ export function useGraphRenderer(opts: GraphRendererOptions): GraphRendererHandl
   }, []);
 
   const pinNode = useCallback((id: string) => {
-    const idx = idToIndexRef.current.get(id);
-    if (idx === undefined) return;
-    workerRef.current?.postMessage({ type: 'pin', nodeId: idx });
+    workerRef.current?.postMessage({ type: 'pin', nodeUuid: id });
   }, []);
 
   const unpinNode = useCallback((id: string) => {
-    const idx = idToIndexRef.current.get(id);
-    if (idx === undefined) return;
-    workerRef.current?.postMessage({ type: 'unpin', nodeId: idx });
+    workerRef.current?.postMessage({ type: 'unpin', nodeUuid: id });
   }, []);
 
   const recenter = useCallback(() => {

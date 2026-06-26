@@ -1,12 +1,17 @@
-import type React from 'react';
+import React, { Suspense } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { InlineConfirmButton } from '@/components/ui/InlineConfirmButton';
 import { TextField } from '@/components/ui/TextField';
 import { Spinner } from '@/components/ui/Spinner';
-import { ViewBuilder } from '@/features/queries';
-import { ProseScopeSelector } from '@/features/queries';
 import { DeleteIcon } from '@/components/ui/icons';
+
+const ViewBuilder = React.lazy(() =>
+  import('@/features/queries/components/ViewBuilder').then((m) => ({ default: m.ViewBuilder }))
+);
+const ProseScopeSelector = React.lazy(() =>
+  import('@/features/queries/components/ProseScopeSelector').then((m) => ({ default: m.ProseScopeSelector }))
+);
 import { canSaveQuery } from '@/lib/queryValidation';
 import type { NodeView } from '@/types/nodeView';
 import type { QueryAST, ValidationResult } from '@/types/queryAST';
@@ -67,18 +72,20 @@ export const QueryEditModal: React.FC<QueryEditModalProps> = ({
       footer={editingView && (
         <div className="query-section__modal-footer">
           <div className="view-builder__footer-left">
-            <ProseScopeSelector
-              scope={editAST?.scope || { type: 'scope', scope_type: 'current_page' }}
-              onChange={(newScope) => {
-                if (editAST) {
-                  onASTChange({
-                    ...editAST,
-                    scope: newScope,
-                  });
-                }
-              }}
-              readOnly={scopeReadOnly}
-            />
+            <Suspense fallback={<Spinner size="sm" />}>
+              <ProseScopeSelector
+                scope={editAST?.scope || { type: 'scope', scope_type: 'current_page' }}
+                onChange={(newScope) => {
+                  if (editAST) {
+                    onASTChange({
+                      ...editAST,
+                      scope: newScope,
+                    });
+                  }
+                }}
+                readOnly={scopeReadOnly}
+              />
+            </Suspense>
           </div>
 
           {previewResults && (
@@ -137,12 +144,14 @@ export const QueryEditModal: React.FC<QueryEditModalProps> = ({
     >
       {editingView && editAST && (
         <div className="query-section__edit-content">
-          <ViewBuilder
-            ast={editAST}
-            onChange={onASTChange}
-            resultCount={previewResults?.length ?? 0}
-            isLoading={previewLoading}
-          />
+          <Suspense fallback={<Spinner size="md" />}>
+            <ViewBuilder
+              ast={editAST}
+              onChange={onASTChange}
+              resultCount={previewResults?.length ?? 0}
+              isLoading={previewLoading}
+            />
+          </Suspense>
         </div>
       )}
     </Modal>

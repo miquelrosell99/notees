@@ -52,12 +52,12 @@ export interface PropertySuggestionPopupProps {
   onClose: () => void;
   /** Callback when a new property should be created */
   onCreate: (data: PropertyCreate & { selection_options?: { name: string; icon?: string }[] }) => void;
-  /** Property IDs to exclude from the list (already applied) */
-  excludeIds?: number[];
-  /** Context node ID — enables node-scoped properties in results and "Create node-local" option */
-  contextNodeId?: number;
-  /** Context class IDs — enables class-scoped properties in results and "Create class-local" option */
-  contextClassIds?: number[];
+  /** Property UUIDs to exclude from the list (already applied) */
+  excludeIds?: string[];
+  /** Context node UUID — enables node-scoped properties in results and "Create node-local" option */
+  contextNodeId?: string;
+  /** Context class UUIDs — enables class-scoped properties in results and "Create class-local" option */
+  contextClassIds?: string[];
   /** Default scope for newly created properties when "Create global" button is clicked (default: 'global') */
   defaultScope?: PropertyScope;
 }
@@ -99,7 +99,7 @@ export function PropertySuggestionPopup({
     
     const excludeSet = new Set(excludeIds);
     let filtered = allProperties.filter(p => 
-      !excludeSet.has(p.id) && !HIDDEN_PROPERTY_UUIDS.has(p.uuid)
+      !excludeSet.has(p.uuid) && !HIDDEN_PROPERTY_UUIDS.has(p.uuid)
     );
     
     if (query.trim()) {
@@ -111,8 +111,8 @@ export function PropertySuggestionPopup({
 
     // Sort by usage count (most used first)
     if (suggestions?.length) {
-      const usageMap = new Map(suggestions.map(s => [s.property_id, s.usage_count]));
-      filtered.sort((a, b) => (usageMap.get(b.id) ?? 0) - (usageMap.get(a.id) ?? 0));
+      const usageMap = new Map(suggestions.map(s => [s.property_uuid, s.usage_count]));
+      filtered.sort((a, b) => (usageMap.get(b.uuid) ?? 0) - (usageMap.get(a.uuid) ?? 0));
     }
     
     return filtered;
@@ -234,7 +234,7 @@ export function PropertySuggestionPopup({
             {/* Existing properties */}
             {filteredProperties.map((property, index) => (
               <button
-                key={property.id}
+                key={property.uuid}
                 className={`property-suggestion-popup__option ${index === selectedIndex ? 'property-suggestion-popup__option--selected' : ''}`}
                 onClick={() => handleSelect(property)}
                 onMouseEnter={() => setSelectedIndex(index)}

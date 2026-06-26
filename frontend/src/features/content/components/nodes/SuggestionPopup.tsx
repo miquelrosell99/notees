@@ -62,14 +62,14 @@ export interface SuggestionPopupProps {
   onClose: () => void;
   /** Callback to create a new item if none exist */
   onCreate?: (name: string, addInline: boolean) => void;
-  /** Node ID to exclude from link results (used for non-page blocks) */
-  excludeNodeId?: number;
+  /** Node UUID to exclude from link results (used for non-page blocks) */
+  excludeNodeId?: string;
   /** Class IDs to filter results by (nodes must have at least one of these classes) */
-  classFilters?: number[];
+  classFilters?: string[];
   /** Enable multi-select mode with checkboxes */
   multiSelect?: boolean;
-  /** Currently selected node IDs (for multi-select mode) */
-  selectedIds?: Set<number>;
+  /** Currently selected node UUIDs (for multi-select mode) */
+  selectedIds?: Set<string>;
   /** Callback to toggle selection (for multi-select mode) */
   onToggleSelect?: (node: Node) => void;
   /** Custom header text (overrides default based on type) */
@@ -154,7 +154,7 @@ export function SuggestionPopup({
       isPage?: boolean;
       isClass?: boolean;
       isDaily?: boolean;
-      classFilterIds: number[];
+      classFilterIds: string[];
     } = { classFilterIds: [] };
 
     const uuidMatch = query.match(/\buuid:([^\s]+)/);
@@ -172,8 +172,8 @@ export function SuggestionPopup({
     while ((m = classRegex.exec(query)) !== null) {
       const name = m[1].toLowerCase();
       const matched = allClasses.find(c => nodeNameToText(c.name).toLowerCase().includes(name));
-      if (matched && !filters.classFilterIds.includes(matched.id)) {
-        filters.classFilterIds.push(matched.id);
+      if (matched && !filters.classFilterIds.includes(matched.uuid)) {
+        filters.classFilterIds.push(matched.uuid);
       }
     }
 
@@ -210,14 +210,14 @@ export function SuggestionPopup({
 
   // O(1) lookup maps — avoids .find() inside buildParentPath (called per result row)
   const pageById = useMemo(() => {
-    const m = new Map<number, Node>();
-    for (const p of allPagesForDate ?? []) m.set(p.id, p);
+    const m = new Map<string, Node>();
+    for (const p of allPagesForDate ?? []) m.set(p.uuid, p);
     return m;
   }, [allPagesForDate]);
 
   const classById = useMemo(() => {
-    const m = new Map<number, Node>();
-    for (const c of allClasses) m.set(c.id, c as unknown as Node);
+    const m = new Map<string, Node>();
+    for (const c of allClasses) m.set(c.uuid, c as unknown as Node);
     return m;
   }, [allClasses]);
   
@@ -234,7 +234,7 @@ export function SuggestionPopup({
   // Get selected nodes from allNodes for multi-select mode
   const selectedNodes = useMemo(() => {
     if (!multiSelect || selectedIds.size === 0) return [];
-    return allNodes.filter(n => selectedIds.has(n.id));
+    return allNodes.filter(n => selectedIds.has(n.uuid));
   }, [multiSelect, selectedIds, allNodes]);
   
   // Build complete node list for alias resolution
@@ -244,29 +244,29 @@ export function SuggestionPopup({
   
   // Helper to resolve aliased node name
   const getAliasedNodeName = useCallback((node: Node): string | null => {
-    if (!node.aliased_id) return null;
-    const aliasedNode = allSearchNodes.find(n => n.id === node.aliased_id) || allNodes.find(n => n.id === node.aliased_id);
+    if (!node.aliased_uuid) return null;
+    const aliasedNode = allSearchNodes.find(n => n.uuid === node.aliased_uuid) || allNodes.find(n => n.uuid === node.aliased_uuid);
     return aliasedNode ? (nodeNameToText(aliasedNode.name) || null) : null;
   }, [allSearchNodes, allNodes]);
   
   // Helper to build parent page path (e.g. "Root / Parent") for a page node
   const buildParentPath = useCallback((node: Node): string => {
-    if (!node.parent_id || !allPagesForDate) return '';
+    if (!node.parent_uuid || !allPagesForDate) return '';
     const segments: string[] = [];
-    let currentId: number | null = node.parent_id;
+    let currentId: string | null = node.parent_uuid;
     while (currentId !== null) {
       const parent = pageById.get(currentId);
       if (!parent || !parent.is_page) break;
       segments.unshift(nodeNameToText(parent.name) || 'Untitled');
-      currentId = parent.parent_id ?? null;
+      currentId = parent.parent_uuid ?? null;
     }
     return segments.join(' / ');
   }, [allPagesForDate, pageById]);
 
   // Helper to build breadcrumb path for a block node using its page_id
   const buildBlockParentPath = useCallback((node: Node): string => {
-    if (!node.page_id || !allPagesForDate) return '';
-    const page = pageById.get(node.page_id);
+    if (!node.page_uuid || !allPagesForDate) return '';
+    const page = pageById.get(node.page_uuid);
     if (!page) return '';
     const pageName = nodeNameToText(page.name) || 'Untitled';
     const ancestors = buildParentPath(page);
@@ -274,24 +274,24 @@ export function SuggestionPopup({
   }, [allPagesForDate, pageById, buildParentPath]);
 
   // Helper to get display classes for a node, excluding the system "page" class
-  const getDisplayClasses = useCallback((node: Node): Array<{ id: number; name: string }> => {
-    if (!node.classes || node.classes.length === 0) return [];
-    return node.classes
-      .map(classId => {
-        const classNode = classById.get(classId);
+  const getDisplayClasses = useCallback((node: Node): Array<{ nodeUuid: string; name: string }> => {
+    if (!node.classes_uuid || node.classes_uuid.length === 0) return [];
+    return node.classes_uuid
+      .map(classUuid => {
+        const classNode = classById.get(classUuid);
         if (!classNode || classNode.uuid === SYSTEM_CLASS_UUIDS.page) return null;
         const name = nodeNameToText(classNode.name);
         if (!name) return null;
-        return { id: classId, name };
+        return { nodeUuid: classUuid, name };
       })
-      .filter((c): c is { id: number; name: string } => c !== null);
+      .filter((c): c is { nodeUuid: string; name: string } => c !== null);
   }, [classById]);
   
   // Combined list for navigation (in multi-select mode, exclude already selected)
   const allItems = useMemo(() => {
     const items = [...pageResults, ...blockResults];
     if (multiSelect) {
-      return items.filter(item => !selectedIds.has(item.node.id));
+      return items.filter(item => !selectedIds.has(item.node.uuid));
     }
     return items;
   }, [pageResults, blockResults, multiSelect, selectedIds]);
@@ -505,8 +505,8 @@ export function SuggestionPopup({
   const dateIndex = 0;
   const selectedStartIndex = dateSuggestionCount;
   const pageStartIndex = dateSuggestionCount + selectedCount;
-  const pageResultIds = new Set(pageResults.map(p => p.node.id));
-  const blockStartIndex = dateSuggestionCount + selectedCount + (multiSelect ? allItems.filter(i => pageResultIds.has(i.node.id)).length : pageResults.length);
+  const pageResultIds = new Set(pageResults.map(p => p.node.uuid));
+  const blockStartIndex = dateSuggestionCount + selectedCount + (multiSelect ? allItems.filter(i => pageResultIds.has(i.node.uuid)).length : pageResults.length);
   const createIndex = dateSuggestionCount + selectedCount + allItems.length;
   
   // Helper to get icon for item
@@ -625,7 +625,7 @@ export function SuggestionPopup({
                   const globalIndex = selectedStartIndex + index;
                   return (
                     <NodeResultItem
-                      key={`selected-${node.id}`}
+                      key={`selected-${node.uuid}`}
                       node={node}
                       parentPath={node.is_page ? buildParentPath(node) : buildBlockParentPath(node)}
                       displayClasses={getDisplayClasses(node)}
@@ -658,7 +658,7 @@ export function SuggestionPopup({
                   const aliasedName = getAliasedNodeName(item.node);
                   return (
                     <NodeResultItem
-                      key={`page-${item.node.id}`}
+                      key={`page-${item.node.uuid}`}
                       node={item.node}
                       parentPath={item.node.is_page ? buildParentPath(item.node) : ''}
                       displayClasses={item.node.is_page ? getDisplayClasses(item.node) : []}
@@ -701,7 +701,7 @@ export function SuggestionPopup({
                   const aliasedName = getAliasedNodeName(item.node);
                   return (
                     <NodeResultItem
-                      key={`block-${item.node.id}`}
+                      key={`block-${item.node.uuid}`}
                       node={item.node}
                       parentPath={buildBlockParentPath(item.node)}
                       displayClasses={getDisplayClasses(item.node)}
@@ -737,11 +737,11 @@ export function SuggestionPopup({
                 )}
                 {allItems.map((item, index) => {
                   const globalIndex = pageStartIndex + index;
-                  const isChecked = multiSelect && selectedIds.has(item.node.id);
+                  const isChecked = multiSelect && selectedIds.has(item.node.uuid);
                   const aliasedName = getAliasedNodeName(item.node);
                   return (
                     <NodeResultItem
-                      key={`result-${item.node.id}`}
+                      key={`result-${item.node.uuid}`}
                       node={item.node}
                       parentPath={item.node.is_page ? buildParentPath(item.node) : buildBlockParentPath(item.node)}
                       displayClasses={getDisplayClasses(item.node)}

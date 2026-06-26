@@ -22,22 +22,21 @@ interface SortableFavoriteItemProps {
   isDragging: boolean;
   style: React.CSSProperties;
   onDragStart: (index: number, e: React.MouseEvent) => void;
-  onNavigate: (nodeUuid: string | number, e?: React.MouseEvent) => void;
+  onNavigate: (nodeUuid: string, e?: React.MouseEvent) => void;
   onRemove: (nodeUuid: string) => void;
   onContextMenu: (nodeUuid: string, e: React.MouseEvent) => void;
 }
 
 const SortableFavoriteItem = memo(function SortableFavoriteItem({
-  nodeUuid,
-  index,
-  isActive,
-  isDragging,
-  style,
-  onDragStart,
-  onNavigate,
-  onRemove,
-  onContextMenu,
-}: SortableFavoriteItemProps) {
+      nodeUuid,
+      index,
+      isActive,
+      isDragging,
+      style,
+      onDragStart,
+      onNavigate,
+      onRemove,
+      onContextMenu }: SortableFavoriteItemProps) {
   const { data: node, error } = useNodeByUuid(nodeUuid, { meta: { skipGlobalError: true } });
   const { effectiveIcon } = useNodeDisplay(node);
 
@@ -120,7 +119,7 @@ const SortableFavoriteItem = memo(function SortableFavoriteItem({
       <div className="sidebar-favorite-block">
         <div className="sidebar-item-breadcrumbs-wrapper">
           <NodeBreadcrumbs
-            nodeId={node.id}
+            nodeUuid={node.uuid}
             nodeType="page"
             compact
             onNavigate={onNavigate}
@@ -185,7 +184,7 @@ export function SidebarFavorites({ onContextMenu, onItemClick }: SidebarFavorite
     if (isMobile && !isSidebarCollapsed) toggleSidebar();
   }, [isMobile, isSidebarCollapsed, toggleSidebar]);
 
-  const handleNavigate = useCallback((nodeUuid: string | number, e?: React.MouseEvent) => {
+  const handleNavigate = useCallback((nodeUuid: string, e?: React.MouseEvent) => {
     if (e?.ctrlKey || e?.metaKey) {
       openNodeInNewTab(nodeUuid);
     } else {

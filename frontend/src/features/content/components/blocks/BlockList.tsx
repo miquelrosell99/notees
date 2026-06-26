@@ -21,7 +21,9 @@ import {
   type KeyboardEvent,
   type JSX,
 } from 'react';
+import { useParams } from 'react-router-dom';
 import { useVirtualizer } from '@tanstack/react-virtual';
+import { useUIStateStore } from '@/features/sync';
 import { useBlockTree, parseGhostParentUuid } from '@/features/content/hooks/useBlockTree';
 import { BlockRow, type BlockRowHandle } from './BlockRow';
 import { BulletLineOverlay } from './BulletLineOverlay';
@@ -69,21 +71,19 @@ interface BlockListProps {
   /** Skip pages (DocumentView mode). */
   skipPages?: boolean;
   /** Called when a class should be added via + trigger. */
-  onAddClass?: (blockServerId: number, classId: number) => void;
+  onAddClass?: (blockServerId: string, classId: string) => void;
   /** Called when a slash command is selected. */
-  onSlashCommand?: (commandId: string, blockServerId: number | undefined) => void;
+  onSlashCommand?: (commandId: string, blockServerId: string | undefined) => void;
   /** Called when an image is pasted into a block. */
-  onPasteImage?: (blockServerId: number, file: File, hasContent: boolean) => void;
+  onPasteImage?: (blockServerId: string, file: File, hasContent: boolean) => void;
   /** Called when files are dropped from outside the browser. */
   onDropFiles?: (files: File[]) => void;
   /** Called when a template is selected. */
-  onTemplateInstantiate?: (templateNodeId: number, blockServerId: number | undefined) => void;
-  /** Class IDs to pre-filter template picker. */
-  templateClassFilters?: number[];
-  /** UUID of the containing page (enables live sync lock indicators). */
-  nodeUuid?: string;
+  onTemplateInstantiate?: (templateNodeId: string, blockServerId: string | undefined) => void;
+  /** Class UUIDs to pre-filter template picker. */
+  templateClassFilters?: string[];
   /** Server ID of the containing node (for runtime parent resolution). */
-  nodeId?: number;
+  nodeUuid?: string;
   /** Whether to show class pills below each block's content. */
   showClasses?: boolean;
   /** Force all nodes to be expanded, ignoring stored collapsed state. */
@@ -108,42 +108,39 @@ interface BlockListProps {
 }
 
 export function BlockList({
-  nodes,
-  readOnly = false,
-  placeholder,
-  onContentChange,
-  onPillClick,
-  onPillRemove,
-  onNavigateToNode,
-  onOpenInSidebar,
-  maxDepth = -1,
-  pagesOnly = false,
-  skipPages = false,
-  onAddClass,
-  onSlashCommand,
-  onPasteImage,
-  onDropFiles,
-  onTemplateInstantiate,
-  templateClassFilters,
-  nodeUuid,
-  nodeId,
-  showClasses = false,
-  expandAll = false,
-  inCard = false,
-  listSize,
-  inPropertyEditor = false,
-  showNewBlock = true,
-  hideRootBullet = false,
-  documentMode = false,
-  flush = false,
-  rootIsBlock = false,
-}: BlockListProps): JSX.Element {
+      nodes,
+      readOnly = false,
+      placeholder,
+      onContentChange,
+      onPillClick,
+      onPillRemove,
+      onNavigateToNode,
+      onOpenInSidebar,
+      maxDepth = -1,
+      pagesOnly = false,
+      skipPages = false,
+      onAddClass,
+      onSlashCommand,
+      onPasteImage,
+      onDropFiles,
+      onTemplateInstantiate,
+      templateClassFilters,
+      nodeUuid,
+      showClasses = false,
+      expandAll = false,
+      inCard = false,
+      listSize,
+      inPropertyEditor = false,
+      showNewBlock = true,
+      hideRootBullet = false,
+      documentMode = false,
+      flush = false,
+      rootIsBlock = false }: BlockListProps): JSX.Element {
   const { flatNodes, structureVersion } = useBlockTree(nodes, {
     maxDepth,
     pagesOnly,
     skipPages,
     expandAll,
-    nodeId,
     nodeUuid,
     readOnly,
     showNewBlock,
@@ -175,7 +172,9 @@ export function BlockList({
     },
   });
 
+  const { workspaceId } = useParams<{ workspaceId?: string }>();
   const activeBlockId = useEditorFocusStore((s) => s.activeBlockId);
+  const toggleCollapsed = useUIStateStore((s) => s.toggleCollapsed);
 
   // Compute ancestor UUIDs of the active block so each row can know whether it
   // sits on the active editing path. This replaces the imperative DOM class
@@ -360,16 +359,9 @@ export function BlockList({
   }, []);
 
   const handleCollapseToggle = useCallback((blockId: string) => {
-    const runtime = getOperationRuntime();
-    const node = getNode(runtime, blockId);
-    if (!node) return;
-    applyRuntimeIntent({
-      type: 'set_collapsed',
-      blockId,
-      collapsed: !node.collapsed,
-    });
-    getRuntimeEventBus().flushEvents();
-  }, []);
+    if (!workspaceId) return;
+    toggleCollapsed(workspaceId, blockId);
+  }, [workspaceId, toggleCollapsed]);
 
   const handleOverlayLineClick = useCallback((blockId: string) => {
     if (readOnly) return;

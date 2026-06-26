@@ -242,17 +242,17 @@ export function QueryBlockBuilder({
     
     // For parent condition: only show nested group if static mode (parent_uuid/parent_uuids) is NOT set
     if (condition.condition_type === 'parent') {
-      return !condition.parent_uuid && !condition.parent_uuids && !condition.parent_id;
+      return !condition.parent_uuid && !condition.parent_uuids;
     }
     
     // For child condition: only show nested group if static mode (child_uuids) is NOT set
     if (condition.condition_type === 'child') {
-      return !condition.child_uuids && !condition.child_ids;
+      return !condition.child_uuids;
     }
     
     // For reference condition: only show nested group if static mode (target_uuid) is NOT set
     if (condition.condition_type === 'reference') {
-      return !condition.target_uuid && !condition.target_id;
+      return !condition.target_uuid;
     }
     
     // For other conditions (reference_path, parent_path, child_path), always show nested group

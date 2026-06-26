@@ -32,8 +32,8 @@ export function MainContent() {
     }
   }, [activeTab?.type, queryClient]);
 
-  const handleNavigate = useMemo(() => (nodeId: string | number) => {
-    openNode(nodeId);
+  const handleNavigate = useMemo(() => (nodeUuid: string) => {
+    openNode(nodeUuid);
   }, [openNode]);
 
   if (!activeTab) {

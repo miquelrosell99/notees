@@ -35,7 +35,7 @@ export function QuickAddModal({ isOpen, onClose }: QuickAddModalProps) {
     navigateOnSuccess: false,
   });
 
-  const textareaMapRef = useRef<Map<number, HTMLTextAreaElement>>(new Map());
+  const textareaMapRef = useRef<Map<string, HTMLTextAreaElement>>(new Map());
   const prevBlocksRef = useRef(draftBlocks);
   const hasFocusedOnOpenRef = useRef(false);
 
@@ -50,7 +50,7 @@ export function QuickAddModal({ isOpen, onClose }: QuickAddModalProps) {
     requestAnimationFrame(() => {
       const firstBlock = draftBlocks[0];
       if (firstBlock) {
-        textareaMapRef.current.get(firstBlock.id)?.focus();
+        textareaMapRef.current.get(firstBlock.nodeUuid)?.focus();
       }
     });
   }, [isOpen, draftBlocks]);
@@ -63,16 +63,16 @@ export function QuickAddModal({ isOpen, onClose }: QuickAddModalProps) {
     if (newBlocks.length > prevBlocks.length) {
       const lastBlock = newBlocks[newBlocks.length - 1];
       requestAnimationFrame(() => {
-        textareaMapRef.current.get(lastBlock.id)?.focus();
+        textareaMapRef.current.get(lastBlock.nodeUuid)?.focus();
       });
     } else if (newBlocks.length < prevBlocks.length) {
       const removedIndex = prevBlocks.findIndex(
-        (pb) => !newBlocks.some((nb) => nb.id === pb.id)
+        (pb) => !newBlocks.some((nb) => nb.nodeUuid === pb.nodeUuid)
       );
       const focusBlock = prevBlocks[Math.max(0, removedIndex - 1)];
       if (focusBlock) {
         requestAnimationFrame(() => {
-          textareaMapRef.current.get(focusBlock.id)?.focus();
+          textareaMapRef.current.get(focusBlock.nodeUuid)?.focus();
         });
       }
     }
@@ -81,15 +81,15 @@ export function QuickAddModal({ isOpen, onClose }: QuickAddModalProps) {
   }, [draftBlocks]);
 
   const destinationPage = quickAddDestination === 'today' ? todayNote : inboxPage;
-  const destinationPageId = destinationPage?.id;
+  const destinationPageUuid = destinationPage?.uuid;
 
   const handleSend = useCallback(async () => {
-    if (!destinationPageId || !hasContent || isCreating) return;
-    await createBlocks(destinationPageId);
-  }, [destinationPageId, hasContent, isCreating, createBlocks]);
+    if (!destinationPageUuid || !hasContent || isCreating) return;
+    await createBlocks(destinationPageUuid);
+  }, [destinationPageUuid, hasContent, isCreating, createBlocks]);
 
   const handleTextareaKeyDown = useCallback(
-    (blockId: number, e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    (blockId: string, e: React.KeyboardEvent<HTMLTextAreaElement>) => {
       if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
         e.preventDefault();
         handleSend();
@@ -130,7 +130,7 @@ export function QuickAddModal({ isOpen, onClose }: QuickAddModalProps) {
             variant="primary"
             size="sm"
             onClick={handleSend}
-            disabled={!hasContent || !destinationPageId || isCreating}
+            disabled={!hasContent || !destinationPageUuid || isCreating}
             icon="mdi mdi-send"
           >
             Send
@@ -141,20 +141,20 @@ export function QuickAddModal({ isOpen, onClose }: QuickAddModalProps) {
       <div className="quick-add-content">
         {draftBlocks.map((block) => (
           <textarea
-            key={block.id}
+            key={block.nodeUuid}
             ref={(el) => {
               if (el) {
-                textareaMapRef.current.set(block.id, el);
+                textareaMapRef.current.set(block.nodeUuid, el);
               } else {
-                textareaMapRef.current.delete(block.id);
+                textareaMapRef.current.delete(block.nodeUuid);
               }
             }}
             className="quick-add-textarea"
             rows={2}
             placeholder="Type something..."
             value={block.content}
-            onChange={(e) => handleBlockChange(block.id, e.target.value)}
-            onKeyDown={(e) => handleTextareaKeyDown(block.id, e)}
+            onChange={(e) => handleBlockChange(block.nodeUuid, e.target.value)}
+            onKeyDown={(e) => handleTextareaKeyDown(block.nodeUuid, e)}
           />
         ))}
       </div>

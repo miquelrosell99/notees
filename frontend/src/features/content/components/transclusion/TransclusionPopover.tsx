@@ -110,7 +110,7 @@ export function TransclusionPopover({ nodeUuid, anchorEl, onClose }: Transclusio
             {children.length > 0 ? (
               <ul className="transclusion-popover__children">
                 {children.map((child) => (
-                  <ChildPreview key={child.id} child={child} />
+                  <ChildPreview key={child.uuid} child={child} />
                 ))}
               </ul>
             ) : (

@@ -41,8 +41,8 @@ export function PropertyIconButton({
   const resolvedOptions = selectedValues
     .map((v) => {
       const optionId =
-        typeof v === 'object' && v !== null && 'id' in v ? (v as { id: number }).id : v;
-      return options.find((opt) => opt.id === optionId);
+        typeof v === 'object' && v !== null && 'uuid' in v ? (v as { uuid: string }).uuid : v;
+      return options.find((opt) => opt.uuid === optionId);
     })
     .filter((opt): opt is SelectionOption => opt !== undefined);
 
@@ -72,20 +72,20 @@ export function PropertyIconButton({
       if (property.multi) {
         const currentValue = Array.isArray(value) ? value : [];
         setPropertyMutation.mutate({
-          nodeId: node.id,
-          propertyId: property.id,
-          value: [...currentValue, option.id],
+          nodeUuid: node.uuid,
+          propertyId: property.uuid,
+          value: [...currentValue, option.uuid],
         });
       } else {
         setPropertyMutation.mutate({
-          nodeId: node.id,
-          propertyId: property.id,
-          value: option.id,
+          nodeUuid: node.uuid,
+          propertyId: property.uuid,
+          value: option.uuid,
         });
       }
       setIsPickerOpen(false);
     },
-    [property, node.id, value, setPropertyMutation],
+    [property, node.uuid, value, setPropertyMutation],
   );
 
   const handleClick = useCallback(
@@ -115,8 +115,8 @@ export function PropertyIconButton({
         <div className="property-icon-picker" ref={pickerRef}>
           {options.map((option) => (
             <button
-              key={option.id}
-              className={`property-icon-picker__option${resolvedOptions.some((r) => r.id === option.id) ? ' property-icon-picker__option--selected' : ''}`}
+              key={option.uuid}
+              className={`property-icon-picker__option${resolvedOptions.some((r) => r.uuid === option.uuid) ? ' property-icon-picker__option--selected' : ''}`}
               onClick={(e) => {
                 e.stopPropagation();
                 handleSelectOption(option);
@@ -128,7 +128,7 @@ export function PropertyIconButton({
                 </span>
               )}
               <span className="property-icon-picker__name">{option.name}</span>
-              {resolvedOptions.some((r) => r.id === option.id) && (
+              {resolvedOptions.some((r) => r.uuid === option.uuid) && (
                 <span className="property-icon-picker__check">✓</span>
               )}
             </button>

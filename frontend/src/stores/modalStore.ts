@@ -27,6 +27,8 @@ interface ModalState {
   isAutoExportProgressModalOpen: boolean;
   isWorkspaceExportModalOpen: boolean;
   workspaceExportTargetUuid: string | null;
+  isConflictResolutionModalOpen: boolean;
+  conflictResolutionNodeUuid: string | null;
 
   setCalendarOpen: (open: boolean) => void;
   toggleCalendar: () => void;
@@ -50,6 +52,7 @@ interface ModalState {
   setShareModalOpen: (open: boolean) => void;
   setAutoExportProgressModalOpen: (open: boolean) => void;
   setWorkspaceExportModalOpen: (open: boolean, targetUuid?: string | null) => void;
+  setConflictResolutionModalOpen: (open: boolean, nodeUuid?: string | null) => void;
 }
 
 export const useModalStore = create<ModalState>()((set) => ({
@@ -73,6 +76,8 @@ export const useModalStore = create<ModalState>()((set) => ({
   isAutoExportProgressModalOpen: false,
   isWorkspaceExportModalOpen: false,
   workspaceExportTargetUuid: null,
+  isConflictResolutionModalOpen: false,
+  conflictResolutionNodeUuid: null,
 
   setCalendarOpen: (open) => set({ isCalendarOpen: open }),
   toggleCalendar: () => set((s) => ({ isCalendarOpen: !s.isCalendarOpen })),
@@ -96,4 +101,5 @@ export const useModalStore = create<ModalState>()((set) => ({
   setShareModalOpen: (open) => set({ isShareModalOpen: open }),
   setAutoExportProgressModalOpen: (open) => set({ isAutoExportProgressModalOpen: open }),
   setWorkspaceExportModalOpen: (open, targetUuid = null) => set({ isWorkspaceExportModalOpen: open, workspaceExportTargetUuid: targetUuid }),
+  setConflictResolutionModalOpen: (open, nodeUuid = null) => set({ isConflictResolutionModalOpen: open, conflictResolutionNodeUuid: nodeUuid }),
 }));

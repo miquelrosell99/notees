@@ -20,6 +20,7 @@ import { getNodeColorStylesAuto } from '@/utils/color';
 import { getEffectiveColor } from '@/utils/nodeIcon';
 import { useProperties, useSetNodeProperty } from '@/features/properties';
 import { useCreateNode, useRemoveClass, useAddClass, useUpdateNode, useResolvedClassDetails } from '@/features/content';
+import { getNodeUuidByServerId } from '@/features/content/hooks/useNodeMutations.utils';
 import { useContentSave } from '@/features/editor';
 import { useCreateFlashcard } from '@/plugins/builtin/flashcards';
 import { stringifyAST, StringifyMode } from '@/lib';
@@ -107,9 +108,9 @@ export interface NodeCardProps {
   isSelected?: boolean;
   onNodeClick?: (node: Node) => void;
   onNodeShiftClick?: (node: Node) => void;
-  onContentChange?: (nodeId: number | string, content: string) => void;
+  onContentChange?: (nodeUuid: string, content: string) => void;
   onDragStart?: (index: number) => void;
-  onSelectionChange?: (nodeId: number, selected: boolean) => void;
+  onSelectionChange?: (nodeUuid: string, selected: boolean) => void;
   customContextMenu?: React.ComponentType<{
     node: Node;
     position: { x: number; y: number };
@@ -173,23 +174,23 @@ export const NodeCard = memo(function NodeCard({
   const [isCoverHovered, setIsCoverHovered] = useState(false);
 
   // Resolve class details (excluding implicit "page" class)
-  const classDetails = useResolvedClassDetails(node?.classes);
+  const classDetails = useResolvedClassDetails(node?.classes_uuid);
 
   // Resolve tag details — O(1) Map lookups instead of .find() per tag
   const tagDetails = useMemo(() => {
-    if (!node?.tags || node.tags.length === 0) return [];
-    const tagMap = new Map<number, Node>();
-    for (const t of allTags ?? []) tagMap.set(t.id, t);
-    const nodeMap = new Map<number, Node>();
-    for (const n of allNodes ?? []) nodeMap.set(n.id, n);
-    return node.tags
+    if (!node?.tags_uuid || node.tags_uuid.length === 0) return [];
+    const tagMap = new Map<string, Node>();
+    for (const t of allTags ?? []) tagMap.set(t.uuid, t);
+    const nodeMap = new Map<string, Node>();
+    for (const n of allNodes ?? []) nodeMap.set(n.uuid, n);
+    return node.tags_uuid
       .map(tagId => tagMap.get(tagId) ?? nodeMap.get(tagId))
       .filter((t): t is Node => {
         if (t === undefined) return false;
         if (t.is_class) return false;
         return true;
       });
-  }, [node.tags, allTags, allNodes]);
+  }, [node.tags_uuid, allTags, allNodes]);
 
   // Context menu state
   const [contextMenuPos, setContextMenuPos] = useState<{ x: number; y: number } | null>(null);
@@ -199,7 +200,7 @@ export const NodeCard = memo(function NodeCard({
 
   // Table creation modal state
   const [isTableModalOpen, setIsTableModalOpen] = useState(false);
-  const [tableTargetBlockId, setTableTargetBlockId] = useState<number | null>(null);
+  const [tableTargetBlockId, setTableTargetBlockId] = useState<string | null>(null);
 
   // Property hooks for cover
   const { data: allProperties } = useProperties();
@@ -212,10 +213,10 @@ export const NodeCard = memo(function NodeCard({
   }, [allProperties]);
 
   const coverImageId = useMemo(() => {
-    if (!coverProperty?.id) return null;
-    const coverValue = node?.properties?.[coverProperty.id];
-    return typeof coverValue === 'number' ? coverValue : null;
-  }, [node.properties, coverProperty?.id]);
+    if (!coverProperty?.uuid) return null;
+    const coverValue = node?.properties_uuid?.[coverProperty.uuid];
+    return typeof coverValue === 'string' ? coverValue : null;
+  }, [node.properties_uuid, coverProperty?.uuid]);
 
   // ─── Handlers ───────────────────────────────────────────────
 
@@ -231,8 +232,8 @@ export const NodeCard = memo(function NodeCard({
 
   const handleCheckboxChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     e.stopPropagation();
-    onSelectionChange?.(node.id, e.target.checked);
-  }, [node.id, onSelectionChange]);
+    onSelectionChange?.(node.uuid, e.target.checked);
+  }, [node.uuid, onSelectionChange]);
 
   const handleCheckboxClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -240,7 +241,6 @@ export const NodeCard = memo(function NodeCard({
 
   const handleAddChild = useCallback(async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (node.id < 0) return;
 
     const maxSequence = children.length > 0
       ? Math.max(...children.map(c => c.sequence))
@@ -248,54 +248,54 @@ export const NodeCard = memo(function NodeCard({
 
     createNode.mutate({
       name: '',
-      parent_id: node.id,
+      parent_uuid: node.uuid,
       sequence: maxSequence + 1,
     });
-  }, [node.id, children, createNode]);
+  }, [node.uuid, node.uuid, children, createNode]);
 
   const handleOpenInView = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
     openNode(node.uuid);
-  }, [node.id, openNode]);
+  }, [node.uuid, openNode]);
 
   const handleOpenInSidebar = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
     addSidebarCard(node.uuid, node.is_page ? 'page' : 'block');
-  }, [node.id, node.is_page, addSidebarCard]);
+  }, [node.uuid, node.is_page, addSidebarCard]);
 
-  const handleContentChange = useCallback((nodeId: number | string, content: string) => {
-    saveContent(nodeId, content);
-    onContentChange?.(nodeId, content);
+  const handleContentChange = useCallback((nodeUuid: string, content: string) => {
+    saveContent(nodeUuid, content);
+    onContentChange?.(nodeUuid, content);
   }, [saveContent, onContentChange]);
 
   // Cover handlers
   const handleRemoveCover = useCallback(() => {
     if (!coverProperty) return;
-    setNodeProperty.mutate({ nodeId: node.id, propertyId: coverProperty.id, value: null });
-  }, [node.id, coverProperty, setNodeProperty]);
+    setNodeProperty.mutate({ nodeUuid: node.uuid, propertyId: coverProperty.uuid, value: null });
+  }, [node.uuid, coverProperty, setNodeProperty]);
 
   const handleCoverUploaded = useCallback(async (asset: Asset) => {
     setIsAssetUploadOpen(false);
     if (coverProperty) {
       try {
         await setNodeProperty.mutateAsync({
-          nodeId: node.id,
-          propertyId: coverProperty.id,
-          value: asset.node_id,
+          nodeUuid: node.uuid,
+          propertyId: coverProperty.uuid,
+          value: asset.node_uuid,
         });
-        queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(node.id) });
+        queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(node.uuid) });
         queryClient.invalidateQueries({ queryKey: nodeViewKeys.queryResults() });
-        if (node.page_id) {
-          queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(node.page_id) });
+        if (node.page_uuid) {
+          queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(node.page_uuid) });
         }
-        if (node.parent_id) {
-          queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(node.parent_id) });
+        if (node.parent_uuid) {
+          queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(node.parent_uuid) });
         }
       } catch (error) {
         console.error('Failed to set cover property:', error);
       }
     }
-  }, [coverProperty, node.id, node.page_id, node.parent_id, setNodeProperty, queryClient]);
+  }, [coverProperty, node.uuid, node.page_uuid, node.parent_uuid, setNodeProperty, queryClient]);
 
   const handleCoverDropped = useCallback(async (file: File | string) => {
     try {
@@ -371,8 +371,8 @@ export const NodeCard = memo(function NodeCard({
   const handleNavigateToNode = useCallback(async (linkId: string) => {
     const runtime = getOperationRuntime();
     const graphNode = getNode(runtime, linkId);
-    if (graphNode?.serverId) {
-      onNodeClick?.({ id: graphNode.serverId, is_page: graphNode.isPage } as Node);
+    if (graphNode?.blockId) {
+      onNodeClick?.({ uuid: graphNode.blockId, is_page: graphNode.isPage } as unknown as Node);
       return;
     }
     // Node not in runtime — fetch by UUID
@@ -382,8 +382,8 @@ export const NodeCard = memo(function NodeCard({
       const { nodeUuid } = parseLinkId(linkId);
       const node = await getNodeByUuid(nodeUuid);
       // Redirect aliases to their main node
-      if (node.aliased_id) {
-        onNodeClick?.({ id: node.aliased_id, is_page: true } as Node);
+      if (node.aliased_uuid) {
+        onNodeClick?.({ uuid: node.aliased_uuid, is_page: true } as unknown as Node);
       } else {
         onNodeClick?.(node);
       }
@@ -395,23 +395,23 @@ export const NodeCard = memo(function NodeCard({
   const handleOpenBlockInSidebar = useCallback((blockId: string) => {
     const runtime = getOperationRuntime();
     const graphNode = getNode(runtime, blockId);
-    if (!graphNode?.serverId) return;
+    if (!graphNode?.blockId) return;
     if (onNodeShiftClick) {
-      onNodeShiftClick({ id: graphNode.serverId, is_page: false } as Node);
+      onNodeShiftClick({ uuid: graphNode.blockId, is_page: false } as unknown as Node);
     } else {
-      addSidebarCard(graphNode.serverId, 'block');
+      addSidebarCard(graphNode.blockId, 'block');
     }
   }, [onNodeShiftClick, addSidebarCard]);
 
   // Manual asset class state
-  const [_manualAssetBlockId, setManualAssetBlockId] = useState<number | null>(null);
+  const [_manualAssetBlockId, setManualAssetBlockId] = useState<string | null>(null);
   const [_manualAssetBlockContent, setManualAssetBlockContent] = useState<string>('');
 
   // Add class to block (uses API mutation)
-  const handleAddClass = useCallback((blockId: number, classId: number) => {
+  const handleAddClass = useCallback((blockId: string, classId: string) => {
     // Optimistically update the runtime for immediate visual feedback
     const runtime = getOperationRuntime();
-    const graphNode = getAllNodes(runtime).find(n => n.serverId === blockId);
+    const graphNode = getAllNodes(runtime).find(n => n.blockId === blockId);
     if (graphNode) {
       const classStrId = String(classId);
       if (!graphNode.classIds.includes(classStrId)) {
@@ -424,26 +424,26 @@ export const NodeCard = memo(function NodeCard({
 
     // Check if this is adding the asset class manually
     const assetCls = _propsAllClasses?.find(c => c.uuid === SYSTEM_CLASS_UUIDS.asset);
-    if (assetCls && classId === assetCls.id) {
-      addClass.mutate({ nodeId: blockId, classId });
-      const block = children.find(c => c.id === blockId);
+    if (assetCls && classId === assetCls.uuid) {
+      addClass.mutate({ nodeUuid: blockId, classId });
+      const block = children.find(c => c.uuid === blockId);
       const blockContent = block?.name || '';
       setManualAssetBlockId(blockId);
       setManualAssetBlockContent(blockContent);
       // Cards don't have a full asset upload flow currently — just add the class
       // (future: open modal)
     } else {
-      addClass.mutate({ nodeId: blockId, classId });
+      addClass.mutate({ nodeUuid: blockId, classId });
     }
   }, [addClass, _propsAllClasses, children]);
 
   // Handle slash commands from editor
-  const handleSlashCommand = useCallback((commandId: string, blockServerId: number | undefined) => {
+  const handleSlashCommand = useCallback((commandId: string, blockServerId: string | undefined) => {
     if (!_propsAllClasses) return;
     switch (commandId) {
       case 'query': {
         const cls = _propsAllClasses.find(c => c.uuid === SYSTEM_CLASS_UUIDS.query);
-        if (cls && blockServerId != null) addClass.mutate({ nodeId: blockServerId, classId: cls.id });
+        if (cls && blockServerId != null) addClass.mutate({ nodeUuid: blockServerId, classId: cls.uuid });
         break;
       }
       case 'table': {
@@ -455,7 +455,7 @@ export const NodeCard = memo(function NodeCard({
       }
       case 'code': {
         const cls = _propsAllClasses.find(c => c.uuid === SYSTEM_CLASS_UUIDS.code);
-        if (cls && blockServerId != null) addClass.mutate({ nodeId: blockServerId, classId: cls.id });
+        if (cls && blockServerId != null) addClass.mutate({ nodeUuid: blockServerId, classId: cls.uuid });
         break;
       }
       case 'warning':
@@ -465,7 +465,7 @@ export const NodeCard = memo(function NodeCard({
       case 'danger':
       case 'success': {
         const cls = _propsAllClasses.find(c => c.uuid === SYSTEM_CLASS_UUIDS[commandId]);
-        if (cls && blockServerId != null) addClass.mutate({ nodeId: blockServerId, classId: cls.id });
+        if (cls && blockServerId != null) addClass.mutate({ nodeUuid: blockServerId, classId: cls.uuid });
         break;
       }
       case 'image':
@@ -477,15 +477,15 @@ export const NodeCard = memo(function NodeCard({
         const cls = _propsAllClasses?.find(c => c.uuid === SYSTEM_CLASS_UUIDS.card);
         if (!cls || blockServerId == null) break;
         addClass.mutate(
-          { nodeId: blockServerId, classId: cls.id },
+          { nodeUuid: blockServerId, classId: cls.uuid },
           {
             onSuccess: () => {
               const runtime = getOperationRuntime();
-              const graphNode = getAllNodes(runtime).find(n => n.serverId === blockServerId);
+              const graphNode = getAllNodes(runtime).find(n => n.blockId === blockServerId);
               const frontText = graphNode
                 ? stringifyAST(graphNode.contentAST, { mode: StringifyMode.TEXT_ONLY }).trim()
                 : '';
-              createFlashcard.mutate({ nodeId: blockServerId, frontText, backText: '' });
+              createFlashcard.mutate({ nodeUuid: blockServerId, frontText, backText: '' });
             },
           },
         );
@@ -494,7 +494,7 @@ export const NodeCard = memo(function NodeCard({
       case 'cloze': {
         const cls = _propsAllClasses?.find(c => c.uuid === SYSTEM_CLASS_UUIDS.cloze);
         if (!cls || blockServerId == null) break;
-        addClass.mutate({ nodeId: blockServerId, classId: cls.id });
+        addClass.mutate({ nodeUuid: blockServerId, classId: cls.uuid });
         break;
       }
     }
@@ -506,20 +506,22 @@ export const NodeCard = memo(function NodeCard({
     const cls = _propsAllClasses.find(c => c.uuid === SYSTEM_CLASS_UUIDS.table);
     if (!cls) return;
 
-    addClass.mutate({ nodeId: tableTargetBlockId, classId: cls.id });
+    addClass.mutate({ nodeUuid: tableTargetBlockId, classId: cls.uuid });
 
     try {
-      const headerRow = await createNode.mutateAsync({ name: '', parent_id: tableTargetBlockId, sequence: 0 });
+      const parentUuid = getNodeUuidByServerId(queryClient, tableTargetBlockId);
+      if (!parentUuid) return;
+      const headerRow = await createNode.mutateAsync({ name: '', parent_uuid: parentUuid, sequence: 0 });
       await Promise.all(
         Array.from({ length: size.columns }, (_, i) =>
-          createNode.mutateAsync({ name: `Column ${i + 1}`, parent_id: headerRow.id, sequence: i })
+          createNode.mutateAsync({ name: `Column ${i + 1}`, parent_uuid: headerRow.uuid, sequence: i })
         )
       );
       for (let r = 1; r < size.rows; r++) {
-        const row = await createNode.mutateAsync({ name: '', parent_id: tableTargetBlockId, sequence: r });
+        const row = await createNode.mutateAsync({ name: '', parent_uuid: parentUuid, sequence: r });
         await Promise.all(
           Array.from({ length: size.columns }, (_, c) =>
-            createNode.mutateAsync({ name: '', parent_id: row.id, sequence: c })
+            createNode.mutateAsync({ name: '', parent_uuid: row.uuid, sequence: c })
           )
         );
       }
@@ -528,13 +530,13 @@ export const NodeCard = memo(function NodeCard({
     }
     setIsTableModalOpen(false);
     setTableTargetBlockId(null);
-  }, [tableTargetBlockId, _propsAllClasses, addClass, createNode]);
+  }, [tableTargetBlockId, _propsAllClasses, addClass, createNode, queryClient]);
 
   // Handle table creation — adapt existing children
   const handleTableAdaptExisting = useCallback(() => {
     if (tableTargetBlockId == null || !_propsAllClasses) return;
     const cls = _propsAllClasses.find(c => c.uuid === SYSTEM_CLASS_UUIDS.table);
-    if (cls) addClass.mutate({ nodeId: tableTargetBlockId, classId: cls.id });
+    if (cls) addClass.mutate({ nodeUuid: tableTargetBlockId, classId: cls.uuid });
     setIsTableModalOpen(false);
     setTableTargetBlockId(null);
   }, [tableTargetBlockId, _propsAllClasses, addClass]);
@@ -664,7 +666,7 @@ export const NodeCard = memo(function NodeCard({
             // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- wrapper only stops event bubbling
             <div className="node-card__breadcrumbs-row" onClick={(e) => e.stopPropagation()}>
               <NodeBreadcrumbs
-                nodeId={node.id}
+                nodeUuid={node.uuid}
                 nodeType={node.is_page ? 'page' : 'block'}
                 compact
                 onNavigate={openNode}
@@ -684,7 +686,7 @@ export const NodeCard = memo(function NodeCard({
             />
             <div className="node-card__title-wrapper">
               <CardTitleEditor
-                blockId={String(node.uuid || node.id)}
+                blockId={String(node.uuid || node.uuid)}
                 initialContent={node.name}
                 readOnly={!editable}
                 onContentChange={handleLexicalContentChange}
@@ -719,11 +721,11 @@ export const NodeCard = memo(function NodeCard({
         <div className="node-card__metadata-row node-card__classes-row">
           {classDetails.map((cls) => (
             <NodeRef
-              key={cls.id}
+              key={cls.uuid}
               node={cls}
               readOnly={!editable}
-              onRemove={isNonRemovableClass(cls.uuid) ? undefined : () => removeClass.mutate({ nodeId: node.id, classId: cls.id })}
-              onColorChange={(color) => updateNode.mutate({ id: cls.id, data: { color } })}
+              onRemove={isNonRemovableClass(cls.uuid) ? undefined : () => removeClass.mutate({ nodeUuid: node.uuid, classId: cls.uuid })}
+              onColorChange={(color) => updateNode.mutate({ nodeUuid: cls.uuid, data: { color } })}
             />
           ))}
           {editable && (
@@ -743,7 +745,7 @@ export const NodeCard = memo(function NodeCard({
         {/* Row: Properties */}
         <div className="node-card__properties-row">
           <PropertiesSection
-            nodeId={node.id}
+            nodeUuid={node.uuid}
             inline={true}
             readOnly={!editable}
             showHiddenSection={false}
@@ -759,11 +761,11 @@ export const NodeCard = memo(function NodeCard({
         <div className="node-card__metadata-row node-card__tags-row">
           {tagDetails.map((tag) => (
             <NodeRef
-              key={tag.id}
+              key={tag.uuid}
               node={tag}
               readOnly={!editable}
-              onRemove={() => removeClass.mutate({ nodeId: node.id, classId: tag.id })}
-              onColorChange={(color) => updateNode.mutate({ id: tag.id, data: { color } })}
+              onRemove={() => removeClass.mutate({ nodeUuid: node.uuid, classId: tag.uuid })}
+              onColorChange={(color) => updateNode.mutate({ nodeUuid: tag.uuid, data: { color } })}
             />
           ))}
           {editable && (
@@ -793,7 +795,6 @@ export const NodeCard = memo(function NodeCard({
                 onAddClass={handleAddClass}
                 onSlashCommand={handleSlashCommand}
                 nodeUuid={node.uuid}
-                nodeId={node.id}
                 inCard
               />
             )}

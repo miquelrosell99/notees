@@ -18,7 +18,7 @@ import { nodeViewKeys } from '@/features/content';
 import { SYSTEM_CLASS_UUIDS } from '@/constants/systemProperties';
 
 export function CommandRegistrations() {
-  const { pageClassId } = usePageClass();
+  const { pageClassUuid } = usePageClass();
   const { data: allClasses } = useClasses();
   const openNode = useNavigationStore((s) => s.openNode);
   const currentNodeUuid = useNavigationStore((s) => s.currentNodeUuid);
@@ -79,22 +79,22 @@ export function CommandRegistrations() {
     }
   );
 
-  // Capture task — needs pageClassId and taskClassId from hooks
+  // Capture task — needs pageClassUuid and taskClassUuid from hooks
   useCommand(
     COMMAND_IDS.CAPTURE_TASK,
     () => {
-      if (!pageClassId) {
+      if (!pageClassUuid) {
         notifyWarning('Setup incomplete', 'Page class not found. Please reload the app.');
         return;
       }
-      const taskClassId = allClasses?.find((c) => c.uuid === SYSTEM_CLASS_UUIDS.task)?.id;
-      if (!taskClassId) {
+      const taskClassUuid = allClasses?.find((c) => c.uuid === SYSTEM_CLASS_UUIDS.task)?.uuid;
+      if (!taskClassUuid) {
         notifyWarning('Setup incomplete', 'Task class not found. Please reload the app.');
         return;
       }
       createNode({
         name: 'New Task',
-        classes: [pageClassId, taskClassId],
+        class_uuids: [pageClassUuid, taskClassUuid],
       })
         .then((newNode) => {
           openNode(newNode.uuid);

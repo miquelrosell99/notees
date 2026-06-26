@@ -30,29 +30,29 @@ export function TemplateGallery() {
 
   const [viewMode, setViewMode] = useState<NodeCollectionViewMode>('list');
   const [pendingTemplate, setPendingTemplate] = useState<Node | null>(null);
-  const { data: variablesData } = useTemplateVariables(pendingTemplate?.id ?? null);
+  const { data: variablesData } = useTemplateVariables(pendingTemplate?.uuid ?? null);
 
-  const templateClassId = useMemo(() => {
+  const templateClassUuid = useMemo(() => {
     if (!allClasses) return null;
     const uuid = SYSTEM_CLASS_UUIDS.template;
-    return allClasses.find(c => c.uuid === uuid)?.id ?? null;
+    return allClasses.some(c => c.uuid === uuid) ? uuid : null;
   }, [allClasses]);
 
   const templates = templatesResponse?.items ?? [];
 
   const handleCreateTemplate = useCallback(async () => {
-    if (templateClassId == null) return;
+    if (templateClassUuid == null) return;
     try {
       const newTemplate = await createNode({
         name: 'New template',
-        classes: [templateClassId],
+        class_uuids: [templateClassUuid],
       });
       openNode(newTemplate.uuid);
       queryClient.invalidateQueries({ queryKey: templateKeys.list() });
     } catch (e) {
       console.error('[TemplateGallery] failed to create template', e);
     }
-  }, [templateClassId, openNode]);
+  }, [templateClassUuid, openNode]);
 
   const handleInstantiate = useCallback((template: Node) => {
     setPendingTemplate(template);
@@ -87,7 +87,7 @@ export function TemplateGallery() {
         className="template-gallery__header"
         title={<h1>Templates</h1>}
         actions={
-          <Button variant="primary" size="sm" onClick={handleCreateTemplate} disabled={templateClassId == null}>
+          <Button variant="primary" size="sm" onClick={handleCreateTemplate} disabled={templateClassUuid == null}>
             New template
           </Button>
         }
@@ -141,7 +141,7 @@ export function TemplateGallery() {
           onConfirm={(variables, dynamicContext) => {
             instantiate.mutate(
               {
-                nodeId: pendingTemplate.id,
+                nodeUuid: pendingTemplate.uuid,
                 options: {
                   variables,
                   dynamic_context: dynamicContext,

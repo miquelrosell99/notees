@@ -28,12 +28,11 @@ import { generateUUID } from '@/utils/uuid';
 import './WhiteboardView.css';
 
 interface WhiteboardViewProps {
-  nodeId: number;
   nodeUuid: string;
 }
 
-export const WhiteboardView: React.FC<WhiteboardViewProps> = ({ nodeId }) => {
-  const wb = useWhiteboard(nodeId);
+export const WhiteboardView: React.FC<WhiteboardViewProps> = ({  nodeUuid }) => {
+  const wb = useWhiteboard(nodeUuid);
   const createNode = useCreateNode();
   const deleteNode = useDeleteNode();
   const openNode = useNavigationStore(s => s.openNode);
@@ -65,7 +64,7 @@ export const WhiteboardView: React.FC<WhiteboardViewProps> = ({ nodeId }) => {
     const el = wb.data.elements.find(e => e.id === elementId);
     if (el?.type === 'card') {
       const cardEl = el as WhiteboardCardElement;
-      openNode(cardEl.nodeId);
+      openNode(cardEl.nodeUuid);
     }
   }, [wb.data.elements, openNode]);
 
@@ -92,31 +91,31 @@ export const WhiteboardView: React.FC<WhiteboardViewProps> = ({ nodeId }) => {
 
   const handleAddCard = useCallback(() => {
     createNode.mutate(
-      { name: '', parent_id: nodeId },
+      { name: '', parent_uuid: nodeUuid },
       {
         onSuccess: (newNode) => {
           const center = viewportCenter();
-          const card = wb.createCard(newNode.id, newNode.uuid, { x: center.x - 140, y: center.y - 90 });
+          const card = wb.createCard(newNode.uuid, { x: center.x - 140, y: center.y - 90 });
           wb.addElement(card);
           wb.selectElements([card.id]);
         },
       }
     );
-  }, [nodeId, createNode, wb, viewportCenter]);
+  }, [nodeUuid, createNode, wb, viewportCenter]);
 
   const handleAddCardAtPosition = useCallback((screenX: number, screenY: number) => {
     createNode.mutate(
-      { name: '', parent_id: nodeId },
+      { name: '', parent_uuid: nodeUuid },
       {
         onSuccess: (newNode) => {
           const pos = screenToCanvas(screenX, screenY);
-          const card = wb.createCard(newNode.id, newNode.uuid, pos);
+          const card = wb.createCard(newNode.uuid, pos);
           wb.addElement(card);
           wb.selectElements([card.id]);
         },
       }
     );
-  }, [nodeId, createNode, wb, screenToCanvas]);
+  }, [nodeUuid, createNode, wb, screenToCanvas]);
 
   // ─── Add reference card (pick existing node via LinkEditModal → embed as read-only) ─
 
@@ -142,18 +141,18 @@ export const WhiteboardView: React.FC<WhiteboardViewProps> = ({ nodeId }) => {
     const ast = inlineDoc(nodeLink(buildLinkId(selectedNode.uuid, linkUuid)));
     const linkName = JSON.stringify(ast);
     createNode.mutate(
-      { name: linkName, parent_id: nodeId },
+      { name: linkName, parent_uuid: nodeUuid },
       {
         onSuccess: (newBlock) => {
-          // nodeId = referenced node (display), refBlockId / refBlockUuid = hidden block (cleanup on delete)
-          const card = wb.createReferenceCard(selectedNode.id, selectedNode.uuid, refCardPos, newBlock.id, newBlock.uuid);
+          // nodeUuid = referenced node (display), refBlockUuid = hidden block (cleanup on delete)
+          const card = wb.createReferenceCard(selectedNode.uuid, refCardPos, newBlock.uuid);
           wb.addElement(card);
           wb.selectElements([card.id]);
         },
       }
     );
     setRefCardPos(null);
-  }, [refCardPos, nodeId, createNode, wb]);
+  }, [refCardPos, nodeUuid, createNode, wb]);
 
   // ─── Add image ────────────────────────────────────────────────────
 
@@ -202,9 +201,9 @@ export const WhiteboardView: React.FC<WhiteboardViewProps> = ({ nodeId }) => {
       ids.forEach(id => {
         const el = wb.data.elements.find(e => e.id === id);
         if (el?.type === 'card' && (el as WhiteboardCardElement).cardMode === 'reference') {
-          const refBlockId = (el as WhiteboardCardElement).refBlockId;
-          if (refBlockId) {
-            deleteNode.mutate(refBlockId);
+          const refBlockUuid = (el as WhiteboardCardElement).refBlockUuid;
+          if (refBlockUuid) {
+            deleteNode.mutate(refBlockUuid);
           }
         }
       });
@@ -214,8 +213,8 @@ export const WhiteboardView: React.FC<WhiteboardViewProps> = ({ nodeId }) => {
 
   // ─── Open referenced node ────────────────────────────────────────
 
-  const handleOpenNode = useCallback((nodeId: number) => {
-    openNode(nodeId);
+  const handleOpenNode = useCallback((nodeUuid: string) => {
+    openNode(nodeUuid);
   }, [openNode]);
 
   // ─── Grid class ──────────────────────────────────────────────────

@@ -13,27 +13,35 @@
 import type { WhiteboardData } from '@/features/whiteboard/types/whiteboard';
 import type { QueryAST } from './queryAST';
 
+// ─── Base node ─────────────────────────────────────────────────────
+
+/** Fields present on every AST node. */
+export interface ASTNodeBase {
+  /** Schema version for lazy migration. Absence means version 1. */
+  readonly schemaVersion?: number;
+}
+
 // ─── Leaf nodes ────────────────────────────────────────────────────
 
 /** Plain text. */
-export interface ASTText {
+export interface ASTText extends ASTNodeBase {
   readonly type: 'text';
   readonly text: string;
 }
 
 /** Hard line break (Shift+Enter). */
-export interface ASTHardBreak {
+export interface ASTHardBreak extends ASTNodeBase {
   readonly type: 'hard_break';
 }
 
 /** Inline code span (backtick-wrapped). Stored without backticks. */
-export interface ASTCode {
+export interface ASTCode extends ASTNodeBase {
   readonly type: 'code';
   readonly text: string;
 }
 
 /** Inline math formula (LaTeX). Stored without delimiters. */
-export interface ASTMath {
+export interface ASTMath extends ASTNodeBase {
   readonly type: 'math';
   readonly expression: string;
   readonly displayMode?: boolean;
@@ -53,7 +61,7 @@ export interface ASTMath {
  * `label` is an optional custom display text (e.g., [custom label]([[uuid]]))
  * stored inline in the AST.
  */
-export interface ASTNodeLink {
+export interface ASTNodeLink extends ASTNodeBase {
   readonly type: 'node_link';
   readonly link_id: string;
   /** 'node' — regular reference, 'class' — class reference, 'embed' — full node embed portal, 'user' — user mention */
@@ -64,14 +72,14 @@ export interface ASTNodeLink {
 /** Preserved reference to a node that no longer exists.
  *  Keeps the original link_id (and optional label) so the UUID is not lost.
  */
-export interface ASTBrokenLink {
+export interface ASTBrokenLink extends ASTNodeBase {
   readonly type: 'broken_link';
   readonly link_id: string;
   readonly label?: string | null;
 }
 
 /** Inline date range pill. */
-export interface ASTDateRange {
+export interface ASTDateRange extends ASTNodeBase {
   readonly type: 'date_range';
   readonly start: string;          // ISO date (YYYY-MM-DD)
   readonly end: string;
@@ -83,34 +91,34 @@ export interface ASTDateRange {
 
 // ─── Mark (formatting) nodes ───────────────────────────────────────
 
-export interface ASTStrong {
+export interface ASTStrong extends ASTNodeBase {
   readonly type: 'strong';
   readonly children: ASTInlineNode[];
 }
 
-export interface ASTEm {
+export interface ASTEm extends ASTNodeBase {
   readonly type: 'em';
   readonly children: ASTInlineNode[];
 }
 
-export interface ASTStrikethrough {
+export interface ASTStrikethrough extends ASTNodeBase {
   readonly type: 'strikethrough';
   readonly children: ASTInlineNode[];
 }
 
-export interface ASTHighlight {
+export interface ASTHighlight extends ASTNodeBase {
   readonly type: 'highlight';
   readonly children: ASTInlineNode[];
 }
 
-export interface ASTUnderline {
+export interface ASTUnderline extends ASTNodeBase {
   readonly type: 'underline';
   readonly children: ASTInlineNode[];
 }
 
 // ─── External link ─────────────────────────────────────────────────
 
-export interface ASTExternalLink {
+export interface ASTExternalLink extends ASTNodeBase {
   readonly type: 'external_link';
   readonly url: string;
   readonly children: ASTInlineNode[];
@@ -118,7 +126,7 @@ export interface ASTExternalLink {
 
 // ─── Block-level nodes ─────────────────────────────────────────────
 
-export interface ASTParagraph {
+export interface ASTParagraph extends ASTNodeBase {
   readonly type: 'paragraph';
   readonly children: ASTInlineNode[];
 }
@@ -128,7 +136,7 @@ export interface ASTParagraph {
  * The rendered heading level (h1–h6) is computed from the block's
  * hierarchy depth in the current view — it is NOT stored in the AST.
  */
-export interface ASTHeading {
+export interface ASTHeading extends ASTNodeBase {
   readonly type: 'heading';
   readonly level: number;
   readonly children: ASTInlineNode[];
@@ -146,7 +154,7 @@ export interface ASTHeading {
  * The title is stored as a normal paragraph block (children approach).
  * `data` holds the full WhiteboardData (viewport, elements, grid, background).
  */
-export interface ASTWhiteboard {
+export interface ASTWhiteboard extends ASTNodeBase {
   readonly type: 'whiteboard';
   readonly data: WhiteboardData;
   readonly children?: ASTInlineNode[];
@@ -165,7 +173,7 @@ export interface ASTWhiteboard {
  * The title is stored as a normal paragraph block (children approach).
  * `data` holds the full QueryAST.
  */
-export interface ASTQuery {
+export interface ASTQuery extends ASTNodeBase {
   readonly type: 'query';
   readonly data: QueryAST;
   readonly children?: ASTInlineNode[];
@@ -226,4 +234,39 @@ export type ASTDocument = ASTBlockNode[];
 /** Type guard: is the node a leaf (no children array)? */
 export function isLeafNode(node: ASTInlineNode): node is ASTText | ASTHardBreak | ASTCode | ASTMath | ASTNodeLink | ASTBrokenLink | ASTDateRange {
   return node.type === 'text' || node.type === 'hard_break' || node.type === 'code' || node.type === 'math' || node.type === 'node_link' || node.type === 'broken_link' || node.type === 'date_range';
+}
+
+// ─── Schema migration ──────────────────────────────────────────────
+
+/** Current AST schema version. Bump on backward-incompatible changes. */
+export const CURRENT_AST_SCHEMA_VERSION = 1;
+
+/**
+ * Ensure an AST node carries the current schema version. Mutates in place.
+ * Nodes without a schemaVersion are assumed to be version 1.
+ */
+export function migrateASTNode(node: ASTInlineNode | ASTBlockNode): void {
+  if (!('schemaVersion' in node) || node.schemaVersion === undefined) {
+    (node as { schemaVersion: number }).schemaVersion = CURRENT_AST_SCHEMA_VERSION;
+  }
+}
+
+/**
+ * Migrate an entire AST document to the current schema version.
+ * Mutates the document and its nodes in place.
+ */
+export function migrateASTDocument(doc: ASTDocument): ASTDocument {
+  for (const block of doc) {
+    migrateASTNodeRecursive(block);
+  }
+  return doc;
+}
+
+function migrateASTNodeRecursive(node: ASTInlineNode | ASTBlockNode): void {
+  migrateASTNode(node);
+  if ('children' in node && node.children) {
+    for (const child of node.children) {
+      migrateASTNodeRecursive(child);
+    }
+  }
 }

@@ -48,8 +48,8 @@ export function NotificationPanel({ filterType, title, onClose }: NotificationPa
               className={`notification-bell__item ${n.is_read ? 'notification-bell__item--read' : ''}`}
               onClick={() => {
                 if (!n.is_read && n.uuid) markRead.mutate(n.uuid);
-                if (n.node_id) {
-                  window.location.href = `/node/${n.node_id}`;
+                if (n.node_uuid) {
+                  window.location.href = `/node/${n.node_uuid}`;
                 }
                 onClose?.();
               }}

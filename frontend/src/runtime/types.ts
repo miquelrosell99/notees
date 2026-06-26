@@ -36,8 +36,7 @@ export type GraphNodeType =
 export interface GraphNode {
   /** Unique block ID (UUID string) */
   blockId: string;
-  /** Server-side numeric ID (for API compat) */
-  serverId?: number;
+
   /** Parent block ID, null for root pages */
   parentId: string | null;
   /** Position within siblings */
@@ -93,8 +92,7 @@ export interface ProjectedNode {
   color?: string | null;
   /** Whether this node has children (for bullet/collapse UI) */
   hasChildren: boolean;
-  /** Server-side ID for API calls */
-  serverId?: number;
+
   /** Task status if applicable */
   taskStatus?: string | null;
   /** Class IDs */
@@ -156,10 +154,10 @@ export interface UndoEntry {
 export type RuntimeEvent =
   | { type: 'nodes_changed'; blockIds: string[]; source?: 'intent' | 'sync' | 'undo' | 'redo'; sourceEditorId?: string }
   | { type: 'structure_changed'; parentIds: string[]; source?: 'intent' | 'sync' | 'undo' | 'redo' }
-  | { type: 'block_deleted'; blockId: string; serverId?: number }
-  | { type: 'collapse_changed'; blockId: string; serverId?: number; collapsed: boolean }
+  | { type: 'block_deleted'; blockId: string }
+  | { type: 'collapse_changed'; blockId: string; collapsed: boolean }
   | { type: 'projection_invalidated'; projectionId: string }
-  | { type: 'expand_children_needed'; blockId: string; serverId?: number }
+  | { type: 'expand_children_needed'; blockId: string }
   | { type: 'undo'; entry: UndoEntry }
   | { type: 'redo'; entry: UndoEntry }
   | { type: 'undo_stack_changed' }

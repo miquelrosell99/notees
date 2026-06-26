@@ -20,7 +20,6 @@ export type OperationState = 'pending' | 'in_flight' | 'acknowledged' | 'failed'
  */
 export interface CoreNode {
   blockId: string;
-  serverId?: number;
   parentId: string | null;
   orderIndex: number;
   nodeType: GraphNodeType;
@@ -128,7 +127,6 @@ export interface Operation {
   readonly id: string;
   readonly type: OperationType;
   readonly blockId: string;
-  readonly serverId?: number;
   readonly payload:
     | UpdateContentPayload
     | MovePayload
@@ -149,6 +147,10 @@ export interface Operation {
   readonly maxRetries: number;
   readonly createdAt: number;
   readonly error?: string;
+  /** v2 sync: stable client/device id. */
+  readonly clientId?: string;
+  /** v2 sync: monotonic sequence number for this client. */
+  readonly seq?: number;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────

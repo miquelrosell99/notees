@@ -46,6 +46,7 @@ class PostgresWorkspaceRepository(WorkspaceRepository):
             return await conn.fetch(
                 """
                 SELECT DISTINCT g.uuid, g.name, g.create_date, g.write_date, g.is_shared,
+                                g.sync_protocol_version,
                                 g.create_uid = $1 as is_owner,
                                 gs.can_read as s_can_read,
                                 gs.can_write as s_can_write,
@@ -282,6 +283,26 @@ class PostgresWorkspaceRepository(WorkspaceRepository):
                 return None
             return row["id"], row["create_uid"]
 
+    async def get_sync_protocol_version(self, workspace_id: int) -> str:
+        async with acquire_connection(self._pool) as conn:
+            row = await conn.fetchrow(
+                "SELECT sync_protocol_version FROM workspace WHERE id = $1",
+                workspace_id,
+            )
+            return row["sync_protocol_version"] if row else "v1"
+
+    async def set_sync_protocol_version(self, workspace_id: int, version: str) -> None:
+        async with acquire_connection(self._pool) as conn:
+            await conn.execute(
+                """
+                UPDATE workspace
+                SET sync_protocol_version = $1, write_date = NOW()
+                WHERE id = $2
+                """,
+                version,
+                workspace_id,
+            )
+
     async def is_workspace_member(self, workspace_id: int, user_id: int) -> bool:
         async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow(
@@ -498,7 +519,7 @@ class PostgresWorkspaceIORepository(WorkspaceIORepository):
             nodes = await conn.fetch(
                 """
                 SELECT id, uuid, name, icon, color, parent_id, page_id, sequence,
-                       collapsed, active, version, is_class, is_page, is_day,
+                       active, version, is_class, is_page, is_day,
                        is_month, is_year, is_asset, is_template, is_comment,
                        class_ids, tag_ids, classes_path, open_date, create_date, write_date,
                        aliased_id, is_deleted, deleted_at
@@ -763,7 +784,7 @@ class PostgresWorkspaceIORepository(WorkspaceIORepository):
                     """
                     INSERT INTO node (
                         uuid, workspace_id, name, icon, color,
-                        sequence, collapsed, active, version,
+                        sequence, active, version,
                         is_class, is_page, is_day, is_month, is_year,
                         is_asset, is_template, is_comment,
                         classes_path, tag_ids, open_date, create_date, write_date,
@@ -771,12 +792,12 @@ class PostgresWorkspaceIORepository(WorkspaceIORepository):
                         create_uid, write_uid
                     ) VALUES (
                         $1::uuid, $2, $3, $4, $5,
-                        $6, $7, $8, $9,
-                        $10, $11, $12, $13, $14,
-                        $15, $16, $17,
-                        $18::jsonb, $19, $20, $21, $22,
-                        $23, $24,
-                        $25, $25
+                        $6, $7, $8,
+                        $9, $10, $11, $12, $13,
+                        $14, $15, $16,
+                        $17::jsonb, $18, $19, $20, $21,
+                        $22, $23,
+                        $24, $24
                     )
                 """,
                     bundle.node_records,

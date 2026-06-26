@@ -45,7 +45,7 @@ export function getRegisteredSettingsTabs(): SettingsTabDefinition[] {
 
 export interface SlashCommandDefinition extends ContributedSlashCommand {
   /** Execute the slash command. Receives the current editor and block id. */
-  execute: (payload: { editor: unknown; blockServerId: number | null }) => void;
+  execute: (payload: { editor: unknown; blockServerId: string | null }) => void;
 }
 
 const slashCommandRegistry = new Map<string, SlashCommandDefinition>();
@@ -110,8 +110,8 @@ export interface NodeActionDefinition {
   label: string;
   icon?: string;
   /** Predicate to decide whether the action should appear for a given node. */
-  visible?: (nodeId: number) => boolean;
-  execute: (nodeId: number) => void;
+  visible?: (nodeUuid: string) => boolean;
+  execute: (nodeUuid: string) => void;
 }
 
 const nodeActionRegistry = new Map<string, NodeActionDefinition>();

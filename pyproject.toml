@@ -27,9 +27,11 @@ dependencies = [
     "Pillow==12.2.0",
     "weasyprint==68.1",
     "Pygments==2.20.0",
+    "pyyaml>=6.0",
     "fastapi-limiter==0.2.0",
     "pyrate-limiter>=3.0.0",
     "redis>=5.0.0",
+    "uuid7>=0.1.0",
 ]
 
 [dependency-groups]

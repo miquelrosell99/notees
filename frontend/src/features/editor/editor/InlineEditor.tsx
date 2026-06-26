@@ -93,15 +93,15 @@ interface InlineEditorProps {
   /** Called when a pill is removed. */
   onPillRemove?: (linkId: string) => void;
   /** Called when a class should be added via + trigger. */
-  onAddClass?: (blockServerId: number, classId: number) => void;
+  onAddClass?: (blockServerId: string, classId: string) => void;
   /** Called when a slash command is selected. */
-  onSlashCommand?: (commandId: string, blockServerId: number | undefined) => void;
+  onSlashCommand?: (commandId: string, blockServerId: string | undefined) => void;
   /** Called when an image is pasted into the block. */
-  onPasteImage?: (blockServerId: number, file: File, hasContent: boolean) => void;
+  onPasteImage?: (blockServerId: string, file: File, hasContent: boolean) => void;
   /** Called when a template is selected. */
-  onTemplateInstantiate?: (templateNodeId: number, blockServerId: number | undefined) => void;
+  onTemplateInstantiate?: (templateNodeId: string, blockServerId: string | undefined) => void;
   /** Class IDs to pre-filter template picker. */
-  templateClassFilters?: number[];
+  templateClassFilters?: string[];
   /** Called on Enter (block creation / split). */
   onEnter?: () => void;
   /** Called on Ctrl+Enter (task cycle, etc.). */
@@ -133,31 +133,30 @@ interface InlineEditorProps {
 export const InlineEditor = memo(
   forwardRef<InlineEditorHandle, InlineEditorProps>(function InlineEditor(
     {
-      blockId,
-      initialContentAST,
-      readOnly = false,
-      placeholder = '',
-      onContentChange,
-      onPillClick,
-      onPillRemove,
-      onAddClass,
-      onSlashCommand,
-      onPasteImage,
-      onTemplateInstantiate,
-      templateClassFilters,
-      onEnter,
-      onCtrlEnter,
-      onBackspaceAtStart,
-      onDeleteAtEnd,
-      onEscape,
-      nodeUuid,
-      isPage,
-      hasNodeColor,
-      inCard,
-      cardTitle,
-      listSize,
-      inPropertyEditor,
-    },
+            blockId,
+            initialContentAST,
+            readOnly = false,
+            placeholder = '',
+            onContentChange,
+            onPillClick,
+            onPillRemove,
+            onAddClass,
+            onSlashCommand,
+            onPasteImage,
+            onTemplateInstantiate,
+            templateClassFilters,
+            onEnter,
+            onCtrlEnter,
+            onBackspaceAtStart,
+            onDeleteAtEnd,
+            onEscape,
+            nodeUuid,
+            isPage,
+            hasNodeColor,
+            inCard,
+            cardTitle,
+            listSize,
+            inPropertyEditor },
     ref,
   ): JSX.Element {
     const editorRef = useRef<ReturnType<typeof useLexicalComposerContext>[0] | null>(null);

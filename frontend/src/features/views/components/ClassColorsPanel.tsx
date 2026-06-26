@@ -22,7 +22,7 @@ import './ClassColorsPanel.css';
 import { getClassColorPalette } from '@/features/views/types/viewTypes';
 
 export interface ClassColor {
-  classId: number;
+  classId: string;
   className: string;
   color: string;
   order: number;
@@ -46,7 +46,7 @@ export function ClassColorsPanel({
   const addClassColor = (classNode: Node) => {
     const converted = nodeNameToText(classNode.name);
     const newClassColor: ClassColor = {
-      classId: classNode.id,
+      classId: classNode.uuid,
       className: converted || 'Untitled',
       color: resolvedDefaults[classColors.length % resolvedDefaults.length],
       order: classColors.length,
@@ -54,13 +54,13 @@ export function ClassColorsPanel({
     onChange([...classColors, newClassColor]);
   };
 
-  const updateClassColor = (classId: number, color: string) => {
+  const updateClassColor = (classId: string, color: string) => {
     onChange(
       classColors.map(cc => cc.classId === classId ? { ...cc, color } : cc)
     );
   };
 
-  const removeClassColor = (classId: number) => {
+  const removeClassColor = (classId: string) => {
     onChange(classColors.filter(cc => cc.classId !== classId));
   };
 
@@ -87,7 +87,7 @@ export function ClassColorsPanel({
           placeholder="Search classes to add..."
           filterFn={(node) =>
             node.is_class === true &&
-            !classColors.some(cc => cc.classId === node.id)
+            !classColors.some(cc => cc.classId === node.uuid)
           }
           onSelect={addClassColor}
         />
@@ -108,7 +108,7 @@ export function ClassColorsPanel({
                 color={item.color}
                 size="xs"
                 showPicker
-                onColorChange={(color) => color && updateClassColor(item.id as number, color)}
+                onColorChange={(color) => color && updateClassColor(item.id as string, color)}
                 title="Change color"
               />,
               <Button aria-label="Remove class"
@@ -118,7 +118,7 @@ export function ClassColorsPanel({
                 variant="ghost"
                 onClick={(e) => {
                   e.stopPropagation();
-                  removeClassColor(item.id as number);
+                  removeClassColor(item.id as string);
                 }}
                 title="Remove class"
               />

@@ -28,7 +28,7 @@ export function SidebarActivity({ nodeUuid, count, loading }: SidebarActivityPro
       {loading ? (
         <div className="sidebar-section-loading"><Spinner size="sm" centered /></div>
       ) : (
-        <NodeActivityLogSection nodeId={nodeUuid} variant="sidebar" />
+        <NodeActivityLogSection nodeUuid={nodeUuid} variant="sidebar" />
       )}
     </NodeViewSection>
   );

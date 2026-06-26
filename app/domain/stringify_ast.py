@@ -37,6 +37,8 @@ from typing import (
     Any,
 )
 
+from app.domain.entities.content import migrate_content_ast
+
 __all__ = [
     "StringifyMode",
     "ParseMode",
@@ -161,26 +163,28 @@ def parse_ast(value: Any, mode: ParseMode = ParseMode.JSON) -> list[dict]:
             - Empty / None → empty document
     """
     if mode is ParseMode.JSON:
-        return _parse_json(value)
+        return migrate_content_ast(_parse_json(value))
 
     # PLAIN and MARKDOWN both need a string
     if not isinstance(value, str) or not value:
         return []
 
     if mode is ParseMode.PLAIN:
-        return [{"type": "paragraph", "children": [{"type": "text", "text": value}]}]
+        return migrate_content_ast([{"type": "paragraph", "children": [{"type": "text", "text": value}]}])
 
     # MARKDOWN
-    return _parse_markdown(value)
+    return migrate_content_ast(_parse_markdown(value))
 
 
 def serialize_ast(ast: list[dict]) -> str:
     """Serialize an AST document to a JSON string for DB storage.
 
     This is a thin wrapper around ``json.dumps`` that pairs with
-    ``parse_ast(..., ParseMode.JSON)`` for deserialization.
+    ``parse_ast(..., ParseMode.JSON)`` for deserialization. The AST is
+    migrated to the current schema version before serialization so every
+    persisted node carries a ``schema_version``.
     """
-    return json.dumps(ast)
+    return json.dumps(migrate_content_ast(ast))
 
 
 # ── Document / block rendering ─────────────────────────────────────

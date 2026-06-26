@@ -23,6 +23,7 @@ import { ContextMenu } from '@/components/ui/ContextMenu';
 import type { ContextMenuItem } from '@/components/ui/ContextMenu';
 import { Scratchpad } from './Scratchpad';
 import { LiveSyncIndicator } from '@/features/collab';
+import { SyncStatusIndicator } from '@/features/sync';
 import { TabBar } from './TabBar/TabBar';
 
 import './TopBar.css';
@@ -150,7 +151,7 @@ export function TopBar() {
   // Build context menu items for undo/redo history
   const undoMenuItems: ContextMenuItem[] = useMemo(() => [
     ...undoEntries.map((entry, i) => ({
-      id: String(entry.id),
+      id: String(entry.nodeUuid),
       label: `${i + 1}. ${entry.description}`,
       onClick: () => {
         performUndoTo(queryClient, entry);
@@ -163,7 +164,7 @@ export function TopBar() {
 
   const redoMenuItems: ContextMenuItem[] = useMemo(() => [
     ...redoEntries.map((entry, i) => ({
-      id: String(entry.id),
+      id: String(entry.nodeUuid),
       label: `${i + 1}. ${entry.description}`,
       onClick: () => {
         performRedoTo(queryClient, entry);
@@ -179,7 +180,7 @@ export function TopBar() {
 
   const handleGoToToday = useCallback(async () => {
     const result = await refetchToday();
-    if (result.data) openNode(result.data.id);
+    if (result.data) openNode(result.data.uuid);
   }, [refetchToday, openNode]);
 
   const currentNodeUuid = useNavigationStore(s => s.currentNodeUuid);
@@ -224,6 +225,7 @@ export function TopBar() {
         
           <span className="app-title">Notees</span>
           <LiveSyncIndicator />
+          <SyncStatusIndicator />
         </div>
       
         <div className="top-bar-center">

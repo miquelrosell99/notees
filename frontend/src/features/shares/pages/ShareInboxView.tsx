@@ -55,7 +55,7 @@ export function ShareInboxView() {
                   name={item.node_name}
                   icon={item.node_icon}
                   isPage={item.is_page}
-                  nodeId={item.node_uuid}
+                  nodeUuid={item.node_uuid}
                   showBullet={false}
                   className="share-inbox-view__item-name"
                 />

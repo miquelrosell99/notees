@@ -15,7 +15,12 @@ export interface WorkspaceInfo {
   size_bytes?: number;
   is_active?: boolean;
   is_shared?: boolean;
+  sync_protocol_version?: 'v1' | 'v2';
   role?: 'owner' | 'admin' | 'editor' | 'viewer';
+}
+
+export interface SyncProtocolVersionResponse {
+  sync_protocol_version: 'v1' | 'v2';
 }
 
 export interface WorkspaceListResponse {
@@ -224,4 +229,28 @@ export async function getWorkspaceSettings(): Promise<Record<string, unknown>> {
  */
 export async function setWorkspaceSetting(key: string, value: unknown): Promise<void> {
   await api.put(`/workspace-settings/${encodeURIComponent(key)}`, { value });
+}
+
+/**
+ * Get the sync protocol version for a workspace.
+ */
+export async function getSyncProtocolVersion(workspaceUuid: string): Promise<SyncProtocolVersionResponse> {
+  const response = await api.get<SyncProtocolVersionResponse>(
+    `/workspaces/${encodeURIComponent(workspaceUuid)}/sync-protocol-version`,
+  );
+  return response.data;
+}
+
+/**
+ * Update the sync protocol version for a workspace (owner only).
+ */
+export async function setSyncProtocolVersion(
+  workspaceUuid: string,
+  version: 'v1' | 'v2',
+): Promise<SyncProtocolVersionResponse> {
+  const response = await api.patch<SyncProtocolVersionResponse>(
+    `/workspaces/${encodeURIComponent(workspaceUuid)}/sync-protocol-version`,
+    { version },
+  );
+  return response.data;
 }

@@ -1,15 +1,14 @@
-"""Tests for the live-sync WebSocket locking and queue logic.
+"""Tests for the live-sync WebSocket presence and broadcast logic.
 
-These tests exercise the internal state machine directly so we don't need a
-full WebSocket transport.  They cover lock grants/denials, wait queues,
-expiration, and hand-off.
+The v2 sync protocol removed server-side block locks. These tests verify
+presence messages, applied-op broadcast, and room isolation.
 """
 
 from __future__ import annotations
 
-import contextlib
 import json
 from typing import Any
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -26,168 +25,90 @@ class FakeWebSocket:
         self.sent.append(json.loads(text))
 
 
-def make_conn(user_id: int, name: str = "User") -> ws._LiveSyncConnection:
+def make_conn(
+    user_id: int, name: str = "User", protocol: str = "v1"
+) -> ws._LiveSyncConnection:
     user: dict[str, Any] = {"id": user_id, "name": name}
-    return ws._LiveSyncConnection(FakeWebSocket(), "page-1", user)
-
-
-def clear_state() -> None:
-    """Reset all live-sync global state."""
-    for timers in ws._lock_timers.values():
-        for task in timers.values():
-            if not task.done():
-                with contextlib.suppress(RuntimeError):
-                    task.cancel()
-    ws._lock_timers.clear()
-    ws._page_locks.clear()
-    ws._lock_queues.clear()
-    ws._page_connections.clear()
+    return ws._LiveSyncConnection(FakeWebSocket(), "room-1", user, protocol_version=protocol)
 
 
 @pytest.fixture(autouse=True)
 def _clean_state():
-    clear_state()
+    """Reset live-sync connection state between tests."""
+    ws._page_connections.clear()
     yield
-    clear_state()
+    ws._page_connections.clear()
 
 
 @pytest.mark.asyncio
-async def test_lock_granted_for_free_block():
+async def test_broadcast_ops_sends_ops_applied():
     conn = make_conn(1, "Alice")
-    ws._page_connections.setdefault("page-1", set()).add(conn)
+    ws._page_connections.setdefault("room-1", set()).add(conn)
 
-    granted = await ws._try_acquire_lock(conn, "page-1", "block-a")
+    with patch.object(ws.collab_pubsub, "publish", new_callable=AsyncMock) as mock_publish:
+        await ws.broadcast_ops("room-1", [{"node_uuid": "b1", "type": "update_content"}])
 
-    assert granted is True
-    assert ws._page_locks["page-1"]["block-a"] is conn
-    # Lock timer scheduled
-    assert "block-a" in ws._lock_timers["page-1"]
-    # Broadcast block_locked to other connections (none here) and sent to self
-    assert any(m["type"] == "block_locked" for m in conn.ws.sent)
+    assert any(m["type"] == "ops_applied" for m in conn.ws.sent)
+    mock_publish.assert_awaited_once()
 
 
 @pytest.mark.asyncio
-async def test_lock_denied_and_queued_for_second_user():
+async def test_focus_broadcasts_user_focus():
     alice = make_conn(1, "Alice")
     bob = make_conn(2, "Bob")
-    ws._page_connections.setdefault("page-1", set()).add(alice)
-    ws._page_connections.setdefault("page-1", set()).add(bob)
+    ws._page_connections.setdefault("room-1", set()).add(alice)
+    ws._page_connections.setdefault("room-1", set()).add(bob)
 
-    await ws._try_acquire_lock(alice, "page-1", "block-a")
-    granted = await ws._try_acquire_lock(bob, "page-1", "block-a")
+    with patch.object(ws.collab_pubsub, "publish", new_callable=AsyncMock):
+        await ws._broadcast(
+            "room-1",
+            {
+                "type": "user_focus",
+                "block_uuid": "block-a",
+                "user": {"id": 1, "name": "Alice", "color": "#ef4444"},
+            },
+            sender_id=1,
+            exclude=alice,
+        )
 
-    assert granted is False
-    assert ws._page_locks["page-1"]["block-a"] is alice
-    assert bob in ws._lock_queues["page-1"]["block-a"]
-    denied = next(m for m in bob.ws.sent if m["type"] == "block_lock_denied")
-    assert denied["reason"] == "already_locked"
-    assert denied["queued"] is True
-    assert denied["locked_by"]["name"] == "Alice"
+    assert not any(m["type"] == "user_focus" for m in alice.ws.sent)
+    assert any(m["type"] == "user_focus" for m in bob.ws.sent)
 
 
 @pytest.mark.asyncio
-async def test_release_hands_lock_to_queued_user():
+async def test_send_users_list_includes_focused_users():
     alice = make_conn(1, "Alice")
     bob = make_conn(2, "Bob")
-    ws._page_connections.setdefault("page-1", set()).add(alice)
-    ws._page_connections.setdefault("page-1", set()).add(bob)
+    ws._page_connections.setdefault("room-1", set()).add(alice)
+    ws._page_connections.setdefault("room-1", set()).add(bob)
+    alice.focused_block = "block-a"
 
-    await ws._try_acquire_lock(alice, "page-1", "block-a")
-    await ws._try_acquire_lock(bob, "page-1", "block-a")
+    await ws._send_users_list(bob)
 
-    await ws._release_lock("page-1", "block-a", 1)
-
-    assert ws._page_locks["page-1"]["block-a"] is bob
-    assert "block-a" not in ws._lock_queues.get("page-1", {})
-    assert bob.focused_block == "block-a"
-    assert any(m["type"] == "lock_granted" for m in bob.ws.sent)
-    assert any(m["type"] == "block_locked" for m in bob.ws.sent)
+    users_list = next((m for m in bob.ws.sent if m["type"] == "users_list"), None)
+    assert users_list is not None
+    assert len(users_list["users"]) == 1
+    assert users_list["users"][0]["id"] == 1
+    assert users_list["users"][0]["block_uuid"] == "block-a"
 
 
 @pytest.mark.asyncio
-async def test_release_broadcasts_when_no_waiters():
-    alice = make_conn(1, "Alice")
-    ws._page_connections.setdefault("page-1", set()).add(alice)
+async def test_room_isolation():
+    room1_conn = make_conn(1, "Alice")
+    room2_conn = make_conn(2, "Bob")
+    ws._page_connections.setdefault("room-1", set()).add(room1_conn)
+    ws._page_connections.setdefault("room-2", set()).add(room2_conn)
 
-    await ws._try_acquire_lock(alice, "page-1", "block-a")
-    await ws._release_lock("page-1", "block-a", 1)
+    with patch.object(ws.collab_pubsub, "publish", new_callable=AsyncMock):
+        await ws._broadcast(
+            "room-1",
+            {
+                "type": "user_focus",
+                "block_uuid": "block-a",
+                "user": {"id": 1, "name": "Alice"},
+            },
+            sender_id=1,
+        )
 
-    assert "page-1" not in ws._page_locks
-    assert any(m["type"] == "block_lock_released" for m in alice.ws.sent)
-
-
-@pytest.mark.asyncio
-async def test_lock_expires_after_timeout():
-    alice = make_conn(1, "Alice")
-    ws._page_connections.setdefault("page-1", set()).add(alice)
-
-    await ws._try_acquire_lock(alice, "page-1", "block-a")
-    assert "block-a" in ws._page_locks.get("page-1", {})
-
-    # Cancel the long-running timer and run the expiration directly.
-    ws._cancel_lock_timer("page-1", "block-a")
-    await ws._expire_lock("page-1", "block-a", 1)
-
-    assert "page-1" not in ws._page_locks
-    assert any(m["type"] == "lock_expired" for m in alice.ws.sent)
-
-
-@pytest.mark.asyncio
-async def test_disconnect_removes_from_wait_queue():
-    alice = make_conn(1, "Alice")
-    bob = make_conn(2, "Bob")
-    ws._page_connections.setdefault("page-1", set()).add(alice)
-    ws._page_connections.setdefault("page-1", set()).add(bob)
-
-    await ws._try_acquire_lock(alice, "page-1", "block-a")
-    await ws._try_acquire_lock(bob, "page-1", "block-a")
-    assert bob in ws._lock_queues["page-1"]["block-a"]
-
-    ws._page_connections["page-1"].discard(bob)
-    ws._clear_connection_lock_requests(bob, "page-1")
-
-    assert bob not in ws._lock_queues.get("page-1", {}).get("block-a", [])
-
-
-@pytest.mark.asyncio
-async def test_grant_queued_lock_skips_disconnected_users():
-    alice = make_conn(1, "Alice")
-    bob = make_conn(2, "Bob")
-    carol = make_conn(3, "Carol")
-    conns = ws._page_connections.setdefault("page-1", set())
-    conns.add(alice)
-    conns.add(bob)
-    conns.add(carol)
-
-    await ws._try_acquire_lock(alice, "page-1", "block-a")
-    await ws._try_acquire_lock(bob, "page-1", "block-a")
-    await ws._try_acquire_lock(carol, "page-1", "block-a")
-
-    # Bob disconnects before Alice releases.
-    conns.discard(bob)
-    await ws._release_lock("page-1", "block-a", 1)
-
-    assert ws._page_locks["page-1"]["block-a"] is carol
-    assert bob not in ws._lock_queues.get("page-1", {}).get("block-a", [])
-    assert any(m["type"] == "lock_granted" for m in carol.ws.sent)
-    assert not any(m["type"] == "lock_granted" for m in bob.ws.sent)
-
-
-@pytest.mark.asyncio
-async def test_typing_message_refreshes_lock_timer():
-    alice = make_conn(1, "Alice")
-    ws._page_connections.setdefault("page-1", set()).add(alice)
-
-    await ws._try_acquire_lock(alice, "page-1", "block-a")
-    first_timer = ws._lock_timers["page-1"]["block-a"]
-
-    # Simulate the typing handler: verify holder and re-schedule.
-    locks = ws._page_locks.get("page-1", {})
-    holder = locks.get("block-a")
-    assert holder is not None and holder.user_id == 1
-    ws._schedule_lock_expiration("page-1", "block-a", 1)
-
-    second_timer = ws._lock_timers["page-1"]["block-a"]
-    assert second_timer is not first_timer
-    first_timer.cancel()
-    second_timer.cancel()
+    assert any(m["type"] == "user_focus" for m in room1_conn.ws.sent)
+    assert not any(m["type"] == "user_focus" for m in room2_conn.ws.sent)

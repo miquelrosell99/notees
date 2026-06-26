@@ -29,7 +29,7 @@ export interface GanttData {
   isLoading: boolean;
   optimisticOverrides: Map<string | number, { startDate: Date; endDate: Date | null }>;
   setOptimisticOverride: (
-    nodeId: string | number,
+    nodeUuid: string,
     override: { startDate: Date; endDate: Date | null } | null
   ) => void;
 }
@@ -45,7 +45,7 @@ export function useGanttData(
   const dayNodeUuids = useMemo<string[]>(() => {
     const uuids = new Set<string>();
     for (const node of nodes) {
-      const props = node.properties as Record<string, unknown> | undefined;
+      const props = node.properties_uuid as Record<string, unknown> | undefined;
       if (!props) continue;
       if (startDateProperty) {
         const v = props[startDateProperty.uuid];
@@ -76,13 +76,13 @@ export function useGanttData(
   >(new Map());
 
   const setOptimisticOverride = useCallback(
-    (nodeId: string | number, override: { startDate: Date; endDate: Date | null } | null) => {
+    (nodeUuid: string, override: { startDate: Date; endDate: Date | null } | null) => {
       setOptimisticOverrides((prev) => {
         const next = new Map(prev);
         if (override === null) {
-          next.delete(nodeId);
+          next.delete(nodeUuid);
         } else {
-          next.set(nodeId, override);
+          next.set(nodeUuid, override);
         }
         return next;
       });
@@ -95,8 +95,8 @@ export function useGanttData(
     if (!startDateProperty) return [];
     return nodes
       .flatMap((node) => {
-        const override = optimisticOverrides.get(node.id) ?? optimisticOverrides.get(node.uuid);
-        const props = node.properties as Record<string, unknown> | undefined;
+        const override = optimisticOverrides.get(node.uuid) ?? optimisticOverrides.get(node.uuid);
+        const props = node.properties_uuid as Record<string, unknown> | undefined;
         const startDate =
           override?.startDate ?? resolveDate(props?.[startDateProperty.uuid], dayNodeMap);
         if (!startDate) return [];
@@ -112,7 +112,7 @@ export function useGanttData(
 
   // Build page map for grouping
   const pageMap = useMemo(
-    () => new Map(nodes.filter((n) => n.is_page).map((n) => [n.id, n])),
+    () => new Map(nodes.filter((n) => n.is_page).map((n) => [n.uuid, n])),
     [nodes]
   );
 

@@ -62,14 +62,11 @@ export function buildTagNodeFromRuntime(uuid: string): Node {
   for (const node of coreNode) {
     if (node.blockId === uuid) {
       return {
-        id: node.serverId ?? -1,
         uuid,
         name: node.name ?? '',
         icon: node.icon ?? null,
         color: node.color ?? null,
-        parent_id: null,
         parent_uuid: null,
-        page_id: null,
         page_uuid: null,
         sequence: node.orderIndex,
         collapsed: node.collapsed,
@@ -77,7 +74,7 @@ export function buildTagNodeFromRuntime(uuid: string): Node {
         is_page: node.isPage,
         create_date: node.createdAt,
         write_date: node.updatedAt,
-        tags: node.tagIds.map((t) => parseInt(t, 10)),
+        tags_uuid: node.tagIds,
       };
     }
   }
@@ -92,14 +89,11 @@ function apiNodeFromOperation(operation: Operation): Node {
   // SyncManager must pass the projected node from OperationRuntime for cache updates.
   // This function is only a fallback if the caller does not supply one.
   return {
-    id: operation.serverId ?? -1,
     uuid: operation.blockId,
     name: serializeContentAST((operation.payload as UpdateContentPayload).contentAST ?? []),
     icon: null,
     color: null,
-    parent_id: null,
     parent_uuid: null,
-    page_id: null,
     page_uuid: null,
     sequence: 0,
     collapsed: false,
@@ -290,55 +284,49 @@ export function applyCacheUpdate(
 
   switch (operation.type) {
     case 'create': {
-      // Use the server-returned parent_id rather than parsing the runtime
-      // payload parent UUID, which could be mistaken for a numeric id.
-      if (node.parent_id != null && node.id > 0) {
-        writeCreate(queryClient, node.parent_id, node);
+      if (node.parent_uuid != null) {
+        writeCreate(queryClient, node.parent_uuid, node);
       }
       break;
     }
     case 'update_content':
-      if (node.id > 0) writeUpdate(queryClient, node.id, { name: node.name });
+      writeUpdate(queryClient, node.uuid, { name: node.name });
       break;
     case 'move':
-      if (node.id > 0) writeMove(queryClient, node.id, node.parent_id, node.sequence, node);
+      writeMove(queryClient, node.uuid, node.parent_uuid, node.sequence, node);
       break;
     case 'set_collapsed':
-      if (node.id > 0) writeUpdate(queryClient, node.id, { collapsed: node.collapsed });
+      writeUpdate(queryClient, node.uuid, { collapsed: node.collapsed });
       break;
     case 'set_classes':
-      if (node.id > 0) writeUpdate(queryClient, node.id, { classes: node.classes });
+      writeUpdate(queryClient, node.uuid, { classes_uuid: node.classes_uuid });
       break;
     case 'add_class':
     case 'remove_class':
-      if (node.id > 0) {
-        writeUpdate(queryClient, node.id, {
-          classes: node.classes,
-          color: node.color,
-          icon: node.icon,
-          is_page: node.is_page,
-        });
-      }
+      writeUpdate(queryClient, node.uuid, {
+        classes_uuid: node.classes_uuid,
+        color: node.color,
+        icon: node.icon,
+        is_page: node.is_page,
+      });
       break;
     case 'add_tag':
     case 'remove_tag':
-      if (node.id > 0) writeUpdate(queryClient, node.id, { tags: node.tags });
+      writeUpdate(queryClient, node.uuid, { tags_uuid: node.tags_uuid });
       break;
     case 'update_node':
-      if (node.id > 0) {
-        writeUpdate(queryClient, node.id, {
-          name: node.name,
-          icon: node.icon,
-          color: node.color,
-          is_private: node.is_private,
-        });
-      }
+      writeUpdate(queryClient, node.uuid, {
+        name: node.name,
+        icon: node.icon,
+        color: node.color,
+        is_private: node.is_private,
+      });
       break;
     case 'move_node':
-      if (node.id > 0) writeMove(queryClient, node.id, node.parent_id, node.sequence, node);
+      writeMove(queryClient, node.uuid, node.parent_uuid, node.sequence, node);
       break;
     case 'delete':
-      if (operation.serverId != null) writeDelete(queryClient, operation.serverId);
+      writeDelete(queryClient, operation.blockId);
       break;
   }
 }

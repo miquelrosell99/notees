@@ -25,12 +25,12 @@ describe('CenterGravityForce', () => {
   it('pulls nodes toward the origin', () => {
     const cfg = makeConfig(0.1);
     const engine = new SGEEngine(
-      [{ id: 1 }, { id: 2 }],
+      [{ nodeUuid: 'a' }, { nodeUuid: 'b' }],
       [],
       cfg,
     );
-    engine.moveNode(1, 100, 50);
-    engine.moveNode(2, -80, -40);
+    engine.moveNode('a', 100, 50);
+    engine.moveNode('b', -80, -40);
     stepTimes(engine, 10);
     const s = engine.getState();
     // Both nodes should have moved toward zero.
@@ -43,11 +43,11 @@ describe('CenterGravityForce', () => {
   it('does nothing when center strength is zero', () => {
     const cfg = makeConfig(0);
     const engine = new SGEEngine(
-      [{ id: 1 }],
+      [{ nodeUuid: 'a' }],
       [],
       cfg,
     );
-    engine.moveNode(1, 100, 100);
+    engine.moveNode('a', 100, 100);
     stepTimes(engine, 5);
     const s = engine.getState();
     expect(s.posX[0]).toBe(100);

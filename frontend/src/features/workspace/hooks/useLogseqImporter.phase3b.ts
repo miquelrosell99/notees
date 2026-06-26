@@ -1,4 +1,5 @@
 import { batchCreateNodes } from '@/api/nodes';
+import { resolvePropertyUuid } from '@/utils/resolveNodeUuid';
 import type { LogseqBlock } from '@/utils/ednParser';
 import type { NodeInfo, PhaseResult, ImportContext } from './useLogseqImporter.types';
 import { createPhase, errorMessage } from './useLogseqImporter.utils';
@@ -13,7 +14,7 @@ export async function runPhase3b(ctx: ImportContext, p3: PhaseResult): Promise<v
   // 3f: Flatten ALL block trees
   type FlatBlock = {
     block: LogseqBlock;
-    classes: number[];
+    classes: string[];
     parent: { kind: 'page'; title: string } | { kind: 'block'; tempIdx: number };
     sequence: number;
     tempIdx: number;
@@ -28,7 +29,7 @@ export async function runPhase3b(ctx: ImportContext, p3: PhaseResult): Promise<v
   ) => {
     for (let i = 0; i < blocks.length; i++) {
       const block = blocks[i];
-      const classes: number[] = [];
+      const classes: string[] = [];
       if (block.tags) {
         for (const tag of block.tags) {
           const mapped = classIdMap.get(tag);
@@ -76,7 +77,7 @@ export async function runPhase3b(ctx: ImportContext, p3: PhaseResult): Promise<v
         for (const result of batchResult.results) {
           const item = chunk[result.index];
           if (result.success && result.node) {
-            const info: NodeInfo = { id: result.node.id, uuid: result.node.uuid };
+            const info: NodeInfo = { nodeUuid: result.node.uuid, uuid: result.node.uuid };
             tempIdxToNodeInfo.set(item.tempIdx, info);
             if (item.block.uuid) uuidMap.set(item.block.uuid, info);
             p3.succeeded++;
@@ -105,11 +106,13 @@ export async function runPhase3b(ctx: ImportContext, p3: PhaseResult): Promise<v
   ctx.phases.push(p5);
   {
     const propertyCollector = {
-      mutateAsync: async (args: { nodeId: string | number; propertyId: string | number; value: unknown }) => {
-        const nodeId = args.nodeId as number;
-        let props = nodeIdToProperties.get(nodeId);
-        if (!props) { props = {}; nodeIdToProperties.set(nodeId, props); }
-        props[args.propertyId as number] = args.value;
+      mutateAsync: async (args: { nodeUuid: string; propertyId: string; value: unknown }) => {
+        const nodeUuid = args.nodeUuid;
+        const propertyUuid = resolvePropertyUuid(args.propertyId);
+        if (!propertyUuid) return {} as unknown;
+        let props = nodeIdToProperties.get(nodeUuid);
+        if (!props) { props = {}; nodeIdToProperties.set(nodeUuid, props); }
+        props[propertyUuid] = args.value;
         return {} as unknown;
       },
     };
@@ -117,16 +120,16 @@ export async function runPhase3b(ctx: ImportContext, p3: PhaseResult): Promise<v
       if (!page.properties) continue;
       const nodeInfo = page.uuid ? uuidMap.get(page.uuid) : titleToNodeInfo.get(page.title);
       if (!nodeInfo) continue;
-      const isExisting = ctx.existingNodeIds.has(nodeInfo.id);
+      const isExisting = ctx.existingNodeIds.has(nodeInfo.nodeUuid);
       const pageLabel = `${page.title}${page.uuid ? ` [${page.uuid}]` : ''}`;
-      await assignProperties(page.properties, nodeInfo.id, pageLabel, ctx.propIdMap, uuidMap, titleToNodeInfo, classIdMap, ctx.pageClassId, setImportStatus, propertyCollector, p5, ctx.override, isExisting, ctx.textPropIds);
+      await assignProperties(page.properties, nodeInfo.nodeUuid, pageLabel, ctx.propIdMap, uuidMap, titleToNodeInfo, classIdMap, ctx.pageClassUuid, setImportStatus, propertyCollector, p5, ctx.override, isExisting, ctx.textPropIds);
       tick();
     }
     for (const page of parsed.pages) {
-      await assignBlockProperties(page.blocks, ctx.propIdMap, uuidMap, titleToNodeInfo, classIdMap, ctx.pageClassId, setImportStatus, propertyCollector, p5, ctx.override, ctx.existingNodeIds, ctx.textPropIds);
+      await assignBlockProperties(page.blocks, ctx.propIdMap, uuidMap, titleToNodeInfo, classIdMap, ctx.pageClassUuid, setImportStatus, propertyCollector, p5, ctx.override, ctx.existingNodeIds, ctx.textPropIds);
     }
     if (parsed.standaloneBlocks) {
-      await assignBlockProperties(parsed.standaloneBlocks, ctx.propIdMap, uuidMap, titleToNodeInfo, classIdMap, ctx.pageClassId, setImportStatus, propertyCollector, p5, ctx.override, ctx.existingNodeIds, ctx.textPropIds);
+      await assignBlockProperties(parsed.standaloneBlocks, ctx.propIdMap, uuidMap, titleToNodeInfo, classIdMap, ctx.pageClassUuid, setImportStatus, propertyCollector, p5, ctx.override, ctx.existingNodeIds, ctx.textPropIds);
     }
   }
 }

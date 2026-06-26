@@ -44,6 +44,7 @@ export type FeatureFlagName =
   | 'aiAssist'
   | 'darkMode'
   | 'offlineMode'
+  | 'offlineQueries'
   | 'collaborativeEditing'
   | 'propertyInheritance'
   | 'advancedQueries'
@@ -107,6 +108,12 @@ export const DEFAULT_FLAGS: Record<FeatureFlagName, FeatureFlagDefinition> = {
   offlineMode: {
     name: 'offlineMode',
     description: 'Enable offline support with local caching',
+    defaultEnabled: false,
+    userToggleable: false,
+  },
+  offlineQueries: {
+    name: 'offlineQueries',
+    description: 'Execute queries against local state when offline',
     defaultEnabled: false,
     userToggleable: false,
   },

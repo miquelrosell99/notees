@@ -8,10 +8,11 @@
  */
 
 import { useEffect, useRef } from 'react';
+import { useParams } from 'react-router-dom';
 import { getOperationRuntime } from '@/runtime';
-import { getNode, getNodeByServerId } from '@/runtime/graphHelpers';
+import { getNode } from '@/runtime/graphHelpers';
 import { upsertNodes } from '@/runtime/eventBus';
-import { getUndoEngine } from '@/stores/undoEngine';
+import { useUIStateStore } from '@/features/sync';
 import { getRuntimeEventBus } from '@/runtime/eventBus';
 import { apiNodesToGraphNodes } from './useRuntimeSync';
 import * as nodesApi from '@/api/nodes';
@@ -24,14 +25,15 @@ import type { RuntimeEvent } from '@/runtime/types';
 export function useLazyChildren(): void {
   // Track in-flight requests to avoid duplicate fetches
   const pendingRef = useRef(new Set<string>());
+  const { workspaceId } = useParams<{ workspaceId?: string }>();
+  const setCollapsed = useUIStateStore((s) => s.setCollapsed);
 
   useEffect(() => {
     const runtime = getOperationRuntime();
 
     const handler = async (event: RuntimeEvent) => {
       if (event.type !== 'expand_children_needed') return;
-      const { blockId, serverId } = event;
-      if (!serverId) return;
+      const { blockId } = event;
 
       // Skip if already fetching
       if (pendingRef.current.has(blockId)) return;
@@ -39,9 +41,7 @@ export function useLazyChildren(): void {
 
       try {
         // Fetch the expanded node with its children from the API
-        const nodeUuid = getNodeByServerId(runtime, serverId)?.blockId;
-        if (!nodeUuid) return;
-        const nodeData = await nodesApi.getNode(nodeUuid, {
+        const nodeData = await nodesApi.getNode(blockId, {
           include_children: true,
           include_properties: false,
         });
@@ -56,7 +56,6 @@ export function useLazyChildren(): void {
         // Convert API children to graph nodes
         const { graphNodes } = apiNodesToGraphNodes(
           nodeData.children,
-          serverId,
           nodeData.uuid,
         );
 
@@ -69,7 +68,9 @@ export function useLazyChildren(): void {
       } catch (err) {
         console.error(`[useLazyChildren] Failed to load children for block ${blockId}:`, err);
         // Re-collapse on error so user can retry
-        getUndoEngine().applyIntent({ type: 'set_collapsed', blockId, collapsed: true });
+        if (workspaceId) {
+          setCollapsed(workspaceId, blockId, true);
+        }
       } finally {
         pendingRef.current.delete(blockId);
       }
@@ -77,5 +78,5 @@ export function useLazyChildren(): void {
 
     const unsubscribe = getRuntimeEventBus().subscribe(handler);
     return unsubscribe;
-  }, []);
+  }, [setCollapsed, workspaceId]);
 }

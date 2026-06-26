@@ -99,7 +99,7 @@ export function NodePropertyCell({
       <NodeSelector
         nodes={resolvedNodes}
         searchMode="pages"
-        classFilters={property.class_filters}
+        classFilters={property.class_filter_uuids ?? []}
         emptyText="Add"
         searchPlaceholder="Search..."
         onNodeClick={(selectedNode) => {
@@ -108,10 +108,10 @@ export function NodePropertyCell({
         onAdd={editable ? (selectedNode) => {
           const currentValue = isMultiValue && Array.isArray(value) ? value : (value ? [value] : []);
           const newValue = property.multi
-            ? [...currentValue, selectedNode.id]
-            : selectedNode.id;
+            ? [...currentValue, selectedNode.uuid]
+            : selectedNode.uuid;
           setPropertyMutation.mutate({
-            nodeId: parentNode.id,
+            nodeUuid: parentNode.uuid,
             propertyId: property.uuid,
             value: newValue,
           });
@@ -119,14 +119,14 @@ export function NodePropertyCell({
         onRemove={editable ? (selectedNode) => {
           if (property.multi && Array.isArray(value)) {
             setPropertyMutation.mutate({
-              nodeId: parentNode.id,
+              nodeUuid: parentNode.uuid,
               propertyId: property.uuid,
-              value: value.filter(id => id !== selectedNode.id),
+              value: value.filter(id => id !== selectedNode.uuid),
             });
           } else {
             // Single value: remove means set to null
             setPropertyMutation.mutate({
-              nodeId: parentNode.id,
+              nodeUuid: parentNode.uuid,
               propertyId: property.uuid,
               value: null,
             });

@@ -99,7 +99,7 @@ class TestBatchCreate:
             "nodes": [
                 {"name": "Good block", "parent_uuid": page["uuid"], "sequence": 0},
                 # Parent that doesn't exist should cause a failure
-                {"name": "Bad block", "parent_id": 999999, "sequence": 0},
+                {"name": "Bad block", "parent_uuid": "00000000-0000-0000-0000-000000000999", "sequence": 0},
                 {"name": "Another good block", "parent_uuid": page["uuid"], "sequence": 1},
             ]
         }
@@ -122,25 +122,25 @@ class TestBatchUpdate:
         authenticated_client: AsyncClient,
         sample_node_data: dict,
     ):
-        """Batch update nodes identified by id."""
+        """Batch update nodes identified by uuid (legacy id field removed)."""
         # Create a page and some blocks
         page_resp = await authenticated_client.post("/api/nodes/", json=sample_node_data)
         page = page_resp.json()
 
-        block_ids = []
+        block_uuids = []
         for i in range(3):
             br = await authenticated_client.post(
                 "/api/nodes/",
                 json={"name": f"Block {i}", "parent_uuid": page["uuid"], "sequence": i},
             )
-            block_ids.append(br.json()["id"])
+            block_uuids.append(br.json()["uuid"])
 
         # Batch update all blocks
         batch_payload = {
             "nodes": [
-                {"id": block_ids[0], "name": "Updated Block 0"},
-                {"id": block_ids[1], "name": "Updated Block 1"},
-                {"id": block_ids[2], "name": "Updated Block 2"},
+                {"uuid": block_uuids[0], "name": "Updated Block 0"},
+                {"uuid": block_uuids[1], "name": "Updated Block 1"},
+                {"uuid": block_uuids[2], "name": "Updated Block 2"},
             ]
         }
         resp = await authenticated_client.put("/api/nodes/batch", json=batch_payload)
@@ -206,19 +206,14 @@ class TestBatchUpdate:
         self,
         authenticated_client: AsyncClient,
     ):
-        """Update without id or uuid should fail with a clear error."""
+        """Update without uuid should fail at validation time."""
         batch_payload = {
             "nodes": [
                 {"name": "No identifier"},
             ]
         }
         resp = await authenticated_client.put("/api/nodes/batch", json=batch_payload)
-        assert resp.status_code == 200
-
-        data = resp.json()
-        assert data["updated"] == 0
-        assert data["failed"] == 1
-        assert "id" in data["results"][0]["error"].lower() or "uuid" in data["results"][0]["error"].lower()
+        assert resp.status_code == 422
 
     @pytest.mark.asyncio
     async def test_batch_update_empty_list(

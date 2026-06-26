@@ -16,16 +16,16 @@ async def _get_class_id(client, uuid: str) -> int:
     raise RuntimeError(f"class {uuid} not found")
 
 
-async def _create_task_node(client, page_class_id: int, task_class_id: int, name: str = "Task") -> dict:
-    r = await client.post("/api/nodes/", json={"name": name, "classes": [page_class_id, task_class_id]})
+async def _create_task_node(client, name: str = "Task") -> dict:
+    page_class_uuid = SYSTEM_CLASS_UUIDS["page"]
+    task_class_uuid = SYSTEM_CLASS_UUIDS["task"]
+    r = await client.post("/api/nodes/", json={"name": name, "class_uuids": [page_class_uuid, task_class_uuid]})
     assert r.status_code == 200, r.text
     return r.json()
 
 
 async def test_recurrence_crud(authenticated_client, test_user):
-    page_class_id = test_user["page_class_id"]
-    task_class_id = await _get_class_id(authenticated_client, SYSTEM_CLASS_UUIDS["task"])
-    node = await _create_task_node(authenticated_client, page_class_id, task_class_id)
+    node = await _create_task_node(authenticated_client)
     node_uuid = node["uuid"]
 
     # Initially no rule
@@ -60,9 +60,7 @@ async def test_recurrence_crud(authenticated_client, test_user):
 
 
 async def test_completion_crud(authenticated_client, test_user):
-    page_class_id = test_user["page_class_id"]
-    task_class_id = await _get_class_id(authenticated_client, SYSTEM_CLASS_UUIDS["task"])
-    node = await _create_task_node(authenticated_client, page_class_id, task_class_id)
+    node = await _create_task_node(authenticated_client)
     node_uuid = node["uuid"]
 
     r = await authenticated_client.get(f"/api/tasks/{node_uuid}/completions")
@@ -93,8 +91,8 @@ async def test_completion_crud(authenticated_client, test_user):
 
 
 async def test_recurrence_rejects_non_task(authenticated_client, test_user):
-    page_class_id = test_user["page_class_id"]
-    r = await authenticated_client.post("/api/nodes/", json={"name": "Not a task", "classes": [page_class_id]})
+    page_class_uuid = SYSTEM_CLASS_UUIDS["page"]
+    r = await authenticated_client.post("/api/nodes/", json={"name": "Not a task", "class_uuids": [page_class_uuid]})
     assert r.status_code == 200, r.text
     node_uuid = r.json()["uuid"]
 

@@ -14,7 +14,7 @@ interface ConvertToBlockModalProps {
 }
 
 export function ConvertToBlockModal({ node, isOpen, onClose, onConverted }: ConvertToBlockModalProps) {
-  const [selectedParentId, setSelectedParentId] = useState<number | null>(null);
+  const [selectedParentId, setSelectedParentId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const convert = useConvertToBlock();
 
@@ -30,9 +30,9 @@ export function ConvertToBlockModal({ node, isOpen, onClose, onConverted }: Conv
 
     try {
       const converted = await convert.mutateAsync({
-        nodeId: node.id,
+        nodeUuid: node.uuid,
         parentId: selectedParentId,
-        oldParentId: node.parent_id,
+        oldParentId: node.parent_uuid,
       });
       handleClose();
       onConverted?.(converted);
@@ -72,10 +72,10 @@ export function ConvertToBlockModal({ node, isOpen, onClose, onConverted }: Conv
           trigger="inline"
           value={selectedParentId}
           searchMode="pages"
-          excludeNodeId={node.id}
+          excludeNodeId={node.uuid}
           placeholder="Search pages…"
           onChange={(val) => {
-            if (typeof val === 'number') {
+            if (typeof val === 'string') {
               setSelectedParentId(val);
             } else {
               setSelectedParentId(null);

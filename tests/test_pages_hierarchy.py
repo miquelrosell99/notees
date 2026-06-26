@@ -1,5 +1,6 @@
 """Test page hierarchy in list_nodes endpoint."""
 import pytest
+from app.db.schema.constants import SYSTEM_CLASS_UUIDS
 from httpx import AsyncClient
 
 pytestmark = pytest.mark.integration
@@ -15,14 +16,14 @@ class TestPagesHierarchy:
         test_user: dict,
     ):
         """When include_children=true and root_only=true, child pages should be nested."""
-        page_class_id = test_user["page_class_id"]
+        page_class_uuid = SYSTEM_CLASS_UUIDS["page"]
 
         # Create a root page
         root_response = await authenticated_client.post(
             "/api/nodes/",
             json={
                 "name": "Root Page",
-                "classes": [page_class_id],
+                "class_uuids": [page_class_uuid],
             },
         )
         assert root_response.status_code == 200
@@ -35,7 +36,7 @@ class TestPagesHierarchy:
             "/api/nodes/",
             json={
                 "name": "Child Page",
-                "classes": [page_class_id],
+                "class_uuids": [page_class_uuid],
                 "parent_uuid": root_uuid,
             },
         )
@@ -79,14 +80,14 @@ class TestPagesHierarchy:
     ):
         """When a child page matches the query but is already nested under a matching parent,
         it should not appear as a separate top-level entry."""
-        page_class_id = test_user["page_class_id"]
+        page_class_uuid = SYSTEM_CLASS_UUIDS["page"]
 
         # Create a root page
         root_response = await authenticated_client.post(
             "/api/nodes/",
             json={
                 "name": "Root Page",
-                "classes": [page_class_id],
+                "class_uuids": [page_class_uuid],
             },
         )
         assert root_response.status_code == 200
@@ -99,7 +100,7 @@ class TestPagesHierarchy:
             "/api/nodes/",
             json={
                 "name": "Child Page",
-                "classes": [page_class_id],
+                "class_uuids": [page_class_uuid],
                 "parent_uuid": root_uuid,
             },
         )

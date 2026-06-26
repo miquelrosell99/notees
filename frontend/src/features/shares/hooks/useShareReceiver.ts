@@ -35,7 +35,7 @@ export function useShareReceiver() {
 
     if (content) {
       // Create a block in the Scratchpad with the shared content
-      createNode({ name: content, parent_id: scratchpadPage.id }).then(() => {
+      createNode({ name: content, parent_uuid: scratchpadPage.uuid }).then(() => {
         useModalStore.getState().setScratchpadOpen(true);
       });
     }

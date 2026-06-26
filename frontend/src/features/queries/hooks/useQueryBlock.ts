@@ -28,8 +28,8 @@ function parseQueryBlockTitle(node: Node | undefined): string {
 
 // ─── Hook ──────────────────────────────────────────────────────────
 
-export function useQueryBlock(nodeId: number | null) {
-  const { data: node } = useNode(nodeId);
+export function useQueryBlock(nodeUuid: string | null) {
+  const { data: node } = useNode(nodeUuid);
   const updateNode = useUpdateNode();
   const mutateRef = useRef(updateNode.mutate);
   mutateRef.current = updateNode.mutate;
@@ -42,7 +42,7 @@ export function useQueryBlock(nodeId: number | null) {
       titleRef.current = parseQueryBlockTitle(node);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- Only re-sync when the node identity changes, not every field mutation.
-  }, [node?.id]);
+  }, [node?.uuid]);
 
   const queryAST = useMemo(
     () => parseQueryBlockData(node),
@@ -51,13 +51,13 @@ export function useQueryBlock(nodeId: number | null) {
   );
 
   const saveQueryAST = useCallback((newAST: QueryAST) => {
-    if (!nodeId) return;
+    if (!nodeUuid) return;
     const nameAST = [
       { type: 'paragraph' as const, children: [{ type: 'text' as const, text: titleRef.current }] },
       { type: 'query' as const, data: newAST },
     ];
-    mutateRef.current({ id: nodeId, data: { name: JSON.stringify(nameAST) } });
-  }, [nodeId]);
+    mutateRef.current({ nodeUuid: nodeUuid, data: { name: JSON.stringify(nameAST) } });
+  }, [nodeUuid]);
 
   return { queryAST, saveQueryAST, node };
 }

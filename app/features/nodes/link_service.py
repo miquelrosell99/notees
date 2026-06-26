@@ -22,9 +22,10 @@ from __future__ import annotations
 
 import json
 import re
-import uuid as uuid_module
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
+
+from uuid_extensions import uuid7
 
 from app.domain.entities import BacklinkInfo, NodeLink, NodeUpdateData
 from app.domain.errors import NodeNotFoundError, NodeValidationError
@@ -46,8 +47,8 @@ EXCLUDED_PROPERTY_NAMES = ["extends"]
 
 
 def generate_link_uuid() -> str:
-    """Generate a new UUID v4 for a link instance."""
-    return str(uuid_module.uuid4())
+    """Generate a new UUIDv7 for a link instance."""
+    return str(uuid7())
 
 
 def _parse_links_from_ast(content: str) -> list[tuple[str, int, str | None, str | None]] | None:
@@ -1223,7 +1224,7 @@ class LinkParsingService:
                 if before:
                     parts.append({"type": "text", "text": before})
 
-                link_uuid = str(uuid_module.uuid4())
+                link_uuid = generate_link_uuid()
                 link_id = f"{target_uuid}:{link_uuid}"
                 node_link: dict[str, Any] = {
                     "type": "node_link",
@@ -1258,7 +1259,7 @@ class LinkParsingService:
                     colon_idx = link_id.find(":")
                     node_uuid = link_id[:colon_idx].lower() if colon_idx > 0 else link_id.lower()
                     if node_uuid in uuid_to_node:
-                        new_link_uuid = str(uuid_module.uuid4())
+                        new_link_uuid = generate_link_uuid()
                         new_link_id = f"{node_uuid}:{new_link_uuid}"
                         new_node = {
                             **node,
@@ -1450,7 +1451,7 @@ class LinkParsingService:
                 if before:
                     parts.append({"type": "text", "text": before})
 
-                link_uuid = str(uuid_module.uuid4())
+                link_uuid = generate_link_uuid()
                 link_id = f"{target_uuid_lower}:{link_uuid}"
                 node_link: dict[str, Any] = {
                     "type": "node_link",
@@ -1485,7 +1486,7 @@ class LinkParsingService:
                     colon_idx = link_id.find(":")
                     node_uuid = link_id[:colon_idx].lower() if colon_idx > 0 else link_id.lower()
                     if node_uuid == target_uuid_lower:
-                        new_link_uuid = str(uuid_module.uuid4())
+                        new_link_uuid = generate_link_uuid()
                         new_link_id = f"{node_uuid}:{new_link_uuid}"
                         new_node = {
                             **node,

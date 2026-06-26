@@ -157,7 +157,7 @@ export function useRouteAdapter({ hasInitialized, isProcessingUrl }: RouteAdapte
         // property 404s on every page navigation.
         try {
           const node = await getNodeByUuid(uuid);
-          log.debug('UUID resolved to node', { uuid, id: node.id, is_page: node.is_page });
+          log.debug('UUID resolved to node', { uuid, id: node.uuid, is_page: node.is_page });
           openNode(node.uuid);
           return;
         } catch {
@@ -167,8 +167,8 @@ export function useRouteAdapter({ hasInitialized, isProcessingUrl }: RouteAdapte
         if (!isDateUuid) {
           try {
             const property = await getPropertyByUuid(uuid);
-            log.debug('UUID resolved to property', { uuid, id: property.id });
-            openPropertyView(property.id);
+            log.debug('UUID resolved to property', { uuid, id: property.uuid });
+            openPropertyView(property.uuid);
             return;
           } catch {
             /* not a property either */

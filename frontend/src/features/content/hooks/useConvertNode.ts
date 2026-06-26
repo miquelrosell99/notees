@@ -4,13 +4,13 @@ import { nodeKeys } from '@/hooks/queryKeys';
 import { nodeViewKeys } from './useNodeViews';
 import { awaitAllContentSaves } from '@/hooks/contentSaveTracker';
 import * as nodesApi from '@/api/nodes';
-import { getNodeUuidByServerId } from './useNodeMutations.utils';
+
 
 function invalidateAfterConversion(
   queryClient: ReturnType<typeof useQueryClient>,
   node: Node,
-  oldParentId: number | null | undefined,
-  newParentId: number | null | undefined,
+  oldParentId: string | null | undefined,
+  newParentId: string | null | undefined,
 ) {
   // The page list changes whenever is_page flips
   queryClient.invalidateQueries({ queryKey: nodeKeys.allPages() });
@@ -21,8 +21,8 @@ function invalidateAfterConversion(
   queryClient.invalidateQueries({ queryKey: nodeViewKeys.queryResults() });
 
   // The node itself
-  queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(node.id) });
-  queryClient.invalidateQueries({ queryKey: nodeKeys.breadcrumbs(node.id) });
+  queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(node.uuid) });
+  queryClient.invalidateQueries({ queryKey: nodeKeys.breadcrumbs(node.uuid) });
 
   // Old location
   if (oldParentId) {
@@ -45,10 +45,9 @@ function invalidateAfterConversion(
 export function useConvertToPage() {
   const queryClient = useQueryClient();
 
-  return useMutation<Node, Error, { nodeId: number; name?: string; oldParentId?: number | null }>({
-    mutationFn: async ({ nodeId, name }) => {
+  return useMutation<Node, Error, { nodeUuid: string; name?: string; oldParentId?: string | null }>({
+    mutationFn: async ({ nodeUuid, name }) => {
       await awaitAllContentSaves();
-      const nodeUuid = getNodeUuidByServerId(queryClient, nodeId);
       if (!nodeUuid) throw new Error('Node UUID not found');
       return nodesApi.convertToPage(nodeUuid, name);
     },
@@ -67,17 +66,15 @@ export function useConvertToBlock() {
   return useMutation<
     Node,
     Error,
-    { nodeId: number; parentId: number; position?: number; oldParentId?: number | null }
+    { nodeUuid: string; parentId: string; position?: number; oldParentId?: string | null }
   >({
-    mutationFn: async ({ nodeId, parentId, position }) => {
+    mutationFn: async ({ nodeUuid, parentId, position }) => {
       await awaitAllContentSaves();
-      const nodeUuid = getNodeUuidByServerId(queryClient, nodeId);
-      const parentNodeUuid = getNodeUuidByServerId(queryClient, parentId);
-      if (!nodeUuid || !parentNodeUuid) throw new Error('Node UUID not found');
-      return nodesApi.convertToBlock(nodeUuid, parentNodeUuid, position);
+      if (!nodeUuid || !parentId) throw new Error('Node UUID not found');
+      return nodesApi.convertToBlock(nodeUuid, parentId, position);
     },
     onSuccess: (node, variables) => {
-      invalidateAfterConversion(queryClient, node, variables.oldParentId, node.parent_id);
+      invalidateAfterConversion(queryClient, node, variables.oldParentId, node.parent_uuid);
     },
   });
 }

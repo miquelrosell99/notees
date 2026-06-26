@@ -1109,8 +1109,8 @@ export class GraphWebGLRenderer {
   }
 
   /** Override a single node's position (e.g., during drag on main thread). */
-  overridePosition(nodeId: string, x: number, y: number): void {
-    const idx = this.nodeIndex.get(nodeId);
+  overridePosition(nodeUuid: string, x: number, y: number): void {
+    const idx = this.nodeIndex.get(nodeUuid);
     if (idx === undefined) return;
     if (this.positions.length >= (idx + 1) * 2) {
       this.positions[idx * 2]     = x;
@@ -1425,12 +1425,12 @@ export class GraphWebGLRenderer {
     // Ring radius = node_radius * scale so it peeks out from behind the node.
     // Color is always taken from the node's own visual color (or CSS default).
     const minWorldRadius = this.opts.minNodeRadiusPx / (2.0 * zoom);
-    const writeRing = (nodeId: string, scale: number, a: number): void => {
-      const idx = this.nodeIndex.get(nodeId);
+    const writeRing = (nodeUuid: string, scale: number, a: number): void => {
+      const idx = this.nodeIndex.get(nodeUuid);
       if (idx === undefined) return;
       const px  = this.positions[idx * 2];
       const py  = this.positions[idx * 2 + 1];
-      const vis = this.nodeVisuals.get(nodeId);
+      const vis = this.nodeVisuals.get(nodeUuid);
       const baseRadius = vis?.radius ?? this.opts.defaultRadius;
       const effBaseRadius = Math.max(baseRadius, minWorldRadius);
       const nodeCol: ArrayLike<number> = vis?.color ?? getCssNodeDefaultColor();

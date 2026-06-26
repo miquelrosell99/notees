@@ -63,7 +63,7 @@ function PublicPropertyValue({
       );
 
     case 'selection': {
-      const option = propertyDef.options.find((o) => o.id === value);
+      const option = propertyDef.options.find((o) => o.uuid === value);
       if (!option) return <span>{String(value)}</span>;
       return (
         <span className="public-share-view__prop-value--selection">
@@ -77,9 +77,9 @@ function PublicPropertyValue({
 
     case 'text': {
       // Text properties reference a block node — look it up in children
-      const blockId = typeof value === 'number' ? value : null;
+      const blockId = typeof value === 'string' ? value : null;
       if (blockId) {
-        const block = childrenBlocks.find((c) => c.id === blockId);
+        const block = childrenBlocks.find((c) => c.nodeUuid === blockId);
         if (block) {
           return (
             <NodeInline
@@ -87,7 +87,7 @@ function PublicPropertyValue({
               displayText={block.display_name}
               icon={block.icon}
               isPage={block.is_page}
-              nodeId={block.id}
+              nodeUuid={block.nodeUuid}
               showBullet={false}
               suppressColor={false}
             />
@@ -120,7 +120,7 @@ function PublicPropertiesSection({
   const entries = useMemo(() => {
     return Object.entries(properties)
       .map(([propIdStr, value]) => {
-        const propDef = propertyDefinitions.find((p) => String(p.id) === propIdStr);
+        const propDef = propertyDefinitions.find((p) => String(p.uuid) === propIdStr);
         if (!propDef) return null;
         return { propDef, value };
       })
@@ -134,7 +134,7 @@ function PublicPropertiesSection({
       <h3 className="public-share-view__properties-title">Properties</h3>
       <div className="public-share-view__properties-list">
         {entries.map(({ propDef, value }) => (
-          <div key={propDef.id} className="public-share-view__property-row">
+          <div key={propDef.uuid} className="public-share-view__property-row">
             <span className="public-share-view__property-name">
               {propDef.icon && (
                 <Icon path={propDef.icon} className="public-share-view__property-icon" />
@@ -270,7 +270,7 @@ export function PublicShareView() {
           displayText={data.node.display_name}
           icon={data.node.icon}
           isPage={data.node.is_page}
-          nodeId={data.node.id}
+          nodeUuid={data.node.nodeUuid}
           showBullet={false}
           suppressColor={false}
         />
@@ -291,7 +291,7 @@ export function PublicShareView() {
         ) : (
           data.children.map((child) => (
             <div
-              key={child.id}
+              key={child.nodeUuid}
               className="public-share-view__block"
               style={{ '--outline-depth': child.depth } as CSSProperties}
             >
@@ -300,7 +300,7 @@ export function PublicShareView() {
                 displayText={child.display_name}
                 icon={child.icon}
                 isPage={child.is_page}
-                nodeId={child.id}
+                nodeUuid={child.nodeUuid}
                 showBullet={true}
                 suppressColor={false}
               />

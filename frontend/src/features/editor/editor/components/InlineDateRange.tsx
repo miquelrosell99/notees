@@ -37,8 +37,8 @@ export function InlineDateRange({
   const handleClick = useCallback(() => {
     const runtime = getOperationRuntime();
     const node = runtime.getNode(startUuid);
-    if (node?.serverId != null) {
-      openNode(node.serverId);
+    if (node?.blockId != null) {
+      openNode(node.blockId);
     }
   }, [openNode, startUuid]);
 

@@ -15,8 +15,8 @@ export function formatLocalDate(date: Date): string {
  * Recursively search a node tree for a node by ID.
  * Returns the matching node or undefined.
  */
-export function findNodeInTree(root: Node, targetId: number): Node | undefined {
-  if (root.id === targetId) return root;
+export function findNodeInTree(root: Node, targetId: string): Node | undefined {
+  if (root.uuid === targetId) return root;
   if (root.children) {
     for (const child of root.children) {
       const found = findNodeInTree(child, targetId);

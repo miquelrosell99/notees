@@ -25,11 +25,11 @@ const SidebarCardRenderer = memo(function SidebarCardRenderer({
   onClose
 }: {
   card: SidebarCard;
-  onClose: (cardId: number) => void;
+  onClose: (cardId: string) => void;
 }) {
   const handleClose = useCallback(() => {
-    onClose(card.id);
-  }, [card.id, onClose]);
+    onClose(card.nodeUuid);
+  }, [card.nodeUuid, onClose]);
 
   const renderer = getSidebarCardRenderer(card.cardType);
   if (!renderer) return null;
@@ -57,7 +57,7 @@ export function RightSidebarCards() {
   );
   const listRef = useRef<HTMLDivElement>(null);
 
-  const handleCardClose = useCallback((cardId: number) => {
+  const handleCardClose = useCallback((cardId: string) => {
     removeSidebarCard(cardId);
   }, [removeSidebarCard]);
 
@@ -96,9 +96,9 @@ export function RightSidebarCards() {
       <div className="right-sidebar-cards__list" ref={listRef}>
         {sidebarCards.map(card => (
           <div
-            key={card.id}
-            data-card-id={card.id}
-            className={`right-sidebar-cards__item ${flashSidebarCardId === card.id ? 'right-sidebar-cards__item--flash' : ''}`}
+            key={card.nodeUuid}
+            data-card-id={card.nodeUuid}
+            className={`right-sidebar-cards__item ${flashSidebarCardId === card.nodeUuid ? 'right-sidebar-cards__item--flash' : ''}`}
           >
             <SidebarCardRenderer
               card={card}
@@ -113,7 +113,7 @@ export function RightSidebarCards() {
   );
 }
 
-function useFlashScroll(listRef: React.RefObject<HTMLDivElement | null>, flashId: number | null) {
+function useFlashScroll(listRef: React.RefObject<HTMLDivElement | null>, flashId: string | null) {
   useEffect(() => {
     if (!flashId || !listRef.current) return;
     const el = listRef.current.querySelector(`[data-card-id="${flashId}"]`);

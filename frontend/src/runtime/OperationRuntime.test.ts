@@ -14,7 +14,6 @@ const now = 1_700_000_000_000;
 function baseNode(overrides: Partial<CoreNode> & { blockId: string }): CoreNode {
   return {
     blockId: overrides.blockId,
-    serverId: overrides.serverId,
     parentId: overrides.parentId ?? null,
     orderIndex: overrides.orderIndex ?? 0,
     nodeType: overrides.nodeType ?? 'block',

@@ -40,9 +40,9 @@ export function TasksView() {
   const [viewMode, setViewMode] = useState<NodeCollectionViewMode>('list');
   const openNode = useNavigationStore((state) => state.openNode);
   const queryClient = useQueryClient();
-  const { systemClassIds, isLoading: classesLoading } = useSystemClasses();
-  const pageClassId = systemClassIds?.page ?? null;
-  const taskClassId = systemClassIds?.task ?? null;
+  const { systemClassUuids, isLoading: classesLoading } = useSystemClasses();
+  const pageClassUuid = systemClassUuids?.page ?? null;
+  const taskClassUuid = systemClassUuids?.task ?? null;
   const createNode = useCreateNode();
 
   const {
@@ -52,23 +52,23 @@ export function TasksView() {
   } = useTasks(activeTab, { enabled: !classesLoading });
 
   const handleCreateTask = useCallback(async () => {
-    if (!pageClassId || !taskClassId) return;
+    if (!pageClassUuid || !taskClassUuid) return;
 
-    const classes = [pageClassId];
-    if (!classes.includes(taskClassId)) {
-      classes.push(taskClassId);
+    const classUuids = [pageClassUuid];
+    if (!classUuids.includes(taskClassUuid)) {
+      classUuids.push(taskClassUuid);
     }
 
     const newNode = await createNode.mutateAsync({
       name: 'New Task',
-      classes,
+      class_uuids: classUuids,
     });
 
     // Invalidate all task-view caches so the new task appears
     queryClient.invalidateQueries({ queryKey: taskKeys.view() });
 
     openNode(newNode.uuid);
-  }, [pageClassId, taskClassId, createNode, queryClient, openNode]);
+  }, [pageClassUuid, taskClassUuid, createNode, queryClient, openNode]);
 
   const handleNodeClick = useCallback(
     (node: Node) => {
@@ -108,7 +108,7 @@ export function TasksView() {
             size="sm"
             icon="mdi mdi-plus"
             onClick={handleCreateTask}
-            disabled={!taskClassId || createNode.isPending}
+            disabled={!taskClassUuid || createNode.isPending}
             title="New task"
           >
             New task
@@ -150,7 +150,7 @@ export function TasksView() {
             showClasses={true}
             showAddButton
             onAdd={handleCreateTask}
-            can_create={!!taskClassId}
+            can_create={!!taskClassUuid}
             emptyMessage={emptyMessage}
           />
         </DataStateView>

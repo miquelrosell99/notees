@@ -32,6 +32,11 @@ Key features:
 - **Zustand Selectors**: Avoid large store destructurings. Use per-field selectors or focused selector hooks (e.g., `features/layout/hooks/useNavigationSelectors.ts`).
 - **Secret Key**: `SECRET_KEY` is mandatory (>= 32 chars). The app will not start without it.
 - **Node Model**: Everything is a `node` (pages, blocks, tags, properties, journals, tasks). Differentiation is via boolean flags (`is_page`, `is_task`, etc.) that are kept in sync with system class assignments.
+- **Identifier Strategy**:
+  - Public resources (nodes, blocks, graph edges, properties, classes, users, etc.) are identified by UUIDs in the HTTP API and UI.
+  - The document model (nodes/blocks and graph edges) uses **UUIDv7** (`uuid_extensions.uuid7()` backend, `generateUUID()` frontend) because its time-ordered, DB-friendly layout gives better index locality than UUIDv4.
+  - Internal database joins and ephemeral state (undo stack entries, export jobs, invites, plugin installer jobs, asset file tokens, JWT families) keep using auto-increment/sequential numeric IDs or UUIDv4 where a public identifier is not required.
+  - Never expose internal numeric IDs in URL paths or public request/response bodies; resolve UUIDs to numeric IDs inside routers/services and keep SQL numeric-native.
 - **Dev vs. Prod**: Development infrastructure settings in `compose.dev.yaml` must never be used in production.
 - **Technical Excellence**: Always take the technically best path, not the simpler path. Proper extraction, clean interfaces, and type safety take precedence over minimal diff size.
 - **Root Causes Over Hacks**: Always fix root causes instead of adding defensive workarounds. If a symptom points to a deeper architectural issue (stale state, lifecycle mismatches, incorrect boundaries), refactor the underlying cause rather than patching around it.
@@ -243,10 +248,10 @@ The backend follows a feature-first hexagonal architecture:
 **Key backend patterns:**
 - **Request-scoped DB connections**: `app/db/connection.py` uses a `ContextVar` to share one pooled connection across all repository calls within a single HTTP request. This avoids pool contention.
 - **Everything is a Node**: Pages, blocks, tags, classes, properties, journals, tasks, templates, comments, and assets are all `node` table rows differentiated by boolean flags (`is_page`, `is_tag`, `is_property`, `is_daily`, `is_task`, `is_template`, etc.). Task items are flagged with `is_task`, which is kept in sync with the `task` system class assignment and indexed for fast queries.
-- **Closure table**: `node_path` maintains transitive ancestor/descendant relationships for fast tree queries.
+- **Adjacency-list hierarchy**: The `node` table stores parent/child relationships via `parent_id`. Tree traversal (ancestors, descendants, breadcrumbs) uses recursive CTEs (`WITH RECURSIVE`). The legacy `node_path` closure table has been removed.
 - **Link parsing**: `[[Page Name]]` and `((block-uuid))` references in content are parsed into explicit `node_link` records for efficient backlink queries.
 - **QueryAST**: Structured queries compile to PostgreSQL SQL at runtime via `app/domain/services/query_ast_sql.py`.
-- **Soft delete**: `is_deleted` + `deleted_at` columns; soft delete cascades to descendants via closure table.
+- **Soft delete**: `is_deleted` + `deleted_at` columns; soft delete cascades to descendants via recursive CTE updates.
 - **Optimistic locking**: `version` column on `node`; `expected_version` parameter returns 409 Conflict on mismatch.
 - **Long-running operations**: Any endpoint that may take more than a few seconds (exports, bulk imports, migrations) must not hold a synchronous HTTP connection open. Use an async job pattern: return a job ID immediately, run work in a background `asyncio` task, and expose a poll endpoint for progress. The frontend polls with TanStack Query (`refetchInterval`) and downloads the result when `status: "completed"`.
   - Background task functions must be **module-level**, never inline closures inside the endpoint handler. Closures capture request-scoped variables (DB connections, user dependencies) by reference, which leads to race conditions and hard-to-debug 500s once the request context is torn down. Pass all required data as explicit arguments.
@@ -716,7 +721,6 @@ The debug keystore is checked into the repo intentionally (it is not a secret).
 ```
 workspace
   └── node (pages, blocks, tags, properties, journals, tasks, templates, comments, assets)
-        ├── node_path (closure table: transitive ancestor/descendant relationships)
         ├── node_link (parsed [[Page]] and ((block-uuid)) references for backlinks)
         ├── property (schema definitions + values)
         ├── asset (files on disk under data/workspaces/{workspace_uuid}/assets/)
@@ -726,7 +730,7 @@ workspace
 
 - **Everything is a Node**: One `node` table with boolean flags (`is_page`, `is_tag`, `is_property`, `is_daily`, `is_task`, `is_template`, `is_system`). `is_task` is kept in sync with the `task` system class assignment and indexed for fast queries.
 - **Task Recurrence**: A dedicated `task_recurrence` table is the source of truth for automation. The legacy `task_recurrence` selection property is kept for QueryAST compatibility but is no longer used by `TaskAutomationService`. Completion history lives in `task_completion`.
-- **Closure Table**: `node_path` stores transitive parent/child relationships for fast tree queries and soft-delete cascading.
+- **Adjacency-List Tree**: The `node` table stores hierarchy via `parent_id`. Recursive CTEs provide ancestor/descendant/breadcrumb queries and soft-delete cascading. The legacy `node_path` closure table has been removed.
 - **Links**: `node_link` is the source of truth for backlinks; it is populated by parsing the block content AST.
 - **Workspace Isolation**: Every node, property, and asset belongs to exactly one workspace.
 

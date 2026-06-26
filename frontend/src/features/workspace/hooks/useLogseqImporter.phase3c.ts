@@ -22,33 +22,33 @@ export async function runPhase3c(ctx: ImportContext, p3: PhaseResult): Promise<v
       const nodeInfo = titleToNodeInfo.get(page.title);
       if (!nodeInfo) continue;
       const existingPage = existingPageMap.get(page.title);
-      const item: BatchNodeUpdateItem = { id: nodeInfo.id };
+      const item: BatchNodeUpdateItem = { uuid: nodeInfo.uuid };
       if (!existingPage) {
         item.name = page.title;
-        if (regularPageClasses[i].length > 0) item.classes = regularPageClasses[i];
+        if (regularPageClasses[i].length > 0) item.class_uuids = regularPageClasses[i];
       } else {
         if (ctx.override && nodeNameToText(existingPage.name) !== page.title) item.name = page.title;
-        const existing = new Set(existingPage.classes ?? []);
+        const existing = new Set(existingPage.classes_uuid ?? []);
         const toAdd = regularPageClasses[i].filter(c => !existing.has(c));
-        if (toAdd.length > 0) item.classes = [...(existingPage.classes ?? []), ...toAdd];
+        if (toAdd.length > 0) item.class_uuids = [...(existingPage.classes_uuid ?? []), ...toAdd];
       }
       // Set icon from logseq.property/icon (already converted to camelCase MDI name)
       if (page.icon && (!existingPage || ctx.override || !existingPage.icon)) item.icon = page.icon;
-      const pageNodeProps = nodeIdToProperties.get(nodeInfo.id);
-      if (pageNodeProps && Object.keys(pageNodeProps).length > 0) item.properties = pageNodeProps;
-      if (item.name !== undefined || item.icon !== undefined || item.classes !== undefined || item.properties !== undefined) combinedItems.push(item);
+      const pageNodeProps = nodeIdToProperties.get(nodeInfo.nodeUuid);
+      if (pageNodeProps && Object.keys(pageNodeProps).length > 0) item.property_uuids = pageNodeProps;
+      if (item.name !== undefined || item.icon !== undefined || item.class_uuids !== undefined || item.property_uuids !== undefined) combinedItems.push(item);
     }
 
     for (const item of ctx.flatBlocks) {
       const nodeInfo = tempIdxToNodeInfo.get(item.tempIdx);
       if (!nodeInfo) continue;
-      let parentId: number | undefined;
+      let parentInfo: { nodeUuid: string; uuid: string } | undefined;
       if (item.parent.kind === 'page') {
-        parentId = titleToNodeInfo.get(item.parent.title)?.id;
+        parentInfo = titleToNodeInfo.get(item.parent.title);
       } else {
-        parentId = tempIdxToNodeInfo.get(item.parent.tempIdx)?.id;
+        parentInfo = tempIdxToNodeInfo.get(item.parent.tempIdx);
       }
-      if (!parentId) continue;
+      if (!parentInfo) continue;
       let name = '';
       if (item.block.title) {
         try {
@@ -58,10 +58,10 @@ export async function runPhase3c(ctx: ImportContext, p3: PhaseResult): Promise<v
           name = item.block.title;
         }
       }
-      const updateItem: BatchNodeUpdateItem = { id: nodeInfo.id, name, parent_id: parentId, sequence: item.sequence };
-      if (item.classes.length > 0) updateItem.classes = item.classes;
-      const blockNodeProps = nodeIdToProperties.get(nodeInfo.id);
-      if (blockNodeProps && Object.keys(blockNodeProps).length > 0) updateItem.properties = blockNodeProps;
+      const updateItem: BatchNodeUpdateItem = { uuid: nodeInfo.uuid, name, parent_uuid: parentInfo.uuid, sequence: item.sequence };
+      if (item.classes.length > 0) updateItem.class_uuids = item.classes;
+      const blockNodeProps = nodeIdToProperties.get(nodeInfo.nodeUuid);
+      if (blockNodeProps && Object.keys(blockNodeProps).length > 0) updateItem.property_uuids = blockNodeProps;
       combinedItems.push(updateItem);
     }
 
@@ -93,7 +93,6 @@ export async function runPhase3c(ctx: ImportContext, p3: PhaseResult): Promise<v
   // Standalone blocks
   if (parsed.standaloneBlocks && parsed.standaloneBlocks.length > 0) {
     let parentUuid: string | undefined;
-    let parentId: number | undefined;
     const activeNodeUuid = useNavigationStore.getState().currentNodeUuid;
     if (activeNodeUuid) {
       setImportStatus('Adding block to current node…');
@@ -102,7 +101,6 @@ export async function runPhase3c(ctx: ImportContext, p3: PhaseResult): Promise<v
         const node = Object.values(batchResult.nodes)[0];
         if (node) {
           parentUuid = node.uuid;
-          parentId = node.id;
         }
       } catch (e) {
         p3.failed++;
@@ -114,18 +112,17 @@ export async function runPhase3c(ctx: ImportContext, p3: PhaseResult): Promise<v
       try {
         const dayNode = await getOrCreateDaily(today);
         parentUuid = dayNode.uuid;
-        parentId = dayNode.id;
       } catch (e) {
         p3.failed++;
         p3.errors.push({ item: 'Standalone block (daily page)', message: errorMessage(e) });
       }
     }
-    if (parentUuid && parentId) {
+    if (parentUuid) {
       try {
         const parentNode = await getNode(parentUuid, { include_children: true });
         const startSeq = parentNode.children?.length ?? 0;
         await createBlocksRecursively(
-          parsed.standaloneBlocks, parentId, startSeq, uuidMap, ctx.classIdMap, ctx.contentQueue, p3, ctx.override,
+          parsed.standaloneBlocks, parentUuid, startSeq, uuidMap, ctx.classIdMap, ctx.contentQueue, p3, ctx.override,
         );
       } catch (e) {
         p3.failed++;
@@ -139,11 +136,11 @@ export async function runPhase3c(ctx: ImportContext, p3: PhaseResult): Promise<v
   if (pagesWithParent.length > 0) {
     const p3b = createPhase('Set page parents');
     ctx.phases.push(p3b);
-    const titleToNodeInfoLower = new Map<string, { id: number; uuid: string }>();
+    const titleToNodeInfoLower = new Map<string, { nodeUuid: string; uuid: string }>();
     for (const [title, info] of titleToNodeInfo) {
       titleToNodeInfoLower.set(title.toLowerCase(), info);
     }
-    const batchItems: Array<{ id: number; parent_id: number }> = [];
+    const batchItems: Array<{ uuid: string; parent_uuid: string }> = [];
     const batchMeta: Array<{ pageTitle: string; parentTitle: string }> = [];
     for (const page of pagesWithParent) {
       const pageInfo = page.uuid ? uuidMap.get(page.uuid) : titleToNodeInfo.get(page.title);
@@ -162,10 +159,10 @@ export async function runPhase3c(ctx: ImportContext, p3: PhaseResult): Promise<v
             n => n.is_page && nodeNameToText(n.name).toLowerCase() === page.parent!.toLowerCase()
           );
           if (existing) {
-            parentInfo = { id: existing.id, uuid: existing.uuid };
+            parentInfo = { nodeUuid: existing.uuid, uuid: existing.uuid };
           } else {
-            const newParent = await createNodeApi({ name: page.parent!, classes: [ctx.pageClassId] });
-            parentInfo = { id: newParent.id, uuid: newParent.uuid };
+            const newParent = await createNodeApi({ name: page.parent!, class_uuids: [ctx.pageClassUuid] });
+            parentInfo = { nodeUuid: newParent.uuid, uuid: newParent.uuid };
           }
           titleToNodeInfo.set(page.parent!, parentInfo);
           titleToNodeInfoLower.set(page.parent!.toLowerCase(), parentInfo);
@@ -175,7 +172,7 @@ export async function runPhase3c(ctx: ImportContext, p3: PhaseResult): Promise<v
           continue;
         }
       }
-      batchItems.push({ id: pageInfo.id, parent_id: parentInfo.id });
+      batchItems.push({ uuid: pageInfo.uuid, parent_uuid: parentInfo.uuid });
       batchMeta.push({ pageTitle: page.title, parentTitle: page.parent! });
     }
     if (batchItems.length > 0) {

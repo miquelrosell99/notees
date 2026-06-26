@@ -6,7 +6,6 @@ import * as nodesApi from '@/api/nodes';
 import { trashKeys, nodeKeys, favoriteKeys, recentKeys } from '@/hooks/queryKeys';
 import { isFavorite, removeFavorite } from './useFavorites';
 import { removeRecent } from './useRecents';
-import { getNodeUuidByServerId } from './useNodeMutations.utils';
 import type { Node, PaginatedResponse } from '@/types/api';
 
 function invalidateTrash(queryClient: ReturnType<typeof useQueryClient>) {
@@ -17,8 +16,7 @@ function invalidateTrash(queryClient: ReturnType<typeof useQueryClient>) {
   queryClient.invalidateQueries({ queryKey: nodeKeys.allBacklinks(), refetchType: 'active' });
 }
 
-function cleanupNode(queryClient: ReturnType<typeof useQueryClient>, nodeId: string | number) {
-  const nodeUuid = typeof nodeId === 'string' ? nodeId : getNodeUuidByServerId(queryClient, nodeId);
+function cleanupNode(nodeUuid: string) {
   if (!nodeUuid) return;
   if (isFavorite(nodeUuid)) {
     removeFavorite(nodeUuid).catch(() => {});
@@ -38,8 +36,7 @@ export function useTrashMutations() {
   const queryClient = useQueryClient();
 
   const restore = useMutation({
-    mutationFn: async (nodeId: string | number) => {
-      const nodeUuid = typeof nodeId === 'string' ? nodeId : getNodeUuidByServerId(queryClient, nodeId);
+    mutationFn: async (nodeUuid: string) => {
       if (!nodeUuid) throw new Error('Node UUID not found');
       return nodesApi.restoreNode(nodeUuid);
     },
@@ -47,14 +44,13 @@ export function useTrashMutations() {
   });
 
   const permanentDelete = useMutation({
-    mutationFn: async (nodeId: string | number) => {
-      const nodeUuid = typeof nodeId === 'string' ? nodeId : getNodeUuidByServerId(queryClient, nodeId);
+    mutationFn: async (nodeUuid: string) => {
       if (!nodeUuid) throw new Error('Node UUID not found');
       return nodesApi.permanentlyDeleteNode(nodeUuid);
     },
-    onSuccess: (_data, nodeId) => {
+    onSuccess: (_data, nodeUuid) => {
       invalidateTrash(queryClient);
-      cleanupNode(queryClient, nodeId);
+      cleanupNode(nodeUuid);
     },
   });
 
@@ -72,7 +68,7 @@ export function useTrashMutations() {
     onSuccess: (_data, uuids) => {
       invalidateTrash(queryClient);
       for (const nodeUuid of uuids) {
-        cleanupNode(queryClient, nodeUuid);
+        cleanupNode(nodeUuid);
       }
     },
   });

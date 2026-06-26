@@ -7,26 +7,8 @@
 import type { Node } from '@/types';
 
 /**
- * Find a node by ID in a tree structure (recursive depth-first search)
- * 
- * @param id - The node ID to find
- * @param nodes - Array of nodes to search (including children)
- * @returns The found node or null
- */
-export function findNodeById(id: number, nodes: Node[]): Node | null {
-  for (const node of nodes) {
-    if (node.id === id) return node;
-    if (node.children && node.children.length > 0) {
-      const found = findNodeById(id, node.children);
-      if (found) return found;
-    }
-  }
-  return null;
-}
-
-/**
- * Find a node by UUID in a tree structure
- * 
+ * Find a node by UUID in a tree structure (recursive depth-first search)
+ *
  * @param uuid - The node UUID to find
  * @param nodes - Array of nodes to search (including children)
  * @returns The found node or null
@@ -67,23 +49,23 @@ export function findNodeInTree(
  * Update a node in a tree structure immutably
  * 
  * @param nodes - Array of nodes to update
- * @param targetId - ID of the node to update
+ * @param targetUuid - ID of the node to update
  * @param updater - Function to transform the node
  * @returns New array with the updated node
  */
 export function updateNodeInTree(
   nodes: Node[],
-  targetId: number,
+  targetUuid: string,
   updater: (node: Node) => Node
 ): Node[] {
   return nodes.map(node => {
-    if (node.id === targetId) {
+    if (node.uuid === targetUuid) {
       return updater(node);
     }
     if (node.children && node.children.length > 0) {
       return {
         ...node,
-        children: updateNodeInTree(node.children, targetId, updater),
+        children: updateNodeInTree(node.children, targetUuid, updater),
       };
     }
     return node;
@@ -94,17 +76,17 @@ export function updateNodeInTree(
  * Remove a node from a tree structure immutably
  * 
  * @param nodes - Array of nodes
- * @param targetId - ID of the node to remove
+ * @param targetUuid - ID of the node to remove
  * @returns New array without the target node
  */
-export function removeNodeFromTree(nodes: Node[], targetId: number): Node[] {
+export function removeNodeFromTree(nodes: Node[], targetUuid: string): Node[] {
   return nodes
-    .filter(node => node.id !== targetId)
+    .filter(node => node.uuid !== targetUuid)
     .map(node => {
       if (node.children && node.children.length > 0) {
         return {
           ...node,
-          children: removeNodeFromTree(node.children, targetId),
+          children: removeNodeFromTree(node.children, targetUuid),
         };
       }
       return node;
@@ -156,9 +138,12 @@ export function flattenNodeTree(nodes: Node[]): Node[] {
  * @param nodes - Array of nodes
  * @returns Array of all node IDs
  */
-export function getAllNodeIds(nodes: Node[]): number[] {
-  return mapNodeTree(nodes, (node) => node.id);
+export function getAllNodeUuids(nodes: Node[]): string[] {
+  return mapNodeTree(nodes, (node) => node.uuid);
 }
+
+/** @deprecated Use getAllNodeUuids */
+export const getAllNodeIds = getAllNodeUuids;
 
 /**
  * Count all nodes in a tree (including children)
@@ -180,20 +165,20 @@ export function countNodes(nodes: Node[]): number {
 /**
  * Get the depth of a node in a tree (0 if at root)
  * 
- * @param targetId - ID of the node to find
+ * @param targetUuid - ID of the node to find
  * @param nodes - Root nodes to search
  * @param currentDepth - Internal tracking parameter
  * @returns Depth of the node, or -1 if not found
  */
 export function getNodeDepth(
-  targetId: number,
+  targetUuid: string,
   nodes: Node[],
   currentDepth: number = 0
 ): number {
   for (const node of nodes) {
-    if (node.id === targetId) return currentDepth;
+    if (node.uuid === targetUuid) return currentDepth;
     if (node.children && node.children.length > 0) {
-      const depth = getNodeDepth(targetId, node.children, currentDepth + 1);
+      const depth = getNodeDepth(targetUuid, node.children, currentDepth + 1);
       if (depth !== -1) return depth;
     }
   }
@@ -211,16 +196,16 @@ export function getNodeDepth(
  */
 export function updateNodeByIdImmutable(
   node: Node | undefined,
-  targetId: number,
+  targetUuid: string,
   updater: (n: Node) => Node
 ): Node | undefined {
   if (!node) return undefined;
-  if (node.id === targetId) {
+  if (node.uuid === targetUuid) {
     return updater(node);
   }
   if (node.children && node.children.length > 0) {
     const newChildren = node.children
-      .map(child => updateNodeByIdImmutable(child, targetId, updater))
+      .map(child => updateNodeByIdImmutable(child, targetUuid, updater))
       .filter((n): n is Node => n !== undefined);
     const childrenChanged = newChildren.some((child, i) => child !== node.children![i]);
     if (childrenChanged) {
@@ -236,17 +221,17 @@ export function updateNodeByIdImmutable(
  */
 export function updateNodeInTreeImmutable(
   nodes: Node[],
-  nodeId: number,
+  nodeUuid: string,
   updates: Partial<Node>
 ): Node[] {
   let changed = false;
   const result = nodes.map(node => {
-    if (node.id === nodeId) {
+    if (node.uuid === nodeUuid) {
       changed = true;
       return { ...node, ...updates };
     }
     if (node.children && node.children.length > 0) {
-      const newChildren = updateNodeInTreeImmutable(node.children, nodeId, updates);
+      const newChildren = updateNodeInTreeImmutable(node.children, nodeUuid, updates);
       if (newChildren !== node.children) {
         changed = true;
         return { ...node, children: newChildren };
@@ -261,16 +246,16 @@ export function updateNodeInTreeImmutable(
  * Remove a node from a tree structure.
  * Returns the same array reference if nothing was removed.
  */
-export function removeNodeFromTreeImmutable(nodes: Node[], nodeId: number): Node[] {
-  const directRemoval = nodes.some(node => node.id === nodeId);
+export function removeNodeFromTreeImmutable(nodes: Node[], nodeUuid: string): Node[] {
+  const directRemoval = nodes.some(node => node.uuid === nodeUuid);
 
   let childrenChanged = false;
   const mappedNodes = nodes.map(node => {
-    if (node.id === nodeId) {
+    if (node.uuid === nodeUuid) {
       return node; // Will be filtered out below
     }
     if (node.children && node.children.length > 0) {
-      const newChildren = removeNodeFromTreeImmutable(node.children, nodeId);
+      const newChildren = removeNodeFromTreeImmutable(node.children, nodeUuid);
       if (newChildren !== node.children) {
         childrenChanged = true;
         return { ...node, children: newChildren };
@@ -280,7 +265,7 @@ export function removeNodeFromTreeImmutable(nodes: Node[], nodeId: number): Node
   });
 
   if (directRemoval) {
-    return mappedNodes.filter(node => node.id !== nodeId);
+    return mappedNodes.filter(node => node.uuid !== nodeUuid);
   }
   return childrenChanged ? mappedNodes : nodes;
 }
@@ -289,11 +274,11 @@ export function removeNodeFromTreeImmutable(nodes: Node[], nodeId: number): Node
  * Find a node by ID in a single root node's tree (DFS).
  * Useful for searching within a detail cache entry.
  */
-export function findNodeInRootTree(root: Node, nodeId: number): Node | null {
-  if (root.id === nodeId) return root;
+export function findNodeInRootTree(root: Node, nodeUuid: string): Node | null {
+  if (root.uuid === nodeUuid) return root;
   if (root.children) {
     for (const child of root.children) {
-      const found = findNodeInRootTree(child, nodeId);
+      const found = findNodeInRootTree(child, nodeUuid);
       if (found) return found;
     }
   }

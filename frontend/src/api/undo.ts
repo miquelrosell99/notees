@@ -3,16 +3,16 @@ import api from '@/api/client';
 export interface UndoResult {
   operation: string;
   entity_type: string;
-  entity_id: number;
+  entity_id: string;
   description: string;
 }
 
 export interface UndoStackEntry {
-  id: number;
+  nodeUuid: string;
   uuid: string;
   operation: string;
   entity_type: string;
-  entity_id: number;
+  entity_id: string;
   description: string;
 }
 

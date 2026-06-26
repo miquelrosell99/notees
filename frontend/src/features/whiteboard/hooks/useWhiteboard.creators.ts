@@ -20,7 +20,7 @@ import type {
 import { createElementId, getStrokeBounds } from '@/features/whiteboard/types/whiteboard';
 
 export function useWhiteboardCreators(data: WhiteboardData, settings: WhiteboardSettings) {
-  const createCard = useCallback((nodeId: number, nodeUuid: string, position: Point): WhiteboardCardElement => {
+  const createCard = useCallback((nodeUuid: string, position: Point): WhiteboardCardElement => {
     const maxZ = Math.max(...data.elements.map(el => el.zIndex), 0);
     return {
       id: createElementId(),
@@ -33,7 +33,6 @@ export function useWhiteboardCreators(data: WhiteboardData, settings: Whiteboard
       locked: false,
       opacity: 1,
       zIndex: maxZ + 1,
-      nodeId,
       nodeUuid,
       collapsed: false,
       color: null,
@@ -42,7 +41,7 @@ export function useWhiteboardCreators(data: WhiteboardData, settings: Whiteboard
     };
   }, [data.elements]);
 
-  const createReferenceCard = useCallback((nodeId: number, nodeUuid: string, position: Point, refBlockId?: number, refBlockUuid?: string): WhiteboardCardElement => {
+  const createReferenceCard = useCallback((nodeUuid: string, position: Point, refBlockUuid?: string): WhiteboardCardElement => {
     const maxZ = Math.max(...data.elements.map(el => el.zIndex), 0);
     return {
       id: createElementId(),
@@ -55,9 +54,7 @@ export function useWhiteboardCreators(data: WhiteboardData, settings: Whiteboard
       locked: false,
       opacity: 1,
       zIndex: maxZ + 1,
-      nodeId,
       nodeUuid,
-      refBlockId,
       refBlockUuid,
       collapsed: false,
       color: null,

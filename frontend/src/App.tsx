@@ -11,7 +11,7 @@
 import { useEffect } from 'react';
 import { BrowserRouter } from 'react-router-dom';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
-import { queryClient, asyncStoragePersister } from './lib/queryClient';
+import { queryClient, asyncStoragePersister, createEncryptedPersister } from './lib/queryClient';
 import { NotificationToast, type ToastNotification } from './components/ui/NotificationToast';
 import { useNotificationStore, type Notification } from './stores/notificationStore';
 import { ErrorBoundary } from './components/ui/ErrorBoundary';
@@ -24,9 +24,13 @@ import { CommandRegistrations } from './features/commands';
 import { COMMAND_IDS } from './stores/commandRegistry';
 import { DndProvider } from './providers/DndProvider';
 import { useUndoStore, useAuthStore } from './stores';
+import { useEncryptionStore } from './stores/encryptionStore';
 import { useInputContext } from './stores/inputContext';
-import { SyncManager } from './sync';
+import { ProtocolAwareSyncManager } from '@/features/sync/components/ProtocolAwareSyncManager';
+import { LocalIndexManager } from '@/features/sync/components/LocalIndexManager';
+import { QueryLiveUpdater } from '@/features/sync/components/QueryLiveUpdater';
 import { useBackendHealth } from './hooks/useBackendHealth';
+import { useBackgroundSync } from './hooks/useBackgroundSync';
 import { BackendUnavailableOverlay } from './components/ui/BackendUnavailableOverlay';
 import { getLogger } from './utils/logger';
 import { pluginManager } from '@/plugins/core';
@@ -93,6 +97,8 @@ function AppContent() {
   useAndroidBridge();
   // Start the backend health poller. It runs for the lifetime of the app.
   useBackendHealth();
+  // Register web background sync (Periodic Background Sync + one-shot sync).
+  useBackgroundSync();
   return <AppRoutes />;
 }
 
@@ -142,70 +148,15 @@ function App() {
       <a href="#main-content" className="skip-link">
         Skip to main content
       </a>
-      <PersistQueryClientProvider
-        client={queryClient}
-        persistOptions={{
-          persister: asyncStoragePersister,
-          maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
-          dehydrateOptions: {
-            shouldDehydrateQuery: (query) => {
-              const queryKey = query.queryKey as string[];
-              if (!queryKey || queryKey.length === 0) return false;
-              // Exclude pending queries: promises cannot be serialised, so
-              // restoring them causes "dehydrated as pending ended up rejecting"
-              // warnings on the next hydration.
-              if (query.state.status === 'pending') return false;
-              // Exclude auth-related queries
-              if (queryKey[0] === 'auth') return false;
-
-              // Exclude heavy, fast-moving node query families that contain
-              // large trees and change frequently during normal editing.
-              // Persisting them causes multi-megabyte IndexedDB writes that
-              // block the main thread (see performance remediation plan).
-              if (queryKey[0] === 'nodes') {
-                const heavyNodeKeys = new Set([
-                  'detail',
-                  'page-content',
-                  'uuid',
-                  'backlinks',
-                  'linked-refs',
-                  'search',
-                  'graph',
-                  'graph-nodes',
-                  'graph-links',
-                  'daily',
-                  'monthly',
-                  'yearly',
-                  'children-only',
-                  'batch-get',
-                  'batch-properties',
-                  'gantt-day-nodes',
-                  'pages',
-                  'list',
-                ]);
-                if (heavyNodeKeys.has(queryKey[1])) return false;
-              }
-
-              // Exclude large dynamic query-result sets (tables, cards, etc.)
-              if (queryKey[0] === 'nodeViews' && queryKey[1] === 'queryResults') {
-                return false;
-              }
-
-              return true;
-            },
-            // Never persist mutations. Pending mutations contain Promise objects
-            // that cannot be safely serialised; restoring them causes
-            // "promise.then is not a function" errors during hydration.
-            shouldDehydrateMutation: () => false,
-          },
-        }}
-      >
+      <EncryptedPersistProvider>
         <KeyboardShortcutsProvider>
           <DndProvider>
             <AuthSyncListener />
             <GlobalKeyboardHandler />
             <CommandRegistrations />
-            <SyncManager />
+            <ProtocolAwareSyncManager />
+            <LocalIndexManager />
+            <QueryLiveUpdater />
             <BrowserRouter>
               <ErrorBoundary context="App">
                 <AppContent />
@@ -214,9 +165,76 @@ function App() {
             <ConnectedNotificationToast />
           </DndProvider>
         </KeyboardShortcutsProvider>
-      </PersistQueryClientProvider>
+      </EncryptedPersistProvider>
       <BackendUnavailableOverlay />
     </>
+  );
+}
+
+const PERSIST_OPTIONS = {
+  maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
+  dehydrateOptions: {
+    shouldDehydrateQuery: (query: { queryKey: unknown; state: { status: string } }) => {
+      const queryKey = query.queryKey as string[];
+      if (!queryKey || queryKey.length === 0) return false;
+      // Exclude pending queries: promises cannot be serialised, so
+      // restoring them causes "dehydrated as pending ended up rejecting"
+      // warnings on the next hydration.
+      if (query.state.status === 'pending') return false;
+      // Exclude auth-related queries
+      if (queryKey[0] === 'auth') return false;
+
+      // Exclude heavy, fast-moving node query families that contain
+      // large trees and change frequently during normal editing.
+      // Persisting them causes multi-megabyte IndexedDB writes that
+      // block the main thread (see performance remediation plan).
+      if (queryKey[0] === 'nodes') {
+        const heavyNodeKeys = new Set([
+          'detail',
+          'page-content',
+          'uuid',
+          'backlinks',
+          'linked-refs',
+          'search',
+          'graph',
+          'graph-nodes',
+          'graph-links',
+          'daily',
+          'monthly',
+          'yearly',
+          'children-only',
+          'batch-get',
+          'batch-properties',
+          'gantt-day-nodes',
+          'pages',
+          'list',
+        ]);
+        if (heavyNodeKeys.has(queryKey[1])) return false;
+      }
+
+      // Exclude large dynamic query-result sets (tables, cards, etc.)
+      if (queryKey[0] === 'nodeViews' && queryKey[1] === 'queryResults') {
+        return false;
+      }
+
+      return true;
+    },
+    // Never persist mutations. Pending mutations contain Promise objects
+    // that cannot be safely serialised; restoring them causes
+    // "promise.then is not a function" errors during hydration.
+    shouldDehydrateMutation: () => false,
+  },
+};
+
+function EncryptedPersistProvider({ children }: { children: React.ReactNode }) {
+  const enabled = useEncryptionStore((s) => s.enabled);
+  const key = useEncryptionStore((s) => s.key);
+  const persister = enabled && key ? createEncryptedPersister(key) : asyncStoragePersister;
+
+  return (
+    <PersistQueryClientProvider client={queryClient} persistOptions={{ ...PERSIST_OPTIONS, persister }}>
+      {children}
+    </PersistQueryClientProvider>
   );
 }
 

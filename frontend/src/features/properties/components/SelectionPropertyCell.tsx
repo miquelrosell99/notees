@@ -39,8 +39,8 @@ export function SelectionPropertyCell({
   const selectedValues = Array.isArray(value) ? value : value ? [value] : [];
   const resolvedOptions = selectedValues
     .map(v => {
-      const optionId = typeof v === 'object' && v !== null && 'id' in v ? (v as { id: number }).id : v;
-      return options.find(opt => opt.id === optionId);
+      const optionId = typeof v === 'object' && v !== null && 'uuid' in v ? (v as { uuid: string }).uuid : v;
+      return options.find(opt => opt.uuid === optionId);
     })
     .filter((opt): opt is NonNullable<typeof opt> => opt !== undefined);
 
@@ -48,15 +48,15 @@ export function SelectionPropertyCell({
     if (property.multi) {
       const currentValue = Array.isArray(value) ? value : [];
       setPropertyMutation.mutate({
-        nodeId: parentNode.id,
-        propertyId: property.id,
-        value: [...currentValue, option.id],
+        nodeUuid: parentNode.uuid,
+        propertyId: property.uuid,
+        value: [...currentValue, option.uuid],
       });
     } else {
       setPropertyMutation.mutate({
-        nodeId: parentNode.id,
-        propertyId: property.id,
-        value: option.id,
+        nodeUuid: parentNode.uuid,
+        propertyId: property.uuid,
+        value: option.uuid,
       });
     }
     setIsPickerOpen(false);
@@ -65,14 +65,14 @@ export function SelectionPropertyCell({
   const handleRemoveOption = (option: typeof options[0]) => {
     if (property.multi && Array.isArray(value)) {
       setPropertyMutation.mutate({
-        nodeId: parentNode.id,
-        propertyId: property.id,
-        value: value.filter(id => id !== option.id),
+        nodeUuid: parentNode.uuid,
+        propertyId: property.uuid,
+        value: value.filter(id => id !== option.uuid),
       });
     } else {
       setPropertyMutation.mutate({
-        nodeId: parentNode.id,
-        propertyId: property.id,
+        nodeUuid: parentNode.uuid,
+        propertyId: property.uuid,
         value: null,
       });
     }
@@ -110,7 +110,7 @@ export function SelectionPropertyCell({
               return (
                 <button
                   type="button"
-                  key={option.id}
+                  key={option.uuid}
                   className="property-cell__picker-option"
                   onClick={() => handleAddOption(option)}
                 >
@@ -134,7 +134,7 @@ export function SelectionPropertyCell({
         const color = option.color || parseIconField(option.icon || '').color || null;
         return (
           <Pill
-            key={option.id}
+            key={option.uuid}
             text={option.name}
             color={color || undefined}
             rightIcon={editable ? <Icon path={"mdi mdi-close"} size={0.55} /> : undefined}
@@ -155,13 +155,13 @@ export function SelectionPropertyCell({
       {isPickerOpen && (
         <div className="property-cell__picker">
           {options
-            .filter(opt => !resolvedOptions.some(r => r.id === opt.id))
+            .filter(opt => !resolvedOptions.some(r => r.uuid === opt.uuid))
             .map(option => {
               const color = option.color || parseIconField(option.icon || '').color || null;
               return (
                 <button
                   type="button"
-                  key={option.id}
+                  key={option.uuid}
                   className="property-cell__picker-option"
                   onClick={() => handleAddOption(option)}
                 >

@@ -5,25 +5,22 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import * as nodesApi from '@/api/nodes';
 import type { BatchPropertiesResult } from '@/api/nodes';
 import { nodeKeys } from '@/hooks/queryKeys';
-import { getNodeUuidByServerId } from '@/features/content/hooks/useNodeMutations.utils';
-import { resolvePropertyUuid } from '@/utils/resolveNodeUuid';
+
 
 export function useSetNodeProperty() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ nodeId, propertyId, value }: { nodeId: string | number; propertyId: string | number; value: unknown }) => {
-      const nodeUuid = typeof nodeId === 'string' ? nodeId : getNodeUuidByServerId(queryClient, nodeId);
+    mutationFn: async ({ nodeUuid, propertyId, value }: { nodeUuid: string; propertyId: string; value: unknown }) => {
       if (!nodeUuid) throw new Error('Node UUID not found');
-      const propertyUuid = typeof propertyId === 'string' ? propertyId : resolvePropertyUuid(propertyId);
-      if (!propertyUuid) throw new Error('Property UUID not found');
+      if (!propertyId) throw new Error('Property UUID not found');
       if (value === null) {
-        return nodesApi.removeProperty(nodeUuid, propertyUuid);
+        return nodesApi.removeProperty(nodeUuid, propertyId);
       }
-      return nodesApi.setProperty(nodeUuid, propertyUuid, value);
+      return nodesApi.setProperty(nodeUuid, propertyId, value);
     },
 
-    onMutate: async ({ nodeId, propertyId, value }) => {
+    onMutate: async ({ nodeUuid, propertyId, value }) => {
       const batchQueries = queryClient.getQueriesData<BatchPropertiesResult>({
         predicate: (q) =>
           Array.isArray(q.queryKey) && q.queryKey.includes('batch-properties'),
@@ -41,13 +38,13 @@ export function useSetNodeProperty() {
 
         if (!data) continue;
 
-        if (!queryKey.includes(nodeId)) continue;
+        if (!queryKey.includes(nodeUuid)) continue;
 
-        const nodeEntry = data[String(nodeId)] ?? {};
+        const nodeEntry = data[String(nodeUuid)] ?? {};
 
         queryClient.setQueryData<BatchPropertiesResult>(queryKey, {
           ...data,
-          [String(nodeId)]: value === null
+          [String(nodeUuid)]: value === null
             ? (() => {
                 const { [String(propertyId)]: _, ...rest } = nodeEntry;
                 return rest;
@@ -62,8 +59,8 @@ export function useSetNodeProperty() {
       return { snapshots };
     },
 
-    onError: (error, { nodeId, propertyId }, context) => {
-      console.error(`Failed to set property ${propertyId} on node ${nodeId}:`, error);
+    onError: (error, { nodeUuid, propertyId }, context) => {
+      console.error(`Failed to set property ${propertyId} on node ${nodeUuid}:`, error);
 
       if (context?.snapshots) {
         for (const [queryKey, previous] of context.snapshots) {
@@ -72,9 +69,9 @@ export function useSetNodeProperty() {
       }
     },
 
-    onSettled: (_, __, { nodeId }) => {
-      queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(nodeId) });
-      queryClient.invalidateQueries({ queryKey: nodeKeys.pageContent(nodeId) });
+    onSettled: (_, __, { nodeUuid }) => {
+      queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(nodeUuid) });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.pageContent(nodeUuid) });
 
       queryClient.invalidateQueries({
         predicate: (q) =>
