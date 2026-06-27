@@ -12,9 +12,49 @@ on:
     paths:
       - 'mobile/**'
   workflow_dispatch:
+    inputs:
+      build-mode:
+        description: 'Flutter build mode'
+        type: choice
+        options:
+          - release
+          - debug
+          - profile
+        default: release
+      git-ref:
+        description: 'Git ref to build from'
+        required: true
+        default: 'main'
+      sign-release:
+        description: 'Sign the APK with the uploaded keystore (release only)'
+        type: boolean
+        default: false
+  workflow_call:
+    inputs:
+      build-mode:
+        type: string
+        default: release
+      git-ref:
+        type: string
+        default: ''
+      sign-release:
+        type: boolean
+        default: true
+    secrets:
+      ANDROID_KEYSTORE_BASE64:
+        required: false
+      ANDROID_KEYSTORE_PASSWORD:
+        required: false
+      ANDROID_KEY_ALIAS:
+        required: false
+      ANDROID_KEY_PASSWORD:
+        required: false
 
 permissions:
   contents: read
+
+env:
+  BUILD_MODE: ${{ inputs.build-mode || github.event.inputs.build-mode || 'release' }}
 
 jobs:
   build:
@@ -23,6 +63,15 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ inputs.git-ref || github.event.inputs.git-ref || github.ref }}
+
+      - name: Resolve version
+        id: version
+        working-directory: mobile
+        run: |
+          version=$(grep '^version:' pubspec.yaml | sed 's/.*://' | xargs)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
 
       - name: Set up Docker
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
@@ -35,24 +84,67 @@ jobs:
       - name: Build APK
         run: |
           cd mobile
-          ./build-apk.sh
+          ./build-apk.sh apk "$BUILD_MODE"
+
+      - name: Sign release APK
+        if: ${{ (inputs.sign-release || github.event.inputs.sign-release) && env.BUILD_MODE == 'release' }}
+        working-directory: mobile
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
+            echo "::error::ANDROID_KEYSTORE_BASE64 secret is required to sign the release APK."
+            exit 1
+          fi
+          tmpdir=$(mktemp -d)
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$tmpdir/keystore.jks"
+          docker run --rm \
+            -v "$PWD/dist:/dist" \
+            -v "$tmpdir:/signing:ro" \
+            -e KEYSTORE_PASS="$ANDROID_KEYSTORE_PASSWORD" \
+            -e KEY_ALIAS="${ANDROID_KEY_ALIAS:-androiddebugkey}" \
+            -e KEY_PASS="${ANDROID_KEY_PASSWORD:-$ANDROID_KEYSTORE_PASSWORD}" \
+            ghcr.io/cirruslabs/flutter:stable \
+            /opt/android-sdk-linux/build-tools/36.0.0/apksigner sign \
+              --ks /signing/keystore.jks \
+              --ks-pass "env:KEYSTORE_PASS" \
+              --key-pass "env:KEY_PASS" \
+              --alias "${ANDROID_KEY_ALIAS:-androiddebugkey}" \
+              --in /dist/notees.apk \
+              --out /dist/notees-signed.apk
+          mv dist/notees-signed.apk dist/notees.apk
+          rm -rf "$tmpdir"
+
+      - name: Rename APK with version
+        id: artifact
+        working-directory: mobile
+        run: |
+          version="${{ steps.version.outputs.version }}"
+          name="notees-android-${version}.apk"
+          cp dist/notees.apk "dist/$name"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4
         with:
           name: notees-android-apk
-          path: mobile/dist/notees.apk
+          path: mobile/dist/${{ steps.artifact.outputs.name }}
           retention-days: 14
 
       - name: Compute SHA-256
         id: checksum
         working-directory: mobile
         run: |
-          sha256sum dist/notees.apk > dist/notees.apk.sha256
+          sha256sum "dist/${{ steps.artifact.outputs.name }}" > dist/notees.apk.sha256
           echo "sum=$(cut -d' ' -f1 dist/notees.apk.sha256)" >> "$GITHUB_OUTPUT"
 
       - name: Summary
         run: |
           echo "### Android APK built" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Size: $(du -h mobile/dist/notees.apk | cut -f1)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Version: ${{ steps.version.outputs.version }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- File: ${{ steps.artifact.outputs.name }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Size: $(du -h mobile/dist/${{ steps.artifact.outputs.name }} | cut -f1)" >> "$GITHUB_STEP_SUMMARY"
           echo "- SHA-256: \`${{ steps.checksum.outputs.sum }}\`" >> "$GITHUB_STEP_SUMMARY"
