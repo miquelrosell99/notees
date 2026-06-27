@@ -79,6 +79,20 @@ jobs:
 
   android:
     name: Build and attach Android APK
+    uses: ./.github/workflows/android.yml
+    with:
+      build-mode: release
+      git-ref: ${{ inputs.tag || github.ref_name }}
+      sign-release: true
+    secrets:
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+
+  attach-android:
+    name: Attach Android APK to release
+    needs: android
     runs-on: ubuntu-latest
     steps:
       - name: Resolve tag
@@ -87,26 +101,19 @@ jobs:
           TAG="${{ inputs.tag || github.ref_name }}"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
-      - name: Checkout
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Download APK artifact
+        uses: actions/download-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4
         with:
-          ref: ${{ steps.ref.outputs.tag }}
-
-      - name: Set up Docker
-        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
-
-      - name: Build APK
-        run: |
-          cd mobile
-          ./build-apk.sh
+          name: notees-android-apk
+          path: mobile/dist
 
       - name: Compute checksum and rename asset
         id: asset
-        working-directory: mobile
+        working-directory: mobile/dist
         run: |
           TAG="${{ steps.ref.outputs.tag }}"
           ASSET="notees-android-${TAG}.apk"
-          cp dist/notees.apk "$ASSET"
+          mv notees-*.apk "$ASSET"
           sha256sum "$ASSET" > "${ASSET}.sha256"
           echo "name=$ASSET" >> "$GITHUB_OUTPUT"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
@@ -125,7 +132,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="${{ steps.asset.outputs.tag }}"
-          ASSET="mobile/${{ steps.asset.outputs.name }}"
+          ASSET="mobile/dist/${{ steps.asset.outputs.name }}"
           CHECKSUM="${ASSET}.sha256"
           gh release upload "$TAG" "$ASSET" "$CHECKSUM" --clobber
 
@@ -135,7 +142,7 @@ jobs:
         run: |
           TAG="${{ steps.asset.outputs.tag }}"
           ASSET="${{ steps.asset.outputs.name }}"
-          SHA256=$(cut -d' ' -f1 "mobile/${ASSET}.sha256")
+          SHA256=$(cut -d' ' -f1 "mobile/dist/${ASSET}.sha256")
 
           # Fetch current body, append checksum section if missing
           BODY=$(gh release view "$TAG" --json body --jq '.body')
