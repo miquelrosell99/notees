@@ -7,23 +7,34 @@ permissions:
   contents: write
 
 jobs:
-  build-and-release:
+  android:
+    name: Build Android APK
+    uses: ./.github/workflows/android.yml
+    with:
+      build-mode: release
+      sign-release: false
+
+  release:
+    name: Create nightly release
+    needs: android
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
-      - name: Set up Docker
-        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
-
-      - name: Build APK
-        run: |
-          cd mobile
-          ./build-apk.sh
-
       - name: Get short SHA
         id: sha
         run: echo "sha=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Download APK artifact
+        uses: actions/download-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4
+        with:
+          name: notees-android-apk
+          path: mobile/dist
+
+      - name: Rename nightly APK
+        working-directory: mobile/dist
+        run: mv notees-*.apk notees-nightly.apk
 
       - name: Create / update nightly release
         env:
@@ -38,12 +49,12 @@ jobs:
 
           # Create new nightly release with the APK
           gh release create "$TAG" \
-            "mobile/dist/notees.apk#notees-nightly.apk" \
+            "mobile/dist/notees-nightly.apk#notees-nightly.apk" \
             --prerelease \
             --title "Nightly Build ($SHA)" \
             --notes "Automated nightly build from commit \`$SHA\`.\
           \
-          ⚠️ This is an unstable debug build. Install at your own risk."
+          ⚠️ This is an unstable nightly build. Install at your own risk."
 
       - name: Keep only last 5 nightly releases (cleanup)
         env:
