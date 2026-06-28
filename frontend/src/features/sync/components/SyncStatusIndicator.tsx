@@ -1,7 +1,7 @@
 /**
  * SyncStatusIndicator — toolbar widget showing the v2 sync state.
  *
- * Displays a compact icon + label for synced / syncing / offline / error.
+ * Displays a compact icon for synced / syncing / offline / error.
  * Clicking opens a popover with the pending/failed operation queue.
  */
 
@@ -46,9 +46,6 @@ export function SyncStatusIndicator(): ReactNode {
           color={config.color}
           className={config.spin ? 'sync-status-indicator__icon--spin' : ''}
         />
-        <span className="sync-status-indicator__label" style={{ color: config.color }}>
-          {config.label}
-        </span>
       </Button>
 
       {open && (
