@@ -115,9 +115,7 @@ function sortGroups(groups: GroupTreeNode[], level: GroupLevel): GroupTreeNode[]
 }
 
 function buildGroupTree(topNodes: Node[], levels: GroupLevel[], parentKey = ''): GroupTreeNode[] {
-  if (levels.length === 0) {
-    return [{ key: `${parentKey}/leaf`, label: '', icon: null, children: [], nodes: topNodes }];
-  }
+  if (levels.length === 0) return [];
 
   const [level, ...rest] = levels;
   const groups = new Map<string, GroupTreeNode>();
@@ -140,21 +138,29 @@ function buildGroupTree(topNodes: Node[], levels: GroupLevel[], parentKey = ''):
 
   const result: GroupTreeNode[] = [];
   for (const group of sortGroups(Array.from(groups.values()), level)) {
-    group.children = buildGroupTree(group.nodes, rest, group.key);
-    group.nodes = [];
+    if (rest.length > 0) {
+      group.children = buildGroupTree(group.nodes, rest, group.key);
+      group.nodes = [];
+    }
     result.push(group);
   }
 
   if (noValue.length > 0) {
     const noValueKey = `${parentKey}/no-value`;
     const noValueLabel = level.kind === 'page' ? 'No page' : 'No value';
-    result.push({
+    const noValueGroup: GroupTreeNode = {
       key: noValueKey,
       label: noValueLabel,
       icon: null,
-      children: buildGroupTree(noValue, rest, noValueKey),
+      children: [],
       nodes: [],
-    });
+    };
+    if (rest.length > 0) {
+      noValueGroup.children = buildGroupTree(noValue, rest, noValueKey);
+    } else {
+      noValueGroup.nodes = noValue;
+    }
+    result.push(noValueGroup);
   }
 
   return result;

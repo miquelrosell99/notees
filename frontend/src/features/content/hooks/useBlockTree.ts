@@ -24,6 +24,9 @@ import { getRuntimeEventBus } from '@/runtime/eventBus';
 import { apiNodesToGraphNodes } from './useRuntimeSync';
 import { useUIStateStore } from '@/features/sync';
 import type { Node } from '@/types/api';
+import type { NodeUIState } from '@/features/sync/stores/uiStateStore';
+
+const EMPTY_STATES: Record<string, NodeUIState> = {};
 
 export interface FlatNode {
   node: Node;
@@ -282,7 +285,7 @@ export function useBlockTree(
           rootIsBlock = false } = options;
   const { workspaceId } = useParams<{ workspaceId?: string }>();
   const workspaceStates = useUIStateStore(
-    useMemo(() => (s) => (workspaceId ? s.states[workspaceId] ?? {} : {}), [workspaceId])
+    useMemo(() => (s) => (workspaceId ? s.states[workspaceId] ?? EMPTY_STATES : EMPTY_STATES), [workspaceId])
   );
   const collapsedLookup = useCallback(
     (nodeUuid: string) => workspaceStates[nodeUuid]?.collapsed,

@@ -198,10 +198,10 @@
   --font-headline-medium: 600 1.75rem/1.3 var(--font-family-display);
   --font-headline-small: 600 1.5rem/1.35 var(--font-family-display);
 
-  /* Title — editorial serif for card/page titles */
-  --font-title-large: 600 1.25rem/1.4 var(--font-family-display);
-  --font-title-medium: 600 1rem/1.4 var(--font-family-display);
-  --font-title-small: 600 0.875rem/1.4 var(--font-family-display);
+  /* Title — sans for card titles, modal headers, section labels (UI chrome) */
+  --font-title-large: 600 1.25rem/1.4 var(--font-family-base);
+  --font-title-medium: 600 1rem/1.4 var(--font-family-base);
+  --font-title-small: 600 0.875rem/1.4 var(--font-family-base);
 
   /* Body */
   --font-body-large: 400 1rem/1.5 var(--font-family-base);
