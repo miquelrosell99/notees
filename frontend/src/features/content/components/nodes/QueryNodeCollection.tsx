@@ -85,7 +85,9 @@ export interface QueryNodeCollectionProps {
   hideViewManagement?: boolean;
   /** Whether to show class pills in list view (default: true) */
   showClasses?: boolean;
-  
+  /** Whether to show the trailing "add block" ghost bullet in list view (default: true) */
+  showNewBlock?: boolean;
+
   // ==================== Capability Props ====================
   
   /** Whether new items can be created (default: true). Controls add buttons in toolbar and card view. */
@@ -138,6 +140,7 @@ export function QueryNodeCollection({
       hideContent = false,
       hideViewManagement = false,
       showClasses = true,
+      showNewBlock = true,
       can_create = true,
       can_edit = true,
       can_delete = true,
@@ -993,6 +996,7 @@ export function QueryNodeCollection({
             can_delete={can_delete}
             pagesOnly={queryPagesOnly}
             showClasses={showClasses}
+            showNewBlock={showNewBlock}
             selectedPropertyUuids={selectedPropertyUuids}
             onPropertyColumnsChange={handlePropertyColumnsChange}
             onNodeClick={(node) => onNodeClick?.(node.uuid, node.is_page)}
@@ -1057,6 +1061,7 @@ export function QueryNodeCollection({
                 can_edit={can_edit}
                 can_delete={can_delete}
                 showClasses={showClasses}
+                showNewBlock={showNewBlock}
                 selectedPropertyUuids={selectedPropertyUuids}
                 onPropertyColumnsChange={handlePropertyColumnsChange}
                 onNodeClick={(node) => onNodeClick?.(node.uuid, node.is_page)}

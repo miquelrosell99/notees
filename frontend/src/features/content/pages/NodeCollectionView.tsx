@@ -89,6 +89,7 @@ export function NodeCollectionView({ title, queryAST, nodes }: NodeCollectionVie
             can_create={false}
             showClasses={true}
             showAddButton={false}
+            showNewBlock={false}
           >
             {({ results }) => results}
           </QueryNodeCollection>

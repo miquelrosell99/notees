@@ -4,11 +4,6 @@
   align-items: center;
 }
 
-.sync-status-indicator__label {
-  margin-left: var(--space-1, 4px);
-  font-size: var(--font-size-sm, 0.875rem);
-}
-
 .sync-status-indicator__icon--spin {
   animation: sync-status-spin 1s linear infinite;
 }

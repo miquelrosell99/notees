@@ -33,6 +33,9 @@
   flex-direction: column;
   max-height: 90vh;
   min-height: min-content;
+  /* Never shrink below the natural width of the header, content, or footer
+     so buttons and other non-wrapping elements stay inside the modal. */
+  min-width: min-content;
   animation: modalSlideIn var(--motion-duration-long) var(--motion-easing-decelerate);
 }
 

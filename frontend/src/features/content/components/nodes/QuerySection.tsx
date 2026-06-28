@@ -119,6 +119,7 @@ export function QuerySection({
       hideViewManagement={hideViewManagement}
       can_create={can_create}
       showClasses={showClasses}
+      showNewBlock={false}
       queryAST={queryAST}
       onQueryASTChange={onQueryASTChange}
       leftElement={renderHeader}

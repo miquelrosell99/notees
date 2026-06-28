@@ -122,7 +122,7 @@
 
 .support-badge__confirm-footer {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   justify-content: flex-end;
   gap: var(--spacing-2);
@@ -130,12 +130,6 @@
 }
 
 .support-badge__confirm-footer .btn {
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   min-width: fit-content;
-}
-
-@media (min-width: 480px) {
-  .support-badge__confirm-footer .btn {
-    flex: 0 0 auto;
-  }
 }

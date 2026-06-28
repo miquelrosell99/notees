@@ -534,6 +534,7 @@ export const BlockRow = memo(
                   variant="ghost"
                   size="xs"
                   active={backlinkExpanded}
+                  className="block-row__backlink-button"
                   onClick={toggleBacklinks}
                   onMouseDown={(e: React.MouseEvent) => e.stopPropagation()}
                   onPointerDown={(e: React.PointerEvent) => e.stopPropagation()}
