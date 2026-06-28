@@ -124,7 +124,7 @@ jobs:
           esac
           cp "build/app/outputs/flutter-apk/$apk_file" dist/notees.apk
 
-      - name: Sign release APK
+      - name: Sign release APK with production keystore
         if: ${{ (inputs.sign-release == true || github.event.inputs.sign-release == 'true') && env.BUILD_MODE == 'release' }}
         working-directory: mobile
         env:
@@ -150,6 +150,21 @@ jobs:
             --out dist/notees-signed.apk
           mv dist/notees-signed.apk dist/notees.apk
           rm -rf "$tmpdir"
+
+      - name: Sign APK with debug keystore
+        if: ${{ !((inputs.sign-release == true || github.event.inputs.sign-release == 'true') && env.BUILD_MODE == 'release') }}
+        working-directory: mobile
+        run: |
+          apksigner=$(ls -1 "$ANDROID_SDK_ROOT"/build-tools/*/apksigner | sort -V | tail -1)
+          echo "Using apksigner: $apksigner"
+          "$apksigner" sign \
+            --ks android/app/debug.keystore \
+            --ks-pass pass:android \
+            --key-pass pass:android \
+            --alias androiddebugkey \
+            --in dist/notees.apk \
+            --out dist/notees-signed.apk
+          mv dist/notees-signed.apk dist/notees.apk
 
       - name: Rename APK with version
         id: artifact
