@@ -11,13 +11,14 @@ from typing import TYPE_CHECKING
 
 from fastapi import APIRouter
 
+from .ports import RouterRegistration
+
 if TYPE_CHECKING:
     from .manifest import PluginManifest
     from .ports import (
         ClassSideEffectHandler,
         ExporterAdapter,
         ImporterAdapter,
-        RouterRegistration,
         SettingSchema,
         SyncSource,
     )
