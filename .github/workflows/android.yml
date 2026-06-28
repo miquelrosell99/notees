@@ -149,7 +149,7 @@ jobs:
             --ks "$tmpdir/keystore.jks" \
             --ks-pass "pass:$ANDROID_KEYSTORE_PASSWORD" \
             --key-pass "pass:${ANDROID_KEY_PASSWORD:-$ANDROID_KEYSTORE_PASSWORD}" \
-            --alias "${ANDROID_KEY_ALIAS:-androiddebugkey}" \
+            --ks-key-alias "${ANDROID_KEY_ALIAS:-androiddebugkey}" \
             --in dist/notees.apk \
             --out dist/notees-signed.apk
           mv dist/notees-signed.apk dist/notees.apk
@@ -165,7 +165,7 @@ jobs:
             --ks android/app/debug.keystore \
             --ks-pass pass:android \
             --key-pass pass:android \
-            --alias androiddebugkey \
+            --ks-key-alias androiddebugkey \
             --in dist/notees.apk \
             --out dist/notees-signed.apk
           mv dist/notees-signed.apk dist/notees.apk
