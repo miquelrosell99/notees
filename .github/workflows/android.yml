@@ -73,21 +73,59 @@ jobs:
           version=$(grep '^version:' pubspec.yaml | sed 's/.*://' | xargs)
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
-      - name: Set up Docker
-        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - name: Set up Java
+        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4
+        with:
+          distribution: zulu
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          channel: stable
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3
+
+      - name: Cache pub dependencies
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/.pub-cache
+          key: ${{ runner.os }}-pub-cache-${{ hashFiles('mobile/pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-pub-cache-
+
+      - name: Set up Gradle cache
+        uses: gradle/actions/setup-gradle@94baf225fe0a508e581a564467443d0e2379123b # v4.3.0
+        with:
+          gradle-home-cache-cleanup: true
+
+      - name: Install dependencies
+        working-directory: mobile
+        run: flutter pub get
 
       - name: Static analysis
-        run: |
-          cd mobile
-          docker compose run --rm flutter flutter analyze
+        working-directory: mobile
+        run: flutter analyze
 
       - name: Build APK
+        working-directory: mobile
         run: |
-          cd mobile
-          ./build-apk.sh apk "$BUILD_MODE"
+          flutter build apk --"$BUILD_MODE"
+          mkdir -p dist
+          case "$BUILD_MODE" in
+            release) apk_file="app-release.apk" ;;
+            debug) apk_file="app-debug.apk" ;;
+            profile) apk_file="app-profile.apk" ;;
+            *)
+              echo "::error::Unsupported build mode: $BUILD_MODE"
+              exit 1
+              ;;
+          esac
+          cp "build/app/outputs/flutter-apk/$apk_file" dist/notees.apk
 
       - name: Sign release APK
-        if: ${{ (inputs.sign-release || github.event.inputs.sign-release) && env.BUILD_MODE == 'release' }}
+        if: ${{ (inputs.sign-release == true || github.event.inputs.sign-release == 'true') && env.BUILD_MODE == 'release' }}
         working-directory: mobile
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -101,20 +139,15 @@ jobs:
           fi
           tmpdir=$(mktemp -d)
           echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$tmpdir/keystore.jks"
-          docker run --rm \
-            -v "$PWD/dist:/dist" \
-            -v "$tmpdir:/signing:ro" \
-            -e KEYSTORE_PASS="$ANDROID_KEYSTORE_PASSWORD" \
-            -e KEY_ALIAS="${ANDROID_KEY_ALIAS:-androiddebugkey}" \
-            -e KEY_PASS="${ANDROID_KEY_PASSWORD:-$ANDROID_KEYSTORE_PASSWORD}" \
-            ghcr.io/cirruslabs/flutter:stable \
-            /opt/android-sdk-linux/build-tools/36.0.0/apksigner sign \
-              --ks /signing/keystore.jks \
-              --ks-pass "env:KEYSTORE_PASS" \
-              --key-pass "env:KEY_PASS" \
-              --alias "${ANDROID_KEY_ALIAS:-androiddebugkey}" \
-              --in /dist/notees.apk \
-              --out /dist/notees-signed.apk
+          apksigner=$(ls -1 "$ANDROID_SDK_ROOT"/build-tools/*/apksigner | sort -V | tail -1)
+          echo "Using apksigner: $apksigner"
+          "$apksigner" sign \
+            --ks "$tmpdir/keystore.jks" \
+            --ks-pass "pass:$ANDROID_KEYSTORE_PASSWORD" \
+            --key-pass "pass:${ANDROID_KEY_PASSWORD:-$ANDROID_KEYSTORE_PASSWORD}" \
+            --alias "${ANDROID_KEY_ALIAS:-androiddebugkey}" \
+            --in dist/notees.apk \
+            --out dist/notees-signed.apk
           mv dist/notees-signed.apk dist/notees.apk
           rm -rf "$tmpdir"
 
