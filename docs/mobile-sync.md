@@ -49,9 +49,9 @@ for cross-instance fan-out.
 
 The mobile app already has:
 
-- `sqflite: ^2.4.1` in `mobile/pubspec.yaml`.
-- An offline queue abstraction in `mobile/lib/domain/services/offline_queue.dart`.
-- `mobile/lib/domain/services/editor_save_service.dart` for debounced editor saves.
+- `sqflite: ^2.4.1` in `notees-flutter/pubspec.yaml`.
+- An offline queue abstraction in `notees-flutter/lib/domain/services/offline_queue.dart`.
+- `notees-flutter/lib/domain/services/editor_save_service.dart` for debounced editor saves.
 
 These existing services can be extended with the same `OperationIntent` shape
 used by the web client and queued to a local `outbox` table. The sync protocol

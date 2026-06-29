@@ -77,21 +77,15 @@ docker compose up -d
 
 ## Mobile
 
-```bash
-cd mobile
-./build-apk.sh
-```
-
-The debug keystore is checked into the repo intentionally (it is not a secret).
+The Flutter mobile app has been moved to its own repository:
+[miquelrosell99/notees-flutter](https://github.com/miquelrosell99/notees-flutter).
+See that repository's README and AGENTS.md for build instructions.
 
 ## Release Process
 
-Releases are automated through `.github/workflows/release.yml`. Pushing a Git tag that matches `v*` triggers the workflow, which:
+Releases are automated through `.github/workflows/release.yml`. Pushing a Git tag that matches `v*` triggers the workflow, which builds and pushes a multi-arch (`linux/amd64`, `linux/arm64`) Docker image to `ghcr.io/miquelrosell99/notees`.
 
-1. Builds and pushes a multi-arch (`linux/amd64`, `linux/arm64`) Docker image to `ghcr.io/miquelrosell99/notees`.
-2. Builds the Android APK in Docker and attaches it to the GitHub release with a SHA-256 checksum.
-
-Continuous integration for the Android app is handled by `.github/workflows/android.yml`, which builds the Flutter APK on every push or pull request that touches `mobile/**` and uploads it as a workflow artifact (no release is created).
+The Android APK is built and released from the `notees-flutter` repository.
 
 ### When to Push a New Tag
 
@@ -161,7 +155,7 @@ Before pushing a tag, verify the web app Docker image locally:
 docker build -t notees:canary .
 ```
 
-**Android APK builds must run in GitHub Actions only.** Do not build the release APK locally. The Android workflow (`.github/workflows/android.yml`) builds and uploads the APK on every push or pull request that touches `mobile/**`, and the `release.yml` workflow attaches it to GitHub releases. See `mobile/AGENTS.md` for details.
+**Android APK builds must run in GitHub Actions only.** Do not build the release APK locally. The Android workflow now lives in the `notees-flutter` repository and builds/uploads the APK on every push or pull request there. See `notees-flutter/AGENTS.md` for details.
 
 ## Docker Compose (Development)
 
