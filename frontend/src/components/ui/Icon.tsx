@@ -5,11 +5,12 @@
  * static asset (`/mdi-sprite.svg`) referenced with `<use>`.
  */
 import React from 'react';
+import { resolveIconSize } from './iconSizes';
 
 export interface IconProps {
   /** MDI CSS class string, e.g. "mdi mdi-heart-outline" or "mdi-heart-outline" */
   path: string;
-  /** Size multiplier (1 = 24px) or explicit CSS string */
+  /** Size multiplier (1 = 24px), named token (e.g. "sm"), or explicit CSS string */
   size?: number | string;
   /** CSS color */
   color?: string;
@@ -68,7 +69,8 @@ export const Icon: React.FC<IconProps> = ({
 
   const style: React.CSSProperties = { verticalAlign: 'middle' };
 
-  const width = typeof size === 'number' ? `${size * 24}px` : size;
+  const resolvedSize = resolveIconSize(size ?? 1);
+  const width = typeof resolvedSize === 'number' ? `${resolvedSize * 24}px` : resolvedSize;
   const height = width;
 
   if (color) {
