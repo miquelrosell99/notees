@@ -113,6 +113,8 @@ class SyncServiceV2:
 
         For create operations the target UUID is expected to be missing on the
         server, so it is excluded. Parent UUIDs are always expected to exist.
+        Anchor siblings (after_uuid) must also exist so the server can compute
+        the correct sequence.
         """
         existing: set[str] = set()
         for op in request.ops:
@@ -120,6 +122,8 @@ class SyncServiceV2:
                 existing.add(op.node_uuid)
             if op.parent_uuid:
                 existing.add(op.parent_uuid)
+            if op.after_uuid:
+                existing.add(op.after_uuid)
         return existing
 
     async def _resolve_existing_uuids(
@@ -177,6 +181,65 @@ class SyncServiceV2:
         unique_stale = [u for u in stale if not (u in seen or seen.add(u))]
         return unique_stale, "text_edit"
 
+    def _resolve_anchor_id(
+        self,
+        anchor_uuid: str | None,
+        resolved: dict[str, int],
+        created_ids: dict[str, int],
+    ) -> int | None:
+        """Resolve an anchor UUID (parent/after) to a numeric node id."""
+        if not anchor_uuid:
+            return None
+        return resolved.get(anchor_uuid) or created_ids.get(anchor_uuid)
+
+    async def _compute_sequence(
+        self,
+        parent_id: int | None,
+        after_id: int | None,
+    ) -> float:
+        """Compute a sibling sequence that places a node after ``after_id``.
+
+        Mirrors the client-side ordering logic in the operation reducer:
+        - ``after_id`` provided  → midpoint between it and the next sibling.
+        - ``after_id`` is None   → prepend before the first child.
+        - No children            → start at 0.
+        """
+        if parent_id is None:
+            return 0.0
+
+        repo = self._node_service._node_repo
+        children = await repo.get_children_ids(parent_id)
+        if not children:
+            return 0.0
+
+        if after_id is None:
+            first_seq = await repo.get_node_sequence(children[0])
+            return (first_seq if first_seq is not None else 0.0) - 1024.0
+
+        if after_id not in children:
+            # Anchor sibling missing or in a different parent; append at the end.
+            return await repo.get_max_sequence(parent_id) + 1024.0
+
+        after_index = children.index(after_id)
+        after_seq = await repo.get_node_sequence(after_id)
+        if after_seq is None:
+            after_seq = 0.0
+
+        if after_index >= len(children) - 1:
+            return after_seq + 1024.0
+
+        before_seq = await repo.get_node_sequence(children[after_index + 1])
+        if before_seq is None:
+            before_seq = after_seq + 1024.0
+
+        gap = before_seq - after_seq
+        if gap < 1e-9:
+            # No room between siblings; shift later siblings and land in the middle.
+            await repo.shift_sequences(parent_id, after_seq, 1024.0)
+            return after_seq + 512.0
+
+        return after_seq + gap / 2.0
+
     async def _apply_operation(
         self,
         op: OperationIntent,
@@ -200,25 +263,43 @@ class SyncServiceV2:
 
         elif op.type == "update_node":
             data = NodeUpdateData(name=op.name)
+            classes: list[int] | None = None
+            tags: list[int] | None = None
             if op.properties:
                 for key, value in op.properties.items():
                     if key == "icon":
                         data.icon = value
                     elif key == "color":
                         data.color = value
+                    elif key == "class_uuids" and isinstance(value, list):
+                        classes = [
+                            class_id
+                            for class_uuid in value
+                            if (class_id := await self._node_service._node_repo.find_node_id_by_uuid(class_uuid))
+                            is not None
+                        ]
+                    elif key == "tag_uuids" and isinstance(value, list):
+                        tags = [
+                            tag_id
+                            for tag_uuid in value
+                            if (tag_id := await self._node_service._node_repo.find_node_id_by_uuid(tag_uuid))
+                            is not None
+                        ]
             await self._node_service.update_node(
-                target_id, data, user_id=self._user_id
+                target_id, data, classes=classes, tags=tags, user_id=self._user_id
             )
 
         elif op.type == "create":
             content = op.content_ast or []
             name = json.dumps(content)
-            parent_id = resolved.get(op.parent_uuid) if op.parent_uuid else None
+            parent_id = self._resolve_anchor_id(op.parent_uuid, resolved, created_ids)
+            after_id = self._resolve_anchor_id(op.after_uuid, resolved, created_ids)
+            sequence = await self._compute_sequence(parent_id, after_id)
             node = await self._node_service.create_raw_node(
                 NodeCreateData(
                     name=name,
                     parent_id=parent_id,
-                    sequence=0.0,
+                    sequence=sequence,
                     is_page=op.is_page,
                     is_task=op.is_task,
                     is_daily=op.is_daily,
@@ -231,11 +312,13 @@ class SyncServiceV2:
                 created_ids[op.node_uuid] = node.id
 
         elif op.type == "move":
-            parent_id = resolved.get(op.parent_uuid) if op.parent_uuid else None
+            parent_id = self._resolve_anchor_id(op.parent_uuid, resolved, created_ids)
+            after_id = self._resolve_anchor_id(op.after_uuid, resolved, created_ids)
+            new_sequence = await self._compute_sequence(parent_id, after_id)
             await self._node_service.move_node(
                 target_id,
                 new_parent_id=parent_id,
-                new_sequence=0,
+                new_sequence=new_sequence,
                 user_id=self._user_id,
             )
 

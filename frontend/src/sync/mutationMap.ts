@@ -88,17 +88,19 @@ function serializeContentAST(contentAST: UpdateContentPayload['contentAST']): st
 function apiNodeFromOperation(operation: Operation): Node {
   // SyncManager must pass the projected node from OperationRuntime for cache updates.
   // This function is only a fallback if the caller does not supply one.
+  const runtime = getOperationRuntime();
+  const projectedNode = runtime.getNode(operation.blockId);
   return {
     uuid: operation.blockId,
     name: serializeContentAST((operation.payload as UpdateContentPayload).contentAST ?? []),
     icon: null,
     color: null,
-    parent_uuid: null,
+    parent_uuid: projectedNode?.parentId ?? null,
     page_uuid: null,
-    sequence: 0,
-    collapsed: false,
+    sequence: projectedNode?.orderIndex ?? 0,
+    collapsed: projectedNode?.collapsed ?? false,
     active: true,
-    is_page: false,
+    is_page: projectedNode?.isPage ?? false,
     create_date: new Date().toISOString(),
     write_date: new Date().toISOString(),
   };
@@ -127,6 +129,7 @@ export function operationToApiRequest(operation: Operation):
   switch (operation.type) {
     case 'create': {
       const payload = operation.payload as CreatePayload;
+      const projectedNode = runtime.getNode(operation.blockId);
       return {
         type: 'create',
         data: {
@@ -134,7 +137,7 @@ export function operationToApiRequest(operation: Operation):
           parent_uuid: payload.parentId
             ? runtime.getNode(payload.parentId)?.blockId ?? payload.parentId
             : null,
-          sequence: 0, // computed server-side from parent/after
+          sequence: projectedNode?.orderIndex ?? 0,
           uuid: operation.blockId,
         },
       };
@@ -148,6 +151,7 @@ export function operationToApiRequest(operation: Operation):
     }
     case 'move': {
       const payload = operation.payload as MovePayload;
+      const projectedNode = runtime.getNode(operation.blockId);
       return {
         type: 'update',
         uuid: nodeUuid,
@@ -155,7 +159,7 @@ export function operationToApiRequest(operation: Operation):
           parent_uuid: payload.parentId
             ? runtime.getNode(payload.parentId)?.blockId ?? payload.parentId
             : null,
-          sequence: 0, // computed server-side from parent/after
+          sequence: projectedNode?.orderIndex ?? 0,
         },
       };
     }

@@ -57,10 +57,27 @@ export function useCreateNode() {
       const contentAST = variables.name
         ? [{ type: 'paragraph' as const, children: [{ type: 'text' as const, text: variables.name }] }]
         : [{ type: 'paragraph' as const, children: [{ type: 'text' as const, text: '' }] }];
+
+      // If the caller supplied a target sequence, find the sibling that will
+      // sit immediately before the new block so the optimistic position matches
+      // the eventual server order.
+      const siblings = runtime.getChildren(parentUuid);
+      let afterBlockId: string | null = null;
+      if (variables.sequence !== undefined && variables.sequence !== null) {
+        const targetSequence = variables.sequence;
+        const firstAfter = siblings.find((s) => s.orderIndex >= targetSequence);
+        if (firstAfter) {
+          const index = siblings.indexOf(firstAfter);
+          afterBlockId = index > 0 ? siblings[index - 1].blockId : null;
+        } else {
+          afterBlockId = siblings.length > 0 ? siblings[siblings.length - 1].blockId : null;
+        }
+      }
+
       getUndoEngine().applyIntent({
         type: 'create_block',
         parentId: parentUuid,
-        afterBlockId: null,
+        afterBlockId,
         blockId,
         contentAST,
       });
