@@ -38,7 +38,7 @@ import { BlockFindReplacePlugin } from '@/features/editor';
 import { flushAllContentSaves } from '@/features/editor';
 import './BlockList.css';
 import { getOperationRuntime } from '@/runtime';
-import { getNode, getChildren } from '@/runtime/graphHelpers';
+import { getNode, getChildren, isValidServerNodeId } from '@/runtime/graphHelpers';
 import { getRuntimeEventBus } from '@/runtime/eventBus';
 import { getUndoEngine } from '@/stores/undoEngine';
 import type { MutationIntent } from '@/runtime/types';
@@ -391,6 +391,17 @@ export function BlockList({
   const handleGhostRealize = useCallback((ghostUuid: string) => {
     const parentUuid = parseGhostParentUuid(ghostUuid);
     if (!parentUuid) return;
+
+    // Defensive guard: the parent encoded in a ghost ID must be a plausible
+    // server-side node UUID. Virtual roots, pseudo UUIDs, and other synthetic
+    // IDs cannot own persisted blocks, so creating under them would generate a
+    // sync conflict and a subsequent 404 fetch.
+    if (!isValidServerNodeId(parentUuid)) {
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('[BlockList] Ghost realize aborted: parent UUID is not a valid server node ID:', parentUuid);
+      }
+      return;
+    }
 
     flushAllContentSaves();
     const runtime = getOperationRuntime();
