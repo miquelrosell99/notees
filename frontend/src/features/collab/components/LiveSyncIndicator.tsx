@@ -1,15 +1,14 @@
 /**
- * LiveSyncIndicator — Minimal dot indicator next to the app title.
+ * LiveSyncIndicator — Offline-only indicator next to the app title.
  *
- * Shows a colored dot indicating the WebSocket live-sync state:
- * - Green pulse = connected and syncing
- * - Yellow = connecting / reconnecting
- * - Red hollow circle = error / disconnected
- * - Hidden = no page active (idle)
+ * The indicator is hidden while live sync is idle, connecting, or connected.
+ * It appears only when the WebSocket is disconnected or in an error state,
+ * showing a crossed-cloud icon.
  */
 
 import { useEffect, useState } from 'react';
 import { liveSyncManager } from '@/features/collab';
+import { Icon } from '@/components/ui/icons';
 import './LiveSyncIndicator.css';
 
 export function LiveSyncIndicator() {
@@ -22,23 +21,20 @@ export function LiveSyncIndicator() {
     return unsub;
   }, []);
 
-  if (status === 'idle') return null;
+  if (status === 'idle' || status === 'connected' || status === 'connecting') {
+    return null;
+  }
 
-  const label =
-    status === 'connected'
-      ? 'Live sync active'
-      : status === 'connecting'
-        ? 'Connecting…'
-        : status === 'error'
-          ? 'Sync error'
-          : 'Offline';
+  const label = status === 'error' ? 'Sync error' : 'Offline';
 
   return (
     <span
-      className={`live-sync-indicator live-sync-indicator--${status}`}
+      className="live-sync-indicator live-sync-indicator--offline"
       title={label}
       aria-label={label}
       role="status"
-    />
+    >
+      <Icon path="mdi-cloud-off-outline" size="sm" color="var(--color-error)" />
+    </span>
   );
 }
