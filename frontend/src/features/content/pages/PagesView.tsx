@@ -176,6 +176,7 @@ export function PagesView({ initialViewMode }: PagesViewProps) {
             onPropertyColumnsChange={setSelectedPropertyUuids}
             cardLayout={cardLayout}
             onCardLayoutChange={setCardLayout}
+            showNewBlock={false}
           />
         </DataStateView>
       </div>

@@ -102,6 +102,7 @@ export function NodeCollectionView({ title, queryAST, nodes }: NodeCollectionVie
             onNodeClick={(node) => openNode(node.uuid)}
             onNodeShiftClick={(node) => addSidebarCard(node.uuid, node.is_page ? 'page' : 'block')}
             showAddButton={false}
+            showNewBlock={false}
           />
         ) : (
           <div className="empty-state">No results to display</div>
