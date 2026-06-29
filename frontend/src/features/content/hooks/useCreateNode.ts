@@ -26,6 +26,7 @@ import { getRuntimeEventBus } from '@/runtime/eventBus';
 import { invalidateNodeCaches } from './useNodeMutations.utils';
 import { insertChildIntoTreeCaches } from '@/hooks/cacheUtils';
 import { inFlightBlocks } from './useBlockPersist.utils';
+import { generateUUID } from '@/utils/uuid';
 
 export function useCreateNode() {
   const queryClient = useQueryClient();
@@ -53,7 +54,7 @@ export function useCreateNode() {
       await queryClient.cancelQueries({ queryKey: nodeKeys.pageContents() });
 
       // Create a runtime intent for optimistic rendering
-      const blockId = crypto.randomUUID();
+      const blockId = generateUUID();
       const contentAST = variables.name
         ? [{ type: 'paragraph' as const, children: [{ type: 'text' as const, text: variables.name }] }]
         : [{ type: 'paragraph' as const, children: [{ type: 'text' as const, text: '' }] }];

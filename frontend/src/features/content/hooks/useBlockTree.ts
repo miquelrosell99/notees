@@ -17,7 +17,7 @@ import { useState, useEffect, useMemo, useLayoutEffect, useCallback } from 'reac
 import { useParams } from 'react-router-dom';
 import { getOperationRuntime } from '@/runtime';
 import type { OperationRuntime } from '@/runtime';
-import { getNode, getAllNodes } from '@/runtime/graphHelpers';
+import { getNode, getAllNodes, isValidServerNodeId } from '@/runtime/graphHelpers';
 import { upsertNodes } from '@/runtime/eventBus';
 
 import { getRuntimeEventBus } from '@/runtime/eventBus';
@@ -260,7 +260,14 @@ export function flattenNodesFromRuntime(
         // child ghost is suppressed because the root ghost (at depth 1) already
         // serves as the "new child of the focused block" placeholder.
         const isRootLevel = depth === 0;
-        if (!readOnly && showNewBlock && !pagesOnly && !skipPages && !(rootIsBlock && isRootLevel)) {
+        if (
+          !readOnly &&
+          showNewBlock &&
+          !pagesOnly &&
+          !skipPages &&
+          !(rootIsBlock && isRootLevel) &&
+          isValidServerNodeId(nodeUuid)
+        ) {
           result.push(createGhostFlatNode(nodeUuid, depth + 1));
         }
       }
@@ -293,7 +300,7 @@ export function flattenNodesFromRuntime(
 
   const result = flatten(topLevel, 0);
   // Trailing pseudo-block for the root list.
-  if (!readOnly && showNewBlock && rootUuid) {
+  if (!readOnly && showNewBlock && rootUuid && isValidServerNodeId(rootUuid)) {
     // In focused block view the root is the focused block; new blocks created
     // from the root ghost are children of that block, so indent one level deeper.
     const rootGhostDepth = rootIsBlock ? 1 : 0;

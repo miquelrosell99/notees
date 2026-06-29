@@ -14,20 +14,32 @@ vi.mock('@/features/sync', () => ({
   useUIStateStore: vi.fn(() => ({})),
 }));
 
+// Realistic UUIDs so ghost-block validation (which rejects non-UUID / pseudo IDs) passes.
+const PAGE_UUID = '11111111-1111-1111-1111-111111111111';
+const PARENT_UUID = '22222222-2222-2222-2222-222222222222';
+const NEW_BLOCK_UUID = '33333333-3333-3333-3333-333333333333';
+const NEW_CHILD_UUID = '44444444-4444-4444-4444-444444444444';
+const ROOT_UUID = '55555555-5555-5555-5555-555555555555';
+const ROOT1_UUID = '66666666-6666-6666-6666-666666666666';
+const ROOT2_UUID = '77777777-7777-7777-7777-777777777777';
+const SHARED_UUID = '88888888-8888-8888-8888-888888888888';
+const MIDDLE_UUID = '99999999-9999-9999-9999-999999999999';
+const ZERO_UUID = '00000000-0000-0000-0000-000000000000';
+
 describe('flattenNodesFromRuntime', () => {
   it('shows a runtime-only top-level block even when the root page is not in the prop tree', () => {
     const runtime = new OperationRuntime();
     runtime.applyOperation({
       id: 'create-op',
       type: 'create',
-      blockId: 'new-block',
+      blockId: NEW_BLOCK_UUID,
       state: 'pending',
       dependsOn: [],
       retryCount: 0,
       maxRetries: 3,
       createdAt: Date.now(),
       payload: {
-        parentId: 'page-uuid',
+        parentId: PAGE_UUID,
         afterBlockId: null,
         contentAST: [{ type: 'paragraph', children: [{ type: 'text', text: 'new' }] }],
       },
@@ -43,13 +55,13 @@ describe('flattenNodesFromRuntime', () => {
       false,
       false,
       true,
-      'page-uuid',
+      PAGE_UUID,
       false,
     );
 
     const realNodes = flat.filter((n) => !n.isGhost);
     expect(realNodes).toHaveLength(1);
-    expect(realNodes[0].node.uuid).toBe('new-block');
+    expect(realNodes[0].node.uuid).toBe(NEW_BLOCK_UUID);
     expect(realNodes[0].depth).toBe(0);
 
     const ghosts = flat.filter((n) => n.isGhost);
@@ -61,14 +73,14 @@ describe('flattenNodesFromRuntime', () => {
     runtime.applyOperation({
       id: 'create-op',
       type: 'create',
-      blockId: 'new-block',
+      blockId: NEW_BLOCK_UUID,
       state: 'pending',
       dependsOn: [],
       retryCount: 0,
       maxRetries: 3,
       createdAt: Date.now(),
       payload: {
-        parentId: 'page-uuid',
+        parentId: PAGE_UUID,
         afterBlockId: null,
         contentAST: [{ type: 'paragraph', children: [{ type: 'text', text: 'new' }] }],
       },
@@ -76,7 +88,7 @@ describe('flattenNodesFromRuntime', () => {
     runtime.applyOperation({
       id: 'delete-op',
       type: 'delete',
-      blockId: 'new-block',
+      blockId: NEW_BLOCK_UUID,
       state: 'pending',
       dependsOn: [],
       retryCount: 0,
@@ -95,19 +107,19 @@ describe('flattenNodesFromRuntime', () => {
       false,
       false,
       true,
-      'page-uuid',
+      PAGE_UUID,
       false,
     );
 
-    expect(flat.some((n) => n.node.uuid === 'new-block')).toBe(false);
+    expect(flat.some((n) => n.node.uuid === NEW_BLOCK_UUID)).toBe(false);
   });
 
   it('keeps runtime-only nested blocks under their real parent', () => {
     const runtime = new OperationRuntime();
     runtime.loadBaseNodes([
       {
-        blockId: 'parent-uuid',
-        parentId: 'page-uuid',
+        blockId: PARENT_UUID,
+        parentId: PAGE_UUID,
         orderIndex: 0,
         nodeType: 'block',
         contentAST: [{ type: 'paragraph', children: [{ type: 'text', text: 'parent' }] }],
@@ -127,14 +139,14 @@ describe('flattenNodesFromRuntime', () => {
     runtime.applyOperation({
       id: 'create-op',
       type: 'create',
-      blockId: 'new-child',
+      blockId: NEW_CHILD_UUID,
       state: 'pending',
       dependsOn: [],
       retryCount: 0,
       maxRetries: 3,
       createdAt: Date.now(),
       payload: {
-        parentId: 'parent-uuid',
+        parentId: PARENT_UUID,
         afterBlockId: null,
         contentAST: [{ type: 'paragraph', children: [{ type: 'text', text: 'child' }] }],
       },
@@ -143,11 +155,11 @@ describe('flattenNodesFromRuntime', () => {
     const flat = flattenNodesFromRuntime(
       [
         {
-          uuid: 'parent-uuid',
+          uuid: PARENT_UUID,
           name: '[{"type":"paragraph","children":[{"type":"text","text":"parent"}]}]',
           icon: null,
           color: null,
-          parent_uuid: 'page-uuid',
+          parent_uuid: PAGE_UUID,
           page_uuid: null,
           sequence: 0,
           collapsed: false,
@@ -171,11 +183,11 @@ describe('flattenNodesFromRuntime', () => {
       false,
       false,
       true,
-      'page-uuid',
+      PAGE_UUID,
       false,
     );
 
-    const child = flat.find((n) => n.node.uuid === 'new-child');
+    const child = flat.find((n) => n.node.uuid === NEW_CHILD_UUID);
     expect(child).toBeDefined();
     expect(child!.depth).toBe(1);
   });
@@ -183,11 +195,11 @@ describe('flattenNodesFromRuntime', () => {
   it('renders each node once even when a UUID appears in multiple tree branches', () => {
     const runtime = new OperationRuntime();
     const shared: Node = {
-      uuid: 'shared',
+      uuid: SHARED_UUID,
       name: 'Shared',
       icon: null,
       color: null,
-      parent_uuid: 'root',
+      parent_uuid: ROOT_UUID,
       page_uuid: null,
       sequence: 0,
       collapsed: false,
@@ -206,11 +218,11 @@ describe('flattenNodesFromRuntime', () => {
     const flat = flattenNodesFromRuntime(
       [
         {
-          uuid: 'root1',
+          uuid: ROOT1_UUID,
           name: 'Root 1',
           icon: null,
           color: null,
-          parent_uuid: 'root',
+          parent_uuid: ROOT_UUID,
           page_uuid: null,
           sequence: 0,
           collapsed: false,
@@ -226,11 +238,11 @@ describe('flattenNodesFromRuntime', () => {
           properties_uuid: {},
         },
         {
-          uuid: 'root2',
+          uuid: ROOT2_UUID,
           name: 'Root 2',
           icon: null,
           color: null,
-          parent_uuid: 'root',
+          parent_uuid: ROOT_UUID,
           page_uuid: null,
           sequence: 1,
           collapsed: false,
@@ -240,11 +252,11 @@ describe('flattenNodesFromRuntime', () => {
           has_children: true,
           children: [
             {
-              uuid: 'middle',
+              uuid: MIDDLE_UUID,
               name: 'Middle',
               icon: null,
               color: null,
-              parent_uuid: 'root2',
+              parent_uuid: ROOT2_UUID,
               page_uuid: null,
               sequence: 0,
               collapsed: false,
@@ -278,13 +290,90 @@ describe('flattenNodesFromRuntime', () => {
       false,
       false,
       true,
-      'root',
+      ROOT_UUID,
       false,
     );
 
     const realUuids = flat.filter((n) => !n.isGhost).map((n) => n.node.uuid);
     expect(realUuids).toEqual([...new Set(realUuids)]);
-    expect(realUuids.filter((id) => id === 'shared')).toHaveLength(1);
+    expect(realUuids.filter((id) => id === SHARED_UUID)).toHaveLength(1);
+  });
+
+  it('does not emit a root ghost for the zero/pseudo UUID', () => {
+    const runtime = new OperationRuntime();
+    const flat = flattenNodesFromRuntime(
+      [],
+      -1,
+      false,
+      false,
+      runtime,
+      () => undefined,
+      false,
+      false,
+      true,
+      ZERO_UUID,
+      false,
+    );
+    expect(flat.some((n) => n.isGhost)).toBe(false);
+  });
+
+  it('does not emit a root ghost for a virtual root ID', () => {
+    const runtime = new OperationRuntime();
+    const flat = flattenNodesFromRuntime(
+      [],
+      -1,
+      false,
+      false,
+      runtime,
+      () => undefined,
+      false,
+      false,
+      true,
+      'vroot-abc-def-2',
+      false,
+    );
+    expect(flat.some((n) => n.isGhost)).toBe(false);
+  });
+
+  it('does not emit nested ghosts for nodes with invalid UUIDs', () => {
+    const runtime = new OperationRuntime();
+    const flat = flattenNodesFromRuntime(
+      [
+        {
+          uuid: 'not-a-uuid',
+          name: 'Bad node',
+          icon: null,
+          color: null,
+          parent_uuid: PAGE_UUID,
+          page_uuid: null,
+          sequence: 0,
+          collapsed: false,
+          active: true,
+          is_page: false,
+          is_deleted: false,
+          has_children: false,
+          children: [],
+          create_date: new Date().toISOString(),
+          write_date: new Date().toISOString(),
+          classes_uuid: [],
+          tags_uuid: [],
+          properties_uuid: {},
+        },
+      ],
+      -1,
+      false,
+      false,
+      runtime,
+      () => undefined,
+      false,
+      false,
+      true,
+      PAGE_UUID,
+      false,
+    );
+    const ghosts = flat.filter((n) => n.isGhost);
+    expect(ghosts).toHaveLength(1);
+    expect(ghosts[0].node.uuid).toBe(`__ghost-${PAGE_UUID}`);
   });
 });
 
@@ -311,15 +400,15 @@ describe('flattenNodes', () => {
   });
 
   it('renders each node once when a UUID appears in multiple tree branches', () => {
-    const shared = makeNode('shared');
+    const shared = makeNode(SHARED_UUID);
     const tree = [
-      makeNode('root1', [shared]),
-      makeNode('root2', [makeNode('middle', [shared])]),
+      makeNode(ROOT1_UUID, [shared]),
+      makeNode(ROOT2_UUID, [makeNode(MIDDLE_UUID, [shared])]),
     ];
 
     const flat = flattenNodes(tree, -1, false, false, () => undefined);
     const uuids = flat.map((n) => n.node.uuid);
-    expect(uuids.filter((id) => id === 'shared')).toHaveLength(1);
+    expect(uuids.filter((id) => id === SHARED_UUID)).toHaveLength(1);
     expect(uuids).toEqual([...new Set(uuids)]);
   });
 });

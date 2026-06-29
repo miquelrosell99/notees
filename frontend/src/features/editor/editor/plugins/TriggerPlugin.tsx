@@ -33,6 +33,7 @@ import { $createInlineLinkNode } from '@/features/editor/editor/nodes/InlineLink
 import { $createInlineDateRangeNode } from '@/features/editor/editor/nodes/InlineDateRangeNode';
 import { TriggerPopup, type TriggerPopupType } from './TriggerPopup';
 import { DateRangePicker } from '@/features/properties/components/DateRangePicker';
+import { generateUUID } from '@/utils/uuid';
 import type { DateRangeValue } from '@/utils/dateRange';
 import type { Node } from '@/types/api';
 import { getOperationRuntime } from '@/runtime';
@@ -526,7 +527,7 @@ export function TriggerPlugin({
         const hostNode = getNode(runtime, blockIdProp);
         if (!hostNode?.parentId) return;
 
-        const newBlockId = crypto.randomUUID();
+        const newBlockId = generateUUID();
         useEditorFocusStore.getState().setPendingFocus(newBlockId);
         applyRuntimeIntent({
           type: 'create_block',

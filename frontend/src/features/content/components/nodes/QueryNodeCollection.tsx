@@ -232,6 +232,8 @@ export function QueryNodeCollection({
 
   // Check if this is a pseudo-node (used for all_pages view)
   const isPseudoNode = nodeUuid === PSEUDO_NODE_UUID;
+  // Pseudo-nodes are not real persisted parents; never show a ghost block under them.
+  const effectiveShowNewBlock = isPseudoNode ? false : showNewBlock;
 
   // In inline mode the AST comes directly from the node's name — no NodeViews needed.
   // Ensure default views exist for normal mode — uses microtask batching so all
@@ -249,7 +251,7 @@ export function QueryNodeCollection({
     } else {
       setHasInitialized(true);
     }
-  }, [nodeUuid, viewType, isInlineMode]);
+  }, [nodeUuid, viewType, isInlineMode, isPseudoNode]);
 
   const isInitializing = !hasInitialized;
 
@@ -997,7 +999,7 @@ export function QueryNodeCollection({
             can_delete={can_delete}
             pagesOnly={queryPagesOnly}
             showClasses={showClasses}
-            showNewBlock={showNewBlock}
+            showNewBlock={effectiveShowNewBlock}
             selectedPropertyUuids={selectedPropertyUuids}
             onPropertyColumnsChange={handlePropertyColumnsChange}
             onNodeClick={(node) => onNodeClick?.(node.uuid, node.is_page)}
@@ -1062,7 +1064,7 @@ export function QueryNodeCollection({
                 can_edit={can_edit}
                 can_delete={can_delete}
                 showClasses={showClasses}
-                showNewBlock={showNewBlock}
+                showNewBlock={effectiveShowNewBlock}
                 selectedPropertyUuids={selectedPropertyUuids}
                 onPropertyColumnsChange={handlePropertyColumnsChange}
                 onNodeClick={(node) => onNodeClick?.(node.uuid, node.is_page)}

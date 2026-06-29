@@ -14,6 +14,7 @@ import type {
 import { DEFAULT_WHITEBOARD_DATA, DEFAULT_WHITEBOARD_SETTINGS } from '@/features/whiteboard/types/whiteboard';
 import { useGridSettings, useGridToggles } from './useWhiteboardSelectors';
 import { parseWhiteboardData, parseWhiteboardTitle } from './useWhiteboard.utils';
+import { generateUUID } from '@/utils/uuid';
 import { useWhiteboardSave } from './useWhiteboard.save';
 import { useWhiteboardHistory } from './useWhiteboard.history';
 import { useWhiteboardCreators } from './useWhiteboard.creators';
@@ -168,7 +169,7 @@ export function useWhiteboard(nodeUuid: string | null) {
         if (ids.includes(el.id)) {
           copies.push({
             ...structuredClone(el),
-            id: crypto.randomUUID(),
+            id: generateUUID(),
             x: el.x + 20,
             y: el.y + 20,
           } as WhiteboardElement);
@@ -192,7 +193,7 @@ export function useWhiteboard(nodeUuid: string | null) {
       const maxZ = Math.max(...elements.map(el => el.zIndex), 0);
       const pasted = clipboardRef.current.map((el, i) => ({
         ...structuredClone(el),
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         x: el.x + offsetX,
         y: el.y + offsetY,
         zIndex: maxZ + i + 1,

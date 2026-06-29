@@ -77,3 +77,25 @@ export function getNodeByServerId(runtime: OperationRuntime, blockId: string): G
   const node = runtime.getNode(blockId);
   return node ? coreNodeToGraphNode(node) : null;
 }
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Returns true for IDs that can plausibly be persisted server-side node UUIDs.
+ *
+ * Rejects:
+ * - ghost pseudo-block IDs (`__ghost-*`)
+ * - virtual root IDs created when no single parent exists (`vroot-*`)
+ * - the zero/pseudo UUID used for synthetic collections
+ * - empty or non-UUID strings
+ *
+ * This is a cheap client-side guard. It does not guarantee the node exists on
+ * the server, but it prevents obviously-invalid parents from being used in
+ * create/move operations.
+ */
+export function isValidServerNodeId(blockId: string | null | undefined): boolean {
+  if (!blockId) return false;
+  if (blockId.startsWith('__ghost-') || blockId.startsWith('vroot-')) return false;
+  if (blockId === '00000000-0000-0000-0000-000000000000') return false;
+  return UUID_REGEX.test(blockId);
+}

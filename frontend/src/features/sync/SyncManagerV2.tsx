@@ -11,6 +11,7 @@
 import { useEffect, useRef, useCallback, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { getOperationRuntime, type Operation } from '@/runtime';
+import { isValidServerNodeId } from '@/runtime/graphHelpers';
 import { liveSyncManager } from '@/features/collab';
 import { nodeKeys } from '@/hooks/queryKeys';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
@@ -191,16 +192,36 @@ export function SyncManagerV2({ workspaceUuid: workspaceUuidProp, clientId: clie
 
         const conflictType = (conflict?.conflict_type ?? 'text_edit') as ConflictType;
         for (const nodeUuid of staleNodes) {
+          // Skip IDs that cannot be real server nodes (ghost/virtual/pseudo UUIDs).
+          // These surface when the client generated an operation against an invalid
+          // parent; fetching them would always 404.
+          if (!isValidServerNodeId(nodeUuid)) {
+            if (process.env.NODE_ENV === 'development') {
+              console.warn('[SyncManagerV2] Skipping conflict fetch for invalid node UUID:', nodeUuid);
+            }
+            continue;
+          }
+
           const baseNode = queryClient.getQueryData<Node>(nodeKeys.detail(nodeUuid)) ?? null;
           const ourGraphNode = runtime.getNode(nodeUuid);
           const ourNode = ourGraphNode ? graphNodeToConflictNode(ourGraphNode) : null;
 
           await queryClient.invalidateQueries({ queryKey: nodeKeys.detail(nodeUuid) });
-          const theirNode = await queryClient.fetchQuery<Node>({
-            queryKey: nodeKeys.detail(nodeUuid),
-            queryFn: () => fetchNode(nodeUuid),
-            staleTime: 0,
-          });
+          let theirNode: Node | null = null;
+          try {
+            theirNode = await queryClient.fetchQuery<Node>({
+              queryKey: nodeKeys.detail(nodeUuid),
+              queryFn: () => fetchNode(nodeUuid),
+              staleTime: 0,
+            });
+          } catch (fetchError) {
+            const status = (fetchError as { response?: { status?: number } } | undefined)?.response?.status;
+            if (process.env.NODE_ENV === 'development') {
+              console.warn(`[SyncManagerV2] Conflict fetch failed for ${nodeUuid} (status ${status ?? 'unknown'}):`, fetchError);
+            }
+            // Node was deleted server-side; leave theirNode null so the conflict
+            // is recorded without crashing the sync loop.
+          }
 
           const sentOpIds = classified
             .filter((c) => c.kind === 'send')
