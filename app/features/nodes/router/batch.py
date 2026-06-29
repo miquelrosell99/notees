@@ -370,7 +370,7 @@ async def batch_update_nodes(
             # Apply class reconciliation and property values if provided
             if item_classes is not None or item_properties:
                 try:
-                    await service.apply_node_extras(node_id, item_classes, item_properties)
+                    await service.apply_node_extras(node_id, item_classes, None, item_properties)
                 except Exception as extras_err:
                     logger.warning(f"[BATCH_UPDATE] extras failed for node {node_id}: {extras_err}")
             updated += 1
