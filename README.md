@@ -25,7 +25,7 @@ This project was developed with the assistance of AI tools. AI was used througho
 
 ## Web vs. Mobile App
 
-The mobile app is a first-class native companion. It covers the workflows most useful on phones, while the web app remains the full-featured desktop editing surface.
+The mobile app is a first-class native companion. It covers the workflows most useful on phones, while the web app remains the full-featured desktop editing surface. The Flutter mobile app lives in its own repository: [miquelrosell99/notees-flutter](https://github.com/miquelrosell99/notees-flutter).
 
 | Feature | Web app | Mobile app |
 |---------|:-------:|:----------:|
@@ -123,7 +123,6 @@ notees/
 │   │   ├── stores/         # Zustand state management
 │   │   └── types/          # TypeScript types
 │   └── vite.config.ts
-├── mobile/                 # Mobile app (Flutter; Android + iOS)
 ├── tests/                  # Backend test suite (pytest)
 └── data/                   # User data (gitignored)
 ```
