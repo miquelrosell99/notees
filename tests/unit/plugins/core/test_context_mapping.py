@@ -92,6 +92,7 @@ class FakeNodeService:
         data: NodeUpdateData,
         user_id: int | None = None,
         classes: list[int] | None = None,
+        tags: list[int] | None = None,
         properties: dict[int, Any] | None = None,
     ) -> Node | None:
         node = await self._node_repo.update(node_id, data, user_id)
@@ -106,6 +107,7 @@ class FakeNodeService:
         self,
         node_id: int,
         classes: list[int] | None,
+        tags: list[int] | None,
         properties: dict[int, Any] | None,
     ) -> None:
         if properties:

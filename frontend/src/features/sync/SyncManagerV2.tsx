@@ -114,9 +114,22 @@ export function SyncManagerV2({ workspaceUuid, clientId }: SyncManagerV2Props): 
       inFlightRef.current.add(op.id);
     }
 
-    const intents = batch
-      .map((op) => operationToIntentV2(op, clientId, localSyncEngine.consumeSeq()))
-      .filter((intent): intent is NonNullable<typeof intent> => intent !== null);
+    const LOCAL_ONLY_OP_TYPES: ReadonlySet<Operation['type']> = new Set(['set_collapsed']);
+
+    const classified = batch.map((op) => {
+      if (LOCAL_ONLY_OP_TYPES.has(op.type)) {
+        return { op, kind: 'local-only' as const };
+      }
+      const intent = operationToIntentV2(op, clientId, localSyncEngine.consumeSeq());
+      if (intent === null) {
+        return { op, kind: 'unsupported' as const };
+      }
+      return { op, kind: 'send' as const, intent };
+    });
+
+    const intents = classified
+      .filter((c): c is { op: Operation; kind: 'send'; intent: NonNullable<typeof classified[number]['intent']> } => c.kind === 'send')
+      .map((c) => c.intent);
 
     const baseVector: BaseVector = {};
     for (const op of batch) {
@@ -137,9 +150,14 @@ export function SyncManagerV2({ workspaceUuid, clientId }: SyncManagerV2Props): 
       });
 
       updateAckedVector(response.new_vectors);
-      for (const op of batch) {
-        runtime.acknowledgeOperation(op.id);
-        await localSyncEngine.acknowledge(op.id);
+      for (const c of classified) {
+        if (c.kind === 'send' || c.kind === 'local-only') {
+          runtime.acknowledgeOperation(c.op.id);
+          await localSyncEngine.acknowledge(c.op.id);
+        } else {
+          runtime.failOperation(c.op.id, 'Unsupported sync v2 operation');
+          await localSyncEngine.remove(c.op.id);
+        }
       }
     } catch (error) {
       const axiosError = error as { response?: { status?: number; data?: { detail?: unknown } } } | undefined;
@@ -164,6 +182,9 @@ export function SyncManagerV2({ workspaceUuid, clientId }: SyncManagerV2Props): 
             staleTime: 0,
           });
 
+          const sentOpIds = classified
+            .filter((c) => c.kind === 'send')
+            .map((c) => c.op.id);
           useConflictStore.getState().addConflict({
             workspaceUuid,
             nodeUuid,
@@ -171,7 +192,7 @@ export function SyncManagerV2({ workspaceUuid, clientId }: SyncManagerV2Props): 
             baseNode,
             ourNode,
             theirNode,
-            operationIds: batch.map((op) => op.id),
+            operationIds: sentOpIds,
             createdAt: Date.now(),
           });
           useLivePresenceStore.getState().setConflict(nodeUuid, nodeUuid, {
@@ -179,8 +200,9 @@ export function SyncManagerV2({ workspaceUuid, clientId }: SyncManagerV2Props): 
           });
         }
 
+        const sentOps = classified.filter((c) => c.kind === 'send').map((c) => c.op);
         const requeue: Operation[] = [];
-        for (const op of batch) {
+        for (const op of sentOps) {
           const serverVec = serverVectors[op.blockId] ?? {};
           const clientVec = ackedVectorRef.current[op.blockId] ?? {};
           if (isBehind(serverVec, clientVec)) {
@@ -201,7 +223,8 @@ export function SyncManagerV2({ workspaceUuid, clientId }: SyncManagerV2Props): 
         }
       } else {
         const message = error instanceof Error ? error.message : String(error);
-        for (const op of batch) {
+        const sentOps = classified.filter((c) => c.kind === 'send').map((c) => c.op);
+        for (const op of sentOps) {
           const entry = localSyncEngine.getEntry(op.id);
           const nextAttempt = (entry?.attemptCount ?? 0) + 1;
           if (nextAttempt >= MAX_RETRIES) {

@@ -16,6 +16,7 @@
  * be read from cache by other hooks as well.
  */
 import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
+import { isApiError } from '@/api/client';
 import * as nodesApi from '@/api/nodes';
 import { nodeKeys } from './queryKeys';
 import type { Node } from '@/types/api';
@@ -144,10 +145,21 @@ export function useBreadcrumbs(nodeUuid: string | null) {
     queryKey: nodeKeys.breadcrumbsByUuid(nodeUuid ?? '__unresolved__'),
     queryFn: async () => {
       if (!nodeUuid) return [];
-      const response = await nodesApi.getBreadcrumbs(nodeUuid);
-      return response.breadcrumbs;
+      try {
+        const response = await nodesApi.getBreadcrumbs(nodeUuid);
+        return response.breadcrumbs;
+      } catch (error) {
+        // Breadcrumbs for a node that has not been persisted yet (e.g. an
+        // optimistic create) are not a fatal error; returning an empty chain
+        // prevents a spurious "node not found" toast.
+        if (isApiError(error) && error.response?.status === 404) {
+          return [];
+        }
+        throw error;
+      }
     },
     enabled: !!nodeUuid,
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
 }
+
