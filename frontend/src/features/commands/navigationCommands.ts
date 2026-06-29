@@ -5,7 +5,7 @@
  * on Zustand store actions and API functions.
  */
 import { registerCommand, COMMAND_IDS } from '@/stores/commandRegistry';
-import { useNavigationStore } from '@/stores';
+import { useNavigationStore, useModalStore } from '@/stores';
 import { useNotificationStore } from '@/stores/notificationStore';
 import { getRandomPages } from '@/api/nodes';
 import { buildTasksQueryAST, buildTodayQueryAST } from '@/utils/taskQueries';
@@ -83,6 +83,15 @@ registerCommand({
   context: 'global',
   palette: { category: 'navigation', keywords: ['flashcards'] },
   execute: () => useNavigationStore.getState().setMainViewType('flashcards'),
+});
+
+registerCommand({
+  id: COMMAND_IDS.SWITCH_WORKSPACE,
+  label: 'Switch workspace',
+  icon: 'mdi mdi-database-outline',
+  context: 'global',
+  palette: { category: 'navigation', keywords: ['workspace', 'graph', 'switch'] },
+  execute: () => useModalStore.getState().setShowWorkspaceManager(true),
 });
 
 registerCommand({
