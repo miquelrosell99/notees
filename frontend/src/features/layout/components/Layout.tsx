@@ -26,7 +26,7 @@ import { useSettingsQuery } from '@/features/workspace';
 import { recentKeys } from '@/hooks/queryKeys';
 import { markPageOpened, fixLinksForUuid } from '@/api/nodes';
 import type { BlockData } from '@/utils/clipboardManager';
-import { Sidebar } from './Sidebar';
+import { Sidebar, SidebarRail } from './Sidebar';
 import { MainContent } from './MainContent';
 import { TopBar } from './TopBar';
 import { TabBar } from './TabBar/TabBar';
@@ -284,10 +284,12 @@ export function Layout() {
           <div className={`app-canvas${wideMode ? ' wide-mode' : ''}`}>
             <TopBar />
             <div className="app-workspace" ref={workspaceRef}>
+              <SidebarRail hidden={isMobile || viewMode === 'focus'} />
               <aside
-                className={`sidebar-wrapper${isSidebarCollapsed ? ' sidebar-wrapper--collapsed' : ''}`}
+                className={`sidebar-wrapper sidebar-wrapper--content${isSidebarCollapsed ? ' sidebar-wrapper--collapsed' : ''}`}
                 style={leftSidebarStyle}
                 aria-label="Primary sidebar"
+                aria-hidden={isSidebarCollapsed}
               >
                 <Sidebar collapsed={isSidebarCollapsed} />
                 {!isSidebarCollapsed && (
@@ -313,7 +315,7 @@ export function Layout() {
               </aside>
               {tabPosition === 'left' && <TabBar />}
               <main id="main-content" className="main-container">
-                <Card className="main-container__card" padding={false} elevation="medium">
+                <Card className="main-container__card layout-card" padding={false} elevation="medium">
                   <MainContent />
                 </Card>
               </main>
@@ -345,7 +347,7 @@ export function Layout() {
                   /* eslint-enable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex */
                 )}
                 <Card
-                  className={`right-container ${showSidebar ? 'right-container--expanded' : 'right-container--collapsed'}`}
+                  className={`right-container ${showSidebar ? 'right-container--expanded' : 'right-container--collapsed'} layout-card`}
                   padding={false}
                   elevation="medium"
                 >

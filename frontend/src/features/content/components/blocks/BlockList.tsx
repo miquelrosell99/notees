@@ -574,7 +574,10 @@ export function BlockList({
                   top: 0,
                   left: 0,
                   width: '100%',
-                  transform: `translateY(${virtualRow.start}px)`,
+                  // scrollMargin is the inner list's offset from the scrollable
+                  // ancestor; subtract it so items are positioned relative to the
+                  // inner container, not the top of the scroll element.
+                  transform: `translateY(${virtualRow.start - scrollMargin}px)`,
                 }}
               >
                 <BlockRow

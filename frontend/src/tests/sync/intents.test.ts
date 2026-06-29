@@ -297,4 +297,242 @@ describe('intentToOperations with runtime state', () => {
     expect(ops[0].blockId).toBe(blockId);
     expect(ops[0].dependsOn).toContain('create-op');
   });
+
+  it('makes delete_block depend on a pending create for the same block', () => {
+    const runtime = getOperationRuntime();
+    runtime.applyOperation({
+      id: 'create-op',
+      type: 'create',
+      blockId: 'new-block',
+      state: 'pending',
+      dependsOn: [],
+      retryCount: 0,
+      maxRetries: 3,
+      createdAt: Date.now(),
+      payload: { parentId: 'parent-uuid', afterBlockId: null, contentAST: [] },
+    });
+
+    const ops = intentToOperations({ type: 'delete_block', blockId: 'new-block' }, runtime);
+
+    expect(ops).toHaveLength(1);
+    expect(ops[0].type).toBe('delete');
+    expect(ops[0].dependsOn).toContain('create-op');
+  });
+
+  it('moves depend on pending creates for the moved block and new parent', () => {
+    const runtime = getOperationRuntime();
+    runtime.applyOperation({
+      id: 'create-block',
+      type: 'create',
+      blockId: 'new-block',
+      state: 'pending',
+      dependsOn: [],
+      retryCount: 0,
+      maxRetries: 3,
+      createdAt: Date.now(),
+      payload: { parentId: 'parent-uuid', afterBlockId: null, contentAST: [] },
+    });
+    runtime.applyOperation({
+      id: 'create-parent',
+      type: 'create',
+      blockId: 'parent-uuid',
+      state: 'pending',
+      dependsOn: [],
+      retryCount: 0,
+      maxRetries: 3,
+      createdAt: Date.now(),
+      payload: { parentId: null, afterBlockId: null, contentAST: [] },
+    });
+
+    const ops = intentToOperations(
+      { type: 'move_block', blockId: 'new-block', newParentId: 'parent-uuid', afterBlockId: 'after-block' },
+      runtime,
+    );
+
+    expect(ops).toHaveLength(1);
+    expect(ops[0].type).toBe('move');
+    expect(ops[0].dependsOn).toContain('create-block');
+    expect(ops[0].dependsOn).toContain('create-parent');
+  });
+
+  it('outdent depends on pending creates for block and ancestors', () => {
+    const runtime = getOperationRuntime();
+    runtime.loadBaseNodes([
+      {
+        blockId: 'parent-uuid',
+        parentId: 'page-uuid',
+        orderIndex: 0,
+        nodeType: 'block',
+        contentAST: [],
+        collapsed: false,
+        isDeleted: false,
+        isPage: false,
+        name: '',
+        icon: null,
+        color: null,
+        classIds: [],
+        tagIds: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        version: 1,
+      },
+    ]);
+    runtime.applyOperation({
+      id: 'create-block',
+      type: 'create',
+      blockId: 'new-block',
+      state: 'pending',
+      dependsOn: [],
+      retryCount: 0,
+      maxRetries: 3,
+      createdAt: Date.now(),
+      payload: { parentId: 'parent-uuid', afterBlockId: null, contentAST: [] },
+    });
+
+    const ops = intentToOperations({ type: 'outdent_block', blockId: 'new-block' }, runtime);
+
+    const blockMove = ops.find((op) => op.type === 'move' && op.blockId === 'new-block');
+    expect(blockMove).toBeDefined();
+    expect(blockMove!.dependsOn).toContain('create-block');
+  });
+
+  it('makes create_block depend on a pending create for its parent', () => {
+    const runtime = getOperationRuntime();
+    runtime.applyOperation({
+      id: 'create-parent',
+      type: 'create',
+      blockId: 'parent-uuid',
+      state: 'pending',
+      dependsOn: [],
+      retryCount: 0,
+      maxRetries: 3,
+      createdAt: Date.now(),
+      payload: { parentId: null, afterBlockId: null, contentAST: [] },
+    });
+
+    const ops = intentToOperations(
+      {
+        type: 'create_block',
+        blockId: 'child-uuid',
+        parentId: 'parent-uuid',
+        afterBlockId: null,
+        contentAST: [{ type: 'paragraph', children: [{ type: 'text', text: '' }] }],
+      },
+      runtime,
+    );
+
+    expect(ops).toHaveLength(1);
+    expect(ops[0].type).toBe('create');
+    expect(ops[0].dependsOn).toContain('create-parent');
+  });
+
+  it('drops update_content for a block that is already deleted', () => {
+    const runtime = getOperationRuntime();
+    runtime.loadBaseNodes([
+      {
+        blockId: 'deleted-block',
+        parentId: null,
+        orderIndex: 0,
+        nodeType: 'block',
+        contentAST: [{ type: 'paragraph', children: [{ type: 'text', text: '' }] }],
+        collapsed: false,
+        isDeleted: true,
+        isPage: false,
+        name: '',
+        icon: null,
+        color: null,
+        classIds: [],
+        tagIds: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        version: 1,
+      },
+    ]);
+
+    const ops = intentToOperations(
+      {
+        type: 'update_content',
+        blockId: 'deleted-block',
+        contentAST: [{ type: 'paragraph', children: [{ type: 'text', text: 'hi' }] }],
+      },
+      runtime,
+    );
+
+    expect(ops).toHaveLength(0);
+  });
+
+  it('makes add_class depend on a pending create for the same block', () => {
+    const runtime = getOperationRuntime();
+    runtime.applyOperation({
+      id: 'create-op',
+      type: 'create',
+      blockId: 'new-block',
+      state: 'pending',
+      dependsOn: [],
+      retryCount: 0,
+      maxRetries: 3,
+      createdAt: Date.now(),
+      payload: { parentId: 'parent-uuid', afterBlockId: null, contentAST: [] },
+    });
+
+    const ops = intentToOperations(
+      { type: 'add_class', blockId: 'new-block', classId: 'class-uuid' },
+      runtime,
+    );
+
+    expect(ops).toHaveLength(1);
+    expect(ops[0].type).toBe('add_class');
+    expect(ops[0].dependsOn).toContain('create-op');
+  });
+
+  it('reorder_blocks chains move operations', () => {
+    const runtime = getOperationRuntime();
+    runtime.loadBaseNodes([
+      {
+        blockId: 'a',
+        parentId: 'parent-uuid',
+        orderIndex: 0,
+        nodeType: 'block',
+        contentAST: [],
+        collapsed: false,
+        isDeleted: false,
+        isPage: false,
+        name: '',
+        icon: null,
+        color: null,
+        classIds: [],
+        tagIds: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        version: 1,
+      },
+      {
+        blockId: 'b',
+        parentId: 'parent-uuid',
+        orderIndex: 1,
+        nodeType: 'block',
+        contentAST: [],
+        collapsed: false,
+        isDeleted: false,
+        isPage: false,
+        name: '',
+        icon: null,
+        color: null,
+        classIds: [],
+        tagIds: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        version: 1,
+      },
+    ]);
+
+    const ops = intentToOperations(
+      { type: 'reorder_blocks', parentId: 'parent-uuid', orderedBlockIds: ['a', 'b'] },
+      runtime,
+    );
+
+    expect(ops).toHaveLength(2);
+    const [first, second] = ops;
+    expect(second.dependsOn).toContain(first.id);
+  });
 });

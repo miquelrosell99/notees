@@ -1013,7 +1013,7 @@ export function QueryNodeCollection({
           />
 
           {/* Load more button for windowed results (hidden in gantt mode — filtering happens inside GanttView) */}
-          {hasMoreResults && (
+          {!hideContent && hasMoreResults && (
             <div className="query-section__load-more">
               <Button
                 variant="ghost"
@@ -1025,7 +1025,7 @@ export function QueryNodeCollection({
             </div>
           )}
           {/* Load more button for paginated linked references */}
-          {hasMoreLinkedRefs && (
+          {!hideContent && hasMoreLinkedRefs && (
             <div className="query-section__load-more">
               <Button
                 variant="ghost"
