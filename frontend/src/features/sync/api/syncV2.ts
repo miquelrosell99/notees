@@ -19,8 +19,17 @@ export interface OperationIntentV2 {
   name?: string | null;
   class_uuid?: string | null;
   tag_uuid?: string | null;
+  class_uuids?: string[] | null;
+  tag_uuids?: string[] | null;
   is_deleted?: boolean | null;
+  is_page?: boolean;
+  is_task?: boolean;
+  is_daily?: boolean;
+  is_monthly?: boolean;
+  is_yearly?: boolean;
   properties?: Record<string, unknown> | null;
+  property_uuid?: string | null;
+  property_value?: unknown;
 }
 
 export interface SyncBatchRequestV2 {
@@ -67,13 +76,21 @@ export function operationToIntentV2(op: Operation, clientId: string, seq: number
       return { ...base, properties: payload.updates ?? null };
     }
     case 'create': {
-      const payload = op.payload as { parentId?: string | null; afterBlockId?: string | null; contentAST?: unknown[] };
+      const payload = op.payload as {
+        parentId?: string | null;
+        afterBlockId?: string | null;
+        contentAST?: unknown[];
+        classIds?: string[];
+        tagIds?: string[];
+      };
       return {
         ...base,
         type: 'create',
         parent_uuid: payload.parentId ?? null,
         after_uuid: payload.afterBlockId ?? null,
         content_ast: payload.contentAST ?? null,
+        class_uuids: payload.classIds ?? null,
+        tag_uuids: payload.tagIds ?? null,
       };
     }
     case 'move':

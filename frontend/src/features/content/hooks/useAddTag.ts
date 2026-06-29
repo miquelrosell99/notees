@@ -5,11 +5,10 @@ import { nodeViewKeys } from './useNodeViews';
 import { awaitAllContentSaves } from '@/hooks/contentSaveTracker';
 import {
   findNodeInCache,
-  getRuntimeBlockIdForServerId,
+  ensureNodeInRuntime,
   applyNodeIntent,
 } from './useNodeMutations.utils';
 import { waitForOperationAck } from '@/sync/waitForOperation';
-import * as nodesApi from '@/api/nodes';
 
 /**
  * Hook to add a tag to a node (tags are stored in node.tag_ids).
@@ -26,10 +25,9 @@ export function useAddTag() {
       if (!nodeUuid) throw new Error('Node UUID not found');
       const tagUuid = tagId;
       if (!tagUuid) throw new Error('Tag UUID not found');
-      const blockId = getRuntimeBlockIdForServerId(nodeUuid);
+      const blockId = ensureNodeInRuntime(nodeUuid);
       if (!blockId) {
-        await nodesApi.addTagLink(nodeUuid, tagUuid);
-        return findNodeInCache(queryClient, nodeUuid);
+        throw new Error(`Node ${nodeUuid} is not available in the runtime`);
       }
 
       const operationId = applyNodeIntent({

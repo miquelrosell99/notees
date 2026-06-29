@@ -41,6 +41,36 @@ describe('operationToIntentV2', () => {
       parent_uuid: 'parent',
       after_uuid: 'after',
       content_ast: [{ type: 'paragraph', children: [{ type: 'text', text: 'hi' }] }],
+      class_uuids: null,
+      tag_uuids: null,
+    });
+  });
+
+  it('maps create with classes and tags', () => {
+    const operation = op({
+      id: 'op-1',
+      type: 'create',
+      blockId: 'new',
+      payload: {
+        parentId: 'parent',
+        afterBlockId: null,
+        contentAST: [{ type: 'paragraph', children: [{ type: 'text', text: 'hi' }] }],
+        classIds: ['class-a'],
+        tagIds: ['tag-a'],
+      },
+    });
+
+    const intent = operationToIntentV2(operation, 'client-1', 1);
+    expect(intent).toEqual({
+      type: 'create',
+      client_id: 'client-1',
+      seq: 1,
+      node_uuid: 'new',
+      parent_uuid: 'parent',
+      after_uuid: null,
+      content_ast: [{ type: 'paragraph', children: [{ type: 'text', text: 'hi' }] }],
+      class_uuids: ['class-a'],
+      tag_uuids: ['tag-a'],
     });
   });
 

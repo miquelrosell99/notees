@@ -5,6 +5,8 @@
 import type { QueryClient } from '@tanstack/react-query';
 import type { Node } from '@/types/api';
 import { nodeKeys } from '@/hooks/queryKeys';
+import { queryClient } from '@/lib/queryClient';
+import { apiNodeToGraphNode } from './useRuntimeSync';
 import { nodeViewKeys } from './useNodeViews';
 import { findNodeInRootTree } from '@/utils/nodeTree';
 import { getOperationRuntime } from '@/runtime';
@@ -192,12 +194,26 @@ export function applyNodeIntent(intent: MutationIntent): string {
  * Returns false if the node is not in the runtime (caller should fall back to
  * a direct API mutation).
  */
+export function ensureNodeInRuntime(nodeUuid: string): string | null {
+  const runtime = getOperationRuntime();
+  const runtimeNode = runtime.getNode(nodeUuid);
+  if (runtimeNode) {
+    return runtimeNode.blockId;
+  }
+
+  const cachedNode = queryClient.getQueryData<Node>(nodeKeys.byUuid(nodeUuid));
+  if (!cachedNode) return null;
+
+  const allClasses = queryClient.getQueryData<Node[]>(nodeKeys.classes());
+  runtime.upsertBaseNodes([apiNodeToGraphNode(cachedNode, allClasses ?? undefined)]);
+  return runtime.getNode(nodeUuid)?.blockId ?? cachedNode.uuid;
+}
+
 export async function emitNodeIntentAndWait(
   nodeUuid: string,
   intent: MutationIntent,
 ): Promise<boolean> {
-  const runtime = getOperationRuntime();
-  if (!runtime.getNode(nodeUuid)) return false;
+  if (!ensureNodeInRuntime(nodeUuid)) return false;
 
   const operationId = applyNodeIntent(intent);
   if (!operationId) return false;

@@ -197,8 +197,6 @@ export const workspaceKeys = {
   list: () => [...workspaceKeys.all, 'list'] as const,
   exportJob: (jobUuid: string | null | undefined) => ['export-job', jobUuid] as const,
   nameCheck: (name: string) => ['workspace-name-check', name] as const,
-  syncProtocolVersion: (workspaceUuid: string) =>
-    [...workspaceKeys.all, 'sync-protocol-version', workspaceUuid] as const,
 };
 
 // ==================== Auth Query Keys ====================

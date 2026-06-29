@@ -7,6 +7,9 @@ import uuid
 import pytest
 from httpx import AsyncClient
 
+from app.db.schema.constants import SYSTEM_CLASS_UUIDS
+from app.domain.entities.node import NodeCreateData
+
 pytestmark = pytest.mark.integration
 
 
@@ -206,3 +209,53 @@ class TestSyncBatchV2:
         assert len(matching) == 1
         values = matching[0]["values"]
         assert any(v.get("selection_line_uuid") == line["uuid"] for v in values)
+
+    @pytest.mark.asyncio
+    async def test_create_block_with_classes_and_tags(
+        self, authenticated_client: AsyncClient, node_service
+    ):
+        """A create op can assign classes and tags to the new block."""
+        page = await node_service.create_page("Class/Tag Test")
+        class_class_id = await node_service._node_repo.find_node_id_by_uuid(
+            SYSTEM_CLASS_UUIDS["class"]
+        )
+        class_node = await node_service.create_node(
+            NodeCreateData(name="My Class", classes=[class_class_id])
+        )
+        tag_node = await node_service.create_node(NodeCreateData(name="My Tag"))
+
+        block_uuid = str(uuid.uuid4())
+        response = await authenticated_client.post(
+            "/api/sync/batch",
+            json={
+                "ops": [
+                    {
+                        "type": "create",
+                        "client_id": "c1",
+                        "seq": 1,
+                        "node_uuid": block_uuid,
+                        "parent_uuid": str(page.uuid),
+                        "after_uuid": None,
+                        "content_ast": [
+                            {
+                                "type": "paragraph",
+                                "children": [{ "type": "text", "text": "hi" }],
+                            }
+                        ],
+                        "class_uuids": [str(class_node.uuid)],
+                        "tag_uuids": [str(tag_node.uuid)],
+                    }
+                ],
+                "base_vector": {},
+            },
+            headers={"X-Notees-Sync-Protocol": "v2"},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["applied"] is True
+
+        block = await node_service.get_node_by_uuid(block_uuid)
+        assert block is not None
+        assert class_node.id in (block.class_ids or [])
+        assert tag_node.id in (block.tag_ids or [])

@@ -8,7 +8,7 @@
  * Mounted by App when the active workspace uses sync protocol v2.
  */
 
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { getOperationRuntime, type Operation } from '@/runtime';
 import { liveSyncManager } from '@/features/collab';
@@ -23,6 +23,7 @@ import { useConflictStore, type ConflictType } from './stores/conflictStore';
 import { graphNodeToConflictNode } from './utils/graphNodeToConflictNode';
 import { getNode as fetchNode } from '@/api/nodes';
 import { useLivePresenceStore } from '@/features/collab';
+import { useWorkspaces } from '@/features/workspace';
 
 const BATCH_INTERVAL_MS = 200;
 const MAX_BATCH_SIZE = 50;
@@ -41,12 +42,30 @@ function isBehind(serverVec: VersionVector, clientVec: VersionVector): boolean {
   return false;
 }
 
-interface SyncManagerV2Props {
-  workspaceUuid: string;
-  clientId: string;
+function generateClientId(): string {
+  let id = localStorage.getItem('notees-client-id');
+  if (!id) {
+    id = crypto.randomUUID();
+    localStorage.setItem('notees-client-id', id);
+  }
+  return id;
 }
 
-export function SyncManagerV2({ workspaceUuid, clientId }: SyncManagerV2Props): null {
+interface SyncManagerV2Props {
+  workspaceUuid?: string;
+  clientId?: string;
+}
+
+export function SyncManagerV2({ workspaceUuid: workspaceUuidProp, clientId: clientIdProp }: SyncManagerV2Props): null {
+  const { data: workspacesData } = useWorkspaces({ enabled: true });
+  const activeWorkspace = useMemo(() => {
+    if (!workspacesData?.items) return null;
+    return workspacesData.items.find((ws) => ws.is_active) ?? workspacesData.items[0] ?? null;
+  }, [workspacesData]);
+
+  const workspaceUuid = workspaceUuidProp ?? activeWorkspace?.uuid ?? null;
+  const clientId = useMemo(() => clientIdProp ?? generateClientId(), [clientIdProp]);
+
   const queryClient = useQueryClient();
   const runtime = getOperationRuntime();
   const isOnline = useOnlineStatus();
@@ -59,7 +78,7 @@ export function SyncManagerV2({ workspaceUuid, clientId }: SyncManagerV2Props): 
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isProcessingRef = useRef<boolean>(false);
 
-  const canDispatch = isOnline && backendHealthy !== false;
+  const canDispatch = isOnline && backendHealthy !== false && workspaceUuid != null;
 
   const updateStatus = useCallback(() => {
     const entries = localSyncEngine.getPendingEntries();

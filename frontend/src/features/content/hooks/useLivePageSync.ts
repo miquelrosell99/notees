@@ -17,7 +17,7 @@ import { useAuthStore } from '@/features/auth';
 import { useEditorFocusStore } from '@/stores/editorFocusStore';
 import { useNotificationStore } from '@/stores/notificationStore';
 import { useWorkspaces } from '@/features/workspace';
-import { useSyncProtocolVersion } from '@/features/workspace/hooks/useSyncProtocolVersion';
+
 import type { Node } from '@/types';
 import { updateNodeInTreeCaches, updateNodeInFlatCaches, updateNodeInListCaches } from '@/hooks/cacheUtils';
 
@@ -58,9 +58,6 @@ export function useLivePageSync({ nodeUuid, enabled = true }: UseLivePageSyncOpt
     if (!workspacesData?.items) return null;
     return workspacesData.items.find((ws) => ws.is_active) ?? workspacesData.items[0] ?? null;
   }, [workspacesData]);
-  const { data: protocolData } = useSyncProtocolVersion(activeWorkspace?.uuid);
-  const protocolVersion = (protocolData?.sync_protocol_version as 'v1' | 'v2') ?? 'v1';
-
   useEffect(() => {
     if (!enabled || !nodeUuid || !authVerified) return;
 
@@ -70,7 +67,6 @@ export function useLivePageSync({ nodeUuid, enabled = true }: UseLivePageSyncOpt
       liveSyncManager.connect(
         nodeUuid,
         activeWorkspace?.uuid ?? null,
-        protocolVersion,
       );
     } catch (err) {
       console.warn('[useLivePageSync] Failed to connect live sync, retrying...', err);
@@ -212,7 +208,7 @@ export function useLivePageSync({ nodeUuid, enabled = true }: UseLivePageSyncOpt
         }));
       }
     };
-  }, [nodeUuid, queryClient, enabled, authVerified, activeWorkspace?.uuid, protocolVersion]);
+  }, [nodeUuid, queryClient, enabled, authVerified, activeWorkspace?.uuid]);
 
   return connectionStatus;
 }

@@ -5,11 +5,10 @@ import { nodeViewKeys } from './useNodeViews';
 import { awaitAllContentSaves } from '@/hooks/contentSaveTracker';
 import {
   findNodeInCache,
-  getRuntimeBlockIdForServerId,
+  ensureNodeInRuntime,
   applyNodeIntent,
 } from './useNodeMutations.utils';
 import { waitForOperationAck } from '@/sync/waitForOperation';
-import * as nodesApi from '@/api/nodes';
 
 /**
  * Hook to add a class to a node.
@@ -26,10 +25,9 @@ export function useAddClass() {
       if (!nodeUuid) throw new Error('Node UUID not found');
       const classUuid = classId;
       if (!classUuid) throw new Error('Class UUID not found');
-      const blockId = getRuntimeBlockIdForServerId(nodeUuid);
+      const blockId = ensureNodeInRuntime(nodeUuid);
       if (!blockId) {
-        // Runtime fallback for nodes that are not loaded in the client graph.
-        return nodesApi.addClass(nodeUuid, classUuid);
+        throw new Error(`Node ${nodeUuid} is not available in the runtime`);
       }
 
       const operationId = applyNodeIntent({

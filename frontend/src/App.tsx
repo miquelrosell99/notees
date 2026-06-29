@@ -26,7 +26,7 @@ import { DndProvider } from './providers/DndProvider';
 import { useUndoStore, useAuthStore } from './stores';
 import { useEncryptionStore } from './stores/encryptionStore';
 import { useInputContext } from './stores/inputContext';
-import { ProtocolAwareSyncManager } from '@/features/sync/components/ProtocolAwareSyncManager';
+import { SyncManagerV2 } from '@/features/sync/SyncManagerV2';
 import { LocalIndexManager } from '@/features/sync/components/LocalIndexManager';
 import { QueryLiveUpdater } from '@/features/sync/components/QueryLiveUpdater';
 import { useBackendHealth } from './hooks/useBackendHealth';
@@ -154,7 +154,7 @@ function App() {
             <AuthSyncListener />
             <GlobalKeyboardHandler />
             <CommandRegistrations />
-            <ProtocolAwareSyncManager />
+            <SyncManagerV2 />
             <LocalIndexManager />
             <QueryLiveUpdater />
             <BrowserRouter>
