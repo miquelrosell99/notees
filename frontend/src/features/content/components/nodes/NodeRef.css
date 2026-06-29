@@ -8,10 +8,8 @@
 
 .node-pill {
   cursor: pointer;
-  display: inline;
-}
-
-button.node-pill {
+  display: inline-flex;
+  align-items: center;
   border: none;
   background: none;
   padding: 0;
@@ -26,8 +24,7 @@ button.node-pill {
   vertical-align: middle;
 }
 
-button.node-pill:focus-visible,
-div.node-pill:focus-visible {
+.node-pill:focus-visible {
   outline: var(--border-width-thick) solid var(--color-accent);
   outline-offset: 1px;
   border-radius: var(--shape-extra-small);

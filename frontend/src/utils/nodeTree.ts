@@ -146,8 +146,95 @@ export function getAllNodeUuids(nodes: Node[]): string[] {
 export const getAllNodeIds = getAllNodeUuids;
 
 /**
+ * Deduplicate a flat array of nodes by UUID, keeping the first occurrence.
+ *
+ * Logs a warning in development when duplicates are detected so the underlying
+ * data issue can be investigated instead of silently hidden.
+ *
+ * @param nodes - Array of nodes (children are ignored; only top-level UUIDs are checked)
+ * @param context - Optional label included in the warning to identify the source
+ * @returns New array with duplicate UUIDs removed
+ */
+export function dedupeNodesByUuid(nodes: Node[], context?: string): Node[] {
+  const seen = new Set<string>();
+  const result: Node[] = [];
+  const duplicateUuids: string[] = [];
+
+  for (const node of nodes) {
+    if (seen.has(node.uuid)) {
+      if (!duplicateUuids.includes(node.uuid)) {
+        duplicateUuids.push(node.uuid);
+      }
+      continue;
+    }
+    seen.add(node.uuid);
+    result.push(node);
+  }
+
+  if (duplicateUuids.length > 0 && process.env.NODE_ENV === 'development') {
+    console.warn(
+      `[dedupeNodesByUuid] Removed ${duplicateUuids.length} duplicate node UUID(s)` +
+        (context ? ` in ${context}` : '') +
+        ':',
+      duplicateUuids
+    );
+  }
+
+  return result;
+}
+
+/**
+ * Recursively deduplicate a node tree by UUID, keeping the first occurrence at
+ * each sibling level.
+ *
+ * This is a defensive guard against data or cache-merge bugs that place the same
+ * node UUID twice under a single parent, which breaks React key uniqueness in
+ * tree renderers like BlockList and NodeTable.
+ *
+ * @param nodes - Array of nodes (children are processed recursively)
+ * @param context - Optional label included in the warning to identify the source
+ * @returns New array with duplicate UUIDs removed at every level
+ */
+export function dedupeNodesByUuidDeep(nodes: Node[], context?: string): Node[] {
+  const seen = new Set<string>();
+  const duplicateUuids: string[] = [];
+  const result: Node[] = [];
+
+  for (const node of nodes) {
+    if (seen.has(node.uuid)) {
+      if (!duplicateUuids.includes(node.uuid)) {
+        duplicateUuids.push(node.uuid);
+      }
+      continue;
+    }
+    seen.add(node.uuid);
+
+    const dedupedChildren = node.children
+      ? dedupeNodesByUuidDeep(node.children, context)
+      : undefined;
+
+    result.push(
+      dedupedChildren !== node.children
+        ? { ...node, children: dedupedChildren }
+        : node
+    );
+  }
+
+  if (duplicateUuids.length > 0 && process.env.NODE_ENV === 'development') {
+    console.warn(
+      `[dedupeNodesByUuidDeep] Removed ${duplicateUuids.length} duplicate node UUID(s)` +
+        (context ? ` in ${context}` : '') +
+        ':',
+      duplicateUuids
+    );
+  }
+
+  return result;
+}
+
+/**
  * Count all nodes in a tree (including children)
- * 
+ *
  * @param nodes - Array of nodes
  * @returns Total count of nodes
  */

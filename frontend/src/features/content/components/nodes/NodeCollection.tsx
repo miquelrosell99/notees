@@ -36,6 +36,7 @@ import type {
 import type { Property } from '@/types';
 import { DEFAULT_VIEW_MODES_ORDER } from '@/constants/viewModes';
 import { sortNodesByEntries } from '@/utils/nodeSort';
+import { dedupeNodesByUuidDeep } from '@/utils/nodeTree';
 import { getViewDefinition } from '@/features/views';
 import { NodeCollectionToolbar } from './NodeCollectionToolbar';
 import { Card } from '@/components/ui/Card';
@@ -73,7 +74,7 @@ function isGroupByActive(value: NodeCollectionGroupBy): boolean {
  * Use hideToolbar=true when rendering the toolbar externally via NodeCollectionToolbar.
  */
 export const NodeCollection = memo(function NodeCollection({
-      nodes,
+      nodes: nodesProp,
       viewUuid,
       view,
       viewMode,
@@ -142,6 +143,12 @@ export const NodeCollection = memo(function NodeCollection({
       queryAst,
       isTransient = false,
       inPropertyEditor = false }: NodeCollectionProps) {
+  // Defensive deduplication: backend queries or cache merges can occasionally
+  // produce duplicate UUIDs, which break React key uniqueness. Keep the first
+  // occurrence at every tree level and warn in development so the root cause
+  // can be investigated.
+  const nodes = useMemo(() => dedupeNodesByUuidDeep(nodesProp, 'NodeCollection'), [nodesProp]);
+
   // Use store for card layout unless transient or controlled
   const storeCardLayout = useAppStore((state) => state.cardLayout);
   const rawCardLayout = cardLayout ?? (isTransient ? 'no-cover' : storeCardLayout);

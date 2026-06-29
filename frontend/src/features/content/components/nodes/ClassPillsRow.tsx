@@ -217,16 +217,26 @@ export const ClassPillsRow = memo(function ClassPillsRow({
             </div>
             <div className="class-pills-popup__list">
               {availableClasses.map((cls) => (
-                <button
+                <div
                   key={cls.uuid}
+                  role="button"
+                  tabIndex={0}
                   className="class-pills-popup__item class-pills-popup__item--button"
                   onClick={() => {
                     onAddClass?.(nodeUuid, cls.uuid);
                     setShowAddPopup(false);
                   }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      onAddClass?.(nodeUuid, cls.uuid);
+                      setShowAddPopup(false);
+                    }
+                  }}
+                  aria-label={`Add class ${cls.name}`}
                 >
                   <NodeRef node={cls} readOnly={true} />
-                </button>
+                </div>
               ))}
             </div>
           </div>
