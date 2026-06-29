@@ -23,7 +23,6 @@ import { ContextMenu } from '@/components/ui/ContextMenu';
 import type { ContextMenuItem } from '@/components/ui/ContextMenu';
 import { Scratchpad } from './Scratchpad';
 import { LiveSyncIndicator } from '@/features/collab';
-import { SyncStatusIndicator } from '@/features/sync';
 import { TabBar } from './TabBar/TabBar';
 
 import './TopBar.css';
@@ -225,7 +224,6 @@ export function TopBar() {
         
           <span className="app-title">Notees</span>
           <LiveSyncIndicator />
-          <SyncStatusIndicator />
         </div>
       
         <div className="top-bar-center">
