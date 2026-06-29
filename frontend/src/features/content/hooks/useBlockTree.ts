@@ -53,7 +53,7 @@ interface UseBlockTreeOptions {
 }
 
 /** Flatten a node tree statically (no runtime overlay). */
-function flattenNodes(
+export function flattenNodes(
   nodes: Node[],
   maxDepth: number,
   pagesOnly: boolean,
@@ -61,12 +61,19 @@ function flattenNodes(
   collapsedLookup: (nodeUuid: string) => boolean | undefined,
   currentDepth = 0,
   expandAll = false,
+  visited = new Set<string>(),
 ): FlatNode[] {
   const result: FlatNode[] = [];
+  const duplicateUuids: string[] = [];
   for (const node of nodes) {
     if (node.is_comment) continue;
     if (pagesOnly && !node.is_page) continue;
     if (skipPages && node.is_page) continue;
+    if (visited.has(node.uuid)) {
+      if (!duplicateUuids.includes(node.uuid)) duplicateUuids.push(node.uuid);
+      continue;
+    }
+    visited.add(node.uuid);
 
     const effectiveCollapsed = expandAll ? false : (collapsedLookup(node.uuid) ?? node.collapsed ?? false);
     result.push({ node, depth: currentDepth, effectiveCollapsed });
@@ -76,8 +83,15 @@ function flattenNodes(
       !effectiveCollapsed &&
       (maxDepth < 0 || currentDepth < maxDepth)
     ) {
-      result.push(...flattenNodes(node.children, maxDepth, pagesOnly, skipPages, collapsedLookup, currentDepth + 1, expandAll));
+      result.push(...flattenNodes(node.children, maxDepth, pagesOnly, skipPages, collapsedLookup, currentDepth + 1, expandAll, visited));
     }
+  }
+
+  if (duplicateUuids.length > 0 && process.env.NODE_ENV === 'development') {
+    console.warn(
+      '[flattenNodes] Skipped duplicate node UUID(s) in static projection:',
+      duplicateUuids,
+    );
   }
   return result;
 }
@@ -215,6 +229,9 @@ export function flattenNodesFromRuntime(
     });
   }
 
+  const visited = new Set<string>();
+  const duplicateUuids: string[] = [];
+
   const flatten = (nodeUuids: string[], depth: number): FlatNode[] => {
     if (maxDepth >= 0 && depth > maxDepth) return [];
     const result: FlatNode[] = [];
@@ -224,6 +241,11 @@ export function flattenNodesFromRuntime(
       if (node.is_comment) continue;
       if (pagesOnly && !node.is_page) continue;
       if (skipPages && node.is_page) continue;
+      if (visited.has(node.uuid)) {
+        if (!duplicateUuids.includes(node.uuid)) duplicateUuids.push(node.uuid);
+        continue;
+      }
+      visited.add(node.uuid);
       const effectiveCollapsed = expandAll
         ? false
         : (collapsedLookup(nodeUuid) ?? node.collapsed ?? false);
@@ -276,6 +298,13 @@ export function flattenNodesFromRuntime(
     // from the root ghost are children of that block, so indent one level deeper.
     const rootGhostDepth = rootIsBlock ? 1 : 0;
     result.push(createGhostFlatNode(rootUuid, rootGhostDepth));
+  }
+
+  if (duplicateUuids.length > 0 && process.env.NODE_ENV === 'development') {
+    console.warn(
+      '[flattenNodesFromRuntime] Skipped duplicate node UUID(s) in runtime projection:',
+      duplicateUuids,
+    );
   }
   return result;
 }
