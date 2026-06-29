@@ -165,8 +165,8 @@
 
 /* ==================== Sidebar Navigation ==================== */
 .sidebar-nav {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  display: flex;
+  flex-direction: column;
   gap: var(--spacing-micro);
   padding: var(--spacing-1) var(--spacing-2);
 }

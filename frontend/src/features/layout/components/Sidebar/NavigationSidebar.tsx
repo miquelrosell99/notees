@@ -28,6 +28,7 @@ import { SidebarFavorites } from './SidebarFavorites';
 import { SidebarRecents } from './SidebarRecents';
 import { SupportBadge } from '@/features/support';
 import { ChevronDownIcon, ChevronRightIcon } from '@/components/ui/icons';
+import { SYSTEM_PAGE_UUIDS } from '@/constants/systemProperties';
 import './NavigationSidebar.css';
 
 interface SidebarProps {
@@ -63,8 +64,12 @@ function useSidebarSectionState(key: string, defaultValue: boolean = true) {
 
 interface CollapsedSidebarViewProps {
   showJournals: boolean;
+  showInbox: boolean;
+  inboxNode?: { uuid: string } | null;
   mainViewType: MainViewType;
   setMainViewType: (view: MainViewType) => void;
+  openNode: (nodeUuid: string) => void;
+  openNodeInNewTab: (nodeUuid: string) => void;
   closeMobileDrawer: () => void;
   onFavoriteContextMenu: (nodeUuid: string, e: React.MouseEvent) => void;
   onRecentContextMenu: (nodeUuid: string, e: React.MouseEvent) => void;
@@ -108,8 +113,12 @@ function SidebarPopup({
 
 function CollapsedSidebarView({
   showJournals,
+  showInbox,
+  inboxNode,
   mainViewType,
   setMainViewType,
+  openNode,
+  openNodeInNewTab,
   closeMobileDrawer,
   onFavoriteContextMenu,
   onRecentContextMenu,
@@ -136,6 +145,17 @@ function CollapsedSidebarView({
     () => setRecentsOpen(false),
     recentsOpen
   );
+
+  const handleOpenInbox = useCallback((e?: React.MouseEvent) => {
+    if (inboxNode?.uuid) {
+      if (e?.ctrlKey || e?.metaKey) {
+        openNodeInNewTab(inboxNode.uuid);
+      } else {
+        openNode(inboxNode.uuid);
+      }
+      closeMobileDrawer();
+    }
+  }, [inboxNode, openNode, openNodeInNewTab, closeMobileDrawer]);
 
   const isPagesActive = mainViewType === 'pages' || mainViewType === 'all-pages' || mainViewType === 'graph' || mainViewType === 'timeline';
 
@@ -182,6 +202,19 @@ function CollapsedSidebarView({
           aria-label="Pages"
           title="Pages"
         />
+        {showInbox && (
+          <Button
+            className="sidebar-collapsed__btn"
+            variant="ghost"
+            size="md"
+            icon="mdi mdi-inbox-arrow-down"
+            fullWidth
+            disabled={!inboxNode}
+            onClick={handleOpenInbox}
+            aria-label="Inbox"
+            title="Inbox"
+          />
+        )}
         <div className="sidebar-collapsed__divider" />
         <Button
           ref={favoritesBtnRef}
@@ -313,12 +346,16 @@ export function Sidebar({ collapsed }: SidebarProps) {
   const {
     mainViewType,
     setMainViewType,
+    openNode,
+    openNodeInNewTab,
     isSidebarCollapsed,
     toggleSidebar,
   } = useNavigationStore(
     useShallow((s) => ({
       mainViewType: s.mainViewType,
       setMainViewType: s.setMainViewType,
+      openNode: s.openNode,
+      openNodeInNewTab: s.openNodeInNewTab,
       isSidebarCollapsed: s.isSidebarCollapsed,
       toggleSidebar: s.toggleSidebar,
     }))
@@ -328,6 +365,13 @@ export function Sidebar({ collapsed }: SidebarProps) {
   const { data: workspaceSettings } = useWorkspaceSettings();
 
   const showJournals = (workspaceSettings?.sidebar_show_journals as boolean | undefined) ?? true;
+  const showInbox = (workspaceSettings?.sidebar_show_inbox as boolean | undefined) ?? true;
+
+  // Fetch the Inbox system page by its fixed UUID
+  // Suppress global error: old workspaces may not have an Inbox page
+  const { data: inboxNode } = useNodeByUuid(SYSTEM_PAGE_UUIDS.inbox, {
+    meta: { skipGlobalError: true },
+  });
 
   // Fetch the context menu node data
   const { data: contextNode } = useNodeByUuid(contextMenuNode);
@@ -343,6 +387,18 @@ export function Sidebar({ collapsed }: SidebarProps) {
     setMainViewType('shares');
     closeMobileDrawer();
   }, [setMainViewType, closeMobileDrawer]);
+
+  // Open the real Inbox system page
+  const handleOpenInbox = useCallback((e?: React.MouseEvent) => {
+    if (inboxNode?.uuid) {
+      if (e?.ctrlKey || e?.metaKey) {
+        openNodeInNewTab(inboxNode.uuid);
+      } else {
+        openNode(inboxNode.uuid);
+      }
+      closeMobileDrawer();
+    }
+  }, [inboxNode, openNode, openNodeInNewTab, closeMobileDrawer]);
 
   const handleOpenGraphSettings = useCallback(() => {
     setIsSettingsModalOpen(true);
@@ -408,8 +464,12 @@ export function Sidebar({ collapsed }: SidebarProps) {
         {collapsed ? (
           <CollapsedSidebarView
             showJournals={showJournals}
+            showInbox={showInbox}
+            inboxNode={inboxNode}
             mainViewType={mainViewType}
             setMainViewType={setMainViewType}
+            openNode={openNode}
+            openNodeInNewTab={openNodeInNewTab}
             closeMobileDrawer={closeMobileDrawer}
             onFavoriteContextMenu={handleFavoriteContextMenu}
             onRecentContextMenu={handleRecentContextMenu}
@@ -458,6 +518,19 @@ export function Sidebar({ collapsed }: SidebarProps) {
               >
                 Pages
               </Button>
+              {showInbox && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  icon="mdi mdi-inbox-arrow-down"
+                  fullWidth
+                  disabled={!inboxNode}
+                  onClick={handleOpenInbox}
+                  title="Inbox"
+                >
+                  Inbox
+                </Button>
+              )}
             </nav>
 
             {/* Scrollable middle content - only favorites and recents */}
