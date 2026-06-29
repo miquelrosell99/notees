@@ -3,7 +3,7 @@
  *
  * Features:
  * - Workspace switcher at top
- * - Journal, Inbox, Pages (hub), Whiteboards, Tasks navigation
+ * - Journal and Pages navigation
  * - FAVORITES section with user-favorited pages (draggable for reordering)
  * - RECENTS section with recently accessed pages
  */
@@ -28,14 +28,11 @@ import { SidebarFavorites } from './SidebarFavorites';
 import { SidebarRecents } from './SidebarRecents';
 import { SupportBadge } from '@/features/support';
 import { ChevronDownIcon, ChevronRightIcon } from '@/components/ui/icons';
-import { SYSTEM_PAGE_UUIDS } from '@/constants/systemProperties';
-import { getRegisteredSidebarItems } from '@/plugins/core';
 import './NavigationSidebar.css';
 
 interface SidebarProps {
   collapsed: boolean;
 }
-
 
 const SIDEBAR_BOTTOM_EXPANDED_KEY = 'notees:sidebar-bottom-expanded';
 
@@ -66,14 +63,8 @@ function useSidebarSectionState(key: string, defaultValue: boolean = true) {
 
 interface CollapsedSidebarViewProps {
   showJournals: boolean;
-  showInbox: boolean;
-  showWhiteboards: boolean;
-  showTasks: boolean;
-  inboxNode?: { uuid: string } | null;
   mainViewType: MainViewType;
   setMainViewType: (view: MainViewType) => void;
-  openNode: (nodeUuid: string) => void;
-  openNodeInNewTab: (nodeUuid: string) => void;
   closeMobileDrawer: () => void;
   onFavoriteContextMenu: (nodeUuid: string, e: React.MouseEvent) => void;
   onRecentContextMenu: (nodeUuid: string, e: React.MouseEvent) => void;
@@ -117,14 +108,8 @@ function SidebarPopup({
 
 function CollapsedSidebarView({
   showJournals,
-  showInbox,
-  showWhiteboards,
-  showTasks,
-  inboxNode,
   mainViewType,
   setMainViewType,
-  openNode,
-  openNodeInNewTab,
   closeMobileDrawer,
   onFavoriteContextMenu,
   onRecentContextMenu,
@@ -151,17 +136,6 @@ function CollapsedSidebarView({
     () => setRecentsOpen(false),
     recentsOpen
   );
-
-  const handleOpenInbox = useCallback((e?: React.MouseEvent) => {
-    if (inboxNode?.uuid) {
-      if (e?.ctrlKey || e?.metaKey) {
-        openNodeInNewTab(inboxNode.uuid);
-      } else {
-        openNode(inboxNode.uuid);
-      }
-      closeMobileDrawer();
-    }
-  }, [inboxNode, openNode, openNodeInNewTab, closeMobileDrawer]);
 
   const isPagesActive = mainViewType === 'pages' || mainViewType === 'all-pages' || mainViewType === 'graph' || mainViewType === 'timeline';
 
@@ -194,19 +168,6 @@ function CollapsedSidebarView({
             title="Journal"
           />
         )}
-        {showInbox && (
-          <Button
-            className="sidebar-collapsed__btn"
-            variant="ghost"
-            size="md"
-            icon="mdi mdi-inbox-arrow-down"
-            fullWidth
-            disabled={!inboxNode}
-            onClick={handleOpenInbox}
-            aria-label="Inbox"
-            title="Inbox"
-          />
-        )}
         <Button
           className="sidebar-collapsed__btn"
           variant="ghost"
@@ -221,66 +182,6 @@ function CollapsedSidebarView({
           aria-label="Pages"
           title="Pages"
         />
-        <Button
-          className="sidebar-collapsed__btn"
-          variant="ghost"
-          size="md"
-          icon="mdi mdi-file-document-outline"
-          fullWidth
-          active={mainViewType === 'templates'}
-          onClick={() => {
-            setMainViewType('templates');
-            closeMobileDrawer();
-          }}
-          aria-label="Templates"
-          title="Templates"
-        />
-        <Button
-          className="sidebar-collapsed__btn"
-          variant="ghost"
-          size="md"
-          icon="mdi mdi-cards-outline"
-          fullWidth
-          active={mainViewType === 'flashcards'}
-          onClick={() => {
-            setMainViewType('flashcards');
-            closeMobileDrawer();
-          }}
-          aria-label="Flashcards"
-          title="Flashcards"
-        />
-        {showWhiteboards && (
-          <Button
-            className="sidebar-collapsed__btn"
-            variant="ghost"
-            size="md"
-            icon="mdi mdi-view-dashboard-outline"
-            fullWidth
-            active={mainViewType === 'whiteboards'}
-            onClick={() => {
-              setMainViewType('whiteboards');
-              closeMobileDrawer();
-            }}
-            aria-label="Whiteboards"
-            title="Whiteboards"
-          />
-        )}
-        {showTasks && (
-          <Button
-            className="sidebar-collapsed__btn"
-            variant="ghost"
-            size="md"
-            icon="mdi mdi-checkbox-marked-circle-outline"
-            fullWidth
-            active={mainViewType === 'tasks'}
-            onClick={() => {
-              setMainViewType('tasks');
-              closeMobileDrawer();
-            }}
-            aria-label="Tasks"
-            title="Tasks"
-          />
-        )}
         <div className="sidebar-collapsed__divider" />
         <Button
           ref={favoritesBtnRef}
@@ -412,16 +313,12 @@ export function Sidebar({ collapsed }: SidebarProps) {
   const {
     mainViewType,
     setMainViewType,
-    openNode,
-    openNodeInNewTab,
     isSidebarCollapsed,
     toggleSidebar,
   } = useNavigationStore(
     useShallow((s) => ({
       mainViewType: s.mainViewType,
       setMainViewType: s.setMainViewType,
-      openNode: s.openNode,
-      openNodeInNewTab: s.openNodeInNewTab,
       isSidebarCollapsed: s.isSidebarCollapsed,
       toggleSidebar: s.toggleSidebar,
     }))
@@ -431,15 +328,6 @@ export function Sidebar({ collapsed }: SidebarProps) {
   const { data: workspaceSettings } = useWorkspaceSettings();
 
   const showJournals = (workspaceSettings?.sidebar_show_journals as boolean | undefined) ?? true;
-  const showInbox = (workspaceSettings?.sidebar_show_inbox as boolean | undefined) ?? true;
-  const showWhiteboards = (workspaceSettings?.sidebar_show_whiteboards as boolean | undefined) ?? true;
-  const showTasks = (workspaceSettings?.sidebar_show_tasks as boolean | undefined) ?? true;
-
-  // Fetch the Inbox system page by its fixed UUID
-  // Suppress global error: old workspaces may not have an Inbox page
-  const { data: inboxNode } = useNodeByUuid(SYSTEM_PAGE_UUIDS.inbox, {
-    meta: { skipGlobalError: true },
-  });
 
   // Fetch the context menu node data
   const { data: contextNode } = useNodeByUuid(contextMenuNode);
@@ -494,18 +382,6 @@ export function Sidebar({ collapsed }: SidebarProps) {
     setTrashContextMenuPos({ x: e.clientX, y: e.clientY });
   }, []);
 
-  // Open the real Inbox system page
-  const handleOpenInbox = useCallback((e?: React.MouseEvent) => {
-    if (inboxNode?.uuid) {
-      if (e?.ctrlKey || e?.metaKey) {
-        openNodeInNewTab(inboxNode.uuid);
-      } else {
-        openNode(inboxNode.uuid);
-      }
-      closeMobileDrawer();
-    }
-  }, [inboxNode, openNode, openNodeInNewTab, closeMobileDrawer]);
-
   const emptyTrashMutation = useEmptyTrash();
 
   const trashContextMenuItems: ContextMenuItem[] = useMemo(() => [
@@ -521,27 +397,6 @@ export function Sidebar({ collapsed }: SidebarProps) {
     },
   ], []);
 
-  const topNavItems = useMemo(() => {
-    const items: Array<{ icon: string; label: string; view?: string; action?: () => void }> = [
-      { icon: "mdi mdi-book-open-page-variant", label: 'Pages', view: 'pages' as const },
-      { icon: "mdi mdi-file-document-outline", label: 'Templates', view: 'templates' as const },
-    ];
-    if (showWhiteboards) {
-      items.push({ icon: "mdi mdi-view-dashboard-outline", label: 'Whiteboards', view: 'whiteboards' as const });
-    }
-    if (showTasks) {
-      items.push({ icon: "mdi mdi-checkbox-marked-circle-outline", label: 'Tasks', view: 'tasks' as const });
-    }
-    for (const pluginItem of getRegisteredSidebarItems()) {
-      items.push({
-        icon: pluginItem.icon ? `mdi mdi-${pluginItem.icon}` : "mdi mdi-puzzle-outline",
-        label: pluginItem.label,
-        view: pluginItem.viewId,
-      });
-    }
-    return items;
-  }, [showWhiteboards, showTasks]);
-
   const bottomNavItems = useMemo(() => [
     { icon: "mdi mdi-archive", label: 'Archived', view: 'archived' as const },
     { icon: "mdi mdi-trash-can-outline", label: 'Trash', view: 'trash' as const, onContextMenu: handleTrashContextMenu },
@@ -553,14 +408,8 @@ export function Sidebar({ collapsed }: SidebarProps) {
         {collapsed ? (
           <CollapsedSidebarView
             showJournals={showJournals}
-            showInbox={showInbox}
-            showWhiteboards={showWhiteboards}
-            showTasks={showTasks}
-            inboxNode={inboxNode}
             mainViewType={mainViewType}
             setMainViewType={setMainViewType}
-            openNode={openNode}
-            openNodeInNewTab={openNodeInNewTab}
             closeMobileDrawer={closeMobileDrawer}
             onFavoriteContextMenu={handleFavoriteContextMenu}
             onRecentContextMenu={handleRecentContextMenu}
@@ -572,7 +421,7 @@ export function Sidebar({ collapsed }: SidebarProps) {
           />
         ) : (
           <>
-            {/* Graph Switcher at Top */}
+            {/* Workspace Switcher at Top */}
             <div className="sidebar-header">
               <WorkspaceSwitcher />
             </div>
@@ -595,46 +444,20 @@ export function Sidebar({ collapsed }: SidebarProps) {
                   Journal
                 </Button>
               )}
-              {showInbox && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  icon="mdi mdi-inbox-arrow-down"
-                  fullWidth
-                  disabled={!inboxNode}
-                  onClick={handleOpenInbox}
-                  title="Inbox"
-                >
-                  Inbox
-                </Button>
-              )}
-              {topNavItems.map((item) => {
-                const isPagesItem = item.view === 'pages';
-                const isActive = isPagesItem
-                  ? mainViewType === 'pages' || mainViewType === 'all-pages' || mainViewType === 'graph' || mainViewType === 'timeline'
-                  : item.view ? mainViewType === item.view : false;
-                return (
-                  <Button
-                    key={item.view ?? item.label}
-                    variant="ghost"
-                    size="sm"
-                    icon={item.icon}
-                    fullWidth
-                    active={isActive}
-                    onClick={() => {
-                      if (item.action) {
-                        item.action();
-                      } else if (item.view) {
-                        setMainViewType(item.view as MainViewType);
-                      }
-                      closeMobileDrawer();
-                    }}
-                    title={item.label}
-                  >
-                    {item.label}
-                  </Button>
-                );
-              })}
+              <Button
+                variant="ghost"
+                size="sm"
+                icon="mdi mdi-book-open-page-variant"
+                fullWidth
+                active={mainViewType === 'pages' || mainViewType === 'all-pages' || mainViewType === 'graph' || mainViewType === 'timeline'}
+                onClick={() => {
+                  setMainViewType('pages');
+                  closeMobileDrawer();
+                }}
+                title="Pages"
+              >
+                Pages
+              </Button>
             </nav>
 
             {/* Scrollable middle content - only favorites and recents */}

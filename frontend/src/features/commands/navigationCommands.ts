@@ -10,6 +10,7 @@ import { useNotificationStore } from '@/stores/notificationStore';
 import { getRandomPages } from '@/api/nodes';
 import { buildTasksQueryAST, buildTodayQueryAST } from '@/utils/taskQueries';
 import { createEmptyQueryAST } from '@/types/queryAST';
+import { SYSTEM_PAGE_UUIDS } from '@/constants/systemProperties';
 import type { QueryAST, StyleCondition } from '@/types/queryAST';
 
 registerCommand({
@@ -46,6 +47,42 @@ registerCommand({
   context: 'global',
   palette: { category: 'navigation', keywords: ['pages'] },
   execute: () => useNavigationStore.getState().setMainViewType('pages'),
+});
+
+registerCommand({
+  id: COMMAND_IDS.OPEN_INBOX,
+  label: 'Open Inbox',
+  icon: 'mdi mdi-inbox-arrow-down',
+  context: 'global',
+  palette: { category: 'navigation', keywords: ['inbox'] },
+  execute: () => useNavigationStore.getState().openNode(SYSTEM_PAGE_UUIDS.inbox),
+});
+
+registerCommand({
+  id: COMMAND_IDS.OPEN_TEMPLATES,
+  label: 'Open Templates',
+  icon: 'mdi mdi-file-document-outline',
+  context: 'global',
+  palette: { category: 'navigation', keywords: ['templates'] },
+  execute: () => useNavigationStore.getState().setMainViewType('templates'),
+});
+
+registerCommand({
+  id: COMMAND_IDS.OPEN_WHITEBOARDS,
+  label: 'Open Whiteboards',
+  icon: 'mdi mdi-view-dashboard-outline',
+  context: 'global',
+  palette: { category: 'navigation', keywords: ['whiteboards'] },
+  execute: () => useNavigationStore.getState().setMainViewType('whiteboards'),
+});
+
+registerCommand({
+  id: COMMAND_IDS.OPEN_FLASHCARDS,
+  label: 'Open Flashcards',
+  icon: 'mdi mdi-cards-outline',
+  context: 'global',
+  palette: { category: 'navigation', keywords: ['flashcards'] },
+  execute: () => useNavigationStore.getState().setMainViewType('flashcards'),
 });
 
 registerCommand({

@@ -209,6 +209,10 @@ export const COMMAND_IDS = {
   OPEN_TASKS_VIEW: 'view.tasks',
   OPEN_ALL_PAGES: 'view.allPages',
   OPEN_PAGES: 'view.pages',
+  OPEN_INBOX: 'view.inbox',
+  OPEN_TEMPLATES: 'view.templates',
+  OPEN_WHITEBOARDS: 'view.whiteboards',
+  OPEN_FLASHCARDS: 'view.flashcards',
 } as const;
 
 /** Module-level command registration (useful for static/feature registrations). */
