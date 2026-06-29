@@ -147,6 +147,26 @@ export function BlockList({
     rootIsBlock,
   });
 
+  // Debug duplicate flat node UUIDs before React warns about them.
+  if (process.env.NODE_ENV === 'development') {
+    const seenUuids = new Set<string>();
+    const duplicateUuids: string[] = [];
+    for (const { node } of flatNodes) {
+      if (seenUuids.has(node.uuid)) {
+        if (!duplicateUuids.includes(node.uuid)) duplicateUuids.push(node.uuid);
+      } else {
+        seenUuids.add(node.uuid);
+      }
+    }
+    if (duplicateUuids.length > 0) {
+      console.error(
+        '[BlockList] Duplicate flat node UUIDs detected (this will cause React key warnings):',
+        duplicateUuids,
+        new Error().stack
+      );
+    }
+  }
+
   const blockIds = useMemo(() => flatNodes.filter((n) => !n.isGhost).map((n) => n.node.uuid), [flatNodes]);
   const ghostIds = useMemo(() => flatNodes.filter((n) => n.isGhost).map((n) => n.node.uuid), [flatNodes]);
   const blockIdsRef = useRef(blockIds);

@@ -259,7 +259,7 @@ function NodeRefInteractive({
   const [colorPickerPos, setColorPickerPos] = useState({ x: 0, y: 0 });
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   
-  const pillRef = useRef<HTMLButtonElement | HTMLDivElement>(null);
+  const pillRef = useRef<HTMLDivElement>(null);
   const contextMenuWrapperRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
   
@@ -297,12 +297,12 @@ function NodeRefInteractive({
   const isPage = node?.is_page ?? true;
   const isLink = variant === 'link';
   
-  const handleClick = useCallback((e: React.MouseEvent) => {
+  const activate = useCallback((e: React.MouseEvent | React.KeyboardEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    
+
     if (readOnly) return;
-    
+
     if (editMode && isLink) {
       // Edit mode: select the mount point (parent element) for contenteditable
       const mountPoint = pillRef.current?.parentElement;
@@ -317,7 +317,7 @@ function NodeRefInteractive({
       }
       return;
     }
-    
+
     if (isLink && node) {
       // Navigation mode (for inline links)
       if (e.ctrlKey || e.metaKey) {
@@ -332,6 +332,15 @@ function NodeRefInteractive({
       onClick();
     }
   }, [readOnly, editMode, isLink, onClick, node, isPage, openNode, openNodeInNewTab, addSidebarCard]);
+
+  const handleClick = useCallback((e: React.MouseEvent) => activate(e), [activate]);
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      activate(e);
+    }
+  }, [activate]);
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     if (readOnly) return;
@@ -461,48 +470,31 @@ function NodeRefInteractive({
 
   return (
     <>
-      {isLink ? (
-        <button
-          type="button"
-          ref={pillRef as React.RefObject<HTMLButtonElement>}
-          className={pillClass}
-          onClick={handleClick}
-          onContextMenu={handleContextMenu}
-          title={title}
-        >
-          <Pill
-            text={displayText}
-            variant={pillVariant}
-            leftIcon={effectiveIcon ? <NodeIcon icon={effectiveIcon} isPage={isPage} size="xs" /> : undefined}
-            color={effectiveColor}
-          />
-          {clickCount > 0 && <span className="node-pill__badge">{clickCount}</span>}
-        </button>
-      ) : (
-        <button
-          type="button"
-          ref={pillRef as React.RefObject<HTMLButtonElement>}
-          className={pillClass}
-          onClick={handleClick}
-          onContextMenu={handleContextMenu}
-          title={title}
-          aria-label={title}
-        >
-          <Pill
-            text={displayText}
-            variant={pillVariant}
-            leftIcon={effectiveIcon ? <NodeIcon icon={effectiveIcon} isPage={isPage} size="xs" /> : undefined}
-            rightIcon={
-              (!readOnly && onRemove)
-                ? <CloseIcon size="xs" />
-                : undefined
-            }
-            onRightIconClick={(!readOnly && onRemove) ? onRemove : undefined}
-            color={effectiveColor}
-          />
-          {clickCount > 0 && <span className="node-pill__badge">{clickCount}</span>}
-        </button>
-      )}
+      <div
+        role={isLink ? 'link' : 'button'}
+        tabIndex={0}
+        ref={pillRef as React.RefObject<HTMLDivElement>}
+        className={pillClass}
+        onClick={handleClick}
+        onKeyDown={handleKeyDown}
+        onContextMenu={handleContextMenu}
+        title={title}
+        aria-label={title}
+      >
+        <Pill
+          text={displayText}
+          variant={pillVariant}
+          leftIcon={effectiveIcon ? <NodeIcon icon={effectiveIcon} isPage={isPage} size="xs" /> : undefined}
+          rightIcon={
+            (!isLink && !readOnly && onRemove)
+              ? <CloseIcon size="xs" />
+              : undefined
+          }
+          onRightIconClick={(!isLink && !readOnly && onRemove) ? onRemove : undefined}
+          color={effectiveColor}
+        />
+        {clickCount > 0 && <span className="node-pill__badge">{clickCount}</span>}
+      </div>
 
       {/* Color Picker Popup (for class/tag pills) */}
       {showColorPicker && (

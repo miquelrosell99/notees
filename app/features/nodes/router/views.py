@@ -270,8 +270,32 @@ async def _include_children_for_results(
                 await fetch_children_recursive(child.id, depth + 1)
             child_dict["children"] = children_by_parent.get(child.id, [])
             child_dicts.append(child_dict)
-        children_by_parent[parent_id] = child_dicts
-        logger.info("[_include_children_for_results] Parent %s has %s filtered children", parent_id, len(child_dicts))
+
+        # Defensive deduplication: protect against data bugs that place the same
+        # child UUID twice under one parent, which breaks React key uniqueness.
+        seen_uuids: set[str] = set()
+        deduped_child_dicts: list[dict[str, Any]] = []
+        duplicate_uuids: set[str] = set()
+        for child_dict in child_dicts:
+            child_uuid = child_dict.get("uuid")
+            if child_uuid is None:
+                deduped_child_dicts.append(child_dict)
+                continue
+            uuid_str = str(child_uuid)
+            if uuid_str in seen_uuids:
+                duplicate_uuids.add(uuid_str)
+                continue
+            seen_uuids.add(uuid_str)
+            deduped_child_dicts.append(child_dict)
+        if duplicate_uuids:
+            logger.warning(
+                "[_include_children_for_results] Parent %s has duplicate child UUID(s): %s",
+                parent_id,
+                sorted(duplicate_uuids),
+            )
+
+        children_by_parent[parent_id] = deduped_child_dicts
+        logger.info("[_include_children_for_results] Parent %s has %s filtered children", parent_id, len(deduped_child_dicts))
 
     # Fetch children for each result node
     for node_id in node_ids:

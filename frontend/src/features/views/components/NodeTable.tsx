@@ -414,6 +414,27 @@ export function NodeTable<T>({
     return result;
   }, [data, sortColumns, columns]);
 
+  // Debug duplicate row keys before React warns about them.
+  if (process.env.NODE_ENV === 'development') {
+    const seenKeys = new Set<string>();
+    const duplicateKeys: string[] = [];
+    for (const row of sortedData) {
+      const key = getRowKey(row);
+      if (seenKeys.has(key)) {
+        if (!duplicateKeys.includes(key)) duplicateKeys.push(key);
+      } else {
+        seenKeys.add(key);
+      }
+    }
+    if (duplicateKeys.length > 0) {
+      console.error(
+        '[NodeTable] Duplicate row keys detected (this will cause React key warnings):',
+        duplicateKeys,
+        new Error().stack
+      );
+    }
+  }
+
   // Virtualization only works for flat tables (no expandable rows, no reordering)
   const isVirtualized = virtualized && !expandable && !reorderable;
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Virtual's `useVirtualizer()` API returns non-memoized functions by design.
