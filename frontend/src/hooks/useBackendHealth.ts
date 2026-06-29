@@ -37,6 +37,7 @@ async function checkHealth(): Promise<boolean> {
 export function useBackendHealth(): void {
   const { markHealthy, markUnhealthy, healthy } = useConnectionStore();
   const healthyRef = useRef(healthy);
+  const consecutiveFailuresRef = useRef(0);
 
   // Keep a ref in sync so the interval callback sees the latest value
   // without resetting the interval on every state change.
@@ -51,19 +52,28 @@ export function useBackendHealth(): void {
       if (cancelled) return;
 
       if (isHealthy) {
+        consecutiveFailuresRef.current = 0;
         if (healthyRef.current !== true) {
           log.info('Backend health check succeeded — unlocking UI');
           markHealthy();
         }
       } else {
-        if (healthyRef.current !== false) {
+        consecutiveFailuresRef.current += 1;
+        // Require two consecutive failures before locking the UI. A single
+        // failed check is common during startup while the backend container
+        // is still initializing, and we want to avoid a brief lock overlay.
+        if (consecutiveFailuresRef.current >= 2 && healthyRef.current !== false) {
           log.warn('Backend health check failed — locking UI');
           markUnhealthy('health check failed');
+        } else if (consecutiveFailuresRef.current === 1) {
+          log.debug('Backend health check failed, waiting for retry before locking UI');
         }
       }
 
-      // Schedule the next check based on the latest state.
-      const nextDelay = healthyRef.current === false ? UNHEALTHY_POLL_MS : HEALTHY_POLL_MS;
+      // Schedule the next check based on the result we just observed.
+      // Using the local result keeps the poller responsive after a state
+      // transition, before the React render has updated the ref.
+      const nextDelay = isHealthy ? HEALTHY_POLL_MS : UNHEALTHY_POLL_MS;
       timeoutId = setTimeout(tick, nextDelay);
     };
 

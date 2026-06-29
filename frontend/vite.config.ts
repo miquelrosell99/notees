@@ -20,6 +20,12 @@ export default defineConfig({
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024, // 4 MB (covers the MDI SVG sprite sheet)
         runtimeCaching: [
           {
+            // Never cache the health endpoint: the UI relies on live
+            // reachability checks to lock/unlock the overlay.
+            urlPattern: /^https?:\/\/.*\/api\/health$/,
+            handler: 'NetworkOnly',
+          },
+          {
             // Cache API responses with network-first strategy
             urlPattern: /^https?:\/\/.*\/api\//,
             handler: 'NetworkFirst',

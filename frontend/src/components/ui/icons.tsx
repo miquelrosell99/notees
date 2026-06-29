@@ -6,18 +6,9 @@
  */
 import { Icon } from './Icon';
 import { getMdiClass } from '@/utils/iconDom';
+import { resolveIconSize, type IconSize } from './iconSizes';
 export { Icon } from './Icon';
-
-// Icon size presets
-const ICON_SIZE = {
-  xs: 0.6,  // 14.4px at 24px base
-  sm: 0.75, // 18px
-  md: 1,    // 24px (default)
-  lg: 1.25, // 30px
-  xl: 1.5,  // 36px
-} as const;
-
-type IconSize = keyof typeof ICON_SIZE | number;
+export type { IconSize } from './iconSizes';
 
 interface IconProps {
   size?: IconSize;
@@ -27,8 +18,7 @@ interface IconProps {
 }
 
 function getSize(size: IconSize): number {
-  if (typeof size === 'number') return size;
-  return ICON_SIZE[size];
+  return resolveIconSize(size) as number;
 }
 
 // Document/Page icons
