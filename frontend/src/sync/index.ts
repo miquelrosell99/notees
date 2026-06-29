@@ -1,13 +1,9 @@
 /**
  * Sync layer public API.
  *
- * The sync layer is the only part of the frontend that talks to the API.
- * It adapts OperationRuntime operations to TanStack Query mutations.
+ * The v1 per-operation REST sync manager has been removed. Only the v2
+ * batch sync adapter remains in features/sync/SyncManagerV2. This module
+ * keeps the small utilities that direct mutation hooks still depend on.
  */
 
-export { SyncManager } from './SyncManager';
-export { applyCacheUpdate, executeOperation, operationToApiRequest, defaultSyncApi } from './mutationMap';
-export { intentToOperations, contentOperation, createOperation, moveOperation, deleteOperation, collapsedOperation } from './intents';
-export type { SyncApi } from './mutationMap';
-export { writeCreate, writeUpdate, writeDelete, writeMove } from './cacheWriter';
-export type { NodePatch } from './cacheWriter';
+export { waitForOperationAck } from './waitForOperation';

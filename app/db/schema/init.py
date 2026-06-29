@@ -142,6 +142,7 @@ async def init_database(conn: asyncpg.Connection) -> None:
     await _run_migration("add_uuid_columns_to_remaining_tables", conn, _add_uuid_columns_to_remaining_tables)
     await _run_migration("add_node_revision", conn, _add_node_revision)
     await _run_migration("add_sync_protocol_version", conn, _add_sync_protocol_version)
+    await _run_migration("set_sync_protocol_version_v2_default", conn, _set_sync_protocol_version_v2_default)
     await _run_migration("remove_collapsed_column", conn, _remove_collapsed_column)
     await _run_migration("migrate_assets_to_content_addressed", conn, _migrate_assets_to_content_addressed)
 
@@ -1774,11 +1775,29 @@ async def _add_sync_protocol_version(conn: asyncpg.Connection) -> None:
     if not has_column:
         await conn.execute("""
             ALTER TABLE workspace
-            ADD COLUMN sync_protocol_version VARCHAR(10) NOT NULL DEFAULT 'v1',
+            ADD COLUMN sync_protocol_version VARCHAR(10) NOT NULL DEFAULT 'v2',
             ADD CONSTRAINT chk_workspace_sync_protocol_version
                 CHECK (sync_protocol_version IN ('v1', 'v2'))
         """)
         logger.info("Added sync_protocol_version column to workspace")
+
+
+async def _set_sync_protocol_version_v2_default(conn: asyncpg.Connection) -> None:
+    """Move all existing workspaces to v2 and make v2 the column default."""
+    from ...logging_config import get_logger
+
+    logger = get_logger(__name__)
+
+    await conn.execute("""
+        ALTER TABLE workspace
+        ALTER COLUMN sync_protocol_version SET DEFAULT 'v2'
+    """)
+    updated = await conn.execute("""
+        UPDATE workspace
+        SET sync_protocol_version = 'v2'
+        WHERE sync_protocol_version = 'v1'
+    """)
+    logger.info("Migrated all workspaces to sync protocol v2: %s", updated)
 
 
 async def _remove_collapsed_column(conn: asyncpg.Connection) -> None:

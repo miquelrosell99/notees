@@ -35,7 +35,6 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from app.db.connection import clear_request_conn, get_pool
 from app.dependencies import (
-    _get_node_service,
     _make_permission_repository,
     _make_workspace_repository,
 )
@@ -43,7 +42,6 @@ from app.domain.permissions import PermissionChecker
 from app.features.auth import authenticate_api_key, decode_token, get_user_by_id
 from app.infrastructure.redis_pubsub import collab_pubsub
 from app.logging_config import get_logger
-from app.models import User
 
 logger = get_logger(__name__)
 
@@ -59,14 +57,12 @@ class _LiveSyncConnection:
         websocket: WebSocket,
         room_id: str,
         user: dict[str, Any],
-        protocol_version: str = "v1",
     ) -> None:
         self.ws = websocket
         self.room_id = room_id
         self.user = user
         self.user_id = int(user["id"])
         self.focused_block: str | None = None
-        self.protocol_version = protocol_version
 
     async def send(self, msg: dict[str, Any]) -> None:
         with contextlib.suppress(Exception):
@@ -199,24 +195,6 @@ class _BlockUpdateThrottler:
         return False
 
 
-async def _authorize_v1_room(
-    page_uuid: str, user: dict[str, Any]
-) -> tuple[str, bool] | None:
-    """Authorize a v1 page-scoped room. Returns (room_id, can_write) or None on failure."""
-    service = await _get_node_service(User(**user))
-    try:
-        node_id = await service.get_page_id_by_uuid(page_uuid)
-    except (LookupError, ValueError):
-        logger.exception(f"Failed to resolve page {page_uuid}")
-        return None
-    if not node_id:
-        return None
-    if not await service.permissions.can_read_node(node_id):
-        return None
-    can_write = await service.permissions.can_write_node(node_id)
-    return page_uuid, can_write
-
-
 async def _authorize_v2_room(
     workspace_uuid: str, user: dict[str, Any]
 ) -> tuple[str, bool] | None:
@@ -235,13 +213,12 @@ async def _authorize_v2_room(
     return workspace_uuid, can_write
 
 
-@router.websocket("/{page_uuid}")
+@router.websocket("/{workspace_uuid}")
 async def live_sync_websocket(
     websocket: WebSocket,
-    page_uuid: str,
+    workspace_uuid: str,
     token: str = "",
     api_key: str = "",
-    sync_protocol_version: str = "v1",
 ) -> None:
     """WebSocket endpoint for live presence and applied-op broadcast.
 
@@ -250,10 +227,8 @@ async def live_sync_websocket(
       - JWT: pass `token` query parameter
       - API Key: pass `api_key` query parameter
 
-    Protocol version:
-      - v1 (default): ``page_uuid`` is a page UUID; room is page-scoped.
-      - v2: ``page_uuid`` is a workspace UUID; room is workspace-scoped.
-        Pass ``?sync_protocol_version=v2``.
+    The room is always workspace-scoped (v2 protocol). ``workspace_uuid`` must
+    be the target workspace UUID.
     """
     clear_request_conn()
 
@@ -266,23 +241,16 @@ async def live_sync_websocket(
 
     user_id = int(user["id"])
 
-    protocol_version = sync_protocol_version if sync_protocol_version in {"v1", "v2"} else "v1"
-    if protocol_version == "v2":
-        auth_result = await _authorize_v2_room(page_uuid, user)
-        if auth_result is None:
-            await websocket.close(code=4004, reason="Workspace not found")
-            return
-    else:
-        auth_result = await _authorize_v1_room(page_uuid, user)
-        if auth_result is None:
-            await websocket.close(code=4004, reason="Page not found")
-            return
+    auth_result = await _authorize_v2_room(workspace_uuid, user)
+    if auth_result is None:
+        await websocket.close(code=4004, reason="Workspace not found")
+        return
 
     room_id, can_write = auth_result
 
     await websocket.accept()
 
-    connection = _LiveSyncConnection(websocket, room_id, user, protocol_version=protocol_version)
+    connection = _LiveSyncConnection(websocket, room_id, user)
     _page_connections.setdefault(room_id, set()).add(connection)
     update_throttler = _BlockUpdateThrottler(max_per_second=10.0)
 

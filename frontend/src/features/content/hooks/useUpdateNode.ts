@@ -6,12 +6,11 @@
  */
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import * as nodesApi from '@/api/nodes';
 import type { NodeUpdate, Node } from '@/types/api';
 import { nodeKeys } from '@/hooks/queryKeys';
 import { nodeViewKeys } from './useNodeViews';
 import { scheduleAutoExport } from '@/utils/autoExport';
-import { invalidateNodeCaches, findNodeInCache, getRuntimeBlockIdForServerId, applyNodeIntent } from './useNodeMutations.utils';
+import { invalidateNodeCaches, findNodeInCache, ensureNodeInRuntime, applyNodeIntent } from './useNodeMutations.utils';
 import { waitForOperationAck } from '@/sync/waitForOperation';
 import type { GraphNode } from '@/runtime/types';
 
@@ -20,9 +19,9 @@ export function useUpdateNode() {
 
   return useMutation<Node | null, Error, { nodeUuid: string; data: NodeUpdate }>({
     mutationFn: async ({ nodeUuid, data }) => {
-      const blockId = getRuntimeBlockIdForServerId(nodeUuid);
+      const blockId = ensureNodeInRuntime(nodeUuid);
       if (!blockId) {
-        return nodesApi.updateNode(nodeUuid, data);
+        throw new Error(`Node ${nodeUuid} is not available in the runtime`);
       }
 
       const updates: Partial<GraphNode> = {};
