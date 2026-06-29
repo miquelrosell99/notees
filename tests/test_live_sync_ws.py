@@ -26,10 +26,10 @@ class FakeWebSocket:
 
 
 def make_conn(
-    user_id: int, name: str = "User", protocol: str = "v1"
+    user_id: int, name: str = "User"
 ) -> ws._LiveSyncConnection:
     user: dict[str, Any] = {"id": user_id, "name": name}
-    return ws._LiveSyncConnection(FakeWebSocket(), "room-1", user, protocol_version=protocol)
+    return ws._LiveSyncConnection(FakeWebSocket(), "room-1", user)
 
 
 @pytest.fixture(autouse=True)

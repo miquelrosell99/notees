@@ -289,7 +289,7 @@ class PostgresWorkspaceRepository(WorkspaceRepository):
                 "SELECT sync_protocol_version FROM workspace WHERE id = $1",
                 workspace_id,
             )
-            return row["sync_protocol_version"] if row else "v1"
+            return row["sync_protocol_version"] if row else "v2"
 
     async def set_sync_protocol_version(self, workspace_id: int, version: str) -> None:
         async with acquire_connection(self._pool) as conn:

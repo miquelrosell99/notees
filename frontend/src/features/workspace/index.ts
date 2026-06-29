@@ -17,5 +17,4 @@ export * from './hooks/useEmptyTrash';
 export * from './hooks/useGraphSettings';
 export * from './hooks/useWorkspaceImport';
 export * from './hooks/useWorkspaceNameCheck';
-export * from './hooks/useSyncProtocolVersion';
 export * from './hooks/useImportFile';
