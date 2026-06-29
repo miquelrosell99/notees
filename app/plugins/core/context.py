@@ -268,7 +268,7 @@ class PluginContext:
             user_id=user_id,
         )
         if node.id is not None and property_values:
-            await node_service.apply_node_extras(node.id, classes=None, properties=property_values)
+            await node_service.apply_node_extras(node.id, classes=None, tags=None, properties=property_values)
             node = await node_service.get_node_by_id(node.id) or node
         return node
 

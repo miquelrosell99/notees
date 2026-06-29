@@ -1030,6 +1030,43 @@ async def update_node(
     return response
 
 
+async def _sequence_for_position(
+    repo: NodeRepository,
+    parent_id: int,
+    position: int,
+) -> float:
+    """Compute a fractional sequence that places a node at ``position`` (0-indexed).
+
+    Mirrors the client-side ordering logic: midpoint between siblings when
+    inserting, prepend/append at the edges, and sequence shifting when the gap
+    collapses. This keeps integer ``position`` values from colliding with
+    fractional sequences created by the runtime.
+    """
+    children = await repo.get_children_ids(parent_id)
+    if not children:
+        return 0.0
+
+    if position <= 0:
+        first_seq = await repo.get_node_sequence(children[0])
+        return (first_seq if first_seq is not None else 0.0) - 1024.0
+
+    if position >= len(children):
+        last_seq = await repo.get_node_sequence(children[-1])
+        return (last_seq if last_seq is not None else 0.0) + 1024.0
+
+    after_seq = await repo.get_node_sequence(children[position - 1])
+    before_seq = await repo.get_node_sequence(children[position])
+    after_seq = after_seq if after_seq is not None else 0.0
+    before_seq = before_seq if before_seq is not None else after_seq + 1024.0
+
+    gap = before_seq - after_seq
+    if gap < 1e-9:
+        await repo.shift_sequences(parent_id, after_seq, 1024.0)
+        return after_seq + 512.0
+
+    return after_seq + gap / 2.0
+
+
 @router.put("/{node_uuid}/move", response_model=NodeResponse)
 async def move_node(
     request: MoveNodeRequest,
@@ -1041,7 +1078,7 @@ async def move_node(
 
     Used for indent/outdent operations and drag-drop reordering.
     - parent_uuid: New parent UUID (required for blocks - they must always have a parent)
-    - position: New sequence position among siblings (0-indexed)
+    - position: New 0-indexed position among siblings after the move
 
     Note: page_id is automatically computed from parent_id hierarchy.
     Sibling sequences are automatically adjusted to maintain ordering.
@@ -1057,14 +1094,15 @@ async def move_node(
     parent_id = parent.id
 
     # Default position to 0 if not specified
-    position = request.position if request.position is not None else 0
+    position = int(request.position) if request.position is not None else 0
+    new_sequence = await _sequence_for_position(repo, parent_id, position)
 
     # Snapshot before state for undo
     old_node = await service.get_node(node_id)
     before = _node_snapshot(old_node) if old_node else None
 
     try:
-        node = await service.move_node(node_id, parent_id, position)
+        node = await service.move_node(node_id, parent_id, new_sequence)
         if not node:
             raise HTTPException(404, "Node not found")
 

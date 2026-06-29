@@ -67,17 +67,40 @@ export function operationToIntentV2(op: Operation, clientId: string, seq: number
       return { ...base, properties: payload.updates ?? null };
     }
     case 'create': {
-      const payload = op.payload as { parentId?: string | null; contentAST?: unknown[] };
+      const payload = op.payload as { parentId?: string | null; afterBlockId?: string | null; contentAST?: unknown[] };
       return {
         ...base,
         type: 'create',
         parent_uuid: payload.parentId ?? null,
+        after_uuid: payload.afterBlockId ?? null,
         content_ast: payload.contentAST ?? null,
       };
     }
-    case 'move': {
-      const payload = op.payload as { parentId?: string | null };
-      return { ...base, type: 'move', parent_uuid: payload.parentId ?? null };
+    case 'move':
+    case 'move_node': {
+      const payload = op.payload as { parentId?: string | null; afterBlockId?: string | null };
+      return {
+        ...base,
+        type: 'move',
+        parent_uuid: payload.parentId ?? null,
+        after_uuid: payload.afterBlockId ?? null,
+      };
+    }
+    case 'set_classes': {
+      const payload = op.payload as { classIds?: string[] };
+      return {
+        ...base,
+        type: 'update_node',
+        properties: { class_uuids: payload.classIds ?? [] },
+      };
+    }
+    case 'set_tags': {
+      const payload = op.payload as { tagIds?: string[] };
+      return {
+        ...base,
+        type: 'update_node',
+        properties: { tag_uuids: payload.tagIds ?? [] },
+      };
     }
     case 'delete':
       return { ...base, type: 'delete', is_deleted: true };

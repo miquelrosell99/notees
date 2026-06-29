@@ -551,7 +551,7 @@ class NodeClassRepository(ABC):
         pass
 
     @abstractmethod
-    async def get_node_sequence(self, node_id: int) -> int | None:
+    async def get_node_sequence(self, node_id: int) -> float | None:
         """Get the sequence of a node."""
         pass
 

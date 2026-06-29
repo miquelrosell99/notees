@@ -98,3 +98,24 @@ async def test_merge_pages(node_service):
     child1_children = await node_service.get_node_children(child1.id)
     assert len(child1_children) == 1
     assert child1_children[0].id == grandchild.id
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_move_node_endpoint_maps_position_to_fractional_sequence(
+    authenticated_client, node_service
+):
+    """The /move endpoint should interpret position as a sibling index, not a raw sequence."""
+    page = await node_service.create_page("Move Pos Page")
+    child_a = await node_service.create_block("A", parent_id=page.id, sequence=0)
+    _child_b = await node_service.create_block("B", parent_id=page.id, sequence=1024)
+
+    response = await authenticated_client.put(
+        f"/api/nodes/{child_a.uuid}/move",
+        json={"parent_uuid": str(page.uuid), "position": 1},
+    )
+    assert response.status_code == 200
+
+    moved = await node_service.get_node(child_a.id)
+    assert moved is not None
+    assert 0 < moved.sequence < 1024

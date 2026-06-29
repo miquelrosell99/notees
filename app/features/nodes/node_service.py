@@ -926,7 +926,7 @@ class NodeService:
         self,
         name: str,
         parent_id: int,
-        sequence: int = 0,
+        sequence: float = 0.0,
         user_id: int | None = None,
     ) -> Node:
         """Create a new block (child node)."""
@@ -941,7 +941,7 @@ class NodeService:
         self,
         node_id: int,
         new_parent_id: int,
-        new_sequence: int,
+        new_sequence: float,
         user_id: int | None = None,
     ) -> Node | None:
         """Move a node to a new parent and/or position.
@@ -1048,6 +1048,7 @@ class NodeService:
         data: NodeUpdateData,
         user_id: int | None = None,
         classes: list[int] | None = None,
+        tags: list[int] | None = None,
         properties: dict[int, Any] | None = None,
     ) -> Node | None:
         """Update an existing node.
@@ -1151,8 +1152,8 @@ class NodeService:
                     node = await self._node_repo.get_by_id(node.id) or node
 
         # Apply class reconciliation and property values in the same transaction
-        if classes is not None or properties:
-            await self.apply_node_extras(node_id, classes, properties)
+        if classes is not None or tags is not None or properties:
+            await self.apply_node_extras(node_id, classes, tags, properties)
 
         return node
 
@@ -1160,11 +1161,12 @@ class NodeService:
         self,
         node_id: int,
         classes: list[int] | None,
+        tags: list[int] | None,
         properties: dict[int, Any] | None,
     ) -> None:
-        """Reconcile classes and apply property values for a node.
+        """Reconcile classes/tags and apply property values for a node.
 
-        This is a thin orchestrator over the property repository and the class
+        This is a thin orchestrator over the property repository and the class/tag
         methods on this service. It is intentionally non-transactional on its own
         so callers can decide whether to run it inside a broader transaction.
         """
@@ -1175,6 +1177,14 @@ class NodeService:
                 await self.add_class(node_id, cls_id)
             for cls_id in current - want:
                 await self.remove_class(node_id, cls_id)
+
+        if tags is not None:
+            current = set(await self._node_repo.get_node_tag_ids(node_id))
+            want = set(tags)
+            for tag_id in want - current:
+                await self.add_tag_link(node_id, tag_id)
+            for tag_id in current - want:
+                await self.remove_tag_link(node_id, tag_id)
 
         if properties and self._property_repo is not None:
             from app.utils.date_range import normalize_date_range_value
