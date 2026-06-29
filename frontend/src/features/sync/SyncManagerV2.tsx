@@ -24,6 +24,7 @@ import { graphNodeToConflictNode } from './utils/graphNodeToConflictNode';
 import { getNode as fetchNode } from '@/api/nodes';
 import { useLivePresenceStore } from '@/features/collab';
 import { useWorkspaces } from '@/features/workspace';
+import { generateUUID } from '@/utils/uuid';
 
 const BATCH_INTERVAL_MS = 200;
 const MAX_BATCH_SIZE = 50;
@@ -45,7 +46,7 @@ function isBehind(serverVec: VersionVector, clientVec: VersionVector): boolean {
 function generateClientId(): string {
   let id = localStorage.getItem('notees-client-id');
   if (!id) {
-    id = crypto.randomUUID();
+    id = generateUUID();
     localStorage.setItem('notees-client-id', id);
   }
   return id;
