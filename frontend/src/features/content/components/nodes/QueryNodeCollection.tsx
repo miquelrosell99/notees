@@ -47,6 +47,7 @@ import { useNavigationStore, useAppStore, useSettingsStore } from '@/stores';
 import './QueryNodeCollection.css';
 
 import { applyCollapseLevelToChildren, extractUuidsFromAST } from './QueryNodeCollection/helpers';
+import { dedupeNodesByUuid } from '@/utils/nodeTree';
 import { getOperationRuntime } from '@/runtime';
 import { getAllNodes } from '@/runtime/graphHelpers';
 import { upsertNodes } from '@/runtime/eventBus';
@@ -580,8 +581,8 @@ export function QueryNodeCollection({
     : (isPseudoNode ? pseudoNodeAST : activeView?.query_ast);
   const resultNodes = useMemo(() => {
     const nodes = (activeAST && isEmptyQuery(activeAST)) ? [] : rawResults;
-    return nodes;
-  }, [activeAST, rawResults]);
+    return dedupeNodesByUuid(nodes, `QueryNodeCollection:${viewType}`);
+  }, [activeAST, rawResults, viewType]);
   const isQueryLoading = viewType === 'linked_references' 
     ? linkedReferencesLoading 
     : isInlineMode ? inlineQueryLoading
