@@ -140,15 +140,6 @@ notees/
 │   ├── eslint.config.js
 │   └── vitest.config.ts          # Vitest test runner config
 │
-├── mobile/                       # First-class Flutter mobile app (Android + iOS)
-│   ├── android/
-│   ├── ios/
-│   ├── lib/                      # Dart source
-│   ├── build-apk.sh              # Docker-based Flutter build script
-│   ├── Dockerfile
-│   ├── README.md
-│   └── AGENTS.md
-│
 ├── tests/                        # Backend test suite
 ├── docs/                         # Architecture documentation
 ├── scripts/                      # Utility scripts
@@ -335,4 +326,4 @@ See `docs/operations.md` for:
 - `docs/operations.md` — Debugging, performance, linting, config, pitfalls
 - `docs/design-language.md` — Full design language
 - `docs/migration-plan.md` — Fleet migration plan
-- `mobile/README.md` and `mobile/AGENTS.md` — Mobile app context
+- `miquelrosell99/notees-flutter` — Mobile app context
