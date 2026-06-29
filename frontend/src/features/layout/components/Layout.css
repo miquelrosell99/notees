@@ -235,6 +235,27 @@
   transition: margin var(--motion-duration-medium) var(--motion-easing-collapse);
 }
 
+/* Left content sidebar — animated between expanded and collapsed widths.
+   The persistent rail is a separate sibling. */
+.sidebar-wrapper--content {
+  width: var(--sidebar-width);
+  min-width: var(--sidebar-width);
+  overflow: hidden;
+  transition:
+    width var(--motion-duration-medium) var(--motion-easing-collapse),
+    min-width var(--motion-duration-medium) var(--motion-easing-collapse),
+    opacity var(--motion-duration-medium) var(--motion-easing-collapse),
+    margin var(--motion-duration-medium) var(--motion-easing-collapse);
+}
+
+.sidebar-wrapper--content.sidebar-wrapper--collapsed {
+  width: 0;
+  min-width: 0;
+  opacity: var(--opacity-0);
+  pointer-events: none;
+  margin-right: calc(-1 * var(--container-gap));
+}
+
 .sidebar-wrapper--right {
   flex-direction: row-reverse;
 }

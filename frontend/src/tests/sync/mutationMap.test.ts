@@ -55,7 +55,53 @@ describe('operationToApiRequest', () => {
       type: 'create',
       data: {
         name: '[{"type":"paragraph","children":[{"type":"text","text":"hello"}]}]',
-        parent_uuid: null,
+        parent_uuid: 'parent-uuid',
+        sequence: 0,
+        uuid: 'new-uuid',
+      },
+    });
+  });
+
+  it('looks up create parent from runtime when available', () => {
+    const runtime = getOperationRuntime();
+    runtime.loadBaseNodes([
+      {
+        blockId: 'parent-uuid',
+        parentId: null,
+        orderIndex: 0,
+        nodeType: 'block',
+        contentAST: [{ type: 'paragraph', children: [{ type: 'text', text: '' }] }],
+        collapsed: false,
+        isDeleted: false,
+        isPage: false,
+        name: '',
+        icon: null,
+        color: null,
+        classIds: [],
+        tagIds: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        version: 0,
+      },
+    ]);
+
+    const operation = op({
+      id: 'op-1',
+      type: 'create',
+      blockId: 'new-uuid',
+      payload: {
+        parentId: 'parent-uuid',
+        afterBlockId: null,
+        contentAST: [{ type: 'paragraph', children: [{ type: 'text', text: 'hello' }] }],
+      },
+    });
+
+    const request = operationToApiRequest(operation);
+    expect(request).toEqual({
+      type: 'create',
+      data: {
+        name: '[{"type":"paragraph","children":[{"type":"text","text":"hello"}]}]',
+        parent_uuid: 'parent-uuid',
         sequence: 0,
         uuid: 'new-uuid',
       },
@@ -90,7 +136,7 @@ describe('operationToApiRequest', () => {
     expect(request).toEqual({
       type: 'update',
       uuid: 'a',
-      data: { parent_uuid: null, sequence: 0 },
+      data: { parent_uuid: '7', sequence: 0 },
     });
   });
 
@@ -134,7 +180,7 @@ describe('operationToApiRequest', () => {
     });
 
     const request = operationToApiRequest(operation);
-    expect(request).toEqual({ type: 'move_node', uuid: 'a', parentUuid: null, position: 0 });
+    expect(request).toEqual({ type: 'move_node', uuid: 'a', parentUuid: '7', position: 0 });
   });
 
   it('uses the blockId as uuid when serverId is missing', () => {
@@ -274,7 +320,7 @@ describe('executeOperation', () => {
 
     const result = await executeOperation(operation, api);
 
-    expect(api.moveNode).toHaveBeenCalledWith('a', null, 0);
+    expect(api.moveNode).toHaveBeenCalledWith('a', '7', 0);
     expect(result).toBe(moved);
   });
 });

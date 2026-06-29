@@ -144,6 +144,7 @@ export const COMMAND_IDS = {
   SETTINGS: 'settings.open',
   PLUGIN_MANAGER: 'plugins.openManager',
   ADD_PROPERTY: 'property.add',
+  SWITCH_WORKSPACE: 'workspace.switch',
   UNDO: 'edit.undo',
   REDO: 'edit.redo',
   REDO_ALT: 'edit.redoAlt',

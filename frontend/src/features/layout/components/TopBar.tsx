@@ -8,13 +8,13 @@
  * - Toolbar buttons on right
  * - Node view specific controls (document/bullet mode toggle)
  */
-import { useRef, useState, useMemo, useCallback, useEffect } from 'react';
+import { useRef, useState, useMemo, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigationStore, useModalStore, useUndoStore, useSettingsStore } from '@/stores';
 import { useShallow } from 'zustand/react/shallow';
 
 import { useAutoExportStore } from '@/stores/autoExportStore';
-import { useCommentCount, useDailyNote } from '@/features/content';
+import { useCommentCount } from '@/features/content';
 import { Icon, Button } from '@/components/ui';
 import type { ButtonBadge } from '@/components/ui/Button';
 import { CalendarPopup } from '@/features/content';
@@ -62,7 +62,6 @@ function AutoExportIndicator() {
 export function TopBar() {
   const {
     toggleSidebar,
-    openNode,
     toggleRightSidebar,
     rightSidebarOpen,
     toggleFocusMode,
@@ -70,7 +69,6 @@ export function TopBar() {
   } = useNavigationStore(
     useShallow((s) => ({
       toggleSidebar: s.toggleSidebar,
-      openNode: s.openNode,
       toggleRightSidebar: s.toggleRightSidebar,
       rightSidebarOpen: s.rightSidebarOpen,
       toggleFocusMode: s.toggleFocusMode,
@@ -99,7 +97,6 @@ export function TopBar() {
   const undoBtnRef = useRef<HTMLButtonElement>(null);
   const redoBtnRef = useRef<HTMLButtonElement>(null);
   const [scratchpadEntryCount, setScratchpadEntryCount] = useState(0);
-  const [goToTodaySignal] = useState(0);
 
   // Per-tab navigation history for back/forward buttons
   const canGoBack = useNavigationStore(s => s.canGoBack());
@@ -173,14 +170,6 @@ export function TopBar() {
     { id: 'sep', label: '', separator: true },
     { id: 'clear', label: 'Clear history', icon: "mdi mdi-delete-outline", danger: true, onClick: () => { clearHistory(); setRedoMenuOpen(false); } },
   ], [redoEntries, performRedoTo, queryClient, clearHistory]);
-
-  // Pre-fetch today's note for shift+click
-  const { refetch: refetchToday } = useDailyNote(new Date());
-
-  const handleGoToToday = useCallback(async () => {
-    const result = await refetchToday();
-    if (result.data) openNode(result.data.uuid);
-  }, [refetchToday, openNode]);
 
   const currentNodeUuid = useNavigationStore(s => s.currentNodeUuid);
   const sidebarCards = useNavigationStore(s => s.sidebarCards);
@@ -366,17 +355,6 @@ export function TopBar() {
           badges={scratchpadEntryCount > 0 ? [{ count: scratchpadEntryCount, position: 'top-right' }] : undefined}
         />
         
-        {/* Today button */}
-        <Button
-          icon={"mdi mdi-calendar-today"}
-          variant="ghost"
-          size="sm"
-          onClick={handleGoToToday}
-          aria-label="Go to today"
-          title="Go to today"
-          className="toolbar-btn"
-        />
-
         {/* Calendar button */}
         <div className="top-bar-calendar-container">
           <Button 
@@ -393,7 +371,6 @@ export function TopBar() {
             isOpen={isCalendarOpen} 
             onClose={() => setCalendarOpen(false)}
             anchorRef={calendarBtnRef as React.RefObject<HTMLElement>}
-            goToTodaySignal={goToTodaySignal}
           />
         </div>
         

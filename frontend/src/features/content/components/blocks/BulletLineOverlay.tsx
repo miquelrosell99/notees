@@ -132,14 +132,18 @@ export const BulletLineOverlay = memo(function BulletLineOverlay({
       const rows: { depth: number; blockUuid: string; y: number; x: number }[] = [];
 
       if (virtualized && virtualItems) {
-        const scrollTop = container.scrollTop;
+        // Measure the actual rendered rows so guide lines match the virtualized
+        // layout (including dynamic heights and the scroll-margin offset).
         for (const vi of virtualItems) {
           const fn = flatNodes[vi.index];
           if (!fn || fn.isGhost) continue;
+          const el = container.querySelector(`.node-block[data-block-id="${fn.node.uuid}"]`) as HTMLElement | null;
+          if (!el) continue;
+          const rect = el.getBoundingClientRect();
           rows.push({
             depth: fn.depth,
             blockUuid: fn.node.uuid,
-            y: vi.start + (vi.end - vi.start) / 2 - scrollTop,
+            y: rect.top - containerRect.top + rect.height / 2,
             x: fn.depth * step + bulletCenter,
           });
         }

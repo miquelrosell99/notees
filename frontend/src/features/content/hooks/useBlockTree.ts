@@ -131,7 +131,7 @@ function createGhostFlatNode(parentUuid: string, depth: number): FlatNode {
   };
 }
 
-function flattenNodesFromRuntime(
+export function flattenNodesFromRuntime(
   nodes: Node[],
   maxDepth: number,
   pagesOnly: boolean,
@@ -167,16 +167,22 @@ function flattenNodesFromRuntime(
     byParent.get(parentId)!.push(node);
   }
 
-  // Include runtime-only nodes whose parent is in the prop tree
+  // Include runtime-only nodes whose parent is in the prop tree, or whose
+  // parent is the root page/rootBlockId (which is never part of the prop tree).
+  // This makes newly-created top-level blocks visible immediately instead of
+  // disappearing until the next server fetch.
   for (const gn of getAllNodes(runtime)) {
     if (nodeMap.has(gn.blockId)) continue;
-    if (!gn.parentId || !nodeMap.has(gn.parentId)) continue;
+    if (gn.isDeleted) continue;
+    if (!gn.parentId || (!nodeMap.has(gn.parentId) && gn.parentId !== rootUuid)) continue;
     const syntheticNode: Node = {
       uuid: gn.blockId,
       name: JSON.stringify(gn.contentAST),
       icon: gn.icon ?? null,
       color: gn.color ?? null,
-      parent_uuid: null,
+      // Keep the real parent UUID so resolveParentId can place runtime-only
+      // top-level nodes under the root correctly.
+      parent_uuid: gn.parentId,
       page_uuid: null,
       sequence: gn.orderIndex,
       collapsed: collapsedLookup(gn.blockId) ?? gn.collapsed ?? false,
@@ -243,7 +249,11 @@ function flattenNodesFromRuntime(
   const topLevel: string[] = [];
   for (const [nodeUuid, node] of nodeMap) {
     const parentId = resolveParentId(node);
-    if (!nodeMap.has(parentId)) topLevel.push(nodeUuid);
+    // Treat the root page/rootBlockId as a top-level parent even though it is
+    // never included in the prop-node map.
+    if (!nodeMap.has(parentId) || parentId === rootUuid) {
+      topLevel.push(nodeUuid);
+    }
   }
 
   topLevel.sort((a, b) => {

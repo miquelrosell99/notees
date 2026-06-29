@@ -91,16 +91,9 @@ export function apiNodesToGraphNodes(
   nodes: Node[],
   nodeUuid?: string,
 ): { graphNodes: GraphNode[]; rootBlockId: string } {
-  console.log('[apiNodesToGraphNodes] called', { nodeCount: nodes.length, nodeUuid, topLevelUuids: nodes.map((n) => n.uuid) });
   const allClasses = queryClient.getQueryData<Node[]>(nodeKeys.classes());
 
   const graphNodes = nodes.map(n => apiNodeToGraphNode(n, allClasses ?? undefined));
-
-  console.log('[apiNodesToGraphNodes] output', {
-    firstGraphNode: graphNodes[0]?.blockId,
-    firstParentId: graphNodes[0]?.parentId,
-    firstOrderIndex: graphNodes[0]?.orderIndex,
-  });
 
   // Determine rootBlockId — the parent ID used for project() traversal
   if (nodeUuid) {

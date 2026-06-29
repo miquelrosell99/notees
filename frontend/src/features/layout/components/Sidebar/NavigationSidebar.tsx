@@ -1,21 +1,22 @@
 /**
- * Sidebar component with workspace switcher, navigation, favorites, and recents
+ * Sidebar components with workspace switcher, navigation, favorites, and recents
  *
- * Features:
- * - Workspace switcher at top
- * - Journal and Pages navigation
- * - FAVORITES section with user-favorited pages (draggable for reordering)
- * - RECENTS section with recently accessed pages
+ * Desktop layout uses two adjacent panels:
+ * - `<SidebarRail />`: persistent icon rail on the far left.
+ * - `<Sidebar />`: collapsible content panel with workspace switcher, favorites, recents.
+ *
+ * Mobile layout renders `<Sidebar collapsed={false} />` inside a full-width drawer
+ * (no rail). The drawer's sidebar reuses the rail's bottom tools so archived,
+ * trash, settings, and account remain reachable.
  */
-import { useState, useCallback, useMemo, useRef } from 'react';
-import { createPortal } from 'react-dom';
+import { useState, useCallback, useMemo } from 'react';
 import { useNavigationStore } from '@/stores';
 import { useShallow } from 'zustand/react/shallow';
-import type { MainViewType } from '@/stores';
-import { useIsMobile } from '@/hooks';
-import { useNodeByUuid } from '@/features/content';
 
-import { WorkspaceSwitcher, WorkspaceModal, useWorkspaceSettings, useEmptyTrash } from '@/features/workspace';
+import { useIsMobile } from '@/hooks';
+import { useNodeByUuid, useDailyNote } from '@/features/content';
+
+import { WorkspaceSwitcher, useWorkspaceSettings, useEmptyTrash } from '@/features/workspace';
 import { GraphSettingsModal, UserSettingsModal, SystemSettingsModal } from '@/features/layout/components/Modals';
 import { AccountMenu } from '@/features/layout/components/AccountMenu';
 import { Card } from '@/components/ui/Card';
@@ -23,415 +24,44 @@ import { Button } from '@/components/ui/Button';
 import { PageContextMenu } from '@/features/content';
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/ContextMenu';
 import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
-import { useClickOutside } from '@/hooks/useClickOutside';
 import { SidebarFavorites } from './SidebarFavorites';
 import { SidebarRecents } from './SidebarRecents';
 import { SupportBadge } from '@/features/support';
-import { ChevronDownIcon, ChevronRightIcon } from '@/components/ui/icons';
 import { SYSTEM_PAGE_UUIDS } from '@/constants/systemProperties';
 import './NavigationSidebar.css';
 
 interface SidebarProps {
-  collapsed: boolean;
+  collapsed?: boolean;
 }
 
-const SIDEBAR_BOTTOM_EXPANDED_KEY = 'notees:sidebar-bottom-expanded';
+/* ================================================================
+   SidebarTools — bottom tool group shared between rail and mobile drawer
+   ================================================================ */
 
-function useSidebarSectionState(key: string, defaultValue: boolean = true) {
-  const [expanded, setExpanded] = useState(() => {
-    try {
-      const stored = localStorage.getItem(key);
-      return stored !== null ? JSON.parse(stored) : defaultValue;
-    } catch {
-      return defaultValue;
-    }
-  });
-
-  const toggle = useCallback(() => {
-    setExpanded((prev: boolean) => {
-      const next = !prev;
-      try {
-        localStorage.setItem(key, JSON.stringify(next));
-      } catch {
-        // Ignore localStorage errors
-      }
-      return next;
-    });
-  }, [key]);
-
-  return [expanded, toggle] as const;
+interface SidebarToolsProps {
+  layout: 'rail' | 'footer';
 }
 
-interface CollapsedSidebarViewProps {
-  showJournals: boolean;
-  showInbox: boolean;
-  inboxNode?: { uuid: string } | null;
-  mainViewType: MainViewType;
-  setMainViewType: (view: MainViewType) => void;
-  openNode: (nodeUuid: string) => void;
-  openNodeInNewTab: (nodeUuid: string) => void;
-  closeMobileDrawer: () => void;
-  onFavoriteContextMenu: (nodeUuid: string, e: React.MouseEvent) => void;
-  onRecentContextMenu: (nodeUuid: string, e: React.MouseEvent) => void;
-  onTrashContextMenu: (e: React.MouseEvent) => void;
-  onOpenGraphSettings: () => void;
-  onOpenUserSettings: () => void;
-  onOpenSystemSettings: () => void;
-  onOpenShares: () => void;
-}
-
-function SidebarPopup({
-  isOpen,
-  triggerRef,
-  popupRef,
-  children,
-}: {
-  isOpen: boolean;
-  triggerRef: React.RefObject<HTMLButtonElement | null>;
-  popupRef: React.RefObject<HTMLDivElement | null>;
-  children: React.ReactNode;
-}) {
-  const rect = triggerRef.current?.getBoundingClientRect();
-  const style: React.CSSProperties = rect
-    ? { position: 'fixed', top: rect.top, left: rect.right + 8 }
-    : { position: 'fixed' };
-
-  if (!isOpen) return null;
-  return createPortal(
-    <Card
-      ref={popupRef}
-      className="sidebar-collapsed-popup"
-      elevation="high"
-      padding={false}
-      style={style}
-    >
-      {children}
-    </Card>,
-    document.body
-  );
-}
-
-function CollapsedSidebarView({
-  showJournals,
-  showInbox,
-  inboxNode,
-  mainViewType,
-  setMainViewType,
-  openNode,
-  openNodeInNewTab,
-  closeMobileDrawer,
-  onFavoriteContextMenu,
-  onRecentContextMenu,
-  onTrashContextMenu,
-  onOpenGraphSettings,
-  onOpenUserSettings,
-  onOpenSystemSettings,
-  onOpenShares,
-}: CollapsedSidebarViewProps) {
-  const [favoritesOpen, setFavoritesOpen] = useState(false);
-  const [recentsOpen, setRecentsOpen] = useState(false);
-  const favoritesBtnRef = useRef<HTMLButtonElement>(null);
-  const recentsBtnRef = useRef<HTMLButtonElement>(null);
-  const favoritesPopupRef = useRef<HTMLDivElement>(null);
-  const recentsPopupRef = useRef<HTMLDivElement>(null);
-
-  useClickOutside(
-    [favoritesBtnRef as React.RefObject<HTMLElement>, favoritesPopupRef as React.RefObject<HTMLElement>],
-    () => setFavoritesOpen(false),
-    favoritesOpen
-  );
-  useClickOutside(
-    [recentsBtnRef as React.RefObject<HTMLElement>, recentsPopupRef as React.RefObject<HTMLElement>],
-    () => setRecentsOpen(false),
-    recentsOpen
-  );
-
-  const handleOpenInbox = useCallback((e?: React.MouseEvent) => {
-    if (inboxNode?.uuid) {
-      if (e?.ctrlKey || e?.metaKey) {
-        openNodeInNewTab(inboxNode.uuid);
-      } else {
-        openNode(inboxNode.uuid);
-      }
-      closeMobileDrawer();
-    }
-  }, [inboxNode, openNode, openNodeInNewTab, closeMobileDrawer]);
-
-  const isPagesActive = mainViewType === 'pages' || mainViewType === 'all-pages' || mainViewType === 'graph' || mainViewType === 'timeline';
-
-  const toggleFavorites = useCallback(() => {
-    setFavoritesOpen((open) => !open);
-    setRecentsOpen(false);
-  }, []);
-
-  const toggleRecents = useCallback(() => {
-    setRecentsOpen((open) => !open);
-    setFavoritesOpen(false);
-  }, []);
-
-  return (
-    <div className="sidebar-collapsed">
-      <div className="sidebar-collapsed__nav">
-        {showJournals && (
-          <Button
-            className="sidebar-collapsed__btn"
-            variant="ghost"
-            size="md"
-            icon="mdi mdi-notebook-outline"
-            fullWidth
-            active={mainViewType === 'journals'}
-            onClick={() => {
-              setMainViewType('journals');
-              closeMobileDrawer();
-            }}
-            aria-label="Journal"
-            title="Journal"
-          />
-        )}
-        <Button
-          className="sidebar-collapsed__btn"
-          variant="ghost"
-          size="md"
-          icon="mdi mdi-book-open-page-variant"
-          fullWidth
-          active={isPagesActive}
-          onClick={() => {
-            setMainViewType('pages');
-            closeMobileDrawer();
-          }}
-          aria-label="Pages"
-          title="Pages"
-        />
-        {showInbox && (
-          <Button
-            className="sidebar-collapsed__btn"
-            variant="ghost"
-            size="md"
-            icon="mdi mdi-inbox-arrow-down"
-            fullWidth
-            disabled={!inboxNode}
-            onClick={handleOpenInbox}
-            aria-label="Inbox"
-            title="Inbox"
-          />
-        )}
-        <div className="sidebar-collapsed__divider" />
-        <Button
-          ref={favoritesBtnRef}
-          className="sidebar-collapsed__btn"
-          variant="ghost"
-          size="md"
-          icon="mdi mdi-star-outline"
-          fullWidth
-          active={favoritesOpen}
-          onClick={toggleFavorites}
-          aria-label="Favorites"
-          title="Favorites"
-        />
-        <Button
-          ref={recentsBtnRef}
-          className="sidebar-collapsed__btn"
-          variant="ghost"
-          size="md"
-          icon="mdi mdi-clock-outline"
-          fullWidth
-          active={recentsOpen}
-          onClick={toggleRecents}
-          aria-label="Recents"
-          title="Recents"
-        />
-        <div className="sidebar-collapsed__divider" />
-      </div>
-
-      <div className="sidebar-collapsed__footer">
-        <Button
-          className="sidebar-collapsed__btn"
-          variant="ghost"
-          size="md"
-          icon="mdi mdi-archive"
-          fullWidth
-          active={mainViewType === 'archived'}
-          onClick={() => {
-            setMainViewType('archived');
-            closeMobileDrawer();
-          }}
-          aria-label="Archived"
-          title="Archived"
-        />
-        <Button
-          className="sidebar-collapsed__btn"
-          variant="ghost"
-          size="md"
-          icon="mdi mdi-trash-can-outline"
-          fullWidth
-          active={mainViewType === 'trash'}
-          onClick={() => {
-            setMainViewType('trash');
-            closeMobileDrawer();
-          }}
-          onContextMenu={onTrashContextMenu}
-          aria-label="Trash"
-          title="Trash"
-        />
-        <Button
-          className="sidebar-collapsed__btn"
-          variant="ghost"
-          size="md"
-          icon="mdi mdi-cog"
-          fullWidth
-          onClick={onOpenGraphSettings}
-          aria-label="Settings"
-          title="Settings"
-        />
-        <AccountMenu
-          className="sidebar-collapsed__account"
-          onOpenUserSettings={onOpenUserSettings}
-          onOpenSystemSettings={onOpenSystemSettings}
-          onOpenShares={onOpenShares}
-          placement="top"
-          align="left"
-          renderTrigger={({ ref, onClick, isOpen, label }) => (
-            <Button
-              ref={ref}
-              className="sidebar-collapsed__btn"
-              variant="ghost"
-              size="md"
-              icon="mdi mdi-account"
-              fullWidth
-              active={isOpen}
-              onClick={onClick}
-              aria-label={label}
-              title={label}
-            />
-          )}
-        />
-        <SupportBadge compact className="sidebar-collapsed__support" />
-      </div>
-
-      <SidebarPopup
-        isOpen={favoritesOpen}
-        triggerRef={favoritesBtnRef}
-        popupRef={favoritesPopupRef}
-      >
-        <SidebarFavorites
-          onContextMenu={onFavoriteContextMenu}
-          onItemClick={() => setFavoritesOpen(false)}
-        />
-      </SidebarPopup>
-      <SidebarPopup
-        isOpen={recentsOpen}
-        triggerRef={recentsBtnRef}
-        popupRef={recentsPopupRef}
-      >
-        <SidebarRecents
-          onContextMenu={onRecentContextMenu}
-          onItemClick={() => setRecentsOpen(false)}
-        />
-      </SidebarPopup>
-    </div>
-  );
-}
-
-export function Sidebar({ collapsed }: SidebarProps) {
-  const [isWorkspaceModalOpen, setIsWorkspaceModalOpen] = useState(false);
+function SidebarTools({ layout }: SidebarToolsProps) {
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isUserSettingsOpen, setIsUserSettingsOpen] = useState(false);
   const [isSystemSettingsOpen, setIsSystemSettingsOpen] = useState(false);
-  const [contextMenuNode, setContextMenuNode] = useState<string | null>(null);
-  const [contextMenuPos, setContextMenuPos] = useState({ x: 0, y: 0 });
   const [trashContextMenuPos, setTrashContextMenuPos] = useState<{ x: number; y: number } | null>(null);
   const [showEmptyTrashConfirm, setShowEmptyTrashConfirm] = useState(false);
-  const [bottomExpanded, toggleBottomExpanded] = useSidebarSectionState(SIDEBAR_BOTTOM_EXPANDED_KEY, true);
 
-  const {
-    mainViewType,
-    setMainViewType,
-    openNode,
-    openNodeInNewTab,
-    isSidebarCollapsed,
-    toggleSidebar,
-  } = useNavigationStore(
+  const { mainViewType, setMainViewType } = useNavigationStore(
     useShallow((s) => ({
       mainViewType: s.mainViewType,
       setMainViewType: s.setMainViewType,
-      openNode: s.openNode,
-      openNodeInNewTab: s.openNodeInNewTab,
-      isSidebarCollapsed: s.isSidebarCollapsed,
-      toggleSidebar: s.toggleSidebar,
     }))
   );
 
-  // Fetch workspace settings for sidebar visibility toggles
   const { data: workspaceSettings } = useWorkspaceSettings();
+  const hasActiveWorkspace = !!workspaceSettings;
 
-  const showJournals = (workspaceSettings?.sidebar_show_journals as boolean | undefined) ?? true;
-  const showInbox = (workspaceSettings?.sidebar_show_inbox as boolean | undefined) ?? true;
+  const isRail = layout === 'rail';
+  const itemClass = isRail ? 'sidebar-rail__btn' : 'sidebar-footer__item';
 
-  // Fetch the Inbox system page by its fixed UUID
-  // Suppress global error: old workspaces may not have an Inbox page
-  const { data: inboxNode } = useNodeByUuid(SYSTEM_PAGE_UUIDS.inbox, {
-    meta: { skipGlobalError: true },
-  });
-
-  // Fetch the context menu node data
-  const { data: contextNode } = useNodeByUuid(contextMenuNode);
-
-  const isMobile = useIsMobile();
-
-  // Close the sidebar drawer on mobile (no-op on desktop where sidebar is always visible)
-  const closeMobileDrawer = useCallback(() => {
-    if (isMobile && !isSidebarCollapsed) toggleSidebar();
-  }, [isMobile, isSidebarCollapsed, toggleSidebar]);
-
-  const handleOpenShares = useCallback(() => {
-    setMainViewType('shares');
-    closeMobileDrawer();
-  }, [setMainViewType, closeMobileDrawer]);
-
-  // Open the real Inbox system page
-  const handleOpenInbox = useCallback((e?: React.MouseEvent) => {
-    if (inboxNode?.uuid) {
-      if (e?.ctrlKey || e?.metaKey) {
-        openNodeInNewTab(inboxNode.uuid);
-      } else {
-        openNode(inboxNode.uuid);
-      }
-      closeMobileDrawer();
-    }
-  }, [inboxNode, openNode, openNodeInNewTab, closeMobileDrawer]);
-
-  const handleOpenGraphSettings = useCallback(() => {
-    setIsSettingsModalOpen(true);
-  }, []);
-
-  const handleOpenUserSettings = useCallback(() => {
-    setIsUserSettingsOpen(true);
-  }, []);
-
-  const handleOpenSystemSettings = useCallback(() => {
-    setIsSystemSettingsOpen(true);
-  }, []);
-
-  // Handle context menu for favorites
-  const handleFavoriteContextMenu = useCallback((nodeUuid: string, e: React.MouseEvent) => {
-    setContextMenuNode(nodeUuid);
-    setContextMenuPos({ x: e.clientX, y: e.clientY });
-  }, []);
-
-  // Handle context menu for recents
-  const handleRecentContextMenu = useCallback((nodeUuid: string, e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setContextMenuNode(nodeUuid);
-    setContextMenuPos({ x: e.clientX, y: e.clientY });
-  }, []);
-
-  // Close context menu
-  const handleCloseContextMenu = useCallback(() => {
-    setContextMenuNode(null);
-  }, []);
-
-  // Trash context menu
   const handleTrashContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -444,7 +74,7 @@ export function Sidebar({ collapsed }: SidebarProps) {
     {
       id: 'empty-trash',
       label: 'Empty Trash',
-      icon: "mdi mdi-trash-can-outline",
+      icon: 'mdi mdi-trash-can-outline',
       danger: true,
       onClick: () => {
         setTrashContextMenuPos(null);
@@ -453,175 +83,65 @@ export function Sidebar({ collapsed }: SidebarProps) {
     },
   ], []);
 
-  const bottomNavItems = useMemo(() => [
-    { icon: "mdi mdi-archive", label: 'Archived', view: 'archived' as const },
-    { icon: "mdi mdi-trash-can-outline", label: 'Trash', view: 'trash' as const, onContextMenu: handleTrashContextMenu },
-  ], [handleTrashContextMenu]);
-
   return (
     <>
-      <Card className={`sidebar ${collapsed ? 'sidebar--collapsed' : 'sidebar--expanded'}`} padding={false} elevation="medium">
-        {collapsed ? (
-          <CollapsedSidebarView
-            showJournals={showJournals}
-            showInbox={showInbox}
-            inboxNode={inboxNode}
-            mainViewType={mainViewType}
-            setMainViewType={setMainViewType}
-            openNode={openNode}
-            openNodeInNewTab={openNodeInNewTab}
-            closeMobileDrawer={closeMobileDrawer}
-            onFavoriteContextMenu={handleFavoriteContextMenu}
-            onRecentContextMenu={handleRecentContextMenu}
-            onTrashContextMenu={handleTrashContextMenu}
-            onOpenGraphSettings={handleOpenGraphSettings}
-            onOpenUserSettings={handleOpenUserSettings}
-            onOpenSystemSettings={handleOpenSystemSettings}
-            onOpenShares={handleOpenShares}
-          />
-        ) : (
-          <>
-            {/* Workspace Switcher at Top */}
-            <div className="sidebar-header">
-              <WorkspaceSwitcher />
-            </div>
-
-            {/* Top Navigation */}
-            <nav className="sidebar-nav">
-              {showJournals && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  icon="mdi mdi-notebook-outline"
-                  fullWidth
-                  active={mainViewType === 'journals'}
-                  onClick={() => {
-                    setMainViewType('journals');
-                    closeMobileDrawer();
-                  }}
-                  title="Journal"
-                >
-                  Journal
-                </Button>
-              )}
-              <Button
-                variant="ghost"
-                size="sm"
-                icon="mdi mdi-book-open-page-variant"
-                fullWidth
-                active={mainViewType === 'pages' || mainViewType === 'all-pages' || mainViewType === 'graph' || mainViewType === 'timeline'}
-                onClick={() => {
-                  setMainViewType('pages');
-                  closeMobileDrawer();
-                }}
-                title="Pages"
-              >
-                Pages
-              </Button>
-              {showInbox && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  icon="mdi mdi-inbox-arrow-down"
-                  fullWidth
-                  disabled={!inboxNode}
-                  onClick={handleOpenInbox}
-                  title="Inbox"
-                >
-                  Inbox
-                </Button>
-              )}
-            </nav>
-
-            {/* Scrollable middle content - only favorites and recents */}
-            <div className="sidebar-content">
-              {/* Favorites Section */}
-              <SidebarFavorites onContextMenu={handleFavoriteContextMenu} />
-
-              {/* Recents Section */}
-              <SidebarRecents onContextMenu={handleRecentContextMenu} />
-            </div>
-
-            {/* Bottom Footer - Collapsible, not scrollable */}
-            <div className="sidebar-footer-section">
-              <button
-                className="sidebar-section-header"
-                onClick={toggleBottomExpanded}
-                title={bottomExpanded ? 'Collapse tools' : 'Expand tools'}
-              >
-                {bottomExpanded ? <ChevronDownIcon size="xs" /> : <ChevronRightIcon size="xs" />}
-                <h3 className="sidebar-section-title">More</h3>
-              </button>
-              {bottomExpanded && (
-                <div className="sidebar-footer">
-                  {bottomNavItems.map((item) => (
-                    <Button
-                      key={item.label}
-                      className="sidebar-footer__item"
-                      variant="ghost"
-                      size="sm"
-                      icon={item.icon}
-                      fullWidth
-                      active={item.view ? mainViewType === item.view : false}
-                      onClick={() => {
-                        if (item.view) {
-                          setMainViewType(item.view as MainViewType);
-                        }
-                        closeMobileDrawer();
-                      }}
-                      onContextMenu={item.onContextMenu}
-                      title={item.label}
-                    >
-                      {item.label}
-                    </Button>
-                  ))}
-                  <Button
-                    className="sidebar-footer__item"
-                    variant="ghost"
-                    size="sm"
-                    icon="mdi mdi-cog"
-                    fullWidth
-                    onClick={handleOpenGraphSettings}
-                    title="Settings"
-                  >
-                    Settings
-                  </Button>
-                  <AccountMenu
-                    className="sidebar-footer__item sidebar-account"
-                    onOpenUserSettings={handleOpenUserSettings}
-                    onOpenSystemSettings={handleOpenSystemSettings}
-                    onOpenShares={handleOpenShares}
-                    placement="top"
-                    align="left"
-                    renderTrigger={({ ref, onClick, isOpen, label }) => (
-                      <Button
-                        ref={ref}
-                        variant="ghost"
-                        size="sm"
-                        icon="mdi mdi-account"
-                        fullWidth
-                        active={isOpen}
-                        onClick={onClick}
-                        title={label}
-                      >
-                        {label}
-                      </Button>
-                    )}
-                  />
-                </div>
-              )}
-            </div>
-
-            <SupportBadge className="sidebar-support-badge" />
-          </>
-        )}
-      </Card>
+      <div className={isRail ? 'sidebar-rail__bottom' : 'sidebar-footer'}>
+        <Button
+          className={itemClass}
+          variant="ghost"
+          size={isRail ? 'md' : 'sm'}
+          icon="mdi mdi-archive"
+          fullWidth
+          active={mainViewType === 'archived'}
+          onClick={() => setMainViewType('archived')}
+          aria-label="Archived"
+          title="Archived"
+        >
+          {!isRail && 'Archived'}
+        </Button>
+        <Button
+          className={itemClass}
+          variant="ghost"
+          size={isRail ? 'md' : 'sm'}
+          icon="mdi mdi-trash-can-outline"
+          fullWidth
+          active={mainViewType === 'trash'}
+          onClick={() => setMainViewType('trash')}
+          onContextMenu={handleTrashContextMenu}
+          aria-label="Trash"
+          title="Trash"
+        >
+          {!isRail && 'Trash'}
+        </Button>
+        <AccountMenu
+          className={isRail ? 'sidebar-rail__account' : 'sidebar-footer__item sidebar-account'}
+          onOpenUserSettings={() => setIsUserSettingsOpen(true)}
+          onOpenSystemSettings={() => setIsSystemSettingsOpen(true)}
+          onOpenSettings={hasActiveWorkspace ? () => setIsSettingsModalOpen(true) : undefined}
+          onOpenShares={() => setMainViewType('shares')}
+          placement="top"
+          align="left"
+          renderTrigger={({ ref, onClick, isOpen, label }) => (
+            <Button
+              ref={ref}
+              className={itemClass}
+              variant="ghost"
+              size={isRail ? 'md' : 'sm'}
+              icon="mdi mdi-account"
+              fullWidth
+              active={isOpen}
+              onClick={onClick}
+              aria-label={label}
+              title={label}
+            >
+              {!isRail && label}
+            </Button>
+          )}
+        />
+        <SupportBadge compact={isRail} className={isRail ? 'sidebar-rail__support' : 'sidebar-support-badge'} />
+      </div>
 
       {/* Modals */}
-      <WorkspaceModal
-        isOpen={isWorkspaceModalOpen}
-        onClose={() => setIsWorkspaceModalOpen(false)}
-      />
       <GraphSettingsModal
         isOpen={isSettingsModalOpen}
         onClose={() => setIsSettingsModalOpen(false)}
@@ -634,15 +154,6 @@ export function Sidebar({ collapsed }: SidebarProps) {
         isOpen={isSystemSettingsOpen}
         onClose={() => setIsSystemSettingsOpen(false)}
       />
-
-      {/* Context Menu for favorites and recents */}
-      {contextMenuNode && contextNode && (
-        <PageContextMenu
-          node={contextNode}
-          position={contextMenuPos}
-          onClose={handleCloseContextMenu}
-        />
-      )}
 
       {/* Trash context menu */}
       {trashContextMenuPos && (
@@ -667,6 +178,180 @@ export function Sidebar({ collapsed }: SidebarProps) {
         confirmLabel="Empty Trash"
         variant="danger"
       />
+    </>
+  );
+}
+
+/* ================================================================
+   SidebarRail — persistent icon-only navigation rail
+   ================================================================ */
+
+interface SidebarRailProps {
+  hidden?: boolean;
+}
+
+export function SidebarRail({ hidden }: SidebarRailProps) {
+  const {
+    mainViewType,
+    setMainViewType,
+    openNode,
+    openNodeInNewTab,
+  } = useNavigationStore(
+    useShallow((s) => ({
+      mainViewType: s.mainViewType,
+      setMainViewType: s.setMainViewType,
+      openNode: s.openNode,
+      openNodeInNewTab: s.openNodeInNewTab,
+    }))
+  );
+
+  const { data: workspaceSettings } = useWorkspaceSettings();
+  const showJournals = (workspaceSettings?.sidebar_show_journals as boolean | undefined) ?? true;
+  const showInbox = (workspaceSettings?.sidebar_show_inbox as boolean | undefined) ?? true;
+
+  const { data: inboxNode } = useNodeByUuid(SYSTEM_PAGE_UUIDS.inbox, {
+    meta: { skipGlobalError: true },
+  });
+
+  const { refetch: refetchToday } = useDailyNote(new Date());
+
+  const handleOpenInbox = useCallback((e?: React.MouseEvent) => {
+    if (inboxNode?.uuid) {
+      if (e?.ctrlKey || e?.metaKey) {
+        openNodeInNewTab(inboxNode.uuid);
+      } else {
+        openNode(inboxNode.uuid);
+      }
+    }
+  }, [inboxNode, openNode, openNodeInNewTab]);
+
+  const handleGoToToday = useCallback(async (e?: React.MouseEvent) => {
+    const result = await refetchToday();
+    if (!result.data) return;
+    if (e?.ctrlKey || e?.metaKey) {
+      openNodeInNewTab(result.data.uuid);
+    } else {
+      openNode(result.data.uuid);
+    }
+  }, [refetchToday, openNode, openNodeInNewTab]);
+
+  const isPagesActive = mainViewType === 'pages' || mainViewType === 'all-pages' || mainViewType === 'graph' || mainViewType === 'timeline';
+
+  if (hidden) return null;
+
+  return (
+    <Card className="sidebar-rail" padding={false} elevation="medium">
+      <div className="sidebar-rail__top">
+        {showJournals && (
+          <Button
+            className="sidebar-rail__btn"
+            variant="ghost"
+            size="md"
+            icon="mdi mdi-notebook-outline"
+            fullWidth
+            active={mainViewType === 'journals'}
+            onClick={() => setMainViewType('journals')}
+            aria-label="Journal"
+            title="Journal"
+          />
+        )}
+        <Button
+          className="sidebar-rail__btn"
+          variant="ghost"
+          size="md"
+          icon="mdi mdi-calendar-today"
+          fullWidth
+          onClick={handleGoToToday}
+          aria-label="Go to today"
+          title="Go to today"
+        />
+        <Button
+          className="sidebar-rail__btn"
+          variant="ghost"
+          size="md"
+          icon="mdi mdi-book-open-page-variant"
+          fullWidth
+          active={isPagesActive}
+          onClick={() => setMainViewType('pages')}
+          aria-label="Pages"
+          title="Pages"
+        />
+        {showInbox && (
+          <Button
+            className="sidebar-rail__btn"
+            variant="ghost"
+            size="md"
+            icon="mdi mdi-inbox-arrow-down"
+            fullWidth
+            disabled={!inboxNode}
+            onClick={handleOpenInbox}
+            aria-label="Inbox"
+            title="Inbox"
+          />
+        )}
+      </div>
+
+      <SidebarTools layout="rail" />
+    </Card>
+  );
+}
+
+/* ================================================================
+   Sidebar — collapsible content panel
+   ================================================================ */
+
+export function Sidebar({ collapsed }: SidebarProps) {
+  const [contextMenuNode, setContextMenuNode] = useState<string | null>(null);
+  const [contextMenuPos, setContextMenuPos] = useState({ x: 0, y: 0 });
+  const isMobile = useIsMobile();
+
+  const handleFavoriteContextMenu = useCallback((nodeUuid: string, e: React.MouseEvent) => {
+    setContextMenuNode(nodeUuid);
+    setContextMenuPos({ x: e.clientX, y: e.clientY });
+  }, []);
+
+  const handleRecentContextMenu = useCallback((nodeUuid: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setContextMenuNode(nodeUuid);
+    setContextMenuPos({ x: e.clientX, y: e.clientY });
+  }, []);
+
+  const handleCloseContextMenu = useCallback(() => {
+    setContextMenuNode(null);
+  }, []);
+
+  const { data: contextNode } = useNodeByUuid(contextMenuNode);
+
+  return (
+    <>
+      <Card className={`sidebar ${collapsed ? 'sidebar--collapsed' : 'sidebar--expanded'}`} padding={false} elevation="medium">
+        {/* Workspace Switcher at Top */}
+        <div className="sidebar-header">
+          <WorkspaceSwitcher />
+        </div>
+
+        {/* Scrollable content - favorites and recents */}
+        <div className="sidebar-content">
+          <SidebarFavorites onContextMenu={handleFavoriteContextMenu} />
+          <SidebarRecents onContextMenu={handleRecentContextMenu} />
+        </div>
+
+        {isMobile && (
+          <div className="sidebar-footer-section">
+            <SidebarTools layout="footer" />
+          </div>
+        )}
+      </Card>
+
+      {/* Context Menu for favorites and recents */}
+      {contextMenuNode && contextNode && (
+        <PageContextMenu
+          node={contextNode}
+          position={contextMenuPos}
+          onClose={handleCloseContextMenu}
+        />
+      )}
     </>
   );
 }

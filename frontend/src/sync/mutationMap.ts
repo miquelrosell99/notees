@@ -131,7 +131,9 @@ export function operationToApiRequest(operation: Operation):
         type: 'create',
         data: {
           name: serializeContentAST(payload.contentAST),
-          parent_uuid: payload.parentId ? runtime.getNode(payload.parentId)?.blockId ?? null : null,
+          parent_uuid: payload.parentId
+            ? runtime.getNode(payload.parentId)?.blockId ?? payload.parentId
+            : null,
           sequence: 0, // computed server-side from parent/after
           uuid: operation.blockId,
         },
@@ -150,7 +152,9 @@ export function operationToApiRequest(operation: Operation):
         type: 'update',
         uuid: nodeUuid,
         data: {
-          parent_uuid: payload.parentId ? runtime.getNode(payload.parentId)?.blockId ?? null : null,
+          parent_uuid: payload.parentId
+            ? runtime.getNode(payload.parentId)?.blockId ?? payload.parentId
+            : null,
           sequence: 0, // computed server-side from parent/after
         },
       };
@@ -218,7 +222,9 @@ export function operationToApiRequest(operation: Operation):
     }
     case 'move_node': {
       const movePayload = operation.payload as MoveNodePayload;
-      const parentUuid = movePayload.parentId ? runtime.getNode(movePayload.parentId)?.blockId ?? null : null;
+      const parentUuid = movePayload.parentId
+        ? runtime.getNode(movePayload.parentId)?.blockId ?? movePayload.parentId
+        : null;
       const siblings = movePayload.parentId ? runtime.getChildren(movePayload.parentId) : [];
       const afterIndex = movePayload.afterBlockId
         ? siblings.findIndex((s) => s.blockId === movePayload.afterBlockId)
