@@ -243,36 +243,6 @@ export function GraphSettingsModal({ isOpen, onClose }: GraphSettingsModalProps)
                   />
                 </div>
 
-                <div className="settings-item">
-                  <BooleanToggle
-                    label="Inbox"
-                    description="Show the Inbox button in the sidebar"
-                    checked={(workspaceSettings?.sidebar_show_inbox as boolean | undefined) ?? true}
-                    onChange={(e) => handleToggleChange('sidebar_show_inbox', e.target.checked)}
-                    labelPosition="left"
-                  />
-                </div>
-
-                <div className="settings-item">
-                  <BooleanToggle
-                    label="Whiteboards"
-                    description="Show the Whiteboards button in the sidebar"
-                    checked={(workspaceSettings?.sidebar_show_whiteboards as boolean | undefined) ?? true}
-                    onChange={(e) => handleToggleChange('sidebar_show_whiteboards', e.target.checked)}
-                    labelPosition="left"
-                  />
-                </div>
-
-                <div className="settings-item">
-                  <BooleanToggle
-                    label="Tasks"
-                    description="Show the Tasks button in the sidebar"
-                    checked={(workspaceSettings?.sidebar_show_tasks as boolean | undefined) ?? true}
-                    onChange={(e) => handleToggleChange('sidebar_show_tasks', e.target.checked)}
-                    labelPosition="left"
-                  />
-                </div>
-
                 <h3 className="settings-section__title settings-section__title--spaced">Data Retention</h3>
 
                 <div className="settings-item">

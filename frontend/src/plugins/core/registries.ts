@@ -8,6 +8,8 @@
 import type { ComponentType, LazyExoticComponent } from 'react';
 
 import type { MainViewType } from '@/stores/appStore';
+import { registerCommand } from '@/stores/commandRegistry';
+import { useNavigationStore } from '@/stores';
 
 import type {
   ContributedSidebarItem,
@@ -72,6 +74,24 @@ const sidebarItemRegistry = new Map<string, SidebarItemDefinition>();
 
 export function registerSidebarItem(def: SidebarItemDefinition): void {
   sidebarItemRegistry.set(def.id, def);
+
+  // Sidebar items are no longer rendered as buttons; expose them through the
+  // command palette so plugin-contributed views remain reachable.
+  const commandId = `sidebar.${def.viewId ?? def.id}`;
+  registerCommand({
+    id: commandId,
+    label: `Open ${def.label}`,
+    icon: def.icon ? `mdi mdi-${def.icon}` : 'mdi mdi-puzzle-outline',
+    context: 'global',
+    palette: { category: 'navigation', keywords: [def.label.toLowerCase()] },
+    execute: () => {
+      if (def.onClick) {
+        def.onClick();
+      } else if (def.viewId) {
+        useNavigationStore.getState().setMainViewType(def.viewId);
+      }
+    },
+  });
 }
 
 export function getSidebarItem(id: string): SidebarItemDefinition | undefined {
