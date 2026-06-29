@@ -4,8 +4,9 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { OperationRuntime } from '@/runtime';
-import { flattenNodesFromRuntime } from './useBlockTree';
+import { flattenNodesFromRuntime, flattenNodes } from './useBlockTree';
 import type { Operation } from '@/runtime';
+import type { Node } from '@/types';
 
 // The hook imports the sync barrel for collapse state; we only need the pure
 // projection helpers here, so mock the barrel to avoid pulling in the search index.
@@ -177,5 +178,148 @@ describe('flattenNodesFromRuntime', () => {
     const child = flat.find((n) => n.node.uuid === 'new-child');
     expect(child).toBeDefined();
     expect(child!.depth).toBe(1);
+  });
+
+  it('renders each node once even when a UUID appears in multiple tree branches', () => {
+    const runtime = new OperationRuntime();
+    const shared: Node = {
+      uuid: 'shared',
+      name: 'Shared',
+      icon: null,
+      color: null,
+      parent_uuid: 'root',
+      page_uuid: null,
+      sequence: 0,
+      collapsed: false,
+      active: true,
+      is_page: false,
+      is_deleted: false,
+      has_children: false,
+      children: [],
+      create_date: new Date().toISOString(),
+      write_date: new Date().toISOString(),
+      classes_uuid: [],
+      tags_uuid: [],
+      properties_uuid: {},
+    };
+
+    const flat = flattenNodesFromRuntime(
+      [
+        {
+          uuid: 'root1',
+          name: 'Root 1',
+          icon: null,
+          color: null,
+          parent_uuid: 'root',
+          page_uuid: null,
+          sequence: 0,
+          collapsed: false,
+          active: true,
+          is_page: false,
+          is_deleted: false,
+          has_children: true,
+          children: [shared],
+          create_date: new Date().toISOString(),
+          write_date: new Date().toISOString(),
+          classes_uuid: [],
+          tags_uuid: [],
+          properties_uuid: {},
+        },
+        {
+          uuid: 'root2',
+          name: 'Root 2',
+          icon: null,
+          color: null,
+          parent_uuid: 'root',
+          page_uuid: null,
+          sequence: 1,
+          collapsed: false,
+          active: true,
+          is_page: false,
+          is_deleted: false,
+          has_children: true,
+          children: [
+            {
+              uuid: 'middle',
+              name: 'Middle',
+              icon: null,
+              color: null,
+              parent_uuid: 'root2',
+              page_uuid: null,
+              sequence: 0,
+              collapsed: false,
+              active: true,
+              is_page: false,
+              is_deleted: false,
+              has_children: true,
+              // Inconsistent children: shared is also listed here, but its
+              // parent_uuid points to root. The projection should still not
+              // emit duplicate UUIDs.
+              children: [shared],
+              create_date: new Date().toISOString(),
+              write_date: new Date().toISOString(),
+              classes_uuid: [],
+              tags_uuid: [],
+              properties_uuid: {},
+            },
+          ],
+          create_date: new Date().toISOString(),
+          write_date: new Date().toISOString(),
+          classes_uuid: [],
+          tags_uuid: [],
+          properties_uuid: {},
+        },
+      ],
+      -1,
+      false,
+      false,
+      runtime,
+      () => undefined,
+      false,
+      false,
+      true,
+      'root',
+      false,
+    );
+
+    const realUuids = flat.filter((n) => !n.isGhost).map((n) => n.node.uuid);
+    expect(realUuids).toEqual([...new Set(realUuids)]);
+    expect(realUuids.filter((id) => id === 'shared')).toHaveLength(1);
+  });
+});
+
+describe('flattenNodes', () => {
+  const makeNode = (uuid: string, children: Node[] = [], parentUuid: string | null = null): Node => ({
+    uuid,
+    name: uuid,
+    icon: null,
+    color: null,
+    parent_uuid: parentUuid,
+    page_uuid: null,
+    sequence: 0,
+    collapsed: false,
+    active: true,
+    is_page: false,
+    is_deleted: false,
+    has_children: children.length > 0,
+    children,
+    create_date: new Date().toISOString(),
+    write_date: new Date().toISOString(),
+    classes_uuid: [],
+    tags_uuid: [],
+    properties_uuid: {},
+  });
+
+  it('renders each node once when a UUID appears in multiple tree branches', () => {
+    const shared = makeNode('shared');
+    const tree = [
+      makeNode('root1', [shared]),
+      makeNode('root2', [makeNode('middle', [shared])]),
+    ];
+
+    const flat = flattenNodes(tree, -1, false, false, () => undefined);
+    const uuids = flat.map((n) => n.node.uuid);
+    expect(uuids.filter((id) => id === 'shared')).toHaveLength(1);
+    expect(uuids).toEqual([...new Set(uuids)]);
   });
 });
