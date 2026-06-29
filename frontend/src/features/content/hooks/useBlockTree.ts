@@ -64,15 +64,11 @@ export function flattenNodes(
   visited = new Set<string>(),
 ): FlatNode[] {
   const result: FlatNode[] = [];
-  const duplicateUuids: string[] = [];
   for (const node of nodes) {
     if (node.is_comment) continue;
     if (pagesOnly && !node.is_page) continue;
     if (skipPages && node.is_page) continue;
-    if (visited.has(node.uuid)) {
-      if (!duplicateUuids.includes(node.uuid)) duplicateUuids.push(node.uuid);
-      continue;
-    }
+    if (visited.has(node.uuid)) continue;
     visited.add(node.uuid);
 
     const effectiveCollapsed = expandAll ? false : (collapsedLookup(node.uuid) ?? node.collapsed ?? false);
@@ -87,12 +83,6 @@ export function flattenNodes(
     }
   }
 
-  if (duplicateUuids.length > 0 && process.env.NODE_ENV === 'development') {
-    console.warn(
-      '[flattenNodes] Skipped duplicate node UUID(s) in static projection:',
-      duplicateUuids,
-    );
-  }
   return result;
 }
 
