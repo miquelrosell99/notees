@@ -333,6 +333,30 @@ class PostgresQueryRepository(BasePostgresRepository, QueryRepository):
         else:
             results = self._rows_to_dicts(rows)
 
+        # Defensive check: the SQL uses SELECT DISTINCT, but any regression that
+        # returns duplicate node UUIDs can break React key uniqueness downstream.
+        seen_uuids: set[str] = set()
+        deduped_results: list[dict[str, Any]] = []
+        duplicate_uuids: set[str] = set()
+        for node in results:
+            node_uuid = node.get("uuid")
+            if node_uuid is None:
+                deduped_results.append(node)
+                continue
+            uuid_str = str(node_uuid)
+            if uuid_str in seen_uuids:
+                duplicate_uuids.add(uuid_str)
+                continue
+            seen_uuids.add(uuid_str)
+            deduped_results.append(node)
+        if duplicate_uuids:
+            logger.warning(
+                "[PostgresQueryRepository] Query returned %s duplicate UUID(s): %s",
+                len(duplicate_uuids),
+                sorted(duplicate_uuids)[:10],
+            )
+        results = deduped_results
+
         t_end = time.monotonic()
 
         metrics = {
