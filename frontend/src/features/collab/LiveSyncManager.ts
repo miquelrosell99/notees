@@ -34,7 +34,6 @@ export class LiveSyncManager {
   private ws: WebSocket | null = null;
   private nodeUuid: string | null = null;
   private workspaceUuid: string | null = null;
-  private protocolVersion: 'v1' | 'v2' = 'v1';
   private listeners = new Set<MessageListener>();
   private statusListeners = new Set<StatusListener>();
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -92,12 +91,10 @@ export class LiveSyncManager {
   connect(
     nodeUuid: string,
     workspaceUuid: string | null = null,
-    protocolVersion: 'v1' | 'v2' = 'v1',
   ): void {
     const sameRoom =
       this.nodeUuid === nodeUuid &&
-      this.workspaceUuid === workspaceUuid &&
-      this.protocolVersion === protocolVersion;
+      this.workspaceUuid === workspaceUuid;
     if (sameRoom) {
       const state = this.ws?.readyState;
       if (state === WebSocket.OPEN || state === WebSocket.CONNECTING) {
@@ -108,11 +105,10 @@ export class LiveSyncManager {
     this.intentionalClose = false;
     this.nodeUuid = nodeUuid;
     this.workspaceUuid = workspaceUuid;
-    this.protocolVersion = protocolVersion;
     this._setStatus('connecting');
     this.connectTimer = setTimeout(() => {
       this.connectTimer = null;
-      if (this.nodeUuid === nodeUuid && this.workspaceUuid === workspaceUuid && this.protocolVersion === protocolVersion) {
+      if (this.nodeUuid === nodeUuid && this.workspaceUuid === workspaceUuid) {
         this._open();
       }
     }, 300);
@@ -144,7 +140,6 @@ export class LiveSyncManager {
     }
     this.nodeUuid = null;
     this.workspaceUuid = null;
-    this.protocolVersion = 'v1';
     this.pendingMessages = [];
     this.reconnectAttempts = 0;
     this._setStatus('idle');
@@ -153,7 +148,7 @@ export class LiveSyncManager {
   private _open(): void {
     if (this.ws) return;
 
-    const roomId = this.protocolVersion === 'v2' ? this.workspaceUuid : this.nodeUuid;
+    const roomId = this.workspaceUuid;
     if (!roomId) return;
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -162,10 +157,9 @@ export class LiveSyncManager {
     // Authentication is provided by the HTTPOnly access_token cookie, which
     // is sent automatically for same-origin WebSocket handshakes.
     const configuredUrl = import.meta.env.VITE_WS_URL as string | undefined;
-    const base = configuredUrl
+    const url = configuredUrl
       ? `${configuredUrl}/api/ws/live/${roomId}`
       : `${protocol}//${window.location.host}/api/ws/live/${roomId}`;
-    const url = `${base}?sync_protocol_version=${this.protocolVersion}`;
 
     let ws: WebSocket;
     try {
@@ -223,13 +217,13 @@ export class LiveSyncManager {
   }
 
   private _scheduleReconnect(): void {
-    const roomId = this.protocolVersion === 'v2' ? this.workspaceUuid : this.nodeUuid;
+    const roomId = this.workspaceUuid;
     if (this.reconnectTimer || !roomId || this.ws) return;
     const delay = Math.min(30000, 1000 * Math.pow(2, this.reconnectAttempts));
     this.reconnectAttempts += 1;
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
-      if ((this.protocolVersion === 'v2' ? this.workspaceUuid : this.nodeUuid) && !this.ws) {
+      if (this.workspaceUuid && !this.ws) {
         this._open();
       }
     }, delay);

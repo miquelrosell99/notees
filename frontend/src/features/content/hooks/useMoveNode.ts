@@ -4,11 +4,10 @@ import { nodeKeys } from '@/hooks/queryKeys';
 import { getOperationRuntime } from '@/runtime';
 import {
   findNodeInCache,
-  getRuntimeBlockIdForServerId,
+  ensureNodeInRuntime,
   applyNodeIntent,
 } from './useNodeMutations.utils';
 import { waitForOperationAck } from '@/sync/waitForOperation';
-import * as nodesApi from '@/api/nodes';
 
 /**
  * Hook to move a node.
@@ -21,14 +20,20 @@ export function useMoveNode() {
 
   return useMutation<Node | null, Error, { nodeUuid: string; parentId: string | null; position?: number }>({
     mutationFn: async ({ nodeUuid, parentId, position }) => {
-      const blockId = getRuntimeBlockIdForServerId(nodeUuid);
+      const blockId = ensureNodeInRuntime(nodeUuid);
       if (!blockId) {
-        return nodesApi.moveNode(nodeUuid, parentId ?? null, position);
+        throw new Error(`Node ${nodeUuid} is not available in the runtime`);
       }
 
       // Resolve the runtime parent block id and the sibling to insert after.
       const runtime = getOperationRuntime();
-      const parentBlockId = parentId ? getRuntimeBlockIdForServerId(parentId) : null;
+      let parentBlockId: string | null = null;
+      if (parentId) {
+        parentBlockId = ensureNodeInRuntime(parentId);
+        if (!parentBlockId) {
+          throw new Error(`Parent ${parentId} is not available in the runtime`);
+        }
+      }
       const siblings = parentBlockId ? runtime.getChildren(parentBlockId) : [];
       const afterIndex = position != null ? position - 1 : -1;
       const afterBlockId =

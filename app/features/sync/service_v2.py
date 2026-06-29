@@ -295,11 +295,25 @@ class SyncServiceV2:
             parent_id = self._resolve_anchor_id(op.parent_uuid, resolved, created_ids)
             after_id = self._resolve_anchor_id(op.after_uuid, resolved, created_ids)
             sequence = await self._compute_sequence(parent_id, after_id)
+            class_ids = [
+                class_id
+                for class_uuid in (op.class_uuids or [])
+                if (class_id := await self._node_service._node_repo.find_node_id_by_uuid(class_uuid))
+                is not None
+            ]
+            tag_ids = [
+                tag_id
+                for tag_uuid in (op.tag_uuids or [])
+                if (tag_id := await self._node_service._node_repo.find_node_id_by_uuid(tag_uuid))
+                is not None
+            ]
             node = await self._node_service.create_raw_node(
                 NodeCreateData(
                     name=name,
                     parent_id=parent_id,
                     sequence=sequence,
+                    classes=class_ids,
+                    tags=tag_ids,
                     is_page=op.is_page,
                     is_task=op.is_task,
                     is_daily=op.is_daily,
