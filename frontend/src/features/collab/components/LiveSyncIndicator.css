@@ -1,40 +1,12 @@
 .live-sync-indicator {
-  display: inline-block;
-  width: var(--shape-large);
-  height: var(--shape-large);
-  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
-  transition: background var(--motion-duration-medium-fast) var(--motion-easing-ease), border var(--motion-duration-medium-fast) var(--motion-easing-ease);
-}
-
-/* Connected — green with pulse */
-.live-sync-indicator--connected {
-  background-color: var(--color-success);
-  animation: live-sync-pulse 2s var(--motion-easing-ease-in-out) infinite;
-}
-
-/* Connecting — yellow */
-.live-sync-indicator--connecting {
-  background-color: var(--color-warning);
-  animation: live-sync-pulse 1s var(--motion-easing-ease-in-out) infinite;
-}
-
-/* Error / Disconnected — red hollow circle */
-.live-sync-indicator--error,
-.live-sync-indicator--disconnected {
-  background-color: transparent;
-  border: var(--border-width-thick) solid var(--color-error);
   width: var(--shape-large);
   height: var(--shape-large);
 }
 
-@keyframes live-sync-pulse {
-  0%, 100% {
-    opacity: var(--opacity-100);
-    transform: scale(1);
-  }
-  50% {
-    opacity: var(--opacity-60);
-    transform: scale(0.85);
-  }
+.live-sync-indicator--offline {
+  color: var(--color-error);
 }
