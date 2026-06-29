@@ -1,149 +1,101 @@
 /**
  * Sidebar Component Styles
+ *
+ * Desktop layout:
+ *   <SidebarRail />         — persistent icon rail on the far left.
+ *   <Sidebar />             — collapsible content panel (favorites/recents).
+ *
+ * Mobile layout:
+ *   <Sidebar collapsed={false} /> inside a full-width drawer (no rail).
  */
 
-
-
-
-/* ==================== Sidebar Container ==================== */
+/* ==================== Sidebar Container (content panel) ==================== */
 .sidebar {
   display: flex;
   flex-direction: column;
-  width: var(--sidebar-width);
+  width: 100%;
+  height: 100%;
   overflow: hidden;
   flex-shrink: 0;
   /* Let Card component provide floating appearance with border-radius and shadow */
-  /* Animation properties for smooth open/close */
-  transform-origin: left center;
-  transition: 
-    width var(--motion-duration-medium) var(--motion-easing-collapse),
-    min-width var(--motion-duration-medium) var(--motion-easing-collapse),
-    opacity var(--motion-duration-medium) var(--motion-easing-collapse),
-    transform var(--motion-duration-medium) var(--motion-easing-collapse);
-  will-change: width, opacity, transform;
 }
 
-/* Expanded state (default) */
+/* The content panel is always rendered expanded; its parent wrapper controls width. */
 .sidebar--expanded {
-  width: var(--sidebar-width);
-  min-width: var(--sidebar-width);
   opacity: var(--opacity-100);
-  transform: translateX(0);
   pointer-events: auto;
-  /* Margin handled by gap in parent, but we need to account for it when collapsed */
-  margin-right: 0;
+  visibility: visible;
 }
 
-/* Collapsed state: icon-only strip */
+/* Collapsed class is kept for mobile/API compatibility but the panel itself stays
+   expanded — Layout animates the wrapper width instead. */
 .sidebar--collapsed {
-  width: var(--sidebar-collapsed-width);
-  min-width: var(--sidebar-collapsed-width);
   opacity: var(--opacity-100);
-  transform: translateX(0);
   pointer-events: auto;
   visibility: visible;
-  transition:
-    width var(--motion-duration-medium) var(--motion-easing-collapse),
-    min-width var(--motion-duration-medium) var(--motion-easing-collapse),
-    opacity var(--motion-duration-medium) var(--motion-easing-collapse),
-    transform var(--motion-duration-medium) var(--motion-easing-collapse);
 }
 
-/* Expanded state (default) */
-.sidebar--expanded {
-  width: var(--sidebar-width);
-  min-width: var(--sidebar-width);
-  opacity: var(--opacity-100);
-  transform: translateX(0);
-  pointer-events: auto;
-  visibility: visible;
-  transition:
-    width var(--motion-duration-medium) var(--motion-easing-collapse),
-    min-width var(--motion-duration-medium) var(--motion-easing-collapse),
-    opacity var(--motion-duration-medium) var(--motion-easing-collapse),
-    transform var(--motion-duration-medium) var(--motion-easing-collapse);
-}
-
-/* ==================== Collapsed Icon-Only Sidebar ==================== */
-.sidebar-collapsed {
+/* ==================== Sidebar Rail ==================== */
+.sidebar-rail {
   display: flex;
   flex-direction: column;
   align-items: center;
+  width: var(--sidebar-collapsed-width);
+  min-width: var(--sidebar-collapsed-width);
   height: 100%;
   padding: var(--spacing-2) var(--spacing-1) var(--spacing-3);
   box-sizing: border-box;
+  overflow: hidden;
+  flex-shrink: 0;
 }
 
-.sidebar-collapsed__nav,
-.sidebar-collapsed__footer {
+.sidebar-rail__top,
+.sidebar-rail__bottom {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-micro);
   width: 100%;
 }
 
-.sidebar-collapsed__footer {
+.sidebar-rail__bottom {
   margin-top: auto;
   padding-top: var(--spacing-2);
   border-top: var(--border-width-default) solid var(--color-outline-variant);
 }
 
-.sidebar-collapsed__divider {
-  height: 1px;
-  background: var(--color-outline-variant);
-  margin: var(--spacing-1) 0;
-}
-
-.sidebar-collapsed__btn,
-.sidebar-collapsed__account {
+.sidebar-rail__btn {
   width: 100%;
   aspect-ratio: 1;
   padding: 0;
 }
 
-.sidebar-collapsed__btn .btn__text {
+.sidebar-rail__account {
+  width: 100%;
+  padding: 0;
+}
+
+.sidebar-rail__account > .btn {
+  width: 100%;
+  aspect-ratio: 1;
+  padding: 0;
+}
+
+.sidebar-rail__btn .btn__text {
   display: none;
 }
 
-/* ==================== Collapsed Popups ==================== */
-.sidebar-collapsed-popup {
-  width: var(--sidebar-width);
-  max-height: 80vh;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  z-index: var(--z-1000);
-  padding: var(--spacing-2) var(--spacing-2) var(--spacing-3);
+.sidebar-rail__support {
+  width: 100%;
+  margin-top: var(--spacing-1);
 }
 
-.sidebar-collapsed-popup .sidebar-section {
-  display: flex;
-  flex-direction: column;
-  max-height: 80vh;
-}
-
-.sidebar-collapsed-popup .sidebar-favorites-list,
-.sidebar-collapsed-popup .sidebar-recents-list {
-  flex: 1;
-  overflow-y: auto;
-  overflow-x: hidden;
-  min-height: 0;
-  max-height: 18rem;
-  padding-left: 0;
-  padding-right: 0;
-}
-
-/* ==================== Sidebar Header (Database Switcher Area) ==================== */
+/* ==================== Sidebar Header (Workspace Switcher) ==================== */
 .sidebar-header {
   padding: var(--spacing-2) var(--spacing-3);
   border-bottom: var(--border-width-default) solid var(--color-outline-variant);
   min-height: 3.25rem;
   box-sizing: border-box;
-}
-
-/* ==================== Sidebar Nav Section ==================== */
-.sidebar-nav-section {
-  /* separator is drawn by the content area below */
+  flex-shrink: 0;
 }
 
 /* ==================== Sidebar Content ==================== */
@@ -153,39 +105,7 @@
   overflow-x: hidden;
   display: flex;
   flex-direction: column;
-  border-top: var(--border-width-default) solid var(--color-outline-variant);
-}
-
-.sidebar-content__divider {
-  height: 1px;
-  background: var(--color-outline-variant);
-  margin: var(--spacing-2) var(--spacing-3) 0;
-  flex-shrink: 0;
-}
-
-/* ==================== Sidebar Navigation ==================== */
-.sidebar-nav {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-micro);
-  padding: var(--spacing-1) var(--spacing-2);
-}
-
-/* ==================== Navigation Items ==================== */
-
-.sidebar-item-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  font-size: var(--font-size-md);
-  line-height: 1;
-  width: var(--icon-size-md);
-  height: var(--icon-size-md);
-}
-
-.sidebar-item-icon svg {
-  flex-shrink: 0;
+  min-height: 0;
 }
 
 /* ==================== Sidebar Sections ==================== */
@@ -543,44 +463,6 @@
   white-space: nowrap;
 }
 
-/* ==================== Sidebar Footer Section ==================== */
-.sidebar-footer-section {
-  margin-top: auto;
-}
-
-/* ==================== Sidebar Footer ==================== */
-.sidebar-footer {
-  display: flex;
-  flex-direction: row;
-  flex-wrap: wrap;
-  gap: var(--spacing-micro);
-  padding: var(--spacing-2) var(--spacing-2) var(--spacing-3);
-}
-
-.new-page-btn {
-  width: 100%;
-}
-
-.sidebar-settings-btn {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-2);
-  width: 100%;
-  padding: var(--spacing-2) var(--spacing-3);
-  border: none;
-  background: transparent;
-  border-radius: var(--shape-small);
-  font: var(--font-label-medium);
-  color: var(--color-on-surface-variant);
-  cursor: pointer;
-  transition: background-color var(--motion-duration-short) var(--motion-easing-standard), color var(--motion-duration-short) var(--motion-easing-standard);
-}
-
-.sidebar-settings-btn:hover {
-  background: var(--color-hover-overlay);
-  color: var(--color-on-surface);
-}
-
 /* ==================== Sidebar States ==================== */
 .sidebar-loading,
 .sidebar-error {
@@ -620,31 +502,24 @@
   overflow: hidden;
 }
 
-/* ==================== Sidebar Collapsed Icons ==================== */
-.sidebar-collapsed-icons {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--spacing-2);
-  padding: var(--spacing-2);
+/* ==================== Sidebar Footer Section (mobile drawer) ==================== */
+.sidebar-footer-section {
+  margin-top: auto;
+  flex-shrink: 0;
 }
 
-/* User account button in the bottom sidebar group */
+/* ==================== Sidebar Footer ==================== */
+.sidebar-footer {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: var(--spacing-micro);
+  padding: var(--spacing-2) var(--spacing-2) var(--spacing-3);
+}
+
 .sidebar-footer__item {
   flex: 1 1 calc(50% - var(--spacing-micro) / 2);
   min-width: 0;
-}
-
-/* Support badge sits at the bottom of the expanded sidebar */
-.sidebar-support-badge {
-  flex-shrink: 0;
-  margin-top: auto;
-}
-
-/* Support badge in the collapsed sidebar footer */
-.sidebar-collapsed__support {
-  width: 100%;
-  margin-top: var(--spacing-1);
 }
 
 .sidebar-footer__item > .btn,
@@ -652,22 +527,14 @@
   width: 100%;
 }
 
-.sidebar-icon-btn {
-  width: var(--icon-size-lg);
-  height: var(--icon-size-lg);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: none;
-  border: none;
-  border-radius: var(--shape-small);
-  cursor: pointer;
-  font-size: var(--font-size-lg);
-  color: var(--color-on-surface-variant);
-  transition: background-color var(--motion-duration-short) var(--motion-easing-standard), color var(--motion-duration-short) var(--motion-easing-standard);
+/* User account button in the bottom sidebar group */
+.sidebar-account {
+  flex: 1 1 calc(50% - var(--spacing-micro) / 2);
+  min-width: 0;
 }
 
-.sidebar-icon-btn:hover {
-  background: var(--color-hover-overlay);
-  color: var(--color-on-surface);
+/* Support badge sits at the bottom of the content sidebar */
+.sidebar-support-badge {
+  flex-shrink: 0;
+  margin-top: auto;
 }

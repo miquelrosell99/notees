@@ -75,6 +75,13 @@
   overflow: hidden;
 }
 
+/* Reduced-radius class for the main layout containers (sidebars, main view).
+   Keeps the app chrome less rounded without affecting floating UI cards. */
+.layout-card {
+  border-radius: var(--shape-layout-card);
+  overflow: hidden;
+}
+
 /* Mobile layout: full-bleed cards with no border radius. */
 .card[data-mobile-layout] {
   border-radius: 0 !important;
