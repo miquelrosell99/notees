@@ -155,7 +155,10 @@ export function SyncManagerV2({ workspaceUuid: workspaceUuidProp, clientId: clie
     const baseVector: BaseVector = {};
     for (const op of batch) {
       baseVector[op.blockId] = ackedVectorRef.current[op.blockId] ?? {};
-      if (op.type === 'move') {
+      // The server validates vectors for the target node and its parent for
+      // create/move operations. Include the parent in the base vector so the
+      // server can confirm the client has seen the latest parent state.
+      if (op.type === 'create' || op.type === 'move' || op.type === 'move_node') {
         const payload = op.payload as { parentId?: string | null };
         if (payload.parentId) {
           baseVector[payload.parentId] = ackedVectorRef.current[payload.parentId] ?? {};
@@ -242,11 +245,20 @@ export function SyncManagerV2({ workspaceUuid: workspaceUuidProp, clientId: clie
         }
 
         const sentOps = classified.filter((c) => c.kind === 'send').map((c) => c.op);
+        const staleSet = new Set(staleNodes);
         const requeue: Operation[] = [];
         for (const op of sentOps) {
           const serverVec = serverVectors[op.blockId] ?? {};
           const clientVec = ackedVectorRef.current[op.blockId] ?? {};
-          if (isBehind(serverVec, clientVec)) {
+          const ownBlockStale = staleSet.has(op.blockId);
+          const ownBlockDeleted = ownBlockStale && conflict?.conflict_type === 'node_deleted';
+          const genuineConflict = ownBlockStale && isBehind(serverVec, clientVec);
+          // Requeue unless the op's own block was deleted server-side or there is
+          // a genuine vector conflict on the op's own block. Create ops always
+          // requeue because their target does not exist on the server yet; the
+          // conflict is on a referenced node (parent/anchor) and resolves once the
+          // client vectors catch up.
+          if (op.type === 'create' || (!ownBlockDeleted && !genuineConflict)) {
             requeue.push(op);
           } else {
             runtime.failOperation(

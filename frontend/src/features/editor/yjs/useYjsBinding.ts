@@ -21,11 +21,21 @@ import {
 
 import { liveSyncManager } from '@/features/collab';
 import { getNodeYjsState } from '@/api/nodes';
+import { getOperationRuntime } from '@/runtime';
 import { blockYjsStore } from './BlockYjsStore';
 import { ENABLE_CRDT_TEXT } from './config';
 import { LiveSyncYjsProvider } from './LiveSyncYjsProvider';
 
+function isServerBackedBlock(blockUuid: string): boolean {
+  const runtime = getOperationRuntime();
+  return runtime.snapshot().baseNodes.has(blockUuid);
+}
+
 const SYNCED_CONTENT_TAG = 'synced-content';
+
+// Prevent duplicate concurrent Yjs-state fetches when an editor remounts rapidly
+// (e.g. during focus shifts or React StrictMode double-mounts).
+const inFlightYjsFetches = new Set<string>();
 
 function base64ToUint8Array(base64: string): Uint8Array {
   const binary = atob(base64);
@@ -79,21 +89,31 @@ export function useYjsBinding(
     };
 
     // Hydrate the binding with the latest server state on first mount.
+    // Blocks that are not yet in the server-backed base state (e.g. newly
+    // created local blocks) have no stored Yjs state; skip the fetch and
+    // bootstrap from the editor to avoid predictable 404s.
     let cancelled = false;
-    getNodeYjsState(blockUuid)
-      .then((blob) => {
-        if (cancelled) return;
-        if (blob.byteLength > 0) {
-          blockYjsStore.applyUpdate(blockUuid, new Uint8Array(blob));
-        } else {
+    if (!isServerBackedBlock(blockUuid)) {
+      bootstrapFromEditorIfEmpty();
+    } else if (!inFlightYjsFetches.has(blockUuid)) {
+      inFlightYjsFetches.add(blockUuid);
+      getNodeYjsState(blockUuid)
+        .then((blob) => {
+          inFlightYjsFetches.delete(blockUuid);
+          if (cancelled) return;
+          if (blob.byteLength > 0) {
+            blockYjsStore.applyUpdate(blockUuid, new Uint8Array(blob));
+          } else {
+            bootstrapFromEditorIfEmpty();
+          }
+        })
+        .catch(() => {
+          inFlightYjsFetches.delete(blockUuid);
+          // Ignore fetch failures; seed from the editor so local edits still
+          // produce meaningful Yjs updates.
           bootstrapFromEditorIfEmpty();
-        }
-      })
-      .catch(() => {
-        // Ignore fetch failures; seed from the editor so local edits still
-        // produce meaningful Yjs updates.
-        bootstrapFromEditorIfEmpty();
-      });
+        });
+    }
 
     // Local Lexical changes -> Yjs doc.
     const removeUpdateListener = editor.registerUpdateListener(

@@ -15,7 +15,7 @@ import { getRuntimeEventBus } from '@/runtime/eventBus';
 import { useInputContext } from '@/stores/inputContext';
 import { copyRuntimeBlocksToClipboard, tryParseInternalFormat } from '@/utils/clipboardManager';
 import { useClipboardStore } from '@/stores/clipboardStore';
-import { pasteBlocksAfterBlock } from '@/features/editor';
+import { pasteBlocksAfterBlock, flushAllContentSaves } from '@/features/editor';
 import { generateUUID } from '@/utils/uuid';
 import { clearClasses, applyClasses, getSiblingIds, type UseBlockSelectionOptions } from './useBlockSelection.utils';
 
@@ -251,6 +251,7 @@ export function useBlockSelection({ containerRef, blockIds, readOnly }: UseBlock
         if (activeEl?.closest('[role="dialog"]') || activeEl?.closest('[role="menu"]')) return;
 
         e.preventDefault();
+        flushAllContentSaves();
         const ids = [...selectedIds];
         clearSelection();
         await getUndoEngine().applyIntent({
@@ -272,6 +273,7 @@ export function useBlockSelection({ containerRef, blockIds, readOnly }: UseBlock
           const n = getNode(runtime, id);
           return n && (!n.parentId || !blockIdSet.has(n.parentId));
         });
+        flushAllContentSaves();
         if (e.key === 'ArrowUp') {
           await getUndoEngine().applyIntent({
             type: 'batch',
