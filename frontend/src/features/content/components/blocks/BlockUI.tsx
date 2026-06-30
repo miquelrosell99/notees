@@ -148,6 +148,7 @@ export function BlockUI({
         hideBullet={hideBullet}
         documentMode={documentMode}
         spacing="default"
+        rowHover={rowHover}
         focusMode={isFocusMode}
       />
       {presenceUsers && presenceUsers.length > 0 && (

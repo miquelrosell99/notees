@@ -45,8 +45,112 @@ export interface SearchResult {
 const memoryStore = new Map<string, MiniSearch<SearchDoc>>();
 const hasIndexedDB = typeof indexedDB !== 'undefined';
 
+const PERSIST_DEBOUNCE_MS = 2000;
+const PERSIST_IDLE_TIMEOUT_MS = 2000;
+
+let pendingSaveWorkspaceUuid: string | null = null;
+let saveTimer: ReturnType<typeof setTimeout> | null = null;
+let saveIdleHandle: number | null = null;
+
+const scheduleIdle: (cb: () => void, opts?: { timeout?: number }) => number =
+  typeof requestIdleCallback !== 'undefined'
+    ? (cb, opts) => requestIdleCallback(cb, opts)
+    : (cb) => window.setTimeout(cb, PERSIST_IDLE_TIMEOUT_MS);
+
+const cancelIdle: (handle: number) => void =
+  typeof cancelIdleCallback !== 'undefined'
+    ? (handle) => cancelIdleCallback(handle)
+    : (handle) => clearTimeout(handle);
+
 function workspaceKey(workspaceUuid: string): string {
   return `${STORAGE_KEY_PREFIX}:${workspaceUuid}`;
+}
+
+async function flushIndexSave(workspaceUuid: string): Promise<void> {
+  const index = memoryStore.get(workspaceKey(workspaceUuid));
+  if (!index) return;
+  await idbSet(workspaceUuid, index);
+}
+
+/**
+ * Persist the in-memory index for a workspace, but defer the IndexedDB write
+ * until the browser is idle. Multiple mutations within the debounce window
+ * collapse into a single write, avoiding repeated JSON.stringify of the entire
+ * index during editing bursts.
+ */
+function scheduleIndexSave(workspaceUuid: string): void {
+  // If we already have a pending save for a different workspace, flush it
+  // first so data does not leak across workspaces.
+  if (pendingSaveWorkspaceUuid && pendingSaveWorkspaceUuid !== workspaceUuid) {
+    const previous = pendingSaveWorkspaceUuid;
+    pendingSaveWorkspaceUuid = workspaceUuid;
+    clearSaveTimer();
+    void flushIndexSave(previous).then(scheduleDebouncedSave);
+    return;
+  }
+
+  pendingSaveWorkspaceUuid = workspaceUuid;
+  if (saveTimer) return; // already scheduled
+
+  scheduleDebouncedSave();
+}
+
+function scheduleDebouncedSave(): void {
+  if (!pendingSaveWorkspaceUuid) return;
+  if (saveTimer) return;
+
+  saveTimer = setTimeout(() => {
+    saveTimer = null;
+    // Prefer running during an idle period; if the browser does not support
+    // requestIdleCallback, the setTimeout above already provided the delay.
+    if (typeof requestIdleCallback !== 'undefined' && saveIdleHandle === null) {
+      saveIdleHandle = scheduleIdle(
+        () => {
+          saveIdleHandle = null;
+          const ws = pendingSaveWorkspaceUuid;
+          pendingSaveWorkspaceUuid = null;
+          if (ws) void flushIndexSave(ws);
+        },
+        { timeout: PERSIST_IDLE_TIMEOUT_MS },
+      );
+    } else if (saveIdleHandle === null) {
+      const ws = pendingSaveWorkspaceUuid;
+      pendingSaveWorkspaceUuid = null;
+      if (ws) void flushIndexSave(ws);
+    }
+  }, PERSIST_DEBOUNCE_MS);
+}
+
+function clearSaveTimer(): void {
+  if (saveTimer) {
+    clearTimeout(saveTimer);
+    saveTimer = null;
+  }
+  if (saveIdleHandle) {
+    cancelIdle(saveIdleHandle);
+    saveIdleHandle = null;
+  }
+}
+
+/**
+ * Synchronously flush any pending search-index write. Use on page hide / before
+ * unload; the local index is a cache, so a missed write is acceptable.
+ */
+function flushPendingIndexSave(): void {
+  const ws = pendingSaveWorkspaceUuid;
+  if (!ws) return;
+  clearSaveTimer();
+  pendingSaveWorkspaceUuid = null;
+  void flushIndexSave(ws);
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('beforeunload', flushPendingIndexSave);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') {
+      flushPendingIndexSave();
+    }
+  });
 }
 
 function nodeToDoc(node: Node): SearchDoc {
@@ -86,12 +190,19 @@ function createMiniSearch(): MiniSearch<SearchDoc> {
   });
 }
 
+type SerializedIndex = ReturnType<MiniSearch<SearchDoc>['toJSON']>;
+
 async function idbGet(workspaceUuid: string): Promise<MiniSearch<SearchDoc> | undefined> {
   const key = workspaceKey(workspaceUuid);
   if (hasIndexedDB) {
-    const json = await get<string>(key);
-    if (!json) return undefined;
-    return MiniSearch.loadJSON(json, {
+    // Store/load the index as a plain object using IndexedDB structured clone
+    // instead of a JSON string. This avoids the main-thread JSON.parse cost
+    // that blocked startup for large indexes.
+    const data = await get<SerializedIndex>(key);
+    if (!data) return undefined;
+    // Type definitions only accept `string`, but MiniSearch also accepts the
+    // plain object returned by `toJSON()` (it only calls JSON.parse on strings).
+    return MiniSearch.loadJSON(data as unknown as string, {
       fields: ['nameText'],
       storeFields: [
         'id',
@@ -113,7 +224,7 @@ async function idbGet(workspaceUuid: string): Promise<MiniSearch<SearchDoc> | un
 async function idbSet(workspaceUuid: string, index: MiniSearch<SearchDoc>): Promise<void> {
   const key = workspaceKey(workspaceUuid);
   if (hasIndexedDB) {
-    await set(key, JSON.stringify(index.toJSON()));
+    await set(key, index.toJSON());
   } else {
     memoryStore.set(key, index);
   }
@@ -132,7 +243,11 @@ async function getIndex(workspaceUuid: string): Promise<MiniSearch<SearchDoc>> {
   let index = await idbGet(workspaceUuid);
   if (!index) {
     index = createMiniSearch();
-    await idbSet(workspaceUuid, index);
+    // Empty index does not need to be persisted immediately; the first mutation
+    // will schedule a save.
+    memoryStore.set(workspaceKey(workspaceUuid), index);
+  } else {
+    memoryStore.set(workspaceKey(workspaceUuid), index);
   }
   return index;
 }
@@ -152,7 +267,7 @@ export async function indexNodes(
     }
   }
   index.addAll(nodes.map(nodeToDoc));
-  await idbSet(workspaceUuid, index);
+  scheduleIndexSave(workspaceUuid);
 }
 
 /**
@@ -169,7 +284,7 @@ export async function unindexNodes(
       index.discard(uuid);
     }
   }
-  await idbSet(workspaceUuid, index);
+  scheduleIndexSave(workspaceUuid);
 }
 
 function hasIntersection(a: string[], b: string[]): boolean {
@@ -214,6 +329,11 @@ export async function searchIndex(
  * Wipe the search index for a workspace.
  */
 export async function clearSearchIndex(workspaceUuid: string): Promise<void> {
+  if (pendingSaveWorkspaceUuid === workspaceUuid) {
+    clearSaveTimer();
+    pendingSaveWorkspaceUuid = null;
+  }
+  memoryStore.delete(workspaceKey(workspaceUuid));
   await idbDelete(workspaceUuid);
 }
 
@@ -221,5 +341,7 @@ export async function clearSearchIndex(workspaceUuid: string): Promise<void> {
  * Reset the in-memory fallback. Intended for tests only.
  */
 export function _resetMemoryIndex(): void {
+  clearSaveTimer();
+  pendingSaveWorkspaceUuid = null;
   memoryStore.clear();
 }

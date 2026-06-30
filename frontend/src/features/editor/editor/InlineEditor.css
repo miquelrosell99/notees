@@ -16,7 +16,6 @@
   margin: 0;
   font: var(--font-body-medium);
   overflow-wrap: break-word;
-  caret-color: transparent !important;
   user-select: text;
   -webkit-user-select: text;
   -moz-user-select: text;
@@ -56,10 +55,9 @@
   font-size: inherit;
 }
 
-/* Text selection — transparent in edit mode, custom caret overlay provides highlight */
 .inline-editor__content ::selection {
-  background: transparent;
-  color: inherit;
+  background: var(--color-primary-container);
+  color: var(--color-on-primary-container);
 }
 
 /* Ensure the sole text span in empty blocks has minimum width for caret visibility.
