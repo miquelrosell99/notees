@@ -4,10 +4,11 @@
  * Modal for user-level settings: date format, theme, account info.
  * Separate from graph/workspace settings.
  */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSettingsStore, applyTheme, DATE_FORMAT_OPTIONS, FIRST_DAY_OF_WEEK_OPTIONS, ACCENT_COLOR_OPTIONS, isValidHexColor, getContrastColor, isSupportBadgeVisible, useEncryptionStore } from '@/stores';
 import { useAuthUser, useAuthActions } from '@/features/layout/hooks/useAuthSelectors';
+import { useWorkspaces } from '@/features/workspace';
 import type { ThemePreference, DateFormat, HashtagPasteMode, DefaultView, QuickAddDestination, FirstDayOfWeek, AccentColor } from '@/stores';
 import { setSetting } from '@/features/workspace';
 import { updateMe, createApiKey, listApiKeys, revokeApiKey } from '@/features/auth';
@@ -83,12 +84,20 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
   const [encryptionConfirm, setEncryptionConfirm] = useState('');
   const [encryptionError, setEncryptionError] = useState<string | null>(null);
   const [encryptionSuccess, setEncryptionSuccess] = useState(false);
-  const encryptionEnabled = useEncryptionStore((s) => s.enabled);
-  const encryptionUnlocked = useEncryptionStore((s) => s.isUnlocked);
+  const { data: workspacesData } = useWorkspaces({ enabled: isOpen && activeTab === 'security' });
+  const activeWorkspace = useMemo(() => {
+    if (!workspacesData?.items) return null;
+    return workspacesData.items.find((ws) => ws.is_active) ?? workspacesData.items[0] ?? null;
+  }, [workspacesData]);
+  const workspaceUuid = activeWorkspace?.uuid ?? null;
+  const encryptionConfig = useEncryptionStore((s) => (workspaceUuid ? s.getConfig(workspaceUuid) : { enabled: false, salt: null }));
+  const encryptionKey = useEncryptionStore((s) => (workspaceUuid ? s.getKey(workspaceUuid) : null));
   const setEncryptionPasswordAction = useEncryptionStore((s) => s.setPassword);
   const unlockEncryption = useEncryptionStore((s) => s.unlock);
   const lockEncryption = useEncryptionStore((s) => s.lock);
   const disableEncryption = useEncryptionStore((s) => s.disable);
+  const encryptionEnabled = encryptionConfig.enabled;
+  const encryptionUnlocked = encryptionKey !== null;
 
   // Keep the custom hex text input in sync with the persisted value.
   useEffect(() => {
@@ -135,6 +144,10 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
   const handleSetEncryptionPassword = async () => {
     setEncryptionError(null);
     setEncryptionSuccess(false);
+    if (!workspaceUuid) {
+      setEncryptionError('No active workspace selected');
+      return;
+    }
     if (encryptionPassword.length < 8) {
       setEncryptionError('Password must be at least 8 characters');
       return;
@@ -144,7 +157,7 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
       return;
     }
     try {
-      await setEncryptionPasswordAction(encryptionPassword);
+      await setEncryptionPasswordAction(encryptionPassword, workspaceUuid);
       setEncryptionPassword('');
       setEncryptionConfirm('');
       setEncryptionSuccess(true);
@@ -156,12 +169,16 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
   const handleUnlockEncryption = async () => {
     setEncryptionError(null);
     setEncryptionSuccess(false);
+    if (!workspaceUuid) {
+      setEncryptionError('No active workspace selected');
+      return;
+    }
     if (!encryptionPassword) {
       setEncryptionError('Please enter your encryption password');
       return;
     }
     try {
-      await unlockEncryption(encryptionPassword);
+      await unlockEncryption(encryptionPassword, workspaceUuid);
       setEncryptionPassword('');
       setEncryptionSuccess(true);
     } catch (err) {
@@ -170,10 +187,11 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
   };
 
   const handleDisableEncryption = () => {
-    if (!window.confirm('Disabling encryption will remove local protection. Make sure you remember your current password before continuing.')) {
+    if (!workspaceUuid) return;
+    if (!window.confirm('Disabling encryption will remove local protection for this workspace. Make sure you remember your current password before continuing.')) {
       return;
     }
-    disableEncryption();
+    disableEncryption(workspaceUuid);
   };
 
   useEffect(() => {
@@ -832,6 +850,9 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
                 <Card>
                   <p className="settings-section__subtitle">
                     When enabled, your local offline cache is encrypted with AES-GCM using a key derived from your password. This protects data on shared devices.
+                    {activeWorkspace && (
+                      <> Applied to workspace: <strong>{activeWorkspace.name}</strong>.</>
+                    )}
                   </p>
 
                   {!encryptionEnabled && (
@@ -874,7 +895,7 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
                   {encryptionEnabled && encryptionUnlocked && (
                     <div className="settings-form-stack">
                       <p>Encryption is active and this session is unlocked.</p>
-                      <Button variant="ghost" onClick={lockEncryption}>Lock Now</Button>
+                      <Button variant="ghost" onClick={() => workspaceUuid && lockEncryption(workspaceUuid)}>Lock Now</Button>
                       <Button variant="danger" onClick={handleDisableEncryption}>Disable Encryption</Button>
                     </div>
                   )}

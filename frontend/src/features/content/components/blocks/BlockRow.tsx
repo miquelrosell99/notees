@@ -75,7 +75,7 @@ interface BlockRowProps {
   nodeUuid?: string;
   /** Whether to show class pills below the block content. */
   showClasses?: boolean;
-  /** Effective collapsed state (may differ from node.collapsed when expandAll is active). */
+  /** Effective collapsed state driven by the device-local UI state store. */
   effectiveCollapsed?: boolean;
   /** True for the trailing pseudo-block that creates a real block on click. */
   isGhost?: boolean;
@@ -248,7 +248,9 @@ export const BlockRow = memo(
       const siblings = getChildren(runtime, graphNode.parentId);
       if (siblings.length === 0) return;
 
-      const anyExpanded = siblings.some((s) => !(s.collapsed ?? false));
+      const anyExpanded = siblings.some(
+        (s) => !useUIStateStore.getState().getNodeUIState(workspaceId, s.blockId)?.collapsed,
+      );
       const targetCollapsed = anyExpanded;
 
       for (const sibling of siblings) {
@@ -280,10 +282,10 @@ export const BlockRow = memo(
         .catch(console.error);
     }, [node.uuid]);
 
-    const handlePasteBlocks = useCallback(() => {
+    const handlePasteBlocks = useCallback(async () => {
       const { copiedBlocks } = useClipboardStore.getState();
       if (copiedBlocks) {
-        pasteBlocksAfterBlock(copiedBlocks, node.uuid);
+        await pasteBlocksAfterBlock(copiedBlocks, node.uuid);
       }
     }, [node.uuid]);
 
@@ -405,6 +407,7 @@ export const BlockRow = memo(
       <InlineEditor
         ref={editorRef}
         blockId={node.uuid}
+        blockUuid={node.uuid}
         initialContentAST={contentAST}
         readOnly={readOnly || isLocked}
         placeholder={placeholder}
@@ -470,7 +473,7 @@ export const BlockRow = memo(
             icon={bulletIcon}
             interactive={!isGhost}
             hasChildren={!isGhost && (hasQueryClass || (node.has_children ?? false))}
-            collapsed={effectiveCollapsed ?? node.collapsed ?? false}
+            collapsed={effectiveCollapsed ?? false}
             onCollapseToggle={isGhost ? undefined : handleCollapseToggleLocal}
             onNavigate={isGhost ? undefined : onNavigate}
             onOpenInSidebar={isGhost ? undefined : onOpenInSidebar}

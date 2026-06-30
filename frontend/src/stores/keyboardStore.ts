@@ -79,6 +79,8 @@ export const SHORTCUT_IDS = {
   MOVE_UP: 'editor.moveUp',
   MOVE_DOWN: 'editor.moveDown',
   TOGGLE_FOLD: 'editor.toggleFold',
+  TOGGLE_FOLD_ALT_LEFT: 'editor.toggleFoldAltLeft',
+  TOGGLE_FOLD_ALT_RIGHT: 'editor.toggleFoldAltRight',
 
   // Selection
   SELECT_ALL: 'selection.selectAll',
@@ -129,6 +131,8 @@ export const DEFAULT_SHORTCUTS: ShortcutDefinition[] = [
   { id: SHORTCUT_IDS.MOVE_UP, description: 'Move Block Up', key: 'ArrowUp', modifiers: { alt: true, shift: true }, context: 'editor', commandId: COMMAND_IDS.MOVE_UP, configurable: true },
   { id: SHORTCUT_IDS.MOVE_DOWN, description: 'Move Block Down', key: 'ArrowDown', modifiers: { alt: true, shift: true }, context: 'editor', commandId: COMMAND_IDS.MOVE_DOWN, configurable: true },
   { id: SHORTCUT_IDS.TOGGLE_FOLD, description: 'Toggle Fold Block', key: '.', modifiers: { ctrl: true }, context: 'editor', commandId: COMMAND_IDS.TOGGLE_FOLD, configurable: true },
+  { id: SHORTCUT_IDS.TOGGLE_FOLD_ALT_LEFT, description: 'Toggle Fold Block (Alt + Left)', key: 'ArrowLeft', modifiers: { alt: true }, context: 'editor', commandId: COMMAND_IDS.TOGGLE_FOLD, configurable: true },
+  { id: SHORTCUT_IDS.TOGGLE_FOLD_ALT_RIGHT, description: 'Toggle Fold Block (Alt + Right)', key: 'ArrowRight', modifiers: { alt: true }, context: 'editor', commandId: COMMAND_IDS.TOGGLE_FOLD, configurable: true },
 
   // Selection shortcuts
   { id: SHORTCUT_IDS.SELECT_ALL, description: 'Select All Blocks', key: 'a', modifiers: { ctrl: true }, context: 'selection', commandId: COMMAND_IDS.SELECT_ALL },

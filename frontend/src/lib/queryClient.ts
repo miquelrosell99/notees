@@ -8,6 +8,7 @@ import type { Persister, PersistedClient } from '@tanstack/react-query-persist-c
 
 import { useNotificationStore } from '@/stores/notificationStore';
 import { useUndoStore } from '@/stores/undoStore';
+import { useEncryptionStore } from '@/stores/encryptionStore';
 import { encryptString, decryptString, type EncryptedPayload } from '@/utils/encryption';
 
 /**
@@ -169,3 +170,83 @@ export function createEncryptedPersister(key: CryptoKey): Persister {
     },
   };
 }
+
+// ─── Per-workspace cache persistence ───────────────────────────────
+
+let persistWorkspaceUuid: string | null = null;
+
+/**
+ * Set the workspace UUID that subsequent cache persist/restore operations
+ * should target. Call this whenever the active workspace changes.
+ */
+export function setPersistWorkspaceUuid(uuid: string | null): void {
+  persistWorkspaceUuid = uuid;
+}
+
+function getWorkspaceCacheKey(): string {
+  return persistWorkspaceUuid ? `${PERSIST_KEY}-${persistWorkspaceUuid}` : PERSIST_KEY;
+}
+
+function getWorkspaceEncryptionKey(): CryptoKey | null {
+  if (!persistWorkspaceUuid) return null;
+  return useEncryptionStore.getState().getKey(persistWorkspaceUuid);
+}
+
+/**
+ * Workspace-aware persister.
+ *
+ * - Each workspace gets its own IndexedDB cache key.
+ * - If the active workspace is encrypted and unlocked, the cache is encrypted
+ *   with that workspace's in-memory key.
+ * - If the workspace is not encrypted or locked, the cache is stored plaintext.
+ *
+ * This prevents cross-workspace cache contamination and lets encryption be
+ * opt-in per workspace.
+ */
+export const workspaceAwarePersister: Persister = {
+  async persistClient(client: PersistedClient): Promise<void> {
+    const key = getWorkspaceEncryptionKey();
+    const cacheKey = getWorkspaceCacheKey();
+    const serialized = JSON.stringify(client);
+
+    if (serialized.length > MAX_PERSIST_SIZE) {
+      console.warn('[queryClient] Cache too large to persist (>5 MB), skipping IndexedDB write.');
+      return;
+    }
+
+    if (key) {
+      const payload = await encryptString(serialized, key);
+      await set(cacheKey, JSON.stringify(payload));
+    } else {
+      await set(cacheKey, serialized);
+    }
+  },
+
+  async restoreClient(): Promise<PersistedClient | undefined> {
+    const key = getWorkspaceEncryptionKey();
+    const cacheKey = getWorkspaceCacheKey();
+    const raw = await get(cacheKey);
+    if (typeof raw !== 'string') return undefined;
+
+    if (key) {
+      try {
+        const payload = JSON.parse(raw) as EncryptedPayload;
+        const decrypted = await decryptString(payload, key);
+        return JSON.parse(decrypted) as PersistedClient;
+      } catch {
+        return undefined;
+      }
+    }
+
+    try {
+      return JSON.parse(raw) as PersistedClient;
+    } catch {
+      return undefined;
+    }
+  },
+
+  async removeClient(): Promise<void> {
+    const cacheKey = getWorkspaceCacheKey();
+    await del(cacheKey);
+  },
+};

@@ -123,7 +123,7 @@ class _PostgresNodeBase(BasePostgresRepository):
             is_month=row.get("is_month", False),
             is_year=row.get("is_year", False),
             is_asset=row.get("is_asset", False),
-            asset_file_id=row.get("asset_file_id"),
+            asset_id=row.get("asset_id"),
             is_template=row.get("is_template", False),
             is_comment=row.get("is_comment", False),
             is_task=row.get("is_task", False),

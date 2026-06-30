@@ -30,7 +30,6 @@ export function graphNodeToConflictNode(graphNode: GraphNode, depth = 0): Node {
     classes_uuid: graphNode.classIds,
     tags_uuid: graphNode.tagIds,
     // Fold state is UI-only; diff views always show expanded for clarity.
-    collapsed: false,
     children: children.map((child) => graphNodeToConflictNode(child, depth + 1)),
     has_children: children.length > 0 || !!graphNode.hasServerChildren,
   };

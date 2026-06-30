@@ -1,6 +1,6 @@
 """Tests for asset file operations and lifecycle with content-addressed storage."""
+import hashlib
 import shutil
-from pathlib import Path
 from typing import Any
 
 import pytest
@@ -25,19 +25,19 @@ class _FakeAssetRepository(AssetRepository):
         name: str,
         asset_class_id: int,
         user_id: int,
-        asset_file_id: int | None = None,
+        asset_id: int | None = None,
     ) -> None:
         pass
 
     async def asset_exists_by_uuid(self, uuid: str) -> bool:
         return False
 
-    async def create_asset_file(
+    async def create_asset(
         self,
         hash: str,
-        size_bytes: int,
-        extension: str,
-        storage_path: str,
+        size: int,
+        mime_type: str | None,
+        original_name: str | None,
         user_id: int,
     ) -> int:
         file_id = self._next_id
@@ -45,32 +45,32 @@ class _FakeAssetRepository(AssetRepository):
         self._files[file_id] = {
             "id": file_id,
             "hash": hash,
-            "size_bytes": size_bytes,
-            "extension": extension,
-            "storage_path": storage_path,
-            "ref_count": 1,
+            "size": size,
+            "mime_type": mime_type,
+            "original_name": original_name,
+            "refs_count": 1,
         }
         return file_id
 
-    async def find_asset_file_by_hash(self, hash: str) -> dict[str, Any] | None:
+    async def find_asset_by_hash(self, hash: str) -> dict[str, Any] | None:
         for row in self._files.values():
             if row["hash"] == hash:
                 return dict(row)
         return None
 
-    async def get_asset_file_by_id(self, asset_file_id: int) -> dict[str, Any] | None:
-        row = self._files.get(asset_file_id)
+    async def get_asset_by_id(self, asset_id: int) -> dict[str, Any] | None:
+        row = self._files.get(asset_id)
         return dict(row) if row else None
 
-    async def increment_asset_file_ref_count(self, asset_file_id: int) -> None:
-        if asset_file_id in self._files:
-            self._files[asset_file_id]["ref_count"] += 1
+    async def increment_asset_ref_count(self, asset_id: int) -> None:
+        if asset_id in self._files:
+            self._files[asset_id]["refs_count"] += 1
 
-    async def decrement_asset_file_ref_count(self, asset_file_id: int) -> int:
-        if asset_file_id not in self._files:
+    async def decrement_asset_ref_count(self, asset_id: int) -> int:
+        if asset_id not in self._files:
             return 0
-        self._files[asset_file_id]["ref_count"] -= 1
-        return self._files[asset_file_id]["ref_count"]
+        self._files[asset_id]["refs_count"] -= 1
+        return self._files[asset_id]["refs_count"]
 
 
 @pytest.fixture
@@ -135,7 +135,7 @@ async def test_asset_file_deletion_keeps_file_with_refs(asset_file_service):
         content_type="image/png",
     )
     # Simulate a second reference by incrementing the count.
-    await asset_file_service._asset_repo.increment_asset_file_ref_count(file_id)
+    await asset_file_service._asset_repo.increment_asset_ref_count(file_id)
 
     deleted = await asset_file_service.delete_asset(file_id)
     assert deleted is False
@@ -144,14 +144,14 @@ async def test_asset_file_deletion_keeps_file_with_refs(asset_file_service):
 
 @pytest.mark.asyncio
 async def test_asset_file_storage_path_is_content_addressed(asset_file_service):
-    """Files are stored under assets/files/<hash prefix>/<hash>."""
+    """Files are stored under assets/<hash prefix>/<hash>."""
     content = b"hello world"
     _file_id, _ext, source_path = await asset_file_service.create_asset(
         file_bytes=content,
-        original_filename="doc.txt",
-        content_type="text/plain",
+        original_filename="doc.png",
+        content_type="image/png",
     )
     parts = source_path.relative_to(asset_file_service.assets_dir).parts
-    assert parts[0] == "files"
-    assert len(parts[1]) == 2
-    assert len(parts[2]) == 2
+    expected_hash = hashlib.sha256(content).hexdigest()
+    assert parts[0] == expected_hash[:4]
+    assert parts[1] == f"{expected_hash}.png"

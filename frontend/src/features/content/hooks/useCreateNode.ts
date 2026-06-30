@@ -75,7 +75,7 @@ export function useCreateNode() {
         }
       }
 
-      getUndoEngine().applyIntent({
+      await getUndoEngine().applyIntent({
         type: 'create_block',
         parentId: parentUuid,
         afterBlockId,

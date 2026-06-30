@@ -110,6 +110,18 @@ export async function getNodeByUuid(
 }
 
 /**
+ * Fetch the latest Yjs update blob for a node.
+ *
+ * Returns an empty ArrayBuffer when the server has no stored CRDT state yet.
+ */
+export async function getNodeYjsState(nodeUuid: string): Promise<ArrayBuffer> {
+  const response = await api.get<ArrayBuffer>(`${BASE}/${nodeUuid}/yjs_state`, {
+    responseType: 'arraybuffer',
+  });
+  return response.data;
+}
+
+/**
  * Get page content with blocks, properties, and backlinks
  */
 export async function getPageContent(nodeUuid: string): Promise<Node> {

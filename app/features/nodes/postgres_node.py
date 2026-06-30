@@ -24,7 +24,7 @@ from app.utils import utc_now
 
 _NODE_SELECT_COLUMNS = (
     "id, uuid, workspace_id, name, icon, color, parent_id, page_id, sequence, active, "
-    "is_shared, is_page, is_class, is_day, is_month, is_year, is_asset, asset_file_id, is_template, is_comment, is_task, is_table, is_card, is_cloze, "
+    "is_shared, is_page, is_class, is_day, is_month, is_year, is_asset, asset_id, is_template, is_comment, is_task, is_table, is_card, is_cloze, "
     "parent_locked, is_private, is_deleted, deleted_at, class_ids, tag_ids, classes_path, "
     "create_date, write_date, open_date, create_uid, write_uid, version, aliased_id"
 )
@@ -89,7 +89,7 @@ class PostgresNodeRepository(
                     uuid, workspace_id, name, icon, color, parent_id, page_id,
                     sequence,
                     is_class, is_page, is_day, is_month, is_year,
-                    is_asset, asset_file_id, is_template, is_comment, is_task, is_table, is_card, is_cloze,
+                    is_asset, asset_id, is_template, is_comment, is_task, is_table, is_card, is_cloze,
                     class_ids, tag_ids,
                     create_date, write_date, create_uid, write_uid
                 )
@@ -110,7 +110,7 @@ class PostgresNodeRepository(
                 is_month,
                 is_year,
                 is_asset,
-                data.asset_file_id,
+                data.asset_id,
                 is_template,
                 is_comment,
                 is_task,
@@ -144,7 +144,7 @@ class PostgresNodeRepository(
             is_month=is_month,
             is_year=is_year,
             is_asset=is_asset,
-            asset_file_id=data.asset_file_id,
+            asset_id=data.asset_id,
             class_ids=data.classes if data.classes else [],
             tag_ids=data.tags if data.tags else [],
             is_template=is_template,

@@ -107,6 +107,27 @@ class LocalSyncEngine {
   }
 
   /**
+   * Persist operations to the outbox before they are applied to the runtime.
+   *
+   * Used for structural intents so that the IndexedDB write completes before
+   * the UI acks the change. The caller is responsible for applying the
+   * operations to the runtime after this resolves.
+   */
+  async prepareStructuralOperations(operations: Operation[]): Promise<void> {
+    await this.init();
+    const now = Date.now();
+    const newEntries: OutboxEntry[] = operations.map((op) => ({
+      op,
+      attemptCount: 0,
+      lastError: null,
+      nextRetryAt: null,
+      createdAt: now,
+    }));
+    this.entries.push(...newEntries);
+    await this._persist();
+  }
+
+  /**
    * Stage operations that are already applied to the runtime (e.g. by the
    * existing event bus). Persists them without re-applying.
    */

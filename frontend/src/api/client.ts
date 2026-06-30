@@ -143,7 +143,7 @@ export function isApiError(error: unknown): error is ApiError {
 export interface RequestOptions {
   params?: Record<string, unknown>;
   headers?: Record<string, string>;
-  responseType?: 'json' | 'blob' | 'text';
+  responseType?: 'json' | 'blob' | 'text' | 'arraybuffer';
   data?: unknown;
   timeout?: number | false;
 }
