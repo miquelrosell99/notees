@@ -312,8 +312,13 @@ export function SyncManagerV2({ workspaceUuid: workspaceUuidProp, clientId: clie
       void flushBatch();
     })();
 
-    const handleBeforeUnload = () => {
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
       void localSyncEngine.flush();
+      if (localSyncEngine.getPendingEntries().length > 0) {
+        // Standard cross-browser way to show a "Leave site? Changes may not be saved" warning.
+        event.preventDefault();
+        event.returnValue = '';
+      }
     };
     window.addEventListener('beforeunload', handleBeforeUnload);
 
@@ -342,17 +347,25 @@ export function SyncManagerV2({ workspaceUuid: workspaceUuidProp, clientId: clie
       }
     });
 
+    const handleBackgroundSync = () => {
+      if (mounted && canDispatch && workspaceUuid) {
+        void flushBatch();
+      }
+    };
+    window.addEventListener('notees:background-sync', handleBackgroundSync);
+
     return () => {
       mounted = false;
       unsubscribe();
       unsubscribeLive();
       window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('notees:background-sync', handleBackgroundSync);
       if (timerRef.current) {
         clearTimeout(timerRef.current);
       }
       void localSyncEngine.flush();
     };
-  }, [flushBatch, queryClient, runtime, updateStatus]);
+  }, [flushBatch, queryClient, runtime, updateStatus, canDispatch, workspaceUuid]);
 
   // Resume dispatch when connectivity returns.
   useEffect(() => {

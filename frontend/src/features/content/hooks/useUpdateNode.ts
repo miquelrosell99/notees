@@ -29,11 +29,9 @@ export function useUpdateNode() {
       if (data.icon !== undefined) updates.icon = data.icon;
       if (data.color !== undefined) updates.color = data.color;
       if (data.is_page !== undefined && data.is_page !== null) updates.isPage = data.is_page;
-      const collapsed = data.collapsed;
-      if (collapsed != null) updates.collapsed = collapsed;
       if (data.is_private !== undefined && data.is_private !== null) updates.isPrivate = data.is_private;
 
-      const operationId = applyNodeIntent({ type: 'update_node', blockId, updates });
+      const operationId = await applyNodeIntent({ type: 'update_node', blockId, updates });
       await waitForOperationAck(operationId);
       return findNodeInCache(queryClient, nodeUuid);
     },

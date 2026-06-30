@@ -29,8 +29,8 @@ import { getUndoEngine } from '@/stores/undoEngine';
 import type { MutationIntent } from '@/runtime/types';
 import { useEditorFocusStore } from '@/stores/editorFocusStore';
 
-function applyRuntimeIntent(intent: MutationIntent): void {
-  getUndoEngine().applyIntent(intent, intent.type === 'update_content' ? { sourceEditorId: intent.sourceEditorId } : undefined);
+async function applyRuntimeIntent(intent: MutationIntent): Promise<void> {
+  await getUndoEngine().applyIntent(intent, intent.type === 'update_content' ? { sourceEditorId: intent.sourceEditorId } : undefined);
 }
 
 // ─── Props ───────────────────────────────────────────────────────
@@ -67,23 +67,23 @@ export function EmbedBlock({
 
   // ─── Border selection keyboard handling ──────────────────────
 
-  const handleDeleteHostBlock = useCallback(() => {
+  const handleDeleteHostBlock = useCallback(async () => {
     // Blur focus first so Lexical doesn't auto-focus the next block in a weird way
     if (document.activeElement instanceof HTMLElement) {
       document.activeElement.blur();
     }
-    applyRuntimeIntent({ type: 'delete_block', blockId: hostBlockId });
+    await applyRuntimeIntent({ type: 'delete_block', blockId: hostBlockId });
     getRuntimeEventBus().flushEvents();
     setBorderSelected(false);
   }, [hostBlockId]);
 
-  const handleCreateSiblingAfterHost = useCallback(() => {
+  const handleCreateSiblingAfterHost = useCallback(async () => {
     const runtime = getOperationRuntime();
     const hostNode = getNode(runtime, hostBlockId);
     if (!hostNode?.parentId) return;
     const newBlockId = generateUUID();
     useEditorFocusStore.getState().setPendingFocus(newBlockId);
-    applyRuntimeIntent({
+    await applyRuntimeIntent({
       type: 'create_block',
       parentId: hostNode.parentId,
       afterBlockId: hostBlockId,

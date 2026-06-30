@@ -55,7 +55,7 @@ export function useContentSave(options: UseContentSaveOptions = {}) {
     return getNode(runtime, blockId);
   }, []);
 
-  const saveBlock = useCallback((blockId: string, content: string) => {
+  const saveBlock = useCallback(async (blockId: string, content: string) => {
     const ast = parseAST(content);
     const converted = convertMarkdownInAST(ast);
 
@@ -77,7 +77,7 @@ export function useContentSave(options: UseContentSaveOptions = {}) {
       blockId: graphNode.blockId,
       contentAST: converted,
     };
-    getUndoEngine().applyIntent(intent, { sourceEditorId: intent.sourceEditorId });
+    await getUndoEngine().applyIntent(intent, { sourceEditorId: intent.sourceEditorId });
   }, [resolveGraphNode]);
 
   const flushBlock = useCallback((blockId: string) => {

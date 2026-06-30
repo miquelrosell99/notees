@@ -156,7 +156,7 @@ export function useBlockSelection({ containerRef, blockIds, readOnly }: UseBlock
     };
 
     // ── Keyboard: Escape ───────────────────────────────────────
-    const handleKeyDown = (e: KeyboardEvent) => {
+    const handleKeyDown = async (e: KeyboardEvent) => {
       if (e.defaultPrevented) return;
 
       // Escape: clear selection, or if editor focused, select current block
@@ -191,7 +191,7 @@ export function useBlockSelection({ containerRef, blockIds, readOnly }: UseBlock
         if (!anchor) return;
 
         const newBlockId = generateUUID();
-        getUndoEngine().applyIntent({
+        await getUndoEngine().applyIntent({
           type: 'create_block',
           parentId: anchor,
           afterBlockId: null,
@@ -253,7 +253,7 @@ export function useBlockSelection({ containerRef, blockIds, readOnly }: UseBlock
         e.preventDefault();
         const ids = [...selectedIds];
         clearSelection();
-        getUndoEngine().applyIntent({
+        await getUndoEngine().applyIntent({
           type: 'batch',
           intents: ids.map((blockId) => ({ type: 'delete_block' as const, blockId })),
         });
@@ -273,12 +273,12 @@ export function useBlockSelection({ containerRef, blockIds, readOnly }: UseBlock
           return n && (!n.parentId || !blockIdSet.has(n.parentId));
         });
         if (e.key === 'ArrowUp') {
-          getUndoEngine().applyIntent({
+          await getUndoEngine().applyIntent({
             type: 'batch',
             intents: topLevelIds.map((blockId) => ({ type: 'move_up' as const, blockId })),
           });
         } else {
-          getUndoEngine().applyIntent({
+          await getUndoEngine().applyIntent({
             type: 'batch',
             intents: topLevelIds.reverse().map((blockId) => ({ type: 'move_down' as const, blockId })),
           });
@@ -321,17 +321,17 @@ export function useBlockSelection({ containerRef, blockIds, readOnly }: UseBlock
         const { mode, copiedBlocks } = useClipboardStore.getState();
         if (mode === 'blocks' && copiedBlocks) {
           e.preventDefault();
-          pasteBlocksAfterBlock(copiedBlocks, lastTopLevelId);
+          await pasteBlocksAfterBlock(copiedBlocks, lastTopLevelId);
           return;
         }
 
         e.preventDefault();
         navigator.clipboard
           .readText()
-          .then((text) => {
+          .then(async (text) => {
             const blockData = tryParseInternalFormat(text);
             if (blockData) {
-              pasteBlocksAfterBlock(blockData, lastTopLevelId);
+              await pasteBlocksAfterBlock(blockData, lastTopLevelId);
             }
           })
           .catch(() => {

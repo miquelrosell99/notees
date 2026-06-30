@@ -43,8 +43,8 @@ import { getRuntimeEventBus } from '@/runtime/eventBus';
 import { getUndoEngine } from '@/stores/undoEngine';
 import type { MutationIntent } from '@/runtime/types';
 
-function applyRuntimeIntent(intent: MutationIntent): void {
-  getUndoEngine().applyIntent(intent, intent.type === 'update_content' ? { sourceEditorId: intent.sourceEditorId } : undefined);
+async function applyRuntimeIntent(intent: MutationIntent): Promise<void> {
+  await getUndoEngine().applyIntent(intent, intent.type === 'update_content' ? { sourceEditorId: intent.sourceEditorId } : undefined);
 }
 
 interface BlockListProps {
@@ -182,12 +182,12 @@ export function BlockList({
   useTouchIndent({
     containerRef,
     readOnly,
-    onIndent: (blockId) => {
-      applyRuntimeIntent({ type: 'indent_block', blockId });
+    onIndent: async (blockId) => {
+      await applyRuntimeIntent({ type: 'indent_block', blockId });
       getRuntimeEventBus().flushEvents();
     },
-    onOutdent: (blockId) => {
-      applyRuntimeIntent({ type: 'outdent_block', blockId });
+    onOutdent: async (blockId) => {
+      await applyRuntimeIntent({ type: 'outdent_block', blockId });
       getRuntimeEventBus().flushEvents();
     },
   });
@@ -255,7 +255,7 @@ export function BlockList({
   );
 
   const handleEnter = useCallback(
-    (blockId: string) => {
+    async (blockId: string) => {
       flushAllContentSaves();
       const runtime = getOperationRuntime();
       const row = rowRefs.current.get(blockId);
@@ -268,7 +268,7 @@ export function BlockList({
         if (!parentId && nodeUuid) {
           parentId = nodeUuid;
         }
-        applyRuntimeIntent({
+        await applyRuntimeIntent({
           type: 'create_block',
           parentId,
           afterBlockId: blockId,
@@ -285,7 +285,7 @@ export function BlockList({
         const currentIndex = siblings.findIndex((s) => s.blockId === blockId);
         const afterBlockId = currentIndex > 0 ? siblings[currentIndex - 1].blockId : null;
         const newBlockId = generateUUID();
-        applyRuntimeIntent({
+        await applyRuntimeIntent({
           type: 'create_block',
           parentId,
           afterBlockId,
@@ -297,7 +297,7 @@ export function BlockList({
       } else {
         const offset = row?.getCursorOffset() ?? 0;
         const newBlockId = generateUUID();
-        applyRuntimeIntent({
+        await applyRuntimeIntent({
           type: 'split_block',
           blockId,
           atOffset: offset,
@@ -311,7 +311,7 @@ export function BlockList({
   );
 
   const handleBackspaceAtStart = useCallback(
-    (blockId: string) => {
+    async (blockId: string) => {
       const idx = blockIdsRef.current.indexOf(blockId);
       if (idx <= 0) return;
       const prevBlockId = blockIdsRef.current[idx - 1];
@@ -321,7 +321,7 @@ export function BlockList({
       }
 
       flushAllContentSaves();
-      applyRuntimeIntent({
+      await applyRuntimeIntent({
         type: 'merge_blocks',
         sourceBlockId: blockId,
         targetBlockId: prevBlockId,
@@ -333,7 +333,7 @@ export function BlockList({
   );
 
   const handleDeleteAtEnd = useCallback(
-    (blockId: string) => {
+    async (blockId: string) => {
       const idx = blockIdsRef.current.indexOf(blockId);
       if (idx < 0 || idx >= blockIdsRef.current.length - 1) return;
       const nextBlockId = blockIdsRef.current[idx + 1];
@@ -343,7 +343,7 @@ export function BlockList({
       }
 
       flushAllContentSaves();
-      applyRuntimeIntent({
+      await applyRuntimeIntent({
         type: 'merge_blocks',
         sourceBlockId: nextBlockId,
         targetBlockId: blockId,
@@ -388,7 +388,7 @@ export function BlockList({
     handleCollapseToggle(blockId);
   }, [readOnly, handleCollapseToggle]);
 
-  const handleGhostRealize = useCallback((ghostUuid: string) => {
+  const handleGhostRealize = useCallback(async (ghostUuid: string) => {
     const parentUuid = parseGhostParentUuid(ghostUuid);
     if (!parentUuid) return;
 
@@ -409,7 +409,7 @@ export function BlockList({
     const lastRealChild = runtimeChildren.length > 0 ? runtimeChildren[runtimeChildren.length - 1] : null;
 
     const newBlockId = generateUUID();
-    applyRuntimeIntent({
+    await applyRuntimeIntent({
       type: 'create_block',
       parentId: parentUuid,
       afterBlockId: lastRealChild?.blockId ?? null,
@@ -421,7 +421,7 @@ export function BlockList({
   }, [setPendingFocus]);
 
   const handleKeyDown = useCallback(
-    (e: KeyboardEvent<HTMLDivElement>) => {
+    async (e: KeyboardEvent<HTMLDivElement>) => {
       if (!activeBlockId) return;
       const idx = blockIds.indexOf(activeBlockId);
       if (idx < 0) return;
@@ -430,7 +430,7 @@ export function BlockList({
         case 'Tab': {
           e.preventDefault();
           flushAllContentSaves();
-          applyRuntimeIntent({
+          await applyRuntimeIntent({
             type: e.shiftKey ? 'outdent_block' : 'indent_block',
             blockId: activeBlockId,
           });
