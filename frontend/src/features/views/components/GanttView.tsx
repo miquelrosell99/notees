@@ -19,9 +19,10 @@ import type { Node } from '@/types';
 import type { NodeGanttViewProps } from '@/types/nodeCollection';
 
 import { useGanttDateMutation } from '@/features/views';
-import { NodeInline } from '@/features/content';
+import { NodeInline, useClasses } from '@/features/content';
 import { NodeIcon } from '@/components/ui/icons';
 import { PageContextMenu, BlockContextMenu } from '@/features/content';
+import { getEffectiveIcon } from '@/utils/nodeIcon';
 import { useGanttData } from '../hooks/useGanttData';
 import {
   ROW_HEIGHT,
@@ -66,6 +67,18 @@ export const GanttView = memo(function GanttView({
     totalContentHeight,
     setOptimisticOverride,
   } = useGanttData(nodes, startDateProperty, endDateProperty, groupBy, groupByProperty);
+
+  const { data: allClasses } = useClasses();
+
+  // Resolve inherited class icons for Gantt label rows.
+  const effectiveIconMap = useMemo(() => {
+    const map = new Map<string, string | null>();
+    if (!allClasses) return map;
+    for (const item of ganttNodeItems) {
+      map.set(item.node.uuid, getEffectiveIcon(item.node, allClasses) ?? null);
+    }
+    return map;
+  }, [ganttNodeItems, allClasses]);
 
   // ── DOM refs (declared early so virtualization can measure the left pane) ─
   const canvasRef      = useRef<HTMLCanvasElement>(null);
@@ -490,7 +503,7 @@ export const GanttView = memo(function GanttView({
                 <div key={`row-${index}`} className="gantt-label-row" style={{ height: ROW_HEIGHT }}>
                   <NodeInline
                     name={row.item.node.name}
-                    icon={row.item.node.icon}
+                    icon={effectiveIconMap.get(row.item.node.uuid) ?? row.item.node.icon}
                     isPage={row.item.node.is_page}
                     nodeUuid={row.item.node.uuid}
                     showBullet={true}
