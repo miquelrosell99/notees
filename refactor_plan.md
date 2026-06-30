@@ -17,7 +17,7 @@
 | M4: CRDT Text | ✅ Done (spike passed) | Yjs + Lexical binding verified; integration spec in `docs/crdt-spike-report.md`. |
 | M5: Offline Search & Live Queries | ✅ Done | M5a local node mirror + `MiniSearch`; M5b offline search fallback; M5c offline QueryAST evaluation for all node views, linked-references QueryAST fallback, and RuntimeEventBus-driven live invalidation. |
 | M6: Interop & Assets | ✅ Done | YAML/OPML import/export, content-addressed assets. |
-| M7: Multi-Platform & Polish | 🔄 In Progress | — |
+| M7: Web Polish, Bundle Splitting & Encryption | 🔄 In Progress | Flutter mobile client moved to `miquelrosell99/notees-flutter`. |
 
 ---
 
@@ -53,20 +53,20 @@ This is not a refactor. It is a **sync-layer rewrite** that extracts the backend
           ┌───────────────────┼───────────────────┐
           │                   │                   │
           ▼                   ▼                   ▼
-┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
-│   WEB CLIENT    │  │  FLUTTER APP    │  │ DESKTOP (Elec/│
-│  (React/TS)     │  │  (Android/iOS)  │  │  Tauri)         │
-│                 │  │                 │  │                 │
-│  • IndexedDB    │  │  • sqflite      │  │  • Same as web  │
-│  • MiniSearch   │  │  • FTS5 (or     │  │    or native    │
-│  • Lexical      │  │    fallback)    │  │                 │
-│  • Outbox queue │  │  • Outbox queue │  │                 │
-└─────────────────┘  └─────────────────┘  └─────────────────┘
+┌─────────────────┐  ┌─────────────────────────────────┐  ┌─────────────────┐
+│   WEB CLIENT    │  │  FLUTTER APP                    │  │ DESKTOP (Elec/│
+│  (React/TS)     │  │  (Android/iOS)                  │  │  Tauri)         │
+│                 │  │  in `miquelrosell99/notees-flutter` │  │                 │
+│  • IndexedDB    │  │  • sqflite                      │  │  • Same as web  │
+│  • MiniSearch   │  │  • FTS5 (or fallback)           │  │    or native    │
+│  • Lexical      │  │  • Outbox queue                 │  │                 │
+│  • Outbox queue │  │                                 │  │                 │
+└─────────────────┘  └─────────────────────────────────┘  └─────────────────┘
 ```
 
 **Deployment options:**
 - **Monolithic (default):** Sync server serves the web client as static files. One Docker container.
-- **Split:** Sync server runs headless; web client is static files on a CDN or `baymax`; Flutter app talks to server directly.
+- **Split:** Sync server runs headless; web client is static files on a CDN or `baymax`; Flutter app (built from `miquelrosell99/notees-flutter`) talks to server directly.
 
 ---
 
@@ -345,23 +345,25 @@ Batch endpoint validates only **target** and **anchor parent** vectors. Descenda
 
 ---
 
-### Milestone 7: Multi-Platform & Polish (2–3 Weeks)
+### Milestone 7: Web Polish, Bundle Splitting & Encryption (2–3 Weeks)
 
-**Goal:** Ship mobile app, reduce bundle, optionally encrypt.
+**Goal:** Reduce web bundle, add optional encryption, and keep the sync protocol stable for external clients.
+
+The Flutter mobile client has been extracted to its own repository (`miquelrosell99/notees-flutter`). Mobile-specific work (Flutter UI, Android/iOS background sync, Play Store release) is tracked there. This milestone focuses on the web client and the shared server contract.
 
 | Task | Detail |
 |------|--------|
-| Flutter client | Implement sync protocol (same API as web). sqflite + outbox. Ship to Play Store as paid app. |
-| Background sync | **Flutter:** `workmanager`, periodic 15min, sync on resume. **Web:** Periodic Background Sync API. |
+| Flutter client (external repo) | Continues in `miquelrosell99/notees-flutter`. Consumes the same sync protocol (same API as web). sqflite + outbox. Ship to Play Store as paid app. |
+| Background sync | **Web:** Periodic Background Sync API. **Mobile:** implemented in `notees-flutter`. |
 | Bundle splitting | Dynamic import: `GraphView`, `MarkdownImporter`, `OPMLExporter`, `QueryEngine`. Lazy-load modals. Target: ~600–800 KB initial. |
-| Encryption at rest (optional, opt-in) | **Web:** `crypto.subtle` AES-GCM, key from user password. **Mobile:** `sqlcipher_flutter_libs`. Key in memory only. Per-workspace opt-in. |
+| Encryption at rest (optional, opt-in) | **Web:** `crypto.subtle` AES-GCM, key from user password. Key in memory only. Per-workspace opt-in. **Mobile:** implemented in `notees-flutter` (e.g. `sqlcipher_flutter_libs`). |
 
-**Out of scope:** Anything not listed.
+**Out of scope:** Flutter UI work, Android/iOS packaging, Play Store release (all in `notees-flutter`).
 
 **Acceptance criteria:**
-1. Flutter app syncs correctly against same server.
-2. Mobile syncs in background.
-3. Initial bundle <800 KB.
+1. The shared sync protocol remains stable and documented for `notees-flutter`.
+2. Web client uses Periodic Background Sync where supported.
+3. Initial web bundle <800 KB.
 4. Encryption is opt-in and does not break search.
 
 ---
@@ -400,7 +402,7 @@ Pre-M1 Validation ──► M0: Foundation
                 └─────────────────┘
 ```
 
-**Critical path:** Pre-M1 → M0 → M1 → M4. M7 (Flutter) can start in parallel once M1 API is stable.
+**Critical path:** Pre-M1 → M0 → M1 → M4. The `notees-flutter` client can start in parallel once M1 API is stable.
 
 ---
 
@@ -413,7 +415,7 @@ Pre-M1 Validation ──► M0: Foundation
 | M4 Yjs spike fails | Defer M4. Keep M1 focus-presence + 409. No deadline pressure. |
 | M5 mobile FTS5 unavailable | Verified in M0. Fallback to trigram index or Dart search library. |
 | Fold-state migration across devices | Tied to `sync_protocol_version = v2`. v1 clients ignore; each device migrates its own `ui_state` on joining v2. |
-| Flutter client diverges from web | Shared sync protocol spec (OpenAPI). Both clients implement same `OperationIntent`, `base_vector`, and outbox semantics. |
+| Flutter client diverges from web | Shared sync protocol spec (OpenAPI) lives in this repo. `notees-flutter` implements the same `OperationIntent`, `base_vector`, and outbox semantics. |
 | Bundle splitting breaks lazy loading | Test with `webpack-bundle-analyzer` before deploy. |
 
 ---
@@ -430,7 +432,7 @@ Pre-M1 Validation ──► M0: Foundation
 | M4 | Zero 409s for text edits (if spike passes). |
 | M5 | Search <50ms offline. |
 | M6 | Import/export round-trip 100% fidelity. |
-| M7 | Flutter app on Play Store. Lighthouse >80 mobile. |
+| M7 | Web bundle <800 KB. Encryption opt-in works. Sync protocol documented and consumed by `notees-flutter`. |
 
 ---
 
