@@ -3,6 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
+import MiniSearch from 'minisearch';
 import { indexNodes, searchIndex, unindexNodes, clearSearchIndex, _resetMemoryIndex } from './searchIndex';
 import type { Node } from '@/types/api';
 
@@ -90,5 +91,24 @@ describe('searchIndex', () => {
     await indexNodes(WORKSPACE, [makeNode('n1', 'Hello'), makeNode('n2', 'World')]);
     const results = await searchIndex(WORKSPACE, '');
     expect(results).toHaveLength(0);
+  });
+
+  it('round-trips a serialized index with MiniSearch.loadJS (not loadJSON)', () => {
+    // Regression: loadJSON always calls JSON.parse, so it cannot accept the
+    // plain object returned by toJSON(). The persistence layer must use loadJS.
+    const index = new MiniSearch({
+      fields: ['nameText'],
+      storeFields: ['id', 'nameText'],
+    });
+    index.add({ id: 'n1', nameText: 'Hello world' });
+
+    const serialized = index.toJSON();
+    expect(typeof serialized).toBe('object');
+
+    const loaded = MiniSearch.loadJS(serialized, {
+      fields: ['nameText'],
+      storeFields: ['id', 'nameText'],
+    });
+    expect(loaded.search('world').map((r) => r.id)).toContain('n1');
   });
 });
