@@ -55,7 +55,6 @@ import {
 import { reportEditorFocus } from './mobileEditorBridge';
 import { NodeLinkPlugin } from './plugins/NodeLinkPlugin';
 import { TriggerPlugin } from './plugins/TriggerPlugin';
-import { CustomCaretPlugin } from './plugins/CustomCaretPlugin';
 import { InlineEditorKeysPlugin } from './plugins/InlineEditorKeysPlugin';
 import { FloatingToolbarPlugin } from './plugins/FloatingToolbarPlugin';
 import { InlineCopyPastePlugin } from './plugins/InlineCopyPastePlugin';
@@ -591,7 +590,6 @@ function InlineEditorInner({
       <EditablePlugin readOnly={readOnly} />
       {!readOnly && <FloatingToolbarPlugin />}
       {!readOnly && <InlineCopyPastePlugin blockId={blockId} onPasteImage={onPasteImage} />}
-      {!readOnly && <CustomCaretPlugin readOnly={readOnly} />}
       {!readOnly && (
         <TriggerPlugin
           blockId={blockId}

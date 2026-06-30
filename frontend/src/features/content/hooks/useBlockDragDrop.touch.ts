@@ -3,6 +3,7 @@
  */
 
 import { getDragCoordinator } from '@/runtime/DragCoordinator';
+import { flushAllContentSaves } from '@/hooks/contentSaveTracker';
 import {
   findBlockRow,
   findScrollableAncestor,
@@ -140,6 +141,7 @@ export function createTouchHandlers(
     if (state.active) {
       const coordinator = getDragCoordinator();
       if (activeAnchorRef.current) {
+        flushAllContentSaves();
         await coordinator.completeDrag();
       } else {
         coordinator.cancelDrag();

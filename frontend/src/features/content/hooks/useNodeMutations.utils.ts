@@ -13,6 +13,7 @@ import { getOperationRuntime } from '@/runtime';
 import { getRuntimeEventBus } from '@/runtime/eventBus';
 import { getUndoEngine } from '@/stores/undoEngine';
 import { waitForOperationAck } from '@/sync/waitForOperation';
+import { flushAllContentSaves } from '@/hooks/contentSaveTracker';
 import type { MutationIntent } from '@/runtime/types';
 
 
@@ -177,11 +178,38 @@ export function hasTableClass(node: Node, allClasses: Node[] | undefined): boole
   return node.classes_uuid.includes(tableClass.uuid);
 }
 
+const STRUCTURAL_INTENTS = new Set<string>([
+  'split_block',
+  'merge_blocks',
+  'create_block',
+  'delete_block',
+  'move_block',
+  'indent_block',
+  'outdent_block',
+  'move_up',
+  'move_down',
+  'reorder_blocks',
+  'move_node',
+]);
+
+function isStructuralIntent(intent: MutationIntent): boolean {
+  if (intent.type === 'batch') {
+    return intent.intents.some(isStructuralIntent);
+  }
+  return STRUCTURAL_INTENTS.has(intent.type);
+}
+
 /**
  * Apply a runtime mutation intent and return the operation ID so callers can
  * wait for SyncManager to acknowledge it.
+ *
+ * Structural intents (delete, move, create, etc.) flush any pending debounced
+ * content saves first so they do not race with in-flight text edits.
  */
 export async function applyNodeIntent(intent: MutationIntent): Promise<string> {
+  if (isStructuralIntent(intent)) {
+    flushAllContentSaves();
+  }
   await getUndoEngine().applyIntent(intent, { pushUndo: true });
   getRuntimeEventBus().flushEvents();
   const ops = getOperationRuntime().getOperations();

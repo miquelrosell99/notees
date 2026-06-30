@@ -114,6 +114,77 @@ describe('flattenNodesFromRuntime', () => {
     expect(flat.some((n) => n.node.uuid === NEW_BLOCK_UUID)).toBe(false);
   });
 
+  it('does not render a prop node that has been deleted in the runtime', () => {
+    const runtime = new OperationRuntime();
+    runtime.loadBaseNodes([
+      {
+        blockId: PARENT_UUID,
+        parentId: PAGE_UUID,
+        orderIndex: 0,
+        nodeType: 'block',
+        contentAST: [{ type: 'paragraph', children: [{ type: 'text', text: 'parent' }] }],
+        collapsed: false,
+        isDeleted: false,
+        isPage: false,
+        name: 'parent',
+        icon: null,
+        color: null,
+        classIds: [],
+        tagIds: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        version: 1,
+      },
+    ]);
+    runtime.applyOperation({
+      id: 'delete-op',
+      type: 'delete',
+      blockId: PARENT_UUID,
+      state: 'pending',
+      dependsOn: [],
+      retryCount: 0,
+      maxRetries: 3,
+      createdAt: Date.now(),
+      payload: {},
+    } as Operation);
+
+    const flat = flattenNodesFromRuntime(
+      [
+        {
+          uuid: PARENT_UUID,
+          name: '[{"type":"paragraph","children":[{"type":"text","text":"parent"}]}]',
+          icon: null,
+          color: null,
+          parent_uuid: PAGE_UUID,
+          page_uuid: null,
+          sequence: 0,
+          active: true,
+          is_page: false,
+          is_deleted: false,
+          has_children: false,
+          children: [],
+          create_date: new Date().toISOString(),
+          write_date: new Date().toISOString(),
+          classes_uuid: [],
+          tags_uuid: [],
+          properties_uuid: {},
+        },
+      ],
+      -1,
+      false,
+      false,
+      runtime,
+      () => undefined,
+      false,
+      false,
+      true,
+      PAGE_UUID,
+      false,
+    );
+
+    expect(flat.some((n) => n.node.uuid === PARENT_UUID)).toBe(false);
+  });
+
   it('keeps runtime-only nested blocks under their real parent', () => {
     const runtime = new OperationRuntime();
     runtime.loadBaseNodes([

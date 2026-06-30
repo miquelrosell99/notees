@@ -182,15 +182,29 @@ export class RuntimeEventBus {
   ): void {
     for (const [blockId, afterNode] of after) {
       const beforeNode = before.get(blockId);
-      if (!beforeNode || coreNodeChanged(beforeNode, afterNode)) {
+
+      if (!beforeNode) {
+        // Brand-new node: structural change under its parent (or at the root).
         this.pendingChangedBlockIds.add(blockId);
-        if (afterNode.parentId) this.pendingStructureParentIds.add(afterNode.parentId);
-        if (beforeNode && beforeNode.parentId && beforeNode.parentId !== afterNode.parentId) {
-          this.pendingStructureParentIds.add(beforeNode.parentId);
+        this.pendingStructureParentIds.add(afterNode.parentId ?? '');
+        continue;
+      }
+
+      const contentChanged = coreNodeContentChanged(beforeNode, afterNode);
+      const structureChanged = coreNodeStructureChanged(beforeNode, afterNode);
+
+      if (contentChanged || structureChanged) {
+        this.pendingChangedBlockIds.add(blockId);
+      }
+
+      if (structureChanged) {
+        this.pendingStructureParentIds.add(afterNode.parentId ?? '');
+        if (beforeNode.parentId !== afterNode.parentId) {
+          this.pendingStructureParentIds.add(beforeNode.parentId ?? '');
         }
       }
 
-      if (beforeNode && beforeNode.collapsed !== afterNode.collapsed) {
+      if (beforeNode.collapsed !== afterNode.collapsed) {
         this.pendingCollapseChanged.push({
           blockId,
           collapsed: afterNode.collapsed,
@@ -208,7 +222,7 @@ export class RuntimeEventBus {
     for (const [blockId, beforeNode] of before) {
       if (!after.has(blockId)) {
         this.pendingDeleted.push({ blockId });
-        if (beforeNode.parentId) this.pendingStructureParentIds.add(beforeNode.parentId);
+        this.pendingStructureParentIds.add(beforeNode.parentId ?? '');
       }
     }
 
@@ -358,19 +372,24 @@ function isStructuralIntent(intent: MutationIntent): boolean {
   }
 }
 
-function coreNodeChanged(a: CoreNode, b: CoreNode): boolean {
+function coreNodeContentChanged(a: CoreNode, b: CoreNode): boolean {
   return (
     a.name !== b.name ||
     a.icon !== b.icon ||
     a.color !== b.color ||
-    a.isDeleted !== b.isDeleted ||
     a.classIds.join(',') !== b.classIds.join(',') ||
-    a.parentId !== b.parentId ||
-    a.orderIndex !== b.orderIndex ||
     a.contentAST !== b.contentAST ||
-    a.collapsed !== b.collapsed ||
-    a.nodeType !== b.nodeType ||
     a.calloutType !== b.calloutType ||
     a.taskStatus !== b.taskStatus
+  );
+}
+
+function coreNodeStructureChanged(a: CoreNode, b: CoreNode): boolean {
+  return (
+    a.parentId !== b.parentId ||
+    a.orderIndex !== b.orderIndex ||
+    a.isDeleted !== b.isDeleted ||
+    a.nodeType !== b.nodeType ||
+    a.collapsed !== b.collapsed
   );
 }

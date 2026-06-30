@@ -240,7 +240,7 @@ export function SidebarRail({ hidden }: SidebarRailProps) {
   if (hidden) return null;
 
   return (
-    <Card className="sidebar-rail" padding={false} elevation="medium">
+    <Card className="sidebar-rail layout-card" padding={false} elevation="medium">
       <div className="sidebar-rail__top">
         {showJournals && (
           <Button
@@ -325,7 +325,7 @@ export function Sidebar({ collapsed }: SidebarProps) {
 
   return (
     <>
-      <Card className={`sidebar ${collapsed ? 'sidebar--collapsed' : 'sidebar--expanded'}`} padding={false} elevation="medium">
+      <Card className={`sidebar ${collapsed ? 'sidebar--collapsed' : 'sidebar--expanded'} layout-card`} padding={false} elevation="medium">
         {/* Workspace Switcher at Top */}
         <div className="sidebar-header">
           <WorkspaceSwitcher />
