@@ -57,9 +57,6 @@
   min-width: 0;
 }
 
-/* ─── Editing indicator — subtle bullet scale instead of breathing ring ─ */
-/* Driven by data-editing on the bullet wrapper (set by CustomCaretPlugin). */
-
 /* Content area — inline editor sits here */
 .block-row__content {
   min-height: 1.5em;

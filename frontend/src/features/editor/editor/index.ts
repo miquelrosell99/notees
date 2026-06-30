@@ -21,7 +21,6 @@ export {
 export {
   NodeLinkPlugin,
   TriggerPlugin,
-  CustomCaretPlugin,
   InlineEditorKeysPlugin,
   FloatingToolbarPlugin,
   InlineCopyPastePlugin,

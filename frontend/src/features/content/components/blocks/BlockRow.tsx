@@ -355,6 +355,17 @@ export const BlockRow = memo(
     const hasClasses = showClasses && (visibleClassDetails.length > 0 || !!onAddClass);
     const hasBacklinks = (node.backlink_count ?? 0) > 0;
 
+    // Determine whether the parent is a card for class-pill filtering.
+    // Computed from the runtime so it works for newly-created blocks that are
+    // not yet persisted on the server. Read inline (no memo) so it stays
+    // current when the parent's classes change without a node uuid change.
+    const runtimeForParentCheck = getOperationRuntime();
+    const graphNodeForParentCheck = getNode(runtimeForParentCheck, node.uuid);
+    const parentGraphNode = graphNodeForParentCheck?.parentId
+      ? getNode(runtimeForParentCheck, graphNodeForParentCheck.parentId)
+      : undefined;
+    const parentIsCard = parentGraphNode?.classIds?.includes(SYSTEM_CLASS_UUIDS.card) ?? false;
+
     // Query class detection for collapse arrow
     const { data: allClasses } = useClasses();
     const queryClass = useMemo(() => {
@@ -546,7 +557,7 @@ export const BlockRow = memo(
                 </Button>
               )}
               {hasClasses && (
-                <ClassPillsRow classes={visibleClassDetails} nodeUuid={node.uuid} readOnly={readOnly} onAddClass={onAddClass} />
+                <ClassPillsRow classes={visibleClassDetails} nodeUuid={node.uuid} readOnly={readOnly} onAddClass={onAddClass} parentIsCard={parentIsCard} />
               )}
             </div>
           ) : (

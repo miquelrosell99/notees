@@ -90,8 +90,8 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
     return workspacesData.items.find((ws) => ws.is_active) ?? workspacesData.items[0] ?? null;
   }, [workspacesData]);
   const workspaceUuid = activeWorkspace?.uuid ?? null;
-  const encryptionConfig = useEncryptionStore((s) => (workspaceUuid ? s.getConfig(workspaceUuid) : { enabled: false, salt: null }));
-  const encryptionKey = useEncryptionStore((s) => (workspaceUuid ? s.getKey(workspaceUuid) : null));
+  const encryptionConfig = useEncryptionStore((s) => s.getConfig(workspaceUuid));
+  const encryptionKey = useEncryptionStore((s) => s.getKey(workspaceUuid));
   const setEncryptionPasswordAction = useEncryptionStore((s) => s.setPassword);
   const unlockEncryption = useEncryptionStore((s) => s.unlock);
   const lockEncryption = useEncryptionStore((s) => s.lock);

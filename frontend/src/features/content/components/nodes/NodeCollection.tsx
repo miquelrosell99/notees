@@ -587,8 +587,8 @@ export const NodeCollection = memo(function NodeCollection({
           nodes: sortedNodes,
           editable,
           pagesOnly,
-          onNodeClick,
-          onContentChange,
+          onNodeClick: stableOnNodeClick,
+          onContentChange: stableOnContentChange,
           onAddClass,
         };
     }
@@ -631,8 +631,6 @@ export const NodeCollection = memo(function NodeCollection({
     customContextMenu,
     effectiveCardLayout,
     onAdd,
-    onNodeClick,
-    onContentChange,
     ganttStartDateProperty,
     ganttEndDateProperty,
     ganttTimeScale,

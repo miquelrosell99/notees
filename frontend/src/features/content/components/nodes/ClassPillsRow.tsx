@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/Button';
 import { NodeRef } from './NodeRef';
 import { Pill } from '@/components/ui/Pill';
 
-import { useRemoveClass, useClasses, useNode, useSystemClasses } from '@/features/content';
+import { useRemoveClass, useClasses } from '@/features/content';
 import { isNonRemovableClass, SYSTEM_CLASS_UUIDS } from '@/constants';
 import type { Node } from '@/types';
 import './ClassPillsRow.css';
@@ -20,13 +20,16 @@ interface ClassPillsRowProps {
   nodeUuid: string;
   readOnly?: boolean;
   onAddClass?: (nodeUuid: string, classId: string) => void;
+  /** Whether the node's parent has the "card" class (controls cloze class availability). */
+  parentIsCard?: boolean;
 }
 
 export const ClassPillsRow = memo(function ClassPillsRow({
       classes,
       nodeUuid,
       readOnly = false,
-      onAddClass }: ClassPillsRowProps) {
+      onAddClass,
+      parentIsCard = false }: ClassPillsRowProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [overflowCount, setOverflowCount] = useState(0);
   const [showPopup, setShowPopup] = useState(false);
@@ -34,10 +37,6 @@ export const ClassPillsRow = memo(function ClassPillsRow({
   const [popupPos, setPopupPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const removeClass = useRemoveClass();
   const { data: allClasses } = useClasses();
-  const { data: node } = useNode(nodeUuid);
-  const parentId = node?.parent_uuid ?? null;
-  const { data: parentNode } = useNode(parentId);
-  const { systemClassUuids } = useSystemClasses();
 
   const classIdsKey = classes.map((c) => c.uuid).join(',');
 
@@ -86,7 +85,6 @@ export const ClassPillsRow = memo(function ClassPillsRow({
   }, []);
 
   const appliedClassIds = new Set(classes.map((c) => c.uuid));
-  const parentIsCard = parentId != null && parentNode?.classes_uuid?.includes(systemClassUuids?.card ?? '');
   const availableClasses = allClasses?.filter((c) => {
     if (appliedClassIds.has(c.uuid)) return false;
     if (c.uuid === SYSTEM_CLASS_UUIDS.cloze) return parentIsCard;

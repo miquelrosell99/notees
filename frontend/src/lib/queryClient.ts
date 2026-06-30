@@ -181,6 +181,14 @@ let persistWorkspaceUuid: string | null = null;
  */
 export function setPersistWorkspaceUuid(uuid: string | null): void {
   persistWorkspaceUuid = uuid;
+  // Changing workspaces invalidates any pending debounced write: the captured
+  // client belongs to the previous workspace and would either be written to the
+  // wrong key or overwrite the new workspace's cache.
+  if (workspacePersistTimer) {
+    clearTimeout(workspacePersistTimer);
+    workspacePersistTimer = null;
+    workspacePendingClient = null;
+  }
 }
 
 function getWorkspaceCacheKey(): string {
@@ -192,6 +200,29 @@ function getWorkspaceEncryptionKey(): CryptoKey | null {
   return useEncryptionStore.getState().getKey(persistWorkspaceUuid);
 }
 
+let workspacePersistTimer: ReturnType<typeof setTimeout> | null = null;
+let workspacePendingClient: PersistedClient | null = null;
+
+async function writeWorkspaceClient(
+  client: PersistedClient,
+  key: CryptoKey | null,
+  cacheKey: string,
+): Promise<void> {
+  const serialized = JSON.stringify(client);
+
+  if (serialized.length > MAX_PERSIST_SIZE) {
+    console.warn('[queryClient] Cache too large to persist (>5 MB), skipping IndexedDB write.');
+    return;
+  }
+
+  if (key) {
+    const payload = await encryptString(serialized, key);
+    await set(cacheKey, JSON.stringify(payload));
+  } else {
+    await set(cacheKey, serialized);
+  }
+}
+
 /**
  * Workspace-aware persister.
  *
@@ -199,6 +230,9 @@ function getWorkspaceEncryptionKey(): CryptoKey | null {
  * - If the active workspace is encrypted and unlocked, the cache is encrypted
  *   with that workspace's in-memory key.
  * - If the workspace is not encrypted or locked, the cache is stored plaintext.
+ * - Writes are debounced by 2 s so bursts of cache mutations (e.g. during
+ *   editing) do not block the main thread with repeated JSON.stringify +
+ *   IndexedDB serialisation.
  *
  * This prevents cross-workspace cache contamination and lets encryption be
  * opt-in per workspace.
@@ -207,19 +241,19 @@ export const workspaceAwarePersister: Persister = {
   async persistClient(client: PersistedClient): Promise<void> {
     const key = getWorkspaceEncryptionKey();
     const cacheKey = getWorkspaceCacheKey();
-    const serialized = JSON.stringify(client);
 
-    if (serialized.length > MAX_PERSIST_SIZE) {
-      console.warn('[queryClient] Cache too large to persist (>5 MB), skipping IndexedDB write.');
-      return;
+    workspacePendingClient = client;
+    if (workspacePersistTimer) {
+      clearTimeout(workspacePersistTimer);
     }
 
-    if (key) {
-      const payload = await encryptString(serialized, key);
-      await set(cacheKey, JSON.stringify(payload));
-    } else {
-      await set(cacheKey, serialized);
-    }
+    workspacePersistTimer = setTimeout(() => {
+      workspacePersistTimer = null;
+      const toPersist = workspacePendingClient;
+      workspacePendingClient = null;
+      if (!toPersist) return;
+      void writeWorkspaceClient(toPersist, key, cacheKey);
+    }, PERSIST_DEBOUNCE_MS);
   },
 
   async restoreClient(): Promise<PersistedClient | undefined> {
@@ -246,6 +280,11 @@ export const workspaceAwarePersister: Persister = {
   },
 
   async removeClient(): Promise<void> {
+    if (workspacePersistTimer) {
+      clearTimeout(workspacePersistTimer);
+      workspacePersistTimer = null;
+      workspacePendingClient = null;
+    }
     const cacheKey = getWorkspaceCacheKey();
     await del(cacheKey);
   },

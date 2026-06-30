@@ -40,6 +40,12 @@
   opacity: var(--opacity-100);
 }
 
+/* Block-row hover: brighten the bullet dot like the ghost block bullet does. */
+.bullet-wrapper[data-row-hover="true"]:not([data-ghost="true"]) .bullet-dot {
+  opacity: var(--opacity-100);
+  background-color: var(--color-on-surface);
+}
+
 /* Cover indicator - small dot to the left */
 .bullet-cover-indicator {
   position: absolute;
@@ -163,6 +169,11 @@ body.notees-dragging-block .bullet-interactive {
 
 .bullet-wrapper[data-dimmed="true"]:hover .bullet-dot,
 .bullet-wrapper[data-dimmed="true"]:focus-within .bullet-dot {
+  opacity: var(--opacity-100);
+}
+
+/* Dimmed bullets also brighten on block-row hover. */
+.bullet-wrapper[data-dimmed="true"][data-row-hover="true"]:not([data-ghost="true"]) .bullet-dot {
   opacity: var(--opacity-100);
 }
 

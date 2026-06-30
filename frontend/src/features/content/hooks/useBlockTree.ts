@@ -226,6 +226,8 @@ export function flattenNodesFromRuntime(
     for (const nodeUuid of nodeUuids) {
       const node = nodeMap.get(nodeUuid);
       if (!node) continue;
+      const projected = getNode(runtime, node.uuid);
+      if (projected?.isDeleted) continue;
       if (node.is_comment) continue;
       if (pagesOnly && !node.is_page) continue;
       if (skipPages && node.is_page) continue;
@@ -339,11 +341,15 @@ export function useBlockTree(
     }
   }, [nodes, nodeUuid]);
 
-  // Subscribe to runtime structural changes
+  // Subscribe to runtime structural changes only. Content edits (name,
+  // contentAST, icon, etc.) emit `nodes_changed`; we intentionally do NOT
+  // rebuild the flat tree for those because the tree shape is unchanged and
+  // rebuilding invalidates BlockRow memoization, causing every visible row to
+  // re-render on every keystroke.
   const [structureVersion, setStructureVersion] = useState(0);
   useEffect(() => {
     const unsubscribe = getRuntimeEventBus().subscribe((event) => {
-      if (event.type === 'structure_changed' || event.type === 'nodes_changed') {
+      if (event.type === 'structure_changed') {
         setStructureVersion((v) => v + 1);
       }
     });

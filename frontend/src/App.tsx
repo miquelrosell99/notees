@@ -226,7 +226,13 @@ const PERSIST_OPTIONS = {
   },
 };
 
-function EncryptedPersistProvider({ children }: { children: React.ReactNode }) {
+/**
+ * Keeps the workspace-aware persister in sync with the active workspace.
+ *
+ * This must render *inside* PersistQueryClientProvider because it uses
+ * `useWorkspaces`, which in turn uses TanStack Query's useQuery hook.
+ */
+function WorkspacePersisterSync() {
   const { data: workspacesData } = useWorkspaces({ enabled: true });
   const activeWorkspace = useMemo(() => {
     if (!workspacesData?.items) return null;
@@ -241,8 +247,13 @@ function EncryptedPersistProvider({ children }: { children: React.ReactNode }) {
     queryClient.clear();
   }, [workspaceUuid]);
 
+  return null;
+}
+
+function EncryptedPersistProvider({ children }: { children: React.ReactNode }) {
   return (
     <PersistQueryClientProvider client={queryClient} persistOptions={{ ...PERSIST_OPTIONS, persister: workspaceAwarePersister }}>
+      <WorkspacePersisterSync />
       {children}
     </PersistQueryClientProvider>
   );

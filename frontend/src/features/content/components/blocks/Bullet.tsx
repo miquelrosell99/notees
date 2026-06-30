@@ -68,6 +68,8 @@ export interface BulletProps {
   dimmed?: boolean;
   /** Spacing to the right of the bullet (default gives a standard block gap). */
   spacing?: 'default' | 'none';
+  /** When true, the parent block row is hovered (brightens the bullet). */
+  rowHover?: boolean;
   /** When true, keeps the bullet fully visible in focus mode. */
   focusMode?: boolean;
 }
@@ -98,6 +100,7 @@ export function Bullet({
       hideBullet,
       dimmed,
       spacing = 'default',
+      rowHover = false,
       focusMode }: BulletProps) {
   const bulletRef = useRef<HTMLElement>(null);
 
@@ -175,6 +178,7 @@ export function Bullet({
       data-document-mode={documentMode || undefined}
       data-dimmed={dimmed || undefined}
       data-spacing={spacing}
+      data-row-hover={rowHover || undefined}
       data-focus-mode={focusMode || undefined}
       {...buttonProps}
     >

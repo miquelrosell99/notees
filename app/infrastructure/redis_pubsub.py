@@ -44,6 +44,24 @@ class MemoryPubSub:
             self._subscribers[channel].discard(queue)
 
 
+def _redis_client(redis_url: str) -> Any:
+    """Create an async Redis client tuned for long-lived pub/sub connections.
+
+    redis-py 8 defaults to a read timeout on pub/sub listeners, which causes
+    ``pubsub.listen()`` to raise ``TimeoutError`` after a short idle period.
+    Explicitly disabling socket timeouts keeps the subscriber alive until the
+    connection is explicitly closed.
+    """
+    import redis.asyncio as redis
+
+    return redis.from_url(
+        redis_url,
+        decode_responses=False,
+        socket_timeout=None,
+        socket_connect_timeout=None,
+    )
+
+
 class RedisPubSub:
     """Redis-backed pub/sub for multi-instance deployments."""
 
@@ -55,16 +73,12 @@ class RedisPubSub:
 
     async def _get_pub_client(self) -> Any:
         if self._pub_client is None:
-            import redis.asyncio as redis
-
-            self._pub_client = redis.from_url(self._redis_url, decode_responses=False)
+            self._pub_client = _redis_client(self._redis_url)
         return self._pub_client
 
     async def _get_sub_client(self) -> Any:
         if self._sub_client is None:
-            import redis.asyncio as redis
-
-            self._sub_client = redis.from_url(self._redis_url, decode_responses=False)
+            self._sub_client = _redis_client(self._redis_url)
         return self._sub_client
 
     async def publish(self, channel: str, message: bytes) -> None:
@@ -83,9 +97,7 @@ class RedisPubSub:
         disconnects. This prevents the shared connection pool from leaking
         connections across many short-lived WebSocket sessions.
         """
-        import redis.asyncio as redis
-
-        client = redis.from_url(self._redis_url, decode_responses=False)
+        client = _redis_client(self._redis_url)
         pubsub = client.pubsub()
         try:
             await pubsub.subscribe(channel)
@@ -128,10 +140,9 @@ class CollaborationPubSub:
             else:
                 # Try to connect to local Redis; fall back to memory if unreachable
                 try:
-                    import redis.asyncio as redis
 
                     async def _check() -> bool:
-                        client = redis.from_url(redis_url, decode_responses=False)
+                        client = _redis_client(redis_url)
                         try:
                             await client.ping()
                             return True

@@ -15,6 +15,8 @@ export interface WorkspaceEncryptionConfig {
   salt: string | null;
 }
 
+const DEFAULT_ENCRYPTION_CONFIG: WorkspaceEncryptionConfig = { enabled: false, salt: null };
+
 interface EncryptionState {
   /** workspaceUuid -> config (persisted) */
   configs: Record<string, WorkspaceEncryptionConfig>;
@@ -25,8 +27,8 @@ interface EncryptionState {
   unlock: (password: string, workspaceUuid: string) => Promise<boolean>;
   lock: (workspaceUuid: string) => void;
   disable: (workspaceUuid: string) => void;
-  getConfig: (workspaceUuid: string) => WorkspaceEncryptionConfig;
-  getKey: (workspaceUuid: string) => CryptoKey | null;
+  getConfig: (workspaceUuid: string | null | undefined) => WorkspaceEncryptionConfig;
+  getKey: (workspaceUuid: string | null | undefined) => CryptoKey | null;
 }
 
 const PERSIST_KEY = 'notees-encryption-config-v3';
@@ -119,11 +121,13 @@ export const useEncryptionStore = create<EncryptionState>()(
         });
       },
 
-      getConfig: (workspaceUuid: string) => {
-        return get().configs[workspaceUuid] ?? { enabled: false, salt: null };
+      getConfig: (workspaceUuid) => {
+        if (!workspaceUuid) return DEFAULT_ENCRYPTION_CONFIG;
+        return get().configs[workspaceUuid] ?? DEFAULT_ENCRYPTION_CONFIG;
       },
 
-      getKey: (workspaceUuid: string) => {
+      getKey: (workspaceUuid) => {
+        if (!workspaceUuid) return null;
         return get().keys[workspaceUuid] ?? null;
       },
     }),
