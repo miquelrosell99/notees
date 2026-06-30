@@ -60,7 +60,7 @@ export function useDeleteNode() {
 
       const blockId = getRuntimeBlockIdForServerId(nodeUuid);
       if (blockId) {
-        const operationId = applyNodeIntent({ type: 'delete_block', blockId });
+        const operationId = await applyNodeIntent({ type: 'delete_block', blockId });
         await waitForOperationAck(operationId);
       } else {
         await nodesApi.deleteNode(nodeUuid);

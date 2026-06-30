@@ -16,7 +16,7 @@ export function graphNodeToCoreNode(node: GraphNode): CoreNode {
     orderIndex: node.orderIndex,
     nodeType: node.nodeType,
     contentAST: node.contentAST,
-    collapsed: node.collapsed,
+    collapsed: false,
     isDeleted: node.isDeleted,
     isPage: node.isPage,
     name: node.name,

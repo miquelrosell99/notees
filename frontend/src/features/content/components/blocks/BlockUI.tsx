@@ -103,7 +103,7 @@ export function BlockUI({
   }, [onCollapseToggle]);
 
   const hasChildren = hasChildrenOverride ?? (node.has_children ?? false);
-  const collapsed = collapsedProp ?? node.collapsed ?? false;
+  const collapsed = collapsedProp ?? false;
   const ownerColor = lockedBy?.[0]?.color;
   const isFocusMode = useFocusMode();
 

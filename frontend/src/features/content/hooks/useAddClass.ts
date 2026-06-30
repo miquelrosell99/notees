@@ -30,7 +30,7 @@ export function useAddClass() {
         throw new Error(`Node ${nodeUuid} is not available in the runtime`);
       }
 
-      const operationId = applyNodeIntent({
+      const operationId = await applyNodeIntent({
         type: 'add_class',
         blockId,
         classId: classUuid,

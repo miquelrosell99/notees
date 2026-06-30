@@ -214,7 +214,7 @@ export function NodeContextMenu({
             id: 'toggle-header',
             label: isHeader ? 'Remove header' : 'Set as header',
             icon: 'mdi-format-header-pound',
-            onClick: () => {
+            onClick: async () => {
               try {
                 const ast = JSON.parse(node.name || '[]');
                 if (!Array.isArray(ast) || ast.length === 0) return;
@@ -234,7 +234,7 @@ export function NodeContextMenu({
                     blockId: node.uuid,
                     contentAST: newAst,
                   };
-                  getUndoEngine().applyIntent(intent, (intent as { type: string }).type === 'update_content' ? { sourceEditorId: (intent as { sourceEditorId?: string }).sourceEditorId } : undefined);
+                  await getUndoEngine().applyIntent(intent, (intent as { type: string }).type === 'update_content' ? { sourceEditorId: (intent as { sourceEditorId?: string }).sourceEditorId } : undefined);
                   getRuntimeEventBus().flushEvents();
                 }
 

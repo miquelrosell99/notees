@@ -27,8 +27,6 @@ export interface Node {
   parent_uuid: string | null;
   page_uuid: string | null;
   sequence: number;
-  /** @deprecated Fold state is device-local and no longer synced. */
-  collapsed?: boolean;
   active: boolean;
   is_page: boolean; // Whether this node is a page
   is_class?: boolean; // Whether this node defines a class
@@ -250,7 +248,6 @@ export interface NodeUpdate {
   color?: string | null;
   parent_uuid?: string | null;
   sequence?: number | null;
-  collapsed?: boolean | null;
   is_private?: boolean | null;
   is_page?: boolean | null;
   is_favorite?: boolean | null;
@@ -358,7 +355,6 @@ export interface BatchNodeUpdateItem {
   color?: string | null;
   parent_uuid?: string | null;
   sequence?: number | null;
-  collapsed?: boolean | null;
   /** When provided, reconcile node classes to exactly this set */
   class_uuids?: string[];
   tag_uuids?: string[];

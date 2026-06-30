@@ -2,13 +2,14 @@
 Asset Service - All filesystem mutations and domain orchestration for asset management.
 
 CRITICAL INVARIANTS (enforced by this service):
-1. One asset node points to one asset_file record via asset_file_id
-2. One asset_file record stores exactly one source file at a content-addressed path
-3. asset_file.hash is the SHA-256 of the file bytes and is unique per workspace
-4. asset_file.ref_count tracks how many asset nodes reference the file
-5. File extension is authoritative for MIME inference
-6. Block name (node.name) is semantic only and NEVER affects disk state
-7. Asset blocks are atomic (cursor cannot enter)
+1. One asset node points to one asset record via asset_id
+2. One asset record stores exactly one source file at a content-addressed path
+3. asset.hash is the SHA-256 of the file bytes and is unique per workspace
+4. asset.refs_count tracks how many asset nodes reference the file
+5. asset.mime_type is authoritative; the file extension is derived from it
+6. asset.original_name stores the uploaded filename for display/download
+7. Block name (node.name) is semantic only and NEVER affects disk state
+8. Asset blocks are atomic (cursor cannot enter)
 
 The ``AssetFileService`` class is the ONLY layer that performs asset filesystem
 operations.  ``AssetService`` is the domain orchestrator that coordinates
@@ -93,7 +94,7 @@ class AssetFileService:
     Infrastructure service for asset filesystem operations.
 
     Files are stored by content hash so duplicate uploads share the same bytes.
-    Asset nodes keep a foreign key to the shared ``asset_file`` row.
+    Asset nodes keep a foreign key to the shared ``asset`` row.
     """
 
     def __init__(self, workspace_uuid: str, asset_repo: AssetRepository):
@@ -117,7 +118,15 @@ class AssetFileService:
         ext = extension.lower()
         if not ext.startswith("."):
             ext = f".{ext}"
-        return self.assets_dir / "files" / hash[:2] / hash[2:4] / f"{hash}{ext}"
+        return self.assets_dir / hash[:4] / f"{hash}{ext}"
+
+    def _path_from_asset_row(self, row: dict) -> Path | None:
+        """Compute the filesystem path from an asset row using its mime_type."""
+        if not row:
+            return None
+        mime_type = row.get("mime_type")
+        extension = get_extension_from_content_type(mime_type) if mime_type else ""
+        return self._storage_path(row["hash"], extension)
 
     def _extract_extension(self, filepath: Path) -> str:
         """Extract and normalize file extension."""
@@ -129,30 +138,29 @@ class AssetFileService:
         """
         Create or reuse a content-addressed asset file.
 
-        Returns: (asset_file_id, extension, source_path)
+        Returns: (asset_id, extension, source_path)
 
         The caller MUST create the asset node ONLY after this succeeds.
         If this fails, no filesystem state is left behind.
         """
         file_hash = self._hash_content(file_bytes)
-        size_bytes = len(file_bytes)
+        size = len(file_bytes)
 
-        existing = await self._asset_repo.find_asset_file_by_hash(file_hash)
+        existing = await self._asset_repo.find_asset_by_hash(file_hash)
         if existing is not None:
-            await self._asset_repo.increment_asset_file_ref_count(existing["id"])
-            source_path = Path(existing["storage_path"])
+            await self._asset_repo.increment_asset_ref_count(existing["id"])
+            source_path = self._path_from_asset_row(existing)
+            if source_path is None:
+                raise AssetError(f"Could not resolve storage path for asset {existing['id']}")
             logger.info(
-                f"Reused asset_file {existing['id']} for hash {file_hash} "
-                f"(ref_count now {existing['ref_count'] + 1})"
+                f"Reused asset {existing['id']} for hash {file_hash} "
+                f"(refs_count now {existing['refs_count'] + 1})"
             )
-            return existing["id"], existing["extension"], source_path
+            return existing["id"], source_path.suffix, source_path
 
-        original_path = Path(original_filename)
-        extension = self._extract_extension(original_path)
+        extension = get_extension_from_content_type(content_type)
         if not extension:
-            extension = get_extension_from_content_type(content_type)
-            if not extension:
-                raise AssetError(f"Cannot determine file extension for {original_filename}")
+            raise AssetError(f"Cannot determine file extension for {original_filename}")
 
         source_path = self._storage_path(file_hash, extension)
         source_path.parent.mkdir(parents=True, exist_ok=True)
@@ -166,16 +174,16 @@ class AssetFileService:
 
             tmp_path.rename(source_path)
 
-            asset_file_id = await self._asset_repo.create_asset_file(
+            asset_id = await self._asset_repo.create_asset(
                 hash=file_hash,
-                size_bytes=size_bytes,
-                extension=extension,
-                storage_path=str(source_path),
+                size=size,
+                mime_type=content_type,
+                original_name=original_filename,
                 user_id=0,
             )
 
-            logger.info(f"Created asset_file {asset_file_id} at {source_path} ({size_bytes} bytes)")
-            return asset_file_id, extension, source_path
+            logger.info(f"Created asset {asset_id} at {source_path} ({size} bytes)")
+            return asset_id, extension, source_path
 
         except Exception as exc:
             if source_path.exists():
@@ -183,51 +191,51 @@ class AssetFileService:
                     source_path.unlink()
             raise AssetError(f"Failed to create asset file: {exc}") from exc
 
-    async def delete_asset(self, asset_file_id: int) -> bool:
+    async def delete_asset(self, asset_id: int) -> bool:
         """
         Drop one reference to a content-addressed asset file.
 
-        When the reference count reaches zero the file and the ``asset_file`` row
+        When the reference count reaches zero the file and the ``asset`` row
         are removed. Returns True when a file was deleted.
         """
-        file_row = await self._asset_repo.get_asset_file_by_id(asset_file_id)
+        file_row = await self._asset_repo.get_asset_by_id(asset_id)
         if file_row is None:
-            logger.warning(f"asset_file {asset_file_id} not found for deletion")
+            logger.warning(f"asset {asset_id} not found for deletion")
             return False
 
-        new_count = await self._asset_repo.decrement_asset_file_ref_count(asset_file_id)
+        new_count = await self._asset_repo.decrement_asset_ref_count(asset_id)
 
         if new_count <= 0:
-            path = Path(file_row["storage_path"])
-            try:
-                if path.exists():
-                    path.unlink()
-                    # Clean up empty parent directories
-                for parent in [path.parent, path.parent.parent]:
+            path = self._path_from_asset_row(file_row)
+            if path is not None:
+                try:
+                    if path.exists():
+                        path.unlink()
+                    # Clean up empty parent directory
                     with contextlib.suppress(OSError):
-                        parent.rmdir()
-            except OSError as exc:
-                logger.warning(f"Failed to delete asset file {path}: {exc}")
+                        path.parent.rmdir()
+                except OSError as exc:
+                    logger.warning(f"Failed to delete asset file {path}: {exc}")
 
         logger.info(
-            f"Decremented ref_count for asset_file {asset_file_id} (now {new_count})"
+            f"Decremented refs_count for asset {asset_id} (now {new_count})"
         )
         return new_count <= 0
 
-    def get_source_file(self, asset_file_id: int, extension: str) -> Path:
-        """Get the source file path for an asset_file record (uses stored path)."""
+    def get_source_file(self, asset_id: int, extension: str) -> Path:
+        """Get the source file path for an asset record (uses stored path)."""
         # Kept for interface compatibility; callers should prefer find_source_file.
-        return self._storage_path(str(asset_file_id), extension)
+        return self._storage_path(str(asset_id), extension)
 
-    async def find_source_file(self, asset_file_id: int | None) -> Path | None:
-        """Return the stored filesystem path for an asset_file id."""
-        if asset_file_id is None:
+    async def find_source_file(self, asset_id: int | None) -> Path | None:
+        """Return the stored filesystem path for an asset id."""
+        if asset_id is None:
             return None
-        file_row = await self._asset_repo.get_asset_file_by_id(asset_file_id)
+        file_row = await self._asset_repo.get_asset_by_id(asset_id)
         if file_row is None:
             return None
-        path = Path(file_row["storage_path"])
-        if not path.exists():
+        path = self._path_from_asset_row(file_row)
+        if path is None or not path.exists():
             return None
         return path
 
@@ -269,6 +277,7 @@ class AssetFileService:
     def extract_extension(self, filepath: Path) -> str:
         """Extract and normalize file extension."""
         return self._extract_extension(filepath)
+
 
 class AssetService:
     """
@@ -339,7 +348,7 @@ class AssetService:
         node.  If ``existing_node_id`` is provided, that node is turned into an
         asset; otherwise a new node is created under ``parent_id``.
         """
-        asset_file_id, extension, source_path = await self._file_service.create_asset(
+        asset_id, extension, source_path = await self._file_service.create_asset(
             file_bytes=file_bytes,
             original_filename=filename,
             content_type=content_type,
@@ -360,7 +369,7 @@ class AssetService:
                     name=serialize_ast(parse_ast(node_name, ParseMode.PLAIN)),
                     asset_class_id=asset_class_id,
                     user_id=self.user_id,
-                    asset_file_id=asset_file_id,
+                    asset_id=asset_id,
                 )
                 node = await self._node_repo.get_by_id(existing_node_id)
                 if node is None:
@@ -371,15 +380,15 @@ class AssetService:
                     name=serialize_ast(parse_ast(filename_without_ext, ParseMode.PLAIN)),
                     parent_id=parent_id,
                     classes=[asset_class_id] if asset_class_id else [],
-                    asset_file_id=asset_file_id,
+                    asset_id=asset_id,
                 )
                 node = await self._node_repo.create(data, user_id=self.user_id)
         except Exception:
-            await self._file_service.delete_asset(asset_file_id)
+            await self._file_service.delete_asset(asset_id)
             raise
 
         if node.id is None:
-            await self._file_service.delete_asset(asset_file_id)
+            await self._file_service.delete_asset(asset_id)
             raise AssetError("Failed to create asset node")
 
         if extension in THUMBNAIL_FORMATS:
@@ -397,7 +406,7 @@ class AssetService:
         if node is None:
             raise AssetMissingError("Asset node not found")
 
-        file_path = await self._file_service.find_source_file(node.asset_file_id)
+        file_path = await self._file_service.find_source_file(node.asset_id)
         if file_path is None:
             raise AssetMissingError("Asset file not found")
 
@@ -413,8 +422,8 @@ class AssetService:
         if node.id is not None:
             await self._node_repo.delete(node.id)
 
-        if node.asset_file_id is not None:
-            await self._file_service.delete_asset(node.asset_file_id)
+        if node.asset_id is not None:
+            await self._file_service.delete_asset(node.asset_id)
 
         return {"status": "deleted", "uuid": asset_uuid}
 
@@ -430,7 +439,7 @@ class AssetService:
 
         assets = []
         for node in nodes:
-            file_path = await self._file_service.find_source_file(node.asset_file_id)
+            file_path = await self._file_service.find_source_file(node.asset_id)
             if file_path is not None and node.id is not None:
                 assets.append(self._build_asset_dict(node, file_path))
 
@@ -447,4 +456,4 @@ class AssetService:
         node = await self._node_repo.get_by_uuid(asset_uuid)
         if node is None:
             return None
-        return await self._file_service.find_source_file(node.asset_file_id)
+        return await self._file_service.find_source_file(node.asset_id)

@@ -8,10 +8,10 @@
  * - ErrorBoundary: Graceful error recovery
  * - NotificationToast: Global notification display
  */
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { BrowserRouter } from 'react-router-dom';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
-import { queryClient, asyncStoragePersister, createEncryptedPersister } from './lib/queryClient';
+import { queryClient, workspaceAwarePersister, setPersistWorkspaceUuid } from './lib/queryClient';
 import { NotificationToast, type ToastNotification } from './components/ui/NotificationToast';
 import { useNotificationStore, type Notification } from './stores/notificationStore';
 import { ErrorBoundary } from './components/ui/ErrorBoundary';
@@ -24,13 +24,13 @@ import { CommandRegistrations } from './features/commands';
 import { COMMAND_IDS } from './stores/commandRegistry';
 import { DndProvider } from './providers/DndProvider';
 import { useUndoStore, useAuthStore } from './stores';
-import { useEncryptionStore } from './stores/encryptionStore';
 import { useInputContext } from './stores/inputContext';
 import { SyncManagerV2 } from '@/features/sync/SyncManagerV2';
 import { LocalIndexManager } from '@/features/sync/components/LocalIndexManager';
 import { QueryLiveUpdater } from '@/features/sync/components/QueryLiveUpdater';
 import { useBackendHealth } from './hooks/useBackendHealth';
 import { useBackgroundSync } from './hooks/useBackgroundSync';
+import { useWorkspaces } from '@/features/workspace';
 import { BackendUnavailableOverlay } from './components/ui/BackendUnavailableOverlay';
 import { getLogger } from './utils/logger';
 import { pluginManager } from '@/plugins/core';
@@ -227,12 +227,22 @@ const PERSIST_OPTIONS = {
 };
 
 function EncryptedPersistProvider({ children }: { children: React.ReactNode }) {
-  const enabled = useEncryptionStore((s) => s.enabled);
-  const key = useEncryptionStore((s) => s.key);
-  const persister = enabled && key ? createEncryptedPersister(key) : asyncStoragePersister;
+  const { data: workspacesData } = useWorkspaces({ enabled: true });
+  const activeWorkspace = useMemo(() => {
+    if (!workspacesData?.items) return null;
+    return workspacesData.items.find((ws) => ws.is_active) ?? workspacesData.items[0] ?? null;
+  }, [workspacesData]);
+  const workspaceUuid = activeWorkspace?.uuid ?? null;
+
+  useEffect(() => {
+    setPersistWorkspaceUuid(workspaceUuid);
+    // Clear the in-memory cache when the active workspace changes so that
+    // cached data from one workspace is never displayed under another.
+    queryClient.clear();
+  }, [workspaceUuid]);
 
   return (
-    <PersistQueryClientProvider client={queryClient} persistOptions={{ ...PERSIST_OPTIONS, persister }}>
+    <PersistQueryClientProvider client={queryClient} persistOptions={{ ...PERSIST_OPTIONS, persister: workspaceAwarePersister }}>
       {children}
     </PersistQueryClientProvider>
   );
