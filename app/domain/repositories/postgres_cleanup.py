@@ -62,7 +62,7 @@ class PostgresCleanupRepository(CleanupRepository):
         async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch(
                 """
-                SELECT id, uuid, is_asset
+                SELECT id, uuid, is_asset, asset_id
                 FROM node
                 WHERE workspace_id = $1
                   AND is_deleted = TRUE

@@ -52,7 +52,7 @@ export function apiNodeToGraphNode(
     orderIndex: node.sequence ?? 0,
     nodeType: inferNodeType(node),
     contentAST: ast as ContentAST,
-    collapsed: node.collapsed ?? false,
+    collapsed: false,
     isDeleted: node.is_deleted ?? false,
     isPage: node.is_page ?? false,
     name: stringifyAST(ast, { mode: StringifyMode.TEXT_ONLY }),

@@ -18,6 +18,7 @@
  */
 
 import { useMemo, useState, useEffect, useRef } from 'react';
+import { useParams } from 'react-router-dom';
 import {
   SYSTEM_CLASS_UUIDS,
   TASK_STATUSES,
@@ -31,6 +32,7 @@ import { QueryNodeCollection } from '@/features/content/components/nodes/QueryNo
 import { useQueryBlock } from '@/features/queries';
 import { Card } from '@/components/ui/Card';
 import { useNavigationStore } from '@/stores';
+import { useUIStateStore } from '@/features/sync';
 import { useNode } from '@/features/content';
 import type { Node } from '@/types/api';
 import type { ASTDocument, ASTInlineNode } from '@/types/ast';
@@ -430,7 +432,10 @@ export function BlockAfterContent({ node, backlinkExpanded }: BlockAfterContentP
   const hasBacklinks = (node.backlink_count ?? 0) > 0;
   const isTask = graphNode?.taskStatus != null;
   const calloutType = detectCalloutType(classIds);
-  const isCollapsed = graphNode?.collapsed ?? node.collapsed ?? false;
+  const { workspaceId } = useParams<{ workspaceId?: string }>();
+  const isCollapsed = useUIStateStore(
+    (s) => (workspaceId ? s.states[workspaceId]?.[node.uuid]?.collapsed ?? false : false),
+  );
 
   const hasContent =
     isAsset || isCode || isQuery || isTable || hasBacklinks || isTask || calloutType != null;

@@ -187,18 +187,22 @@ class WorkspaceIOService:
         asset_path_map: dict[str, str] = {}
         asset_files: dict[str, Path] = {}
         if include_assets:
-            asset_rows = await self._repo.list_asset_uuids(workspace_id)
+            from app.features.assets.utils import get_extension_from_content_type
+
+            asset_rows = await self._repo.list_asset_files(workspace_id)
             assets_dir = self._data_dir / "workspaces" / ws_uuid / "assets"
             for row in asset_rows:
                 asset_uuid = row["uuid"]
-                asset_folder = assets_dir / asset_uuid
-                if asset_folder.exists() and asset_folder.is_dir():
-                    for f in asset_folder.iterdir():
-                        if f.is_file() and not f.name.endswith("_thumbnail.webp"):
-                            rel_path = f"./assets/{asset_uuid}/{f.name}"
-                            asset_path_map[asset_uuid] = rel_path
-                            asset_files[asset_uuid] = f
-                            break
+                file_hash = row["hash"]
+                mime_type = row["mime_type"] or ""
+                extension = get_extension_from_content_type(mime_type)
+                if not extension:
+                    continue
+                file_path = assets_dir / file_hash[:4] / f"{file_hash}{extension}"
+                if file_path.exists() and file_path.is_file():
+                    rel_path = f"./assets/{file_hash[:4]}/{file_path.name}"
+                    asset_path_map[asset_uuid] = rel_path
+                    asset_files[asset_uuid] = file_path
 
         from app.features.export.service import ExportService
 
@@ -255,8 +259,8 @@ class WorkspaceIOService:
 
             if include_assets:
                 total_assets = len(asset_files)
-                for idx, (asset_uuid, file_path) in enumerate(asset_files.items()):
-                    arcname = f"assets/{asset_uuid}/{file_path.name}"
+                for idx, (_asset_uuid, file_path) in enumerate(asset_files.items()):
+                    arcname = f"assets/{file_path.parent.name}/{file_path.name}"
                     zf.write(file_path, arcname)
                     if progress_callback:
                         progress = 90 + int(((idx + 1) / total_assets) * 10)

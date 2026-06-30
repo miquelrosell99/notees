@@ -315,13 +315,13 @@ export function createDragEngine(
     updateGhostPosition(e.clientX, e.clientY);
   };
 
-  const handleMouseUp = (_e: MouseEvent) => {
+  const handleMouseUp = async (_e: MouseEvent) => {
     const state = dragStateRef.current;
     if (!state) return;
     if (state.active) {
       const coordinator = getDragCoordinator();
       if (activeAnchorRef.current) {
-        coordinator.completeDrag();
+        await coordinator.completeDrag();
       } else {
         coordinator.cancelDrag();
       }

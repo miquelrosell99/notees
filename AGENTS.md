@@ -26,6 +26,7 @@ Key features:
 
 - **Architecture**: Backend uses strict hexagonal architecture. Domain services must only use repository interfaces, never FastAPI or asyncpg directly. See `docs/backend.md`.
 - **Data Model**: Everything is a `node` (pages, blocks, tags, properties, journals, tasks). See `docs/data-model.md`.
+- **Tree Queries**: The `node` table uses an adjacency list (`parent_id`). Hierarchical reads (ancestors, descendants, breadcrumbs, soft-delete cascading) are implemented with recursive CTEs over `parent_id` + `document_id`. The legacy `node_path` closure table has been removed. See `docs/data-model.md`.
 - **DB Connections**: Never call `pool.acquire()` directly. Use `app.db.connection.get_connection()` or `get_transaction()`.
 - **DI Factories**: `app/dependencies.py` and feature `dependencies.py` factory functions return repository port interfaces from the owning feature's `port.py` (or shared `app/domain/ports.py`), not concrete PostgreSQL implementations.
 - **Frontend Imports**: Always use path aliases (e.g., `@/components/ui/Button`, `@/features/auth/api/auth`). Never use relative `../../../` paths. CSS is co-located with components.

@@ -121,7 +121,7 @@ export const DocumentView = memo(function DocumentView({
           blockId: newBlockId,
           contentAST: [{ type: 'paragraph', children: [{ type: 'text', text: '' }] }],
         };
-        getUndoEngine().applyIntent(intent, (intent as { type: string }).type === 'update_content' ? { sourceEditorId: (intent as { sourceEditorId?: string }).sourceEditorId } : undefined);
+        await getUndoEngine().applyIntent(intent, (intent as { type: string }).type === 'update_content' ? { sourceEditorId: (intent as { sourceEditorId?: string }).sourceEditorId } : undefined);
         // Immediately convert the new empty block to an asset
         if (asset.node_id) {
           upsertNodes([{

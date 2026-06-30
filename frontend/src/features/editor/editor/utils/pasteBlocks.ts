@@ -15,8 +15,8 @@ import { getUndoEngine } from '@/stores/undoEngine';
 import type { MutationIntent } from '@/runtime/types';
 import { useEditorFocusStore } from '@/stores/editorFocusStore';
 
-function applyRuntimeIntent(intent: MutationIntent): void {
-  getUndoEngine().applyIntent(intent, intent.type === 'update_content' ? { sourceEditorId: intent.sourceEditorId } : undefined);
+async function applyRuntimeIntent(intent: MutationIntent): Promise<void> {
+  await getUndoEngine().applyIntent(intent, intent.type === 'update_content' ? { sourceEditorId: intent.sourceEditorId } : undefined);
 }
 
 function parseBlockName(name: string): ASTDocument {
@@ -34,12 +34,12 @@ function parseBlockName(name: string): ASTDocument {
  *
  * @returns Array of created top-level block IDs (in insertion order)
  */
-function pasteBlockTree(
+async function pasteBlockTree(
   blocks: BlockData[],
   parentId: string,
   afterBlockId: string | null,
   onContentChange?: (blockId: string, contentAST: ASTDocument) => void,
-): string[] {
+): Promise<string[]> {
   const createdIds: string[] = [];
   let lastAfter = afterBlockId;
 
@@ -48,7 +48,7 @@ function pasteBlockTree(
     const newId = generateUUID();
     createdIds.push(newId);
 
-    applyRuntimeIntent({
+    await applyRuntimeIntent({
       type: 'create_block',
       parentId,
       afterBlockId: lastAfter,
@@ -60,7 +60,7 @@ function pasteBlockTree(
     lastAfter = newId;
 
     if (block.children && block.children.length > 0) {
-      pasteBlockTree(block.children, newId, null, onContentChange);
+      await pasteBlockTree(block.children, newId, null, onContentChange);
     }
   }
 
@@ -71,16 +71,16 @@ function pasteBlockTree(
  * Paste a BlockCopyData snapshot after a specific block.
  * Used by context-menu "Paste" and document-level Ctrl+V in selection mode.
  */
-export function pasteBlocksAfterBlock(
+export async function pasteBlocksAfterBlock(
   blockData: BlockCopyData,
   afterBlockId: string,
   onContentChange?: (blockId: string, contentAST: ASTDocument) => void,
-): void {
+): Promise<void> {
   const runtime = getOperationRuntime();
   const afterNode = getNode(runtime, afterBlockId);
   if (!afterNode?.parentId) return;
 
-  const createdIds = pasteBlockTree(
+  const createdIds = await pasteBlockTree(
     blockData.blocks,
     afterNode.parentId,
     afterBlockId,

@@ -27,6 +27,7 @@ Message protocol (JSON):
 from __future__ import annotations
 
 import asyncio
+import base64
 import contextlib
 import json
 from typing import Any
@@ -138,6 +139,30 @@ async def broadcast_ops(room_id: str, ops: list[dict[str, Any]]) -> None:
         room_id,
         {"type": "ops_applied", "ops": ops},
         sender_id=0,
+    )
+
+
+async def broadcast_yjs_update(
+    room_id: str,
+    node_uuid: str,
+    update_blob: bytes,
+    sender_id: int = 0,
+    exclude: _LiveSyncConnection | None = None,
+) -> None:
+    """Broadcast a Yjs update to all connected clients in a room.
+
+    The raw bytes are base64-encoded so the message can travel as JSON over
+    WebSocket (and through Redis pub/sub).
+    """
+    await _broadcast(
+        room_id,
+        {
+            "type": "yjs_update",
+            "node_uuid": node_uuid,
+            "update_blob": base64.b64encode(update_blob).decode("ascii"),
+        },
+        sender_id=sender_id,
+        exclude=exclude,
     )
 
 
@@ -356,6 +381,25 @@ async def live_sync_websocket(
                         "user_id": user_id,
                     },
                     user_id,
+                    exclude=connection,
+                )
+
+            elif msg_type == "yjs_update":
+                if not can_write:
+                    continue
+                yjs_node_uuid = msg.get("node_uuid")
+                yjs_blob_b64 = msg.get("update_blob")
+                if not isinstance(yjs_node_uuid, str) or not isinstance(yjs_blob_b64, str):
+                    continue
+                try:
+                    yjs_blob = base64.b64decode(yjs_blob_b64)
+                except Exception:
+                    continue
+                await broadcast_yjs_update(
+                    room_id,
+                    yjs_node_uuid,
+                    yjs_blob,
+                    sender_id=user_id,
                     exclude=connection,
                 )
 

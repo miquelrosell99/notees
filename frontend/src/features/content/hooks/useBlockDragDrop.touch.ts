@@ -127,7 +127,7 @@ export function createTouchHandlers(
     }
   }
 
-  function onTouchEndDrag(_e?: TouchEvent) {
+  async function onTouchEndDrag(_e?: TouchEvent) {
     cancelLongPress();
     document.removeEventListener('touchmove', onTouchMoveDrag);
     document.removeEventListener('touchend', onTouchEndDrag);
@@ -140,7 +140,7 @@ export function createTouchHandlers(
     if (state.active) {
       const coordinator = getDragCoordinator();
       if (activeAnchorRef.current) {
-        coordinator.completeDrag();
+        await coordinator.completeDrag();
       } else {
         coordinator.cancelDrag();
       }

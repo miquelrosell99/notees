@@ -55,18 +55,7 @@ function applyCollapseLevelToChildren(node: Node, collapseLevel: number, current
 
   const processedChildren = node.children.map(child => {
     const childDepth = currentDepth + 1;
-    const hasChildren = !!(child.children && child.children.length > 0);
-    const autoCollapse = hasChildren && childDepth >= collapseLevel;
-    
-    return applyCollapseLevelToChildren(
-      {
-        ...child,
-        // Auto-collapse forces true; otherwise preserve DB/manual state
-        collapsed: autoCollapse || child.collapsed,
-      },
-      collapseLevel,
-      childDepth
-    );
+    return applyCollapseLevelToChildren(child, collapseLevel, childDepth);
   });
 
   return {
@@ -127,8 +116,6 @@ export function PropertyReferencesSection({
         ...pageNode,
         // Use source_node's children if available
         children,
-        // Page itself is collapsed initially (only if it has children)
-        collapsed: children.length > 0,
       };
       
       // Apply collapse level to children (they will be collapsed when page is expanded)

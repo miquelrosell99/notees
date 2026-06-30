@@ -81,7 +81,7 @@ class Node:
     is_month: bool = False  # Monthly journal page
     is_year: bool = False  # Yearly journal page
     is_asset: bool = False  # Asset/file block
-    asset_file_id: int | None = None  # Content-addressed file backing this asset
+    asset_id: int | None = None  # Content-addressed file backing this asset
     is_template: bool = False  # Template page
     is_comment: bool = False  # Comment block
     is_task: bool = False  # Task item (synchronized with task class assignment)
@@ -157,7 +157,7 @@ class NodeCreateData:
     tags: list[int] = field(default_factory=list)  # Tag node IDs to apply
     property_values: dict = field(default_factory=dict)  # property_id -> value
     uuid: str | None = None  # Optional: override auto-generated UUID (for assets)
-    asset_file_id: int | None = None  # Content-addressed file for asset nodes
+    asset_id: int | None = None  # Content-addressed file for asset nodes
     is_page: bool = False
     is_task: bool = False
     is_daily: bool = False

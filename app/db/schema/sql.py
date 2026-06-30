@@ -3,13 +3,14 @@
 This module contains the raw SQL schema definition for creating
 all database tables, indexes, and triggers.
 
-SCHEMA VERSION: 3 - Class-based architecture (renamed type -> class).
+SCHEMA VERSION: 4 - Asset subsystem aligned with M6.
 
-Key changes from v2:
-- "type" -> "class" terminology throughout
-- Tables renamed: type_property -> class_property, type_extend -> class_extend, type_inline -> class_inline
-- Columns renamed: is_type -> is_class, type_node_id -> class_node_id, type_id -> class_id
-- property_type_filter -> property_class_filter
+Key changes from v3:
+- Table renamed: asset_file -> asset
+- Columns renamed: size_bytes -> size, ref_count -> refs_count, create_date -> created_at
+- New columns: mime_type, original_name
+- Removed columns: extension, storage_path (derived from hash + mime_type)
+- Node foreign key column renamed: asset_file_id -> asset_id
 """
 
 SCHEMA_SQL = """
@@ -229,41 +230,52 @@ BEGIN
 
     IF NOT EXISTS (
         SELECT 1 FROM information_schema.columns
-        WHERE table_name = 'node' AND column_name = 'asset_file_id'
+        WHERE table_name = 'node' AND column_name = 'asset_id'
     ) THEN
-        ALTER TABLE node ADD COLUMN asset_file_id INTEGER;
+        ALTER TABLE node ADD COLUMN asset_id INTEGER;
     END IF;
 END $$;
 
 -- Content-addressed asset files (deduplicated per workspace)
-CREATE TABLE IF NOT EXISTS asset_file (
+CREATE TABLE IF NOT EXISTS asset (
     id SERIAL PRIMARY KEY,
     uuid UUID NOT NULL DEFAULT uuid_generate_v4(),
     workspace_id INTEGER NOT NULL REFERENCES workspace(id) ON DELETE CASCADE,
     hash VARCHAR(64) NOT NULL,
-    size_bytes INTEGER NOT NULL,
-    extension VARCHAR(20) NOT NULL,
-    storage_path TEXT NOT NULL,
-    ref_count INTEGER NOT NULL DEFAULT 1,
-    create_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    size INTEGER NOT NULL,
+    mime_type VARCHAR(255),
+    original_name TEXT,
+    refs_count INTEGER NOT NULL DEFAULT 1,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE (workspace_id, hash)
 );
 
-CREATE INDEX IF NOT EXISTS idx_asset_file_workspace_hash ON asset_file(workspace_id, hash);
-CREATE INDEX IF NOT EXISTS idx_asset_file_storage_path ON asset_file(storage_path);
+CREATE INDEX IF NOT EXISTS idx_asset_workspace_hash ON asset(workspace_id, hash);
+
+-- Yjs CRDT state per node (M4 text integration)
+CREATE TABLE IF NOT EXISTS node_yjs_state (
+    node_id INTEGER PRIMARY KEY REFERENCES node(id) ON DELETE CASCADE,
+    update_blob BYTEA NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    workspace_id INTEGER NOT NULL REFERENCES workspace(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_node_yjs_state_workspace_id ON node_yjs_state(workspace_id);
+CREATE INDEX IF NOT EXISTS idx_node_yjs_state_updated_at ON node_yjs_state(updated_at);
 
 DO $$
 BEGIN
     IF EXISTS (
         SELECT 1 FROM information_schema.columns
-        WHERE table_name = 'node' AND column_name = 'asset_file_id'
+        WHERE table_name = 'node' AND column_name = 'asset_id'
     ) AND NOT EXISTS (
         SELECT 1 FROM information_schema.table_constraints
-        WHERE table_name = 'node' AND constraint_name = 'fk_node_asset_file'
+        WHERE table_name = 'node' AND constraint_name = 'fk_node_asset'
     ) THEN
         ALTER TABLE node
-        ADD CONSTRAINT fk_node_asset_file
-        FOREIGN KEY (asset_file_id) REFERENCES asset_file(id) ON DELETE SET NULL;
+        DROP CONSTRAINT IF EXISTS fk_node_asset_file,
+        ADD CONSTRAINT fk_node_asset
+        FOREIGN KEY (asset_id) REFERENCES asset(id) ON DELETE SET NULL;
     END IF;
 END $$;
 

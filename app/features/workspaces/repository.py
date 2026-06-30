@@ -1271,6 +1271,21 @@ class PostgresWorkspaceIORepository(WorkspaceIORepository):
             )
             return [dict(r) for r in rows]
 
+    async def list_asset_files(self, workspace_id: int) -> list[dict]:
+        """List active asset UUIDs with their content file hash and mime_type."""
+        async with acquire_connection(self._pool) as conn:
+            rows = await conn.fetch(
+                """
+                SELECT n.uuid::text as uuid, a.hash, a.mime_type
+                FROM node n
+                JOIN asset a ON a.id = n.asset_id
+                WHERE n.workspace_id = $1 AND n.is_asset = TRUE
+                  AND n.is_deleted = FALSE AND n.active = TRUE
+            """,
+                workspace_id,
+            )
+            return [dict(r) for r in rows]
+
     async def get_page_metadata(
         self, workspace_id: int, node_uuid: str, include_properties: bool = True
     ) -> dict[str, Any]:

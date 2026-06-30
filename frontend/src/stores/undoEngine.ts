@@ -53,12 +53,12 @@ export class UndoEngine {
     return () => this.listeners.delete(handler);
   }
 
-  applyIntent(
+  async applyIntent(
     intent: MutationIntent,
     options?: { pushUndo?: boolean; sourceEditorId?: string },
-  ): UndoEntry | null {
+  ): Promise<UndoEntry | null> {
     const reverse = this.computeReverse(intent);
-    this.eventBus.applyIntent(intent, { source: 'intent', sourceEditorId: options?.sourceEditorId });
+    await this.eventBus.applyIntent(intent, { source: 'intent', sourceEditorId: options?.sourceEditorId });
 
     if ((options?.pushUndo ?? true) && reverse) {
       const entry: UndoEntry = {
@@ -78,20 +78,20 @@ export class UndoEngine {
     return null;
   }
 
-  undo(): UndoEntry | null {
+  async undo(): Promise<UndoEntry | null> {
     const entry = this.undoStack.pop();
     if (!entry) return null;
-    this.eventBus.applyIntent(entry.reverse, { source: 'undo' });
+    await this.eventBus.applyIntent(entry.reverse, { source: 'undo' });
     this.redoStack.push(entry);
     this.emit({ type: 'undo', entry });
     this.emit({ type: 'undo_stack_changed' });
     return entry;
   }
 
-  redo(): UndoEntry | null {
+  async redo(): Promise<UndoEntry | null> {
     const entry = this.redoStack.pop();
     if (!entry) return null;
-    this.eventBus.applyIntent(entry.forward, { source: 'redo' });
+    await this.eventBus.applyIntent(entry.forward, { source: 'redo' });
     this.undoStack.push(entry);
     this.emit({ type: 'redo', entry });
     this.emit({ type: 'undo_stack_changed' });

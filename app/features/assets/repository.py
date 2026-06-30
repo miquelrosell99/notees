@@ -90,7 +90,7 @@ class PostgresAssetRepository(BasePostgresRepository, AssetRepository):
         name: str,
         asset_class_id: int,
         user_id: int,
-        asset_file_id: int | None = None,
+        asset_id: int | None = None,
     ) -> None:
         """Update an existing node so it becomes an asset node."""
         now = utc_now()
@@ -99,12 +99,12 @@ class PostgresAssetRepository(BasePostgresRepository, AssetRepository):
                 """
                 UPDATE node
                 SET name = $1, uuid = $2, is_asset = TRUE,
-                    asset_file_id = $3, write_date = $4, write_uid = $5
+                    asset_id = $3, write_date = $4, write_uid = $5
                 WHERE id = $6 AND workspace_id = $7
                 """,
                 name,
                 asset_uuid,
-                asset_file_id,
+                asset_id,
                 now,
                 user_id,
                 node_id,
@@ -134,41 +134,41 @@ class PostgresAssetRepository(BasePostgresRepository, AssetRepository):
             )
             return row is not None
 
-    async def create_asset_file(
+    async def create_asset(
         self,
         hash: str,
-        size_bytes: int,
-        extension: str,
-        storage_path: str,
+        size: int,
+        mime_type: str | None,
+        original_name: str | None,
         user_id: int,
     ) -> int:
-        """Create an asset_file record and return its internal id."""
+        """Create an asset record and return its internal id."""
         async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow(
                 """
-                INSERT INTO asset_file (
-                    workspace_id, hash, size_bytes, extension, storage_path, ref_count, create_date
+                INSERT INTO asset (
+                    workspace_id, hash, size, mime_type, original_name, refs_count, created_at
                 )
                 VALUES ($1, $2, $3, $4, $5, 1, NOW())
                 RETURNING id
                 """,
                 self._workspace_id,
                 hash,
-                size_bytes,
-                extension,
-                storage_path,
+                size,
+                mime_type,
+                original_name,
             )
             if row is None:
-                raise RuntimeError("Failed to create asset_file record")
+                raise RuntimeError("Failed to create asset record")
             return row["id"]
 
-    async def find_asset_file_by_hash(self, hash: str) -> dict[str, Any] | None:
-        """Return an existing asset_file row for the given hash in the workspace."""
+    async def find_asset_by_hash(self, hash: str) -> dict[str, Any] | None:
+        """Return an existing asset row for the given hash in the workspace."""
         async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow(
                 """
-                SELECT id, uuid, hash, size_bytes, extension, storage_path, ref_count
-                FROM asset_file
+                SELECT id, uuid, hash, size, mime_type, original_name, refs_count, created_at
+                FROM asset
                 WHERE workspace_id = $1 AND hash = $2
                 """,
                 self._workspace_id,
@@ -176,44 +176,44 @@ class PostgresAssetRepository(BasePostgresRepository, AssetRepository):
             )
             return dict(row) if row else None
 
-    async def get_asset_file_by_id(self, asset_file_id: int) -> dict[str, Any] | None:
-        """Return an asset_file row by internal id."""
+    async def get_asset_by_id(self, asset_id: int) -> dict[str, Any] | None:
+        """Return an asset row by internal id."""
         async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow(
                 """
-                SELECT id, uuid, hash, size_bytes, extension, storage_path, ref_count
-                FROM asset_file
+                SELECT id, uuid, hash, size, mime_type, original_name, refs_count, created_at
+                FROM asset
                 WHERE id = $1 AND workspace_id = $2
                 """,
-                asset_file_id,
+                asset_id,
                 self._workspace_id,
             )
             return dict(row) if row else None
 
-    async def increment_asset_file_ref_count(self, asset_file_id: int) -> None:
-        """Increment the ref_count of an asset_file."""
+    async def increment_asset_ref_count(self, asset_id: int) -> None:
+        """Increment the refs_count of an asset."""
         async with acquire_connection(self._pool) as conn:
             await conn.execute(
                 """
-                UPDATE asset_file
-                SET ref_count = ref_count + 1
+                UPDATE asset
+                SET refs_count = refs_count + 1
                 WHERE id = $1 AND workspace_id = $2
                 """,
-                asset_file_id,
+                asset_id,
                 self._workspace_id,
             )
 
-    async def decrement_asset_file_ref_count(self, asset_file_id: int) -> int:
-        """Decrement the ref_count and return the new value."""
+    async def decrement_asset_ref_count(self, asset_id: int) -> int:
+        """Decrement the refs_count and return the new value."""
         async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow(
                 """
-                UPDATE asset_file
-                SET ref_count = ref_count - 1
+                UPDATE asset
+                SET refs_count = refs_count - 1
                 WHERE id = $1 AND workspace_id = $2
-                RETURNING ref_count
+                RETURNING refs_count
                 """,
-                asset_file_id,
+                asset_id,
                 self._workspace_id,
             )
-            return row["ref_count"] if row else 0
+            return row["refs_count"] if row else 0

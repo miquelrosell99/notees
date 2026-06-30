@@ -181,8 +181,8 @@ export function hasTableClass(node: Node, allClasses: Node[] | undefined): boole
  * Apply a runtime mutation intent and return the operation ID so callers can
  * wait for SyncManager to acknowledge it.
  */
-export function applyNodeIntent(intent: MutationIntent): string {
-  getUndoEngine().applyIntent(intent, { pushUndo: true });
+export async function applyNodeIntent(intent: MutationIntent): Promise<string> {
+  await getUndoEngine().applyIntent(intent, { pushUndo: true });
   getRuntimeEventBus().flushEvents();
   const ops = getOperationRuntime().getOperations();
   // The operation we just added is the last new one.
@@ -215,7 +215,7 @@ export async function emitNodeIntentAndWait(
 ): Promise<boolean> {
   if (!ensureNodeInRuntime(nodeUuid)) return false;
 
-  const operationId = applyNodeIntent(intent);
+  const operationId = await applyNodeIntent(intent);
   if (!operationId) return false;
 
   await waitForOperationAck(operationId);

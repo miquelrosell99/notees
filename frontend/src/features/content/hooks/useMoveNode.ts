@@ -39,7 +39,7 @@ export function useMoveNode() {
       const afterBlockId =
         afterIndex >= 0 && afterIndex < siblings.length ? siblings[afterIndex].blockId : null;
 
-      const operationId = applyNodeIntent({
+      const operationId = await applyNodeIntent({
         type: 'move_node',
         blockId,
         parentId: parentBlockId,

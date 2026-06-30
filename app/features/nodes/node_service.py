@@ -1414,9 +1414,9 @@ class NodeService:
         await self._cleanup_favorites(node_id)
 
         # If this is an asset node, drop its reference to the content file on hard-delete
-        if node.is_asset and node.asset_file_id is not None and self._workspace_uuid and self._asset_file_service is not None:
+        if node.is_asset and node.asset_id is not None and self._workspace_uuid and self._asset_file_service is not None:
             try:
-                await self._asset_file_service.delete_asset(node.asset_file_id)
+                await self._asset_file_service.delete_asset(node.asset_id)
                 logger.info("Deleted asset file reference for node %s", node_id)
             except Exception as e:
                 logger.error(f"[PERM_DELETE] Failed to delete asset file for node {node_id}: {e}", exc_info=True)
@@ -2311,9 +2311,9 @@ class NodeService:
     async def delete_node_assets(self, node_uuid: str, workspace_uuid: str) -> None:
         """Delete any asset file reference and legacy per-node folder for a node UUID."""
         node = await self._node_repo.get_by_uuid(node_uuid)
-        if node is not None and node.asset_file_id is not None and self._asset_file_service is not None:
+        if node is not None and node.asset_id is not None and self._asset_file_service is not None:
             try:
-                await self._asset_file_service.delete_asset(node.asset_file_id)
+                await self._asset_file_service.delete_asset(node.asset_id)
                 logger.info("Deleted asset file reference for node %s", node_uuid)
             except Exception as e:
                 logger.warning("Failed to delete asset file for node %s: %s", node_uuid, e)

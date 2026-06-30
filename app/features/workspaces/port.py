@@ -194,3 +194,8 @@ class WorkspaceIORepository(ABC):
     async def list_asset_uuids(self, workspace_id: int) -> list[dict]:
         """List active asset UUIDs and names."""
         pass
+
+    @abstractmethod
+    async def list_asset_files(self, workspace_id: int) -> list[dict]:
+        """List active asset UUIDs with their content file hash and mime_type."""
+        pass

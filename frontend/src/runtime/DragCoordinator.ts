@@ -11,8 +11,8 @@ import { getOperationRuntime } from '@/runtime';
 import { getNode, getChildren, getSiblings, getDescendants } from '@/runtime/graphHelpers';
 import { getUndoEngine } from '@/stores/undoEngine';
 
-function applyRuntimeIntent(intent: MutationIntent): void {
-  getUndoEngine().applyIntent(intent, intent.type === 'update_content' ? { sourceEditorId: intent.sourceEditorId } : undefined);
+async function applyRuntimeIntent(intent: MutationIntent): Promise<void> {
+  await getUndoEngine().applyIntent(intent, intent.type === 'update_content' ? { sourceEditorId: intent.sourceEditorId } : undefined);
 }
 
 export type DragState =
@@ -40,7 +40,7 @@ export class DragCoordinator {
     this.notify();
   }
 
-  completeDrag(): void {
+  async completeDrag(): Promise<void> {
     if (this.state.status !== 'dragging' || !this.state.currentTarget) {
       this.cancelDrag();
       return;
@@ -111,7 +111,7 @@ export class DragCoordinator {
         newParentId,
         afterBlockId,
       };
-      applyRuntimeIntent(intent);
+      await applyRuntimeIntent(intent);
     } else {
       // Multi-block — move each top-level block in DOM order, placing each one
       // after the previous so their relative order is preserved.
@@ -123,7 +123,7 @@ export class DragCoordinator {
         // its subtree — the runtime treats afterBlockId as a direct-sibling anchor).
         afterId = blockId;
       }
-      applyRuntimeIntent({ type: 'batch', intents });
+      await applyRuntimeIntent({ type: 'batch', intents });
     }
 
     this.state = { status: 'idle' };

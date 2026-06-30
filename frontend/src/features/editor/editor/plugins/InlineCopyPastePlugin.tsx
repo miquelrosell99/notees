@@ -37,8 +37,8 @@ import type { MutationIntent } from '@/runtime/types';
 import { useEditorFocusStore } from '@/stores/editorFocusStore';
 import { liveSyncManager } from '@/features/collab';
 
-function applyRuntimeIntent(intent: MutationIntent): void {
-  getUndoEngine().applyIntent(intent, intent.type === 'update_content' ? { sourceEditorId: intent.sourceEditorId } : undefined);
+async function applyRuntimeIntent(intent: MutationIntent): Promise<void> {
+  await getUndoEngine().applyIntent(intent, intent.type === 'update_content' ? { sourceEditorId: intent.sourceEditorId } : undefined);
 }
 
 interface InlineCopyPastePluginProps {
@@ -72,11 +72,11 @@ function parseBlockName(name: string): ASTDocument {
   return [paragraph(astText(name))];
 }
 
-function insertLinkPillAtOffset(
+async function insertLinkPillAtOffset(
   targetUuid: string,
   blockId: string,
   cursorOffset: number,
-): void {
+): Promise<void> {
   const runtime = getOperationRuntime();
   const graphNode = getNode(runtime, blockId);
   if (!graphNode) return;
@@ -133,7 +133,7 @@ function insertLinkPillAtOffset(
 
   const newAST: ASTDocument = [newPara];
   const serialized = serializeContentAST(newAST);
-  applyRuntimeIntent({ type: 'update_content', blockId, contentAST: newAST });
+  await applyRuntimeIntent({ type: 'update_content', blockId, contentAST: newAST });
   if (graphNode.blockId) {
     liveSyncManager.sendBlockUpdate(blockId, graphNode.blockId, serialized);
   }
@@ -146,11 +146,11 @@ interface PasteBlock {
   children?: PasteBlock[];
 }
 
-function pasteBlockTree(
+async function pasteBlockTree(
   blocks: PasteBlock[],
   parentId: string,
   afterBlockId: string | null,
-): string[] {
+): Promise<string[]> {
   const createdIds: string[] = [];
   let lastAfter = afterBlockId;
 
@@ -159,7 +159,7 @@ function pasteBlockTree(
     const newId = generateUUID();
     createdIds.push(newId);
 
-    applyRuntimeIntent({
+    await applyRuntimeIntent({
       type: 'create_block',
       parentId,
       afterBlockId: lastAfter,
@@ -170,7 +170,7 @@ function pasteBlockTree(
     lastAfter = newId;
 
     if (block.children && block.children.length > 0) {
-      pasteBlockTree(block.children, newId, null);
+      await pasteBlockTree(block.children, newId, null);
     }
   }
 
@@ -250,7 +250,9 @@ export function InlineCopyPastePlugin({ blockId, onPasteImage }: InlineCopyPaste
               }
             }
             event.preventDefault();
-            insertLinkPillAtOffset(targetUuid, blockId, cursorOffset);
+            (async () => {
+              await insertLinkPillAtOffset(targetUuid, blockId, cursorOffset);
+            })();
             return true;
           }
         }
@@ -266,38 +268,40 @@ export function InlineCopyPastePlugin({ blockId, onPasteImage }: InlineCopyPaste
         event.preventDefault();
         const parentId = currentNode.parentId;
 
-        if (isBlockEmpty(currentNode.contentAST)) {
-          const [firstBlock, ...restBlocks] = blockData.blocks;
-          const firstAST = parseBlockName(firstBlock.name);
-          const serializedFirst = serializeContentAST(firstAST);
-          applyRuntimeIntent({ type: 'update_content', blockId, contentAST: firstAST });
-          if (currentNode.blockId) {
-            liveSyncManager.sendBlockUpdate(blockId, currentNode.blockId, serializedFirst);
-          }
+        (async () => {
+          if (isBlockEmpty(currentNode.contentAST)) {
+            const [firstBlock, ...restBlocks] = blockData.blocks;
+            const firstAST = parseBlockName(firstBlock.name);
+            const serializedFirst = serializeContentAST(firstAST);
+            await applyRuntimeIntent({ type: 'update_content', blockId, contentAST: firstAST });
+            if (currentNode.blockId) {
+              liveSyncManager.sendBlockUpdate(blockId, currentNode.blockId, serializedFirst);
+            }
 
-          if (firstBlock.children && firstBlock.children.length > 0) {
-            pasteBlockTree(firstBlock.children, blockId, null);
-          }
+            if (firstBlock.children && firstBlock.children.length > 0) {
+              await pasteBlockTree(firstBlock.children, blockId, null);
+            }
 
-          if (restBlocks.length > 0) {
-            const created = pasteBlockTree(restBlocks, parentId, blockId);
+            if (restBlocks.length > 0) {
+              const created = await pasteBlockTree(restBlocks, parentId, blockId);
+              getRuntimeEventBus().flushEvents();
+              if (created.length > 0) {
+                useEditorFocusStore.getState().setPendingFocus(created[created.length - 1]);
+              }
+            } else {
+              getRuntimeEventBus().flushEvents();
+              useEditorFocusStore.getState().setPendingFocus(blockId);
+            }
+          } else {
+            const created = await pasteBlockTree(blockData.blocks, parentId, blockId);
             getRuntimeEventBus().flushEvents();
             if (created.length > 0) {
               useEditorFocusStore.getState().setPendingFocus(created[created.length - 1]);
             }
-          } else {
-            getRuntimeEventBus().flushEvents();
-            useEditorFocusStore.getState().setPendingFocus(blockId);
           }
-        } else {
-          const created = pasteBlockTree(blockData.blocks, parentId, blockId);
-          getRuntimeEventBus().flushEvents();
-          if (created.length > 0) {
-            useEditorFocusStore.getState().setPendingFocus(created[created.length - 1]);
-          }
-        }
 
-        getRuntimeEventBus().flushEvents();
+          getRuntimeEventBus().flushEvents();
+        })();
         return true;
       },
       COMMAND_PRIORITY_HIGH,

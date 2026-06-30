@@ -76,15 +76,27 @@ export class RuntimeEventBus {
     });
   }
 
-  applyIntent(
+  async applyIntent(
     intent: MutationIntent,
     options?: { source?: 'intent' | 'undo' | 'redo'; sourceEditorId?: string },
-  ): void {
+  ): Promise<void> {
     const source = options?.source ?? 'intent';
-    this.withSource(source, options?.sourceEditorId, () => {
+    await this.withSource(source, options?.sourceEditorId, async () => {
       const operations = applyIntentOperations(this.runtime, intent);
-      // Local intents are staged in the persisted outbox so they survive crashes.
-      if (operations.length > 0) {
+      if (operations.length === 0) return;
+
+      if (isStructuralIntent(intent)) {
+        // Structural ops: persist before applying so a crash cannot lose the
+        // operation after the UI has already updated.
+        await localSyncEngine.prepareStructuralOperations(operations);
+        for (const operation of operations) {
+          this.runtime.applyOperation(operation);
+        }
+      } else {
+        // Text/content ops: apply immediately for responsive typing, then stage.
+        for (const operation of operations) {
+          this.runtime.applyOperation(operation);
+        }
         localSyncEngine.stageOperationsFireAndForget(operations);
       }
     });
@@ -124,17 +136,17 @@ export class RuntimeEventBus {
   private withSource(
     source: 'intent' | 'sync' | 'undo' | 'redo',
     sourceEditorId: string | undefined,
-    fn: () => void,
-  ): void;
+    fn: () => void | Promise<void>,
+  ): void | Promise<void>;
   private withSource(
     source: 'intent' | 'sync' | 'undo' | 'redo',
-    fn: () => void,
-  ): void;
+    fn: () => void | Promise<void>,
+  ): void | Promise<void>;
   private withSource(
     source: 'intent' | 'sync' | 'undo' | 'redo',
-    arg2?: string | (() => void),
-    arg3?: () => void,
-  ): void {
+    arg2?: string | (() => void | Promise<void>),
+    arg3?: () => void | Promise<void>,
+  ): void | Promise<void> {
     const sourceEditorId = typeof arg2 === 'string' ? arg2 : undefined;
     const fn = typeof arg2 === 'function' ? arg2 : arg3!;
 
@@ -142,12 +154,20 @@ export class RuntimeEventBus {
     const prevEditorId = this.pendingSourceEditorId;
     this.pendingSource = source;
     if (sourceEditorId !== undefined) this.pendingSourceEditorId = sourceEditorId;
-    try {
-      fn();
-    } finally {
+
+    const finish = () => {
       this.pendingSource = prevSource;
       this.pendingSourceEditorId = prevEditorId;
+    };
+
+    const result = fn();
+    if (result && typeof result.then === 'function') {
+      return result.then(finish, (error: unknown) => {
+        finish();
+        throw error;
+      });
     }
+    finish();
   }
 
   private handleRuntimeChange(): void {
@@ -316,15 +336,27 @@ export function removeNodes(blockIds: string[], runtime: OperationRuntime = getO
   getRuntimeEventBus(runtime).removeNodes(blockIds);
 }
 
-export function applyRuntimeIntent(
+export async function applyRuntimeIntent(
   intent: MutationIntent,
   options?: { source?: 'intent' | 'undo' | 'redo'; sourceEditorId?: string },
   runtime: OperationRuntime = getOperationRuntime(),
-): void {
-  getRuntimeEventBus(runtime).applyIntent(intent, options);
+): Promise<void> {
+  await getRuntimeEventBus(runtime).applyIntent(intent, options);
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────
+
+function isStructuralIntent(intent: MutationIntent): boolean {
+  switch (intent.type) {
+    case 'update_content':
+      return false;
+    case 'batch':
+      // A batch is structural unless every sub-intent is a content update.
+      return intent.intents.some(isStructuralIntent);
+    default:
+      return true;
+  }
+}
 
 function coreNodeChanged(a: CoreNode, b: CoreNode): boolean {
   return (

@@ -17,17 +17,7 @@ export function applyCollapseLevelToChildren(
 
   const processedChildren = node.children.map((child) => {
     const childDepth = currentDepth + 1;
-    const hasChildren = !!(child.children && child.children.length > 0);
-    const autoCollapse = hasChildren && childDepth >= collapseLevel;
-
-    return applyCollapseLevelToChildren(
-      {
-        ...child,
-        collapsed: autoCollapse || child.collapsed,
-      },
-      collapseLevel,
-      childDepth,
-    );
+    return applyCollapseLevelToChildren(child, collapseLevel, childDepth);
   });
 
   return {

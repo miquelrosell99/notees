@@ -15,7 +15,6 @@ const baseNode: Node = {
   parent_uuid: null,
   page_uuid: null,
   sequence: 0,
-  collapsed: false,
   active: true,
   is_page: false,
   create_date: '',

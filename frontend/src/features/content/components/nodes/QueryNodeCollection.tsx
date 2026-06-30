@@ -469,16 +469,10 @@ export function QueryNodeCollection({
         continue;
       }
 
-      // Show page collapsed only when:
-      // 1. It's a property-context link AND
-      // 2. The source_node is a page (meaning the property is on the page, not on a block)
-      const showPageCollapsed = isPropertyContext && ref.source_node.is_page;
-      
       const displayNode = ref.source_node;
-      
-      const shouldCollapse = isListView && showPageCollapsed;
-      
+
       // For non-page-collapsed cases, add page info for breadcrumbs / card grouping
+      const showPageCollapsed = isPropertyContext && ref.source_node.is_page;
       const pageInfo = (!showPageCollapsed && ref.source_page) ? {
         page_name: ref.source_page.name,
         page_uuid: ref.source_page.uuid,
@@ -487,8 +481,6 @@ export function QueryNodeCollection({
       const node: Node = {
         ...displayNode,
         ...pageInfo,
-        // Set collapsed state for pages in list view - always collapsed on load
-        collapsed: shouldCollapse ? true : displayNode.collapsed,
         // Attach metadata for property references
         _linkedRefMetadata: {
           linkType: ref.link_type,

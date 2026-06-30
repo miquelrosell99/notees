@@ -22,7 +22,7 @@ class AssetRepository(ABC):
         name: str,
         asset_class_id: int,
         user_id: int,
-        asset_file_id: int | None = None,
+        asset_id: int | None = None,
     ) -> None:
         """Update an existing node so it becomes an asset node."""
         pass
@@ -33,33 +33,33 @@ class AssetRepository(ABC):
         pass
 
     @abstractmethod
-    async def create_asset_file(
+    async def create_asset(
         self,
         hash: str,
-        size_bytes: int,
-        extension: str,
-        storage_path: str,
+        size: int,
+        mime_type: str | None,
+        original_name: str | None,
         user_id: int,
     ) -> int:
-        """Create an asset_file record and return its internal id."""
+        """Create an asset record and return its internal id."""
         pass
 
     @abstractmethod
-    async def find_asset_file_by_hash(self, hash: str) -> dict[str, Any] | None:
-        """Return an existing asset_file row for the given hash in the workspace."""
+    async def find_asset_by_hash(self, hash: str) -> dict[str, Any] | None:
+        """Return an existing asset row for the given hash in the workspace."""
         pass
 
     @abstractmethod
-    async def get_asset_file_by_id(self, asset_file_id: int) -> dict[str, Any] | None:
-        """Return an asset_file row by internal id."""
+    async def get_asset_by_id(self, asset_id: int) -> dict[str, Any] | None:
+        """Return an asset row by internal id."""
         pass
 
     @abstractmethod
-    async def increment_asset_file_ref_count(self, asset_file_id: int) -> None:
-        """Increment the ref_count of an asset_file."""
+    async def increment_asset_ref_count(self, asset_id: int) -> None:
+        """Increment the refs_count of an asset."""
         pass
 
     @abstractmethod
-    async def decrement_asset_file_ref_count(self, asset_file_id: int) -> int:
-        """Decrement the ref_count and return the new value."""
+    async def decrement_asset_ref_count(self, asset_id: int) -> int:
+        """Decrement the refs_count and return the new value."""
         pass

@@ -117,7 +117,9 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
       blockId,
       contentAST: [],
     };
-    getUndoEngine().applyIntent(intent, (intent as { type: string }).type === 'update_content' ? { sourceEditorId: (intent as { sourceEditorId?: string }).sourceEditorId } : undefined);
+    (async () => {
+      await getUndoEngine().applyIntent(intent, (intent as { type: string }).type === 'update_content' ? { sourceEditorId: (intent as { sourceEditorId?: string }).sourceEditorId } : undefined);
+    })();
     useEditorFocusStore.getState().setPendingFocus(blockId);
   }, [scratchpadPage, childCount]);
 
@@ -195,7 +197,7 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [isOpen]);
 
-  const handleAddBlock = useCallback(() => {
+  const handleAddBlock = useCallback(async () => {
     if (!scratchpadPage) return;
     const runtime = getOperationRuntime();
     const children = getChildren(runtime, scratchpadPage.uuid);
@@ -207,7 +209,7 @@ export function Scratchpad({ isOpen, onClose, anchorRef, onEntryCountChange }: S
       blockId,
       contentAST: [],
     };
-    getUndoEngine().applyIntent(intent, (intent as { type: string }).type === 'update_content' ? { sourceEditorId: (intent as { sourceEditorId?: string }).sourceEditorId } : undefined);
+    await getUndoEngine().applyIntent(intent, (intent as { type: string }).type === 'update_content' ? { sourceEditorId: (intent as { sourceEditorId?: string }).sourceEditorId } : undefined);
     useEditorFocusStore.getState().setPendingFocus(blockId);
   }, [scratchpadPage]);
 

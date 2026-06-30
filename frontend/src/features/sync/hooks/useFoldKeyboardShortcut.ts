@@ -1,11 +1,7 @@
 /**
  * useFoldKeyboardShortcut — toggle fold state of the focused block.
  *
- * Phase 0 implementation:
- * - Updates the local-only ui_state store (future source of truth for fold state).
- * - Also dispatches a legacy toggle_collapsed intent so the UI reflects the
- *   change immediately while node.collapsed is still the runtime source of truth.
- *   The legacy intent will be removed in Phase 3 when fold state becomes UI-only.
+ * Fold state is local-only and stored in the ui_state store. It is never synced.
  */
 
 import { useCallback } from 'react';

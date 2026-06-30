@@ -71,7 +71,7 @@ export function flattenNodes(
     if (visited.has(node.uuid)) continue;
     visited.add(node.uuid);
 
-    const effectiveCollapsed = expandAll ? false : (collapsedLookup(node.uuid) ?? node.collapsed ?? false);
+    const effectiveCollapsed = expandAll ? false : (collapsedLookup(node.uuid) ?? false);
     result.push({ node, depth: currentDepth, effectiveCollapsed });
     if (
       node.children &&
@@ -117,7 +117,6 @@ function createGhostFlatNode(parentUuid: string, depth: number): FlatNode {
       parent_uuid: null,
       page_uuid: null,
       sequence: Number.MAX_SAFE_INTEGER,
-      collapsed: false,
       active: true,
       is_page: false,
       is_deleted: false,
@@ -189,7 +188,6 @@ export function flattenNodesFromRuntime(
       parent_uuid: gn.parentId,
       page_uuid: null,
       sequence: gn.orderIndex,
-      collapsed: collapsedLookup(gn.blockId) ?? gn.collapsed ?? false,
       active: true,
       is_page: false,
       is_deleted: false,
@@ -236,9 +234,7 @@ export function flattenNodesFromRuntime(
         continue;
       }
       visited.add(node.uuid);
-      const effectiveCollapsed = expandAll
-        ? false
-        : (collapsedLookup(nodeUuid) ?? node.collapsed ?? false);
+      const effectiveCollapsed = expandAll ? false : (collapsedLookup(nodeUuid) ?? false);
       result.push({ node, depth, effectiveCollapsed });
 
       if (!effectiveCollapsed && (maxDepth < 0 || depth < maxDepth)) {

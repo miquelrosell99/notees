@@ -61,6 +61,7 @@ import { FloatingToolbarPlugin } from './plugins/FloatingToolbarPlugin';
 import { InlineCopyPastePlugin } from './plugins/InlineCopyPastePlugin';
 import { EditablePlugin } from './plugins/EditablePlugin';
 import { SyncedContentPlugin } from './plugins/SyncedContentPlugin';
+import { useYjsBinding } from '../yjs/useYjsBinding';
 import type { ContentAST } from '@/runtime/types';
 import type { EditorState } from 'lexical';
 
@@ -114,6 +115,8 @@ interface InlineEditorProps {
   onEscape?: () => void;
   /** UUID of the containing node (for live sync focus tracking). */
   nodeUuid?: string;
+  /** UUID of this block, used for CRDT collaboration binding. */
+  blockUuid?: string;
   /** Whether this editor belongs to a page block (applies page title styling). */
   isPage?: boolean;
   /** Whether the containing block has a node color applied. */
@@ -151,6 +154,7 @@ export const InlineEditor = memo(
             onDeleteAtEnd,
             onEscape,
             nodeUuid,
+            blockUuid,
             isPage,
             hasNodeColor,
             inCard,
@@ -421,6 +425,7 @@ export const InlineEditor = memo(
       <LexicalComposer initialConfig={initialConfig}>
         <InlineEditorInner
           blockId={blockId}
+          blockUuid={blockUuid}
           initialContentAST={initialContentAST}
           readOnly={readOnly}
           placeholder={placeholder}
@@ -456,6 +461,7 @@ export const InlineEditor = memo(
 
 interface InlineEditorInnerProps {
   blockId: string;
+  blockUuid?: string;
   initialContentAST: ContentAST;
   readOnly: boolean;
   placeholder: string;
@@ -485,6 +491,7 @@ interface InlineEditorInnerProps {
 
 function InlineEditorInner({
   blockId,
+  blockUuid,
   initialContentAST,
   readOnly,
   placeholder,
@@ -512,6 +519,9 @@ function InlineEditorInner({
   inPropertyEditor,
 }: InlineEditorInnerProps): JSX.Element {
   const [editor] = useLexicalComposerContext();
+
+  // Wire the editor to the shared Yjs document when a block UUID is provided.
+  useYjsBinding(blockUuid ?? null, editor);
 
   // Expose editor instance to parent via ref
   useLayoutEffect(() => {

@@ -3,14 +3,16 @@
 This module contains functions for initializing the database schema
 and seeding workspaces with system data.
 
-SCHEMA VERSION: 2 - Workspace-based architecture.
+SCHEMA VERSION: 4 - Asset subsystem aligned with M6.
 """
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import shutil
 from datetime import UTC, datetime
+from pathlib import Path
 
 import asyncpg
 
@@ -144,25 +146,111 @@ async def init_database(conn: asyncpg.Connection) -> None:
     await _run_migration("add_sync_protocol_version", conn, _add_sync_protocol_version)
     await _run_migration("set_sync_protocol_version_v2_default", conn, _set_sync_protocol_version_v2_default)
     await _run_migration("remove_collapsed_column", conn, _remove_collapsed_column)
-    await _run_migration("migrate_assets_to_content_addressed", conn, _migrate_assets_to_content_addressed)
+    await _run_migration("migrate_assets_m6", conn, _migrate_assets_m6)
+    await _run_migration("add_node_yjs_state", conn, _add_node_yjs_state)
 
 
-async def _migrate_assets_to_content_addressed(conn: asyncpg.Connection) -> None:
-    """Move legacy per-asset UUID folders into content-addressed storage."""
+def _extension_to_mime_type(extension: str) -> str:
+    """Map a file extension to a MIME type for migrated assets."""
+    mapping = {
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".png": "image/png",
+        ".webp": "image/webp",
+        ".gif": "image/gif",
+        ".mp3": "audio/mpeg",
+        ".wav": "audio/wav",
+        ".ogg": "audio/ogg",
+        ".opus": "audio/opus",
+        ".webm": "audio/webm",
+        ".pdf": "application/pdf",
+    }
+    return mapping.get(extension.lower(), "application/octet-stream")
+
+
+async def _migrate_assets_m6(conn: asyncpg.Connection) -> None:
+    """Align the asset subsystem with the M6 specification.
+
+    Idempotent one-way migration that:
+      1. Ensures the new ``asset`` table exists with the target columns.
+      2. Imports any legacy per-asset UUID folders into ``asset``.
+      3. Migrates data from the old ``asset_file`` table into ``asset``,
+         moves files to the new layout, and removes ``asset_file``.
+      4. Renames ``node.asset_file_id`` to ``node.asset_id``.
+      5. Points the foreign key at ``asset(id)``.
+    """
     from app.utils.paths import get_workspace_assets_dir
 
+    # ------------------------------------------------------------------
+    # 1. Ensure the target asset table exists with the M6 columns.
+    # ------------------------------------------------------------------
+    asset_exists = await conn.fetchval(
+        "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'asset')"
+    )
+    if not asset_exists:
+        await conn.execute(
+            """
+            CREATE TABLE asset (
+                id SERIAL PRIMARY KEY,
+                uuid UUID NOT NULL DEFAULT uuid_generate_v4(),
+                workspace_id INTEGER NOT NULL REFERENCES workspace(id) ON DELETE CASCADE,
+                hash VARCHAR(64) NOT NULL,
+                size INTEGER NOT NULL,
+                mime_type VARCHAR(255),
+                original_name TEXT,
+                refs_count INTEGER NOT NULL DEFAULT 1,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                UNIQUE (workspace_id, hash)
+            )
+            """
+        )
+
+    # Add any missing M6 columns if the table was created by an earlier schema.
+    for column, ddl in (
+        ("size", "ALTER TABLE asset ADD COLUMN size INTEGER NOT NULL DEFAULT 0"),
+        ("mime_type", "ALTER TABLE asset ADD COLUMN mime_type VARCHAR(255)"),
+        ("original_name", "ALTER TABLE asset ADD COLUMN original_name TEXT"),
+        ("refs_count", "ALTER TABLE asset ADD COLUMN refs_count INTEGER NOT NULL DEFAULT 1"),
+        ("created_at", "ALTER TABLE asset ADD COLUMN created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()"),
+    ):
+        col_exists = await conn.fetchval(
+            "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'asset' AND column_name = $1)",
+            column,
+        )
+        if not col_exists:
+            await conn.execute(ddl)
+
+    # Drop columns that are no longer part of the M6 schema.
+    for column in ("extension", "storage_path", "size_bytes", "ref_count", "create_date"):
+        col_exists = await conn.fetchval(
+            "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'asset' AND column_name = $1)",
+            column,
+        )
+        if col_exists:
+            await conn.execute(f"ALTER TABLE asset DROP COLUMN {column}")
+
+    # ------------------------------------------------------------------
+    # 2. Import legacy per-asset UUID folders (pre-content-addressed).
+    # ------------------------------------------------------------------
+    node_fk_col = "asset_id"
+    has_old_fk = await conn.fetchval(
+        "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'node' AND column_name = 'asset_file_id')"
+    )
+    has_new_fk = await conn.fetchval(
+        "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'node' AND column_name = 'asset_id')"
+    )
+    if has_old_fk and not has_new_fk:
+        node_fk_col = "asset_file_id"
+
     rows = await conn.fetch(
-        """
+        f"""
         SELECT n.id, n.uuid, n.workspace_id, w.uuid::text AS workspace_uuid
         FROM node n
         JOIN workspace w ON w.id = n.workspace_id
-        WHERE n.is_asset = TRUE AND n.asset_file_id IS NULL AND n.active = TRUE
+        WHERE n.is_asset = TRUE AND n.{node_fk_col} IS NULL AND n.active = TRUE
         """
     )
-    if not rows:
-        return
-
-    hash_to_file_id: dict[tuple[int, str], int] = {}
+    hash_to_asset_id: dict[tuple[int, str], int] = {}
     for row in rows:
         assets_dir = get_workspace_assets_dir(row["workspace_uuid"])
         asset_folder = assets_dir / str(row["uuid"])
@@ -180,46 +268,175 @@ async def _migrate_assets_to_content_addressed(conn: asyncpg.Connection) -> None
         file_bytes = source_path.read_bytes()
         file_hash = hashlib.sha256(file_bytes).hexdigest()
         extension = source_path.suffix.lower()
-        size_bytes = len(file_bytes)
+        size = len(file_bytes)
+        mime_type = _extension_to_mime_type(extension)
 
         key = (row["workspace_id"], file_hash)
-        if key in hash_to_file_id:
-            asset_file_id = hash_to_file_id[key]
+        if key in hash_to_asset_id:
+            asset_id = hash_to_asset_id[key]
             await conn.execute(
-                "UPDATE asset_file SET ref_count = ref_count + 1 WHERE id = $1",
-                asset_file_id,
+                "UPDATE asset SET refs_count = refs_count + 1 WHERE id = $1",
+                asset_id,
             )
         else:
-            storage_path = assets_dir / "files" / file_hash[:2] / file_hash[2:4] / f"{file_hash}{extension}"
-            storage_path.parent.mkdir(parents=True, exist_ok=True)
-            if not storage_path.exists():
-                shutil.move(str(source_path), str(storage_path))
+            target_path = assets_dir / file_hash[:4] / f"{file_hash}{extension}"
+            target_path.parent.mkdir(parents=True, exist_ok=True)
+            if not target_path.exists():
+                shutil.move(str(source_path), str(target_path))
             else:
                 source_path.unlink(missing_ok=True)
 
-            asset_file_id = await conn.fetchval(
-                """
-                INSERT INTO asset_file (
-                    workspace_id, hash, size_bytes, extension, storage_path, ref_count, create_date
-                )
-                VALUES ($1, $2, $3, $4, $5, 1, NOW())
-                RETURNING id
-                """,
+            existing = await conn.fetchrow(
+                "SELECT id FROM asset WHERE workspace_id = $1 AND hash = $2",
                 row["workspace_id"],
                 file_hash,
-                size_bytes,
-                extension,
-                str(storage_path),
             )
-            if asset_file_id is not None:
-                hash_to_file_id[key] = asset_file_id
+            if existing:
+                asset_id = existing["id"]
+                await conn.execute(
+                    "UPDATE asset SET refs_count = refs_count + 1 WHERE id = $1",
+                    asset_id,
+                )
+            else:
+                asset_id = await conn.fetchval(
+                    """
+                    INSERT INTO asset (workspace_id, hash, size, mime_type, original_name, refs_count, created_at)
+                    VALUES ($1, $2, $3, $4, NULL, 1, NOW())
+                    RETURNING id
+                    """,
+                    row["workspace_id"],
+                    file_hash,
+                    size,
+                    mime_type,
+                )
+            if asset_id is not None:
+                hash_to_asset_id[key] = asset_id
 
-        if asset_file_id is not None:
+        if asset_id is not None:
             await conn.execute(
-                "UPDATE node SET asset_file_id = $1 WHERE id = $2",
-                asset_file_id,
+                f"UPDATE node SET {node_fk_col} = $1 WHERE id = $2",
+                asset_id,
                 row["id"],
             )
+
+    # ------------------------------------------------------------------
+    # 3. Migrate the old asset_file table into asset.
+    # ------------------------------------------------------------------
+    old_table_exists = await conn.fetchval(
+        "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'asset_file')"
+    )
+    if old_table_exists:
+        # Drop the old foreign key before re-pointing node references.
+        await conn.execute("ALTER TABLE node DROP CONSTRAINT IF EXISTS fk_node_asset_file")
+
+        old_rows = await conn.fetch(
+            "SELECT id, workspace_id, hash, size_bytes, extension, ref_count, storage_path FROM asset_file"
+        )
+        old_id_to_new_id: dict[int, int] = {}
+        for old_row in old_rows:
+            workspace_id = old_row["workspace_id"]
+            file_hash = old_row["hash"]
+            extension = (old_row["extension"] or "").lower()
+            if not extension.startswith("."):
+                extension = f".{extension}" if extension else ""
+            mime_type = _extension_to_mime_type(extension)
+            size = old_row["size_bytes"]
+            ref_count = old_row["ref_count"]
+
+            # Move file to the new M6 layout.
+            assets_dir = None
+            workspace_row = await conn.fetchrow(
+                "SELECT uuid::text AS workspace_uuid FROM workspace WHERE id = $1",
+                workspace_id,
+            )
+            if workspace_row:
+                assets_dir = get_workspace_assets_dir(workspace_row["workspace_uuid"])
+                old_path = Path(old_row["storage_path"]) if old_row["storage_path"] else None
+                if old_path and not old_path.exists() and extension:
+                    old_path = assets_dir / "files" / file_hash[:2] / file_hash[2:4] / f"{file_hash}{extension}"
+                if old_path and old_path.exists():
+                    target_path = assets_dir / file_hash[:4] / f"{file_hash}{extension}"
+                    target_path.parent.mkdir(parents=True, exist_ok=True)
+                    if target_path.exists():
+                        old_path.unlink(missing_ok=True)
+                    else:
+                        shutil.move(str(old_path), str(target_path))
+                    for parent in (old_path.parent, old_path.parent.parent):
+                        with contextlib.suppress(OSError):
+                            parent.rmdir()
+
+            existing = await conn.fetchrow(
+                "SELECT id, refs_count FROM asset WHERE workspace_id = $1 AND hash = $2",
+                workspace_id,
+                file_hash,
+            )
+            if existing:
+                asset_id = existing["id"]
+                new_refs = existing["refs_count"] + ref_count
+                await conn.execute(
+                    "UPDATE asset SET refs_count = $1 WHERE id = $2",
+                    new_refs,
+                    asset_id,
+                )
+            else:
+                create_at = old_row.get("create_date") or datetime.now(UTC)
+                asset_id = await conn.fetchval(
+                    """
+                    INSERT INTO asset (workspace_id, hash, size, mime_type, original_name, refs_count, created_at)
+                    VALUES ($1, $2, $3, $4, NULL, $5, $6)
+                    RETURNING id
+                    """,
+                    workspace_id,
+                    file_hash,
+                    size,
+                    mime_type,
+                    ref_count,
+                    create_at,
+                )
+            old_id_to_new_id[old_row["id"]] = asset_id
+
+        # Point node references to the new asset ids.
+        for old_id, new_id in old_id_to_new_id.items():
+            await conn.execute(
+                f"UPDATE node SET {node_fk_col} = $1 WHERE {node_fk_col} = $2",
+                new_id,
+                old_id,
+            )
+
+        await conn.execute("DROP TABLE asset_file CASCADE")
+
+    # ------------------------------------------------------------------
+    # 4. Ensure node uses the asset_id column.
+    # ------------------------------------------------------------------
+    if has_old_fk and not has_new_fk:
+        await conn.execute("ALTER TABLE node RENAME COLUMN asset_file_id TO asset_id")
+    elif not has_new_fk:
+        await conn.execute("ALTER TABLE node ADD COLUMN asset_id INTEGER")
+
+    # ------------------------------------------------------------------
+    # 5. Ensure the foreign key references asset(id).
+    # ------------------------------------------------------------------
+    fk_exists = await conn.fetchval(
+        "SELECT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE table_name = 'node' AND constraint_name = 'fk_node_asset')"
+    )
+    if not fk_exists:
+        await conn.execute("ALTER TABLE node DROP CONSTRAINT IF EXISTS fk_node_asset_file")
+        await conn.execute(
+            """
+            ALTER TABLE node
+            ADD CONSTRAINT fk_node_asset
+            FOREIGN KEY (asset_id) REFERENCES asset(id) ON DELETE SET NULL
+            """
+        )
+
+    # ------------------------------------------------------------------
+    # 6. Ensure indexes exist.
+    # ------------------------------------------------------------------
+    idx_exists = await conn.fetchval(
+        "SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_asset_workspace_hash')"
+    )
+    if not idx_exists:
+        await conn.execute("CREATE INDEX idx_asset_workspace_hash ON asset(workspace_id, hash)")
 
 
 
@@ -1825,3 +2042,36 @@ async def _remove_collapsed_column(conn: asyncpg.Connection) -> None:
         WHERE active = TRUE AND is_deleted = FALSE AND is_comment = FALSE
     """)
     logger.info("Dropped collapsed column and rebuilt idx_node_page_content")
+
+
+async def _add_node_yjs_state(conn: asyncpg.Connection) -> None:
+    """Add the node_yjs_state table for M4 CRDT text integration."""
+    from ...logging_config import get_logger
+
+    logger = get_logger(__name__)
+
+    table_exists = await conn.fetchval(
+        "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'node_yjs_state')"
+    )
+    if not table_exists:
+        await conn.execute("""
+            CREATE TABLE node_yjs_state (
+                node_id INTEGER PRIMARY KEY REFERENCES node(id) ON DELETE CASCADE,
+                update_blob BYTEA NOT NULL,
+                updated_at TIMESTAMPTZ DEFAULT NOW(),
+                workspace_id INTEGER NOT NULL REFERENCES workspace(id) ON DELETE CASCADE
+            )
+        """)
+        logger.info("Created node_yjs_state table")
+
+    for index_name, ddl in (
+        ("idx_node_yjs_state_workspace_id", "CREATE INDEX idx_node_yjs_state_workspace_id ON node_yjs_state(workspace_id)"),
+        ("idx_node_yjs_state_updated_at", "CREATE INDEX idx_node_yjs_state_updated_at ON node_yjs_state(updated_at)"),
+    ):
+        idx_exists = await conn.fetchval(
+            "SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = $1)",
+            index_name,
+        )
+        if not idx_exists:
+            await conn.execute(ddl)
+            logger.info(f"Created {index_name} index")

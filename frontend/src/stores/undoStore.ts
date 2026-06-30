@@ -133,7 +133,7 @@ export const useUndoStore = create<UndoState>()((set, get) => ({
     }
 
     // 1. Try runtime first (local block operations are always more recent)
-    const localEntry = engine.undo();
+    const localEntry = await engine.undo();
     if (localEntry) {
       notifyUndo(runtimeEntryDescription(localEntry));
       await queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
@@ -180,7 +180,7 @@ export const useUndoStore = create<UndoState>()((set, get) => ({
     }
 
     // 2. Fall back to runtime redo stack
-    const localEntry = engine.redo();
+    const localEntry = await engine.redo();
     if (localEntry) {
       notifyRedo(runtimeEntryDescription(localEntry));
       await queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
@@ -204,7 +204,7 @@ export const useUndoStore = create<UndoState>()((set, get) => ({
       const steps = Math.abs(entry.runtimeId);
       let lastDescription = '';
       for (let i = 0; i < steps; i++) {
-        const localEntry = engine.undo();
+        const localEntry = await engine.undo();
         if (localEntry) lastDescription = runtimeEntryDescription(localEntry);
       }
       if (lastDescription) notifyUndo(lastDescription);
@@ -243,7 +243,7 @@ export const useUndoStore = create<UndoState>()((set, get) => ({
       const steps = Math.abs(entry.runtimeId);
       let lastDescription = '';
       for (let i = 0; i < steps; i++) {
-        const localEntry = engine.redo();
+        const localEntry = await engine.redo();
         if (localEntry) lastDescription = runtimeEntryDescription(localEntry);
       }
       if (lastDescription) notifyRedo(lastDescription);

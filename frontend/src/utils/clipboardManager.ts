@@ -26,7 +26,6 @@ interface RuntimeNodeLike {
   contentAST: unknown;
   icon?: string | null;
   color?: string | null;
-  collapsed: boolean;
   classIds: string[];
   tagIds: string[];
 }
@@ -65,8 +64,6 @@ export interface BlockData {
   icon?: string | null;
   /** Block color */
   color?: string | null;
-  /** Whether block is collapsed */
-  collapsed?: boolean;
   /** Class IDs (UUIDs for portability) */
   classUuids?: string[];
   /** Tag IDs (UUIDs for portability) */
@@ -672,7 +669,6 @@ function nodeToBlockData(node: Node): BlockData {
     name: node.name,
     icon: node.icon,
     color: node.color,
-    collapsed: node.collapsed,
     // Note: In a real implementation, we'd need to resolve these IDs to UUIDs
     // This would require access to the class and tag node data
     children: node.children?.map(nodeToBlockData),
@@ -796,7 +792,6 @@ function runtimeNodeToBlockData(
     name: JSON.stringify(node.contentAST),
     icon: node.icon ?? null,
     color: node.color ?? null,
-    collapsed: node.collapsed,
     classUuids: node.classIds.length > 0 ? [...node.classIds] : undefined,
     tagUuids: node.tagIds.length > 0 ? [...node.tagIds] : undefined,
     children: children.length > 0 ? children : undefined,

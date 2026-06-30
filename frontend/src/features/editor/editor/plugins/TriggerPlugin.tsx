@@ -46,8 +46,8 @@ import { useEditorFocusStore } from '@/stores/editorFocusStore';
 import { flushAllContentSaves } from '@/hooks/contentSaveTracker';
 import { getSlashCommand } from '@/plugins/core';
 
-function applyRuntimeIntent(intent: MutationIntent): void {
-  getUndoEngine().applyIntent(intent, intent.type === 'update_content' ? { sourceEditorId: intent.sourceEditorId } : undefined);
+async function applyRuntimeIntent(intent: MutationIntent): Promise<void> {
+  await getUndoEngine().applyIntent(intent, intent.type === 'update_content' ? { sourceEditorId: intent.sourceEditorId } : undefined);
 }
 
 /**
@@ -513,12 +513,12 @@ export function TriggerPlugin({
   // ─── Create embed sibling helper ─────────────────────────────
 
   const insertEmbedSibling = useCallback(
-    (nodeUuid: string) => {
+    async (nodeUuid: string) => {
       const ph = placeholderRef.current;
       if (!ph) return;
 
       // We need the host block ID. Resolve from the placeholder node.
-      editor.getEditorState().read(() => {
+      await editor.getEditorState().read(async () => {
         const node = $getNodeByKey(ph.nodeKey);
         if (!node) return;
         if (!blockIdProp) return;
@@ -529,7 +529,7 @@ export function TriggerPlugin({
 
         const newBlockId = generateUUID();
         useEditorFocusStore.getState().setPendingFocus(newBlockId);
-        applyRuntimeIntent({
+        await applyRuntimeIntent({
           type: 'create_block',
           parentId: hostNode.parentId,
           afterBlockId: blockIdProp,
