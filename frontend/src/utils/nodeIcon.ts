@@ -39,18 +39,28 @@ function resolveFromExtendsChain(
 
 /**
  * Resolve the effective icon for a class node, walking the Extends chain if needed.
+ *
+ * Uses the canonical class from `allClasses` when available, because generic
+ * node responses (e.g. getNode, referenced_nodes) do not populate extends_uuid
+ * while the /classes endpoints do.
  */
 function resolveClassIcon(classNode: Node, allClasses: Node[]): string | null | undefined {
-  if (classNode.icon) return classNode.icon;
-  return resolveFromExtendsChain(classNode, allClasses, n => n.icon);
+  const canonicalClass = allClasses.find(c => c.uuid === classNode.uuid) ?? classNode;
+  if (canonicalClass.icon) return canonicalClass.icon;
+  return resolveFromExtendsChain(canonicalClass, allClasses, n => n.icon);
 }
 
 /**
  * Resolve the effective color for a class node, walking the Extends chain if needed.
+ *
+ * Uses the canonical class from `allClasses` when available, because generic
+ * node responses (e.g. getNode, referenced_nodes) do not populate extends_uuid
+ * while the /classes endpoints do.
  */
 function resolveClassColor(classNode: Node, allClasses: Node[]): string | null | undefined {
-  if (classNode.color) return classNode.color;
-  return resolveFromExtendsChain(classNode, allClasses, n => n.color);
+  const canonicalClass = allClasses.find(c => c.uuid === classNode.uuid) ?? classNode;
+  if (canonicalClass.color) return canonicalClass.color;
+  return resolveFromExtendsChain(canonicalClass, allClasses, n => n.color);
 }
 
 /**
@@ -86,8 +96,9 @@ export function getEffectiveIcon(
     // Color-only: find inherited icon and re-encode with node's color
     if (color) {
       // Check own extends chain first (for class nodes)
-      if (node.extends_uuid && node.extends_uuid.length > 0 && allClasses && allClasses.length > 0) {
-        const extendsIcon = resolveFromExtendsChain(node, allClasses, n => n.icon);
+      const canonicalNode = allClasses?.find(c => c.uuid === node.uuid) ?? node;
+      if (canonicalNode.extends_uuid && canonicalNode.extends_uuid.length > 0 && allClasses && allClasses.length > 0) {
+        const extendsIcon = resolveFromExtendsChain(canonicalNode, allClasses, n => n.icon);
         if (extendsIcon) {
           const { icon: inheritedIcon } = parseIconField(extendsIcon);
           return formatIconField(inheritedIcon || extendsIcon, color);
@@ -109,9 +120,12 @@ export function getEffectiveIcon(
     }
   }
 
-  // Check own extends chain first (for class nodes)
-  if (node.extends_uuid && node.extends_uuid.length > 0 && allClasses && allClasses.length > 0) {
-    const extendsIcon = resolveFromExtendsChain(node, allClasses, n => n.icon);
+  // Check own extends chain first (for class nodes).
+  // Use the canonical class from allClasses when available because generic
+  // node responses do not populate extends_uuid.
+  const canonicalNode = allClasses?.find(c => c.uuid === node.uuid) ?? node;
+  if (canonicalNode.extends_uuid && canonicalNode.extends_uuid.length > 0 && allClasses && allClasses.length > 0) {
+    const extendsIcon = resolveFromExtendsChain(canonicalNode, allClasses, n => n.icon);
     if (extendsIcon) return extendsIcon;
   }
 
@@ -158,8 +172,9 @@ export function getEffectiveIconFromClasses(
     if (iconName) return node.icon;
     if (color) {
       // Check own extends chain first (for class nodes)
-      if (node.extends_uuid && node.extends_uuid.length > 0 && classes.length > 0) {
-        const extendsIcon = resolveFromExtendsChain(node, classes, n => n.icon);
+      const canonicalNode = classes.find(c => c.uuid === node.uuid) ?? node;
+      if (canonicalNode.extends_uuid && canonicalNode.extends_uuid.length > 0 && classes.length > 0) {
+        const extendsIcon = resolveFromExtendsChain(canonicalNode, classes, n => n.icon);
         if (extendsIcon) {
           const { icon: inheritedIcon } = parseIconField(extendsIcon);
           return formatIconField(inheritedIcon || extendsIcon, color);
@@ -179,8 +194,9 @@ export function getEffectiveIconFromClasses(
   }
 
   // Check own extends chain first (for class nodes)
-  if (node.extends_uuid && node.extends_uuid.length > 0 && classes.length > 0) {
-    const extendsIcon = resolveFromExtendsChain(node, classes, n => n.icon);
+  const canonicalNode = classes.find(c => c.uuid === node.uuid) ?? node;
+  if (canonicalNode.extends_uuid && canonicalNode.extends_uuid.length > 0 && classes.length > 0) {
+    const extendsIcon = resolveFromExtendsChain(canonicalNode, classes, n => n.icon);
     if (extendsIcon) return extendsIcon;
   }
 
@@ -217,9 +233,12 @@ export function getEffectiveColor(
   if (!node) return undefined;
   if (node.color) return node.color;
 
-  // Check own extends chain first (for class nodes)
-  if (node.extends_uuid && node.extends_uuid.length > 0 && allClasses && allClasses.length > 0) {
-    const extendsColor = resolveFromExtendsChain(node, allClasses, n => n.color);
+  // Check own extends chain first (for class nodes).
+  // Use the canonical class from allClasses when available because generic
+  // node responses do not populate extends_uuid.
+  const canonicalNode = allClasses?.find(c => c.uuid === node.uuid) ?? node;
+  if (canonicalNode.extends_uuid && canonicalNode.extends_uuid.length > 0 && allClasses && allClasses.length > 0) {
+    const extendsColor = resolveFromExtendsChain(canonicalNode, allClasses, n => n.color);
     if (extendsColor) return extendsColor;
   }
 
