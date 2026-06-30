@@ -19,6 +19,7 @@ import { useContentSave } from '@/features/editor';
 import { useCreateFlashcard } from '@/plugins/builtin/flashcards';
 import { stringifyAST, StringifyMode } from '@/lib';
 import { useLazyChildren } from '@/features/content/hooks/useLazyChildren';
+import { getEffectiveColor, getEffectiveIcon } from '@/utils/nodeIcon';
 
 import type { Node } from '@/types';
 // GraphNode type no longer needed here — projection moved to useBlockTree
@@ -125,11 +126,13 @@ export function NodeContent({
       const classStrId = String(classId);
       if (!graphNode.classIds.includes(classStrId)) {
         const classNode = allClasses.find(c => c.uuid === classId);
+        const effectiveIcon = classNode ? getEffectiveIcon(classNode, allClasses) : undefined;
+        const effectiveColor = classNode ? getEffectiveColor(classNode, allClasses) : undefined;
         upsertNodes([{
           ...graphNode,
           classIds: [...graphNode.classIds, classStrId],
-          icon: classNode?.icon ?? graphNode.icon,
-          color: classNode?.color ?? graphNode.color,
+          icon: effectiveIcon ?? graphNode.icon,
+          color: effectiveColor ?? graphNode.color,
         }]);
       }
     }

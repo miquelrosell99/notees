@@ -33,6 +33,7 @@ import { useResolvedClassDetails, useClasses } from '@/features/content';
 import { ClassPillsRow } from '@/features/content/components/nodes/ClassPillsRow';
 import { PropertyIconButton } from '@/features/properties';
 import { getNodeColorStylesAuto } from '@/utils/color';
+import { getEffectiveColor } from '@/utils/nodeIcon';
 import { SYSTEM_CLASS_UUIDS } from '@/constants';
 import { Button } from '@/components/ui/Button';
 import './BlockRow.css';
@@ -399,10 +400,15 @@ export const BlockRow = memo(
       return { beforeContent, afterBullet };
     }, [node.properties_uuid, allProperties]);
 
+    const effectiveColor = useMemo(
+      () => getEffectiveColor(node, allClasses),
+      [node, allClasses],
+    );
+
     const colorStyle = useMemo(() => {
-      if (!node.color) return undefined;
-      return getNodeColorStylesAuto(node.color);
-    }, [node.color]);
+      if (!effectiveColor) return undefined;
+      return getNodeColorStylesAuto(effectiveColor);
+    }, [effectiveColor]);
 
     const editorElement = isGhost ? (
       <button
@@ -423,7 +429,7 @@ export const BlockRow = memo(
         readOnly={readOnly || isLocked}
         placeholder={placeholder}
         isPage={node.is_page}
-        hasNodeColor={!!node.color}
+        hasNodeColor={!!effectiveColor}
         inCard={inCard}
         listSize={listSize}
         inPropertyEditor={inPropertyEditor}

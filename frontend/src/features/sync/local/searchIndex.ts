@@ -198,11 +198,13 @@ async function idbGet(workspaceUuid: string): Promise<MiniSearch<SearchDoc> | un
     // Store/load the index as a plain object using IndexedDB structured clone
     // instead of a JSON string. This avoids the main-thread JSON.parse cost
     // that blocked startup for large indexes.
-    const data = await get<SerializedIndex>(key);
+    const data = await get<SerializedIndex | string>(key);
     if (!data) return undefined;
-    // Type definitions only accept `string`, but MiniSearch also accepts the
-    // plain object returned by `toJSON()` (it only calls JSON.parse on strings).
-    return MiniSearch.loadJSON(data as unknown as string, {
+    // Old indexes may have been stored as JSON strings; parse those and then
+    // load the plain object with loadJS. loadJSON always calls JSON.parse,
+    // so it cannot accept the structured-clone object returned by toJSON().
+    const js = typeof data === 'string' ? (JSON.parse(data) as SerializedIndex) : data;
+    return MiniSearch.loadJS(js, {
       fields: ['nameText'],
       storeFields: [
         'id',

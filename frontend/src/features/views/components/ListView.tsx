@@ -17,7 +17,8 @@ import { NodeIcon, ChevronRightIcon, ChevronDownIcon } from '@/components/ui/ico
 
 import { BlockList } from '@/features/content';
 import { ListSortable } from '@/components/ui/ListSortable';
-import { useNodeCollectionContext } from '@/features/content';
+import { useNodeCollectionContext, useClasses } from '@/features/content';
+import { getEffectiveIcon } from '@/utils/nodeIcon';
 
 import { getPropertyGroupInfo } from '../utils/viewHelpers';
 import { sortBySequence, compareDateFirstAlpha } from '@/utils/nodeSort';
@@ -55,13 +56,13 @@ function normalizeGroupByValue(value: NodeCollectionGroupBy): string[] {
   return [value];
 }
 
-function getPageGroupInfo(node: Node): { key: string; label: string; icon: string | null; page: Node; missing: false } | { missing: true } {
+function getPageGroupInfo(node: Node, allClasses?: Node[] | null): { key: string; label: string; icon: string | null; page: Node; missing: false } | { missing: true } {
   if (node.is_page) {
     return {
       missing: false,
       key: `page-${node.uuid}`,
       label: node.name || 'Untitled',
-      icon: node.icon ?? null,
+      icon: getEffectiveIcon(node, allClasses) ?? node.icon ?? null,
       page: node,
     };
   }
@@ -88,10 +89,11 @@ function getPageGroupInfo(node: Node): { key: string; label: string; icon: strin
 
 function getLevelGroupInfo(
   node: Node,
-  level: GroupLevel
+  level: GroupLevel,
+  allClasses?: Node[] | null,
 ): { key: string; label: string; icon: string | null; page?: Node; missing: false } | { missing: true } {
   if (level.kind === 'page') {
-    return getPageGroupInfo(node);
+    return getPageGroupInfo(node, allClasses);
   }
 
   const rawValue = (node.properties_uuid as Record<string, unknown> | undefined)?.[String(level.property.uuid)] ?? null;
@@ -114,7 +116,7 @@ function sortGroups(groups: GroupTreeNode[], level: GroupLevel): GroupTreeNode[]
   return sorted;
 }
 
-function buildGroupTree(topNodes: Node[], levels: GroupLevel[], parentKey = ''): GroupTreeNode[] {
+function buildGroupTree(topNodes: Node[], levels: GroupLevel[], allClasses?: Node[] | null, parentKey = ''): GroupTreeNode[] {
   if (levels.length === 0) return [];
 
   const [level, ...rest] = levels;
@@ -122,7 +124,7 @@ function buildGroupTree(topNodes: Node[], levels: GroupLevel[], parentKey = ''):
   const noValue: Node[] = [];
 
   for (const node of topNodes) {
-    const info = getLevelGroupInfo(node, level);
+    const info = getLevelGroupInfo(node, level, allClasses);
     if (info.missing) {
       noValue.push(node);
       continue;
@@ -139,7 +141,7 @@ function buildGroupTree(topNodes: Node[], levels: GroupLevel[], parentKey = ''):
   const result: GroupTreeNode[] = [];
   for (const group of sortGroups(Array.from(groups.values()), level)) {
     if (rest.length > 0) {
-      group.children = buildGroupTree(group.nodes, rest, group.key);
+      group.children = buildGroupTree(group.nodes, rest, allClasses, group.key);
       group.nodes = [];
     }
     result.push(group);
@@ -156,7 +158,7 @@ function buildGroupTree(topNodes: Node[], levels: GroupLevel[], parentKey = ''):
       nodes: [],
     };
     if (rest.length > 0) {
-      noValueGroup.children = buildGroupTree(noValue, rest, noValueKey);
+      noValueGroup.children = buildGroupTree(noValue, rest, allClasses, noValueKey);
     } else {
       noValueGroup.nodes = noValue;
     }
@@ -202,6 +204,7 @@ export const ListView = memo(function ListView({
 }: NodeListViewProps) {
   const { inPropertyEditor } = useNodeCollectionContext();
   const sizeClass = size === 'sm' ? 'node-list-view--sm' : '';
+  const { data: allClasses } = useClasses();
 
   // Collect all nodes recursively, filtering by pagesOnly if needed,
   // then sort by sequence (order field) so the editor receives them in
@@ -223,6 +226,16 @@ export const ListView = memo(function ListView({
     }
     return sortBySequence(result);
   }, [nodes, pagesOnly]);
+
+  // Effective icons for list items/group headers, resolving class inheritance.
+  const effectiveIconMap = useMemo(() => {
+    const map = new Map<string, string | null>();
+    if (!allClasses) return map;
+    for (const node of allNodes) {
+      map.set(node.uuid, getEffectiveIcon(node, allClasses) ?? null);
+    }
+    return map;
+  }, [allNodes, allClasses]);
 
   // Resolve alias: if node is an alias, return the main node instead
   const resolveAlias = useCallback((node: Node): Node => {
@@ -319,8 +332,8 @@ export const ListView = memo(function ListView({
       treeNodes = nodes.filter(n => !n.is_page);
     }
 
-    return { pages, tree: buildGroupTree(treeNodes, levels) };
-  }, [nodes, levels, enableGrouping]);
+    return { pages, tree: buildGroupTree(treeNodes, levels, allClasses) };
+  }, [nodes, levels, enableGrouping, allClasses]);
 
   // Collect and sort nodes for pages section
   const pagesAllNodes = useMemo(() => {
@@ -417,7 +430,7 @@ export const ListView = memo(function ListView({
         renderIcon={(item) => (
           <Bullet
             nodeUuid={item.node.uuid}
-            icon={item.node.icon}
+            icon={effectiveIconMap.get(item.node.uuid) ?? item.node.icon}
             isPage={item.node.is_page}
             interactive={false}
             size="sm"
