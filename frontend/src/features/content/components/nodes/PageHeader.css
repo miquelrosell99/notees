@@ -140,7 +140,6 @@
 
 .page-title-input:focus-visible {
   outline: none;
-  box-shadow: var(--shadow-focus-ring);
 }
 
 .page-title-input--medium {
