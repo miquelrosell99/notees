@@ -5,8 +5,13 @@
  * This replaces the old useRouterSync hook. It preserves the existing tab model:
  * the route tells the store what the active tab should be, and the rest of the
  * app continues to render from the store.
+ *
+ * NOTE: processRoute() is async because it validates UUIDs against the API.
+ * To avoid the stale-closure race that used to live in useNavigationUrlSync,
+ * each invocation increments a generation counter; only the most recent
+ * generation is allowed to update the store or clear the isProcessingUrl flag.
  */
-import { useEffect, useCallback, type MutableRefObject } from 'react';
+import { useEffect, useCallback, useRef, type MutableRefObject } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigationStore, useSettingsStore, useAuthStore, type MainViewType, type DefaultView } from '@/stores';
@@ -36,6 +41,12 @@ interface RouteAdapterRefs {
 }
 
 export function useRouteAdapter({ hasInitialized, isProcessingUrl }: RouteAdapterRefs) {
+  // Monotonic generation counters for in-flight async route-to-store lookups.
+  // They guard against stale async results when the URL or search params change
+  // while a previous lookup is still pending.
+  const routeGenerationRef = useRef(0);
+  const splitGenerationRef = useRef(0);
+
   const params = useParams();
   const workspaceId = params.workspaceId;
   const entityUuid = params['*'];
@@ -122,9 +133,14 @@ export function useRouteAdapter({ hasInitialized, isProcessingUrl }: RouteAdapte
   const processRoute = useCallback(async () => {
     if (!workspaceId || isLoadingDbs || !dbData) return;
 
+    const generation = ++routeGenerationRef.current;
+    const isLatestGeneration = () => generation === routeGenerationRef.current;
+
     isProcessingUrl.current = true;
     try {
       await ensureWorkspace(workspaceId);
+
+      if (!isLatestGeneration()) return;
 
       if (!entityUuid) {
         // Workspace root: honour the user's "Default view" setting. This uses
@@ -157,20 +173,24 @@ export function useRouteAdapter({ hasInitialized, isProcessingUrl }: RouteAdapte
         // property 404s on every page navigation.
         try {
           const node = await getNodeByUuid(uuid);
+          if (!isLatestGeneration()) return;
           log.debug('UUID resolved to node', { uuid, id: node.uuid, is_page: node.is_page });
           openNode(node.uuid);
           return;
         } catch {
+          if (!isLatestGeneration()) return;
           /* not a node */
         }
 
         if (!isDateUuid) {
           try {
             const property = await getPropertyByUuid(uuid);
+            if (!isLatestGeneration()) return;
             log.debug('UUID resolved to property', { uuid, id: property.uuid });
             openPropertyView(property.uuid);
             return;
           } catch {
+            if (!isLatestGeneration()) return;
             /* not a property either */
           }
         }
@@ -184,7 +204,9 @@ export function useRouteAdapter({ hasInitialized, isProcessingUrl }: RouteAdapte
       log.warn('Unknown route segment, going home', { segment: entityUuid });
       goHome();
     } finally {
-      isProcessingUrl.current = false;
+      if (isLatestGeneration()) {
+        isProcessingUrl.current = false;
+      }
       hasInitialized.current = true;
     }
   }, [
@@ -219,9 +241,13 @@ export function useRouteAdapter({ hasInitialized, isProcessingUrl }: RouteAdapte
       return;
     }
 
+    const generation = ++splitGenerationRef.current;
+    const isLatestGeneration = () => generation === splitGenerationRef.current;
+
     const resolveSplit = async () => {
       try {
         const node = await getNodeByUuid(splitUuid);
+        if (!isLatestGeneration()) return;
         openNodeInNewTab(node.uuid);
         const state = useNavigationStore.getState();
         const newTab = state.tabs[state.tabs.length - 1];
@@ -233,6 +259,7 @@ export function useRouteAdapter({ hasInitialized, isProcessingUrl }: RouteAdapte
           });
         }
       } catch {
+        if (!isLatestGeneration()) return;
         log.warn('Split UUID not found, ignoring split', { uuid: splitUuid });
       }
     };

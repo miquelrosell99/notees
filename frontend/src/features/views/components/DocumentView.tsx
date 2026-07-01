@@ -8,7 +8,7 @@
 import { useMemo, useCallback, type JSX, memo } from 'react';
 import { BlockList } from '@/features/content';
 
-import { getNodeByUuid } from '@/api/nodes';
+import { parseLinkId } from '@/lib/astBuilder';
 import { uploadAsset } from '@/features/assets';
 import { generateUUID } from '@/utils/uuid';
 import type { Node } from '@/types';
@@ -72,26 +72,23 @@ export const DocumentView = memo(function DocumentView({
   }, [allNodes]);
 
   // Handler for navigation from editor
-  const handleNavigateToNode = useCallback(async (linkId: string) => {
+  const handleNavigateToNode = useCallback((linkId: string) => {
+    // Resolve to a target UUID synchronously. Use the runtime when available,
+    // otherwise parse the link id. Avoiding an async fetch here eliminates the
+    // stale-closure race where a later click could be overwritten by an earlier
+    // fetch that finishes second.
     const runtime = getOperationRuntime();
     const graphNode = getNode(runtime, linkId);
-    if (graphNode?.blockId) {
-      const targetNode = allNodes.find(n => n.uuid === graphNode.blockId);
-      if (targetNode) {
-        onNodeClick?.(resolveAlias(targetNode));
-      } else {
-        onNodeClick?.({ uuid: graphNode.blockId, is_page: graphNode.isPage } as unknown as Node);
-      }
-      return;
-    }
-    // Node not in runtime — fetch by UUID from API
-    try {
-      const { parseLinkId } = await import('@/lib/astBuilder');
-      const { nodeUuid } = parseLinkId(linkId);
-      const node = await getNodeByUuid(nodeUuid);
-      onNodeClick?.(resolveAlias(node));
-    } catch {
-      // Node not found
+    const nodeUuid = graphNode?.blockId ?? parseLinkId(linkId).nodeUuid;
+
+    const targetNode = allNodes.find(n => n.uuid === nodeUuid);
+    if (targetNode) {
+      onNodeClick?.(resolveAlias(targetNode));
+    } else {
+      // Target is not in the loaded view; pass a minimal node so navigation can
+      // still proceed. Alias redirection is only possible when the node is in
+      // the local allNodes set.
+      onNodeClick?.({ uuid: nodeUuid, is_page: true } as unknown as Node);
     }
   }, [allNodes, onNodeClick, resolveAlias]);
 

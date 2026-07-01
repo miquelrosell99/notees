@@ -15,6 +15,7 @@ from app.models import PaginatedResponse, User
 
 from .dependencies import resolve_class_node_uuid, resolve_class_uuid, resolve_node_uuid
 from .helpers import (
+    _enrich_node_responses_uuids,
     _get_class_ids_batch,
     _get_extends_batch,
     _get_node_service,
@@ -30,6 +31,7 @@ router = APIRouter()
 @router.get("/classes")
 async def list_classes(
     user: User = Depends(get_current_user),
+    node_repo: NodeRepository = Depends(get_node_repository),
 ):
     """List all classes (nodes that can categorize other nodes).
 
@@ -55,6 +57,7 @@ async def list_classes(
         for n in nodes
     ]
     await _resolve_display_names_for_responses(node_service, nodes, nodes_responses)
+    await _enrich_node_responses_uuids(nodes_responses, node_repo)
     return {"nodes": nodes_responses}
 
 
@@ -63,6 +66,7 @@ async def search_classes(
     q: str,
     limit: int = 20,
     user: User = Depends(get_current_user),
+    node_repo: NodeRepository = Depends(get_node_repository),
 ):
     """Search for classes by name.
 
@@ -86,6 +90,7 @@ async def search_classes(
         for n in nodes
     ]
     await _resolve_display_names_for_responses(node_service, nodes, nodes_responses)
+    await _enrich_node_responses_uuids(nodes_responses, node_repo)
     return {"nodes": nodes_responses}
 
 
@@ -95,6 +100,7 @@ async def get_nodes_with_class(
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=500),
     user: User = Depends(get_current_user),
+    node_repo: NodeRepository = Depends(get_node_repository),
 ):
     """Get all nodes that have a specific class.
 
@@ -113,6 +119,7 @@ async def get_nodes_with_class(
 
     items = [_node_to_response(n, classes=class_ids_map.get(n.id, []) if n.id else []) for n in nodes]
     await _resolve_display_names_for_responses(node_service, nodes, items)
+    await _enrich_node_responses_uuids(items, node_repo)
 
     return PaginatedResponse[NodeResponse](
         items=items,
@@ -179,7 +186,9 @@ async def add_node_class(
         pass
 
     classes = await service.get_node_classes(node_id)
-    return _node_to_response(node, classes=[c.id for c in classes if c.id])
+    response = _node_to_response(node, classes=[c.id for c in classes if c.id])
+    await _enrich_node_responses_uuids(response, repo)
+    return response
 
 
 @router.delete("/{node_uuid}/classes/{class_uuid}", dependencies=[Depends(require_write_scope)])
@@ -187,6 +196,7 @@ async def remove_node_class_endpoint(
     node_id: int = Depends(resolve_node_uuid),
     class_id: int = Depends(resolve_class_uuid),
     user: User = Depends(get_current_user),
+    repo: NodeRepository = Depends(get_node_repository),
 ):
     """Remove a class from a node."""
     from app.domain.errors import SystemClassConstraintError
@@ -228,4 +238,6 @@ async def remove_node_class_endpoint(
         pass
 
     classes = await service.get_node_classes(node_id)
-    return _node_to_response(node, classes=[c.id for c in classes if c.id])
+    response = _node_to_response(node, classes=[c.id for c in classes if c.id])
+    await _enrich_node_responses_uuids(response, repo)
+    return response
