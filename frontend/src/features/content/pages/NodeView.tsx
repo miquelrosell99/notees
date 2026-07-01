@@ -19,7 +19,7 @@
  *   1. FocusedBlockContent - Block as top-level list item (list view only)
  *   2. LinkedReferences
  */
-import React, { useState, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useEffectiveNodePermissions } from '@/hooks';
 import { useProperties, useSetNodeProperty, useClassExtends, useAddClassExtends, useRemoveClassExtends, useCreateProperty } from '@/features/properties';
@@ -84,6 +84,7 @@ import { Icon } from '@/components/ui/icons';
 import { getOperationRuntime } from '@/runtime';
 import { getNode, getAllNodes } from '@/runtime/graphHelpers';
 import { upsertNodes } from '@/runtime/eventBus';
+import { apiNodeToGraphNode } from '@/features/content/hooks/useRuntimeSync';
 
 
 // Local storage key for collapse state (banner only; cover derives from image presence)
@@ -359,6 +360,15 @@ export function NodeView({
   
   // Hooks (needed for page header sections)
   const { data: allClasses } = useClasses();
+
+  // Keep the current page itself in the runtime. useBlockTree only syncs children,
+  // so page-level operations (add class, update name, etc.) need the root node too.
+  useEffect(() => {
+    if (node) {
+      upsertNodes([apiNodeToGraphNode(node, allClasses ?? undefined)]);
+    }
+  }, [node, allClasses]);
+
   const { data: allTags } = useTags();
   const { data: aliasedNodeData } = useNode(node?.aliased_uuid ?? null);
   const { data: allProperties } = useProperties();
