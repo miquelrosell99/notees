@@ -11,7 +11,7 @@ export interface AutoExportStatus {
   error: string | null;
 }
 
-export async function autoExportPage(nodeUuid: string): Promise<{ status: string; filename: string }> {
+export async function autoExportPage(nodeUuid: string): Promise<{ filename: string; path: string }> {
   const response = await api.post(`/auto-export/${nodeUuid}`);
   return response.data;
 }
