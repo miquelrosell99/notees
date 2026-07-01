@@ -186,41 +186,6 @@ async def _run_batch_export(
             )
 
 
-@router.post("/{node_uuid}", dependencies=[Depends(require_write_scope)])
-async def auto_export_page(
-    node_uuid: str,
-    user: User = Depends(get_current_user),
-    export_repo: ExportRepository = Depends(get_export_repository),
-    workspace_id: int = Depends(get_workspace_id),
-):
-    """Export a single page to the workspace markdown-export directory."""
-    numeric_user_id = await _get_numeric_user_id(user.id)
-    if not numeric_user_id:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    active_uuid = _active_workspaces.get(user.id)
-
-    workspace_uuid = await get_workspace_uuid(workspace_id)
-    if not workspace_uuid:
-        workspace_uuid = active_uuid
-
-    if not workspace_uuid:
-        raise HTTPException(status_code=400, detail="No active workspace")
-
-    service = _build_auto_export_service(workspace_id, workspace_uuid, export_repo)
-
-    try:
-        filename = await service.write_page_markdown(node_uuid)
-    except ValueError as e:
-        logger.warning(f"Auto-export failed for {node_uuid}: {e}")
-        raise HTTPException(status_code=404, detail=str(e)) from e
-    except Exception as e:
-        logger.error(f"Auto-export error for {node_uuid}: {e}")
-        raise HTTPException(status_code=500, detail=f"Export failed: {e}") from e
-
-    return {"filename": filename, "path": str(service.export_dir / filename)}
-
-
 @router.get("/status")
 async def auto_export_status(
     user: User = Depends(get_current_user),
@@ -273,3 +238,38 @@ async def auto_export_download(
             "Content-Disposition": f'attachment; filename="{zip_filename}"',
         },
     )
+
+
+@router.post("/{node_uuid}", dependencies=[Depends(require_write_scope)])
+async def auto_export_page(
+    node_uuid: str,
+    user: User = Depends(get_current_user),
+    export_repo: ExportRepository = Depends(get_export_repository),
+    workspace_id: int = Depends(get_workspace_id),
+):
+    """Export a single page to the workspace markdown-export directory."""
+    numeric_user_id = await _get_numeric_user_id(user.id)
+    if not numeric_user_id:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    active_uuid = _active_workspaces.get(user.id)
+
+    workspace_uuid = await get_workspace_uuid(workspace_id)
+    if not workspace_uuid:
+        workspace_uuid = active_uuid
+
+    if not workspace_uuid:
+        raise HTTPException(status_code=400, detail="No active workspace")
+
+    service = _build_auto_export_service(workspace_id, workspace_uuid, export_repo)
+
+    try:
+        filename = await service.write_page_markdown(node_uuid)
+    except ValueError as e:
+        logger.warning(f"Auto-export failed for {node_uuid}: {e}")
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    except Exception as e:
+        logger.error(f"Auto-export error for {node_uuid}: {e}")
+        raise HTTPException(status_code=500, detail=f"Export failed: {e}") from e
+
+    return {"filename": filename, "path": str(service.export_dir / filename)}

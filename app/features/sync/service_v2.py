@@ -262,15 +262,37 @@ class SyncServiceV2:
             )
 
         elif op.type == "update_node":
-            data = NodeUpdateData(name=op.name)
+            # Prefer the top-level name field; fall back to properties.name for
+            # clients that pack all updates into properties.
+            name = op.name if op.name is not None else op.properties.get("name") if op.properties else None
+            data = NodeUpdateData(name=name)
             classes: list[int] | None = None
             tags: list[int] | None = None
+            parent_uuid: str | None = None
+            is_page_value: bool | None = None
             if op.properties:
                 for key, value in op.properties.items():
+                    if key == "name":
+                        # Already handled above; skip so we don't overwrite.
+                        continue
                     if key == "icon":
                         data.icon = value
                     elif key == "color":
                         data.color = value
+                    elif key == "parent_uuid":
+                        parent_uuid = value
+                        if value is None:
+                            data.clear_parent = True
+                        else:
+                            parent_id = await self._node_service._node_repo.find_node_id_by_uuid(value)
+                            if parent_id is not None:
+                                data.parent_id = parent_id
+                            else:
+                                logger.warning("Ignoring unknown parent_uuid %s in update_node", value)
+                    elif key == "is_private":
+                        data.is_private = bool(value)
+                    elif key == "is_page":
+                        is_page_value = bool(value)
                     elif key == "class_uuids" and isinstance(value, list):
                         classes = [
                             class_id
@@ -285,11 +307,65 @@ class SyncServiceV2:
                             if (tag_id := await self._node_service._node_repo.find_node_id_by_uuid(tag_uuid))
                             is not None
                         ]
+
+            # Handle block<->page conversion. This changes classes, parent, and
+            # descendant page_ids, so we delegate to the dedicated conversion
+            # helpers instead of a plain update.
+            if is_page_value is not None:
+                current = await self._node_service._node_repo.get_by_id(target_id)
+                current_is_page = current.is_page if current else False
+                if current_is_page != is_page_value:
+                    if is_page_value:
+                        await self._node_service.convert_block_to_page(
+                            target_id, name=name, user_id=self._user_id
+                        )
+                        # Convert already applied name/parent changes; keep only
+                        # cosmetic fields for the follow-up update.
+                        data = NodeUpdateData(icon=data.icon, color=data.color, is_private=data.is_private)
+                    else:
+                        if parent_uuid is None:
+                            raise ValueError(
+                                "Converting a page to a block via update_node requires parent_uuid"
+                            )
+                        parent_id = await self._node_service._node_repo.find_node_id_by_uuid(parent_uuid)
+                        if parent_id is None:
+                            raise ValueError(
+                                f"Unknown parent_uuid {parent_uuid} for page-to-block conversion"
+                            )
+                        await self._node_service.convert_page_to_block(
+                            target_id, parent_id=parent_id, user_id=self._user_id
+                        )
+                        # Convert applied the new parent; keep other fields.
+                        data = NodeUpdateData(
+                            name=name, icon=data.icon, color=data.color, is_private=data.is_private
+                        )
+                    classes = None
+                    tags = None
+
             await self._node_service.update_node(
                 target_id, data, classes=classes, tags=tags, user_id=self._user_id
             )
 
         elif op.type == "create":
+            # Idempotent create: a client retry may send the same UUID again if
+            # the first attempt committed on the server but the response was lost.
+            existing_state = await self._sync_repo.get_node_state_by_uuid(op.node_uuid)
+            if existing_state and existing_state.get("workspace_id") == self._workspace_id:
+                logger.warning(
+                    "Create op for existing node %s in workspace %s; treating as idempotent",
+                    op.node_uuid,
+                    self._workspace_id,
+                )
+                created_ids[op.node_uuid] = existing_state["id"]
+                return AppliedOperation(
+                    type=op.type,
+                    node_uuid=op.node_uuid,
+                    client_id=op.client_id,
+                    seq=op.seq,
+                    parent_uuid=op.parent_uuid,
+                    after_uuid=op.after_uuid,
+                )
+
             content = op.content_ast or []
             name = json.dumps(content)
             parent_id = self._resolve_anchor_id(op.parent_uuid, resolved, created_ids)

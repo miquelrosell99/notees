@@ -73,7 +73,33 @@ export function operationToIntentV2(op: Operation, clientId: string, seq: number
     }
     case 'update_node': {
       const payload = op.payload as { updates?: Record<string, unknown> };
-      return { ...base, properties: payload.updates ?? null };
+      const raw = payload.updates ?? {};
+      const properties: Record<string, unknown> = {};
+      for (const [key, value] of Object.entries(raw)) {
+        if (value === undefined) continue;
+        // Normalize client-side camelCase field names to the snake_case keys
+        // the server expects in update_node properties.
+        switch (key) {
+          case 'parentId':
+            properties.parent_uuid = value;
+            break;
+          case 'isPage':
+            properties.is_page = value;
+            break;
+          case 'isPrivate':
+            properties.is_private = value;
+            break;
+          case 'classIds':
+            properties.class_uuids = value;
+            break;
+          case 'tagIds':
+            properties.tag_uuids = value;
+            break;
+          default:
+            properties[key] = value;
+        }
+      }
+      return { ...base, properties: Object.keys(properties).length > 0 ? properties : null };
     }
     case 'create': {
       const payload = op.payload as {
