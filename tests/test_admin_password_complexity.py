@@ -78,4 +78,4 @@ async def test_admin_update_user_accepts_strong_password(
     )
     assert response.status_code == 200, response.text
     data = response.json()
-    assert data["id"] == str(target_user_id)
+    assert data["uuid"] == str(test_user["uuid"])

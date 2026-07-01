@@ -17,6 +17,8 @@ from app.dependencies import (
     _get_node_service_for_workspace,
     get_current_user,
     get_node_repository,
+    require_read_or_write_scope,
+    require_write_scope,
 )
 from app.features.auth import hash_password
 from app.features.nodes.port import NodeRepository
@@ -40,7 +42,11 @@ logger = get_logger(__name__)
 # Workspace-level share router
 # -----------------------------------------------------------------------------
 
-workspace_shares_router = APIRouter(prefix="/shares", tags=["Shares"])
+workspace_shares_router = APIRouter(
+    prefix="/shares",
+    tags=["Shares"],
+    dependencies=[Depends(get_current_user), Depends(require_read_or_write_scope)],
+)
 
 
 def _workspace_share_to_response(share, resolved_names: dict | None = None) -> dict:
@@ -52,7 +58,6 @@ def _workspace_share_to_response(share, resolved_names: dict | None = None) -> d
         node_name = _name_text(node_name_raw) or "Untitled"
     return {
         "share_uuid": share.uuid,
-        "node_id": share.node_id,
         "created_at": share.created_at,
         "expiry_date": share.expiry_date,
         "url": f"/s/{share.uuid}",
@@ -84,7 +89,7 @@ async def list_workspace_shares(
     return {"shares": [_workspace_share_to_response(s, resolved) for s in shares]}
 
 
-@workspace_shares_router.delete("/{share_uuid}")
+@workspace_shares_router.delete("/{share_uuid}", dependencies=[Depends(require_write_scope)])
 async def delete_share(
     share_uuid: str,
     user: User = Depends(get_current_user),  # noqa: B008
@@ -175,7 +180,6 @@ def _node_share_to_response(share, request: Request | None = None) -> dict:
         url = f"{base_url}/s/{share.uuid}"
     return {
         "share_uuid": share.uuid,
-        "node_id": share.node_id,
         "created_at": share.created_at,
         "expiry_date": share.expiry_date,
         "url": url,
@@ -189,7 +193,10 @@ class PublicShareCreateRequest(BaseModel):
 
 @node_shares_router.post(
     "/{node_uuid}/shares",
-    dependencies=[Depends(RateLimiter(limiter=_node_shares_limiter))],
+    dependencies=[
+        Depends(RateLimiter(limiter=_node_shares_limiter)),
+        Depends(require_write_scope),
+    ],
 )
 async def create_share(
     request: Request,
@@ -251,7 +258,7 @@ class UserShareResponse(BaseModel):
     created_by: int
 
 
-@node_shares_router.post("/{node_uuid}/user-shares")
+@node_shares_router.post("/{node_uuid}/user-shares", dependencies=[Depends(require_write_scope)])
 async def create_user_share(
     node_uuid: str,
     body: UserShareCreateRequest = ...,  # type: ignore[assignment]
@@ -312,7 +319,7 @@ async def list_node_user_shares(
     }
 
 
-@node_shares_router.delete("/user-shares/{share_uuid}")
+@node_shares_router.delete("/user-shares/{share_uuid}", dependencies=[Depends(require_write_scope)])
 async def revoke_user_share(
     share_uuid: str,
     user: User = Depends(get_current_user),  # noqa: B008

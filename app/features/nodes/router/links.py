@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.dependencies import get_current_user, get_node_repository, get_property_repository
+from app.dependencies import get_current_user, get_node_repository, get_property_repository, require_write_scope
 from app.domain.entities import BacklinkInfo
 from app.domain.errors import NodeNotFoundError, NodeValidationError
 from app.features.nodes.link_service import LinkParsingService
@@ -129,7 +129,7 @@ async def get_batch_text_links(
     return {"links_by_node": links_by_node}
 
 
-@router.post("/{node_uuid}/tag-links")
+@router.post("/{node_uuid}/tag-links", dependencies=[Depends(require_write_scope)])
 async def add_tag_link(
     request: TagLinkRequest,
     node_id: int = Depends(resolve_node_uuid),
@@ -176,7 +176,7 @@ async def add_tag_link(
     return {"success": True}
 
 
-@router.delete("/{node_uuid}/tag-links/{target_uuid}")
+@router.delete("/{node_uuid}/tag-links/{target_uuid}", dependencies=[Depends(require_write_scope)])
 async def remove_tag_link(
     node_id: int = Depends(resolve_node_uuid),
     target_id: int = Depends(resolve_target_uuid),
@@ -581,7 +581,7 @@ async def get_aliases(
     return {"aliases": aliases}
 
 
-@router.post("/{node_uuid}/aliases")
+@router.post("/{node_uuid}/aliases", dependencies=[Depends(require_write_scope)])
 async def add_alias(
     request: AliasRequest,
     node_id: int = Depends(resolve_node_uuid),
@@ -634,7 +634,7 @@ async def add_alias(
     return response
 
 
-@router.delete("/{node_uuid}/aliases/{alias_uuid}")
+@router.delete("/{node_uuid}/aliases/{alias_uuid}", dependencies=[Depends(require_write_scope)])
 async def remove_alias(
     node_id: int = Depends(resolve_node_uuid),
     alias_id: int = Depends(resolve_alias_uuid),
@@ -670,7 +670,7 @@ async def remove_alias(
     return {"removed": True}
 
 
-@router.post("/rebuild-links")
+@router.post("/rebuild-links", dependencies=[Depends(require_write_scope)])
 async def rebuild_all_links(
     user: User = Depends(get_current_user),
 ):
@@ -696,7 +696,7 @@ async def rebuild_all_links(
         raise HTTPException(500, f"Failed to rebuild links: {str(e)}") from e
 
 
-@router.post("/fix-raw-uuid-links")
+@router.post("/fix-raw-uuid-links", dependencies=[Depends(require_write_scope)])
 async def fix_raw_uuid_links(
     user: User = Depends(get_current_user),
 ):
@@ -722,7 +722,7 @@ async def fix_raw_uuid_links(
         raise HTTPException(500, f"Failed to fix raw UUID links: {str(e)}") from e
 
 
-@router.post("/fix-links-for-uuid/{target_uuid}")
+@router.post("/fix-links-for-uuid/{target_uuid}", dependencies=[Depends(require_write_scope)])
 async def fix_links_for_uuid(
     target_uuid: str,
     user: User = Depends(get_current_user),
@@ -779,7 +779,7 @@ async def get_unlinked_mentions(
     }
 
 
-@router.post("/{node_uuid}/mentions/{mention_uuid}/promote")
+@router.post("/{node_uuid}/mentions/{mention_uuid}/promote", dependencies=[Depends(require_write_scope)])
 async def promote_mention(
     node_id: int = Depends(resolve_node_uuid),
     mention_id: int = Depends(resolve_mention_uuid),
@@ -800,7 +800,7 @@ async def promote_mention(
     return {"success": True, "source_node_id": updated.id}
 
 
-@router.post("/{node_uuid}/mentions/{mention_uuid}/ignore")
+@router.post("/{node_uuid}/mentions/{mention_uuid}/ignore", dependencies=[Depends(require_write_scope)])
 async def ignore_mention(
     node_id: int = Depends(resolve_node_uuid),
     mention_id: int = Depends(resolve_mention_uuid),
@@ -814,7 +814,7 @@ async def ignore_mention(
     return {"success": True, "is_ignored": True}
 
 
-@router.post("/{node_uuid}/mentions/{mention_uuid}/unignore")
+@router.post("/{node_uuid}/mentions/{mention_uuid}/unignore", dependencies=[Depends(require_write_scope)])
 async def unignore_mention(
     node_id: int = Depends(resolve_node_uuid),
     mention_id: int = Depends(resolve_mention_uuid),

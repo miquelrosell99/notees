@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, Depends
 
-from app.dependencies import get_current_user, get_settings_repository
+from app.dependencies import get_current_user, get_settings_repository, require_write_scope
 from app.domain.entities import NodeUpdateData
 from app.domain.repositories.interfaces import SettingsRepository
 from app.models import User
@@ -17,7 +17,10 @@ from .models import DateFormatUpdateRequest
 router = APIRouter()
 
 
-@router.post("/settings/update-date-format")
+@router.post(
+    "/settings/update-date-format",
+    dependencies=[Depends(require_write_scope)],
+)
 async def update_date_format(
     request: DateFormatUpdateRequest,
     user: User = Depends(get_current_user),

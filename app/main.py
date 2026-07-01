@@ -69,7 +69,7 @@ from .infrastructure.export.share_files import get_static_share_path
 from .logging_config import get_logger, setup_logging
 from .plugins.core import plugin_manager
 from .plugins.core.bootstrap import register_core_ports
-from .rate_limit import PerKeyBucketFactory, ip_only_identifier
+from .rate_limit import PerKeyBucketFactory, ip_only_identifier, per_ip_limiter
 from .routers import (
     activity_router,
     admin_router,
@@ -177,12 +177,17 @@ async def lifespan(app: FastAPI):
 
 
 # Create FastAPI app
+# In production, docs/redoc can be disabled via ENABLE_DOCS=false for defense-in-depth.
+_docs_url = "/docs" if settings.enable_docs or settings.environment.lower() != "production" else None
+_redoc_url = "/redoc" if settings.enable_docs or settings.environment.lower() != "production" else None
 app = FastAPI(
     title="Notees",
     version="2.0.0",
     description="A self-hosted note-taking app with bidirectional linking",
     lifespan=lifespan,
     redirect_slashes=True,  # Redirect /api/nodes to /api/nodes/
+    docs_url=_docs_url,
+    redoc_url=_redoc_url,
 )
 plugin_manager.bind_app(app)
 
@@ -634,8 +639,15 @@ async def service_worker():
 
 # ============ Public share HTML (before SPA fallback) ============
 
+_share_limiter = per_ip_limiter(60, Duration.MINUTE)
 
-@app.get("/s/{share_uuid}", response_class=HTMLResponse, include_in_schema=False)
+
+@app.get(
+    "/s/{share_uuid}",
+    response_class=HTMLResponse,
+    include_in_schema=False,
+    dependencies=[Depends(RateLimiter(limiter=_share_limiter, identifier=ip_only_identifier))],
+)
 async def serve_share_html(share_uuid: str):
     """Serve pre-generated static HTML for a public share, or fall back to SPA."""
     html_path = get_static_share_path(share_uuid)

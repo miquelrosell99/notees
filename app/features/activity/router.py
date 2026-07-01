@@ -6,7 +6,7 @@ Handles logging and retrieving node activity (edits, link additions, etc.)
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from app.dependencies import get_current_user, get_node_repository
+from app.dependencies import get_current_user, get_node_repository, require_read_or_write_scope, require_write_scope
 from app.domain.stringify_ast import ParseMode, StringifyMode, StringifyOptions, parse_ast, stringify_ast
 from app.features.activity.dependencies import get_activity_repository
 from app.features.activity.port import ActivityRepository
@@ -16,7 +16,11 @@ from app.logging_config import get_logger
 from app.models import User
 from app.utils import utc_now
 
-router = APIRouter(prefix="/activity", tags=["Activity"])
+router = APIRouter(
+    prefix="/activity",
+    tags=["Activity"],
+    dependencies=[Depends(get_current_user), Depends(require_read_or_write_scope)],
+)
 logger = get_logger(__name__)
 
 
@@ -119,7 +123,7 @@ async def get_node_activity(
     ]
 
 
-@router.post("/node/{node_uuid}", response_model=NodeActivityResponse)
+@router.post("/node/{node_uuid}", response_model=NodeActivityResponse, dependencies=[Depends(require_write_scope)])
 async def create_node_activity(
     node_uuid: str,
     data: NodeActivityCreate,
@@ -169,7 +173,7 @@ async def create_node_activity(
     )
 
 
-@router.delete("/node/{node_uuid}/{activity_uuid}")
+@router.delete("/node/{node_uuid}/{activity_uuid}", dependencies=[Depends(require_write_scope)])
 async def delete_node_activity(
     node_uuid: str,
     activity_uuid: str,
@@ -190,7 +194,7 @@ async def delete_node_activity(
 # ============== Link Click Tracking Endpoints ==============
 
 
-@router.post("/link/click", response_model=LinkClickResponse)
+@router.post("/link/click", response_model=LinkClickResponse, dependencies=[Depends(require_write_scope)])
 async def track_link_click(
     data: LinkClickRequest,
     user: User = Depends(get_current_user),
@@ -280,7 +284,7 @@ async def get_link_click_history(
     ]
 
 
-@router.post("/link/reset/{source_node_uuid}/{target_node_uuid}")
+@router.post("/link/reset/{source_node_uuid}/{target_node_uuid}", dependencies=[Depends(require_write_scope)])
 async def reset_link_click(
     source_node_uuid: str,
     target_node_uuid: str,

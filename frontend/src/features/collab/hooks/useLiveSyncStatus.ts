@@ -9,7 +9,7 @@
 import { useEffect, useState } from 'react';
 import { liveSyncManager } from '../LiveSyncManager';
 
-export type LiveSyncStatus = 'connected' | 'disconnected' | 'connecting' | 'error' | 'idle';
+export type LiveSyncStatus = 'connected' | 'disconnected' | 'connecting' | 'error' | 'idle' | 'unauthorized';
 
 export function useLiveSyncStatus(): LiveSyncStatus {
   const [status, setStatus] = useState<LiveSyncStatus>('idle');

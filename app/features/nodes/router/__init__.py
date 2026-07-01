@@ -18,7 +18,9 @@ The monolithic nodes.py has been split into:
 - settings.py: Settings endpoints (date format, etc.)
 """
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+
+from app.dependencies import get_current_user, require_read_or_write_scope, require_write_scope
 
 # Property value endpoints are mounted under the nodes router.
 # They live in the properties feature but their paths start with /{node_id}/properties,
@@ -111,7 +113,13 @@ __all__ = [
 ]
 
 # Create the main router
-router = APIRouter(prefix="/nodes", tags=["Nodes"])
+# All node endpoints require authentication. Read endpoints accept read or write
+# API-key scopes; mutating endpoints additionally require write scope.
+router = APIRouter(
+    prefix="/nodes",
+    tags=["Nodes"],
+    dependencies=[Depends(get_current_user), Depends(require_read_or_write_scope)],
+)
 
 # Include all sub-routers
 # Order matters! More specific routes must come before parameterized routes.
@@ -136,10 +144,11 @@ router.include_router(settings_router)
 router.include_router(views_router, prefix="/views")
 
 # Batch endpoints (POST /batch, PUT /batch, DELETE /batch, POST /batch-get)
-router.include_router(batch_router)
+# Bulk operations require write scope even for reads.
+router.include_router(batch_router, dependencies=[Depends(require_write_scope)])
 
 # Trash endpoints (GET /trash, POST /trash/empty, POST /trash/batch-delete)
-router.include_router(trash_router)
+router.include_router(trash_router, dependencies=[Depends(require_write_scope)])
 
 # Template endpoints (GET /templates, GET /{node_id}/template-variables, POST /{node_id}/instantiate)
 router.include_router(templates_router)

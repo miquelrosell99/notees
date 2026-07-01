@@ -51,7 +51,7 @@ export function useLivePageSync({ nodeUuid, enabled = true }: UseLivePageSyncOpt
   const queryClient = useQueryClient();
   const unsubRef = useRef<(() => void) | null>(null);
   const authVerified = useAuthStore((s) => s.authVerified);
-  const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'connecting' | 'error' | 'idle'>('idle');
+  const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'connecting' | 'error' | 'idle' | 'unauthorized'>('idle');
 
   const { data: workspacesData } = useWorkspaces({ enabled: authVerified });
   const activeWorkspace = useMemo(() => {

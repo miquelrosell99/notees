@@ -62,6 +62,27 @@ export function clearUserData(): void {
 }
 
 /**
+ * Clean up client-side auth state and redirect to the login page.
+ *
+ * Called from the API client (after refresh fails) and from the live-sync
+ * WebSocket (when the server closes the socket with an auth error).
+ */
+export function handleAuthFailure(): void {
+  clearUserData();
+  localStorage.removeItem('auth-storage');
+  // Notify other tabs / listeners that this session has ended.
+  try {
+    localStorage.setItem('auth:logout', Date.now().toString());
+  } catch {
+    // Ignore storage errors (e.g., private mode).
+  }
+  window.dispatchEvent(new CustomEvent('auth:unauthorized'));
+  if (window.location.pathname !== '/auth') {
+    window.location.href = '/auth';
+  }
+}
+
+/**
  * Check if user data exists. Note: this does not verify that the session is
  * still valid; call /api/auth/me to confirm authentication state.
  */

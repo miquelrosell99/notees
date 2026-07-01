@@ -191,6 +191,7 @@ class User(UserBase):
     role: str = "user"
     created_at: datetime
     is_active: bool = True
+    scopes: list[str] | None = None
 
     class Config:
         from_attributes = True

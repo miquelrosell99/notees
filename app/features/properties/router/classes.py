@@ -11,6 +11,7 @@ from app.dependencies import (
 from app.dependencies import (
     get_current_user,
     get_node_repository,
+    require_write_scope,
 )
 from app.features.nodes.port import NodeRepository
 from app.features.nodes.router.dependencies import (
@@ -80,7 +81,7 @@ class BatchClassPropertyResponse(BaseModel):
     failed: int
 
 
-@router.post("/classes/batch/properties")
+@router.post("/classes/batch/properties", dependencies=[Depends(require_write_scope)])
 async def batch_add_class_properties(
     request: BatchClassPropertyRequest,
     service: PropertyService = Depends(get_property_service),
@@ -163,7 +164,7 @@ async def get_class_properties(
     return {"class_properties": result}
 
 
-@router.post("/classes/{class_node_uuid}/properties")
+@router.post("/classes/{class_node_uuid}/properties", dependencies=[Depends(require_write_scope)])
 async def add_class_property(
     class_node_uuid: str,
     request: ClassPropertyRequest,
@@ -196,7 +197,7 @@ async def add_class_property(
     return await _class_property_to_response(cp, prop, class_uuid_map)
 
 
-@router.delete("/classes/{class_node_uuid}/properties/{property_uuid}")
+@router.delete("/classes/{class_node_uuid}/properties/{property_uuid}", dependencies=[Depends(require_write_scope)])
 async def remove_class_property(
     class_node_uuid: str,
     property_uuid: str,
@@ -212,7 +213,7 @@ async def remove_class_property(
     return {"status": "ok"}
 
 
-@router.patch("/classes/{class_node_uuid}/properties/{property_uuid}")
+@router.patch("/classes/{class_node_uuid}/properties/{property_uuid}", dependencies=[Depends(require_write_scope)])
 async def update_class_property(
     class_node_uuid: str,
     property_uuid: str,
@@ -242,7 +243,7 @@ class ReorderClassPropertiesRequest(BaseModel):
     property_uuids: list[str]
 
 
-@router.put("/classes/{class_node_uuid}/properties/reorder")
+@router.put("/classes/{class_node_uuid}/properties/reorder", dependencies=[Depends(require_write_scope)])
 async def reorder_class_properties(
     class_node_uuid: str,
     class_node_id: int = Depends(resolve_class_node_uuid),
@@ -304,7 +305,7 @@ async def get_class_extends(
     return {"extends": result}
 
 
-@router.post("/classes/{class_node_uuid}/extends")
+@router.post("/classes/{class_node_uuid}/extends", dependencies=[Depends(require_write_scope)])
 async def add_class_extends(
     class_node_uuid: str,
     class_node_id: int = Depends(resolve_class_node_uuid),
@@ -351,7 +352,7 @@ async def add_class_extends(
     )
 
 
-@router.delete("/classes/{class_node_uuid}/extends/{extends_class_node_uuid}")
+@router.delete("/classes/{class_node_uuid}/extends/{extends_class_node_uuid}", dependencies=[Depends(require_write_scope)])
 async def remove_class_extends(
     class_node_uuid: str = Path(...),
     extends_class_node_uuid: str = Path(...),

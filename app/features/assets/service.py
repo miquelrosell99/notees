@@ -324,7 +324,7 @@ class AssetService:
         content_type = self._infer_content_type(file_path)
         return {
             "uuid": node.uuid,
-            "node_id": node.id,
+            "node_uuid": node.uuid,
             "filename": original_filename if original_filename is not None else node.name,
             "content_type": content_type,
             "category": get_asset_category(content_type),

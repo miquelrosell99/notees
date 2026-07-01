@@ -6,7 +6,7 @@
  * send focus/blur/block-update events without prop-drilling.
  */
 
-
+import { handleAuthFailure } from '@/utils/auth';
 
 export interface LiveSyncUser {
   nodeUuid: string;
@@ -29,7 +29,7 @@ export type LiveSyncMessage =
   | { type: 'yjs_update'; node_uuid: string; update_blob: string };
 
 type MessageListener = (msg: LiveSyncMessage) => void;
-type StatusListener = (status: 'connected' | 'disconnected' | 'connecting' | 'error' | 'idle') => void;
+type StatusListener = (status: 'connected' | 'disconnected' | 'connecting' | 'error' | 'idle' | 'unauthorized') => void;
 
 export class LiveSyncManager {
   private ws: WebSocket | null = null;
@@ -43,7 +43,7 @@ export class LiveSyncManager {
   private reconnectAttempts = 0;
   private intentionalClose = false;
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
-  private status: 'connected' | 'disconnected' | 'connecting' | 'error' | 'idle' = 'idle';
+  private status: 'connected' | 'disconnected' | 'connecting' | 'error' | 'idle' | 'unauthorized' = 'idle';
 
   /** Subscribe to incoming server messages. */
   onMessage(cb: MessageListener): () => void {
@@ -210,13 +210,24 @@ export class LiveSyncManager {
       }
     };
 
-    ws.onclose = () => {
+    ws.onclose = (event: CloseEvent) => {
       if (this.ws !== ws) return;
       this.ws = null;
       if (this.heartbeatTimer) {
         clearInterval(this.heartbeatTimer);
         this.heartbeatTimer = null;
       }
+
+      // 4001 is the custom close code used by the backend when the access token
+      // is missing or expired. Stop reconnecting and redirect to login; without
+      // this the manager would loop, spamming the console with connection errors.
+      if (event.code === 4001) {
+        this.intentionalClose = true;
+        this._setStatus('unauthorized');
+        handleAuthFailure();
+        return;
+      }
+
       if (!this.intentionalClose) {
         this._setStatus('disconnected');
         this._scheduleReconnect();

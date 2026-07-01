@@ -11,8 +11,9 @@ not here. The values.py module exists but is not included because its routes
 start with /nodes/ which would create incorrect paths under /api/properties.
 """
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
+from app.dependencies import get_current_user, require_read_or_write_scope
 from app.features.properties.models import (
     ClassExtendsRequest,
     ClassExtendsResponse,
@@ -39,7 +40,11 @@ from app.features.properties.router.selection_lines import router as selection_l
 from app.features.properties.router.values import router as property_values_router
 
 # Main router that combines all sub-routers
-router = APIRouter(prefix="/properties", tags=["Properties"])
+router = APIRouter(
+    prefix="/properties",
+    tags=["Properties"],
+    dependencies=[Depends(get_current_user), Depends(require_read_or_write_scope)],
+)
 
 # Include sub-routers with proper ordering
 # Note: More specific routes must come before generic ones to avoid conflicts

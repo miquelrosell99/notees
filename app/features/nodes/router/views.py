@@ -15,6 +15,7 @@ from app.dependencies import (
     get_node_view_repository,
     get_property_repository,
     get_query_executor,
+    require_write_scope,
 )
 from app.domain.entities.query_ast import QueryAST
 from app.domain.errors import DomainError
@@ -499,7 +500,7 @@ async def get_default_view(
     )
 
 
-@router.post("", response_model=NodeViewResponse)
+@router.post("", response_model=NodeViewResponse, dependencies=[Depends(require_write_scope)])
 async def create_node_view(
     request: NodeViewCreateRequest,
     node_repo: NodeRepository = Depends(get_node_repository),
@@ -537,7 +538,7 @@ async def create_node_view(
     return await _node_view_to_response(view, node_uuid_map=node_uuid_map, include_query_ast=True, user=user)
 
 
-@router.put("/{view_uuid}", response_model=NodeViewResponse)
+@router.put("/{view_uuid}", response_model=NodeViewResponse, dependencies=[Depends(require_write_scope)])
 async def update_node_view(
     request: NodeViewUpdateRequest,
     view_id: int = Depends(resolve_view_uuid),
@@ -563,7 +564,7 @@ async def update_node_view(
     return await _node_view_to_response(view, node_uuid_map=node_uuid_map, include_query_ast=True, user=user)
 
 
-@router.put("/{view_uuid}/query-ast", response_model=NodeViewResponse)
+@router.put("/{view_uuid}/query-ast", response_model=NodeViewResponse, dependencies=[Depends(require_write_scope)])
 async def update_query_ast(
     request: QueryASTUpdateRequest,
     view_id: int = Depends(resolve_view_uuid),
@@ -632,7 +633,7 @@ async def validate_query_ast_endpoint(
         }
 
 
-@router.delete("/{view_uuid}", response_model=dict[str, bool])
+@router.delete("/{view_uuid}", response_model=dict[str, bool], dependencies=[Depends(require_write_scope)])
 async def delete_node_view(
     view_id: int = Depends(resolve_view_uuid),
     user: User = Depends(get_current_user),
@@ -664,7 +665,7 @@ async def delete_node_view(
     return {"deleted": True}
 
 
-@router.post("/reorder/{node_uuid}/{view_type}", response_model=dict[str, list[NodeViewResponse]])
+@router.post("/reorder/{node_uuid}/{view_type}", response_model=dict[str, list[NodeViewResponse]], dependencies=[Depends(require_write_scope)])
 async def reorder_node_views(
     node_id: int = Depends(resolve_node_uuid),
     view_type: str = ...,
@@ -919,7 +920,7 @@ async def count_query_results(
     return {"count": count}
 
 
-@router.post("/ensure-defaults/{node_uuid}", response_model=dict[str, list[NodeViewResponse]])
+@router.post("/ensure-defaults/{node_uuid}", response_model=dict[str, list[NodeViewResponse]], dependencies=[Depends(require_write_scope)])
 async def ensure_default_views(
     node_id: int = Depends(resolve_node_uuid),
     node_repo: NodeRepository = Depends(get_node_repository),
@@ -967,7 +968,7 @@ async def ensure_default_views(
     return {"views": responses}
 
 
-@router.post("/reset/{node_uuid}", response_model=dict[str, list[NodeViewResponse]])
+@router.post("/reset/{node_uuid}", response_model=dict[str, list[NodeViewResponse]], dependencies=[Depends(require_write_scope)])
 async def reset_node_views(
     node_id: int = Depends(resolve_node_uuid),
     node_repo: NodeRepository = Depends(get_node_repository),

@@ -9,7 +9,13 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from app.dependencies import get_current_user, get_node_repository, get_node_service
+from app.dependencies import (
+    get_current_user,
+    get_node_repository,
+    get_node_service,
+    require_read_or_write_scope,
+    require_write_scope,
+)
 from app.domain.entities import TaskCompletion, TaskRecurrence
 from app.features.nodes.node_service import NodeService
 from app.features.nodes.port import NodeRepository
@@ -29,7 +35,11 @@ from app.features.tasks.port import TaskCompletionRepository, TaskRecurrenceRepo
 from app.features.tasks.service import describe_rule
 from app.models import User
 
-router = APIRouter(prefix="/tasks", tags=["tasks"])
+router = APIRouter(
+    prefix="/tasks",
+    tags=["tasks"],
+    dependencies=[Depends(get_current_user), Depends(require_read_or_write_scope)],
+)
 
 
 async def _require_task(
@@ -107,7 +117,7 @@ async def get_recurrence_rule(
     return _entity_to_recurrence_response(rule)
 
 
-@router.put("/{node_uuid}/recurrence", response_model=RecurrenceRuleResponse)
+@router.put("/{node_uuid}/recurrence", response_model=RecurrenceRuleResponse, dependencies=[Depends(require_write_scope)])
 async def set_recurrence_rule(
     node_uuid: str,
     request: RecurrenceRuleRequest,
@@ -136,7 +146,7 @@ async def set_recurrence_rule(
     return _entity_to_recurrence_response(saved)
 
 
-@router.delete("/{node_uuid}/recurrence")
+@router.delete("/{node_uuid}/recurrence", dependencies=[Depends(require_write_scope)])
 async def delete_recurrence_rule(
     node_uuid: str,
     user: User = Depends(get_current_user),
@@ -168,7 +178,7 @@ async def list_task_completions(
     return [_entity_to_completion_response(c) for c in completions]
 
 
-@router.post("/{node_uuid}/completions", response_model=TaskCompletionResponse)
+@router.post("/{node_uuid}/completions", response_model=TaskCompletionResponse, dependencies=[Depends(require_write_scope)])
 async def record_task_completion(
     node_uuid: str,
     request: TaskCompletionRequest,
@@ -191,7 +201,7 @@ async def record_task_completion(
     return _entity_to_completion_response(saved)
 
 
-@router.delete("/{node_uuid}/completions/{completion_uuid}")
+@router.delete("/{node_uuid}/completions/{completion_uuid}", dependencies=[Depends(require_write_scope)])
 async def delete_task_completion(
     node_uuid: str,
     completion_id: int = Depends(resolve_task_completion_uuid),
