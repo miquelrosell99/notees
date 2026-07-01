@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { Node } from '@/types/api';
+import * as nodesApi from '@/api/nodes';
 import { nodeKeys, propertyKeys } from '@/hooks/queryKeys';
 import { nodeViewKeys } from './useNodeViews';
 import { awaitAllContentSaves } from '@/hooks/contentSaveTracker';
@@ -26,17 +27,20 @@ export function useAddClass() {
       const classUuid = classId;
       if (!classUuid) throw new Error('Class UUID not found');
       const blockId = ensureNodeInRuntime(nodeUuid);
-      if (!blockId) {
-        throw new Error(`Node ${nodeUuid} is not available in the runtime`);
+
+      if (blockId) {
+        // Optimistic runtime path
+        const operationId = await applyNodeIntent({
+          type: 'add_class',
+          blockId,
+          classId: classUuid,
+        });
+        await waitForOperationAck(operationId);
+        return findNodeInCache(queryClient, nodeUuid);
       }
 
-      const operationId = await applyNodeIntent({
-        type: 'add_class',
-        blockId,
-        classId: classUuid,
-      });
-      await waitForOperationAck(operationId);
-      return findNodeInCache(queryClient, nodeUuid);
+      // Fallback: node is not in the runtime or any cache, use direct API
+      return nodesApi.addClass(nodeUuid, classUuid);
     },
     onSuccess: (updatedNode, { nodeUuid, classId }) => {
       if (!updatedNode) return;

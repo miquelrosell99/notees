@@ -167,6 +167,68 @@ export function findNodeInCache(queryClient: QueryClient, nodeUuid: string): Nod
 }
 
 /**
+ * Find a node anywhere in the query cache — by-uuid, detail, page-content,
+ * uuid-batch, list, flat result, and metadata caches.
+ */
+export function findNodeInAnyCache(queryClient: QueryClient, nodeUuid: string): Node | null {
+  // Fast path: directly keyed by UUID
+  const byUuid = queryClient.getQueryData<Node>(nodeKeys.byUuid(nodeUuid));
+  if (byUuid) return byUuid;
+
+  const metadata = queryClient.getQueryData<Node>(nodeKeys.metadata(nodeUuid));
+  if (metadata) return metadata;
+
+  // Tree caches
+  const fromTree = findNodeInCache(queryClient, nodeUuid);
+  if (fromTree) return fromTree;
+
+  const queryCache = queryClient.getQueryCache();
+
+  // UUID-batch caches (tab bar, bulk fetches)
+  for (const query of queryCache.findAll({ queryKey: nodeKeys.all })) {
+    const key = query.queryKey;
+    if (key[1] === 'uuid-batch') {
+      const data = query.state.data as { nodes: Record<string, Node> } | undefined;
+      if (data?.nodes?.[nodeUuid]) return data.nodes[nodeUuid];
+    }
+  }
+
+  // Flat array caches (query results, pseudo-node queries, inline queries)
+  for (const query of queryCache.findAll({ queryKey: nodeViewKeys.queryResults() })) {
+    const data = query.state.data as Node[] | undefined;
+    if (data) {
+      const found = data.find((n) => n.uuid === nodeUuid);
+      if (found) return found;
+    }
+  }
+  for (const query of queryCache.findAll({ queryKey: nodeKeys.pseudoNodeQuery() })) {
+    const data = query.state.data as Node[] | undefined;
+    if (data) {
+      const found = data.find((n) => n.uuid === nodeUuid);
+      if (found) return found;
+    }
+  }
+  for (const query of queryCache.findAll({ queryKey: nodeKeys.inlineQuery() })) {
+    const data = query.state.data as Node[] | undefined;
+    if (data) {
+      const found = data.find((n) => n.uuid === nodeUuid);
+      if (found) return found;
+    }
+  }
+
+  // List caches (sidebar, search)
+  for (const query of queryCache.findAll({ queryKey: nodeKeys.lists() })) {
+    const data = query.state.data as Node[] | undefined;
+    if (data) {
+      const found = data.find((n) => n.uuid === nodeUuid);
+      if (found) return found;
+    }
+  }
+
+  return null;
+}
+
+/**
  * Check if a node has the table class.
  */
 export function hasTableClass(node: Node, allClasses: Node[] | undefined): boolean {
@@ -230,10 +292,11 @@ export function ensureNodeInRuntime(nodeUuid: string): string | null {
   }
 
   let cachedNode: Node | null | undefined = queryClient.getQueryData<Node>(nodeKeys.byUuid(nodeUuid));
-  // The node may only be cached inside a parent page's detail/page-content tree
-  // (e.g. a child block the user is interacting with before any by-uuid fetch).
+  // The node may only be cached inside a parent page's detail/page-content tree,
+  // a uuid-batch entry, a list result, etc. (e.g. a block the user is interacting
+  // with before any individual by-uuid fetch).
   if (!cachedNode) {
-    cachedNode = findNodeInCache(queryClient, nodeUuid);
+    cachedNode = findNodeInAnyCache(queryClient, nodeUuid);
   }
   if (!cachedNode) return null;
 
