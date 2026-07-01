@@ -89,56 +89,30 @@ export function InlineLink({ linkId, refType, url, label }: InlineLinkProps) {
     [editor, linkId],
   );
 
-  const handleOpen = useCallback(async () => {
+  const handleOpen = useCallback(() => {
     if (refType === 'url' && url) {
       window.open(url, '_blank', 'noopener,noreferrer');
       return;
     }
     if (!nodeUuid) return;
 
-    const runtime = getOperationRuntime();
-    const graphNode = getNode(runtime, nodeUuid);
-
-    if (graphNode?.blockId) {
-      openNode(graphNode.blockId);
-      return;
-    }
-
-    // Fallback: fetch by UUID
-    try {
-      const { getNodeByUuid } = await import('@/api/nodes');
-      const node = await getNodeByUuid(nodeUuid);
-      if (node) {
-        openNode(node.uuid);
-      }
-    } catch {
-      // Node not found or network error — silently ignore
-    }
+    // The link stores the target UUID directly. The runtime lookup is only used
+    // to determine page vs block for the sidebar; for main-view navigation we
+    // can navigate synchronously and avoid the stale-async race of a fetch that
+    // completes after the user has clicked another link.
+    openNode(nodeUuid);
   }, [refType, url, nodeUuid, openNode]);
 
-  const handleOpenSidebar = useCallback(async () => {
+  const handleOpenSidebar = useCallback(() => {
     if (!nodeUuid) return;
 
+    // Use the runtime synchronously when available to pick the right sidebar
+    // card type; fall back to 'page' for targets that haven't been loaded yet.
     const runtime = getOperationRuntime();
     const graphNode = getNode(runtime, nodeUuid);
-
-    if (graphNode?.blockId) {
-      const cardType: SidebarCardType = graphNode.isPage ? 'page' : 'block';
-      addSidebarCard(graphNode.blockId, cardType);
-      return;
-    }
-
-    // Fallback: fetch by UUID
-    try {
-      const { getNodeByUuid } = await import('@/api/nodes');
-      const node = await getNodeByUuid(nodeUuid);
-      if (node) {
-        const cardType: SidebarCardType = node.is_page ? 'page' : 'block';
-        addSidebarCard(node.uuid, cardType);
-      }
-    } catch {
-      // Silently ignore
-    }
+    const isPage = graphNode?.isPage ?? true;
+    const cardType: SidebarCardType = isPage ? 'page' : 'block';
+    addSidebarCard(nodeUuid, cardType);
   }, [nodeUuid, addSidebarCard]);
 
   const handleRemove = useCallback(() => {

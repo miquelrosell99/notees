@@ -48,7 +48,7 @@ import './CardItem.css';
 // ─── Card Title Editor (InlineEditor wrapper) ────────────────────
 
 import { InlineEditor } from '@/features/editor';
-import { parseAST } from '@/lib/astBuilder';
+import { parseAST, parseLinkId } from '@/lib/astBuilder';
 import { PropertiesSection } from '@/features/properties';
 import { BlockList } from '@/features/content';
 import { getOperationRuntime } from '@/runtime';
@@ -367,30 +367,25 @@ export const NodeCard = memo(function NodeCard({
     handleContentChange(blockId, content);
   }, [handleContentChange]);
 
-  // Navigate via pills — redirect aliases to main node
-  const handleNavigateToNode = useCallback(async (linkId: string) => {
+  // Navigate via pills — redirect aliases to main node when known locally.
+  const handleNavigateToNode = useCallback((linkId: string) => {
+    // Resolve to a target UUID synchronously. Use the runtime when available,
+    // otherwise parse the link id. Avoiding an async fetch here eliminates the
+    // stale-closure race where a later click could be overwritten by an earlier
+    // fetch that finishes second.
     const runtime = getOperationRuntime();
     const graphNode = getNode(runtime, linkId);
-    if (graphNode?.blockId) {
-      onNodeClick?.({ uuid: graphNode.blockId, is_page: graphNode.isPage } as unknown as Node);
+    const nodeUuid = graphNode?.blockId ?? parseLinkId(linkId).nodeUuid;
+
+    const targetNode = allNodes?.find(n => n.uuid === nodeUuid);
+    if (targetNode?.aliased_uuid) {
+      onNodeClick?.({ uuid: targetNode.aliased_uuid, is_page: true } as unknown as Node);
       return;
     }
-    // Node not in runtime — fetch by UUID
-    try {
-      const { getNodeByUuid } = await import('@/api/nodes');
-      const { parseLinkId } = await import('@/lib/astBuilder');
-      const { nodeUuid } = parseLinkId(linkId);
-      const node = await getNodeByUuid(nodeUuid);
-      // Redirect aliases to their main node
-      if (node.aliased_uuid) {
-        onNodeClick?.({ uuid: node.aliased_uuid, is_page: true } as unknown as Node);
-      } else {
-        onNodeClick?.(node);
-      }
-    } catch {
-      // Node not found
-    }
-  }, [onNodeClick]);
+
+    const isPage = graphNode?.isPage ?? targetNode?.is_page ?? true;
+    onNodeClick?.({ uuid: nodeUuid, is_page: isPage } as unknown as Node);
+  }, [allNodes, onNodeClick]);
 
   const handleOpenBlockInSidebar = useCallback((blockId: string) => {
     const runtime = getOperationRuntime();
