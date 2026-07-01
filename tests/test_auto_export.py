@@ -29,6 +29,24 @@ async def test_auto_export_single_page_not_found(authenticated_client, test_user
 
 
 @pytest.mark.asyncio
+async def test_auto_export_empty_page(authenticated_client, test_user):
+    """Test auto-export succeeds for a page with no child blocks."""
+    response = await authenticated_client.post("/api/nodes/page?name=Empty%20Page")
+    assert response.status_code == 200
+    page = response.json()
+    page_uuid = page["uuid"]
+
+    export_response = await authenticated_client.post(f"/api/auto-export/{page_uuid}")
+    assert export_response.status_code == 200
+    data = export_response.json()
+    assert data["filename"] == f"{page_uuid}.md"
+
+    download_response = await authenticated_client.get("/api/auto-export/download")
+    assert download_response.status_code == 200
+    assert download_response.headers.get("content-type") == "application/zip"
+
+
+@pytest.mark.asyncio
 async def test_auto_export_download_not_found(authenticated_client, test_user):
     """Test download returns 404 when no exported files exist."""
     response = await authenticated_client.get("/api/auto-export/download")

@@ -396,8 +396,8 @@ class ExportService:
             nodes_data = [nd for nd in nodes_data if nd.get("depth", 0) > 0]
             for nd in nodes_data:
                 nd["depth"] = max(0, nd["depth"] - 1)
-            if not nodes_data:
-                raise ValueError("No child nodes found to export")
+            # Empty pages are valid: the Markdown body is simply empty and the
+            # caller (e.g. auto-export) adds frontmatter separately.
 
         # Filter out text property value blocks (post-query safety net)
         if include_children and len(nodes_data) > 1:
