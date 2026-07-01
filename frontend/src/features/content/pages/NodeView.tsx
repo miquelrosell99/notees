@@ -468,16 +468,13 @@ export function NodeView({
   }, [node, removeClass]);
 
   // Handle converting an existing page to a class by adding the "class" class to it
-  const handleConvertToClass = useCallback((pageNode: Node) => {
+  const handleConvertToClass = useCallback(async (pageNode: Node) => {
     if (!node) return;
     const classClass = allClasses?.find(t => t.uuid === SYSTEM_CLASS_UUIDS.class);
     if (!classClass) return;
     // Add the "class" class to the target page, then add it to the current node
-    addClass.mutate({ nodeUuid: pageNode.uuid, classId: classClass.uuid }, {
-      onSuccess: () => {
-        addClass.mutate({ nodeUuid: node.uuid, classId: pageNode.uuid });
-      }
-    });
+    await addClass.mutateAsync({ nodeUuid: pageNode.uuid, classId: classClass.uuid });
+    addClass.mutate({ nodeUuid: node.uuid, classId: pageNode.uuid });
   }, [node, addClass, allClasses]);
   
   // Navigate to the destination page after a page has been converted to a block
