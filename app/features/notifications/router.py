@@ -56,6 +56,17 @@ async def list_notifications(
     return {"notifications": notifications, "unread_count": sum(1 for n in notifications if not n.is_read)}
 
 
+@router.post("/read-all", dependencies=[Depends(require_write_scope)])
+async def mark_all_notifications_read(
+    user: User = Depends(get_current_user),
+    service: NotificationService = Depends(get_notification_service),
+):
+    """Mark all notifications as read."""
+    await service._repo.mark_all_notifications_read(int(user.id))
+
+    return {"status": "ok"}
+
+
 @router.post("/{notification_uuid}/read", dependencies=[Depends(require_write_scope)])
 async def mark_notification_read(
     notification_uuid: str,
@@ -66,17 +77,6 @@ async def mark_notification_read(
     updated = await service._repo.mark_notification_read_by_uuid(notification_uuid, int(user.id))
     if not updated:
         raise HTTPException(status_code=404, detail="Notification not found")
-
-    return {"status": "ok"}
-
-
-@router.post("/read-all", dependencies=[Depends(require_write_scope)])
-async def mark_all_notifications_read(
-    user: User = Depends(get_current_user),
-    service: NotificationService = Depends(get_notification_service),
-):
-    """Mark all notifications as read."""
-    await service._repo.mark_all_notifications_read(int(user.id))
 
     return {"status": "ok"}
 

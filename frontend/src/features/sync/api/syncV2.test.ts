@@ -140,4 +140,60 @@ describe('operationToIntentV2', () => {
     const intent = operationToIntentV2(operation, 'client-1', 5);
     expect(intent).toBeNull();
   });
+
+  it('maps update_node properties from camelCase to snake_case', () => {
+    const operation = op({
+      id: 'op-1',
+      type: 'update_node',
+      blockId: 'block',
+      payload: {
+        updates: {
+          name: 'New Name',
+          icon: '📄',
+          color: '#fff',
+          parentId: 'parent-uuid',
+          isPrivate: true,
+          classIds: ['class-a'],
+          tagIds: ['tag-a'],
+        },
+      },
+    });
+
+    const intent = operationToIntentV2(operation, 'client-1', 6);
+    expect(intent).toEqual({
+      type: 'update_node',
+      client_id: 'client-1',
+      seq: 6,
+      node_uuid: 'block',
+      properties: {
+        name: 'New Name',
+        icon: '📄',
+        color: '#fff',
+        parent_uuid: 'parent-uuid',
+        is_private: true,
+        class_uuids: ['class-a'],
+        tag_uuids: ['tag-a'],
+      },
+    });
+  });
+
+  it('maps update_node with null parentId to clear parent', () => {
+    const operation = op({
+      id: 'op-1',
+      type: 'update_node',
+      blockId: 'block',
+      payload: {
+        updates: { parentId: null },
+      },
+    });
+
+    const intent = operationToIntentV2(operation, 'client-1', 7);
+    expect(intent).toEqual({
+      type: 'update_node',
+      client_id: 'client-1',
+      seq: 7,
+      node_uuid: 'block',
+      properties: { parent_uuid: null },
+    });
+  });
 });
