@@ -201,6 +201,7 @@ See `docs/data-model.md` for:
   - Backend (inside container): `docker compose -f compose.dev.yaml exec backend uv run ruff check app/` and `docker compose -f compose.dev.yaml exec backend uv run pytest tests/ -m "not slow" --no-cov`.
   - Frontend (inside container): `docker compose -f compose.dev.yaml exec frontend npm run lint` and `docker compose -f compose.dev.yaml exec frontend npx tsc -b --noEmit`.
   - Only fall back to host-local commands (`uv run ...`, `cd frontend && npm ...`) when the user explicitly says they are not using Docker.
+- **Rebuild and restart the dev stack when fixes change runtime behavior**: Do not rely on live-reload or long-running containers for changes that affect backend routes, request/response schemas, sync mappers, frontend build output, or container startup state. After such fixes, run `docker compose -f compose.dev.yaml down && docker compose -f compose.dev.yaml up --build` (or `task dev -- --build`) and confirm the user verifies the behavior in the browser before considering the task done.
 - **Fix all test failures**: If tests fail after your changes — even failures that appear unrelated to your task — you must fix them before finishing. Do not leave the test suite broken.
 
 ### Debugging
