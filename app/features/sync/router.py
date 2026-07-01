@@ -25,6 +25,8 @@ from app.dependencies import (
     get_settings_repository,
     get_sync_service,
     get_sync_service_v2,
+    require_read_or_write_scope,
+    require_write_scope,
 )
 from app.domain.entities.sync_v2 import (
     SyncBatchRequest,
@@ -50,7 +52,10 @@ class SettingValueRequest(BaseModel):
     value: Any
 
 
-router = APIRouter(tags=["Sync & Settings"])
+router = APIRouter(
+    tags=["Sync & Settings"],
+    dependencies=[Depends(get_current_user), Depends(require_read_or_write_scope)],
+)
 logger = get_logger(__name__)
 
 
@@ -79,6 +84,7 @@ async def sync(
     "/sync/batch",
     response_model=SyncBatchResponse,
     responses={409: {"model": SyncConflictResponse}},
+    dependencies=[Depends(require_write_scope)],
 )
 async def sync_batch(
     request: SyncBatchRequest,
@@ -116,7 +122,7 @@ async def get_settings(
     return await repo.get_user_settings(int(user.id))
 
 
-@router.put("/settings/{key}")
+@router.put("/settings/{key}", dependencies=[Depends(require_write_scope)])
 async def set_setting(
     key: str,
     body: SettingValueRequest,
@@ -143,7 +149,7 @@ async def get_workspace_settings(
     return await repo.get_workspace_settings(workspace_id)
 
 
-@router.put("/workspace-settings/{key}")
+@router.put("/workspace-settings/{key}", dependencies=[Depends(require_write_scope)])
 async def set_workspace_setting(
     key: str,
     body: SettingValueRequest,

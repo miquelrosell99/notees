@@ -3,8 +3,6 @@
 Handles user registration, login, token management, and API keys.
 """
 
-import hashlib
-import time
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
@@ -88,35 +86,6 @@ async def _resolve_user_from_auth(
     return None
 
 
-# In-memory cache for API key scopes to avoid re-authenticating on every scope check
-_api_key_scope_cache: dict[str, tuple[list[str], float]] = {}
-_API_KEY_SCOPE_TTL = 60  # 1 minute
-
-
-def _api_key_cache_key(api_key: str) -> str:
-    """Return a cache key for an API key without storing the plaintext key."""
-    return hashlib.sha256(api_key.encode("utf-8")).hexdigest()
-
-
-async def _get_api_key_scopes(api_key: str) -> list[str] | None:
-    """Return scopes for a valid API key (cached by key hash)."""
-    now = time.monotonic()
-    cache_key = _api_key_cache_key(api_key)
-    cached = _api_key_scope_cache.get(cache_key)
-    if cached is not None:
-        scopes, cached_at = cached
-        if now - cached_at < _API_KEY_SCOPE_TTL:
-            return scopes
-
-    user = await auth_module.authenticate_api_key(api_key)
-    if not user:
-        return None
-
-    scopes = user.get("_api_key_scopes", ["read", "write"])
-    _api_key_scope_cache[cache_key] = (scopes, now)
-    return scopes
-
-
 async def get_current_user_optional(
     request: Request,
     credentials: HTTPAuthorizationCredentials = Depends(security),  # noqa: B008
@@ -129,34 +98,6 @@ async def get_current_user_optional(
         return None
 
     return User(**user_dict)
-
-
-class RequireScope:
-    """Dependency factory that enforces API key scopes.
-
-    JWT tokens are always granted full access.
-    API keys must have at least one of the required scopes.
-    """
-
-    def __init__(self, *scopes: str):
-        self.scopes = set(scopes)
-
-    async def __call__(
-        self,
-        request: Request,
-        user: User = Depends(get_current_user),  # noqa: B008
-    ) -> User:
-        api_key = request.headers.get("X-API-Key")
-        if api_key:
-            key_scopes = await _get_api_key_scopes(api_key)
-            if key_scopes is None:
-                raise HTTPException(status_code=401, detail="Invalid or expired API key")
-            if not self.scopes.intersection(set(key_scopes)):
-                raise HTTPException(
-                    status_code=403,
-                    detail=f"API key lacks required scope. Required one of: {', '.join(self.scopes)}",
-                )
-        return user
 
 
 async def require_admin(user: User = Depends(get_current_user)) -> User:  # noqa: B008

@@ -13,7 +13,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 
 from app.config import settings
-from app.dependencies import get_current_user, get_node_repository
+from app.dependencies import get_current_user, get_node_repository, require_write_scope
 from app.features.assets.dependencies import (
     get_asset_service,
     get_asset_service_with_token,
@@ -62,7 +62,7 @@ class AssetResponse(BaseModel):
     """Response model for asset operations."""
 
     uuid: str
-    node_id: int
+    node_uuid: str
     filename: str
     content_type: str
     category: str  # image, audio, file
@@ -84,7 +84,7 @@ class AssetTokenResponse(BaseModel):
     expires_at: str
 
 
-@router.post("/upload", response_model=AssetResponse)
+@router.post("/upload", response_model=AssetResponse, dependencies=[Depends(require_write_scope)])
 async def upload_asset(
     file: UploadFile = File(...),
     parent_uuid: str | None = None,
@@ -92,6 +92,7 @@ async def upload_asset(
     content: str | None = Form(None),
     asset_service: AssetService = Depends(get_asset_service),
     node_repo: NodeRepository = Depends(get_node_repository),
+    user: User = Depends(get_current_user),
 ):
     """Upload a new asset file.
 
@@ -280,6 +281,7 @@ async def get_asset_thumbnail(
 async def get_asset_info(
     asset_uuid: str,
     asset_service: AssetService = Depends(get_asset_service),
+    user: User = Depends(get_current_user),
 ):
     """Get metadata about an asset."""
     try:
@@ -293,10 +295,11 @@ async def get_asset_info(
     return AssetResponse(**result)
 
 
-@router.delete("/{asset_uuid}")
+@router.delete("/{asset_uuid}", dependencies=[Depends(require_write_scope)])
 async def delete_asset(
     asset_uuid: str,
     asset_service: AssetService = Depends(get_asset_service),
+    user: User = Depends(get_current_user),
 ):
     """Delete an asset and its associated node."""
     try:
@@ -315,6 +318,7 @@ async def list_assets(
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
     asset_service: AssetService = Depends(get_asset_service),
+    user: User = Depends(get_current_user),
 ):
     """List assets in the current workspace (paginated, max 200 per page)."""
     result = await asset_service.list_assets(page, page_size)

@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi_limiter.depends import RateLimiter
 from pyrate_limiter import Duration
 
-from app.dependencies import get_current_user, get_node_repository, get_property_repository
+from app.dependencies import get_current_user, get_node_repository, get_property_repository, require_write_scope
 from app.domain.entities import NodeCreateData, NodeUpdateData
 from app.domain.errors import (
     DatePageDeletionError,
@@ -25,7 +25,7 @@ from app.features.properties.port import PropertyRepository
 from app.features.shares.dependencies import _get_share_service
 from app.logging_config import get_logger
 from app.models import PaginatedResponse, User
-from app.rate_limit import per_ip_limiter
+from app.rate_limit import per_ip_limiter, per_user_limiter, user_identifier
 
 from .dependencies import resolve_class_uuids, resolve_node_uuid, resolve_node_uuids
 from .helpers import (
@@ -67,6 +67,8 @@ from .models import (
 logger = get_logger(__name__)
 
 _crud_limiter = per_ip_limiter(120, Duration.MINUTE)
+_write_limiter = per_user_limiter(120, Duration.MINUTE)
+_delete_limiter = per_user_limiter(60, Duration.MINUTE)
 router = APIRouter()
 
 
@@ -125,7 +127,11 @@ async def _notify_mentions(service, node, actor_user_id: int, repo: Notification
     "/",
     name="create_node",
     response_model=NodeResponse,
-    dependencies=[Depends(RateLimiter(limiter=_crud_limiter))],
+    dependencies=[
+        Depends(RateLimiter(limiter=_crud_limiter)),
+        Depends(require_write_scope),
+        Depends(RateLimiter(limiter=_write_limiter, identifier=user_identifier)),
+    ],
 )
 async def create_node(
     request: Request,
@@ -213,7 +219,11 @@ async def create_node(
     return response
 
 
-@router.post("/page", response_model=NodeResponse)
+@router.post(
+    "/page",
+    response_model=NodeResponse,
+    dependencies=[Depends(require_write_scope)],
+)
 async def create_page(
     name: str,
     icon: str | None = None,
@@ -528,7 +538,11 @@ async def list_tasks(
         has_prev=page > 1,
     )
 
-@router.post("/scratchpad/clear", response_model=dict[str, Any])
+@router.post(
+    "/scratchpad/clear",
+    response_model=dict[str, Any],
+    dependencies=[Depends(require_write_scope)],
+)
 async def clear_scratchpad(
     request: Request,
     user: User = Depends(get_current_user),
@@ -542,7 +556,12 @@ async def clear_scratchpad(
     return await service.clear_scratchpad(int(user.id))
 
 
-@router.post("/{node_uuid}/restore", name="restore_node", response_model=NodeResponse)
+@router.post(
+    "/{node_uuid}/restore",
+    name="restore_node",
+    response_model=NodeResponse,
+    dependencies=[Depends(require_write_scope)],
+)
 async def restore_node(
     node_id: int = Depends(resolve_node_uuid),
     user: User = Depends(get_current_user),
@@ -605,7 +624,12 @@ async def get_node_breadcrumbs(
     )
 
 
-@router.post("/{node_uuid}/instantiate", name="instantiate_template", response_model=TemplateInstantiateResponse)
+@router.post(
+    "/{node_uuid}/instantiate",
+    name="instantiate_template",
+    response_model=TemplateInstantiateResponse,
+    dependencies=[Depends(require_write_scope)],
+)
 async def instantiate_template(
     node_id: int = Depends(resolve_node_uuid),
     body: TemplateInstantiateRequest = ...,
@@ -902,7 +926,11 @@ async def get_page_content(
 @router.put(
     "/{node_uuid}",
     response_model=NodeResponse,
-    dependencies=[Depends(RateLimiter(limiter=_crud_limiter))],
+    dependencies=[
+        Depends(RateLimiter(limiter=_crud_limiter)),
+        Depends(require_write_scope),
+        Depends(RateLimiter(limiter=_write_limiter, identifier=user_identifier)),
+    ],
 )
 async def update_node(
     request: Request,
@@ -1067,7 +1095,11 @@ async def _sequence_for_position(
     return after_seq + gap / 2.0
 
 
-@router.put("/{node_uuid}/move", response_model=NodeResponse)
+@router.put(
+    "/{node_uuid}/move",
+    response_model=NodeResponse,
+    dependencies=[Depends(require_write_scope)],
+)
 async def move_node(
     request: MoveNodeRequest,
     node_id: int = Depends(resolve_node_uuid),
@@ -1130,7 +1162,11 @@ async def move_node(
     return response
 
 
-@router.post("/{node_uuid}/convert-to-page", response_model=NodeResponse)
+@router.post(
+    "/{node_uuid}/convert-to-page",
+    response_model=NodeResponse,
+    dependencies=[Depends(require_write_scope)],
+)
 async def convert_block_to_page(
     request: ConvertToPageRequest,
     node_id: int = Depends(resolve_node_uuid),
@@ -1186,7 +1222,11 @@ async def convert_block_to_page(
     return response
 
 
-@router.post("/{node_uuid}/convert-to-block", response_model=NodeResponse)
+@router.post(
+    "/{node_uuid}/convert-to-block",
+    response_model=NodeResponse,
+    dependencies=[Depends(require_write_scope)],
+)
 async def convert_page_to_block(
     request: ConvertToBlockRequest,
     node_id: int = Depends(resolve_node_uuid),
@@ -1254,7 +1294,11 @@ async def convert_page_to_block(
 @router.delete(
     "/{node_uuid}",
     response_model=dict[str, str],
-    dependencies=[Depends(RateLimiter(limiter=_crud_limiter))],
+    dependencies=[
+        Depends(RateLimiter(limiter=_crud_limiter)),
+        Depends(require_write_scope),
+        Depends(RateLimiter(limiter=_delete_limiter, identifier=user_identifier)),
+    ],
 )
 async def delete_node(
     request: Request,
@@ -1313,7 +1357,11 @@ async def delete_node(
     return {"status": "ok"}
 
 
-@router.post("/{node_uuid}/archive", response_model=NodeResponse)
+@router.post(
+    "/{node_uuid}/archive",
+    response_model=NodeResponse,
+    dependencies=[Depends(require_write_scope)],
+)
 async def archive_node(
     node_id: int = Depends(resolve_node_uuid),
     user: User = Depends(get_current_user),
@@ -1347,7 +1395,12 @@ async def archive_node(
     return response
 
 
-@router.post("/{node_uuid}/merge-into/{target_uuid}", name="merge_pages", response_model=dict[str, Any])
+@router.post(
+    "/{node_uuid}/merge-into/{target_uuid}",
+    name="merge_pages",
+    response_model=dict[str, Any],
+    dependencies=[Depends(require_write_scope)],
+)
 async def merge_pages(
     target_uuid: str,
     node_id: int = Depends(resolve_node_uuid),
@@ -1373,7 +1426,11 @@ async def merge_pages(
     return result
 
 
-@router.post("/{node_uuid}/unarchive", response_model=NodeResponse)
+@router.post(
+    "/{node_uuid}/unarchive",
+    response_model=NodeResponse,
+    dependencies=[Depends(require_write_scope)],
+)
 async def unarchive_node(
     node_id: int = Depends(resolve_node_uuid),
     user: User = Depends(get_current_user),
@@ -1407,7 +1464,11 @@ async def unarchive_node(
     return response
 
 
-@router.patch("/{node_uuid}/open", response_model=dict[str, Any])
+@router.patch(
+    "/{node_uuid}/open",
+    response_model=dict[str, Any],
+    dependencies=[Depends(require_write_scope)],
+)
 async def mark_page_opened(
     node_id: int = Depends(resolve_node_uuid),
     user: User = Depends(get_current_user),
@@ -1444,7 +1505,12 @@ async def get_node_versions(
     return {"versions": versions}
 
 
-@router.post("/{node_uuid}/versions/{version_uuid}/restore", name="restore_node_version", response_model=NodeResponse)
+@router.post(
+    "/{node_uuid}/versions/{version_uuid}/restore",
+    name="restore_node_version",
+    response_model=NodeResponse,
+    dependencies=[Depends(require_write_scope)],
+)
 async def restore_node_version(
     version_uuid: str,
     node_id: int = Depends(resolve_node_uuid),

@@ -5,7 +5,7 @@
  */
 import axios, { type AxiosError, type AxiosRequestConfig } from 'axios';
 import { getLogger } from '@/utils/logger';
-import { clearUserData, getApiKey } from '@/utils/auth';
+import { getApiKey, handleAuthFailure } from '@/utils/auth';
 import { useConnectionStore } from '@/stores/connectionStore';
 
 const log = getLogger('api');
@@ -102,26 +102,6 @@ async function refreshAccessToken(): Promise<boolean> {
     refreshPromise = null;
   });
   return refreshPromise;
-}
-
-const AUTH_LOGOUT_KEY = 'auth:logout';
-
-function handleAuthFailure() {
-  clearUserData();
-  localStorage.removeItem('auth-storage');
-  // Notify other tabs that this session has ended.
-  try {
-    localStorage.setItem(AUTH_LOGOUT_KEY, Date.now().toString());
-  } catch {
-    // Ignore storage errors (e.g., private mode).
-  }
-  window.dispatchEvent(new CustomEvent('auth:unauthorized'));
-  // This module is not a React component, so we fall back to a full-page
-  // redirect. React-router-aware components should prefer useNavigate().
-  if (window.location.pathname !== '/auth') {
-    log.info('Redirecting to auth page');
-    window.location.href = '/auth';
-  }
 }
 
 export class ApiError extends Error {
