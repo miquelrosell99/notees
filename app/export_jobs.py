@@ -21,6 +21,8 @@ class ExportJob:
     status: str  # pending | running | completed | failed
     progress: int  # 0-100
     status_text: str
+    user_id: str | None = None
+    workspace_id: int | None = None
     result_path: str | None = None
     error: str | None = None
     created_at: float = field(default_factory=time.time)
@@ -36,7 +38,7 @@ class ExportJob:
 _jobs: dict[str, ExportJob] = {}
 
 
-def create_job() -> ExportJob:
+def create_job(user_id: str | None = None, workspace_id: int | None = None) -> ExportJob:
     """Create a new export job."""
     _cleanup_stale()
     job = ExportJob(
@@ -44,6 +46,8 @@ def create_job() -> ExportJob:
         status="pending",
         progress=0,
         status_text="Starting export…",
+        user_id=user_id,
+        workspace_id=workspace_id,
     )
     _jobs[job.id] = job
     return job
@@ -53,6 +57,16 @@ def get_job(job_id: str) -> ExportJob | None:
     """Retrieve a job by ID."""
     _cleanup_stale()
     return _jobs.get(job_id)
+
+
+def get_job_for_user(job_id: str, user_id: str) -> ExportJob | None:
+    """Retrieve a job only if it belongs to the given user."""
+    job = get_job(job_id)
+    if job is None:
+        return None
+    if job.user_id is not None and job.user_id != user_id:
+        return None
+    return job
 
 
 def update_job(job_id: str, **kwargs) -> None:

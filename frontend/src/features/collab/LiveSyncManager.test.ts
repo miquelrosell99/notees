@@ -3,13 +3,18 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { handleAuthFailure } from '@/utils/auth';
 import { LiveSyncManager } from './LiveSyncManager';
+
+vi.mock('@/utils/auth', () => ({
+  handleAuthFailure: vi.fn(),
+}));
 
 class FakeWebSocket {
   readyState = 1; // WebSocket.OPEN
   onopen: (() => void) | null = null;
   onmessage: ((ev: { data: string }) => void) | null = null;
-  onclose: (() => void) | null = null;
+  onclose: ((ev: CloseEvent) => void) | null = null;
   onerror: (() => void) | null = null;
   sent: unknown[] = [];
 
@@ -17,8 +22,8 @@ class FakeWebSocket {
     this.sent.push(JSON.parse(data));
   }
 
-  close() {
-    this.onclose?.();
+  close(code = 1000) {
+    this.onclose?.({ code } as CloseEvent);
   }
 }
 
@@ -91,5 +96,25 @@ describe('LiveSyncManager', () => {
     (freshManager as any)._setStatus('connected');
 
     expect(statuses).toContain('connected');
+  });
+
+  it('stops reconnecting and triggers auth redirect when the server closes with 4001', () => {
+    vi.stubGlobal('WebSocket', FakeWebSocket);
+    const freshManager = new LiveSyncManager();
+    const statuses: string[] = [];
+    freshManager.onStatusChange((status) => statuses.push(status));
+
+    (freshManager as any).workspaceUuid = 'ws-1';
+    (freshManager as any)._open();
+    const fakeSocket = (freshManager as any).ws as FakeWebSocket;
+
+    fakeSocket.close(4001);
+
+    expect(handleAuthFailure).toHaveBeenCalledTimes(1);
+    expect(statuses).toContain('unauthorized');
+    expect((freshManager as any).reconnectTimer).toBeNull();
+    expect((freshManager as any).intentionalClose).toBe(true);
+
+    vi.unstubAllGlobals();
   });
 });

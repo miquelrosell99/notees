@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from app.dependencies import get_current_user, get_node_repository, get_settings_repository
+from app.dependencies import get_current_user, get_node_repository, get_settings_repository, require_write_scope
 from app.domain.repositories.interfaces import SettingsRepository
 from app.features.nodes.port import NodeRepository
 from app.features.nodes.router.dependencies import resolve_node_uuid, resolve_node_uuids
@@ -80,7 +80,7 @@ async def get_favorites(
     )
 
 
-@router.put("/favorites")
+@router.put("/favorites", dependencies=[Depends(require_write_scope)])
 async def set_favorites(
     body: SetFavoritesRequest,
     user: User = Depends(get_current_user),
@@ -97,7 +97,7 @@ async def set_favorites(
     return {"status": "ok", "favorites": body.favorites}
 
 
-@router.put("/favorites/reorder")
+@router.put("/favorites/reorder", dependencies=[Depends(require_write_scope)])
 async def reorder_favorites(
     body: ReorderFavoritesRequest,
     user: User = Depends(get_current_user),
@@ -127,7 +127,7 @@ async def reorder_favorites(
     return {"status": "ok", "favorites": [uuid_map.get(fid) for fid in favorite_ids if uuid_map.get(fid)]}
 
 
-@router.post("/favorites/{node_uuid}")
+@router.post("/favorites/{node_uuid}", dependencies=[Depends(require_write_scope)])
 async def add_favorite(
     node_id: int = Depends(resolve_node_uuid),
     user: User = Depends(get_current_user),
@@ -154,7 +154,7 @@ async def add_favorite(
     return {"status": "ok", "favorites": [uuid_map.get(fid) for fid in favorites if uuid_map.get(fid)]}
 
 
-@router.delete("/favorites/{node_uuid}")
+@router.delete("/favorites/{node_uuid}", dependencies=[Depends(require_write_scope)])
 async def remove_favorite(
     node_id: int = Depends(resolve_node_uuid),
     user: User = Depends(get_current_user),

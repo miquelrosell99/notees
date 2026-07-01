@@ -10,6 +10,8 @@ from pyrate_limiter.abstracts import BucketFactory, RateItem
 from pyrate_limiter.buckets import InMemoryBucket
 from pyrate_limiter.clocks import MonotonicClock
 
+from app.features import auth as auth_module
+
 
 class PerKeyBucketFactory(BucketFactory):
     """Bucket factory that creates a separate InMemoryBucket per rate-limit key.
@@ -126,4 +128,37 @@ def auth_per_account_limiter(requests: int, duration: Duration) -> Limiter:
     The actual rate-limit key is produced by ``auth_identifier`` and includes
     the endpoint path, client IP, and the account email/username when available.
     """
+    return Limiter(PerKeyBucketFactory([Rate(requests, duration)]))
+
+
+async def user_identifier(request: Request) -> str:
+    """Return a rate-limit key for the authenticated user, falling back to IP.
+
+    Light-weight re-implementation of the auth resolution in ``get_current_user``
+    so rate limiting can run before the full dependency chain. API keys and JWT
+    cookies/headers are supported.
+    """
+    api_key = request.headers.get("X-API-Key")
+    if api_key:
+        user = await auth_module.authenticate_api_key(api_key)
+        if user:
+            return f"user:{user['id']}"
+
+    jwt_token = request.cookies.get("access_token")
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.lower().startswith("bearer "):
+        jwt_token = auth_header[7:]
+
+    if jwt_token:
+        payload = auth_module.decode_token(jwt_token)
+        if payload:
+            user_id = payload.get("user_id")
+            if user_id:
+                return f"user:{user_id}"
+
+    return await ip_only_identifier(request)
+
+
+def per_user_limiter(requests: int, duration: Duration) -> Limiter:
+    """Build a per-user rate limiter keyed by authenticated user ID or IP."""
     return Limiter(PerKeyBucketFactory([Rate(requests, duration)]))

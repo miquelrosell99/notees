@@ -7,13 +7,22 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.dependencies import get_current_user, get_notification_service
+from app.dependencies import (
+    get_current_user,
+    get_notification_service,
+    require_read_or_write_scope,
+    require_write_scope,
+)
 from app.features.notifications.port import NotificationRepository
 from app.features.notifications.service import NotificationService
 from app.logging_config import get_logger
 from app.models import NotificationResponse, User
 
-router = APIRouter(prefix="/notifications", tags=["Notifications"])
+router = APIRouter(
+    prefix="/notifications",
+    tags=["Notifications"],
+    dependencies=[Depends(get_current_user), Depends(require_read_or_write_scope)],
+)
 logger = get_logger(__name__)
 
 
@@ -47,7 +56,7 @@ async def list_notifications(
     return {"notifications": notifications, "unread_count": sum(1 for n in notifications if not n.is_read)}
 
 
-@router.post("/{notification_uuid}/read")
+@router.post("/{notification_uuid}/read", dependencies=[Depends(require_write_scope)])
 async def mark_notification_read(
     notification_uuid: str,
     user: User = Depends(get_current_user),
@@ -61,7 +70,7 @@ async def mark_notification_read(
     return {"status": "ok"}
 
 
-@router.post("/read-all")
+@router.post("/read-all", dependencies=[Depends(require_write_scope)])
 async def mark_all_notifications_read(
     user: User = Depends(get_current_user),
     service: NotificationService = Depends(get_notification_service),

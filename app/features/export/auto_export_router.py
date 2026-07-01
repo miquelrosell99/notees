@@ -21,7 +21,12 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from app.db.connection import clear_request_conn, get_workspace_dir, get_workspace_uuid
-from app.dependencies import get_current_user, get_workspace_id
+from app.dependencies import (
+    get_current_user,
+    get_workspace_id,
+    require_read_or_write_scope,
+    require_write_scope,
+)
 from app.features.export.auto_export_service import AutoExportService
 from app.features.export.dependencies import _make_export_repository, get_export_repository
 from app.features.export.port import ExportRepository
@@ -33,7 +38,11 @@ from app.models import User
 
 logger = get_logger(__name__)
 
-router = APIRouter(prefix="/auto-export", tags=["Auto Export"])
+router = APIRouter(
+    prefix="/auto-export",
+    tags=["Auto Export"],
+    dependencies=[Depends(get_current_user), Depends(require_read_or_write_scope)],
+)
 
 # ---------------------------------------------------------------------------
 # In-memory export progress tracking (single-process only)
@@ -84,7 +93,7 @@ class BatchExportRequest(BaseModel):
     pass
 
 
-@router.post("/batch")
+@router.post("/batch", dependencies=[Depends(require_write_scope)])
 async def auto_export_batch(
     _request: BatchExportRequest,
     user: User = Depends(get_current_user),
@@ -177,7 +186,7 @@ async def _run_batch_export(
             )
 
 
-@router.post("/{node_uuid}")
+@router.post("/{node_uuid}", dependencies=[Depends(require_write_scope)])
 async def auto_export_page(
     node_uuid: str,
     user: User = Depends(get_current_user),

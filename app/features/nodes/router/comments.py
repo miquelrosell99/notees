@@ -6,7 +6,7 @@ Comments are child nodes with is_comment=true, stored directly under the target 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.db.schema.constants import SYSTEM_CLASS_UUIDS
-from app.dependencies import get_current_user, get_node_repository
+from app.dependencies import get_current_user, get_node_repository, require_write_scope
 from app.domain.entities import NodeCreateData
 from app.features.nodes.port import NodeRepository
 from app.features.nodes.router.dependencies import resolve_comment_uuid, resolve_node_uuid
@@ -93,7 +93,7 @@ async def get_comments(
     )
 
 
-@router.post("/{node_uuid}/comments")
+@router.post("/{node_uuid}/comments", dependencies=[Depends(require_write_scope)])
 async def create_comment(
     request: CommentCreateRequest,
     node_id: int = Depends(resolve_node_uuid),
@@ -152,7 +152,7 @@ async def create_comment(
     return response
 
 
-@router.delete("/{node_uuid}/comments/{comment_uuid}")
+@router.delete("/{node_uuid}/comments/{comment_uuid}", dependencies=[Depends(require_write_scope)])
 async def delete_comment(
     node_id: int = Depends(resolve_node_uuid),
     comment_id: int = Depends(resolve_comment_uuid),

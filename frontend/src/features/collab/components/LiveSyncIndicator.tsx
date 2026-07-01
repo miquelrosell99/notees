@@ -12,7 +12,7 @@ import { Icon } from '@/components/ui/icons';
 import './LiveSyncIndicator.css';
 
 export function LiveSyncIndicator() {
-  const [status, setStatus] = useState<'connected' | 'disconnected' | 'connecting' | 'error' | 'idle'>('idle');
+  const [status, setStatus] = useState<'connected' | 'disconnected' | 'connecting' | 'error' | 'idle' | 'unauthorized'>('idle');
 
   useEffect(() => {
     const unsub = liveSyncManager.onStatusChange((s) => {

@@ -2,12 +2,16 @@
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.dependencies import get_current_user
+from app.dependencies import get_current_user, require_write_scope
 from app.features.undo.dependencies import get_undo_repository
 from app.features.undo.port import UndoRepository
 from app.models import User
 
-router = APIRouter(prefix="/undo", tags=["undo"])
+router = APIRouter(
+    prefix="/undo",
+    tags=["undo"],
+    dependencies=[Depends(get_current_user), Depends(require_write_scope)],
+)
 
 
 @router.post("/undo")

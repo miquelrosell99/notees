@@ -150,7 +150,10 @@ async def get_current_user(
     if not user_dict:
         raise HTTPException(status_code=401, detail="Not authenticated")
 
-    return User(**user_dict)
+    scopes = user_dict.pop("_api_key_scopes", None)
+    user = User(**user_dict)
+    user.scopes = scopes
+    return user
 
 
 async def get_current_user_optional(
@@ -164,7 +167,52 @@ async def get_current_user_optional(
     if not user_dict:
         return None
 
-    return User(**user_dict)
+    scopes = user_dict.pop("_api_key_scopes", None)
+    user = User(**user_dict)
+    user.scopes = scopes
+    return user
+
+
+class RequireScope:
+    """Dependency factory that enforces API key scopes.
+
+    JWT tokens are always granted full access. API keys must have at least one
+    of the required scopes.
+    """
+
+    def __init__(self, *scopes: str):
+        self.scopes = set(scopes)
+
+    async def __call__(self, request: Request, user: User = Depends(get_current_user)) -> User:  # noqa: B008
+        # JWT-authenticated users have full access
+        api_key = request.headers.get("X-API-Key")
+        if not api_key:
+            return user
+
+        key_scopes = user.scopes
+        if key_scopes is None:
+            # Fallback: re-resolve scopes from the API key if not attached
+            from app.features.auth import auth as auth_module
+
+            resolved_user = await auth_module.authenticate_api_key(api_key)
+            key_scopes = resolved_user.get("_api_key_scopes", ["read", "write"]) if resolved_user else None
+
+        if key_scopes is None:
+            raise HTTPException(status_code=401, detail="Invalid or expired API key")
+        if not self.scopes.intersection(set(key_scopes)):
+            raise HTTPException(
+                status_code=403,
+                detail=f"API key lacks required scope. Required one of: {', '.join(self.scopes)}",
+            )
+        return user
+
+
+# Pre-built scope dependencies for router-level use.
+require_read_scope = RequireScope("read")
+require_write_scope = RequireScope("read", "write")
+require_admin_scope = RequireScope("admin")
+# Alias for routers that accept either read-only or read-write API keys on read endpoints.
+require_read_or_write_scope = require_read_scope
 
 
 async def _get_workspace_context_cached(pool: asyncpg.Pool, user_id: int) -> tuple[int, int]:

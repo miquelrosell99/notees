@@ -13,7 +13,12 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
 from starlette.status import HTTP_404_NOT_FOUND
 
-from app.dependencies import get_current_user, get_permission_checker, get_workspace_id
+from app.dependencies import (
+    get_current_user,
+    get_permission_checker,
+    get_workspace_id,
+    require_read_or_write_scope,
+)
 from app.domain.permissions import PermissionChecker
 from app.infrastructure.redis_pubsub import collab_pubsub
 from app.logging_config import get_logger
@@ -21,7 +26,11 @@ from app.models import User
 
 logger = get_logger(__name__)
 
-router = APIRouter(prefix="/events", tags=["Events"])
+router = APIRouter(
+    prefix="/events",
+    tags=["Events"],
+    dependencies=[Depends(get_current_user), Depends(require_read_or_write_scope)],
+)
 
 
 async def _event_stream(
