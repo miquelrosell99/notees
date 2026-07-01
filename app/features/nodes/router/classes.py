@@ -8,6 +8,7 @@ from app.dependencies import (
 from app.dependencies import (
     get_current_user,
     get_node_repository,
+    require_write_scope,
 )
 from app.features.nodes.port import NodeRepository
 from app.models import PaginatedResponse, User
@@ -123,7 +124,7 @@ async def get_nodes_with_class(
     )
 
 
-@router.post("/{node_uuid}/classes")
+@router.post("/{node_uuid}/classes", dependencies=[Depends(require_write_scope)])
 async def add_node_class(
     request: ClassRequest,
     node_id: int = Depends(resolve_node_uuid),
@@ -181,7 +182,7 @@ async def add_node_class(
     return _node_to_response(node, classes=[c.id for c in classes if c.id])
 
 
-@router.delete("/{node_uuid}/classes/{class_uuid}")
+@router.delete("/{node_uuid}/classes/{class_uuid}", dependencies=[Depends(require_write_scope)])
 async def remove_node_class_endpoint(
     node_id: int = Depends(resolve_node_uuid),
     class_id: int = Depends(resolve_class_uuid),

@@ -10,7 +10,12 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
 from pydantic import BaseModel
 
-from app.dependencies import get_current_user, get_settings_repository
+from app.dependencies import (
+    get_current_user,
+    get_settings_repository,
+    require_read_or_write_scope,
+    require_write_scope,
+)
 from app.domain.repositories.interfaces import SettingsRepository
 from app.features.auth.router import require_admin
 from app.features.workspaces.manager import get_active_workspace_id
@@ -20,7 +25,11 @@ from app.plugins.core.installer import create_install_job, get_install_job, run_
 from app.plugins.core.ports import ImportContext, ImportResult
 from app.utils import utc_now
 
-router = APIRouter(prefix="/plugins", tags=["plugins"])
+router = APIRouter(
+    prefix="/plugins",
+    tags=["plugins"],
+    dependencies=[Depends(get_current_user), Depends(require_read_or_write_scope)],
+)
 
 
 class InstallPluginRequest(BaseModel):
@@ -85,7 +94,7 @@ async def get_plugin(
     return _plugin_summary(plugin)
 
 
-@router.post("/{plugin_id}/enable")
+@router.post("/{plugin_id}/enable", dependencies=[Depends(require_admin), Depends(require_write_scope)])
 async def enable_plugin(
     plugin_id: str,
     user: User = Depends(get_current_user),
@@ -96,7 +105,7 @@ async def enable_plugin(
     return {"id": plugin_id, "enabled": True, "restart_required": True}
 
 
-@router.post("/{plugin_id}/disable")
+@router.post("/{plugin_id}/disable", dependencies=[Depends(require_admin), Depends(require_write_scope)])
 async def disable_plugin(
     plugin_id: str,
     user: User = Depends(get_current_user),
@@ -240,7 +249,7 @@ async def get_plugin_settings(
     }
 
 
-@router.put("/{plugin_id}/settings/{key}")
+@router.put("/{plugin_id}/settings/{key}", dependencies=[Depends(require_write_scope)])
 async def set_plugin_setting_endpoint(
     plugin_id: str,
     key: str,
@@ -295,7 +304,7 @@ async def list_importers(
     ]
 
 
-@router.post("/import/{importer_id}")
+@router.post("/import/{importer_id}", dependencies=[Depends(require_write_scope)])
 async def run_import(
     importer_id: str,
     file: UploadFile,

@@ -4,7 +4,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.dependencies import get_current_user, get_node_repository
+from app.dependencies import get_current_user, get_node_repository, require_write_scope
 from app.domain.entities import PropertyScope, PropertyType
 from app.features.nodes.port import NodeRepository
 from app.features.nodes.router.dependencies import (
@@ -148,7 +148,7 @@ async def get_property_suggestions(
     return {"suggestions": suggestions}
 
 
-@router.post("/", name="create_property", response_model=PropertyResponse)
+@router.post("/", name="create_property", response_model=PropertyResponse, dependencies=[Depends(require_write_scope)])
 async def create_property(
     request: PropertyCreateRequest,
     service: PropertyService = Depends(get_property_service),
@@ -225,7 +225,7 @@ async def get_property_by_uuid(
     return await _property_to_response(prop, node_uuid_map=node_uuid_map, class_uuid_map=class_uuid_map)
 
 
-@router.put("/{property_uuid}", response_model=PropertyResponse)
+@router.put("/{property_uuid}", response_model=PropertyResponse, dependencies=[Depends(require_write_scope)])
 async def update_property(
     request: PropertyUpdateRequest,
     property_id: int = Depends(resolve_property_uuid),
@@ -252,7 +252,7 @@ async def update_property(
     return await _property_to_response(prop, node_uuid_map=node_uuid_map, class_uuid_map=class_uuid_map)
 
 
-@router.post("/{property_uuid}/change-type")
+@router.post("/{property_uuid}/change-type", dependencies=[Depends(require_write_scope)])
 async def change_property_type(
     request: PropertyTypeChangeRequest,
     property_id: int = Depends(resolve_property_uuid),
@@ -290,7 +290,7 @@ async def check_can_delete_property(
     return {"can_delete": can_delete, "reason": reason}
 
 
-@router.delete("/{property_uuid}")
+@router.delete("/{property_uuid}", dependencies=[Depends(require_write_scope)])
 async def delete_property(
     property_id: int = Depends(resolve_property_uuid),
     service: PropertyService = Depends(get_property_service),
@@ -334,7 +334,7 @@ async def list_class_filters(
     }
 
 
-@router.post("/{property_uuid}/class-filters")
+@router.post("/{property_uuid}/class-filters", dependencies=[Depends(require_write_scope)])
 async def add_class_filter(
     property_id: int = Depends(resolve_property_uuid),
     class_node_uuid: str = ...,
@@ -362,7 +362,7 @@ async def add_class_filter(
     }
 
 
-@router.delete("/{property_uuid}/class-filters/{class_node_uuid}")
+@router.delete("/{property_uuid}/class-filters/{class_node_uuid}", dependencies=[Depends(require_write_scope)])
 async def remove_class_filter(
     property_id: int = Depends(resolve_property_uuid),
     class_node_id: int = Depends(resolve_class_uuid),

@@ -4,7 +4,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from app.dependencies import get_current_user, get_settings_repository
+from app.dependencies import get_current_user, get_settings_repository, require_write_scope
 from app.domain.entities import NodeCreateData, NodeUpdateData
 from app.domain.entities.constants import (
     SYSTEM_CLASS_UUIDS,
@@ -83,7 +83,7 @@ async def list_daily_pages(
     )
 
 
-@router.post("/daily")
+@router.post("/daily", dependencies=[Depends(require_write_scope)])
 async def get_or_create_daily(
     date: str = Query(..., description="Date in YYYY-MM-DD format"),
     user: User = Depends(get_current_user),
@@ -218,7 +218,7 @@ async def get_or_create_daily(
         raise
 
 
-@router.post("/daily/batch")
+@router.post("/daily/batch", dependencies=[Depends(require_write_scope)])
 async def batch_get_or_create_daily(
     body: BatchNodeDailyRequest,
     user: User = Depends(get_current_user),
@@ -246,7 +246,7 @@ async def batch_get_or_create_daily(
     return BatchNodeDailyResponse(results=results)
 
 
-@router.post("/monthly")
+@router.post("/monthly", dependencies=[Depends(require_write_scope)])
 async def get_or_create_monthly(
     year: int,
     month: int,
@@ -313,7 +313,7 @@ async def get_or_create_monthly(
     return _node_to_response(node)
 
 
-@router.post("/yearly")
+@router.post("/yearly", dependencies=[Depends(require_write_scope)])
 async def get_or_create_yearly(
     year: int,
     user: User = Depends(get_current_user),

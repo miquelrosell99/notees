@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.dependencies import get_current_user, get_node_repository, get_property_repository
+from app.dependencies import get_current_user, get_node_repository, get_property_repository, require_write_scope
 from app.domain.entities import PropertyType
 from app.features.nodes.port import NodeRepository
 from app.features.properties.dependencies import get_property_service
@@ -41,7 +41,7 @@ async def list_selection_lines(
     }
 
 
-@router.post("/{property_uuid}/selection-lines")
+@router.post("/{property_uuid}/selection-lines", dependencies=[Depends(require_write_scope)])
 async def add_selection_line(
     property_id: int = Depends(resolve_property_uuid),
     request: SelectionLineRequest = ...,
@@ -66,7 +66,7 @@ async def add_selection_line(
     return _selection_line_to_response(line, property_uuid=prop.uuid if prop else None)
 
 
-@router.put("/{property_uuid}/selection-lines/{selection_line_uuid}")
+@router.put("/{property_uuid}/selection-lines/{selection_line_uuid}", dependencies=[Depends(require_write_scope)])
 async def update_selection_line(
     property_id: int = Depends(resolve_property_uuid),
     line_id: int = Depends(resolve_selection_line_uuid),
@@ -104,7 +104,7 @@ async def check_can_delete_selection_line(
     return {"can_delete": can_delete, "reason": reason}
 
 
-@router.delete("/{property_uuid}/selection-lines/{selection_line_uuid}")
+@router.delete("/{property_uuid}/selection-lines/{selection_line_uuid}", dependencies=[Depends(require_write_scope)])
 async def delete_selection_line(
     property_id: int = Depends(resolve_property_uuid),
     line_id: int = Depends(resolve_selection_line_uuid),

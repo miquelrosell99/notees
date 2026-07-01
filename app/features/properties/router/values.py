@@ -5,7 +5,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from app.dependencies import get_current_user, get_node_repository, get_property_repository
+from app.dependencies import get_current_user, get_node_repository, get_property_repository, require_write_scope
 from app.domain.entities import RELATION_TYPES, SCALAR_TYPES
 from app.features.nodes.port import NodeRepository
 from app.features.nodes.router.dependencies import (
@@ -126,7 +126,7 @@ class SetPropertyRequest(BaseModel):
     value: Any
 
 
-@router.post("/{node_uuid}/properties")
+@router.post("/{node_uuid}/properties", dependencies=[Depends(require_write_scope)])
 async def set_property_value(
     node_id: int = Depends(resolve_node_uuid),
     request: SetPropertyRequest = ...,
@@ -264,7 +264,7 @@ async def get_node_properties(
     return {"properties": result}
 
 
-@router.post("/{node_uuid}/properties/{property_uuid}/assign")
+@router.post("/{node_uuid}/properties/{property_uuid}/assign", dependencies=[Depends(require_write_scope)])
 async def assign_property_to_node(
     node_id: int = Depends(resolve_node_uuid),
     property_id: int = Depends(resolve_property_uuid),
@@ -290,7 +290,7 @@ async def assign_property_to_node(
     )
 
 
-@router.delete("/{node_uuid}/properties/{property_uuid}")
+@router.delete("/{node_uuid}/properties/{property_uuid}", dependencies=[Depends(require_write_scope)])
 async def remove_property_from_node(
     node_id: int = Depends(resolve_node_uuid),
     property_id: int = Depends(resolve_property_uuid),
@@ -307,7 +307,7 @@ async def remove_property_from_node(
 # ============== Scalar Values ==============
 
 
-@router.post("/{node_uuid}/properties/{property_uuid}/scalar")
+@router.post("/{node_uuid}/properties/{property_uuid}/scalar", dependencies=[Depends(require_write_scope)])
 async def set_scalar_value(
     node_id: int = Depends(resolve_node_uuid),
     property_id: int = Depends(resolve_property_uuid),
@@ -359,7 +359,7 @@ async def get_scalar_values(
     }
 
 
-@router.delete("/{node_uuid}/properties/{property_uuid}/scalar/{value_uuid}")
+@router.delete("/{node_uuid}/properties/{property_uuid}/scalar/{value_uuid}", dependencies=[Depends(require_write_scope)])
 async def remove_scalar_value(
     value_id: int = Depends(resolve_scalar_value_uuid),
     node_id: int = Depends(resolve_node_uuid),
@@ -374,7 +374,7 @@ async def remove_scalar_value(
     return {"status": "ok"}
 
 
-@router.delete("/{node_uuid}/properties/{property_uuid}/scalar")
+@router.delete("/{node_uuid}/properties/{property_uuid}/scalar", dependencies=[Depends(require_write_scope)])
 async def clear_scalar_values(
     node_id: int = Depends(resolve_node_uuid),
     property_id: int = Depends(resolve_property_uuid),
@@ -389,7 +389,7 @@ async def clear_scalar_values(
 # ============== Relation Values ==============
 
 
-@router.post("/{node_uuid}/properties/{property_uuid}/relation")
+@router.post("/{node_uuid}/properties/{property_uuid}/relation", dependencies=[Depends(require_write_scope)])
 async def set_relation_value(
     node_id: int = Depends(resolve_node_uuid),
     property_id: int = Depends(resolve_property_uuid),
@@ -445,7 +445,7 @@ async def get_relation_values(
     }
 
 
-@router.delete("/{node_uuid}/properties/{property_uuid}/relation/{value_uuid}")
+@router.delete("/{node_uuid}/properties/{property_uuid}/relation/{value_uuid}", dependencies=[Depends(require_write_scope)])
 async def remove_relation_value(
     value_id: int = Depends(resolve_relation_value_uuid),
     node_id: int = Depends(resolve_node_uuid),
@@ -463,7 +463,7 @@ async def remove_relation_value(
     return {"status": "ok"}
 
 
-@router.delete("/{node_uuid}/properties/{property_uuid}/relation")
+@router.delete("/{node_uuid}/properties/{property_uuid}/relation", dependencies=[Depends(require_write_scope)])
 async def clear_relation_values(
     node_id: int = Depends(resolve_node_uuid),
     property_id: int = Depends(resolve_property_uuid),
@@ -481,7 +481,7 @@ async def clear_relation_values(
 # ============== Selection Values ==============
 
 
-@router.post("/{node_uuid}/properties/{property_uuid}/selection")
+@router.post("/{node_uuid}/properties/{property_uuid}/selection", dependencies=[Depends(require_write_scope)])
 async def set_selection_value(
     node_id: int = Depends(resolve_node_uuid),
     property_id: int = Depends(resolve_property_uuid),
@@ -539,7 +539,7 @@ async def get_selection_values(
     }
 
 
-@router.delete("/{node_uuid}/properties/{property_uuid}/selection/{value_uuid}")
+@router.delete("/{node_uuid}/properties/{property_uuid}/selection/{value_uuid}", dependencies=[Depends(require_write_scope)])
 async def remove_selection_value(
     value_id: int = Depends(resolve_selection_value_uuid),
     node_id: int = Depends(resolve_node_uuid),
@@ -554,7 +554,7 @@ async def remove_selection_value(
     return {"status": "ok"}
 
 
-@router.delete("/{node_uuid}/properties/{property_uuid}/selection")
+@router.delete("/{node_uuid}/properties/{property_uuid}/selection", dependencies=[Depends(require_write_scope)])
 async def clear_selection_values(
     node_id: int = Depends(resolve_node_uuid),
     property_id: int = Depends(resolve_property_uuid),
@@ -596,7 +596,7 @@ class BatchSetPropertyResponse(BaseModel):
     failed: int
 
 
-@router.post("/batch/set")
+@router.post("/batch/set", dependencies=[Depends(require_write_scope)])
 async def batch_set_property_values(
     request: BatchSetPropertyRequest,
     service: PropertyService = Depends(get_property_service),

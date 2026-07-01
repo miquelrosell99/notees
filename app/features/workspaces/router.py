@@ -18,6 +18,8 @@ from pydantic import BaseModel
 from app.dependencies import (
     get_current_user,
     invalidate_workspace_cache,
+    require_read_or_write_scope,
+    require_write_scope,
 )
 from app.export_jobs import create_job, get_job, update_job
 from app.features.workspaces.dependencies import (
@@ -37,7 +39,11 @@ from app.features.workspaces.service import WorkspaceService
 from app.logging_config import get_logger
 from app.models import PaginatedResponse, User, WorkspaceCreate
 
-router = APIRouter(prefix="/workspaces", tags=["Workspaces"])
+router = APIRouter(
+    prefix="/workspaces",
+    tags=["Workspaces"],
+    dependencies=[Depends(get_current_user), Depends(require_read_or_write_scope)],
+)
 logger = get_logger(__name__)
 
 
@@ -51,7 +57,6 @@ def _workspace_error_to_http(error: Exception) -> HTTPException:
 
 
 @router.get("/")
-@router.get("")
 async def list_workspaces_endpoint(
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=500),
@@ -80,8 +85,7 @@ async def check_workspace_name(name: str, user: User = Depends(get_current_user)
     return {"available": not exists, "name": name}
 
 
-@router.post("/")
-@router.post("")
+@router.post("/", dependencies=[Depends(require_write_scope)])
 async def create_workspace_endpoint(data: WorkspaceCreate, user: User = Depends(get_current_user)):
     """Create a new workspace."""
     try:
@@ -92,7 +96,7 @@ async def create_workspace_endpoint(data: WorkspaceCreate, user: User = Depends(
         raise HTTPException(status_code=400, detail=str(e)) from e
 
 
-@router.post("/{workspace_uuid}/switch")
+@router.post("/{workspace_uuid}/switch", dependencies=[Depends(require_write_scope)])
 async def switch_workspace_endpoint(workspace_uuid: str, user: User = Depends(get_current_user)):
     """Switch to a different workspace by UUID."""
     success = await switch_workspace(user.id, workspace_uuid)
@@ -102,7 +106,7 @@ async def switch_workspace_endpoint(workspace_uuid: str, user: User = Depends(ge
     return {"status": "ok", "active": workspace_uuid}
 
 
-@router.put("/{name}/rename")
+@router.put("/{name}/rename", dependencies=[Depends(require_write_scope)])
 async def rename_workspace_endpoint(name: str, data: WorkspaceCreate, user: User = Depends(get_current_user)):
     """Rename a workspace."""
     try:
@@ -112,7 +116,7 @@ async def rename_workspace_endpoint(name: str, data: WorkspaceCreate, user: User
         raise HTTPException(status_code=400, detail=str(e)) from e
 
 
-@router.delete("/{uuid}")
+@router.delete("/{uuid}", dependencies=[Depends(require_write_scope)])
 async def delete_workspace_endpoint(uuid: str, user: User = Depends(get_current_user)):
     """Delete a workspace by UUID."""
     try:
@@ -335,7 +339,7 @@ async def download_workspace_export_job(job_uuid: str, user: User = Depends(get_
     return FileResponse(path, filename=path.name, media_type=media_type)
 
 
-@router.post("/import")
+@router.post("/import", dependencies=[Depends(require_write_scope)])
 async def import_workspace(
     file: UploadFile = File(...),
     name: str = Form(...),
@@ -382,7 +386,7 @@ async def import_workspace(
         tmp_path.unlink(missing_ok=True)
 
 
-@router.post("/{workspace_uuid}/restore")
+@router.post("/{workspace_uuid}/restore", dependencies=[Depends(require_write_scope)])
 async def restore_workspace(
     workspace_uuid: str,
     file: UploadFile = File(...),
@@ -424,7 +428,7 @@ class MemberUpdateRequest(BaseModel):
     role: str
 
 
-@router.post("/{workspace_uuid}/members")
+@router.post("/{workspace_uuid}/members", dependencies=[Depends(require_write_scope)])
 async def invite_member(
     workspace_uuid: str,
     body: MemberInviteRequest,
@@ -469,7 +473,7 @@ async def list_members(
         raise HTTPException(status_code=403, detail=str(e)) from e
 
 
-@router.put("/{workspace_uuid}/members/{member_user_uuid}")
+@router.put("/{workspace_uuid}/members/{member_user_uuid}", dependencies=[Depends(require_write_scope)])
 async def update_member(
     workspace_uuid: str,
     member_user_uuid: str,
@@ -492,7 +496,7 @@ async def update_member(
         raise HTTPException(status_code=403, detail=str(e)) from e
 
 
-@router.delete("/{workspace_uuid}/members/{member_user_uuid}")
+@router.delete("/{workspace_uuid}/members/{member_user_uuid}", dependencies=[Depends(require_write_scope)])
 async def remove_member(
     workspace_uuid: str,
     member_user_uuid: str,
@@ -514,7 +518,7 @@ async def remove_member(
         raise HTTPException(status_code=403, detail=str(e)) from e
 
 
-@router.delete("/{workspace_uuid}/pending-invites/{email}")
+@router.delete("/{workspace_uuid}/pending-invites/{email}", dependencies=[Depends(require_write_scope)])
 async def remove_pending_invite(
     workspace_uuid: str,
     email: str,
@@ -553,7 +557,7 @@ async def get_sync_protocol_version(
         raise HTTPException(status_code=404, detail=str(e)) from e
 
 
-@router.patch("/{workspace_uuid}/sync-protocol-version")
+@router.patch("/{workspace_uuid}/sync-protocol-version", dependencies=[Depends(require_write_scope)])
 async def update_sync_protocol_version(
     workspace_uuid: str,
     body: SyncProtocolVersionUpdate,

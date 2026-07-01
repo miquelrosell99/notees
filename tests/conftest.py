@@ -358,6 +358,7 @@ async def test_user(db_pool, temp_data_dir: Path) -> dict:
 
     user_data = {
         "id": user["id"],
+        "uuid": user["uuid"],
         "email": user["email"],
         "workspace_id": workspace_id,
         "workspace_uuid": workspace_uuid,

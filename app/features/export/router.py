@@ -10,8 +10,13 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse, Response
 
 from app.db.connection import clear_request_conn, get_data_dir
-from app.dependencies import get_current_user, get_node_service, get_workspace_id
-from app.export_jobs import create_job, get_job, update_job
+from app.dependencies import (
+    get_current_user,
+    get_node_service,
+    get_workspace_id,
+    require_read_or_write_scope,
+)
+from app.export_jobs import create_job, get_job_for_user, update_job
 from app.features.export.dependencies import _get_export_renderer, _make_export_repository
 from app.features.export.models import (
     CreateExportJobResponse,
@@ -25,7 +30,11 @@ from app.features.nodes.node_service import NodeService
 from app.logging_config import get_logger
 from app.models import User
 
-router = APIRouter(prefix="/export", tags=["Export"])
+router = APIRouter(
+    prefix="/export",
+    tags=["Export"],
+    dependencies=[Depends(get_current_user), Depends(require_read_or_write_scope)],
+)
 logger = get_logger(__name__)
 
 
@@ -146,7 +155,7 @@ async def export_nodes(
         "user_id": int(user.id),
     }
 
-    job = create_job()
+    job = create_job(user_id=user.id, workspace_id=workspace_id)
     logger.info(
         f"Created node export job {job.id} for user {user.id} "
         f"(format={request.format}, nodes={len(request.node_uuids)})"
@@ -158,7 +167,7 @@ async def export_nodes(
 @router.get("/jobs/{job_uuid}", response_model=ExportJobResponse)
 async def get_node_export_job(job_uuid: str, user: User = Depends(get_current_user)):
     """Get the status of a node export job."""
-    job = get_job(job_uuid)
+    job = get_job_for_user(job_uuid, user.id)
     if job is None:
         raise HTTPException(status_code=404, detail="Export job not found")
 
@@ -179,7 +188,7 @@ async def get_node_export_job(job_uuid: str, user: User = Depends(get_current_us
 @router.get("/jobs/{job_uuid}/download")
 async def download_node_export_job(job_uuid: str, user: User = Depends(get_current_user)):
     """Download the result of a completed export job."""
-    job = get_job(job_uuid)
+    job = get_job_for_user(job_uuid, user.id)
     if job is None:
         raise HTTPException(status_code=404, detail="Export job not found")
     if job.status != "completed":
@@ -273,7 +282,7 @@ async def export_single_node(
         "user_id": int(user.id),
     }
 
-    job = create_job()
+    job = create_job(user_id=user.id, workspace_id=workspace_id)
     logger.info(
         f"Created node export job {job.id} for user {user.id} "
         f"(format={export_format}, node={node_uuid})"

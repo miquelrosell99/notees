@@ -67,6 +67,8 @@ class Settings(BaseSettings):
     port: int = 8000
     environment: str = "development"
     reload: bool = True
+    enable_docs: bool = True
+    yjs_max_update_size_bytes: int = 1 * 1024 * 1024  # 1 MB
 
     @field_validator("reload", mode="before")
     @classmethod

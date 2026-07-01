@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
+from app.dependencies import get_current_user, require_write_scope
 from app.features.import_.dependencies import get_import_service
 from app.features.import_.models import (
     MarkdownImportRequest,
@@ -11,13 +12,19 @@ from app.features.import_.models import (
     OpmlImportRequest,
 )
 from app.features.import_.service import ImportService
+from app.models import User
 
-router = APIRouter(prefix="/import", tags=["import"])
+router = APIRouter(
+    prefix="/import",
+    tags=["import"],
+    dependencies=[Depends(get_current_user), Depends(require_write_scope)],
+)
 
 
 @router.post("/markdown", response_model=list[MarkdownImportResult])
 async def import_markdown(
     request: MarkdownImportRequest,
+    user: User = Depends(get_current_user),  # noqa: B008
     import_service: ImportService = Depends(get_import_service),
 ) -> list[MarkdownImportResult]:
     """Import one or more Markdown documents as nodes."""
@@ -49,6 +56,7 @@ async def import_markdown(
 @router.post("/opml", response_model=list[MarkdownImportResult])
 async def import_opml(
     request: OpmlImportRequest,
+    user: User = Depends(get_current_user),  # noqa: B008
     import_service: ImportService = Depends(get_import_service),
 ) -> list[MarkdownImportResult]:
     """Import an OPML outline as a tree of page nodes."""

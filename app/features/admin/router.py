@@ -8,6 +8,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
+from app.dependencies import require_admin_scope
 from app.features.auth import auth as auth_module
 from app.features.auth import hash_password
 from app.features.auth.dependencies import get_user_repository
@@ -18,7 +19,11 @@ from app.models import AdminUserCreate, AdminUserUpdate, PaginatedResponse
 from app.system_settings import get_all_system_settings, get_system_setting, set_system_setting
 
 logger = get_logger(__name__)
-router = APIRouter(prefix="/admin", tags=["Admin"])
+router = APIRouter(
+    prefix="/admin",
+    tags=["Admin"],
+    dependencies=[Depends(require_admin), Depends(require_admin_scope)],
+)
 
 
 class SystemSettingUpdate(BaseModel):
@@ -39,7 +44,6 @@ async def list_users(
 
     items = [
         {
-            "id": str(r["id"]),
             "uuid": str(r["uuid"]),
             "email": r["email"],
             "name": r["name"],
@@ -75,7 +79,16 @@ async def create_user(
         profile_pic=data.profile_pic,
         role=data.role,
     )
-    return user
+    return {
+        "uuid": str(user["uuid"]),
+        "email": user["email"],
+        "name": user["name"],
+        "surnames": user["surnames"],
+        "profile_pic": user["profile_pic"],
+        "role": user["role"],
+        "active": user.get("active", True),
+        "created_at": user.get("created_at"),
+    }
 
 
 @router.put("/users/{user_uuid}")
@@ -128,7 +141,6 @@ async def update_user(
         auth_module.clear_user_cache(user_uuid)
 
     return {
-        "id": str(row["id"]),
         "uuid": str(row["uuid"]),
         "email": row["email"],
         "name": row["name"],
