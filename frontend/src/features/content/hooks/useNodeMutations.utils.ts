@@ -229,7 +229,12 @@ export function ensureNodeInRuntime(nodeUuid: string): string | null {
     return runtimeNode.blockId;
   }
 
-  const cachedNode = queryClient.getQueryData<Node>(nodeKeys.byUuid(nodeUuid));
+  let cachedNode: Node | null | undefined = queryClient.getQueryData<Node>(nodeKeys.byUuid(nodeUuid));
+  // The node may only be cached inside a parent page's detail/page-content tree
+  // (e.g. a child block the user is interacting with before any by-uuid fetch).
+  if (!cachedNode) {
+    cachedNode = findNodeInCache(queryClient, nodeUuid);
+  }
   if (!cachedNode) return null;
 
   const allClasses = queryClient.getQueryData<Node[]>(nodeKeys.classes());
