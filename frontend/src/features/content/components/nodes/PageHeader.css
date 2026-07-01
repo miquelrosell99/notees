@@ -12,7 +12,6 @@
   margin-bottom: var(--spacing-6);
   padding: var(--spacing-6);
   background: var(--color-surface-container);
-  border-radius: var(--shape-medium);
 }
 
 /* Embedded variant sits flush inside a grid section. */
