@@ -3,8 +3,9 @@
 These tests verify node creation, reading, updating, and deletion.
 """
 import pytest
-from app.db.schema.constants import SYSTEM_CLASS_UUIDS
 from httpx import AsyncClient
+
+from app.db.schema.constants import SYSTEM_CLASS_UUIDS
 
 pytestmark = pytest.mark.integration
 
@@ -277,3 +278,52 @@ class TestNodeDeletion:
         # Verify it's gone
         get_response = await authenticated_client.get(f"/api/nodes/{node['uuid']}")
         assert get_response.status_code == 404
+
+
+class TestClassListExtends:
+    """Test that class list endpoints expose extends_uuid for inheritance."""
+
+    @pytest.mark.asyncio
+    async def test_list_classes_populates_extends_uuid(self, authenticated_client: AsyncClient):
+        """GET /nodes/classes must return extends_uuid so icon/color inheritance works."""
+        page_class_uuid = SYSTEM_CLASS_UUIDS["page"]
+        class_class_uuid = SYSTEM_CLASS_UUIDS["class"]
+
+        parent = await authenticated_client.post(
+            "/api/nodes/",
+            json={
+                "name": "Parent Class",
+                "class_uuids": [page_class_uuid, class_class_uuid],
+                "color": "#ff8800",
+            },
+        )
+        assert parent.status_code == 200
+        parent_uuid = parent.json()["uuid"]
+
+        child = await authenticated_client.post(
+            "/api/nodes/",
+            json={
+                "name": "Child Class",
+                "class_uuids": [page_class_uuid, class_class_uuid],
+            },
+        )
+        assert child.status_code == 200
+        child_uuid = child.json()["uuid"]
+
+        extend_response = await authenticated_client.post(
+            f"/api/properties/classes/{child_uuid}/extends",
+            json={"extends_class_node_uuid": parent_uuid, "sequence": 0},
+        )
+        assert extend_response.status_code == 200
+
+        list_response = await authenticated_client.get("/api/nodes/classes")
+        assert list_response.status_code == 200
+        nodes = list_response.json()["nodes"]
+
+        child_node = next((n for n in nodes if n["uuid"] == child_uuid), None)
+        assert child_node is not None
+        assert child_node["extends_uuid"] == [parent_uuid]
+
+        parent_node = next((n for n in nodes if n["uuid"] == parent_uuid), None)
+        assert parent_node is not None
+        assert parent_node["extends_uuid"] == []

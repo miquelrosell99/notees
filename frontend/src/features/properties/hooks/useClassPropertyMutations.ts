@@ -104,6 +104,7 @@ export function useAddClassExtends() {
       queryClient.invalidateQueries({ queryKey: propertyKeys.classExtends(classId) });
       queryClient.invalidateQueries({ queryKey: propertyKeys.forClassInherited(classId) });
       queryClient.invalidateQueries({ queryKey: propertyKeys.extendedByClasses(extendsClassId) });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.classes() });
       queryClient.invalidateQueries({ queryKey: nodeViewKeys.queryResults() });
       queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
     },
@@ -120,6 +121,7 @@ export function useRemoveClassExtends() {
       queryClient.invalidateQueries({ queryKey: propertyKeys.classExtends(classId) });
       queryClient.invalidateQueries({ queryKey: propertyKeys.forClassInherited(classId) });
       queryClient.invalidateQueries({ queryKey: propertyKeys.extendedByClasses(extendsClassId) });
+      queryClient.invalidateQueries({ queryKey: nodeKeys.classes() });
       queryClient.invalidateQueries({ queryKey: nodeViewKeys.queryResults() });
       queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
     },
