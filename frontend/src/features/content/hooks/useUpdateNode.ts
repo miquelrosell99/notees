@@ -28,6 +28,7 @@ export function useUpdateNode() {
       if (data.name !== undefined && data.name !== null) updates.name = data.name;
       if (data.icon !== undefined) updates.icon = data.icon;
       if (data.color !== undefined) updates.color = data.color;
+      if (data.parent_uuid !== undefined) updates.parentId = data.parent_uuid;
       if (data.is_page !== undefined && data.is_page !== null) updates.isPage = data.is_page;
       if (data.is_private !== undefined && data.is_private !== null) updates.isPrivate = data.is_private;
 
