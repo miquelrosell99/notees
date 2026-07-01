@@ -120,5 +120,31 @@ describe('getEffectiveIcon', () => {
     expect(getEffectiveIcon(childClass, allClasses)).toBe('mdi mdi-star');
   });
 
+  it('inherits color across multi-level class extends chain', () => {
+    const agentClass = makeNode({
+      uuid: '11111111-1111-1111-1111-111111111111',
+      name: 'Agent Class',
+      color: '#ff8800',
+      is_class: true,
+    });
+    const organizationClass = makeNode({
+      uuid: '22222222-2222-2222-2222-222222222222',
+      name: 'Organization Class',
+      color: null,
+      icon: 'mdi mdi-office-building',
+      is_class: true,
+      extends_uuid: [agentClass.uuid],
+    });
+    const childClass = makeNode({
+      uuid: '33333333-3333-3333-3333-333333333333',
+      name: 'Child Class',
+      color: null,
+      icon: null,
+      is_class: true,
+      extends_uuid: [organizationClass.uuid],
+    });
 
+    expect(getEffectiveColor(childClass, [agentClass, organizationClass, childClass])).toBe('#ff8800');
+    expect(getEffectiveIcon(childClass, [agentClass, organizationClass, childClass])).toBe('mdi mdi-office-building');
+  });
 });

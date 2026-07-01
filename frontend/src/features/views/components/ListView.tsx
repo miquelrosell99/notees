@@ -22,7 +22,7 @@ import { getEffectiveIcon } from '@/utils/nodeIcon';
 
 import { getPropertyGroupInfo } from '../utils/viewHelpers';
 import { sortBySequence, compareDateFirstAlpha } from '@/utils/nodeSort';
-import { getNodeByUuid } from '@/api/nodes';
+import { parseLinkId } from '@/lib/astBuilder';
 import { NodeBreadcrumbs } from '@/features/content';
 import './ListView.css';
 import { registerView } from './registry';
@@ -247,29 +247,23 @@ export const ListView = memo(function ListView({
   }, [allNodes]);
 
   // Handler for navigation from editor
-  const handleNavigateToNode = useCallback(async (blockId: string) => {
-    // Get runtime to resolve blockId to serverId
+  const handleNavigateToNode = useCallback((blockId: string) => {
+    // Resolve to a target UUID synchronously. Use the runtime when available,
+    // otherwise parse the link id. Avoiding an async fetch here eliminates the
+    // stale-closure race where a later click could be overwritten by an earlier
+    // fetch that finishes second.
     const runtime = getOperationRuntime();
     const graphNode = getNode(runtime, blockId);
+    const nodeUuid = graphNode?.blockId ?? parseLinkId(blockId).nodeUuid;
 
-    if (graphNode?.blockId) {
-      const targetNode = allNodes.find(n => n.uuid === graphNode.blockId);
-      if (targetNode) {
-        onNodeClick?.(resolveAlias(targetNode));
-      } else {
-        onNodeClick?.({ uuid: graphNode.blockId, is_page: graphNode.isPage } as unknown as Node);
-      }
-      return;
-    }
-
-    // Node not in runtime — fetch by UUID from API
-    try {
-      const { parseLinkId } = await import('@/lib/astBuilder');
-      const { nodeUuid } = parseLinkId(blockId);
-      const node = await getNodeByUuid(nodeUuid);
-      onNodeClick?.(resolveAlias(node));
-    } catch {
-      // Node not found
+    const targetNode = allNodes.find(n => n.uuid === nodeUuid);
+    if (targetNode) {
+      onNodeClick?.(resolveAlias(targetNode));
+    } else {
+      // Target is not in the loaded view; pass a minimal node so navigation can
+      // still proceed. Alias redirection is only possible when the node is in
+      // the local allNodes set.
+      onNodeClick?.({ uuid: nodeUuid, is_page: true } as unknown as Node);
     }
   }, [allNodes, onNodeClick, resolveAlias]);
 
@@ -571,7 +565,7 @@ function ListViewGroup({
   group: GroupTreeNode;
   editable: boolean;
   pagesOnly?: boolean;
-  handleNavigateToNode: (blockId: string) => Promise<void>;
+  handleNavigateToNode: (blockId: string) => void;
   handleOpenInSidebar: (blockId: string) => void;
   handleContentChangeBridge: (blockId: string, content: string) => void;
   onAddClass?: (nodeUuid: string, classId: string) => void;

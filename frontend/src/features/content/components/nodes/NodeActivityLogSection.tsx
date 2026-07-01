@@ -11,7 +11,6 @@ import { Spinner } from '@/components/ui/Spinner';
 import { useNodeActivity, useDeleteNodeActivity } from '@/features/content';
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/ContextMenu';
 import { splitTextWithLinks } from '@/lib/noteesUri';
-import { getNodeByUuid } from '@/api/nodes';
 import { useNavigationStore } from '@/stores';
 import { Bullet } from '@/features/content/components/blocks/Bullet';
 import { NodeViewSection } from './NodeViewSection';
@@ -105,15 +104,10 @@ function ActivityMessage({ activity }: { activity: NodeActivity }) {
   const time = formatDate(activity.create_date);
   const segments = splitTextWithLinks(message);
 
-  const handleLinkClick = useCallback(async (nodeUuid: string) => {
-    try {
-      const node = await getNodeByUuid(nodeUuid);
-      if (node?.uuid) {
-        openNode(node.uuid);
-      }
-    } catch {
-      // Node may have been deleted
-    }
+  const handleLinkClick = useCallback((nodeUuid: string) => {
+    // The activity link already carries the target UUID; navigate directly
+    // instead of awaiting an API round-trip that can race with later clicks.
+    openNode(nodeUuid);
   }, [openNode]);
 
   return (
