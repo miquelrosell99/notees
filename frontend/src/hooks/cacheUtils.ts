@@ -33,6 +33,13 @@ export function findUuidCaches(queryCache: QueryCache): Query[] {
 }
 
 /**
+ * Find all uuid-batch queries in the cache.
+ */
+export function findUuidBatchCaches(queryCache: QueryCache): Query[] {
+  return queryCache.findAll({ queryKey: nodeKeys.all }).filter((query) => query.queryKey[1] === 'uuid-batch');
+}
+
+/**
  * Find all detail queries for a specific node UUID.
  */
 export function findDetailCachesForNode(queryCache: QueryCache, nodeUuid: string): Query[] {
@@ -196,6 +203,32 @@ export function updateNodeInTreeCaches(
   for (const query of findPageContentCaches(queryCache)) applyToQuery(query);
   for (const query of findUuidCaches(queryCache)) applyToQuery(query);
   for (const query of findDetailCachesForNode(queryCache, nodeUuid)) applyToQuery(query);
+
+  return modified;
+}
+
+/**
+ * Update a node in all uuid-batch caches (used by tab bar and other bulk metadata reads).
+ * Returns true if any cache was modified.
+ */
+export function updateNodeInUuidBatchCaches(
+  queryClient: QueryClient,
+  nodeUuid: string,
+  updater: (node: Node) => Node
+): boolean {
+  const queryCache = queryClient.getQueryCache();
+  let modified = false;
+
+  for (const query of findUuidBatchCaches(queryCache)) {
+    const oldData = query.state.data as { nodes: Record<string, Node> } | undefined;
+    if (!oldData || !oldData.nodes[nodeUuid]) continue;
+    const newData = {
+      ...oldData,
+      nodes: { ...oldData.nodes, [nodeUuid]: updater(oldData.nodes[nodeUuid]) },
+    };
+    queryClient.setQueryData(query.queryKey, newData);
+    modified = true;
+  }
 
   return modified;
 }
