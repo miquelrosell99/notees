@@ -61,7 +61,7 @@ export function useUpdateNodeView() {
       updateNodeView(requireViewUuid(viewId), data),
     onSuccess: (updatedView) => {
       // Update the cache for this view
-      queryClient.setQueryData(nodeViewKeys.detail(updatedView.nodeUuid), updatedView);
+      queryClient.setQueryData(nodeViewKeys.detail(updatedView.uuid), updatedView);
       // Invalidate list queries
       queryClient.invalidateQueries({
         queryKey: nodeViewKeys.list(updatedView.node_uuid),
@@ -84,14 +84,14 @@ export function useUpdateQueryAST() {
       updateQueryAST(requireViewUuid(viewId), queryAST),
     onSuccess: (updatedView) => {
       // Update the cache for this view
-      queryClient.setQueryData(nodeViewKeys.detail(updatedView.nodeUuid), updatedView);
+      queryClient.setQueryData(nodeViewKeys.detail(updatedView.uuid), updatedView);
       // Invalidate ALL query results for this view (regardless of parameters)
       queryClient.invalidateQueries({
         queryKey: nodeViewKeys.queryResults(),
         predicate: (query) => {
           const key = query.queryKey;
           // Match ['nodeViews', 'queryResults', viewId, ...]
-          return key[0] === 'nodeViews' && key[1] === 'queryResults' && key[2] === updatedView.nodeUuid;
+          return key[0] === 'nodeViews' && key[1] === 'queryResults' && key[2] === updatedView.uuid;
         },
       });
       // Also invalidate the list queries since the view was updated
@@ -142,7 +142,7 @@ export function useResetNodeViews() {
       
       // Set the new views in cache for individual view queries
       newViews.forEach((view) => {
-        queryClient.setQueryData(nodeViewKeys.detail(view.nodeUuid), view);
+        queryClient.setQueryData(nodeViewKeys.detail(view.uuid), view);
       });
       
       // Group views by view_type and set list queries to prevent duplicate creation
@@ -206,7 +206,7 @@ export function useReorderNodeViews() {
       });
       // Update individual view caches
       for (const view of updatedViews) {
-        queryClient.setQueryData(nodeViewKeys.detail(view.nodeUuid), view);
+        queryClient.setQueryData(nodeViewKeys.detail(view.uuid), view);
       }
     },
   });
