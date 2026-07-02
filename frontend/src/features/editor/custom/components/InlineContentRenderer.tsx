@@ -65,11 +65,12 @@ function wrapWithMark(children: React.ReactNode, mark: MarkType): JSX.Element {
 
 interface AtomicNodeRendererProps {
   node: ASTInlineNode;
+  editable?: boolean;
   onPillClick?: InlineContentRendererProps['onPillClick'];
   selectedPillLinkId?: string | null;
 }
 
-function AtomicNodeRenderer({ node, onPillClick, selectedPillLinkId }: AtomicNodeRendererProps): JSX.Element | null {
+function AtomicNodeRenderer({ node, editable, onPillClick, selectedPillLinkId }: AtomicNodeRendererProps): JSX.Element | null {
   switch (node.type) {
     case 'node_link': {
       const { nodeUuid } = parseLinkId(node.link_id);
@@ -89,6 +90,7 @@ function AtomicNodeRenderer({ node, onPillClick, selectedPillLinkId }: AtomicNod
           data-link-id={node.link_id}
           data-ref-type={node.ref_type}
           data-label={node.label ?? undefined}
+          data-editable={editable || undefined}
           contentEditable="false"
           role={onPillClick ? 'button' : undefined}
           tabIndex={onPillClick ? -1 : undefined}
@@ -116,6 +118,7 @@ function AtomicNodeRenderer({ node, onPillClick, selectedPillLinkId }: AtomicNod
           data-link-id={node.link_id}
           data-ref-type="broken"
           data-label={node.label ?? undefined}
+          data-editable={editable || undefined}
           contentEditable="false"
           role={onPillClick ? 'button' : undefined}
           tabIndex={onPillClick ? -1 : undefined}
@@ -147,6 +150,7 @@ function AtomicNodeRenderer({ node, onPillClick, selectedPillLinkId }: AtomicNod
           data-link-id={node.url}
           data-ref-type="url"
           data-url={node.url}
+          data-editable={editable || undefined}
           contentEditable="false"
           role={onPillClick ? 'button' : undefined}
           tabIndex={onPillClick ? -1 : undefined}
@@ -187,9 +191,9 @@ function AtomicNodeRenderer({ node, onPillClick, selectedPillLinkId }: AtomicNod
   }
 }
 
-function InlineUnitRenderer({ unit, textUnitClassName, onPillClick, selectedPillLinkId }: { unit: InlineUnit; textUnitClassName?: string; onPillClick?: InlineContentRendererProps['onPillClick']; selectedPillLinkId?: string | null }): JSX.Element {
+function InlineUnitRenderer({ unit, editable, textUnitClassName, onPillClick, selectedPillLinkId }: { unit: InlineUnit; editable?: boolean; textUnitClassName?: string; onPillClick?: InlineContentRendererProps['onPillClick']; selectedPillLinkId?: string | null }): JSX.Element {
   if (unit.type === 'atomic') {
-    return <AtomicNodeRenderer node={unit.node} onPillClick={onPillClick} selectedPillLinkId={selectedPillLinkId} />;
+    return <AtomicNodeRenderer node={unit.node} editable={editable} onPillClick={onPillClick} selectedPillLinkId={selectedPillLinkId} />;
   }
 
   let content: React.ReactNode = unit.text === '' ? '\u200B' : unit.text;
@@ -200,7 +204,7 @@ function InlineUnitRenderer({ unit, textUnitClassName, onPillClick, selectedPill
   return <span className={textUnitClassName}>{content}</span>;
 }
 
-export function InlineContentRenderer({ name, textUnitClassName, onPillClick, selectedPillLinkId }: InlineContentRendererProps): JSX.Element {
+export function InlineContentRenderer({ name, editable, textUnitClassName, onPillClick, selectedPillLinkId }: InlineContentRendererProps): JSX.Element {
   const ast = useMemo(() => parseAST(name) as ContentAST, [name]);
   const units = useMemo(() => astToUnits(getInlineChildren(ast)), [ast]);
 
@@ -210,6 +214,7 @@ export function InlineContentRenderer({ name, textUnitClassName, onPillClick, se
         <InlineUnitRenderer
           key={index}
           unit={unit}
+          editable={editable}
           textUnitClassName={textUnitClassName}
           onPillClick={onPillClick}
           selectedPillLinkId={selectedPillLinkId}
