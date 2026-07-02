@@ -46,6 +46,7 @@ import { InlineNodeLinks } from '../plugins/InlineNodeLinks';
 import { InlineCopyPaste } from '../plugins/InlineCopyPaste';
 import { useInlineCopyPaste } from '../plugins/useInlineCopyPaste';
 import { FloatingToolbar } from '../plugins/FloatingToolbar';
+import '@/styles/inline-link.css';
 import './CustomInlineEditor.css';
 
 interface CustomInlineEditorProps {
@@ -505,6 +506,7 @@ export const CustomInlineEditor = memo(
       >
         <InlineContentRenderer
           name={serializedAST}
+          editable={!readOnly}
           onPillClick={_onPillClick}
           selectedPillLinkId={selectedPillLinkId}
         />
