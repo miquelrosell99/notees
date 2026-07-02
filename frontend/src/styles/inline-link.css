@@ -70,7 +70,7 @@ button.inline-link-inner {
   display: inline-flex;
   align-items: center;
   vertical-align: -0.125em;
-  margin-left: var(--spacing-micro);
+  margin-left: var(--spacing-1);
   margin-right: var(--spacing-micro);
 }
 
