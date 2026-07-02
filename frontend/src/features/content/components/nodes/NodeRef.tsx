@@ -144,15 +144,14 @@ export const NodeRef = memo(function NodeRef(props: NodeRefProps) {
   return <NodeRefInteractive {...props} />;
 }, (prev, next) => {
   // Custom comparator: skip re-render when only function props change
-  // (all callers use inline callbacks that change every render)
+  // (all callers use inline callbacks that change every render).
+  // Compare node objects by identity rather than by field, because the node
+  // passed to a class pill is often re-resolved from the classes query cache;
+  // when that cache changes the object identity changes even if the field
+  // values are identical. A deep comparison would block the update and keep
+  // inherited colors/icon stale.
   return (
-    prev.node?.uuid === next.node?.uuid &&
-    prev.node?.name === next.node?.name &&
-    prev.node?.color === next.node?.color &&
-    prev.node?.icon === next.node?.icon &&
-    prev.node?.is_page === next.node?.is_page &&
-    prev.node?.classes_uuid?.join(',') === next.node?.classes_uuid?.join(',') &&
-    prev.nodeUuid === next.nodeUuid &&
+    prev.node === next.node &&
     prev.nodeUuid === next.nodeUuid &&
     prev.variant === next.variant &&
     prev.refType === next.refType &&

@@ -13,15 +13,18 @@ import { useUIStateStore } from '@/features/sync';
 
 export function useFoldKeyboardShortcut(enabled = true): void {
   const { workspaceId } = useParams<{ workspaceId?: string }>();
-  const activeBlockId = useEditorFocusStore((s) => s.activeBlockId);
   const toggleCollapsed = useUIStateStore((s) => s.toggleCollapsed);
 
   const execute = useCallback(() => {
+    // Read at execution time instead of subscribing; this prevents the whole
+    // NodeView from re-rendering on every window blur/focus just because the
+    // active block changed.
+    const activeBlockId = useEditorFocusStore.getState().activeBlockId;
     if (!workspaceId || !activeBlockId) return false;
 
     toggleCollapsed(workspaceId, activeBlockId);
     return true;
-  }, [workspaceId, activeBlockId, toggleCollapsed]);
+  }, [workspaceId, toggleCollapsed]);
 
   useCommand(COMMAND_IDS.TOGGLE_FOLD, execute, {
     enabled,
