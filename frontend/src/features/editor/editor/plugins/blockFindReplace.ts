@@ -1,18 +1,10 @@
 /**
- * Block-level find/replace helpers for the per-block editor architecture.
+ * Block-level find/replace helpers for the per-block custom editor architecture.
  *
- * Operates across all registered InlineEditor instances rather than
- * a single monolithic editor.
+ * Operates across all registered inline editor handles rather than a single
+ * monolithic Lexical editor.
  */
 
-import {
-  $getNodeByKey,
-  $isTextNode,
-  $createRangeSelection,
-  $getSelection,
-  $isRangeSelection,
-  type LexicalEditor,
-} from 'lexical';
 import { useInlineEditorRegistry } from '@/stores/inlineEditorRegistry';
 import type { Match } from '@/stores/findReplaceStore';
 
@@ -28,27 +20,20 @@ export function executeBlockSearch(query: string, caseSensitive: boolean): Match
   const matches: BlockMatch[] = [];
 
   for (const [blockId, editor] of editors) {
-    editor.read(() => {
-      const nodeMap = editor.getEditorState()._nodeMap;
-      for (const [key, node] of nodeMap) {
-        if ($isTextNode(node)) {
-          const text = node.getTextContent();
-          const searchText = caseSensitive ? text : text.toLowerCase();
-          const searchQuery = caseSensitive ? query : query.toLowerCase();
-          let idx = searchText.indexOf(searchQuery);
-          while (idx !== -1) {
-            matches.push({
-              blockId,
-              nodeKey: key,
-              offset: idx,
-              length: query.length,
-              text: text.slice(idx, idx + query.length),
-            });
-            idx = searchText.indexOf(searchQuery, idx + 1);
-          }
-        }
-      }
-    });
+    const text = editor.getText();
+    const searchText = caseSensitive ? text : text.toLowerCase();
+    const searchQuery = caseSensitive ? query : query.toLowerCase();
+    let idx = searchText.indexOf(searchQuery);
+    while (idx !== -1) {
+      matches.push({
+        blockId,
+        nodeKey: blockId,
+        offset: idx,
+        length: query.length,
+        text: text.slice(idx, idx + query.length),
+      });
+      idx = searchText.indexOf(searchQuery, idx + 1);
+    }
   }
 
   return matches;
@@ -62,25 +47,8 @@ export function selectBlockMatch(match: Match) {
   if (!editor) return;
 
   editor.focus();
-
-  // Scroll the block into view
-  const rootElement = editor.getRootElement();
-  if (rootElement) {
-    rootElement.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  }
-
-  editor.update(() => {
-    const node = $getNodeByKey(match.nodeKey);
-    if (!node || !$isTextNode(node)) return;
-    const selection = $createRangeSelection();
-    selection.anchor.set(match.nodeKey, match.offset, 'text');
-    selection.focus.set(match.nodeKey, match.offset + match.length, 'text');
-    const currentSel = $getSelection();
-    if ($isRangeSelection(currentSel)) {
-      currentSel.anchor.set(match.nodeKey, match.offset, 'text');
-      currentSel.focus.set(match.nodeKey, match.offset + match.length, 'text');
-    }
-  });
+  editor.scrollIntoView();
+  editor.selectRange(match.offset, match.offset + match.length);
 }
 
 /** Replace a single match in its respective editor. */
@@ -90,47 +58,18 @@ export function replaceBlockMatch(match: Match, replaceText: string) {
   const editor = useInlineEditorRegistry.getState().getEditor(blockId);
   if (!editor) return;
 
-  editor.update(() => {
-    const node = $getNodeByKey(match.nodeKey);
-    if (!node || !$isTextNode(node)) return;
-    const text = node.getTextContent();
-    const before = text.slice(0, match.offset);
-    const after = text.slice(match.offset + match.length);
-    node.setTextContent(before + replaceText + after);
-  });
+  editor.replaceRange(match.offset, match.offset + match.length, replaceText);
 }
 
 /** Replace all matches, grouped by editor and processed last-to-first. */
 export function replaceAllBlockMatches(matches: Match[], replaceText: string) {
-  // Group matches by editor so we can process each editor independently
-  const byEditor = new Map<LexicalEditor, Match[]>();
+  // Sort globally last-to-first so offsets remain valid as we mutate each editor
+  const sorted = [...matches].sort((a, b) => {
+    if (a.blockId !== b.blockId) return 0; // different blocks — order doesn't matter for independent handles
+    return b.offset - a.offset;
+  });
 
-  for (const match of matches) {
-    const blockId = match.blockId;
-    if (!blockId) continue;
-    const editor = useInlineEditorRegistry.getState().getEditor(blockId);
-    if (!editor) continue;
-    const list = byEditor.get(editor) ?? [];
-    list.push(match);
-    byEditor.set(editor, list);
-  }
-
-  for (const [editor, editorMatches] of byEditor) {
-    editor.update(() => {
-      // Sort last-to-first so offsets remain valid as we mutate
-      const sorted = [...editorMatches].sort((a, b) => {
-        if (a.nodeKey !== b.nodeKey) return 0; // different nodes — order doesn't matter within one update
-        return b.offset - a.offset;
-      });
-
-      for (const match of sorted) {
-        const node = $getNodeByKey(match.nodeKey);
-        if (!node || !$isTextNode(node)) continue;
-        const text = node.getTextContent();
-        const before = text.slice(0, match.offset);
-        const after = text.slice(match.offset + match.length);
-        node.setTextContent(before + replaceText + after);
-      }
-    });
+  for (const match of sorted) {
+    replaceBlockMatch(match, replaceText);
   }
 }

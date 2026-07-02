@@ -57,7 +57,9 @@
   font: var(--font-body-medium);
   line-height: 1;
   opacity: var(--opacity-70);
-  transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
+  transition: opacity var(--motion-duration-short) var(--motion-easing-standard),
+              max-width var(--motion-duration-short) var(--motion-easing-standard),
+              margin var(--motion-duration-short) var(--motion-easing-standard);
 }
 
 .pill__right-button:hover {
@@ -68,6 +70,32 @@
   outline: var(--border-width-thick) solid var(--color-primary);
   outline-offset: var(--spacing-micro);
   border-radius: var(--shape-small);
+}
+
+/* Hover-reveal right icon: pill expands to show the icon on hover/focus.
+   Keep the text from shrinking so the pill only grows horizontally and
+   its vertical size stays stable. */
+.pill--hover-reveal-right .pill__text {
+  flex-shrink: 0;
+  min-width: 0;
+}
+
+.pill--hover-reveal-right .pill__right-button {
+  max-width: 0;
+  opacity: 0;
+  margin-inline-start: 0;
+  overflow: hidden;
+  transition: opacity var(--motion-duration-short) var(--motion-easing-standard),
+              max-width var(--motion-duration-short) var(--motion-easing-standard),
+              margin var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.pill--hover-reveal-right:hover .pill__right-button,
+.pill--hover-reveal-right:focus-within .pill__right-button,
+.pill--hover-reveal-right .pill__right-button:focus-visible {
+  max-width: 1.5rem;
+  opacity: var(--opacity-70);
+  margin-inline-start: var(--spacing-1);
 }
 
 /* Link variant - inline text style with subtle underline + micro-tint */

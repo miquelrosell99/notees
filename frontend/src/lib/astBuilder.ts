@@ -75,7 +75,7 @@ export function math(expression: string, displayMode = false): ASTMath {
   return { type: 'math', expression, displayMode };
 }
 
-export function nodeLink(linkId: string, refType: 'node' | 'class' = 'node', label?: string | null): ASTNodeLink {
+export function nodeLink(linkId: string, refType: 'node' | 'class' | 'user' = 'node', label?: string | null): ASTNodeLink {
   return { type: 'node_link', link_id: linkId, ref_type: refType, label: label ?? undefined };
 }
 

@@ -216,8 +216,9 @@ export function QueryNodeCollection({
   const needsChildren = childrenFriendlyViewModes.includes(collectionViewMode);
   const queryPagesOnly = viewType === 'all_pages' || viewType === 'child_pages' || viewType === 'extended_by';
   
-  // Default to 'page' — group by page automatically in list view
-  const defaultGroupBy: NodeCollectionGroupBy = 'page';
+  // Default to 'page' — group by page automatically in list view.
+  // Child pages already filters to a single parent, so grouping by page is redundant.
+  const defaultGroupBy: NodeCollectionGroupBy = viewType === 'child_pages' ? 'none' : 'page';
   const [groupBy, setGroupByState] = useState<NodeCollectionGroupBy>(
     getNodeGroupBy(nodeUuid, viewType) ?? defaultGroupBy
   );
@@ -225,6 +226,7 @@ export function QueryNodeCollection({
     setGroupByState(value);
     setNodeGroupBy(nodeUuid, viewType, value);
   };
+  const effectiveGroupBy: NodeCollectionGroupBy = viewType === 'child_pages' ? 'none' : groupBy;
   // Property column selection state (for table view)
   // Default to Created and Modified columns (matches default table columns)
   const [selectedPropertyUuids, setSelectedPropertyUuids] = useState<string[]>([]);
@@ -301,7 +303,6 @@ export function QueryNodeCollection({
   const syntheticInlineView = useMemo((): NodeView | null => {
     if (!isInlineMode) return null;
     return {
-      nodeUuid: '',
       uuid: '',
       node_uuid: nodeUuid,
       name: '',
@@ -320,7 +321,7 @@ export function QueryNodeCollection({
   const activeView = useMemo(() => {
     if (isInlineMode) return syntheticInlineView;
     if (activeViewId) {
-      return views.find(v => v.nodeUuid === activeViewId) ?? views[0] ?? null;
+      return views.find(v => v.uuid === activeViewId) ?? views[0] ?? null;
     }
     const defaultView = views.find(v => v.is_default);
     return defaultView ?? views[0] ?? null;
@@ -339,7 +340,7 @@ export function QueryNodeCollection({
   // Create SelectionButton options from views
   const viewOptions = useMemo(() => {
     return views.map(v => ({
-      value: String(v.nodeUuid),
+      value: String(v.uuid),
       icon: "mdi mdi-eye-outline",
       label: v.name,
     }));
@@ -382,7 +383,7 @@ export function QueryNodeCollection({
   const {
     data: queryResults,
     isLoading: queryLoading,
-  } = useNodeViewQuery(activeView?.nodeUuid ?? '', {
+  } = useNodeViewQuery(activeView?.uuid ?? '', {
     runtimeParams: {
       current_node_uuid: nodeUuid,
       current_node_id: nodeUuid,
@@ -729,7 +730,7 @@ export function QueryNodeCollection({
     setEditingView(view);
     setEditViewName(view.name);
     
-    const queryId = `view-${view.nodeUuid}-${view.uuid}`;
+    const queryId = `view-${view.node_uuid}-${view.uuid}`;
     let ast: QueryAST;
     
     if (view.query_ast && typeof view.query_ast === 'object' && view.query_ast.type === 'query') {
@@ -761,11 +762,11 @@ export function QueryNodeCollection({
       } else {
         await Promise.all([
           updateQueryMutation.mutateAsync({
-            viewId: editingView.nodeUuid,
+            viewId: editingView.uuid,
             queryAST: normalizedAST,
           }),
           editViewName !== editingView.name && updateViewMutation.mutateAsync({
-            viewId: editingView.nodeUuid,
+            viewId: editingView.uuid,
             data: { name: editViewName },
           }),
         ].filter(Boolean));
@@ -784,12 +785,12 @@ export function QueryNodeCollection({
   const handleDeleteView = useCallback(async () => {
     if (!editingView) return;
     try {
-      await deleteViewMutation.mutateAsync(editingView.nodeUuid);
+      await deleteViewMutation.mutateAsync(editingView.uuid);
       setEditingView(null);
       setEditAST(null);
       setValidation(null);
       setEditViewName('');
-      if (activeViewId === editingView.nodeUuid) {
+      if (activeViewId === editingView.uuid) {
         setActiveViewId(null);
       }
     } catch (error) {
@@ -821,7 +822,7 @@ export function QueryNodeCollection({
         order_index: views.length,
         is_default: views.length === 0,
       });
-      setActiveViewId(newView.nodeUuid);
+      setActiveViewId(newView.uuid);
       handleEditView(newView);
     } catch (error) {
       console.error('Failed to create view:', error);
@@ -915,7 +916,7 @@ export function QueryNodeCollection({
           {views.length > 1 && (
             <SelectionButton
               options={viewOptions}
-              value={activeView?.nodeUuid ?? ''}
+              value={activeView?.uuid ?? ''}
               onChange={(value) => setActiveViewId(value)}
               size="sm"
             />
@@ -982,7 +983,7 @@ export function QueryNodeCollection({
             hideToolbarControls={hideToolbarControls}
             hideContent={hideContent}
             showGroupBy={!hideViewManagement && (collectionViewMode === 'list' || collectionViewMode === 'kanban' || collectionViewMode === 'gantt') && viewType !== 'all_pages' && viewType !== 'child_pages'}
-            groupBy={groupBy}
+            groupBy={effectiveGroupBy}
             onGroupByChange={setGroupBy}
             showAddButton={effectiveCanCreate && viewType !== 'linked_references'}
             onAdd={effectiveCanCreate ? handleAddNode : undefined}

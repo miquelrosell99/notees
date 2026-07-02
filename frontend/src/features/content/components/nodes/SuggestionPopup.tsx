@@ -22,11 +22,6 @@
  * NOTE: Moved out of core/ - has domain knowledge (Node type, useNodeSearch hook)
  */
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import {
-  KEY_DOWN_COMMAND,
-  COMMAND_PRIORITY_CRITICAL,
-  type LexicalEditor,
-} from 'lexical';
 import { Spinner } from '@/components/ui/Spinner';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
 import './SuggestionPopup.css';
@@ -86,8 +81,6 @@ export interface SuggestionPopupProps {
   onSelectEmbed?: (node: Node) => void;
   /** Override the footer hint text (e.g. "insert template" instead of "insert link") */
   footerHintText?: string;
-  /** Optional Lexical editor instance. When provided, keyboard navigation is handled via Lexical commands at COMMAND_PRIORITY_CRITICAL instead of document listeners. */
-  lexicalEditor?: LexicalEditor;
 }
 
 /**
@@ -113,7 +106,6 @@ export function SuggestionPopup({
   onSelectDatePage,
   onSelectEmbed,
   footerHintText,
-  lexicalEditor,
 }: SuggestionPopupProps) {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -416,22 +408,9 @@ export function SuggestionPopup({
   useEffect(() => {
     if (!isOpen) return;
 
-    if (lexicalEditor) {
-      return lexicalEditor.registerCommand(
-        KEY_DOWN_COMMAND,
-        (event: KeyboardEvent) => {
-          const handledKeys = ['ArrowDown', 'ArrowUp', 'Enter', 'Tab'];
-          if (!handledKeys.includes(event.key)) return false;
-          handleKeyDown(event);
-          return true;
-        },
-        COMMAND_PRIORITY_CRITICAL,
-      );
-    }
-
     document.addEventListener('keydown', handleKeyDown, true);
     return () => document.removeEventListener('keydown', handleKeyDown, true);
-  }, [isOpen, lexicalEditor, handleKeyDown]);
+  }, [isOpen, handleKeyDown]);
   
   // Close on click outside
   useEffect(() => {

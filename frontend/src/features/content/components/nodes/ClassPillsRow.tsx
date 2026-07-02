@@ -96,14 +96,19 @@ export const ClassPillsRow = memo(function ClassPillsRow({
   return (
     <>
       <div ref={containerRef} className="class-pills-row">
-        {visibleClasses.map((cls) => (
-          <NodeRef
-            key={cls.uuid}
-            node={cls}
-            readOnly={true}
-            className="class-pills-row__pill"
-          />
-        ))}
+        {visibleClasses.map((cls) => {
+          const canRemove = !readOnly && !isNonRemovableClass(cls.uuid);
+          return (
+            <NodeRef
+              key={cls.uuid}
+              node={cls}
+              readOnly={readOnly}
+              rightIconHoverReveal={true}
+              className="class-pills-row__pill"
+              onRemove={canRemove ? () => handleRemove(cls.uuid) : undefined}
+            />
+          );
+        })}
         {overflowCount > 0 && (
           <button
             type="button"

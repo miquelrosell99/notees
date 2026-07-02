@@ -63,6 +63,7 @@ button.inline-link-inner {
   border-radius: var(--shape-extra-small);
   padding: 0 var(--spacing-micro);
   margin: 0 calc(var(--spacing-micro) * -1);
+  box-shadow: var(--shadow-focus-ring-primary);
 }
 
 .inline-link-wrapper .inline-link-icon {
@@ -70,6 +71,12 @@ button.inline-link-inner {
   align-items: center;
   vertical-align: -0.125em;
   margin-right: var(--spacing-micro);
+}
+
+/* Editor-only: pad link wrappers so the text caret does not sit on top of the
+   first icon when the cursor is immediately before an atomic link pill. */
+.inline-link-wrapper[data-editable="true"] {
+  padding-left: var(--spacing-1);
 }
 
 /* Embed pills — subtle dashed underline + cube icon tint */
