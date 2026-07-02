@@ -102,16 +102,8 @@ function $setSelectionAtLogicalOffset(paragraph: ElementNode, targetOffset: numb
 
 // ─── Types ────────────────────────────────────────────────────────
 
-export interface InlineEditorHandle {
-  /** Focus the editor. */
-  focus: () => void;
-  /** Blur the editor. */
-  blur: () => void;
-  /** Get cursor position category relative to the block content. */
-  getCursorPosition: () => 'start' | 'end' | 'middle' | 'empty';
-  /** Get exact cursor offset (anchor offset) for split_block intent. */
-  getCursorOffset: () => number;
-}
+import type { InlineEditorHandle } from './types';
+export type { InlineEditorHandle } from './types';
 
 interface InlineEditorProps {
   /** Unique block ID (runtime GraphNode ID). */
