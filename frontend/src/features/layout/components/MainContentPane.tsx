@@ -1,5 +1,6 @@
 /**
- * MainContentPane — renders a single view (node, graph, pages, etc.) based on a tab.
+ * MainContentPane — renders a single view (node, graph, pages, etc.) based on
+ * explicit view props.
  *
  * Extracted from MainContent so it can be reused in both the main area
  * and split-pane panes.
@@ -14,7 +15,7 @@ import { getEffectiveColor } from '@/utils/nodeIcon';
 import { JournalsView } from '@/features/journals';
 import { TasksView } from '@/features/tasks';
 import { getViewDefinition } from '@/plugins/core';
-import type { Tab } from '@/stores/navigationStore';
+import type { MainViewType } from '@/stores';
 import './MainContentPane.css';
 
 const PropertyViewFull = React.lazy(() => import('@/features/properties/pages/PropertyView').then(m => ({ default: m.PropertyViewFull })));
@@ -22,12 +23,21 @@ const WhiteboardView = React.lazy(() => import('@/features/whiteboard').then(m =
 const SharesUnifiedView = React.lazy(() => import('@/features/shares/pages/SharesUnifiedView').then(m => ({ default: m.SharesUnifiedView })));
 
 interface MainContentPaneProps {
-  tab: Tab;
+  viewType: MainViewType;
+  nodeUuid?: string;
+  propertyUuid?: string;
+  nodeCollectionTitle?: string | null;
   onNavigateToNode?: (nodeUuid: string) => void;
 }
 
-export function MainContentPane({ tab, onNavigateToNode }: MainContentPaneProps) {
-  const { data: currentNode } = useNode(tab.nodeUuid ?? null);
+export function MainContentPane({
+  viewType,
+  nodeUuid,
+  propertyUuid,
+  nodeCollectionTitle,
+  onNavigateToNode,
+}: MainContentPaneProps) {
+  const { data: currentNode } = useNode(nodeUuid ?? null);
   const { data: allClasses } = useClasses();
   const { systemClassUuids } = useSystemClasses();
   const viewMode = useNavigationStore(s => s.viewMode);
@@ -37,8 +47,6 @@ export function MainContentPane({ tab, onNavigateToNode }: MainContentPaneProps)
     if (!color) return undefined;
     return { '--node-border-color': color } as React.CSSProperties;
   }, [currentNode, allClasses]);
-
-  const viewType = tab.type;
 
   if (viewType === 'pages' || viewType === 'all-pages') {
     return (
@@ -112,12 +120,12 @@ export function MainContentPane({ tab, onNavigateToNode }: MainContentPaneProps)
     );
   }
 
-  if (viewType === 'property' && tab.propertyUuid) {
+  if (viewType === 'property' && propertyUuid) {
     return (
       <div className="main-content-wrapper">
         <Suspense fallback={<LoadingScreen fullscreen={false} label="Loading…" />}>
           <PropertyViewFull
-            propertyId={tab.propertyUuid}
+            propertyId={propertyUuid}
             onNavigateToNode={onNavigateToNode}
           />
         </Suspense>
@@ -139,8 +147,8 @@ export function MainContentPane({ tab, onNavigateToNode }: MainContentPaneProps)
     return (
       <div className="main-content">
         <div className="empty-state">
-          <h2>Collection</h2>
-          <p>This collection view isn&apos;t available in tabs.</p>
+          <h2>{nodeCollectionTitle || 'Collection'}</h2>
+          <p>This collection view isn&apos;t available in the main area.</p>
         </div>
       </div>
     );
@@ -158,7 +166,7 @@ export function MainContentPane({ tab, onNavigateToNode }: MainContentPaneProps)
   }
 
   // Default: node view (page or block)
-  if (!tab.nodeUuid) {
+  if (!nodeUuid) {
     return (
       <div className="main-content">
         <div className="empty-state">

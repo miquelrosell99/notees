@@ -21,6 +21,7 @@ import { useBatchedNode } from '@/hooks';
 import { useNodeDisplay } from '@/features/content/hooks/useNodeDisplay';
 import { useReferencedNode } from '@/features/content';
 import { useNavigationStore } from '@/stores';
+import { useParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { getNodeUuidByServerId } from '@/features/content/hooks/useNodeMutations.utils';
 import { parseAST, parseLinkId } from '@/lib/astBuilder';
@@ -268,8 +269,8 @@ function NodeRefInteractive({
   
   // Use selectors to avoid subscribing to full store — actions are stable refs
   const openNode = useNavigationStore(s => s.openNode);
-  const openNodeInNewTab = useNavigationStore(s => s.openNodeInNewTab);
   const addSidebarCard = useNavigationStore(s => s.addSidebarCard);
+  const { workspaceId } = useParams<{ workspaceId?: string }>();
 
   // Resolve to a UUID for fetching/navigation
   const resolvedNodeUuid = nodeUuid ?? (nodeUuid ? getNodeUuidByServerId(queryClient, nodeUuid) : null);
@@ -325,7 +326,7 @@ function NodeRefInteractive({
       // Navigation mode (for inline links)
       if (e.ctrlKey || e.metaKey) {
         e.preventDefault();
-        openNodeInNewTab(node.uuid);
+        window.open(`/${workspaceId ?? ''}/${node.uuid}`, '_blank', 'noopener,noreferrer');
       } else if (e.shiftKey) {
         addSidebarCard(node.uuid, isPage ? 'page' : 'block');
       } else {
@@ -334,7 +335,15 @@ function NodeRefInteractive({
     } else if (onClick) {
       onClick();
     }
-  }, [readOnly, editMode, isLink, onClick, node, isPage, openNode, openNodeInNewTab, addSidebarCard]);
+  }, [readOnly, editMode, isLink, onClick, node, isPage, openNode, workspaceId, addSidebarCard]);
+
+  const handleAuxClick = useCallback((e: React.MouseEvent) => {
+    if (!isLink || !node) return;
+    if (e.button === 1) {
+      e.preventDefault();
+      window.open(`/${workspaceId ?? ''}/${node.uuid}`, '_blank', 'noopener,noreferrer');
+    }
+  }, [isLink, node, workspaceId]);
 
   const handleClick = useCallback((e: React.MouseEvent) => activate(e), [activate]);
 
@@ -400,6 +409,15 @@ function NodeRefInteractive({
           handleCloseContextMenu();
         },
       },
+      {
+        id: 'open-new-tab',
+        label: 'Open in new browser tab',
+        shortcut: 'Ctrl/Cmd+Click',
+        onClick: () => {
+          window.open(`/${workspaceId ?? ''}/${node.uuid}`, '_blank', 'noopener,noreferrer');
+          handleCloseContextMenu();
+        },
+      },
     ];
     
     if (onEditLink || onRemove) {
@@ -432,7 +450,7 @@ function NodeRefInteractive({
     }
     
     return items;
-  }, [isLink, node, isPage, onRemove, onEditLink, openNode, addSidebarCard, handleCloseContextMenu]);
+  }, [isLink, node, isPage, onRemove, onEditLink, openNode, addSidebarCard, handleCloseContextMenu, workspaceId]);
 
   // Handler for color change from context menu
   const handleColorChangeFromMenu = useCallback((color: string | null) => {
@@ -479,6 +497,7 @@ function NodeRefInteractive({
         ref={pillRef as React.RefObject<HTMLDivElement>}
         className={pillClass}
         onClick={handleClick}
+        onAuxClick={handleAuxClick}
         onKeyDown={handleKeyDown}
         onContextMenu={handleContextMenu}
         title={title}
