@@ -348,14 +348,14 @@ export function NodeView({
   const showQueries = hideQueries !== undefined ? !hideQueries : true;
   const showFooter = hideFooter !== undefined ? !hideFooter : !sidebarMode;
   
-  // Fetch the node — include properties/backlinks if we're showing properties or queries
-  // staleTime: 0 ensures we always get fresh metadata (classes, tags, aliases) when
-  // navigating, avoiding stale cache from placeholderData or previous incomplete loads.
-  const { data: node, isLoading, error } = useNode(nodeUuid, { 
-    include_children: true, 
+  // Fetch the node — include properties/backlinks if we're showing properties or queries.
+  // We rely on the global default staleTime so switching tabs does not force a full
+  // refetch (and full Lexical re-initialization) on every remount. Mutations that
+  // change metadata already invalidate nodeKeys.detailBase, so the cache stays fresh.
+  const { data: node, isLoading, error } = useNode(nodeUuid, {
+    include_children: true,
     include_properties: showProperties || showQueries,
     include_backlinks: showProperties || showQueries,
-    staleTime: 0,
   });
   
   // Hooks (needed for page header sections)

@@ -39,12 +39,17 @@ export function useNode(
   const { workspaceId } = useParams<{ workspaceId?: string }>();
   const { meta, staleTime, ...apiOptions } = options || {};
   const nodeUuid = id;
+  // Detail queries that include full child trees can hold tens of megabytes in
+  // memory. Keep a shorter gcTime than the global default so old node caches are
+  // collected sooner after the user navigates away.
+  const gcTime = apiOptions.include_children ? 1000 * 60 * 2 : undefined;
   const result = useQuery({
     queryKey: nodeKeys.detail(id ?? '', apiOptions),
     queryFn: () => nodesApi.getNode(nodeUuid!, apiOptions),
     enabled: !!nodeUuid,
     meta,
     staleTime,
+    gcTime,
     // Provide data from existing parent caches while the fresh fetch loads.
     // This prevents showing empty content when navigating to a block's
     // focused view before its content save has completed on the server.
