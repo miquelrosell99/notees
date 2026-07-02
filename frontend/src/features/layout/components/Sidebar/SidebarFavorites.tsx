@@ -22,7 +22,7 @@ interface SortableFavoriteItemProps {
   isDragging: boolean;
   style: React.CSSProperties;
   onDragStart: (index: number, e: React.MouseEvent) => void;
-  onNavigate: (nodeUuid: string, e?: React.MouseEvent) => void;
+  onNavigate: (nodeUuid: string) => void;
   onRemove: (nodeUuid: string) => void;
   onContextMenu: (nodeUuid: string, e: React.MouseEvent) => void;
 }
@@ -54,7 +54,7 @@ const SortableFavoriteItem = memo(function SortableFavoriteItem({
       return;
     }
     if (!node) return;
-    onNavigate(node.uuid, e as React.MouseEvent);
+    onNavigate(node.uuid);
   }, [node, onNavigate]);
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
@@ -165,7 +165,6 @@ export function SidebarFavorites({ onContextMenu, onItemClick }: SidebarFavorite
     mainViewType,
     currentNodeUuid,
     openNode,
-    openNodeInNewTab,
     isSidebarCollapsed,
     toggleSidebar,
   } = useNavigationStore(
@@ -173,7 +172,6 @@ export function SidebarFavorites({ onContextMenu, onItemClick }: SidebarFavorite
       mainViewType: s.mainViewType,
       currentNodeUuid: s.currentNodeUuid,
       openNode: s.openNode,
-      openNodeInNewTab: s.openNodeInNewTab,
       isSidebarCollapsed: s.isSidebarCollapsed,
       toggleSidebar: s.toggleSidebar,
     }))
@@ -184,15 +182,11 @@ export function SidebarFavorites({ onContextMenu, onItemClick }: SidebarFavorite
     if (isMobile && !isSidebarCollapsed) toggleSidebar();
   }, [isMobile, isSidebarCollapsed, toggleSidebar]);
 
-  const handleNavigate = useCallback((nodeUuid: string, e?: React.MouseEvent) => {
-    if (e?.ctrlKey || e?.metaKey) {
-      openNodeInNewTab(nodeUuid);
-    } else {
-      openNode(nodeUuid);
-      closeMobileDrawer();
-    }
+  const handleNavigate = useCallback((nodeUuid: string) => {
+    openNode(nodeUuid);
+    closeMobileDrawer();
     onItemClick?.();
-  }, [openNode, openNodeInNewTab, closeMobileDrawer, onItemClick]);
+  }, [openNode, closeMobileDrawer, onItemClick]);
 
   const removeFavoriteMutation = useRemoveFavoriteMutation();
   const reorderFavoritesMutation = useReorderFavoritesMutation();

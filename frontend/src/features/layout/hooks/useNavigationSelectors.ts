@@ -9,16 +9,6 @@ export const useSidebarCards = () => useNavigationStore((s) => s.sidebarCards);
 export const useAddSidebarCardAction = () => useNavigationStore((s) => s.addSidebarCard);
 export const useFlashSidebarCardAction = () => useNavigationStore((s) => s.flashSidebarCard);
 
-export const useTabState = () =>
-  useNavigationStore(
-    useShallow((s) => ({
-      tabs: s.tabs,
-      activeTabId: s.activeTabId,
-      secondaryTabId: s.secondaryTabId,
-      splitOrientation: s.splitOrientation,
-    })),
-  );
-
 export const useOpenNode = () => useNavigationStore((s) => s.openNode);
 
 export const useCollectionNavigation = () =>
