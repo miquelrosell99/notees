@@ -30,7 +30,6 @@ export type NodeViewType =
  * Note: query_ast contains the QueryAST from the backend
  */
 export interface NodeView {
-  nodeUuid: string;
   uuid: string;
   node_uuid: string;
   name: string;

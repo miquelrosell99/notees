@@ -127,6 +127,8 @@ export interface NodeRefProps {
   onEditLink?: (pillRect: DOMRect) => void;
   /** Whether the pill is read-only (hides remove button and color change) */
   readOnly?: boolean;
+  /** When true, the remove icon is hidden until the pill is hovered/focused and the pill expands to reveal it. */
+  rightIconHoverReveal?: boolean;
   /** Additional CSS class */
   className?: string;
   /** Custom display name (from link's name field). When set, pill shows this text and tooltip shows the actual node name. */
@@ -158,6 +160,7 @@ export const NodeRef = memo(function NodeRef(props: NodeRefProps) {
     prev.editMode === next.editMode &&
     prev.clickCount === next.clickCount &&
     prev.readOnly === next.readOnly &&
+    prev.rightIconHoverReveal === next.rightIconHoverReveal &&
     prev.className === next.className &&
     prev.customName === next.customName
   );
@@ -252,6 +255,7 @@ function NodeRefInteractive({
       onColorChange,
       onEditLink,
       readOnly = false,
+      rightIconHoverReveal = false,
       className = '',
       customName }: NodeRefProps) {
   const [showColorPicker, setShowColorPicker] = useState(false);
@@ -491,6 +495,7 @@ function NodeRefInteractive({
           }
           onRightIconClick={(!isLink && !readOnly && onRemove) ? onRemove : undefined}
           color={effectiveColor}
+          rightIconHoverReveal={rightIconHoverReveal}
         />
         {clickCount > 0 && <span className="node-pill__badge">{clickCount}</span>}
       </div>

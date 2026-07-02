@@ -7,7 +7,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useEditorFocusStore } from '@/stores/editorFocusStore';
 import { BlockRow } from './BlockRow';
-import { InlineEditor } from '@/features/editor';
+import { CustomInlineEditor } from '@/features/editor/custom/components/CustomInlineEditor';
 import type { Node } from '@/types/api';
 
 const baseNode: Node = {
@@ -49,13 +49,9 @@ vi.mock('@/hooks', () => ({
   useFocusMode: () => false,
 }));
 
-vi.mock('@/features/editor', async () => {
-  const actual = await vi.importActual<Record<string, unknown>>('@/features/editor');
-  return {
-    ...actual,
-    InlineEditor: vi.fn(() => <div data-testid="inline-editor">Editor</div>),
-  };
-});
+vi.mock('@/features/editor/custom/components/CustomInlineEditor', () => ({
+  CustomInlineEditor: vi.fn(() => <div data-testid="inline-editor">Editor</div>),
+}));
 
 vi.mock('@/features/editor/editor/utils/cursorOffsetFromPoint', () => ({
   getLogicalOffsetFromPoint: vi.fn(() => 5),
@@ -96,7 +92,7 @@ describe('BlockRow', () => {
     fireEvent.click(screen.getByText('Hello world'));
 
     expect(screen.getByTestId('inline-editor')).toBeInTheDocument();
-    const lastCallProps = vi.mocked(InlineEditor).mock.calls.at(-1)![0] as { initialCursorOffset?: number };
+    const lastCallProps = vi.mocked(CustomInlineEditor).mock.calls.at(-1)![0] as { initialCursorOffset?: number };
     expect(lastCallProps.initialCursorOffset).toBeGreaterThanOrEqual(0);
   });
 });
