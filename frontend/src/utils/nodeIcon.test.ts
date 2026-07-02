@@ -93,6 +93,31 @@ describe('getEffectiveColor', () => {
 
     expect(getEffectiveColor(page, [parentClass, childClass])).toBe('#ff0000');
   });
+
+  it('inherits color for a child class node even when it has its own system classes', () => {
+    const agentClass = makeNode({
+      uuid: '11111111-1111-1111-1111-111111111111',
+      name: 'Agent',
+      color: '#ff8800',
+      is_class: true,
+    });
+    const systemClassClass = makeNode({
+      uuid: '99999999-9999-9999-9999-999999999999',
+      name: 'Class',
+      color: null,
+      is_class: true,
+    });
+    const personClass = makeNode({
+      uuid: '22222222-2222-2222-2222-222222222222',
+      name: 'Person',
+      color: null,
+      is_class: true,
+      extends_uuid: [agentClass.uuid],
+      classes_uuid: [systemClassClass.uuid],
+    });
+
+    expect(getEffectiveColor(personClass, [agentClass, systemClassClass, personClass])).toBe('#ff8800');
+  });
 });
 
 describe('getEffectiveIcon', () => {

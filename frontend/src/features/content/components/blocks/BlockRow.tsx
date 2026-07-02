@@ -5,9 +5,11 @@
  * One BlockRow per block. React owns the tree; Lexical owns only inline text.
  */
 
-import { useRef, useMemo, useEffect, useLayoutEffect, forwardRef, useImperativeHandle, useState, useCallback, memo, startTransition } from 'react';
+import { useRef, useMemo, useLayoutEffect, useEffect, forwardRef, useImperativeHandle, useState, useCallback, memo, startTransition } from 'react';
 import { useParams } from 'react-router-dom';
 import { InlineEditor, type InlineEditorHandle } from '@/features/editor';
+import { InlineContentStatic } from '@/features/editor/editor/InlineContentStatic';
+import { flushAllContentSaves } from '@/features/editor';
 import { BlockUI } from './BlockUI';
 import { BlockAfterContent } from './BlockAfterContent';
 import { BulletLine } from './BulletLine';
@@ -16,7 +18,6 @@ import { useModalStore } from '@/stores/modalStore';
 import { useUIStateStore } from '@/features/sync';
 import { liveSyncManager, useLivePresenceStore } from '@/features/collab';
 import { parseAST, parseLinkId } from '@/lib/astBuilder';
-import { nodeNameToText } from '@/features/queries';
 import { NodeContextMenu } from '@/features/content/components/nodes/NodeContextMenu';
 import { ConvertToPageModal } from '@/features/content/components/nodes/ConvertToPageModal';
 import { copyRuntimeBlocksToClipboard } from '@/utils/clipboardManager';
@@ -137,11 +138,17 @@ export const BlockRow = memo(
     ref,
   ): JSX.Element {
     const editorRef = useRef<InlineEditorHandle>(null);
-    const pendingFocusBlockId = useEditorFocusStore((s) => s.pendingFocusBlockId);
-    const activeBlockId = useEditorFocusStore((s) => s.activeBlockId);
+    // Cursor offset captured from the static DOM click. Stored in a ref so it
+    // can be passed to InlineEditor on the render that mounts it without
+    // triggering extra re-renders.
+    const pendingCursorOffsetRef = useRef<number | undefined>(undefined);
+    // Per-row selectors: only re-render this row when *this* block becomes or
+    // stops being active. Subscribing every row to the raw activeBlockId forces
+    // the entire visible list to re-render on every window blur/focus.
+    const isActive = useEditorFocusStore((s) => s.activeBlockId === node.uuid);
+    const isPendingFocus = useEditorFocusStore((s) => s.pendingFocusBlockId === node.uuid);
     const { workspaceId } = useParams<{ workspaceId?: string }>();
     const setCollapsed = useUIStateStore((s) => s.setCollapsed);
-    const isActive = activeBlockId === node.uuid;
 
     // Check if another user holds the server-enforced lock for this block
     const lockOwner = useLivePresenceStore(
@@ -166,31 +173,39 @@ export const BlockRow = memo(
       (s) => (nodeUuid ? s.getConflict(nodeUuid, node.uuid) : undefined),
     );
 
-    // Lazy-mount editor based on viewport visibility to reduce DOM weight
-    const [isInViewport, setIsInViewport] = useState(true);
     const rowRef = useRef<HTMLDivElement>(null);
-    useEffect(() => {
-      const el = rowRef.current;
-      if (!el) return;
-      const observer = new IntersectionObserver(
-        ([entry]) => {
-          setIsInViewport(entry.isIntersecting);
-        },
-        { root: null, rootMargin: '500px 0px 500px 0px', threshold: 0 },
-      );
-      observer.observe(el);
-      return () => observer.disconnect();
-    }, []);
 
-    const shouldMountEditor = isActive || pendingFocusBlockId === node.uuid || isInViewport;
+    // Mount the Lexical editor only for the block being edited. All other
+    // visible blocks render a cheap static DOM view. This is the main lever for
+    // reducing heap pressure on large pages.
+    const shouldMountEditor = (isActive || isPendingFocus) && !isGhost && !readOnly && !isLocked;
 
     // Focus editor when pending focus matches this block
     useLayoutEffect(() => {
-      if (pendingFocusBlockId === node.uuid && editorRef.current) {
+      if (isPendingFocus && editorRef.current) {
         editorRef.current.focus();
         useEditorFocusStore.getState().setPendingFocus(null);
       }
-    }, [pendingFocusBlockId, node.uuid]);
+    }, [isPendingFocus]);
+
+    // Clear the captured cursor offset when the editor unmounts so a later
+    // keyboard-driven focus doesn't reuse an old click position.
+    useEffect(() => {
+      if (!shouldMountEditor) return;
+      return () => {
+        pendingCursorOffsetRef.current = undefined;
+      };
+    }, [shouldMountEditor]);
+
+    const handleFocusStatic = useCallback(
+      (cursorOffset?: number) => {
+        if (readOnly || isLocked) return;
+        pendingCursorOffsetRef.current = cursorOffset;
+        useEditorFocusStore.getState().focusBlock(node.uuid);
+        useEditorFocusStore.getState().setPendingFocus(node.uuid);
+      },
+      [node.uuid, readOnly, isLocked],
+    );
 
     // Expose imperative handle for list-level keyboard navigation
     useImperativeHandle(
@@ -307,7 +322,6 @@ export const BlockRow = memo(
       liveSyncManager.sendFocus(node.uuid);
     }, [node.uuid, nodeUuid]);
 
-    const plainTextFallback = useMemo(() => nodeNameToText(node.name), [node.name]);
     const classDetails = useResolvedClassDetails(node.classes_uuid, { skipNodesFallback: true });
 
     // Determine the icon to show on the bullet
@@ -410,6 +424,12 @@ export const BlockRow = memo(
       return getNodeColorStylesAuto(effectiveColor);
     }, [effectiveColor]);
 
+    const handleEditorBlur = useCallback(() => {
+      // Flush pending debounced saves before unmounting the editor so the
+      // static view does not briefly show stale content after blur.
+      flushAllContentSaves();
+    }, []);
+
     const editorElement = isGhost ? (
       <button
         type="button"
@@ -426,6 +446,7 @@ export const BlockRow = memo(
         blockId={node.uuid}
         blockUuid={node.uuid}
         initialContentAST={contentAST}
+        initialCursorOffset={pendingCursorOffsetRef.current}
         readOnly={readOnly || isLocked}
         placeholder={placeholder}
         isPage={node.is_page}
@@ -446,17 +467,22 @@ export const BlockRow = memo(
         onBackspaceAtStart={handleBackspaceAtStart}
         onDeleteAtEnd={handleDeleteAtEnd}
         onEscape={handleEscape}
+        onBlur={handleEditorBlur}
         nodeUuid={nodeUuid}
       />
     ) : (
-      <button
-        type="button"
-        className="block-row__content-fallback"
-        onClick={() => setIsInViewport(true)}
-        aria-label="Load editor"
-      >
-        {plainTextFallback || '\u00A0'}
-      </button>
+      <InlineContentStatic
+        name={node.name}
+        placeholder={placeholder}
+        blockId={node.uuid}
+        onFocus={handleFocusStatic}
+        isPage={node.is_page}
+        hasNodeColor={!!effectiveColor}
+        inCard={inCard}
+        listSize={listSize}
+        inPropertyEditor={inPropertyEditor}
+        className="block-row__content-static"
+      />
     );
 
     return (

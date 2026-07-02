@@ -15,10 +15,12 @@ vi.mock('react-router-dom', () => ({
   useParams: () => ({ workspaceId: 'ws-1' }),
 }));
 
-vi.mock('@/stores/editorFocusStore', () => ({
-  useEditorFocusStore: (selector: (s: { activeBlockId: string | null }) => string | null) =>
-    selector({ activeBlockId: 'block-1' }),
-}));
+vi.mock('@/stores/editorFocusStore', () => {
+  const mockFocusState = { activeBlockId: 'block-1' };
+  const fn = (selector: (s: { activeBlockId: string | null }) => unknown) => selector(mockFocusState);
+  (fn as unknown as { getState: () => typeof mockFocusState }).getState = () => mockFocusState;
+  return { useEditorFocusStore: fn };
+});
 
 describe('useFoldKeyboardShortcut', () => {
   beforeEach(() => {

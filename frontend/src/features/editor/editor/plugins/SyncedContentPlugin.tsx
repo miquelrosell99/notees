@@ -38,14 +38,17 @@ function isEditorFocused(editor: ReturnType<typeof useLexicalComposerContext>[0]
 export function SyncedContentPlugin({ contentAST, readOnly = false, blockId }: SyncedContentPluginProps): null {
   const [editor] = useLexicalComposerContext();
   const [isFocused, setIsFocused] = useState(() => isEditorFocused(editor));
-  const popupOpen = useEditorFocusStore((s) => s.popupOpen);
-  const activeBlockId = useEditorFocusStore((s) => s.activeBlockId);
+  // Per-editor selector: only re-render this plugin when the popup ownership
+  // for *this* block changes. Subscribing every editor to activeBlockId causes
+  // every mounted editor to re-render on window blur/focus.
+  const popupBelongsToEditor = useEditorFocusStore(
+    (s) => blockId != null && s.popupOpen && s.activeBlockId === blockId,
+  );
   // The editor is "active" when it is focused and editable, or when a trigger
   // popup is open for this specific editor. Local edits win while active; we
   // snapshot the prop on activation so that on deactivation we can distinguish
   // "prop changed externally" from "editor has local edits that haven't
   // propagated back to the prop yet".
-  const popupBelongsToEditor = blockId != null && popupOpen && activeBlockId === blockId;
   const isActive = (isFocused || popupBelongsToEditor) && !readOnly;
   const lastAppliedPropRef = useRef<string | null>(null);
   const wasActiveRef = useRef(false);
