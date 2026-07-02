@@ -35,7 +35,6 @@ import { useResolvedClassDetails, useClasses } from '@/features/content';
 import { ClassPillsRow } from '@/features/content/components/nodes/ClassPillsRow';
 import { PropertyIconButton } from '@/features/properties';
 import { getNodeColorStylesAuto } from '@/utils/color';
-import { getEffectiveColor } from '@/utils/nodeIcon';
 import { SYSTEM_CLASS_UUIDS } from '@/constants';
 import { Button } from '@/components/ui/Button';
 import './BlockRow.css';
@@ -415,15 +414,14 @@ export const BlockRow = memo(
       return { beforeContent, afterBullet };
     }, [node.properties_uuid, allProperties]);
 
-    const effectiveColor = useMemo(
-      () => getEffectiveColor(node, allClasses),
-      [node, allClasses],
-    );
+    // Background tinting should only reflect the node's own direct color,
+    // not colors inherited from assigned classes.
+    const directNodeColor = node.color;
 
     const colorStyle = useMemo(() => {
-      if (!effectiveColor) return undefined;
-      return getNodeColorStylesAuto(effectiveColor);
-    }, [effectiveColor]);
+      if (!directNodeColor) return undefined;
+      return getNodeColorStylesAuto(directNodeColor);
+    }, [directNodeColor]);
 
     const handleEditorBlur = useCallback(() => {
       // Flush pending debounced saves before unmounting the editor so the
@@ -451,7 +449,7 @@ export const BlockRow = memo(
         readOnly={readOnly || isLocked}
         placeholder={placeholder}
         isPage={node.is_page}
-        hasNodeColor={!!effectiveColor}
+        hasNodeColor={!!directNodeColor}
         inCard={inCard}
         listSize={listSize}
         inPropertyEditor={inPropertyEditor}
@@ -478,7 +476,7 @@ export const BlockRow = memo(
         blockId={node.uuid}
         onFocus={handleFocusStatic}
         isPage={node.is_page}
-        hasNodeColor={!!effectiveColor}
+        hasNodeColor={!!directNodeColor}
         inCard={inCard}
         listSize={listSize}
         inPropertyEditor={inPropertyEditor}

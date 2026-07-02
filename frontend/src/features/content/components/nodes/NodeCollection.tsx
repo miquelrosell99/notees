@@ -281,7 +281,7 @@ export const NodeCollection = memo(function NodeCollection({
     }
   };
   const updateNodeView = useUpdateNodeView();
-  const viewIdForCharts = view?.nodeUuid;
+  const viewIdForCharts = view?.uuid;
 
   // Load property columns from view configuration (only for uncontrolled, non-transient mode)
   useEffect(() => {
