@@ -45,9 +45,9 @@ import { TableCreationModal, type TableGridSize } from '@/components/ui/TableCre
 
 import './CardItem.css';
 
-// ─── Card Title Editor (InlineEditor wrapper) ────────────────────
+// ─── Card Title Editor (CustomInlineEditor wrapper) ────────────────────
 
-import { InlineEditor } from '@/features/editor';
+import { CustomInlineEditor } from '@/features/editor/custom/components/CustomInlineEditor';
 import { parseAST, parseLinkId } from '@/lib/astBuilder';
 import { PropertiesSection } from '@/features/properties';
 import { BlockList } from '@/features/content';
@@ -79,7 +79,7 @@ const CardTitleEditor = memo(function CardTitleEditor({
   const initialContentAST = useMemo(() => parseAST(initialContent), [initialContent]);
   return (
     <div className="node-card__title-block">
-      <InlineEditor
+      <CustomInlineEditor
         blockId={blockId}
         initialContentAST={initialContentAST}
         readOnly={readOnly}
