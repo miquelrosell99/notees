@@ -1,0 +1,87 @@
+/**
+ * CustomInlineEditor styles — mirror InlineEditor/InlineContentStatic so the
+ * transition from read-only to editable is visually seamless.
+ */
+
+.custom-inline-editor {
+  flex: 1;
+  min-width: 2em;
+  min-height: 1.5em;
+  outline: none;
+  margin: 0;
+  font: var(--font-body-medium);
+  overflow-wrap: break-word;
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  cursor: text;
+  text-align: left;
+  white-space: pre-wrap;
+}
+
+.custom-inline-editor:empty::before {
+  content: '\200B';
+  display: inline;
+}
+
+.custom-inline-editor:focus-visible {
+  outline: none;
+}
+
+/* Page blocks — title styling */
+.custom-inline-editor[data-page="true"] {
+  font: var(--font-label-large);
+}
+
+/* Colored block backgrounds */
+.custom-inline-editor[data-has-node-color="true"] {
+  background-color: rgba(var(--node-color-rgb, var(--color-node-default-rgb)), 0.08);
+  padding: var(--spacing-micro) var(--spacing-2);
+  border-radius: var(--shape-small);
+}
+
+@media (max-width: 768px) {
+  .custom-inline-editor[data-has-node-color="true"] {
+    padding: var(--spacing-micro) var(--spacing-1);
+  }
+}
+
+/* Placeholder */
+.custom-inline-editor__placeholder {
+  color: var(--color-on-surface-variant);
+  opacity: var(--opacity-45);
+  pointer-events: none;
+  user-select: none;
+  font-size: inherit;
+}
+
+/* Card title block variant */
+.custom-inline-editor[data-card-title="true"] {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+  font-size: var(--font-size-body-lg);
+  line-height: 1.4;
+  padding: 0;
+  min-height: unset;
+}
+
+/* Suppress colored content backgrounds inside cards */
+.custom-inline-editor[data-in-card="true"][data-has-node-color="true"] {
+  background: transparent;
+  padding: 0;
+}
+
+/* Small list-view sizing */
+.custom-inline-editor[data-list-size="sm"] {
+  min-height: 1.3em;
+  line-height: 1.4;
+}
+
+/* Property editor context */
+.custom-inline-editor[data-property-editor="true"] {
+  min-height: 0;
+  padding: 0;
+}

@@ -11,6 +11,8 @@ export interface PillProps {
   className?: string;
   /** Visual variant. The link variants are used by inline node references. */
   variant?: 'default' | 'link' | 'link-page' | 'link-block' | 'link-class';
+  /** When true, the right icon is hidden until the pill is hovered/focused and the pill expands to reveal it. */
+  rightIconHoverReveal?: boolean;
 }
 
 export const Pill: React.FC<PillProps> = ({
@@ -21,6 +23,7 @@ export const Pill: React.FC<PillProps> = ({
   color,
   className = '',
   variant = 'default',
+  rightIconHoverReveal = false,
 }) => {
   const handleRightIconClick = (e: React.MouseEvent | React.KeyboardEvent) => {
     e.stopPropagation();
@@ -34,10 +37,11 @@ export const Pill: React.FC<PillProps> = ({
     : undefined;
 
   const variantClass = variant === 'default' ? '' : `pill--${variant}`;
+  const hoverRevealClass = rightIconHoverReveal ? 'pill--hover-reveal-right' : '';
 
   return (
     <div
-      className={`pill ${variantClass} ${className}`}
+      className={`pill ${variantClass} ${hoverRevealClass} ${className}`}
       style={pillStyle}
     >
       {leftIcon && (
