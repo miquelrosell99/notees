@@ -70,8 +70,13 @@ button.inline-link-inner {
   display: inline-flex;
   align-items: center;
   vertical-align: -0.125em;
-  margin-left: var(--spacing-1);
   margin-right: var(--spacing-micro);
+}
+
+/* Editor-only: pad link wrappers so the text caret does not sit on top of the
+   first icon when the cursor is immediately before an atomic link pill. */
+.custom-inline-editor .inline-link-wrapper {
+  padding-left: var(--spacing-1);
 }
 
 /* Embed pills — subtle dashed underline + cube icon tint */
