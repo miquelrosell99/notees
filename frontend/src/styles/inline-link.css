@@ -63,6 +63,7 @@ button.inline-link-inner {
   border-radius: var(--shape-extra-small);
   padding: 0 var(--spacing-micro);
   margin: 0 calc(var(--spacing-micro) * -1);
+  box-shadow: var(--shadow-focus-ring-primary);
 }
 
 .inline-link-wrapper .inline-link-icon {
