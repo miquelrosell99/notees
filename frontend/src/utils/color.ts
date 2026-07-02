@@ -34,6 +34,19 @@ export function hexToRgb(hex: string): { r: number; g: number; b: number } | nul
 }
 
 /**
+ * Resolve a CSS variable reference to its computed value.
+ * Returns the original color if it is not a var() reference or cannot be resolved.
+ */
+export function resolveCssColor(color: string): string {
+  if (typeof document === 'undefined') return color;
+  if (!color.startsWith('var(')) return color;
+  
+  const varName = color.slice(4, -1).trim();
+  const resolved = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+  return resolved || color;
+}
+
+/**
  * Convert RGB to hex string
  */
 export function rgbToHex(r: number, g: number, b: number): string {
@@ -44,12 +57,14 @@ export function rgbToHex(r: number, g: number, b: number): string {
  * Parse any CSS color to RGB (supports hex and rgb())
  */
 export function parseColorToRgb(color: string): { r: number; g: number; b: number } | null {
-  if (color.startsWith('#')) {
-    return hexToRgb(color);
+  const resolved = resolveCssColor(color);
+  
+  if (resolved.startsWith('#')) {
+    return hexToRgb(resolved);
   }
   
-  if (color.startsWith('rgb')) {
-    const match = color.match(/\d+/g);
+  if (resolved.startsWith('rgb')) {
+    const match = resolved.match(/\d+/g);
     if (match && match.length >= 3) {
       return {
         r: parseInt(match[0]),
