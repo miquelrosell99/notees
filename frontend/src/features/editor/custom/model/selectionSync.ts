@@ -24,22 +24,21 @@ function getChildLength(node: Node): number {
   return 0;
 }
 
-/**
- * Set a collapsed DOM selection at the given logical offset inside `root`.
- */
-export function setDOMSelection(root: HTMLElement, offset: number): void {
-  const selection = window.getSelection();
-  if (!selection) return;
+interface DOMPosition {
+  node: Node;
+  offset: number;
+}
 
-  let remaining = offset;
+function positionAtOffset(root: HTMLElement, targetOffset: number): DOMPosition {
+  let remaining = targetOffset;
 
-  for (const child of root.childNodes) {
-    const length = getChildLength(child);
+  for (let i = 0; i < root.childNodes.length; i++) {
+    const child = root.childNodes[i];
 
     if (child.nodeType === Node.TEXT_NODE) {
+      const length = getChildLength(child);
       if (remaining <= length) {
-        selection.setBaseAndExtent(child, remaining, child, remaining);
-        return;
+        return { node: child, offset: remaining };
       }
       remaining -= length;
       continue;
@@ -47,23 +46,11 @@ export function setDOMSelection(root: HTMLElement, offset: number): void {
 
     if (isAtomicElement(child)) {
       if (remaining === 0) {
-        const range = document.createRange();
-        range.setStartBefore(child);
-        range.setEndBefore(child);
-        selection.removeAllRanges();
-        selection.addRange(range);
-        return;
+        return { node: root, offset: i };
       }
-      if (remaining >= 1) {
-        remaining -= 1;
-        if (remaining === 0) {
-          const range = document.createRange();
-          range.setStartAfter(child);
-          range.setEndAfter(child);
-          selection.removeAllRanges();
-          selection.addRange(range);
-          return;
-        }
+      remaining -= 1;
+      if (remaining === 0) {
+        return { node: root, offset: i + 1 };
       }
       continue;
     }
@@ -73,21 +60,31 @@ export function setDOMSelection(root: HTMLElement, offset: number): void {
     if (textNode) {
       const textLength = textNode.textContent?.length ?? 0;
       if (remaining <= textLength) {
-        selection.setBaseAndExtent(textNode, remaining, textNode, remaining);
-        return;
+        return { node: textNode, offset: remaining };
       }
       remaining -= textLength;
     }
   }
 
-  // Place at end if offset is past content.
-  if (root.lastChild) {
-    const range = document.createRange();
-    range.setStartAfter(root.lastChild);
-    range.setEndAfter(root.lastChild);
-    selection.removeAllRanges();
-    selection.addRange(range);
-  }
+  return { node: root, offset: root.childNodes.length };
+}
+
+/**
+ * Set a DOM selection inside `root`.
+ *
+ * When only `anchor` is provided, the selection is collapsed. Otherwise a
+ * directional range is created from `anchor` to `focus`.
+ */
+export function setDOMSelection(root: HTMLElement, anchor: number, focus?: number): void {
+  const selection = window.getSelection();
+  if (!selection) return;
+
+  const anchorPos = positionAtOffset(root, anchor);
+  const focusPos = focus === undefined || focus === anchor
+    ? anchorPos
+    : positionAtOffset(root, focus);
+
+  selection.setBaseAndExtent(anchorPos.node, anchorPos.offset, focusPos.node, focusPos.offset);
 }
 
 /**

@@ -1,22 +1,21 @@
 /**
- * Inline Editor Registry — tracks all active per-block Lexical editors.
+ * Inline Editor Registry — tracks all active per-block custom inline editors.
  *
- * Since the new architecture uses one LexicalComposer per block,
- * page-level features like find/replace need a way to discover and
- * operate on all editors in the current view.
+ * Page-level features like find/replace discover and operate on editors
+ * through this registry.
  */
 
 import { create } from 'zustand';
-import type { LexicalEditor } from 'lexical';
+import type { InlineEditorHandle } from '@/features/editor/editor/types';
 
 interface InlineEditorRegistryState {
-  /** Map of block UUID -> LexicalEditor instance */
-  editors: Map<string, LexicalEditor>;
+  /** Map of block UUID -> custom inline editor handle */
+  editors: Map<string, InlineEditorHandle>;
 
-  register: (blockId: string, editor: LexicalEditor) => void;
+  register: (blockId: string, editor: InlineEditorHandle) => void;
   unregister: (blockId: string) => void;
-  getEditor: (blockId: string) => LexicalEditor | undefined;
-  getAllEditors: () => IterableIterator<[string, LexicalEditor]>;
+  getEditor: (blockId: string) => InlineEditorHandle | undefined;
+  getAllEditors: () => IterableIterator<[string, InlineEditorHandle]>;
 }
 
 export const useInlineEditorRegistry = create<InlineEditorRegistryState>((set, get) => ({

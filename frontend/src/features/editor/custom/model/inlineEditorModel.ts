@@ -523,3 +523,8 @@ export function extendSelection(state: InlineEditorState, delta: number): Inline
 
   return state;
 }
+
+export function setCollapsedOffset(state: InlineEditorState, offset: number): InlineEditorState {
+  const length = getLogicalLength(unitsFromState(state));
+  return setSelection(state, { type: 'collapsed', offset: Math.max(0, Math.min(offset, length)) });
+}

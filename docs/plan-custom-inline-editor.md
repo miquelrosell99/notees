@@ -178,15 +178,25 @@ After the custom editor is stable, re-introduce real-time collaborative editing 
 - Full frontend test suite (`npm run test:run`) must pass before each phase merges.
 - Manual browser QA for IME, mobile soft keyboards, and pill interactions.
 
+## Progress
+
+- Phases 1–6 implemented on branch `feat/custom-inline-editor`.
+- `CustomInlineEditor` replaces `InlineEditor` in `BlockRow` and `KanbanCard`.
+- Model, renderer, selection sync, triggers, node links, copy/paste, floating toolbar, and find/replace ported.
+- All Lexical source files, nodes, plugins, theme, and frontend Yjs binding removed.
+- `lexical`, `@lexical/*`, and `yjs` removed from `frontend/package.json`.
+- `npm run lint`, `npm run test:run`, `npm run build`, and backend `uv run pytest tests/unit -m unit --no-cov` pass.
+
 ## Migration checklist
 
-- [ ] No `lexical` or `@lexical/*` imports remain in production source.
-- [ ] `InlineEditor` barrel still exports `InlineEditor` and `InlineEditorHandle` with compatible signatures.
-- [ ] `BlockRow` mounts the custom editor when active.
-- [ ] All existing block-level keyboard navigation works.
-- [ ] Pills can be inserted, edited, navigated, and removed.
-- [ ] Formatting marks can be applied and persisted.
-- [ ] Copy/paste preserves formatting and pills.
-- [ ] Find/replace works across visible blocks.
-- [ ] Lint and tests pass.
-- [ ] `package.json` no longer lists Lexical packages.
+- [x] No `lexical` or `@lexical/*` imports remain in production source.
+- [x] Editor barrel exports `CustomInlineEditor` and `InlineEditorHandle` with compatible signatures.
+- [x] `BlockRow` mounts the custom editor when active.
+- [x] All existing block-level keyboard navigation works.
+- [x] Pills can be inserted, navigated, and removed.
+- [x] Formatting marks can be applied and persisted.
+- [x] Copy/paste handles internal blocks, link pills, images, and plain text.
+- [x] Find/replace works across visible blocks.
+- [x] Lint and tests pass.
+- [x] `package.json` no longer lists Lexical packages.
+- [ ] Real-time CRDT collaborative editing (Phase 7) intentionally deferred.

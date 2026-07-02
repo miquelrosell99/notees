@@ -144,9 +144,6 @@ export default defineConfig({
       output: {
         manualChunks(id: string) {
           // Split heavy vendor libraries into separate cacheable chunks
-          if (id.includes('node_modules/lexical') || id.includes('node_modules/@lexical/')) {
-            return 'vendor-lexical'
-          }
           if (id.includes('node_modules/@dnd-kit/')) {
             return 'vendor-dnd'
           }
