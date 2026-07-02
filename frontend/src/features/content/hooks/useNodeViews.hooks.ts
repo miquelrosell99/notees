@@ -14,7 +14,7 @@ export function useActiveNodeView(
   });
 
   const activeView = activeViewId
-    ? views.find((v) => v.nodeUuid === activeViewId)
+    ? views.find((v) => v.uuid === activeViewId)
     : views[0]; // First view (lowest order_index) is default
 
   return {
