@@ -165,33 +165,55 @@ async def _resolve_display_names_for_results(user: User, results: list[dict[str,
 async def _include_classes_for_results(user: User, results: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Fetch and attach classes for each node in results.
 
-    This adds 'classes' to each node dict with their class IDs.
-    Recursively processes children as well.
+    This adds 'classes' (numeric IDs) and 'classes_uuid' (public UUIDs) to each
+    node dict. Recursively processes children as well.
     """
     if not results:
         return results
 
     service = await _get_node_service(user)
 
+    def _collect_node_ids(nodes: list[dict[str, Any]], target: set[int]):
+        for node in nodes:
+            node_id = node.get("id")
+            if node_id:
+                target.add(node_id)
+            children = node.get("children")
+            if children:
+                _collect_node_ids(children, target)
+
+    result_node_ids: set[int] = set()
+    _collect_node_ids(results, result_node_ids)
+    if not result_node_ids:
+        return results
+
+    classes_map = await service.get_class_ids_batch(list(result_node_ids))
+
+    # Collect all class IDs so we can resolve them to UUIDs in one batch.
+    all_class_ids: set[int] = set()
+    for class_ids in classes_map.values():
+        all_class_ids.update(class_ids)
+
+    class_uuid_map: dict[int, str] = {}
+    if all_class_ids:
+        class_nodes = await service.get_nodes_by_ids(list(all_class_ids))
+        class_uuid_map = {node.id: node.uuid for node in class_nodes if node.id is not None}
+
     async def _add_classes_recursive(nodes: list[dict[str, Any]]):
         """Recursively add classes to nodes and their children."""
-        # Collect all node IDs
-        node_ids = [n.get("id") for n in nodes if n.get("id")]
-        if not node_ids:
-            return
-
-        # Fetch classes for all nodes in batch
-        classes_map = await service.get_class_ids_batch(node_ids)
-
-        # Attach classes to each node
         for node in nodes:
             node_id = node.get("id")
             if node_id and node_id in classes_map:
-                node["classes"] = classes_map[node_id]
+                class_ids = classes_map[node_id]
+                node["classes"] = class_ids
+                node["classes_uuid"] = [
+                    class_uuid_map[class_id] for class_id in class_ids if class_id in class_uuid_map
+                ]
 
             # Recursively process children
-            if node.get("children"):
-                await _add_classes_recursive(node["children"])
+            children = node.get("children")
+            if children:
+                await _add_classes_recursive(children)
 
     # Process all results and their children recursively
     await _add_classes_recursive(results)

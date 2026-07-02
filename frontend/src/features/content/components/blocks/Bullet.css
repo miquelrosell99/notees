@@ -163,17 +163,21 @@ body.notees-dragging-block .bullet-interactive {
 }
 
 /* Dimmed variant: de-emphasised until hovered. */
-.bullet-wrapper[data-dimmed="true"] .bullet-dot {
+.bullet-wrapper[data-dimmed="true"] .bullet-dot,
+.bullet-wrapper[data-dimmed="true"] .bullet-icon {
   opacity: var(--opacity-50);
 }
 
 .bullet-wrapper[data-dimmed="true"]:hover .bullet-dot,
-.bullet-wrapper[data-dimmed="true"]:focus-within .bullet-dot {
+.bullet-wrapper[data-dimmed="true"]:focus-within .bullet-dot,
+.bullet-wrapper[data-dimmed="true"]:hover .bullet-icon,
+.bullet-wrapper[data-dimmed="true"]:focus-within .bullet-icon {
   opacity: var(--opacity-100);
 }
 
 /* Dimmed bullets also brighten on block-row hover. */
-.bullet-wrapper[data-dimmed="true"][data-row-hover="true"]:not([data-ghost="true"]) .bullet-dot {
+.bullet-wrapper[data-dimmed="true"][data-row-hover="true"]:not([data-ghost="true"]) .bullet-dot,
+.bullet-wrapper[data-dimmed="true"][data-row-hover="true"]:not([data-ghost="true"]) .bullet-icon {
   opacity: var(--opacity-100);
 }
 
@@ -207,6 +211,12 @@ body.notees-dragging-block .bullet-interactive:hover .bullet-dot {
   background-color: var(--color-on-surface-variant);
   transform: none;
   box-shadow: none;
+}
+
+body.notees-dragging-block .bullet-interactive:hover .bullet-icon {
+  opacity: var(--opacity-55);
+  color: var(--color-on-surface-variant);
+  transform: none;
 }
 
 /* Touch-swipe indent / outdent — bullet is transformed by the gesture. */
@@ -275,6 +285,8 @@ body.notees-dragging-block .bullet-interactive:hover .bullet-dot {
 }
 
 .bullet-has-icon .bullet-icon {
+  color: var(--color-on-surface-variant);
+  opacity: var(--opacity-55);
   transition: transform var(--motion-duration-short) var(--motion-easing-tactile),
               color var(--motion-duration-short) var(--motion-easing-tactile),
               opacity var(--motion-duration-short) var(--motion-easing-tactile);
@@ -284,6 +296,20 @@ body.notees-dragging-block .bullet-interactive:hover .bullet-dot {
   transform: translateY(-0.75rem) scale(0.85);
   color: var(--color-primary);
   opacity: 1;
+}
+
+/* Hover / focus on the bullet itself: grow and accent like the dot. */
+.bullet-interactive:hover .bullet-icon,
+.bullet-interactive:focus-visible .bullet-icon {
+  opacity: var(--opacity-100);
+  color: var(--color-accent);
+  transform: scale(1.2);
+}
+
+/* Row hover: brighten the icon like the dot. */
+.bullet-wrapper[data-row-hover="true"]:not([data-ghost="true"]) .bullet-icon {
+  opacity: var(--opacity-100);
+  color: var(--color-on-surface);
 }
 
 /* ==================== Bullet Icon ==================== */
