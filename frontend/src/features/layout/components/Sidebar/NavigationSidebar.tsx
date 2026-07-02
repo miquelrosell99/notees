@@ -195,13 +195,11 @@ export function SidebarRail({ hidden }: SidebarRailProps) {
     mainViewType,
     setMainViewType,
     openNode,
-    openNodeInNewTab,
   } = useNavigationStore(
     useShallow((s) => ({
       mainViewType: s.mainViewType,
       setMainViewType: s.setMainViewType,
       openNode: s.openNode,
-      openNodeInNewTab: s.openNodeInNewTab,
     }))
   );
 
@@ -215,25 +213,18 @@ export function SidebarRail({ hidden }: SidebarRailProps) {
 
   const { refetch: refetchToday } = useDailyNote(new Date());
 
-  const handleOpenInbox = useCallback((e?: React.MouseEvent) => {
+  const handleOpenInbox = useCallback(() => {
     if (inboxNode?.uuid) {
-      if (e?.ctrlKey || e?.metaKey) {
-        openNodeInNewTab(inboxNode.uuid);
-      } else {
-        openNode(inboxNode.uuid);
-      }
+      openNode(inboxNode.uuid);
     }
-  }, [inboxNode, openNode, openNodeInNewTab]);
+  }, [inboxNode, openNode]);
 
-  const handleGoToToday = useCallback(async (e?: React.MouseEvent) => {
+  const handleGoToToday = useCallback(async () => {
     const result = await refetchToday();
-    if (!result.data) return;
-    if (e?.ctrlKey || e?.metaKey) {
-      openNodeInNewTab(result.data.uuid);
-    } else {
+    if (result.data) {
       openNode(result.data.uuid);
     }
-  }, [refetchToday, openNode, openNodeInNewTab]);
+  }, [refetchToday, openNode]);
 
   const isPagesActive = mainViewType === 'pages' || mainViewType === 'all-pages' || mainViewType === 'graph' || mainViewType === 'timeline';
 

@@ -1,13 +1,13 @@
 /**
  * Main layout component with floating containers design
- * 
+ *
  * The layout consists of:
  * - Canvas: The background area containing all elements
  * - Left Sidebar: Database switcher, navigation, settings (collapses to an icon-only strip)
  * - Main Container: Primary content area with rounded corners
  * - Comments Sidebar: Comments panel for selected node (between main and right sidebar)
  * - Right Sidebar: Secondary content (local graph, node cards) with rounded corners
- * 
+ *
  * Sidebar resizing:
  * - Drag the right edge of left sidebar to resize
  * - Drag the left edge of right sidebar to resize
@@ -29,7 +29,6 @@ import type { BlockData } from '@/utils/clipboardManager';
 import { Sidebar, SidebarRail } from './Sidebar';
 import { MainContent } from './MainContent';
 import { TopBar } from './TopBar';
-import { TabBar } from './TabBar/TabBar';
 import { OfflineBanner } from './OfflineBanner';
 import { MobileLayout } from './MobileLayout';
 import { RightSidebarCards } from '@/features/sidebar';
@@ -96,7 +95,6 @@ export function Layout() {
   const presentationNodeUuid = usePresentationStore(s => s.nodeUuid);
   const setMinimapOpen = useModalStore(s => s.setMinimapOpen);
   const openNode = useNavigationStore(s => s.openNode);
-  const splitTab = useNavigationStore(s => s.splitTab);
   const workspaceRef = useRef<HTMLDivElement>(null);
 
   // Callback provided to all BlockEditors via context — opens the create-with-UUID modal
@@ -104,17 +102,16 @@ export function Layout() {
   const handleFixBrokenLink = useCallback((nodeUuid: string) => {
     setCreateWithUuidModalOpen(true, nodeUuid);
   }, [setCreateWithUuidModalOpen]);
-  
+
   const wideMode = useSettingsStore(s => s.wideMode);
-  const tabPosition = useSettingsStore(s => s.tabPosition);
   const createNodeMutation = useCreateNode();
   const { data: currentNode } = useNode(currentNodeUuid);
-  
+
   // Settings are synced from the backend into the local store before Layout
   // mounts. useSettingsQuery() is used here only so components downstream can
   // read cached data.
   useSettingsQuery();
-  
+
   // Responsive: true on phones/small tablets
   const isMobile = useIsMobile();
 
@@ -142,7 +139,7 @@ export function Layout() {
         });
     }
   }, [currentNodeUuid, mainViewType, currentNode?.is_page, queryClient]);
-  
+
   // Register commands in the Command Registry
   useCommand(COMMAND_IDS.COMMAND_PALETTE, () => {
     setCommandPaletteOpen(true);
@@ -165,28 +162,6 @@ export function Layout() {
 
     const handleDrop = (e: DragEvent) => {
       if (e.altKey) return;
-
-      // Handle tab drag-to-split
-      const tabData = e.dataTransfer?.getData('application/x-notees-tab');
-      if (tabData && workspaceRef.current) {
-        const rect = workspaceRef.current.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
-        const xPct = x / rect.width;
-        const yPct = y / rect.height;
-        const EDGE_THRESHOLD = 0.15;
-
-        if (xPct < EDGE_THRESHOLD || xPct > 1 - EDGE_THRESHOLD) {
-          splitTab(tabData, 'horizontal');
-          e.preventDefault();
-          return;
-        }
-        if (yPct < EDGE_THRESHOLD || yPct > 1 - EDGE_THRESHOLD) {
-          splitTab(tabData, 'vertical');
-          e.preventDefault();
-          return;
-        }
-      }
 
       // Handle node drop
       if (!e.dataTransfer?.types.includes('application/x-notees-node')) return;
@@ -212,8 +187,8 @@ export function Layout() {
       el.removeEventListener('dragover', handleDragOver);
       el.removeEventListener('drop', handleDrop);
     };
-  }, [openNode, splitTab]);
-  
+  }, [openNode]);
+
   // Sidebar resize handlers
   const handleLeftSidebarResizeStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -221,14 +196,14 @@ export function Layout() {
     document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
   }, []);
-  
+
   const handleRightSidebarResizeStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     isResizingRightRef.current = true;
     document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
   }, []);
-  
+
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (isResizingLeftRef.current) {
@@ -240,7 +215,7 @@ export function Layout() {
         setRightSidebarWidth(newWidth);
       }
     };
-    
+
     const handleMouseUp = () => {
       if (isResizingLeftRef.current || isResizingRightRef.current) {
         isResizingLeftRef.current = false;
@@ -249,10 +224,10 @@ export function Layout() {
         document.body.style.userSelect = '';
       }
     };
-    
+
     window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('mouseup', handleMouseUp);
-    
+
     return () => {
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
@@ -261,14 +236,14 @@ export function Layout() {
 
   // Sidebar visibility is controlled by rightSidebarOpen state
   const showSidebar = rightSidebarOpen;
-  
+
   // Build dynamic styles for sidebars
-  const leftSidebarStyle = leftSidebarWidth ? { 
-    '--sidebar-width': `${leftSidebarWidth}px` 
+  const leftSidebarStyle = leftSidebarWidth ? {
+    '--sidebar-width': `${leftSidebarWidth}px`
   } as React.CSSProperties : undefined;
-  
-  const rightSidebarStyle = rightSidebarWidth ? { 
-    '--right-sidebar-width': `${rightSidebarWidth}px` 
+
+  const rightSidebarStyle = rightSidebarWidth ? {
+    '--right-sidebar-width': `${rightSidebarWidth}px`
   } as React.CSSProperties : undefined;
 
   return (
@@ -313,7 +288,6 @@ export function Layout() {
                   /* eslint-enable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex */
                 )}
               </aside>
-              {tabPosition === 'left' && <TabBar />}
               <main id="main-content" className="main-container">
                 <Card className="main-container__card layout-card" padding={false} elevation="medium">
                   <MainContent />
@@ -367,7 +341,7 @@ export function Layout() {
           isOpen={isCommandPaletteOpen}
           onClose={() => setCommandPaletteOpen(false)}
         />
-        
+
         {/* Import Data Modal (Ctrl+Shift+I) */}
         <Suspense fallback={null}>
           <ImportDataModal
@@ -376,7 +350,7 @@ export function Layout() {
             onImport={async (blocks: BlockData[]) => {
               // Import blocks as children of current node
               if (!currentNodeUuid) return;
-              
+
               // Create blocks recursively
               const createBlocksRecursively = async (
                 blockDataList: BlockData[],
@@ -387,19 +361,19 @@ export function Layout() {
                     name: blockData.name || '',
                     parent_uuid: parentUuid,
                   });
-                  
+
                   // Recursively create children
                   if (blockData.children && blockData.children.length > 0) {
                     await createBlocksRecursively(blockData.children, newNode.uuid);
                   }
                 }
               };
-              
+
               await createBlocksRecursively(blocks, currentNodeUuid);
             }}
           />
         </Suspense>
-        
+
         {/* Floating Graph Minimap */}
         {isMinimapOpen && (
           <GraphMinimap onClose={() => setMinimapOpen(false)} />

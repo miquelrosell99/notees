@@ -86,7 +86,6 @@ export function SidebarRecents({ onContextMenu, onItemClick }: SidebarRecentsPro
     mainViewType,
     currentNodeUuid,
     openNode,
-    openNodeInNewTab,
     isSidebarCollapsed,
     toggleSidebar,
   } = useNavigationStore(
@@ -94,7 +93,6 @@ export function SidebarRecents({ onContextMenu, onItemClick }: SidebarRecentsPro
       mainViewType: s.mainViewType,
       currentNodeUuid: s.currentNodeUuid,
       openNode: s.openNode,
-      openNodeInNewTab: s.openNodeInNewTab,
       isSidebarCollapsed: s.isSidebarCollapsed,
       toggleSidebar: s.toggleSidebar,
     }))
@@ -105,15 +103,11 @@ export function SidebarRecents({ onContextMenu, onItemClick }: SidebarRecentsPro
     if (isMobile && !isSidebarCollapsed) toggleSidebar();
   }, [isMobile, isSidebarCollapsed, toggleSidebar]);
 
-  const handleNavigate = useCallback((nodeUuid: string, e?: React.MouseEvent) => {
-    if (e?.ctrlKey || e?.metaKey) {
-      openNodeInNewTab(nodeUuid);
-    } else {
-      openNode(nodeUuid);
-      closeMobileDrawer();
-    }
+  const handleNavigate = useCallback((nodeUuid: string) => {
+    openNode(nodeUuid);
+    closeMobileDrawer();
     onItemClick?.();
-  }, [openNode, openNodeInNewTab, closeMobileDrawer, onItemClick]);
+  }, [openNode, closeMobileDrawer, onItemClick]);
 
   const handleBreadcrumbNavigate = useCallback((nodeUuid: string) => {
     openNode(nodeUuid);
@@ -143,7 +137,7 @@ export function SidebarRecents({ onContextMenu, onItemClick }: SidebarRecentsPro
                 key={recent.nodeUuid}
                 nodeUuid={recent.nodeUuid}
                 isActive={currentNodeUuid === recent.nodeUuid && mainViewType === 'node'}
-                onClick={(e) => handleNavigate(recent.nodeUuid, e)}
+                onClick={() => handleNavigate(recent.nodeUuid)}
                 onNavigate={handleBreadcrumbNavigate}
                 onContextMenu={(e) => onContextMenu(recent.nodeUuid, e)}
               />
