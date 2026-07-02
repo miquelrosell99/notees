@@ -17,7 +17,7 @@ import { NodeSelector } from '@/features/content';
 import { useReferencedNode } from '@/features/content';
 import { useNodeByUuid } from '@/features/content';
 import { parseLinkId } from '@/lib/astBuilder';
-import type { InlineLinkRefType } from '@/features/editor/editor/nodes/InlineLinkNode';
+import type { InlineLinkRefType } from '@/features/editor/editor/types';
 import type { Node } from '@/types/api';
 import { useClasses } from '@/features/content';
 import './LinkEditModal.css';

@@ -10,11 +10,13 @@ import {
   insertText,
   deleteBackward,
   deleteForward,
+  deleteRange,
   toggleMark,
   insertAtomicNode,
   insertHardBreak,
   splitAtCursor,
   moveCursor,
+  setCollapsedOffset,
   astToUnits,
   unitsToAst,
   getInlineChildren,
@@ -159,5 +161,48 @@ describe('moveCursor', () => {
     const state = createState(makeAst([{ type: 'text', text: 'hello' }]), { type: 'collapsed', offset: 2 });
     const next = moveCursor(state, 2);
     expect(next.selection).toEqual({ type: 'collapsed', offset: 4 });
+  });
+});
+
+describe('deleteRange', () => {
+  it('removes a mid-string range', () => {
+    const state = createState(makeAst([{ type: 'text', text: 'hello world' }]), { type: 'collapsed', offset: 0 });
+    const next = deleteRange(state, 2, 7);
+    expect(getInlineChildren(next.ast)).toEqual([{ type: 'text', text: 'heorld' }]);
+    expect(next.selection).toEqual({ type: 'collapsed', offset: 2 });
+  });
+
+  it('removes an atomic node in a range', () => {
+    const state = createState(
+      makeAst([
+        { type: 'text', text: 'A' },
+        { type: 'node_link', link_id: 'node:abc', ref_type: 'node' },
+        { type: 'text', text: 'B' },
+      ]),
+      { type: 'collapsed', offset: 0 },
+    );
+    const next = deleteRange(state, 0, 3);
+    expect(getInlineChildren(next.ast)).toEqual([]);
+  });
+});
+
+describe('setCollapsedOffset', () => {
+  it('clamps the cursor inside the content', () => {
+    const state = createState(makeAst([{ type: 'text', text: 'hi' }]), { type: 'collapsed', offset: 0 });
+    expect(setCollapsedOffset(state, 100).selection).toEqual({ type: 'collapsed', offset: 2 });
+    expect(setCollapsedOffset(state, -5).selection).toEqual({ type: 'collapsed', offset: 0 });
+  });
+});
+
+describe('insertAtomicNode', () => {
+  it('splits a text unit when inserting in the middle', () => {
+    const state = createState(makeAst([{ type: 'text', text: 'abc' }]), { type: 'collapsed', offset: 1 });
+    const next = insertAtomicNode(state, { type: 'hard_break' });
+    expect(getInlineChildren(next.ast)).toEqual([
+      { type: 'text', text: 'a' },
+      { type: 'hard_break' },
+      { type: 'text', text: 'bc' },
+    ]);
+    expect(next.selection).toEqual({ type: 'collapsed', offset: 2 });
   });
 });

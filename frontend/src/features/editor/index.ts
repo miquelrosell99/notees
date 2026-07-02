@@ -7,7 +7,8 @@
  */
 
 // Inline editor
-export { InlineEditor, type InlineEditorHandle } from './editor/InlineEditor';
+export { CustomInlineEditor } from './custom/components/CustomInlineEditor';
+export type { InlineEditorHandle } from './editor/types';
 
 // Link editing UI
 export { LinkEditModal, type LinkEditResult } from './editor/components/LinkEditModal';

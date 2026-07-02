@@ -12,8 +12,10 @@ import type { ASTInlineNode } from '@/types/ast';
 import { parseAST, parseLinkId } from '@/lib/astBuilder';
 import { formatDateRange } from '@/utils/dateRange';
 import { NodeRef } from '@/features/content/components/nodes/NodeRef';
+import { Icon } from '@/components/ui/icons';
 import { astToUnits, getInlineChildren } from '../model/inlineEditorModel';
 import type { InlineUnit, MarkType } from '../model/types';
+import type { InlineLinkRefType } from '@/features/editor/editor/types';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
 
@@ -24,6 +26,10 @@ interface InlineContentRendererProps {
   editable?: boolean;
   /** Additional CSS class on each text unit. */
   textUnitClassName?: string;
+  /** Called when a link-like pill is clicked. */
+  onPillClick?: (linkId: string, refType: InlineLinkRefType) => void;
+  /** Link id of the currently selected pill (visual selection only). */
+  selectedPillLinkId?: string | null;
 }
 
 function renderMath(expression: string, displayMode: boolean): string {
@@ -57,30 +63,103 @@ function wrapWithMark(children: React.ReactNode, mark: MarkType): JSX.Element {
   }
 }
 
-function AtomicNodeRenderer({ node }: { node: ASTInlineNode }): JSX.Element | null {
+interface AtomicNodeRendererProps {
+  node: ASTInlineNode;
+  onPillClick?: InlineContentRendererProps['onPillClick'];
+  selectedPillLinkId?: string | null;
+}
+
+function AtomicNodeRenderer({ node, onPillClick, selectedPillLinkId }: AtomicNodeRendererProps): JSX.Element | null {
   switch (node.type) {
     case 'node_link': {
       const { nodeUuid } = parseLinkId(node.link_id);
+      const isSelected = selectedPillLinkId === node.link_id;
+      const handleKeyDown = onPillClick
+        ? (e: React.KeyboardEvent<HTMLSpanElement>) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              onPillClick(node.link_id, node.ref_type);
+            }
+          }
+        : undefined;
+
       return (
-        <span className="inline-link-wrapper" data-link-id={node.link_id} data-ref-type={node.ref_type} contentEditable="false">
+        <span
+          className={`inline-link-wrapper${isSelected ? ' inline-link-wrapper--selected' : ''}`}
+          data-link-id={node.link_id}
+          data-ref-type={node.ref_type}
+          data-label={node.label ?? undefined}
+          contentEditable="false"
+          role={onPillClick ? 'button' : undefined}
+          tabIndex={onPillClick ? -1 : undefined}
+          onClick={onPillClick ? () => onPillClick(node.link_id, node.ref_type) : undefined}
+          onKeyDown={handleKeyDown}
+        >
           <NodeRef variant="inline" nodeUuid={nodeUuid} refType={node.ref_type === 'class' ? 'class' : 'node'} customName={node.label ?? undefined} />
         </span>
       );
     }
     case 'broken_link': {
       const text = node.label || node.link_id.split(':')[0] || '⛓️‍💥';
+      const isSelected = selectedPillLinkId === node.link_id;
+      const handleBrokenKeyDown = onPillClick
+        ? (e: React.KeyboardEvent<HTMLSpanElement>) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              onPillClick(node.link_id, 'broken');
+            }
+          }
+        : undefined;
       return (
-        <span className="broken-link" contentEditable="false" title={`Broken link: ${node.link_id}`}>
-          {text}
+        <span
+          className={`inline-link-wrapper${isSelected ? ' inline-link-wrapper--selected' : ''}`}
+          data-link-id={node.link_id}
+          data-ref-type="broken"
+          data-label={node.label ?? undefined}
+          contentEditable="false"
+          role={onPillClick ? 'button' : undefined}
+          tabIndex={onPillClick ? -1 : undefined}
+          title={`Broken link: ${node.link_id}`}
+          onClick={onPillClick ? () => onPillClick(node.link_id, 'broken') : undefined}
+          onKeyDown={handleBrokenKeyDown}
+        >
+          <span className="inline-link-inner broken-link" data-ref-type="broken">
+            {text}
+          </span>
         </span>
       );
     }
     case 'external_link': {
       const label = node.children.map((c: ASTInlineNode) => ('text' in c ? (c as { text: string }).text : '')).join('');
+      const displayText = label || node.url;
+      const isSelected = selectedPillLinkId === node.url;
+      const handleUrlKeyDown = onPillClick
+        ? (e: React.KeyboardEvent<HTMLSpanElement>) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              onPillClick(node.url, 'url');
+            }
+          }
+        : undefined;
       return (
-        <a href={node.url} target="_blank" rel="noreferrer" contentEditable="false">
-          {label || node.url}
-        </a>
+        <span
+          className={`inline-link-wrapper${isSelected ? ' inline-link-wrapper--selected' : ''}`}
+          data-link-id={node.url}
+          data-ref-type="url"
+          data-url={node.url}
+          contentEditable="false"
+          role={onPillClick ? 'button' : undefined}
+          tabIndex={onPillClick ? -1 : undefined}
+          onClick={onPillClick ? () => onPillClick(node.url, 'url') : undefined}
+          onKeyDown={handleUrlKeyDown}
+        >
+          <span className="inline-link-inner" data-ref-type="url">
+            <span className="inline-link-icon">
+              <Icon path="mdi mdi-web" size="14px" />
+            </span>
+            <span className="inline-link-text">{displayText}</span>
+          </span>
+        </span>
       );
     }
     case 'date_range': {
@@ -108,9 +187,9 @@ function AtomicNodeRenderer({ node }: { node: ASTInlineNode }): JSX.Element | nu
   }
 }
 
-function InlineUnitRenderer({ unit, textUnitClassName }: { unit: InlineUnit; textUnitClassName?: string }): JSX.Element {
+function InlineUnitRenderer({ unit, textUnitClassName, onPillClick, selectedPillLinkId }: { unit: InlineUnit; textUnitClassName?: string; onPillClick?: InlineContentRendererProps['onPillClick']; selectedPillLinkId?: string | null }): JSX.Element {
   if (unit.type === 'atomic') {
-    return <AtomicNodeRenderer node={unit.node} />;
+    return <AtomicNodeRenderer node={unit.node} onPillClick={onPillClick} selectedPillLinkId={selectedPillLinkId} />;
   }
 
   let content: React.ReactNode = unit.text === '' ? '\u200B' : unit.text;
@@ -121,14 +200,20 @@ function InlineUnitRenderer({ unit, textUnitClassName }: { unit: InlineUnit; tex
   return <span className={textUnitClassName}>{content}</span>;
 }
 
-export function InlineContentRenderer({ name, textUnitClassName }: InlineContentRendererProps): JSX.Element {
+export function InlineContentRenderer({ name, textUnitClassName, onPillClick, selectedPillLinkId }: InlineContentRendererProps): JSX.Element {
   const ast = useMemo(() => parseAST(name) as ContentAST, [name]);
   const units = useMemo(() => astToUnits(getInlineChildren(ast)), [ast]);
 
   return (
     <>
       {units.map((unit, index) => (
-        <InlineUnitRenderer key={index} unit={unit} textUnitClassName={textUnitClassName} />
+        <InlineUnitRenderer
+          key={index}
+          unit={unit}
+          textUnitClassName={textUnitClassName}
+          onPillClick={onPillClick}
+          selectedPillLinkId={selectedPillLinkId}
+        />
       ))}
     </>
   );
