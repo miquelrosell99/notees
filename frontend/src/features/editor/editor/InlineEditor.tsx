@@ -34,6 +34,7 @@ import {
   $isRangeSelection,
   $isTextNode,
   $isLineBreakNode,
+  $isElementNode,
   type LexicalEditor,
   type ElementNode,
 } from 'lexical';
@@ -63,6 +64,41 @@ import { SyncedContentPlugin } from './plugins/SyncedContentPlugin';
 import { useYjsBinding } from '../yjs/useYjsBinding';
 import type { ContentAST } from '@/runtime/types';
 import type { EditorState } from 'lexical';
+
+/**
+ * Place a collapsed range selection at a logical inline offset within a
+ * paragraph. Logical offsets treat each atomic node as occupying one position.
+ */
+function $setSelectionAtLogicalOffset(paragraph: ElementNode, targetOffset: number): void {
+  const children = paragraph.getChildren();
+  let remaining = targetOffset;
+
+  for (let i = 0; i < children.length; i++) {
+    const child = children[i];
+
+    if ($isTextNode(child)) {
+      const text = child.getTextContent();
+      if (text === '\u200B') continue;
+      if (remaining <= text.length) {
+        child.select(remaining, remaining);
+        return;
+      }
+      remaining -= text.length;
+      continue;
+    }
+
+    if ($isInlineLinkNode(child) || $isInlineDateRangeNode(child) || $isMathNode(child) || $isLineBreakNode(child)) {
+      if (remaining === 0) {
+        paragraph.select(i, i);
+        return;
+      }
+      remaining -= 1;
+      continue;
+    }
+  }
+
+  paragraph.selectEnd();
+}
 
 // ─── Types ────────────────────────────────────────────────────────
 
@@ -112,10 +148,16 @@ interface InlineEditorProps {
   onDeleteAtEnd?: () => void;
   /** Called on Escape (blur editor and select block). */
   onEscape?: () => void;
+  /** Called when the editor receives DOM focus. */
+  onFocus?: () => void;
+  /** Called when the editor loses DOM focus. */
+  onBlur?: () => void;
   /** UUID of the containing node (for live sync focus tracking). */
   nodeUuid?: string;
   /** UUID of this block, used for CRDT collaboration binding. */
   blockUuid?: string;
+  /** Optional logical offset at which to place the caret on first focus. */
+  initialCursorOffset?: number;
   /** Whether this editor belongs to a page block (applies page title styling). */
   isPage?: boolean;
   /** Whether the containing block has a node color applied. */
@@ -139,6 +181,7 @@ export const InlineEditor = memo(
             initialContentAST,
             readOnly = false,
             placeholder = '',
+            initialCursorOffset,
             onContentChange,
             onPillClick,
             onPillRemove,
@@ -152,6 +195,8 @@ export const InlineEditor = memo(
             onBackspaceAtStart,
             onDeleteAtEnd,
             onEscape,
+            onFocus,
+            onBlur,
             nodeUuid,
             blockUuid,
             isPage,
@@ -400,7 +445,8 @@ export const InlineEditor = memo(
         liveSyncManager.sendFocus(blockId);
         useLivePresenceStore.getState().setLocalFocus(nodeUuid, blockId);
       }
-    }, [blockId, focusBlock, nodeUuid]);
+      onFocus?.();
+    }, [blockId, focusBlock, nodeUuid, onFocus]);
 
     const handleBlur = useCallback(() => {
       blurBlock(blockId);
@@ -416,7 +462,8 @@ export const InlineEditor = memo(
         }
         useLivePresenceStore.getState().setLocalFocus(nodeUuid, null);
       }
-    }, [blurBlock, blockId, clearIdleReleaseTimer, nodeUuid]);
+      onBlur?.();
+    }, [blurBlock, blockId, clearIdleReleaseTimer, nodeUuid, onBlur]);
 
     // ─── Render ───────────────────────────────────────────────────
 
@@ -428,6 +475,7 @@ export const InlineEditor = memo(
           initialContentAST={initialContentAST}
           readOnly={readOnly}
           placeholder={placeholder}
+          initialCursorOffset={initialCursorOffset}
           onChange={handleChange}
           onFocus={handleFocus}
           onBlur={handleBlur}
@@ -464,6 +512,7 @@ interface InlineEditorInnerProps {
   initialContentAST: ContentAST;
   readOnly: boolean;
   placeholder: string;
+  initialCursorOffset?: number;
   onChange: (editorState: EditorState, editor: LexicalEditor, tags: Set<string>) => void;
   onFocus: () => void;
   onBlur: () => void;
@@ -494,6 +543,7 @@ function InlineEditorInner({
   initialContentAST,
   readOnly,
   placeholder,
+  initialCursorOffset,
   onChange,
   onFocus,
   onBlur,
@@ -547,6 +597,50 @@ function InlineEditorInner({
       useInlineEditorRegistry.getState().unregister(blockId);
     };
   }, [blockId, editor]);
+
+  // Place the caret at the captured click offset once content is populated.
+  useEffect(() => {
+    if (initialCursorOffset === undefined) return;
+
+    const applySelection = () => {
+      editor.update(() => {
+        const root = $getRoot();
+        const paragraph = root.getFirstChild();
+        if (!paragraph) return;
+        $setSelectionAtLogicalOffset(paragraph as ElementNode, initialCursorOffset);
+      });
+    };
+
+    const hasContent = editor.getEditorState().read(() => {
+      const root = $getRoot();
+      const paragraph = root.getFirstChild();
+      return paragraph != null && $isElementNode(paragraph) && paragraph.getChildrenSize() > 0;
+    });
+
+    if (hasContent) {
+      applySelection();
+      return;
+    }
+
+    let removed = false;
+    const remove = editor.registerUpdateListener(({ editorState }) => {
+      const ready = editorState.read(() => {
+        const root = $getRoot();
+        const paragraph = root.getFirstChild();
+        return paragraph != null && $isElementNode(paragraph) && paragraph.getChildrenSize() > 0;
+      });
+      if (ready && !removed) {
+        removed = true;
+        remove();
+        applySelection();
+      }
+    });
+
+    return () => {
+      removed = true;
+      remove();
+    };
+  }, [editor, initialCursorOffset]);
 
   return (
     <div
