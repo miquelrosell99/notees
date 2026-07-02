@@ -40,6 +40,7 @@ import { setDOMSelection } from '../model/selectionSync';
 import { InlineContentRenderer } from './InlineContentRenderer';
 import type { InlineEditorHandle, InlineLinkRefType } from '@/features/editor/editor/types';
 import { useInlineEditorRegistry } from '@/stores/inlineEditorRegistry';
+import { useEditorFocusStore } from '@/stores/editorFocusStore';
 import { InlineTriggers } from '../plugins/InlineTriggers';
 import { InlineNodeLinks } from '../plugins/InlineNodeLinks';
 import { InlineCopyPaste } from '../plugins/InlineCopyPaste';
@@ -226,9 +227,8 @@ export const CustomInlineEditor = memo(
     );
 
     const handleBeforeInput = useCallback(
-      (e: React.FormEvent<HTMLDivElement> & { nativeEvent: InputEvent }) => {
+      (event: InputEvent) => {
         if (readOnly) return;
-        const event = e.nativeEvent;
         event.preventDefault();
 
         if (isComposingRef.current) return;
@@ -359,6 +359,23 @@ export const CustomInlineEditor = memo(
       [applyMutation, onEnter, onCtrlEnter, onBackspaceAtStart, onDeleteAtEnd, onEscape, readOnly],
     );
 
+    // Attach a native beforeinput listener directly. React's synthetic
+    // onBeforeInput is not reliably delivered on contentEditable elements in
+    // all browsers, which caused keystrokes to be ignored.
+    useEffect(() => {
+      const root = rootRef.current;
+      if (!root || readOnly) return;
+
+      const handler = (event: Event) => {
+        // Trigger chars are handled by InlineTriggers, which stops propagation.
+        if (event.defaultPrevented) return;
+        handleBeforeInput(event as InputEvent);
+      };
+
+      root.addEventListener('beforeinput', handler);
+      return () => root.removeEventListener('beforeinput', handler);
+    }, [handleBeforeInput, readOnly]);
+
     const handleCompositionStart = useCallback(() => {
       isComposingRef.current = true;
     }, []);
@@ -382,8 +399,9 @@ export const CustomInlineEditor = memo(
     const handleBlur = useCallback(() => {
       hasFocusRef.current = false;
       setSelectedPillLinkId(null);
+      useEditorFocusStore.getState().blurBlock(blockId);
       onBlur?.();
-    }, [onBlur]);
+    }, [blockId, onBlur]);
 
     const handlePaste = useInlineCopyPaste({
       stateRef,
@@ -474,7 +492,6 @@ export const CustomInlineEditor = memo(
         data-card-title={cardTitle || undefined}
         data-list-size={listSize || undefined}
         data-property-editor={inPropertyEditor || undefined}
-        onBeforeInput={handleBeforeInput}
         onKeyDown={handleKeyDown}
         onCompositionStart={handleCompositionStart}
         onCompositionEnd={handleCompositionEnd}
