@@ -7,7 +7,8 @@
 
 import { useRef, useMemo, useLayoutEffect, useEffect, forwardRef, useImperativeHandle, useState, useCallback, memo, startTransition } from 'react';
 import { useParams } from 'react-router-dom';
-import { InlineEditor, type InlineEditorHandle } from '@/features/editor';
+import { CustomInlineEditor } from '@/features/editor/custom/components/CustomInlineEditor';
+import type { InlineEditorHandle } from '@/features/editor/editor/types';
 import { InlineContentStatic } from '@/features/editor/editor/InlineContentStatic';
 import { flushAllContentSaves } from '@/features/editor';
 import { BlockUI } from './BlockUI';
@@ -441,7 +442,7 @@ export const BlockRow = memo(
         {'\u00A0'}
       </button>
     ) : shouldMountEditor ? (
-      <InlineEditor
+      <CustomInlineEditor
         ref={editorRef}
         blockId={node.uuid}
         blockUuid={node.uuid}
