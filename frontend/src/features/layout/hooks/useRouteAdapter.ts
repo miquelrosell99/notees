@@ -2,9 +2,9 @@
  * useRouteAdapter — read the current react-router route and sync it into
  * navigationStore.
  *
- * This replaces the old useRouterSync hook. It preserves the existing tab model:
- * the route tells the store what the active tab should be, and the rest of the
- * app continues to render from the store.
+ * This replaces the old useRouterSync hook. The route tells the store what
+ * the current view should be, and the rest of the app continues to render
+ * from the store.
  *
  * NOTE: processRoute() is async because it validates UUIDs against the API.
  * To avoid the stale-closure race that used to live in useNavigationUrlSync,
@@ -12,7 +12,7 @@
  * generation is allowed to update the store or clear the isProcessingUrl flag.
  */
 import { useEffect, useCallback, useRef, type MutableRefObject } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigationStore, useSettingsStore, useAuthStore, type MainViewType, type DefaultView } from '@/stores';
 import { useShallow } from 'zustand/react/shallow';
@@ -21,7 +21,7 @@ import { useNavigationHistoryStore } from '@/stores/navigationHistoryStore';
 import { listWorkspaces, switchWorkspace } from '@/features/workspace';
 import { getNodeByUuid } from '@/api/nodes';
 import { getPropertyByUuid } from '@/api/properties';
-import { SPECIAL_VIEWS, parseSplitParams } from './url';
+import { SPECIAL_VIEWS } from './url';
 import { isUuid } from '@/utils/uuid';
 import { favoriteKeys, recentKeys, workspaceKeys } from '@/hooks/queryKeys';
 import { getLogger } from '@/utils/logger';
@@ -41,16 +41,14 @@ interface RouteAdapterRefs {
 }
 
 export function useRouteAdapter({ hasInitialized, isProcessingUrl }: RouteAdapterRefs) {
-  // Monotonic generation counters for in-flight async route-to-store lookups.
-  // They guard against stale async results when the URL or search params change
-  // while a previous lookup is still pending.
+  // Monotonic generation counter for in-flight async route-to-store lookups.
+  // It guards against stale async results when the URL changes while a previous
+  // lookup is still pending.
   const routeGenerationRef = useRef(0);
-  const splitGenerationRef = useRef(0);
 
   const params = useParams();
   const workspaceId = params.workspaceId;
   const entityUuid = params['*'];
-  const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const authVerified = useAuthStore((s) => s.authVerified);
 
@@ -58,13 +56,11 @@ export function useRouteAdapter({ hasInitialized, isProcessingUrl }: RouteAdapte
     setMainViewType,
     openNode,
     openPropertyView,
-    openNodeInNewTab,
   } = useNavigationStore(
     useShallow((s) => ({
       setMainViewType: s.setMainViewType,
       openNode: s.openNode,
       openPropertyView: s.openPropertyView,
-      openNodeInNewTab: s.openNodeInNewTab,
     }))
   );
 
@@ -143,9 +139,7 @@ export function useRouteAdapter({ hasInitialized, isProcessingUrl }: RouteAdapte
       if (!isLatestGeneration()) return;
 
       if (!entityUuid) {
-        // Workspace root: honour the user's "Default view" setting. This uses
-        // the normal tab-opening paths, so a tab is created when the tab list is
-        // empty and the URL syncs just like any other navigation.
+        // Workspace root: honour the user's "Default view" setting.
         if (defaultView === 'today') {
           if (todayNote) {
             openNode(todayNote.uuid);
@@ -229,43 +223,6 @@ export function useRouteAdapter({ hasInitialized, isProcessingUrl }: RouteAdapte
   useEffect(() => {
     processRoute();
   }, [processRoute]);
-
-  // Handle split-pane query params independently.
-  useEffect(() => {
-    if (!hasInitialized.current || !dbData) return;
-
-    const { splitUuid, splitOrientation } = parseSplitParams(searchParams.toString());
-
-    if (!splitUuid || !splitOrientation) {
-      useNavigationStore.setState({ secondaryTabId: null, splitOrientation: null });
-      return;
-    }
-
-    const generation = ++splitGenerationRef.current;
-    const isLatestGeneration = () => generation === splitGenerationRef.current;
-
-    const resolveSplit = async () => {
-      try {
-        const node = await getNodeByUuid(splitUuid);
-        if (!isLatestGeneration()) return;
-        openNodeInNewTab(node.uuid);
-        const state = useNavigationStore.getState();
-        const newTab = state.tabs[state.tabs.length - 1];
-        if (newTab) {
-          useNavigationStore.setState({
-            activeTabId: state.tabs[0]?.id ?? newTab.id,
-            secondaryTabId: newTab.id,
-            splitOrientation,
-          });
-        }
-      } catch {
-        if (!isLatestGeneration()) return;
-        log.warn('Split UUID not found, ignoring split', { uuid: splitUuid });
-      }
-    };
-
-    resolveSplit();
-  }, [searchParams, dbData, openNodeInNewTab, hasInitialized]);
 
   // Keep navigationHistoryStore in sync with browser history length on first init.
   useEffect(() => {

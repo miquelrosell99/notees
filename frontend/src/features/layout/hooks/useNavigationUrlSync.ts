@@ -33,19 +33,11 @@ export function useNavigationUrlSync({ hasInitialized, isProcessingUrl }: Naviga
     mainViewType,
     currentNodeUuid,
     currentPropertyUuid,
-    tabs,
-    activeTabId,
-    secondaryTabId,
-    splitOrientation,
   } = useNavigationStore(
     useShallow((s) => ({
       mainViewType: s.mainViewType,
       currentNodeUuid: s.currentNodeUuid,
       currentPropertyUuid: s.currentPropertyUuid,
-      tabs: s.tabs,
-      activeTabId: s.activeTabId,
-      secondaryTabId: s.secondaryTabId,
-      splitOrientation: s.splitOrientation,
     }))
   );
 
@@ -53,9 +45,6 @@ export function useNavigationUrlSync({ hasInitialized, isProcessingUrl }: Naviga
     mainViewType: MainViewType;
     currentNodeUuid: string | null;
     currentPropertyUuid: string | null;
-    activeTabId: string | null;
-    secondaryTabId: string | null;
-    splitOrientation: 'horizontal' | 'vertical' | null;
   } | null>(null);
 
   useEffect(() => {
@@ -66,10 +55,7 @@ export function useNavigationUrlSync({ hasInitialized, isProcessingUrl }: Naviga
       !prevState ||
       prevState.mainViewType !== mainViewType ||
       prevState.currentNodeUuid !== currentNodeUuid ||
-      prevState.currentPropertyUuid !== currentPropertyUuid ||
-      prevState.activeTabId !== activeTabId ||
-      prevState.secondaryTabId !== secondaryTabId ||
-      prevState.splitOrientation !== splitOrientation;
+      prevState.currentPropertyUuid !== currentPropertyUuid;
 
     if (!stateChanged) return;
 
@@ -77,21 +63,11 @@ export function useNavigationUrlSync({ hasInitialized, isProcessingUrl }: Naviga
       mainViewType,
       currentNodeUuid,
       currentPropertyUuid,
-      activeTabId: activeTabId ?? null,
-      secondaryTabId: secondaryTabId ?? null,
-      splitOrientation: splitOrientation ?? null,
     };
-
-    const secondaryTab = tabs.find((t) => t.id === secondaryTabId);
-    const splitUuid = secondaryTab && splitOrientation
-      ? (secondaryTab.nodeUuid ?? secondaryTab.propertyUuid ?? null)
-      : null;
 
     const baseParams = {
       viewType: mainViewType,
       workspaceUuid: workspaceId ?? null,
-      splitUuid,
-      splitOrientation: splitOrientation ?? null,
     };
 
     let url: string;
@@ -114,10 +90,6 @@ export function useNavigationUrlSync({ hasInitialized, isProcessingUrl }: Naviga
     mainViewType,
     currentNodeUuid,
     currentPropertyUuid,
-    tabs,
-    activeTabId,
-    secondaryTabId,
-    splitOrientation,
     workspaceId,
     location.pathname,
     location.search,
