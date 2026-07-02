@@ -17,6 +17,8 @@ import {
   getInlineChildren,
   getUnitLogicalSize,
   setCollapsedOffset,
+  offsetToPosition,
+  deleteRange,
 } from '../model/inlineEditorModel';
 import type { InlineEditorState } from '../model/types';
 import type { InlineLinkRefType } from '@/features/editor/editor/types';
@@ -206,64 +208,127 @@ export function InlineNodeLinks({
       const root = rootRef.current;
       if (!root) return;
 
-      const linkId = selectedLinkIdRef.current;
-      if (!linkId) return;
-
       const key = event.key;
       const isMod = event.ctrlKey || event.metaKey;
 
-      // Enter on selected pill navigates.
-      if (key === 'Enter' && !isMod && !event.shiftKey && !event.altKey) {
-        const node = getSelectedPillNode(stateRef.current, linkId);
-        if (!node) return;
+      const selectedLinkId = selectedLinkIdRef.current;
 
-        event.preventDefault();
-        event.stopPropagation();
-
-        const refType = getLinkRefType(node);
-        if (refType === 'url' && node.type === 'external_link') {
-          window.open(node.url, '_blank', 'noopener,noreferrer');
-        } else {
-          onPillClick?.(linkId, refType);
+      if (selectedLinkId) {
+        const node = getSelectedPillNode(stateRef.current, selectedLinkId);
+        if (!node) {
+          clearSelection();
+          return;
         }
+        const offset = getPillOffset(stateRef.current, selectedLinkId);
+
+        // Copy shortcuts for selected pills.
+        if (isMod && key.toLowerCase() === 'c') {
+          if (event.shiftKey && event.altKey) {
+            clearSelection();
+            return;
+          }
+
+          event.preventDefault();
+          event.stopPropagation();
+
+          const refType = getLinkRefType(node);
+          const displayLabel = computeDisplayLabel(node);
+          const linkIdForParse = getLinkId(node);
+          const { nodeUuid } = linkIdForParse ? parseLinkId(linkIdForParse) : { nodeUuid: '' };
+
+          if (event.shiftKey && !event.altKey) {
+            // Shift+Ctrl+C — copy label
+            void copyToClipboard(displayLabel);
+          } else if (event.altKey && !event.shiftKey) {
+            // Alt+Ctrl+C — copy markdown link
+            const target = refType === 'url' && node.type === 'external_link' ? node.url : nodeUuid;
+            void copyToClipboard(`[${displayLabel}](${target})`);
+          } else {
+            // Ctrl+C — copy link reference
+            const text = refType === 'url' && node.type === 'external_link' ? node.url : `[[${nodeUuid}]]`;
+            void copyToClipboard(text);
+          }
+          return;
+        }
+
+        // Let other modifier shortcuts (e.g. Ctrl+B) clear the selection and pass through.
+        if (isMod) {
+          clearSelection();
+          return;
+        }
+
+        if (key === 'Enter') {
+          event.preventDefault();
+          event.stopPropagation();
+          const refType = getLinkRefType(node);
+          if (refType === 'url' && node.type === 'external_link') {
+            window.open(node.url, '_blank', 'noopener,noreferrer');
+          } else {
+            onPillClick?.(selectedLinkId, refType);
+          }
+          clearSelection();
+          return;
+        }
+
+        if (key === 'Backspace' || key === 'Delete') {
+          event.preventDefault();
+          event.stopPropagation();
+          clearSelection();
+          applyMutation((prev) => deleteRange(prev, offset, offset + 1));
+          return;
+        }
+
+        if (key === 'ArrowLeft' || key === 'ArrowRight') {
+          event.preventDefault();
+          event.stopPropagation();
+          const targetOffset = key === 'ArrowLeft' ? offset : offset + 1;
+          applyMutation((prev) => setCollapsedOffset(prev, targetOffset));
+          clearSelection();
+          return;
+        }
+
+        // Any other key clears the visual selection.
         clearSelection();
         return;
       }
 
-      // Copy shortcuts for selected pills.
-      if (isMod && key.toLowerCase() === 'c') {
-        if (event.shiftKey && event.altKey) return;
+      // No pill selected: arrow onto an adjacent pill selects it.
+      if (key !== 'ArrowLeft' && key !== 'ArrowRight') return;
 
-        const node = getSelectedPillNode(stateRef.current, linkId);
-        if (!node) return;
+      const state = stateRef.current;
+      if (state.selection.type !== 'collapsed') return;
 
-        event.preventDefault();
-        event.stopPropagation();
+      const offset = state.selection.offset;
+      const units = astToUnits(getInlineChildren(state.ast));
+      const length = units.reduce((sum, unit) => sum + getUnitLogicalSize(unit), 0);
 
-        const refType = getLinkRefType(node);
-        const displayLabel = computeDisplayLabel(node);
-        const linkIdForParse = getLinkId(node);
-        const { nodeUuid } = linkIdForParse ? parseLinkId(linkIdForParse) : { nodeUuid: '' };
-
-        if (event.shiftKey && !event.altKey) {
-          // Shift+Ctrl+C — copy label
-          void copyToClipboard(displayLabel);
-        } else if (event.altKey && !event.shiftKey) {
-          // Alt+Ctrl+C — copy markdown link
-          const target = refType === 'url' && node.type === 'external_link' ? node.url : nodeUuid;
-          void copyToClipboard(`[${displayLabel}](${target})`);
-        } else {
-          // Ctrl+C — copy link reference
-          const text = refType === 'url' && node.type === 'external_link' ? node.url : `[[${nodeUuid}]]`;
-          void copyToClipboard(text);
-        }
-        return;
+      let targetOffset = offset;
+      if (key === 'ArrowLeft') {
+        if (offset <= 0) return;
+        targetOffset = offset - 1;
+      } else {
+        if (offset >= length) return;
+        targetOffset = offset;
       }
 
-      // Any other key clears the visual pill selection so typing/arrows work.
-      clearSelection();
+      const pos = offsetToPosition(units, targetOffset);
+      const unit = units[pos.unitIndex];
+      if (!unit || unit.type !== 'atomic' || !isLinkAtomic(unit.node)) return;
+
+      const linkId = getLinkId(unit.node);
+      if (!linkId) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      setSelectedPillLinkId(linkId);
+
+      // Remove the DOM text caret so the pill selection is the only focus hint.
+      const selection = window.getSelection();
+      if (selection && root.contains(selection.anchorNode)) {
+        selection.removeAllRanges();
+      }
     },
-    [rootRef, stateRef, onPillClick, clearSelection],
+    [rootRef, stateRef, applyMutation, onPillClick, clearSelection, setSelectedPillLinkId],
   );
 
   useEffect(() => {
