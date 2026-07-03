@@ -14,6 +14,7 @@ from datetime import datetime
 from typing import Any
 
 import asyncpg
+from uuid_extensions import uuid7
 
 from app.db.connection import acquire_connection
 from app.domain.entities import NodeLink
@@ -54,47 +55,60 @@ class PostgresLinkRepository(BasePostgresRepository, LinkRepository):
         )
 
     async def create(self, link: NodeLink) -> NodeLink:
-        """Create a new link."""
-        async with acquire_connection(self._pool) as conn:
-            if link.uuid:
-                row = await conn.fetchrow(
-                    """
-                    INSERT INTO node_link (uuid, source_id, target_id, is_inline_class, is_embed, name, create_date, create_uid, workspace_id)
-                    VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9)
-                    RETURNING id, uuid
-                """,
-                    link.uuid,
-                    link.source_id,
-                    link.target_id,
-                    link.is_inline_class,
-                    link.is_embed,
-                    link.name,
-                    link.create_date,
-                    link.create_uid or self._user_id,
-                    self._workspace_id,
-                )
-            else:
-                row = await conn.fetchrow(
-                    """
-                    INSERT INTO node_link (source_id, target_id, is_inline_class, is_embed, name, create_date, create_uid, workspace_id)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-                    RETURNING id, uuid
-                """,
-                    link.source_id,
-                    link.target_id,
-                    link.is_inline_class,
-                    link.is_embed,
-                    link.name,
-                    link.create_date,
-                    link.create_uid or self._user_id,
-                    self._workspace_id,
-                )
+        """Create a new link.
 
-            if row is None:
-                raise RuntimeError("Failed to create link - no row returned")
-            link.id = row["id"]
-            link.uuid = str(row["uuid"])
-            return link
+        If the caller supplies a ``link.uuid`` that already exists (for example
+        a link copied client-side and pasted into a different block), the UUID
+        is regenerated instead of failing the whole sync batch.
+        """
+        async with acquire_connection(self._pool) as conn:
+            for _attempt in range(3):
+                if link.uuid:
+                    row = await conn.fetchrow(
+                        """
+                        INSERT INTO node_link (uuid, source_id, target_id, is_inline_class, is_embed, name, create_date, create_uid, workspace_id)
+                        VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9)
+                        ON CONFLICT (uuid) DO NOTHING
+                        RETURNING id, uuid
+                    """,
+                        link.uuid,
+                        link.source_id,
+                        link.target_id,
+                        link.is_inline_class,
+                        link.is_embed,
+                        link.name,
+                        link.create_date,
+                        link.create_uid or self._user_id,
+                        self._workspace_id,
+                    )
+                    if row is None:
+                        # UUID collision: generate a fresh one and retry.
+                        link.uuid = str(uuid7())
+                        continue
+                else:
+                    row = await conn.fetchrow(
+                        """
+                        INSERT INTO node_link (source_id, target_id, is_inline_class, is_embed, name, create_date, create_uid, workspace_id)
+                        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                        RETURNING id, uuid
+                    """,
+                        link.source_id,
+                        link.target_id,
+                        link.is_inline_class,
+                        link.is_embed,
+                        link.name,
+                        link.create_date,
+                        link.create_uid or self._user_id,
+                        self._workspace_id,
+                    )
+
+                if row is None:
+                    raise RuntimeError("Failed to create link - no row returned")
+                link.id = row["id"]
+                link.uuid = str(row["uuid"])
+                return link
+
+            raise RuntimeError("Failed to create link after retrying UUID collisions")
 
     async def delete_source_links(self, source_node_id: int) -> int:
         """Delete all links from a source node (for re-parsing)."""

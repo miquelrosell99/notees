@@ -12,6 +12,7 @@ import type { ASTInlineNode } from '@/types/ast';
 import { parseAST, parseLinkId } from '@/lib/astBuilder';
 import { formatDateRange } from '@/utils/dateRange';
 import { NodeRef } from '@/features/content/components/nodes/NodeRef';
+import { NodeLinkContextMenuTrigger } from '@/features/content';
 import { Icon } from '@/components/ui/icons';
 import { astToUnits, getInlineChildren } from '../model/inlineEditorModel';
 import type { InlineUnit, MarkType } from '../model/types';
@@ -28,6 +29,12 @@ interface InlineContentRendererProps {
   textUnitClassName?: string;
   /** Called when a link-like pill is clicked. */
   onPillClick?: (linkId: string, refType: InlineLinkRefType) => void;
+  /** Called when the user chooses "Edit link" from a pill's context menu. */
+  onEditPill?: (linkId: string) => void;
+  /** Called when the user chooses "Remove" from a pill's context menu. */
+  onRemovePill?: (linkId: string) => void;
+  /** Called when the user toggles inline class for a node link. */
+  onToggleClassPill?: (linkId: string) => void;
   /** Link id of the currently selected pill (visual selection only). */
   selectedPillLinkId?: string | null;
 }
@@ -67,10 +74,13 @@ interface AtomicNodeRendererProps {
   node: ASTInlineNode;
   editable?: boolean;
   onPillClick?: InlineContentRendererProps['onPillClick'];
+  onEditPill?: InlineContentRendererProps['onEditPill'];
+  onRemovePill?: InlineContentRendererProps['onRemovePill'];
+  onToggleClassPill?: InlineContentRendererProps['onToggleClassPill'];
   selectedPillLinkId?: string | null;
 }
 
-function AtomicNodeRenderer({ node, editable, onPillClick, selectedPillLinkId }: AtomicNodeRendererProps): JSX.Element | null {
+function AtomicNodeRenderer({ node, editable, onPillClick, onEditPill, onRemovePill, onToggleClassPill, selectedPillLinkId }: AtomicNodeRendererProps): JSX.Element | null {
   switch (node.type) {
     case 'node_link': {
       const { nodeUuid } = parseLinkId(node.link_id);
@@ -85,21 +95,31 @@ function AtomicNodeRenderer({ node, editable, onPillClick, selectedPillLinkId }:
         : undefined;
 
       return (
-        <span
-          className={`inline-link-wrapper${isSelected ? ' inline-link-wrapper--selected' : ''}`}
-          data-link-id={node.link_id}
-          data-ref-type={node.ref_type}
-          data-label={node.label ?? undefined}
-          data-editable={editable || undefined}
-          contentEditable="false"
-          suppressContentEditableWarning
-          role={onPillClick ? 'button' : undefined}
-          tabIndex={onPillClick ? -1 : undefined}
-          onClick={onPillClick ? () => onPillClick(node.link_id, node.ref_type) : undefined}
-          onKeyDown={handleKeyDown}
+        <NodeLinkContextMenuTrigger
+          linkId={node.link_id}
+          refType={node.ref_type}
+          label={node.label}
+          nodeUuid={nodeUuid}
+          onEdit={editable && onEditPill ? () => onEditPill(node.link_id) : undefined}
+          onRemove={editable && onRemovePill ? () => onRemovePill(node.link_id) : undefined}
+          onToggleClass={editable && onToggleClassPill ? () => onToggleClassPill(node.link_id) : undefined}
         >
-          <NodeRef variant="inline" nodeUuid={nodeUuid} refType={node.ref_type === 'class' ? 'class' : 'node'} customName={node.label ?? undefined} />
-        </span>
+          <span
+            className={`inline-link-wrapper${isSelected ? ' inline-link-wrapper--selected' : ''}`}
+            data-link-id={node.link_id}
+            data-ref-type={node.ref_type}
+            data-label={node.label ?? undefined}
+            data-editable={editable || undefined}
+            contentEditable="false"
+            suppressContentEditableWarning
+            role={onPillClick ? 'button' : undefined}
+            tabIndex={onPillClick ? -1 : undefined}
+            onClick={onPillClick ? () => onPillClick(node.link_id, node.ref_type) : undefined}
+            onKeyDown={handleKeyDown}
+          >
+            <NodeRef variant="inline" nodeUuid={nodeUuid} refType={node.ref_type === 'class' ? 'class' : 'node'} customName={node.label ?? undefined} />
+          </span>
+        </NodeLinkContextMenuTrigger>
       );
     }
     case 'broken_link': {
@@ -114,24 +134,32 @@ function AtomicNodeRenderer({ node, editable, onPillClick, selectedPillLinkId }:
           }
         : undefined;
       return (
-        <span
-          className={`inline-link-wrapper${isSelected ? ' inline-link-wrapper--selected' : ''}`}
-          data-link-id={node.link_id}
-          data-ref-type="broken"
-          data-label={node.label ?? undefined}
-          data-editable={editable || undefined}
-          contentEditable="false"
-          suppressContentEditableWarning
-          role={onPillClick ? 'button' : undefined}
-          tabIndex={onPillClick ? -1 : undefined}
-          title={`Broken link: ${node.link_id}`}
-          onClick={onPillClick ? () => onPillClick(node.link_id, 'broken') : undefined}
-          onKeyDown={handleBrokenKeyDown}
+        <NodeLinkContextMenuTrigger
+          linkId={node.link_id}
+          refType="broken"
+          label={node.label}
+          onEdit={editable && onEditPill ? () => onEditPill(node.link_id) : undefined}
+          onRemove={editable && onRemovePill ? () => onRemovePill(node.link_id) : undefined}
         >
-          <span className="inline-link-inner broken-link" data-ref-type="broken">
-            {text}
+          <span
+            className={`inline-link-wrapper${isSelected ? ' inline-link-wrapper--selected' : ''}`}
+            data-link-id={node.link_id}
+            data-ref-type="broken"
+            data-label={node.label ?? undefined}
+            data-editable={editable || undefined}
+            contentEditable="false"
+            suppressContentEditableWarning
+            role={onPillClick ? 'button' : undefined}
+            tabIndex={onPillClick ? -1 : undefined}
+            title={`Broken link: ${node.link_id}`}
+            onClick={onPillClick ? () => onPillClick(node.link_id, 'broken') : undefined}
+            onKeyDown={handleBrokenKeyDown}
+          >
+            <span className="inline-link-inner broken-link" data-ref-type="broken">
+              {text}
+            </span>
           </span>
-        </span>
+        </NodeLinkContextMenuTrigger>
       );
     }
     case 'external_link': {
@@ -147,26 +175,35 @@ function AtomicNodeRenderer({ node, editable, onPillClick, selectedPillLinkId }:
           }
         : undefined;
       return (
-        <span
-          className={`inline-link-wrapper${isSelected ? ' inline-link-wrapper--selected' : ''}`}
-          data-link-id={node.url}
-          data-ref-type="url"
-          data-url={node.url}
-          data-editable={editable || undefined}
-          contentEditable="false"
-          suppressContentEditableWarning
-          role={onPillClick ? 'button' : undefined}
-          tabIndex={onPillClick ? -1 : undefined}
-          onClick={onPillClick ? () => onPillClick(node.url, 'url') : undefined}
-          onKeyDown={handleUrlKeyDown}
+        <NodeLinkContextMenuTrigger
+          linkId={node.url}
+          refType="url"
+          label={label}
+          url={node.url}
+          onEdit={editable && onEditPill ? () => onEditPill(node.url) : undefined}
+          onRemove={editable && onRemovePill ? () => onRemovePill(node.url) : undefined}
         >
-          <span className="inline-link-inner" data-ref-type="url">
-            <span className="inline-link-icon">
-              <Icon path="mdi mdi-web" size="14px" />
+          <span
+            className={`inline-link-wrapper${isSelected ? ' inline-link-wrapper--selected' : ''}`}
+            data-link-id={node.url}
+            data-ref-type="url"
+            data-url={node.url}
+            data-editable={editable || undefined}
+            contentEditable="false"
+            suppressContentEditableWarning
+            role={onPillClick ? 'button' : undefined}
+            tabIndex={onPillClick ? -1 : undefined}
+            onClick={onPillClick ? () => onPillClick(node.url, 'url') : undefined}
+            onKeyDown={handleUrlKeyDown}
+          >
+            <span className="inline-link-inner" data-ref-type="url">
+              <span className="inline-link-icon">
+                <Icon path="mdi mdi-web" size="14px" />
+              </span>
+              <span className="inline-link-text">{displayText}</span>
             </span>
-            <span className="inline-link-text">{displayText}</span>
           </span>
-        </span>
+        </NodeLinkContextMenuTrigger>
       );
     }
     case 'date_range': {
@@ -194,9 +231,9 @@ function AtomicNodeRenderer({ node, editable, onPillClick, selectedPillLinkId }:
   }
 }
 
-function InlineUnitRenderer({ unit, editable, textUnitClassName, onPillClick, selectedPillLinkId }: { unit: InlineUnit; editable?: boolean; textUnitClassName?: string; onPillClick?: InlineContentRendererProps['onPillClick']; selectedPillLinkId?: string | null }): JSX.Element {
+function InlineUnitRenderer({ unit, editable, textUnitClassName, onPillClick, onEditPill, onRemovePill, onToggleClassPill, selectedPillLinkId }: { unit: InlineUnit; editable?: boolean; textUnitClassName?: string; onPillClick?: InlineContentRendererProps['onPillClick']; onEditPill?: InlineContentRendererProps['onEditPill']; onRemovePill?: InlineContentRendererProps['onRemovePill']; onToggleClassPill?: InlineContentRendererProps['onToggleClassPill']; selectedPillLinkId?: string | null }): JSX.Element {
   if (unit.type === 'atomic') {
-    return <AtomicNodeRenderer node={unit.node} editable={editable} onPillClick={onPillClick} selectedPillLinkId={selectedPillLinkId} />;
+    return <AtomicNodeRenderer node={unit.node} editable={editable} onPillClick={onPillClick} onEditPill={onEditPill} onRemovePill={onRemovePill} onToggleClassPill={onToggleClassPill} selectedPillLinkId={selectedPillLinkId} />;
   }
 
   let content: React.ReactNode = unit.text === '' ? '\u200B' : unit.text;
@@ -207,7 +244,7 @@ function InlineUnitRenderer({ unit, editable, textUnitClassName, onPillClick, se
   return <span className={textUnitClassName}>{content}</span>;
 }
 
-export function InlineContentRenderer({ name, editable, textUnitClassName, onPillClick, selectedPillLinkId }: InlineContentRendererProps): JSX.Element {
+export function InlineContentRenderer({ name, editable, textUnitClassName, onPillClick, onEditPill, onRemovePill, onToggleClassPill, selectedPillLinkId }: InlineContentRendererProps): JSX.Element {
   const ast = useMemo(() => parseAST(name) as ContentAST, [name]);
   const units = useMemo(() => astToUnits(getInlineChildren(ast)), [ast]);
 
@@ -220,6 +257,9 @@ export function InlineContentRenderer({ name, editable, textUnitClassName, onPil
           editable={editable}
           textUnitClassName={textUnitClassName}
           onPillClick={onPillClick}
+          onEditPill={onEditPill}
+          onRemovePill={onRemovePill}
+          onToggleClassPill={onToggleClassPill}
           selectedPillLinkId={selectedPillLinkId}
         />
       ))}
