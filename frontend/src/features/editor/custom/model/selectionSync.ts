@@ -21,6 +21,8 @@ function getTextNode(element: Node): Text | null {
 function getChildLength(node: Node): number {
   if (node.nodeType === Node.TEXT_NODE) return node.textContent?.length ?? 0;
   if (isAtomicElement(node)) return 1;
+  const textNode = getTextNode(node);
+  if (textNode) return textNode.textContent?.length ?? 0;
   return 0;
 }
 
@@ -87,47 +89,68 @@ export function setDOMSelection(root: HTMLElement, anchor: number, focus?: numbe
   selection.setBaseAndExtent(anchorPos.node, anchorPos.offset, focusPos.node, focusPos.offset);
 }
 
+function offsetFromDOMPosition(root: HTMLElement, node: Node, nodeOffset: number): number {
+  if (node === root) {
+    let offset = 0;
+    for (let i = 0; i < nodeOffset && i < root.childNodes.length; i++) {
+      offset += getChildLength(root.childNodes[i]!);
+    }
+    return offset;
+  }
+
+  let offset = 0;
+
+  for (const child of root.childNodes) {
+    if (child === node) {
+      return offset + Math.min(nodeOffset, getChildLength(child));
+    }
+
+    if (child.contains(node)) {
+      if (isAtomicElement(child)) {
+        return offset + (nodeOffset > 0 ? 1 : 0);
+      }
+      const textNode = getTextNode(child);
+      if (textNode && node === textNode) {
+        return offset + Math.min(nodeOffset, textNode.textContent?.length ?? 0);
+      }
+      return offset;
+    }
+
+    offset += getChildLength(child);
+  }
+
+  return offset;
+}
+
 /**
  * Read the current DOM selection inside `root` and return the logical offset.
  * Returns `null` if the selection is outside the editor.
  */
 export function getDOMSelectionOffset(root: HTMLElement): number | null {
+  const range = getDOMSelectionRange(root);
+  if (!range) return null;
+  return range.anchor;
+}
+
+/**
+ * Read the current DOM selection inside `root` and return logical anchor/focus
+ * offsets. Returns `null` if the selection is outside the editor.
+ */
+export function getDOMSelectionRange(
+  root: HTMLElement,
+): { anchor: number; focus: number; isCollapsed: boolean } | null {
   const selection = window.getSelection();
   if (!selection || selection.rangeCount === 0) return null;
 
   const range = selection.getRangeAt(0);
-  const anchorNode = range.startContainer;
-  const anchorOffset = range.startOffset;
+  if (!root.contains(range.commonAncestorContainer)) return null;
 
-  if (!root.contains(anchorNode)) return null;
+  const anchor = offsetFromDOMPosition(root, range.startContainer, range.startOffset);
+  const focus = selection.isCollapsed
+    ? anchor
+    : offsetFromDOMPosition(root, range.endContainer, range.endOffset);
 
-  let offset = 0;
-
-  for (const child of root.childNodes) {
-    if (child === anchorNode) {
-      return offset + Math.min(anchorOffset, getChildLength(child));
-    }
-
-    if (child.contains(anchorNode)) {
-      // Anchor is inside a text-unit wrapper.
-      const textNode = getTextNode(child);
-      if (textNode && anchorNode === textNode) {
-        return offset + Math.min(anchorOffset, textNode.textContent?.length ?? 0);
-      }
-      return offset;
-    }
-
-    if (isAtomicElement(child)) {
-      offset += 1;
-    } else {
-      const textNode = getTextNode(child);
-      if (textNode) {
-        offset += textNode.textContent?.length ?? 0;
-      }
-    }
-  }
-
-  return offset;
+  return { anchor, focus, isCollapsed: selection.isCollapsed };
 }
 
 /**
