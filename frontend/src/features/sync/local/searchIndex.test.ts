@@ -111,4 +111,17 @@ describe('searchIndex', () => {
     });
     expect(loaded.search('world').map((r) => r.id)).toContain('n1');
   });
+
+  it('serializes concurrent index updates without corrupting the index', async () => {
+    // Regression: overlapping discard/add cycles on the same MiniSearch instance
+    // could corrupt the internal SearchableMap and throw during auto-vacuuming.
+    const promises: Promise<void>[] = [];
+    for (let i = 0; i < 20; i += 1) {
+      promises.push(indexNodes(WORKSPACE, [makeNode(`n-${i}`, `Doc ${i}`)]));
+    }
+    await Promise.all(promises);
+
+    const results = await searchIndex(WORKSPACE, 'Doc');
+    expect(results.length).toBe(20);
+  });
 });
