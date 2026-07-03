@@ -5,6 +5,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { OperationRuntime } from '@/runtime';
 import { flattenNodesFromRuntime, flattenNodes } from './useBlockTree';
+import { applyIntent } from '@/sync/intents';
 import type { Operation } from '@/runtime';
 import type { Node } from '@/types';
 
@@ -490,6 +491,196 @@ describe('flattenNodesFromRuntime', () => {
     const node = flat.find((n) => n.node.uuid === NEW_BLOCK_UUID);
     expect(node).toBeDefined();
     expect(node!.node.name).toBe('[{"type":"paragraph","children":[{"type":"text","text":"typed content"}]}]');
+  });
+
+  it('renders the root ghost as a child of the focused block in focused block view', () => {
+    const runtime = new OperationRuntime();
+    const focusedBlock: Node = {
+      uuid: PARENT_UUID,
+      name: 'Focused block',
+      icon: null,
+      color: null,
+      parent_uuid: PAGE_UUID,
+      page_uuid: null,
+      sequence: 0,
+      active: true,
+      is_page: false,
+      is_deleted: false,
+      has_children: true,
+      children: [
+        {
+          uuid: NEW_BLOCK_UUID,
+          name: 'Existing child',
+          icon: null,
+          color: null,
+          parent_uuid: PARENT_UUID,
+          page_uuid: null,
+          sequence: 0,
+          active: true,
+          is_page: false,
+          is_deleted: false,
+          has_children: false,
+          children: [],
+          create_date: new Date().toISOString(),
+          write_date: new Date().toISOString(),
+          classes_uuid: [],
+          tags_uuid: [],
+          properties_uuid: {},
+        },
+      ],
+      create_date: new Date().toISOString(),
+      write_date: new Date().toISOString(),
+      classes_uuid: [],
+      tags_uuid: [],
+      properties_uuid: {},
+    };
+
+    const flat = flattenNodesFromRuntime(
+      [focusedBlock],
+      -1,
+      false,
+      false,
+      runtime,
+      () => undefined,
+      false,
+      false,
+      true,
+      PARENT_UUID,
+      true,
+    );
+
+    const realNodes = flat.filter((n) => !n.isGhost);
+    expect(realNodes.map((n) => ({ uuid: n.node.uuid, depth: n.depth }))).toEqual([
+      { uuid: PARENT_UUID, depth: 0 },
+      { uuid: NEW_BLOCK_UUID, depth: 1 },
+    ]);
+
+    const ghosts = flat.filter((n) => n.isGhost);
+    // Root ghost (child of focused block) + child ghost (child of existing child).
+    expect(ghosts).toHaveLength(2);
+    const rootGhost = ghosts.find((n) => n.node.uuid === `__ghost-${PARENT_UUID}`);
+    expect(rootGhost).toBeDefined();
+    expect(rootGhost!.depth).toBe(1);
+
+    const childGhost = ghosts.find((n) => n.node.uuid === `__ghost-${NEW_BLOCK_UUID}`);
+    expect(childGhost).toBeDefined();
+    expect(childGhost!.depth).toBe(2);
+  });
+
+  it('creates a new block as a child of the focused block when the root ghost is realized', () => {
+    const runtime = new OperationRuntime();
+    runtime.loadBaseNodes([
+      {
+        blockId: PARENT_UUID,
+        parentId: PAGE_UUID,
+        orderIndex: 0,
+        nodeType: 'block',
+        contentAST: [{ type: 'paragraph', children: [{ type: 'text', text: 'focused' }] }],
+        collapsed: false,
+        isDeleted: false,
+        isPage: false,
+        name: 'focused',
+        icon: null,
+        color: null,
+        classIds: [],
+        tagIds: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        version: 1,
+      },
+      {
+        blockId: NEW_BLOCK_UUID,
+        parentId: PARENT_UUID,
+        orderIndex: 0,
+        nodeType: 'block',
+        contentAST: [{ type: 'paragraph', children: [{ type: 'text', text: 'child' }] }],
+        collapsed: false,
+        isDeleted: false,
+        isPage: false,
+        name: 'child',
+        icon: null,
+        color: null,
+        classIds: [],
+        tagIds: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        version: 1,
+      },
+    ]);
+
+    const newBlockId = '33333333-3333-3333-3333-333333333333';
+    const runtimeChildren = runtime.getChildren(PARENT_UUID);
+    const lastRealChild = runtimeChildren.length > 0 ? runtimeChildren[runtimeChildren.length - 1] : null;
+
+    applyIntent(runtime, {
+      type: 'create_block',
+      parentId: PARENT_UUID,
+      afterBlockId: lastRealChild?.blockId ?? null,
+      blockId: newBlockId,
+      contentAST: [{ type: 'paragraph', children: [{ type: 'text', text: '' }] }],
+    });
+
+    const newNode = runtime.getNode(newBlockId);
+    expect(newNode).toBeDefined();
+    expect(newNode!.parentId).toBe(PARENT_UUID);
+
+    // Render focused block view with the focused block as the prop root.
+    const focusedBlock: Node = {
+      uuid: PARENT_UUID,
+      name: 'focused',
+      icon: null,
+      color: null,
+      parent_uuid: PAGE_UUID,
+      page_uuid: null,
+      sequence: 0,
+      active: true,
+      is_page: false,
+      is_deleted: false,
+      has_children: true,
+      children: [
+        {
+          uuid: NEW_BLOCK_UUID,
+          name: 'child',
+          icon: null,
+          color: null,
+          parent_uuid: PARENT_UUID,
+          page_uuid: null,
+          sequence: 0,
+          active: true,
+          is_page: false,
+          is_deleted: false,
+          has_children: false,
+          children: [],
+          create_date: new Date().toISOString(),
+          write_date: new Date().toISOString(),
+          classes_uuid: [],
+          tags_uuid: [],
+          properties_uuid: {},
+        },
+      ],
+      create_date: new Date().toISOString(),
+      write_date: new Date().toISOString(),
+      classes_uuid: [],
+      tags_uuid: [],
+      properties_uuid: {},
+    };
+
+    const flat = flattenNodesFromRuntime(
+      [focusedBlock],
+      -1,
+      false,
+      false,
+      runtime,
+      () => undefined,
+      false,
+      false,
+      true,
+      PARENT_UUID,
+      true,
+    );
+    const newFlatNode = flat.find((n) => n.node.uuid === newBlockId);
+    expect(newFlatNode).toBeDefined();
+    expect(newFlatNode!.depth).toBe(1);
   });
 });
 
