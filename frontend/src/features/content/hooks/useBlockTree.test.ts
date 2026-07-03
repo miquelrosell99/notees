@@ -440,6 +440,57 @@ describe('flattenNodesFromRuntime', () => {
     expect(ghosts).toHaveLength(1);
     expect(ghosts[0].node.uuid).toBe(`__ghost-${PAGE_UUID}`);
   });
+
+  it('reflects runtime content updates for runtime-only nodes', () => {
+    const runtime = new OperationRuntime();
+    runtime.applyOperation({
+      id: 'create-op',
+      type: 'create',
+      blockId: NEW_BLOCK_UUID,
+      state: 'pending',
+      dependsOn: [],
+      retryCount: 0,
+      maxRetries: 3,
+      createdAt: Date.now(),
+      payload: {
+        parentId: PAGE_UUID,
+        afterBlockId: null,
+        contentAST: [{ type: 'paragraph', children: [{ type: 'text', text: '' }] }],
+      },
+    } as Operation);
+
+    runtime.applyOperation({
+      id: 'update-op',
+      type: 'update_content',
+      blockId: NEW_BLOCK_UUID,
+      state: 'pending',
+      dependsOn: [],
+      retryCount: 0,
+      maxRetries: 3,
+      createdAt: Date.now(),
+      payload: {
+        contentAST: [{ type: 'paragraph', children: [{ type: 'text', text: 'typed content' }] }],
+      },
+    } as Operation);
+
+    const flat = flattenNodesFromRuntime(
+      [],
+      -1,
+      false,
+      false,
+      runtime,
+      () => undefined,
+      false,
+      false,
+      true,
+      PAGE_UUID,
+      false,
+    );
+
+    const node = flat.find((n) => n.node.uuid === NEW_BLOCK_UUID);
+    expect(node).toBeDefined();
+    expect(node!.node.name).toBe('[{"type":"paragraph","children":[{"type":"text","text":"typed content"}]}]');
+  });
 });
 
 describe('flattenNodes', () => {

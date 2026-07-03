@@ -40,6 +40,7 @@ export {
   type FirstDayOfWeek,
   type FirstDayOfWeekOption,
   type AccentColor,
+  type TreeEditMode,
 } from './settingsStore';
 
 export {

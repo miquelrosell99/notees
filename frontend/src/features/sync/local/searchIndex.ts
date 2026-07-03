@@ -43,7 +43,31 @@ export interface SearchResult {
 }
 
 const memoryStore = new Map<string, MiniSearch<SearchDoc>>();
+const indexLocks = new Map<string, Promise<void>>();
 const hasIndexedDB = typeof indexedDB !== 'undefined';
+
+/**
+ * Serialize all index operations for a workspace. MiniSearch (and its
+ * internal SearchableMap) is not safe against concurrent async mutations:
+ * overlapping discard/add cycles can corrupt the radix tree and cause
+ * vacuuming to throw "child is undefined".
+ */
+async function withIndexLock<T>(workspaceUuid: string, fn: () => Promise<T>): Promise<T> {
+  while (indexLocks.has(workspaceUuid)) {
+    await indexLocks.get(workspaceUuid);
+  }
+  let release: () => void;
+  const promise = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  indexLocks.set(workspaceUuid, promise);
+  try {
+    return await fn();
+  } finally {
+    indexLocks.delete(workspaceUuid);
+    release!();
+  }
+}
 
 const PERSIST_DEBOUNCE_MS = 2000;
 const PERSIST_IDLE_TIMEOUT_MS = 2000;
@@ -262,14 +286,16 @@ export async function indexNodes(
   nodes: Node[],
 ): Promise<void> {
   if (nodes.length === 0) return;
-  const index = await getIndex(workspaceUuid);
-  for (const node of nodes) {
-    if (index.has(node.uuid)) {
-      index.discard(node.uuid);
+  await withIndexLock(workspaceUuid, async () => {
+    const index = await getIndex(workspaceUuid);
+    for (const node of nodes) {
+      if (index.has(node.uuid)) {
+        index.discard(node.uuid);
+      }
     }
-  }
-  index.addAll(nodes.map(nodeToDoc));
-  scheduleIndexSave(workspaceUuid);
+    index.addAll(nodes.map(nodeToDoc));
+    scheduleIndexSave(workspaceUuid);
+  });
 }
 
 /**
@@ -280,13 +306,15 @@ export async function unindexNodes(
   nodeUuids: string[],
 ): Promise<void> {
   if (nodeUuids.length === 0) return;
-  const index = await getIndex(workspaceUuid);
-  for (const uuid of nodeUuids) {
-    if (index.has(uuid)) {
-      index.discard(uuid);
+  await withIndexLock(workspaceUuid, async () => {
+    const index = await getIndex(workspaceUuid);
+    for (const uuid of nodeUuids) {
+      if (index.has(uuid)) {
+        index.discard(uuid);
+      }
     }
-  }
-  scheduleIndexSave(workspaceUuid);
+    scheduleIndexSave(workspaceUuid);
+  });
 }
 
 function hasIntersection(a: string[], b: string[]): boolean {
@@ -317,26 +345,30 @@ export async function searchIndex(
   query: string,
   filters: SearchFilters = {},
 ): Promise<SearchResult[]> {
-  const index = await getIndex(workspaceUuid);
-  if (!query.trim()) {
-    // Empty query: return all indexed docs, filtered.
-    const all = index.search('*');
-    return all.filter((r) => matchesFilters(r as unknown as SearchDoc, filters));
-  }
-  const raw = index.search(query);
-  return raw.filter((r) => matchesFilters(r as unknown as SearchDoc, filters));
+  return withIndexLock(workspaceUuid, async () => {
+    const index = await getIndex(workspaceUuid);
+    if (!query.trim()) {
+      // Empty query: return all indexed docs, filtered.
+      const all = index.search('*');
+      return all.filter((r) => matchesFilters(r as unknown as SearchDoc, filters));
+    }
+    const raw = index.search(query);
+    return raw.filter((r) => matchesFilters(r as unknown as SearchDoc, filters));
+  });
 }
 
 /**
  * Wipe the search index for a workspace.
  */
 export async function clearSearchIndex(workspaceUuid: string): Promise<void> {
-  if (pendingSaveWorkspaceUuid === workspaceUuid) {
-    clearSaveTimer();
-    pendingSaveWorkspaceUuid = null;
-  }
-  memoryStore.delete(workspaceKey(workspaceUuid));
-  await idbDelete(workspaceUuid);
+  await withIndexLock(workspaceUuid, async () => {
+    if (pendingSaveWorkspaceUuid === workspaceUuid) {
+      clearSaveTimer();
+      pendingSaveWorkspaceUuid = null;
+    }
+    memoryStore.delete(workspaceKey(workspaceUuid));
+    await idbDelete(workspaceUuid);
+  });
 }
 
 /**
