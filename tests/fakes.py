@@ -1094,12 +1094,18 @@ class FakePropertyRepository:
     async def set_selection_value(
         self, node_id: int, property_id: int, selection_line_id: int
     ) -> PropertyValueSelection:
+        line_uuid = None
+        for line in self._selection_lines.get(property_id, []):
+            if line.id == selection_line_id:
+                line_uuid = line.uuid
+                break
         value = PropertyValueSelection(
             id=self._bump_value_id(),
             node_property_id=0,
             property_id=property_id,
             node_id=node_id,
             selection_line_id=selection_line_id,
+            selection_line_uuid=line_uuid,
         )
         self._values[(node_id, property_id)] = [value]
         return value
