@@ -43,4 +43,10 @@ async def test_set_selection_property_on_page(auth_client: AsyncClient):
     })
     assert set_resp.status_code == 200, set_resp.text
     data = set_resp.json()
-    assert data["properties"][prop_uuid] is not None
+    assert data["properties"][prop_uuid] == option_uuid
+
+    # Refetch page content and confirm the value is returned as a public UUID.
+    content_resp = await auth_client.get(f"/api/nodes/page/{page_uuid}/content")
+    assert content_resp.status_code == 200, content_resp.text
+    content = content_resp.json()
+    assert content["properties_uuid"][prop_uuid] == option_uuid

@@ -334,6 +334,7 @@ class PropertyValueRelation:
     property_id: int = 0  # Computed from node_property
     node_id: int = 0  # Computed from node_property
     target_id: int = 0
+    target_node_uuid: str | None = None
     create_date: str = field(default_factory=utc_now_iso)
     write_date: str = field(default_factory=utc_now_iso)
     create_uid: int | None = None
@@ -361,6 +362,7 @@ class PropertyValueSelection:
     property_id: int = 0  # Computed from node_property
     node_id: int = 0  # Computed from node_property
     selection_line_id: int = 0
+    selection_line_uuid: str | None = None
     create_date: str = field(default_factory=utc_now_iso)
     write_date: str = field(default_factory=utc_now_iso)
     create_uid: int | None = None
