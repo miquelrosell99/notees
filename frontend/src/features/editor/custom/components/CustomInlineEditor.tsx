@@ -34,15 +34,17 @@ import {
   deleteRange,
   astToUnits,
   getInlineChildren,
+  getLogicalLength,
   removeLinkById,
   replaceLinkById,
   toggleLinkClassById,
+  unitsFromState,
 } from '../model/inlineEditorModel';
 import { LinkEditModal, type LinkEditResult } from '@/features/editor/editor/components/LinkEditModal';
 import { generateUUID } from '@/utils/uuid';
 import { buildLinkId } from '@/lib/astBuilder';
 import type { InlineEditorState } from '../model/types';
-import { setDOMSelection } from '../model/selectionSync';
+import { getDOMSelectionRange, setDOMSelection } from '../model/selectionSync';
 import { InlineContentRenderer } from './InlineContentRenderer';
 import type { InlineEditorHandle, InlineLinkRefType } from '@/features/editor/editor/types';
 import { useInlineEditorRegistry } from '@/stores/inlineEditorRegistry';
@@ -398,9 +400,7 @@ export const CustomInlineEditor = memo(
 
         if (key === 'Delete') {
           e.preventDefault();
-          const length = stateRef.current.ast[0]?.type === 'paragraph' || stateRef.current.ast[0]?.type === 'heading'
-            ? (stateRef.current.ast[0].children ?? []).length
-            : 0;
+          const length = getLogicalLength(unitsFromState(stateRef.current));
           if (
             stateRef.current.selection.type === 'collapsed' &&
             stateRef.current.selection.offset >= length
@@ -459,6 +459,57 @@ export const CustomInlineEditor = memo(
       root.addEventListener('beforeinput', handler);
       return () => root.removeEventListener('beforeinput', handler);
     }, [handleBeforeInput, readOnly]);
+
+    // Sync user-driven DOM selection changes (mouse, touch, Ctrl+A, etc.) back
+    // into editor state so range operations (delete, type-to-replace) act on the
+    // real selection instead of the stale collapsed cursor.
+    useEffect(() => {
+      if (readOnly) return;
+      const root = rootRef.current;
+      if (!root) return;
+
+      const handleSelectionChange = () => {
+        const domSel = getDOMSelectionRange(root);
+        if (!domSel) return;
+
+        // Ignore the selectionchange events fired by our own setDOMSelection calls.
+        const pending = applySelectionRef.current;
+        if (pending !== null) {
+          if (typeof pending === 'number' && domSel.isCollapsed && domSel.anchor === pending) {
+            return;
+          }
+          if (
+            typeof pending === 'object' &&
+            !domSel.isCollapsed &&
+            domSel.anchor === pending.anchor &&
+            domSel.focus === pending.focus
+          ) {
+            return;
+          }
+        }
+
+        const sel = stateRef.current.selection;
+        const unchanged =
+          (sel.type === 'collapsed' && domSel.isCollapsed && sel.offset === domSel.anchor) ||
+          (sel.type === 'range' &&
+            !domSel.isCollapsed &&
+            sel.anchor === domSel.anchor &&
+            sel.focus === domSel.focus);
+        if (unchanged) return;
+
+        if (domSel.isCollapsed) {
+          setState((prev) => ({ ...prev, selection: { type: 'collapsed', offset: domSel.anchor } }));
+        } else {
+          setState((prev) => ({
+            ...prev,
+            selection: { type: 'range', anchor: domSel.anchor, focus: domSel.focus },
+          }));
+        }
+      };
+
+      document.addEventListener('selectionchange', handleSelectionChange);
+      return () => document.removeEventListener('selectionchange', handleSelectionChange);
+    }, [readOnly]);
 
     const handleCompositionStart = useCallback(() => {
       isComposingRef.current = true;

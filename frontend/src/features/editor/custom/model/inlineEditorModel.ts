@@ -214,7 +214,7 @@ export function setInlineChildren(ast: ContentAST, children: ASTInlineNode[]): C
   return [{ type: 'paragraph', children }, first];
 }
 
-function unitsFromState(state: InlineEditorState): InlineUnit[] {
+export function unitsFromState(state: InlineEditorState): InlineUnit[] {
   return astToUnits(getInlineChildren(state.ast));
 }
 
