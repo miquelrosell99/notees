@@ -106,6 +106,7 @@ export function NodeMetadataSection({
             onConvertToClass={isAlias ? undefined : onConvertToClass}
             canRemove={canRemoveClass}
             canAdd={canAddClass}
+            rightIconHoverReveal={true}
           />
         </div>
 

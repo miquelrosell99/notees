@@ -67,19 +67,19 @@ function getPageGroupInfo(node: Node, allClasses?: Node[] | null): { key: string
     };
   }
 
-  const pageId = (node as { page_id?: number }).page_id;
-  if (!pageId) return { missing: true };
+  const pageUuid = node.page_uuid;
+  if (!pageUuid) return { missing: true };
 
-  const pageName = (node as { page_name?: string }).page_name || 'Untitled';
+  const pageName = node.page_name || 'Untitled';
   const pageIcon = (node as { page_icon?: string | null }).page_icon ?? null;
 
   return {
     missing: false,
-    key: `page-${pageId}`,
+    key: `page-${pageUuid}`,
     label: pageName,
     icon: pageIcon,
     page: {
-      uuid: pageId,
+      uuid: pageUuid,
       name: pageName,
       is_page: true,
       icon: pageIcon,
@@ -329,7 +329,10 @@ export const ListView = memo(function ListView({
     return { pages, tree: buildGroupTree(treeNodes, levels, allClasses) };
   }, [nodes, levels, enableGrouping, allClasses]);
 
-  // Collect and sort nodes for pages section
+  // Collect nodes for the pages section.
+  // The top-level pages are already ordered by the caller (e.g. by name via
+  // compareDateFirstAlpha), so preserve that order instead of re-sorting by
+  // sequence. Children are kept in their original tree order under each page.
   const pagesAllNodes = useMemo(() => {
     if (!groupingResult || groupingResult.pages.length === 0) return [];
     const result: Node[] = [];
@@ -341,7 +344,7 @@ export const ListView = memo(function ListView({
       }
     };
     for (const n of groupingResult.pages) collect(n);
-    return sortBySequence(result);
+    return result;
   }, [groupingResult, pagesOnly]);
 
   // Grouped view (by page and/or property, recursively)
