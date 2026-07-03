@@ -23,6 +23,7 @@ import { upsertNodes } from '@/runtime/eventBus';
 import { getRuntimeEventBus } from '@/runtime/eventBus';
 import { apiNodesToGraphNodes } from './useRuntimeSync';
 import { useUIStateStore } from '@/features/sync';
+import { useEditorFocusStore } from '@/stores/editorFocusStore';
 import type { Node } from '@/types/api';
 import type { NodeUIState } from '@/features/sync/stores/uiStateStore';
 
@@ -325,6 +326,7 @@ export function useBlockTree(
     (nodeUuid: string) => workspaceStates[nodeUuid]?.collapsed,
     [workspaceStates]
   );
+  const activeBlockId = useEditorFocusStore((s) => s.activeBlockId);
 
   // Sync prop nodes into the runtime so structural ops have graph data.
   useLayoutEffect(() => {
@@ -346,6 +348,11 @@ export function useBlockTree(
   // rebuild the flat tree for those because the tree shape is unchanged and
   // rebuilding invalidates BlockRow memoization, causing every visible row to
   // re-render on every keystroke.
+  //
+  // We DO rebuild when the active block changes (focus/blur). Runtime-only
+  // nodes (e.g. newly created blocks) derive their displayed `name` from the
+  // runtime's current `contentAST`; without a rebuild on blur, the static
+  // view would render the stale empty content after the editor unmounts.
   const [structureVersion, setStructureVersion] = useState(0);
   useEffect(() => {
     const unsubscribe = getRuntimeEventBus().subscribe((event) => {
@@ -376,7 +383,7 @@ export function useBlockTree(
       rootIsBlock,
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nodes, maxDepth, pagesOnly, skipPages, expandAll, readOnly, showNewBlock, nodeUuid, rootIsBlock, structureVersion, collapsedLookup]);
+  }, [nodes, maxDepth, pagesOnly, skipPages, expandAll, readOnly, showNewBlock, nodeUuid, rootIsBlock, structureVersion, collapsedLookup, activeBlockId]);
 
   return { flatNodes, structureVersion };
 }
