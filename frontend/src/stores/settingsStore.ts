@@ -43,6 +43,15 @@ export type DefaultView = 'journal' | 'all-pages' | 'graph' | 'today';
  */
 export type HashtagPasteMode = 'inline-tag' | 'inline-class';
 
+/**
+ * How outdent behaves in the outliner:
+ * - 'direct': outdent moves only the target block up one level, leaving its
+ *   former siblings in place.
+ * - 'logical': outdent preserves categories by reparenting subsequent siblings
+ *   under the outdented block.
+ */
+export type TreeEditMode = 'direct' | 'logical';
+
 /** First day of the week: 0 = Sunday, 1 = Monday, 6 = Saturday */
 export type FirstDayOfWeek = 0 | 1 | 6;
 
@@ -96,6 +105,8 @@ interface SettingsState {
   supportBadgeHidden: boolean;
   /** Timestamp (ms) until which the support badge is hidden; null means not temporarily hidden. */
   supportBadgeHiddenUntil: number | null;
+  /** Whether outdent is direct/in-place or logical/category-preserving. */
+  treeEditMode: TreeEditMode;
 
   // Actions
   setTheme: (theme: ThemePreference) => void;
@@ -114,6 +125,7 @@ interface SettingsState {
   setShowBulletThread: (show: boolean) => void;
   setSupportBadgeHidden: (hidden: boolean) => void;
   setSupportBadgeHiddenUntil: (until: number | null) => void;
+  setTreeEditMode: (mode: TreeEditMode) => void;
 }
 
 /**
@@ -301,6 +313,7 @@ export const useSettingsStore = create<SettingsState>()(
       showBulletThread: true,
       supportBadgeHidden: false,
       supportBadgeHiddenUntil: null,
+      treeEditMode: 'logical',
 
       // Actions
       setTheme: (theme) => {
@@ -367,6 +380,9 @@ export const useSettingsStore = create<SettingsState>()(
       },
       setSupportBadgeHiddenUntil: (until) => {
         set({ supportBadgeHiddenUntil: until });
+      },
+      setTreeEditMode: (treeEditMode) => {
+        set({ treeEditMode });
       },
     }),
     {

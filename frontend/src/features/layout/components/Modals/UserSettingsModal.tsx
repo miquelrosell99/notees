@@ -9,7 +9,7 @@ import { useNavigate } from 'react-router-dom';
 import { useSettingsStore, applyTheme, DATE_FORMAT_OPTIONS, FIRST_DAY_OF_WEEK_OPTIONS, ACCENT_COLOR_OPTIONS, isValidHexColor, getContrastColor, isSupportBadgeVisible, useEncryptionStore } from '@/stores';
 import { useAuthUser, useAuthActions } from '@/features/layout/hooks/useAuthSelectors';
 import { useWorkspaces } from '@/features/workspace';
-import type { ThemePreference, DateFormat, HashtagPasteMode, DefaultView, QuickAddDestination, FirstDayOfWeek, AccentColor } from '@/stores';
+import type { ThemePreference, DateFormat, HashtagPasteMode, DefaultView, QuickAddDestination, FirstDayOfWeek, AccentColor, TreeEditMode } from '@/stores';
 import { setSetting } from '@/features/workspace';
 import { updateMe, createApiKey, listApiKeys, revokeApiKey } from '@/features/auth';
 import { SPONSORSHIP_CHANNELS } from '@/constants/sponsorship';
@@ -65,6 +65,7 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
   const showBulletThread = useSettingsStore((s) => s.showBulletThread);
   const supportBadgeHidden = useSettingsStore((s) => s.supportBadgeHidden);
   const supportBadgeHiddenUntil = useSettingsStore((s) => s.supportBadgeHiddenUntil);
+  const treeEditMode = useSettingsStore((s) => s.treeEditMode);
   const setTheme = useSettingsStore((s) => s.setTheme);
   const setOledMode = useSettingsStore((s) => s.setOledMode);
   const setAccentColor = useSettingsStore((s) => s.setAccentColor);
@@ -79,6 +80,7 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
   const setShowBulletThread = useSettingsStore((s) => s.setShowBulletThread);
   const setSupportBadgeHidden = useSettingsStore((s) => s.setSupportBadgeHidden);
   const setSupportBadgeHiddenUntil = useSettingsStore((s) => s.setSupportBadgeHiddenUntil);
+  const setTreeEditMode = useSettingsStore((s) => s.setTreeEditMode);
   const [customHexInput, setCustomHexInput] = useState(customAccentHex);
   const [encryptionPassword, setEncryptionPassword] = useState('');
   const [encryptionConfirm, setEncryptionConfirm] = useState('');
@@ -330,6 +332,11 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
     setShowBulletThread(show);
   };
 
+  const handleTreeEditModeChange = (mode: TreeEditMode) => {
+    setTreeEditMode(mode);
+    setSetting('tree_edit_mode', mode).catch(console.error);
+  };
+
   const builtInTabs: { id: BuiltInSettingsTab; label: string }[] = [
     { id: 'appearance', label: 'Appearance' },
     { id: 'editor', label: 'Editor' },
@@ -490,6 +497,25 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
             <div className="settings-section">
               <h3 className="settings-section__title">Editor</h3>
               <Card>
+                <div className="settings-item">
+                  <div className="settings-item__info">
+                    <label htmlFor="user-tree-edit-mode" className="settings-item__label">Outdent behavior</label>
+                    <p className="settings-item__description">
+                      Direct moves only the outdented block up one level; Logical preserves category grouping by moving subsequent siblings under the outdented block.
+                    </p>
+                  </div>
+                  <SelectionButton
+                    id="user-tree-edit-mode"
+                    options={[
+                      { value: 'direct', icon: "mdi mdi-arrow-collapse-right", label: 'Direct' },
+                      { value: 'logical', icon: "mdi mdi-file-tree", label: 'Logical' },
+                    ]}
+                    value={treeEditMode}
+                    onChange={(value) => handleTreeEditModeChange(value as TreeEditMode)}
+                    size="sm"
+                  />
+                </div>
+
                 <div className="settings-item">
                   <div className="settings-item__info">
                     <label htmlFor="user-linked-refs-collapse" className="settings-item__label">Linked refs collapse level</label>

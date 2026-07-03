@@ -28,6 +28,7 @@ import {
   type QuickAddDestination,
   type FirstDayOfWeek,
   type HashtagPasteMode,
+  type TreeEditMode,
 } from '@/stores';
 import { COMMAND_IDS } from '@/stores/commandRegistry';
 import { useCommand } from '@/hooks/useCommand';
@@ -112,6 +113,14 @@ function syncUserSettingsFromBackend(settings: Record<string, unknown>) {
     validHashtagPasteModes.includes(settings.hashtag_paste_mode as HashtagPasteMode)
   ) {
     state.setHashtagPasteMode(settings.hashtag_paste_mode as HashtagPasteMode);
+  }
+
+  const validTreeEditModes: TreeEditMode[] = ['direct', 'logical'];
+  if (
+    typeof settings.tree_edit_mode === 'string' &&
+    validTreeEditModes.includes(settings.tree_edit_mode as TreeEditMode)
+  ) {
+    state.setTreeEditMode(settings.tree_edit_mode as TreeEditMode);
   }
 }
 

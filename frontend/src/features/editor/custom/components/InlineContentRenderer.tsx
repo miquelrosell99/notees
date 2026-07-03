@@ -92,6 +92,7 @@ function AtomicNodeRenderer({ node, editable, onPillClick, selectedPillLinkId }:
           data-label={node.label ?? undefined}
           data-editable={editable || undefined}
           contentEditable="false"
+          suppressContentEditableWarning
           role={onPillClick ? 'button' : undefined}
           tabIndex={onPillClick ? -1 : undefined}
           onClick={onPillClick ? () => onPillClick(node.link_id, node.ref_type) : undefined}
@@ -120,6 +121,7 @@ function AtomicNodeRenderer({ node, editable, onPillClick, selectedPillLinkId }:
           data-label={node.label ?? undefined}
           data-editable={editable || undefined}
           contentEditable="false"
+          suppressContentEditableWarning
           role={onPillClick ? 'button' : undefined}
           tabIndex={onPillClick ? -1 : undefined}
           title={`Broken link: ${node.link_id}`}
@@ -152,6 +154,7 @@ function AtomicNodeRenderer({ node, editable, onPillClick, selectedPillLinkId }:
           data-url={node.url}
           data-editable={editable || undefined}
           contentEditable="false"
+          suppressContentEditableWarning
           role={onPillClick ? 'button' : undefined}
           tabIndex={onPillClick ? -1 : undefined}
           onClick={onPillClick ? () => onPillClick(node.url, 'url') : undefined}
@@ -169,7 +172,7 @@ function AtomicNodeRenderer({ node, editable, onPillClick, selectedPillLinkId }:
     case 'date_range': {
       const label = node.label || formatDateRange(node);
       return (
-        <span className="inline-date-range-pill" contentEditable="false" title={`${node.start} → ${node.end}`}>
+        <span className="inline-date-range-pill" contentEditable="false" suppressContentEditableWarning title={`${node.start} → ${node.end}`}>
           {label}
         </span>
       );

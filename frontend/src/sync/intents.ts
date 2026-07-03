@@ -12,6 +12,7 @@ import type { MutationIntent, GraphNode } from '@/runtime/types';
 import type { Operation, CreatePayload, UpdateContentPayload } from '@/runtime';
 import type { OperationRuntime } from '@/runtime';
 import { generateUUID } from '@/utils/uuid';
+import { useSettingsStore } from '@/stores';
 import {
   splitContentASTAtOffset,
   mergeContentASTs,
@@ -276,7 +277,7 @@ function outdentBlockOperations(
   if (!parent?.parentId) return [];
 
   const grandparentId = parent.parentId;
-  const ops: Operation[] = [];
+  const treeEditMode = useSettingsStore.getState().treeEditMode;
 
   const blockCreateDeps = findPendingCreateIds(runtime, [intent.blockId]);
   const parentCreateDeps = findPendingCreateIds(runtime, [node.parentId, grandparentId]);
@@ -285,25 +286,27 @@ function outdentBlockOperations(
     ...blockCreateDeps,
     ...parentCreateDeps,
   ]);
-  ops.push(blockMoveOp);
+  const ops: Operation[] = [blockMoveOp];
 
-  const siblings = runtime.getChildren(node.parentId);
-  const myIndex = siblings.findIndex((s) => s.blockId === intent.blockId);
-  const subsequentSiblings = siblings.filter((_, i) => i > myIndex);
+  // Logical outdent: subsequent siblings under the same parent become children
+  // of the outdented block, preserving category groupings.
+  if (treeEditMode === 'logical') {
+    const siblings = runtime.getChildren(node.parentId);
+    const myIndex = siblings.findIndex((s) => s.blockId === intent.blockId);
+    const subsequentSiblings = siblings.filter((_, i) => i > myIndex);
 
-  const existingChildren = runtime.getChildren(intent.blockId);
-  let lastAfter = existingChildren[existingChildren.length - 1]?.blockId ?? null;
-  for (const sibling of subsequentSiblings) {
-    // These siblings become children of the outdented block, so wait for the
-    // block move (and the block's own creation) to complete first.
-    ops.push(
-      moveOperation(sibling.blockId, intent.blockId, lastAfter, [
-        blockMoveOp.id,
-        ...blockCreateDeps,
-        ...findPendingCreateIds(runtime, [sibling.blockId]),
-      ]),
-    );
-    lastAfter = sibling.blockId;
+    const existingChildren = runtime.getChildren(intent.blockId);
+    let lastAfter = existingChildren[existingChildren.length - 1]?.blockId ?? null;
+    for (const sibling of subsequentSiblings) {
+      ops.push(
+        moveOperation(sibling.blockId, intent.blockId, lastAfter, [
+          blockMoveOp.id,
+          ...blockCreateDeps,
+          ...findPendingCreateIds(runtime, [sibling.blockId]),
+        ]),
+      );
+      lastAfter = sibling.blockId;
+    }
   }
 
   return ops;

@@ -264,14 +264,25 @@ export function BlockList({
       if (cursor === 'empty' || cursor === 'end') {
         const newBlockId = generateUUID();
         const currentRuntimeNode = getNode(runtime, blockId);
-        let parentId = currentRuntimeNode?.parentId ?? '';
-        if (!parentId && nodeUuid) {
-          parentId = nodeUuid;
+        const hasChildren = getChildren(runtime, blockId).length > 0;
+        let parentId: string;
+        let afterBlockId: string | null;
+        if (hasChildren) {
+          // When a block already has children, create the new block as its first
+          // child instead of a sibling after the entire subtree.
+          parentId = blockId;
+          afterBlockId = null;
+        } else {
+          parentId = currentRuntimeNode?.parentId ?? '';
+          if (!parentId && nodeUuid) {
+            parentId = nodeUuid;
+          }
+          afterBlockId = blockId;
         }
         await applyRuntimeIntent({
           type: 'create_block',
           parentId,
-          afterBlockId: blockId,
+          afterBlockId,
           blockId: newBlockId,
           contentAST: [{ type: 'paragraph', children: [{ type: 'text', text: '' }] }],
         });

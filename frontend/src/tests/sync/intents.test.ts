@@ -5,6 +5,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import type { MutationIntent } from '@/runtime/types';
 import { OperationRuntime, setOperationRuntime, getOperationRuntime } from '@/runtime';
+import { useSettingsStore } from '@/stores';
 import {
   intentToOperations,
   contentOperation,
@@ -73,6 +74,23 @@ describe('intentToOperations', () => {
     expect(ops).toHaveLength(1);
     expect(ops[0].type).toBe('create');
     expect(ops[0].payload).toMatchObject({ parentId: 'parent-uuid', afterBlockId: null });
+  });
+
+  it('converts create_block as first child of an existing block', () => {
+    const runtime = makeRuntime();
+    const intent: MutationIntent = {
+      type: 'create_block',
+      blockId: 'child-block',
+      parentId: 'server-block',
+      afterBlockId: null,
+      contentAST: [{ type: 'paragraph', children: [{ type: 'text', text: 'new' }] }],
+    };
+
+    const ops = intentToOperations(intent, runtime);
+
+    expect(ops).toHaveLength(1);
+    expect(ops[0].type).toBe('create');
+    expect(ops[0].payload).toMatchObject({ parentId: 'server-block', afterBlockId: null });
   });
 
   it('converts delete_block to an operation', () => {
@@ -263,6 +281,7 @@ describe('operation factories', () => {
 describe('intentToOperations with runtime state', () => {
   beforeEach(() => {
     setOperationRuntime(new OperationRuntime());
+    useSettingsStore.setState({ treeEditMode: 'logical' });
   });
 
   it('makes update_content depend on a pending create for the same block', () => {
@@ -394,6 +413,222 @@ describe('intentToOperations with runtime state', () => {
     const blockMove = ops.find((op) => op.type === 'move' && op.blockId === 'new-block');
     expect(blockMove).toBeDefined();
     expect(blockMove!.dependsOn).toContain('create-block');
+  });
+
+  it('outdents a block in-place without reparenting subsequent siblings', () => {
+    useSettingsStore.setState({ treeEditMode: 'direct' });
+    const runtime = getOperationRuntime();
+    runtime.loadBaseNodes([
+      {
+        blockId: 'page-uuid',
+        parentId: null,
+        orderIndex: 0,
+        nodeType: 'block',
+        contentAST: [],
+        collapsed: false,
+        isDeleted: false,
+        isPage: true,
+        name: '',
+        icon: null,
+        color: null,
+        classIds: [],
+        tagIds: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        version: 1,
+      },
+      {
+        blockId: 'a',
+        parentId: 'page-uuid',
+        orderIndex: 0,
+        nodeType: 'block',
+        contentAST: [],
+        collapsed: false,
+        isDeleted: false,
+        isPage: false,
+        name: '',
+        icon: null,
+        color: null,
+        classIds: [],
+        tagIds: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        version: 1,
+      },
+      {
+        blockId: 'b',
+        parentId: 'a',
+        orderIndex: 0,
+        nodeType: 'block',
+        contentAST: [],
+        collapsed: false,
+        isDeleted: false,
+        isPage: false,
+        name: '',
+        icon: null,
+        color: null,
+        classIds: [],
+        tagIds: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        version: 1,
+      },
+      {
+        blockId: 'c',
+        parentId: 'a',
+        orderIndex: 1,
+        nodeType: 'block',
+        contentAST: [],
+        collapsed: false,
+        isDeleted: false,
+        isPage: false,
+        name: '',
+        icon: null,
+        color: null,
+        classIds: [],
+        tagIds: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        version: 1,
+      },
+      {
+        blockId: 'd',
+        parentId: 'a',
+        orderIndex: 2,
+        nodeType: 'block',
+        contentAST: [],
+        collapsed: false,
+        isDeleted: false,
+        isPage: false,
+        name: '',
+        icon: null,
+        color: null,
+        classIds: [],
+        tagIds: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        version: 1,
+      },
+    ]);
+
+    const ops = intentToOperations({ type: 'outdent_block', blockId: 'c' }, runtime);
+
+    expect(ops).toHaveLength(1);
+    expect(ops[0].type).toBe('move');
+    expect(ops[0].blockId).toBe('c');
+    expect(ops[0].payload).toEqual({ parentId: 'page-uuid', afterBlockId: 'a' });
+  });
+
+  it('outdents a block logically by reparenting subsequent siblings', () => {
+    useSettingsStore.setState({ treeEditMode: 'logical' });
+    const runtime = getOperationRuntime();
+    runtime.loadBaseNodes([
+      {
+        blockId: 'page-uuid',
+        parentId: null,
+        orderIndex: 0,
+        nodeType: 'block',
+        contentAST: [],
+        collapsed: false,
+        isDeleted: false,
+        isPage: true,
+        name: '',
+        icon: null,
+        color: null,
+        classIds: [],
+        tagIds: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        version: 1,
+      },
+      {
+        blockId: 'a',
+        parentId: 'page-uuid',
+        orderIndex: 0,
+        nodeType: 'block',
+        contentAST: [],
+        collapsed: false,
+        isDeleted: false,
+        isPage: false,
+        name: '',
+        icon: null,
+        color: null,
+        classIds: [],
+        tagIds: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        version: 1,
+      },
+      {
+        blockId: 'b',
+        parentId: 'a',
+        orderIndex: 0,
+        nodeType: 'block',
+        contentAST: [],
+        collapsed: false,
+        isDeleted: false,
+        isPage: false,
+        name: '',
+        icon: null,
+        color: null,
+        classIds: [],
+        tagIds: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        version: 1,
+      },
+      {
+        blockId: 'c',
+        parentId: 'a',
+        orderIndex: 1,
+        nodeType: 'block',
+        contentAST: [],
+        collapsed: false,
+        isDeleted: false,
+        isPage: false,
+        name: '',
+        icon: null,
+        color: null,
+        classIds: [],
+        tagIds: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        version: 1,
+      },
+      {
+        blockId: 'd',
+        parentId: 'a',
+        orderIndex: 2,
+        nodeType: 'block',
+        contentAST: [],
+        collapsed: false,
+        isDeleted: false,
+        isPage: false,
+        name: '',
+        icon: null,
+        color: null,
+        classIds: [],
+        tagIds: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        version: 1,
+      },
+    ]);
+
+    const ops = intentToOperations({ type: 'outdent_block', blockId: 'c' }, runtime);
+
+    expect(ops).toHaveLength(2);
+    const [blockMove, siblingMove] = ops;
+    expect(blockMove.type).toBe('move');
+    expect(blockMove.blockId).toBe('c');
+    expect(blockMove.payload).toEqual({ parentId: 'page-uuid', afterBlockId: 'a' });
+    expect(siblingMove.type).toBe('move');
+    expect(siblingMove.blockId).toBe('d');
+    expect(siblingMove.payload).toEqual({ parentId: 'c', afterBlockId: null });
+    expect(siblingMove.dependsOn).toContain(blockMove.id);
+
+    // Reset to default so later tests are not affected.
+    useSettingsStore.setState({ treeEditMode: 'logical' });
   });
 
   it('makes create_block depend on a pending create for its parent', () => {
