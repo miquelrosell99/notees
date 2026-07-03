@@ -149,6 +149,7 @@ class PostgresPropertyRepository(BasePostgresRepository, PropertyRepository):
             property_id=row["property_id"],
             node_id=row["node_id"],
             target_id=row["target_id"],  # Changed from target_node_id
+            target_node_uuid=str(row["target_node_uuid"]) if row.get("target_node_uuid") else None,
             create_date=create_date,
             write_date=write_date,
             create_uid=row.get("create_uid"),
@@ -171,6 +172,7 @@ class PostgresPropertyRepository(BasePostgresRepository, PropertyRepository):
             property_id=row["property_id"],
             node_id=row["node_id"],
             selection_line_id=row["selection_line_id"],
+            selection_line_uuid=str(row["selection_line_uuid"]) if row.get("selection_line_uuid") else None,
             create_date=create_date,
             write_date=write_date,
             create_uid=row.get("create_uid"),
@@ -826,7 +828,14 @@ class PostgresPropertyRepository(BasePostgresRepository, PropertyRepository):
         """Get all relation values for a property on a node."""
         async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch(
-                "SELECT * FROM property_value_relation WHERE node_id = $1 AND property_id = $2", node_id, property_id
+                """
+                SELECT pvr.*, n.uuid AS target_node_uuid
+                FROM property_value_relation pvr
+                JOIN node n ON n.id = pvr.target_id
+                WHERE pvr.node_id = $1 AND pvr.property_id = $2
+                """,
+                node_id,
+                property_id,
             )
             return [self._row_to_relation_value(row) for row in rows]
 
@@ -834,7 +843,13 @@ class PostgresPropertyRepository(BasePostgresRepository, PropertyRepository):
         """Get a specific relation value by its public UUID."""
         async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow(
-                "SELECT * FROM property_value_relation WHERE uuid = $1", value_uuid
+                """
+                SELECT pvr.*, n.uuid AS target_node_uuid
+                FROM property_value_relation pvr
+                JOIN node n ON n.id = pvr.target_id
+                WHERE pvr.uuid = $1
+                """,
+                value_uuid,
             )
             if not row:
                 return None
@@ -1057,7 +1072,14 @@ class PostgresPropertyRepository(BasePostgresRepository, PropertyRepository):
         """Get all selection values for a property on a node."""
         async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch(
-                "SELECT * FROM property_value_selection WHERE node_id = $1 AND property_id = $2", node_id, property_id
+                """
+                SELECT pvs.*, psl.uuid AS selection_line_uuid
+                FROM property_value_selection pvs
+                JOIN property_selection_line psl ON psl.id = pvs.selection_line_id
+                WHERE pvs.node_id = $1 AND pvs.property_id = $2
+                """,
+                node_id,
+                property_id,
             )
             return [self._row_to_selection_value(row) for row in rows]
 
@@ -1065,7 +1087,13 @@ class PostgresPropertyRepository(BasePostgresRepository, PropertyRepository):
         """Get a specific selection value by its public UUID."""
         async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow(
-                "SELECT * FROM property_value_selection WHERE uuid = $1", value_uuid
+                """
+                SELECT pvs.*, psl.uuid AS selection_line_uuid
+                FROM property_value_selection pvs
+                JOIN property_selection_line psl ON psl.id = pvs.selection_line_id
+                WHERE pvs.uuid = $1
+                """,
+                value_uuid,
             )
             if not row:
                 return None
@@ -1246,7 +1274,14 @@ class PostgresPropertyRepository(BasePostgresRepository, PropertyRepository):
 
             # Get relation values
             relation_rows = await conn.fetch(
-                "SELECT * FROM property_value_relation WHERE node_id = $1 AND property_id = ANY($2)", node_id, prop_ids
+                """
+                SELECT pvr.*, n.uuid AS target_node_uuid
+                FROM property_value_relation pvr
+                JOIN node n ON n.id = pvr.target_id
+                WHERE pvr.node_id = $1 AND pvr.property_id = ANY($2)
+                """,
+                node_id,
+                prop_ids,
             )
             logger.info(f"[GET_ALL_PROPERTY_VALUES] Node {node_id}: Found {len(relation_rows)} relation values")
             for row in relation_rows:
@@ -1260,7 +1295,14 @@ class PostgresPropertyRepository(BasePostgresRepository, PropertyRepository):
 
             # Get selection values
             selection_rows = await conn.fetch(
-                "SELECT * FROM property_value_selection WHERE node_id = $1 AND property_id = ANY($2)", node_id, prop_ids
+                """
+                SELECT pvs.*, psl.uuid AS selection_line_uuid
+                FROM property_value_selection pvs
+                JOIN property_selection_line psl ON psl.id = pvs.selection_line_id
+                WHERE pvs.node_id = $1 AND pvs.property_id = ANY($2)
+                """,
+                node_id,
+                prop_ids,
             )
             for row in selection_rows:
                 prop_id = row["property_id"]
@@ -1355,7 +1397,12 @@ class PostgresPropertyRepository(BasePostgresRepository, PropertyRepository):
 
             # 3. Get all relation values
             relation_rows = await conn.fetch(
-                "SELECT * FROM property_value_relation WHERE node_id = ANY($1) AND property_id = ANY($2)",
+                """
+                SELECT pvr.*, n.uuid AS target_node_uuid
+                FROM property_value_relation pvr
+                JOIN node n ON n.id = pvr.target_id
+                WHERE pvr.node_id = ANY($1) AND pvr.property_id = ANY($2)
+                """,
                 node_ids,
                 prop_ids_list,
             )
@@ -1366,7 +1413,12 @@ class PostgresPropertyRepository(BasePostgresRepository, PropertyRepository):
 
             # 4. Get all selection values
             selection_rows = await conn.fetch(
-                "SELECT * FROM property_value_selection WHERE node_id = ANY($1) AND property_id = ANY($2)",
+                """
+                SELECT pvs.*, psl.uuid AS selection_line_uuid
+                FROM property_value_selection pvs
+                JOIN property_selection_line psl ON psl.id = pvs.selection_line_id
+                WHERE pvs.node_id = ANY($1) AND pvs.property_id = ANY($2)
+                """,
                 node_ids,
                 prop_ids_list,
             )

@@ -102,9 +102,13 @@ def _extract_single_property_value(prop: Any, values: list[Any]) -> Any:
 
 
 def _extract_property_value(val: Any) -> Any:
-    """Extract a single typed value from a property value row."""
+    """Extract a single typed value from a property value row.
+
+    Relation and selection values are returned as public UUIDs when available;
+    internal numeric IDs are returned only as a fallback for backwards compatibility.
+    """
     if hasattr(val, "target_id"):
-        return val.target_id
+        return getattr(val, "target_node_uuid", None) or val.target_id
     if hasattr(val, "value_integer"):
         if val.value_integer is not None:
             return val.value_integer
@@ -114,7 +118,7 @@ def _extract_property_value(val: Any) -> Any:
             return val.value_boolean
         return val.value_text
     if hasattr(val, "selection_line_id"):
-        return val.selection_line_id
+        return getattr(val, "selection_line_uuid", None) or val.selection_line_id
     return None
 
 

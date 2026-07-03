@@ -50,9 +50,13 @@ __all__ = [
 
 
 def _extract_property_value(val):
-    """Extract a single typed value from a property value row."""
+    """Extract a single typed value from a property value row.
+
+    Relation and selection values are returned as public UUIDs when available;
+    internal numeric IDs are returned only as a fallback for backwards compatibility.
+    """
     if hasattr(val, "target_id"):
-        return val.target_id
+        return getattr(val, "target_node_uuid", None) or val.target_id
     elif hasattr(val, "value_integer"):
         if val.value_text is not None:
             return val.value_text
@@ -63,7 +67,7 @@ def _extract_property_value(val):
         elif val.value_boolean is not None:
             return val.value_boolean
     elif hasattr(val, "selection_line_id"):
-        return val.selection_line_id
+        return getattr(val, "selection_line_uuid", None) or val.selection_line_id
     return None
 
 
@@ -301,6 +305,12 @@ async def _enrich_node_responses_uuids(
         all_ids.update(response.classes_path)
         all_ids.update(response.aliases)
         all_ids.update(response.extends)
+        if response.properties:
+            for prop_id in response.properties:
+                if isinstance(prop_id, int):
+                    property_ids.add(prop_id)
+                elif isinstance(prop_id, str) and prop_id.isdigit():
+                    property_ids.add(int(prop_id))
         if response.children:
             for child in response.children:
                 _collect(child)
