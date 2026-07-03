@@ -431,14 +431,87 @@ export function BlockList({
     setPendingFocus(newBlockId);
   }, [setPendingFocus]);
 
+  const handleIndentOutdentSelected = useCallback(
+    async (shiftKey: boolean) => {
+      const selectedSet = useBlockSelectionStore.getState().selectedIds;
+      if (selectedSet.size === 0) return;
+
+      const runtime = getOperationRuntime();
+      const orderedIds = blockIds.filter((id) => selectedSet.has(id));
+      const topLevelIds = orderedIds.filter((id) => {
+        const n = getNode(runtime, id);
+        return n && (!n.parentId || !selectedSet.has(n.parentId));
+      });
+      if (topLevelIds.length === 0) return;
+
+      flushAllContentSaves();
+
+      if (shiftKey) {
+        await applyRuntimeIntent({
+          type: 'batch',
+          intents: topLevelIds.map((blockId) => ({ type: 'outdent_block' as const, blockId })),
+        });
+      } else {
+        const intents: MutationIntent[] = [];
+
+        for (const parentId of new Set(topLevelIds.map((id) => getNode(runtime, id)?.parentId ?? ''))) {
+          const siblings = parentId ? getChildren(runtime, parentId) : [];
+          const siblingIds = siblings.map((s) => s.blockId);
+          const runCandidates = topLevelIds.filter((id) => getNode(runtime, id)?.parentId === parentId);
+
+          let currentRun: string[] = [];
+          let lastIndex = -2;
+
+          const flushRun = () => {
+            if (currentRun.length === 0) return;
+            const firstIndex = siblingIds.indexOf(currentRun[0]!);
+            if (firstIndex > 0) {
+              const targetParentId = siblingIds[firstIndex - 1]!;
+              const targetChildren = getChildren(runtime, targetParentId);
+              let afterBlockId: string | null = targetChildren[targetChildren.length - 1]?.blockId ?? null;
+              for (const blockId of currentRun) {
+                intents.push({
+                  type: 'move_block',
+                  blockId,
+                  newParentId: targetParentId,
+                  afterBlockId,
+                });
+                afterBlockId = blockId;
+              }
+            }
+            currentRun = [];
+          };
+
+          for (const id of runCandidates) {
+            const idx = siblingIds.indexOf(id);
+            if (idx === lastIndex + 1) {
+              currentRun.push(id);
+            } else {
+              flushRun();
+              currentRun = [id];
+            }
+            lastIndex = idx;
+          }
+          flushRun();
+        }
+
+        if (intents.length > 0) {
+          await applyRuntimeIntent({ type: 'batch', intents });
+        }
+      }
+
+      getRuntimeEventBus().flushEvents();
+    },
+    [blockIds],
+  );
+
   const handleKeyDown = useCallback(
     async (e: KeyboardEvent<HTMLDivElement>) => {
-      if (!activeBlockId) return;
-      const idx = blockIds.indexOf(activeBlockId);
-      if (idx < 0) return;
+      if (e.key === 'Tab') {
+        const activeEl = document.activeElement as HTMLElement | null;
+        const focusInEditor = activeEl && containerRef.current?.contains(activeEl) && activeBlockId;
 
-      switch (e.key) {
-        case 'Tab': {
+        if (focusInEditor) {
           e.preventDefault();
           flushAllContentSaves();
           await applyRuntimeIntent({
@@ -446,8 +519,22 @@ export function BlockList({
             blockId: activeBlockId,
           });
           getRuntimeEventBus().flushEvents();
-          break;
+          return;
         }
+
+        const selectedIds = useBlockSelectionStore.getState().selectedIds;
+        if (selectedIds.size > 0) {
+          e.preventDefault();
+          await handleIndentOutdentSelected(e.shiftKey);
+        }
+        return;
+      }
+
+      if (!activeBlockId) return;
+      const idx = blockIds.indexOf(activeBlockId);
+      if (idx < 0) return;
+
+      switch (e.key) {
         case 'ArrowUp': {
           e.preventDefault();
           focusPreviousBlock(blockIds);
@@ -460,7 +547,7 @@ export function BlockList({
         }
       }
     },
-    [activeBlockId, blockIds, focusPreviousBlock, focusNextBlock],
+    [activeBlockId, blockIds, focusPreviousBlock, focusNextBlock, handleIndentOutdentSelected],
   );
 
   // ─── Virtualization ─────────────────────────────────────────────
