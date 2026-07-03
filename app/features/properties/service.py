@@ -463,7 +463,7 @@ class PropertyService:
                 node_id=node_id,
                 action="property_changed",
                 details=f"Property '{prop.name}' changed",
-                target_node_id=property_id,
+                target_node_id=node_id,
                 now=utc_now(),
             )
 
