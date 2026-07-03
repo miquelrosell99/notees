@@ -34,7 +34,13 @@ import {
   deleteRange,
   astToUnits,
   getInlineChildren,
+  removeLinkById,
+  replaceLinkById,
+  toggleLinkClassById,
 } from '../model/inlineEditorModel';
+import { LinkEditModal, type LinkEditResult } from '@/features/editor/editor/components/LinkEditModal';
+import { generateUUID } from '@/utils/uuid';
+import { buildLinkId } from '@/lib/astBuilder';
 import type { InlineEditorState } from '../model/types';
 import { setDOMSelection } from '../model/selectionSync';
 import { InlineContentRenderer } from './InlineContentRenderer';
@@ -166,6 +172,7 @@ export const CustomInlineEditor = memo(
     onPillRemoveRef.current = _onPillRemove;
 
     const [selectedPillLinkId, setSelectedPillLinkId] = useState<string | null>(null);
+    const [editingLinkId, setEditingLinkId] = useState<string | null>(null);
 
     // Notify parent of content changes.
     useEffect(() => {
@@ -226,6 +233,82 @@ export const CustomInlineEditor = memo(
       },
       [],
     );
+
+    const handleEditPill = useCallback((linkId: string) => {
+      setEditingLinkId(linkId);
+    }, []);
+
+    const handleRemovePill = useCallback((linkId: string) => {
+      applyMutation((prev) => removeLinkById(prev, linkId));
+    }, [applyMutation]);
+
+    const handleToggleClassPill = useCallback((linkId: string) => {
+      applyMutation((prev) => toggleLinkClassById(prev, linkId));
+    }, [applyMutation]);
+
+    const handleCloseEditModal = useCallback(() => {
+      setEditingLinkId(null);
+    }, []);
+
+    const handleSaveEditModal = useCallback(
+      (result: LinkEditResult) => {
+        if (!editingLinkId) return;
+        applyMutation((prev) => {
+          const units = astToUnits(getInlineChildren(prev.ast));
+          const unit = units.find(
+            (u) => u.type === 'atomic' && getLinkId(u.node) === editingLinkId,
+          );
+          if (!unit || unit.type !== 'atomic') return prev;
+
+          let newNode: ASTInlineNode | null = null;
+
+          if (result.mode === 'url') {
+            newNode = {
+              type: 'external_link',
+              url: result.url ?? '',
+              children: result.label
+                ? [{ type: 'text', text: result.label }]
+                : [],
+            };
+          } else if (result.targetNode) {
+            const newLinkId = buildLinkId(result.targetNode.uuid, generateUUID());
+            newNode = {
+              type: 'node_link',
+              link_id: newLinkId,
+              ref_type: 'node',
+              label: result.label ?? undefined,
+            };
+          } else {
+            // Label-only change: mutate the existing link node in place.
+            const current = unit.node;
+            if (current.type === 'node_link' || current.type === 'broken_link') {
+              newNode = { ...current, label: result.label ?? undefined };
+            } else if (current.type === 'external_link') {
+              newNode = {
+                ...current,
+                children: result.label
+                  ? [{ type: 'text', text: result.label }]
+                  : [],
+              };
+            }
+          }
+
+          if (!newNode) return prev;
+          return replaceLinkById(prev, editingLinkId, newNode);
+        });
+        setEditingLinkId(null);
+      },
+      [applyMutation, editingLinkId],
+    );
+
+    const editingLinkNode = useMemo(() => {
+      if (!editingLinkId) return null;
+      const units = astToUnits(getInlineChildren(state.ast));
+      const unit = units.find(
+        (u) => u.type === 'atomic' && getLinkId(u.node) === editingLinkId,
+      );
+      return unit?.type === 'atomic' ? unit.node : null;
+    }, [editingLinkId, state.ast]);
 
     const handleBeforeInput = useCallback(
       (event: InputEvent) => {
@@ -394,8 +477,9 @@ export const CustomInlineEditor = memo(
 
     const handleFocus = useCallback(() => {
       hasFocusRef.current = true;
+      useEditorFocusStore.getState().focusBlock(blockId);
       onFocus?.();
-    }, [onFocus]);
+    }, [blockId, onFocus]);
 
     const handleBlur = useCallback(() => {
       hasFocusRef.current = false;
@@ -480,66 +564,105 @@ export const CustomInlineEditor = memo(
     const isEmpty = state.ast[0]?.type === 'paragraph' && (state.ast[0].children ?? []).length === 1 &&
       state.ast[0].children![0].type === 'text' && state.ast[0].children![0].text === '';
 
+    const editingLinkRefType: InlineLinkRefType = useMemo(() => {
+      if (!editingLinkNode) return 'node';
+      if (editingLinkNode.type === 'external_link') return 'url';
+      if (editingLinkNode.type === 'broken_link') return 'broken';
+      if (editingLinkNode.type === 'node_link') return editingLinkNode.ref_type;
+      return 'node';
+    }, [editingLinkNode]);
+
+    const editingLinkUrl = editingLinkNode?.type === 'external_link' ? editingLinkNode.url : undefined;
+
+    const editingLinkLabel = useMemo(() => {
+      if (!editingLinkNode) return null;
+      if (editingLinkNode.type === 'external_link') {
+        return editingLinkNode.children
+          .map((child) => ('text' in child ? (child as { text: string }).text : ''))
+          .join('') || null;
+      }
+      if (editingLinkNode.type === 'node_link' || editingLinkNode.type === 'broken_link') {
+        return editingLinkNode.label ?? null;
+      }
+      return null;
+    }, [editingLinkNode]);
+
     return (
-      <div
-        ref={rootRef}
-        className="custom-inline-editor"
-        contentEditable={!readOnly}
-        suppressContentEditableWarning
-        data-block-id={blockId}
-        data-page={isPage || undefined}
-        data-has-node-color={hasNodeColor || undefined}
-        data-in-card={inCard || undefined}
-        data-card-title={cardTitle || undefined}
-        data-list-size={listSize || undefined}
-        data-property-editor={inPropertyEditor || undefined}
-        onKeyDown={handleKeyDown}
-        onCompositionStart={handleCompositionStart}
-        onCompositionEnd={handleCompositionEnd}
-        onFocus={handleFocus}
-        onBlur={handleBlur}
-        onPaste={!readOnly ? handlePaste : undefined}
-        role="textbox"
-        tabIndex={0}
-        aria-label="Block content"
-        aria-multiline="false"
-      >
-        <InlineContentRenderer
-          name={serializedAST}
-          editable={!readOnly}
-          onPillClick={_onPillClick}
-          selectedPillLinkId={selectedPillLinkId}
-        />
-        {isEmpty && placeholder && (
-          <span className="custom-inline-editor__placeholder" aria-hidden="true">
-            {placeholder}
-          </span>
+      <>
+        <div
+          ref={rootRef}
+          className="custom-inline-editor"
+          contentEditable={!readOnly}
+          suppressContentEditableWarning
+          data-block-id={blockId}
+          data-page={isPage || undefined}
+          data-has-node-color={hasNodeColor || undefined}
+          data-in-card={inCard || undefined}
+          data-card-title={cardTitle || undefined}
+          data-list-size={listSize || undefined}
+          data-property-editor={inPropertyEditor || undefined}
+          onKeyDown={handleKeyDown}
+          onCompositionStart={handleCompositionStart}
+          onCompositionEnd={handleCompositionEnd}
+          onFocus={handleFocus}
+          onBlur={handleBlur}
+          onPaste={!readOnly ? handlePaste : undefined}
+          role="textbox"
+          tabIndex={0}
+          aria-label="Block content"
+          aria-multiline="false"
+        >
+          <InlineContentRenderer
+            name={serializedAST}
+            editable={!readOnly}
+            onPillClick={_onPillClick}
+            onEditPill={handleEditPill}
+            onRemovePill={handleRemovePill}
+            onToggleClassPill={handleToggleClassPill}
+            selectedPillLinkId={selectedPillLinkId}
+          />
+          {isEmpty && placeholder && (
+            <span className="custom-inline-editor__placeholder" aria-hidden="true">
+              {placeholder}
+            </span>
+          )}
+          {!readOnly && (
+            <>
+              <InlineTriggers
+                rootRef={rootRef}
+                stateRef={stateRef}
+                applyMutation={applyMutation}
+                blockId={blockId}
+                onAddClass={_onAddClass}
+                onSlashCommand={_onSlashCommand}
+                onTemplateInstantiate={_onTemplateInstantiate}
+                templateClassFilters={_templateClassFilters}
+              />
+              <InlineNodeLinks
+                rootRef={rootRef}
+                stateRef={stateRef}
+                applyMutation={applyMutation}
+                selectedPillLinkId={selectedPillLinkId}
+                setSelectedPillLinkId={setSelectedPillLinkId}
+                onPillClick={_onPillClick}
+              />
+              <InlineCopyPaste rootRef={rootRef} blockId={blockId} />
+              <FloatingToolbar rootRef={rootRef} stateRef={stateRef} applyMutation={applyMutation} />
+            </>
+          )}
+        </div>
+        {editingLinkId && editingLinkNode && (
+          <LinkEditModal
+            isOpen={true}
+            linkId={editingLinkId}
+            refType={editingLinkRefType}
+            currentUrl={editingLinkUrl}
+            currentLabel={editingLinkLabel}
+            onSave={handleSaveEditModal}
+            onClose={handleCloseEditModal}
+          />
         )}
-        {!readOnly && (
-          <>
-            <InlineTriggers
-              rootRef={rootRef}
-              stateRef={stateRef}
-              applyMutation={applyMutation}
-              blockId={blockId}
-              onAddClass={_onAddClass}
-              onSlashCommand={_onSlashCommand}
-              onTemplateInstantiate={_onTemplateInstantiate}
-              templateClassFilters={_templateClassFilters}
-            />
-            <InlineNodeLinks
-              rootRef={rootRef}
-              stateRef={stateRef}
-              applyMutation={applyMutation}
-              selectedPillLinkId={selectedPillLinkId}
-              setSelectedPillLinkId={setSelectedPillLinkId}
-              onPillClick={_onPillClick}
-            />
-            <InlineCopyPaste rootRef={rootRef} blockId={blockId} />
-            <FloatingToolbar rootRef={rootRef} stateRef={stateRef} applyMutation={applyMutation} />
-          </>
-        )}
-      </div>
+      </>
     );
   }),
 );

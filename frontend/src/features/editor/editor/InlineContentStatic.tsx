@@ -14,6 +14,7 @@ import type { ASTInlineNode } from '@/types/ast';
 import { parseAST, parseLinkId } from '@/lib/astBuilder';
 import { formatDateRange } from '@/utils/dateRange';
 import { NodeRef } from '@/features/content/components/nodes/NodeRef';
+import { NodeLinkContextMenuTrigger } from '@/features/content';
 import { useNavigationStore } from '@/stores';
 import { useReferencedNode } from '@/features/content';
 import { useBatchedNodeByUuid } from '@/hooks';
@@ -85,9 +86,9 @@ function InlineLinkWrapper({ nodeUuid, children }: { nodeUuid: string; children:
   );
 
   return (
-    <button type="button" className="inline-link-wrapper" onClick={handleClick}>
+    <span className="inline-link-wrapper" onClick={handleClick}>
       {children}
-    </button>
+    </span>
   );
 }
 
@@ -106,21 +107,35 @@ function renderInlineNodes(nodes: ASTInlineNode[]): React.ReactNode[] {
         const { nodeUuid } = parseLinkId(node.link_id);
         return (
           <InlineLinkWrapper key={i} nodeUuid={nodeUuid}>
-            <NodeRef
-              variant="inline"
+            <NodeLinkContextMenuTrigger
+              linkId={node.link_id}
+              refType={node.ref_type}
+              label={node.label}
               nodeUuid={nodeUuid}
-              refType={node.ref_type === 'class' ? 'class' : 'node'}
-              customName={node.label ?? undefined}
-            />
+            >
+              <NodeRef
+                variant="inline"
+                nodeUuid={nodeUuid}
+                refType={node.ref_type === 'class' ? 'class' : 'node'}
+                customName={node.label ?? undefined}
+              />
+            </NodeLinkContextMenuTrigger>
           </InlineLinkWrapper>
         );
       }
       case 'broken_link': {
         const text = node.label || node.link_id.split(':')[0] || '⛓️‍💥';
         return (
-          <span key={i} className="broken-link" title={`Broken link: ${node.link_id}`}>
-            {text}
-          </span>
+          <NodeLinkContextMenuTrigger
+            key={i}
+            linkId={node.link_id}
+            refType="broken"
+            label={node.label}
+          >
+            <span className="broken-link" title={`Broken link: ${node.link_id}`}>
+              {text}
+            </span>
+          </NodeLinkContextMenuTrigger>
         );
       }
       case 'strong':
