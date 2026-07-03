@@ -95,6 +95,8 @@ interface NodeSelectorProps {
   onClose?: () => void;
   /** ID for the root element, used for label association */
   id?: string;
+  /** When true, the remove icon on pills is hidden until the pill is hovered or focused. */
+  rightIconHoverReveal?: boolean;
 }
 
 export function NodeSelector({
@@ -126,6 +128,7 @@ export function NodeSelector({
   anchorEl,
   onClose,
   id,
+  rightIconHoverReveal = false,
 }: NodeSelectorProps) {
   const isAnchored = anchorEl != null;
   const [isPickerOpen, setIsPickerOpen] = useState(isAnchored);
@@ -717,6 +720,7 @@ export function NodeSelector({
                   onClick={() => onNodeClick?.(node)}
                   onRemove={readOnly ? undefined : () => handleRemove(node)}
                   readOnly={readOnly}
+                  rightIconHoverReveal={rightIconHoverReveal}
                 />
               ))}
               {nodes.length === 0 && (
@@ -1034,6 +1038,7 @@ export function NodeSelector({
             onRemove={isRemovable ? () => onRemove(node) : undefined}
             onColorChange={onColorChange ? (color) => onColorChange(node, color) : undefined}
             readOnly={readOnly}
+            rightIconHoverReveal={rightIconHoverReveal}
           />
         );
       })}

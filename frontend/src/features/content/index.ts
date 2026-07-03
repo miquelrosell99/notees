@@ -45,6 +45,12 @@ export { BlockRow } from './components/blocks/BlockRow';
 export { Bullet } from './components/blocks/Bullet';
 // Context menus
 export { PageContextMenu, BlockContextMenu, NodeContextMenu } from './components/nodes/NodeContextMenu';
+export {
+  NodeLinkContextMenu,
+  type NodeLinkContextMenuProps,
+  type NodeLinkContextMenuRefType,
+} from './components/nodes/NodeLinkContextMenu';
+export { NodeLinkContextMenuTrigger } from './components/nodes/NodeLinkContextMenuTrigger';
 
 
 

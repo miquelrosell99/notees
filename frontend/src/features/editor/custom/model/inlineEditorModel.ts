@@ -528,3 +528,103 @@ export function setCollapsedOffset(state: InlineEditorState, offset: number): In
   const length = getLogicalLength(unitsFromState(state));
   return setSelection(state, { type: 'collapsed', offset: Math.max(0, Math.min(offset, length)) });
 }
+
+// ─── Link-specific helpers (used by the inline link context menu) ────────
+
+function getLinkId(node: ASTInlineNode): string | null {
+  if (node.type === 'node_link' || node.type === 'broken_link') return node.link_id;
+  if (node.type === 'external_link') return node.url;
+  return null;
+}
+
+function findLinkUnitIndex(units: InlineUnit[], linkId: string): number {
+  return units.findIndex(
+    (unit) => unit.type === 'atomic' && getLinkId(unit.node) === linkId,
+  );
+}
+
+function linkOffset(units: InlineUnit[], unitIndex: number): number {
+  let offset = 0;
+  for (let i = 0; i < unitIndex && i < units.length; i++) {
+    offset += getUnitLogicalSize(units[i]);
+  }
+  return offset;
+}
+
+/** Remove the link (or URL pill) identified by linkId from the inline stream. */
+export function removeLinkById(
+  state: InlineEditorState,
+  linkId: string,
+): InlineEditorState {
+  const units = unitsFromState(state);
+  const index = findLinkUnitIndex(units, linkId);
+  if (index === -1) return state;
+
+  const offset = linkOffset(units, index);
+  return deleteRange(state, offset, offset + 1);
+}
+
+/** Replace the link identified by linkId with a new inline node. */
+export function replaceLinkById(
+  state: InlineEditorState,
+  linkId: string,
+  newNode: ASTInlineNode,
+): InlineEditorState {
+  const units = unitsFromState(state);
+  const index = findLinkUnitIndex(units, linkId);
+  if (index === -1) return state;
+
+  const offset = linkOffset(units, index);
+  const afterDelete = deleteRangeRaw(units, offset, offset + 1);
+  const pos = offsetToPosition(afterDelete, offset);
+  const newUnits: InlineUnit[] = [...afterDelete];
+
+  if (pos.unitIndex === newUnits.length) {
+    newUnits.push({ type: 'atomic', node: newNode });
+  } else if (newUnits[pos.unitIndex].type === 'text') {
+    const unit = newUnits[pos.unitIndex] as TextUnit;
+    const before = unit.text.slice(0, pos.innerOffset);
+    const after = unit.text.slice(pos.innerOffset);
+    newUnits.splice(
+      pos.unitIndex,
+      1,
+      { type: 'text', text: before, marks: unit.marks },
+      { type: 'atomic', node: newNode },
+      { type: 'text', text: after, marks: unit.marks },
+    );
+  } else {
+    newUnits.splice(pos.unitIndex, 0, { type: 'atomic', node: newNode });
+  }
+
+  return stateWithUnits(
+    state,
+    normalizeUnits(newUnits),
+    { type: 'collapsed', offset: offset + 1 },
+  );
+}
+
+/** Toggle a node_link between 'node' and 'class' ref_type. */
+export function toggleLinkClassById(
+  state: InlineEditorState,
+  linkId: string,
+): InlineEditorState {
+  const units = unitsFromState(state);
+  const index = findLinkUnitIndex(units, linkId);
+  if (index === -1) return state;
+
+  const unit = units[index];
+  if (unit.type !== 'atomic' || unit.node.type !== 'node_link') return state;
+
+  const newNode: ASTInlineNode = {
+    ...unit.node,
+    ref_type: unit.node.ref_type === 'class' ? 'node' : 'class',
+  };
+
+  const newUnits: InlineUnit[] = [
+    ...units.slice(0, index),
+    { type: 'atomic', node: newNode },
+    ...units.slice(index + 1),
+  ];
+
+  return stateWithUnits(state, newUnits, state.selection);
+}

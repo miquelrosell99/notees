@@ -52,8 +52,8 @@ export function compareDateFirstAlpha(a: Node, b: Node): number {
   const bIsDate = bKey > 0;
 
   if (aIsDate && bIsDate) {
-    // Both dates → chronological ascending (year → month → day)
-    return aKey - bKey;
+    // Both dates → chronological descending (newest first)
+    return bKey - aKey;
   }
   if (aIsDate) return -1; // date before non-date
   if (bIsDate) return 1;

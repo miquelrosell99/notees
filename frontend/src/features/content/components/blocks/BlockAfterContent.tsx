@@ -38,6 +38,7 @@ import type { Node } from '@/types/api';
 import type { ASTDocument, ASTInlineNode } from '@/types/ast';
 import { parseAST, parseLinkId } from '@/lib/astBuilder';
 import { NodeRef } from '@/features/content/components/nodes/NodeRef';
+import { NodeLinkContextMenuTrigger } from '@/features/content';
 import type { JSX } from 'react';
 import './BlockAfterContent.css';
 import { getOperationRuntime } from '@/runtime';
@@ -87,21 +88,35 @@ function renderInlineNodes(nodes: ASTInlineNode[]): React.ReactNode[] {
       case 'node_link': {
         const { nodeUuid } = parseLinkId(n.link_id);
         return (
-          <NodeRef
+          <NodeLinkContextMenuTrigger
             key={i}
-            variant="inline"
+            linkId={n.link_id}
+            refType={n.ref_type}
+            label={n.label}
             nodeUuid={nodeUuid}
-            refType={n.ref_type === 'class' ? 'class' : 'node'}
-            customName={n.label ?? undefined}
-          />
+          >
+            <NodeRef
+              variant="inline"
+              nodeUuid={nodeUuid}
+              refType={n.ref_type === 'class' ? 'class' : 'node'}
+              customName={n.label ?? undefined}
+            />
+          </NodeLinkContextMenuTrigger>
         );
       }
       case 'broken_link': {
         const text = n.label || n.link_id.split(':')[0] || '⛓️‍💥';
         return (
-          <span key={i} className="broken-link" title={`Broken link: ${n.link_id}`}>
-            {text}
-          </span>
+          <NodeLinkContextMenuTrigger
+            key={i}
+            linkId={n.link_id}
+            refType="broken"
+            label={n.label}
+          >
+            <span className="broken-link" title={`Broken link: ${n.link_id}`}>
+              {text}
+            </span>
+          </NodeLinkContextMenuTrigger>
         );
       }
       case 'strong':

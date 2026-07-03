@@ -60,6 +60,101 @@ class TestSyncBatchV2:
         assert data["new_vectors"][block["uuid"]][client_id] == 1
 
     @pytest.mark.asyncio
+    async def test_update_content_with_duplicate_link_uuid(
+        self, authenticated_client: AsyncClient, sample_node_data: dict
+    ):
+        """A link UUID reused across two blocks must not crash the sync batch.
+
+        The client can reuse a link instance id when copying/pasting links
+        between blocks. The server should regenerate the colliding UUID instead
+        of raising a 500 unique-violation error.
+        """
+        page_response = await authenticated_client.post("/api/nodes/", json=sample_node_data)
+        assert page_response.status_code == 200
+        page = page_response.json()
+
+        target_response = await authenticated_client.post(
+            "/api/nodes/page", params={"name": "Target Page"}
+        )
+        assert target_response.status_code == 200
+        target = target_response.json()
+
+        block1_response = await authenticated_client.post(
+            "/api/nodes/",
+            json={"name": "block1", "parent_uuid": page["uuid"], "is_page": False},
+        )
+        assert block1_response.status_code == 200
+        block1 = block1_response.json()
+
+        block2_response = await authenticated_client.post(
+            "/api/nodes/",
+            json={"name": "block2", "parent_uuid": page["uuid"], "is_page": False},
+        )
+        assert block2_response.status_code == 200
+        block2 = block2_response.json()
+
+        link_uuid = str(uuid.uuid4())
+        client_id = str(uuid.uuid4())
+        response = await authenticated_client.post(
+            "/api/sync/batch",
+            json={
+                "ops": [
+                    {
+                        "type": "update_content",
+                        "client_id": client_id,
+                        "seq": 1,
+                        "node_uuid": block1["uuid"],
+                        "content_ast": [
+                            {
+                                "type": "paragraph",
+                                "children": [
+                                    {
+                                        "type": "node_link",
+                                        "link_id": f"{target['uuid']}:{link_uuid}",
+                                        "ref_type": "node",
+                                    }
+                                ],
+                            }
+                        ],
+                    },
+                    {
+                        "type": "update_content",
+                        "client_id": client_id,
+                        "seq": 2,
+                        "node_uuid": block2["uuid"],
+                        "content_ast": [
+                            {
+                                "type": "paragraph",
+                                "children": [
+                                    {
+                                        "type": "node_link",
+                                        "link_id": f"{target['uuid']}:{link_uuid}",
+                                        "ref_type": "node",
+                                    }
+                                ],
+                            }
+                        ],
+                    },
+                ],
+                "base_vector": {},
+            },
+            headers={"X-Notees-Sync-Protocol": "v2"},
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["applied"] is True
+
+        backlinks_response = await authenticated_client.get(
+            f"/api/nodes/{target['uuid']}?include_backlinks=true"
+        )
+        assert backlinks_response.status_code == 200
+        backlinks = backlinks_response.json()["backlinks"]
+        source_uuids = {b["source_node_uuid"] for b in backlinks}
+        assert block1["uuid"] in source_uuids
+        assert block2["uuid"] in source_uuids
+
+    @pytest.mark.asyncio
     async def test_concurrent_edit_returns_409(
         self, authenticated_client: AsyncClient, sample_node_data: dict
     ):
