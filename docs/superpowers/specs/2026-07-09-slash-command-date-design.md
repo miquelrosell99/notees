@@ -23,10 +23,9 @@ Add a `/date` slash command to the block editor that opens a calendar popup and 
 2. `frontend/src/features/editor/custom/plugins/InlineTriggers.tsx`
    - Import `DatePickerPopup` from `@/features/content`.
    - Import `getOrCreateDaily` from `@/api/nodes`.
-   - Import `dateToDayUuid` from `@/utils/dateUuid` (or use the UUID returned by `getOrCreateDaily`).
    - Add `datePickerOpen` state and a transient anchor element positioned at the saved caret coordinates.
    - In `handleSelectCommand`, handle `commandId === 'date'` by removing the placeholder, closing the trigger popup, and opening the date picker.
-   - On date select: `await getOrCreateDaily(isoDate)`, then `insertPill(dayNode.uuid, 'node')`.
+   - On date select: `await getOrCreateDaily(isoDate)`, then `insertPill(dayNode.uuid, 'node')` using the UUID returned by the API.
    - On error: log to console, close the picker, and do not insert a link.
 
 ### Data flow
