@@ -7,7 +7,7 @@
  */
 import { useCallback } from 'react';
 import * as nodesApi from '@/api/nodes';
-import { CalendarPopup as CalendarPopupBase } from '@/components/ui';
+import { CalendarPopup as CalendarPopupBase, type CalendarMode } from '@/components/ui';
 import { useExistingDailyPages } from '@/features/content';
 import { useNavigationStore, useSettingsStore } from '@/stores';
 
@@ -17,6 +17,8 @@ export interface CalendarPopupProps {
   anchorRef?: React.RefObject<HTMLElement | null>;
   /** When incremented, navigates the calendar to today's month with accent pulse */
   goToTodaySignal?: number;
+  /** Initial drill-down level (defaults to the day grid) */
+  initialMode?: CalendarMode;
 }
 
 function toIsoLocal(date: Date): string {
@@ -26,7 +28,7 @@ function toIsoLocal(date: Date): string {
   return `${year}-${month}-${day}`;
 }
 
-export function CalendarPopup({ isOpen, onClose, anchorRef, goToTodaySignal }: CalendarPopupProps) {
+export function CalendarPopup({ isOpen, onClose, anchorRef, goToTodaySignal, initialMode }: CalendarPopupProps) {
   const openNode = useNavigationStore((state) => state.openNode);
   const firstDayOfWeek = useSettingsStore((state) => state.firstDayOfWeek);
   const { data: dailyPages = [] } = useExistingDailyPages();
@@ -55,6 +57,7 @@ export function CalendarPopup({ isOpen, onClose, anchorRef, goToTodaySignal }: C
       onClose={onClose}
       anchorRef={anchorRef}
       goToTodaySignal={goToTodaySignal}
+      initialMode={initialMode}
       firstDayOfWeek={firstDayOfWeek}
       dailyPages={dailyPages}
       onSelectDay={handleSelectDay}

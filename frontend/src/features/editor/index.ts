@@ -23,5 +23,8 @@ export {
 // Clipboard / block helpers used by the block editor
 export { pasteBlocksAfterBlock } from './editor/utils/pasteBlocks';
 
+// Companion UI detection shared by editor-adjacent features
+export { isInsideEditorCompanion } from './custom/utils/editorCompanion';
+
 // Re-export the internal editor barrel (nodes, plugins, theme, AST serializer)
 export * from './editor';

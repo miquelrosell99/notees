@@ -786,6 +786,7 @@ export function NodeSelector({
             padding={false}
             role="dialog"
             aria-label="Select node"
+            data-editor-companion
             style={{
               position: 'absolute',
               top: `${multiMenuPos.top}px`,
@@ -850,6 +851,7 @@ export function NodeSelector({
             padding={false}
             role="dialog"
             aria-label="Select node"
+            data-editor-companion
             style={
               menuPosition
                 ? {
@@ -928,7 +930,7 @@ export function NodeSelector({
   // 'inline' mode: always-expanded search + results (used for embedded pickers)
   if (trigger === 'inline') {
     return (
-      <div id={id} className={`node-selector node-selector--inline ${className}`}>
+      <div id={id} className={`node-selector node-selector--inline ${className}`} data-editor-companion>
         <input
           ref={searchInputRef}
           type="text"
@@ -983,6 +985,7 @@ export function NodeSelector({
         ref={pickerRef}
         role="dialog"
         aria-label="Select node"
+        data-editor-companion
         style={{ top: pickerPos.top, left: pickerPos.left }}
       >
         <input
@@ -1069,6 +1072,7 @@ export function NodeSelector({
               ref={pickerRef}
               role="dialog"
               aria-label="Select node"
+              data-editor-companion
               style={{ top: pickerPos.top, left: pickerPos.left }}
             >
               <input

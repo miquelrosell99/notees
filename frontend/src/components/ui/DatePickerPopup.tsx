@@ -1,36 +1,25 @@
 /**
- * DatePickerPopup — controlled calendar grid + text input for picking dates.
+ * DatePickerPopup — controlled calendar drill-down + text input for picking dates.
  *
- * Renders the same month-grid UI as CalendarPopup plus a text field that
- * accepts typed dates and natural-language literals (today, tomorrow, next
- * week, next month, Feb 14, 2026-02-14, etc.).
+ * Renders the same days/months/years drill-down as CalendarPopup plus a text
+ * field that accepts typed dates and natural-language literals (today, tomorrow,
+ * next week, next month, Feb 14, 2026-02-14, etc.). Picking a month or year
+ * resolves to a canonical ISO (`YYYY-MM-01` / `YYYY-01-01`).
  *
  * This base component is domain-agnostic: it accepts `firstDayOfWeek` and
  * `dailyPages` as props. Feature code should use the wrapper in
  * `features/content/components/DatePickerPopup.tsx` to wire stores/hooks.
  */
-import { useState, useRef, useEffect, useLayoutEffect, useMemo, useCallback } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { parseDate } from '@/utils/dateParser';
-import { Button } from './Button';
+import { useViewportFlip } from '@/hooks/useViewportFlip';
+import { useCalendarMode, type CalendarMode } from './calendar/useCalendarMode';
+import { CalendarHeader, DaysGrid, MonthsGrid, YearsGrid } from './calendar/CalendarGrids';
 import './CalendarPopup.css';   // reuse grid styles from CalendarPopup
 import './DatePickerPopup.css'; // own additions
 
 // ── helpers ──────────────────────────────────────────────
-
-const ALL_WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-const MONTHS = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December',
-];
-
-function getDaysInMonth(year: number, month: number): number {
-  return new Date(year, month + 1, 0).getDate();
-}
-
-function getFirstDayOfMonth(year: number, month: number): number {
-  return new Date(year, month, 1).getDay();
-}
 
 function toIso(year: number, month: number, day: number): string {
   return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
@@ -47,12 +36,16 @@ function parseIso(iso: string): { year: number; month: number; day: number } | n
 export interface DatePickerPopupProps {
   /** Currently selected ISO date (YYYY-MM-DD) or empty */
   value?: string;
-  /** Called when the user picks a date — receives YYYY-MM-DD */
-  onSelect: (isoDate: string) => void;
+  /** Called when the user picks a date — receives YYYY-MM-DD. May be async; the popup waits for it to settle before closing so a slow or failing insert is not hidden by an early close. */
+  onSelect: (isoDate: string) => void | Promise<void>;
   /** Called when the popup should close */
   onClose: () => void;
   /** Ref to the anchor element for positioning */
   anchorRef?: React.RefObject<HTMLElement | null>;
+  /** Initial drill-down level (defaults to the day grid) */
+  initialMode?: CalendarMode;
+  /** Extra class on the popup root (e.g. to raise z-index when layered over a modal) */
+  className?: string;
   /** Index of the first day of the week (0 = Sunday, 1 = Monday, ...) */
   firstDayOfWeek: number;
   /** Existing daily pages used to mark days that already have notes */
@@ -66,6 +59,8 @@ export function DatePickerPopup({
   onSelect,
   onClose,
   anchorRef,
+  initialMode,
+  className,
   firstDayOfWeek,
   dailyPages,
 }: DatePickerPopupProps) {
@@ -73,43 +68,39 @@ export function DatePickerPopup({
 
   // Derive initial month/year from value or today
   const initial = value ? parseIso(value) : null;
-  const [currentMonth, setCurrentMonth] = useState(initial?.month ? initial.month - 1 : today.getMonth());
-  const [currentYear, setCurrentYear] = useState(initial?.year ?? today.getFullYear());
+  const {
+    mode,
+    currentYear,
+    currentMonth,
+    yearWindowStart,
+    drillUp,
+    goPrev,
+    goNext,
+    goToday,
+  } = useCalendarMode({
+    initialMode,
+    initialYear: initial?.year ?? today.getFullYear(),
+    initialMonth: initial ? initial.month - 1 : today.getMonth(),
+  });
   const [textInput, setTextInput] = useState('');
   const [parsedPreview, setParsedPreview] = useState<string | null>(null);
   const [parsedValid, setParsedValid] = useState(true);
-
-  // Rotate weekday labels so the configured first day appears first
-  const WEEKDAYS = [
-    ...ALL_WEEKDAYS.slice(firstDayOfWeek),
-    ...ALL_WEEKDAYS.slice(0, firstDayOfWeek),
-  ];
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const popupRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  // Stable fallback so the hook always receives a ref object with a stable
+  // identity, even when a caller omits `anchorRef`.
+  const fallbackAnchorRef = useRef<HTMLElement | null>(null);
 
-  // Compute position once synchronously after first paint, using actual popup size
-  const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
-
-  useLayoutEffect(() => {
-    if (!anchorRef?.current) return;
-    const rect = anchorRef.current.getBoundingClientRect();
-    const popupEl = popupRef.current;
-    const popupHeight = popupEl ? popupEl.offsetHeight : 420;
-    const popupWidth = popupEl ? popupEl.offsetWidth : 280;
-    let top = rect.bottom + 4;
-    let left = rect.left;
-
-    // Flip vertically if not enough space below
-    if (top + popupHeight > window.innerHeight) {
-      top = rect.top - popupHeight - 4;
-    }
-    // Clamp horizontally
-    if (left + popupWidth > window.innerWidth) {
-      left = window.innerWidth - popupWidth - 8;
-    }
-    setPosition({ top, left });
-  }, [anchorRef]);
+  // Anchor to the caret and flip/clamp to stay inside the viewport — same
+  // behavior as the slash-command TriggerPopup and the sibling CalendarPopup.
+  // The popup is `position: fixed`, so viewport coordinates are used directly.
+  const position = useViewportFlip(
+    anchorRef ?? fallbackAnchorRef,
+    true,
+    { popupRef, popupWidth: 320, popupHeight: 440, fixed: true },
+  );
 
   // Auto-focus input on mount (preventScroll avoids viewport shift)
   useEffect(() => {
@@ -177,54 +168,57 @@ export function DatePickerPopup({
     }
   }, []);
 
-  const handleTextKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      const parsed = parseDate(textInput);
-      if (parsed && parsed.type === 'day' && parsed.month && parsed.day) {
-        onSelect(toIso(parsed.year, parsed.month, parsed.day));
+  // Run onSelect and only close once it settles. onSelect may be async (e.g.
+  // creating a daily page before inserting its link); closing first would tear
+  // the editor popup host down mid-insert and strand the insertion. On failure
+  // the popup stays open and shows the error so the user can retry.
+  const selectDate = useCallback(
+    async (iso: string) => {
+      setErrorMessage(null);
+      try {
+        await onSelect(iso);
+        onClose();
+      } catch (err) {
+        console.error('Date selection failed:', err);
+        const message =
+          err instanceof Error && err.message
+            ? err.message
+            : 'Failed to insert date link';
+        setErrorMessage(message);
+      }
+    },
+    [onSelect, onClose],
+  );
+
+  const handleTextKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const parsed = parseDate(textInput);
+        if (parsed && parsed.type === 'day' && parsed.month && parsed.day) {
+          void selectDate(toIso(parsed.year, parsed.month, parsed.day));
+        }
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
         onClose();
       }
-    }
-    if (e.key === 'Escape') {
-      e.preventDefault();
-      onClose();
-    }
-  }, [textInput, onSelect, onClose]);
+    },
+    [textInput, onClose, selectDate],
+  );
 
-  // ── calendar grid ──────────────────────────────────────
-
-  const daysInMonth = getDaysInMonth(currentYear, currentMonth);
-  const rawFirstDay = getFirstDayOfMonth(currentYear, currentMonth);
-  // Shift offset so it's relative to the configured first day of week
-  const firstDayOfMonth = (rawFirstDay - firstDayOfWeek + 7) % 7;
-
-  const days: (number | null)[] = [];
-  for (let i = 0; i < firstDayOfMonth; i++) days.push(null);
-  for (let i = 1; i <= daysInMonth; i++) days.push(i);
-
-  const goToPreviousMonth = () => {
-    if (currentMonth === 0) {
-      setCurrentMonth(11);
-      setCurrentYear(currentYear - 1);
-    } else {
-      setCurrentMonth(currentMonth - 1);
-    }
-  };
-
-  const goToNextMonth = () => {
-    if (currentMonth === 11) {
-      setCurrentMonth(0);
-      setCurrentYear(currentYear + 1);
-    } else {
-      setCurrentMonth(currentMonth + 1);
-    }
-  };
+  // ── leaf selection ─────────────────────────────────────
 
   const handleDayClick = (day: number) => {
-    const iso = toIso(currentYear, currentMonth + 1, day);
-    onSelect(iso);
-    onClose();
+    void selectDate(toIso(currentYear, currentMonth + 1, day));
+  };
+
+  const handleMonthPick = (month: number) => {
+    void selectDate(toIso(currentYear, month + 1, 1));
+  };
+
+  const handleYearPick = (year: number) => {
+    void selectDate(toIso(year, 1, 1));
   };
 
   const isToday = (day: number) =>
@@ -241,11 +235,6 @@ export function DatePickerPopup({
 
   const hasNote = (day: number) => existingDates.has(`${currentYear}-${currentMonth}-${day}`);
 
-  const handleGoToToday = () => {
-    setCurrentMonth(today.getMonth());
-    setCurrentYear(today.getFullYear());
-  };
-
   const formatDayLabel = (day: number) => {
     return new Date(currentYear, currentMonth, day).toLocaleDateString(undefined, {
       weekday: 'long',
@@ -255,11 +244,9 @@ export function DatePickerPopup({
     });
   };
 
-  // ── render ─────────────────────────────────────────────
-
   const popup = (
     <div
-      className="date-picker-popup"
+      className={`date-picker-popup${className ? ` ${className}` : ''}`}
       ref={popupRef}
       style={
         position
@@ -288,53 +275,50 @@ export function DatePickerPopup({
         </div>
       )}
 
-      {/* Month nav header (same as CalendarPopup) */}
-      <div className="calendar-header">
-        <Button variant="ghost" size="sm" icon="mdi mdi-chevron-left" aria-label="Previous month" className="calendar-nav-btn" onClick={goToPreviousMonth} />
-        <div className="calendar-title">
-          <span className="calendar-month-btn" style={{ cursor: 'default' }}>
-            {MONTHS[currentMonth]}
-          </span>
-          <span className="calendar-year-btn" style={{ cursor: 'default' }}>
-            {currentYear}
-          </span>
+      {/* Insert error (kept visible so a failed selection doesn't close silently) */}
+      {errorMessage && (
+        <div className="date-picker-error" role="alert">
+          {errorMessage}
         </div>
-        <Button variant="ghost" size="sm" icon="mdi mdi-chevron-right" aria-label="Next month" className="calendar-nav-btn" onClick={goToNextMonth} />
-      </div>
+      )}
 
-      {/* Weekday labels */}
-      <div className="calendar-weekdays">
-        {WEEKDAYS.map((d) => (
-          <div key={d} className="calendar-weekday">{d}</div>
-        ))}
-      </div>
+      {/* Drill-down header (shared with CalendarPopup) */}
+      <CalendarHeader
+        mode={mode}
+        currentYear={currentYear}
+        currentMonth={currentMonth}
+        yearWindowStart={yearWindowStart}
+        onPrev={goPrev}
+        onNext={goNext}
+        onDrillUp={drillUp}
+        prevLabel="Previous"
+        nextLabel="Next"
+      />
 
-      {/* Day cells */}
-      <div className="calendar-days">
-        {days.map((day, index) => (
-          <div
-            key={day !== null ? `d-${currentYear}-${currentMonth}-${day}` : `e-${index}`}
-            className="calendar-day-cell"
-          >
-            {day && (
-              <Button
-                variant="ghost"
-                size="xs"
-                className={`calendar-day ${isToday(day) ? 'today' : ''} ${hasNote(day) ? 'has-note' : ''} ${isSelected(day) ? 'selected' : ''}`}
-                onClick={() => handleDayClick(day)}
-                aria-selected={isSelected(day)}
-                aria-label={formatDayLabel(day)}
-              >
-                {day}
-              </Button>
-            )}
-          </div>
-        ))}
-      </div>
+      {mode === 'days' && (
+        <DaysGrid
+          currentYear={currentYear}
+          currentMonth={currentMonth}
+          firstDayOfWeek={firstDayOfWeek}
+          isToday={isToday}
+          hasNote={hasNote}
+          isSelected={isSelected}
+          formatDayLabel={formatDayLabel}
+          onSelectDay={handleDayClick}
+        />
+      )}
+
+      {mode === 'months' && (
+        <MonthsGrid onSelectMonth={handleMonthPick} />
+      )}
+
+      {mode === 'years' && (
+        <YearsGrid yearWindowStart={yearWindowStart} onSelectYear={handleYearPick} />
+      )}
 
       {/* Footer: Today button */}
       <div className="calendar-footer">
-        <button className="calendar-today-btn" type="button" onClick={handleGoToToday} aria-label="Go to today">
+        <button className="calendar-today-btn" type="button" onClick={goToday} aria-label="Go to today">
           Today
         </button>
       </div>

@@ -13,12 +13,31 @@ function isAtomicElement(node: Node): boolean {
   return node.nodeType === Node.ELEMENT_NODE && (node as HTMLElement).contentEditable === 'false';
 }
 
+function isCaretAnchor(node: Node): boolean {
+  return node.nodeType === Node.ELEMENT_NODE && (node as Element).getAttribute('data-caret-anchor') === 'true';
+}
+
 function getTextNode(element: Node): Text | null {
   const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
   return (walker.nextNode() as Text) ?? null;
 }
 
+function getFirstTextNode(element: Node): Text | null {
+  return getTextNode(element);
+}
+
+function getLastTextNode(element: Node): Text | null {
+  const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+  let last: Text | null = null;
+  let node: Node | null;
+  while ((node = walker.nextNode()) !== null) {
+    last = node as Text;
+  }
+  return last;
+}
+
 function getChildLength(node: Node): number {
+  if (isCaretAnchor(node)) return 0;
   if (node.nodeType === Node.TEXT_NODE) return node.textContent?.length ?? 0;
   if (isAtomicElement(node)) return 1;
   const textNode = getTextNode(node);
@@ -48,10 +67,30 @@ function positionAtOffset(root: HTMLElement, targetOffset: number): DOMPosition 
 
     if (isAtomicElement(child)) {
       if (remaining === 0) {
+        // Prefer placing the caret inside the previous text node rather than at
+        // a root boundary next to an atomic element, which browsers sometimes
+        // render inside or below the atomic pill.
+        const prev = root.childNodes[i - 1];
+        if (prev && !isAtomicElement(prev)) {
+          const textNode = getLastTextNode(prev);
+          if (textNode) {
+            const length = textNode.textContent?.length ?? 0;
+            return { node: textNode, offset: length };
+          }
+        }
         return { node: root, offset: i };
       }
       remaining -= 1;
       if (remaining === 0) {
+        // Place the caret inside the next text node when possible so the visual
+        // caret sits immediately after the atomic pill instead of below/inside it.
+        const next = root.childNodes[i + 1];
+        if (next && !isAtomicElement(next)) {
+          const textNode = getFirstTextNode(next);
+          if (textNode) {
+            return { node: textNode, offset: 0 };
+          }
+        }
         return { node: root, offset: i + 1 };
       }
       continue;
@@ -102,10 +141,12 @@ function offsetFromDOMPosition(root: HTMLElement, node: Node, nodeOffset: number
 
   for (const child of root.childNodes) {
     if (child === node) {
+      if (isCaretAnchor(child)) return offset;
       return offset + Math.min(nodeOffset, getChildLength(child));
     }
 
     if (child.contains(node)) {
+      if (isCaretAnchor(child)) return offset;
       if (isAtomicElement(child)) {
         return offset + (nodeOffset > 0 ? 1 : 0);
       }
@@ -161,6 +202,7 @@ export function getRenderedUnits(root: HTMLElement): Array<{ node: Node; size: n
   const rendered: Array<{ node: Node; size: number }> = [];
 
   for (const child of root.childNodes) {
+    if (isCaretAnchor(child)) continue;
     if (isAtomicElement(child)) {
       rendered.push({ node: child, size: 1 });
       continue;
