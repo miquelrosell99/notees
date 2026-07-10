@@ -493,6 +493,90 @@ describe('flattenNodesFromRuntime', () => {
     expect(node!.node.name).toBe('[{"type":"paragraph","children":[{"type":"text","text":"typed content"}]}]');
   });
 
+  it('reflects runtime content updates for an existing prop node after edit (blur)', () => {
+    // Regression: editing an existing persisted block and then exiting edit mode
+    // (clicking outside) left the read-only static view showing the stale
+    // query-cache content until a full reload. The runtime projection had the
+    // new content, but flattenNodesFromRuntime only overlaid runtime contentAST
+    // for runtime-only nodes, not for nodes already present in the prop tree.
+    const runtime = new OperationRuntime();
+    runtime.loadBaseNodes([
+      {
+        blockId: PARENT_UUID,
+        parentId: PAGE_UUID,
+        orderIndex: 0,
+        nodeType: 'block',
+        contentAST: [{ type: 'paragraph', children: [{ type: 'text', text: '' }] }],
+        collapsed: false,
+        isDeleted: false,
+        isPage: false,
+        name: '',
+        icon: null,
+        color: null,
+        classIds: [],
+        tagIds: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        version: 1,
+      },
+    ]);
+
+    // Simulate the debounced content save applying an update_content intent.
+    runtime.applyOperation({
+      id: 'update-op',
+      type: 'update_content',
+      blockId: PARENT_UUID,
+      state: 'pending',
+      dependsOn: [],
+      retryCount: 0,
+      maxRetries: 3,
+      createdAt: Date.now(),
+      payload: {
+        contentAST: [{ type: 'paragraph', children: [{ type: 'text', text: 'typed content' }] }],
+      },
+    } as Operation);
+
+    // The prop node still carries the stale (empty) server content, exactly as
+    // the TanStack Query cache does before the next refetch.
+    const flat = flattenNodesFromRuntime(
+      [
+        {
+          uuid: PARENT_UUID,
+          name: '[{"type":"paragraph","children":[{"type":"text","text":""}]}]',
+          icon: null,
+          color: null,
+          parent_uuid: PAGE_UUID,
+          page_uuid: null,
+          sequence: 0,
+          active: true,
+          is_page: false,
+          is_deleted: false,
+          has_children: false,
+          children: [],
+          create_date: new Date().toISOString(),
+          write_date: new Date().toISOString(),
+          classes_uuid: [],
+          tags_uuid: [],
+          properties_uuid: {},
+        },
+      ],
+      -1,
+      false,
+      false,
+      runtime,
+      () => undefined,
+      false,
+      false,
+      true,
+      PAGE_UUID,
+      false,
+    );
+
+    const node = flat.find((n) => n.node.uuid === PARENT_UUID);
+    expect(node).toBeDefined();
+    expect(node!.node.name).toBe('[{"type":"paragraph","children":[{"type":"text","text":"typed content"}]}]');
+  });
+
   it('renders the root ghost as a child of the focused block in focused block view', () => {
     const runtime = new OperationRuntime();
     const focusedBlock: Node = {
