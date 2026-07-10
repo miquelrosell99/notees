@@ -54,6 +54,7 @@ import { BlockList } from '@/features/content';
 import { getOperationRuntime } from '@/runtime';
 import { getNode, getAllNodes } from '@/runtime/graphHelpers';
 import { upsertNodes } from '@/runtime/eventBus';
+import { getRuntimeDisplayName } from '@/features/content/hooks/runtimeContentOverlay';
 
 
 
@@ -682,7 +683,7 @@ export const NodeCard = memo(function NodeCard({
             <div className="node-card__title-wrapper">
               <CardTitleEditor
                 blockId={String(node.uuid || node.uuid)}
-                initialContent={node.name}
+                initialContent={getRuntimeDisplayName(node)}
                 readOnly={!editable}
                 onContentChange={handleLexicalContentChange}
                 onNavigateToNode={handleNavigateToNode}
