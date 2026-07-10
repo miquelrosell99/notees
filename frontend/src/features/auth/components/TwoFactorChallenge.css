@@ -1,0 +1,119 @@
+/**
+ * TwoFactorChallenge styles — mirrors the login card look.
+ */
+
+.totp-challenge {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+  width: 100%;
+}
+
+.totp-challenge h1 {
+  text-align: center;
+  margin-bottom: var(--spacing-2);
+  color: var(--color-primary);
+  font-size: var(--font-size-2xl);
+}
+
+.totp-subtitle {
+  text-align: center;
+  color: var(--color-on-surface-variant);
+  margin: 0 0 var(--spacing-2);
+  font-size: var(--font-size-base);
+}
+
+.totp-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+}
+
+.totp-hint {
+  margin: calc(var(--spacing-2) * -1) 0 0;
+  color: var(--color-on-surface-variant);
+  font-size: var(--font-size-sm);
+  text-align: center;
+}
+
+.totp-loading {
+  display: flex;
+  justify-content: center;
+  padding: var(--spacing-8) 0;
+}
+
+.totp-qr {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 0 auto;
+  padding: var(--spacing-4);
+  background: #ffffff;
+  border-radius: var(--shape-medium);
+  width: fit-content;
+}
+
+.totp-qr svg {
+  display: block;
+  width: 200px;
+  height: 200px;
+}
+
+.totp-manual {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-2);
+  text-align: center;
+}
+
+.totp-manual__label {
+  color: var(--color-on-surface-variant);
+  font-size: var(--font-size-sm);
+}
+
+.totp-manual__key {
+  font-family: var(--font-family-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: var(--font-size-base);
+  letter-spacing: 0.08em;
+  padding: var(--spacing-2) var(--spacing-3);
+  background: var(--color-surface-container);
+  border-radius: var(--shape-small);
+  word-break: break-all;
+}
+
+.totp-backup-codes {
+  list-style: none;
+  margin: 0;
+  padding: var(--spacing-3);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--spacing-2);
+  background: var(--color-surface-container);
+  border-radius: var(--shape-medium);
+}
+
+.totp-backup-codes li {
+  text-align: center;
+}
+
+.totp-backup-codes code {
+  font-family: var(--font-family-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: var(--font-size-base);
+  letter-spacing: 0.04em;
+}
+
+.totp-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--spacing-3);
+  margin-top: var(--spacing-2);
+}
+
+.totp-challenge .error-message {
+  color: var(--color-error);
+  font-size: var(--font-size-base);
+  padding: var(--spacing-2);
+  background: var(--color-error-container);
+  border-radius: var(--shape-medium);
+}

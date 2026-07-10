@@ -15,7 +15,7 @@ from app.features.shares.dependencies import (
 )
 from app.features.shares.port import ShareRepository
 from app.logging_config import get_logger
-from app.utils.password import verify_password
+from app.utils.password import PasswordVerificationError, verify_password
 
 logger = get_logger(__name__)
 router = APIRouter(prefix="/public", tags=["Public"])
@@ -92,7 +92,16 @@ async def get_shared_node(
     # Check password if set
     if share.password_hash:
         password = request.query_params.get("password") or ""
-        if not password or not verify_password(password, share.password_hash):
+        try:
+            password_ok = bool(password) and verify_password(password, share.password_hash)
+        except PasswordVerificationError:
+            # Technical fault verifying the share password; do not misreport it
+            # as a wrong password.
+            raise HTTPException(
+                status_code=503,
+                detail="This share is temporarily unavailable. Please try again shortly.",
+            ) from None
+        if not password_ok:
             raise HTTPException(status_code=403, detail="password_required")
 
     service = await _get_public_share_service(share.workspace_id)

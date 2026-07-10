@@ -75,6 +75,7 @@ def _user_to_dict(user: User, include_hash: bool = False) -> dict:
         "profile_pic": user.profile_pic,
         "role": user.role,
         "is_active": user.active,
+        "totp_enabled": user.totp_enabled,
         "created_at": user.create_date,
     }
     if include_hash:
@@ -102,6 +103,27 @@ def create_token(user_id: str, email: str, role: str) -> str:
 
     token = jwt.encode(payload, settings.secret_key, algorithm=settings.algorithm)
     return token
+
+
+def create_preauth_token(user_id: str, purpose: str) -> str:
+    """Create a short-lived 2FA pre-auth token.
+
+    ``purpose`` is ``"verify"`` (user must enter a TOTP/backup code) or
+    ``"setup"`` (an admin must enroll). The ``scope`` claim marks the token so
+    it is rejected as a normal session and accepted only by the /auth/2fa/*
+    endpoints, which decode it directly.
+    """
+    expire = datetime.now(UTC) + timedelta(minutes=5)
+    payload = {"user_id": user_id, "scope": f"2fa-{purpose}", "exp": expire}
+    return jwt.encode(payload, settings.secret_key, algorithm=settings.algorithm)
+
+
+def is_preauth_payload(payload: dict | None) -> bool:
+    """Return True if a decoded JWT payload is a 2FA pre-auth token."""
+    if not payload:
+        return False
+    scope = payload.get("scope")
+    return isinstance(scope, str) and scope.startswith("2fa-")
 
 
 def decode_token(token: str) -> dict | None:

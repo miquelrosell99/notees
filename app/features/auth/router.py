@@ -12,9 +12,12 @@ from pydantic import BaseModel
 from pyrate_limiter import Duration
 
 from app.config import settings
+from app.db.connection import get_pool
 from app.dependencies import get_current_user, get_push_device_repository
 from app.domain.errors import PasswordRequiredError, RegistrationDisabledError
+from app.domain.repositories.factories import make_user_repository
 from app.features.auth import auth as auth_module
+from app.features.auth import totp
 from app.features.auth.dependencies import get_invite_repository
 from app.features.auth.port import InviteRepository
 from app.features.notifications.port import PushDeviceRepository
@@ -28,13 +31,19 @@ from app.models import (
     InviteAcceptRequest,
     PasswordChangeRequest,
     Token,
+    TwoFactorCodeRequest,
+    TwoFactorDisableRequest,
+    TwoFactorEnableResponse,
+    TwoFactorRequiredResponse,
+    TwoFactorSetupResponse,
+    TwoFactorVerifyRequest,
     User,
     UserCreate,
     UserLogin,
     UserUpdate,
 )
 from app.rate_limit import auth_identifier, auth_per_account_limiter, ip_only_identifier, per_ip_limiter
-from app.utils.password import password_needs_rehash, verify_password
+from app.utils.password import PasswordVerificationError, password_needs_rehash, verify_password
 
 
 class AuthStatusResponse(BaseModel):
@@ -61,6 +70,10 @@ _auth_limiter_login_account = auth_per_account_limiter(5, Duration.MINUTE)
 _auth_limiter_change_password_account = auth_per_account_limiter(5, Duration.MINUTE)
 _auth_limiter_invite_account = auth_per_account_limiter(5, Duration.MINUTE)
 
+# Two-factor authentication endpoints (per-IP; verify is the sensitive path).
+_auth_limiter_2fa = per_ip_limiter(10, Duration.MINUTE)
+_auth_limiter_2fa_verify = per_ip_limiter(10, Duration.MINUTE)
+
 
 async def _resolve_user_from_auth(
     credentials: HTTPAuthorizationCredentials | None,
@@ -77,7 +90,8 @@ async def _resolve_user_from_auth(
     # Fall back to JWT
     if credentials:
         payload = auth_module.decode_token(credentials.credentials)
-        if payload:
+        # A 2FA pre-auth token is not a session.
+        if payload and not auth_module.is_preauth_payload(payload):
             user_id = payload.get("user_id")
             if user_id:
                 user = await auth_module.get_user_by_id(user_id)
@@ -157,6 +171,65 @@ def _clear_auth_cookies(response: Response) -> None:
     response.delete_cookie(key="refresh_token", path="/api/auth/refresh")
 
 
+async def _user_repo():
+    """Return a UserRepository backed by the current pool."""
+    return make_user_repository(await get_pool())
+
+
+def _public_user(user: dict) -> dict:
+    """Strip secrets (e.g. hashed_password) from a user dict for responses."""
+    return {k: v for k, v in user.items() if k != "hashed_password"}
+
+
+async def _issue_tokens(response: Response, user: dict, remember_me: bool = False) -> dict:
+    """Create access+refresh tokens, persist the refresh token, set cookies.
+
+    Returns the token response payload with a sanitized public user object.
+    """
+    access_token = auth_module.create_token(user["id"], user["email"], user["role"])
+    refresh_token = auth_module.generate_refresh_token()
+    await auth_module.create_refresh_token_db(int(user["id"]), refresh_token, remember_me=remember_me)
+    _set_refresh_cookie(response, refresh_token, remember_me=remember_me)
+    _set_access_cookie(response, access_token)
+    return {
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "token_type": "bearer",
+        "user": _public_user(user),
+    }
+
+
+async def require_full_or_setup_user(
+    request: Request,
+    credentials: HTTPAuthorizationCredentials = Depends(security),  # noqa: B008
+) -> dict:
+    """Resolve the user for 2FA setup/enable endpoints.
+
+    Accepts a full session token or a ``2fa-setup`` pre-auth token (so an admin
+    forced to enroll can complete setup). A ``2fa-verify`` token is rejected.
+    """
+    token = request.cookies.get("access_token")
+    if credentials and not token:
+        token = credentials.credentials
+    if not token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    payload = auth_module.decode_token(token)
+    if not payload:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    if payload.get("scope") == "2fa-verify":
+        raise HTTPException(status_code=401, detail="Complete two-factor verification first")
+
+    user_id = payload.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    user = await auth_module.get_user_by_id(user_id)
+    if not user or not user.get("is_active", True):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    return user
+
+
 @router.post(
     "/register",
     response_model=Token,
@@ -226,7 +299,6 @@ async def register(request: Request, response: Response, user_data: UserCreate):
 
 @router.post(
     "/login",
-    response_model=Token,
     dependencies=[
         Depends(RateLimiter(limiter=_auth_limiter_login)),
         Depends(RateLimiter(limiter=_auth_limiter_login_account, identifier=auth_identifier)),
@@ -242,7 +314,19 @@ async def login(request: Request, response: Response, credentials: UserLogin):
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
     stored_hash = user.get("hashed_password", "")
-    if not verify_password(credentials.password, stored_hash):
+    try:
+        password_ok = verify_password(credentials.password, stored_hash)
+    except PasswordVerificationError:
+        # Technical fault (malformed hash, backend error): not a wrong password.
+        # Surface a neutral temporary-outage response rather than a misleading
+        # "invalid password" that would lock out a legitimate user.
+        logger.exception(f"Password verification error during login (user_id={user.get('id')})")
+        raise HTTPException(
+            status_code=503,
+            detail="Sign-in is temporarily unavailable. Please try again shortly.",
+        ) from None
+
+    if not password_ok:
         logger.warning(f"Login failed (user_id={user.get('id')}): invalid password")
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
@@ -255,13 +339,17 @@ async def login(request: Request, response: Response, credentials: UserLogin):
         await auth_module.rehash_password(user["id"], credentials.password)
 
     logger.info(f"Login successful (user_id={user.get('id')})")
-    access_token = auth_module.create_token(user["id"], user["email"], user["role"])
-    refresh_token = auth_module.generate_refresh_token()
-    await auth_module.create_refresh_token_db(int(user["id"]), refresh_token, remember_me=credentials.remember_me)
-    _set_refresh_cookie(response, refresh_token, remember_me=credentials.remember_me)
-    _set_access_cookie(response, access_token)
 
-    return {"access_token": access_token, "refresh_token": refresh_token, "token_type": "bearer", "user": user}
+    # Two-factor gate: a password alone never yields a session when the user has
+    # enabled 2FA. 2FA is strictly per-user opt-in; admins are not forced to enroll.
+    if user.get("totp_enabled"):
+        logger.info(f"2FA verification required (user_id={user.get('id')})")
+        return TwoFactorRequiredResponse(
+            preauth_token=auth_module.create_preauth_token(user["id"], "verify"),
+            purpose="verify",
+        ).model_dump()
+
+    return await _issue_tokens(response, user, remember_me=credentials.remember_me)
 
 
 @router.post(
@@ -384,6 +472,7 @@ async def get_me(user: User = Depends(get_current_user)):  # noqa: B008
         "role": user.role,
         "created_at": user.created_at,
         "is_active": user.is_active,
+        "totp_enabled": user.totp_enabled,
     }
 
 
@@ -428,7 +517,16 @@ async def change_password(
     if not user_record:
         raise HTTPException(status_code=404, detail="User not found")
 
-    if not verify_password(data.current_password, user_record.get("hashed_password", "")):
+    try:
+        current_ok = verify_password(data.current_password, user_record.get("hashed_password", ""))
+    except PasswordVerificationError:
+        logger.exception(f"Password verification error during change-password (user_id={user.id})")
+        raise HTTPException(
+            status_code=503,
+            detail="Sign-in is temporarily unavailable. Please try again shortly.",
+        ) from None
+
+    if not current_ok:
         raise HTTPException(status_code=401, detail="Current password is incorrect")
 
     updated = await auth_module.update_password(user.id, data.new_password)
@@ -506,3 +604,169 @@ async def register_device_token(
     """Register a mobile push notification device token for the current user."""
     await push_device_repo.register_token(int(user.id), data.token, data.platform)
     return {"success": True}
+
+
+# ─── Two-Factor Authentication (TOTP) ─────────────────────────────
+
+
+@router.post(
+    "/2fa/setup",
+    response_model=TwoFactorSetupResponse,
+    dependencies=[Depends(RateLimiter(limiter=_auth_limiter_2fa))],
+)
+async def totp_setup(user: dict = Depends(require_full_or_setup_user)):  # noqa: B008
+    """Start 2FA enrollment: create a pending secret and return the QR + manual key.
+
+    The secret is stored encrypted but 2FA is not enabled until the user
+    confirms with a valid code via /auth/2fa/enable. The plaintext secret and
+    QR are returned once and are never written to disk or logs.
+    """
+    secret = totp.generate_secret()
+    repo = await _user_repo()
+    await repo.set_totp_secret(int(user["id"]), totp.encrypt_secret(secret))
+    uri = totp.provisioning_uri(secret, user["email"])
+    qr_svg = totp.generate_qr_svg(uri)
+    return TwoFactorSetupResponse(otpauth_uri=uri, qr_svg=qr_svg, secret=secret)
+
+
+@router.post(
+    "/2fa/enable",
+    dependencies=[Depends(RateLimiter(limiter=_auth_limiter_2fa))],
+)
+async def totp_enable(
+    request: Request,
+    response: Response,
+    body: TwoFactorCodeRequest,
+    user: dict = Depends(require_full_or_setup_user),  # noqa: B008
+):
+    """Confirm enrollment with a valid TOTP code and enable 2FA.
+
+    On success, returns one-time backup codes (shown once) and issues full
+    tokens, so an admin forced to enroll completes login in this step.
+    """
+    repo = await _user_repo()
+    encrypted = await repo.get_totp_secret(int(user["id"]))
+    if not encrypted:
+        raise HTTPException(status_code=400, detail="No pending 2FA setup. Call /auth/2fa/setup first.")
+
+    secret = totp.decrypt_secret(encrypted)
+    if not totp.verify_code(secret, body.code):
+        raise HTTPException(status_code=400, detail="Invalid authentication code")
+
+    await repo.set_totp_enabled(int(user["id"]), True)
+    codes = totp.generate_backup_codes()
+    await repo.replace_backup_codes(int(user["id"]), [totp.hash_backup_code(c) for c in codes])
+    auth_module.clear_user_cache(user["id"])
+    # Refresh so the issued token payload reflects totp_enabled=True immediately.
+    user = await auth_module.get_user_by_id(user["id"]) or {**user, "totp_enabled": True}
+
+    tokens = await _issue_tokens(response, user)
+    return {**tokens, "backup_codes": codes}
+
+
+@router.post(
+    "/2fa/verify",
+    dependencies=[Depends(RateLimiter(limiter=_auth_limiter_2fa_verify, identifier=ip_only_identifier))],
+)
+async def totp_verify(response: Response, body: TwoFactorVerifyRequest):
+    """Complete login by exchanging a pre-auth token + code for a full session.
+
+    ``code`` may be a current 6-digit TOTP code or a one-time backup code.
+    """
+    payload = auth_module.decode_token(body.preauth_token)
+    if not payload or payload.get("scope") not in {"2fa-verify", "2fa-setup"}:
+        raise HTTPException(status_code=401, detail="Invalid or expired verification token")
+
+    user_id = payload.get("user_id")
+    user = await auth_module.get_user_by_id(user_id) if user_id else None
+    if not user or not user.get("is_active", True):
+        raise HTTPException(status_code=401, detail="Invalid or expired verification token")
+
+    repo = await _user_repo()
+    encrypted = await repo.get_totp_secret(int(user["id"]))
+    if not encrypted:
+        raise HTTPException(status_code=400, detail="Two-factor authentication is not enabled")
+
+    secret = totp.decrypt_secret(encrypted)
+    ok = totp.verify_code(secret, body.code)
+    if not ok:
+        for row in await repo.get_unused_backup_codes(int(user["id"])):
+            if totp.verify_backup_code(body.code, row["code_hash"]):
+                await repo.mark_backup_code_used(row["id"])
+                ok = True
+                break
+
+    if not ok:
+        raise HTTPException(status_code=401, detail="Invalid authentication code")
+
+    return await _issue_tokens(response, user)
+
+
+@router.post(
+    "/2fa/disable",
+    dependencies=[Depends(RateLimiter(limiter=_auth_limiter_2fa))],
+)
+async def totp_disable(
+    body: TwoFactorDisableRequest,
+    user: User = Depends(get_current_user),  # noqa: B008
+):
+    """Disable 2FA. Requires the current password or a valid code as proof."""
+    if not body.current_password and not body.code:
+        raise HTTPException(status_code=400, detail="Provide your current password or an authentication code")
+
+    repo = await _user_repo()
+    record = await auth_module.get_user_by_email(user.email)
+    if not record:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if body.current_password:
+        try:
+            ok = verify_password(body.current_password, record.get("hashed_password", ""))
+        except PasswordVerificationError:
+            raise HTTPException(
+                status_code=503,
+                detail="Sign-in is temporarily unavailable. Please try again shortly.",
+            ) from None
+        if not ok:
+            raise HTTPException(status_code=401, detail="Current password is incorrect")
+    else:
+        encrypted = await repo.get_totp_secret(int(user.id))
+        ok = False
+        if encrypted:
+            secret = totp.decrypt_secret(encrypted)
+            ok = totp.verify_code(secret, body.code or "")
+            if not ok:
+                for row in await repo.get_unused_backup_codes(int(user.id)):
+                    if totp.verify_backup_code(body.code or "", row["code_hash"]):
+                        await repo.mark_backup_code_used(row["id"])
+                        ok = True
+                        break
+        if not ok:
+            raise HTTPException(status_code=401, detail="Invalid authentication code")
+
+    await repo.clear_totp(int(user.id))
+    auth_module.clear_user_cache(user.id)
+    return {"success": True}
+
+
+@router.post(
+    "/2fa/backup-codes/regenerate",
+    response_model=TwoFactorEnableResponse,
+    dependencies=[Depends(RateLimiter(limiter=_auth_limiter_2fa))],
+)
+async def totp_regenerate_backup_codes(
+    body: TwoFactorCodeRequest,
+    user: User = Depends(get_current_user),  # noqa: B008
+):
+    """Regenerate backup codes (requires a current TOTP code). Shown once."""
+    if not user.totp_enabled:
+        raise HTTPException(status_code=400, detail="Two-factor authentication is not enabled")
+
+    repo = await _user_repo()
+    encrypted = await repo.get_totp_secret(int(user.id))
+    if not encrypted or not totp.verify_code(totp.decrypt_secret(encrypted), body.code):
+        raise HTTPException(status_code=401, detail="Invalid authentication code")
+
+    codes = totp.generate_backup_codes()
+    await repo.replace_backup_codes(int(user.id), [totp.hash_backup_code(c) for c in codes])
+    return TwoFactorEnableResponse(backup_codes=codes)

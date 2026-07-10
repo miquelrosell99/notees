@@ -78,6 +78,7 @@ services:
       - ./app:/app/app
       - ./tests:/app/tests
       - ./pytest.ini:/app/pytest.ini
+      - ./scripts:/app/scripts:ro
       - ./.config/notees-backend-dev/data:/app/data
       - ./.config/notees-backend-dev/logs:/app/logs
     depends_on:

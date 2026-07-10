@@ -148,6 +148,7 @@ async def init_database(conn: asyncpg.Connection) -> None:
     await _run_migration("remove_collapsed_column", conn, _remove_collapsed_column)
     await _run_migration("migrate_assets_m6", conn, _migrate_assets_m6)
     await _run_migration("add_node_yjs_state", conn, _add_node_yjs_state)
+    await _run_migration("add_totp_2fa", conn, _add_totp_2fa)
 
 
 def _extension_to_mime_type(extension: str) -> str:
@@ -734,6 +735,62 @@ async def _migrate_visibility_to_is_private(conn: asyncpg.Connection) -> None:
             """
         )
         logger.info("Created idx_node_is_private index")
+
+
+async def _add_totp_2fa(conn: asyncpg.Connection) -> None:
+    """Add TOTP two-factor authentication columns and the backup-codes table.
+
+    Idempotent migration: adds totp_secret / totp_enabled / totp_enabled_at to
+    the "user" table and creates the user_backup_code table plus its index.
+    """
+    from ...logging_config import get_logger
+
+    logger = get_logger(__name__)
+
+    # Add TOTP columns to the "user" table if missing.
+    for column, ddl in (
+        ("totp_secret", 'ALTER TABLE "user" ADD COLUMN totp_secret TEXT'),
+        (
+            "totp_enabled",
+            'ALTER TABLE "user" ADD COLUMN totp_enabled BOOLEAN NOT NULL DEFAULT FALSE',
+        ),
+        ("totp_enabled_at", 'ALTER TABLE "user" ADD COLUMN totp_enabled_at TIMESTAMPTZ'),
+    ):
+        col_exists = await conn.fetchval(
+            "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'user' AND column_name = $1)",
+            column,
+        )
+        if not col_exists:
+            await conn.execute(ddl)
+            logger.info(f"Added {column} column to user table")
+
+    # Create the backup-codes table if missing.
+    table_exists = await conn.fetchval(
+        "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'user_backup_code')"
+    )
+    if not table_exists:
+        await conn.execute(
+            """
+            CREATE TABLE user_backup_code (
+                id SERIAL PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+                code_hash TEXT NOT NULL,
+                used_at TIMESTAMPTZ,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+            """
+        )
+        logger.info("Created user_backup_code table")
+
+    # Ensure the lookup index exists.
+    idx_exists = await conn.fetchval(
+        "SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_user_backup_code_user')"
+    )
+    if not idx_exists:
+        await conn.execute(
+            "CREATE INDEX idx_user_backup_code_user ON user_backup_code(user_id)"
+        )
+        logger.info("Created idx_user_backup_code_user index")
 
 
 async def _migrate_non_system_task_statuses(conn: asyncpg.Connection) -> None:

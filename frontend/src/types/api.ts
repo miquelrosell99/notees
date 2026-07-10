@@ -634,6 +634,7 @@ export interface User {
   profile_pic: string | null;
   role: string;
   is_active: boolean;
+  totp_enabled: boolean;
 }
 
 /**
@@ -762,6 +763,36 @@ export interface Token {
   token_type: string;
   user: User;
 }
+
+/**
+ * Returned by POST /auth/login when a second factor is required instead of a
+ * full token set. `purpose` distinguishes a normal verification challenge from
+ * a forced first-time enrollment.
+ */
+export interface TwoFactorRequiredResponse {
+  requires_2fa: true;
+  preauth_token: string;
+  purpose: 'verify' | 'setup';
+}
+
+/**
+ * Enrollment payload returned by POST /auth/2fa/setup. `qr_svg` is trusted
+ * server-rendered SVG markup; `secret` is the base32 key for manual entry.
+ */
+export interface TwoFactorSetupResponse {
+  otpauth_uri: string;
+  qr_svg: string;
+  secret: string;
+}
+
+/**
+ * One-time backup codes returned when 2FA is enabled or regenerated.
+ */
+export interface TwoFactorEnableResponse {
+  backup_codes: string[];
+}
+
+export type LoginResponse = Token | TwoFactorRequiredResponse;
 
 // ==================== API Key Types ====================
 
