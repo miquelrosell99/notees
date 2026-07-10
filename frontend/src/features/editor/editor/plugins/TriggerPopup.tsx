@@ -55,6 +55,7 @@ const SLASH_COMMANDS: SlashCommand[] = [
   { id: 'audio', label: 'Insert audio', description: 'Upload an audio file' },
   { id: 'file', label: 'Insert file', description: 'Upload any supported file' },
   { id: 'template', label: 'Add template', description: 'Insert content from a template' },
+  { id: 'date', label: 'Date', description: 'Insert a link to a daily journal page' },
   { id: 'date-range', label: 'Date Range', description: 'Insert a date range' },
   { id: 'flashcard', label: 'Flashcard', description: 'Convert this block into a flashcard' },
   { id: 'cloze', label: 'Cloze', description: 'Mark this block as a cloze deletion' },
