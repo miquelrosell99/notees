@@ -78,15 +78,35 @@ export function useViewportFlip(
     let resultMaxHeight: number | undefined;
 
     if (popupHeight !== undefined) {
-      // Simple flip: known popup height, no dynamic maxHeight
-      top = rect.bottom + gap;
-      if (top + popupHeight > viewportHeight - edgePadding) {
-        top = rect.top - popupHeight - gap;
+      // Fixed-size flip: known popup height, no dynamic maxHeight. Prefer the
+      // popup's measured height over the estimate so the decision and clamp match
+      // the real rendered size — an underestimate lets the popup overflow the
+      // bottom of the viewport.
+      const measuredHeight = popupRef?.current?.getBoundingClientRect().height;
+      const effectivePopupHeight =
+        measuredHeight && measuredHeight > 0 ? measuredHeight : popupHeight;
+      const spaceBelow = viewportHeight - rect.bottom - gap - edgePadding;
+      const spaceAbove = rect.top - gap - edgePadding;
+
+      if (effectivePopupHeight <= spaceBelow) {
+        // Fits below: keep the top edge adjacent to the caret.
+        top = rect.bottom + gap;
+      } else if (effectivePopupHeight <= spaceAbove) {
+        // Fits above: keep the bottom edge adjacent to the caret.
+        top = rect.top - gap - effectivePopupHeight;
+      } else {
+        // Does not fully fit on either side: choose the larger side so the popup
+        // stays as close to the caret as possible.
+        top = spaceBelow >= spaceAbove
+          ? rect.bottom + gap
+          : rect.top - gap - effectivePopupHeight;
       }
-      // Clamp so popup never goes above the viewport
-      if (top < edgePadding) {
-        top = edgePadding;
-      }
+      // Always contain the popup within the viewport. This is the safety net for
+      // an anchor that is itself off-screen (e.g. a stale caret read): without it,
+      // flipping above/below an out-of-view anchor still overflows.
+      const minTop = edgePadding;
+      const maxTop = Math.max(edgePadding, viewportHeight - effectivePopupHeight - edgePadding);
+      top = Math.max(minTop, Math.min(top, maxTop));
       top += scrollY;
     } else {
       // Dynamic flip: compute maxHeight based on available space
@@ -103,9 +123,13 @@ export function useViewportFlip(
 
     let left = rect.left + scrollX;
 
-    // Horizontal clamping: prefer measured width, fall back to provided width
+    // Horizontal clamping: prefer the rendered width, but fall back to the
+    // provided width when the measurement is unavailable or zero (a zero
+    // measurement would otherwise disable the max-right clamp and let the popup
+    // overflow the right edge).
     const measuredWidth = popupRef?.current?.getBoundingClientRect().width;
-    const effectivePopupWidth = measuredWidth ?? popupWidth;
+    const effectivePopupWidth =
+      measuredWidth && measuredWidth > 0 ? measuredWidth : popupWidth;
     if (effectivePopupWidth !== undefined) {
       if (left + effectivePopupWidth > viewportWidth - edgePadding) {
         left = viewportWidth - effectivePopupWidth - edgePadding;

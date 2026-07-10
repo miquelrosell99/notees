@@ -48,6 +48,48 @@ describe('setDOMSelection / getDOMSelectionOffset', () => {
     document.body.removeChild(root);
   });
 
+  it('round-trips collapsed offsets between adjacent atomic elements', () => {
+    const root = document.createElement('div');
+    render(root, '<span contenteditable="false">pill1</span><span contenteditable="false">pill2</span>');
+    document.body.appendChild(root);
+
+    setDOMSelection(root, 1); // between the two pills
+    expect(getDOMSelectionOffset(root)).toBe(1);
+
+    document.body.removeChild(root);
+  });
+
+  it('round-trips collapsed offsets when the root contains only an atomic element', () => {
+    const root = document.createElement('div');
+    render(root, '<span contenteditable="false">pill</span>');
+    document.body.appendChild(root);
+
+    setDOMSelection(root, 0); // before the pill
+    expect(getDOMSelectionOffset(root)).toBe(0);
+
+    setDOMSelection(root, 1); // after the pill
+    expect(getDOMSelectionOffset(root)).toBe(1);
+
+    document.body.removeChild(root);
+  });
+
+  it('ignores the trailing caret anchor in logical offsets', () => {
+    const root = document.createElement('div');
+    render(
+      root,
+      '<span contenteditable="false">pill</span><span data-caret-anchor="true">\u200B</span>',
+    );
+    document.body.appendChild(root);
+
+    setDOMSelection(root, 0); // before the pill
+    expect(getDOMSelectionOffset(root)).toBe(0);
+
+    setDOMSelection(root, 1); // after the pill (inside the anchor logically)
+    expect(getDOMSelectionOffset(root)).toBe(1);
+
+    document.body.removeChild(root);
+  });
+
   it('returns null when the selection is outside the editor', () => {
     const root = document.createElement('div');
     const outside = document.createElement('div');

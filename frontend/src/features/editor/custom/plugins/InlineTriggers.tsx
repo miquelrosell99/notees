@@ -13,12 +13,20 @@ import {
   useState,
   type JSX,
 } from 'react';
-import { flushSync } from 'react-dom';
+import { createPortal, flushSync } from 'react-dom';
 import type { Node } from '@/types';
+import type { Property, PropertyCreate } from '@/types/api';
 import { TriggerPopup, type TriggerPopupType } from '@/features/editor/editor/plugins/TriggerPopup';
+import { LinkEditModal, type LinkEditResult } from '@/features/editor';
 import { DateRangePicker } from '@/features/properties/components/DateRangePicker';
-import { DatePickerPopup } from '@/features/content';
+import {
+  PropertySuggestionPopup,
+  useSetNodeProperty,
+  useCreateProperty,
+} from '@/features/properties';
+import { DatePickerPopup, useCreateComment } from '@/features/content';
 import { getOrCreateDaily } from '@/api/nodes';
+import { addSelectionOption } from '@/api/properties';
 import { generateUUID } from '@/utils/uuid';
 import type { DateRangeValue } from '@/utils/dateRange';
 import { getOperationRuntime } from '@/runtime';
@@ -27,8 +35,10 @@ import { getRuntimeEventBus, applyRuntimeIntent } from '@/runtime/eventBus';
 import { SYSTEM_CLASS_UUIDS } from '@/constants/systemProperties';
 import { useEditorFocusStore } from '@/stores/editorFocusStore';
 import { flushAllContentSaves } from '@/hooks/contentSaveTracker';
+import { useViewportFlip } from '@/hooks/useViewportFlip';
 import { getSlashCommand } from '@/plugins/core';
-import { buildLinkId, nodeLink, dateRange as buildDateRangeNode } from '@/lib/astBuilder';
+import { Modal, Button, TextField } from '@/components/ui';
+import { buildLinkId, nodeLink, dateRange as buildDateRangeNode, externalLink, text as textNode } from '@/lib/astBuilder';
 import {
   insertText,
   deleteRange,
@@ -45,6 +55,10 @@ interface PopupState {
   position: { top: number; left: number; caretTop: number };
   context?: 'template' | 'embed';
   classFilters?: string[];
+  /** When type === 'link', optionally constrain results (e.g. blocks only for /blocklink) */
+  linkSearchMode?: 'all' | 'pages' | 'blocks';
+  /** Inline (block-as-search-field) mode — used for the slash (`/`) popup */
+  inline?: boolean;
 }
 
 interface InlineTriggersProps {
@@ -98,6 +112,31 @@ function getCharBeforeOffset(state: InlineEditorState, offset: number): string |
   return unit.text[pos.innerOffset] ?? null;
 }
 
+/**
+ * Extract plain text between two logical offsets (text nodes only; atomic nodes are
+ * skipped). Used to read the inline slash-command query from the block.
+ */
+function getTextInRange(state: InlineEditorState, start: number, end: number): string {
+  if (end <= start) return '';
+  const units = astToUnits(getInlineChildren(state.ast));
+  let out = '';
+  let pos = 0;
+  for (const unit of units) {
+    const len = unit.type === 'text' ? unit.text.length : 1;
+    const unitStart = pos;
+    const unitEnd = pos + len;
+    pos = unitEnd;
+    if (unitEnd <= start) continue;
+    if (unitStart >= end) break;
+    if (unit.type === 'text') {
+      const from = Math.max(0, start - unitStart);
+      const to = Math.min(len, end - unitStart);
+      out += unit.text.slice(from, to);
+    }
+  }
+  return out;
+}
+
 function getCaretCoordinates(root: HTMLElement): { top: number; left: number; caretTop: number } {
   const rootRect = root.getBoundingClientRect();
   const fallback = {
@@ -138,27 +177,82 @@ export function InlineTriggers({
   const [dateRangePickerOpen, setDateRangePickerOpen] = useState(false);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [dateAnchorPos, setDateAnchorPos] = useState<{ top: number; left: number } | null>(null);
+  const [urlModalOpen, setUrlModalOpen] = useState(false);
+  const [propertyPickerOpen, setPropertyPickerOpen] = useState(false);
+  const [propertyAnchorPos, setPropertyAnchorPos] = useState<{ top: number; left: number } | null>(null);
+  const [commentPromptOpen, setCommentPromptOpen] = useState(false);
+  const [commentText, setCommentText] = useState('');
   const dateAnchorRef = useRef<HTMLSpanElement>(null);
+  const propertyAnchorRef = useRef<HTMLSpanElement>(null);
+  const commentInputRef = useRef<HTMLInputElement>(null);
   const dateInsertOffsetRef = useRef<number | null>(null);
+  const urlInsertOffsetRef = useRef<number | null>(null);
+  const [slashSelectedIndex, setSlashSelectedIndex] = useState(0);
   const popupOpenRef = useRef(false);
   const placeholderOffsetRef = useRef<number | null>(null);
   const blockServerIdRef = useRef<string | undefined>(undefined);
   const hadFocusBeforeRef = useRef(false);
   const selectionMadeRef = useRef(false);
+  // Inline slash popup mirrors (kept in refs so the document-level keydown handler
+  // never reads stale values).
+  const slashCaretRef = useRef<number>(0);
+  const slashLastQueryRef = useRef('');
+  const slashCountRef = useRef(0);
+  const slashActiveIdRef = useRef<string | null>(null);
+  // Caret rect (document coords) captured when the inline slash popup opens.
+  // This is the same anchor that keeps the slash popup itself correctly placed,
+  // so follow-on popups (date/property) reuse it instead of re-reading the live
+  // DOM selection — which is unreliable after the trigger text is deleted and can
+  // return an off-screen fallback rect.
+  const slashAnchorRef = useRef<{ top: number; left: number; caretTop: number } | null>(null);
+
+  const setPropertyMutation = useSetNodeProperty();
+  const createPropertyMutation = useCreateProperty();
+  const createCommentMutation = useCreateComment();
+
+  // Anchored position for the slash-command property picker (viewport-clamped).
+  const propertyPosition = useViewportFlip(
+    propertyAnchorRef,
+    propertyPickerOpen,
+    { popupWidth: 320, popupHeight: 360, fixed: true },
+  );
 
   useEffect(() => {
     popupOpenRef.current = popup !== null;
   }, [popup]);
 
-  // Track popup open state so the editor does not lose its active block state.
+  // Keep the editor's active block alive while ANY inline picker is open — the
+  // trigger popup AND the follow-on pickers (date / date-range / url / property /
+  // comment). blurBlock() is suppressed while popupOpen is true; without this,
+  // clicking into a follow-on picker blurs the editor, clears activeBlockId, and
+  // unmounts CustomInlineEditor (and InlineTriggers with it). The picker's async
+  // onSelect then resolves into a dead applyMutation and the insert is silently
+  // lost — which is exactly the "/date closes but inserts nothing" symptom.
+  // The pickers are mutually exclusive by construction (the trigger closes before
+  // a follow-on opens), so a single boolean is sufficient and there is no
+  // popupOpen gap during the handoff (anyPickerOpen stays true across it).
+  const anyPickerOpen =
+    popup !== null ||
+    datePickerOpen ||
+    dateRangePickerOpen ||
+    urlModalOpen ||
+    propertyPickerOpen ||
+    commentPromptOpen;
   useEffect(() => {
-    if (popup) {
+    if (anyPickerOpen) {
       useEditorFocusStore.getState().openPopup();
       return () => {
         useEditorFocusStore.getState().closePopup();
       };
     }
-  }, [popup]);
+  }, [anyPickerOpen]);
+
+  // Focus the comment field when the prompt opens (mirrors DatePickerPopup).
+  useEffect(() => {
+    if (!commentPromptOpen) return;
+    const t = setTimeout(() => commentInputRef.current?.focus({ preventScroll: true }), 50);
+    return () => clearTimeout(t);
+  }, [commentPromptOpen]);
 
   const resolveBlockServerId = useCallback(() => {
     const runtime = getOperationRuntime();
@@ -193,8 +287,18 @@ export function InlineTriggers({
         placeholderOffsetRef.current = Math.max(0, offset - 1);
       }
 
+      const isSlash = key === '/';
       popupOpenRef.current = true;
-      setPopup({ type: triggerType(key), position: coords });
+      if (isSlash) {
+        // Inline mode: the block is the search field. Reset the query mirror and
+        // capture the opening caret rect as the reliable anchor for follow-on popups.
+        setSlashSelectedIndex(0);
+        slashLastQueryRef.current = '';
+        slashActiveIdRef.current = null;
+        slashCountRef.current = 0;
+        slashAnchorRef.current = coords;
+      }
+      setPopup({ type: triggerType(key), position: coords, ...(isSlash ? { inline: true } : {}) });
     },
     [rootRef, stateRef, applyMutation, resolveBlockServerId],
   );
@@ -203,6 +307,19 @@ export function InlineTriggers({
     const offset = placeholderOffsetRef.current;
     if (offset === null) return;
     applyMutation((prev) => deleteRange(prev, offset, offset + 1));
+  }, [applyMutation]);
+
+  /**
+   * Remove the inline slash trigger text (`/` plus the typed query) in one shot.
+   * Falls back to the single trigger char when no inline caret range is known.
+   * Collapses the selection to the trigger offset.
+   */
+  const removeSlashRange = useCallback((): number | null => {
+    const start = placeholderOffsetRef.current;
+    if (start === null) return null;
+    const end = Math.max(start + 1, slashCaretRef.current);
+    applyMutation((prev) => deleteRange(prev, start, end));
+    return start;
   }, [applyMutation]);
 
   const handleClose = useCallback(() => {
@@ -243,6 +360,22 @@ export function InlineTriggers({
     hadFocusBeforeRef.current = false;
   }, [removePlaceholder, rootRef]);
 
+  // Close the inline slash popup while KEEPING the typed text in the block and
+  // leaving the caret where it is (used for Esc and for deleting the '/').
+  const closeInlineSlash = useCallback(() => {
+    popupOpenRef.current = false;
+    flushSync(() => setPopup(null));
+    placeholderOffsetRef.current = null;
+    blockServerIdRef.current = undefined;
+    selectionMadeRef.current = false;
+    slashActiveIdRef.current = null;
+    slashCountRef.current = 0;
+    if (hadFocusBeforeRef.current) {
+      rootRef.current?.focus();
+    }
+    hadFocusBeforeRef.current = false;
+  }, [rootRef]);
+
   const insertPill = useCallback(
     (nodeUuid: string, refType: 'node' | 'class' | 'user') => {
       removePlaceholder();
@@ -274,7 +407,6 @@ export function InlineTriggers({
 
   const handleDateSelect = useCallback(
     async (isoDate: string) => {
-      setDatePickerOpen(false);
       const insertOffset = dateInsertOffsetRef.current;
       try {
         const dayNode = await getOrCreateDaily(isoDate);
@@ -292,12 +424,82 @@ export function InlineTriggers({
         });
       } catch (err) {
         console.error('Failed to create daily page:', err);
+        // Re-throw so the popup can surface the failure and stay open for retry
+        // instead of closing silently with no link inserted.
+        throw err;
       } finally {
         dateInsertOffsetRef.current = null;
       }
     },
     [applyMutation],
   );
+
+  const handleUrlSave = useCallback(
+    (result: LinkEditResult) => {
+      const url = result.url?.trim();
+      const insertOffset = urlInsertOffsetRef.current;
+      setUrlModalOpen(false);
+      urlInsertOffsetRef.current = null;
+      if (!url) return;
+      applyMutation((prev) => {
+        const fallbackOffset =
+          prev.selection.type === 'collapsed' ? prev.selection.offset : 0;
+        const stateWithSelection = {
+          ...prev,
+          selection: { type: 'collapsed' as const, offset: insertOffset ?? fallbackOffset },
+        };
+        const label = result.label?.trim();
+        return insertAtomicNode(
+          stateWithSelection,
+          externalLink(url, ...(label ? [textNode(label)] : [])),
+        );
+      });
+    },
+    [applyMutation],
+  );
+
+  const handlePropertySelect = useCallback(
+    (property: Property) => {
+      const blockServerId = blockServerIdRef.current;
+      setPropertyPickerOpen(false);
+      if (!blockServerId) return;
+      const defaultValue = property.type === 'boolean' ? 'false' : '';
+      setPropertyMutation.mutate({ nodeUuid: blockServerId, propertyId: property.uuid, value: defaultValue });
+    },
+    [setPropertyMutation],
+  );
+
+  const handlePropertyCreate = useCallback(
+    (data: PropertyCreate & { selection_options?: { name: string; icon?: string }[] }) => {
+      const blockServerId = blockServerIdRef.current;
+      setPropertyPickerOpen(false);
+      if (!blockServerId) return;
+      const scope = data.scope ?? 'global';
+      const node_uuid = scope === 'node' && !data.node_uuid ? blockServerId : data.node_uuid;
+      createPropertyMutation.mutate({ ...data, scope, node_uuid } as PropertyCreate, {
+        onSuccess: async (newProperty) => {
+          if (data.selection_options?.length) {
+            await Promise.all(
+              data.selection_options.map((opt, idx) =>
+                addSelectionOption(newProperty.uuid, opt.name, opt.icon ?? null, idx),
+              ),
+            );
+          }
+          const defaultValue = newProperty.type === 'boolean' ? 'false' : '';
+          setPropertyMutation.mutate({ nodeUuid: blockServerId, propertyId: newProperty.uuid, value: defaultValue });
+        },
+      });
+    },
+    [createPropertyMutation, setPropertyMutation],
+  );
+
+  const handleCommentSubmit = useCallback(() => {
+    const blockServerId = blockServerIdRef.current;
+    const name = commentText.trim();
+    setCommentPromptOpen(false);
+    if (!blockServerId || !name) return;
+    createCommentMutation.mutate({ nodeUuid: blockServerId, name });
+  }, [commentText, createCommentMutation]);
 
   const insertEmbedSibling = useCallback(
     async (nodeUuid: string) => {
@@ -373,15 +575,51 @@ export function InlineTriggers({
     [popup, removePlaceholder, insertPill, insertEmbedSibling, onAddClass, onTemplateInstantiate, handleClose],
   );
 
+  // Execute a slash command. The slash popup is inline: the trigger text
+  // (`/` + typed query) is removed in one shot and the selection collapses to
+  // the trigger offset, which becomes the insertion point for follow-on actions.
   const handleSelectCommand = useCallback(
     (commandId: string) => {
-      removePlaceholder();
+      const insertOffset = removeSlashRange();
+      // Anchor follow-on popups to the slash popup's own position: prefer the live
+      // popup state, otherwise the rect captured when the slash opened. Both are
+      // the same reliable, on-screen anchor that keeps the slash popup itself
+      // placed correctly. Deliberately do NOT read the live DOM selection here —
+      // right after deleting the trigger text it can return an off-screen fallback
+      // rect that strands the popup.
+      const reopenAt = () => {
+        const coords = popup?.position ?? slashAnchorRef.current;
+        if (coords) return coords;
+        // Ultimate fallback: anchor to the editor block root (always visible while
+        // the user is editing it) rather than risk an off-screen caret read.
+        const r = (rootRef.current ?? document.body).getBoundingClientRect();
+        return {
+          top: r.bottom + window.scrollY,
+          left: r.left + window.scrollX,
+          caretTop: r.top + window.scrollY,
+        };
+      };
+
+      // Re-openers: the '/XXXXX' text is already gone, so clear the placeholder
+      // offset — otherwise the follow-up popup's single-char removal would delete
+      // the character now sitting at the trigger offset.
+      if (commandId === 'link' || commandId === 'blocklink' || commandId === 'type' || commandId === 'tag') {
+        placeholderOffsetRef.current = null;
+        const type: TriggerPopupType =
+          commandId === 'type' ? 'class' : commandId === 'tag' ? 'tag' : 'link';
+        setPopup({
+          type,
+          position: reopenAt(),
+          ...(commandId === 'blocklink' ? { linkSearchMode: 'blocks' as const } : {}),
+        });
+        return;
+      }
 
       if (commandId === 'template') {
-        const coords = getCaretCoordinates(rootRef.current ?? document.body);
+        placeholderOffsetRef.current = null;
         setPopup({
           type: 'link',
-          position: coords,
+          position: reopenAt(),
           context: 'template',
           classFilters: templateClassFilters,
         });
@@ -389,10 +627,10 @@ export function InlineTriggers({
       }
 
       if (commandId === 'embed') {
-        const coords = getCaretCoordinates(rootRef.current ?? document.body);
+        placeholderOffsetRef.current = null;
         setPopup({
           type: 'link',
-          position: coords,
+          position: reopenAt(),
           context: 'embed',
         });
         return;
@@ -405,15 +643,39 @@ export function InlineTriggers({
       }
 
       if (commandId === 'date') {
-        // removePlaceholder() already ran; selection is at the insertion offset.
-        dateInsertOffsetRef.current = placeholderOffsetRef.current;
-        const coords = getCaretCoordinates(rootRef.current ?? document.body);
+        dateInsertOffsetRef.current = insertOffset;
+        const coords = reopenAt();
         setDateAnchorPos({
           top: coords.caretTop - window.scrollY,
           left: coords.left - window.scrollX,
         });
         handleClose();
         setDatePickerOpen(true);
+        return;
+      }
+
+      if (commandId === 'url') {
+        urlInsertOffsetRef.current = insertOffset;
+        handleClose();
+        setUrlModalOpen(true);
+        return;
+      }
+
+      if (commandId === 'property') {
+        const coords = reopenAt();
+        setPropertyAnchorPos({
+          top: coords.caretTop - window.scrollY,
+          left: coords.left - window.scrollX,
+        });
+        handleClose();
+        setPropertyPickerOpen(true);
+        return;
+      }
+
+      if (commandId === 'comment') {
+        setCommentText('');
+        handleClose();
+        setCommentPromptOpen(true);
         return;
       }
 
@@ -431,7 +693,8 @@ export function InlineTriggers({
       handleClose();
     },
     [
-      removePlaceholder,
+      popup,
+      removeSlashRange,
       rootRef,
       blockId,
       applyMutation,
@@ -566,10 +829,94 @@ export function InlineTriggers({
     return () => root.removeEventListener('compositionend', handleCompositionEnd);
   }, [rootRef, stateRef, openTrigger]);
 
+  // ─── Inline slash popup ────────────────────────────────────────────────
+  // The block itself is the search field: derive the query from the text between
+  // the '/' and the caret, reset the highlight when it changes, and dismiss when
+  // the '/' is removed or the caret leaves the region (text is kept).
+  let inlineSlashQuery = '';
+  const isInlineSlashOpen = popup?.inline === true && popup.type === 'slash';
+  if (isInlineSlashOpen) {
+    const st = stateRef.current;
+    const triggerOffset = placeholderOffsetRef.current ?? -1;
+    const caret = st.selection.type === 'collapsed' ? st.selection.offset : -1;
+    slashCaretRef.current = caret;
+    const slashPresent =
+      triggerOffset >= 0 && getTextInRange(st, triggerOffset, triggerOffset + 1) === '/';
+    const caretInRegion = caret > triggerOffset;
+    if (!slashPresent || !caretInRegion) {
+      // Adjust state during render (converges: next render popup is null).
+      setPopup(null);
+      popupOpenRef.current = false;
+      placeholderOffsetRef.current = null;
+      slashActiveIdRef.current = null;
+      slashCountRef.current = 0;
+    } else {
+      inlineSlashQuery = getTextInRange(st, triggerOffset + 1, caret);
+      if (slashLastQueryRef.current !== inlineSlashQuery) {
+        slashLastQueryRef.current = inlineSlashQuery;
+        setSlashSelectedIndex(0);
+      }
+    }
+  }
+
+  // Intercept ↑/↓/Enter/Esc for the inline slash popup on the editor root
+  // (capture), ahead of CustomInlineEditor's React onKeyDown (bubble).
+  useEffect(() => {
+    if (!isInlineSlashOpen) return;
+    const root = rootRef.current;
+    if (!root) return;
+    const handler = (event: KeyboardEvent) => {
+      if (!root.contains(event.target as globalThis.Node)) return;
+      if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        setSlashSelectedIndex((i) => Math.min(i + 1, Math.max(0, slashCountRef.current - 1)));
+      } else if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        setSlashSelectedIndex((i) => Math.max(i - 1, 0));
+      } else if (event.key === 'Enter') {
+        const active = slashActiveIdRef.current;
+        if (active) {
+          event.preventDefault();
+          event.stopImmediatePropagation();
+          handleSelectCommand(active);
+        } else {
+          // No match: close and let the editor handle Enter (newline).
+          closeInlineSlash();
+        }
+      } else if (event.key === 'Escape') {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        closeInlineSlash();
+      }
+    };
+    root.addEventListener('keydown', handler, true);
+    return () => root.removeEventListener('keydown', handler, true);
+  }, [isInlineSlashOpen, rootRef, handleSelectCommand, closeInlineSlash]);
+
+  const handleActiveCommandChange = useCallback((id: string | null, count: number) => {
+    slashActiveIdRef.current = id;
+    slashCountRef.current = count;
+  }, []);
+
+  const handleHighlightChange = useCallback((index: number) => {
+    setSlashSelectedIndex(index);
+  }, []);
+
   // Render nothing only when neither the trigger popup nor a follow-on picker
-  // (date / date-range) is active. Pickers open after the trigger popup closes,
-  // so they must be allowed to render while `popup` is null.
-  if (!popup && !dateRangePickerOpen && !datePickerOpen) return null;
+  // (date / date-range / url / property / comment) is active. Pickers open after
+  // the trigger popup closes, so they must be allowed to render while `popup` is null.
+  if (
+    !popup &&
+    !dateRangePickerOpen &&
+    !datePickerOpen &&
+    !urlModalOpen &&
+    !propertyPickerOpen &&
+    !commentPromptOpen
+  ) {
+    return null;
+  }
 
   return (
     <>
@@ -579,10 +926,16 @@ export function InlineTriggers({
           position={popup.position}
           onSelectNode={popup.type !== 'slash' ? handleSelectNode : undefined}
           onSelectCommand={popup.type === 'slash' ? handleSelectCommand : undefined}
-          onClose={handleClose}
+          onClose={popup.inline ? closeInlineSlash : handleClose}
           onDeletePlaceholder={handleDeletePlaceholder}
           hiddenSlashCommandIds={hiddenSlashCommandIds}
           contextBlockServerId={blockServerIdRef.current}
+          linkSearchMode={popup.linkSearchMode}
+          inline={popup.inline}
+          controlledQuery={popup.inline ? inlineSlashQuery : undefined}
+          controlledSelectedIndex={popup.inline ? slashSelectedIndex : undefined}
+          onActiveCommandChange={popup.inline ? handleActiveCommandChange : undefined}
+          onHighlightChange={popup.inline ? handleHighlightChange : undefined}
         />
       )}
       {dateRangePickerOpen && (
@@ -596,17 +949,20 @@ export function InlineTriggers({
       )}
       {datePickerOpen && dateAnchorPos && (
         <>
-          <span
-            ref={dateAnchorRef}
-            style={{
-              position: 'fixed',
-              top: dateAnchorPos.top,
-              left: dateAnchorPos.left,
-              width: 0,
-              height: 0,
-              pointerEvents: 'none',
-            }}
-          />
+          {createPortal(
+            <span
+              ref={dateAnchorRef}
+              style={{
+                position: 'fixed',
+                top: dateAnchorPos.top,
+                left: dateAnchorPos.left,
+                width: 0,
+                height: 0,
+                pointerEvents: 'none',
+              }}
+            />,
+            document.body,
+          )}
           <DatePickerPopup
             onSelect={handleDateSelect}
             onClose={() => {
@@ -616,6 +972,91 @@ export function InlineTriggers({
             anchorRef={dateAnchorRef}
           />
         </>
+      )}
+      {urlModalOpen && (
+        <LinkEditModal
+          isOpen
+          linkId=""
+          refType="url"
+          currentUrl=""
+          currentLabel={null}
+          initialMode="url"
+          title="Add URL"
+          onSave={handleUrlSave}
+          onClose={() => {
+            setUrlModalOpen(false);
+            urlInsertOffsetRef.current = null;
+          }}
+        />
+      )}
+      {propertyPickerOpen && propertyAnchorPos && (
+        <>
+          {createPortal(
+            <span
+              ref={propertyAnchorRef}
+              style={{
+                position: 'fixed',
+                top: propertyAnchorPos.top,
+                left: propertyAnchorPos.left,
+                width: 0,
+                height: 0,
+                pointerEvents: 'none',
+              }}
+            />,
+            document.body,
+          )}
+          {createPortal(
+            <div
+              data-editor-companion
+              style={{
+                position: 'fixed',
+                top: propertyPosition?.top,
+                left: propertyPosition?.left,
+                zIndex: 'var(--z-1000)',
+                visibility: propertyPosition ? 'visible' : 'hidden',
+                width: 320,
+              }}
+            >
+              <PropertySuggestionPopup
+                anchored
+                isOpen
+                onClose={() => setPropertyPickerOpen(false)}
+                onSelect={handlePropertySelect}
+                onCreate={handlePropertyCreate}
+                contextNodeId={blockServerIdRef.current ?? undefined}
+              />
+            </div>,
+            document.body,
+          )}
+        </>
+      )}
+      {commentPromptOpen && (
+        <Modal
+          isOpen
+          onClose={() => setCommentPromptOpen(false)}
+          title="Add comment"
+          size="sm"
+          footer={(
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--spacing-2)' }}>
+              <Button variant="ghost" size="sm" onClick={() => setCommentPromptOpen(false)}>Cancel</Button>
+              <Button variant="primary" size="sm" onClick={handleCommentSubmit}>Save</Button>
+            </div>
+          )}
+        >
+          <TextField
+            ref={commentInputRef}
+            value={commentText}
+            onChange={(e) => setCommentText(e.target.value)}
+            placeholder="Write a comment…"
+            aria-label="Comment"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleCommentSubmit();
+              }
+            }}
+          />
+        </Modal>
       )}
     </>
   );

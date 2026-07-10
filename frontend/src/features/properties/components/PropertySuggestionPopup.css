@@ -19,6 +19,14 @@
   overflow: hidden;
 }
 
+/* Anchored mode: a fixed, portaled wrapper owns placement (slash-command picker). */
+.property-suggestion-popup--anchored {
+  position: static;
+  margin-top: 0;
+  width: 100%;
+  max-width: none;
+}
+
 .property-suggestion-popup__search {
   width: 100%;
   padding: var(--spacing-2);

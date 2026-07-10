@@ -202,7 +202,7 @@ export function LinkEditModal({
       footer={footer}
       className="link-edit-modal"
     >
-      <div className="link-edit-modal__body">
+      <div className="link-edit-modal__body" data-editor-companion>
         
         {/* Mode toggle */}
         <div className="link-edit-modal__section link-edit-modal__mode-section">

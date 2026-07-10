@@ -247,6 +247,8 @@ function InlineUnitRenderer({ unit, editable, textUnitClassName, onPillClick, on
 export function InlineContentRenderer({ name, editable, textUnitClassName, onPillClick, onEditPill, onRemovePill, onToggleClassPill, selectedPillLinkId }: InlineContentRendererProps): JSX.Element {
   const ast = useMemo(() => parseAST(name) as ContentAST, [name]);
   const units = useMemo(() => astToUnits(getInlineChildren(ast)), [ast]);
+  const lastUnit = units[units.length - 1];
+  const needsTrailingAnchor = lastUnit?.type === 'atomic';
 
   return (
     <>
@@ -263,6 +265,11 @@ export function InlineContentRenderer({ name, editable, textUnitClassName, onPil
           selectedPillLinkId={selectedPillLinkId}
         />
       ))}
+      {needsTrailingAnchor && (
+        <span data-caret-anchor="true" aria-hidden="true">
+          {'\u200B'}
+        </span>
+      )}
     </>
   );
 }

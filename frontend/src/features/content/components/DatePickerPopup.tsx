@@ -4,7 +4,7 @@
  * Wires the controlled `DatePickerPopup` base component to Notees settings and
  * daily-page data. Used by date property editors.
  */
-import { DatePickerPopup as DatePickerPopupBase } from '@/components/ui';
+import { DatePickerPopup as DatePickerPopupBase, type CalendarMode } from '@/components/ui';
 import { useExistingDailyPages } from '@/features/content';
 import { useSettingsStore } from '@/stores';
 
@@ -17,9 +17,13 @@ export interface DatePickerPopupProps {
   onClose: () => void;
   /** Ref to the anchor element for positioning */
   anchorRef?: React.RefObject<HTMLElement | null>;
+  /** Initial drill-down level (defaults to the day grid) */
+  initialMode?: CalendarMode;
+  /** Extra class on the popup root (e.g. to raise z-index when layered over a modal) */
+  className?: string;
 }
 
-export function DatePickerPopup({ value, onSelect, onClose, anchorRef }: DatePickerPopupProps) {
+export function DatePickerPopup({ value, onSelect, onClose, anchorRef, initialMode, className }: DatePickerPopupProps) {
   const firstDayOfWeek = useSettingsStore((s) => s.firstDayOfWeek);
   const { data: dailyPages = [] } = useExistingDailyPages();
 
@@ -29,6 +33,8 @@ export function DatePickerPopup({ value, onSelect, onClose, anchorRef }: DatePic
       onSelect={onSelect}
       onClose={onClose}
       anchorRef={anchorRef}
+      initialMode={initialMode}
+      className={className}
       firstDayOfWeek={firstDayOfWeek}
       dailyPages={dailyPages}
     />

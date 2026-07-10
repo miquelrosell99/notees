@@ -2,7 +2,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-3, 12px);
-  min-width: 280px;
+  min-width: var(--layout-size-6xl);
 }
 
 .date-range-row {
@@ -17,27 +17,6 @@
   gap: var(--space-1, 4px);
   font-size: var(--font-size-sm, 0.875rem);
   color: var(--color-text-secondary);
-}
-
-.date-range-input,
-.date-range-select,
-.date-range-year-input {
-  padding: var(--space-2, 8px);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md, 6px);
-  background: var(--color-surface);
-  color: var(--color-text);
-  font-size: var(--font-size-sm, 0.875rem);
-}
-
-.date-range-year-input {
-  width: 80px;
-}
-
-.date-range-month {
-  display: flex;
-  gap: var(--space-2, 8px);
-  align-items: center;
 }
 
 .date-range-preview {
@@ -80,4 +59,33 @@
 
 .property-value-date-range-display:disabled {
   cursor: default;
+}
+
+/* Trigger button that opens the drill-down date picker for a range field */
+.date-range-trigger {
+  width: 100%;
+  text-align: left;
+  padding: var(--spacing-2) var(--spacing-3);
+  border: var(--border-width-default) solid var(--color-outline-variant);
+  border-radius: var(--shape-small);
+  background: var(--color-surface);
+  color: var(--color-on-surface);
+  font: var(--font-body-medium);
+  cursor: pointer;
+  transition: border-color var(--motion-duration-short) var(--motion-easing-standard), background var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.date-range-trigger:hover {
+  background: var(--color-surface-container-high);
+}
+
+.date-range-trigger:focus-visible {
+  outline: var(--border-width-thick) solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* The range picker popup is portaled to document.body and must sit above the
+   modal backdrop (--z-modal-backdrop: 10000) and modal (--z-modal: 10001). */
+.date-range-calendar {
+  z-index: var(--z-floating);
 }

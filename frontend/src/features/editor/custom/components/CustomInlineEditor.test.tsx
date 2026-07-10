@@ -1,9 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, act, fireEvent } from '@testing-library/react';
 import { createRef } from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { CustomInlineEditor } from './CustomInlineEditor';
 import type { InlineEditorHandle } from '@/features/editor/editor/types';
+import type { ContentAST } from '@/runtime/types';
 import { useEditorFocusStore } from '@/stores/editorFocusStore';
+
+function renderWithProviders(ui: React.ReactElement) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
+}
 
 describe('CustomInlineEditor typing', () => {
   beforeEach(() => {
@@ -150,5 +157,110 @@ describe('CustomInlineEditor typing', () => {
 
     const lastCall = onChange.mock.calls[onChange.mock.calls.length - 1];
     expect(JSON.parse(lastCall[1])).toEqual([{ type: 'paragraph', children: [{ type: 'text', text: 'a' }] }]);
+  });
+
+  it('ignores Backspace keydown events from inside an editor companion', () => {
+    const onChange = vi.fn();
+    render(
+      <CustomInlineEditor
+        blockId="block-1"
+        initialContentAST={[{ type: 'paragraph', children: [{ type: 'text', text: 'abc' }] }]}
+        onContentChange={onChange}
+      />,
+    );
+
+    const editor = screen.getByRole('textbox');
+    const companionInput = document.createElement('input');
+    companionInput.setAttribute('data-editor-companion', 'true');
+    editor.appendChild(companionInput);
+    act(() => {
+      companionInput.focus();
+    });
+
+    fireEvent.keyDown(companionInput, { key: 'Backspace' });
+
+    const lastCall = onChange.mock.calls[onChange.mock.calls.length - 1];
+    expect(lastCall).toBeDefined();
+    expect(JSON.parse(lastCall[1])).toEqual([{ type: 'paragraph', children: [{ type: 'text', text: 'abc' }] }]);
+
+    editor.removeChild(companionInput);
+  });
+
+  it('ignores beforeinput delete events from inside an editor companion', () => {
+    const onChange = vi.fn();
+    render(
+      <CustomInlineEditor
+        blockId="block-1"
+        initialContentAST={[{ type: 'paragraph', children: [{ type: 'text', text: 'abc' }] }]}
+        onContentChange={onChange}
+      />,
+    );
+
+    const editor = screen.getByRole('textbox');
+    const companionInput = document.createElement('input');
+    companionInput.setAttribute('data-editor-companion', 'true');
+    editor.appendChild(companionInput);
+    act(() => {
+      companionInput.focus();
+    });
+
+    const event = new InputEvent('beforeinput', {
+      bubbles: true,
+      cancelable: true,
+      inputType: 'deleteContentBackward',
+    });
+    act(() => {
+      companionInput.dispatchEvent(event);
+    });
+
+    const lastCall = onChange.mock.calls[onChange.mock.calls.length - 1];
+    expect(lastCall).toBeDefined();
+    expect(JSON.parse(lastCall[1])).toEqual([{ type: 'paragraph', children: [{ type: 'text', text: 'abc' }] }]);
+
+    editor.removeChild(companionInput);
+  });
+
+  it('does not delete a selected link pill when Backspace is pressed in a companion input', () => {
+    const onChange = vi.fn();
+    const initialAST = [
+      {
+        type: 'paragraph',
+        children: [
+          { type: 'text', text: 'before ' },
+          { type: 'node_link', link_id: 'node:abc', ref_type: 'node' },
+        ],
+      },
+    ];
+    renderWithProviders(
+      <CustomInlineEditor
+        blockId="block-1"
+        initialContentAST={initialAST as unknown as ContentAST}
+        onContentChange={onChange}
+      />,
+    );
+
+    const pill = document.querySelector('[data-link-id="node:abc"]') as HTMLElement | null;
+    expect(pill).not.toBeNull();
+
+    act(() => {
+      pill?.click();
+    });
+
+    const editor = screen.getByRole('textbox');
+    const companionInput = document.createElement('input');
+    companionInput.setAttribute('data-editor-companion', 'true');
+    editor.appendChild(companionInput);
+    act(() => {
+      companionInput.focus();
+    });
+
+    fireEvent.keyDown(companionInput, { key: 'Backspace' });
+
+    const lastCall = onChange.mock.calls[onChange.mock.calls.length - 1];
+    expect(lastCall).toBeDefined();
+    const lastAST = JSON.parse(lastCall[1]);
+    expect(lastAST[0].children.some((child: { type: string }) => child.type === 'node_link')).toBe(true);
+
+    editor.removeChild(companionInput);
   });
 });

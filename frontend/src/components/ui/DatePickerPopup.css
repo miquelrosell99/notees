@@ -15,7 +15,7 @@
   /* Design system: zero visual noise — no elevation shadows */
   padding: var(--spacing-3);
   z-index: var(--z-popover);
-  min-width: var(--layout-size-6xl);
+  min-width: var(--layout-size-4xl);
 }
 
 /* ==================== Text Input ==================== */
@@ -23,7 +23,7 @@
   display: flex;
   align-items: center;
   gap: var(--spacing-2);
-  margin-bottom: var(--spacing-3);
+  margin-bottom: var(--spacing-2);
 }
 
 .date-picker-text-input {
@@ -61,7 +61,24 @@
 /* ==================== Selected Date Indicator ==================== */
 /* Selected-day styles live in CalendarPopup.css, which DatePickerPopup reuses. */
 
-.calendar-today-btn {
-  min-height: var(--button-min-height);
-  min-width: var(--button-min-height);
+/*
+ * Container, header, weekday and day-cell styles are shared with the top-bar
+ * calendar via CalendarPopup.css (imported by DatePickerPopup.tsx). Only the
+ * type-a-date input + preview above the grid are date-picker-specific.
+ */
+
+.date-picker-popup .calendar-today-btn {
+  min-height: var(--height-sm);
+  min-width: var(--height-sm);
+}
+
+/* ==================== Insert Error ==================== */
+.date-picker-error {
+  font: var(--font-label-small);
+  color: var(--color-error);
+  padding: var(--spacing-1) var(--spacing-2);
+  margin-bottom: var(--spacing-2);
+  background: var(--color-error-container, var(--color-surface-container));
+  border-radius: var(--shape-small);
+  word-break: break-word;
 }

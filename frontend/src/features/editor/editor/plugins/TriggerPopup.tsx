@@ -139,6 +139,21 @@ export interface TriggerPopupProps {
   hiddenSlashCommandIds?: Set<string>;
   /** Server ID (UUID) of the block that opened this popup, used for context-aware filtering */
   contextBlockServerId?: string;
+  /** Constrains the link popup (`type === 'link'`) to a subset of nodes (e.g. blocks only) */
+  linkSearchMode?: 'all' | 'pages' | 'blocks';
+  /**
+   * Inline mode: the editor block is the filter field (slash only). The popup has no
+   * search input, does not steal focus, and is driven by the parent.
+   */
+  inline?: boolean;
+  /** Query source when `inline` (text after the trigger in the block) */
+  controlledQuery?: string;
+  /** Highlight index owned by the parent when `inline` */
+  controlledSelectedIndex?: number;
+  /** Reports the highlighted slash command + list size for parent `Enter` handling */
+  onActiveCommandChange?: (commandId: string | null, itemCount: number) => void;
+  /** Hover highlight changes (inline mode) — parent owns the index */
+  onHighlightChange?: (index: number) => void;
 }
 
 export function TriggerPopup({
@@ -150,9 +165,19 @@ export function TriggerPopup({
   onDeletePlaceholder,
   hiddenSlashCommandIds,
   contextBlockServerId,
+  linkSearchMode,
+  inline = false,
+  controlledQuery,
+  controlledSelectedIndex,
+  onActiveCommandChange,
+  onHighlightChange,
 }: TriggerPopupProps) {
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
+
+  const isInlineSlash = inline && type === 'slash';
+  // In inline mode the editor block drives the query; otherwise the popup owns it.
+  const effectiveQuery = isInlineSlash ? (controlledQuery ?? '') : query;
 
   const allSlashCommands = useMemo<SlashCommand[]>(() => {
     const pluginCommands = getRegisteredSlashCommands().map((cmd) => ({
@@ -185,7 +210,7 @@ export function TriggerPopup({
   // (value picker / pending filter) are handled first.
   useOverlaySurface({
     type: 'popup',
-    enabled: true,
+    enabled: !isInlineSlash,
     onClose,
     onEscape: () => {
       if (valuePickerFilter) {
@@ -234,7 +259,11 @@ export function TriggerPopup({
   }, [contextBlockServerId]);
 
   // Determine search mode and filter props from active filters
-  const searchMode = type === 'class' ? 'classes' : type === 'tag' ? 'tags' : 'all';
+  const searchMode =
+    type === 'class' ? 'classes'
+      : type === 'tag' ? 'tags'
+        : type === 'link' && linkSearchMode ? linkSearchMode
+          : 'all';
   const filterProps = useMemo(() => {
     const props: { isUserPage?: boolean; isPage?: boolean; isClass?: boolean; isDaily?: boolean } = {};
     for (const f of activeFilters) {
@@ -301,7 +330,7 @@ export function TriggerPopup({
       }
     } else {
       // Slash commands
-      const lower = query.toLowerCase();
+      const lower = effectiveQuery.toLowerCase();
       const scored = allSlashCommands
         .filter((c) => !hiddenSlashCommandIds?.has(c.id))
         .map((c) => {
@@ -309,7 +338,7 @@ export function TriggerPopup({
           const descMatch = c.description.toLowerCase().includes(lower);
           const textScore = (labelMatch ? 2 : 0) + (descMatch ? 1 : 0);
           return { cmd: c, textScore, freq: commandUsage[c.id] || 0 };
-        }).filter((s) => s.textScore > 0 || !query);
+        }).filter((s) => s.textScore > 0 || !effectiveQuery);
       scored.sort((a, b) => {
         if (b.textScore !== a.textScore) return b.textScore - a.textScore;
         return b.freq - a.freq;
@@ -320,21 +349,35 @@ export function TriggerPopup({
     }
 
     return { selectableItems: items };
-  }, [type, pendingFilter, valuePickerFilter, nodeItems, query, commandUsage, hiddenSlashCommandIds, allSlashCommands]);
+  }, [type, pendingFilter, valuePickerFilter, nodeItems, effectiveQuery, commandUsage, hiddenSlashCommandIds, allSlashCommands]);
 
   const showCreate = isNodeTrigger && showCreateOption && cleanQuery.trim() && !valuePickerFilter;
   const itemCount = selectableItems.length + (showCreate ? 1 : 0);
 
-  // Clamp selected index
-  const effectiveSelectedIndex = Math.min(selectedIndex, Math.max(0, itemCount - 1));
+  // Clamp selected index (parent-owned in inline mode)
+  const baseIndex = isInlineSlash ? (controlledSelectedIndex ?? 0) : selectedIndex;
+  const effectiveSelectedIndex = Math.min(baseIndex, Math.max(0, itemCount - 1));
 
-  // Focus input on mount
+  // Focus input on mount (skipped in inline mode — focus stays in the editor)
   useEffect(() => {
+    if (isInlineSlash) return;
     const id = requestAnimationFrame(() => {
       inputRef.current?.focus();
     });
     return () => cancelAnimationFrame(id);
-  }, []);
+  }, [isInlineSlash]);
+
+  // Report the highlighted slash command + list size to the parent (inline mode).
+  const activeCommandId = useMemo(() => {
+    if (!isInlineSlash) return null;
+    const item = selectableItems[effectiveSelectedIndex];
+    return item?.kind === 'command' ? item.cmd.id : null;
+  }, [isInlineSlash, selectableItems, effectiveSelectedIndex]);
+
+  useEffect(() => {
+    if (!isInlineSlash) return;
+    onActiveCommandChange?.(activeCommandId, itemCount);
+  }, [isInlineSlash, activeCommandId, itemCount, onActiveCommandChange]);
 
   // Close on click outside
   useEffect(() => {
@@ -769,11 +812,13 @@ export function TriggerPopup({
                 className={`trigger-popup__command ${
                   index === effectiveSelectedIndex ? 'trigger-popup__command--selected' : ''
                 }`}
+                role={isInlineSlash ? 'option' : undefined}
+                aria-selected={isInlineSlash ? index === effectiveSelectedIndex : undefined}
                 onClick={() => {
                   bumpCommandUsage(item.cmd.id);
                   onSelectCommand?.(item.cmd.id);
                 }}
-                onMouseEnter={() => setSelectedIndex(index)}
+                onMouseEnter={() => (isInlineSlash ? onHighlightChange?.(index) : setSelectedIndex(index))}
               >
                 <span className="trigger-popup__command-label">{item.cmd.label}</span>
                 <span className="trigger-popup__command-desc">{item.cmd.description}</span>
@@ -808,11 +853,10 @@ export function TriggerPopup({
   );
 
   const popup = (
-    // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
     <div
       ref={containerRef}
       data-editor-companion
-      className={`trigger-popup trigger-popup--${type} ${placement === 'above' ? 'trigger-popup--above' : ''}`}
+      className={`trigger-popup trigger-popup--${type} ${placement === 'above' ? 'trigger-popup--above' : ''}${isInlineSlash ? ' trigger-popup--inline' : ''}`}
       style={{
         position: 'fixed',
         top: popupPos.top,
@@ -823,15 +867,15 @@ export function TriggerPopup({
         maxHeight: placement === 'above' ? position.caretTop - 4 : undefined,
       }}
       onMouseDown={(e) => e.stopPropagation()}
-      role="dialog"
-      aria-modal="true"
+      role={isInlineSlash ? 'listbox' : 'dialog'}
+      aria-modal={isInlineSlash ? undefined : true}
       aria-label={headerText}
       tabIndex={-1}
     >
       {placement === 'below' ? (
         <>
           {header}
-          {search}
+          {!isInlineSlash && search}
           {valuePickerFilter ? valuePickerList : mainList}
           {footer}
         </>
@@ -840,7 +884,7 @@ export function TriggerPopup({
           {valuePickerFilter ? valuePickerList : mainList}
           {footer}
           {header}
-          {search}
+          {!isInlineSlash && search}
         </>
       )}
     </div>

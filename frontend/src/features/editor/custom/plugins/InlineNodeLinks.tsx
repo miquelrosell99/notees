@@ -20,6 +20,7 @@ import {
   offsetToPosition,
   deleteRange,
 } from '../model/inlineEditorModel';
+import { isInsideEditorCompanion } from '../utils/editorCompanion';
 import type { InlineEditorState } from '../model/types';
 import type { InlineLinkRefType } from '@/features/editor/editor/types';
 
@@ -47,6 +48,16 @@ function getLinkId(node: ASTInlineNode): string | null {
   if (node.type === 'node_link' || node.type === 'broken_link') return node.link_id;
   if (node.type === 'external_link') return node.url;
   return null;
+}
+
+function isClickInLeftPadding(wrapper: HTMLElement, clientX: number): boolean {
+  const inner = wrapper.querySelector('.inline-link-inner') as HTMLElement | null;
+  if (!inner) return false;
+  const wrapperRect = wrapper.getBoundingClientRect();
+  const innerRect = inner.getBoundingClientRect();
+  // The wrapper may have editor-only padding-left; clicks in that gap should
+  // place the caret before the pill instead of selecting it.
+  return clientX >= wrapperRect.left && clientX < innerRect.left;
 }
 
 function getPillOffset(state: InlineEditorState, linkId: string): number {
@@ -135,6 +146,16 @@ export function InlineNodeLinks({
       event.preventDefault();
       event.stopPropagation();
 
+      const offset = getPillOffset(stateRef.current, linkId);
+
+      // Clicks in the editor-only left padding should place the caret before the
+      // pill rather than selecting it.
+      if (isClickInLeftPadding(wrapper, event.clientX)) {
+        applyMutation((prev) => setCollapsedOffset(prev, offset));
+        clearSelection();
+        return;
+      }
+
       if (refType === 'url' && url) {
         window.open(url, '_blank', 'noopener,noreferrer');
         clearSelection();
@@ -143,9 +164,11 @@ export function InlineNodeLinks({
 
       if (selectedLinkIdRef.current === linkId) {
         // Second click on an already-selected pill places the caret.
-        const rect = wrapper.getBoundingClientRect();
+        // Use the inner content rect so editor-only padding on the wrapper does
+        // not skew the before/after midpoint decision.
+        const inner = wrapper.querySelector('.inline-link-inner') as HTMLElement | null;
+        const rect = inner ? inner.getBoundingClientRect() : wrapper.getBoundingClientRect();
         const midX = rect.left + rect.width / 2;
-        const offset = getPillOffset(stateRef.current, linkId);
         const targetOffset = event.clientX >= midX ? offset + 1 : offset;
         applyMutation((prev) => setCollapsedOffset(prev, targetOffset));
         clearSelection();
@@ -207,6 +230,10 @@ export function InlineNodeLinks({
     (event: KeyboardEvent) => {
       const root = rootRef.current;
       if (!root) return;
+      // Ignore keystrokes that originate outside the editable root (e.g. inputs
+      // in portaled popups such as the link insertion popup).
+      if (!root.contains(event.target as Node)) return;
+      if (isInsideEditorCompanion(event.target)) return;
 
       const key = event.key;
       const isMod = event.ctrlKey || event.metaKey;
