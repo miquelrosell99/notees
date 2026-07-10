@@ -238,7 +238,23 @@ export function flattenNodesFromRuntime(
       }
       visited.add(node.uuid);
       const effectiveCollapsed = expandAll ? false : (collapsedLookup(nodeUuid) ?? false);
-      result.push({ node, depth, effectiveCollapsed });
+      // Overlay the runtime's live content onto the prop node. The prop node
+      // carries the stale TanStack Query cache (e.g. empty after a fresh edit),
+      // while the runtime projection already holds the just-typed contentAST.
+      // Without this overlay, the read-only static view rendered empty/stale
+      // content after exiting edit mode until the next refetch (full reload).
+      // Mirrors how runtime-only nodes derive their `name` from contentAST above.
+      const displayNode: Node = projected
+        ? {
+            ...node,
+            name: JSON.stringify(projected.contentAST),
+            icon: projected.icon ?? node.icon,
+            color: projected.color ?? node.color,
+            classes_uuid: projected.classIds,
+            tags_uuid: projected.tagIds,
+          }
+        : node;
+      result.push({ node: displayNode, depth, effectiveCollapsed });
 
       if (!effectiveCollapsed && (maxDepth < 0 || depth < maxDepth)) {
         const children = byParent.get(nodeUuid) || [];
