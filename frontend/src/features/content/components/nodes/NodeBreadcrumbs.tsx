@@ -33,6 +33,7 @@ import { ChevronRightIcon, NodeIcon } from '@/components/ui/icons';
 import { Button } from '@/components/ui/Button';
 import { NodeInline } from '@/features/content/components/blocks/NodeInline';
 import { NodeSelector } from './NodeSelector';
+import { useRuntimeDisplayName } from '@/features/content/hooks/runtimeContentOverlay';
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/ContextMenu';
 import { PROPERTY_TYPE_ICONS } from '@/features/properties';
 import './NodeBreadcrumbs.css';
@@ -80,6 +81,12 @@ function NodeBreadcrumbsElement({
   onContextMenu,
 }: NodeBreadcrumbsElementProps) {
   const wrapperRef = useRef<HTMLSpanElement>(null);
+  // Live name from the runtime so a block-ancestor crumb reflects content
+  // edits immediately instead of after the next breadcrumb-cache refetch.
+  const liveName = useRuntimeDisplayName(
+    item.isProperty ? null : item.nodeUuid,
+    item.name,
+  );
 
   const handleEditClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -98,7 +105,7 @@ function NodeBreadcrumbsElement({
   return (
     <span ref={wrapperRef} className="node-breadcrumb-item" onContextMenu={handleContextMenu}>
       <NodeInline
-        name={item.name}
+        name={liveName}
         displayText={item.displayName}
         icon={item.icon}
         showBullet={!!item.icon}
@@ -124,6 +131,26 @@ function NodeBreadcrumbsElement({
   );
 }
 
+// ─── BreadcrumbPopupItem ────────────────────────────────────────────────
+
+/** Single item inside the breadcrumbs overflow popup. Lives in its own
+ *  component so it can subscribe to the runtime for a fresh name. */
+function BreadcrumbPopupItem({ item, onClick }: { item: BreadcrumbItem; onClick: (item: BreadcrumbItem) => void }) {
+  const liveName = useRuntimeDisplayName(item.isProperty ? null : item.nodeUuid, item.name);
+  const label = item.isProperty
+    ? item.name
+    : (item.displayName || nodeNameToText(liveName) || 'Untitled');
+  return (
+    <button
+      className={`node-breadcrumbs-popup-item ${item.isProperty ? 'node-breadcrumb-property' : ''}`}
+      onClick={() => onClick(item)}
+    >
+      {item.icon && <NodeIcon icon={item.icon} size="xs" className="node-breadcrumb-popup-icon" />}
+      <span className="node-breadcrumb-popup-name">{label}</span>
+    </button>
+  );
+}
+
 // ─── NodeBreadcrumbsList ──────────────────────────────────────────────────────
 
 interface NodeBreadcrumbsListProps {
@@ -145,14 +172,11 @@ function NodeBreadcrumbsList({ items, onClick, variant = 'inline', onEditParent,
     return (
       <div className="node-breadcrumbs-popup">
         {items.map((item) => (
-          <button
+          <BreadcrumbPopupItem
             key={item.isProperty ? `prop-${item.nodeUuid}` : item.nodeUuid}
-            className={`node-breadcrumbs-popup-item ${item.isProperty ? 'node-breadcrumb-property' : ''}`}
-            onClick={() => onClick(item)}
-          >
-            {item.icon && <NodeIcon icon={item.icon} size="xs" className="node-breadcrumb-popup-icon" />}
-            <span className="node-breadcrumb-popup-name">{item.isProperty ? item.name : (item.displayName || nodeNameToText(item.name) || 'Untitled')}</span>
-          </button>
+            item={item}
+            onClick={onClick}
+          />
         ))}
       </div>
     );
