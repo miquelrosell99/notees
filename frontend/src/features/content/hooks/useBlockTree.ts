@@ -22,6 +22,7 @@ import { upsertNodes } from '@/runtime/eventBus';
 
 import { getRuntimeEventBus } from '@/runtime/eventBus';
 import { apiNodesToGraphNodes } from './useRuntimeSync';
+import { overlayRuntimeContent } from './runtimeContentOverlay';
 import { useUIStateStore } from '@/features/sync';
 import { useEditorFocusStore } from '@/stores/editorFocusStore';
 import type { Node } from '@/types/api';
@@ -244,16 +245,7 @@ export function flattenNodesFromRuntime(
       // Without this overlay, the read-only static view rendered empty/stale
       // content after exiting edit mode until the next refetch (full reload).
       // Mirrors how runtime-only nodes derive their `name` from contentAST above.
-      const displayNode: Node = projected
-        ? {
-            ...node,
-            name: JSON.stringify(projected.contentAST),
-            icon: projected.icon ?? node.icon,
-            color: projected.color ?? node.color,
-            classes_uuid: projected.classIds,
-            tags_uuid: projected.tagIds,
-          }
-        : node;
+      const displayNode = overlayRuntimeContent(runtime, node);
       result.push({ node: displayNode, depth, effectiveCollapsed });
 
       if (!effectiveCollapsed && (maxDepth < 0 || depth < maxDepth)) {
