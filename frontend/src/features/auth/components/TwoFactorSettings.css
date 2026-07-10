@@ -1,0 +1,127 @@
+/**
+ * TwoFactorSettings styles — inline within the settings card.
+ */
+
+.totp-settings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+}
+
+.totp-settings__lead {
+  margin: 0;
+  color: var(--color-on-surface-variant);
+  font-size: var(--font-size-base);
+}
+
+.totp-settings__status {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+}
+
+.totp-settings__badge {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--spacing-1) var(--spacing-2);
+  border-radius: var(--shape-small);
+  background: var(--color-success-container, var(--color-primary-container));
+  color: var(--color-on-success-container, var(--color-on-primary-container));
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+.totp-settings__status-text {
+  color: var(--color-on-surface-variant);
+  font-size: var(--font-size-base);
+}
+
+.totp-settings__or {
+  text-align: center;
+  color: var(--color-on-surface-variant);
+  font-size: var(--font-size-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.totp-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+}
+
+.totp-qr {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 0 auto;
+  padding: var(--spacing-4);
+  background: #ffffff;
+  border-radius: var(--shape-medium);
+  width: fit-content;
+}
+
+.totp-qr svg {
+  display: block;
+  width: 200px;
+  height: 200px;
+}
+
+.totp-manual {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-2);
+  text-align: center;
+}
+
+.totp-manual__label {
+  color: var(--color-on-surface-variant);
+  font-size: var(--font-size-sm);
+}
+
+.totp-manual__key {
+  font-family: var(--font-family-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: var(--font-size-base);
+  letter-spacing: 0.08em;
+  padding: var(--spacing-2) var(--spacing-3);
+  background: var(--color-surface-container);
+  border-radius: var(--shape-small);
+  word-break: break-all;
+}
+
+.totp-backup-codes {
+  list-style: none;
+  margin: 0;
+  padding: var(--spacing-3);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--spacing-2);
+  background: var(--color-surface-container);
+  border-radius: var(--shape-medium);
+}
+
+.totp-backup-codes li {
+  text-align: center;
+}
+
+.totp-backup-codes code {
+  font-family: var(--font-family-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: var(--font-size-base);
+  letter-spacing: 0.04em;
+}
+
+.totp-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--spacing-3);
+  margin-top: var(--spacing-2);
+}
+
+.totp-settings .error-message {
+  color: var(--color-error);
+  font-size: var(--font-size-base);
+  padding: var(--spacing-2);
+  background: var(--color-error-container);
+  border-radius: var(--shape-medium);
+}

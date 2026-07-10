@@ -130,7 +130,9 @@ async def _resolve_user_from_auth(
 
     if jwt_token:
         payload = auth_module.decode_token(jwt_token)
-        if payload:
+        # A 2FA pre-auth token is never a valid session; it may only be used by
+        # the /auth/2fa/* endpoints, which decode it directly.
+        if payload and not auth_module.is_preauth_payload(payload):
             user_id = payload.get("user_id")
             if user_id:
                 user = await auth_module.get_user_by_id(user_id)
