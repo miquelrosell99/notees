@@ -4,6 +4,7 @@ import { NodeNameContent } from '@/features/content/components/blocks/NodeNameCo
 import { NodeCollection } from '@/features/content/components/nodes/NodeCollection';
 import { useNodeNavigation } from '@/features/content';
 import { useContentSave } from '@/features/editor';
+import { getRuntimeDisplayName } from '@/features/content/hooks/runtimeContentOverlay';
 
 interface NodeCellEditableProps {
   node: Node;
@@ -77,7 +78,7 @@ export function NodeCellEditable({ node }: NodeCellEditableProps) {
         setEditing(true);
       }}
     >
-      <NodeNameContent name={node.name} />
+      <NodeNameContent name={getRuntimeDisplayName(node)} />
     </button>
   );
 }
