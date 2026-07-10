@@ -8,6 +8,7 @@ import { useAuthStore } from '@/stores';
 import { Button } from '@/components/ui/Button';
 import { TextField } from '@/components/ui/TextField';
 import { Checkbox } from '@/components/ui/Checkbox';
+import { TwoFactorChallenge } from '@/features/auth/components/TwoFactorChallenge';
 
 interface LoginViewProps {
   registrationEnabled?: boolean;
@@ -36,6 +37,8 @@ export function LoginView({ registrationEnabled = false }: LoginViewProps) {
   const isLoading = useAuthStore((s) => s.isLoading);
   const error = useAuthStore((s) => s.error);
   const clearError = useAuthStore((s) => s.clearError);
+  const twoFactor = useAuthStore((s) => s.twoFactor);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
 
   const passwordError = useMemo(() => {
     if (!isRegister || !password) return null;
@@ -72,6 +75,16 @@ export function LoginView({ registrationEnabled = false }: LoginViewProps) {
 
   const displayError = localError || error;
   const formErrorId = useId();
+
+  if (twoFactor && !isAuthenticated) {
+    return (
+      <div className="login-page">
+        <div className="login-container">
+          <TwoFactorChallenge />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="login-page">

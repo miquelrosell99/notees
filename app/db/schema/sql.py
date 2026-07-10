@@ -27,6 +27,9 @@ CREATE TABLE IF NOT EXISTS "user" (
     name VARCHAR(255),
     surnames VARCHAR(255),
     profile_pic TEXT,
+    totp_secret TEXT,
+    totp_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+    totp_enabled_at TIMESTAMPTZ,
     role VARCHAR(20) DEFAULT 'user',
     active BOOLEAN DEFAULT TRUE,
     create_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -74,6 +77,16 @@ BEGIN
         ALTER TABLE "user" ADD COLUMN role VARCHAR(20) DEFAULT 'user';
     END IF;
 END $$;
+
+-- Backup codes for TOTP two-factor authentication (one row per code)
+CREATE TABLE IF NOT EXISTS user_backup_code (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+    code_hash TEXT NOT NULL,
+    used_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_user_backup_code_user ON user_backup_code(user_id);
 
 -- Push notification device tokens (one row per user/device pair)
 CREATE TABLE IF NOT EXISTS user_device_token (

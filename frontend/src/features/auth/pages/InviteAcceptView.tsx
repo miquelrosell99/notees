@@ -6,7 +6,7 @@
  */
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { acceptInvite, getAuthStatus, register, login, storeAuth } from '@/features/auth/api/auth';
+import { acceptInvite, getAuthStatus, register, login, storeAuth, isTwoFactorRequired } from '@/features/auth/api/auth';
 import { scheduleProactiveRefresh } from '@/api/client';
 import { TextField } from '@/components/ui/TextField';
 import { Button } from '@/components/ui/Button';
@@ -84,6 +84,13 @@ export function InviteAcceptView() {
     setError(null);
     try {
       const loginResponse = await login({ email, password: loginPassword, remember_me: rememberMe });
+      if (isTwoFactorRequired(loginResponse)) {
+        // Accepting an invite requires a full session; complete the second
+        // factor through the normal sign-in flow and reopen the invite link.
+        setError('Two-factor authentication is enabled on this account. Please sign in first, then reopen the invite link.');
+        setStep('login');
+        return;
+      }
       storeAuth(loginResponse);
       const inviteResponse = await acceptInvite({ token, remember_me: rememberMe });
       storeAuth(inviteResponse);
