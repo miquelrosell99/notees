@@ -4,10 +4,17 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { renderHook, act } from '@testing-library/react';
 import { OperationRuntime } from '@/runtime';
 import type { Operation } from '@/runtime';
+import { getRuntimeEventBus, resetRuntimeEventBus } from '@/runtime/eventBus';
 import type { Node } from '@/types';
-import { overlayRuntimeContent, getRuntimeDisplayName } from './runtimeContentOverlay';
+import {
+  overlayRuntimeContent,
+  getRuntimeDisplayName,
+  readRuntimeName,
+  useRuntimeDisplayName,
+} from './runtimeContentOverlay';
 
 const PAGE_UUID = '11111111-1111-1111-1111-111111111111';
 const BLOCK_UUID = '22222222-2222-2222-2222-222222222222';
@@ -106,5 +113,49 @@ describe('getRuntimeDisplayName', () => {
     expect(getRuntimeDisplayName(makePropNode(), runtime)).toBe(
       '[{"type":"paragraph","children":[{"type":"text","text":"fresh text"}]}]',
     );
+  });
+});
+
+describe('readRuntimeName', () => {
+  it('returns the fallback when the node is not projected', () => {
+    const runtime = new OperationRuntime();
+    expect(readRuntimeName(runtime, BLOCK_UUID, 'cached-name')).toBe('cached-name');
+  });
+
+  it('returns the live JSON name once projected', () => {
+    const runtime = new OperationRuntime();
+    loadBase(runtime);
+    applyContent(runtime, 'projected');
+    expect(readRuntimeName(runtime, BLOCK_UUID, 'cached-name')).toBe(
+      '[{"type":"paragraph","children":[{"type":"text","text":"projected"}]}]',
+    );
+  });
+});
+
+describe('useRuntimeDisplayName', () => {
+  it('returns the fallback, then updates live after a runtime content edit', () => {
+    const runtime = new OperationRuntime();
+    resetRuntimeEventBus(runtime);
+    try {
+      const fallback = '[{"type":"paragraph","children":[{"type":"text","text":"cached"}]}]';
+      const { result } = renderHook(() => useRuntimeDisplayName(BLOCK_UUID, fallback, runtime));
+
+      // Not projected yet → falls back to the query-cache name.
+      expect(result.current).toBe(fallback);
+
+      act(() => {
+        loadBase(runtime);
+        applyContent(runtime, 'live edit');
+        getRuntimeEventBus(runtime).flushEvents();
+      });
+
+      expect(result.current).toBe(
+        '[{"type":"paragraph","children":[{"type":"text","text":"live edit"}]}]',
+      );
+    } finally {
+      // Restore the default event bus (wired to the global runtime) so other
+      // test files are not affected by this test's runtime-scoped bus.
+      resetRuntimeEventBus();
+    }
   });
 });
