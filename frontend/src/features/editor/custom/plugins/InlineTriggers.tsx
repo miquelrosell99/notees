@@ -17,6 +17,8 @@ import { flushSync } from 'react-dom';
 import type { Node } from '@/types';
 import { TriggerPopup, type TriggerPopupType } from '@/features/editor/editor/plugins/TriggerPopup';
 import { DateRangePicker } from '@/features/properties/components/DateRangePicker';
+import { DatePickerPopup } from '@/features/content';
+import { getOrCreateDaily } from '@/api/nodes';
 import { generateUUID } from '@/utils/uuid';
 import type { DateRangeValue } from '@/utils/dateRange';
 import { getOperationRuntime } from '@/runtime';
@@ -35,6 +37,7 @@ import {
   getInlineChildren,
   offsetToPosition,
 } from '../model/inlineEditorModel';
+import { isInsideEditorCompanion } from '../utils/editorCompanion';
 import type { InlineEditorState } from '../model/types';
 
 interface PopupState {
@@ -133,6 +136,10 @@ export function InlineTriggers({
 }: InlineTriggersProps): JSX.Element | null {
   const [popup, setPopup] = useState<PopupState | null>(null);
   const [dateRangePickerOpen, setDateRangePickerOpen] = useState(false);
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const [dateAnchorPos, setDateAnchorPos] = useState<{ top: number; left: number } | null>(null);
+  const dateAnchorRef = useRef<HTMLSpanElement>(null);
+  const dateInsertOffsetRef = useRef<number | null>(null);
   const popupOpenRef = useRef(false);
   const placeholderOffsetRef = useRef<number | null>(null);
   const blockServerIdRef = useRef<string | undefined>(undefined);
@@ -265,6 +272,33 @@ export function InlineTriggers({
     [applyMutation, removePlaceholder],
   );
 
+  const handleDateSelect = useCallback(
+    async (isoDate: string) => {
+      setDatePickerOpen(false);
+      const insertOffset = dateInsertOffsetRef.current;
+      try {
+        const dayNode = await getOrCreateDaily(isoDate);
+        applyMutation((prev) => {
+          const fallbackOffset =
+            prev.selection.type === 'collapsed' ? prev.selection.offset : 0;
+          const stateWithSelection = {
+            ...prev,
+            selection: { type: 'collapsed' as const, offset: insertOffset ?? fallbackOffset },
+          };
+          return insertAtomicNode(
+            stateWithSelection,
+            nodeLink(buildLinkId(dayNode.uuid, generateUUID())),
+          );
+        });
+      } catch (err) {
+        console.error('Failed to create daily page:', err);
+      } finally {
+        dateInsertOffsetRef.current = null;
+      }
+    },
+    [applyMutation],
+  );
+
   const insertEmbedSibling = useCallback(
     async (nodeUuid: string) => {
       const offset = placeholderOffsetRef.current;
@@ -370,6 +404,19 @@ export function InlineTriggers({
         return;
       }
 
+      if (commandId === 'date') {
+        // removePlaceholder() already ran; selection is at the insertion offset.
+        dateInsertOffsetRef.current = placeholderOffsetRef.current;
+        const coords = getCaretCoordinates(rootRef.current ?? document.body);
+        setDateAnchorPos({
+          top: coords.caretTop - window.scrollY,
+          left: coords.left - window.scrollX,
+        });
+        handleClose();
+        setDatePickerOpen(true);
+        return;
+      }
+
       const pluginCommand = getSlashCommand(commandId);
       if (pluginCommand) {
         pluginCommand.execute({
@@ -452,6 +499,7 @@ export function InlineTriggers({
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (popupOpenRef.current) return;
+      if (isInsideEditorCompanion(event.target)) return;
 
       const isAltGraph = event.getModifierState('AltGraph');
       if (event.metaKey) return;
@@ -476,6 +524,7 @@ export function InlineTriggers({
 
     const handleBeforeInput = (event: InputEvent) => {
       if (popupOpenRef.current) return;
+      if (isInsideEditorCompanion(event.target)) return;
       if (!['insertText', 'insertFromComposition', 'insertCompositionText'].includes(event.inputType ?? '')) return;
       const data = event.data;
       if (!data || data.length !== 1 || !isTriggerChar(data)) return;
@@ -517,20 +566,25 @@ export function InlineTriggers({
     return () => root.removeEventListener('compositionend', handleCompositionEnd);
   }, [rootRef, stateRef, openTrigger]);
 
-  if (!popup) return null;
+  // Render nothing only when neither the trigger popup nor a follow-on picker
+  // (date / date-range) is active. Pickers open after the trigger popup closes,
+  // so they must be allowed to render while `popup` is null.
+  if (!popup && !dateRangePickerOpen && !datePickerOpen) return null;
 
   return (
     <>
-      <TriggerPopup
-        type={popup.type}
-        position={popup.position}
-        onSelectNode={popup.type !== 'slash' ? handleSelectNode : undefined}
-        onSelectCommand={popup.type === 'slash' ? handleSelectCommand : undefined}
-        onClose={handleClose}
-        onDeletePlaceholder={handleDeletePlaceholder}
-        hiddenSlashCommandIds={hiddenSlashCommandIds}
-        contextBlockServerId={blockServerIdRef.current}
-      />
+      {popup && (
+        <TriggerPopup
+          type={popup.type}
+          position={popup.position}
+          onSelectNode={popup.type !== 'slash' ? handleSelectNode : undefined}
+          onSelectCommand={popup.type === 'slash' ? handleSelectCommand : undefined}
+          onClose={handleClose}
+          onDeletePlaceholder={handleDeletePlaceholder}
+          hiddenSlashCommandIds={hiddenSlashCommandIds}
+          contextBlockServerId={blockServerIdRef.current}
+        />
+      )}
       {dateRangePickerOpen && (
         <DateRangePicker
           onChange={(value) => {
@@ -539,6 +593,29 @@ export function InlineTriggers({
           }}
           onClose={() => setDateRangePickerOpen(false)}
         />
+      )}
+      {datePickerOpen && dateAnchorPos && (
+        <>
+          <span
+            ref={dateAnchorRef}
+            style={{
+              position: 'fixed',
+              top: dateAnchorPos.top,
+              left: dateAnchorPos.left,
+              width: 0,
+              height: 0,
+              pointerEvents: 'none',
+            }}
+          />
+          <DatePickerPopup
+            onSelect={handleDateSelect}
+            onClose={() => {
+              setDatePickerOpen(false);
+              dateInsertOffsetRef.current = null;
+            }}
+            anchorRef={dateAnchorRef}
+          />
+        </>
       )}
     </>
   );
