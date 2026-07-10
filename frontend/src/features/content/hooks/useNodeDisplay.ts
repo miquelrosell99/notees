@@ -14,6 +14,7 @@ import { useBatchedNode } from '@/hooks/useBatchedNode';
 import { useClasses } from '@/features/content/hooks/useNodes';
 import { nodeNameToText } from '@/features/queries';
 import { getEffectiveIcon, getEffectiveColor } from '@/utils/nodeIcon';
+import { useRuntimeDisplayName } from '@/features/content/hooks/runtimeContentOverlay';
 import type { Node } from '@/types';
 
 /** Resolve effective class IDs for a node, inheriting from aliased node if needed. */
@@ -54,6 +55,11 @@ export function useNodeDisplay(
   const aliasedNode = useAliasedNode(node);
   const effectiveClassIds = useEffectiveClassIds(node, aliasedNode);
 
+  // Live name from the runtime projection: observer surfaces (inline links,
+  // pills, recents/favorites) must reflect a referenced block's content the
+  // moment it is edited elsewhere, not after the next query refetch.
+  const liveName = useRuntimeDisplayName(node?.uuid ?? null, node?.name ?? '');
+
   const effectiveIcon = useMemo(
     () => getEffectiveIcon(node, allClasses, effectiveClassIds, aliasedNode),
     [node, allClasses, effectiveClassIds, aliasedNode],
@@ -72,12 +78,12 @@ export function useNodeDisplay(
     // are resolved to plain text by the backend so they don't render as "…".
     const text = (node.display_name && node.display_name !== node.name)
       ? node.display_name
-      : nodeNameToText(node.name);
+      : nodeNameToText(liveName);
     if (!text || text.trim() === '') {
       return node.is_page ? '[Untitled Page]' : '[Empty Block]';
     }
     return text;
-  }, [node, fallbackText]);
+  }, [node, fallbackText, liveName]);
 
   return {
     effectiveIcon,
