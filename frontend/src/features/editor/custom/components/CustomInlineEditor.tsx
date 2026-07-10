@@ -54,6 +54,7 @@ import { InlineNodeLinks } from '../plugins/InlineNodeLinks';
 import { InlineCopyPaste } from '../plugins/InlineCopyPaste';
 import { useInlineCopyPaste } from '../plugins/useInlineCopyPaste';
 import { FloatingToolbar } from '../plugins/FloatingToolbar';
+import { isInsideEditorCompanion } from '../utils/editorCompanion';
 import '@/styles/inline-link.css';
 import './CustomInlineEditor.css';
 
@@ -312,6 +313,19 @@ export const CustomInlineEditor = memo(
       return unit?.type === 'atomic' ? unit.node : null;
     }, [editingLinkId, state.ast]);
 
+    // Hold the editor's active block alive while the pill "Edit link" modal is
+    // open. The modal is portaled and focuses its input, which blurs the editor;
+    // without popupOpen, blurBlock() clears activeBlockId and unmounts this
+    // component (and the modal with it), so handleSaveEditModal's applyMutation
+    // would land on a dead instance. Same invariant as InlineTriggers' pickers.
+    useEffect(() => {
+      if (!editingLinkId) return;
+      useEditorFocusStore.getState().openPopup();
+      return () => {
+        useEditorFocusStore.getState().closePopup();
+      };
+    }, [editingLinkId]);
+
     const handleBeforeInput = useCallback(
       (event: InputEvent) => {
         if (readOnly) return;
@@ -348,6 +362,10 @@ export const CustomInlineEditor = memo(
     const handleKeyDown = useCallback(
       (e: React.KeyboardEvent<HTMLDivElement>) => {
         if (readOnly) return;
+        // Ignore keystrokes that originate outside the editable root (e.g. inputs
+        // in portaled popups such as the link insertion popup).
+        if (!rootRef.current?.contains(e.target as Node)) return;
+        if (isInsideEditorCompanion(e.target)) return;
 
         const { key, shiftKey, ctrlKey, metaKey, altKey } = e;
         const mod = ctrlKey || metaKey;
@@ -453,6 +471,7 @@ export const CustomInlineEditor = memo(
       const handler = (event: Event) => {
         // Trigger chars are handled by InlineTriggers, which stops propagation.
         if (event.defaultPrevented) return;
+        if (isInsideEditorCompanion(event.target)) return;
         handleBeforeInput(event as InputEvent);
       };
 

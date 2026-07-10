@@ -26,6 +26,7 @@ export * from './Modal';
 export * from './NotificationToast';
 export * from './CalendarPopup';
 export * from './DatePickerPopup';
+export type { CalendarMode } from './calendar/useCalendarMode';
 export * from './SearchBox';
 export * from './Pill';
 export * from './SearchField';

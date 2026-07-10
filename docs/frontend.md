@@ -53,6 +53,31 @@ Backend API ←→ TanStack Query (server state) ←→ SyncManager (adapter) �
 - **Custom Hooks**: Live in `frontend/src/hooks/`.
 - **State**: Zustand for client state; TanStack Query for server state. Avoid direct fetch/XMLHttpRequest inside UI components.
 
+### Custom Inline Editor — Popup Keepalive Invariant
+
+The block editor (`features/editor/custom/components/CustomInlineEditor.tsx`) is mounted by `BlockRow.tsx` only while `shouldMountEditor` is true, i.e. `(isActive || isPendingFocus) && !isGhost && !readOnly && !isLocked`. `isActive` is `activeBlockId === node.uuid` from `stores/editorFocusStore.ts`. On editor blur, `handleBlur` calls `blurBlock(blockId)`, which **clears `activeBlockId` unless `popupOpen` is true**:
+
+```ts
+blurBlock: (blockId) => set((state) => {
+  if (state.activeBlockId !== blockId) return state;
+  if (state.popupOpen) return state; // keepalive while a popup is open
+  return { activeBlockId: null, ... };
+}),
+```
+
+**Rule:** any portaled popup or modal opened from within the editor subtree MUST hold `useEditorFocusStore.getState().openPopup()` for its entire open lifetime and call `closePopup()` on close. This is what keeps the editor mounted while the user interacts with the popup.
+
+**Why it matters (the `/date` no-insert bug):** the slash trigger popup held the keepalive, but its follow-on pickers (`/date`, `/date-range`, `/url`, `/property`, `/comment`) did not. Clicking a day blurred the editor → `blurBlock` cleared `activeBlockId` → `CustomInlineEditor` (and `InlineTriggers`, which owns the picker) unmounted. The day-click handler still fired synchronously, but `await getOrCreateDaily(...)` only resolved *after* the unmount, so the subsequent `applyMutation(insertAtomicNode(...))` ran on a detached fiber — the link was silently never inserted, with no error. The picker looked usable only because the click handler runs in the same task as the blur, ahead of the React commit that tears it down.
+
+**Where the keepalive must be held** (audit list — keep in sync when adding editor popups):
+
+- `InlineTriggers.tsx` — the trigger popup **and** every follow-on picker (`datePickerOpen`, `dateRangePickerOpen`, `urlModalOpen`, `propertyPickerOpen`, `commentPromptOpen`) via one combined `anyPickerOpen` effect. The pickers are mutually exclusive, so a single boolean `popupOpen` is correct and there is no keepalive gap during the trigger→picker handoff.
+- `CustomInlineEditor.tsx` — the pill "Edit link" `LinkEditModal` (keyed by `editingLinkId`).
+
+**Not affected (no fix needed):** `FloatingToolbar` (calls `preventDefault()` on mousedown and only does synchronous `toggleMark` mutations — never blurs the editor) and `InlineNodeLinks` (synchronous click/keydown handlers, no portaled picker). The legacy Lexical editor under `features/editor/editor/` is no longer mounted as the block editor, so it is out of scope for this invariant.
+
+**Symptom of a missing keepalive:** a popup opened from the editor closes normally on selection but the editor content does not change and no error is thrown. If you see "popup closes, nothing inserted, no error," check whether the popup holds `popupOpen`.
+
 ### Icons
 
 The app uses **SVG-only icon rendering** via a shared sprite sheet (`frontend/public/mdi-sprite.svg`).

@@ -60,6 +60,11 @@ export interface PropertySuggestionPopupProps {
   contextClassIds?: string[];
   /** Default scope for newly created properties when "Create global" button is clicked (default: 'global') */
   defaultScope?: PropertyScope;
+  /**
+   * Render without absolute self-positioning so a fixed, portaled wrapper can own
+   * placement (used by the slash-command anchored picker). Default: false.
+   */
+  anchored?: boolean;
 }
 
 /** Scope badge labels */
@@ -77,6 +82,7 @@ export function PropertySuggestionPopup({
   contextNodeId,
   contextClassIds,
   defaultScope,
+  anchored = false,
 }: PropertySuggestionPopupProps) {
   const [query, setQuery] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -211,7 +217,8 @@ export function PropertySuggestionPopup({
     <>
       <div
         ref={containerRef}
-        className="property-suggestion-popup"
+        className={`property-suggestion-popup${anchored ? ' property-suggestion-popup--anchored' : ''}`}
+        data-editor-companion
       >
         <input
           ref={inputRef}
