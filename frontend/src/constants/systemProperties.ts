@@ -38,11 +38,15 @@ export const TASK_STATUSES = [
 export const TASK_CLOSED_STATUSES = new Set<string>(['Done', 'Cancelled']);
 
 /**
- * Status cycle order for Ctrl+Enter.
+ * Ordered list of the non-terminal task statuses.
  *
  * Cancelled is intentionally excluded: it is a terminal state that should be
- * set explicitly, not cycled through. If a task is currently Cancelled,
- * cycling restarts from Pending.
+ * set explicitly rather than reached through linear ordering.
+ *
+ * Note: the Ctrl/Cmd+Enter shortcut does NOT walk this list. It is a
+ * Roam/Logseq-style three-state toggle (none -> Pending -> Done -> none)
+ * implemented in `useTaskActions`. This constant is kept as the canonical
+ * ordering of the open statuses for other UI consumers.
  */
 export const TASK_STATUS_CYCLE = [
   'Backlog',
