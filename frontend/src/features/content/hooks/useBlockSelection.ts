@@ -15,7 +15,7 @@ import { getRuntimeEventBus } from '@/runtime/eventBus';
 import { useInputContext } from '@/stores/inputContext';
 import { copyRuntimeBlocksToClipboard, tryParseInternalFormat } from '@/utils/clipboardManager';
 import { useClipboardStore } from '@/stores/clipboardStore';
-import { pasteBlocksAfterBlock, flushAllContentSaves } from '@/features/editor';
+import { pasteBlocksAfterBlock, flushAllContentSaves, isInsideEditorCompanion } from '@/features/editor';
 import { generateUUID } from '@/utils/uuid';
 import { clearClasses, applyClasses, getSiblingIds, type UseBlockSelectionOptions } from './useBlockSelection.utils';
 
@@ -159,6 +159,15 @@ export function useBlockSelection({ containerRef, blockIds, readOnly }: UseBlock
     const handleKeyDown = async (e: KeyboardEvent) => {
       if (e.defaultPrevented) return;
 
+      const isFocusProtected = () => {
+        const activeEl = document.activeElement as HTMLElement | null;
+        if (!activeEl) return false;
+        if (rootEl.contains(activeEl)) return true;
+        if (activeEl.closest('[role="dialog"]') || activeEl.closest('[role="menu"]')) return true;
+        if (isInsideEditorCompanion(activeEl)) return true;
+        return false;
+      };
+
       // Escape: clear selection, or if editor focused, select current block
       if (e.key === 'Escape') {
         if (selectedIds.size > 0) {
@@ -182,9 +191,7 @@ export function useBlockSelection({ containerRef, blockIds, readOnly }: UseBlock
 
       // Enter on selected block (editor not focused): create a child block as the first child
       if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey && selectedIds.size > 0) {
-        const activeEl = document.activeElement;
-        if (activeEl && rootEl.contains(activeEl)) return;
-        if (activeEl?.closest('[role="dialog"]') || activeEl?.closest('[role="menu"]')) return;
+        if (isFocusProtected()) return;
 
         e.preventDefault();
         const anchor = anchorId || [...selectedIds][0];
@@ -206,6 +213,7 @@ export function useBlockSelection({ containerRef, blockIds, readOnly }: UseBlock
 
       // Shift+ArrowUp / Shift+ArrowDown: extend selection
       if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && e.shiftKey) {
+        if (isFocusProtected()) return;
         const activeBlockId = useEditorFocusStore.getState().activeBlockId;
         const anchor = anchorId || activeBlockId;
         if (!anchor) return;
@@ -234,6 +242,7 @@ export function useBlockSelection({ containerRef, blockIds, readOnly }: UseBlock
 
       // ArrowLeft / ArrowRight: if blocks selected, clear and focus editor
       if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && !e.shiftKey) {
+        if (isFocusProtected()) return;
         if (selectedIds.size === 0) return;
         e.preventDefault();
         const blockIdToFocus = anchorId || [...selectedIds][0];
@@ -246,9 +255,7 @@ export function useBlockSelection({ containerRef, blockIds, readOnly }: UseBlock
 
       // Delete / Backspace: delete selected blocks when editor not focused
       if ((e.key === 'Delete' || e.key === 'Backspace') && selectedIds.size > 0) {
-        const activeEl = document.activeElement;
-        if (activeEl && rootEl.contains(activeEl)) return;
-        if (activeEl?.closest('[role="dialog"]') || activeEl?.closest('[role="menu"]')) return;
+        if (isFocusProtected()) return;
 
         e.preventDefault();
         flushAllContentSaves();
@@ -264,6 +271,7 @@ export function useBlockSelection({ containerRef, blockIds, readOnly }: UseBlock
 
       // Alt+Shift+ArrowUp / Alt+Shift+ArrowDown: move selected blocks
       if (e.altKey && e.shiftKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+        if (isFocusProtected()) return;
         if (selectedIds.size === 0) return;
         e.preventDefault();
         const runtime = getOperationRuntime();
@@ -294,9 +302,7 @@ export function useBlockSelection({ containerRef, blockIds, readOnly }: UseBlock
       const isMod = isMac ? e.metaKey : e.ctrlKey;
       if (isMod && e.key.toLowerCase() === 'c' && !e.shiftKey && !e.altKey) {
         if (selectedIds.size === 0) return;
-        const activeEl = document.activeElement;
-        if (activeEl && rootEl.contains(activeEl)) return;
-        if (activeEl?.closest('[role="dialog"]') || activeEl?.closest('[role="menu"]')) return;
+        if (isFocusProtected()) return;
         e.preventDefault();
         const runtime = getOperationRuntime();
         copyRuntimeBlocksToClipboard([...selectedIds], runtime)
@@ -308,8 +314,7 @@ export function useBlockSelection({ containerRef, blockIds, readOnly }: UseBlock
       // Document-level Ctrl+V: paste after selected blocks when editor blurred
       if (isMod && e.key.toLowerCase() === 'v' && !e.shiftKey && !e.altKey) {
         if (selectedIds.size === 0) return;
-        const activeEl = document.activeElement;
-        if (activeEl && rootEl.contains(activeEl)) return;
+        if (isFocusProtected()) return;
 
         const runtime = getOperationRuntime();
         const blockIdSet = new Set(selectedIds);

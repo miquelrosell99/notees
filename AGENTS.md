@@ -34,6 +34,7 @@ Key features:
 - **Feature Hooks**: Domain-specific hooks live in `frontend/src/features/<feature>/hooks/` (or `api/`). Generic hooks stay in `frontend/src/hooks/`.
 - **Query Keys**: All TanStack Query keys are created through factories in `frontend/src/hooks/queryKeys.ts`. No literal query keys in components.
 - **Zustand Selectors**: Avoid large store destructurings. Use per-field selectors or focused selector hooks (e.g., `features/layout/hooks/useNavigationSelectors.ts`).
+- **Editor popup keepalive**: The custom inline editor unmounts when its block loses `activeBlockId` (`shouldMountEditor` in `BlockRow.tsx`), and `blurBlock()` clears that id unless `editorFocusStore.popupOpen` is true. Any portaled popup/modal opened from the editor (slash follow-on pickers like `/date`, the pill "Edit link" modal, etc.) MUST hold `openPopup()` while open and `closePopup()` on close — otherwise clicking into it blurs the editor, unmounts it mid-action, and any `applyMutation` after an `await` lands on a dead instance (silent no-op insert, no error). See `docs/frontend.md#custom-inline-editor--popup-keepalive-invariant`.
 - **Secret Key**: `SECRET_KEY` is mandatory (>= 32 chars). The app will not start without it.
 - **Node Model**: Everything is a `node` differentiated by boolean flags (`is_page`, `is_task`, etc.) that are kept in sync with system class assignments.
 - **Identifier Strategy**:
@@ -77,27 +78,6 @@ Key features:
 | Frontend | sql.js | 1.14.0 | In-browser SQLite (WASM) |
 | Mobile | Kotlin + Android SDK | 36 (minSdk 26) | WebView wrapper app |
 | Containerization | Docker + Docker Compose | — | Production deployment and local development stack |
-
----
-
-## Fleet Migration
-
-Notees was brought into compliance with the RosellRamos fleet skill library. The full phased plan is recorded in `docs/migration-plan.md`.
-
-Skills applied during the migration:
-
-- `fleet-migration`
-- `design-system`
-- `ui-ux-audit`
-- `accessibility-primer`
-- `performance-optimizer`
-- `security-hardening`
-- `codebase-organizer`
-- `react-ui-patterns`
-- `fastapi-patterns`
-- `frontend-design`
-
-Post-migration, the backend enforces strict hexagonal boundaries, the frontend uses the sage-accented tokenized design system with accessible components, and mobile hardening is complete. See `docs/backend.md` for the specific drift items that were fixed.
 
 ---
 
@@ -204,6 +184,12 @@ See `docs/data-model.md` for:
 - **Rebuild and restart the dev stack when fixes change runtime behavior**: Do not rely on live-reload or long-running containers for changes that affect backend routes, request/response schemas, sync mappers, frontend build output, or container startup state. After such fixes, run `docker compose -f compose.dev.yaml down && docker compose -f compose.dev.yaml up --build` (or `task dev -- --build`) and confirm the user verifies the behavior in the browser before considering the task done.
 - **Fix all test failures**: If tests fail after your changes — even failures that appear unrelated to your task — you must fix them before finishing. Do not leave the test suite broken.
 
+### Git Snapshots
+
+- **Commit every stable, working state as a snapshot.** Whenever the code is in a verified working state — the relevant linters and tests pass and the change behaves as intended — make a commit **before** moving on to the next change. This keeps a known-good point to recover from at all times.
+- This rule is durable standing authorization to create snapshot commits within the current task; do not re-ask for confirmation on each one. Other git mutations (`git push`, `git reset`, `git rebase`, force operations, amending published history) still require explicit per-action confirmation.
+- Commit only work that belongs to the current task, use a clear Conventional Commits message (see the `git-commits` skill), and never commit a broken, half-finished, or unverified state just to make a snapshot.
+
 ### Debugging
 
 - **Race condition triage**: If a bug involves "local change disappears after a network mutation", check the **debounced save / query invalidation boundary FIRST**. See `docs/operations.md`.
@@ -260,6 +246,32 @@ cd frontend
 npm run test
 npm run test:run
 ```
+
+### E2E tests (Playwright)
+
+E2E specs live in `frontend/e2e/` with config at `frontend/playwright.config.ts` (`testDir: ./e2e`, `baseURL: http://localhost:5173`, single `chromium` project). Run them inside the frontend container:
+
+```bash
+# Browsers are NOT preinstalled in the dev image — install once (downloads to
+# ~/.cache/ms-playwright, i.e. outside the repo; confirm with the user first):
+docker compose -f compose.dev.yaml exec -T frontend npx playwright install chromium
+
+# Run the suite (or a single spec)
+docker compose -f compose.dev.yaml exec -T frontend npx playwright test
+docker compose -f compose.dev.yaml exec -T frontend npx playwright test e2e/smoke.spec.ts
+```
+
+Auth for specs: the access token is an **HTTPOnly cookie** set by the backend (only the user profile is in `localStorage.user`). The browser talks to the API through the Vite proxy, so authenticate via `context.request` against the page origin so the cookie lands on `localhost:5173`:
+
+```ts
+await context.request.post('http://localhost:5173/api/auth/login', {
+  data: { email, password, remember_me: true },
+});
+// cookie is now set for localhost:5173; mirror the profile so the SPA treats us as logged in:
+await page.addInitScript((u) => localStorage.setItem('user', JSON.stringify(u)), user);
+```
+
+Caveat: a running dev DB usually already has an admin account whose password you don't know — don't wipe it. Prefer onboarding on a fresh/isolated DB (`POST /api/auth/register` when `GET /api/auth/status` reports `has_users === false`) or a freshly registered test user if registration is enabled.
 
 See `docs/testing.md` for the full setup, fixtures, and configuration.
 
@@ -327,5 +339,4 @@ See `docs/operations.md` for:
 - `docs/subsystems.md` — Graph, QueryAST, editor, PWA, assets
 - `docs/operations.md` — Debugging, performance, linting, config, pitfalls
 - `docs/design-language.md` — Full design language
-- `docs/migration-plan.md` — Fleet migration plan
 - `miquelrosell99/notees-flutter` — Mobile app context
