@@ -11,7 +11,7 @@ import { useAuthUser, useAuthActions } from '@/features/layout/hooks/useAuthSele
 import { useWorkspaces } from '@/features/workspace';
 import type { ThemePreference, DateFormat, HashtagPasteMode, DefaultView, QuickAddDestination, FirstDayOfWeek, AccentColor, TreeEditMode } from '@/stores';
 import { setSetting } from '@/features/workspace';
-import { updateMe, createApiKey, listApiKeys, revokeApiKey } from '@/features/auth';
+import { updateMe, createApiKey, listApiKeys, revokeApiKey, TwoFactorSettings } from '@/features/auth';
 import { SPONSORSHIP_CHANNELS } from '@/constants/sponsorship';
 import { TextField } from '@/components/ui/TextField';
 import type { ApiKey } from '@/types';
@@ -871,6 +871,13 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
 
           {activeTab === 'security' && (
             <>
+              <div className="settings-section">
+                <h3 className="settings-section__title">Two-Factor Authentication</h3>
+                <Card>
+                  <TwoFactorSettings />
+                </Card>
+              </div>
+
               <div className="settings-section">
                 <h3 className="settings-section__title">Encryption at Rest</h3>
                 <Card>

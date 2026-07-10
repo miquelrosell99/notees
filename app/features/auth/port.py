@@ -95,6 +95,43 @@ class UserRepository(ABC):
         """
         pass
 
+    # ============== Two-Factor Authentication (TOTP) ==============
+
+    @abstractmethod
+    async def set_totp_secret(self, user_id: int, encrypted_secret: str) -> None:
+        """Store a pending encrypted TOTP secret for a user. Does not enable 2FA."""
+        pass
+
+    @abstractmethod
+    async def get_totp_secret(self, user_id: int) -> str | None:
+        """Return the encrypted TOTP secret for a user, or None if unset."""
+        pass
+
+    @abstractmethod
+    async def set_totp_enabled(self, user_id: int, enabled: bool) -> None:
+        """Enable or disable TOTP. Sets totp_enabled_at when enabling, clears it when disabling."""
+        pass
+
+    @abstractmethod
+    async def clear_totp(self, user_id: int) -> None:
+        """Disable TOTP, clear the secret, and delete all backup codes for a user."""
+        pass
+
+    @abstractmethod
+    async def replace_backup_codes(self, user_id: int, code_hashes: list[str]) -> None:
+        """Atomically replace all backup codes for a user with the given hashes."""
+        pass
+
+    @abstractmethod
+    async def get_unused_backup_codes(self, user_id: int) -> list[dict]:
+        """Return unused backup-code rows as dicts with keys id and code_hash."""
+        pass
+
+    @abstractmethod
+    async def mark_backup_code_used(self, code_id: int) -> None:
+        """Mark a backup code as used (set used_at = NOW())."""
+        pass
+
     # ============== Admin operations ==============
 
     @abstractmethod

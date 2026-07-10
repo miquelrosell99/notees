@@ -191,6 +191,7 @@ class User(UserBase):
     role: str = "user"
     created_at: datetime
     is_active: bool = True
+    totp_enabled: bool = False
     scopes: list[str] | None = None
 
     class Config:
@@ -217,6 +218,48 @@ class AccessTokenResponse(BaseModel):
 
     access_token: str
     token_type: str = "bearer"
+
+
+class TwoFactorSetupResponse(BaseModel):
+    """TOTP enrollment response: otpauth URI, QR SVG, and one-time base32 secret."""
+
+    otpauth_uri: str
+    qr_svg: str
+    secret: str  # base32, for manual entry; shown once at enrollment
+
+
+class TwoFactorCodeRequest(BaseModel):
+    """TOTP code submission (6-digit TOTP code or a backup code)."""
+
+    code: str  # 6-digit TOTP code or a backup code
+
+
+class TwoFactorEnableResponse(BaseModel):
+    """TOTP enable response carrying the freshly generated backup codes."""
+
+    backup_codes: list[str]
+
+
+class TwoFactorVerifyRequest(BaseModel):
+    """Second-step login verification using a pre-auth token and a code."""
+
+    preauth_token: str
+    code: str
+
+
+class TwoFactorDisableRequest(BaseModel):
+    """TOTP disable request; requires current password and/or a valid code."""
+
+    current_password: str | None = None
+    code: str | None = None
+
+
+class TwoFactorRequiredResponse(BaseModel):
+    """Login response indicating a second factor is required."""
+
+    requires_2fa: bool = True
+    preauth_token: str
+    purpose: str  # "verify" (enter TOTP) or "setup" (admin must enroll)
 
 
 class TokenData(BaseModel):

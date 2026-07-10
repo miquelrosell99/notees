@@ -53,6 +53,7 @@ class PostgresUserRepository(UserRepository):
             profile_pic=row.get("profile_pic"),
             role=row.get("role") or "user",
             active=row["active"],  # Changed from is_active
+            totp_enabled=bool(row.get("totp_enabled", False)),
             create_date=create_date,
             write_date=write_date,
         )
@@ -255,6 +256,82 @@ class PostgresUserRepository(UserRepository):
         async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow('SELECT password_hash FROM "user" WHERE id = $1', user_id)
             return row["password_hash"] if row else None
+
+    # ============== Two-Factor Authentication (TOTP) ==============
+
+    async def set_totp_secret(self, user_id: int, encrypted_secret: str) -> None:
+        """Store a pending encrypted TOTP secret for a user. Does not enable 2FA."""
+        async with acquire_connection(self._pool) as conn:
+            await conn.execute(
+                'UPDATE "user" SET totp_secret = $2, write_date = NOW() WHERE id = $1',
+                user_id,
+                encrypted_secret,
+            )
+
+    async def get_totp_secret(self, user_id: int) -> str | None:
+        """Return the encrypted TOTP secret for a user, or None if unset."""
+        async with acquire_connection(self._pool) as conn:
+            return await conn.fetchval(
+                'SELECT totp_secret FROM "user" WHERE id = $1',
+                user_id,
+            )
+
+    async def set_totp_enabled(self, user_id: int, enabled: bool) -> None:
+        """Enable or disable TOTP. Sets totp_enabled_at when enabling, clears it when disabling."""
+        async with acquire_connection(self._pool) as conn:
+            if enabled:
+                await conn.execute(
+                    'UPDATE "user" SET totp_enabled = TRUE, totp_enabled_at = NOW(), write_date = NOW() WHERE id = $1',
+                    user_id,
+                )
+            else:
+                await conn.execute(
+                    'UPDATE "user" SET totp_enabled = FALSE, totp_enabled_at = NULL, write_date = NOW() WHERE id = $1',
+                    user_id,
+                )
+
+    async def clear_totp(self, user_id: int) -> None:
+        """Disable TOTP, clear the secret, and delete all backup codes for a user."""
+        async with acquire_connection(self._pool) as conn, conn.transaction():
+            await conn.execute(
+                'UPDATE "user" SET totp_enabled = FALSE, totp_secret = NULL, totp_enabled_at = NULL, write_date = NOW() WHERE id = $1',
+                user_id,
+            )
+            await conn.execute(
+                "DELETE FROM user_backup_code WHERE user_id = $1",
+                user_id,
+            )
+
+    async def replace_backup_codes(self, user_id: int, code_hashes: list[str]) -> None:
+        """Atomically replace all backup codes for a user with the given hashes."""
+        async with acquire_connection(self._pool) as conn, conn.transaction():
+            await conn.execute(
+                "DELETE FROM user_backup_code WHERE user_id = $1",
+                user_id,
+            )
+            for code_hash in code_hashes:
+                await conn.execute(
+                    "INSERT INTO user_backup_code (user_id, code_hash, created_at) VALUES ($1, $2, NOW())",
+                    user_id,
+                    code_hash,
+                )
+
+    async def get_unused_backup_codes(self, user_id: int) -> list[dict]:
+        """Return unused backup-code rows as dicts with keys id and code_hash."""
+        async with acquire_connection(self._pool) as conn:
+            rows = await conn.fetch(
+                "SELECT id, code_hash FROM user_backup_code WHERE user_id = $1 AND used_at IS NULL ORDER BY id",
+                user_id,
+            )
+            return [{"id": row["id"], "code_hash": row["code_hash"]} for row in rows]
+
+    async def mark_backup_code_used(self, code_id: int) -> None:
+        """Mark a backup code as used (set used_at = NOW())."""
+        async with acquire_connection(self._pool) as conn:
+            await conn.execute(
+                "UPDATE user_backup_code SET used_at = NOW() WHERE id = $1",
+                code_id,
+            )
 
     # ============== API Keys ==============
 

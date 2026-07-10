@@ -20,6 +20,7 @@ class User:
     profile_pic: str | None = None
     role: str = "user"
     active: bool = True  # soft-delete flag
+    totp_enabled: bool = False
     create_date: str = field(default_factory=utc_now_iso)
     write_date: str = field(default_factory=utc_now_iso)
 
