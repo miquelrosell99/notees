@@ -55,6 +55,23 @@ function getBulletCenterOffset(): number {
   return Number.isFinite(wrapperSize) ? wrapperSize / 2 : 11;
 }
 
+/**
+ * Vertical center of a row's bullet, measured from the actual bullet element so
+ * the guide lines and active thread track the bullet wherever the layout places
+ * it. The bullet is anchored to the first line of a (possibly multi-line) block,
+ * not the row's vertical center, so the previous `rect.height / 2` would drift
+ * on wrapped paragraphs. Falls back to the provided value (typically the row
+ * center) when a row renders no bullet (e.g. document mode / hidden bullet).
+ */
+function getBulletCenterY(el: HTMLElement, containerTop: number, fallbackY: number): number {
+  const bullet = el.querySelector<HTMLElement>('.block-ui .bullet-wrapper');
+  if (bullet) {
+    const r = bullet.getBoundingClientRect();
+    return r.top - containerTop + r.height / 2;
+  }
+  return fallbackY;
+}
+
 function getLineStartTrim(): number {
   const gap = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--thread-line-bullet-gap'));
   return Number.isFinite(gap) ? gap : 6;
@@ -143,7 +160,7 @@ export const BulletLineOverlay = memo(function BulletLineOverlay({
           rows.push({
             depth: fn.depth,
             blockUuid: fn.node.uuid,
-            y: rect.top - containerRect.top + rect.height / 2,
+            y: getBulletCenterY(el, containerRect.top, rect.top - containerRect.top + rect.height / 2),
             x: fn.depth * step + bulletCenter,
           });
         }
@@ -156,7 +173,7 @@ export const BulletLineOverlay = memo(function BulletLineOverlay({
           rows.push({
             depth: fn.depth,
             blockUuid: fn.node.uuid,
-            y: rect.top - containerRect.top + rect.height / 2,
+            y: getBulletCenterY(el, containerRect.top, rect.top - containerRect.top + rect.height / 2),
             x: rect.left - containerRect.left + bulletCenter,
           });
         }
