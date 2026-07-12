@@ -108,7 +108,11 @@
 .bullet-line__connector {
   position: absolute;
   top: calc(var(--block-thread-line-overhang) * -1);
-  bottom: 50%;
+  /* Anchor the elbow to the first line, not the row's vertical center. The
+     bullet lives in the one-line-tall .block-ui (1.5em) pinned to the top of
+     the row, so its center is half of that (1.5em / 2). A fixed height keeps
+     the elbow on the first line even when the block wraps. */
+  height: calc(var(--block-thread-line-overhang) + 1.5em / 2);
   left: 50%;
   width: var(--block-indent-step);
   transform: translateX(-50%);

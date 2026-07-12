@@ -13,7 +13,11 @@
   grid-template-areas:
     "left content"
     ".    after";
-  align-items: center;
+  /* Anchor the bullet column to the top so the bullet (which lives in a
+     one-line-tall .block-ui) stays centered on the first line of text even
+     when the content wraps to multiple lines. `center` would vertically center
+     the bullet against the whole paragraph instead. */
+  align-items: start;
   padding: 0;
   margin: var(--spacing-tiny) 0;
   margin-left: calc(min(var(--block-depth, 0), 8) * var(--block-indent-step));
