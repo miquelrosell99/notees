@@ -300,10 +300,11 @@ async def search_nodes(
         order=order,
     )
 
+    # Keep the node list aligned with the responses for the strict zip in
+    # _resolve_display_names_for_responses.
+    nodes = [n for n in nodes if n.id is not None]
     result = []
     for n in nodes:
-        if n.id is None:
-            continue
         node_class_ids = n.class_ids or []
         node_tag_ids = n.tag_ids or []
         result.append(_node_to_response(n, tags=node_tag_ids, classes=node_class_ids))
@@ -406,12 +407,14 @@ async def list_nodes(
     )
 
     # Build the response; class_ids and tag_ids are already populated on the Node entities.
-    class_ids_map = {n.id: list(n.class_ids) for n in nodes if n.id is not None}
-    tag_ids_map = {n.id: list(n.tag_ids) for n in nodes if n.id is not None}
+    # Filter once so the node list stays aligned with the responses for the
+    # strict zip in _resolve_display_names_for_responses.
+    nodes = [n for n in nodes if n.id is not None]
+    class_ids_map = {n.id: list(n.class_ids) for n in nodes}
+    tag_ids_map = {n.id: list(n.tag_ids) for n in nodes}
     result = [
         _node_to_response(n, tags=tag_ids_map.get(n.id, []), classes=class_ids_map.get(n.id, []))
         for n in nodes
-        if n.id is not None
     ]
 
     # Resolve inline node links so table cells, cards, and list items show
@@ -516,6 +519,9 @@ async def search_nodes_filtered(
         nodes = [n for n in nodes if _in_date_range(n)]
 
     # Build response with class_ids and tag_ids populated.
+    # Keep the node list positionally aligned with the responses:
+    # _resolve_display_names_for_responses zips them with strict=True.
+    page_nodes = []
     result = []
     for n in nodes[: request.limit]:
         if n.id is None:
@@ -523,8 +529,9 @@ async def search_nodes_filtered(
         node_class_ids = n.class_ids or []
         node_tag_ids = n.tag_ids or []
         result.append(_node_to_response(n, tags=node_tag_ids, classes=node_class_ids))
+        page_nodes.append(n)
 
-    await _resolve_display_names_for_responses(service, nodes, result)
+    await _resolve_display_names_for_responses(service, page_nodes, result)
     await _enrich_node_responses_uuids(result, node_repo, property_repo)
 
     return SearchResponse(nodes=result)

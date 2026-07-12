@@ -407,7 +407,9 @@ async def get_archived_pages(
             )
         )
 
-    await _resolve_display_names_for_responses(service, archived_nodes, result)
+    await _resolve_display_names_for_responses(
+        service, [n for n in archived_nodes if n.id is not None], result
+    )
     await _enrich_node_responses_uuids(result, repo)
 
     return PaginatedResponse[NodeResponse](
@@ -448,7 +450,9 @@ async def list_templates(
             )
         )
 
-    await _resolve_display_names_for_responses(service, template_nodes, result)
+    await _resolve_display_names_for_responses(
+        service, [t for t in template_nodes if t.id is not None], result
+    )
     await _enrich_node_responses_uuids(result, repo)
 
     return PaginatedResponse[NodeResponse](
@@ -513,13 +517,11 @@ async def list_tasks(
 
     total = len(nodes)
     offset = (page - 1) * page_size
-    paginated_nodes = nodes[offset : offset + page_size]
+    paginated_nodes = [n for n in nodes[offset : offset + page_size] if n.id is not None]
 
     # Build response
     result = []
     for n in paginated_nodes:
-        if n.id is None:
-            continue
         result.append(_node_to_response(
             n,
             classes=class_ids_map.get(n.id, []),
