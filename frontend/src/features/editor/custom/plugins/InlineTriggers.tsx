@@ -378,12 +378,14 @@ export function InlineTriggers({
 
   const insertPill = useCallback(
     (nodeUuid: string, refType: 'node' | 'class' | 'user') => {
-      removePlaceholder();
+      // The trigger placeholder was already removed by handleSelectNode before
+      // dispatching here. Removing it again would delete the character that now
+      // sits at the trigger offset when the trigger was typed mid-text.
       applyMutation((prev) =>
         insertAtomicNode(prev, nodeLink(buildLinkId(nodeUuid, generateUUID()), refType)),
       );
     },
-    [applyMutation, removePlaceholder],
+    [applyMutation],
   );
 
   const insertDateRange = useCallback(

@@ -6,6 +6,7 @@ import { CustomInlineEditor } from './CustomInlineEditor';
 import type { InlineEditorHandle } from '@/features/editor/editor/types';
 import type { ContentAST } from '@/runtime/types';
 import { useEditorFocusStore } from '@/stores/editorFocusStore';
+import { getDOMSelectionOffset } from '../model/selectionSync';
 
 function renderWithProviders(ui: React.ReactElement) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -18,7 +19,7 @@ describe('CustomInlineEditor typing', () => {
   });
   it('inserts a character when a beforeinput insertText event is dispatched', () => {
     const onChange = vi.fn();
-    render(
+    renderWithProviders(
       <CustomInlineEditor
         blockId="block-1"
         initialContentAST={[{ type: 'paragraph', children: [{ type: 'text', text: '' }] }]}
@@ -45,7 +46,7 @@ describe('CustomInlineEditor typing', () => {
   });
 
   it('updates the global editor focus store when it receives focus', () => {
-    render(
+    renderWithProviders(
       <CustomInlineEditor
         blockId="block-1"
         initialContentAST={[{ type: 'paragraph', children: [{ type: 'text', text: '' }] }]}
@@ -62,7 +63,7 @@ describe('CustomInlineEditor typing', () => {
 
   it('deletes the character after the cursor when Delete is pressed', () => {
     const onChange = vi.fn();
-    render(
+    renderWithProviders(
       <CustomInlineEditor
         blockId="block-1"
         initialContentAST={[{ type: 'paragraph', children: [{ type: 'text', text: 'abc' }] }]}
@@ -85,7 +86,7 @@ describe('CustomInlineEditor typing', () => {
   it('replaces the selected range when the user types', () => {
     const onChange = vi.fn();
     const ref = createRef<InlineEditorHandle>();
-    render(
+    renderWithProviders(
       <CustomInlineEditor
         ref={ref}
         blockId="block-1"
@@ -116,7 +117,7 @@ describe('CustomInlineEditor typing', () => {
   it('deletes the selected range when Backspace is pressed', () => {
     const onChange = vi.fn();
     const ref = createRef<InlineEditorHandle>();
-    render(
+    renderWithProviders(
       <CustomInlineEditor
         ref={ref}
         blockId="block-1"
@@ -139,7 +140,7 @@ describe('CustomInlineEditor typing', () => {
   it('deletes the selected range when Delete is pressed', () => {
     const onChange = vi.fn();
     const ref = createRef<InlineEditorHandle>();
-    render(
+    renderWithProviders(
       <CustomInlineEditor
         ref={ref}
         blockId="block-1"
@@ -161,7 +162,7 @@ describe('CustomInlineEditor typing', () => {
 
   it('ignores Backspace keydown events from inside an editor companion', () => {
     const onChange = vi.fn();
-    render(
+    renderWithProviders(
       <CustomInlineEditor
         blockId="block-1"
         initialContentAST={[{ type: 'paragraph', children: [{ type: 'text', text: 'abc' }] }]}
@@ -188,7 +189,7 @@ describe('CustomInlineEditor typing', () => {
 
   it('ignores beforeinput delete events from inside an editor companion', () => {
     const onChange = vi.fn();
-    render(
+    renderWithProviders(
       <CustomInlineEditor
         blockId="block-1"
         initialContentAST={[{ type: 'paragraph', children: [{ type: 'text', text: 'abc' }] }]}
@@ -262,5 +263,45 @@ describe('CustomInlineEditor typing', () => {
     expect(lastAST[0].children.some((child: { type: string }) => child.type === 'node_link')).toBe(true);
 
     editor.removeChild(companionInput);
+  });
+
+  it('restores the pending caret when a mutation lands while blurred and focus returns', () => {
+    // Mirrors the trigger-popup flow ("+" / "@" / "#"): the popup's search
+    // input owns focus while the pill insertion mutation is applied, then the
+    // popup closes and the editor is refocused programmatically. The caret
+    // must land at the model selection (after the insertion), not wherever
+    // the browser would drop it on refocus.
+    const ref = createRef<InlineEditorHandle>();
+    renderWithProviders(
+      <CustomInlineEditor
+        ref={ref}
+        blockId="block-1"
+        initialContentAST={[{ type: 'paragraph', children: [{ type: 'text', text: 'abc' }] }]}
+      />,
+    );
+
+    const editor = screen.getByRole('textbox');
+    act(() => {
+      editor.focus();
+    });
+
+    // Popup opens and steals focus.
+    act(() => {
+      editor.blur();
+    });
+
+    // The selection mutation lands while the editor is blurred.
+    act(() => {
+      ref.current?.replaceRange(3, 3, 'X');
+    });
+
+    // Popup closes and refocuses the editor. Dispatch the focus event directly:
+    // jsdom's focus() forcibly resets the selection to 0 AFTER focus listeners
+    // run, which would clobber the restored caret (real browsers don't do that).
+    act(() => {
+      fireEvent.focus(editor);
+    });
+
+    expect(getDOMSelectionOffset(editor)).toBe(4);
   });
 });
