@@ -190,6 +190,13 @@ export const CustomInlineEditor = memo(
     // Apply pending DOM selection after render.
     useLayoutEffect(() => {
       if (!rootRef.current) return;
+      // While the editor is blurred (e.g. a trigger popup or pill modal owns
+      // focus), keep the pending selection instead of consuming it — it is
+      // applied when focus returns in handleFocus. Dropping it here would
+      // strand the caret wherever the browser places it on refocus (typically
+      // before an inserted pill instead of after it).
+      if (!hasFocusRef.current) return;
+
       const selectionTarget = applySelectionRef.current;
       applySelectionRef.current = null;
 
@@ -206,12 +213,10 @@ export const CustomInlineEditor = memo(
         target = selectionTarget;
       }
 
-      if (hasFocusRef.current) {
-        if (typeof target === 'number') {
-          setDOMSelection(rootRef.current, target);
-        } else {
-          setDOMSelection(rootRef.current, target.anchor, target.focus);
-        }
+      if (typeof target === 'number') {
+        setDOMSelection(rootRef.current, target);
+      } else {
+        setDOMSelection(rootRef.current, target.anchor, target.focus);
       }
     }, [state]);
 
@@ -547,6 +552,19 @@ export const CustomInlineEditor = memo(
 
     const handleFocus = useCallback(() => {
       hasFocusRef.current = true;
+      // A mutation may have landed while the editor was blurred (trigger popup
+      // selection, pill edit modal). Its selection was kept pending — apply it
+      // now that the DOM selection is ours again, otherwise the browser drops
+      // the caret at a fallback position (e.g. before an inserted pill).
+      const pending = applySelectionRef.current;
+      if (pending !== null && rootRef.current) {
+        applySelectionRef.current = null;
+        if (typeof pending === 'number') {
+          setDOMSelection(rootRef.current, pending);
+        } else {
+          setDOMSelection(rootRef.current, pending.anchor, pending.focus);
+        }
+      }
       useEditorFocusStore.getState().focusBlock(blockId);
       onFocus?.();
     }, [blockId, onFocus]);
