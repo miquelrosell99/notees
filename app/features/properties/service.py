@@ -39,6 +39,11 @@ class PropertyNotFoundError(LookupError):
     pass
 
 
+# Sentinel distinguishing "argument not provided" from an explicit None
+# (which means "clear the typed default columns").
+_UNSET = object()
+
+
 class PropertyService:
     """Domain service for property lifecycle and value operations."""
 
@@ -151,11 +156,21 @@ class PropertyService:
         icon_visibility: str | None = None,
         is_multi: bool | None = None,
         validation_rules: dict[str, Any] | None = None,
+        required: bool | None = None,
+        readonly: bool | None = None,
+        hide_when_empty: bool | None = None,
+        default_value: Any = _UNSET,
     ) -> Property | None:
         """Update a property definition.
 
-        Mirrors the router's multi-flag change handling.
+        Mirrors the router's multi-flag change handling. `default_value` uses
+        the `_UNSET` sentinel: absent = no change, explicit None = clear all
+        typed default columns, otherwise the public value (UUIDs for
+        selection/relation types) is resolved and mapped to its typed column.
         """
+        from app.features.properties.attributes import default_columns_for_value
+
+        prop: Property | None = None
         if is_multi is not None:
             prop = await self._property_repo.get_by_id(property_id)
             if not prop:
@@ -180,14 +195,57 @@ class PropertyService:
                 user_id=int(self._user_id) if self._user_id else 0,
             )
 
-        if name is not None or icon is not None or icon_visibility is not None:
-            prop = await self._property_repo.update(
-                property_id, name=name, icon=icon, icon_visibility=icon_visibility
+        clear_defaults = False
+        default_columns: dict[str, Any] | None = None
+        if default_value is not _UNSET:
+            if default_value is None:
+                clear_defaults = True
+            else:
+                if prop is None:
+                    prop = await self._property_repo.get_by_id(property_id)
+                    if not prop:
+                        return None
+                resolved = await self._resolve_default_value(prop, default_value)
+                default_columns = default_columns_for_value(prop.type, resolved)
+
+        if (
+            name is not None
+            or icon is not None
+            or icon_visibility is not None
+            or required is not None
+            or readonly is not None
+            or hide_when_empty is not None
+            or default_value is not _UNSET
+        ):
+            updated = await self._property_repo.update(
+                property_id,
+                name=name,
+                icon=icon,
+                icon_visibility=icon_visibility,
+                required=required,
+                readonly=readonly,
+                hide_when_empty=hide_when_empty,
+                clear_defaults=clear_defaults,
+                default_columns=default_columns,
             )
-            if not prop:
+            if not updated:
                 return None
 
         return await self._property_repo.get_by_id(property_id)
+
+    async def _resolve_default_value(self, prop: Property, value: Any) -> Any:
+        """Resolve public UUIDs in a default value to internal ids where the
+        typed default column stores ids (selection lines, node references).
+
+        TEXT defaults are stored verbatim in ``default_text`` (see
+        ``attributes._TYPE_DEFAULT_COLUMN``), so their UUIDs round-trip as
+        strings instead of being resolved to node ids.
+        """
+        if prop.type == PropertyType.SELECTION or (
+            prop.type in RELATION_TYPES and prop.type != PropertyType.TEXT
+        ):
+            return await self.resolve_property_value(prop, value)
+        return value
 
     async def change_property_type(
         self,
@@ -767,12 +825,16 @@ class PropertyService:
         property_id: int,
         sequence: int = 0,
         default_value: Any = None,
-        required: bool = False,
+        required: bool | None = None,
         hidden: bool = False,
+        readonly: bool | None = None,
+        hide_when_empty: bool | None = None,
     ) -> tuple[Any, Property]:
         """Link a property to a class.
 
-        Returns the (class_property, property) pair.
+        Returns the (class_property, property) pair. Public default values
+        (UUIDs for selection/relation types) are resolved to internal ids
+        before hitting the repository.
 
         Raises:
             PropertyNotFoundError: If the property does not exist.
@@ -781,13 +843,20 @@ class PropertyService:
         if not prop:
             raise PropertyNotFoundError(f"Property {property_id} not found")
 
+        resolved_default = default_value
+        if default_value is not None:
+            resolved_default = await self._resolve_default_value(prop, default_value)
+
         cp = await self._property_repo.add_class_property(
             class_node_id,
             property_id,
             sequence,
-            default_value,
+            resolved_default,
             required=required,
             hidden=hidden,
+            readonly=readonly,
+            hide_when_empty=hide_when_empty,
+            prop_type=prop.type,
         )
         return cp, prop
 
@@ -827,21 +896,38 @@ class PropertyService:
         self,
         class_node_id: int,
         property_id: int,
-        required: bool | None = None,
-        hidden: bool | None = None,
+        updates: dict[str, Any] | None = None,
+        default_value: Any = _UNSET,
     ) -> tuple[Any, Property] | None:
-        """Update an existing class property (required, hidden flags).
+        """Update an existing class property binding.
 
-        None means "no change" at this layer; the repository's verbatim
-        NULL semantics (tri-state inherit) are opt-in via Task 4's rewiring.
+        `updates` holds verbatim column values for the tri-state flags
+        (including None = "inherit from property"); callers build it from the
+        request's explicitly provided fields. `default_value` uses the
+        `_UNSET` sentinel: absent = no change, explicit None = clear all
+        typed default columns, otherwise the public value (UUIDs for
+        selection/relation types) is resolved and mapped to its typed column.
         """
-        updates = {
-            k: v
-            for k, v in {"required": required, "hidden": hidden}.items()
-            if v is not None
-        }
+        from app.features.properties.attributes import default_columns_for_value
+
+        clear_defaults = False
+        default_columns: dict[str, Any] | None = None
+        if default_value is not _UNSET:
+            if default_value is None:
+                clear_defaults = True
+            else:
+                prop = await self._property_repo.get_by_id(property_id)
+                if not prop:
+                    return None
+                resolved = await self._resolve_default_value(prop, default_value)
+                default_columns = default_columns_for_value(prop.type, resolved)
+
         cp = await self._property_repo.update_class_property(
-            class_node_id, property_id, **updates
+            class_node_id,
+            property_id,
+            clear_defaults=clear_defaults,
+            default_columns=default_columns,
+            **(updates or {}),
         )
         if cp is None:
             return None
