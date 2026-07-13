@@ -479,7 +479,7 @@ export function NodeContextMenu({
     // actions (core features + plugins, see NodeActionRegistry), and compose
     // the final list — sections render in NODE_MENU_GROUP_ORDER with the
     // destructive section last.
-    const actionContext: NodeActionContext = { nodeUuid: node.uuid, node, close: onClose };
+    const actionContext: NodeActionContext = { menu: 'node', nodeUuid: node.uuid, node, close: onClose };
     const contributed = getVisibleNodeActions(pluginActions, {
       nodeScope,
       showDevOptions,

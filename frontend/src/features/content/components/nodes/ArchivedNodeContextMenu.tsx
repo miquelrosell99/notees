@@ -9,9 +9,31 @@ import { nodeNameToText } from '@/features/queries';
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/ContextMenu';
 import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
 import { useAddSidebarCardAction, useOpenLocalGraphAction } from '@/features/layout';
+import { useSettingsStore } from '@/stores';
+import {
+  getVisibleNodeActions,
+  NODE_ACTION_DEFAULT_ORDER,
+  useNodeActions,
+  type NodeActionContext,
+  type NodeMenuGroup,
+} from '@/plugins/core';
 import type { Node } from '@/types';
 import { copyToClipboard } from '@/utils/clipboardManager';
+import { composeMenuItems, type ComposableMenuItem } from './NodeContextMenu/composeMenuItems';
 import './NodeContextMenu.css';
+
+/**
+ * Menu section for each core item (ids as built below). 'unarchive' lands in
+ * 'main'. Differs slightly from the historical flat layout: copy actions now
+ * form their own section.
+ */
+const ARCHIVED_ITEM_GROUP: Record<string, NodeMenuGroup> = {
+  'copy-uuid': 'copy',
+  'copy-link': 'copy',
+  'open-sidebar': 'manage',
+  'local-graph': 'manage',
+  delete: 'danger',
+};
 
 interface ArchivedNodeContextMenuProps {
   /** The node to show context menu for */
@@ -32,6 +54,8 @@ export function ArchivedNodeContextMenu({ node, position, onClose }: ArchivedNod
   const deleteNode = useDeleteNode();
   const addSidebarCard = useAddSidebarCardAction();
   const openLocalGraph = useOpenLocalGraphAction();
+  const showDevOptions = useSettingsStore((s) => s.showDevOptions);
+  const pluginActions = useNodeActions();
   const { count: linkedRefsCount } = useLinkedReferencesCount(node.uuid);
   
   const handleUnarchiveClick = useCallback(() => {
@@ -64,7 +88,7 @@ export function ArchivedNodeContextMenu({ node, position, onClose }: ArchivedNod
     onClose();
   }, [onClose]);
   
-  const menuItems: ContextMenuItem[] = [
+  const baseItems: ContextMenuItem[] = [
     {
       id: 'unarchive',
       label: 'Unarchive',
@@ -91,7 +115,6 @@ export function ArchivedNodeContextMenu({ node, position, onClose }: ArchivedNod
         onClose();
       }
     },
-    { id: 'sep-1', label: '', separator: true },
     {
       id: 'open-sidebar',
       label: 'Open in sidebar',
@@ -110,7 +133,6 @@ export function ArchivedNodeContextMenu({ node, position, onClose }: ArchivedNod
         onClose();
       }
     },
-    { id: 'sep-2', label: '', separator: true },
     {
       id: 'delete',
       label: 'Delete',
@@ -120,6 +142,43 @@ export function ArchivedNodeContextMenu({ node, position, onClose }: ArchivedNod
       onClick: handleDeleteClick,
     },
   ];
+
+  // Merge contributed node actions targeting the archived menu (see
+  // NodeActionRegistry) and compose sections; destructive section last.
+  const actionContext: NodeActionContext = {
+    menu: 'archived',
+    nodeUuid: node.uuid,
+    node,
+    close: onClose,
+  };
+  const contributed = getVisibleNodeActions(pluginActions, {
+    nodeScope: node.is_page ? 'page' : 'block',
+    showDevOptions,
+    context: actionContext,
+  });
+  const composed: ComposableMenuItem[] = baseItems.map((item, index) => ({
+    ...item,
+    group: ARCHIVED_ITEM_GROUP[item.id] ?? 'main',
+    order: index,
+  }));
+  contributed.forEach((action, regIndex) => {
+    composed.push({
+      id: `plugin:${action.id}`,
+      label: action.label,
+      icon: action.icon,
+      shortcut: action.shortcut,
+      badge: action.badge ?? (action.devOnly ? 'DEV' : undefined),
+      danger: action.danger,
+      keepOpen: action.keepOpen,
+      group: action.group,
+      order: action.order ?? NODE_ACTION_DEFAULT_ORDER + regIndex,
+      onClick: () => {
+        action.execute(actionContext);
+        if (!action.keepOpen) onClose();
+      },
+    });
+  });
+  const menuItems = composeMenuItems(composed);
   
   return (
     <>
