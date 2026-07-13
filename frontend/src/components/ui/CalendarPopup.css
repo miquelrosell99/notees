@@ -17,6 +17,7 @@
 }
 
 /* ==================== Calendar Header ==================== */
+/* Two sections: zoom-level selector on top, date navigation below */
 .calendar-header {
   display: flex;
   flex-direction: column;
@@ -24,7 +25,13 @@
   margin-bottom: var(--spacing-2);
 }
 
-.calendar-header-row {
+/* Zoom-level selector (days / months / years) — independent of the date */
+.calendar-zoom {
+  display: flex;
+  justify-content: center;
+}
+
+.calendar-nav-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -35,6 +42,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
   width: var(--button-icon-only-sm);
   height: var(--button-icon-only-sm);
   aspect-ratio: 1;
@@ -53,19 +61,23 @@
 
 .calendar-title {
   display: flex;
+  flex: 1;
+  justify-content: center;
+  min-width: 0;
   gap: var(--spacing-1);
   font: var(--font-title-small);
   color: var(--color-on-surface);
 }
 
 /* Month/year navigation selects — change the displayed date without
-   touching the zoom level (zoom is controlled by .calendar-zoom below). */
+   touching the zoom level (zoom is controlled by .calendar-zoom). */
 .calendar-select {
   appearance: none;
   background: none;
   border: none;
   cursor: pointer;
   font: inherit;
+  min-width: 0;
   padding: var(--spacing-1) var(--spacing-2);
   border-radius: var(--shape-small);
   color: var(--color-on-surface-variant);
@@ -89,12 +101,6 @@
 .calendar-year-range {
   padding: var(--spacing-1) var(--spacing-2);
   color: var(--color-on-surface-variant);
-}
-
-/* Zoom-level selector (days / months / years) — independent of the date */
-.calendar-zoom {
-  display: flex;
-  justify-content: center;
 }
 
 /* ==================== Weekdays Header ==================== */
