@@ -621,12 +621,18 @@ def build_import_records(
         query_json = nv.get("query_json", {})
         shown_properties = nv.get("shown_properties", [])
         group_by = nv.get("group_by")
+        sort_entries = nv.get("sort_entries", [])
+        settings = nv.get("settings", {})
 
         if remap_uuids:
             query_json = _remap_uuids_in_jsonb(query_json, uuid_map)
             shown_properties = _remap_uuids_in_jsonb(shown_properties, uuid_map)
-            if group_by and UUID_PATTERN.match(group_by):
-                group_by = uuid_map.get(group_by.lower(), group_by)
+            # group_by is a JSONB string or list of strings (property UUIDs);
+            # sort keys may be "property_<uuid>" — both are covered by the
+            # text-level UUID remap over the JSON serialization.
+            group_by = _remap_uuids_in_jsonb(group_by, uuid_map)
+            sort_entries = _remap_uuids_in_jsonb(sort_entries, uuid_map)
+            settings = _remap_uuids_in_jsonb(settings, uuid_map)
 
         bundle.node_view_records.append(
             (
@@ -640,6 +646,9 @@ def build_import_records(
                 _to_bool(nv.get("active", True)),
                 shown_properties,
                 group_by,
+                nv.get("view_mode"),
+                sort_entries if isinstance(sort_entries, list) else [],
+                settings if isinstance(settings, dict) else {},
                 _parse_datetime(nv.get("create_date")) or now,
                 _parse_datetime(nv.get("write_date")) or now,
                 user_id,

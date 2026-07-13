@@ -762,7 +762,10 @@ CREATE TABLE IF NOT EXISTS node_view (
     is_default BOOLEAN DEFAULT FALSE,
     active BOOLEAN DEFAULT TRUE,
     shown_properties JSONB DEFAULT '[]'::jsonb, -- Array of {uuid: string, sequence: number} for table view columns
-    group_by TEXT DEFAULT NULL, -- Group by field for card view (e.g., 'page', 'type', property uuid)
+    group_by JSONB DEFAULT NULL, -- Group by field: 'page', 'none', property uuid, or array of those (multi-level)
+    view_mode TEXT DEFAULT NULL, -- list/document/kanban/table/gantt/calendar/chart/pivot/graph/timeline; NULL = section default
+    sort_entries JSONB DEFAULT '[]'::jsonb, -- Array of {key: string, direction: 'asc'|'desc'}
+    settings JSONB DEFAULT '{}'::jsonb, -- Per-mode layout config (cardLayout, gantt/calendar date props + scale, chart config)
     create_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     write_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     create_uid INTEGER REFERENCES "user"(id) ON DELETE SET NULL,
@@ -1918,6 +1921,40 @@ BEGIN
           AND data_type = 'integer'
     ) THEN
         ALTER TABLE node ALTER COLUMN sequence TYPE DOUBLE PRECISION USING sequence::double precision;
+    END IF;
+END $$;
+
+-- Migration: Per-view presentation state on node_view (view_mode, sort_entries, settings)
+-- and group_by widened to JSONB so it can hold a string or an array (multi-level grouping)
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'node_view' AND column_name = 'view_mode'
+    ) THEN
+        ALTER TABLE node_view ADD COLUMN view_mode TEXT DEFAULT NULL;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'node_view' AND column_name = 'sort_entries'
+    ) THEN
+        ALTER TABLE node_view ADD COLUMN sort_entries JSONB DEFAULT '[]'::jsonb;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'node_view' AND column_name = 'settings'
+    ) THEN
+        ALTER TABLE node_view ADD COLUMN settings JSONB DEFAULT '{}'::jsonb;
+    END IF;
+
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'node_view' AND column_name = 'group_by'
+          AND data_type = 'text'
+    ) THEN
+        ALTER TABLE node_view ALTER COLUMN group_by TYPE JSONB USING to_jsonb(group_by);
     END IF;
 END $$;
 """

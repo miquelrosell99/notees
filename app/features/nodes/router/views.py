@@ -55,7 +55,10 @@ class NodeViewResponse(BaseModel):
     is_default: bool
     active: bool
     shown_properties: list[dict[str, Any]] = []
-    group_by: str | None = None
+    group_by: str | list[str] | None = None
+    view_mode: str | None = None
+    sort_entries: list[dict[str, Any]] = []
+    settings: dict[str, Any] = {}
     create_date: str
     write_date: str
     # The query AST JSON
@@ -74,13 +77,21 @@ class NodeViewCreateRequest(BaseModel):
 
 
 class NodeViewUpdateRequest(BaseModel):
-    """Request to update a NodeView."""
+    """Request to update a NodeView.
+
+    Fields left as None are not touched. Note this means view_mode/group_by
+    cannot be reset to NULL through this endpoint — clients send explicit
+    values (e.g. 'list' / 'none') instead.
+    """
 
     name: str | None = None
     order_index: int | None = None
     is_default: bool | None = None
     shown_properties: list[dict[str, Any]] | None = None
-    group_by: str | None = None
+    group_by: str | list[str] | None = None
+    view_mode: str | None = None
+    sort_entries: list[dict[str, Any]] | None = None
+    settings: dict[str, Any] | None = None
 
 
 class QueryExecuteRequest(BaseModel):
@@ -421,6 +432,9 @@ async def _node_view_to_response(
         active=view.active,
         shown_properties=view.shown_properties or [],
         group_by=view.group_by,
+        view_mode=view.view_mode,
+        sort_entries=view.sort_entries or [],
+        settings=view.settings or {},
         create_date=view.create_date,
         write_date=view.write_date,
     )
@@ -577,10 +591,40 @@ async def update_node_view(
         is_default=request.is_default,
         shown_properties=request.shown_properties,
         group_by=request.group_by,
+        view_mode=request.view_mode,
+        sort_entries=request.sort_entries,
+        settings=request.settings,
     )
 
     if not view:
         raise HTTPException(status_code=404, detail="NodeView not found")
+
+    node_uuid_map = await _build_node_uuid_map(node_repo, [view.node_id])
+    return await _node_view_to_response(view, node_uuid_map=node_uuid_map, include_query_ast=True, user=user)
+
+
+@router.post(
+    "/{view_uuid}/duplicate",
+    response_model=NodeViewResponse,
+    dependencies=[Depends(require_write_scope)],
+)
+async def duplicate_node_view(
+    view_id: int = Depends(resolve_view_uuid),
+    node_repo: NodeRepository = Depends(get_node_repository),
+    user: User = Depends(get_current_user),
+):
+    """Duplicate a NodeView, copying its query AST and full presentation config.
+
+    The copy is appended at the end of the view_type's tab order and is never
+    marked as default.
+    """
+    repo = await _get_node_view_repo(user)
+    view_service = NodeViewService(repo)
+
+    try:
+        view = await view_service.duplicate_view(view_id)
+    except DomainError as e:
+        raise HTTPException(status_code=404, detail=e.message) from e
 
     node_uuid_map = await _build_node_uuid_map(node_repo, [view.node_id])
     return await _node_view_to_response(view, node_uuid_map=node_uuid_map, include_query_ast=True, user=user)

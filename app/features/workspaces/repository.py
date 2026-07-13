@@ -643,6 +643,7 @@ class PostgresWorkspaceIORepository(WorkspaceIORepository):
                 SELECT nv.id, nv.uuid, nv.node_id, nv.name, nv.query_json,
                        nv.view_type, nv.order_index, nv.is_default, nv.active,
                        nv.shown_properties, nv.group_by,
+                       nv.view_mode, nv.sort_entries, nv.settings,
                        nv.create_date, nv.write_date
                 FROM node_view nv
                 JOIN node n ON nv.node_id = n.id
@@ -1094,12 +1095,14 @@ class PostgresWorkspaceIORepository(WorkspaceIORepository):
                         uuid, node_id, name, query_json, view_type,
                         order_index, is_default, active,
                         shown_properties, group_by,
+                        view_mode, sort_entries, settings,
                         create_date, write_date, create_uid, write_uid
                     ) VALUES (
                         $1::uuid, $2, $3, $4::jsonb, $5,
                         $6, $7, $8,
-                        $9::jsonb, $10,
-                        $11, $12, $13, $13
+                        $9::jsonb, $10::jsonb,
+                        $11, $12::jsonb, $13::jsonb,
+                        $14, $15, $16, $16
                     )
                     ON CONFLICT (uuid) DO UPDATE SET
                         node_id = EXCLUDED.node_id,
@@ -1111,6 +1114,9 @@ class PostgresWorkspaceIORepository(WorkspaceIORepository):
                         active = EXCLUDED.active,
                         shown_properties = EXCLUDED.shown_properties,
                         group_by = EXCLUDED.group_by,
+                        view_mode = EXCLUDED.view_mode,
+                        sort_entries = EXCLUDED.sort_entries,
+                        settings = EXCLUDED.settings,
                         write_date = EXCLUDED.write_date,
                         write_uid = EXCLUDED.write_uid
                 """,
