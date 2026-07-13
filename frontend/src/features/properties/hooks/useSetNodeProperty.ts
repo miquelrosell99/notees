@@ -4,7 +4,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import * as nodesApi from '@/api/nodes';
 import type { BatchPropertiesResult } from '@/api/nodes';
-import { nodeKeys } from '@/hooks/queryKeys';
+import { nodeKeys, nodeViewKeys } from '@/hooks/queryKeys';
 
 
 export function useSetNodeProperty() {
@@ -72,6 +72,11 @@ export function useSetNodeProperty() {
     onSettled: (_, __, { nodeUuid }) => {
       queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(nodeUuid) });
       queryClient.invalidateQueries({ queryKey: nodeKeys.pageContent(nodeUuid) });
+
+      // List/query collections render nodes from view results; without this the
+      // runtime never learns the new property values (e.g. task_status), so
+      // badges and task cycling in list view go stale.
+      queryClient.invalidateQueries({ queryKey: nodeViewKeys.queryResults() });
 
       queryClient.invalidateQueries({
         predicate: (q) =>
