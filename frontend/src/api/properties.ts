@@ -195,14 +195,20 @@ export async function getClassProperties(
 }
 
 /**
- * Link a property to a class
+ * Link a property to a class.
+ *
+ * Tri-state flags (required/readonly/hide_when_empty) are sent as null when
+ * unset so the binding inherits from the property base — forcing `false`
+ * here would mean "explicitly off", defeating inheritance.
  */
 export async function addClassProperty(
   classNodeUuid: string,
   propertyUuid: string,
   sequence?: number,
   defaultValue?: unknown,
-  required?: boolean
+  required?: boolean | null,
+  readonly?: boolean | null,
+  hideWhenEmpty?: boolean | null
 ): Promise<ClassProperty> {
   const response = await api.post<ClassProperty>(
     `${BASE}/classes/${classNodeUuid}/properties`,
@@ -210,7 +216,9 @@ export async function addClassProperty(
       property_uuid: propertyUuid,
       sequence: sequence ?? 0,
       default_value: defaultValue,
-      required: required ?? false,
+      required: required ?? null,
+      readonly: readonly ?? null,
+      hide_when_empty: hideWhenEmpty ?? null,
     }
   );
   return response.data;
