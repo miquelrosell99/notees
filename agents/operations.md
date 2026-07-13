@@ -5,14 +5,15 @@
 - **Race condition triage**: If a bug involves "local change disappears after a network mutation" (e.g., typed text reappears, inline pill vanishes after adding a class/tag), check the **debounced save / query invalidation boundary FIRST** before tracing DOM or editor logic. The frontend debounces content saves (`useContentSave`) while mutations like `addClass` invalidate queries immediately. A refetch can return stale server-side content and overwrite the editor's local state. Always verify whether `flushAllContentSaves()` or an equivalent flush is needed before firing the mutation.
 - **Root causes over local fixes**: When symptoms look like a local editor bug (popup not closing, text not removed, selection wrong), step back and check cross-layer interactions — especially between inline editor state, `OperationRuntime` projections, TanStack Query cache updates, and debounced persistence.
 
-## Decision-Making & Planning
+## Verification & Dev Stack
 
-- **Multi-file changes**: If a task touches more than 2–3 files, spans both frontend and backend, or changes interfaces/schemas, use **plan mode** (`EnterPlanMode`) and get user approval before writing code.
+> Generic workflow rules (snapshot commits, concurrent-agent discipline, verify-before-finishing, plan-mode threshold) are covered by the `agent-repo-workflow` skill. The commands below are Notees-specific.
+
 - **Always verify**: After code changes, run the relevant linter/test suite before finishing.
   - Backend (inside container): `docker compose -f compose.dev.yaml exec backend uv run ruff check app/` and `docker compose -f compose.dev.yaml exec backend uv run pytest tests/ -m "not slow" --no-cov`.
   - Frontend (inside container): `docker compose -f compose.dev.yaml exec frontend npm run lint` and `docker compose -f compose.dev.yaml exec frontend npx tsc -b --noEmit`.
   - Only fall back to host-local commands (`uv run ...`, `cd frontend && npm ...`) when the user explicitly says they are not using Docker.
-- **Fix all test failures**: If tests fail after your changes — even failures that appear unrelated to your task — you must fix them before finishing. Do not leave the test suite broken.
+- **Rebuild and restart the dev stack when fixes change runtime behavior**: Do not rely on live-reload or long-running containers for changes that affect backend routes, request/response schemas, sync mappers, frontend build output, or container startup state. After such fixes, run `docker compose -f compose.dev.yaml down && docker compose -f compose.dev.yaml up --build` (or `task dev -- --build`) and confirm the user verifies the behavior in the browser before considering the task done.
 
 ## Performance Notes & Accepted Tech Debt
 

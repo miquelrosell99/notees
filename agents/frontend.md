@@ -52,6 +52,7 @@ Backend API ←→ TanStack Query (server state) ←→ SyncManager (adapter) �
   - Domain-specific components (`features/content/components/blocks/`, `features/content/components/nodes/`, `features/properties/`, `features/queries/`) may import from `components/ui/`, `api/`, `hooks/`, and `stores/`.
 - **Custom Hooks**: Live in `frontend/src/hooks/`.
 - **State**: Zustand for client state; TanStack Query for server state. Avoid direct fetch/XMLHttpRequest inside UI components.
+- **Confirmations**: Never use `window.confirm` / `window.alert` / `window.prompt`. Use the app's `ConfirmationModal` (`@/components/ui/ConfirmationModal`) — it supports `variant="danger"`, async `onConfirm` with pending/error states, and Enter-to-confirm. Drive it with local `isOpen` state (or `useModalStore` for app-wide modals).
 
 ### Custom Inline Editor — Popup Keepalive Invariant
 

@@ -47,6 +47,8 @@ Rate limiting is implemented with **`fastapi_limiter`** (0.2.0) and **`pyrate_li
 
 ### `PerKeyBucketFactory` Implementation Detail
 
+> The generic per-key bucket factory pattern (and the `SingleBucketFactory` global-bucket trap) is covered by `fastapi-patterns` §Rate limiting with per-key buckets. The notes below are the Notees-specific history and wiring.
+
 By default, `pyrate_limiter.Limiter(Rate(...))` creates a **`SingleBucketFactory`**, which means **all keys share one global bucket**. A React SPA can fire 50–100+ API requests per minute during normal browsing, so a global 200 req/min limit was exhausted immediately and caused routine usage to hit `429 Too Many Requests`.
 
 The fix is `PerKeyBucketFactory` (defined in `app/main.py`). It creates a separate `InMemoryBucket` per rate-limit key so that each client IP gets its own independent quota. The identifier function `_ip_only_identifier` returns only the client IP (omitting the URL path) to keep bucket count bounded to the number of active clients.
