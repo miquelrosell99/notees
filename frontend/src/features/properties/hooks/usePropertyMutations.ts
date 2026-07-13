@@ -3,7 +3,7 @@
  */
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import * as propertiesApi from '@/api/properties';
-import type { PropertyCreate, PropertyIconVisibility } from '@/types/api';
+import type { PropertyCreate, PropertyUpdate } from '@/types/api';
 import { nodeKeys, propertyKeys } from '@/hooks/queryKeys';
 
 
@@ -23,7 +23,7 @@ export function useUpdateProperty() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: { name?: string; icon?: string; multi?: boolean; icon_visibility?: PropertyIconVisibility | null; validation_rules?: Record<string, unknown> | null } }) =>
+    mutationFn: ({ id, data }: { id: string; data: PropertyUpdate }) =>
       propertiesApi.updateProperty(id, data),
     onSuccess: (updated, { id }) => {
       queryClient.setQueryData(propertyKeys.detail(id), updated);
