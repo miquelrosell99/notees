@@ -61,6 +61,13 @@
   min-width: 0;
 }
 
+/* Inline properties section — set properties without inline icon visibility.
+   Kept compact so it reads as metadata under the block content. */
+.block-row__properties {
+  margin-top: var(--spacing-0-5);
+  font-size: var(--font-size-sm);
+}
+
 /* Content area — inline editor sits here */
 .block-row__content {
   min-height: 1.5em;

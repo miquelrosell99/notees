@@ -10,7 +10,10 @@ import { nodeKeys, propertyKeys } from '@/hooks/queryKeys';
 
 export function useProperties() {
   return useQuery({
-    queryKey: propertyKeys.list(),
+    // NOTE: must stay on propertyKeys.lists() — imperative readers
+    // (useRuntimeSync.resolveTaskStatus, useTaskActions.resolveTaskStatusIds)
+    // and all property-mutation invalidations target this exact key.
+    queryKey: propertyKeys.lists(),
     queryFn: () => propertiesApi.listProperties(),
   });
 }

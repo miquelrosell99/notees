@@ -42,6 +42,12 @@ interface PropertiesSectionProps {
   /** Render inline without section header (for use in blocks) */
   inline?: boolean;
   /**
+   * When true, only show properties that actually have a value set on this
+   * node (present in node.properties_uuid) — class-declared but unset
+   * properties are omitted. Intended for compact inline displays.
+   */
+  onlyWithValues?: boolean;
+  /**
    * Whether this node is the "main" node being viewed (page in page view,
    * or the focused/zoom-root block in focused block view).
    * When false, properties whose icon_visibility is not 'hidden' are moved
@@ -64,6 +70,7 @@ export function PropertiesSection({
       defaultCollapsed = false,
       filterPropertyIds,
       inline = false,
+      onlyWithValues = false,
       isMainNode = false }: PropertiesSectionProps) {
   const [isExpanded, setIsExpanded] = useState(!defaultCollapsed);
   const [showHidden, _setShowHidden] = useState(false);
@@ -267,9 +274,17 @@ export function PropertiesSection({
   // Split properties into visible and hidden (based on hidden attribute, not value)
   const { visibleProperties, hiddenProperties } = useMemo(() => {
     // Apply filter if filterPropertyIds is provided
-    const propertiesToSplit = filterPropertyIds && filterPropertyIds.length > 0
+    let propertiesToSplit = filterPropertyIds && filterPropertyIds.length > 0
       ? nodeProperties.filter(({ property }) => filterPropertyIds.includes(property.uuid))
       : nodeProperties;
+
+    if (onlyWithValues) {
+      // Keep only properties that actually have a value set on this node.
+      const setPropertyIds = new Set(
+        Object.keys((node?.properties_uuid ?? {}) as Record<string, unknown>),
+      );
+      propertiesToSplit = propertiesToSplit.filter(({ property }) => setPropertyIds.has(property.uuid));
+    }
 
     const visible: typeof nodeProperties = [];
     const hidden: typeof nodeProperties = [];
@@ -294,7 +309,7 @@ export function PropertiesSection({
     }
 
     return { visibleProperties: visible, hiddenProperties: hidden };
-  }, [nodeProperties, filterPropertyIds, isMainNode]);
+  }, [nodeProperties, filterPropertyIds, onlyWithValues, node?.properties_uuid, isMainNode]);
 
   // Render property value function for PropertyList
   const renderPropertyValue = useCallback((entry: PropertyEntry, isReadOnly: boolean) => {

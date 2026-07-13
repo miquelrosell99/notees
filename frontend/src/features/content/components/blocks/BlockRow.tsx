@@ -33,7 +33,7 @@ import { useTaskActions } from '@/features/tasks';
 import { useProperties } from '@/features/properties';
 import { useResolvedClassDetails, useClasses } from '@/features/content';
 import { ClassPillsRow } from '@/features/content/components/nodes/ClassPillsRow';
-import { PropertyIconButton } from '@/features/properties';
+import { PropertyIconButton, PropertiesSection } from '@/features/properties';
 import { getNodeColorStylesAuto } from '@/utils/color';
 import { SYSTEM_CLASS_UUIDS } from '@/constants';
 import { Button } from '@/components/ui/Button';
@@ -609,6 +609,23 @@ export const BlockRow = memo(
               )}
               {editorElement}
             </div>
+          )}
+          {/* Inline properties: set properties without inline icon visibility
+              (those already render as bullet/content icons above). Returns null
+              when the node has no qualifying properties. */}
+          {!isGhost && (
+            <PropertiesSection
+              nodeUuid={node.uuid}
+              inline
+              readOnly={readOnly}
+              isMainNode={false}
+              showHiddenSection={false}
+              showAddProperty={false}
+              onlyWithValues
+              onNavigateToNode={onNavigate}
+              onOpenInSidebar={onOpenInSidebar}
+              className="block-row__properties"
+            />
           )}
         </div>
         {!isGhost && (

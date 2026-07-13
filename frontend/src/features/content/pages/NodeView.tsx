@@ -1281,31 +1281,6 @@ export function NodeView({
             variant={sectionVariant}
           />
           </>)}
-          
-          {/* Properties Section - full width row below header section */}
-          {showProperties && (
-            <div className="page-properties-section">
-              <PropertiesSection
-                nodeUuid={node.uuid}
-                showHiddenSection={true}
-                showAddProperty={true}
-                isMainNode={true}
-                onNavigateToNode={handleNavigateToNode}
-                onOpenInSidebar={(id) => addSidebarCard(id, 'block')}
-                defaultCollapsed={propertiesCollapsed}
-              />
-            </div>
-          )}
-
-          {/* Recurrence Section - only for tasks */}
-          {showProperties && node.is_task && (
-            <div className="page-recurrence-section">
-              <TaskRecurrenceSection
-                nodeUuid={node.uuid}
-                readOnly={!workspaceCanWrite}
-              />
-            </div>
-          )}
 
           {/* Banner Image Picker Modal */}
           <AssetUploadModal
@@ -1324,9 +1299,33 @@ export function NodeView({
           />
         </>
       ) : null}
-      
 
-      
+      {/* Properties Section - full width row below header section.
+          Rendered for pages and for the focused block in focused block view. */}
+      {showProperties && (
+        <div className="page-properties-section">
+          <PropertiesSection
+            nodeUuid={node.uuid}
+            showHiddenSection={true}
+            showAddProperty={true}
+            isMainNode={true}
+            onNavigateToNode={handleNavigateToNode}
+            onOpenInSidebar={(id) => addSidebarCard(id, 'block')}
+            defaultCollapsed={propertiesCollapsed}
+          />
+        </div>
+      )}
+
+      {/* Recurrence Section - only for tasks */}
+      {showProperties && node.is_task && (
+        <div className="page-recurrence-section">
+          <TaskRecurrenceSection
+            nodeUuid={node.uuid}
+            readOnly={!workspaceCanWrite}
+          />
+        </div>
+      )}
+
       {/* Class properties definition - only for class nodes (pages used as classes) */}
       {isClassNode && resolvedType === 'page' && (
         <ClassPropertiesEditor classNodeUuid={node.uuid} defaultExpanded={false} />
@@ -1346,8 +1345,8 @@ export function NodeView({
           />
         </>
       ) : (
-        /* Focused Block View - renders the block itself as a top-level list item */
-        /* Properties for the focused block are rendered inline by BlockPropertiesPlugin */
+        /* Focused Block View - renders the block itself as a top-level list item.
+           The focused block's properties are rendered above by PropertiesSection. */
         <FocusedBlockContent
           node={node}
           onAddSidebarCard={(id) => addSidebarCard(id, 'block')}

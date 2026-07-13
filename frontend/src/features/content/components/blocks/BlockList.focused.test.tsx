@@ -46,6 +46,13 @@ vi.mock('@/features/content/hooks/useTouchIndent', () => ({
   useTouchIndent: vi.fn(),
 }));
 
+vi.mock('@/features/properties', () => ({
+  useProperties: vi.fn(() => ({ data: [] })),
+  useSetNodeProperty: vi.fn(() => ({ mutate: vi.fn(), mutateAsync: vi.fn() })),
+  PropertyIconButton: vi.fn(() => null),
+  PropertiesSection: vi.fn(() => null),
+}));
+
 vi.mock('@/features/editor', () => ({
   CustomInlineEditor: vi.fn(() => <div data-testid="inline-editor">Editor</div>),
   InlineContentStatic: vi.fn(() => <div data-testid="inline-static">Static</div>),
