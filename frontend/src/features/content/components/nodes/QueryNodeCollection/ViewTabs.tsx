@@ -19,6 +19,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/ContextMenu';
+import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
 import { Icon } from '@/components/ui/icons';
 import { useDndSensors } from '@/features/content/hooks/dnd/useDndSensors';
 import type { NodeView } from '@/types/nodeView';
@@ -47,6 +48,7 @@ export function ViewTabs({
 }: ViewTabsProps) {
   const sensors = useDndSensors();
   const [menuState, setMenuState] = useState<{ view: NodeView; anchor: HTMLElement } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<NodeView | null>(null);
 
   const handleDragEnd = useCallback((event: DragEndEvent) => {
     const { active, over } = event;
@@ -86,11 +88,7 @@ export function ViewTabs({
           icon: 'mdi mdi-delete-outline',
           danger: true,
           disabled: menuState.view.is_default || views.length <= 1,
-          onClick: () => {
-            if (window.confirm(`Delete view "${menuState.view.name}"?`)) {
-              onDelete(menuState.view);
-            }
-          },
+          onClick: () => setDeleteTarget(menuState.view),
         },
       ]
     : [];
@@ -117,6 +115,22 @@ export function ViewTabs({
           onClose={() => setMenuState(null)}
         />
       )}
+      <ConfirmationModal
+        isOpen={deleteTarget !== null}
+        title="Delete View"
+        message={`Delete view "${deleteTarget?.name ?? ''}"?`}
+        secondaryMessage="This cannot be undone."
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        variant="danger"
+        onConfirm={() => {
+          if (deleteTarget) {
+            onDelete(deleteTarget);
+          }
+          setDeleteTarget(null);
+        }}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   );
 }
