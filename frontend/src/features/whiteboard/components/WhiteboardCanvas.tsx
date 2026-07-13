@@ -1306,7 +1306,7 @@ export const WhiteboardCanvas: React.FC<WhiteboardCanvasProps> = ({
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Don't intercept shortcuts when any editable element (input, textarea,
-      // or contenteditable Lexical editor) has focus — let those handle their
+      // or contenteditable inline editor) has focus — let those handle their
       // own undo/redo and text input.
       const active = document.activeElement;
       const isEditingText =

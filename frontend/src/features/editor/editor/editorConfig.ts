@@ -4,8 +4,7 @@
  * Split from the legacy BlockEditor.tsx so that BlockEditor only exports React
  * components, enabling Vite Fast Refresh (HMR).  Exporting non-component
  * values from a component file forces full module invalidation, which
- * breaks Lexical's node-type registry and causes
- * "Type inline-link … does not match registered node" errors.
+ * defeats Fast Refresh and causes stale editor state on hot updates.
  */
 
 import type { ContentAST } from '@/runtime/types';

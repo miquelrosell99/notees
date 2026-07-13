@@ -1,5 +1,5 @@
 /**
- * ProjectionReconciler — Diffs projected node lists and reconciles Lexical editors.
+ * ProjectionReconciler — Diffs projected node lists and reconciles inline editors.
  *
  * The projection layer diffs current visible nodes vs previous state by blockId,
  * performing minimal insert/remove/reorder operations. Selection and caret

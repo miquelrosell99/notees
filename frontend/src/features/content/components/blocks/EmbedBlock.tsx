@@ -68,7 +68,7 @@ export function EmbedBlock({
   // ─── Border selection keyboard handling ──────────────────────
 
   const handleDeleteHostBlock = useCallback(async () => {
-    // Blur focus first so Lexical doesn't auto-focus the next block in a weird way
+    // Blur focus first so the inline editor doesn't auto-focus the next block in a weird way
     if (document.activeElement instanceof HTMLElement) {
       document.activeElement.blur();
     }

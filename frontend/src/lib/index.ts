@@ -2,7 +2,7 @@
  * Core library — builder helpers and stringification.
  *
  * The old AST DOM, mutations, and history modules have been removed.
- * Content editing is now handled by Lexical via BlockEditor.
+ * Content editing is now handled by the custom inline editor via BlockList/BlockRow.
  *
  * Import from '@/lib' for:
  *   - AST type definitions
