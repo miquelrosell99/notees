@@ -141,7 +141,6 @@ export function BlockUI({
         isActivePath={isActivePath}
         showMiniBullet={isActivePath && !!(iconOverride ?? node.icon)}
         size="sm"
-        disableOpticalOffset
         isGhost={isGhost}
         listSize={listSize}
         inPropertyEditor={inPropertyEditor}

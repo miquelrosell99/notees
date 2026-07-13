@@ -127,10 +127,6 @@ body.notees-dragging-block .bullet-interactive {
   transform: translateY(var(--bullet-optical-offset, 0.2em));
 }
 
-.bullet-wrapper[data-optical-offset="false"] .bullet-container {
-  transform: none;
-}
-
 /* Ghost pseudo-block bullets */
 .bullet-wrapper[data-ghost="true"] .bullet-dot {
   opacity: var(--opacity-40);
