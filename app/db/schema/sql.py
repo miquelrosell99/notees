@@ -1972,7 +1972,12 @@ BEGIN
             ORDER BY psl.sequence LIMIT 1
         )
     WHERE p.uuid = '00000000-0000-0000-0003-000000000001'
-      AND (p.required IS DISTINCT FROM TRUE OR p.default_selection_id IS NULL)
+      AND (p.required IS DISTINCT FROM TRUE
+           OR p.default_selection_id IS DISTINCT FROM (
+               SELECT psl.id FROM property_selection_line psl
+               WHERE psl.property_id = p.id AND psl.name = 'Pending'
+               ORDER BY psl.sequence LIMIT 1
+           ))
       AND EXISTS (
           SELECT 1 FROM property_selection_line psl
           WHERE psl.property_id = p.id AND psl.name = 'Pending'
