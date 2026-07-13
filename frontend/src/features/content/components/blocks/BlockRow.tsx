@@ -622,9 +622,10 @@ export const BlockRow = memo(
               {editorElement}
             </div>
           )}
-          {/* Inline properties: set properties without inline icon visibility
-              (those already render as bullet/content icons above). Returns null
-              when the node has no qualifying properties. */}
+          {/* Inline properties: class-declared properties (even empty) and
+              valued ad-hoc ones. Icon-visible properties stay as bullet/content
+              icons; hidden and empty-hide-when-empty properties are omitted in
+              rows. */}
           {!isGhost && (
             <PropertiesSection
               nodeUuid={node.uuid}
@@ -633,7 +634,6 @@ export const BlockRow = memo(
               isMainNode={false}
               showHiddenSection={false}
               showAddProperty={false}
-              onlyWithValues
               onNavigateToNode={onNavigate}
               onOpenInSidebar={onOpenInSidebar}
               className="block-row__properties"

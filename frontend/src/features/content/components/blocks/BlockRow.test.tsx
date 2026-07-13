@@ -8,6 +8,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useEditorFocusStore } from '@/stores/editorFocusStore';
 import { BlockRow } from './BlockRow';
 import { CustomInlineEditor } from '@/features/editor/custom/components/CustomInlineEditor';
+import { PropertiesSection } from '@/features/properties';
 import type { Node } from '@/types/api';
 
 const baseNode: Node = {
@@ -36,7 +37,7 @@ vi.mock('@/features/tasks', () => ({
 vi.mock('@/features/properties', () => ({
   useProperties: () => ({ data: [] }),
   useSetNodeProperty: () => ({ mutate: vi.fn() }),
-  PropertiesSection: () => null,
+  PropertiesSection: vi.fn(() => null),
 }));
 
 vi.mock('@/features/content', () => ({
@@ -95,5 +96,18 @@ describe('BlockRow', () => {
     expect(screen.getByTestId('inline-editor')).toBeInTheDocument();
     const lastCallProps = vi.mocked(CustomInlineEditor).mock.calls.at(-1)![0] as { initialCursorOffset?: number };
     expect(lastCallProps.initialCursorOffset).toBeGreaterThanOrEqual(0);
+  });
+
+  it('renders class-declared properties even when empty', () => {
+    // A classed block must show its class-declared properties inline even
+    // when they have no value yet — so BlockRow must not pass onlyWithValues.
+    const classedNode: Node = { ...baseNode, classes_uuid: ['class-1'] };
+
+    render(<BlockRow node={classedNode} />, { wrapper: Wrapper });
+
+    expect(PropertiesSection).toHaveBeenCalled();
+    const lastCallProps = vi.mocked(PropertiesSection).mock.calls.at(-1)![0];
+    expect(lastCallProps.onlyWithValues).toBeUndefined();
+    expect(lastCallProps.inline).toBe(true);
   });
 });
