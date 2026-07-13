@@ -584,6 +584,7 @@ class PropertyService:
         *,
         run_automations: bool = True,
         log_activity: bool = True,
+        enforce_attributes: bool = True,
     ) -> None:
         """Set a property value for a node using the property's public UUID."""
         prop = await self.get_property_by_uuid(property_uuid)
@@ -596,6 +597,7 @@ class PropertyService:
             resolved_value,
             run_automations=run_automations,
             log_activity=log_activity,
+            enforce_attributes=enforce_attributes,
         )
 
     async def set_property_value(
@@ -606,16 +608,49 @@ class PropertyService:
         *,
         run_automations: bool = True,
         log_activity: bool = True,
+        enforce_attributes: bool = True,
     ) -> None:
         """Set a property value for a node, dispatching by type.
 
+        When ``enforce_attributes`` is true, the effective attributes
+        (property bases merged with class-property overrides) are enforced:
+        read-only properties reject writes, and clearing a required property
+        resets it to its effective default or is rejected.
+
         Raises:
             PropertyNotFoundError: If the property does not exist.
+            ReadonlyPropertyError: If the property is effectively read-only.
+            RequiredPropertyError: If a required property is cleared and has
+                no effective default to reset to.
             ValueError: If the value is invalid for the property type.
         """
         prop = await self._property_repo.get_by_id(property_id)
         if not prop:
             raise PropertyNotFoundError(f"Property {property_id} not found")
+
+        if enforce_attributes:
+            from app.features.properties.attributes import (
+                ReadonlyPropertyError,
+                RequiredPropertyError,
+                is_empty_value,
+                resolve_attributes,
+            )
+
+            edges = await self._property_repo.get_class_property_edges_for_node(
+                node_id, property_id
+            )
+            effective = resolve_attributes(prop, edges)
+            if effective.readonly:
+                raise ReadonlyPropertyError(
+                    f"Property '{prop.name}' is read-only for this node"
+                )
+            if effective.required and is_empty_value(value):
+                if effective.default_value is not None:
+                    value = effective.default_value
+                else:
+                    raise RequiredPropertyError(
+                        f"Property '{prop.name}' is required for this node"
+                    )
 
         if prop.type == PropertyType.DATE_RANGE and value is not None and value != "":
             value = normalize_date_range_value(value)
