@@ -13,7 +13,7 @@
  * projection → flat list for the renderer.
  */
 
-import { useState, useEffect, useMemo, useLayoutEffect, useCallback } from 'react';
+import { useState, useEffect, useMemo, useLayoutEffect, useCallback, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { getOperationRuntime } from '@/runtime';
 import type { OperationRuntime } from '@/runtime';
@@ -351,20 +351,29 @@ export function useBlockTree(
     }
   }, [nodes, nodeUuid]);
 
-  // Subscribe to runtime structural changes only. Content edits (name,
-  // contentAST, icon, etc.) emit `nodes_changed`; we intentionally do NOT
-  // rebuild the flat tree for those because the tree shape is unchanged and
-  // rebuilding invalidates BlockRow memoization, causing every visible row to
-  // re-render on every keystroke.
+  // Subscribe to runtime structural changes, and to content changes on blocks
+  // that are NOT the active editor's block. Keystrokes from the active editor
+  // emit `nodes_changed` for the active block only; rebuilding for those would
+  // invalidate BlockRow memoization and re-render every visible row per
+  // keystroke, so they are skipped (the editor owns its rendering while
+  // mounted, and blur triggers a rebuild via the activeBlockId dep below).
   //
-  // We DO rebuild when the active block changes (focus/blur). Runtime-only
-  // nodes (e.g. newly created blocks) derive their displayed `name` from the
-  // runtime's current `contentAST`; without a rebuild on blur, the static
-  // view would render the stale empty content after the editor unmounts.
+  // Content changes on non-active blocks — static-view pill edits, remote
+  // (collab) updates — must rebuild so `overlayRuntimeContent` picks up the
+  // new runtime content; otherwise the static view stays stale until the next
+  // focus change or a full reload.
+  const activeBlockIdRef = useRef(activeBlockId);
+  activeBlockIdRef.current = activeBlockId;
+
   const [structureVersion, setStructureVersion] = useState(0);
   useEffect(() => {
     const unsubscribe = getRuntimeEventBus().subscribe((event) => {
       if (event.type === 'structure_changed') {
+        setStructureVersion((v) => v + 1);
+      } else if (
+        event.type === 'nodes_changed' &&
+        event.blockIds.some((id) => id !== activeBlockIdRef.current)
+      ) {
         setStructureVersion((v) => v + 1);
       }
     });

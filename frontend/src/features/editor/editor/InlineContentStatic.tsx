@@ -9,6 +9,7 @@
  */
 
 import React, { useCallback, useRef, type JSX } from 'react';
+import { useParams } from 'react-router-dom';
 import type { ContentAST } from '@/runtime/types';
 import type { ASTInlineNode } from '@/types/ast';
 import { parseAST, parseLinkId } from '@/lib/astBuilder';
@@ -125,6 +126,7 @@ function renderMath(expression: string, displayMode: boolean): string {
 function InlineLinkWrapper({ nodeUuid, children }: { nodeUuid: string; children: React.ReactNode }) {
   const openNode = useNavigationStore((s) => s.openNode);
   const addSidebarCard = useNavigationStore((s) => s.addSidebarCard);
+  const { workspaceId } = useParams<{ workspaceId?: string }>();
   const refNode = useReferencedNode(nodeUuid);
   const { data: fallback } = useBatchedNodeByUuid(!refNode ? nodeUuid : null, { skipGlobalError: true });
   const node = refNode ?? fallback ?? null;
@@ -143,8 +145,19 @@ function InlineLinkWrapper({ nodeUuid, children }: { nodeUuid: string; children:
     [node, openNode, addSidebarCard],
   );
 
+  // Middle-click opens the target in a new browser tab; preventDefault on
+  // mousedown suppresses the browser's autoscroll mode.
+  const handleMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      if (e.button !== 1 || !node) return;
+      e.preventDefault();
+      window.open(`/${workspaceId ?? ''}/${node.uuid}`, '_blank', 'noopener,noreferrer');
+    },
+    [node, workspaceId],
+  );
+
   return (
-    <span className="inline-link-wrapper" onClick={handleClick}>
+    <span className="inline-link-wrapper" onClick={handleClick} onMouseDown={handleMouseDown}>
       {children}
     </span>
   );

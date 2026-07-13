@@ -6,6 +6,7 @@
  * and clickable for navigation.
  */
 import React, { useCallback } from 'react';
+import { useParams } from 'react-router-dom';
 import type { ASTInlineNode } from '@/types/ast';
 import { parseAST, parseLinkId } from '@/lib/astBuilder';
 import { formatDateRange } from '@/utils/dateRange';
@@ -21,11 +22,13 @@ import '@/styles/math.css';
 
 /**
  * Clickable wrapper that mimics the block editor's inline-link-wrapper.
- * Click navigates to the node; Shift+click opens in sidebar.
+ * Click navigates to the node; Shift+click opens in sidebar;
+ * middle-click opens in a new browser tab.
  */
 function InlineLinkWrapper({ nodeUuid, children }: { nodeUuid: string; children: React.ReactNode }) {
   const openNode = useNavigationStore(s => s.openNode);
   const addSidebarCard = useNavigationStore(s => s.addSidebarCard);
+  const { workspaceId } = useParams<{ workspaceId?: string }>();
   const { data: node } = useBatchedNodeByUuidFallback(nodeUuid);
 
   const handleClick = useCallback((e: React.MouseEvent) => {
@@ -39,8 +42,16 @@ function InlineLinkWrapper({ nodeUuid, children }: { nodeUuid: string; children:
     }
   }, [node, openNode, addSidebarCard]);
 
+  // Middle-click opens the target in a new browser tab; preventDefault on
+  // mousedown suppresses the browser's autoscroll mode.
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    if (e.button !== 1 || !node) return;
+    e.preventDefault();
+    window.open(`/${workspaceId ?? ''}/${node.uuid}`, '_blank', 'noopener,noreferrer');
+  }, [node, workspaceId]);
+
   return (
-    <span className="inline-link-wrapper" onClick={handleClick}>
+    <span className="inline-link-wrapper" onClick={handleClick} onMouseDown={handleMouseDown}>
       {children}
     </span>
   );
