@@ -74,7 +74,6 @@ export function DatePickerPopup({
     currentMonth,
     yearWindowStart,
     setMode,
-    navigateTo,
     goPrev,
     goNext,
     goToday,
@@ -292,7 +291,6 @@ export function DatePickerPopup({
         onPrev={goPrev}
         onNext={goNext}
         onModeChange={setMode}
-        onNavigate={navigateTo}
         prevLabel="Previous"
         nextLabel="Next"
       />
