@@ -147,8 +147,19 @@ export const NODE_MENU_GROUP_ORDER: readonly NodeMenuGroup[] = [
 /** Default sort order for contributed actions within a section. Core items occupy 0–999. */
 export const NODE_ACTION_DEFAULT_ORDER = 1000;
 
+/**
+ * Which node context menu an action targets. The trash menu is deliberately
+ * excluded — a trashed node is pending deletion and plugin actions are not
+ * meaningful there.
+ */
+export type NodeMenuTarget = 'node' | 'link' | 'archived';
+
+const DEFAULT_NODE_ACTION_MENUS: readonly NodeMenuTarget[] = ['node', 'link'];
+
 /** Context handed to node action `visible`/`execute` callbacks. */
 export interface NodeActionContext {
+  /** The menu invocation this context belongs to. */
+  menu: NodeMenuTarget;
   nodeUuid: string;
   /** Resolved node, or null when the menu could not resolve it (e.g. unresolved link target). */
   node: Node | null;
@@ -166,6 +177,8 @@ export interface NodeActionDefinition {
   icon?: string;
   /** Scope filter: 'page' = pages only, 'block' = blocks only, 'both' (default) = always shown. */
   scope?: 'page' | 'block' | 'both';
+  /** Target menus (default ['node', 'link']). 'node' = page/block menu, 'link' = inline link/pill menu, 'archived' = archived view menu. */
+  menus?: NodeMenuTarget[];
   /** Menu section (default 'main'). Sections render in NODE_MENU_GROUP_ORDER. */
   group?: NodeMenuGroup;
   /** Sort order within the section (default NODE_ACTION_DEFAULT_ORDER + registration index). */
@@ -241,6 +254,8 @@ export function getVisibleNodeActions(
 ): NodeActionDefinition[] {
   return actions.filter((action) => {
     if (action.devOnly && !opts.showDevOptions) return false;
+    const targets = action.menus ?? DEFAULT_NODE_ACTION_MENUS;
+    if (!targets.includes(opts.context.menu)) return false;
     const scope = action.scope ?? 'both';
     if (opts.nodeScope !== null && scope !== 'both' && scope !== opts.nodeScope) return false;
     if (action.visible && !action.visible(opts.context)) return false;
