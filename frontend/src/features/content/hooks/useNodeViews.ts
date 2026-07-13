@@ -16,6 +16,7 @@ export {
   useUpdateNodeView,
   useUpdateQueryAST,
   useDeleteNodeView,
+  useDuplicateNodeView,
   useResetNodeViews,
   useReorderNodeViews,
   batchEnsureDefaults,

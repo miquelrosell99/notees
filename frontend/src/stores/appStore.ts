@@ -12,7 +12,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { SYSTEM_PROPERTY_UUIDS } from '@/constants/systemProperties';
-import type { NodeCollectionGroupBy } from '@/types/nodeCollection';
 
 // ── Shared type aliases (used by navigationStore + external consumers) ──────────
 export type ViewMode = 'default' | 'focus' | 'zen';
@@ -55,7 +54,6 @@ export type CardLayoutMode = 'no-cover' | 'cover-top' | 'cover-left' | 'cover-ri
 interface DisplayPrefsState {
   contentDisplayMode: ContentDisplayMode;
   cardLayout: CardLayoutMode;
-  nodeGroupBy: Record<string, NodeCollectionGroupBy>;
   ganttStartDatePropertyUuid: string;
   ganttEndDatePropertyUuid: string;
   ganttTimeScale: 'day' | 'week' | 'month';
@@ -63,8 +61,6 @@ interface DisplayPrefsState {
   toggleContentDisplayMode: () => void;
   setContentDisplayMode: (mode: ContentDisplayMode) => void;
   setCardLayout: (layout: CardLayoutMode) => void;
-  setNodeGroupBy: (nodeUuid: string, viewType: string, groupBy: NodeCollectionGroupBy) => void;
-  getNodeGroupBy: (nodeUuid: string, viewType: string) => NodeCollectionGroupBy | undefined;
   setGanttStartDatePropertyUuid: (uuid: string) => void;
   setGanttEndDatePropertyUuid: (uuid: string) => void;
   setGanttTimeScale: (scale: 'day' | 'week' | 'month') => void;
@@ -72,10 +68,9 @@ interface DisplayPrefsState {
 
 export const useAppStore = create<DisplayPrefsState>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       contentDisplayMode: 'bullet' as ContentDisplayMode,
       cardLayout: 'no-cover' as CardLayoutMode,
-      nodeGroupBy: {},
       ganttStartDatePropertyUuid: SYSTEM_PROPERTY_UUIDS.task_scheduled,
       ganttEndDatePropertyUuid: SYSTEM_PROPERTY_UUIDS.task_deadline,
       ganttTimeScale: 'week' as 'day' | 'week' | 'month',
@@ -92,10 +87,6 @@ export const useAppStore = create<DisplayPrefsState>()(
       setContentDisplayMode: (mode) => set({ contentDisplayMode: mode }),
       setCardLayout: (layout) => set({ cardLayout: layout }),
 
-      setNodeGroupBy: (nodeUuid, viewType, groupBy) =>
-        set((s) => ({ nodeGroupBy: { ...s.nodeGroupBy, [`${nodeUuid}-${viewType}`]: groupBy } })),
-      getNodeGroupBy: (nodeUuid, viewType) => get().nodeGroupBy[`${nodeUuid}-${viewType}`],
-
       setGanttStartDatePropertyUuid: (uuid) => set({ ganttStartDatePropertyUuid: uuid }),
       setGanttEndDatePropertyUuid: (uuid) => set({ ganttEndDatePropertyUuid: uuid }),
       setGanttTimeScale: (scale) => set({ ganttTimeScale: scale }),
@@ -103,7 +94,6 @@ export const useAppStore = create<DisplayPrefsState>()(
     {
       name: 'notees-node-view-modes',
       partialize: (state) => ({
-        nodeGroupBy: state.nodeGroupBy,
         cardLayout: state.cardLayout,
         contentDisplayMode: state.contentDisplayMode,
         ganttStartDatePropertyUuid: state.ganttStartDatePropertyUuid,

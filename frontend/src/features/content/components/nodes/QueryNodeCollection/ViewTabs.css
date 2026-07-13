@@ -1,0 +1,76 @@
+/* ViewTabs — draggable saved-view tabs with per-tab actions menu */
+
+.view-tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-tiny);
+  background: var(--color-surface-container);
+  border-radius: var(--shape-large);
+  padding: var(--spacing-tiny);
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.view-tabs__tab {
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--shape-medium);
+  color: var(--color-on-surface-variant);
+  transition: background var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.view-tabs__tab:not(.view-tabs__tab--active):hover {
+  background: var(--color-surface-container-highest);
+}
+
+.view-tabs__tab--active {
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+}
+
+.view-tabs__tab-button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-tiny);
+  background: transparent;
+  border: none;
+  color: inherit;
+  font-size: var(--font-size-sm);
+  padding: var(--spacing-1) var(--spacing-2);
+  cursor: pointer;
+  max-width: var(--layout-size-7xl);
+}
+
+.view-tabs__tab-default-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  opacity: var(--opacity-60);
+}
+
+.view-tabs__tab-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.view-tabs__tab-menu {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: inherit;
+  opacity: var(--opacity-60);
+  cursor: pointer;
+  padding: var(--spacing-1);
+  border-radius: var(--shape-small);
+}
+
+.view-tabs__tab-menu:hover {
+  opacity: 1;
+  background: var(--color-surface-container-highest);
+}
+
+.view-tabs__tab--active .view-tabs__tab-menu:hover {
+  background: rgba(0, 0, 0, 0.15);
+}

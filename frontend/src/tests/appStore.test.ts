@@ -5,7 +5,6 @@ const resetState = () =>
   useAppStore.setState({
     contentDisplayMode: 'bullet',
     cardLayout: 'no-cover',
-    nodeGroupBy: {},
     ganttTimeScale: 'week',
   });
 
@@ -42,18 +41,6 @@ describe('appStore — card layout', () => {
   it('setCardLayout updates layout', () => {
     useAppStore.getState().setCardLayout('cover-top');
     expect(useAppStore.getState().cardLayout).toBe('cover-top');
-  });
-});
-
-
-describe('appStore — node group by', () => {
-  it('setNodeGroupBy stores groupBy keyed by nodeId+viewType', () => {
-    useAppStore.getState().setNodeGroupBy('00000000-0000-0000-0000-000000000001', 'children', 'type');
-    expect(useAppStore.getState().getNodeGroupBy('00000000-0000-0000-0000-000000000001', 'children')).toBe('type');
-  });
-
-  it('getNodeGroupBy returns undefined for unknown key', () => {
-    expect(useAppStore.getState().getNodeGroupBy('00000000-0000-0000-0000-000000000999', 'children')).toBeUndefined();
   });
 });
 

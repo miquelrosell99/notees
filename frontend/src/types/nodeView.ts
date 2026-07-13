@@ -7,6 +7,11 @@
 
 import type { AggregationNode, QueryAST } from './queryAST';
 import type { Node } from '@/types/api';
+import type {
+  NodeCollectionGroupBy,
+  NodeCollectionViewMode,
+  SortEntry,
+} from './nodeCollection';
 
 // Re-export commonly used types from queryAST
 export type { AggregationNode, QueryAST } from './queryAST';
@@ -26,6 +31,28 @@ export type NodeViewType =
   | 'all_pages';
 
 /**
+ * Per-view layout configuration bag (persisted server-side as JSONB).
+ * Keys are optional; absent keys fall back to appStore "last used" globals
+ * or built-in defaults.
+ */
+export interface NodeViewSettings {
+  /** Kanban card layout (mirrors CardLayoutMode in appStore) */
+  cardLayout?: 'no-cover' | 'cover-top' | 'cover-left' | 'cover-right';
+  /** Gantt/calendar start date property UUID */
+  ganttStartDatePropertyUuid?: string;
+  /** Gantt/calendar end date property UUID */
+  ganttEndDatePropertyUuid?: string;
+  /** Gantt time scale */
+  ganttTimeScale?: 'day' | 'week' | 'month';
+  /** Chart view: chart type */
+  chartType?: 'bar' | 'line' | 'pie';
+  /** Chart view: group-by field (property UUID or builtin dimension) */
+  chartGroupByField?: string;
+  /** Chart view: measure configuration */
+  chartMeasure?: { function: string; field?: string; label?: string };
+}
+
+/**
  * NodeView entity - defines a dynamic query tab for a node
  * Note: query_ast contains the QueryAST from the backend
  */
@@ -38,7 +65,13 @@ export interface NodeView {
   is_default: boolean;
   active: boolean;
   shown_properties: Array<{ uuid: string; sequence: number }>;
-  group_by: string | null;
+  group_by: NodeCollectionGroupBy | null;
+  /** Presentation mode; null falls back to the section default */
+  view_mode: NodeCollectionViewMode | null;
+  /** Persisted sort configuration */
+  sort_entries: SortEntry[];
+  /** Per-mode layout config bag */
+  settings: NodeViewSettings;
   create_date: string;
   write_date: string;
   // Query AST is stored directly on the view (backend returns this as query_ast)
@@ -65,7 +98,10 @@ export interface NodeViewUpdate {
   order_index?: number;
   is_default?: boolean;
   shown_properties?: Array<{ uuid: string; sequence: number }>;
-  group_by?: string | null;
+  group_by?: NodeCollectionGroupBy | null;
+  view_mode?: NodeCollectionViewMode;
+  sort_entries?: SortEntry[];
+  settings?: NodeViewSettings;
 }
 
 /**
