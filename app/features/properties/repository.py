@@ -1673,25 +1673,38 @@ class PostgresPropertyRepository(BasePostgresRepository, PropertyRepository):
             return self._row_to_class_property(row) if row else None
 
     async def get_all_inherited_properties(self, class_node_id: int) -> list[ClassProperty]:
-        """Get all properties for a class including inherited ones."""
+        """Get all properties for a class including inherited ones.
+
+        Ordered nearest-class-first (direct class at depth 0, then ancestors
+        by ascending depth), with sequence as tiebreaker within a class. This
+        matches the nearest-edge-first resolution used for attribute
+        enforcement (get_class_property_edges_for_node), so consumers that
+        dedup first-occurrence-wins display the same edge that enforcement
+        would apply.
+        """
         async with acquire_connection(self._pool) as conn:
             # Use recursive CTE to get inherited properties
             # Note: class_extend uses target_id (child) and source_id (parent)
             rows = await conn.fetch(
                 """
                 WITH RECURSIVE class_hierarchy AS (
-                    SELECT target_id, source_id, 0 as depth
-                    FROM class_extend WHERE target_id = $1
+                    SELECT $1::int AS class_id, 0 AS depth
                     UNION ALL
-                    SELECT ce.target_id, ce.source_id, ch.depth + 1
+                    SELECT ce.source_id, ch.depth + 1
                     FROM class_extend ce
-                    JOIN class_hierarchy ch ON ce.target_id = ch.source_id
+                    JOIN class_hierarchy ch ON ce.target_id = ch.class_id
                     WHERE ch.depth < 10
+                ),
+                nearest AS (
+                    -- Diamond inheritance: keep the shortest path to each class
+                    SELECT DISTINCT ON (class_id) class_id, depth
+                    FROM class_hierarchy
+                    ORDER BY class_id, depth
                 )
-                SELECT DISTINCT cp.* FROM class_property cp
-                WHERE cp.class_node_id = $1
-                   OR cp.class_node_id IN (SELECT source_id FROM class_hierarchy)
-                ORDER BY cp.sequence
+                SELECT cp.*
+                FROM class_property cp
+                JOIN nearest n ON n.class_id = cp.class_node_id
+                ORDER BY n.depth, cp.sequence
             """,
                 class_node_id,
             )

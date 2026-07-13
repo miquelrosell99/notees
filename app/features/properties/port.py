@@ -398,7 +398,8 @@ class PropertyRepository(ABC):
 
     @abstractmethod
     async def get_all_inherited_properties(self, class_node_id: int) -> list[ClassProperty]:
-        """Get all properties for a class including inherited ones."""
+        """Get all properties for a class including inherited ones, ordered
+        nearest-class-first (depth, then sequence)."""
         pass
 
     @abstractmethod
