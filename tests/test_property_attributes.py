@@ -183,3 +183,65 @@ async def test_update_class_property_bogus_default_uuid_returns_404(auth_client:
         json={"default_value": "00000000-0000-0000-0000-000000000000"},
     )
     assert r.status_code == 404, r.text
+
+
+@pytest.mark.asyncio
+async def test_required_clear_resets_to_default(auth_client: AsyncClient):
+    """Clearing an effective-required property with a default resets to default."""
+    prop_resp = await auth_client.post("/api/properties/", json={
+        "name": "ReqSel", "type": "selection", "scope": "global",
+        "selection_lines": ["Open", "Shut"],
+    })
+    prop = prop_resp.json()
+    prop_uuid = prop["property_uuid"]
+    open_uuid = prop["options"][0]["selection_line_uuid"]
+    shut_uuid = prop["options"][1]["selection_line_uuid"]
+    await auth_client.put(f"/api/properties/{prop_uuid}",
+                          json={"required": True, "default_value": open_uuid})
+
+    node_uuid = (await auth_client.post("/api/nodes/", json={"name": "N"})).json()["uuid"]
+    await auth_client.post(f"/api/nodes/{node_uuid}/properties",
+                           json={"property_uuid": prop_uuid, "value": shut_uuid})
+
+    # clear -> resets to default (200, not an error)
+    r = await auth_client.post(f"/api/nodes/{node_uuid}/properties",
+                               json={"property_uuid": prop_uuid, "value": None})
+    assert r.status_code == 200, r.text
+    content = (await auth_client.get(f"/api/nodes/page/{node_uuid}/content")).json()
+    assert content["properties_uuid"][prop_uuid] == open_uuid
+
+
+@pytest.mark.asyncio
+async def test_required_clear_without_default_rejected(auth_client: AsyncClient):
+    prop_resp = await auth_client.post("/api/properties/", json={
+        "name": "ReqNoDefault", "type": "selection", "scope": "global",
+        "selection_lines": ["A", "B"],
+    })
+    prop_uuid = prop_resp.json()["property_uuid"]
+    a_uuid = prop_resp.json()["options"][0]["selection_line_uuid"]
+    await auth_client.put(f"/api/properties/{prop_uuid}", json={"required": True})
+
+    node_uuid = (await auth_client.post("/api/nodes/", json={"name": "N2"})).json()["uuid"]
+    await auth_client.post(f"/api/nodes/{node_uuid}/properties",
+                           json={"property_uuid": prop_uuid, "value": a_uuid})
+    r = await auth_client.post(f"/api/nodes/{node_uuid}/properties",
+                               json={"property_uuid": prop_uuid, "value": None})
+    assert r.status_code == 400
+    assert r.json()["detail"]["code"] == "required_property"
+    # value untouched
+    content = (await auth_client.get(f"/api/nodes/page/{node_uuid}/content")).json()
+    assert content["properties_uuid"][prop_uuid] == a_uuid
+
+
+@pytest.mark.asyncio
+async def test_readonly_rejects_writes(auth_client: AsyncClient):
+    prop_resp = await auth_client.post("/api/properties/", json={
+        "name": "Locked", "type": "boolean", "scope": "global",
+    })
+    prop_uuid = prop_resp.json()["property_uuid"]
+    await auth_client.put(f"/api/properties/{prop_uuid}", json={"readonly": True})
+    node_uuid = (await auth_client.post("/api/nodes/", json={"name": "N3"})).json()["uuid"]
+    r = await auth_client.post(f"/api/nodes/{node_uuid}/properties",
+                               json={"property_uuid": prop_uuid, "value": True})
+    assert r.status_code == 400
+    assert r.json()["detail"]["code"] == "readonly_property"

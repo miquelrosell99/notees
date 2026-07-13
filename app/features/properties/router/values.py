@@ -20,6 +20,10 @@ from app.features.nodes.router.helpers import (
     _get_class_ids,
     _node_to_response,
 )
+from app.features.properties.attributes import (
+    ReadonlyPropertyError,
+    RequiredPropertyError,
+)
 from app.features.properties.dependencies import get_property_service
 from app.features.properties.models import (
     NodePropertyResponse,
@@ -161,6 +165,10 @@ async def set_property_value(
         await service.set_property_value(node_id, property_id, resolved_value)
     except PropertyNotFoundError as e:
         raise HTTPException(404, str(e)) from e
+    except (RequiredPropertyError, ReadonlyPropertyError) as e:
+        raise HTTPException(
+            status_code=400, detail={"code": e.code, "message": str(e)}
+        ) from e
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
 
@@ -326,6 +334,10 @@ async def set_scalar_value(
         val = await service.set_scalar_value(
             node_id, property_id, request.value, request.order
         )
+    except (RequiredPropertyError, ReadonlyPropertyError) as e:
+        raise HTTPException(
+            status_code=400, detail={"code": e.code, "message": str(e)}
+        ) from e
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
 
@@ -410,6 +422,10 @@ async def set_relation_value(
         val = await service.set_relation_value(
             node_id, property_id, target_node_id, request.order
         )
+    except (RequiredPropertyError, ReadonlyPropertyError) as e:
+        raise HTTPException(
+            status_code=400, detail={"code": e.code, "message": str(e)}
+        ) from e
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
 
@@ -504,6 +520,10 @@ async def set_selection_value(
         val = await service.set_selection_value(
             node_id, property_id, selection_line_id, request.order
         )
+    except (RequiredPropertyError, ReadonlyPropertyError) as e:
+        raise HTTPException(
+            status_code=400, detail={"code": e.code, "message": str(e)}
+        ) from e
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
 
@@ -642,6 +662,10 @@ async def batch_set_property_values(
             resolved_value = await service.resolve_property_value(prop, item.value)
         except PropertyNotFoundError as e:
             raise HTTPException(404, str(e)) from e
+        except (RequiredPropertyError, ReadonlyPropertyError) as e:
+            raise HTTPException(
+                status_code=400, detail={"code": e.code, "message": str(e)}
+            ) from e
         except ValueError as e:
             raise HTTPException(400, str(e)) from e
         items.append((node_id, property_id, resolved_value))
