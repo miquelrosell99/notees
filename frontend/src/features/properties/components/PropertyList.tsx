@@ -41,6 +41,12 @@ export interface PropertyEntry {
   source?: string;
   /** Whether this property is hidden by default */
   hidden?: boolean;
+  /** Effective readonly (class-edge override ?? property base) — disables the value editor */
+  readOnly?: boolean;
+  /** Effective required (class-edge override ?? property base) */
+  required?: boolean;
+  /** Whether an effective default exists (class-edge default ?? property default) */
+  hasDefault?: boolean;
 }
 
 export interface PropertyListProps {

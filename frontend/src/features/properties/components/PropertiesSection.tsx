@@ -97,7 +97,15 @@ export function PropertiesSection({
   const nodeProperties = useMemo(() => {
     if (!allProperties) return [];
 
-    const entries: Array<{ property: Property; value: unknown; source?: string; hidden?: boolean }> = [];
+    const entries: Array<{
+      property: Property;
+      value: unknown;
+      source?: string;
+      hidden?: boolean;
+      readOnly?: boolean;
+      required?: boolean;
+      hasDefault?: boolean;
+    }> = [];
     const addedPropertyIds = new Set<string>();
 
     // First, add properties from types (with inheritance)
@@ -126,15 +134,25 @@ export function PropertiesSection({
       if (prop.name.startsWith('_')) continue;
 
       // Get value from node properties if it exists
-      const value = node?.properties_uuid && prop.uuid in (node.properties_uuid as Record<string, unknown>)
-        ? (node.properties_uuid as Record<string, unknown>)[prop.uuid]
-        : classProp.default_value ?? null;
+      const hasValue = node?.properties_uuid != null
+        && prop.uuid in (node.properties_uuid as Record<string, unknown>);
+      const value = hasValue
+        ? (node!.properties_uuid as Record<string, unknown>)[prop.uuid]
+        : classProp.default_value ?? prop.default_value ?? null;
+
+      // Effective attributes: class-edge tri-state override ?? property base
+      const effectiveHideWhenEmpty = classProp.hide_when_empty ?? prop.hide_when_empty;
+      const effectiveReadonly = classProp.readonly ?? prop.readonly;
+      const effectiveRequired = classProp.required ?? prop.required;
 
       entries.push({
         property: prop,
         value,
         source: classProp.class_node_name || `Class #${classProp.class_node_uuid}`,
-        hidden: classProp.hidden ?? false,
+        hidden: (classProp.hidden ?? false) || (effectiveHideWhenEmpty && !hasValue),
+        readOnly: effectiveReadonly,
+        required: effectiveRequired,
+        hasDefault: (classProp.default_value ?? prop.default_value) != null,
       });
     }
 
@@ -159,6 +177,9 @@ export function PropertiesSection({
             property: prop,
             value: (node.properties_uuid as Record<string, unknown>)[prop.uuid],
             hidden: false,
+            readOnly: prop.readonly,
+            required: prop.required,
+            hasDefault: prop.default_value != null,
           });
           addedPropertyIds.add(prop.uuid);
         }
@@ -320,7 +341,7 @@ export function PropertiesSection({
         property={property}
         nodeUuid={nodeUuid}
         value={value}
-        readOnly={isReadOnly || setPropertyMutation.isPending}
+        readOnly={isReadOnly || entry.readOnly || setPropertyMutation.isPending}
         onChange={(newValue) => handlePropertyChange(property.uuid, newValue)}
         onNavigateToNode={onNavigateToNode}
         onCreatePage={handleCreatePage}
@@ -331,10 +352,20 @@ export function PropertiesSection({
     );
   }, [nodeUuid, setPropertyMutation.isPending, handlePropertyChange, onNavigateToNode, handleCreatePage, onOpenInSidebar, handleTextPropertyBulletClick]);
 
+  // Entry lookup by property UUID for context-menu attribute checks
+  const nodePropertiesByUuid = useMemo(() => {
+    return new Map(nodeProperties.map(entry => [entry.property.uuid, entry]));
+  }, [nodeProperties]);
+
   // Get context menu items for a property
   const getPropertyContextMenuItems = useCallback((property: Property): ContextMenuItem[] => {
     const isClassProperty = classPropertyIds.has(property.uuid);
-    return [
+    const entry = nodePropertiesByUuid.get(property.uuid);
+    const isReadOnlyEntry = entry?.readOnly ?? false;
+    // Required entries can only be emptied when a default exists — the write
+    // then resets to the default instead of being rejected by the backend.
+    const canEmpty = !(entry?.required && !entry?.hasDefault);
+    const items: ContextMenuItem[] = [
       {
         id: 'open-property',
         label: 'Open property',
@@ -342,24 +373,28 @@ export function PropertiesSection({
           openPropertyView(property.uuid);
         },
       },
-      {
+    ];
+    if (canEmpty) {
+      items.push({
         id: 'empty-property',
         label: 'Empty property',
+        disabled: isReadOnlyEntry,
         onClick: () => {
           setPropertyMutation.mutate({ nodeUuid, propertyId: property.uuid, value: '' });
         },
+      });
+    }
+    items.push({
+      id: 'remove-property',
+      label: 'Remove from node',
+      danger: true,
+      disabled: isClassProperty || isReadOnlyEntry,
+      onClick: () => {
+        setPropertyMutation.mutate({ nodeUuid, propertyId: property.uuid, value: null });
       },
-      {
-        id: 'remove-property',
-        label: 'Remove from node',
-        danger: true,
-        disabled: isClassProperty,
-        onClick: () => {
-          setPropertyMutation.mutate({ nodeUuid, propertyId: property.uuid, value: null });
-        },
-      },
-    ];
-  }, [openPropertyView, setPropertyMutation, nodeUuid, classPropertyIds]);
+    });
+    return items;
+  }, [openPropertyView, setPropertyMutation, nodeUuid, classPropertyIds, nodePropertiesByUuid]);
 
   if (nodeLoading) {
     return (
