@@ -275,6 +275,20 @@ Caveat: a running dev DB usually already has an admin account whose password you
 
 See `docs/testing.md` for the full setup, fixtures, and configuration.
 
+### UI measurement harness (Chromium + Playwright)
+
+For pixel-level visual bugs (alignment, spacing, optical offsets), don't guess from CSS — measure the real rendering:
+
+1. **Harness page**: create a temporary `frontend/<bug>.html` (Vite serves any `.html` in the frontend root) plus an entry `frontend/src/<bug>.tsx` that imports the global CSS (`./variables.css`, `./styles/data-colors.css`, `./index.css`), the relevant component CSS, and renders the **real components** (e.g. `<Bullet>`) in the real DOM structure with several candidate fix variants side by side. No auth needed.
+2. **Measure + screenshot script**: a Node script driving Playwright — `page.evaluate` with `getBoundingClientRect()` for element geometry and canvas `ctx.measureText()` (`fontBoundingBoxAscent/Descent`, `actualBoundingBoxAscent/Descent`) for text ink metrics, plus `page.screenshot({ deviceScaleFactor: 3, fullPage: true })` for visual confirmation.
+3. **Run it on the host, not in the container**: the frontend dev image is Alpine/musl, so the bundled Chromium can't launch there (missing glibc libs). The host already has the browsers in `~/.cache/ms-playwright`; run with the repo-local Playwright package:
+
+```bash
+cd frontend && node scripts/<bug>-shot.mjs   # against http://localhost:5173/<bug>.html
+```
+
+4. **Clean up**: delete the harness HTML/TSX and the shot script once the fix is verified (or keep the script under `frontend/scripts/` only if it is reusable).
+
 ---
 
 ## Security Considerations
