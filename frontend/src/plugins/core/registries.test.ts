@@ -10,7 +10,7 @@ import {
   type NodeActionDefinition,
 } from './registries';
 
-const context: NodeActionContext = { nodeUuid: 'u1', node: null, close: () => {} };
+const context: NodeActionContext = { menu: 'node', nodeUuid: 'u1', node: null, close: () => {} };
 
 function def(partial: Partial<NodeActionDefinition> & { id: string }): NodeActionDefinition {
   return { label: partial.id, execute: () => {}, ...partial };
@@ -107,6 +107,35 @@ describe('nodeActionRegistry', () => {
         context,
       });
       expect(visible.map((a) => a.id)).toEqual(['z', 'a', 'm']);
+    });
+
+    it('filters by target menu, defaulting to node and link', () => {
+      const actions = [
+        def({ id: 'default' }),
+        def({ id: 'everywhere', menus: ['node', 'link', 'archived'] }),
+        def({ id: 'archived-only', menus: ['archived'] }),
+      ];
+
+      const nodeVisible = getVisibleNodeActions(actions, {
+        nodeScope: null,
+        showDevOptions: true,
+        context: { ...context, menu: 'node' },
+      });
+      expect(nodeVisible.map((a) => a.id)).toEqual(['default', 'everywhere']);
+
+      const linkVisible = getVisibleNodeActions(actions, {
+        nodeScope: null,
+        showDevOptions: true,
+        context: { ...context, menu: 'link' },
+      });
+      expect(linkVisible.map((a) => a.id)).toEqual(['default', 'everywhere']);
+
+      const archivedVisible = getVisibleNodeActions(actions, {
+        nodeScope: null,
+        showDevOptions: true,
+        context: { ...context, menu: 'archived' },
+      });
+      expect(archivedVisible.map((a) => a.id)).toEqual(['everywhere', 'archived-only']);
     });
   });
 });

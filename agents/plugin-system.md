@@ -224,11 +224,13 @@ export function setup(context: PluginContext) {
 
 #### Node actions
 
-`registerNodeAction` contributes an item to both node context menus: the
-page/block menu (`NodeContextMenu`) and the inline node/class link and pill
-menu (`NodeLinkContextMenu`). Core menu items and contributed actions share a
-single composition layer: each menu section renders in a canonical order with
-a separator between non-empty sections, and the destructive section always
+`registerNodeAction` contributes an item to the node context menus: the
+page/block menu (`NodeContextMenu`), the inline node/class link and pill menu
+(`NodeLinkContextMenu`), and — when targeted — the archived view menu
+(`ArchivedNodeContextMenu`). The trash menu is deliberately closed to
+contributions. Core menu items and contributed actions share a single
+composition layer: each menu section renders in a canonical order with a
+separator between non-empty sections, and the destructive section always
 renders last.
 
 | Field | Description |
@@ -236,13 +238,14 @@ renders last.
 | `id` | Unique action id (prefixed `plugin:<id>` in the menu). |
 | `label` / `icon` | Menu item label and icon class. |
 | `scope` | `'page'` \| `'block'` \| `'both'` (default `'both'`). |
+| `menus` | Target menus: `'node'` (page/block), `'link'` (inline links/pills), `'archived'` (default `['node', 'link']`). |
 | `group` | Menu section: `'main'` \| `'edit'` \| `'copy'` \| `'export'` \| `'manage'` \| `'danger'` (default `'main'`). |
 | `order` | Sort order within the section. Core items occupy 0–999; contributed actions default to `1000 + registration index`. |
 | `danger` | Render the item in destructive style. |
 | `shortcut` / `badge` | Optional shortcut hint / badge text. `devOnly` actions default to the `'DEV'` badge. |
 | `keepOpen` | Keep the menu open after executing. |
 | `devOnly` | Hide unless dev options are enabled in user settings. |
-| `visible(context)` | Optional predicate; receives `{ nodeUuid, node, close }` (`node` may be `null` for unresolved link targets). |
+| `visible(context)` | Optional predicate; receives `{ menu, nodeUuid, node, close }` (`node` may be `null` for unresolved link targets). |
 | `execute(context)` | Runs on click; receives the same context. The menu closes automatically unless `keepOpen` is set. |
 
 Actions registered through `PluginContext` are removed automatically on

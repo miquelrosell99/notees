@@ -331,6 +331,7 @@ export function NodeLinkContextMenu({
       }));
       if (targetUuid) {
         const actionContext: NodeActionContext = {
+          menu: 'link',
           nodeUuid: targetUuid,
           node: targetNode,
           close: onClose,
