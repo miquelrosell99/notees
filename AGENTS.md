@@ -197,6 +197,13 @@ See `agents/data-model.md` for:
 - This rule is durable standing authorization to create snapshot commits within the current task; do not re-ask for confirmation on each one. Other git mutations (`git push`, `git reset`, `git rebase`, force operations, amending published history) still require explicit per-action confirmation.
 - Commit only work that belongs to the current task, use a clear Conventional Commits message (see the `git-commits` skill), and never commit a broken, half-finished, or unverified state just to make a snapshot.
 
+### Concurrent Agents
+
+- **Assume other AI agents are working in this repository at the same time.** Uncommitted changes (modified or untracked files) that you did not make belong to another agent's in-progress task.
+- Never revert, delete, reformat, stage, or commit files outside your current task's scope. Stage snapshot commits per-file (`git add <path>...`), never with `git add -A` / `git commit -a`.
+- Lint or test failures in files you did not touch are presumably another agent's in-flight work: do not "fix" them — note them in your final report and move on. This narrows the "Fix all test failures" rule above to failures caused by your own changes.
+- Before running stack-wide commands that affect the shared dev environment (`compose down`, `--build`, DB resets), consider whether another agent may be using it, and prefer scoped commands (single-service restart, targeted tests).
+
 ### Debugging
 
 - **Race condition triage**: If a bug involves "local change disappears after a network mutation", check the **debounced save / query invalidation boundary FIRST**. See `agents/operations.md`.
