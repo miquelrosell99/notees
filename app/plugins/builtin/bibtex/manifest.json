@@ -2,10 +2,10 @@
   "id": "notees.bibtex",
   "name": "BibTeX / BibLaTeX",
   "version": "1.0.0",
-  "description": "Import and export BibTeX / BibLaTeX files.",
+  "description": "Import BibTeX / BibLaTeX files.",
   "author": "Notees",
   "license": "AGPL-3.0",
-  "permissions": ["read_nodes", "write_nodes", "read_properties", "import", "export"],
+  "permissions": ["read_nodes", "write_nodes", "read_properties", "import"],
   "backend": {
     "entrypoint": "app.plugins.builtin.bibtex.setup:setup"
   },
@@ -14,14 +14,10 @@
   },
   "contributes": {
     "commands": [
-      {"id": "bibtex.import", "label": "BibTeX: Import from file", "icon": "file-import"},
-      {"id": "bibtex.export", "label": "BibTeX: Export selection", "icon": "file-export"}
+      {"id": "bibtex.import", "label": "BibTeX: Import from file", "icon": "file-import"}
     ],
     "importers": [
       {"id": "bibtex.file", "label": "BibTeX file", "fileExtensions": ["bib"]}
-    ],
-    "exportFormats": [
-      {"id": "bibtex", "label": "BibTeX", "extension": "bib", "mimeType": "application/x-bibtex"}
     ]
   }
 }

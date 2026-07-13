@@ -60,14 +60,3 @@ registerExportFormat({
   supportsCssOverrides: false,
   icon: 'code-json',
 });
-
-registerExportFormat({
-  format: 'opml',
-  label: 'OPML',
-  extension: 'opml',
-  mimeType: 'text/x-opml+xml',
-  supportsPreview: true,
-  hasHtmlOptions: false,
-  supportsCssOverrides: false,
-  icon: 'file-tree-outline',
-});

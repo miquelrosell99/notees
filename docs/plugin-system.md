@@ -280,7 +280,7 @@ See the built-in plugins for working examples:
 
 - `app/plugins/builtin/flashcards/` — migrated internal feature.
 - `app/plugins/builtin/zotero/` — external service sync.
-- `app/plugins/builtin/bibtex/` — file-based importer/exporter.
+- `app/plugins/builtin/bibtex/` — file-based importer.
 - `app/plugins/builtin/koreader/` — device sync.
 - `app/plugins/builtin/logseq_importer/` — folder importer.
 
