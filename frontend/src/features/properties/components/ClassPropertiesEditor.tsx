@@ -6,7 +6,7 @@
  *
  * Uses ListSortable for drag-and-drop reordering.
  */
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 
 import './ClassPropertiesEditor.css';
 import { useClassProperties, useAddPropertyToClass, useRemovePropertyFromClass, useReorderClassProperties, useCreateProperty, useProperties, useUpdateClassProperty } from '../hooks';
@@ -21,6 +21,7 @@ import { useNavigationStore } from '@/stores';
 import type { Property, PropertyCreate } from '@/types/api';
 import { getMdiClass } from '@/utils/iconDom';
 import './PropertiesSection.css';
+import { DefaultValueEditor } from './DefaultValueEditor';
 
 /** Default MDI icon names for each property type */
 import { PROPERTY_TYPE_ICONS } from '../utils/constants';
@@ -30,11 +31,72 @@ function getPropertyIconPath(property: Property): string | null {
   return getMdiClass(name);
 }
 
+/**
+ * Property types whose default value can be edited in the UI. Mirrors the
+ * editable set inside DefaultValueEditor (other types render a static note
+ * there, which would just be noise in a class row).
+ */
+const DEFAULT_EDITABLE_TYPES = new Set(['text', 'url', 'email', 'integer', 'float', 'boolean', 'selection']);
+
 interface SortablePropertyItem {
   id: string;
   nodeUuid: string;
   property: Property;
-  required: boolean;
+  /** Tri-state edge overrides; null = inherit from the property base */
+  required: boolean | null;
+  readOnly: boolean | null;
+  hideWhenEmpty: boolean | null;
+  /** Edge default override; null/undefined = inherit the property base default */
+  defaultValue: unknown;
+}
+
+type TriState = 'on' | 'off' | 'inherit';
+
+interface TriStateToggleProps {
+  /** Current edge value; null = inherit */
+  value: boolean | null;
+  /** Resolved property base, shown in the inherit-state label */
+  baseValue: boolean;
+  onChange: (value: boolean | null) => void;
+  /** MDI icon names per state */
+  icons: Record<TriState, string>;
+  /** Accessible label per state; inherit resolves the base (e.g. "Inherit (required)") */
+  labels: { on: string; off: string; inherit: (base: boolean) => string };
+}
+
+/**
+ * Tri-state override toggle: click cycles inherit -> on -> off -> inherit.
+ * The title/aria-label shows the current state; in inherit state it shows
+ * the resolved property base.
+ *
+ * Keeps optimistic local state: without it, a second click before the
+ * mutation's query invalidation refetches would recompute from the stale
+ * prop and re-send the same value. Props re-sync whenever they change.
+ */
+function TriStateToggle({ value, baseValue, onChange, icons, labels }: TriStateToggleProps) {
+  const [localValue, setLocalValue] = useState<boolean | null>(value);
+  useEffect(() => {
+    setLocalValue(value);
+  }, [value]);
+
+  const state: TriState = localValue === null ? 'inherit' : localValue ? 'on' : 'off';
+  const label = state === 'inherit' ? labels.inherit(baseValue) : labels[state];
+  const next: boolean | null = state === 'inherit' ? true : state === 'on' ? false : null;
+  return (
+    <Button
+      aria-label={label}
+      variant="ghost"
+      size="xs"
+      icon={`mdi ${icons[state]}`}
+      className={`class-property-tristate-btn class-property-tristate-btn--${state} hover-reveal`}
+      title={label}
+      onClick={(e) => {
+        e.stopPropagation();
+        setLocalValue(next);
+        onChange(next);
+      }}
+    />
+  );
 }
 
 interface ClassPropertiesEditorProps {
@@ -103,8 +165,17 @@ export function ClassPropertiesEditor({
       .map(cp => {
         const propertyUuid = cp.property_uuid;
         const property = propertyUuid ? allProperties.find(p => p.uuid === propertyUuid) : undefined;
-        // TODO(task-11): tri-state required — null means "inherit from property"; treated as false here until the rewrite
-        return property ? { id: property.uuid, nodeUuid: property.uuid, property, required: cp.required ?? false } : null;
+        return property
+          ? {
+              id: property.uuid,
+              nodeUuid: property.uuid,
+              property,
+              required: cp.required,
+              readOnly: cp.readonly,
+              hideWhenEmpty: cp.hide_when_empty,
+              defaultValue: cp.default_value,
+            }
+          : null;
       })
       .filter((item): item is SortablePropertyItem => item !== null);
   }, [classProperties, allProperties]);
@@ -181,18 +252,68 @@ export function ClassPropertiesEditor({
             renderAction={(item) =>
               !readOnly ? (
                 <div className="class-property-actions">
-                  <Button aria-label={item.required ? 'Required (click to make optional)' : 'Optional (click to make required)'}
-                    variant="ghost"
-                    size="xs"
-                    icon="mdi mdi-asterisk"
-                    className={`class-property-required-btn ${item.required ? 'class-property-required-btn--active' : ''} hover-reveal`}
-                    title={item.required ? 'Required (click to make optional)' : 'Optional (click to make required)'}
-                    onClick={(e) => {
-                      e.stopPropagation();
+                  {DEFAULT_EDITABLE_TYPES.has(item.property.type) && (
+                    <DefaultValueEditor
+                      property={item.property}
+                      value={item.defaultValue}
+                      className="class-property-default-editor"
+                      onChange={(value) => {
+                        updateClassPropertyMutation.mutate({
+                          classId: classNodeUuid,
+                          propertyId: item.property.uuid,
+                          data: { default_value: value },
+                        });
+                      }}
+                    />
+                  )}
+                  <TriStateToggle
+                    value={item.required}
+                    baseValue={item.property.required}
+                    icons={{ on: 'mdi-asterisk', off: 'mdi-asterisk', inherit: 'mdi-asterisk' }}
+                    labels={{
+                      on: 'Required (click to make optional)',
+                      off: 'Optional (click to inherit)',
+                      inherit: (base) => `Inherit (${base ? 'required' : 'optional'})`,
+                    }}
+                    onChange={(v) => {
                       updateClassPropertyMutation.mutate({
                         classId: classNodeUuid,
                         propertyId: item.property.uuid,
-                        data: { required: !item.required },
+                        data: { required: v },
+                      });
+                    }}
+                  />
+                  <TriStateToggle
+                    value={item.readOnly}
+                    baseValue={item.property.readonly}
+                    icons={{ on: 'mdi-lock', off: 'mdi-lock-open-variant', inherit: 'mdi-lock-outline' }}
+                    labels={{
+                      on: 'Read-only (click to make editable)',
+                      off: 'Editable (click to inherit)',
+                      inherit: (base) => `Inherit (${base ? 'read-only' : 'editable'})`,
+                    }}
+                    onChange={(v) => {
+                      updateClassPropertyMutation.mutate({
+                        classId: classNodeUuid,
+                        propertyId: item.property.uuid,
+                        data: { readonly: v },
+                      });
+                    }}
+                  />
+                  <TriStateToggle
+                    value={item.hideWhenEmpty}
+                    baseValue={item.property.hide_when_empty}
+                    icons={{ on: 'mdi-eye-off', off: 'mdi-eye', inherit: 'mdi-eye-outline' }}
+                    labels={{
+                      on: 'Hidden when empty (click to always show)',
+                      off: 'Always shown (click to inherit)',
+                      inherit: (base) => `Inherit (${base ? 'hidden when empty' : 'always shown'})`,
+                    }}
+                    onChange={(v) => {
+                      updateClassPropertyMutation.mutate({
+                        classId: classNodeUuid,
+                        propertyId: item.property.uuid,
+                        data: { hide_when_empty: v },
                       });
                     }}
                   />
