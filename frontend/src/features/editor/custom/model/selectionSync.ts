@@ -3,14 +3,29 @@
  *
  * The custom editor renders each inline unit as a direct child of the
  * contentEditable root: text units become a <span> (possibly wrapped by mark
- * elements) and atomic units become a contentEditable="false" element. This
- * module walks those children to convert between the two coordinate systems.
+ * elements) and atomic units become a contentEditable="false" element —
+ * possibly nested inside a plain wrapper such as the link context-menu
+ * trigger span. This module walks those children to convert between the two
+ * coordinate systems.
  */
 
 
 
 function isAtomicElement(node: Node): boolean {
   return node.nodeType === Node.ELEMENT_NODE && (node as HTMLElement).contentEditable === 'false';
+}
+
+/**
+ * Link pills render their contentEditable="false" element inside an extra
+ * wrapper (the context-menu trigger span). A root child that contains an
+ * atomic element still represents a single atomic unit for offset mapping —
+ * otherwise the caret would be placed on the pill's label text node, landing
+ * visually in the middle of the link.
+ */
+function isAtomicUnitElement(node: Node): boolean {
+  if (isAtomicElement(node)) return true;
+  if (node.nodeType !== Node.ELEMENT_NODE) return false;
+  return (node as Element).querySelector('[contenteditable="false"]') !== null;
 }
 
 function isCaretAnchor(node: Node): boolean {
@@ -39,7 +54,7 @@ function getLastTextNode(element: Node): Text | null {
 function getChildLength(node: Node): number {
   if (isCaretAnchor(node)) return 0;
   if (node.nodeType === Node.TEXT_NODE) return node.textContent?.length ?? 0;
-  if (isAtomicElement(node)) return 1;
+  if (isAtomicUnitElement(node)) return 1;
   const textNode = getTextNode(node);
   if (textNode) return textNode.textContent?.length ?? 0;
   return 0;
@@ -65,13 +80,13 @@ function positionAtOffset(root: HTMLElement, targetOffset: number): DOMPosition 
       continue;
     }
 
-    if (isAtomicElement(child)) {
+    if (isAtomicUnitElement(child)) {
       if (remaining === 0) {
         // Prefer placing the caret inside the previous text node rather than at
         // a root boundary next to an atomic element, which browsers sometimes
         // render inside or below the atomic pill.
         const prev = root.childNodes[i - 1];
-        if (prev && !isAtomicElement(prev)) {
+        if (prev && !isAtomicUnitElement(prev)) {
           const textNode = getLastTextNode(prev);
           if (textNode) {
             const length = textNode.textContent?.length ?? 0;
@@ -85,7 +100,7 @@ function positionAtOffset(root: HTMLElement, targetOffset: number): DOMPosition 
         // Place the caret inside the next text node when possible so the visual
         // caret sits immediately after the atomic pill instead of below/inside it.
         const next = root.childNodes[i + 1];
-        if (next && !isAtomicElement(next)) {
+        if (next && !isAtomicUnitElement(next)) {
           const textNode = getFirstTextNode(next);
           if (textNode) {
             return { node: textNode, offset: 0 };
@@ -147,7 +162,7 @@ function offsetFromDOMPosition(root: HTMLElement, node: Node, nodeOffset: number
 
     if (child.contains(node)) {
       if (isCaretAnchor(child)) return offset;
-      if (isAtomicElement(child)) {
+      if (isAtomicUnitElement(child)) {
         return offset + (nodeOffset > 0 ? 1 : 0);
       }
       const textNode = getTextNode(child);
@@ -203,7 +218,7 @@ export function getRenderedUnits(root: HTMLElement): Array<{ node: Node; size: n
 
   for (const child of root.childNodes) {
     if (isCaretAnchor(child)) continue;
-    if (isAtomicElement(child)) {
+    if (isAtomicUnitElement(child)) {
       rendered.push({ node: child, size: 1 });
       continue;
     }
