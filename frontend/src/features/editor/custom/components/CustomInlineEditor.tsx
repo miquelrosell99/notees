@@ -38,6 +38,7 @@ import {
   removeLinkById,
   replaceLinkById,
   toggleLinkClassById,
+  unlinkLinkById,
   unitsFromState,
 } from '../model/inlineEditorModel';
 import { LinkEditModal, type LinkEditResult } from '@/features/editor/editor/components/LinkEditModal';
@@ -248,6 +249,10 @@ export const CustomInlineEditor = memo(
 
     const handleRemovePill = useCallback((linkId: string) => {
       applyMutation((prev) => removeLinkById(prev, linkId));
+    }, [applyMutation]);
+
+    const handleUnlinkPill = useCallback((linkId: string, keepText: string) => {
+      applyMutation((prev) => unlinkLinkById(prev, linkId, keepText));
     }, [applyMutation]);
 
     const handleToggleClassPill = useCallback((linkId: string) => {
@@ -706,6 +711,7 @@ export const CustomInlineEditor = memo(
             onPillClick={_onPillClick}
             onEditPill={handleEditPill}
             onRemovePill={handleRemovePill}
+            onUnlinkPill={handleUnlinkPill}
             onToggleClassPill={handleToggleClassPill}
             selectedPillLinkId={selectedPillLinkId}
           />

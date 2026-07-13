@@ -48,27 +48,9 @@
   margin-left: var(--spacing-micro);
 }
 
-/* Pill Color Picker Popup */
-.pill-color-picker-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: var(--z-node-overlay);
-}
-
-.pill-color-picker-overlay:focus-visible,
+/* Pill context menu (link variant color row wrapper) */
 .node-pill-context-menu-backdrop:focus-visible {
   outline: none;
-}
-
-.pill-color-picker {
-  background: var(--color-surface);
-  border: var(--border-width-default) solid var(--color-outline-variant);
-  border-radius: var(--shape-medium);
-  padding: var(--spacing-2);
-  z-index: var(--z-floating);
 }
 
 /* Mount point placeholder in contenteditable — transparent container for portal-rendered NodeRef */
