@@ -564,6 +564,34 @@ export function removeLinkById(
   return deleteRange(state, offset, offset + 1);
 }
 
+/**
+ * Replace the link identified by linkId with plain text (its visible label).
+ * Adjacent text units are merged by normalization; the caret lands after the
+ * inserted text.
+ */
+export function unlinkLinkById(
+  state: InlineEditorState,
+  linkId: string,
+  text: string,
+): InlineEditorState {
+  const units = unitsFromState(state);
+  const index = findLinkUnitIndex(units, linkId);
+  if (index === -1) return state;
+
+  const offset = linkOffset(units, index);
+  const newUnits: InlineUnit[] = [
+    ...units.slice(0, index),
+    { type: 'text', text, marks: [] },
+    ...units.slice(index + 1),
+  ];
+
+  return stateWithUnits(
+    state,
+    normalizeUnits(newUnits),
+    { type: 'collapsed', offset: offset + text.length },
+  );
+}
+
 /** Replace the link identified by linkId with a new inline node. */
 export function replaceLinkById(
   state: InlineEditorState,

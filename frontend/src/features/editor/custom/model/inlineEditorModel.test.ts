@@ -20,6 +20,7 @@ import {
   astToUnits,
   unitsToAst,
   getInlineChildren,
+  unlinkLinkById,
 } from './inlineEditorModel';
 
 function makeAst(children: ASTInlineNode[]): ContentAST {
@@ -204,5 +205,58 @@ describe('insertAtomicNode', () => {
       { type: 'text', text: 'bc' },
     ]);
     expect(next.selection).toEqual({ type: 'collapsed', offset: 2 });
+  });
+});
+
+describe('unlinkLinkById', () => {
+  it('replaces a mid-text node link with plain text and merges neighbors', () => {
+    const state = createState(
+      makeAst([
+        { type: 'text', text: 'See ' },
+        { type: 'node_link', link_id: 'node:abc', ref_type: 'node' },
+        { type: 'text', text: ' now' },
+      ]),
+      { type: 'collapsed', offset: 0 },
+    );
+    const next = unlinkLinkById(state, 'node:abc', 'My Page');
+    expect(getInlineChildren(next.ast)).toEqual([{ type: 'text', text: 'See My Page now' }]);
+    expect(next.selection).toEqual({ type: 'collapsed', offset: 11 });
+  });
+
+  it('unlinks a pill at the start of the stream', () => {
+    const state = createState(
+      makeAst([
+        { type: 'node_link', link_id: 'node:abc', ref_type: 'node' },
+        { type: 'text', text: ' rest' },
+      ]),
+      { type: 'collapsed', offset: 0 },
+    );
+    const next = unlinkLinkById(state, 'node:abc', 'Label');
+    expect(getInlineChildren(next.ast)).toEqual([{ type: 'text', text: 'Label rest' }]);
+    expect(next.selection).toEqual({ type: 'collapsed', offset: 5 });
+  });
+
+  it('unlinks an external URL pill', () => {
+    const state = createState(
+      makeAst([
+        { type: 'text', text: 'go ' },
+        { type: 'external_link', url: 'https://x.dev', children: [{ type: 'text', text: 'x' }] },
+      ]),
+      { type: 'collapsed', offset: 0 },
+    );
+    const next = unlinkLinkById(state, 'https://x.dev', 'x');
+    expect(getInlineChildren(next.ast)).toEqual([{ type: 'text', text: 'go x' }]);
+    expect(next.selection).toEqual({ type: 'collapsed', offset: 4 });
+  });
+
+  it('is a no-op for an unknown link id', () => {
+    const state = createState(
+      makeAst([
+        { type: 'text', text: 'See ' },
+        { type: 'node_link', link_id: 'node:abc', ref_type: 'node' },
+      ]),
+      { type: 'collapsed', offset: 0 },
+    );
+    expect(unlinkLinkById(state, 'node:missing', 'X')).toBe(state);
   });
 });
