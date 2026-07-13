@@ -26,6 +26,7 @@ import { ContextMenu, type ContextMenuItem } from '@/components/ui/ContextMenu';
 import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
 import { SidebarFavorites } from './SidebarFavorites';
 import { SidebarRecents } from './SidebarRecents';
+import { SidebarPinnedPages } from './SidebarPinnedPages';
 import { SupportBadge } from '@/features/support';
 import { SYSTEM_PAGE_UUIDS } from '@/constants/systemProperties';
 import './NavigationSidebar.css';
@@ -322,10 +323,11 @@ export function Sidebar({ collapsed }: SidebarProps) {
           <WorkspaceSwitcher />
         </div>
 
-        {/* Scrollable content - favorites and recents */}
+        {/* Scrollable content - favorites, recents and pinned pages */}
         <div className="sidebar-content">
           <SidebarFavorites onContextMenu={handleFavoriteContextMenu} />
           <SidebarRecents onContextMenu={handleRecentContextMenu} />
+          <SidebarPinnedPages onContextMenu={handleFavoriteContextMenu} />
         </div>
 
         {isMobile && (

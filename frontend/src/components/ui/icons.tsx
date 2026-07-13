@@ -221,6 +221,10 @@ export const StarIcon = ({ size = 'md', className, color, title }: IconProps) =>
   <Icon path="mdi-star" size={getSize(size)} className={className} color={color} title={title} />
 );
 
+export const PinIcon = ({ size = 'md', className, color, title }: IconProps) => (
+  <Icon path="mdi-pin" size={getSize(size)} className={className} color={color} title={title} />
+);
+
 export const ClockIcon = ({ size = 'md', className, color, title }: IconProps) => (
   <Icon path="mdi-clock-outline" size={getSize(size)} className={className} color={color} title={title} />
 );
