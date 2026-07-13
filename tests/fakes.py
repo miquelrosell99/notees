@@ -1203,8 +1203,11 @@ class FakePropertyRepository:
         property_id: int,
         sequence: int = 0,
         default_value: Any = None,
-        required: bool = False,
+        required: bool | None = None,
         hidden: bool | None = None,
+        readonly: bool | None = None,
+        hide_when_empty: bool | None = None,
+        prop_type: PropertyType | None = None,
     ) -> ClassProperty:
         return ClassProperty(
             id=self._bump_id(),
@@ -1222,13 +1225,20 @@ class FakePropertyRepository:
         self,
         class_node_id: int,
         property_id: int,
-        required: bool | None = None,
-        hidden: bool | None = None,
+        *,
+        clear_defaults: bool = False,
+        default_columns: dict[str, Any] | None = None,
+        **updates: Any,
     ) -> ClassProperty | None:
         return None
 
     async def get_all_inherited_properties(
         self, class_node_id: int
+    ) -> list[ClassProperty]:
+        return []
+
+    async def get_class_property_edges_for_node(
+        self, node_id: int, property_id: int
     ) -> list[ClassProperty]:
         return []
 
