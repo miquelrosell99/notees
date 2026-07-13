@@ -319,6 +319,7 @@ export function TopBar() {
               icon={"mdi mdi-calendar"}
               variant="ghost"
               size="sm"
+              active={isCalendarOpen}
               onClick={toggleCalendar}
               aria-label="Open calendar"
               title="Open calendar"
