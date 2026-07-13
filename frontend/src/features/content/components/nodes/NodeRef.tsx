@@ -336,13 +336,14 @@ function NodeRefInteractive({
     }
   }, [readOnly, editMode, isLink, onClick, node, isPage, openNode, workspaceId, addSidebarCard]);
 
-  const handleAuxClick = useCallback((e: React.MouseEvent) => {
-    if (!isLink || !node) return;
-    if (e.button === 1) {
-      e.preventDefault();
-      window.open(`/${workspaceId ?? ''}/${node.uuid}`, '_blank', 'noopener,noreferrer');
-    }
-  }, [isLink, node, workspaceId]);
+  // Middle-click opens the node in a new browser tab. Handled on mousedown
+  // (not auxclick) so preventDefault also suppresses the browser's
+  // autoscroll mode.
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    if (e.button !== 1 || !node) return;
+    e.preventDefault();
+    window.open(`/${workspaceId ?? ''}/${node.uuid}`, '_blank', 'noopener,noreferrer');
+  }, [node, workspaceId]);
 
   const handleClick = useCallback((e: React.MouseEvent) => activate(e), [activate]);
 
@@ -485,7 +486,7 @@ function NodeRefInteractive({
         ref={pillRef as React.RefObject<HTMLDivElement>}
         className={pillClass}
         onClick={handleClick}
-        onAuxClick={handleAuxClick}
+        onMouseDown={handleMouseDown}
         onKeyDown={handleKeyDown}
         onContextMenu={handleContextMenu}
         title={title}
