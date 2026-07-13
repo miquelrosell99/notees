@@ -103,6 +103,7 @@ export function ClassPropertiesEditor({
       .map(cp => {
         const propertyUuid = cp.property_uuid;
         const property = propertyUuid ? allProperties.find(p => p.uuid === propertyUuid) : undefined;
+        // TODO(task-11): tri-state required — null means "inherit from property"; treated as false here until the rewrite
         return property ? { id: property.uuid, nodeUuid: property.uuid, property, required: cp.required ?? false } : null;
       })
       .filter((item): item is SortablePropertyItem => item !== null);

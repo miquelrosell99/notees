@@ -239,12 +239,20 @@ export async function reorderClassProperties(
 }
 
 /**
- * Update class property binding (required, hidden flags)
+ * Update class property binding (attribute flags, hidden, default).
+ * Explicit null on a tri-state flag is sent verbatim: it resets the flag
+ * to "inherit from property".
  */
 export async function updateClassProperty(
   classNodeUuid: string,
   propertyUuid: string,
-  data: { required?: boolean; hidden?: boolean }
+  data: {
+    required?: boolean | null;
+    hidden?: boolean;
+    readonly?: boolean | null;
+    hide_when_empty?: boolean | null;
+    default_value?: unknown | null;
+  }
 ): Promise<ClassProperty> {
   const response = await api.patch<ClassProperty>(
     `${BASE}/classes/${classNodeUuid}/properties/${propertyUuid}`,

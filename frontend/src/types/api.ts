@@ -503,6 +503,11 @@ export interface Property {
   node_uuid: string | null;
   icon_visibility: PropertyIconVisibility; // Where to show selection value icon at block level
   validation_rules: Record<string, unknown> | null; // Optional validation constraints
+  // Attribute bases (class bindings may override the flags tri-state)
+  required: boolean;
+  readonly: boolean;
+  hide_when_empty: boolean;
+  default_value: unknown | null; // UUIDs for selection/node defaults; null when unset
   create_date: string;
   write_date: string;
   // For node-type properties
@@ -543,7 +548,9 @@ export interface ClassProperty {
   sequence: number;
   default_value: unknown;
   hidden: boolean; // Whether this property is hidden by default in the UI
-  required: boolean; // Whether this property is required for nodes of this class
+  required: boolean | null; // tri-state: null = inherit from property
+  readonly: boolean | null; // tri-state: null = inherit from property
+  hide_when_empty: boolean | null; // tri-state: null = inherit from property
 }
 
 /**
@@ -618,6 +625,11 @@ export interface PropertyUpdate {
   class_filter_uuids?: string[] | null;
   icon_visibility?: PropertyIconVisibility | null;
   validation_rules?: Record<string, unknown> | null;
+  // Attribute bases; explicit null on default_value clears the default
+  required?: boolean;
+  readonly?: boolean;
+  hide_when_empty?: boolean;
+  default_value?: unknown | null;
 }
 
 // ==================== User Types ====================
