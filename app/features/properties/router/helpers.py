@@ -5,6 +5,8 @@ Updated for workspace-based schema:
 - Uses domain entities for response mapping
 """
 
+from typing import Any
+
 from app.domain.entities import (
     Property,
     PropertySelectionLine,
@@ -21,6 +23,37 @@ from app.features.properties.models import (
     SelectionValueResponse,
 )
 from app.features.properties.port import PropertyRepository
+
+
+async def _default_value_response(
+    obj: Any,
+    prop_type: str,
+    property_repo: PropertyRepository | None,
+    node_repo: NodeRepository | None,
+) -> Any:
+    """Public form of the first non-None typed default column.
+
+    Selection defaults are exposed as selection-line UUIDs, node-relation
+    defaults (node/date/image) as node UUIDs. TEXT defaults live in
+    ``default_text`` and round-trip verbatim (see
+    ``attributes._TYPE_DEFAULT_COLUMN``).
+    """
+    from app.features.properties.attributes import default_value_from_columns
+
+    value = default_value_from_columns(obj)
+    if value is None:
+        return None
+    if prop_type == "selection":
+        if property_repo is None:
+            return None
+        line = await property_repo.get_selection_line_by_id(value)
+        return str(line.uuid) if line else None
+    if prop_type in ("node", "date", "image"):
+        if node_repo is None:
+            return None
+        node = await node_repo.get_by_id(value)
+        return str(node.uuid) if node else None
+    return value
 
 
 async def _build_node_uuid_map(node_repo: NodeRepository, node_ids: list[int]) -> dict[int, str]:
@@ -98,13 +131,17 @@ async def _property_to_response(
     prop: Property,
     node_uuid_map: dict[int, str] | None = None,
     class_uuid_map: dict[int, str] | None = None,
+    property_repo: PropertyRepository | None = None,
+    node_repo: NodeRepository | None = None,
 ) -> PropertyResponse:
     """Convert domain Property to API response.
 
     Cross-entity references are emitted as public UUIDs. Callers should supply
     ``node_uuid_map`` and ``class_uuid_map`` when batch-converting properties to
     avoid N+1 lookups; single-property endpoints may omit the maps and the helper
-    will fall back to the numeric IDs already present on the entity.
+    will fall back to the numeric IDs already present on the entity. Supply
+    ``property_repo``/``node_repo`` so selection/node defaults can be exposed
+    as UUIDs.
     """
     assert prop.id is not None, "Property must be persisted"
     node_uuid = None
@@ -131,6 +168,12 @@ async def _property_to_response(
         node_uuid=node_uuid,
         icon_visibility=prop.icon_visibility,
         validation_rules=prop.validation_rules,
+        required=prop.required,
+        readonly=prop.readonly,
+        hide_when_empty=prop.hide_when_empty,
+        default_value=await _default_value_response(
+            prop, prop.type.value, property_repo, node_repo
+        ),
         create_date=prop.create_date,
         write_date=prop.write_date,
         class_filters=class_filters,
