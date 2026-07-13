@@ -20,6 +20,12 @@ from app.domain.entities import (
     PropertyType,
 )
 from app.domain.entities.constants import SYSTEM_PROPERTY_UUIDS
+from app.features.properties.attributes import (
+    ReadonlyPropertyError,
+    RequiredPropertyError,
+    is_empty_value,
+    resolve_attributes,
+)
 from app.logging_config import get_logger
 from app.utils import utc_now
 from app.utils.date_range import normalize_date_range_value
@@ -357,9 +363,29 @@ class PropertyService:
         return await self._property_repo.assign_property_to_node(node_id, property_id)
 
     async def remove_property_from_node(
-        self, node_id: int, property_id: int
+        self,
+        node_id: int,
+        property_id: int,
+        *,
+        enforce_attributes: bool = True,
     ) -> bool:
-        """Remove a property assignment from a node (including all values)."""
+        """Remove a property assignment from a node (including all values).
+
+        When ``enforce_attributes`` is true, the removal is treated as a
+        clear of the value: an effectively read-only property rejects it,
+        and an effectively required property is reset to its effective
+        default (the assignment is kept) or rejected with
+        ``RequiredPropertyError`` when no effective default exists.
+        """
+        if enforce_attributes:
+            prop = await self._get_property_or_raise(property_id)
+            value = await self._enforce_attributes(node_id, property_id, prop, None)
+            if not is_empty_value(value):
+                # Required with a default: keep the assignment, reset the value.
+                await self.set_property_value(
+                    node_id, property_id, value, enforce_attributes=False
+                )
+                return True
         return await self._property_repo.remove_property_from_node(node_id, property_id)
 
     async def get_node_properties(
@@ -382,9 +408,19 @@ class PropertyService:
         property_id: int,
         value: Any,
         order: int = 0,
+        *,
+        enforce_attributes: bool = True,
     ) -> Any:
-        """Set a scalar property value for a node."""
+        """Set a scalar property value for a node.
+
+        When ``enforce_attributes`` is true, effective attributes are
+        enforced (read-only rejects, required empty values reset to the
+        effective default or are rejected).
+        """
         del order  # Schema no longer stores per-value order.
+        if enforce_attributes:
+            prop = await self._get_property_or_raise(property_id)
+            value = await self._enforce_attributes(node_id, property_id, prop, value)
         return await self._property_repo.set_scalar_value(
             node_id, property_id, value
         )
@@ -411,9 +447,21 @@ class PropertyService:
         property_id: int,
         target_id: int,
         order: int = 0,
+        *,
+        enforce_attributes: bool = True,
     ) -> Any:
-        """Set a relation property value for a node."""
+        """Set a relation property value for a node.
+
+        When ``enforce_attributes`` is true, effective attributes are
+        enforced (read-only rejects, required empty values reset to the
+        effective default or are rejected).
+        """
         del order  # Schema no longer stores per-value order.
+        if enforce_attributes:
+            prop = await self._get_property_or_raise(property_id)
+            target_id = await self._enforce_attributes(
+                node_id, property_id, prop, target_id
+            )
         return await self._property_repo.set_relation_value(
             node_id, property_id, target_id
         )
@@ -462,9 +510,21 @@ class PropertyService:
         property_id: int,
         selection_line_id: int,
         order: int = 0,
+        *,
+        enforce_attributes: bool = True,
     ) -> Any:
-        """Set a selection property value for a node."""
+        """Set a selection property value for a node.
+
+        When ``enforce_attributes`` is true, effective attributes are
+        enforced (read-only rejects, required empty values reset to the
+        effective default or are rejected).
+        """
         del order  # Schema no longer stores per-value order.
+        if enforce_attributes:
+            prop = await self._get_property_or_raise(property_id)
+            selection_line_id = await self._enforce_attributes(
+                node_id, property_id, prop, selection_line_id
+            )
         return await self._property_repo.set_selection_value(
             node_id, property_id, selection_line_id
         )
@@ -576,6 +636,44 @@ class PropertyService:
 
         return value
 
+    async def _get_property_or_raise(self, property_id: int) -> Property:
+        """Fetch a property definition or raise PropertyNotFoundError."""
+        prop = await self._property_repo.get_by_id(property_id)
+        if prop is None:
+            raise PropertyNotFoundError(f"Property {property_id} not found")
+        return prop
+
+    async def _enforce_attributes(
+        self, node_id: int, property_id: int, prop: Property, value: Any
+    ) -> Any:
+        """Enforce effective attributes for a value write; return the value to persist.
+
+        Effective attributes are the property bases merged with class-property
+        overrides for the node. An empty value written to an effectively
+        required property is rewritten to the effective default so callers
+        persist (and report) the defaulted value.
+
+        Raises:
+            ReadonlyPropertyError: If the property is effectively read-only.
+            RequiredPropertyError: If the property is effectively required,
+                the value is empty, and no effective default exists.
+        """
+        edges = await self._property_repo.get_class_property_edges_for_node(
+            node_id, property_id
+        )
+        effective = resolve_attributes(prop, edges)
+        if effective.readonly:
+            raise ReadonlyPropertyError(
+                f"Property '{prop.name}' is read-only for this node"
+            )
+        if effective.required and is_empty_value(value):
+            if effective.default_value is not None:
+                return effective.default_value
+            raise RequiredPropertyError(
+                f"Property '{prop.name}' is required for this node"
+            )
+        return value
+
     async def set_property_value_by_uuid(
         self,
         node_id: int,
@@ -629,28 +727,7 @@ class PropertyService:
             raise PropertyNotFoundError(f"Property {property_id} not found")
 
         if enforce_attributes:
-            from app.features.properties.attributes import (
-                ReadonlyPropertyError,
-                RequiredPropertyError,
-                is_empty_value,
-                resolve_attributes,
-            )
-
-            edges = await self._property_repo.get_class_property_edges_for_node(
-                node_id, property_id
-            )
-            effective = resolve_attributes(prop, edges)
-            if effective.readonly:
-                raise ReadonlyPropertyError(
-                    f"Property '{prop.name}' is read-only for this node"
-                )
-            if effective.required and is_empty_value(value):
-                if effective.default_value is not None:
-                    value = effective.default_value
-                else:
-                    raise RequiredPropertyError(
-                        f"Property '{prop.name}' is required for this node"
-                    )
+            value = await self._enforce_attributes(node_id, property_id, prop, value)
 
         if prop.type == PropertyType.DATE_RANGE and value is not None and value != "":
             value = normalize_date_range_value(value)
@@ -748,16 +825,36 @@ class PropertyService:
             await self._log_property_change(node_id, prop, property_id)
 
     async def batch_set_property_values(
-        self, items: list[tuple[int, int, Any]]
+        self,
+        items: list[tuple[int, int, Any]],
+        *,
+        enforce_attributes: bool = True,
     ) -> list[tuple[bool, str | None]]:
         """Set property values for many (node, property, value) tuples.
 
         Each item is processed independently.  Returns per-item results.
+
+        When ``enforce_attributes`` is true, effective attributes are
+        enforced for every item up front, before any value is written:
+        read-only violations and un-defaultable required clears raise
+        (``ReadonlyPropertyError``/``RequiredPropertyError``), and required
+        clears with an effective default are rewritten to the default.
         """
         prop_ids = {item[1] for item in items}
         prop_cache: dict[int, Property | None] = {}
         for pid in prop_ids:
             prop_cache[pid] = await self._property_repo.get_by_id(pid)
+
+        if enforce_attributes:
+            enforced_items: list[tuple[int, int, Any]] = []
+            for node_id, property_id, value in items:
+                prop = prop_cache.get(property_id)
+                if prop is not None:
+                    value = await self._enforce_attributes(
+                        node_id, property_id, prop, value
+                    )
+                enforced_items.append((node_id, property_id, value))
+            items = enforced_items
 
         results: list[tuple[bool, str | None]] = []
         for node_id, property_id, value in items:

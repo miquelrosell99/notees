@@ -309,8 +309,21 @@ async def remove_property_from_node(
     service: PropertyService = Depends(get_property_service),
     user: User = Depends(get_current_user),
 ):
-    """Remove a property assignment from a node (including all values)."""
-    success = await service.remove_property_from_node(node_id, property_id)
+    """Remove a property assignment from a node (including all values).
+
+    For an effectively required property the removal is treated as a clear:
+    the value resets to the effective default, or the request is rejected
+    when no default exists. Effectively read-only properties reject the
+    removal.
+    """
+    try:
+        success = await service.remove_property_from_node(node_id, property_id)
+    except PropertyNotFoundError as e:
+        raise HTTPException(404, str(e)) from e
+    except (RequiredPropertyError, ReadonlyPropertyError) as e:
+        raise HTTPException(
+            status_code=400, detail={"code": e.code, "message": str(e)}
+        ) from e
     if not success:
         raise HTTPException(404, "Property assignment not found")
     return {"status": "ok"}
@@ -662,15 +675,16 @@ async def batch_set_property_values(
             resolved_value = await service.resolve_property_value(prop, item.value)
         except PropertyNotFoundError as e:
             raise HTTPException(404, str(e)) from e
-        except (RequiredPropertyError, ReadonlyPropertyError) as e:
-            raise HTTPException(
-                status_code=400, detail={"code": e.code, "message": str(e)}
-            ) from e
         except ValueError as e:
             raise HTTPException(400, str(e)) from e
         items.append((node_id, property_id, resolved_value))
 
-    service_results = await service.batch_set_property_values(items)
+    try:
+        service_results = await service.batch_set_property_values(items)
+    except (RequiredPropertyError, ReadonlyPropertyError) as e:
+        raise HTTPException(
+            status_code=400, detail={"code": e.code, "message": str(e)}
+        ) from e
 
     results: list[BatchSetPropertyResultItem] = []
     succeeded = 0
