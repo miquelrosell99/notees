@@ -72,7 +72,7 @@ export function mergeContentASTs(a: ContentAST, b: ContentAST): ContentAST {
 
   // Merge last paragraph of a with first paragraph of b
   // Then normalize adjacent plain-text nodes so the runtime's AST
-  // matches what Lexical produces after its own text-node merge pass.
+  // matches what the inline editor produces after its own text-node merge pass.
   const merged = [...(lastPara.children || []), ...(firstB.children || [])];
   const normalized: ASTInlineNode[] = [];
   for (const node of merged) {

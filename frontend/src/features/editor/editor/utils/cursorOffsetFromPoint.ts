@@ -1,6 +1,6 @@
 /**
  * cursorOffsetFromPoint — Map a mouse click in the static content DOM to a
- * logical content offset that matches Lexical's internal inline offset model.
+ * logical content offset that matches the inline editor's logical offset model.
  *
  * Logical offsets:
  * - text characters count as 1 each

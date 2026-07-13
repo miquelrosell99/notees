@@ -1,6 +1,6 @@
 /**
- * CustomInlineEditor — Lightweight contentEditable inline editor that replaces
- * Lexical for block content editing.
+ * CustomInlineEditor — Lightweight contentEditable inline editor for block
+ * content editing.
  *
  * - Uses ContentAST as the source of truth.
  * - Renders via InlineContentRenderer.

@@ -1,5 +1,5 @@
 /**
- * DocumentView — Document view using Lexical editor.
+ * DocumentView — Document view rendering blocks via BlockList.
  *
  * Accepts nodes[] from queries and renders as a continuous document.
  * Passes nodes directly to BlockEditor which handles runtime sync.
@@ -22,7 +22,7 @@ import { getUndoEngine } from '@/stores/undoEngine';
 import type { MutationIntent } from '@/runtime/types';
 
 /**
- * DocumentView - Document view using Lexical editor
+ * DocumentView - Document view rendering blocks via BlockList
  *
  * Accepts nodes[] and renders as a flat document (no bullets/indentation).
  */

@@ -6,8 +6,8 @@
  *   2. Computing the effective icon via getEffectiveIcon()
  *   3. Computing the human-readable display text (truncated, with fallbacks)
  *
- * Used by both NodeRef (interactive pill) and the editor's InlineLink
- * (read-only decorator inside Lexical).
+ * Used by NodeRef (interactive pill and lightweight inline variant) and
+ * other node display surfaces such as the sidebar recents/favorites.
  */
 import { useMemo } from 'react';
 import { useBatchedNode } from '@/hooks/useBatchedNode';

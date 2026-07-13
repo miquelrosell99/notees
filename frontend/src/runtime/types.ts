@@ -2,7 +2,7 @@
  * Core types for the OperationRuntime graph architecture.
  *
  * Every entity in Notees is a "graph node" managed by the runtime.
- * Lexical editors are projections of subsets of this graph.
+ * Inline editors are projections of subsets of this graph.
  */
 
 import type { ASTDocument } from '@/types/ast';
@@ -78,7 +78,7 @@ export interface GraphNode {
 
 // ─── Projection types ─────────────────────────────────────────────
 
-/** A projected node that a Lexical editor can render */
+/** A projected node that an inline editor can render */
 export interface ProjectedNode {
   blockId: string;
   depth: number;

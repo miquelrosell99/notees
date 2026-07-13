@@ -3,7 +3,7 @@
  *
  * All drag/reparent/reorder operations go through DragCoordinator,
  * which delegates structural mutations to the undo engine / event bus.
- * Lexical editors never move nodes themselves; they emit drag intents.
+ * Inline editors never move nodes themselves; they emit drag intents.
  */
 
 import type { DragPayload, DropTarget, MutationIntent } from './types';

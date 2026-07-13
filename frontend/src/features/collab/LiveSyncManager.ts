@@ -2,7 +2,7 @@
  * LiveSyncManager — Singleton that manages the lightweight live-sync
  * WebSocket connection for a single page at a time.
  *
- * Provides imperative methods so Lexical plugins and mutation hooks can
+ * Provides imperative methods so editor plugins and mutation hooks can
  * send focus/blur/block-update events without prop-drilling.
  */
 

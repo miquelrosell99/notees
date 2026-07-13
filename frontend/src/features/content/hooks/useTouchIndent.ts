@@ -2,7 +2,7 @@
  * useTouchIndent — Horizontal swipe on a bullet to indent / outdent on touch screens.
  *
  * Extracted from TouchIndentPlugin to work with a container ref instead of
- * a Lexical editor context.
+ * an editor context.
  */
 
 import { useEffect, type RefObject } from 'react';
