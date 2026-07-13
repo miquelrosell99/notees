@@ -81,14 +81,6 @@ export function CalendarHeader({
 
   return (
     <div className="calendar-header">
-      <div className="calendar-zoom">
-        <SelectionButton
-          size="sm"
-          options={ZOOM_OPTIONS}
-          value={mode}
-          onChange={(value) => onModeChange(value as CalendarMode)}
-        />
-      </div>
       <div className="calendar-nav-row">
         <Button variant="ghost" size="sm" icon="mdi mdi-chevron-left" aria-label={prevLabel} className="calendar-nav-btn" onClick={onPrev} />
         <div className="calendar-title">
@@ -101,7 +93,7 @@ export function CalendarHeader({
                   onChange={(e) => onNavigate(currentYear, Number(e.target.value))}
                   aria-label="Select month"
                 >
-                  {MONTHS.map((name, index) => (
+                  {MONTHS_SHORT.map((name, index) => (
                     <option key={name} value={index}>{name}</option>
                   ))}
                 </select>
@@ -125,6 +117,14 @@ export function CalendarHeader({
           )}
         </div>
         <Button variant="ghost" size="sm" icon="mdi mdi-chevron-right" aria-label={nextLabel} className="calendar-nav-btn" onClick={onNext} />
+      </div>
+      <div className="calendar-zoom">
+        <SelectionButton
+          size="sm"
+          options={ZOOM_OPTIONS}
+          value={mode}
+          onChange={(value) => onModeChange(value as CalendarMode)}
+        />
       </div>
     </div>
   );

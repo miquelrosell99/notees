@@ -66,11 +66,13 @@ export function CalendarPopup({
   const [todayAccent, setTodayAccent] = useState(false);
   const popupRef = useRef<HTMLDivElement>(null);
 
-  // Position popup with viewport flip
+  // Position popup with viewport flip. popupRef lets the hook clamp using the
+  // rendered width — the header row is wider than the fallback estimate, and
+  // an underestimate lets the popup spill past the right viewport edge.
   const position = useViewportFlip(
     anchorRef as React.RefObject<HTMLElement>,
     isOpen,
-    { popupWidth: 280, popupHeight: 350, fixed: true },
+    { popupRef, popupWidth: 300, popupHeight: 350, fixed: true },
   );
 
   // Create a set of dates that have daily pages for the current month
