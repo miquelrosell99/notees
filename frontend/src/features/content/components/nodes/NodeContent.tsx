@@ -19,7 +19,7 @@ import { useContentSave } from '@/features/editor';
 import { useCreateFlashcard } from '@/plugins/builtin/flashcards';
 import { stringifyAST, StringifyMode } from '@/lib';
 import { useLazyChildren } from '@/features/content/hooks/useLazyChildren';
-import { getEffectiveColor, getEffectiveIcon } from '@/utils/nodeIcon';
+import { getEffectiveIcon } from '@/utils/nodeIcon';
 
 import type { Node } from '@/types';
 // GraphNode type no longer needed here — projection moved to useBlockTree
@@ -118,8 +118,10 @@ export function NodeContent({
   const [manualAssetBlockId, setManualAssetBlockId] = useState<string | null>(null);
 
   const handleAddClass = useCallback((blockId: string, classId: string) => {
-    // Optimistically update the runtime so the block's color/icon change
-    // immediately, without waiting for the API round-trip + cache sync.
+    // Optimistically update the runtime so the block's class pills and bullet
+    // icon change immediately, without waiting for the API round-trip + cache
+    // sync. Color is deliberately NOT touched: the runtime color is the node's
+    // own color, and the block background tint must not adopt class colors.
     const runtime = getOperationRuntime();
     const graphNode = getAllNodes(runtime).find(n => n.blockId === blockId);
     if (graphNode && allClasses) {
@@ -127,12 +129,10 @@ export function NodeContent({
       if (!graphNode.classIds.includes(classStrId)) {
         const classNode = allClasses.find(c => c.uuid === classId);
         const effectiveIcon = classNode ? getEffectiveIcon(classNode, allClasses) : undefined;
-        const effectiveColor = classNode ? getEffectiveColor(classNode, allClasses) : undefined;
         upsertNodes([{
           ...graphNode,
           classIds: [...graphNode.classIds, classStrId],
           icon: effectiveIcon ?? graphNode.icon,
-          color: effectiveColor ?? graphNode.color,
         }]);
       }
     }
