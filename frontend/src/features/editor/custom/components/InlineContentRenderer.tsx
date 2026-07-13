@@ -7,6 +7,7 @@
  */
 
 import React, { useMemo, type JSX } from 'react';
+import { useParams } from 'react-router-dom';
 import type { ContentAST } from '@/runtime/types';
 import type { ASTInlineNode } from '@/types/ast';
 import { parseAST, parseLinkId } from '@/lib/astBuilder';
@@ -84,6 +85,16 @@ interface AtomicNodeRendererProps {
 }
 
 function AtomicNodeRenderer({ node, editable, onPillClick, onEditPill, onRemovePill, onUnlinkPill, onToggleClassPill, selectedPillLinkId }: AtomicNodeRendererProps): JSX.Element | null {
+  const { workspaceId } = useParams<{ workspaceId?: string }>();
+  // Middle-click on a pill opens the target in a new browser tab.
+  // preventDefault on mousedown suppresses the browser's autoscroll mode
+  // (and primary-selection paste on Linux).
+  const handleMiddleClick = (e: React.MouseEvent, href: string) => {
+    if (e.button !== 1) return;
+    e.preventDefault();
+    window.open(href, '_blank', 'noopener,noreferrer');
+  };
+
   switch (node.type) {
     case 'node_link': {
       const { nodeUuid } = parseLinkId(node.link_id);
@@ -120,6 +131,7 @@ function AtomicNodeRenderer({ node, editable, onPillClick, onEditPill, onRemoveP
             tabIndex={onPillClick ? -1 : undefined}
             onClick={onPillClick ? () => onPillClick(node.link_id, node.ref_type) : undefined}
             onKeyDown={handleKeyDown}
+            onMouseDown={(e) => handleMiddleClick(e, `/${workspaceId ?? ''}/${nodeUuid}`)}
           >
             <NodeRef variant="inline" nodeUuid={nodeUuid} refType={node.ref_type === 'class' ? 'class' : 'node'} customName={node.label ?? undefined} />
           </span>
@@ -201,6 +213,7 @@ function AtomicNodeRenderer({ node, editable, onPillClick, onEditPill, onRemoveP
             tabIndex={onPillClick ? -1 : undefined}
             onClick={onPillClick ? () => onPillClick(node.url, 'url') : undefined}
             onKeyDown={handleUrlKeyDown}
+            onMouseDown={(e) => handleMiddleClick(e, node.url)}
           >
             <span className="inline-link-inner" data-ref-type="url">
               <span className="inline-link-icon">

@@ -12,7 +12,6 @@
  * Class/tag pills (via NodeRef) get a color picker row on top.
  */
 import { useMemo, useCallback } from 'react';
-import { useParams } from 'react-router-dom';
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/ContextMenu';
 import { useNavigationStore, useSettingsStore } from '@/stores';
 import { useClasses } from '@/features/content/hooks/useNodeListQueries';
@@ -76,7 +75,6 @@ export function NodeLinkContextMenu({
   currentColor,
   onColorChange,
 }: NodeLinkContextMenuProps) {
-  const { workspaceId } = useParams<{ workspaceId?: string }>();
   const openNode = useNavigationStore((s) => s.openNode);
   const addSidebarCard = useNavigationStore((s) => s.addSidebarCard);
   const showDevOptions = useSettingsStore((s) => s.showDevOptions);
@@ -183,16 +181,6 @@ export function NodeLinkContextMenu({
         shortcut: '⇧Click',
         onClick: () => {
           if (targetUuid) addSidebarCard(targetUuid, isPage ? 'page' : 'block');
-          onClose();
-        },
-      });
-      items.push({
-        id: 'open-new-tab',
-        label: 'Open in new browser tab',
-        icon: 'mdi-open-in-new',
-        shortcut: 'Ctrl/Cmd+Click',
-        onClick: () => {
-          if (targetUuid) openInNewTab(`/${workspaceId ?? ''}/${targetUuid}`);
           onClose();
         },
       });
@@ -341,7 +329,6 @@ export function NodeLinkContextMenu({
     openNode,
     addSidebarCard,
     openInNewTab,
-    workspaceId,
     onClose,
   ]);
 
