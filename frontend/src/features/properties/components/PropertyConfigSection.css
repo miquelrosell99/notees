@@ -52,3 +52,17 @@
   font-weight: 500;
   flex-shrink: 0;
 }
+
+/* Attributes (required / read-only / hide-when-empty / default value) */
+.property-config-section__attribute-toggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-4);
+}
+
+.property-config-section__attribute-default {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  margin-top: var(--spacing-3);
+}
