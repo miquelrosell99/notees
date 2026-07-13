@@ -84,6 +84,15 @@ class PostgresPropertyRepository(BasePostgresRepository, PropertyRepository):
             scope=PropertyScope(row.get("scope", "global")),
             node_id=row.get("node_id"),
             icon_visibility=row.get("icon_visibility", "hidden"),
+            required=row.get("required", False) or False,
+            readonly=row.get("readonly", False) or False,
+            hide_when_empty=row.get("hide_when_empty", False) or False,
+            default_integer=row.get("default_integer"),
+            default_float=row.get("default_float"),
+            default_text=row.get("default_text"),
+            default_boolean=row.get("default_boolean"),
+            default_node_id=row.get("default_node_id"),
+            default_selection_id=row.get("default_selection_id"),
             create_date=create_date,
             write_date=write_date,
         )
@@ -209,7 +218,9 @@ class PostgresPropertyRepository(BasePostgresRepository, PropertyRepository):
             property_id=row["property_id"],
             sequence=row.get("sequence", 0),
             hidden=row.get("hidden", False),
-            required=row.get("required", False),
+            required=row.get("required"),  # tri-state: may be None
+            readonly=row.get("readonly"),
+            hide_when_empty=row.get("hide_when_empty"),
             default_integer=row.get("default_integer"),
             default_float=row.get("default_float"),
             default_text=row.get("default_text"),
@@ -1532,30 +1543,36 @@ class PostgresPropertyRepository(BasePostgresRepository, PropertyRepository):
         property_id: int,
         sequence: int = 0,
         default_value: Any = None,
-        required: bool = False,
+        required: bool | None = None,
         hidden: bool | None = None,
+        readonly: bool | None = None,
+        hide_when_empty: bool | None = None,
+        prop_type: PropertyType | None = None,
     ) -> ClassProperty:
-        """Link a property to a class."""
-        del default_value  # Default values are set separately when needed.
+        """Link a property to a class, persisting overrides and defaults."""
+        from app.features.properties.attributes import default_columns_for_value
 
-        columns = ["class_node_id", "property_id", "sequence", "required"]
-        values = [class_node_id, property_id, sequence, required]
-        if hidden is not None:
-            columns.append("hidden")
-            values.append(hidden)
+        columns = ["class_node_id", "property_id", "sequence"]
+        values: list[Any] = [class_node_id, property_id, sequence]
+        for col, val in (("required", required), ("hidden", hidden),
+                         ("readonly", readonly), ("hide_when_empty", hide_when_empty)):
+            if val is not None:
+                columns.append(col)
+                values.append(val)
+        if prop_type is not None:
+            for col, val in default_columns_for_value(prop_type, default_value).items():
+                columns.append(col)
+                values.append(val)
 
         col_sql = ", ".join(columns)
         placeholders = ", ".join(f"${i + 1}" for i in range(len(values)))
         updates = [f"{col} = ${i + 1}" for i, col in enumerate(columns)]
-        update_sql = ", ".join(updates)
-
         sql = f"""
             INSERT INTO class_property ({col_sql})
             VALUES ({placeholders})
-            ON CONFLICT (class_node_id, property_id) DO UPDATE SET {update_sql}
+            ON CONFLICT (class_node_id, property_id) DO UPDATE SET {", ".join(updates)}
             RETURNING *
         """
-
         async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow(sql, *values)
             if row is None:
@@ -1574,35 +1591,39 @@ class PostgresPropertyRepository(BasePostgresRepository, PropertyRepository):
         self,
         class_node_id: int,
         property_id: int,
-        required: bool | None = None,
-        hidden: bool | None = None,
+        *,
+        clear_defaults: bool = False,
+        default_columns: dict[str, Any] | None = None,
+        **updates: Any,
     ) -> ClassProperty | None:
-        """Update an existing class property (required, hidden flags)."""
-        updates: list[str] = []
-        params: list = []
-        if required is not None:
-            params.append(required)
-            updates.append(f"required = ${len(params)}")
-        if hidden is not None:
-            params.append(hidden)
-            updates.append(f"hidden = ${len(params)}")
-        if not updates:
-            async with acquire_connection(self._pool) as conn:
+        """Update a class_property row. `updates` are set verbatim (including
+        NULL — callers use this for tri-state 'inherit')."""
+        from app.features.properties.attributes import DEFAULT_COLUMNS
+
+        allowed = {"required", "hidden", "readonly", "hide_when_empty"}
+        set_values: dict[str, Any] = {k: v for k, v in updates.items() if k in allowed}
+        if clear_defaults:
+            set_values.update(dict.fromkeys(DEFAULT_COLUMNS))
+        if default_columns:
+            set_values.update(default_columns)
+
+        async with acquire_connection(self._pool) as conn:
+            if set_values:
+                params = list(set_values.values()) + [class_node_id, property_id]
+                set_clause = ", ".join(
+                    f"{col} = ${i + 1}" for i, col in enumerate(set_values)
+                )
+                row = await conn.fetchrow(
+                    f"UPDATE class_property SET {set_clause} "
+                    f"WHERE class_node_id = ${len(params) - 1} AND property_id = ${len(params)} "
+                    f"RETURNING *",
+                    *params,
+                )
+            else:
                 row = await conn.fetchrow(
                     "SELECT * FROM class_property WHERE class_node_id = $1 AND property_id = $2",
-                    class_node_id,
-                    property_id,
+                    class_node_id, property_id,
                 )
-                return self._row_to_class_property(row) if row else None
-        params.extend([class_node_id, property_id])
-        pid1 = len(params) - 1
-        pid2 = len(params)
-        set_clause = ", ".join(updates)
-        async with acquire_connection(self._pool) as conn:
-            row = await conn.fetchrow(
-                f"UPDATE class_property SET {set_clause} WHERE class_node_id = ${pid1} AND property_id = ${pid2} RETURNING *",
-                *params,
-            )
             return self._row_to_class_property(row) if row else None
 
     async def get_all_inherited_properties(self, class_node_id: int) -> list[ClassProperty]:
@@ -1629,6 +1650,40 @@ class PostgresPropertyRepository(BasePostgresRepository, PropertyRepository):
                 class_node_id,
             )
             return [self._row_to_class_property(row) for row in rows]
+
+    async def get_class_property_edges_for_node(
+        self, node_id: int, property_id: int
+    ) -> list[ClassProperty]:
+        """Class_property edges connecting *property_id* to *node_id*'s class
+        closure, ordered nearest-first (depth, then class_ids position)."""
+        async with acquire_connection(self._pool) as conn:
+            rows = await conn.fetch(
+                """
+                WITH RECURSIVE closure AS (
+                    SELECT u.class_id, 0 AS depth, u.ord
+                    FROM node n,
+                         unnest(n.class_ids) WITH ORDINALITY AS u(class_id, ord)
+                    WHERE n.id = $1
+                    UNION ALL
+                    SELECT ce.source_id, c.depth + 1, c.ord
+                    FROM closure c
+                    JOIN class_extend ce ON ce.target_id = c.class_id
+                    WHERE c.depth < 20
+                ),
+                best AS (
+                    SELECT DISTINCT ON (class_id) class_id, depth, ord
+                    FROM closure ORDER BY class_id, depth, ord
+                )
+                SELECT cp.*
+                FROM class_property cp
+                JOIN best b ON b.class_id = cp.class_node_id
+                WHERE cp.property_id = $2
+                ORDER BY b.depth, b.ord
+                """,
+                node_id,
+                property_id,
+            )
+            return [self._row_to_class_property(r) for r in rows]
 
     async def get_property_stats(self) -> list[dict[str, Any]]:
         """Return usage counts per property across all nodes in this workspace."""
