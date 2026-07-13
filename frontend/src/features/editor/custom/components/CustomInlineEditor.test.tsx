@@ -265,6 +265,27 @@ describe('CustomInlineEditor typing', () => {
     editor.removeChild(companionInput);
   });
 
+  it('renders leading and trailing caret anchors around a first-position atomic pill', () => {
+    const initialAST = [
+      {
+        type: 'paragraph',
+        children: [{ type: 'node_link', link_id: 'node:abc', ref_type: 'node' }],
+      },
+    ];
+    renderWithProviders(
+      <CustomInlineEditor
+        blockId="block-1"
+        initialContentAST={initialAST as unknown as ContentAST}
+      />,
+    );
+
+    const editor = screen.getByRole('textbox');
+    const anchors = editor.querySelectorAll('[data-caret-anchor="true"]');
+    expect(anchors.length).toBe(2);
+    expect(editor.firstElementChild?.getAttribute('data-caret-anchor')).toBe('true');
+    expect(editor.lastElementChild?.getAttribute('data-caret-anchor')).toBe('true');
+  });
+
   it('restores the pending caret when a mutation lands while blurred and focus returns', () => {
     // Mirrors the trigger-popup flow ("+" / "@" / "#"): the popup's search
     // input owns focus while the pill insertion mutation is applied, then the
