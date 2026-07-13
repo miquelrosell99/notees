@@ -108,11 +108,16 @@
 .bullet-line__connector {
   position: absolute;
   top: calc(var(--block-thread-line-overhang) * -1);
-  /* Anchor the elbow to the first line, not the row's vertical center. The
-     bullet lives in the one-line-tall .block-ui (1.5em) pinned to the top of
-     the row, so its center is half of that (1.5em / 2). A fixed height keeps
-     the elbow on the first line even when the block wraps. */
-  height: calc(var(--block-thread-line-overhang) + 1.5em / 2);
+  /* Anchor the elbow to the bullet glyph center. The bullet lives in the
+     one-line-tall .block-ui (1.5em) pinned to the top of the row, and its
+     glyph is nudged down by the optical offset, so its center is
+     1.5em / 2 + --bullet-optical-offset below the row top. This element's
+     containing block (.bullet-line-system) is already shifted up by
+     --block-thread-line-overhang and `top` above shifts it up once more, so
+     the height must include the overhang TWICE for the bottom edge (the
+     visible elbow) to land on the glyph center. A fixed height keeps the
+     elbow on the first line even when the block wraps. */
+  height: calc(2 * var(--block-thread-line-overhang) + 1.5em / 2 + var(--bullet-optical-offset));
   left: 50%;
   width: var(--block-indent-step);
   transform: translateX(-50%);

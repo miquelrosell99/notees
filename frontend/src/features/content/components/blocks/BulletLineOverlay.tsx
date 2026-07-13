@@ -56,15 +56,20 @@ function getBulletCenterOffset(): number {
 }
 
 /**
- * Vertical center of a row's bullet, measured from the actual bullet element so
- * the guide lines and active thread track the bullet wherever the layout places
- * it. The bullet is anchored to the first line of a (possibly multi-line) block,
- * not the row's vertical center, so the previous `rect.height / 2` would drift
- * on wrapped paragraphs. Falls back to the provided value (typically the row
- * center) when a row renders no bullet (e.g. document mode / hidden bullet).
+ * Vertical center of a row's bullet glyph, measured from the actual rendered
+ * glyph container so the guide lines and active thread track the bullet
+ * wherever the layout places it. `.bullet-container` (not `.bullet-wrapper`)
+ * is measured on purpose: the container carries the --bullet-optical-offset
+ * transform that moves the dot/icon from the wrapper's geometric center down
+ * to the text's optical center, and the thread must connect to the visible
+ * glyph. The bullet is anchored to the first line of a (possibly multi-line)
+ * block, not the row's vertical center, so the previous `rect.height / 2`
+ * would drift on wrapped paragraphs. Falls back to the provided value
+ * (typically the row center) when a row renders no bullet (e.g. document
+ * mode / hidden bullet).
  */
 function getBulletCenterY(el: HTMLElement, containerTop: number, fallbackY: number): number {
-  const bullet = el.querySelector<HTMLElement>('.block-ui .bullet-wrapper');
+  const bullet = el.querySelector<HTMLElement>('.block-ui .bullet-container');
   if (bullet) {
     const r = bullet.getBoundingClientRect();
     return r.top - containerTop + r.height / 2;
