@@ -233,12 +233,17 @@ async def update_class_property(
         if field in request.model_fields_set:
             updates[field] = getattr(request, field)
     default_provided = "default_value" in request.model_fields_set
-    result = await service.update_class_property(
-        class_node_id,
-        property_id,
-        updates=updates,
-        default_value=request.default_value if default_provided else _UNSET,
-    )
+    try:
+        result = await service.update_class_property(
+            class_node_id,
+            property_id,
+            updates=updates,
+            default_value=request.default_value if default_provided else _UNSET,
+        )
+    except PropertyNotFoundError as e:
+        raise HTTPException(404, str(e)) from e
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
     if result is None:
         raise HTTPException(404, "Class property not found")
 
