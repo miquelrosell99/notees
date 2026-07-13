@@ -45,15 +45,22 @@
   background: var(--color-surface-variant);
 }
 
-/* Actions wrapper (required toggle + menu button) */
+/* Actions wrapper (default editor + tri-state toggles + menu button) */
 .class-property-actions {
   display: flex;
   align-items: center;
   gap: var(--spacing-micro);
 }
 
-/* Required toggle button (* asterisk) */
-.class-property-required-btn {
+/* Compact default-value override editor inside the row */
+.class-property-default-editor {
+  max-width: 7rem;
+  height: var(--height-sm, 1.75rem);
+  font-size: var(--font-size-sm);
+}
+
+/* Tri-state override toggle (required / readonly / hide-when-empty) */
+.class-property-tristate-btn {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -68,18 +75,22 @@
               color var(--motion-duration-short) var(--motion-easing-standard);
 }
 
-/* Always show required toggle if it's active (required=true) */
-.class-property-required-btn--active {
+/* Explicit overrides stay visible even when the row is not hovered */
+.class-property-tristate-btn--on {
   opacity: var(--opacity-100);
-  color: var(--color-error);
+  color: var(--color-on-surface);
 }
 
-.list-sortable__item:hover .class-property-required-btn,
-.class-property-required-btn:focus {
+.class-property-tristate-btn--off {
+  opacity: var(--opacity-70);
+}
+
+.list-sortable__item:hover .class-property-tristate-btn,
+.class-property-tristate-btn:focus {
   opacity: var(--opacity-100);
 }
 
-.class-property-required-btn:not(.class-property-required-btn--active):hover {
+.class-property-tristate-btn:hover {
   color: var(--color-on-surface);
   background: var(--color-surface-variant);
 }

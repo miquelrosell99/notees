@@ -82,7 +82,13 @@ export function useUpdateClassProperty() {
     }: {
       classId: string;
       propertyId: string;
-      data: { required?: boolean; hidden?: boolean };
+      data: {
+        required?: boolean | null;
+        hidden?: boolean;
+        readonly?: boolean | null;
+        hide_when_empty?: boolean | null;
+        default_value?: unknown | null;
+      };
     }) => propertiesApi.updateClassProperty(resolveClassId(classId), resolvePropertyId(propertyId), data),
     onSuccess: (_, { classId }) => {
       invalidateClassQueries(queryClient, classId);
