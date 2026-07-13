@@ -31,6 +31,8 @@ export default defineConfig([
       'jsx-a11y/anchor-is-valid': 'warn',
       '@typescript-eslint/consistent-type-imports': ['error', { prefer: 'type-imports', fixStyle: 'inline-type-imports' }],
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' }],
+      // Native dialogs break the app modal UX — always use ConfirmationModal
+      'no-alert': 'error',
       // React Compiler rules are experimental; codebase predates the compiler
       'react-hooks/set-state-in-effect': 'off',
       'react-hooks/refs': 'off',
