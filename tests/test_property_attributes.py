@@ -358,3 +358,29 @@ async def test_delete_required_property_without_default_rejected(auth_client: As
     # value untouched
     content = (await auth_client.get(f"/api/nodes/page/{node_uuid}/content")).json()
     assert content["properties_uuid"][prop_uuid] == a_uuid
+
+
+@pytest.mark.asyncio
+async def test_class_assignment_applies_property_level_default(auth_client: AsyncClient):
+    """A class edge without its own default inherits the property-level default."""
+    prop_resp = await auth_client.post("/api/properties/", json={
+        "name": "DefaultedBool", "type": "boolean", "scope": "global",
+    })
+    assert prop_resp.status_code == 200, prop_resp.text
+    prop_uuid = prop_resp.json()["property_uuid"]
+    put_resp = await auth_client.put(f"/api/properties/{prop_uuid}", json={"default_value": True})
+    assert put_resp.status_code == 200, put_resp.text
+
+    class_uuid = (await auth_client.post(
+        "/api/nodes/", json={"name": "Default Class", "is_class": True}
+    )).json()["uuid"]
+    await auth_client.post(f"/api/properties/classes/{class_uuid}/properties",
+                           json={"property_uuid": prop_uuid})
+
+    node_uuid = (await auth_client.post("/api/nodes/", json={"name": "DN"})).json()["uuid"]
+    add_resp = await auth_client.post(f"/api/nodes/{node_uuid}/classes",
+                                      json={"class_node_uuid": class_uuid})
+    assert add_resp.status_code == 200, add_resp.text
+
+    content = (await auth_client.get(f"/api/nodes/page/{node_uuid}/content")).json()
+    assert content["properties_uuid"][prop_uuid] is True

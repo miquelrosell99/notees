@@ -16,6 +16,7 @@ from app.domain.errors import SystemClassConstraintError
 from app.domain.node_flags import CLASS_UUID_TO_FLAG, compute_node_flags
 from app.domain.stringify_ast import ParseMode, parse_ast, serialize_ast
 from app.features.nodes.class_extension_service import ClassExtensionService
+from app.features.properties.attributes import default_value_from_columns
 from app.logging_config import get_logger
 
 if TYPE_CHECKING:
@@ -305,8 +306,11 @@ class ClassManagementService:
     async def _apply_class_property_defaults(self, node_id: int, class_node_id: int) -> None:
         """Set default property values declared by *class_node_id* on *node_id*.
 
-        Skips properties that already have values.  Logs but does not re-raise
-        individual property failures so that the parent add_class call succeeds.
+        The default source is "edge first, then property": a class-property
+        edge declaring its own default wins; otherwise the property's own
+        default columns apply.  Skips properties that already have values.
+        Logs but does not re-raise individual property failures so that the
+        parent add_class call succeeds.
         """
         from app.domain.entities.property import RELATION_TYPES, SCALAR_TYPES, PropertyType
 
@@ -321,32 +325,31 @@ class ClassManagementService:
                 continue
 
             try:
+                default = default_value_from_columns(cp)
+                if default is None:
+                    default = default_value_from_columns(prop)
+                if default is None:
+                    continue
+
                 if prop.type in SCALAR_TYPES:
-                    default = None
-                    if prop.type == PropertyType.INTEGER and cp.default_integer is not None:
-                        default = cp.default_integer
-                    elif prop.type == PropertyType.FLOAT and cp.default_float is not None:
-                        default = cp.default_float
-                    elif prop.type == PropertyType.BOOLEAN and cp.default_boolean is not None:
-                        default = cp.default_boolean
-                    if default is not None:
+                    if prop.type in (PropertyType.INTEGER, PropertyType.FLOAT, PropertyType.BOOLEAN):
                         await self._property_repo.set_scalar_value(node_id, cp.property_id, default)
 
                 elif prop.type in RELATION_TYPES:
-                    if prop.type == PropertyType.NODE and cp.default_node_id is not None:
-                        await self._property_repo.set_relation_value(node_id, cp.property_id, cp.default_node_id)
-                    elif prop.type == PropertyType.TEXT and cp.default_text is not None:
+                    if prop.type == PropertyType.NODE:
+                        await self._property_repo.set_relation_value(node_id, cp.property_id, default)
+                    elif prop.type == PropertyType.TEXT:
                         text_node = await self._node_repo.create(
                             NodeCreateData(
-                                name=serialize_ast(parse_ast(str(cp.default_text), ParseMode.PLAIN)),
+                                name=serialize_ast(parse_ast(str(default), ParseMode.PLAIN)),
                                 parent_id=node_id,
                             ),
                             None,
                         )
                         await self._property_repo.set_relation_value(node_id, cp.property_id, text_node.id)
 
-                elif prop.type == PropertyType.SELECTION and cp.default_selection_id is not None:
-                    await self._property_repo.set_selection_value(node_id, cp.property_id, cp.default_selection_id)
+                elif prop.type == PropertyType.SELECTION:
+                    await self._property_repo.set_selection_value(node_id, cp.property_id, default)
 
             except Exception as exc:
                 logger.warning(f"Failed to set default value for property {cp.property_id} on node {node_id}: {exc}")
