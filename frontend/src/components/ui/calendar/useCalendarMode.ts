@@ -9,9 +9,8 @@
  * - `years`  : 12-year window starting at `yearWindowStart`.
  *
  * Zoom level and the displayed date are independent: `setMode` switches the
- * zoom level without touching the date, and `navigateTo` moves the displayed
- * month/year without changing the zoom level. `goPrev`/`goNext` step within
- * the current level; `goToday` jumps back to the current day in `days` zoom.
+ * zoom level without touching the date. `goPrev`/`goNext` step within the
+ * current level; `goToday` jumps back to the current day in `days` zoom.
  *
  * All state lives in a single object updated through pure updaters — never
  * nest a `setState` call inside another setter's updater, as StrictMode
@@ -43,8 +42,6 @@ export interface UseCalendarModeResult {
   yearWindowStart: number;
   /** Switch zoom level without changing the displayed date */
   setMode: (mode: CalendarMode) => void;
-  /** Move the displayed month/year without changing the zoom level */
-  navigateTo: (year: number, month: number) => void;
   goPrev: () => void;
   goNext: () => void;
   goToday: () => void;
@@ -76,10 +73,6 @@ export function useCalendarMode({
       // Make sure the current year is visible when entering the years grid
       yearWindowStart: mode === 'years' ? alignYearWindow(s.currentYear) : s.yearWindowStart,
     }));
-  }, []);
-
-  const navigateTo = useCallback((year: number, month: number) => {
-    setState((s) => ({ ...s, currentYear: year, currentMonth: month }));
   }, []);
 
   const goPrev = useCallback(() => {
@@ -126,7 +119,6 @@ export function useCalendarMode({
     currentMonth: state.currentMonth,
     yearWindowStart: state.yearWindowStart,
     setMode,
-    navigateTo,
     goPrev,
     goNext,
     goToday,

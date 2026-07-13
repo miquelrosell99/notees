@@ -54,7 +54,6 @@ export function CalendarPopup({
     currentMonth,
     yearWindowStart,
     setMode,
-    navigateTo,
     goPrev,
     goNext,
     goToday,
@@ -166,7 +165,8 @@ export function CalendarPopup({
         onPrev={goPrev}
         onNext={goNext}
         onModeChange={setMode}
-        onNavigate={navigateTo}
+        onOpenMonth={() => onSelectMonth(currentYear, currentMonth)}
+        onOpenYear={() => onSelectYear(currentYear)}
         prevLabel="Previous"
         nextLabel="Next"
       />
