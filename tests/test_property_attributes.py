@@ -245,3 +245,116 @@ async def test_readonly_rejects_writes(auth_client: AsyncClient):
                                json={"property_uuid": prop_uuid, "value": True})
     assert r.status_code == 400
     assert r.json()["detail"]["code"] == "readonly_property"
+
+
+@pytest.mark.asyncio
+async def test_typed_scalar_endpoint_enforces_readonly(auth_client: AsyncClient):
+    """POST .../scalar on a read-only property must be rejected."""
+    prop_resp = await auth_client.post("/api/properties/", json={
+        "name": "TypedLocked", "type": "integer", "scope": "global",
+    })
+    assert prop_resp.status_code == 200, prop_resp.text
+    prop_uuid = prop_resp.json()["property_uuid"]
+    await auth_client.put(f"/api/properties/{prop_uuid}", json={"readonly": True})
+    node_uuid = (await auth_client.post("/api/nodes/", json={"name": "N4"})).json()["uuid"]
+    r = await auth_client.post(
+        f"/api/nodes/{node_uuid}/properties/{prop_uuid}/scalar",
+        json={"value": 42},
+    )
+    assert r.status_code == 400
+    assert r.json()["detail"]["code"] == "readonly_property"
+
+
+@pytest.mark.asyncio
+async def test_typed_scalar_endpoint_happy_path(auth_client: AsyncClient):
+    """Typed write to a normal (non-readonly) property still succeeds."""
+    prop_resp = await auth_client.post("/api/properties/", json={
+        "name": "TypedOk", "type": "integer", "scope": "global",
+    })
+    assert prop_resp.status_code == 200, prop_resp.text
+    prop_uuid = prop_resp.json()["property_uuid"]
+    node_uuid = (await auth_client.post("/api/nodes/", json={"name": "N5"})).json()["uuid"]
+    r = await auth_client.post(
+        f"/api/nodes/{node_uuid}/properties/{prop_uuid}/scalar",
+        json={"value": 42},
+    )
+    assert r.status_code == 200, r.text
+    content = (await auth_client.get(f"/api/nodes/page/{node_uuid}/content")).json()
+    assert content["properties_uuid"][prop_uuid] == 42
+
+
+@pytest.mark.asyncio
+async def test_batch_clear_required_without_default_rejected(auth_client: AsyncClient):
+    """Batch-clearing an effective-required property without default → 400."""
+    prop_resp = await auth_client.post("/api/properties/", json={
+        "name": "BatchReq", "type": "selection", "scope": "global",
+        "selection_lines": ["A", "B"],
+    })
+    prop = prop_resp.json()
+    prop_uuid = prop["property_uuid"]
+    a_uuid = prop["options"][0]["selection_line_uuid"]
+    await auth_client.put(f"/api/properties/{prop_uuid}", json={"required": True})
+    node_uuid = (await auth_client.post("/api/nodes/", json={"name": "N6"})).json()["uuid"]
+
+    r = await auth_client.post("/api/nodes/batch/set", json={"items": [
+        {"node_uuid": node_uuid, "property_uuid": prop_uuid, "value": a_uuid},
+    ]})
+    assert r.status_code == 200, r.text
+    assert r.json()["succeeded"] == 1
+
+    r = await auth_client.post("/api/nodes/batch/set", json={"items": [
+        {"node_uuid": node_uuid, "property_uuid": prop_uuid, "value": None},
+    ]})
+    assert r.status_code == 400
+    assert r.json()["detail"]["code"] == "required_property"
+    # value untouched
+    content = (await auth_client.get(f"/api/nodes/page/{node_uuid}/content")).json()
+    assert content["properties_uuid"][prop_uuid] == a_uuid
+
+
+@pytest.mark.asyncio
+async def test_delete_required_property_resets_to_default(auth_client: AsyncClient):
+    """DELETE on an effective-required property with a default resets to the default."""
+    prop_resp = await auth_client.post("/api/properties/", json={
+        "name": "DelReq", "type": "selection", "scope": "global",
+        "selection_lines": ["Open", "Shut"],
+    })
+    prop = prop_resp.json()
+    prop_uuid = prop["property_uuid"]
+    open_uuid = prop["options"][0]["selection_line_uuid"]
+    shut_uuid = prop["options"][1]["selection_line_uuid"]
+    await auth_client.put(f"/api/properties/{prop_uuid}",
+                          json={"required": True, "default_value": open_uuid})
+    node_uuid = (await auth_client.post("/api/nodes/", json={"name": "N7"})).json()["uuid"]
+    r = await auth_client.post(f"/api/nodes/{node_uuid}/properties",
+                               json={"property_uuid": prop_uuid, "value": shut_uuid})
+    assert r.status_code == 200, r.text
+
+    r = await auth_client.delete(f"/api/nodes/{node_uuid}/properties/{prop_uuid}")
+    assert r.status_code == 200, r.text
+    content = (await auth_client.get(f"/api/nodes/page/{node_uuid}/content")).json()
+    assert content["properties_uuid"][prop_uuid] == open_uuid
+
+
+@pytest.mark.asyncio
+async def test_delete_required_property_without_default_rejected(auth_client: AsyncClient):
+    """DELETE on an effective-required property without a default → 400."""
+    prop_resp = await auth_client.post("/api/properties/", json={
+        "name": "DelReqNoDefault", "type": "selection", "scope": "global",
+        "selection_lines": ["A", "B"],
+    })
+    prop = prop_resp.json()
+    prop_uuid = prop["property_uuid"]
+    a_uuid = prop["options"][0]["selection_line_uuid"]
+    await auth_client.put(f"/api/properties/{prop_uuid}", json={"required": True})
+    node_uuid = (await auth_client.post("/api/nodes/", json={"name": "N8"})).json()["uuid"]
+    r = await auth_client.post(f"/api/nodes/{node_uuid}/properties",
+                               json={"property_uuid": prop_uuid, "value": a_uuid})
+    assert r.status_code == 200, r.text
+
+    r = await auth_client.delete(f"/api/nodes/{node_uuid}/properties/{prop_uuid}")
+    assert r.status_code == 400
+    assert r.json()["detail"]["code"] == "required_property"
+    # value untouched
+    content = (await auth_client.get(f"/api/nodes/page/{node_uuid}/content")).json()
+    assert content["properties_uuid"][prop_uuid] == a_uuid
