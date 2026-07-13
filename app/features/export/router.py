@@ -12,7 +12,6 @@ from fastapi.responses import FileResponse, Response
 from app.db.connection import clear_request_conn, get_data_dir
 from app.dependencies import (
     get_current_user,
-    get_node_service,
     get_workspace_id,
     require_read_or_write_scope,
 )
@@ -24,9 +23,7 @@ from app.features.export.models import (
     ExportRequest,
     RenderPdfRequest,
 )
-from app.features.export.opml import generate_opml
 from app.features.export.service import ExportService
-from app.features.nodes.node_service import NodeService
 from app.logging_config import get_logger
 from app.models import User
 
@@ -201,23 +198,6 @@ async def download_node_export_job(job_uuid: str, user: User = Depends(get_curre
         raise HTTPException(status_code=404, detail="Export file no longer available")
 
     return FileResponse(path, filename=path.name, media_type=_media_type_for_path(path))
-
-
-@router.get("/opml/{node_uuid}")
-async def export_opml(
-    node_uuid: str,
-    node_service: NodeService = Depends(get_node_service),
-    user: User = Depends(get_current_user),
-):
-    """Export a node tree as an OPML outline.
-
-    Returns XML directly (not an async job) because OPML documents are small.
-    """
-    try:
-        opml = await generate_opml(node_uuid, node_service)
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
-    return Response(content=opml, media_type="text/x-opml+xml")
 
 
 @router.get("/{node_uuid}", response_model=CreateExportJobResponse)
