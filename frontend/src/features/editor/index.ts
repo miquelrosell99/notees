@@ -1,13 +1,14 @@
 /**
  * Public surface of the editor feature.
  *
- * Contains the Lexical inline editor, its plugins/nodes/theme, and the
+ * Contains the custom inline editor, its plugins, and the
  * debounced content-save hook. Cross-feature imports should prefer
  * `@/features/editor` (this barrel) over reaching into internal subdirectories.
  */
 
 // Inline editor
 export { CustomInlineEditor } from './custom/components/CustomInlineEditor';
+export { InlineContentStatic } from './editor/InlineContentStatic';
 export type { InlineEditorHandle } from './editor/types';
 
 // Link editing UI
