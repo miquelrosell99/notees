@@ -26,24 +26,9 @@ import {
   NODE_ACTION_DEFAULT_ORDER,
   useNodeActions,
   type NodeActionContext,
-  type NodeMenuGroup,
 } from '@/plugins/core';
 import { ColorPickerRow } from './ColorPickerRow';
 import { composeMenuItems, type ComposableMenuItem } from './NodeContextMenu/composeMenuItems';
-
-/**
- * Menu section for each core link-menu item (ids as pushed below). Items not
- * listed land in 'main'. Only applied to composable ref types (node/class/
- * embed/user); url and broken-link menus keep their flat layout.
- */
-const LINK_ITEM_GROUP: Record<string, NodeMenuGroup> = {
-  edit: 'edit',
-  'toggle-class': 'edit',
-  'copy-uuid': 'copy',
-  'copy-link': 'copy',
-  delete: 'danger',
-  unlink: 'danger',
-};
 
 export type NodeLinkContextMenuRefType =
   | 'node'
@@ -129,7 +114,7 @@ export function NodeLinkContextMenu({
   );
 
   const menuItems = useMemo((): ContextMenuItem[] => {
-    const items: ContextMenuItem[] = [];
+    const items: ComposableMenuItem[] = [];
     // url and broken-link menus keep their flat layout; node/class/embed/user
     // menus compose core + contributed actions into sections.
     const composable = refType !== 'url' && refType !== 'broken';
@@ -221,6 +206,7 @@ export function NodeLinkContextMenu({
     if (onEdit) {
       items.push({
         id: 'edit',
+        group: 'edit',
         label: 'Edit link',
         icon: 'mdi-pencil',
         onClick: () => {
@@ -233,6 +219,7 @@ export function NodeLinkContextMenu({
     if (isTargetClass && composable && onToggleClass) {
       items.push({
         id: 'toggle-class',
+        group: 'edit',
         label:
           refType === 'class'
             ? 'Convert to normal link'
@@ -248,10 +235,11 @@ export function NodeLinkContextMenu({
     // Copy actions. Copy UUID is a dev action — hidden unless dev options
     // are enabled in the user settings.
     if (refType !== 'url' && targetUuid) {
-      const copyItems: ContextMenuItem[] = [];
+      const copyItems: ComposableMenuItem[] = [];
       if (showDevOptions) {
         copyItems.push({
           id: 'copy-uuid',
+          group: 'copy',
           label: 'Copy UUID',
           icon: 'mdi-identifier',
           badge: 'DEV',
@@ -264,6 +252,7 @@ export function NodeLinkContextMenu({
       if (refType === 'node' || refType === 'class') {
         copyItems.push({
           id: 'copy-link',
+          group: 'copy',
           label: 'Copy link',
           icon: 'mdi-link-variant',
           onClick: () => {
@@ -282,10 +271,11 @@ export function NodeLinkContextMenu({
 
     // Delete actions: Delete removes the pill entirely; Unlink replaces it
     // with plain text, keeping the visible label.
-    const deleteItems: ContextMenuItem[] = [];
+    const deleteItems: ComposableMenuItem[] = [];
     if (onRemove) {
       deleteItems.push({
         id: 'delete',
+        group: 'danger',
         label: 'Delete',
         icon: 'mdi-trash-can-outline',
         danger: true,
@@ -304,6 +294,7 @@ export function NodeLinkContextMenu({
             : label || displayText;
       deleteItems.push({
         id: 'unlink',
+        group: 'danger',
         label: 'Unlink',
         icon: 'mdi-link-variant-off',
         onClick: () => {
@@ -326,7 +317,6 @@ export function NodeLinkContextMenu({
       // NodeActionRegistry) and compose sections; destructive section last.
       const composed: ComposableMenuItem[] = items.map((item, index) => ({
         ...item,
-        group: LINK_ITEM_GROUP[item.id] ?? 'main',
         order: index,
       }));
       if (targetUuid) {
