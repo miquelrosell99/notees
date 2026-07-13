@@ -5,11 +5,12 @@
  * export-format, and view registries.
  */
 
-import type { ComponentType, LazyExoticComponent } from 'react';
+import { useSyncExternalStore, type ComponentType, type LazyExoticComponent } from 'react';
 
 import type { MainViewType } from '@/stores/appStore';
 import { registerCommand } from '@/stores/commandRegistry';
 import { useNavigationStore } from '@/stores';
+import type { Node } from '@/types';
 
 import type {
   ContributedSidebarItem,
@@ -125,19 +126,83 @@ export function getRegisteredViews(): ViewDefinition[] {
 
 // ── Node Action Registry ─────────────────────────────────────────────────────
 
+/**
+ * Menu sections a node action can belong to. Both node context menus
+ * (page/block menu and inline link/pill menu) render sections in this
+ * canonical order with a separator between non-empty sections; `danger`
+ * always renders last. Core menu items are mapped onto the same sections,
+ * so contributed actions compose with them instead of being appended.
+ */
+export type NodeMenuGroup = 'main' | 'edit' | 'copy' | 'export' | 'manage' | 'danger';
+
+export const NODE_MENU_GROUP_ORDER: readonly NodeMenuGroup[] = [
+  'main',
+  'edit',
+  'copy',
+  'export',
+  'manage',
+  'danger',
+];
+
+/** Default sort order for contributed actions within a section. Core items occupy 0–999. */
+export const NODE_ACTION_DEFAULT_ORDER = 1000;
+
+/** Context handed to node action `visible`/`execute` callbacks. */
+export interface NodeActionContext {
+  nodeUuid: string;
+  /** Resolved node, or null when the menu could not resolve it (e.g. unresolved link target). */
+  node: Node | null;
+  /** Close the menu without running further actions. */
+  close: () => void;
+}
+
+/**
+ * A menu item contributed to the node context menus (page/block menu and
+ * inline link/pill menu) by the core app or a plugin.
+ */
 export interface NodeActionDefinition {
   id: string;
   label: string;
   icon?: string;
-  /** Predicate to decide whether the action should appear for a given node. */
-  visible?: (nodeUuid: string) => boolean;
-  execute: (nodeUuid: string) => void;
+  /** Scope filter: 'page' = pages only, 'block' = blocks only, 'both' (default) = always shown. */
+  scope?: 'page' | 'block' | 'both';
+  /** Menu section (default 'main'). Sections render in NODE_MENU_GROUP_ORDER. */
+  group?: NodeMenuGroup;
+  /** Sort order within the section (default NODE_ACTION_DEFAULT_ORDER + registration index). */
+  order?: number;
+  /** Marks the item as destructive (rendered in danger style). */
+  danger?: boolean;
+  /** Keyboard shortcut hint shown next to the label. */
+  shortcut?: string;
+  /** Badge text (e.g. 'DEV'). devOnly actions default to the 'DEV' badge. */
+  badge?: string;
+  /** If true, the menu stays open after the action executes. */
+  keepOpen?: boolean;
+  /** Dev action: hidden unless `showDevOptions` is enabled in user settings. */
+  devOnly?: boolean;
+  /** Predicate to decide whether the action should appear for the given node. */
+  visible?: (context: NodeActionContext) => boolean;
+  execute: (context: NodeActionContext) => void;
 }
 
 const nodeActionRegistry = new Map<string, NodeActionDefinition>();
+const nodeActionListeners = new Set<() => void>();
+let nodeActionsSnapshot: NodeActionDefinition[] = [];
+
+function notifyNodeActionListeners(): void {
+  nodeActionsSnapshot = Array.from(nodeActionRegistry.values());
+  nodeActionListeners.forEach((listener) => listener());
+}
 
 export function registerNodeAction(def: NodeActionDefinition): void {
   nodeActionRegistry.set(def.id, def);
+  notifyNodeActionListeners();
+}
+
+export function unregisterNodeAction(id: string): void {
+  if (nodeActionRegistry.delete(id)) {
+    notifyNodeActionListeners();
+  }
 }
 
 export function getNodeAction(id: string): NodeActionDefinition | undefined {
@@ -146,4 +211,39 @@ export function getNodeAction(id: string): NodeActionDefinition | undefined {
 
 export function getRegisteredNodeActions(): NodeActionDefinition[] {
   return Array.from(nodeActionRegistry.values());
+}
+
+/** Subscribe to node action registry changes. Returns an unsubscribe function. */
+export function subscribeNodeActions(listener: () => void): () => void {
+  nodeActionListeners.add(listener);
+  return () => {
+    nodeActionListeners.delete(listener);
+  };
+}
+
+function getNodeActionsSnapshot(): NodeActionDefinition[] {
+  return nodeActionsSnapshot;
+}
+
+/** React hook: all currently registered node actions (updates on plugin load/unload). */
+export function useNodeActions(): NodeActionDefinition[] {
+  return useSyncExternalStore(subscribeNodeActions, getNodeActionsSnapshot, getNodeActionsSnapshot);
+}
+
+/**
+ * Filter registered node actions for a specific menu invocation.
+ * `nodeScope: null` means the target node is unresolved — the scope filter
+ * passes and the action decides via its `visible` predicate.
+ */
+export function getVisibleNodeActions(
+  actions: NodeActionDefinition[],
+  opts: { nodeScope: 'page' | 'block' | null; showDevOptions: boolean; context: NodeActionContext },
+): NodeActionDefinition[] {
+  return actions.filter((action) => {
+    if (action.devOnly && !opts.showDevOptions) return false;
+    const scope = action.scope ?? 'both';
+    if (opts.nodeScope !== null && scope !== 'both' && scope !== opts.nodeScope) return false;
+    if (action.visible && !action.visible(opts.context)) return false;
+    return true;
+  });
 }
