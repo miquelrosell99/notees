@@ -2,7 +2,7 @@
  * Block-level find/replace helpers for the per-block custom editor architecture.
  *
  * Operates across all registered inline editor handles rather than a single
- * monolithic Lexical editor.
+ * monolithic editor instance.
  */
 
 import { useInlineEditorRegistry } from '@/stores/inlineEditorRegistry';

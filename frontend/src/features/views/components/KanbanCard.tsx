@@ -3,7 +3,7 @@
  *
  * Reproduces the exact same UI as the old NodeKanbanView (cover images,
  * class/tag pills, hover-reveal body, action buttons, context menus,
- * checkboxes) but uses Lexical editors for title and children content.
+ * checkboxes) but uses inline editors for title and children content.
  *
  * Layout per card (CSS grid inside Card component):
  *   Row 1: Cover image (optional — top/left/right)
@@ -125,7 +125,7 @@ export interface NodeCardProps {
 }
 
 /**
- * NodeCard — Individual card with cover, metadata rows, and Lexical editors.
+ * NodeCard — Individual card with cover, metadata rows, and inline editors.
  * Reproduces the old NodeKanbanView card layout exactly.
  */
 export const NodeCard = memo(function NodeCard({
@@ -361,10 +361,10 @@ export const NodeCard = memo(function NodeCard({
     onDragStart?.(index);
   }, [index, sortable, onDragStart]);
 
-  // Bridge: Lexical content change → runtime block id.
+  // Bridge: block content change → runtime block id.
   // useContentSave resolves the runtime node and persists even for blocks that
   // have not been acknowledged by the server yet.
-  const handleLexicalContentChange = useCallback((blockId: string, content: string) => {
+  const handleBlockContentChange = useCallback((blockId: string, content: string) => {
     handleContentChange(blockId, content);
   }, [handleContentChange]);
 
@@ -685,7 +685,7 @@ export const NodeCard = memo(function NodeCard({
                 blockId={String(node.uuid || node.uuid)}
                 initialContent={getRuntimeDisplayName(node)}
                 readOnly={!editable}
-                onContentChange={handleLexicalContentChange}
+                onContentChange={handleBlockContentChange}
                 onNavigateToNode={handleNavigateToNode}
               />
               {editable && (
@@ -785,7 +785,7 @@ export const NodeCard = memo(function NodeCard({
               <BlockList
                 nodes={node.children ?? []}
                 readOnly={!editable}
-                onContentChange={handleLexicalContentChange}
+                onContentChange={handleBlockContentChange}
                 onNavigateToNode={handleNavigateToNode}
                 onOpenInSidebar={handleOpenBlockInSidebar}
                 onAddClass={handleAddClass}

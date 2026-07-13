@@ -7,7 +7,7 @@
  * Features:
  * - Multiple view modes: list, document, card, table, gantt, graph
  * - Built-in view mode switcher (hidden when only one mode available)
- * - All views use BlockEditor internally (Lexical-based)
+ * - All views use BlockEditor internally (block-level inline editors)
  * - Recursive children handling
  * - Consistent prop propagation to all view modes
  *

@@ -2,7 +2,7 @@
  * useBlockSelection — Mouse drag + keyboard block selection for BlockList.
  *
  * Replaces BlockDragSelectionPlugin and KeyboardSelectionPlugin.
- * Works without Lexical context; operates directly on the DOM.
+ * Operates directly on the DOM — no editor context required.
  */
 
 import { useEffect, useRef } from 'react';

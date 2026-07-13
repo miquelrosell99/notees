@@ -2,7 +2,7 @@
  * TextPropertyBlock - Component for text-type properties that behave as block nodes
  * 
  * Text properties are stored as node references (blocks), displayed using a
- * full Lexical BlockEditor embedded in the property value section.
+ * full block editor embedded in the property value section.
  * 
  * The text property block acts as a miniature "focused block view":
  * - Shows a parent block (the text property value) with its own content
@@ -378,7 +378,7 @@ export function TextPropertyBlock({
     );
   }
   
-  // Show the block with a full Lexical-based editor (like FocusedBlockContent)
+  // Show the block with a full inline editor (like FocusedBlockContent)
   return (
     <div 
       ref={containerRef}

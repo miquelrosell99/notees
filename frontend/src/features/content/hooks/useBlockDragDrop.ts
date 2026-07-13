@@ -2,7 +2,7 @@
  * useBlockDragDrop — React hook for block-level drag & drop.
  *
  * Extracted from the legacy DragDropPlugin (which was tied to a single
- * Lexical editor). This version works on any DOM container that contains
+ * editor instance). This version works on any DOM container that contains
  * `.node-block[data-block-id]` elements with `.bullet-wrapper` drag handles.
  *
  * Preserves all original UX:

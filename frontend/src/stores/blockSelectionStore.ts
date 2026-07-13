@@ -1,8 +1,8 @@
 /**
  * BlockSelectionStore — Centralized block selection state for the
- * block-level editor architecture (per-block Lexical instances).
+ * block-level editor architecture (per-block inline editor instances).
  *
- * Replaces the old Lexical-based selection plugins
+ * Replaces the old plugin-based selection implementation
  * (BlockDragSelectionPlugin, KeyboardSelectionPlugin).
  */
 
