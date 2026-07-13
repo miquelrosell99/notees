@@ -166,17 +166,6 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid, nodeUuids, nodeName
       };
 
       try {
-        if (format === 'opml') {
-          if (effectiveNodeUuids.length !== 1) {
-            throw new Error('OPML export only supports a single node');
-          }
-          const { data } = await api.get<string>(`/export/opml/${effectiveNodeUuids[0]}`, {
-            responseType: 'text',
-          });
-          setPreviewContent(data);
-          return;
-        }
-
         const previewFormat = format === 'pdf' ? 'pdf' : formatHasHtmlOptions(format) ? 'html' : format;
         const jobUuid = isBatch
           ? await startExportJob({ nodeUuids: effectiveNodeUuids, params: { ...params, format: previewFormat } })
@@ -260,17 +249,6 @@ export function ExportPageModal({ isOpen, onClose, nodeUuid, nodeUuids, nodeName
     setDownloading(true);
     setError(null);
     try {
-      if (format === 'opml') {
-        if (effectiveNodeUuids.length !== 1) {
-          throw new Error('OPML export only supports a single node');
-        }
-        const { data } = await api.get<string>(`/export/opml/${effectiveNodeUuids[0]}`, {
-          responseType: 'text',
-        });
-        downloadBlob(new Blob([data], { type: 'text/x-opml+xml' }), 'export.opml');
-        return;
-      }
-
       const baseParams: Record<string, unknown> = {
         format,
         include_children: true,

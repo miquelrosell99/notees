@@ -53,15 +53,3 @@ def _unlatex(value: str) -> str:
     value = re.sub(r"\\([a-zA-Z]+)\{([^}]*)\}", r"\2", value)
     value = value.replace("{", "").replace("}", "")
     return value.strip()
-
-
-def serialize_bibtex(entries: list[BibEntry]) -> str:
-    """Serialize entries to a BibTeX string."""
-    lines: list[str] = []
-    for entry in entries:
-        lines.append(f"@{entry.entry_type}{{{entry.cite_key},")
-        for key, value in entry.fields.items():
-            lines.append(f"  {key} = {{{value}}},")
-        lines.append("}")
-        lines.append("")
-    return "\n".join(lines)
