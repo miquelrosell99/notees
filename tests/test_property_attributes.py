@@ -106,6 +106,61 @@ async def test_class_property_patch_tri_state_and_default(auth_client: AsyncClie
 
 
 @pytest.mark.asyncio
+async def test_inherited_properties_ordered_nearest_edge_first(auth_client: AsyncClient):
+    """GET /classes/{uuid}/properties?include_inherited=true must return the
+    direct class's edge before an ancestor's edge for the same property, even
+    when the ancestor edge has a lower sequence. Display dedup is
+    first-occurrence-wins, so this ordering is what makes the shown attributes
+    agree with nearest-edge-first enforcement (get_class_property_edges_for_node).
+    """
+    prop_resp = await auth_client.post("/api/properties/", json={
+        "name": "NearestEdgeProp", "type": "boolean", "scope": "global",
+    })
+    assert prop_resp.status_code == 200, prop_resp.text
+    prop_uuid = prop_resp.json()["property_uuid"]
+
+    parent_uuid = (await auth_client.post(
+        "/api/nodes/", json={"name": "Parent Class", "is_class": True}
+    )).json()["uuid"]
+    child_uuid = (await auth_client.post(
+        "/api/nodes/", json={"name": "Child Class", "is_class": True}
+    )).json()["uuid"]
+
+    # Ancestor edge with LOWER sequence + hide_when_empty=true: under the old
+    # ORDER BY cp.sequence this edge sorted first and won the frontend dedup,
+    # disagreeing with enforcement, which resolves nearest-class-first.
+    r = await auth_client.post(
+        f"/api/properties/classes/{parent_uuid}/properties",
+        json={"property_uuid": prop_uuid, "hide_when_empty": True, "sequence": 0},
+    )
+    assert r.status_code == 200, r.text
+    r = await auth_client.post(
+        f"/api/properties/classes/{child_uuid}/extends",
+        json={"extends_class_node_uuid": parent_uuid, "sequence": 0},
+    )
+    assert r.status_code == 200, r.text
+    r = await auth_client.post(
+        f"/api/properties/classes/{child_uuid}/properties",
+        json={"property_uuid": prop_uuid, "hide_when_empty": False, "sequence": 1},
+    )
+    assert r.status_code == 200, r.text
+
+    resp = await auth_client.get(
+        f"/api/properties/classes/{child_uuid}/properties?include_inherited=true"
+    )
+    assert resp.status_code == 200, resp.text
+    edges = [
+        cp for cp in resp.json()["class_properties"]
+        if cp["property_uuid"] == prop_uuid
+    ]
+    assert len(edges) == 2
+    assert edges[0]["class_node_uuid"] == child_uuid
+    assert edges[0]["hide_when_empty"] is False
+    assert edges[1]["class_node_uuid"] == parent_uuid
+    assert edges[1]["hide_when_empty"] is True
+
+
+@pytest.mark.asyncio
 async def test_property_attributes_roundtrip(auth_client: AsyncClient):
     """PUT /api/properties/{uuid} persists attribute bases and typed default."""
     prop_resp = await auth_client.post("/api/properties/", json={

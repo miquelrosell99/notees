@@ -27,6 +27,17 @@ import { NodeViewSection } from '@/features/content';
 import { PropertyValue } from './PropertyValue';
 import './PropertiesSection.css';
 
+/**
+ * Mirrors backend is_empty_value (app/features/properties/attributes.py):
+ * a property counts as empty when its stored value is null/undefined, an
+ * empty string, or an empty array. The backend materializes these for
+ * assigned-but-emptied properties (e.g. via the "Empty property" action), so
+ * key presence in properties_uuid alone does not mean "has a value".
+ */
+function isEmptyValue(value: unknown): boolean {
+  return value == null || value === '' || (Array.isArray(value) && value.length === 0);
+}
+
 interface PropertiesSectionProps {
   nodeUuid: string;
   className?: string;
@@ -133,11 +144,14 @@ export function PropertiesSection({
       // Skip hidden system properties (e.g. _query_ast, _whiteboard_data)
       if (prop.name.startsWith('_')) continue;
 
-      // Get value from node properties if it exists
-      const hasValue = node?.properties_uuid != null
-        && prop.uuid in (node.properties_uuid as Record<string, unknown>);
+      // Get value from node properties if it exists and is non-empty;
+      // emptied values (null/''/[]) fall back to the effective default.
+      const rawValue = node?.properties_uuid != null
+        ? (node.properties_uuid as Record<string, unknown>)[prop.uuid]
+        : undefined;
+      const hasValue = !isEmptyValue(rawValue);
       const value = hasValue
-        ? (node!.properties_uuid as Record<string, unknown>)[prop.uuid]
+        ? rawValue
         : classProp.default_value ?? prop.default_value ?? null;
 
       // Effective attributes: class-edge tri-state override ?? property base
@@ -173,10 +187,12 @@ export function PropertiesSection({
 
         const hasProperty = prop.uuid in (node.properties_uuid as Record<string, unknown>);
         if (hasProperty) {
+          const rawValue = (node.properties_uuid as Record<string, unknown>)[prop.uuid];
+          const hasValue = !isEmptyValue(rawValue);
           entries.push({
             property: prop,
-            value: (node.properties_uuid as Record<string, unknown>)[prop.uuid],
-            hidden: false,
+            value: rawValue,
+            hidden: prop.hide_when_empty && !hasValue,
             readOnly: prop.readonly,
             required: prop.required,
             hasDefault: prop.default_value != null,
