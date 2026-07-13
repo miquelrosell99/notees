@@ -83,4 +83,5 @@ export {
 export { type ShortcutContext } from './commandRegistry';
 export { useUndoStore } from './undoStore';
 export { useClipboardStore, type ClipboardMode } from './clipboardStore';
+export { usePinnedPagesStore } from './pinnedPagesStore';
 export { useEncryptionStore } from './encryptionStore';
