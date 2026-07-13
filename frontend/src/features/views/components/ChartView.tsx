@@ -330,10 +330,41 @@ export const ChartView = memo(function ChartView({
       onNodeClick,
       className = '',
       viewId,
-      nodeUuid }: NodeChartViewProps) {
-  const [chartType, setChartType] = useState<ChartType>('bar');
-  const [groupByField, setGroupByField] = useState<string>(groupByPropertyProp?.uuid ?? '');
-  const [measure, setMeasure] = useState<MeasureConfig>({ function: 'count', label: 'Count of nodes' });
+      nodeUuid,
+      chartConfig,
+      onChartConfigChange }: NodeChartViewProps) {
+  const [internalChartType, setInternalChartType] = useState<ChartType>('bar');
+  const [internalGroupByField, setInternalGroupByField] = useState<string>(groupByPropertyProp?.uuid ?? '');
+  const [internalMeasure, setInternalMeasure] = useState<MeasureConfig>({ function: 'count', label: 'Count of nodes' });
+
+  // Controlled (per-NodeView settings) or internal (transient) state
+  const chartType = chartConfig?.chartType ?? internalChartType;
+  const groupByField = chartConfig?.groupByField ?? internalGroupByField;
+  const measure: MeasureConfig = useMemo(
+    () => chartConfig?.measure
+      ? {
+          function: chartConfig.measure.function as MeasureConfig['function'],
+          field: chartConfig.measure.field,
+          label: chartConfig.measure.label ?? '',
+        }
+      : internalMeasure,
+    [chartConfig?.measure, internalMeasure]
+  );
+
+  const setChartType = useCallback((t: ChartType) => {
+    setInternalChartType(t);
+    onChartConfigChange?.({ chartType: t });
+  }, [onChartConfigChange]);
+
+  const setGroupByField = useCallback((f: string) => {
+    setInternalGroupByField(f);
+    onChartConfigChange?.({ groupByField: f });
+  }, [onChartConfigChange]);
+
+  const setMeasure = useCallback((m: MeasureConfig) => {
+    setInternalMeasure(m);
+    onChartConfigChange?.({ measure: m });
+  }, [onChartConfigChange]);
 
   const { data: allProperties = [] } = useProperties();
 

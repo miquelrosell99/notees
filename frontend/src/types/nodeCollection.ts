@@ -167,6 +167,18 @@ export interface NodeCollectionProps {
 
   /** Called when gantt end date property changes */
   onGanttEndDatePropertyChange?: (property: Property | undefined) => void;
+
+  /** Gantt/calendar time scale (controlled; falls back to appStore global when uncontrolled) */
+  ganttTimeScale?: 'day' | 'week' | 'month';
+
+  /** Called when gantt time scale changes */
+  onGanttTimeScaleChange?: (scale: 'day' | 'week' | 'month') => void;
+
+  /** Chart view configuration (controlled; persisted per NodeView) */
+  chartConfig?: ChartConfig;
+
+  /** Called when the chart configuration changes (partial patch) */
+  onChartConfigChange?: (patch: ChartConfig) => void;
   
   /** Whether to auto-collapse nodes at configured depth (default: false, enabled for linked refs and queries) */
   autoCollapse?: boolean;
@@ -557,6 +569,15 @@ export interface NodeCalendarViewProps extends NodeCollectionViewBaseProps {
 }
 
 /**
+ * Chart view configuration (persisted per NodeView in its settings bag)
+ */
+export interface ChartConfig {
+  chartType?: 'bar' | 'line' | 'pie';
+  groupByField?: string;
+  measure?: { function: string; field?: string; label?: string };
+}
+
+/**
  * Props for NodeChartView (chart mode)
  */
 export interface NodeChartViewProps extends NodeCollectionViewBaseProps {
@@ -566,6 +587,10 @@ export interface NodeChartViewProps extends NodeCollectionViewBaseProps {
   queryAst?: QueryAST;
   /** NodeView UUID for executing backend aggregation */
   viewId?: string;
+  /** Controlled chart configuration (persisted per NodeView) */
+  chartConfig?: ChartConfig;
+  /** Called when the user changes chart type / group-by / measure */
+  onChartConfigChange?: (patch: ChartConfig) => void;
 }
 
 /**
