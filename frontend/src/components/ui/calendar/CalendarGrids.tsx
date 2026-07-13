@@ -8,6 +8,7 @@
  * plays nicely with React Fast Refresh. Shared constants/helpers stay private.
  */
 import { Button } from '../Button';
+import { SelectionButton } from '../SelectionButton';
 import type { CalendarMode } from './useCalendarMode';
 
 const MONTHS = [
@@ -32,6 +33,23 @@ function getFirstDayOfMonth(year: number, month: number): number {
 
 // ── Header ──────────────────────────────────────────────────
 
+/** Years offered by the year dropdown, centered on the displayed year so the
+ * current value is always present no matter how far the user navigates. */
+const YEAR_SELECT_RANGE = 30;
+
+const ZOOM_OPTIONS = [
+  { value: 'days', icon: 'mdi mdi-calendar', label: 'Show days' },
+  { value: 'months', icon: 'mdi mdi-calendar-month', label: 'Show months' },
+  { value: 'years', icon: 'mdi mdi-calendar-range', label: 'Show years' },
+];
+
+function getYearOptions(currentYear: number): number[] {
+  return Array.from(
+    { length: YEAR_SELECT_RANGE * 2 + 1 },
+    (_, i) => currentYear - YEAR_SELECT_RANGE + i,
+  );
+}
+
 export interface CalendarHeaderProps {
   mode: CalendarMode;
   currentYear: number;
@@ -39,8 +57,10 @@ export interface CalendarHeaderProps {
   yearWindowStart: number;
   onPrev: () => void;
   onNext: () => void;
-  /** Drill up one level (days→months→years). No-op at the top level. */
-  onDrillUp: () => void;
+  /** Switch zoom level (days/months/years) without changing the date */
+  onModeChange: (mode: CalendarMode) => void;
+  /** Navigate to a month/year without changing the zoom level */
+  onNavigate: (year: number, month: number) => void;
   prevLabel: string;
   nextLabel: string;
 }
@@ -52,36 +72,60 @@ export function CalendarHeader({
   yearWindowStart,
   onPrev,
   onNext,
-  onDrillUp,
+  onModeChange,
+  onNavigate,
   prevLabel,
   nextLabel,
 }: CalendarHeaderProps) {
+  const yearOptions = getYearOptions(currentYear);
+
   return (
     <div className="calendar-header">
-      <Button variant="ghost" size="sm" icon="mdi mdi-chevron-left" aria-label={prevLabel} className="calendar-nav-btn" onClick={onPrev} />
-      <div className="calendar-title">
-        {mode === 'days' && (
-          <>
-            <Button variant="ghost" size="xs" className="calendar-month-btn" onClick={onDrillUp} title="Show months">
-              {MONTHS[currentMonth]}
-            </Button>
-            <Button variant="ghost" size="xs" className="calendar-year-btn" onClick={onDrillUp} title="Show years">
-              {currentYear}
-            </Button>
-          </>
-        )}
-        {mode === 'months' && (
-          <Button variant="ghost" size="xs" className="calendar-year-btn" onClick={onDrillUp} title="Show years">
-            {currentYear}
-          </Button>
-        )}
-        {mode === 'years' && (
-          <span className="calendar-year-btn" style={{ cursor: 'default' }}>
-            {yearWindowStart}–{yearWindowStart + 11}
-          </span>
-        )}
+      <div className="calendar-header-row">
+        <Button variant="ghost" size="sm" icon="mdi mdi-chevron-left" aria-label={prevLabel} className="calendar-nav-btn" onClick={onPrev} />
+        <div className="calendar-title">
+          {(mode === 'days' || mode === 'months') && (
+            <>
+              {mode === 'days' && (
+                <select
+                  className="calendar-select calendar-month-select"
+                  value={currentMonth}
+                  onChange={(e) => onNavigate(currentYear, Number(e.target.value))}
+                  aria-label="Select month"
+                >
+                  {MONTHS.map((name, index) => (
+                    <option key={name} value={index}>{name}</option>
+                  ))}
+                </select>
+              )}
+              <select
+                className="calendar-select calendar-year-select"
+                value={currentYear}
+                onChange={(e) => onNavigate(Number(e.target.value), currentMonth)}
+                aria-label="Select year"
+              >
+                {yearOptions.map((year) => (
+                  <option key={year} value={year}>{year}</option>
+                ))}
+              </select>
+            </>
+          )}
+          {mode === 'years' && (
+            <span className="calendar-year-range">
+              {yearWindowStart}–{yearWindowStart + 11}
+            </span>
+          )}
+        </div>
+        <Button variant="ghost" size="sm" icon="mdi mdi-chevron-right" aria-label={nextLabel} className="calendar-nav-btn" onClick={onNext} />
       </div>
-      <Button variant="ghost" size="sm" icon="mdi mdi-chevron-right" aria-label={nextLabel} className="calendar-nav-btn" onClick={onNext} />
+      <div className="calendar-zoom">
+        <SelectionButton
+          size="sm"
+          options={ZOOM_OPTIONS}
+          value={mode}
+          onChange={(value) => onModeChange(value as CalendarMode)}
+        />
+      </div>
     </div>
   );
 }
