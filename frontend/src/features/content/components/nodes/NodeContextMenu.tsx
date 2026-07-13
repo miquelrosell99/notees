@@ -33,7 +33,6 @@ import {
   NODE_ACTION_DEFAULT_ORDER,
   useNodeActions,
   type NodeActionContext,
-  type NodeMenuGroup,
 } from '@/plugins/core';
 
 import { ASTViewerModal } from './ASTViewerModal';
@@ -60,23 +59,6 @@ import type { MutationIntent } from '@/runtime/types';
 
 
 // ==================== Common Context Menu Items ====================
-
-/**
- * Menu section for each core action item, keyed by the item id pushed in the
- * switch below. Items not listed land in 'main'. Reproduces the historical
- * separator layout while letting contributed actions compose into sections.
- */
-const CORE_ITEM_GROUP: Record<string, NodeMenuGroup> = {
-  'copy-text': 'export',
-  export: 'export',
-  presentation: 'export',
-  'view-ast': 'manage',
-  archive: 'manage',
-  unarchive: 'manage',
-  'toggle-private': 'manage',
-  'add-banner': 'manage',
-  delete: 'danger',
-};
 
 interface BaseContextMenuProps {
   /** The node to show context menu for */
@@ -179,7 +161,7 @@ export function NodeContextMenu({
   }, [node.name]);
 
   const menuItems = useMemo((): ContextMenuItem[] => {
-    const items: ContextMenuItem[] = [];
+    const items: ComposableMenuItem[] = [];
 
     const visibleActions = actions.filter(([, scope]) => scope === 'both' || scope === nodeScope);
 
@@ -350,6 +332,7 @@ export function NodeContextMenu({
         case 'export':
           items.push({
             id: 'export',
+            group: 'export',
             label: 'Export…',
             icon: 'mdi-export',
             keepOpen: true,
@@ -360,6 +343,7 @@ export function NodeContextMenu({
         case 'presentation':
           items.push({
             id: 'presentation',
+            group: 'export',
             label: 'Start presentation',
             icon: 'mdi-presentation-play',
             onClick: () => {
@@ -382,6 +366,7 @@ export function NodeContextMenu({
         case 'copy-text':
           items.push({
             id: 'copy-text',
+            group: 'export',
             label: 'Copy as text',
             icon: 'mdi-text-box-outline',
             onClick: async (event?) => {
@@ -410,6 +395,7 @@ export function NodeContextMenu({
           if (!showDevOptions) break;
           items.push({
             id: 'view-ast',
+            group: 'manage',
             label: 'View AST',
             icon: 'mdi-code-json',
             badge: 'DEV',
@@ -421,6 +407,7 @@ export function NodeContextMenu({
         case 'toggle-private':
           items.push({
             id: 'toggle-private',
+            group: 'manage',
             label: node.is_private ? 'Make public' : 'Make private',
             icon: node.is_private ? 'mdi-eye-outline' : 'mdi-eye-off-outline',
             onClick: () => {
@@ -434,6 +421,7 @@ export function NodeContextMenu({
           if (!onAddBanner) break;
           items.push({
             id: 'add-banner',
+            group: 'manage',
             label: 'Add banner',
             icon: 'mdi-image-outline',
             onClick: () => {
@@ -447,6 +435,7 @@ export function NodeContextMenu({
           if (node.active !== false) {
             items.push({
               id: 'archive',
+              group: 'manage',
               label: 'Archive',
               icon: 'mdi-archive-arrow-down-outline',
               keepOpen: true,
@@ -455,6 +444,7 @@ export function NodeContextMenu({
           } else {
             items.push({
               id: 'unarchive',
+              group: 'manage',
               label: 'Unarchive',
               icon: 'mdi-archive-arrow-up-outline',
               onClick: () => { unarchiveNode.mutate(node.uuid); onClose(); },
@@ -465,6 +455,7 @@ export function NodeContextMenu({
         case 'delete':
           items.push({
             id: 'delete',
+            group: 'danger',
             label: 'Delete',
             icon: 'mdi-delete-outline',
             danger: true,
@@ -475,10 +466,10 @@ export function NodeContextMenu({
       }
     }
 
-    // Tag core items with their section and order, merge contributed node
-    // actions (core features + plugins, see NodeActionRegistry), and compose
-    // the final list — sections render in NODE_MENU_GROUP_ORDER with the
-    // destructive section last.
+    // Tag core items with their order (sections are declared on the item
+    // literals above), merge contributed node actions (core features +
+    // plugins, see NodeActionRegistry), and compose the final list — sections
+    // render in NODE_MENU_GROUP_ORDER with the destructive section last.
     const actionContext: NodeActionContext = { menu: 'node', nodeUuid: node.uuid, node, close: onClose };
     const contributed = getVisibleNodeActions(pluginActions, {
       nodeScope,
@@ -487,7 +478,6 @@ export function NodeContextMenu({
     });
     const composed: ComposableMenuItem[] = items.map((item, index) => ({
       ...item,
-      group: CORE_ITEM_GROUP[item.id] ?? 'main',
       order: index,
     }));
     contributed.forEach((action, regIndex) => {
