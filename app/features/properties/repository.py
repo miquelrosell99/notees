@@ -469,9 +469,25 @@ class PostgresPropertyRepository(BasePostgresRepository, PropertyRepository):
             return properties
 
     async def update(
-        self, property_id: int, name: str | None = None, icon: str | None = None, icon_visibility: str | None = None
+        self,
+        property_id: int,
+        name: str | None = None,
+        icon: str | None = None,
+        icon_visibility: str | None = None,
+        required: bool | None = None,
+        readonly: bool | None = None,
+        hide_when_empty: bool | None = None,
+        clear_defaults: bool = False,
+        default_columns: dict[str, Any] | None = None,
     ) -> Property | None:
-        """Update a property definition."""
+        """Update a property definition.
+
+        The attribute flags are set verbatim when not None. `clear_defaults`
+        NULLs all typed default columns; `default_columns` sets the given
+        typed default columns.
+        """
+        from app.features.properties.attributes import DEFAULT_COLUMNS
+
         prop = await self.get_by_id(property_id)
         if not prop:
             return None
@@ -498,6 +514,28 @@ class PostgresPropertyRepository(BasePostgresRepository, PropertyRepository):
             updates.append(f"icon_visibility = ${param_idx}")
             params.append(icon_visibility)
             param_idx += 1
+
+        for col, val in (
+            ("required", required),
+            ("readonly", readonly),
+            ("hide_when_empty", hide_when_empty),
+        ):
+            if val is not None:
+                updates.append(f"{col} = ${param_idx}")
+                params.append(val)
+                param_idx += 1
+
+        if clear_defaults:
+            for col in DEFAULT_COLUMNS:
+                updates.append(f"{col} = ${param_idx}")
+                params.append(None)
+                param_idx += 1
+
+        if default_columns:
+            for col, val in default_columns.items():
+                updates.append(f"{col} = ${param_idx}")
+                params.append(val)
+                param_idx += 1
 
         if updates:
             updates.append(f"write_date = ${param_idx}")
@@ -940,6 +978,14 @@ class PostgresPropertyRepository(BasePostgresRepository, PropertyRepository):
         async with acquire_connection(self._pool) as conn:
             row = await conn.fetchrow(
                 "SELECT * FROM property_selection_line WHERE uuid = $1", uuid
+            )
+            return self._row_to_selection_line(row) if row else None
+
+    async def get_selection_line_by_id(self, line_id: int) -> PropertySelectionLine | None:
+        """Get a selection option by its internal ID."""
+        async with acquire_connection(self._pool) as conn:
+            row = await conn.fetchrow(
+                "SELECT * FROM property_selection_line WHERE id = $1", line_id
             )
             return self._row_to_selection_line(row) if row else None
 

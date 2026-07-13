@@ -852,8 +852,19 @@ class FakePropertyRepository:
         return []
 
     async def update(
-        self, property_id: int, name: str | None = None, icon: str | None = None
+        self,
+        property_id: int,
+        name: str | None = None,
+        icon: str | None = None,
+        icon_visibility: str | None = None,
+        required: bool | None = None,
+        readonly: bool | None = None,
+        hide_when_empty: bool | None = None,
+        clear_defaults: bool = False,
+        default_columns: dict[str, Any] | None = None,
     ) -> Property | None:
+        from app.features.properties.attributes import DEFAULT_COLUMNS
+
         prop = self._properties.get(property_id)
         if prop is None:
             return None
@@ -861,6 +872,20 @@ class FakePropertyRepository:
             prop.name = name
         if icon is not None:
             prop.icon = icon
+        if icon_visibility is not None:
+            prop.icon_visibility = icon_visibility
+        if required is not None:
+            prop.required = required
+        if readonly is not None:
+            prop.readonly = readonly
+        if hide_when_empty is not None:
+            prop.hide_when_empty = hide_when_empty
+        if clear_defaults:
+            for col in DEFAULT_COLUMNS:
+                setattr(prop, col, None)
+        if default_columns:
+            for col, val in default_columns.items():
+                setattr(prop, col, val)
         return prop
 
     async def can_delete_property(self, property_id: int) -> tuple[bool, str]:
@@ -1040,6 +1065,13 @@ class FakePropertyRepository:
         for lines in self._selection_lines.values():
             for line in lines:
                 if line.uuid == uuid:
+                    return line
+        return None
+
+    async def get_selection_line_by_id(self, line_id: int) -> PropertySelectionLine | None:
+        for lines in self._selection_lines.values():
+            for line in lines:
+                if line.id == line_id:
                     return line
         return None
 

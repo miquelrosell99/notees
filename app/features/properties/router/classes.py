@@ -28,7 +28,8 @@ from app.features.properties.models import (
     ClassPropertyResponse,
     ClassPropertyUpdateRequest,
 )
-from app.features.properties.service import PropertyNotFoundError, PropertyService
+from app.features.properties.router.helpers import _default_value_response
+from app.features.properties.service import _UNSET, PropertyNotFoundError, PropertyService
 from app.models import User
 
 router = APIRouter()
@@ -41,18 +42,6 @@ async def _build_node_uuid_map(node_repo: NodeRepository, node_ids: list[int]) -
         return {}
     nodes = await node_repo.get_by_ids(unique_ids)
     return {node.id: node.uuid for node in nodes if node.id is not None}
-
-
-def _class_property_default_value(cp) -> Any:  # type: ignore[name-defined]
-    """Extract the stored default value from a ClassProperty entity."""
-    return (
-        cp.default_integer
-        or cp.default_float
-        or cp.default_text
-        or cp.default_boolean
-        or cp.default_node_id
-        or cp.default_selection_id
-    )
 
 
 # ============== Batch Class Properties ==============
@@ -121,6 +110,8 @@ async def _class_property_to_response(
     cp,
     prop,
     class_uuid_map: dict[int, str],
+    property_repo=None,
+    node_repo: NodeRepository | None = None,
 ) -> ClassPropertyResponse:
     """Convert a ClassProperty entity pair to a UUID-aware response."""
     return ClassPropertyResponse(
@@ -134,9 +125,11 @@ async def _class_property_to_response(
         property_name=prop.name,
         property_type=prop.type.value,
         sequence=cp.sequence,
-        default_value=_class_property_default_value(cp),
+        default_value=await _default_value_response(cp, prop.type.value, property_repo, node_repo),
         hidden=cp.hidden,
         required=cp.required,
+        readonly=cp.readonly,
+        hide_when_empty=cp.hide_when_empty,
     )
 
 
@@ -159,7 +152,11 @@ async def get_class_properties(
 
     result = []
     for cp, prop in class_properties:
-        result.append(await _class_property_to_response(cp, prop, class_uuid_map))
+        result.append(
+            await _class_property_to_response(
+                cp, prop, class_uuid_map, service._property_repo, node_repo
+            )
+        )
 
     return {"class_properties": result}
 
@@ -187,6 +184,8 @@ async def add_class_property(
             default_value=request.default_value,
             required=request.required,
             hidden=request.hidden,
+            readonly=request.readonly,
+            hide_when_empty=request.hide_when_empty,
         )
     except PropertyNotFoundError as e:
         raise HTTPException(404, str(e)) from e
@@ -194,7 +193,7 @@ async def add_class_property(
         raise HTTPException(400, str(e)) from e
 
     class_uuid_map = await _build_node_uuid_map(node_repo, [cp.class_node_id])
-    return await _class_property_to_response(cp, prop, class_uuid_map)
+    return await _class_property_to_response(cp, prop, class_uuid_map, service._property_repo, node_repo)
 
 
 @router.delete("/classes/{class_node_uuid}/properties/{property_uuid}", dependencies=[Depends(require_write_scope)])
@@ -224,19 +223,28 @@ async def update_class_property(
     node_repo: NodeRepository = Depends(get_node_repository),
     user: User = Depends(get_current_user),
 ):
-    """Update an existing class property (required, hidden flags)."""
+    """Update an existing class property (tri-state flags, default).
+
+    Only fields explicitly present in the request body are changed; explicit
+    null on a tri-state flag resets it to "inherit from property".
+    """
+    updates: dict[str, Any] = {}
+    for field in ("required", "hidden", "readonly", "hide_when_empty"):
+        if field in request.model_fields_set:
+            updates[field] = getattr(request, field)
+    default_provided = "default_value" in request.model_fields_set
     result = await service.update_class_property(
         class_node_id,
         property_id,
-        required=request.required,
-        hidden=request.hidden,
+        updates=updates,
+        default_value=request.default_value if default_provided else _UNSET,
     )
     if result is None:
         raise HTTPException(404, "Class property not found")
 
     cp, prop = result
     class_uuid_map = await _build_node_uuid_map(node_repo, [cp.class_node_id])
-    return await _class_property_to_response(cp, prop, class_uuid_map)
+    return await _class_property_to_response(cp, prop, class_uuid_map, service._property_repo, node_repo)
 
 
 class ReorderClassPropertiesRequest(BaseModel):

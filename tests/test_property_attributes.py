@@ -103,3 +103,39 @@ async def test_class_property_patch_tri_state_and_default(auth_client: AsyncClie
     r = await auth_client.patch(url, json={"required": None})
     assert r.status_code == 200, r.text
     assert r.json()["required"] is None
+
+
+@pytest.mark.asyncio
+async def test_property_attributes_roundtrip(auth_client: AsyncClient):
+    """PUT /api/properties/{uuid} persists attribute bases and typed default."""
+    prop_resp = await auth_client.post("/api/properties/", json={
+        "name": "AttrProp", "type": "selection", "scope": "global",
+        "selection_lines": ["One", "Two"],
+    })
+    prop = prop_resp.json()
+    assert prop["required"] is False
+    assert prop["readonly"] is False
+    assert prop["hide_when_empty"] is False
+    assert prop["default_value"] is None
+    option_uuid = prop["options"][1]["selection_line_uuid"]
+
+    put_resp = await auth_client.put(
+        f"/api/properties/{prop['property_uuid']}",
+        json={"required": True, "hide_when_empty": True, "default_value": option_uuid},
+    )
+    assert put_resp.status_code == 200, put_resp.text
+    body = put_resp.json()
+    assert body["required"] is True
+    assert body["hide_when_empty"] is True
+    assert body["readonly"] is False
+    assert body["default_value"] == option_uuid
+
+    # GET returns the same
+    get_resp = await auth_client.get(f"/api/properties/uuid/{prop['property_uuid']}")
+    assert get_resp.json()["default_value"] == option_uuid
+
+    # explicit null clears the default
+    clear_resp = await auth_client.put(
+        f"/api/properties/{prop['property_uuid']}", json={"default_value": None},
+    )
+    assert clear_resp.json()["default_value"] is None
