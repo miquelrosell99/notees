@@ -1386,6 +1386,17 @@ async def seed_workspace(conn: asyncpg.Connection, workspace_id: int, user_id: i
                 pending_option_id,
             )
 
+            # Task status is required at property level; Pending is the base default.
+            await conn.execute(
+                """
+                UPDATE property
+                SET required = TRUE, default_selection_id = $1
+                WHERE uuid = $2
+            """,
+                pending_option_id,
+                SYSTEM_PROPERTY_UUIDS["task_status"],
+            )
+
         # 2. Create 'Deadline' date property
         deadline_row = await conn.fetchrow(
             """
