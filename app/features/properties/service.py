@@ -830,9 +830,18 @@ class PropertyService:
         required: bool | None = None,
         hidden: bool | None = None,
     ) -> tuple[Any, Property] | None:
-        """Update an existing class property (required, hidden flags)."""
+        """Update an existing class property (required, hidden flags).
+
+        None means "no change" at this layer; the repository's verbatim
+        NULL semantics (tri-state inherit) are opt-in via Task 4's rewiring.
+        """
+        updates = {
+            k: v
+            for k, v in {"required": required, "hidden": hidden}.items()
+            if v is not None
+        }
         cp = await self._property_repo.update_class_property(
-            class_node_id, property_id, required=required, hidden=hidden
+            class_node_id, property_id, **updates
         )
         if cp is None:
             return None
