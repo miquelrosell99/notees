@@ -139,3 +139,47 @@ async def test_property_attributes_roundtrip(auth_client: AsyncClient):
         f"/api/properties/{prop['property_uuid']}", json={"default_value": None},
     )
     assert clear_resp.json()["default_value"] is None
+
+
+@pytest.mark.asyncio
+async def test_update_property_bogus_default_uuid_returns_404(auth_client: AsyncClient):
+    """PUT with an unknown selection-line UUID must 404, not 500."""
+    prop_resp = await auth_client.post("/api/properties/", json={
+        "name": "BadDefaultProp", "type": "selection", "scope": "global",
+        "selection_lines": ["One", "Two"],
+    })
+    assert prop_resp.status_code == 200, prop_resp.text
+    prop_uuid = prop_resp.json()["property_uuid"]
+
+    r = await auth_client.put(
+        f"/api/properties/{prop_uuid}",
+        json={"default_value": "00000000-0000-0000-0000-000000000000"},
+    )
+    assert r.status_code == 404, r.text
+
+
+@pytest.mark.asyncio
+async def test_update_class_property_bogus_default_uuid_returns_404(auth_client: AsyncClient):
+    """PATCH class property with an unknown selection-line UUID must 404, not 500."""
+    prop_resp = await auth_client.post("/api/properties/", json={
+        "name": "BadCpDefaultProp", "type": "selection", "scope": "global",
+        "selection_lines": ["One", "Two"],
+    })
+    assert prop_resp.status_code == 200, prop_resp.text
+    prop_uuid = prop_resp.json()["property_uuid"]
+    class_resp = await auth_client.post("/api/nodes/", json={
+        "name": "BadDefault Class", "is_class": True,
+    })
+    assert class_resp.status_code == 200, class_resp.text
+    class_uuid = class_resp.json()["uuid"]
+    add_resp = await auth_client.post(
+        f"/api/properties/classes/{class_uuid}/properties",
+        json={"property_uuid": prop_uuid},
+    )
+    assert add_resp.status_code == 200, add_resp.text
+
+    r = await auth_client.patch(
+        f"/api/properties/classes/{class_uuid}/properties/{prop_uuid}",
+        json={"default_value": "00000000-0000-0000-0000-000000000000"},
+    )
+    assert r.status_code == 404, r.text

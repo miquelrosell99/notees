@@ -263,6 +263,8 @@ async def update_property(
             hide_when_empty=request.hide_when_empty,
             default_value=request.default_value if default_provided else _UNSET,
         )
+    except PropertyNotFoundError as e:
+        raise HTTPException(404, str(e)) from e
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
 
