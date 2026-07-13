@@ -164,12 +164,42 @@ class NodeViewService:
                     query_json=query_json,
                     order_index=0,
                     is_default=True,
+                    view_mode="table" if view_type == "classed_nodes" else "list",
                 )
                 created_views.append(view)
             except Exception as e:
                 logger.error(f"Failed to create default view '{view_type}' for node {node_id}: {e}")
 
         return created_views
+
+    async def duplicate_view(self, view_id: int) -> NodeView:
+        """Duplicate a NodeView, copying its query and full presentation config.
+
+        The copy is appended at the end of the view_type's tab order and is
+        never marked as default.
+
+        Raises:
+            DomainError: if the source view does not exist.
+        """
+        source = await self._view_repo.get_by_id(view_id)
+        if source is None:
+            raise DomainError("NodeView not found")
+
+        order_index = await self._view_repo.count_by_view_type(source.node_id, source.view_type)
+
+        return await self._view_repo.create(
+            node_id=source.node_id,
+            name=f"{source.name} copy",
+            view_type=source.view_type,
+            query_json=source.query_json,
+            order_index=order_index,
+            is_default=False,
+            shown_properties=source.shown_properties,
+            group_by=source.group_by,
+            view_mode=source.view_mode,
+            sort_entries=source.sort_entries,
+            settings=source.settings,
+        )
 
     async def get_views_for_node(
         self,

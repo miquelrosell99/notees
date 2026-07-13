@@ -458,7 +458,12 @@ class NodeView:
     shown_properties: list[dict[str, Any]] = field(
         default_factory=list
     )  # [{uuid: str, sequence: int}] for table columns
-    group_by: str | None = None  # Group by field for card view (property uuid or 'page'/'type')
+    group_by: str | list[str] | None = None  # Group by field(s): 'page'/'none', property uuid, or list (multi-level)
+    view_mode: str | None = None  # list/document/kanban/table/gantt/calendar/chart/pivot/graph/timeline; None = section default
+    sort_entries: list[dict[str, Any]] = field(default_factory=list)  # [{key: str, direction: 'asc'|'desc'}]
+    settings: dict[str, Any] = field(
+        default_factory=dict
+    )  # Per-mode layout config (cardLayout, gantt/calendar date props + scale, chart config)
     create_date: str = ""
     write_date: str = ""
     create_uid: int | None = None
