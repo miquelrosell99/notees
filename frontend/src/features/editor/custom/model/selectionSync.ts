@@ -71,6 +71,11 @@ function positionAtOffset(root: HTMLElement, targetOffset: number): DOMPosition 
   for (let i = 0; i < root.childNodes.length; i++) {
     const child = root.childNodes[i];
 
+    // Caret anchors are zero-width helpers; they carry no logical length and
+    // must never consume offset while walking (a leading anchor would shift
+    // every subsequent position by one).
+    if (isCaretAnchor(child)) continue;
+
     if (child.nodeType === Node.TEXT_NODE) {
       const length = getChildLength(child);
       if (remaining <= length) {

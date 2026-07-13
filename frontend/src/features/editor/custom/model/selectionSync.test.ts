@@ -167,6 +167,47 @@ describe('setDOMSelection / getDOMSelectionOffset', () => {
     document.body.removeChild(root);
   });
 
+  const CARET_ANCHOR = '<span data-caret-anchor="true">\u200B</span>';
+
+  it('uses the leading caret anchor for the position before a first-position pill', () => {
+    const root = document.createElement('div');
+    render(root, `${CARET_ANCHOR}${WRAPPED_PILL}${CARET_ANCHOR}`);
+    document.body.appendChild(root);
+
+    setDOMSelection(root, 0); // before the pill
+    expect(getDOMSelectionOffset(root)).toBe(0);
+    let anchorParent = window.getSelection()?.anchorNode?.parentElement as HTMLElement | null;
+    // The caret must live in a caret anchor — never at a root boundary next to
+    // the pill (renders over the pill icon; native Home/End do nothing there).
+    expect(anchorParent?.dataset.caretAnchor).toBe('true');
+
+    setDOMSelection(root, 1); // after the pill
+    expect(getDOMSelectionOffset(root)).toBe(1);
+    anchorParent = window.getSelection()?.anchorNode?.parentElement as HTMLElement | null;
+    expect(anchorParent?.dataset.caretAnchor).toBe('true');
+
+    document.body.removeChild(root);
+  });
+
+  it('does not let caret anchors consume logical offset', () => {
+    const root = document.createElement('div');
+    render(root, `${CARET_ANCHOR}${WRAPPED_PILL}<span>abc</span>`);
+    document.body.appendChild(root);
+
+    setDOMSelection(root, 2); // one char into "abc" after the pill
+    expect(getDOMSelectionOffset(root)).toBe(2);
+    const selection = window.getSelection();
+    expect(selection?.anchorNode?.textContent).toBe('abc');
+    expect(selection?.anchorOffset).toBe(1);
+
+    setDOMSelection(root, 1); // right after the pill, before "abc"
+    expect(getDOMSelectionOffset(root)).toBe(1);
+    expect(selection?.anchorNode?.textContent).toBe('abc');
+    expect(selection?.anchorOffset).toBe(0);
+
+    document.body.removeChild(root);
+  });
+
   it('returns null when the selection is outside the editor', () => {
     const root = document.createElement('div');
     const outside = document.createElement('div');

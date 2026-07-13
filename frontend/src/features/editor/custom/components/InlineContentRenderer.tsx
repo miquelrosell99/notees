@@ -249,9 +249,19 @@ export function InlineContentRenderer({ name, editable, textUnitClassName, onPil
   const units = useMemo(() => astToUnits(getInlineChildren(ast)), [ast]);
   const lastUnit = units[units.length - 1];
   const needsTrailingAnchor = lastUnit?.type === 'atomic';
+  // A leading anchor gives the caret a real text node before a first-position
+  // atomic pill. Without it the "before the pill" position is a root boundary,
+  // which browsers render on top of the pill's icon and from which native
+  // Home/End do nothing.
+  const needsLeadingAnchor = units[0]?.type === 'atomic';
 
   return (
     <>
+      {needsLeadingAnchor && (
+        <span data-caret-anchor="true" aria-hidden="true">
+          {'\u200B'}
+        </span>
+      )}
       {units.map((unit, index) => (
         <InlineUnitRenderer
           key={index}
