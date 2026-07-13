@@ -17,25 +17,26 @@
 }
 
 /* ==================== Calendar Header ==================== */
-/* Two sections: zoom-level selector on top, date navigation below */
+/* Single row, two columns: date navigation left, zoom selector right */
 .calendar-header {
   display: flex;
-  flex-direction: column;
-  gap: var(--spacing-2);
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-1);
   margin-bottom: var(--spacing-2);
-}
-
-/* Zoom-level selector (days / months / years) — independent of the date */
-.calendar-zoom {
-  display: flex;
-  justify-content: center;
 }
 
 .calendar-nav-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  width: 100%;
+  flex: 1;
+  min-width: 0;
+}
+
+/* Zoom-level selector (days / months / years) — independent of the date */
+.calendar-zoom {
+  display: flex;
+  flex-shrink: 0;
 }
 
 .calendar-nav-btn {
