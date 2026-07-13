@@ -6,7 +6,7 @@
 import { useCallback, useState } from 'react';
 import { useUnarchiveNode, useDeleteNode, useLinkedReferencesCount } from '@/features/content';
 import { nodeNameToText } from '@/features/queries';
-import { ContextMenu, type ContextMenuItem } from '@/components/ui/ContextMenu';
+import { ContextMenu } from '@/components/ui/ContextMenu';
 import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
 import { useAddSidebarCardAction, useOpenLocalGraphAction } from '@/features/layout';
 import { useSettingsStore } from '@/stores';
@@ -15,25 +15,11 @@ import {
   NODE_ACTION_DEFAULT_ORDER,
   useNodeActions,
   type NodeActionContext,
-  type NodeMenuGroup,
 } from '@/plugins/core';
 import type { Node } from '@/types';
 import { copyToClipboard } from '@/utils/clipboardManager';
 import { composeMenuItems, type ComposableMenuItem } from './NodeContextMenu/composeMenuItems';
 import './NodeContextMenu.css';
-
-/**
- * Menu section for each core item (ids as built below). 'unarchive' lands in
- * 'main'. Differs slightly from the historical flat layout: copy actions now
- * form their own section.
- */
-const ARCHIVED_ITEM_GROUP: Record<string, NodeMenuGroup> = {
-  'copy-uuid': 'copy',
-  'copy-link': 'copy',
-  'open-sidebar': 'manage',
-  'local-graph': 'manage',
-  delete: 'danger',
-};
 
 interface ArchivedNodeContextMenuProps {
   /** The node to show context menu for */
@@ -88,7 +74,7 @@ export function ArchivedNodeContextMenu({ node, position, onClose }: ArchivedNod
     onClose();
   }, [onClose]);
   
-  const baseItems: ContextMenuItem[] = [
+  const baseItems: ComposableMenuItem[] = [
     {
       id: 'unarchive',
       label: 'Unarchive',
@@ -98,6 +84,7 @@ export function ArchivedNodeContextMenu({ node, position, onClose }: ArchivedNod
     },
     {
       id: 'copy-uuid',
+      group: 'copy',
       label: 'Copy UUID',
       icon: 'mdi-identifier',
       onClick: () => {
@@ -107,6 +94,7 @@ export function ArchivedNodeContextMenu({ node, position, onClose }: ArchivedNod
     },
     {
       id: 'copy-link',
+      group: 'copy',
       label: 'Copy link',
       icon: 'mdi-link-variant',
       onClick: () => {
@@ -117,6 +105,7 @@ export function ArchivedNodeContextMenu({ node, position, onClose }: ArchivedNod
     },
     {
       id: 'open-sidebar',
+      group: 'manage',
       label: 'Open in sidebar',
       icon: 'mdi-dock-right',
       onClick: () => {
@@ -126,6 +115,7 @@ export function ArchivedNodeContextMenu({ node, position, onClose }: ArchivedNod
     },
     {
       id: 'local-graph',
+      group: 'manage',
       label: 'Show local graph',
       icon: 'mdi-graph-outline',
       onClick: () => {
@@ -135,6 +125,7 @@ export function ArchivedNodeContextMenu({ node, position, onClose }: ArchivedNod
     },
     {
       id: 'delete',
+      group: 'danger',
       label: 'Delete',
       icon: 'mdi-delete-outline',
       danger: true,
@@ -158,7 +149,6 @@ export function ArchivedNodeContextMenu({ node, position, onClose }: ArchivedNod
   });
   const composed: ComposableMenuItem[] = baseItems.map((item, index) => ({
     ...item,
-    group: ARCHIVED_ITEM_GROUP[item.id] ?? 'main',
     order: index,
   }));
   contributed.forEach((action, regIndex) => {
