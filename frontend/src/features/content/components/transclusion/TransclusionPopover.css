@@ -60,7 +60,9 @@
 .transclusion-popover__bullet {
   width: var(--bullet-dot-size);
   height: var(--bullet-dot-size);
-  margin-top: var(--shape-medium);
+  /* Align the dot to the first line's optical center: half the 1.4 line-height
+     (0.7em) plus the standard 0.2em bullet optical nudge, minus the dot radius. */
+  margin-top: calc(0.9em - var(--bullet-dot-size) / 2);
   border-radius: 50%;
   background: var(--color-outline);
   flex-shrink: 0;
