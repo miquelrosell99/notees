@@ -21,7 +21,29 @@ import { useBrokenLinkFix } from '@/features/content/contexts/BrokenLinkFixConte
 import { useBatchedNodeByUuid } from '@/hooks';
 import { copyToClipboard } from '@/utils/clipboardManager';
 import { parseLinkId } from '@/lib/astBuilder';
+import {
+  getVisibleNodeActions,
+  NODE_ACTION_DEFAULT_ORDER,
+  useNodeActions,
+  type NodeActionContext,
+  type NodeMenuGroup,
+} from '@/plugins/core';
 import { ColorPickerRow } from './ColorPickerRow';
+import { composeMenuItems, type ComposableMenuItem } from './NodeContextMenu/composeMenuItems';
+
+/**
+ * Menu section for each core link-menu item (ids as pushed below). Items not
+ * listed land in 'main'. Only applied to composable ref types (node/class/
+ * embed/user); url and broken-link menus keep their flat layout.
+ */
+const LINK_ITEM_GROUP: Record<string, NodeMenuGroup> = {
+  edit: 'edit',
+  'toggle-class': 'edit',
+  'copy-uuid': 'copy',
+  'copy-link': 'copy',
+  delete: 'danger',
+  unlink: 'danger',
+};
 
 export type NodeLinkContextMenuRefType =
   | 'node'
@@ -79,6 +101,7 @@ export function NodeLinkContextMenu({
   const addSidebarCard = useNavigationStore((s) => s.addSidebarCard);
   const showDevOptions = useSettingsStore((s) => s.showDevOptions);
   const fixBrokenLink = useBrokenLinkFix();
+  const pluginActions = useNodeActions();
 
   const { nodeUuid: parsedNodeUuid } = parseLinkId(linkId);
   const targetUuid = explicitNodeUuid ?? parsedNodeUuid;
@@ -107,6 +130,9 @@ export function NodeLinkContextMenu({
 
   const menuItems = useMemo((): ContextMenuItem[] => {
     const items: ContextMenuItem[] = [];
+    // url and broken-link menus keep their flat layout; node/class/embed/user
+    // menus compose core + contributed actions into sections.
+    const composable = refType !== 'url' && refType !== 'broken';
 
     if (refType === 'url') {
       if (url) {
@@ -187,9 +213,8 @@ export function NodeLinkContextMenu({
     }
 
     const hasEditActions = onEdit || onRemove || onToggleClass;
-    const isEditableLink = refType !== 'url' && refType !== 'broken';
 
-    if (hasEditActions || isTargetClass) {
+    if (!composable && (hasEditActions || isTargetClass)) {
       items.push({ id: 'sep-edit', label: '', separator: true });
     }
 
@@ -205,7 +230,7 @@ export function NodeLinkContextMenu({
       });
     }
 
-    if (isTargetClass && isEditableLink && onToggleClass) {
+    if (isTargetClass && composable && onToggleClass) {
       items.push({
         id: 'toggle-class',
         label:
@@ -248,7 +273,7 @@ export function NodeLinkContextMenu({
         });
       }
       if (copyItems.length > 0) {
-        if (items.length > 0 && !items[items.length - 1].separator) {
+        if (!composable && items.length > 0 && !items[items.length - 1].separator) {
           items.push({ id: 'sep-copy', label: '', separator: true });
         }
         items.push(...copyItems);
@@ -288,15 +313,57 @@ export function NodeLinkContextMenu({
       });
     }
     if (deleteItems.length > 0) {
-      if (items.length > 0 && !items[items.length - 1].separator) {
+      if (!composable && items.length > 0 && !items[items.length - 1].separator) {
         items.push({ id: 'sep-delete', label: '', separator: true });
       }
       items.push(...deleteItems);
     }
 
+    let finalItems = items;
+
+    if (composable) {
+      // Merge contributed node actions (core features + plugins, see
+      // NodeActionRegistry) and compose sections; destructive section last.
+      const composed: ComposableMenuItem[] = items.map((item, index) => ({
+        ...item,
+        group: LINK_ITEM_GROUP[item.id] ?? 'main',
+        order: index,
+      }));
+      if (targetUuid) {
+        const actionContext: NodeActionContext = {
+          nodeUuid: targetUuid,
+          node: targetNode,
+          close: onClose,
+        };
+        const contributed = getVisibleNodeActions(pluginActions, {
+          nodeScope: targetNode ? (targetNode.is_page ? 'page' : 'block') : null,
+          showDevOptions,
+          context: actionContext,
+        });
+        contributed.forEach((action, regIndex) => {
+          composed.push({
+            id: `plugin:${action.id}`,
+            label: action.label,
+            icon: action.icon,
+            shortcut: action.shortcut,
+            badge: action.badge ?? (action.devOnly ? 'DEV' : undefined),
+            danger: action.danger,
+            keepOpen: action.keepOpen,
+            group: action.group,
+            order: action.order ?? NODE_ACTION_DEFAULT_ORDER + regIndex,
+            onClick: () => {
+              action.execute(actionContext);
+              if (!action.keepOpen) onClose();
+            },
+          });
+        });
+      }
+      finalItems = composeMenuItems(composed);
+    }
+
     // Color picker row on top (class/tag pills via NodeRef).
     if (onColorChange) {
-      items.unshift({
+      finalItems.unshift({
         id: 'color-row',
         label: '',
         content: (
@@ -308,7 +375,7 @@ export function NodeLinkContextMenu({
       });
     }
 
-    return items;
+    return finalItems;
   }, [
     linkId,
     refType,
@@ -330,6 +397,7 @@ export function NodeLinkContextMenu({
     addSidebarCard,
     openInNewTab,
     onClose,
+    pluginActions,
   ]);
 
   return (

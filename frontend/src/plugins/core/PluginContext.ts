@@ -28,6 +28,7 @@ import {
   registerSidebarItem,
   registerSlashCommand,
   registerView,
+  unregisterNodeAction,
   unregisterSettingsTab,
   type NodeActionDefinition,
   type SettingsTabDefinition,
@@ -99,7 +100,10 @@ export function createPluginContext(manifest: PluginManifest): PluginContext {
       unregisterCallbacks.push(() => unregisterExportFormat(format.format));
     },
     registerPropertyRenderer: registerPropertyValueRenderer,
-    registerNodeAction,
+    registerNodeAction: (action) => {
+      registerNodeAction(action);
+      unregisterCallbacks.push(() => unregisterNodeAction(action.id));
+    },
     getApiClient: () => ({
       get: async <T = unknown>(path: string) => {
         const { default: apiClient } = await import('@/api/client');

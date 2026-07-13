@@ -28,6 +28,13 @@ import {
 import { useFavorites, useAddFavoriteMutation, useRemoveFavoriteMutation } from '@/features/content';
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/ContextMenu';
 import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
+import {
+  getVisibleNodeActions,
+  NODE_ACTION_DEFAULT_ORDER,
+  useNodeActions,
+  type NodeActionContext,
+  type NodeMenuGroup,
+} from '@/plugins/core';
 
 import { ASTViewerModal } from './ASTViewerModal';
 import { ExportPageModal } from '@/features/workspace';
@@ -41,9 +48,9 @@ import { IconColorPickerRow } from './NodeContextMenu/iconRow';
 import { MoveToSubmenu } from './NodeContextMenu/moveTo';
 import {
   DEFAULT_ACTIONS,
-  SEP_BEFORE,
   type ActionConfig,
 } from './NodeContextMenu/actions';
+import { composeMenuItems, type ComposableMenuItem } from './NodeContextMenu/composeMenuItems';
 import './NodeContextMenu.css';
 import { getOperationRuntime } from '@/runtime';
 import { getNode } from '@/runtime/graphHelpers';
@@ -53,6 +60,23 @@ import type { MutationIntent } from '@/runtime/types';
 
 
 // ==================== Common Context Menu Items ====================
+
+/**
+ * Menu section for each core action item, keyed by the item id pushed in the
+ * switch below. Items not listed land in 'main'. Reproduces the historical
+ * separator layout while letting contributed actions compose into sections.
+ */
+const CORE_ITEM_GROUP: Record<string, NodeMenuGroup> = {
+  'copy-text': 'export',
+  export: 'export',
+  presentation: 'export',
+  'view-ast': 'manage',
+  archive: 'manage',
+  unarchive: 'manage',
+  'toggle-private': 'manage',
+  'add-banner': 'manage',
+  delete: 'danger',
+};
 
 interface BaseContextMenuProps {
   /** The node to show context menu for */
@@ -123,6 +147,7 @@ export function NodeContextMenu({
   const removeFavoriteMutation = useRemoveFavoriteMutation();
   const { count: linkedRefsCount } = useLinkedReferencesCount(node.uuid);
   const clipboardMode = useClipboardStore((state) => state.mode);
+  const pluginActions = useNodeActions();
 
   const nodeScope: 'page' | 'block' = node.is_page ? 'page' : 'block';
 
@@ -159,11 +184,6 @@ export function NodeContextMenu({
     const visibleActions = actions.filter(([, scope]) => scope === 'both' || scope === nodeScope);
 
     for (const [name] of visibleActions) {
-      // Auto-insert separator before certain actions when there are preceding non-separator items
-      if (SEP_BEFORE.has(name) && items.length > 0 && !items[items.length - 1].separator) {
-        items.push({ id: `sep-before-${name}`, label: '', separator: true });
-      }
-
       switch (name) {
         case 'favorite':
           items.push({
@@ -455,14 +475,46 @@ export function NodeContextMenu({
       }
     }
 
-    return items;
+    // Tag core items with their section and order, merge contributed node
+    // actions (core features + plugins, see NodeActionRegistry), and compose
+    // the final list — sections render in NODE_MENU_GROUP_ORDER with the
+    // destructive section last.
+    const actionContext: NodeActionContext = { nodeUuid: node.uuid, node, close: onClose };
+    const contributed = getVisibleNodeActions(pluginActions, {
+      nodeScope,
+      showDevOptions,
+      context: actionContext,
+    });
+    const composed: ComposableMenuItem[] = items.map((item, index) => ({
+      ...item,
+      group: CORE_ITEM_GROUP[item.id] ?? 'main',
+      order: index,
+    }));
+    contributed.forEach((action, regIndex) => {
+      composed.push({
+        id: `plugin:${action.id}`,
+        label: action.label,
+        icon: action.icon,
+        shortcut: action.shortcut,
+        badge: action.badge ?? (action.devOnly ? 'DEV' : undefined),
+        danger: action.danger,
+        keepOpen: action.keepOpen,
+        group: action.group,
+        order: action.order ?? NODE_ACTION_DEFAULT_ORDER + regIndex,
+        onClick: () => {
+          action.execute(actionContext);
+          if (!action.keepOpen) onClose();
+        },
+      });
+    });
+    return composeMenuItems(composed);
   }, [
     actions, nodeScope, node, isPageFavorited, isHeader, clipboardMode,
     onConvertToPage, onConvertToBlock, onAddBanner, onCopyBlocks, onPasteBlocks, onClose, onParentChange,
     addSidebarCard, openLocalGraph, openNode, updateNode, unarchiveNode,
     showDevOptions, handleDeleteClick, handleArchiveClick, setShowShareModal,
     addFavoriteMutation, removeFavoriteMutation, currentNodeUuid, sidebarCards,
-    flashSidebarCard,
+    flashSidebarCard, pluginActions,
   ]);
 
   const handleColorChange = useCallback((color: string | null) => {
