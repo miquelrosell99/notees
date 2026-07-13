@@ -116,6 +116,14 @@ export async function deleteNodeView(viewUuid: string): Promise<void> {
 }
 
 /**
+ * Duplicate a NodeView (copies query AST + full presentation config)
+ */
+export async function duplicateNodeView(viewUuid: string): Promise<NodeView> {
+  const response = await api.post<NodeView>(`${BASE}/${viewUuid}/duplicate`);
+  return response.data;
+}
+
+/**
  * Reorder NodeViews within a view_type
  */
 export async function reorderNodeViews(
