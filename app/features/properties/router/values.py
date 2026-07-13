@@ -324,6 +324,8 @@ async def remove_property_from_node(
         raise HTTPException(
             status_code=400, detail={"code": e.code, "message": str(e)}
         ) from e
+    except ValueError as e:
+        raise HTTPException(400, str(e)) from e
     if not success:
         raise HTTPException(404, "Property assignment not found")
     return {"status": "ok"}
