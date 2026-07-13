@@ -52,8 +52,6 @@ export interface BulletProps {
   title?: string;
   /** Size variant */
   size?: BulletSize;
-  /** Disable the default optical-offset nudge (used when the bullet is vertically centered). */
-  disableOpticalOffset?: boolean;
   /** Whether this bullet belongs to a ghost pseudo-block. */
   isGhost?: boolean;
   /** Compact list-view size context (e.g. 'sm' for small list view). */
@@ -92,7 +90,6 @@ export function Bullet({
       className = '',
       title,
       size = 'sm',
-      disableOpticalOffset = false,
       isGhost = false,
       listSize,
       inPropertyEditor,
@@ -171,7 +168,6 @@ export function Bullet({
       {...(activatorListeners || {})}
       title={computedTitle}
       tabIndex={interactive ? 0 : -1}
-      data-optical-offset={disableOpticalOffset ? 'false' : undefined}
       data-ghost={isGhost || undefined}
       data-list-size={listSize || undefined}
       data-property-editor={inPropertyEditor || undefined}
