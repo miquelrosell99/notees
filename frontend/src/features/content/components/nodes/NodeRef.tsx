@@ -17,6 +17,7 @@ import { Pill } from '@/components/ui/Pill';
 import { NodeIcon, CloseIcon } from '@/components/ui/icons';
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/ContextMenu';
 import { ColorPickerRow } from './ColorPickerRow';
+import { NodeLinkContextMenu } from './NodeLinkContextMenu';
 import { useBatchedNode } from '@/hooks';
 import { useNodeDisplay } from '@/features/content/hooks/useNodeDisplay';
 import { useReferencedNode } from '@/features/content';
@@ -259,8 +260,6 @@ function NodeRefInteractive({
       rightIconHoverReveal = false,
       className = '',
       customName }: NodeRefProps) {
-  const [showColorPicker, setShowColorPicker] = useState(false);
-  const [colorPickerPos, setColorPickerPos] = useState({ x: 0, y: 0 });
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   
   const pillRef = useRef<HTMLDivElement>(null);
@@ -355,10 +354,10 @@ function NodeRefInteractive({
   }, [activate]);
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
-    if (readOnly) return;
+    if (!node) return;
     e.preventDefault();
     e.stopPropagation();
-    
+
     if (isLink) {
       // Show context menu for links — aligned to pill's left edge, just below it
       if (pillRef.current) {
@@ -367,22 +366,12 @@ function NodeRefInteractive({
       } else {
         setContextMenu({ x: e.clientX, y: e.clientY });
       }
-    } else if (onColorChange) {
-      // Show color picker for class/tag pills
-      setColorPickerPos({ x: e.clientX, y: e.clientY });
-      setShowColorPicker(true);
+    } else {
+      // Unified link menu for class/tag pills
+      setContextMenu({ x: e.clientX, y: e.clientY });
     }
-  }, [readOnly, isLink, onColorChange]);
+  }, [node, isLink]);
 
-  const handleColorChange = useCallback((color: string | null) => {
-    onColorChange?.(color);
-    setShowColorPicker(false);
-  }, [onColorChange]);
-
-  const handleColorPickerClose = useCallback(() => {
-    setShowColorPicker(false);
-  }, []);
-  
   const handleCloseContextMenu = useCallback(() => {
     setContextMenu(null);
   }, []);
@@ -469,12 +458,11 @@ function NodeRefInteractive({
       : `${isPage ? 'Page' : 'Block'}: ${nameForTooltip}`;
     if (isLink) {
       t += '\nClick to open, Shift+click for sidebar';
-    }
-    if (onColorChange && !readOnly) {
-      t += '\nRight-click to change color';
+    } else {
+      t += '\nRight-click for actions';
     }
     return t;
-  }, [node, isPage, isLink, onColorChange, readOnly, customName, actualNodeName]);
+  }, [node, isPage, isLink, customName, actualNodeName]);
 
   // Determine pill styling class
   const pillClass = isLink
@@ -519,18 +507,22 @@ function NodeRefInteractive({
         {clickCount > 0 && <span className="node-pill__badge">{clickCount}</span>}
       </div>
 
-      {/* Color Picker Popup (for class/tag pills) */}
-      {showColorPicker && (
-        <PillColorPicker
-          position={colorPickerPos}
-          currentColor={node?.color ?? null}
-          onColorChange={handleColorChange}
-          onClose={handleColorPickerClose}
+      {/* Unified context menu (class/tag pills) */}
+      {contextMenu && !isLink && node && (
+        <NodeLinkContextMenu
+          linkId={node.uuid}
+          refType={refType}
+          nodeUuid={node.uuid}
+          position={contextMenu}
+          onClose={handleCloseContextMenu}
+          currentColor={node.color ?? null}
+          onColorChange={!readOnly && onColorChange ? handleColorChangeFromMenu : undefined}
+          onRemove={!readOnly ? onRemove : undefined}
         />
       )}
 
       {/* Context menu (for link variant) */}
-      {contextMenu && (
+      {contextMenu && isLink && (
         <>
           {onColorChange && !readOnly && (
             <>
@@ -593,48 +585,3 @@ function NodeRefInteractive({
 /** @deprecated Use NodeRef instead */
 export const NodePill = NodeRef;
 
-
-/**
- * Floating color picker popup for pills
- */
-interface PillColorPickerProps {
-  position: { x: number; y: number };
-  currentColor: string | null;
-  onColorChange: (color: string | null) => void;
-  onClose: () => void;
-}
-
-function PillColorPicker({ position, currentColor, onColorChange, onClose }: PillColorPickerProps) {
-  const handleClickOutside = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    onClose();
-  }, [onClose]);
-
-  const handleContentClick = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-  }, []);
-
-  return (
-    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- backdrop closes on click
-    <div
-      className="pill-color-picker-overlay"
-      onClick={handleClickOutside}
-      onContextMenu={(e) => e.preventDefault()}
-    >
-      <div
-        className="pill-color-picker"
-        style={{
-          position: 'fixed',
-          left: position.x,
-          top: position.y,
-        }}
-        onClickCapture={handleContentClick}
-      >
-        <ColorPickerRow
-          currentColor={currentColor}
-          onColorChange={onColorChange}
-        />
-      </div>
-    </div>
-  );
-}
