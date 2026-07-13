@@ -2,8 +2,8 @@
  * InlineContentStatic — Read-only rendering of a block's content AST.
  *
  * Used by BlockRow when the block is not actively being edited. Rendering the
- * content as plain React DOM avoids mounting a heavy LexicalComposer for every
- * visible block, which is the main source of heap pressure on large pages.
+ * content as plain React DOM avoids mounting a full inline editor instance for
+ * every visible block, which is the main source of heap pressure on large pages.
  *
  * Visual styling mirrors InlineEditor so the switch to edit mode is seamless.
  */
@@ -34,6 +34,11 @@ interface InlineContentStaticProps {
   blockId: string;
   /** Called when the user clicks the static content to enter edit mode. */
   onFocus?: (cursorOffset?: number) => void;
+  /**
+   * Called with the serialized AST after a pill context-menu edit
+   * (Delete / Unlink). When omitted, those actions are not offered.
+   */
+  onContentEdit?: (content: string) => void;
   /** Whether this block is a page title block. */
   isPage?: boolean;
   /** Whether the containing block has a node color applied. */
@@ -48,6 +53,59 @@ interface InlineContentStaticProps {
   inPropertyEditor?: boolean;
   /** Additional CSS class. */
   className?: string;
+}
+
+// ─── Pill mutation helpers (Delete / Unlink from the static view) ────
+
+interface PillActions {
+  onRemove: (linkId: string) => void;
+  onUnlink: (linkId: string, keepText: string) => void;
+}
+
+function linkIdOfNode(node: ASTInlineNode): string | null {
+  if (node.type === 'node_link' || node.type === 'broken_link') return node.link_id;
+  if (node.type === 'external_link') return node.url;
+  return null;
+}
+
+function mutateLinkInInlines(
+  nodes: ASTInlineNode[],
+  linkId: string,
+  replacement: ASTInlineNode | null,
+): ASTInlineNode[] {
+  const out: ASTInlineNode[] = [];
+  for (const node of nodes) {
+    if (linkIdOfNode(node) === linkId) {
+      if (replacement) out.push(replacement);
+      continue;
+    }
+    const children = (node as { children?: unknown }).children;
+    if (Array.isArray(children)) {
+      out.push({
+        ...node,
+        children: mutateLinkInInlines(children as ASTInlineNode[], linkId, replacement),
+      } as ASTInlineNode);
+    } else {
+      out.push(node);
+    }
+  }
+  return out;
+}
+
+/** Remove a link pill (replacement null) or replace it with a text node. */
+function mutateLinkInDocument(
+  ast: ContentAST,
+  linkId: string,
+  replacement: ASTInlineNode | null,
+): ContentAST {
+  return ast.map((block) => {
+    const children = (block as { children?: unknown }).children;
+    if (!Array.isArray(children)) return block;
+    return {
+      ...block,
+      children: mutateLinkInInlines(children as ASTInlineNode[], linkId, replacement),
+    } as ContentAST[number];
+  });
 }
 
 function renderMath(expression: string, displayMode: boolean): string {
@@ -92,7 +150,7 @@ function InlineLinkWrapper({ nodeUuid, children }: { nodeUuid: string; children:
   );
 }
 
-function renderInlineNodes(nodes: ASTInlineNode[]): React.ReactNode[] {
+function renderInlineNodes(nodes: ASTInlineNode[], pillActions?: PillActions): React.ReactNode[] {
   return nodes.map((node, i) => {
     switch (node.type) {
       case 'text':
@@ -112,6 +170,8 @@ function renderInlineNodes(nodes: ASTInlineNode[]): React.ReactNode[] {
               refType={node.ref_type}
               label={node.label}
               nodeUuid={nodeUuid}
+              onRemove={pillActions ? () => pillActions.onRemove(node.link_id) : undefined}
+              onUnlink={pillActions ? (keepText) => pillActions.onUnlink(node.link_id, keepText) : undefined}
             >
               <NodeRef
                 variant="inline"
@@ -131,6 +191,8 @@ function renderInlineNodes(nodes: ASTInlineNode[]): React.ReactNode[] {
             linkId={node.link_id}
             refType="broken"
             label={node.label}
+            onRemove={pillActions ? () => pillActions.onRemove(node.link_id) : undefined}
+            onUnlink={pillActions ? (keepText) => pillActions.onUnlink(node.link_id, keepText) : undefined}
           >
             <span className="broken-link" title={`Broken link: ${node.link_id}`}>
               {text}
@@ -139,19 +201,19 @@ function renderInlineNodes(nodes: ASTInlineNode[]): React.ReactNode[] {
         );
       }
       case 'strong':
-        return <strong key={i}>{renderInlineNodes(node.children)}</strong>;
+        return <strong key={i}>{renderInlineNodes(node.children, pillActions)}</strong>;
       case 'em':
-        return <em key={i}>{renderInlineNodes(node.children)}</em>;
+        return <em key={i}>{renderInlineNodes(node.children, pillActions)}</em>;
       case 'strikethrough':
-        return <s key={i}>{renderInlineNodes(node.children)}</s>;
+        return <s key={i}>{renderInlineNodes(node.children, pillActions)}</s>;
       case 'highlight':
-        return <mark key={i}>{renderInlineNodes(node.children)}</mark>;
+        return <mark key={i}>{renderInlineNodes(node.children, pillActions)}</mark>;
       case 'underline':
-        return <u key={i}>{renderInlineNodes(node.children)}</u>;
+        return <u key={i}>{renderInlineNodes(node.children, pillActions)}</u>;
       case 'external_link':
         return (
           <a key={i} href={node.url} target="_blank" rel="noreferrer">
-            {renderInlineNodes(node.children)}
+            {renderInlineNodes(node.children, pillActions)}
           </a>
         );
       case 'hard_break':
@@ -200,6 +262,7 @@ export function InlineContentStatic({
   placeholder,
   blockId,
   onFocus,
+  onContentEdit,
   isPage,
   hasNodeColor,
   inCard,
@@ -213,7 +276,25 @@ export function InlineContentStatic({
   const inlines = ast.flatMap((block) =>
     block.type === 'paragraph' || block.type === 'heading' ? (block.children as ASTInlineNode[]) : [],
   );
-  const content = renderInlineNodes(inlines);
+
+  const handleDeletePill = useCallback(
+    (linkId: string) => {
+      onContentEdit?.(JSON.stringify(mutateLinkInDocument(ast, linkId, null)));
+    },
+    [ast, onContentEdit],
+  );
+
+  const handleUnlinkPill = useCallback(
+    (linkId: string, keepText: string) => {
+      onContentEdit?.(JSON.stringify(mutateLinkInDocument(ast, linkId, { type: 'text', text: keepText })));
+    },
+    [ast, onContentEdit],
+  );
+
+  const pillActions = onContentEdit
+    ? { onRemove: handleDeletePill, onUnlink: handleUnlinkPill }
+    : undefined;
+  const content = renderInlineNodes(inlines, pillActions);
   const showPlaceholder = isContentEmpty(ast);
 
   const handleClick = useCallback(

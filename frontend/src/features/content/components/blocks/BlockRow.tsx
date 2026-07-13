@@ -2,7 +2,7 @@
  * BlockRow — Single block row in the block-level editor.
  *
  * Composes BlockUI (chrome) + InlineEditor (content) + BlockAfterContent.
- * One BlockRow per block. React owns the tree; Lexical owns only inline text.
+ * One BlockRow per block. React owns the tree; the inline editor owns only inline text.
  */
 
 import { useRef, useMemo, useLayoutEffect, useEffect, forwardRef, useImperativeHandle, useState, useCallback, memo, startTransition } from 'react';
@@ -175,7 +175,7 @@ export const BlockRow = memo(
 
     const rowRef = useRef<HTMLDivElement>(null);
 
-    // Mount the Lexical editor only for the block being edited. All other
+    // Mount the inline editor only for the block being edited. All other
     // visible blocks render a cheap static DOM view. This is the main lever for
     // reducing heap pressure on large pages.
     const shouldMountEditor = (isActive || isPendingFocus) && !isGhost && !readOnly && !isLocked;
@@ -429,6 +429,17 @@ export const BlockRow = memo(
       flushAllContentSaves();
     }, []);
 
+    // Pill Delete/Unlink from the static (read-only) view: save and flush
+    // immediately so the runtime projection is up-to-date before the editor
+    // could mount with stale content on the next click.
+    const handleStaticContentEdit = useCallback(
+      (content: string) => {
+        onContentChange?.(node.uuid, content);
+        flushAllContentSaves();
+      },
+      [node.uuid, onContentChange],
+    );
+
     const editorElement = isGhost ? (
       <button
         type="button"
@@ -475,6 +486,7 @@ export const BlockRow = memo(
         placeholder={placeholder}
         blockId={node.uuid}
         onFocus={handleFocusStatic}
+        onContentEdit={!readOnly && !isLocked && onContentChange ? handleStaticContentEdit : undefined}
         isPage={node.is_page}
         hasNodeColor={!!directNodeColor}
         inCard={inCard}
