@@ -13,7 +13,7 @@ import { stringifyAST, StringifyMode } from '@/lib/stringifyAST';
 import { queryClient } from '@/lib/queryClient';
 import { nodeKeys } from '@/hooks/queryKeys';
 import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from '@/constants';
-import { getEffectiveIcon, getEffectiveColor } from '@/utils/nodeIcon';
+import { getEffectiveIcon } from '@/utils/nodeIcon';
 import { propertyKeys } from '@/hooks/queryKeys';
 import { upsertNodes } from '@/runtime/eventBus';
 
@@ -57,7 +57,11 @@ export function apiNodeToGraphNode(
     isPage: node.is_page ?? false,
     name: stringifyAST(ast, { mode: StringifyMode.TEXT_ONLY }),
     icon: getEffectiveIcon(node, allClasses) ?? null,
-    color: getEffectiveColor(node, allClasses) ?? null,
+    // Runtime color is the node's OWN color only. Consumers that treat it as
+    // such (e.g. overlayRuntimeContent feeding the block background tint)
+    // must not see class-inherited colors here — those are display-only and
+    // computed per surface via getEffectiveColor().
+    color: node.color ?? null,
     classIds: node.classes_uuid || [],
     tagIds: node.tags_uuid || [],
     calloutType: resolveCalloutType(node.classes_uuid),
