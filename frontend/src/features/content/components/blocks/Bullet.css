@@ -124,7 +124,7 @@ body.notees-dragging-block .bullet-interactive {
   /* Optical alignment: body text sits on a baseline, so its visual center is
      below the geometric center of the line box. Nudge bullets (dots and icons)
      down so they sit on the same optical line as the surrounding text. */
-  transform: translateY(var(--bullet-optical-offset, 0.2em));
+  transform: translateY(var(--bullet-optical-offset));
 }
 
 /* Ghost pseudo-block bullets */
