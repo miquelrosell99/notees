@@ -1374,13 +1374,23 @@ END $$;
 
 -- Migration: class_property.required becomes tri-state (NULL = inherit).
 -- Existing false rows never had enforcement semantics, so they become NULL.
+-- One-time upgrade: the legacy column was created with DEFAULT FALSE, and the
+-- default is dropped below, so a column default still being present marks a
+-- database that has not been upgraded yet. Later startups (and fresh DBs,
+-- where the first run already dropped the default) no-op — explicit
+-- required=false overrides set via the API must survive restarts.
 DO $$
 BEGIN
-    ALTER TABLE class_property ALTER COLUMN required DROP NOT NULL;
-    ALTER TABLE class_property ALTER COLUMN required DROP DEFAULT;
-    UPDATE class_property SET required = NULL WHERE required = FALSE;
-EXCEPTION WHEN OTHERS THEN
-    NULL;
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'class_property'
+          AND column_name = 'required'
+          AND column_default IS NOT NULL
+    ) THEN
+        ALTER TABLE class_property ALTER COLUMN required DROP NOT NULL;
+        ALTER TABLE class_property ALTER COLUMN required DROP DEFAULT;
+        UPDATE class_property SET required = NULL WHERE required = FALSE;
+    END IF;
 END $$;
 
 -- Migration: Add parent_locked column to node table

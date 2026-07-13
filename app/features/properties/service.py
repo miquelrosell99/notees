@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any
 from app.domain.entities import (
     RELATION_TYPES,
     SCALAR_TYPES,
+    NodeCreateData,
     Property,
     PropertyClassFilter,
     PropertyScope,
@@ -20,6 +21,7 @@ from app.domain.entities import (
     PropertyType,
 )
 from app.domain.entities.constants import SYSTEM_PROPERTY_UUIDS
+from app.domain.stringify_ast import ParseMode, parse_ast, serialize_ast
 from app.features.properties.attributes import (
     ReadonlyPropertyError,
     RequiredPropertyError,
@@ -668,11 +670,32 @@ class PropertyService:
             )
         if effective.required and is_empty_value(value):
             if effective.default_value is not None:
-                return effective.default_value
+                return await self._materialize_default(node_id, prop, effective.default_value)
             raise RequiredPropertyError(
                 f"Property '{prop.name}' is required for this node"
             )
         return value
+
+    async def _materialize_default(self, node_id: int, prop: Property, default: Any) -> Any:
+        """Convert an effective default into a persistable value.
+
+        TEXT defaults are stored as raw strings (``default_text``) while TEXT
+        values are relations to a text node, so the string is materialized as
+        a child text node and its id returned — the same resolution as
+        class-assignment defaults (see
+        ``ClassManagementService._apply_class_property_defaults``). Defaults
+        for other types are already persistable: scalars (URL/EMAIL/number/
+        boolean) or internal node/selection ids (NODE/IMAGE/DATE/SELECTION).
+        """
+        if prop.type == PropertyType.TEXT and isinstance(default, str):
+            text_node = await self._node_service.create_raw_node(
+                NodeCreateData(
+                    name=serialize_ast(parse_ast(default, ParseMode.PLAIN)),
+                    parent_id=node_id,
+                )
+            )
+            return text_node.id
+        return default
 
     async def set_property_value_by_uuid(
         self,

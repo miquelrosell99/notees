@@ -1,7 +1,71 @@
 """Integration tests for property attributes (required/default/readonly/hide-when-empty)."""
 
+import asyncpg
 import pytest
 from httpx import AsyncClient
+
+from app.db import schema
+from app.domain.stringify_ast import (
+    ParseMode,
+    StringifyMode,
+    StringifyOptions,
+    parse_ast,
+    stringify_ast,
+)
+
+
+async def _rerun_startup_schema(database_url: str) -> None:
+    """Re-run the schema exactly the way backend startup does.
+
+    main.py calls init_database(conn) on every startup; the db_pool fixture
+    does it once on a fresh schema. This repeats it on the live database to
+    simulate a container restart.
+    """
+    conn = await asyncpg.connect(database_url)
+    try:
+        await schema.init_database(conn)
+    finally:
+        await conn.close()
+
+
+async def _text_value_node_name(db_pool, node_uuid: str, prop_uuid: str) -> str | None:
+    """Name (serialized AST) of the text node a TEXT property value points to."""
+    return await db_pool.fetchval(
+        """
+        SELECT n.name
+        FROM property_value_relation pvr
+        JOIN node src ON src.id = pvr.node_id
+        JOIN node n ON n.id = pvr.target_id
+        JOIN property p ON p.id = pvr.property_id
+        WHERE src.uuid = $1 AND p.uuid = $2
+        """,
+        node_uuid,
+        prop_uuid,
+    )
+
+
+def _plain_text(serialized_name: str) -> str:
+    """Render a stored node name (serialized AST) as plain text."""
+    return stringify_ast(
+        parse_ast(serialized_name, ParseMode.JSON),
+        StringifyOptions(mode=StringifyMode.TEXT_ONLY),
+    )
+
+
+async def _class_property_required(db_pool, class_uuid: str, prop_uuid: str):
+    row = await db_pool.fetchrow(
+        """
+        SELECT cp.required
+        FROM class_property cp
+        JOIN node c ON c.id = cp.class_node_id
+        JOIN property p ON p.id = cp.property_id
+        WHERE c.uuid = $1 AND p.uuid = $2
+        """,
+        class_uuid,
+        prop_uuid,
+    )
+    assert row is not None
+    return row["required"]
 
 
 @pytest.mark.asyncio
@@ -505,3 +569,176 @@ async def test_new_workspace_seed_keeps_own_task_status_default(
     assert row["own_pending_id"] is not None
     assert row["default_selection_id"] == row["own_pending_id"]
     assert row["own_pending_uuid"] == first_pending_uuid
+
+
+@pytest.mark.asyncio
+async def test_schema_rerun_preserves_explicit_false_override(
+    auth_client: AsyncClient, db_pool, database_url: str
+):
+    """An explicit required=false override must survive a schema re-run.
+
+    SCHEMA_SQL executes at every backend startup; the legacy false->NULL
+    backfill must be a one-time upgrade, not a per-startup wipe of the
+    tri-state "force off" overrides the UI now lets users set.
+    """
+    prop_uuid = (await auth_client.post("/api/properties/", json={
+        "name": "OverrideProp", "type": "boolean", "scope": "global",
+    })).json()["property_uuid"]
+    class_uuid = (await auth_client.post(
+        "/api/nodes/", json={"name": "Override Class", "is_class": True}
+    )).json()["uuid"]
+    add_resp = await auth_client.post(
+        f"/api/properties/classes/{class_uuid}/properties",
+        json={"property_uuid": prop_uuid},
+    )
+    assert add_resp.status_code == 200, add_resp.text
+
+    r = await auth_client.patch(
+        f"/api/properties/classes/{class_uuid}/properties/{prop_uuid}",
+        json={"required": False},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["required"] is False
+
+    # Simulate a container restart: schema SQL runs again.
+    await _rerun_startup_schema(database_url)
+
+    assert await _class_property_required(db_pool, class_uuid, prop_uuid) is False
+
+
+@pytest.mark.asyncio
+async def test_schema_rerun_converts_legacy_false_rows_on_first_upgrade(
+    auth_client: AsyncClient, db_pool, database_url: str
+):
+    """A genuine first-time upgrade still converts legacy false rows to NULL.
+
+    Simulated by restoring the pre-upgrade column state (DEFAULT FALSE plus a
+    false row); the next schema run must convert the row to NULL (inherit) and
+    drop the default again, so later runs are no-ops.
+    """
+    prop_uuid = (await auth_client.post("/api/properties/", json={
+        "name": "LegacyProp", "type": "boolean", "scope": "global",
+    })).json()["property_uuid"]
+    class_uuid = (await auth_client.post(
+        "/api/nodes/", json={"name": "Legacy Class", "is_class": True}
+    )).json()["uuid"]
+    add_resp = await auth_client.post(
+        f"/api/properties/classes/{class_uuid}/properties",
+        json={"property_uuid": prop_uuid},
+    )
+    assert add_resp.status_code == 200, add_resp.text
+
+    # Restore the pre-upgrade state: legacy default + a row that is FALSE
+    # only because the old column defaulted to FALSE.
+    await db_pool.execute(
+        "ALTER TABLE class_property ALTER COLUMN required SET DEFAULT FALSE"
+    )
+    await db_pool.execute(
+        """
+        UPDATE class_property cp SET required = FALSE
+        FROM node c, property p
+        WHERE c.id = cp.class_node_id AND p.id = cp.property_id
+          AND c.uuid = $1 AND p.uuid = $2
+        """,
+        class_uuid,
+        prop_uuid,
+    )
+
+    await _rerun_startup_schema(database_url)
+
+    assert await _class_property_required(db_pool, class_uuid, prop_uuid) is None
+    column_default = await db_pool.fetchval(
+        """
+        SELECT column_default
+        FROM information_schema.columns
+        WHERE table_name = 'class_property' AND column_name = 'required'
+        """
+    )
+    assert column_default is None, "upgrade must drop the legacy default again"
+
+
+@pytest.mark.asyncio
+async def test_required_text_clear_resets_to_text_default(
+    auth_client: AsyncClient, db_pool
+):
+    """Clearing a required TEXT property with a text default resets to a text
+    node holding the default (was 400: the raw default_text string hit the
+    relation dispatch, which expects an internal node id)."""
+    prop_resp = await auth_client.post("/api/properties/", json={
+        "name": "ReqText", "type": "text", "scope": "global",
+    })
+    assert prop_resp.status_code == 200, prop_resp.text
+    prop_uuid = prop_resp.json()["property_uuid"]
+    r = await auth_client.put(
+        f"/api/properties/{prop_uuid}",
+        json={"required": True, "default_value": "Default body"},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["default_value"] == "Default body"
+
+    node_uuid = (await auth_client.post("/api/nodes/", json={"name": "NT"})).json()["uuid"]
+
+    r = await auth_client.post(
+        f"/api/nodes/{node_uuid}/properties",
+        json={"property_uuid": prop_uuid, "value": None},
+    )
+    assert r.status_code == 200, r.text
+
+    name = await _text_value_node_name(db_pool, node_uuid, prop_uuid)
+    assert name is not None, "clear must materialize a text node from the default"
+    assert _plain_text(name) == "Default body"
+
+
+@pytest.mark.asyncio
+async def test_delete_required_text_property_resets_to_text_default(
+    auth_client: AsyncClient, db_pool
+):
+    """DELETE on a required TEXT property with a text default resets to the
+    default (was 500: ValueError escaped the DELETE router)."""
+    prop_resp = await auth_client.post("/api/properties/", json={
+        "name": "DelReqText", "type": "text", "scope": "global",
+    })
+    assert prop_resp.status_code == 200, prop_resp.text
+    prop_uuid = prop_resp.json()["property_uuid"]
+    r = await auth_client.put(
+        f"/api/properties/{prop_uuid}",
+        json={"required": True, "default_value": "Delete default"},
+    )
+    assert r.status_code == 200, r.text
+    node_uuid = (await auth_client.post("/api/nodes/", json={"name": "NTD"})).json()["uuid"]
+    r = await auth_client.post(
+        f"/api/nodes/{node_uuid}/properties",
+        json={"property_uuid": prop_uuid, "value": None},
+    )
+    assert r.status_code == 200, r.text
+
+    r = await auth_client.delete(f"/api/nodes/{node_uuid}/properties/{prop_uuid}")
+    assert r.status_code == 200, r.text
+
+    name = await _text_value_node_name(db_pool, node_uuid, prop_uuid)
+    assert name is not None
+    assert _plain_text(name) == "Delete default"
+
+
+@pytest.mark.asyncio
+async def test_required_text_clear_without_default_rejected(auth_client: AsyncClient):
+    """Required TEXT property without a default still rejects clears."""
+    prop_resp = await auth_client.post("/api/properties/", json={
+        "name": "ReqTextNoDefault", "type": "text", "scope": "global",
+    })
+    assert prop_resp.status_code == 200, prop_resp.text
+    prop_uuid = prop_resp.json()["property_uuid"]
+    r = await auth_client.put(f"/api/properties/{prop_uuid}", json={"required": True})
+    assert r.status_code == 200, r.text
+    node_uuid = (await auth_client.post("/api/nodes/", json={"name": "NTX"})).json()["uuid"]
+
+    r = await auth_client.post(
+        f"/api/nodes/{node_uuid}/properties",
+        json={"property_uuid": prop_uuid, "value": None},
+    )
+    assert r.status_code == 400
+    assert r.json()["detail"]["code"] == "required_property"
+
+    r = await auth_client.delete(f"/api/nodes/{node_uuid}/properties/{prop_uuid}")
+    assert r.status_code == 400
+    assert r.json()["detail"]["code"] == "required_property"
