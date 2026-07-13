@@ -22,7 +22,7 @@ from app.features.properties.models import (
     PropertyUpdateRequest,
 )
 from app.features.properties.router.helpers import _build_node_uuid_map, _property_to_response
-from app.features.properties.service import PropertyNotFoundError, PropertyService
+from app.features.properties.service import _UNSET, PropertyNotFoundError, PropertyService
 from app.logging_config import get_logger
 from app.models import User
 
@@ -52,10 +52,20 @@ async def _build_property_response_maps(
 async def _properties_to_responses(
     properties: list[Any],
     node_repo: NodeRepository,
+    property_repo: Any = None,
 ) -> list[PropertyResponse]:
     """Convert multiple domain Property entities to API responses with UUID references."""
     node_uuid_map, class_uuid_map = await _build_property_response_maps(node_repo, properties)
-    return [await _property_to_response(p, node_uuid_map=node_uuid_map, class_uuid_map=class_uuid_map) for p in properties]
+    return [
+        await _property_to_response(
+            p,
+            node_uuid_map=node_uuid_map,
+            class_uuid_map=class_uuid_map,
+            property_repo=property_repo,
+            node_repo=node_repo,
+        )
+        for p in properties
+    ]
 
 
 @router.get("/", name="list_properties", response_model=dict[str, list[PropertyResponse]])
@@ -72,7 +82,7 @@ async def list_properties(
         len(properties),
         [(p.id, p.name) for p in properties],
     )
-    return {"properties": await _properties_to_responses(properties, node_repo)}
+    return {"properties": await _properties_to_responses(properties, node_repo, service._property_repo)}
 
 
 @router.get("/local/{node_uuid}", response_model=dict[str, list[PropertyResponse]])
@@ -84,7 +94,7 @@ async def list_local_properties(
 ):
     """List all local properties for a specific page node."""
     properties = await service.list_local_properties(node_id)
-    return {"properties": await _properties_to_responses(properties, node_repo)}
+    return {"properties": await _properties_to_responses(properties, node_repo, service._property_repo)}
 
 
 @router.get("/available", response_model=dict[str, list[PropertyResponse]])
@@ -117,7 +127,7 @@ async def list_available_properties(
         context_node_id=context_node_id,
         context_class_ids=class_ids or None,
     )
-    return {"properties": await _properties_to_responses(properties, node_repo)}
+    return {"properties": await _properties_to_responses(properties, node_repo, service._property_repo)}
 
 
 @router.get("/stats", response_model=dict[str, Any])
@@ -192,7 +202,12 @@ async def create_property(
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
 
-    return await _property_to_response(created, node_uuid_map={node_id: request.node_uuid} if node_id and request.node_uuid else None)
+    return await _property_to_response(
+        created,
+        node_uuid_map={node_id: request.node_uuid} if node_id and request.node_uuid else None,
+        property_repo=service._property_repo,
+        node_repo=node_repo,
+    )
 
 
 @router.get("/{property_uuid}", response_model=PropertyResponse)
@@ -207,7 +222,7 @@ async def get_property(
     if not prop:
         raise HTTPException(404, "Property not found")
     node_uuid_map, class_uuid_map = await _build_property_response_maps(node_repo, [prop])
-    return await _property_to_response(prop, node_uuid_map=node_uuid_map, class_uuid_map=class_uuid_map)
+    return await _property_to_response(prop, node_uuid_map=node_uuid_map, class_uuid_map=class_uuid_map, property_repo=service._property_repo, node_repo=node_repo)
 
 
 @router.get("/uuid/{uuid}")
@@ -222,7 +237,7 @@ async def get_property_by_uuid(
     if not prop:
         raise HTTPException(404, "Property not found")
     node_uuid_map, class_uuid_map = await _build_property_response_maps(node_repo, [prop])
-    return await _property_to_response(prop, node_uuid_map=node_uuid_map, class_uuid_map=class_uuid_map)
+    return await _property_to_response(prop, node_uuid_map=node_uuid_map, class_uuid_map=class_uuid_map, property_repo=service._property_repo, node_repo=node_repo)
 
 
 @router.put("/{property_uuid}", response_model=PropertyResponse, dependencies=[Depends(require_write_scope)])
@@ -233,8 +248,9 @@ async def update_property(
     node_repo: NodeRepository = Depends(get_node_repository),
     user: User = Depends(get_current_user),
 ):
-    """Update a property definition (name, icon, and optionally multi)."""
+    """Update a property definition (name, icon, attribute bases, default)."""
     try:
+        default_provided = "default_value" in request.model_fields_set
         prop = await service.update_property(
             property_id,
             name=request.name,
@@ -242,6 +258,10 @@ async def update_property(
             icon_visibility=request.icon_visibility,
             is_multi=request.multi,
             validation_rules=request.validation_rules,
+            required=request.required,
+            readonly=request.readonly,
+            hide_when_empty=request.hide_when_empty,
+            default_value=request.default_value if default_provided else _UNSET,
         )
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
@@ -249,7 +269,7 @@ async def update_property(
     if not prop:
         raise HTTPException(404, "Property not found")
     node_uuid_map, class_uuid_map = await _build_property_response_maps(node_repo, [prop])
-    return await _property_to_response(prop, node_uuid_map=node_uuid_map, class_uuid_map=class_uuid_map)
+    return await _property_to_response(prop, node_uuid_map=node_uuid_map, class_uuid_map=class_uuid_map, property_repo=service._property_repo, node_repo=node_repo)
 
 
 @router.post("/{property_uuid}/change-type", dependencies=[Depends(require_write_scope)])
@@ -276,7 +296,7 @@ async def change_property_type(
     if not prop:
         raise HTTPException(404, "Property not found")
     node_uuid_map, class_uuid_map = await _build_property_response_maps(node_repo, [prop])
-    return await _property_to_response(prop, node_uuid_map=node_uuid_map, class_uuid_map=class_uuid_map)
+    return await _property_to_response(prop, node_uuid_map=node_uuid_map, class_uuid_map=class_uuid_map, property_repo=service._property_repo, node_repo=node_repo)
 
 
 @router.get("/{property_uuid}/can-delete")
@@ -440,4 +460,4 @@ async def get_nodes_with_property(
         )
 
     node_uuid_map, class_uuid_map = await _build_property_response_maps(node_repo, [prop])
-    return {"nodes": result, "property": await _property_to_response(prop, node_uuid_map=node_uuid_map, class_uuid_map=class_uuid_map)}
+    return {"nodes": result, "property": await _property_to_response(prop, node_uuid_map=node_uuid_map, class_uuid_map=class_uuid_map, property_repo=service._property_repo, node_repo=node_repo)}

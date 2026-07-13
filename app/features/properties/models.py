@@ -29,6 +29,11 @@ class PropertyResponse(BaseModel):
     node_uuid: str | None = None  # For scoped properties
     icon_visibility: str = "hidden"  # 'hidden' | 'before_content' | 'after_bullet'
     validation_rules: dict | None = None  # Optional validation constraints
+    # Attribute bases (class_property edges may override these tri-state)
+    required: bool = False
+    readonly: bool = False
+    hide_when_empty: bool = False
+    default_value: Any | None = None  # Public form: UUIDs for selection/node defaults
     create_date: str
     write_date: str
     # For relation-type properties
@@ -174,6 +179,8 @@ class ClassPropertyResponse(BaseModel):
     default_value: Any | None = None
     hidden: bool = False
     required: bool | None = None  # tri-state: None = inherit from property
+    readonly: bool | None = None  # tri-state: None = inherit from property
+    hide_when_empty: bool | None = None  # tri-state: None = inherit from property
 
 
 class ClassExtendsResponse(BaseModel):
@@ -219,6 +226,11 @@ class PropertyUpdateRequest(BaseModel):
     multi: bool | None = None  # Aligned with frontend naming
     icon_visibility: str | None = None  # 'hidden' | 'before_content' | 'after_bullet'
     validation_rules: dict | None = None  # Optional validation constraints
+    # Attribute bases; absent = no change, explicit null default = clear defaults
+    required: bool | None = None
+    readonly: bool | None = None
+    hide_when_empty: bool | None = None
+    default_value: Any | None = None  # UUIDs for selection/node defaults
 
 
 class PropertyTypeChangeRequest(BaseModel):
@@ -273,13 +285,21 @@ class ClassPropertyRequest(BaseModel):
     property_uuid: str
     sequence: int = 0
     default_value: Any | None = None
-    required: bool = False
+    required: bool | None = None  # tri-state: None = inherit from property
     hidden: bool = False
+    readonly: bool | None = None  # tri-state: None = inherit from property
+    hide_when_empty: bool | None = None  # tri-state: None = inherit from property
 
 
 class ClassPropertyUpdateRequest(BaseModel):
-    """Request to update a class property binding (required, hidden, default)."""
+    """Request to update a class property binding (required, hidden, default).
+
+    Fields absent from the body are left unchanged; explicit null on a
+    tri-state flag resets it to "inherit from property".
+    """
 
     required: bool | None = None
     hidden: bool | None = None
+    readonly: bool | None = None
+    hide_when_empty: bool | None = None
     default_value: Any | None = None

@@ -69,8 +69,19 @@ class PropertyRepository(ABC):
         pass
 
     @abstractmethod
-    async def update(self, property_id: int, name: str | None = None, icon: str | None = None) -> Property | None:
-        """Update a property definition (name and icon only)."""
+    async def update(
+        self,
+        property_id: int,
+        name: str | None = None,
+        icon: str | None = None,
+        icon_visibility: str | None = None,
+        required: bool | None = None,
+        readonly: bool | None = None,
+        hide_when_empty: bool | None = None,
+        clear_defaults: bool = False,
+        default_columns: dict[str, Any] | None = None,
+    ) -> Property | None:
+        """Update a property definition (name/icon, attribute flags, typed defaults)."""
         pass
 
     @abstractmethod
@@ -217,6 +228,11 @@ class PropertyRepository(ABC):
     @abstractmethod
     async def get_selection_line_by_uuid(self, uuid: str) -> PropertySelectionLine | None:
         """Get a selection option by its public UUID."""
+        pass
+
+    @abstractmethod
+    async def get_selection_line_by_id(self, line_id: int) -> PropertySelectionLine | None:
+        """Get a selection option by its internal ID."""
         pass
 
     @abstractmethod

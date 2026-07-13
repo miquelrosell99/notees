@@ -250,7 +250,7 @@ async def get_node_properties(
 
         result.append(
             {
-                "property": await _property_to_response(prop),
+                "property": await _property_to_response(prop, property_repo=property_repo, node_repo=repo),
                 "node_property": NodePropertyResponse(
                     id=np.id,  # type: ignore[arg-type]
                     node_property_uuid=np.uuid,
