@@ -29,6 +29,7 @@ export function ArchivedPagesView({ className = '' }: ArchivedPagesViewProps) {
   const openNode = useNavigationStore((state) => state.openNode);
   const [viewMode, setViewMode] = useState<NodeCollectionViewMode>('list');
   const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
+  const [pendingAction, setPendingAction] = useState<{ type: 'unarchive' | 'delete'; node: Node } | null>(null);
 
   const { data: nodes, isLoading, error, refetch } = useArchivedPages();
   const { unarchive: unarchiveMutation, deleteNode: deleteMutation, deleteAll: deleteAllMutation } = useArchivedPagesMutations();
@@ -41,9 +42,7 @@ export function ArchivedPagesView({ className = '' }: ArchivedPagesViewProps) {
         label: 'Unarchive',
         icon: "mdi mdi-archive-arrow-up",
         onClick: () => {
-          if (confirm('Unarchive this page?')) {
-            unarchiveMutation.mutate(node.uuid);
-          }
+          setPendingAction({ type: 'unarchive', node });
           closeMenu();
         },
       },
@@ -52,15 +51,13 @@ export function ArchivedPagesView({ className = '' }: ArchivedPagesViewProps) {
         label: 'Delete',
         icon: "mdi mdi-delete",
         onClick: () => {
-          if (confirm('Delete this page permanently? This action cannot be undone.')) {
-            deleteMutation.mutate(node.uuid);
-          }
+          setPendingAction({ type: 'delete', node });
           closeMenu();
         },
         danger: true,
       },
     ];
-  }, [unarchiveMutation, deleteMutation]);
+  }, []);
   
   return (
     <article className={`node-view node-view--page archived-pages-view ${className}`}>
@@ -132,6 +129,30 @@ export function ArchivedPagesView({ className = '' }: ArchivedPagesViewProps) {
           })
         }
         onCancel={() => setShowDeleteAllConfirm(false)}
+      />
+
+      {/* Per-Page Action Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={pendingAction !== null}
+        title={pendingAction?.type === 'delete' ? 'Delete Page' : 'Unarchive Page'}
+        message={
+          pendingAction?.type === 'delete'
+            ? 'Delete this page permanently?'
+            : 'Unarchive this page?'
+        }
+        secondaryMessage={pendingAction?.type === 'delete' ? 'This action cannot be undone.' : undefined}
+        confirmLabel={pendingAction?.type === 'delete' ? 'Delete' : 'Unarchive'}
+        cancelLabel="Cancel"
+        variant={pendingAction?.type === 'delete' ? 'danger' : 'primary'}
+        onConfirm={() => {
+          if (pendingAction?.type === 'delete') {
+            deleteMutation.mutate(pendingAction.node.uuid);
+          } else if (pendingAction) {
+            unarchiveMutation.mutate(pendingAction.node.uuid);
+          }
+          setPendingAction(null);
+        }}
+        onCancel={() => setPendingAction(null)}
       />
     </article>
   );

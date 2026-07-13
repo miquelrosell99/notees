@@ -9,6 +9,7 @@
 import { useEffect, useState } from 'react';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
+import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
 import { BooleanToggle } from '@/components/ui/BooleanToggle';
 import api from '@/api/client';
 import { usePlugins } from '../hooks/usePlugins';
@@ -34,6 +35,7 @@ export function PluginManagerModal({ isOpen, onClose }: PluginManagerModalProps)
   const uninstallMutation = useUninstallPlugin();
   const updateMutation = useUpdatePlugin();
   const [gitUrl, setGitUrl] = useState('');
+  const [uninstallTarget, setUninstallTarget] = useState<PluginStatus | null>(null);
   const [installJobId, setInstallJobId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loadedIds, setLoadedIds] = useState<Set<string>>(() => new Set());
@@ -119,13 +121,19 @@ export function PluginManagerModal({ isOpen, onClose }: PluginManagerModalProps)
     }
   };
 
-  const handleUninstall = async (plugin: PluginStatus) => {
-    if (!window.confirm(`Uninstall ${plugin.name}? This cannot be undone.`)) return;
+  const handleUninstall = (plugin: PluginStatus) => {
+    setUninstallTarget(plugin);
+  };
+
+  const confirmUninstall = async () => {
+    if (!uninstallTarget) return;
     setError(null);
     try {
-      await uninstallMutation.mutateAsync(plugin.id);
+      await uninstallMutation.mutateAsync(uninstallTarget.id);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setUninstallTarget(null);
     }
   };
 
@@ -280,6 +288,18 @@ export function PluginManagerModal({ isOpen, onClose }: PluginManagerModalProps)
           </ul>
         )}
       </div>
+
+      <ConfirmationModal
+        isOpen={uninstallTarget !== null}
+        title="Uninstall Plugin"
+        message={`Uninstall ${uninstallTarget?.name ?? ''}?`}
+        secondaryMessage="This cannot be undone."
+        confirmLabel="Uninstall"
+        cancelLabel="Cancel"
+        variant="danger"
+        onConfirm={confirmUninstall}
+        onCancel={() => setUninstallTarget(null)}
+      />
     </Modal>
   );
 }

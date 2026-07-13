@@ -30,6 +30,7 @@ export function TrashView({ className = '' }: TrashViewProps) {
   const [viewMode, setViewMode] = useState<NodeCollectionViewMode>('table');
   const [showEmptyConfirm, setShowEmptyConfirm] = useState(false);
   const [showDeleteSelectedConfirm, setShowDeleteSelectedConfirm] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Node | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const { data: nodes, isLoading, error, refetch } = useTrash();
@@ -103,14 +104,12 @@ export function TrashView({ className = '' }: TrashViewProps) {
         label: 'Delete Permanently',
         danger: true,
         onClick: () => {
-          if (confirm(`Permanently delete "${nodeNameToText(node.name) || 'Untitled'}"? This cannot be undone.`)) {
-            permanentDelete.mutate(node.uuid);
-          }
+          setDeleteTarget(node);
           closeMenu();
         },
       },
     ];
-  }, [restore, permanentDelete, selectedIds, handleNodeShiftClick]);
+  }, [restore, selectedIds, handleNodeShiftClick]);
   
   return (
     <article className={`node-view node-view--page trash-view ${className}`}>
@@ -220,6 +219,24 @@ export function TrashView({ className = '' }: TrashViewProps) {
           })
         }
         onCancel={() => setShowDeleteSelectedConfirm(false)}
+      />
+
+      {/* Permanent Delete Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={deleteTarget !== null}
+        title="Delete Permanently"
+        message={`Permanently delete "${deleteTarget ? nodeNameToText(deleteTarget.name) || 'Untitled' : ''}"?`}
+        secondaryMessage="This action cannot be undone."
+        confirmLabel="Delete Permanently"
+        cancelLabel="Cancel"
+        variant="danger"
+        onConfirm={() => {
+          if (deleteTarget) {
+            permanentDelete.mutate(deleteTarget.uuid);
+          }
+          setDeleteTarget(null);
+        }}
+        onCancel={() => setDeleteTarget(null)}
       />
     </article>
   );
