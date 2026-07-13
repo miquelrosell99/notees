@@ -4,18 +4,25 @@
  * Used by both the custom inline editor and read-only inline renderers.
  * Supports node/class links, URL links, and broken links. For broken links,
  * exposes a "Copy UUID" action (and a create-page action when a fix callback
- * is available).
+ * is available). "Copy UUID" is a dev action: hidden unless
+ * `showDevOptions` is enabled in the settings store.
+ *
+ * Editable pills (editor) also get "Delete" (remove the pill entirely) and
+ * "Unlink" (replace the link with plain text, keeping its visible label).
+ * Class/tag pills (via NodeRef) get a color picker row on top.
  */
 import { useMemo, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/ContextMenu';
-import { useNavigationStore } from '@/stores';
+import { useNavigationStore, useSettingsStore } from '@/stores';
 import { useClasses } from '@/features/content/hooks/useNodeListQueries';
+import { useNodeDisplay } from '@/features/content/hooks/useNodeDisplay';
 import { useReferencedNode } from '@/features/content/contexts/useReferencedNode';
 import { useBrokenLinkFix } from '@/features/content/contexts/BrokenLinkFixContext';
 import { useBatchedNodeByUuid } from '@/hooks';
 import { copyToClipboard } from '@/utils/clipboardManager';
 import { parseLinkId } from '@/lib/astBuilder';
+import { ColorPickerRow } from './ColorPickerRow';
 
 export type NodeLinkContextMenuRefType =
   | 'node'
@@ -42,27 +49,37 @@ export interface NodeLinkContextMenuProps {
   onClose: () => void;
   /** If provided, enables the "Edit link" action. */
   onEdit?: () => void;
-  /** If provided, enables the "Remove" action. */
+  /** If provided, enables the "Delete" action (removes the pill entirely). */
   onRemove?: () => void;
+  /** If provided, enables the "Unlink" action (keeps the visible text). Receives the text to keep. */
+  onUnlink?: (keepText: string) => void;
   /** If provided, enables the "Toggle inline class" action. */
   onToggleClass?: () => void;
+  /** Current pill color (for the color picker row). */
+  currentColor?: string | null;
+  /** If provided, shows the color picker row at the top of the menu. */
+  onColorChange?: (color: string | null) => void;
 }
 
 export function NodeLinkContextMenu({
   linkId,
   refType,
-  label: _label,
+  label,
   url,
   nodeUuid: explicitNodeUuid,
   position,
   onClose,
   onEdit,
   onRemove,
+  onUnlink,
   onToggleClass,
+  currentColor,
+  onColorChange,
 }: NodeLinkContextMenuProps) {
   const { workspaceId } = useParams<{ workspaceId?: string }>();
   const openNode = useNavigationStore((s) => s.openNode);
   const addSidebarCard = useNavigationStore((s) => s.addSidebarCard);
+  const showDevOptions = useSettingsStore((s) => s.showDevOptions);
   const fixBrokenLink = useBrokenLinkFix();
 
   const { nodeUuid: parsedNodeUuid } = parseLinkId(linkId);
@@ -78,6 +95,10 @@ export function NodeLinkContextMenu({
   const { data: allClasses } = useClasses();
   const isTargetClass =
     targetNode && allClasses?.some((cls) => cls.uuid === targetNode.uuid);
+
+  // Resolved display name of the target — used as the kept text when unlinking
+  // a link that has no custom label.
+  const { displayText } = useNodeDisplay(targetNode, 'Untitled');
 
   const openInNewTab = useCallback(
     (href: string) => {
@@ -112,15 +133,18 @@ export function NodeLinkContextMenu({
       }
     } else if (refType === 'broken') {
       if (targetUuid) {
-        items.push({
-          id: 'copy-uuid',
-          label: 'Copy UUID',
-          icon: 'mdi-identifier',
-          onClick: () => {
-            void copyToClipboard(targetUuid);
-            onClose();
-          },
-        });
+        if (showDevOptions) {
+          items.push({
+            id: 'copy-uuid',
+            label: 'Copy UUID',
+            icon: 'mdi-identifier',
+            badge: 'DEV',
+            onClick: () => {
+              void copyToClipboard(targetUuid);
+              onClose();
+            },
+          });
+        }
         if (fixBrokenLink) {
           items.push({
             id: 'create-page',
@@ -137,7 +161,7 @@ export function NodeLinkContextMenu({
       // node / class / embed / user
       const isPage = targetNode ? targetNode.is_page : refType !== 'class';
       const openLabel =
-        refType === 'class'
+        refType === 'class' || isTargetClass
           ? 'Open class'
           : isPage
             ? 'Open page'
@@ -208,21 +232,24 @@ export function NodeLinkContextMenu({
       });
     }
 
+    // Copy actions. Copy UUID is a dev action — hidden unless dev options
+    // are enabled in the user settings.
     if (refType !== 'url' && targetUuid) {
-      if (items.length > 0 && !items[items.length - 1].separator) {
-        items.push({ id: 'sep-copy', label: '', separator: true });
+      const copyItems: ContextMenuItem[] = [];
+      if (showDevOptions) {
+        copyItems.push({
+          id: 'copy-uuid',
+          label: 'Copy UUID',
+          icon: 'mdi-identifier',
+          badge: 'DEV',
+          onClick: () => {
+            void copyToClipboard(targetUuid);
+            onClose();
+          },
+        });
       }
-      items.push({
-        id: 'copy-uuid',
-        label: 'Copy UUID',
-        icon: 'mdi-identifier',
-        onClick: () => {
-          void copyToClipboard(targetUuid);
-          onClose();
-        },
-      });
       if (refType === 'node' || refType === 'class') {
-        items.push({
+        copyItems.push({
           id: 'copy-link',
           label: 'Copy link',
           icon: 'mdi-link-variant',
@@ -232,15 +259,21 @@ export function NodeLinkContextMenu({
           },
         });
       }
+      if (copyItems.length > 0) {
+        if (items.length > 0 && !items[items.length - 1].separator) {
+          items.push({ id: 'sep-copy', label: '', separator: true });
+        }
+        items.push(...copyItems);
+      }
     }
 
+    // Delete actions: Delete removes the pill entirely; Unlink replaces it
+    // with plain text, keeping the visible label.
+    const deleteItems: ContextMenuItem[] = [];
     if (onRemove) {
-      if (items.length > 0 && !items[items.length - 1].separator) {
-        items.push({ id: 'sep-remove', label: '', separator: true });
-      }
-      items.push({
-        id: 'remove',
-        label: 'Remove',
+      deleteItems.push({
+        id: 'delete',
+        label: 'Delete',
         icon: 'mdi-trash-can-outline',
         danger: true,
         onClick: () => {
@@ -249,18 +282,62 @@ export function NodeLinkContextMenu({
         },
       });
     }
+    if (onUnlink) {
+      const keepText =
+        refType === 'url'
+          ? label || url || ''
+          : refType === 'broken'
+            ? label || linkId.split(':')[0]
+            : label || displayText;
+      deleteItems.push({
+        id: 'unlink',
+        label: 'Unlink',
+        icon: 'mdi-link-variant-off',
+        onClick: () => {
+          onUnlink(keepText);
+          onClose();
+        },
+      });
+    }
+    if (deleteItems.length > 0) {
+      if (items.length > 0 && !items[items.length - 1].separator) {
+        items.push({ id: 'sep-delete', label: '', separator: true });
+      }
+      items.push(...deleteItems);
+    }
+
+    // Color picker row on top (class/tag pills via NodeRef).
+    if (onColorChange) {
+      items.unshift({
+        id: 'color-row',
+        label: '',
+        content: (
+          <ColorPickerRow
+            currentColor={currentColor ?? null}
+            onColorChange={onColorChange}
+          />
+        ),
+      });
+    }
 
     return items;
   }, [
+    linkId,
     refType,
+    label,
     url,
     targetUuid,
     targetNode,
     isTargetClass,
+    displayText,
+    showDevOptions,
     fixBrokenLink,
     onEdit,
     onRemove,
+    onUnlink,
     onToggleClass,
+    currentColor,
+    onColorChange,
     openNode,
     addSidebarCard,
     openInNewTab,

@@ -31,8 +31,10 @@ interface InlineContentRendererProps {
   onPillClick?: (linkId: string, refType: InlineLinkRefType) => void;
   /** Called when the user chooses "Edit link" from a pill's context menu. */
   onEditPill?: (linkId: string) => void;
-  /** Called when the user chooses "Remove" from a pill's context menu. */
+  /** Called when the user chooses "Delete" from a pill's context menu. */
   onRemovePill?: (linkId: string) => void;
+  /** Called when the user chooses "Unlink" from a pill's context menu. Receives the text to keep. */
+  onUnlinkPill?: (linkId: string, keepText: string) => void;
   /** Called when the user toggles inline class for a node link. */
   onToggleClassPill?: (linkId: string) => void;
   /** Link id of the currently selected pill (visual selection only). */
@@ -76,11 +78,12 @@ interface AtomicNodeRendererProps {
   onPillClick?: InlineContentRendererProps['onPillClick'];
   onEditPill?: InlineContentRendererProps['onEditPill'];
   onRemovePill?: InlineContentRendererProps['onRemovePill'];
+  onUnlinkPill?: InlineContentRendererProps['onUnlinkPill'];
   onToggleClassPill?: InlineContentRendererProps['onToggleClassPill'];
   selectedPillLinkId?: string | null;
 }
 
-function AtomicNodeRenderer({ node, editable, onPillClick, onEditPill, onRemovePill, onToggleClassPill, selectedPillLinkId }: AtomicNodeRendererProps): JSX.Element | null {
+function AtomicNodeRenderer({ node, editable, onPillClick, onEditPill, onRemovePill, onUnlinkPill, onToggleClassPill, selectedPillLinkId }: AtomicNodeRendererProps): JSX.Element | null {
   switch (node.type) {
     case 'node_link': {
       const { nodeUuid } = parseLinkId(node.link_id);
@@ -102,6 +105,7 @@ function AtomicNodeRenderer({ node, editable, onPillClick, onEditPill, onRemoveP
           nodeUuid={nodeUuid}
           onEdit={editable && onEditPill ? () => onEditPill(node.link_id) : undefined}
           onRemove={editable && onRemovePill ? () => onRemovePill(node.link_id) : undefined}
+          onUnlink={editable && onUnlinkPill ? (keepText) => onUnlinkPill(node.link_id, keepText) : undefined}
           onToggleClass={editable && onToggleClassPill ? () => onToggleClassPill(node.link_id) : undefined}
         >
           <span
@@ -140,6 +144,7 @@ function AtomicNodeRenderer({ node, editable, onPillClick, onEditPill, onRemoveP
           label={node.label}
           onEdit={editable && onEditPill ? () => onEditPill(node.link_id) : undefined}
           onRemove={editable && onRemovePill ? () => onRemovePill(node.link_id) : undefined}
+          onUnlink={editable && onUnlinkPill ? (keepText) => onUnlinkPill(node.link_id, keepText) : undefined}
         >
           <span
             className={`inline-link-wrapper${isSelected ? ' inline-link-wrapper--selected' : ''}`}
@@ -182,6 +187,7 @@ function AtomicNodeRenderer({ node, editable, onPillClick, onEditPill, onRemoveP
           url={node.url}
           onEdit={editable && onEditPill ? () => onEditPill(node.url) : undefined}
           onRemove={editable && onRemovePill ? () => onRemovePill(node.url) : undefined}
+          onUnlink={editable && onUnlinkPill ? (keepText) => onUnlinkPill(node.url, keepText) : undefined}
         >
           <span
             className={`inline-link-wrapper${isSelected ? ' inline-link-wrapper--selected' : ''}`}
@@ -231,9 +237,9 @@ function AtomicNodeRenderer({ node, editable, onPillClick, onEditPill, onRemoveP
   }
 }
 
-function InlineUnitRenderer({ unit, editable, textUnitClassName, onPillClick, onEditPill, onRemovePill, onToggleClassPill, selectedPillLinkId }: { unit: InlineUnit; editable?: boolean; textUnitClassName?: string; onPillClick?: InlineContentRendererProps['onPillClick']; onEditPill?: InlineContentRendererProps['onEditPill']; onRemovePill?: InlineContentRendererProps['onRemovePill']; onToggleClassPill?: InlineContentRendererProps['onToggleClassPill']; selectedPillLinkId?: string | null }): JSX.Element {
+function InlineUnitRenderer({ unit, editable, textUnitClassName, onPillClick, onEditPill, onRemovePill, onUnlinkPill, onToggleClassPill, selectedPillLinkId }: { unit: InlineUnit; editable?: boolean; textUnitClassName?: string; onPillClick?: InlineContentRendererProps['onPillClick']; onEditPill?: InlineContentRendererProps['onEditPill']; onRemovePill?: InlineContentRendererProps['onRemovePill']; onUnlinkPill?: InlineContentRendererProps['onUnlinkPill']; onToggleClassPill?: InlineContentRendererProps['onToggleClassPill']; selectedPillLinkId?: string | null }): JSX.Element {
   if (unit.type === 'atomic') {
-    return <AtomicNodeRenderer node={unit.node} editable={editable} onPillClick={onPillClick} onEditPill={onEditPill} onRemovePill={onRemovePill} onToggleClassPill={onToggleClassPill} selectedPillLinkId={selectedPillLinkId} />;
+    return <AtomicNodeRenderer node={unit.node} editable={editable} onPillClick={onPillClick} onEditPill={onEditPill} onRemovePill={onRemovePill} onUnlinkPill={onUnlinkPill} onToggleClassPill={onToggleClassPill} selectedPillLinkId={selectedPillLinkId} />;
   }
 
   let content: React.ReactNode = unit.text === '' ? '\u200B' : unit.text;
@@ -244,7 +250,7 @@ function InlineUnitRenderer({ unit, editable, textUnitClassName, onPillClick, on
   return <span className={textUnitClassName}>{content}</span>;
 }
 
-export function InlineContentRenderer({ name, editable, textUnitClassName, onPillClick, onEditPill, onRemovePill, onToggleClassPill, selectedPillLinkId }: InlineContentRendererProps): JSX.Element {
+export function InlineContentRenderer({ name, editable, textUnitClassName, onPillClick, onEditPill, onRemovePill, onUnlinkPill, onToggleClassPill, selectedPillLinkId }: InlineContentRendererProps): JSX.Element {
   const ast = useMemo(() => parseAST(name) as ContentAST, [name]);
   const units = useMemo(() => astToUnits(getInlineChildren(ast)), [ast]);
   const lastUnit = units[units.length - 1];
@@ -271,6 +277,7 @@ export function InlineContentRenderer({ name, editable, textUnitClassName, onPil
           onPillClick={onPillClick}
           onEditPill={onEditPill}
           onRemovePill={onRemovePill}
+          onUnlinkPill={onUnlinkPill}
           onToggleClassPill={onToggleClassPill}
           selectedPillLinkId={selectedPillLinkId}
         />
