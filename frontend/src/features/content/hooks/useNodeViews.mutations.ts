@@ -9,11 +9,13 @@ import {
   updateNodeView,
   updateQueryAST,
   deleteNodeView,
+  duplicateNodeView,
   reorderNodeViews,
   resetNodeViews,
   ensureDefaultViews,
 } from '@/api/nodeViews';
 import type {
+  NodeView,
   NodeViewCreate,
   NodeViewUpdate,
 } from '@/types/nodeView';
@@ -52,6 +54,9 @@ export function useCreateNodeView() {
 
 /**
  * Update a NodeView
+ *
+ * Applies an optimistic patch to the list caches so presentation switches
+ * (view mode, sort, group-by, settings) feel instant; rolls back on error.
  */
 export function useUpdateNodeView() {
   const queryClient = useQueryClient();
@@ -59,6 +64,45 @@ export function useUpdateNodeView() {
   return useMutation({
     mutationFn: ({ viewId, data }: { viewId: string | number; data: NodeViewUpdate }) =>
       updateNodeView(requireViewUuid(viewId), data),
+    onMutate: async ({ viewId, data }) => {
+      const uuid = requireViewUuid(viewId);
+      await queryClient.cancelQueries({ queryKey: nodeViewKeys.lists() });
+      await queryClient.cancelQueries({ queryKey: nodeViewKeys.detail(uuid) });
+
+      const previousLists = queryClient.getQueriesData<NodeView[]>({
+        queryKey: nodeViewKeys.lists(),
+      });
+      const previousDetail = queryClient.getQueryData<NodeView>(nodeViewKeys.detail(uuid));
+
+      const patchList = (old: NodeView[] | undefined): NodeView[] | undefined => {
+        if (!old) return old;
+        const targetType = old.find((v) => v.uuid === uuid)?.view_type;
+        return old.map((view) => {
+          if (view.uuid === uuid) return { ...view, ...data };
+          // Setting a new default unsets the previous one in the same section
+          if (data.is_default === true && view.is_default && view.view_type === targetType) {
+            return { ...view, is_default: false };
+          }
+          return view;
+        });
+      };
+
+      queryClient.setQueriesData<NodeView[]>({ queryKey: nodeViewKeys.lists() }, patchList);
+      if (previousDetail) {
+        queryClient.setQueryData(nodeViewKeys.detail(uuid), { ...previousDetail, ...data });
+      }
+
+      return { previousLists, previousDetail, uuid };
+    },
+    onError: (_err, _vars, context) => {
+      if (!context) return;
+      for (const [key, value] of context.previousLists) {
+        queryClient.setQueryData(key, value);
+      }
+      if (context.previousDetail) {
+        queryClient.setQueryData(nodeViewKeys.detail(context.uuid), context.previousDetail);
+      }
+    },
     onSuccess: (updatedView) => {
       // Update the cache for this view
       queryClient.setQueryData(nodeViewKeys.detail(updatedView.uuid), updatedView);
@@ -68,6 +112,30 @@ export function useUpdateNodeView() {
       });
       queryClient.invalidateQueries({
         queryKey: nodeViewKeys.byType(updatedView.node_uuid),
+      });
+    },
+  });
+}
+
+/**
+ * Duplicate a NodeView (copies query AST + full presentation config)
+ */
+export function useDuplicateNodeView() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (viewId: string) => duplicateNodeView(requireViewUuid(viewId)),
+    onSuccess: (newView) => {
+      queryClient.setQueryData(nodeViewKeys.detail(newView.uuid), newView);
+      queryClient.invalidateQueries({
+        queryKey: nodeViewKeys.lists(),
+        predicate: (query) => {
+          const key = query.queryKey;
+          return key[0] === 'nodeViews' && key[1] === 'list' && key[2] === newView.node_uuid;
+        },
+      });
+      queryClient.invalidateQueries({
+        queryKey: nodeViewKeys.byType(newView.node_uuid),
       });
     },
   });

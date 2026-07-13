@@ -124,6 +124,10 @@ export const NodeCollection = memo(function NodeCollection({
       ganttEndDateProperty: ganttEndDatePropertyProp,
       onGanttStartDatePropertyChange,
       onGanttEndDatePropertyChange,
+      ganttTimeScale: ganttTimeScaleProp,
+      onGanttTimeScaleChange,
+      chartConfig,
+      onChartConfigChange,
       containerCard = false,
       activeNode,
       pageId,
@@ -254,7 +258,9 @@ export const NodeCollection = memo(function NodeCollection({
   const ganttEndDateProperty = onGanttEndDatePropertyChange
     ? ganttEndDatePropertyProp
     : (ganttEndDatePropertyProp ?? storeGanttEndProperty);
-  const ganttTimeScale = isTransient ? transientGanttTimeScale : storeGanttTimeScale;
+  const ganttTimeScale = onGanttTimeScaleChange
+    ? (ganttTimeScaleProp ?? storeGanttTimeScale)
+    : (isTransient ? transientGanttTimeScale : storeGanttTimeScale);
   const handleGanttStartDatePropertyChange = (property: Property | undefined) => {
     if (onGanttStartDatePropertyChange) {
       onGanttStartDatePropertyChange(property);
@@ -274,7 +280,9 @@ export const NodeCollection = memo(function NodeCollection({
     }
   };
   const handleGanttTimeScaleChange = (scale: 'day' | 'week' | 'month') => {
-    if (isTransient) {
+    if (onGanttTimeScaleChange) {
+      onGanttTimeScaleChange(scale);
+    } else if (isTransient) {
       setTransientGanttTimeScale(scale);
     } else {
       setStoreGanttTimeScale(scale);
@@ -525,6 +533,8 @@ export const NodeCollection = memo(function NodeCollection({
           groupByProperty,
           queryAst,
           viewId: viewIdForCharts,
+          chartConfig,
+          onChartConfigChange,
         };
 
       case 'pivot':
@@ -639,6 +649,8 @@ export const NodeCollection = memo(function NodeCollection({
     activeNode,
     sortColumns,
     setSortColumns,
+    chartConfig,
+    onChartConfigChange,
   ]);
 
   // Check if empty
