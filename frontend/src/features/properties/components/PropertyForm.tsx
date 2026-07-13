@@ -51,7 +51,9 @@ export interface PropertyFormProps {
   /** When true, the local/global toggle is hidden (scope is pre-decided externally) */
   isLocalLocked?: boolean;
   isMultiValue: boolean;
-  defaultValue: string;
+  /** Legacy inline default field (hidden via showDefaultValue={false} when the
+   *  dedicated Attributes section owns default editing) */
+  defaultValue?: string;
   nameError?: string | null;
   
   // Selection options (for selection type)
@@ -69,7 +71,7 @@ export interface PropertyFormProps {
   onTypeChange?: (type: PropertyType) => void;
   onIsLocalChange: (isLocal: boolean) => void;
   onIsMultiValueChange: (isMultiValue: boolean) => void;
-  onDefaultValueChange: (value: string) => void;
+  onDefaultValueChange?: (value: string) => void;
   
   onAddOption: () => void;
   onRemoveOption: (id: string) => void;
@@ -99,7 +101,7 @@ export function PropertyForm({
   name,
   propertyType,
   isMultiValue,
-  defaultValue,
+  defaultValue = '',
   nameError,
   
   selectionOptions,
@@ -419,7 +421,7 @@ export function PropertyForm({
             <select
               id={defaultValueId}
               value={defaultValue}
-              onChange={(e) => onDefaultValueChange(e.target.value)}
+              onChange={(e) => onDefaultValueChange?.(e.target.value)}
               className="property-form__select"
               disabled={readOnly}
             >
@@ -431,7 +433,7 @@ export function PropertyForm({
             <select
               id={defaultValueId}
               value={defaultValue}
-              onChange={(e) => onDefaultValueChange(e.target.value)}
+              onChange={(e) => onDefaultValueChange?.(e.target.value)}
               className="property-form__select"
               disabled={readOnly}
             >
@@ -446,7 +448,7 @@ export function PropertyForm({
             <TextField
               id={defaultValueId}
               value={defaultValue}
-              onChange={(e) => onDefaultValueChange(e.target.value)}
+              onChange={(e) => onDefaultValueChange?.(e.target.value)}
               placeholder={
                 propertyType === 'date' ? 'YYYY-MM-DD' :
                 propertyType === 'url' ? 'https://example.com' :

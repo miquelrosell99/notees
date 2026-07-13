@@ -12,7 +12,7 @@
  * - Delete property action
  */
 import { useState, useCallback, useMemo, useEffect, useId } from 'react';
-import type { Property, Node, PropertyIconVisibility } from '@/types/api';
+import type { Property, Node, PropertyIconVisibility, PropertyUpdate } from '@/types/api';
 import { ICON_VISIBILITY_PROPERTY_TYPES } from '@/types/api';
 import { addSelectionOption, deleteSelectionOption, updateSelectionOption, reorderSelectionOptions, addClassFilter, removeClassFilter } from '@/api/properties';
 import { parseIconField } from '@/utils/iconDom';
@@ -23,7 +23,9 @@ import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
 import { TextField } from '@/components/ui/TextField';
 import { SelectionButton } from '@/components/ui/SelectionButton';
+import { BooleanToggle } from '@/components/ui/BooleanToggle';
 import { PropertyForm } from './PropertyForm';
+import { DefaultValueEditor } from './DefaultValueEditor';
 import './PropertyConfigSection.css';
 
 interface SelectionOptionWithId {
@@ -45,7 +47,6 @@ export function PropertyConfigSection({
   const isLocal = property.scope !== 'global';
   const [isMultiValue, setIsMultiValue] = useState(property.multi || false);
   const [showMultiValueConfirm, setShowMultiValueConfirm] = useState(false);
-  const defaultValue = ''; // default_value not yet supported by backend
   const openNode = useNavigationStore(state => state.openNode);
   const [newOptionName, setNewOptionName] = useState('');
   const [newOptionIcon, setNewOptionIcon] = useState('');
@@ -319,6 +320,13 @@ export function PropertyConfigSection({
         />
       )}
 
+      {/* Attributes - required / read-only / hide-when-empty / default value */}
+      <AttributesSection
+        property={property}
+        onUpdate={onUpdate}
+        onError={setError}
+      />
+
       <PropertyForm
         icon=""
         onIconChange={() => {}}
@@ -329,8 +337,6 @@ export function PropertyConfigSection({
         onIsLocalChange={() => {}}
         isMultiValue={isMultiValue}
         onIsMultiValueChange={handleMultiValueChange}
-        defaultValue={defaultValue}
-        onDefaultValueChange={() => {}}
         selectionOptions={selectionOptions}
         onAddOption={handleAddSelectionOption}
         onRemoveOption={handleRemoveSelectionOption}
@@ -354,6 +360,7 @@ export function PropertyConfigSection({
         showIconSelection={false}
         showNameField={false}
         showMultiValueSelection={false}
+        showDefaultValue={false}
       />
       
       {error && (
@@ -389,6 +396,72 @@ export function PropertyConfigSection({
           </p>
         </Modal>
       )}
+    </div>
+  );
+}
+
+/**
+ * AttributesSection - required / read-only / hide-when-empty toggles plus the
+ * type-appropriate default value editor.
+ */
+function AttributesSection({
+  property,
+  onUpdate,
+  onError,
+}: {
+  property: Property;
+  onUpdate: (p: Property) => void;
+  onError: (msg: string | null) => void;
+}) {
+  const updatePropertyMutation = useUpdateProperty();
+
+  const save = useCallback(async (data: PropertyUpdate) => {
+    try {
+      const updated = await updatePropertyMutation.mutateAsync({
+        id: property.uuid,
+        data,
+      });
+      onUpdate(updated);
+      onError(null);
+    } catch {
+      onError('Failed to update property attributes');
+    }
+  }, [property.uuid, updatePropertyMutation, onUpdate, onError]);
+
+  return (
+    <div className="property-form__field">
+      <span className="property-form__label">Attributes</span>
+      <div className="property-config-section__attribute-toggles">
+        <BooleanToggle
+          size="sm"
+          label="Required"
+          checked={property.required}
+          disabled={updatePropertyMutation.isPending}
+          onChange={(e) => save({ required: e.target.checked })}
+        />
+        <BooleanToggle
+          size="sm"
+          label="Read-only"
+          checked={property.readonly}
+          disabled={updatePropertyMutation.isPending}
+          onChange={(e) => save({ readonly: e.target.checked })}
+        />
+        <BooleanToggle
+          size="sm"
+          label="Hide when empty"
+          checked={property.hide_when_empty}
+          disabled={updatePropertyMutation.isPending}
+          onChange={(e) => save({ hide_when_empty: e.target.checked })}
+        />
+      </div>
+      <div className="property-config-section__attribute-default">
+        <span className="property-config-section__validation-inline-label">Default value</span>
+        <DefaultValueEditor
+          property={property}
+          value={property.default_value}
+          onChange={(value) => save({ default_value: value })}
+        />
+      </div>
     </div>
   );
 }
