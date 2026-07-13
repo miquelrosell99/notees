@@ -90,6 +90,8 @@ Rules (from `frontend.md`): atoms must never import domain components or stores;
 
 ## Composition Rules Recap
 
+> The generic composition rule (primitives over nested view modes) is covered by `react-ui-patterns`. The inventory below is Notees-specific.
+
 1. **Never nest view modes.** No `NodeCollection`/`ListView`/`DocumentView` inside a cell, card, or panel. Embed the leaf primitive instead (`NodeCellEditable` is the pattern).
 2. **Edit inline content** → `CustomInlineEditor` + `InlineContentStatic`, driven by `editorFocusStore`, saved via `useContentSave`.
 3. **Show a block with chrome** (bullet, children) → `BlockList`/`BlockRow`; never rebuild bullet rendering by hand.

@@ -32,6 +32,13 @@ Everything in the system is a **Node**. Differentiation happens via boolean colu
 
 Pages use `name` as their title; blocks use `name` as a UUID. `display_name` is the human-readable label.
 
+## Identifier Strategy
+
+- Public resources use UUIDs in the HTTP API and UI.
+- The document model uses **UUIDv7** (`uuid_extensions.uuid7()` backend, `generateUUID()` frontend) for better index locality.
+- Internal DB joins and ephemeral state use auto-increment numeric IDs or UUIDv4 where a public identifier is not required.
+- Never expose internal numeric IDs in URL paths or public request/response bodies.
+
 ## Block Content AST
 
 Block content is stored as a JSON AST (Abstract Syntax Tree). The domain module `app/domain/stringify_ast.py` handles parsing and serialization. The frontend uses `frontend/src/lib/stringifyAST.ts` and related utilities.
