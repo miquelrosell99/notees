@@ -217,6 +217,9 @@ describe('PropertiesSection attribute display', () => {
   });
 
   it('shows a hide-when-empty property once it has a value', () => {
+    // Guard: a genuinely-valued hide-when-empty property must stay visible —
+    // this also passed pre-fix (no hide logic existed); it pins the
+    // non-empty side of the hide/show boundary.
     const prop = makeProperty({ uuid: 'prop-hide-empty', name: 'Hide Empty', type: 'text', hide_when_empty: true });
     mocks.allProperties = [prop];
     mocks.classProperties = [makeClassProperty({ property_uuid: prop.uuid })];
@@ -226,6 +229,36 @@ describe('PropertiesSection attribute display', () => {
 
     expect(screen.getByText('Hide Empty')).toBeInTheDocument();
     expect(screen.queryByText(/Hidden properties/)).not.toBeInTheDocument();
+  });
+
+  it('treats assigned-but-emptied values as empty for hide-when-empty', () => {
+    // The backend materializes null/''/[] for assigned-but-emptied properties
+    // (e.g. via the "Empty property" action), so key presence is not "has
+    // value" — mirror backend is_empty_value (None/''/[] are empty).
+    const emptiedString = makeProperty({ uuid: 'prop-empty-str', name: 'Empty String', type: 'text', hide_when_empty: true });
+    const emptiedNull = makeProperty({ uuid: 'prop-empty-null', name: 'Empty Null', type: 'text', hide_when_empty: true });
+    const emptiedArray = makeProperty({ uuid: 'prop-empty-arr', name: 'Empty Array', type: 'text', hide_when_empty: true });
+    mocks.allProperties = [emptiedString, emptiedNull, emptiedArray];
+    mocks.classProperties = [
+      makeClassProperty({ property_uuid: emptiedString.uuid }),
+      makeClassProperty({ property_uuid: emptiedNull.uuid }),
+      makeClassProperty({ property_uuid: emptiedArray.uuid }),
+    ];
+    mocks.node = makeNode({
+      [emptiedString.uuid]: '',
+      [emptiedNull.uuid]: null,
+      [emptiedArray.uuid]: [],
+    });
+
+    render(createElement(PropertiesSection, { nodeUuid: 'node-1', showAddProperty: false }), { wrapper });
+
+    expect(screen.queryByText('Empty String')).not.toBeInTheDocument();
+    expect(screen.queryByText('Empty Null')).not.toBeInTheDocument();
+    expect(screen.queryByText('Empty Array')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText('Hidden properties (3)'));
+    expect(screen.getByText('Empty String')).toBeInTheDocument();
+    expect(screen.getByText('Empty Null')).toBeInTheDocument();
+    expect(screen.getByText('Empty Array')).toBeInTheDocument();
   });
 
   it('class-edge hide_when_empty override beats the property base', () => {
@@ -262,15 +295,52 @@ describe('PropertiesSection attribute display', () => {
     expect(screen.getByText('Remove from node').closest('button')).toBeDisabled();
   });
 
-  it('class-edge readonly override beats the property base', () => {
-    const prop = makeProperty({ uuid: 'prop-edge-ro', name: 'Edge Readonly', type: 'text', readonly: false });
-    mocks.allProperties = [prop];
-    mocks.classProperties = [makeClassProperty({ property_uuid: prop.uuid, readonly: true })];
-    mocks.node = makeNode({ [prop.uuid]: 'locked by edge' });
+  it('class-edge readonly override beats the property base, both directions', () => {
+    const edgeReadonly = makeProperty({ uuid: 'prop-edge-ro', name: 'Edge Readonly', type: 'text', readonly: false });
+    const edgeWritable = makeProperty({ uuid: 'prop-edge-rw', name: 'Edge Writable', type: 'text', readonly: true });
+    mocks.allProperties = [edgeReadonly, edgeWritable];
+    mocks.classProperties = [
+      // base false + edge true → readonly
+      makeClassProperty({ property_uuid: edgeReadonly.uuid, readonly: true }),
+      // base true + edge false → writable (explicit edge false must win)
+      makeClassProperty({ property_uuid: edgeWritable.uuid, readonly: false }),
+    ];
+    mocks.node = makeNode({ [edgeReadonly.uuid]: 'locked by edge', [edgeWritable.uuid]: 'free by edge' });
 
     render(createElement(PropertiesSection, { nodeUuid: 'node-1', showAddProperty: false }), { wrapper });
 
-    expect(screen.getByTestId('property-value')).toHaveAttribute('data-readonly', 'true');
+    const editors = screen.getAllByTestId('property-value');
+    expect(editors).toHaveLength(2);
+    expect(editors[0]).toHaveAttribute('data-readonly', 'true');
+    expect(editors[1]).toHaveAttribute('data-readonly', 'false');
+  });
+
+  it('class-edge required override beats the property base, both directions', () => {
+    const edgeRequired = makeProperty({ uuid: 'prop-edge-req', name: 'Edge Required', type: 'text', required: false });
+    const edgeOptional = makeProperty({ uuid: 'prop-edge-opt', name: 'Edge Optional', type: 'text', required: true });
+    mocks.allProperties = [edgeRequired, edgeOptional];
+    mocks.classProperties = [
+      // base false + edge true (no default) → "Empty property" hidden
+      makeClassProperty({ property_uuid: edgeRequired.uuid, required: true }),
+      // base true (no default) + edge false → "Empty property" available
+      makeClassProperty({ property_uuid: edgeOptional.uuid, required: false }),
+    ];
+    mocks.node = makeNode({ [edgeRequired.uuid]: 'a', [edgeOptional.uuid]: 'b' });
+
+    const { unmount } = render(
+      createElement(PropertiesSection, { nodeUuid: 'node-1', showAddProperty: false }),
+      { wrapper },
+    );
+
+    openRowContextMenu('Edge Required');
+    expect(screen.queryByText('Empty property')).not.toBeInTheDocument();
+    expect(screen.getByText('Open property')).toBeInTheDocument();
+    unmount();
+
+    render(createElement(PropertiesSection, { nodeUuid: 'node-1', showAddProperty: false }), { wrapper });
+
+    openRowContextMenu('Edge Optional');
+    expect(screen.getByText('Empty property')).toBeInTheDocument();
   });
 
   it('hides "Empty property" for required entries without a default, keeps it with a default', () => {
