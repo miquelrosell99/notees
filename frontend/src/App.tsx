@@ -17,6 +17,7 @@ import { useNotificationStore, type Notification } from './stores/notificationSt
 import { ErrorBoundary } from './components/ui/ErrorBoundary';
 import { KeyboardShortcutsProvider } from './hooks/KeyboardShortcutsProvider';
 import { useGlobalKeyboardListener } from './hooks/useGlobalKeyboardListener';
+import { useDisableNativeContextMenu } from './hooks/useDisableNativeContextMenu';
 import { useWindowFocusActiveBlock } from './hooks/useWindowFocusActiveBlock';
 import { useCommand } from './hooks/useCommand';
 import { useUndoStackPersistence, useAndroidBridge, AppRoutes } from '@/features/layout';
@@ -68,6 +69,7 @@ function AuthSyncListener() {
 
 function GlobalKeyboardHandler() {
   useGlobalKeyboardListener();
+  useDisableNativeContextMenu();
   useUndoStackPersistence();
   useWindowFocusActiveBlock();
 
