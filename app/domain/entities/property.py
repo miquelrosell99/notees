@@ -100,6 +100,20 @@ class Property:
     node_id: int | None = None  # For class/node scope: the node this property belongs to
     icon_visibility: str = "hidden"  # Where to show selection value icon: 'hidden' | 'before_content' | 'after_bullet'
     validation_rules: dict | None = None  # Optional validation constraints (min, max, pattern, required, etc.)
+
+    # Attribute bases (class_property edges may override these tri-state)
+    required: bool = False
+    readonly: bool = False
+    hide_when_empty: bool = False
+
+    # Default values (polymorphic - only one is used based on property type)
+    default_integer: int | None = None
+    default_float: float | None = None
+    default_text: str | None = None
+    default_boolean: bool | None = None
+    default_node_id: int | None = None
+    default_selection_id: int | None = None
+
     create_date: str = field(default_factory=utc_now_iso)
     write_date: str = field(default_factory=utc_now_iso)
 
@@ -383,7 +397,11 @@ class ClassProperty:
     property_id: int = 0  # The property to apply
     sequence: int = 0  # Order of properties on the class
     hidden: bool = False  # Whether this property is hidden by default in the UI
-    required: bool = False  # Whether the property is required on nodes of this class
+
+    # Tri-state attribute overrides (NULL = inherit from the property base)
+    required: bool | None = None
+    readonly: bool | None = None
+    hide_when_empty: bool | None = None
 
     # Default values (polymorphic - only one is used based on property type)
     default_integer: int | None = None
