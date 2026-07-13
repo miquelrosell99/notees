@@ -713,9 +713,3 @@
 .table-node-cell__actions:focus-within {
   opacity: var(--opacity-100);
 }
-
-/* Inline BlockEditor in editable node cells */
-.table-node-cell__editor {
-  flex: 1;
-  min-width: 0;
-}
