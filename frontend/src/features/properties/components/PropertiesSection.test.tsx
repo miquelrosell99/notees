@@ -7,7 +7,7 @@
  * must stay out of the list (they already render as block icons).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createElement, type ReactNode } from 'react';
 import { PropertiesSection } from './PropertiesSection';
@@ -41,9 +41,11 @@ vi.mock('@/plugins/builtin/flashcards', () => ({
 }));
 
 // Value rendering is covered by the renderer registry; keep this test focused
-// on which property rows are listed.
+// on which property rows are listed. `data-readonly` lets attribute tests
+// assert the effective readOnly flag handed to the editor.
 vi.mock('./PropertyValue', () => ({
-  PropertyValue: () => createElement('div', { 'data-testid': 'property-value' }),
+  PropertyValue: ({ readOnly }: { readOnly?: boolean }) =>
+    createElement('div', { 'data-testid': 'property-value', 'data-readonly': String(Boolean(readOnly)) }),
 }));
 
 const TEXT_SET: Property = {
@@ -151,5 +153,148 @@ describe('PropertiesSection inline with onlyWithValues', () => {
 
     expect(container).toBeEmptyDOMElement();
     expect(screen.queryByText('Class Unset')).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * Attribute display: effective attributes resolve as class-edge value ??
+ * property base value (tri-state inherit). hide_when_empty buckets empty
+ * entries into the hidden section; readonly disables the editor and the
+ * destructive context actions; required without a default hides "Empty
+ * property" (the backend would reject the write).
+ *
+ * These tests render non-inline so the hidden bucket is reachable via the
+ * "Hidden properties (N)" toggle (showHiddenSection defaults to true).
+ */
+function makeProperty(partial: Record<string, unknown>): Property {
+  return {
+    icon: null,
+    multi: false,
+    icon_visibility: null,
+    required: false,
+    readonly: false,
+    hide_when_empty: false,
+    default_value: null,
+    ...partial,
+  } as unknown as Property;
+}
+
+function makeClassProperty(partial: Record<string, unknown>) {
+  return {
+    class_node_uuid: 'class-1',
+    class_node_name: 'Class 1',
+    hidden: false,
+    default_value: null,
+    required: null,
+    readonly: null,
+    hide_when_empty: null,
+    ...partial,
+  };
+}
+
+function openRowContextMenu(name: string) {
+  fireEvent.contextMenu(screen.getByText(name));
+}
+
+describe('PropertiesSection attribute display', () => {
+  beforeEach(() => {
+    mocks.allProperties = [];
+    mocks.classProperties = [];
+  });
+
+  it('moves empty hide-when-empty properties to the hidden bucket', () => {
+    const prop = makeProperty({ uuid: 'prop-hide-empty', name: 'Hide Empty', type: 'text', hide_when_empty: true });
+    mocks.allProperties = [prop];
+    mocks.classProperties = [makeClassProperty({ property_uuid: prop.uuid })];
+    mocks.node = makeNode({});
+
+    render(createElement(PropertiesSection, { nodeUuid: 'node-1', showAddProperty: false }), { wrapper });
+
+    // Not in the visible list; reachable only via the hidden toggle.
+    expect(screen.queryByText('Hide Empty')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText('Hidden properties (1)'));
+    expect(screen.getByText('Hide Empty')).toBeInTheDocument();
+  });
+
+  it('shows a hide-when-empty property once it has a value', () => {
+    const prop = makeProperty({ uuid: 'prop-hide-empty', name: 'Hide Empty', type: 'text', hide_when_empty: true });
+    mocks.allProperties = [prop];
+    mocks.classProperties = [makeClassProperty({ property_uuid: prop.uuid })];
+    mocks.node = makeNode({ [prop.uuid]: 'hello' });
+
+    render(createElement(PropertiesSection, { nodeUuid: 'node-1', showAddProperty: false }), { wrapper });
+
+    expect(screen.getByText('Hide Empty')).toBeInTheDocument();
+    expect(screen.queryByText(/Hidden properties/)).not.toBeInTheDocument();
+  });
+
+  it('class-edge hide_when_empty override beats the property base', () => {
+    const edgeHidden = makeProperty({ uuid: 'prop-edge-hidden', name: 'Edge Hidden', type: 'text', hide_when_empty: false });
+    const edgeVisible = makeProperty({ uuid: 'prop-edge-visible', name: 'Edge Visible', type: 'text', hide_when_empty: true });
+    mocks.allProperties = [edgeHidden, edgeVisible];
+    mocks.classProperties = [
+      makeClassProperty({ property_uuid: edgeHidden.uuid, hide_when_empty: true }),
+      makeClassProperty({ property_uuid: edgeVisible.uuid, hide_when_empty: false }),
+    ];
+    mocks.node = makeNode({});
+
+    render(createElement(PropertiesSection, { nodeUuid: 'node-1', showAddProperty: false }), { wrapper });
+
+    // base false + edge true, empty → hidden; base true + edge false, empty → visible
+    expect(screen.queryByText('Edge Hidden')).not.toBeInTheDocument();
+    expect(screen.getByText('Edge Visible')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Hidden properties (1)'));
+    expect(screen.getByText('Edge Hidden')).toBeInTheDocument();
+  });
+
+  it('renders readonly entries with disabled editors and disabled empty/remove actions', () => {
+    const prop = makeProperty({ uuid: 'prop-readonly', name: 'Readonly Prop', type: 'text', readonly: true });
+    mocks.allProperties = [prop];
+    mocks.classProperties = [makeClassProperty({ property_uuid: prop.uuid })];
+    mocks.node = makeNode({ [prop.uuid]: 'locked' });
+
+    render(createElement(PropertiesSection, { nodeUuid: 'node-1', showAddProperty: false }), { wrapper });
+
+    expect(screen.getByTestId('property-value')).toHaveAttribute('data-readonly', 'true');
+
+    openRowContextMenu('Readonly Prop');
+    expect(screen.getByText('Empty property').closest('button')).toBeDisabled();
+    expect(screen.getByText('Remove from node').closest('button')).toBeDisabled();
+  });
+
+  it('class-edge readonly override beats the property base', () => {
+    const prop = makeProperty({ uuid: 'prop-edge-ro', name: 'Edge Readonly', type: 'text', readonly: false });
+    mocks.allProperties = [prop];
+    mocks.classProperties = [makeClassProperty({ property_uuid: prop.uuid, readonly: true })];
+    mocks.node = makeNode({ [prop.uuid]: 'locked by edge' });
+
+    render(createElement(PropertiesSection, { nodeUuid: 'node-1', showAddProperty: false }), { wrapper });
+
+    expect(screen.getByTestId('property-value')).toHaveAttribute('data-readonly', 'true');
+  });
+
+  it('hides "Empty property" for required entries without a default, keeps it with a default', () => {
+    const requiredNoDefault = makeProperty({ uuid: 'prop-req-nodef', name: 'Required No Default', type: 'text', required: true });
+    const requiredWithDefault = makeProperty({
+      uuid: 'prop-req-def', name: 'Required With Default', type: 'text', required: true, default_value: 'fallback',
+    });
+    mocks.allProperties = [requiredNoDefault, requiredWithDefault];
+    // Ad-hoc (non-class) entries: values come straight from the node.
+    mocks.node = makeNode({ [requiredNoDefault.uuid]: 'a', [requiredWithDefault.uuid]: 'b' });
+
+    const { unmount } = render(
+      createElement(PropertiesSection, { nodeUuid: 'node-1', showAddProperty: false }),
+      { wrapper },
+    );
+
+    openRowContextMenu('Required No Default');
+    expect(screen.queryByText('Empty property')).not.toBeInTheDocument();
+    expect(screen.getByText('Open property')).toBeInTheDocument();
+    unmount();
+
+    render(createElement(PropertiesSection, { nodeUuid: 'node-1', showAddProperty: false }), { wrapper });
+
+    openRowContextMenu('Required With Default');
+    expect(screen.getByText('Empty property')).toBeInTheDocument();
   });
 });
