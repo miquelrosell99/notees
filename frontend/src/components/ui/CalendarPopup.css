@@ -70,33 +70,29 @@
   color: var(--color-on-surface);
 }
 
-/* Month/year navigation selects — change the displayed date without
-   touching the zoom level (zoom is controlled by .calendar-zoom). */
-.calendar-select {
-  appearance: none;
-  background: none;
-  border: none;
-  cursor: pointer;
-  font: inherit;
+/* Month/year title buttons — open the monthly/yearly page directly.
+   Static labels (.calendar-*-label) are used where no page exists for the
+   context (e.g. the date picker). */
+.calendar-month-btn.btn,
+.calendar-year-btn.btn {
+  font: var(--font-title-small);
   min-width: 0;
-  padding: var(--spacing-1) var(--spacing-2);
-  border-radius: var(--shape-small);
-  color: var(--color-on-surface-variant);
-  transition: background var(--motion-duration-short) var(--motion-easing-standard);
 }
 
-.calendar-month-select {
+.calendar-month-btn.btn,
+.calendar-month-label {
   font-weight: 600;
   color: var(--color-on-surface);
 }
 
-.calendar-select:hover {
-  background: var(--color-hover-overlay);
+.calendar-year-btn.btn,
+.calendar-year-label {
+  color: var(--color-on-surface-variant);
 }
 
-.calendar-select:focus-visible {
-  outline: var(--border-width-thick) solid var(--color-accent);
-  outline-offset: 1px;
+.calendar-month-label,
+.calendar-year-label {
+  padding: 0 var(--spacing-1);
 }
 
 .calendar-year-range {
