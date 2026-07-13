@@ -26,7 +26,7 @@ import {
   type WorkspaceInfo,
 } from '@/features/workspace/api/workspaces';
 import { useWorkspaceImport, useWorkspaceNameCheck } from '@/features/workspace';
-import { useImportMarkdown, useImportOpml } from '@/features/workspace';
+import { useImportMarkdown } from '@/features/workspace';
 import { useWorkspaces } from '@/features/workspace';
 import type { MarkdownImportResult } from '@/features/workspace/api/import';
 import { useNavigationStore, useModalStore } from '@/stores';
@@ -110,12 +110,6 @@ const BUILTIN_SOURCE_OPTIONS: RadioOption[] = [
     description: 'Import a single Markdown file into the current workspace',
     badge: 'file',
   },
-  {
-    value: 'opml-file',
-    label: 'OPML file',
-    description: 'Import an outline as a page tree',
-    badge: 'file',
-  },
 ];
 
 const BUILTIN_IMPORT_TYPES = new Set(BUILTIN_SOURCE_OPTIONS.map((o) => o.value));
@@ -167,7 +161,7 @@ export function ImportOptionsModal({
   const [pluginFile, setPluginFile] = useState<File | null>(null);
   const [pluginReport, setPluginReport] = useState<ImporterRunResult | null>(null);
 
-  // Direct file import state (Markdown/OPML into current workspace)
+  // Direct file import state (Markdown into current workspace)
   const [singleImportFile, setSingleImportFile] = useState<File | null>(null);
   const [directReport, setDirectReport] = useState<MarkdownImportResult[] | null>(null);
   const [directImportError, setDirectImportError] = useState<string | null>(null);
@@ -188,7 +182,7 @@ export function ImportOptionsModal({
     } else if (selectedType === 'logseq-edn') {
       ednTextareaRef.current?.focus();
     }
-    // markdown-file/opml-file do not use the name field
+    // markdown-file does not use the name field
   }, [isOpen, phase, selectedType]);
 
   const workspaceUuidRef = useRef<string | null>(null);
@@ -239,7 +233,6 @@ export function ImportOptionsModal({
 
   // Direct file import mutations
   const importMarkdownMutation = useImportMarkdown();
-  const importOpmlMutation = useImportOpml();
 
   // Current workspace lookup for direct file imports
   const { data: workspacesData } = useWorkspaces({ enabled: isOpen });
@@ -452,7 +445,6 @@ export function ImportOptionsModal({
     if (isPending) return false;
     if (isBuiltInImportType(selectedType)) {
       if (selectedType === 'markdown-file') return singleImportFile !== null && !!workspaceUuid;
-      if (selectedType === 'opml-file') return singleImportFile !== null && !!workspaceUuid;
       if (!nameIsValid || isCheckingName) return false;
       if (selectedType === 'json') return jsonFile !== null;
       if (selectedType === 'logseq-edn') return parsedExport !== null;
@@ -471,15 +463,12 @@ export function ImportOptionsModal({
     setDirectImportError(null);
     const trimmedName = name.trim();
 
-    if (selectedType === 'markdown-file' || selectedType === 'opml-file') {
+    if (selectedType === 'markdown-file') {
       if (!singleImportFile || !workspaceUuid || !currentWorkspace) return;
       setDirectImportLoading(true);
       try {
         const content = await readTextFile(singleImportFile);
-        const results =
-          selectedType === 'markdown-file'
-            ? await importMarkdownMutation.mutateAsync({ items: [{ content }] })
-            : await importOpmlMutation.mutateAsync({ content });
+        const results = await importMarkdownMutation.mutateAsync({ items: [{ content }] });
         setDirectReport(results);
         setDirectImportType(selectedType);
         setPhase('report');
@@ -544,7 +533,7 @@ export function ImportOptionsModal({
         },
       });
     }
-  }, [isSubmitEnabled, name, selectedType, jsonFile, importWorkspace, createWorkspace, parsedExport, folderResult, pluginFile, workspaceUuid, runPluginImporter, onSuccess, singleImportFile, currentWorkspace, importMarkdownMutation, importOpmlMutation]);
+  }, [isSubmitEnabled, name, selectedType, jsonFile, importWorkspace, createWorkspace, parsedExport, folderResult, pluginFile, workspaceUuid, runPluginImporter, onSuccess, singleImportFile, currentWorkspace, importMarkdownMutation]);
 
   // Enter anywhere inside the modal = submit (capture phase)
   useEffect(() => {
@@ -615,7 +604,7 @@ export function ImportOptionsModal({
           <p className="import-unified__progress-label">
             {selectedType === 'json'
               ? 'Importing workspace'
-              : selectedType === 'markdown-file' || selectedType === 'opml-file'
+              : selectedType === 'markdown-file'
               ? 'Importing file'
               : 'Creating workspace'}
           </p>
@@ -799,7 +788,7 @@ export function ImportOptionsModal({
       className="import-unified"
       footer={
         <div className="import-unified__footer">
-          {isBuiltInImportType(selectedType) && selectedType !== 'markdown-file' && selectedType !== 'opml-file' && (
+          {isBuiltInImportType(selectedType) && selectedType !== 'markdown-file' && (
             <div className="import-unified__footer-name">
             <TextField
               ref={nameInputRef}
@@ -915,17 +904,15 @@ export function ImportOptionsModal({
           </div>
         )}
 
-        {(selectedType === 'markdown-file' || selectedType === 'opml-file') && (
+        {selectedType === 'markdown-file' && (
           <div className="import-unified__field-group">
-            <span className="import-unified__section-label">
-              {selectedType === 'markdown-file' ? 'Markdown file' : 'OPML file'}
-            </span>
+            <span className="import-unified__section-label">Markdown file</span>
             <FileDropZone
               file={singleImportFile}
-              accept={selectedType === 'markdown-file' ? '.md' : '.opml,.xml'}
+              accept=".md"
               onSelect={setSingleImportFile}
               onClear={() => setSingleImportFile(null)}
-              placeholder={`Drop your ${selectedType === 'markdown-file' ? '.md' : '.opml/.xml'} file here`}
+              placeholder="Drop your .md file here"
               disabled={isPending}
             />
             {!workspaceUuid && (

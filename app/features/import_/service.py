@@ -17,7 +17,7 @@ logger = get_logger(__name__)
 
 
 class ImportService:
-    """Orchestrates import of Markdown and OPML documents."""
+    """Orchestrates import of Markdown documents."""
 
     def __init__(
         self,
@@ -258,83 +258,6 @@ class ImportService:
             parent_id=node.id,
             user_id=user_id,
         )
-
-    # ------------------------------------------------------------------
-    # OPML import
-    # ------------------------------------------------------------------
-
-    async def import_opml(
-        self,
-        content: str,
-        parent_uuid: str | None = None,
-        user_id: int | None = None,
-    ) -> list[tuple[Node, bool]]:
-        """Import an OPML outline as a tree of page nodes."""
-        # Import here to keep the XML dependency lazy.
-        import xml.etree.ElementTree as ET
-
-        root = ET.fromstring(content)
-        body = root.find("body")
-        if body is None:
-            raise ValueError("Invalid OPML: missing <body>")
-
-        parent_id = await self._resolve_parent(parent_uuid)
-        page_class_id = self._node_service.page_class_id
-        results: list[tuple[Node, bool]] = []
-        for child in body:
-            if child.tag == "outline":
-                node, created = await self._import_opml_outline(
-                    child,
-                    parent_id,
-                    user_id=user_id,
-                    page_class_id=page_class_id,
-                )
-                results.append((node, created))
-        return results
-
-    async def _import_opml_outline(
-        self,
-        element: Any,
-        parent_id: int | None,
-        sequence: float = 0.0,
-        user_id: int | None = None,
-        page_class_id: int | None = None,
-    ) -> tuple[Node, bool]:
-        text = element.get("text", "Untitled")
-        note = element.get("_note", "")
-        name_ast = parse_ast(text, ParseMode.PLAIN)
-        body_ast = parse_ast(note, ParseMode.MARKDOWN) if note else []
-
-        classes = [page_class_id] if page_class_id is not None else []
-        data = NodeCreateData(
-            name=serialize_ast(name_ast),
-            parent_id=parent_id,
-            sequence=sequence,
-            classes=classes,
-            tags=[],
-        )
-        node = await self._node_service.create_node(data, user_id)
-
-        if body_ast:
-            await self._node_service.create_block(
-                name=serialize_ast(body_ast),
-                parent_id=node.id,
-                user_id=user_id,
-            )
-
-        child_seq = 0.0
-        for child in element:
-            if child.tag == "outline":
-                await self._import_opml_outline(
-                    child,
-                    node.id,
-                    sequence=child_seq,
-                    user_id=user_id,
-                    page_class_id=page_class_id,
-                )
-                child_seq += 1.0
-
-        return node, True
 
     # ------------------------------------------------------------------
     # Helpers

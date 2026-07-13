@@ -36,23 +36,3 @@ class MarkdownImportResponse(BaseModel):
     """Response for a Markdown import request."""
 
     results: list[MarkdownImportResult]
-
-
-class OpmlImportRequest(BaseModel):
-    """Request to import an OPML document."""
-
-    content: str = Field(..., description="OPML XML text.")
-    parent_uuid: str | None = Field(None, description="Optional parent page UUID.")
-
-
-class OpmlImportResult(BaseModel):
-    """Result of importing an OPML document."""
-
-    node_uuid: str
-    title: str
-
-
-class OpmlImportResponse(BaseModel):
-    """Response for an OPML import request."""
-
-    results: list[OpmlImportResult]
