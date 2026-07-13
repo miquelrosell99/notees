@@ -16,6 +16,7 @@ import { SPONSORSHIP_CHANNELS } from '@/constants/sponsorship';
 import { TextField } from '@/components/ui/TextField';
 import type { ApiKey } from '@/types';
 import { Modal } from '@/components/ui/Modal';
+import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { SelectionButton } from '@/components/ui/SelectionButton';
@@ -38,6 +39,7 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
   const [editName, setEditName] = useState(user?.name ?? '');
   const [editSurnames, setEditSurnames] = useState(user?.surnames ?? '');
   const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [showDisableEncryptionConfirm, setShowDisableEncryptionConfirm] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
   const [apiKeysLoading, setApiKeysLoading] = useState(false);
@@ -190,10 +192,7 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
 
   const handleDisableEncryption = () => {
     if (!workspaceUuid) return;
-    if (!window.confirm('Disabling encryption will remove local protection for this workspace. Make sure you remember your current password before continuing.')) {
-      return;
-    }
-    disableEncryption(workspaceUuid);
+    setShowDisableEncryptionConfirm(true);
   };
 
   useEffect(() => {
@@ -1053,6 +1052,23 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
           )}
         </div>
       </div>
+
+      <ConfirmationModal
+        isOpen={showDisableEncryptionConfirm}
+        title="Disable Encryption"
+        message="Disabling encryption will remove local protection for this workspace."
+        secondaryMessage="Make sure you remember your current password before continuing."
+        confirmLabel="Disable Encryption"
+        cancelLabel="Cancel"
+        variant="danger"
+        onConfirm={() => {
+          if (workspaceUuid) {
+            disableEncryption(workspaceUuid);
+          }
+          setShowDisableEncryptionConfirm(false);
+        }}
+        onCancel={() => setShowDisableEncryptionConfirm(false)}
+      />
     </Modal>
   );
 }

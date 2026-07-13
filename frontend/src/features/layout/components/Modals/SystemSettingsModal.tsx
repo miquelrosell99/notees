@@ -5,6 +5,7 @@
  */
 import { useState, useRef, useCallback } from 'react';
 import { Modal } from '@/components/ui/Modal';
+import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
 import { Spinner } from '@/components/ui/Spinner';
 import { Button } from '@/components/ui/Button';
 import { TextField } from '@/components/ui/TextField';
@@ -45,17 +46,16 @@ function RowActionsMenu({
   isDeleting: boolean;
 }) {
   const [isOpen, setIsOpen] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
 
   useClickOutside([menuRef, buttonRef], () => setIsOpen(false), isOpen);
 
   const handleDelete = useCallback(() => {
-    if (window.confirm(`Delete ${userEmail}? This cannot be undone.`)) {
-      onDelete();
-    }
     setIsOpen(false);
-  }, [userEmail, onDelete]);
+    setShowDeleteConfirm(true);
+  }, []);
 
   return (
     <div className="system-settings__actions-menu-wrapper">
@@ -80,6 +80,20 @@ function RowActionsMenu({
           </button>
         </div>
       )}
+      <ConfirmationModal
+        isOpen={showDeleteConfirm}
+        title="Delete User"
+        message={`Delete ${userEmail}?`}
+        secondaryMessage="This cannot be undone."
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        variant="danger"
+        onConfirm={() => {
+          onDelete();
+          setShowDeleteConfirm(false);
+        }}
+        onCancel={() => setShowDeleteConfirm(false)}
+      />
     </div>
   );
 }
