@@ -271,6 +271,17 @@ export function SyncManagerV2({ workspaceUuid: workspaceUuidProp, clientId: clie
         for (const op of requeue) {
           const entry = localSyncEngine.getEntry(op.id);
           const nextAttempt = (entry?.attemptCount ?? 0) + 1;
+          if (nextAttempt >= MAX_RETRIES) {
+            // Bound 409 requeues: a permanently conflicting op (e.g. a create
+            // whose parent no longer exists server-side) would otherwise reject
+            // every subsequent batch forever and silently block the whole outbox.
+            runtime.failOperation(
+              op.id,
+              `Conflict retries exhausted on ${op.blockId}`,
+            );
+            await localSyncEngine.remove(op.id);
+            continue;
+          }
           const delay = computeRetryDelay(nextAttempt);
           await localSyncEngine.fail(op.id, '409 conflict', Date.now() + delay);
         }

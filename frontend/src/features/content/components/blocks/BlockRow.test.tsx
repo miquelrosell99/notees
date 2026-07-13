@@ -36,6 +36,7 @@ vi.mock('@/features/tasks', () => ({
 vi.mock('@/features/properties', () => ({
   useProperties: () => ({ data: [] }),
   useSetNodeProperty: () => ({ mutate: vi.fn() }),
+  PropertiesSection: () => null,
 }));
 
 vi.mock('@/features/content', () => ({
