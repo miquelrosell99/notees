@@ -1307,6 +1307,79 @@ BEGIN
     END IF;
 END $$;
 
+-- ============================================================
+-- MIGRATIONS: PROPERTY ATTRIBUTES (required/default/readonly/hide-when-empty)
+-- ============================================================
+
+-- Migration: attribute base columns on property
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'property' AND column_name = 'required'
+    ) THEN
+        ALTER TABLE property ADD COLUMN required BOOLEAN NOT NULL DEFAULT FALSE;
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'property' AND column_name = 'readonly'
+    ) THEN
+        ALTER TABLE property ADD COLUMN readonly BOOLEAN NOT NULL DEFAULT FALSE;
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'property' AND column_name = 'hide_when_empty'
+    ) THEN
+        ALTER TABLE property ADD COLUMN hide_when_empty BOOLEAN NOT NULL DEFAULT FALSE;
+    END IF;
+END $$;
+
+-- Migration: typed default columns on property (mirrors class_property defaults)
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'property' AND column_name = 'default_integer'
+    ) THEN
+        ALTER TABLE property ADD COLUMN default_integer BIGINT DEFAULT NULL;
+        ALTER TABLE property ADD COLUMN default_float DOUBLE PRECISION DEFAULT NULL;
+        ALTER TABLE property ADD COLUMN default_text TEXT DEFAULT NULL;
+        ALTER TABLE property ADD COLUMN default_boolean BOOLEAN DEFAULT NULL;
+        ALTER TABLE property ADD COLUMN default_node_id BIGINT DEFAULT NULL
+            REFERENCES node(id) ON DELETE SET NULL;
+        ALTER TABLE property ADD COLUMN default_selection_id BIGINT DEFAULT NULL
+            REFERENCES property_selection_line(id) ON DELETE SET NULL;
+    END IF;
+END $$;
+
+-- Migration: tri-state overrides on class_property
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'class_property' AND column_name = 'readonly'
+    ) THEN
+        ALTER TABLE class_property ADD COLUMN readonly BOOLEAN DEFAULT NULL;
+    END IF;
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'class_property' AND column_name = 'hide_when_empty'
+    ) THEN
+        ALTER TABLE class_property ADD COLUMN hide_when_empty BOOLEAN DEFAULT NULL;
+    END IF;
+END $$;
+
+-- Migration: class_property.required becomes tri-state (NULL = inherit).
+-- Existing false rows never had enforcement semantics, so they become NULL.
+DO $$
+BEGIN
+    ALTER TABLE class_property ALTER COLUMN required DROP NOT NULL;
+    ALTER TABLE class_property ALTER COLUMN required DROP DEFAULT;
+    UPDATE class_property SET required = NULL WHERE required = FALSE;
+EXCEPTION WHEN OTHERS THEN
+    NULL;
+END $$;
+
 -- Migration: Add parent_locked column to node table
 DO $$
 BEGIN
