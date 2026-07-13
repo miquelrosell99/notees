@@ -262,7 +262,7 @@ function MyPluginPanel({ pluginId }: { pluginId: string }) {
 - **User-installed plugins are opt-in.** They are discovered at startup but remain disabled until explicitly enabled in the plugin manager.
 - **Optional dependencies are lazy.** A missing `pyzotero` only disables the Zotero plugin; core keeps running.
 - **Routers are namespaced.** Plugin routes are mounted under `/api/plugins/<plugin-id>/`.
-- **CSP for frontend bundles.** User plugin JS is served from `data/plugins/` and should be restricted by a strict Content-Security-Policy. See `docs/SECURITY.md` for CSP guidance.
+- **CSP for frontend bundles.** User plugin JS is served from `data/plugins/` and should be restricted by a strict Content-Security-Policy. See `../docs/SECURITY.md` for CSP guidance.
 
 ## Moving an internal feature to a plugin
 

@@ -8,7 +8,7 @@
 
 **Tech Stack:** FastAPI + asyncpg + Pydantic v2 (backend), React 19 + TypeScript + TanStack Query + Zustand (frontend), PostgreSQL 17, pytest + Vitest.
 
-Spec: `docs/superpowers/specs/2026-07-13-property-attributes-design.md`
+Spec: `agents/superpowers/specs/2026-07-13-property-attributes-design.md`
 
 ## Global Constraints
 
