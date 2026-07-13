@@ -148,6 +148,23 @@
   text-align: left;
 }
 
+/* Header row: expand button + right-aligned action button(s) */
+.sidebar-section-header-row {
+  display: flex;
+  align-items: center;
+  padding-right: var(--spacing-2);
+}
+
+.sidebar-section-header-row .sidebar-section-header {
+  width: auto;
+  flex: 1;
+  min-width: 0;
+}
+
+.sidebar-section-action {
+  flex-shrink: 0;
+}
+
 .sidebar-empty-message {
   padding: var(--spacing-2) var(--spacing-3);
   font: var(--font-body-small);
@@ -167,7 +184,8 @@
 
 /* Reset native <button> defaults for sidebar item rows. */
 .sidebar-favorite-item,
-.sidebar-recent-item {
+.sidebar-recent-item,
+.sidebar-pinned-item {
   appearance: none;
   border: none;
   background: none;
@@ -180,7 +198,8 @@
   box-sizing: border-box;
 }
 
-.sidebar-favorite-item {
+.sidebar-favorite-item,
+.sidebar-pinned-item {
   display: flex;
   align-items: center;
   padding: 0 var(--spacing-2);
@@ -193,15 +212,18 @@
   overflow: hidden;
 }
 
-.sidebar-favorite-item:hover {
+.sidebar-favorite-item:hover,
+.sidebar-pinned-item:hover {
   background: var(--color-hover-overlay);
 }
 
-.sidebar-favorite-item.active {
+.sidebar-favorite-item.active,
+.sidebar-pinned-item.active {
   background: var(--color-primary-container);
 }
 
-.sidebar-favorite-item:focus-visible {
+.sidebar-favorite-item:focus-visible,
+.sidebar-pinned-item:focus-visible {
   outline: var(--border-width-thick) solid var(--color-accent);
   outline-offset: calc(var(--spacing-micro) * -1);
 }
@@ -265,8 +287,9 @@
   color: var(--color-on-surface);
 }
 
-/* Block container within favorite/recent items */
-.sidebar-favorite-block {
+/* Block container within favorite/recent/pinned items */
+.sidebar-favorite-block,
+.sidebar-pinned-block {
   flex: 1;
   min-width: 0;
   padding: 0 var(--spacing-1) 0 0;
@@ -284,19 +307,24 @@
 }
 
 /* Remove button */
-.sidebar-favorite-remove {
+.sidebar-favorite-remove,
+.sidebar-pinned-remove {
   opacity: var(--opacity-0);
   transition: opacity var(--motion-duration-short);
 }
 
 .sidebar-favorite-item:hover .sidebar-favorite-remove,
 .sidebar-favorite-item:focus-within .sidebar-favorite-remove,
-.sidebar-favorite-remove:focus-visible {
+.sidebar-favorite-remove:focus-visible,
+.sidebar-pinned-item:hover .sidebar-pinned-remove,
+.sidebar-pinned-item:focus-within .sidebar-pinned-remove,
+.sidebar-pinned-remove:focus-visible {
   opacity: var(--opacity-100);
 }
 
 @media (hover: none) {
-  .sidebar-favorite-item .sidebar-favorite-remove {
+  .sidebar-favorite-item .sidebar-favorite-remove,
+  .sidebar-pinned-item .sidebar-pinned-remove {
     opacity: var(--opacity-100);
   }
 }
@@ -314,21 +342,25 @@
 .sidebar-favorite-item:hover .sidebar-item-breadcrumbs-wrapper,
 .sidebar-favorite-item:focus-within .sidebar-item-breadcrumbs-wrapper,
 .sidebar-recent-item:hover .sidebar-item-breadcrumbs-wrapper,
-.sidebar-recent-item:focus-within .sidebar-item-breadcrumbs-wrapper {
+.sidebar-recent-item:focus-within .sidebar-item-breadcrumbs-wrapper,
+.sidebar-pinned-item:hover .sidebar-item-breadcrumbs-wrapper,
+.sidebar-pinned-item:focus-within .sidebar-item-breadcrumbs-wrapper {
   opacity: var(--opacity-100);
   max-height: var(--spacing-8);
 }
 
 /* Block component styling within sidebar items */
 .sidebar-favorite-item .block,
-.sidebar-recent-item .block {
+.sidebar-recent-item .block,
+.sidebar-pinned-item .block {
   padding: 0;
   margin: 0;
   width: 100%;
 }
 
 .sidebar-favorite-item .block-row,
-.sidebar-recent-item .block-row {
+.sidebar-recent-item .block-row,
+.sidebar-pinned-item .block-row {
   padding: var(--spacing-2) 0;
   gap: var(--spacing-2);
   min-height: var(--height-sm);
@@ -337,6 +369,11 @@
 
 /* ==================== Recents List ==================== */
 .sidebar-recents-list {
+  padding: 0;
+}
+
+/* ==================== Pinned Pages List ==================== */
+.sidebar-pinned-list {
   padding: 0;
 }
 
