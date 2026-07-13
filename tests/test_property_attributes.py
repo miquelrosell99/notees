@@ -402,3 +402,51 @@ async def test_system_task_status_is_required_with_pending_default(auth_client: 
     )
     assert pending is not None
     assert prop["default_value"] == pending["selection_line_uuid"]
+
+
+@pytest.mark.asyncio
+async def test_new_workspace_seed_keeps_own_task_status_default(
+    auth_client: AsyncClient, test_user: dict, db_pool
+):
+    """Seeding a second workspace must not repoint the first workspace's
+    task-status default_selection_id (the seed must key its UPDATE on the
+    per-workspace property row id, not the shared system property UUID)."""
+    import secrets
+
+    from app.domain.entities.constants import SYSTEM_PROPERTY_UUIDS
+
+    status_uuid = SYSTEM_PROPERTY_UUIDS["task_status"]
+    first_ws_id = test_user["workspace_id"]
+
+    # Baseline: the first workspace's default is its own Pending line.
+    resp = await auth_client.get(f"/api/properties/uuid/{status_uuid}")
+    assert resp.status_code == 200, resp.text
+    prop = resp.json()
+    pending = next(o for o in prop["options"] if o["name"] == "Pending")
+    assert prop["default_value"] == pending["selection_line_uuid"]
+    first_pending_uuid = pending["selection_line_uuid"]
+
+    # Seed a second workspace (seed_workspace runs at runtime on creation).
+    ws_resp = await auth_client.post(
+        "/api/workspaces/", json={"name": f"ws2_{secrets.token_hex(4)}"}
+    )
+    assert ws_resp.status_code == 200, ws_resp.text
+
+    # The first workspace's property row must still point at its own Pending line.
+    row = await db_pool.fetchrow(
+        """
+        SELECT p.default_selection_id,
+               own.id AS own_pending_id,
+               own.uuid::text AS own_pending_uuid
+        FROM property p
+        LEFT JOIN property_selection_line own
+          ON own.property_id = p.id AND own.name = 'Pending'
+        WHERE p.workspace_id = $1 AND p.uuid = $2
+        """,
+        first_ws_id,
+        status_uuid,
+    )
+    assert row is not None
+    assert row["own_pending_id"] is not None
+    assert row["default_selection_id"] == row["own_pending_id"]
+    assert row["own_pending_uuid"] == first_pending_uuid
