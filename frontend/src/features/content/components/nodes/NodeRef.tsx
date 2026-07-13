@@ -5,7 +5,7 @@
  * - 'default': Interactive pill with remove/color-change (class/tag chips)
  * - 'link': Interactive pill with navigation on click (inline links outside editor)
  * - 'inline': Bare icon + text spans — no interactivity, no Pill wrapper.
- *            Used inside Lexical DecoratorNodes where the editor owns the DOM.
+ *            Used by the inline content renderer, where the editor owns the DOM.
  * 
  * Node resolution:
  * - `node` prop: use directly (cheapest)
@@ -109,7 +109,7 @@ function renderNameInlineNodes(nodes: ASTInlineNode[]): React.ReactNode[] {
 export interface NodeRefProps {
   /** The node to display (if provided, nodeId/nodeUuid are ignored) */
   node?: Node;
-  /** Node UUID to resolve (via ReferencedNodesContext then API fallback). Used by Lexical decorators. */
+  /** Node UUID to resolve (via ReferencedNodesContext then API fallback). Used by inline content renderers. */
   nodeUuid?: string;
   /** Display variant: 'default' for class pills, 'link' for inline links, 'inline' for bare icon+text */
   variant?: 'default' | 'link' | 'inline';
@@ -170,7 +170,7 @@ export const NodeRef = memo(function NodeRef(props: NodeRefProps) {
 
 // ─── Inline variant (bare spans, no state, no store) ─────────────────────
 
-/** Lightweight renderer for Lexical decorator nodes — icon + text only. */
+/** Lightweight renderer for inline content (editor + static views) — icon + text only. */
 function NodeRefInline({
       node: providedNode,
       nodeUuid,

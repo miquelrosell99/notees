@@ -191,7 +191,7 @@ export function Modal({
   );
 
   // Portal to document.body so modals always float above everything,
-  // even when rendered inside Lexical editor portals or other
+  // even when rendered inside editor portals or other
   // constrained DOM contexts (contentEditable, overflow containers, etc.)
   return createPortal(modal, document.body);
 }

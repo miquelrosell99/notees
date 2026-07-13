@@ -1,6 +1,5 @@
 /**
- * Shared editor types used by both the legacy Lexical InlineEditor and the
- * new custom inline editor.
+ * Shared editor types for the inline editor.
  */
 
 export type InlineLinkRefType = 'node' | 'class' | 'url' | 'embed' | 'broken' | 'user';

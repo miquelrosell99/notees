@@ -2,7 +2,7 @@
  * BlockFindReplacePlugin — Page-level find/replace for the per-block editor.
  *
  * Renders the shared FindReplaceWidget as a portal when the store is open.
- * Does NOT depend on a single LexicalComposer context; instead it searches
+ * Does NOT depend on a single editor context; instead it searches
  * across all editors registered in the InlineEditorRegistry.
  */
 

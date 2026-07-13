@@ -2,7 +2,7 @@
  * Block Components Index
  * 
  * Contains NodeInline (lightweight node display) and surviving components.
- * BlockEditor (Lexical-based) replaces the old Block component for editing.
+ * BlockEditor replaces the old Block component for editing.
  */
 
 // NodeInline - lightweight node display (replaces BlockPreview)

@@ -350,7 +350,7 @@ export function NodeView({
   
   // Fetch the node — include properties/backlinks if we're showing properties or queries.
   // We rely on the global default staleTime so switching tabs does not force a full
-  // refetch (and full Lexical re-initialization) on every remount. Mutations that
+  // refetch (and full editor re-initialization) on every remount. Mutations that
   // change metadata already invalidate nodeKeys.detailBase, so the cache stays fresh.
   const { data: node, isLoading, error } = useNode(nodeUuid, {
     include_children: true,
