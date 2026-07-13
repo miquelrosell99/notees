@@ -911,6 +911,11 @@ class NodeViewRepository(ABC):
         query_json: dict[str, Any] | None = None,
         order_index: int = 0,
         is_default: bool = False,
+        shown_properties: list[dict[str, Any]] | None = None,
+        group_by: str | list[str] | None = None,
+        view_mode: str | None = None,
+        sort_entries: list[dict[str, Any]] | None = None,
+        settings: dict[str, Any] | None = None,
     ) -> NodeView:
         """Create a new NodeView."""
         pass
@@ -975,7 +980,10 @@ class NodeViewRepository(ABC):
         order_index: int | None = None,
         is_default: bool | None = None,
         shown_properties: list[dict[str, Any]] | None = None,
-        group_by: str | None = None,
+        group_by: str | list[str] | None = None,
+        view_mode: str | None = None,
+        sort_entries: list[dict[str, Any]] | None = None,
+        settings: dict[str, Any] | None = None,
     ) -> NodeView | None:
         """Update a NodeView."""
         pass

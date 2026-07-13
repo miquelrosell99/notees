@@ -73,6 +73,21 @@ class PostgresNodeViewRepository(NodeViewRepository):
         if shown_properties is None or not isinstance(shown_properties, list):
             shown_properties = []
 
+        # Parse group_by from JSONB (string, list of strings, or None)
+        group_by = row.get("group_by")
+        if group_by is not None and not isinstance(group_by, (str, list)):
+            group_by = None
+
+        # Parse sort_entries from JSONB
+        sort_entries = row.get("sort_entries")
+        if sort_entries is None or not isinstance(sort_entries, list):
+            sort_entries = []
+
+        # Parse settings from JSONB
+        settings = row.get("settings")
+        if settings is None or not isinstance(settings, dict):
+            settings = {}
+
         return NodeView(
             id=row["id"],
             uuid=str(row["uuid"]),
@@ -84,7 +99,10 @@ class PostgresNodeViewRepository(NodeViewRepository):
             is_default=row.get("is_default", False),
             active=row.get("active", True),
             shown_properties=shown_properties,
-            group_by=row.get("group_by"),
+            group_by=group_by,
+            view_mode=row.get("view_mode"),
+            sort_entries=sort_entries,
+            settings=settings,
             create_date=create_date,
             write_date=write_date,
             create_uid=row.get("create_uid"),
@@ -99,6 +117,11 @@ class PostgresNodeViewRepository(NodeViewRepository):
         query_json: dict[str, Any] | None = None,
         order_index: int = 0,
         is_default: bool = False,
+        shown_properties: list[dict[str, Any]] | None = None,
+        group_by: str | list[str] | None = None,
+        view_mode: str | None = None,
+        sort_entries: list[dict[str, Any]] | None = None,
+        settings: dict[str, Any] | None = None,
     ) -> NodeView:
         """Create a new NodeView.
 
@@ -109,6 +132,11 @@ class PostgresNodeViewRepository(NodeViewRepository):
             query_json: The query block tree JSON
             order_index: Tab order within view_type
             is_default: Whether this is the default tab for the view_type
+            shown_properties: Table column selection [{uuid, sequence}]
+            group_by: Group by field(s) ('page'/'none', property uuid, or list)
+            view_mode: Presentation mode (list/table/kanban/...); None = section default
+            sort_entries: Sort configuration [{key, direction}]
+            settings: Per-mode layout config bag
 
         Returns:
             Created NodeView entity
@@ -116,14 +144,22 @@ class PostgresNodeViewRepository(NodeViewRepository):
         now = utc_now()
         uuid = generate_uuid()
 
-        # Use default if not provided
+        # Use defaults if not provided
         if query_json is None:
             query_json = DEFAULT_QUERY_AST.copy()
+        if shown_properties is None:
+            shown_properties = []
+        if sort_entries is None:
+            sort_entries = []
+        if settings is None:
+            settings = {}
 
         async with acquire_connection(self._pool) as conn:
             # Use ON CONFLICT to handle the unique constraint on default views
             # If a default view already exists for this node+view_type, update it fully
-            # (including reactivating it if it was soft-deleted)
+            # (including reactivating it if it was soft-deleted). Presentation fields
+            # (shown_properties/group_by/view_mode/sort_entries/settings) are NOT
+            # touched on conflict so a reactivated default keeps its saved config.
             logger.info(
                 f"[create] Creating view: node_id={node_id}, view_type={view_type}, is_default={is_default}, workspace_id={self._workspace_id}"
             )
@@ -134,9 +170,12 @@ class PostgresNodeViewRepository(NodeViewRepository):
                     INSERT INTO node_view (
                         uuid, node_id, name, query_json, view_type,
                         order_index, is_default, active,
+                        shown_properties, group_by, view_mode, sort_entries, settings,
                         create_date, write_date, create_uid, write_uid
                     )
-                    VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, TRUE, $8, $8, $9, $9)
+                    VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, TRUE,
+                            $10::jsonb, $11::jsonb, $12, $13::jsonb, $14::jsonb,
+                            $8, $8, $9, $9)
                     ON CONFLICT (node_id, view_type) WHERE is_default = TRUE
                     DO UPDATE SET
                         name = EXCLUDED.name,
@@ -156,6 +195,11 @@ class PostgresNodeViewRepository(NodeViewRepository):
                     is_default,
                     now,
                     self._user_id,
+                    shown_properties,
+                    group_by,
+                    view_mode,
+                    sort_entries,
+                    settings,
                 )
             else:
                 row = await conn.fetchrow(
@@ -163,9 +207,12 @@ class PostgresNodeViewRepository(NodeViewRepository):
                     INSERT INTO node_view (
                         uuid, node_id, name, query_json, view_type,
                         order_index, is_default, active,
+                        shown_properties, group_by, view_mode, sort_entries, settings,
                         create_date, write_date, create_uid, write_uid
                     )
-                    VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, TRUE, $8, $8, $9, $9)
+                    VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, TRUE,
+                            $10::jsonb, $11::jsonb, $12, $13::jsonb, $14::jsonb,
+                            $8, $8, $9, $9)
                     RETURNING *
                 """,
                     uuid,
@@ -177,6 +224,11 @@ class PostgresNodeViewRepository(NodeViewRepository):
                     is_default,
                     now,
                     self._user_id,
+                    shown_properties,
+                    group_by,
+                    view_mode,
+                    sort_entries,
+                    settings,
                 )
 
             if not row:
@@ -395,7 +447,10 @@ class PostgresNodeViewRepository(NodeViewRepository):
         order_index: int | None = None,
         is_default: bool | None = None,
         shown_properties: list[dict[str, Any]] | None = None,
-        group_by: str | None = None,
+        group_by: str | list[str] | None = None,
+        view_mode: str | None = None,
+        sort_entries: list[dict[str, Any]] | None = None,
+        settings: dict[str, Any] | None = None,
     ) -> NodeView | None:
         """Update a NodeView.
 
@@ -405,7 +460,10 @@ class PostgresNodeViewRepository(NodeViewRepository):
             order_index: New order index
             is_default: New default flag
             shown_properties: New shown properties for table view
-            group_by: New group by field for card view
+            group_by: New group by field(s) ('page'/'none', property uuid, or list)
+            view_mode: New presentation mode (list/table/kanban/...)
+            sort_entries: New sort configuration [{key, direction}]
+            settings: New per-mode layout config bag
 
         Returns:
             Updated NodeView or None if not found
@@ -436,8 +494,23 @@ class PostgresNodeViewRepository(NodeViewRepository):
 
         if group_by is not None:
             param_idx += 1
-            updates.append(f"group_by = ${param_idx}")
+            updates.append(f"group_by = ${param_idx}::jsonb")
             params.append(group_by)
+
+        if view_mode is not None:
+            param_idx += 1
+            updates.append(f"view_mode = ${param_idx}")
+            params.append(view_mode)
+
+        if sort_entries is not None:
+            param_idx += 1
+            updates.append(f"sort_entries = ${param_idx}::jsonb")
+            params.append(sort_entries)
+
+        if settings is not None:
+            param_idx += 1
+            updates.append(f"settings = ${param_idx}::jsonb")
+            params.append(settings)
 
         if not updates:
             return await self.get_by_id(view_id)
