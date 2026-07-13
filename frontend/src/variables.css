@@ -389,6 +389,10 @@
   --block-thread-line-overhang: calc(var(--spacing-tiny) + var(--spacing-micro) / 2);
   --bullet-wrapper-size: 22px;
   --bullet-dot-size: 6px;
+  /* Vertical nudge that moves the bullet glyph from the geometric center of
+     its wrapper down to the text's optical center. Single source of truth for
+     Bullet.css and the thread-line renderers that must aim at the glyph. */
+  --bullet-optical-offset: 0.2em;
   --collapse-arrow-size: 12px;
   --collapse-arrow-font-size: 12px;
   --collapse-arrow-offset: calc((var(--collapse-arrow-size) + 3px) * -1);
