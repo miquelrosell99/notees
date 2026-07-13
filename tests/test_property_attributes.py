@@ -384,3 +384,21 @@ async def test_class_assignment_applies_property_level_default(auth_client: Asyn
 
     content = (await auth_client.get(f"/api/nodes/page/{node_uuid}/content")).json()
     assert content["properties_uuid"][prop_uuid] is True
+
+
+@pytest.mark.asyncio
+async def test_system_task_status_is_required_with_pending_default(auth_client: AsyncClient):
+    """The seeded task-status property carries required + Pending default."""
+    from app.domain.entities.constants import SYSTEM_PROPERTY_UUIDS
+
+    resp = await auth_client.get(
+        f"/api/properties/uuid/{SYSTEM_PROPERTY_UUIDS['task_status']}"
+    )
+    assert resp.status_code == 200, resp.text
+    prop = resp.json()
+    assert prop["required"] is True
+    pending = next(
+        (o for o in prop["options"] if o["name"] == "Pending"), None
+    )
+    assert pending is not None
+    assert prop["default_value"] == pending["selection_line_uuid"]

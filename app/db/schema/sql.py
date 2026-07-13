@@ -1957,4 +1957,54 @@ BEGIN
         ALTER TABLE node_view ALTER COLUMN group_by TYPE JSONB USING to_jsonb(group_by);
     END IF;
 END $$;
+
+-- Migration: system task-status property is required with Pending default.
+-- Also backfills task nodes that have no Status value. Applies to every
+-- workspace (the system property UUID is shared across workspaces).
+DO $$
+BEGIN
+    -- Required at property level; Pending selection line is the base default.
+    UPDATE property p
+    SET required = TRUE,
+        default_selection_id = (
+            SELECT psl.id FROM property_selection_line psl
+            WHERE psl.property_id = p.id AND psl.name = 'Pending'
+            ORDER BY psl.sequence LIMIT 1
+        )
+    WHERE p.uuid = '00000000-0000-0000-0003-000000000001'
+      AND (p.required IS DISTINCT FROM TRUE OR p.default_selection_id IS NULL)
+      AND EXISTS (
+          SELECT 1 FROM property_selection_line psl
+          WHERE psl.property_id = p.id AND psl.name = 'Pending'
+      );
+
+    -- Task nodes with no Status assignment at all: create the node_property row.
+    INSERT INTO node_property (node_id, property_id)
+    SELECT n.id, p.id
+    FROM node n
+    JOIN property p ON p.workspace_id = n.workspace_id
+    WHERE p.uuid = '00000000-0000-0000-0003-000000000001'
+      AND n.is_task = TRUE AND n.active = TRUE AND n.is_deleted = FALSE
+      AND NOT EXISTS (
+          SELECT 1 FROM node_property np
+          WHERE np.node_id = n.id AND np.property_id = p.id
+      );
+
+    -- Every task node without a Status value gets Pending.
+    INSERT INTO property_value_selection (node_property_id, property_id, node_id, selection_line_id)
+    SELECT np.id, p.id, n.id, psl.id
+    FROM node n
+    JOIN property p ON p.workspace_id = n.workspace_id
+    JOIN node_property np ON np.node_id = n.id AND np.property_id = p.id
+    JOIN LATERAL (
+        SELECT id FROM property_selection_line psl
+        WHERE psl.property_id = p.id AND psl.name = 'Pending'
+        ORDER BY psl.sequence LIMIT 1
+    ) psl ON TRUE
+    WHERE p.uuid = '00000000-0000-0000-0003-000000000001'
+      AND n.is_task = TRUE AND n.active = TRUE AND n.is_deleted = FALSE
+      AND NOT EXISTS (
+          SELECT 1 FROM property_value_selection pvs WHERE pvs.node_property_id = np.id
+      );
+END $$;
 """
