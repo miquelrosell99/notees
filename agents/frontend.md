@@ -6,8 +6,8 @@
 
 - **Build tool**: Vite with PWA plugin (`vite-plugin-pwa`). The build outputs to `app/static/dist`.
 - **State**: Zustand for client state (navigation, UI, auth, settings, undo); TanStack Query for server state and caching.
-- **Feature-first frontend**: `frontend/src/features/` owns cohesive domains: `content` (core node/page/block logic), `editor` (Lexical editor, plugins, inline editor), `properties` (property cells/renderers/registry), `views` (graph, timeline, gantt, kanban, table, etc.), `whiteboard`, `tasks`, `queries`, `auth`, `workspace`, `shares`, `journals`, `layout`, `sidebar`, and `collab`. Cross-feature imports go through feature barrels.
-- **Editor**: Lexical with 28+ custom plugins for block editing, slash commands, drag-and-drop, tables, code blocks, etc. Editor code lives in `frontend/src/features/editor/`.
+- **Feature-first frontend**: `frontend/src/features/` owns cohesive domains: `content` (core node/page/block logic), `editor` (custom inline editor, plugins, content-save), `properties` (property cells/renderers/registry), `views` (graph, timeline, gantt, kanban, table, etc.), `whiteboard`, `tasks`, `queries`, `auth`, `workspace`, `shares`, `journals`, `layout`, `sidebar`, and `collab`. Cross-feature imports go through feature barrels.
+- **Editor**: Custom contentEditable inline editor (`CustomInlineEditor`) mounted per active block, with plugins for triggers, node links, copy/paste, and a floating toolbar. Static blocks render via `InlineContentStatic`. Editor code lives in `frontend/src/features/editor/`; composable primitives are documented in `building-blocks.md`.
 - **Routing**: Client-side routing within the SPA via a custom router (`src/hooks/useRouter.hook.ts`). FastAPI serves `index.html` for all non-API routes (`spa_fallback`).
 - **Path aliases**: `@/components`, `@/hooks`, `@/stores`, `@/api`, `@/editor`, `@/runtime`, `@/types`, `@/features`.
 - **Optimistic UI**: Mutations update TanStack Query cache immediately and roll back on failure.
@@ -74,7 +74,7 @@ blurBlock: (blockId) => set((state) => {
 - `InlineTriggers.tsx` — the trigger popup **and** every follow-on picker (`datePickerOpen`, `dateRangePickerOpen`, `urlModalOpen`, `propertyPickerOpen`, `commentPromptOpen`) via one combined `anyPickerOpen` effect. The pickers are mutually exclusive, so a single boolean `popupOpen` is correct and there is no keepalive gap during the trigger→picker handoff.
 - `CustomInlineEditor.tsx` — the pill "Edit link" `LinkEditModal` (keyed by `editingLinkId`).
 
-**Not affected (no fix needed):** `FloatingToolbar` (calls `preventDefault()` on mousedown and only does synchronous `toggleMark` mutations — never blurs the editor) and `InlineNodeLinks` (synchronous click/keydown handlers, no portaled picker). The legacy Lexical editor under `features/editor/editor/` is no longer mounted as the block editor, so it is out of scope for this invariant.
+**Not affected (no fix needed):** `FloatingToolbar` (calls `preventDefault()` on mousedown and only does synchronous `toggleMark` mutations — never blurs the editor) and `InlineNodeLinks` (synchronous click/keydown handlers, no portaled picker).
 
 **Symptom of a missing keepalive:** a popup opened from the editor closes normally on selection but the editor content does not change and no error is thrown. If you see "popup closes, nothing inserted, no error," check whether the popup holds `popupOpen`.
 
@@ -140,7 +140,7 @@ The component's existing parent-hover rule (e.g., `.my-container:hover .my-actio
 
 ### Aesthetic Recipe
 
-The full design language is documented in `docs/design-language.md`. The summary below is the single source of truth for implementation decisions.
+The full design language is documented in `design-language.md`. The summary below is the single source of truth for implementation decisions.
 
 Notees is a calm, writing-first knowledge workspace. Its visual identity is defined by a deliberate recipe:
 
