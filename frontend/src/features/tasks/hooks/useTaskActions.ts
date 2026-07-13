@@ -133,17 +133,24 @@ export function useTaskActions(node: Node) {
   }, [node.uuid, setProperty, removeClass]);
 
   const cycleTaskStatus = useCallback(() => {
-    if (!isTask) {
+    // Read live runtime state at call time. The render-time `isTask`/`taskStatus`
+    // memos above only recompute when the `node` prop changes, and BlockRow does
+    // not subscribe to runtime updates — deciding on them would keep a mounted
+    // editor stuck re-running openTask() on every Ctrl+Enter press.
+    const runtime = getOperationRuntime();
+    const gn = node.uuid ? getNode(runtime, node.uuid) : undefined;
+    const status = gn?.taskStatus ?? null;
+    if (status == null) {
       openTask();
       return;
     }
-    const closed = taskStatus != null && TASK_CLOSED_STATUSES.has(taskStatus);
+    const closed = TASK_CLOSED_STATUSES.has(status);
     if (closed) {
       clearTask();
     } else {
       applyTaskStatus('Done');
     }
-  }, [isTask, taskStatus, openTask, clearTask, applyTaskStatus]);
+  }, [node.uuid, openTask, clearTask, applyTaskStatus]);
 
   // Public alias: both entry points share the same three-state toggle.
   const toggleTask = cycleTaskStatus;
