@@ -173,7 +173,7 @@ class ClassPropertyResponse(BaseModel):
     sequence: int = 0
     default_value: Any | None = None
     hidden: bool = False
-    required: bool = False  # Whether this property is required for nodes of this class
+    required: bool | None = None  # tri-state: None = inherit from property
 
 
 class ClassExtendsResponse(BaseModel):
