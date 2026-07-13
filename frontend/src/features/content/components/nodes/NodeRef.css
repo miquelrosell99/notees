@@ -18,10 +18,31 @@
   color: inherit;
   text-align: left;
   position: relative;
-  /* Expand the minimum hit area to 44×44 px without disrupting inline flow. */
+  /* Reserve a 44px minimum width so short pills stay tappable in inline flow.
+     The 44px minimum *height* must not be reserved in layout: inside flex rows
+     (table cells, metadata rows) it would stretch the whole row. An invisible
+     overlay below keeps the hit area ≥ 44×44 without affecting layout. */
   min-width: var(--button-min-height);
-  min-height: var(--button-min-height);
   vertical-align: middle;
+}
+
+/* Invisible minimum hit-area overlay — same pattern as .btn--icon-only::after
+   and .selection-button__option::after. */
+.node-pill::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: max(100%, var(--button-min-height));
+  height: max(100%, var(--button-min-height));
+  pointer-events: auto;
+}
+
+/* Keep the pill's remove button clickable above the hit-area overlay. */
+.node-pill .pill__right-button {
+  position: relative;
+  z-index: var(--z-1);
 }
 
 .node-pill:focus-visible {
