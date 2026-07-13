@@ -177,84 +177,48 @@ const matches = nodes.filter(n => evaluateQueryAST(queryAST, n, ctx));
 
 ---
 
-## Block Editor (Lexical)
+## Block Editor (Custom Inline Editor)
 
-There are **two editor architectures** in the codebase. The new per-block editor is active; the old monolithic editor is deprecated but retained for rollback safety.
-
-### New Architecture: Per-Block Editor (Active)
-
-Each block gets its own minimal `LexicalComposer` instance. React owns the block tree (hierarchy, depth, drag-and-drop, selection); Lexical owns only inline text inside a single block.
+The block editor uses a **custom contentEditable inline editor** — no external editor framework. React owns the block tree (hierarchy, depth, drag-and-drop, selection); the inline editor owns only the text inside a single block, and is mounted **only for the block currently being edited** — all other blocks render a cheap static DOM view. This is the main lever for keeping heap pressure low on large pages.
 
 **Component Hierarchy:**
 ```
-NodeCollectionView / NodeView
+NodeCollection / NodeView
   └── BlockList (React: flatten tree, keyboard routing, container hooks)
-        └── BlockRow (React: bullet, inline editor, after-content, context menu)
-              ├── BlockUI (React: bullet, collapse arrow, icon)
-              ├── InlineEditor (LexicalComposer: ParagraphNode + TextNode + InlineLinkNode + MathNode)
-              │     ├── CustomCaretPlugin
-              │     ├── InlineEditorKeysPlugin
-              │     ├── InlineCopyPastePlugin
-              │     ├── FloatingToolbarPlugin
-              │     ├── NodeLinkPlugin
-              │     ├── TriggerPlugin
-              │     └── HistoryPlugin
+        └── BlockRow (React: chrome + content primitive + after-content)
+              ├── BlockUI (React: bullet, collapse arrow, icon, presence)
+              ├── InlineContentStatic  → static DOM view (block not active)
+              │   or CustomInlineEditor → contentEditable (active block only)
+              │     ├── InlineTriggers (trigger chars: + @ # /)
+              │     ├── InlineNodeLinks (pill click/selection)
+              │     ├── InlineCopyPaste
+              │     └── FloatingToolbar
               └── BlockAfterContent (React: property previews, class pills)
 ```
 
-**Key New Files:**
+**Key Files:**
 
 | File | Purpose |
 |------|---------|
-| `frontend/src/components/blocks/BlockList.tsx` | Static list container. Flattens tree, wires drag/selection/touch-indent hooks, handles keyboard routing (Enter/Backspace/Delete/Tab/Arrows). |
-| `frontend/src/components/blocks/BlockRow.tsx` | Single block row. Composes `BlockUI` + `InlineEditor` + `BlockAfterContent` + `NodeContextMenu`. |
-| `frontend/src/components/blocks/BlockUI.tsx` | Non-editable chrome: bullet, icon, collapse arrow. |
-| `frontend/src/editor/InlineEditor.tsx` | Minimal Lexical instance per block. Exposes imperative `focus`/`blur`/`getCursorPosition`/`getCursorOffset`. |
-| `frontend/src/stores/editorFocusStore.ts` | Zustand store for active block tracking and cross-block keyboard navigation. |
-| `frontend/src/hooks/useBlockDragDrop.ts` | DOM-based drag-and-drop on `.node-block[data-block-id]` selectors (replaces `DragDropPlugin`). |
-| `frontend/src/hooks/useBlockSelection.ts` | Mouse drag-to-select + shift+arrow keyboard selection (replaces `BlockDragSelectionPlugin` + `KeyboardSelectionPlugin`). |
-| `frontend/src/hooks/useTouchIndent.ts` | Horizontal swipe on bullet for indent/outdent (replaces `TouchIndentPlugin`). |
-| `frontend/src/editor/plugins/InlineEditorKeysPlugin.tsx` | Per-block Enter/Backspace/Delete/Tab handlers. |
-| `frontend/src/editor/plugins/InlineCopyPastePlugin.tsx` | Per-block copy (`[[uuid]]`) and paste (link pills, internal block paste). |
+| `frontend/src/features/content/components/blocks/BlockList.tsx` | Static list container. Flattens tree, wires drag/selection/touch-indent hooks, handles keyboard routing (Enter/Backspace/Delete/Tab/Arrows). |
+| `frontend/src/features/content/components/blocks/BlockRow.tsx` | Single block row. Composes `BlockUI` + content primitive + `BlockAfterContent` + `NodeContextMenu`. Mounts `CustomInlineEditor` only while `shouldMountEditor` is true. |
+| `frontend/src/features/content/components/blocks/BlockUI.tsx` | Non-editable chrome: bullet, icon, collapse arrow. |
+| `frontend/src/features/editor/custom/components/CustomInlineEditor.tsx` | The inline editor. ContentAST is the source of truth; renders via `InlineContentRenderer`. Exposes an imperative handle (`focus`/`blur`/`getCursorPosition`/`getCursorOffset`). |
+| `frontend/src/features/editor/editor/InlineContentStatic.tsx` | Read-only rendering of a block's content AST as plain React DOM; click enters edit mode via the focus store. |
+| `frontend/src/stores/editorFocusStore.ts` | Zustand store for active-block tracking, pending focus, and the `popupOpen` keepalive (see `frontend.md#custom-inline-editor--popup-keepalive-invariant`). |
+| `frontend/src/features/content/hooks/useBlockDragDrop.ts` | DOM-based drag-and-drop on `.node-block[data-block-id]` selectors. |
+| `frontend/src/features/content/hooks/useBlockSelection.ts` | Mouse drag-to-select + shift+arrow keyboard selection, directly on the DOM. |
+| `frontend/src/features/content/hooks/useTouchIndent.ts` | Horizontal swipe on bullet for indent/outdent. |
 
 **Mutation Flow:**
 ```
-User types in InlineEditor
-  → OnChangePlugin → extractInlineContent() → ContentAST
-  → handleContentChange callback
-  → runtime.applyIntent({ type: 'update_content', blockId, contentAST })
-  → onContentChangeCallback → parent component
-  → API PATCH /api/nodes/{id} with JSON AST
+User types in CustomInlineEditor
+  → internal InlineEditorState (ContentAST) → serializeContentAST()
+  → onContentChange(blockId, content) → useContentSave (debounced)
+  → undoEngine.applyIntent({ type: 'update_content', blockId, contentAST })
+  → OperationRuntime projection updates immediately
+  → SyncManager persists via API (PATCH /api/nodes/{id} with JSON AST)
 ```
-
-**Known Deferred Items:**
-- **Cross-block undo/redo**: Each `InlineEditor` has an isolated `HistoryPlugin`. Unified undo across merge/split/create is not yet implemented.
-
-### Old Architecture: Monolithic Editor (Deprecated)
-
-A single `LexicalComposer` instance spanned the entire page. The block hierarchy was projected into Lexical as custom `BlockNode` elements via `BlockPlugin.syncProjection`.
-
-**Legacy Files (unused, retained for rollback):**
-- `frontend/src/editor/BlockEditor.tsx`
-- `frontend/src/editor/plugins/BlockPlugin.tsx`
-- `frontend/src/editor/plugins/BlurOnClickOutsidePlugin.tsx`
-- `frontend/src/editor/plugins/VirtualizationPlugin.tsx`
-- `frontend/src/editor/plugins/useBlockPluginCommands.ts`
-- `frontend/src/editor/plugins/EmptyClickPlugin.tsx`
-- `frontend/src/editor/plugins/DragDropPlugin.tsx`
-- `frontend/src/editor/plugins/BlockDragSelectionPlugin.tsx`
-- `frontend/src/editor/plugins/KeyboardSelectionPlugin.tsx`
-- `frontend/src/editor/plugins/TouchIndentPlugin.tsx`
-
-**Custom Nodes (still shared with new editor):**
-
-| Node | Extends | Purpose |
-|------|---------|---------|
-| `BlockNode` | `ElementNode` | Fundamental block unit. Stores `blockId`, `depth`, `collapsed`, `nodeType`, `hasChildren`, `icon`, `color`, `classIds`. DOM is a flex wrapper with bullet, content slot, and portal targets. |
-| `InlineLinkNode` | `DecoratorNode` | Atomic inline pill referencing a node, class, URL, or embed. Renders via React portal. |
-| `BlockHeadingNode` | `BlockNode` | Header variant (`<h1>`/`<h2>`/`<h3>`). |
-| `BlockCodeNode` | `BlockNode` | Code block (`<pre><code>`) with optional `language`. |
-| `BlockTableCellNode` | `BlockNode` | Table cell with mini-editor inside. |
 
 **Content AST Format:**
 
@@ -262,6 +226,8 @@ Block content is stored as JSON AST in `node.name`. The canonical builder/string
 - `frontend/src/lib/astBuilder.ts` — `parseAST(input, mode)` with modes: `JSON`, `PLAIN`, `MARKDOWN`
 - `frontend/src/lib/stringifyAST.ts` — Stringifier with modes: `NODE_MARKDOWN`, `PLAIN_MARKDOWN`, `TEXT_ONLY`
 - `app/domain/stringify_ast.py` — Backend mirror
+
+**Embedding block content outside the outliner** (table cells, cards, property values): use the content primitives directly — never nest a view mode. See `building-blocks.md`.
 
 ---
 

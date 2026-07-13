@@ -75,3 +75,43 @@ npm run test:coverage
 ```
 
 Tests use Vitest with `jsdom`, `@testing-library/react`, and `@testing-library/jest-dom`. Test files exist in `frontend/src/tests/`.
+
+## E2E tests (Playwright)
+
+E2E specs live in `frontend/e2e/` with config at `frontend/playwright.config.ts` (`testDir: ./e2e`, `baseURL: http://localhost:5173`, single `chromium` project). Run them inside the frontend container:
+
+```bash
+# Browsers are NOT preinstalled in the dev image — install once (downloads to
+# ~/.cache/ms-playwright, i.e. outside the repo; confirm with the user first):
+docker compose -f compose.dev.yaml exec -T frontend npx playwright install chromium
+
+# Run the suite (or a single spec)
+docker compose -f compose.dev.yaml exec -T frontend npx playwright test
+docker compose -f compose.dev.yaml exec -T frontend npx playwright test e2e/smoke.spec.ts
+```
+
+Auth for specs: the access token is an **HTTPOnly cookie** set by the backend (only the user profile is in `localStorage.user`). The browser talks to the API through the Vite proxy, so authenticate via `context.request` against the page origin so the cookie lands on `localhost:5173`:
+
+```ts
+await context.request.post('http://localhost:5173/api/auth/login', {
+  data: { email, password, remember_me: true },
+});
+// cookie is now set for localhost:5173; mirror the profile so the SPA treats us as logged in:
+await page.addInitScript((u) => localStorage.setItem('user', JSON.stringify(u)), user);
+```
+
+Caveat: a running dev DB usually already has an admin account whose password you don't know — don't wipe it. Prefer onboarding on a fresh/isolated DB (`POST /api/auth/register` when `GET /api/auth/status` reports `has_users === false`) or a freshly registered test user if registration is enabled.
+
+## UI measurement harness (Chromium + Playwright)
+
+For pixel-level visual bugs (alignment, spacing, optical offsets), don't guess from CSS — measure the real rendering:
+
+1. **Harness page**: create a temporary `frontend/<bug>.html` (Vite serves any `.html` in the frontend root) plus an entry `frontend/src/<bug>.tsx` that imports the global CSS (`./variables.css`, `./styles/data-colors.css`, `./index.css`), the relevant component CSS, and renders the **real components** (e.g. `<Bullet>`) in the real DOM structure with several candidate fix variants side by side. No auth needed.
+2. **Measure + screenshot script**: a Node script driving Playwright — `page.evaluate` with `getBoundingClientRect()` for element geometry and canvas `ctx.measureText()` (`fontBoundingBoxAscent/Descent`, `actualBoundingBoxAscent/Descent`) for text ink metrics, plus `page.screenshot({ deviceScaleFactor: 3, fullPage: true })` for visual confirmation.
+3. **Run it on the host, not in the container**: the frontend dev image is Alpine/musl, so the bundled Chromium can't launch there (missing glibc libs). The host already has the browsers in `~/.cache/ms-playwright`; run with the repo-local Playwright package:
+
+```bash
+cd frontend && node scripts/<bug>-shot.mjs   # against http://localhost:5173/<bug>.html
+```
+
+4. **Clean up**: delete the harness HTML/TSX and the shot script once the fix is verified (or keep the script under `frontend/scripts/` only if it is reusable).
