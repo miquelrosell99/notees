@@ -1,9 +1,10 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import type { Node } from '@/types';
-import { NodeNameContent } from '@/features/content/components/blocks/NodeNameContent';
-import { NodeCollection } from '@/features/content/components/nodes/NodeCollection';
-import { useNodeNavigation } from '@/features/content';
-import { useContentSave } from '@/features/editor';
+import { CustomInlineEditor, InlineContentStatic, flushAllContentSaves, useContentSave } from '@/features/editor';
+import type { InlineEditorHandle } from '@/features/editor';
+import { useEditorFocusStore } from '@/stores/editorFocusStore';
+import { useNavigationStore } from '@/stores';
+import { parseAST, parseLinkId } from '@/lib/astBuilder';
 import { getRuntimeDisplayName } from '@/features/content/hooks/runtimeContentOverlay';
 
 interface NodeCellEditableProps {
@@ -11,74 +12,100 @@ interface NodeCellEditableProps {
 }
 
 /**
- * A node name cell that switches to an inline NodeCollection/BlockEditor on click.
- * Uses the same pattern as TextPropertyBlock for text properties.
- * Click outside or press Escape to close.
+ * A table name cell that shows the block's own inline content and switches to
+ * the bare inline editor on click.
+ *
+ * Uses the same content primitives as BlockRow (InlineContentStatic +
+ * CustomInlineEditor) directly — no bullet, no child blocks, no nested view
+ * mode. Focus is driven by editorFocusStore, so portaled editor popups
+ * (trigger pickers, link edit modal) keep the editor mounted through the
+ * popupOpen keepalive invariant.
  */
 export function NodeCellEditable({ node }: NodeCellEditableProps) {
-  const [editing, setEditing] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const { handleContentChange, flushAll } = useContentSave();
-  const { handleNodeClick } = useNodeNavigation();
-  const flushRef = useRef(flushAll);
-  flushRef.current = flushAll;
+  const editorRef = useRef<InlineEditorHandle>(null);
+  // Cursor offset captured from the static DOM click, passed to the editor on
+  // the render that mounts it (same pattern as BlockRow).
+  const pendingCursorOffsetRef = useRef<number | undefined>(undefined);
+  const { handleContentChange } = useContentSave();
 
-  const closeEditing = useCallback(() => {
-    flushRef.current();
-    setEditing(false);
+  const isActive = useEditorFocusStore((s) => s.activeBlockId === node.uuid);
+  const isPendingFocus = useEditorFocusStore((s) => s.pendingFocusBlockId === node.uuid);
+  const shouldMountEditor = isActive || isPendingFocus;
+
+  // Live content from the runtime overlay, so the cell reflects the latest
+  // edits right after blur instead of waiting for the server round-trip.
+  const displayName = getRuntimeDisplayName(node);
+  const contentAST = useMemo(() => parseAST(displayName), [displayName]);
+
+  // Focus the editor on the render that mounts it.
+  useLayoutEffect(() => {
+    if (isPendingFocus && editorRef.current) {
+      editorRef.current.focus();
+      useEditorFocusStore.getState().setPendingFocus(null);
+    }
+  }, [isPendingFocus]);
+
+  // Drop the captured click offset when the editor unmounts so a later
+  // keyboard-driven focus doesn't reuse a stale position.
+  useEffect(() => {
+    if (!shouldMountEditor) return;
+    return () => {
+      pendingCursorOffsetRef.current = undefined;
+    };
+  }, [shouldMountEditor]);
+
+  const handleFocusStatic = useCallback(
+    (cursorOffset?: number) => {
+      pendingCursorOffsetRef.current = cursorOffset;
+      useEditorFocusStore.getState().focusBlock(node.uuid);
+      useEditorFocusStore.getState().setPendingFocus(node.uuid);
+    },
+    [node.uuid],
+  );
+
+  // Flush pending debounced saves before unmounting so the static view never
+  // shows stale content after blur.
+  const handleEditorBlur = useCallback(() => {
+    flushAllContentSaves();
   }, []);
 
-  // Click-outside → close editor
-  useEffect(() => {
-    if (!editing) return;
-    const handleMouseDown = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as HTMLElement)) {
-        closeEditing();
-      }
-    };
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        closeEditing();
-      }
-    };
-    document.addEventListener('mousedown', handleMouseDown);
-    document.addEventListener('keydown', handleKeyDown);
-    return () => {
-      document.removeEventListener('mousedown', handleMouseDown);
-      document.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [editing, closeEditing]);
+  // Enter/Escape commit and close — a cell has no sibling or child blocks.
+  const handleCommitClose = useCallback(() => {
+    editorRef.current?.blur();
+  }, []);
 
-  if (editing) {
-    return (
-      <div ref={containerRef} className="table-node-cell__editor" onClickCapture={(e) => e.stopPropagation()}>
-        <NodeCollection
-          nodes={[node]}
-          viewMode="document"
-          availableViewModes={['document']}
-          editable={true}
-          onNodeClick={handleNodeClick}
-          onContentChange={handleContentChange}
-          pageId={node.uuid}
-          nodeUuid={node.uuid}
-          hideToolbar={true}
-          hideProperties={true}
-          maxDepth={0}
-        />
-      </div>
-    );
-  }
+  const handlePillClick = useCallback((linkId: string) => {
+    const { nodeUuid } = parseLinkId(linkId);
+    if (nodeUuid) {
+      useNavigationStore.getState().openNode(nodeUuid);
+    }
+  }, []);
 
   return (
-    <button
-      type="button"
-      className="table-node-cell__name"
-      onClick={(e) => {
-        e.stopPropagation();
-        setEditing(true);
-      }}
-    >
-      <NodeNameContent name={getRuntimeDisplayName(node)} />
-    </button>
+    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- Wrapper solely prevents row selection when interacting with the cell editor; no semantic action.
+    <div className="table-node-cell__name" onClick={(e) => e.stopPropagation()}>
+      {shouldMountEditor ? (
+        <CustomInlineEditor
+          ref={editorRef}
+          blockId={node.uuid}
+          blockUuid={node.uuid}
+          initialContentAST={contentAST}
+          initialCursorOffset={pendingCursorOffsetRef.current}
+          isPage={node.is_page}
+          onContentChange={handleContentChange}
+          onPillClick={handlePillClick}
+          onEnter={handleCommitClose}
+          onEscape={handleCommitClose}
+          onBlur={handleEditorBlur}
+        />
+      ) : (
+        <InlineContentStatic
+          name={displayName}
+          blockId={node.uuid}
+          onFocus={handleFocusStatic}
+          isPage={node.is_page}
+        />
+      )}
+    </div>
   );
 }
