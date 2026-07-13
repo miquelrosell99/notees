@@ -5,7 +5,7 @@ import { useIsMobile } from '@/hooks';
 import { useNodeByUuid } from '@/features/content';
 import { nodeNameToText } from '@/features/queries';
 import { useListDragSort } from '@/hooks/useListDragSort';
-import { useFavorites, useRemoveFavoriteMutation, useReorderFavoritesMutation, removeFavorite, useNodeDisplay, NodeInline, NodeBreadcrumbs } from '@/features/content';
+import { useFavorites, useAddFavoriteMutation, useRemoveFavoriteMutation, useReorderFavoritesMutation, removeFavorite, useNodeDisplay, NodeInline, NodeBreadcrumbs } from '@/features/content';
 import { isApiError } from '@/api/client';
 import { Button } from '@/components/ui/Button';
 import {
@@ -177,6 +177,10 @@ export function SidebarFavorites({ onContextMenu, onItemClick }: SidebarFavorite
     }))
   );
   const isMobile = useIsMobile();
+  const { data: currentNode } = useNodeByUuid(
+    mainViewType === 'node' ? currentNodeUuid : null,
+    { meta: { skipGlobalError: true } }
+  );
 
   const closeMobileDrawer = useCallback(() => {
     if (isMobile && !isSidebarCollapsed) toggleSidebar();
@@ -189,7 +193,21 @@ export function SidebarFavorites({ onContextMenu, onItemClick }: SidebarFavorite
   }, [openNode, closeMobileDrawer, onItemClick]);
 
   const removeFavoriteMutation = useRemoveFavoriteMutation();
+  const addFavoriteMutation = useAddFavoriteMutation();
   const reorderFavoritesMutation = useReorderFavoritesMutation();
+
+  const currentPageIsFavoritable = mainViewType === 'node' && currentNode?.is_page === true;
+  const currentPageIsFavorited = currentPageIsFavoritable && currentNodeUuid !== null
+    && favorites.includes(currentNodeUuid);
+
+  const handleToggleFavoriteCurrent = useCallback(() => {
+    if (!currentPageIsFavoritable || !currentNodeUuid) return;
+    if (currentPageIsFavorited) {
+      removeFavoriteMutation.mutate(currentNodeUuid);
+    } else {
+      addFavoriteMutation.mutate(currentNodeUuid);
+    }
+  }, [currentPageIsFavoritable, currentPageIsFavorited, currentNodeUuid, addFavoriteMutation, removeFavoriteMutation]);
 
   const handleRemove = useCallback((nodeUuid: string) => {
     removeFavoriteMutation.mutate(nodeUuid);
@@ -211,14 +229,27 @@ export function SidebarFavorites({ onContextMenu, onItemClick }: SidebarFavorite
 
   return (
     <div className="sidebar-section">
-      <button
-        className="sidebar-section-header"
-        onClick={() => setExpanded(!expanded)}
-      >
-        {expanded ? <ChevronDownIcon size="xs" /> : <ChevronRightIcon size="xs" />}
-        <StarIcon size="xs" />
-        <h2 className="sidebar-section-title">Favorites</h2>
-      </button>
+      <div className="sidebar-section-header-row">
+        <button
+          className="sidebar-section-header"
+          onClick={() => setExpanded(!expanded)}
+        >
+          {expanded ? <ChevronDownIcon size="xs" /> : <ChevronRightIcon size="xs" />}
+          <StarIcon size="xs" />
+          <h2 className="sidebar-section-title">Favorites</h2>
+        </button>
+        {currentPageIsFavoritable && (
+          <Button
+            aria-label={currentPageIsFavorited ? 'Remove current page from favorites' : 'Add current page to favorites'}
+            icon={currentPageIsFavorited ? 'mdi mdi-star' : 'mdi mdi-star-outline'}
+            size="xs"
+            variant="ghost"
+            className="sidebar-section-action"
+            onClick={handleToggleFavoriteCurrent}
+            title={currentPageIsFavorited ? 'Remove current page from favorites' : 'Add current page to favorites'}
+          />
+        )}
+      </div>
       {expanded && (
         <div
           ref={containerRef}
