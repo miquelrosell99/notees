@@ -17,13 +17,21 @@ const mocks = vi.hoisted(() => ({
   node: null as Node | null,
   allProperties: [] as Property[],
   classProperties: [] as unknown[],
+  nodeClassPropertyEdges: vi.fn(),
+  setPropertyMutate: vi.fn(),
+  notifyError: vi.fn(),
 }));
 
 vi.mock('@/features/properties/hooks', () => ({
   useProperties: () => ({ data: mocks.allProperties }),
-  useSetNodeProperty: () => ({ mutate: vi.fn(), isPending: false }),
+  useSetNodeProperty: () => ({ mutate: mocks.setPropertyMutate, isPending: false }),
   useCreateProperty: () => ({ mutate: vi.fn() }),
   useClassProperties: () => ({ data: mocks.classProperties }),
+  useNodeClassPropertyEdges: (classUuids: string[]) => mocks.nodeClassPropertyEdges(classUuids),
+}));
+
+vi.mock('@/stores/notificationStore', () => ({
+  useNotifications: () => ({ error: mocks.notifyError }),
 }));
 
 vi.mock('@/features/content', () => ({
@@ -42,10 +50,24 @@ vi.mock('@/plugins/builtin/flashcards', () => ({
 
 // Value rendering is covered by the renderer registry; keep this test focused
 // on which property rows are listed. `data-readonly` lets attribute tests
-// assert the effective readOnly flag handed to the editor.
+// assert the effective readOnly flag handed to the editor; `data-value`
+// carries the JSON-encoded value so default-resolution tests can assert what
+// would be displayed; the inner button lets error-handling tests fire onChange.
 vi.mock('./PropertyValue', () => ({
-  PropertyValue: ({ readOnly }: { readOnly?: boolean }) =>
-    createElement('div', { 'data-testid': 'property-value', 'data-readonly': String(Boolean(readOnly)) }),
+  PropertyValue: ({ readOnly, value, onChange }: { readOnly?: boolean; value?: unknown; onChange?: (v: unknown) => void }) =>
+    createElement(
+      'div',
+      {
+        'data-testid': 'property-value',
+        'data-readonly': String(Boolean(readOnly)),
+        'data-value': JSON.stringify(value ?? null),
+      },
+      createElement(
+        'button',
+        { 'data-testid': 'property-value-change', type: 'button', onClick: () => onChange?.('changed-value') },
+        'change',
+      ),
+    ),
 }));
 
 const TEXT_SET: Property = {
@@ -82,6 +104,12 @@ function wrapper({ children }: { children: ReactNode }) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return createElement(QueryClientProvider, { client }, children);
 }
+
+beforeEach(() => {
+  mocks.nodeClassPropertyEdges = vi.fn(() => mocks.classProperties);
+  mocks.setPropertyMutate.mockReset();
+  mocks.notifyError.mockReset();
+});
 
 describe('PropertiesSection inline with onlyWithValues', () => {
   beforeEach(() => {
@@ -366,5 +394,90 @@ describe('PropertiesSection attribute display', () => {
 
     openRowContextMenu('Required With Default');
     expect(screen.getByText('Empty property')).toBeInTheDocument();
+  });
+});
+
+/**
+ * Class-edge resolution for display: every class of the node is fetched (no
+ * 3-class cap), edges arrive ordered like backend enforcement (direct first,
+ * then inherited — see orderClassPropertyEdges), the first edge per property
+ * supplies the effective attributes, and the effective default comes from the
+ * first edge WITH a non-null default (backend resolve_attributes).
+ */
+describe('PropertiesSection class edge resolution', () => {
+  beforeEach(() => {
+    mocks.allProperties = [];
+    mocks.classProperties = [];
+  });
+
+  it('fetches class properties for every class of the node (no 3-class cap)', () => {
+    mocks.node = {
+      uuid: 'node-1',
+      name: '[]',
+      classes_uuid: ['class-1', 'class-2', 'class-3', 'class-4'],
+      properties_uuid: {},
+    } as unknown as Node;
+
+    render(createElement(PropertiesSection, { nodeUuid: 'node-1', showAddProperty: false }), { wrapper });
+
+    expect(mocks.nodeClassPropertyEdges).toHaveBeenCalledWith(['class-1', 'class-2', 'class-3', 'class-4']);
+  });
+
+  it('first edge in enforcement order wins for effective attributes', () => {
+    const prop = makeProperty({ uuid: 'prop-dup', name: 'Dup Prop', type: 'text' });
+    mocks.allProperties = [prop];
+    // Ordered as the backend would: class-2's edge first.
+    mocks.classProperties = [
+      makeClassProperty({ property_uuid: prop.uuid, class_node_uuid: 'class-2', class_node_name: 'Class 2', readonly: true }),
+      makeClassProperty({ property_uuid: prop.uuid, class_node_uuid: 'class-1', class_node_name: 'Class 1', readonly: null }),
+    ];
+    mocks.node = makeNode({ [prop.uuid]: 'x' });
+
+    render(createElement(PropertiesSection, { nodeUuid: 'node-1', showAddProperty: false }), { wrapper });
+
+    expect(screen.getByTestId('property-value')).toHaveAttribute('data-readonly', 'true');
+  });
+
+  it('resolves the effective default from the first edge WITH a default, not just the nearest edge', () => {
+    // NEW-4: nearest (direct) edge has no default; an ancestor edge does.
+    // Backend resolve_attributes would reset to the ancestor default — the
+    // display must show it too (and "Empty property" stays available for a
+    // required property because a default exists).
+    const prop = makeProperty({ uuid: 'prop-req', name: 'Required Prop', type: 'text', required: true });
+    mocks.allProperties = [prop];
+    mocks.classProperties = [
+      makeClassProperty({ property_uuid: prop.uuid, class_node_uuid: 'class-1', default_value: null }),
+      makeClassProperty({ property_uuid: prop.uuid, class_node_uuid: 'ancestor-1', class_node_name: 'Ancestor', default_value: 'ancestor-default' }),
+    ];
+    mocks.node = makeNode({ [prop.uuid]: '' }); // assigned but emptied
+
+    render(createElement(PropertiesSection, { nodeUuid: 'node-1', showAddProperty: false }), { wrapper });
+
+    expect(screen.getByTestId('property-value')).toHaveAttribute('data-value', '"ancestor-default"');
+    openRowContextMenu('Required Prop');
+    expect(screen.getByText('Empty property')).toBeInTheDocument();
+  });
+
+  it('falls back to the property default for emptied ad-hoc entries', () => {
+    // T9-b: ad-hoc (non-class) entries display the default when emptied,
+    // the same way class-bound entries do.
+    const prop = makeProperty({ uuid: 'prop-adhoc', name: 'Adhoc Prop', type: 'text', default_value: 'fallback' });
+    mocks.allProperties = [prop];
+    mocks.node = makeNode({ [prop.uuid]: '' });
+
+    render(createElement(PropertiesSection, { nodeUuid: 'node-1', showAddProperty: false }), { wrapper });
+
+    expect(screen.getByTestId('property-value')).toHaveAttribute('data-value', '"fallback"');
+  });
+
+  it('shows emptied ad-hoc entries with no default as empty', () => {
+    // Guard for the T9-b fallback: no default anywhere -> still empty.
+    const prop = makeProperty({ uuid: 'prop-adhoc-nodef', name: 'Adhoc No Default', type: 'text' });
+    mocks.allProperties = [prop];
+    mocks.node = makeNode({ [prop.uuid]: '' });
+
+    render(createElement(PropertiesSection, { nodeUuid: 'node-1', showAddProperty: false }), { wrapper });
+
+    expect(screen.getByTestId('property-value')).toHaveAttribute('data-value', 'null');
   });
 });
