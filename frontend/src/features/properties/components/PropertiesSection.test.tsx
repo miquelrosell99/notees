@@ -636,4 +636,42 @@ describe('PropertiesSection add-property flow and error toasts', () => {
       expect.objectContaining({ onError: expect.any(Function) }),
     );
   });
+
+  it('drops pending-add rows when the viewed node changes', () => {
+    // F1: the section is not remounted between nodes, so per-node pending
+    // state must reset on node identity change or a row added on node A
+    // leaks onto node B.
+    const prop = makeProperty({ uuid: 'prop-req-nodef', name: 'Required No Default', type: 'text', required: true });
+    mocks.allProperties = [prop];
+    mocks.popupProperty = prop;
+    mocks.node = makeNode({});
+
+    const { rerender } = render(createElement(PropertiesSection, { nodeUuid: 'node-1' }), { wrapper });
+    fireEvent.click(screen.getByText('pick-property'));
+    expect(screen.getByText('Required No Default')).toBeInTheDocument();
+
+    mocks.node = { ...makeNode({}), uuid: 'node-2' } as unknown as Node;
+    rerender(createElement(PropertiesSection, { nodeUuid: 'node-2' }));
+
+    expect(screen.queryByText('Required No Default')).not.toBeInTheDocument();
+  });
+
+  it('fails cleanly with a coded toast for required + read-only + no default instead of a stuck pending row', () => {
+    // F2: such a pending row could never be filled (read-only editor) or
+    // dismissed (Remove disabled) — fail cleanly like the pre-pending flow.
+    const prop = makeProperty({ uuid: 'prop-stuck', name: 'Stuck Prop', type: 'text', required: true, readonly: true });
+    mocks.allProperties = [prop];
+    mocks.popupProperty = prop;
+    mocks.node = makeNode({});
+
+    render(createElement(PropertiesSection, { nodeUuid: 'node-1' }), { wrapper });
+    fireEvent.click(screen.getByText('pick-property'));
+
+    expect(mocks.setPropertyMutate).not.toHaveBeenCalled();
+    expect(screen.queryByText('Stuck Prop')).not.toBeInTheDocument();
+    expect(mocks.notifyError).toHaveBeenCalledWith(
+      'Failed to save property',
+      expect.stringContaining('read-only'),
+    );
+  });
 });
