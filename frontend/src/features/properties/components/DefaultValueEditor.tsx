@@ -21,19 +21,28 @@ interface DefaultValueEditorProps {
   value: unknown | null;
   onChange: (value: unknown | null) => void;
   className?: string;
+  /**
+   * When set, applied to the underlying control so an external
+   * `<label htmlFor>` can name it; the aria-label fallback is then dropped.
+   */
+  id?: string;
 }
 
 const TEXT_TYPES = ['text', 'url', 'email'];
 const NUMBER_TYPES = ['integer', 'float'];
 
-export function DefaultValueEditor({ property, value, onChange, className }: DefaultValueEditorProps) {
+export function DefaultValueEditor({ property, value, onChange, className, id }: DefaultValueEditorProps) {
+  // An external <label htmlFor={id}> names the control when id is provided;
+  // otherwise the control carries its own aria-label.
+  const a11yName = id ? undefined : 'Default value';
   if (TEXT_TYPES.includes(property.type)) {
     return (
       <TextField
+        id={id}
         className={cn('default-value-editor__input', className)}
         type="text"
         size="sm"
-        aria-label="Default value"
+        aria-label={a11yName}
         value={typeof value === 'string' ? value : ''}
         onChange={(e: ChangeEvent<HTMLInputElement>) =>
           onChange(e.target.value === '' ? null : e.target.value)
@@ -46,11 +55,12 @@ export function DefaultValueEditor({ property, value, onChange, className }: Def
   if (NUMBER_TYPES.includes(property.type)) {
     return (
       <TextField
+        id={id}
         className={cn('default-value-editor__input', className)}
         type="number"
         size="sm"
         step={property.type === 'float' ? 'any' : 1}
-        aria-label="Default value"
+        aria-label={a11yName}
         value={typeof value === 'number' ? String(value) : ''}
         onChange={(e: ChangeEvent<HTMLInputElement>) =>
           onChange(e.target.value === '' ? null : Number(e.target.value))
@@ -63,8 +73,9 @@ export function DefaultValueEditor({ property, value, onChange, className }: Def
   if (property.type === 'boolean') {
     return (
       <select
+        id={id}
         className={cn('default-value-editor__select', className)}
-        aria-label="Default value"
+        aria-label={a11yName}
         value={value === true ? 'true' : value === false ? 'false' : ''}
         onChange={(e) => onChange(e.target.value === '' ? null : e.target.value === 'true')}
       >
@@ -78,8 +89,9 @@ export function DefaultValueEditor({ property, value, onChange, className }: Def
   if (property.type === 'selection') {
     return (
       <select
+        id={id}
         className={cn('default-value-editor__select', className)}
-        aria-label="Default value"
+        aria-label={a11yName}
         value={typeof value === 'string' ? value : ''}
         onChange={(e) => onChange(e.target.value === '' ? null : e.target.value)}
       >
