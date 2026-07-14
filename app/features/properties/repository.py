@@ -590,7 +590,13 @@ class PostgresPropertyRepository(BasePostgresRepository, PropertyRepository):
     async def change_property_type(
         self, property_id: int, new_type: PropertyType, new_is_multi: bool | None = None
     ) -> Property | None:
-        """Change a property's type if no values exist."""
+        """Change a property's type if no values exist.
+
+        Typed default columns are type-specific, so they are all cleared on a
+        type change — a leftover default would be invalid cross-type data.
+        """
+        from app.features.properties.attributes import DEFAULT_COLUMNS
+
         prop = await self.get_by_id(property_id)
         if not prop:
             return None
@@ -608,9 +614,12 @@ class PostgresPropertyRepository(BasePostgresRepository, PropertyRepository):
         if new_type in ALWAYS_SINGLE_TYPES:
             is_multi = False
 
+        clear_defaults_sql = ", ".join(f"{col} = NULL" for col in DEFAULT_COLUMNS)
+
         async with acquire_connection(self._pool) as conn:
             await conn.execute(
-                "UPDATE property SET type = $1, is_multi = $2, write_date = $3, write_uid = $4 WHERE id = $5",
+                f"UPDATE property SET type = $1, is_multi = $2, write_date = $3, write_uid = $4, "
+                f"{clear_defaults_sql} WHERE id = $5",
                 new_type.value,
                 is_multi,
                 now,
