@@ -97,6 +97,38 @@ async def test_attribute_columns_exist(db_pool):
 
 
 @pytest.mark.asyncio
+async def test_default_column_foreign_keys_set_null(db_pool):
+    """Typed default columns reference their targets with ON DELETE SET NULL,
+    so deleting a default target node/line never dangles or cascades."""
+    rows = await db_pool.fetch(
+        """
+        SELECT tc.table_name, kcu.column_name,
+               ccu.table_name AS foreign_table, rc.delete_rule
+        FROM information_schema.table_constraints tc
+        JOIN information_schema.key_column_usage kcu
+          ON tc.constraint_name = kcu.constraint_name
+        JOIN information_schema.constraint_column_usage ccu
+          ON tc.constraint_name = ccu.constraint_name
+        JOIN information_schema.referential_constraints rc
+          ON tc.constraint_name = rc.constraint_name
+        WHERE tc.constraint_type = 'FOREIGN KEY'
+          AND tc.table_name IN ('property', 'class_property')
+          AND kcu.column_name IN ('default_node_id', 'default_selection_id')
+        """
+    )
+    fks = {
+        (r["table_name"], r["column_name"]): (r["foreign_table"], r["delete_rule"])
+        for r in rows
+    }
+    for table in ("property", "class_property"):
+        assert fks[(table, "default_node_id")] == ("node", "SET NULL")
+        assert fks[(table, "default_selection_id")] == (
+            "property_selection_line",
+            "SET NULL",
+        )
+
+
+@pytest.mark.asyncio
 async def test_class_property_required_false_migrated_to_null(db_pool):
     """Pre-existing required=false rows mean 'inherit' (NULL), not 'force off'."""
     # The seed creates class_property rows with required=false; after migration
@@ -1147,3 +1179,34 @@ async def test_list_endpoints_resolve_defaults_in_batch(auth_client: AsyncClient
         if p["property"]["property_uuid"] == sel["property_uuid"]
     )
     assert entry["property"]["default_value"] is None
+
+
+@pytest.mark.asyncio
+async def test_class_property_response_serializes_none_required_as_null(
+    auth_client: AsyncClient,
+):
+    """A class-property edge with required=None (inherit) serializes the key
+    as JSON null, not omitted and not false."""
+    prop_resp = await auth_client.post("/api/properties/", json={
+        "name": "NullReqProp", "type": "boolean", "scope": "global",
+    })
+    assert prop_resp.status_code == 200, prop_resp.text
+    prop_uuid = prop_resp.json()["property_uuid"]
+    class_uuid = (await auth_client.post(
+        "/api/nodes/", json={"name": "NullReq Class", "is_class": True}
+    )).json()["uuid"]
+    add_resp = await auth_client.post(
+        f"/api/properties/classes/{class_uuid}/properties",
+        json={"property_uuid": prop_uuid},
+    )
+    assert add_resp.status_code == 200, add_resp.text
+
+    resp = await auth_client.get(f"/api/properties/classes/{class_uuid}/properties")
+    assert resp.status_code == 200, resp.text
+    cp = next(
+        c for c in resp.json()["class_properties"]
+        if c["property_uuid"] == prop_uuid
+    )
+    for field in ("required", "readonly", "hide_when_empty"):
+        assert field in cp, f"{field} key must be present in the response"
+        assert cp[field] is None, f"{field} must serialize as JSON null (inherit)"
