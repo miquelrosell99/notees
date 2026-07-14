@@ -892,3 +892,41 @@ async def test_list_default_value_rejected_with_400(auth_client: AsyncClient):
     )
     assert r.status_code == 400, r.text
     assert "Multi-value defaults" in r.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_delete_unassigned_required_property_returns_404(
+    auth_client: AsyncClient, db_pool
+):
+    """DELETE on an unassigned required-with-default property must 404 without
+    materializing the default (was: 200 plus a fabricated node_property row)."""
+    prop_resp = await auth_client.post("/api/properties/", json={
+        "name": "UnassignedReq", "type": "selection", "scope": "global",
+        "selection_lines": ["Open", "Shut"],
+    })
+    assert prop_resp.status_code == 200, prop_resp.text
+    prop = prop_resp.json()
+    prop_uuid = prop["property_uuid"]
+    open_uuid = prop["options"][0]["selection_line_uuid"]
+    r = await auth_client.put(
+        f"/api/properties/{prop_uuid}",
+        json={"required": True, "default_value": open_uuid},
+    )
+    assert r.status_code == 200, r.text
+    node_uuid = (await auth_client.post("/api/nodes/", json={"name": "NU"})).json()["uuid"]
+
+    r = await auth_client.delete(f"/api/nodes/{node_uuid}/properties/{prop_uuid}")
+    assert r.status_code == 404, r.text
+
+    count = await db_pool.fetchval(
+        """
+        SELECT count(*)
+        FROM node_property np
+        JOIN node n ON n.id = np.node_id
+        JOIN property p ON p.id = np.property_id
+        WHERE n.uuid = $1 AND p.uuid = $2
+        """,
+        node_uuid,
+        prop_uuid,
+    )
+    assert count == 0, "DELETE on an unassigned property must not create rows"

@@ -381,21 +381,25 @@ class PropertyService:
     ) -> bool:
         """Remove a property assignment from a node (including all values).
 
-        When ``enforce_attributes`` is true, the removal is treated as a
-        clear of the value: an effectively read-only property rejects it,
-        and an effectively required property is reset to its effective
-        default (the assignment is kept) or rejected with
-        ``RequiredPropertyError`` when no effective default exists.
+        When ``enforce_attributes`` is true and the property IS assigned to
+        the node, the removal is treated as a clear of the value: an
+        effectively read-only property rejects it, and an effectively
+        required property is reset to its effective default (the assignment
+        is kept) or rejected with ``RequiredPropertyError`` when no effective
+        default exists. An unassigned property is never materialized: the
+        plain removal runs and reports not-found as before.
         """
         if enforce_attributes:
             prop = await self._get_property_or_raise(property_id)
-            value = await self._enforce_attributes(node_id, property_id, prop, None)
-            if not is_empty_value(value):
-                # Required with a default: keep the assignment, reset the value.
-                await self.set_property_value(
-                    node_id, property_id, value, enforce_attributes=False
-                )
-                return True
+            assignment = await self._property_repo.get_node_property(node_id, property_id)
+            if assignment is not None:
+                value = await self._enforce_attributes(node_id, property_id, prop, None)
+                if not is_empty_value(value):
+                    # Required with a default: keep the assignment, reset the value.
+                    await self.set_property_value(
+                        node_id, property_id, value, enforce_attributes=False
+                    )
+                    return True
         return await self._property_repo.remove_property_from_node(node_id, property_id)
 
     async def get_node_properties(
