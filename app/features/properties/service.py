@@ -172,9 +172,11 @@ class PropertyService:
         """Update a property definition.
 
         Mirrors the router's multi-flag change handling. `default_value` uses
-        the `_UNSET` sentinel: absent = no change, explicit None = clear all
-        typed default columns, otherwise the public value (UUIDs for
-        selection/relation types) is resolved and mapped to its typed column.
+        the `_UNSET` sentinel: absent = no change, explicit None or an empty
+        value ("", []) = clear all typed default columns, otherwise the public
+        value (UUIDs for selection/relation types) is resolved and mapped to
+        its typed column. A non-empty list is rejected (multi-value defaults
+        are not supported).
         """
         from app.features.properties.attributes import default_columns_for_value
 
@@ -206,9 +208,15 @@ class PropertyService:
         clear_defaults = False
         default_columns: dict[str, Any] | None = None
         if default_value is not _UNSET:
-            if default_value is None:
+            if is_empty_value(default_value):
+                # Explicit null and empty values ("", []) clear all typed defaults.
                 clear_defaults = True
             else:
+                if isinstance(default_value, list):
+                    raise ValueError(
+                        "Multi-value defaults are not supported; "
+                        "provide a single default value"
+                    )
                 if prop is None:
                     prop = await self._property_repo.get_by_id(property_id)
                     if not prop:
@@ -989,7 +997,8 @@ class PropertyService:
 
         Returns the (class_property, property) pair. Public default values
         (UUIDs for selection/relation types) are resolved to internal ids
-        before hitting the repository.
+        before hitting the repository. A non-empty list default is rejected
+        (multi-value defaults are not supported).
 
         Raises:
             PropertyNotFoundError: If the property does not exist.
@@ -997,6 +1006,12 @@ class PropertyService:
         prop = await self._property_repo.get_by_id(property_id)
         if not prop:
             raise PropertyNotFoundError(f"Property {property_id} not found")
+
+        if isinstance(default_value, list) and default_value:
+            raise ValueError(
+                "Multi-value defaults are not supported; "
+                "provide a single default value"
+            )
 
         resolved_default = default_value
         if default_value is not None:
@@ -1059,18 +1074,26 @@ class PropertyService:
         `updates` holds verbatim column values for the tri-state flags
         (including None = "inherit from property"); callers build it from the
         request's explicitly provided fields. `default_value` uses the
-        `_UNSET` sentinel: absent = no change, explicit None = clear all
-        typed default columns, otherwise the public value (UUIDs for
-        selection/relation types) is resolved and mapped to its typed column.
+        `_UNSET` sentinel: absent = no change, explicit None or an empty
+        value ("", []) = clear all typed default columns, otherwise the public
+        value (UUIDs for selection/relation types) is resolved and mapped to
+        its typed column. A non-empty list is rejected (multi-value defaults
+        are not supported).
         """
         from app.features.properties.attributes import default_columns_for_value
 
         clear_defaults = False
         default_columns: dict[str, Any] | None = None
         if default_value is not _UNSET:
-            if default_value is None:
+            if is_empty_value(default_value):
+                # Explicit null and empty values ("", []) clear all typed defaults.
                 clear_defaults = True
             else:
+                if isinstance(default_value, list):
+                    raise ValueError(
+                        "Multi-value defaults are not supported; "
+                        "provide a single default value"
+                    )
                 prop = await self._property_repo.get_by_id(property_id)
                 if not prop:
                     return None
