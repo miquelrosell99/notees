@@ -645,8 +645,11 @@ async def batch_set_property_values(
 ):
     """Set property values for many (node, property, value) tuples in one request.
 
-    Each item is processed independently — a failure on one does not prevent
-    others from being set.  Returns per-item results.
+    Attribute violations (read-only writes, required clears without an
+    effective default) are enforced up front for all items and abort the
+    whole batch with a 400 — no values are written.  Other per-item failures
+    (e.g. a value invalid for its property type) are reported per item
+    without affecting the rest.  Returns per-item results.
     """
     # Resolve node UUIDs.
     item_node_uuids = [item.node_uuid for item in request.items]
