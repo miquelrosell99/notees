@@ -38,9 +38,10 @@ async def _default_value_response(
     ``default_text`` and round-trip verbatim (see
     ``attributes._TYPE_DEFAULT_COLUMN``).
     """
+    from app.domain.entities import PropertyType
     from app.features.properties.attributes import default_value_from_columns
 
-    value = default_value_from_columns(obj)
+    value = default_value_from_columns(obj, PropertyType(prop_type))
     if value is None:
         return None
     if prop_type == "selection":

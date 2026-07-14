@@ -325,9 +325,9 @@ class ClassManagementService:
                 continue
 
             try:
-                default = default_value_from_columns(cp)
+                default = default_value_from_columns(cp, prop.type)
                 if default is None:
-                    default = default_value_from_columns(prop)
+                    default = default_value_from_columns(prop, prop.type)
                 if default is None:
                     continue
 

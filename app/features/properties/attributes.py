@@ -58,13 +58,18 @@ def is_empty_value(value: Any) -> bool:
     return value is None or value == "" or value == []
 
 
-def default_value_from_columns(obj: Any) -> Any | None:
-    """First non-None typed default column (False/0 are valid defaults)."""
-    for col in DEFAULT_COLUMNS:
-        val = getattr(obj, col, None)
-        if val is not None:
-            return val
-    return None
+def default_value_from_columns(obj: Any, prop_type: PropertyType) -> Any | None:
+    """Typed default column for the given property type (False/0 are valid defaults).
+
+    Only the column mapped for the type is read: values in other typed
+    columns are cross-type leftovers and must not resolve as defaults. Types
+    without a mapped column (DATE_RANGE) have no default column support and
+    always return None.
+    """
+    column = _TYPE_DEFAULT_COLUMN.get(prop_type)
+    if column is None:
+        return None
+    return getattr(obj, column, None)
 
 
 def default_columns_for_value(prop_type: PropertyType, value: Any) -> dict[str, Any]:
@@ -93,11 +98,11 @@ def resolve_attributes(prop: Property, edges: list[ClassProperty]) -> EffectiveA
     """
     default: Any | None = None
     for edge in edges:
-        default = default_value_from_columns(edge)
+        default = default_value_from_columns(edge, prop.type)
         if default is not None:
             break
     if default is None:
-        default = default_value_from_columns(prop)
+        default = default_value_from_columns(prop, prop.type)
     return EffectiveAttributes(
         required=_resolve_flag(prop.required, edges, "required"),
         readonly=_resolve_flag(prop.readonly, edges, "readonly"),
