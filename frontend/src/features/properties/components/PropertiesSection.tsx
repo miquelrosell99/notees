@@ -7,7 +7,7 @@
  * Text properties are now stored as node references (blocks) and displayed
  * using the TextPropertyBlock component.
  */
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { useProperties, useSetNodeProperty, useCreateProperty, useNodeClassPropertyEdges } from '../hooks';
 import { useNode, useCreateNode, usePageClass, useSystemClasses } from '@/features/content';
 import { FlashcardEditor } from '@/plugins/builtin/flashcards';
@@ -93,6 +93,13 @@ export function PropertiesSection({
   // as empty editable rows instead, so the user's first real value is the
   // initial write. Cleared per id once a value is written or the row removed.
   const [pendingAddIds, setPendingAddIds] = useState<string[]>([]);
+
+  // Pending-add rows are per-node local state: the section is not remounted
+  // when the viewed node changes, so reset them on node identity change or a
+  // row added on one node would leak onto the next.
+  useEffect(() => {
+    setPendingAddIds([]);
+  }, [nodeUuid]);
 
   const { data: node, isLoading: nodeLoading } = useNode(nodeUuid, { include_properties: true });
   const { data: allProperties } = useProperties();
@@ -286,6 +293,13 @@ export function PropertiesSection({
     // its base attributes — class-bound properties are already listed and
     // excluded from the popup.)
     if (property.required && property.default_value == null) {
+      if (property.readonly) {
+        // Required + read-only + no default: a pending row could never be
+        // filled (read-only editor) or dismissed (Remove disabled) — fail
+        // cleanly with the same message backend enforcement would return.
+        notifyError('Failed to save property', `Property '${property.name}' is read-only for this node`);
+        return;
+      }
       setPendingAddIds((ids) => (ids.includes(property.uuid) ? ids : [...ids, property.uuid]));
       return;
     }
