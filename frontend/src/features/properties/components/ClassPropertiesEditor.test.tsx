@@ -6,7 +6,7 @@
  * default-value override editor (unset = inherit from the property base).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createElement, type ReactNode } from 'react';
 import { ClassPropertiesEditor } from './ClassPropertiesEditor';
@@ -14,6 +14,7 @@ import type { ClassProperty, Property } from '@/types/api';
 
 const mocks = vi.hoisted(() => ({
   updateMutate: vi.fn(),
+  classProperties: [] as ClassProperty[],
 }));
 
 const CLASS_PROPERTY: ClassProperty = {
@@ -56,7 +57,7 @@ const PROPERTY: Property = {
 // The component imports every class-property hook from the feature barrel;
 // mock the whole barrel so no real queries/mutations are constructed.
 vi.mock('../hooks', () => ({
-  useClassProperties: () => ({ data: [CLASS_PROPERTY], isLoading: false }),
+  useClassProperties: () => ({ data: mocks.classProperties, isLoading: false }),
   useProperties: () => ({ data: [PROPERTY] }),
   useAddPropertyToClass: () => ({ mutate: vi.fn() }),
   useCreateProperty: () => ({ mutate: vi.fn() }),
@@ -75,18 +76,21 @@ vi.mock('./PropertySuggestionPopup', () => ({
 
 function renderEditor() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(
-    createElement(
-      QueryClientProvider,
-      { client },
-      createElement(ClassPropertiesEditor, { classNodeUuid: 'class-1' }),
-    ),
+  // Fresh element per render — React bails out on referentially identical
+  // elements, which would skip re-reading the mocked hooks.
+  const makeTree = () => createElement(
+    QueryClientProvider,
+    { client },
+    createElement(ClassPropertiesEditor, { classNodeUuid: 'class-1' }),
   );
+  const utils = render(makeTree());
+  return { ...utils, rerenderEditor: () => utils.rerender(makeTree()) };
 }
 
 describe('ClassPropertiesEditor tri-state overrides', () => {
   beforeEach(() => {
     mocks.updateMutate.mockClear();
+    mocks.classProperties = [CLASS_PROPERTY];
   });
 
   it('cycles required inherit -> on -> off -> inherit', () => {
@@ -96,19 +100,48 @@ describe('ClassPropertiesEditor tri-state overrides', () => {
     fireEvent.click(btn);
     expect(mocks.updateMutate).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ required: true }) }),
+      expect.objectContaining({ onError: expect.any(Function) }),
     );
     mocks.updateMutate.mockClear();
 
     fireEvent.click(btn);
     expect(mocks.updateMutate).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ required: false }) }),
+      expect.objectContaining({ onError: expect.any(Function) }),
     );
     mocks.updateMutate.mockClear();
 
     fireEvent.click(btn);
     expect(mocks.updateMutate).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ required: null }) }),
+      expect.objectContaining({ onError: expect.any(Function) }),
     );
+  });
+
+  it('rolls back to the server value when the mutation fails', () => {
+    let capturedOpts: { onError?: () => void } | undefined;
+    mocks.updateMutate.mockImplementation((_vars, opts) => { capturedOpts = opts; });
+    renderEditor();
+
+    fireEvent.click(screen.getByTitle(/inherit \(required\)/i));
+    // Optimistic state applies immediately...
+    expect(screen.getByTitle(/required \(click to make optional\)/i)).toBeInTheDocument();
+
+    act(() => { capturedOpts?.onError?.(); });
+    // ...and a failed PATCH reverts to the server value (edge null, base required)
+    expect(screen.getByTitle(/inherit \(required\)/i)).toBeInTheDocument();
+  });
+
+  it('re-syncs the toggle when the server value changes after a refetch', () => {
+    const { rerenderEditor } = renderEditor();
+
+    fireEvent.click(screen.getByTitle(/inherit \(required\)/i));
+    expect(screen.getByTitle(/required \(click to make optional\)/i)).toBeInTheDocument();
+
+    // The PATCH succeeded and the refetch now reports the saved value
+    mocks.classProperties = [{ ...CLASS_PROPERTY, required: false }];
+    rerenderEditor();
+    expect(screen.getByTitle(/optional \(click to inherit\)/i)).toBeInTheDocument();
   });
 
   it('shows the resolved base in inherit state', () => {

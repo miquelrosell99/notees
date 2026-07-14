@@ -57,7 +57,12 @@ interface TriStateToggleProps {
   value: boolean | null;
   /** Resolved property base, shown in the inherit-state label */
   baseValue: boolean;
-  onChange: (value: boolean | null) => void;
+  /**
+   * Cycle handler. Receives an `onError` rollback callback the caller must
+   * wire to the mutation's onError so a failed PATCH reverts the optimistic
+   * state to the server value.
+   */
+  onChange: (value: boolean | null, options: { onError: () => void }) => void;
   /** MDI icon names per state */
   icons: Record<TriState, string>;
   /** Accessible label per state; inherit resolves the base (e.g. "Inherit (required)") */
@@ -71,7 +76,8 @@ interface TriStateToggleProps {
  *
  * Keeps optimistic local state: without it, a second click before the
  * mutation's query invalidation refetches would recompute from the stale
- * prop and re-send the same value. Props re-sync whenever they change.
+ * prop and re-send the same value. Props re-sync whenever they change, and
+ * a failed mutation rolls back to the server value via the onError callback.
  */
 function TriStateToggle({ value, baseValue, onChange, icons, labels }: TriStateToggleProps) {
   const [localValue, setLocalValue] = useState<boolean | null>(value);
@@ -93,7 +99,7 @@ function TriStateToggle({ value, baseValue, onChange, icons, labels }: TriStateT
       onClick={(e) => {
         e.stopPropagation();
         setLocalValue(next);
-        onChange(next);
+        onChange(next, { onError: () => setLocalValue(value) });
       }}
     />
   );
@@ -275,12 +281,12 @@ export function ClassPropertiesEditor({
                       off: 'Optional (click to inherit)',
                       inherit: (base) => `Inherit (${base ? 'required' : 'optional'})`,
                     }}
-                    onChange={(v) => {
+                    onChange={(v, { onError }) => {
                       updateClassPropertyMutation.mutate({
                         classId: classNodeUuid,
                         propertyId: item.property.uuid,
                         data: { required: v },
-                      });
+                      }, { onError });
                     }}
                   />
                   <TriStateToggle
@@ -292,12 +298,12 @@ export function ClassPropertiesEditor({
                       off: 'Editable (click to inherit)',
                       inherit: (base) => `Inherit (${base ? 'read-only' : 'editable'})`,
                     }}
-                    onChange={(v) => {
+                    onChange={(v, { onError }) => {
                       updateClassPropertyMutation.mutate({
                         classId: classNodeUuid,
                         propertyId: item.property.uuid,
                         data: { readonly: v },
-                      });
+                      }, { onError });
                     }}
                   />
                   <TriStateToggle
@@ -309,12 +315,12 @@ export function ClassPropertiesEditor({
                       off: 'Always shown (click to inherit)',
                       inherit: (base) => `Inherit (${base ? 'hidden when empty' : 'always shown'})`,
                     }}
-                    onChange={(v) => {
+                    onChange={(v, { onError }) => {
                       updateClassPropertyMutation.mutate({
                         classId: classNodeUuid,
                         propertyId: item.property.uuid,
                         data: { hide_when_empty: v },
-                      });
+                      }, { onError });
                     }}
                   />
                   <Button aria-label="Property options"
