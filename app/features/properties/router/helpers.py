@@ -31,7 +31,7 @@ async def _default_value_response(
     property_repo: PropertyRepository | None,
     node_repo: NodeRepository | None,
 ) -> Any:
-    """Public form of the first non-None typed default column.
+    """Public form of the typed default column mapped for the property type.
 
     Selection defaults are exposed as selection-line UUIDs, node-relation
     defaults (node/date/image) as node UUIDs. TEXT defaults live in

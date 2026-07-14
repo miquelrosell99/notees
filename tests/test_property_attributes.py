@@ -1210,3 +1210,55 @@ async def test_class_property_response_serializes_none_required_as_null(
     for field in ("required", "readonly", "hide_when_empty"):
         assert field in cp, f"{field} key must be present in the response"
         assert cp[field] is None, f"{field} must serialize as JSON null (inherit)"
+
+
+@pytest.mark.asyncio
+async def test_change_property_type_clears_class_edge_defaults(
+    auth_client: AsyncClient, db_pool
+):
+    """A type change also clears the typed default columns on the property's
+    class_property edges — a stale edge default would be latent cross-type
+    data (a text→selection→text round-trip would resurrect it)."""
+    prop_resp = await auth_client.post("/api/properties/", json={
+        "name": "EdgeDefaultProp", "type": "text", "scope": "global",
+    })
+    assert prop_resp.status_code == 200, prop_resp.text
+    prop_uuid = prop_resp.json()["property_uuid"]
+    class_uuid = (await auth_client.post(
+        "/api/nodes/", json={"name": "EdgeDefault Class", "is_class": True}
+    )).json()["uuid"]
+    r = await auth_client.post(
+        f"/api/properties/classes/{class_uuid}/properties",
+        json={"property_uuid": prop_uuid, "default_value": "Edge default"},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["default_value"] == "Edge default"
+
+    r = await auth_client.post(
+        f"/api/properties/{prop_uuid}/change-type", json={"new_type": "selection"}
+    )
+    assert r.status_code == 200, r.text
+
+    row = await db_pool.fetchrow(
+        """
+        SELECT cp.default_integer, cp.default_float, cp.default_text,
+               cp.default_boolean, cp.default_node_id, cp.default_selection_id
+        FROM class_property cp
+        JOIN property p ON p.id = cp.property_id
+        JOIN node c ON c.id = cp.class_node_id
+        WHERE p.uuid = $1 AND c.uuid = $2
+        """,
+        prop_uuid,
+        class_uuid,
+    )
+    assert row is not None
+    assert all(v is None for v in dict(row).values())
+
+    # The edge itself survives and reports no default.
+    r = await auth_client.get(f"/api/properties/classes/{class_uuid}/properties")
+    assert r.status_code == 200, r.text
+    cp = next(
+        c for c in r.json()["class_properties"]
+        if c["property_uuid"] == prop_uuid
+    )
+    assert cp["default_value"] is None
