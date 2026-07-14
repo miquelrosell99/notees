@@ -742,3 +742,50 @@ async def test_required_text_clear_without_default_rejected(auth_client: AsyncCl
     r = await auth_client.delete(f"/api/nodes/{node_uuid}/properties/{prop_uuid}")
     assert r.status_code == 400
     assert r.json()["detail"]["code"] == "required_property"
+
+
+@pytest.mark.asyncio
+async def test_change_property_type_clears_typed_defaults(
+    auth_client: AsyncClient, db_pool
+):
+    """Changing a property's type clears the now-invalid typed default columns.
+
+    A stale text default on a selection property previously 500'd the whole
+    property list (the string default hit the selection-line id lookup).
+    """
+    prop_resp = await auth_client.post("/api/properties/", json={
+        "name": "TypeChangeProp", "type": "text", "scope": "global",
+    })
+    assert prop_resp.status_code == 200, prop_resp.text
+    prop_uuid = prop_resp.json()["property_uuid"]
+    r = await auth_client.put(
+        f"/api/properties/{prop_uuid}", json={"default_value": "Some default"}
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["default_value"] == "Some default"
+
+    r = await auth_client.post(
+        f"/api/properties/{prop_uuid}/change-type", json={"new_type": "selection"}
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["type"] == "selection"
+    assert r.json()["default_value"] is None
+
+    row = await db_pool.fetchrow(
+        """
+        SELECT default_integer, default_float, default_text, default_boolean,
+               default_node_id, default_selection_id
+        FROM property WHERE uuid = $1
+        """,
+        prop_uuid,
+    )
+    assert row is not None
+    assert all(v is None for v in dict(row).values())
+
+    # The property list endpoint must not 500 on the changed property.
+    r = await auth_client.get("/api/properties/")
+    assert r.status_code == 200, r.text
+    changed = next(
+        p for p in r.json()["properties"] if p["property_uuid"] == prop_uuid
+    )
+    assert changed["default_value"] is None
