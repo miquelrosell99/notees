@@ -930,3 +930,135 @@ async def test_delete_unassigned_required_property_returns_404(
         prop_uuid,
     )
     assert count == 0, "DELETE on an unassigned property must not create rows"
+
+
+@pytest.mark.asyncio
+async def test_task_status_repair_respects_renamed_pending_and_custom_default(
+    auth_client: AsyncClient, db_pool, database_url: str, test_user: dict
+):
+    """The startup task-status repair must leave an admin's setup alone:
+    a renamed 'Pending' line and a valid custom default both survive restarts."""
+    from app.domain.entities.constants import SYSTEM_PROPERTY_UUIDS
+
+    status_uuid = SYSTEM_PROPERTY_UUIDS["task_status"]
+    ws_id = test_user["workspace_id"]
+
+    # Rename the 'Pending' line and point the default at a different own line.
+    await db_pool.execute(
+        """
+        UPDATE property_selection_line psl SET name = 'To Do'
+        FROM property p
+        WHERE psl.property_id = p.id
+          AND p.workspace_id = $1 AND p.uuid = $2 AND psl.name = 'Pending'
+        """,
+        ws_id,
+        status_uuid,
+    )
+    custom_id = await db_pool.fetchval(
+        """
+        SELECT psl.id FROM property_selection_line psl
+        JOIN property p ON p.id = psl.property_id
+        WHERE p.workspace_id = $1 AND p.uuid = $2 AND psl.name <> 'To Do'
+        ORDER BY psl.sequence LIMIT 1
+        """,
+        ws_id,
+        status_uuid,
+    )
+    assert custom_id is not None
+    await db_pool.execute(
+        "UPDATE property SET default_selection_id = $3 "
+        "WHERE workspace_id = $1 AND uuid = $2",
+        ws_id,
+        status_uuid,
+        custom_id,
+    )
+
+    # Two simulated restarts: required is repaired, the custom default is kept.
+    for _ in range(2):
+        await _rerun_startup_schema(database_url)
+        row = await db_pool.fetchrow(
+            "SELECT required, default_selection_id FROM property "
+            "WHERE workspace_id = $1 AND uuid = $2",
+            ws_id,
+            status_uuid,
+        )
+        assert row["required"] is True, "required=TRUE is a deliberate invariant"
+        assert row["default_selection_id"] == custom_id, (
+            "a valid custom default must survive restarts"
+        )
+
+
+@pytest.mark.asyncio
+async def test_task_status_repair_fixes_dangling_default(
+    auth_client: AsyncClient, db_pool, database_url: str, test_user: dict
+):
+    """A dangling default (line of another property) is repaired to the
+    fallback line — the lowest-sequence own line when 'Pending' was renamed."""
+    from app.domain.entities.constants import SYSTEM_PROPERTY_UUIDS
+
+    status_uuid = SYSTEM_PROPERTY_UUIDS["task_status"]
+    ws_id = test_user["workspace_id"]
+
+    # Rename 'Pending' so the fallback is the lowest-sequence own line.
+    await db_pool.execute(
+        """
+        UPDATE property_selection_line psl SET name = 'To Do'
+        FROM property p
+        WHERE psl.property_id = p.id
+          AND p.workspace_id = $1 AND p.uuid = $2 AND psl.name = 'Pending'
+        """,
+        ws_id,
+        status_uuid,
+    )
+    fallback_id = await db_pool.fetchval(
+        """
+        SELECT psl.id FROM property_selection_line psl
+        JOIN property p ON p.id = psl.property_id
+        WHERE p.workspace_id = $1 AND p.uuid = $2
+        ORDER BY psl.sequence LIMIT 1
+        """,
+        ws_id,
+        status_uuid,
+    )
+    other_line_id = await db_pool.fetchval(
+        """
+        SELECT psl.id FROM property_selection_line psl
+        JOIN property p ON p.id = psl.property_id
+        WHERE p.workspace_id = $1 AND p.uuid <> $2
+        ORDER BY psl.id LIMIT 1
+        """,
+        ws_id,
+        status_uuid,
+    )
+    assert fallback_id is not None and other_line_id is not None
+
+    await db_pool.execute(
+        "UPDATE property SET default_selection_id = $3 "
+        "WHERE workspace_id = $1 AND uuid = $2",
+        ws_id,
+        status_uuid,
+        other_line_id,
+    )
+
+    await _rerun_startup_schema(database_url)
+
+    row = await db_pool.fetchrow(
+        "SELECT required, default_selection_id FROM property "
+        "WHERE workspace_id = $1 AND uuid = $2",
+        ws_id,
+        status_uuid,
+    )
+    assert row["required"] is True
+    assert row["default_selection_id"] == fallback_id, (
+        "a dangling default must be repaired to the fallback line"
+    )
+
+    # Idempotent: a second restart changes nothing.
+    await _rerun_startup_schema(database_url)
+    row = await db_pool.fetchrow(
+        "SELECT default_selection_id FROM property "
+        "WHERE workspace_id = $1 AND uuid = $2",
+        ws_id,
+        status_uuid,
+    )
+    assert row["default_selection_id"] == fallback_id

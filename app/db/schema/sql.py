@@ -1968,29 +1968,46 @@ BEGIN
     END IF;
 END $$;
 
--- Migration: system task-status property is required with Pending default.
+-- Migration: system task-status property is required with a default line.
 -- Also backfills task nodes that have no Status value. Applies to every
 -- workspace (the system property UUID is shared across workspaces).
+--
+-- Deliberate system invariant: the task-status property must always be
+-- required, so required = TRUE is repaired at every startup. The default
+-- line is repaired ONLY when it is NULL or dangling (pointing at a line of
+-- another property or a deleted line) — an admin's valid custom default
+-- survives restarts. The fallback default line is the 'Pending' line, or
+-- the lowest-sequence line when 'Pending' has been renamed.
 DO $$
 BEGIN
-    -- Required at property level; Pending selection line is the base default.
     UPDATE property p
     SET required = TRUE,
-        default_selection_id = (
-            SELECT psl.id FROM property_selection_line psl
-            WHERE psl.property_id = p.id AND psl.name = 'Pending'
-            ORDER BY psl.sequence LIMIT 1
-        )
+        default_selection_id = CASE
+            WHEN p.default_selection_id IS NOT NULL
+                 AND EXISTS (
+                     SELECT 1 FROM property_selection_line psl
+                     WHERE psl.id = p.default_selection_id
+                       AND psl.property_id = p.id
+                 )
+            THEN p.default_selection_id
+            ELSE (
+                SELECT psl.id FROM property_selection_line psl
+                WHERE psl.property_id = p.id
+                ORDER BY (psl.name = 'Pending') DESC, psl.sequence
+                LIMIT 1
+            )
+        END
     WHERE p.uuid = '00000000-0000-0000-0003-000000000001'
       AND (p.required IS DISTINCT FROM TRUE
-           OR p.default_selection_id IS DISTINCT FROM (
-               SELECT psl.id FROM property_selection_line psl
-               WHERE psl.property_id = p.id AND psl.name = 'Pending'
-               ORDER BY psl.sequence LIMIT 1
+           OR p.default_selection_id IS NULL
+           OR NOT EXISTS (
+               SELECT 1 FROM property_selection_line psl
+               WHERE psl.id = p.default_selection_id
+                 AND psl.property_id = p.id
            ))
       AND EXISTS (
           SELECT 1 FROM property_selection_line psl
-          WHERE psl.property_id = p.id AND psl.name = 'Pending'
+          WHERE psl.property_id = p.id
       );
 
     -- Task nodes with no Status assignment at all: create the node_property row.
@@ -2005,7 +2022,8 @@ BEGIN
           WHERE np.node_id = n.id AND np.property_id = p.id
       );
 
-    -- Every task node without a Status value gets Pending.
+    -- Every task node without a Status value gets the default line
+    -- ('Pending', or the lowest-sequence line when renamed).
     INSERT INTO property_value_selection (node_property_id, property_id, node_id, selection_line_id)
     SELECT np.id, p.id, n.id, psl.id
     FROM node n
@@ -2013,8 +2031,9 @@ BEGIN
     JOIN node_property np ON np.node_id = n.id AND np.property_id = p.id
     JOIN LATERAL (
         SELECT id FROM property_selection_line psl
-        WHERE psl.property_id = p.id AND psl.name = 'Pending'
-        ORDER BY psl.sequence LIMIT 1
+        WHERE psl.property_id = p.id
+        ORDER BY (psl.name = 'Pending') DESC, psl.sequence
+        LIMIT 1
     ) psl ON TRUE
     WHERE p.uuid = '00000000-0000-0000-0003-000000000001'
       AND n.is_task = TRUE AND n.active = TRUE AND n.is_deleted = FALSE
