@@ -414,6 +414,7 @@ function AttributesSection({
   onError: (msg: string | null) => void;
 }) {
   const updatePropertyMutation = useUpdateProperty();
+  const defaultValueId = useId();
 
   const save = useCallback(async (data: PropertyUpdate) => {
     try {
@@ -455,8 +456,9 @@ function AttributesSection({
         />
       </div>
       <div className="property-config-section__attribute-default">
-        <span className="property-config-section__validation-inline-label">Default value</span>
+        <label htmlFor={defaultValueId} className="property-config-section__validation-inline-label">Default value</label>
         <DefaultValueEditor
+          id={defaultValueId}
           property={property}
           value={property.default_value}
           onChange={(value) => save({ default_value: value })}
