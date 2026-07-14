@@ -407,7 +407,8 @@ class PropertyRepository(ABC):
         self, node_id: int, property_id: int
     ) -> list[ClassProperty]:
         """Class_property edges connecting *property_id* to *node_id*'s class
-        closure, ordered nearest-first (depth, then class_ids position)."""
+        closure, ordered nearest-first (depth, then class_ids position, then
+        class_property row id as a deterministic tie-break)."""
         pass
 
     @abstractmethod
