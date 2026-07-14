@@ -546,7 +546,7 @@ export interface ClassProperty {
   property_name: string;
   property_type: PropertyType;
   sequence: number;
-  default_value: unknown;
+  default_value: unknown | null; // null when unset (backend contract)
   hidden: boolean; // Whether this property is hidden by default in the UI
   required: boolean | null; // tri-state: null = inherit from property
   readonly: boolean | null; // tri-state: null = inherit from property
