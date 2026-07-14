@@ -8,7 +8,7 @@
  * using the TextPropertyBlock component.
  */
 import { useState, useCallback, useMemo } from 'react';
-import { useProperties, useSetNodeProperty, useCreateProperty, useClassProperties } from '../hooks';
+import { useProperties, useSetNodeProperty, useCreateProperty, useNodeClassPropertyEdges } from '../hooks';
 import { useNode, useCreateNode, usePageClass, useSystemClasses } from '@/features/content';
 import { FlashcardEditor } from '@/plugins/builtin/flashcards';
 import { useNavigationStore } from '@/stores';
@@ -95,14 +95,9 @@ export function PropertiesSection({
   const { pageClassUuid } = usePageClass();
   const { systemClassUuids } = useSystemClasses();
 
-  // Get class properties for all classes the node has (with inheritance)
-  // We need to fetch properties for each class
-  const firstClassId = node?.classes_uuid?.[0] ?? null;
-  const { data: classProperties1 } = useClassProperties(firstClassId, true);
-  const secondClassId = node?.classes_uuid?.[1] ?? null;
-  const { data: classProperties2 } = useClassProperties(secondClassId, true);
-  const thirdClassId = node?.classes_uuid?.[2] ?? null;
-  const { data: classProperties3 } = useClassProperties(thirdClassId, true);
+  // Class-property edges for every class of the node (with inheritance),
+  // ordered to match backend enforcement (see useNodeClassPropertyEdges).
+  const classPropertyEdges = useNodeClassPropertyEdges(node?.classes_uuid ?? []);
 
   // Combine properties from all types and existing node properties
   const nodeProperties = useMemo(() => {
@@ -119,16 +114,24 @@ export function PropertiesSection({
     }> = [];
     const addedPropertyIds = new Set<string>();
 
-    // First, add properties from types (with inheritance)
-    const allClassProperties: ClassProperty[] = [
-      ...(classProperties1 ?? []),
-      ...(classProperties2 ?? []),
-      ...(classProperties3 ?? []),
-    ];
+    // First, add properties from classes (with inheritance).
+    // Edges are ordered like backend enforcement (direct class edges first in
+    // class order, then inherited — see orderClassPropertyEdges): the first
+    // edge per property is the one enforcement applies, and the effective
+    // default is the first edge WITH a non-null default across all edges,
+    // then the property base (backend resolve_attributes semantics).
+    const edgesByProperty = new Map<string, { nearest: ClassProperty; defaultValue: unknown }>();
+    for (const edge of classPropertyEdges) {
+      const existing = edgesByProperty.get(edge.property_uuid);
+      if (!existing) {
+        edgesByProperty.set(edge.property_uuid, { nearest: edge, defaultValue: edge.default_value });
+      } else if (existing.defaultValue == null && edge.default_value != null) {
+        existing.defaultValue = edge.default_value;
+      }
+    }
 
-    for (const classProp of allClassProperties) {
+    for (const { nearest: classProp, defaultValue: edgeDefault } of edgesByProperty.values()) {
       const propertyUuid = classProp.property_uuid;
-      if (addedPropertyIds.has(propertyUuid)) continue;
       addedPropertyIds.add(propertyUuid);
 
       // Find the full property definition
@@ -150,9 +153,8 @@ export function PropertiesSection({
         ? (node.properties_uuid as Record<string, unknown>)[prop.uuid]
         : undefined;
       const hasValue = !isEmptyValue(rawValue);
-      const value = hasValue
-        ? rawValue
-        : classProp.default_value ?? prop.default_value ?? null;
+      const effectiveDefault = edgeDefault ?? prop.default_value;
+      const value = hasValue ? rawValue : (effectiveDefault ?? null);
 
       // Effective attributes: class-edge tri-state override ?? property base
       const effectiveHideWhenEmpty = classProp.hide_when_empty ?? prop.hide_when_empty;
@@ -166,7 +168,7 @@ export function PropertiesSection({
         hidden: (classProp.hidden ?? false) || (effectiveHideWhenEmpty && !hasValue),
         readOnly: effectiveReadonly,
         required: effectiveRequired,
-        hasDefault: (classProp.default_value ?? prop.default_value) != null,
+        hasDefault: effectiveDefault != null,
       });
     }
 
@@ -191,7 +193,10 @@ export function PropertiesSection({
           const hasValue = !isEmptyValue(rawValue);
           entries.push({
             property: prop,
-            value: rawValue,
+            // Emptied values (null/''/[]) fall back to the property default
+            // for display, the same way class-bound entries do — the backend
+            // treats ad-hoc and class-bound properties alike here.
+            value: hasValue ? rawValue : (prop.default_value ?? null),
             hidden: prop.hide_when_empty && !hasValue,
             readOnly: prop.readonly,
             required: prop.required,
@@ -210,21 +215,16 @@ export function PropertiesSection({
     }
 
     return entries;
-  }, [node, allProperties, classProperties1, classProperties2, classProperties3]);
+  }, [node, allProperties, classPropertyEdges]);
 
   // Track which property IDs come from classes (cannot be removed, only emptied)
   const classPropertyIds = useMemo(() => {
     const ids = new Set<string>();
-    const allClassProperties: ClassProperty[] = [
-      ...(classProperties1 ?? []),
-      ...(classProperties2 ?? []),
-      ...(classProperties3 ?? []),
-    ];
-    for (const cp of allClassProperties) {
+    for (const cp of classPropertyEdges) {
       ids.add(cp.property_uuid);
     }
     return ids;
-  }, [classProperties1, classProperties2, classProperties3]);
+  }, [classPropertyEdges]);
 
   const { error: notifyError } = useNotifications();
 
