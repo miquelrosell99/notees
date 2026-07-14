@@ -732,6 +732,7 @@ async def test_required_text_clear_without_default_rejected(auth_client: AsyncCl
     assert r.status_code == 200, r.text
     node_uuid = (await auth_client.post("/api/nodes/", json={"name": "NTX"})).json()["uuid"]
 
+    # Unified clear on the unassigned property: rejected as required.
     r = await auth_client.post(
         f"/api/nodes/{node_uuid}/properties",
         json={"property_uuid": prop_uuid, "value": None},
@@ -739,6 +740,19 @@ async def test_required_text_clear_without_default_rejected(auth_client: AsyncCl
     assert r.status_code == 400
     assert r.json()["detail"]["code"] == "required_property"
 
+    # DELETE on the unassigned property: plain not-found (never materialized).
+    r = await auth_client.delete(f"/api/nodes/{node_uuid}/properties/{prop_uuid}")
+    assert r.status_code == 404
+
+    # Assigned with a value, DELETE is a clear again: rejected as required.
+    text_node_uuid = (await auth_client.post(
+        "/api/nodes/", json={"name": "NTX body"}
+    )).json()["uuid"]
+    r = await auth_client.post(
+        f"/api/nodes/{node_uuid}/properties",
+        json={"property_uuid": prop_uuid, "value": text_node_uuid},
+    )
+    assert r.status_code == 200, r.text
     r = await auth_client.delete(f"/api/nodes/{node_uuid}/properties/{prop_uuid}")
     assert r.status_code == 400
     assert r.json()["detail"]["code"] == "required_property"
@@ -1062,3 +1076,74 @@ async def test_task_status_repair_fixes_dangling_default(
         status_uuid,
     )
     assert row["default_selection_id"] == fallback_id
+
+
+@pytest.mark.asyncio
+async def test_list_endpoints_resolve_defaults_in_batch(auth_client: AsyncClient):
+    """List endpoints resolve typed defaults to public UUIDs through the
+    batched mapping path (correctness, not query count)."""
+    sel = (await auth_client.post("/api/properties/", json={
+        "name": "BatchSel", "type": "selection", "scope": "global",
+        "selection_lines": ["One", "Two"],
+    })).json()
+    option_uuid = sel["options"][1]["selection_line_uuid"]
+    r = await auth_client.put(
+        f"/api/properties/{sel['property_uuid']}", json={"default_value": option_uuid}
+    )
+    assert r.status_code == 200, r.text
+
+    txt = (await auth_client.post("/api/properties/", json={
+        "name": "BatchText", "type": "text", "scope": "global",
+    })).json()
+    r = await auth_client.put(
+        f"/api/properties/{txt['property_uuid']}", json={"default_value": "hello"}
+    )
+    assert r.status_code == 200, r.text
+
+    # Boolean False must survive as a real default (not be swallowed as empty).
+    boo = (await auth_client.post("/api/properties/", json={
+        "name": "BatchBool", "type": "boolean", "scope": "global",
+    })).json()
+    r = await auth_client.put(
+        f"/api/properties/{boo['property_uuid']}", json={"default_value": False}
+    )
+    assert r.status_code == 200, r.text
+
+    r = await auth_client.get("/api/properties/")
+    assert r.status_code == 200, r.text
+    props = {p["property_uuid"]: p for p in r.json()["properties"]}
+    assert props[sel["property_uuid"]]["default_value"] == option_uuid
+    assert props[txt["property_uuid"]]["default_value"] == "hello"
+    assert props[boo["property_uuid"]]["default_value"] is False
+
+    # Class-properties list path.
+    class_uuid = (await auth_client.post(
+        "/api/nodes/", json={"name": "Batch Class", "is_class": True}
+    )).json()["uuid"]
+    r = await auth_client.post(
+        f"/api/properties/classes/{class_uuid}/properties",
+        json={"property_uuid": sel["property_uuid"], "default_value": option_uuid},
+    )
+    assert r.status_code == 200, r.text
+    r = await auth_client.get(f"/api/properties/classes/{class_uuid}/properties")
+    assert r.status_code == 200, r.text
+    cps = {cp["property_uuid"]: cp for cp in r.json()["class_properties"]}
+    assert cps[sel["property_uuid"]]["default_value"] == option_uuid
+
+    # Node-properties list path: the embedded property comes from
+    # get_all_property_values, which builds a lightweight entity without
+    # default columns (pre-existing shape) — the endpoint must still
+    # serialize cleanly through the batched mapping path.
+    node_uuid = (await auth_client.post("/api/nodes/", json={"name": "BN"})).json()["uuid"]
+    r = await auth_client.post(
+        f"/api/nodes/{node_uuid}/properties",
+        json={"property_uuid": sel["property_uuid"], "value": option_uuid},
+    )
+    assert r.status_code == 200, r.text
+    r = await auth_client.get(f"/api/nodes/{node_uuid}/properties")
+    assert r.status_code == 200, r.text
+    entry = next(
+        p for p in r.json()["properties"]
+        if p["property"]["property_uuid"] == sel["property_uuid"]
+    )
+    assert entry["property"]["default_value"] is None
