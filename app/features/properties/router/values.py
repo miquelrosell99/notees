@@ -38,6 +38,7 @@ from app.features.properties.router.dependencies import (
     resolve_selection_line_uuid,
 )
 from app.features.properties.router.helpers import (
+    _build_default_uuid_maps,
     _build_value_response_maps,
     _property_to_response,
     _relation_value_to_response,
@@ -216,6 +217,11 @@ async def get_node_properties(
         target_node_uuid_map,
         selection_line_uuid_map,
     ) = await _build_value_response_maps(all_value_rows, repo, property_repo)
+    default_uuid_maps = await _build_default_uuid_maps(
+        [(data["property"], data["property"].type.value) for data in all_values.values()],
+        property_repo,
+        repo,
+    )
 
     result = []
     for _prop_id, data in all_values.items():
@@ -258,7 +264,12 @@ async def get_node_properties(
 
         result.append(
             {
-                "property": await _property_to_response(prop, property_repo=property_repo, node_repo=repo),
+                "property": await _property_to_response(
+                    prop,
+                    property_repo=property_repo,
+                    node_repo=repo,
+                    default_uuid_maps=default_uuid_maps,
+                ),
                 "node_property": NodePropertyResponse(
                     id=np.id,  # type: ignore[arg-type]
                     node_property_uuid=np.uuid,
