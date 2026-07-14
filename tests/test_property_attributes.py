@@ -789,3 +789,106 @@ async def test_change_property_type_clears_typed_defaults(
         p for p in r.json()["properties"] if p["property_uuid"] == prop_uuid
     )
     assert changed["default_value"] is None
+
+
+@pytest.mark.asyncio
+async def test_update_property_empty_default_value_clears(auth_client: AsyncClient):
+    """A provided-but-empty default_value ("", []) clears defaults like null."""
+    prop_resp = await auth_client.post("/api/properties/", json={
+        "name": "EmptyClearProp", "type": "text", "scope": "global",
+    })
+    assert prop_resp.status_code == 200, prop_resp.text
+    prop_uuid = prop_resp.json()["property_uuid"]
+    r = await auth_client.put(
+        f"/api/properties/{prop_uuid}", json={"default_value": "Some default"}
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["default_value"] == "Some default"
+
+    # Empty string behaves like explicit null: defaults cleared (was a no-op).
+    r = await auth_client.put(f"/api/properties/{prop_uuid}", json={"default_value": ""})
+    assert r.status_code == 200, r.text
+    assert r.json()["default_value"] is None
+
+    # Empty list also clears (selection property this time).
+    sel_resp = await auth_client.post("/api/properties/", json={
+        "name": "EmptyClearSel", "type": "selection", "scope": "global",
+        "selection_lines": ["One", "Two"],
+    })
+    assert sel_resp.status_code == 200, sel_resp.text
+    sel = sel_resp.json()
+    option_uuid = sel["options"][0]["selection_line_uuid"]
+    r = await auth_client.put(
+        f"/api/properties/{sel['property_uuid']}", json={"default_value": option_uuid}
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["default_value"] == option_uuid
+    r = await auth_client.put(
+        f"/api/properties/{sel['property_uuid']}", json={"default_value": []}
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["default_value"] is None
+
+
+@pytest.mark.asyncio
+async def test_update_class_property_empty_default_value_clears(auth_client: AsyncClient):
+    """PATCH class property with an empty default_value clears the edge default."""
+    prop_resp = await auth_client.post("/api/properties/", json={
+        "name": "CpEmptyClear", "type": "boolean", "scope": "global",
+    })
+    assert prop_resp.status_code == 200, prop_resp.text
+    prop_uuid = prop_resp.json()["property_uuid"]
+    class_uuid = (await auth_client.post(
+        "/api/nodes/", json={"name": "CpEmpty Class", "is_class": True}
+    )).json()["uuid"]
+    url = f"/api/properties/classes/{class_uuid}/properties/{prop_uuid}"
+    r = await auth_client.post(
+        f"/api/properties/classes/{class_uuid}/properties",
+        json={"property_uuid": prop_uuid, "default_value": True},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["default_value"] is True
+
+    for empty in ("", []):
+        r = await auth_client.patch(url, json={"default_value": empty})
+        assert r.status_code == 200, r.text
+        assert r.json()["default_value"] is None
+        # Re-set for the second iteration.
+        r = await auth_client.patch(url, json={"default_value": True})
+        assert r.status_code == 200, r.text
+        assert r.json()["default_value"] is True
+
+
+@pytest.mark.asyncio
+async def test_list_default_value_rejected_with_400(auth_client: AsyncClient):
+    """A list default_value on PUT/PATCH is a 400, not an asyncpg 500."""
+    prop_resp = await auth_client.post("/api/properties/", json={
+        "name": "ListDefaultProp", "type": "selection", "scope": "global",
+        "selection_lines": ["One", "Two"],
+    })
+    assert prop_resp.status_code == 200, prop_resp.text
+    prop = prop_resp.json()
+    prop_uuid = prop["property_uuid"]
+    uuids = [o["selection_line_uuid"] for o in prop["options"]]
+
+    r = await auth_client.put(
+        f"/api/properties/{prop_uuid}", json={"default_value": uuids}
+    )
+    assert r.status_code == 400, r.text
+    assert "Multi-value defaults" in r.json()["detail"]
+
+    class_uuid = (await auth_client.post(
+        "/api/nodes/", json={"name": "ListDefault Class", "is_class": True}
+    )).json()["uuid"]
+    add_resp = await auth_client.post(
+        f"/api/properties/classes/{class_uuid}/properties",
+        json={"property_uuid": prop_uuid},
+    )
+    assert add_resp.status_code == 200, add_resp.text
+
+    r = await auth_client.patch(
+        f"/api/properties/classes/{class_uuid}/properties/{prop_uuid}",
+        json={"default_value": uuids},
+    )
+    assert r.status_code == 400, r.text
+    assert "Multi-value defaults" in r.json()["detail"]
