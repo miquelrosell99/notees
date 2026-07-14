@@ -1723,7 +1723,13 @@ class PostgresPropertyRepository(BasePostgresRepository, PropertyRepository):
         self, node_id: int, property_id: int
     ) -> list[ClassProperty]:
         """Class_property edges connecting *property_id* to *node_id*'s class
-        closure, ordered nearest-first (depth, then class_ids position)."""
+        closure, ordered nearest-first (depth, then class_ids position).
+
+        Same-depth, same-position ties (diamond inheritance reaching two
+        classes through the same path) break on the class_property row id so
+        resolution is deterministic — any deterministic order is defensible
+        for this pathological configuration.
+        """
         async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch(
                 """
@@ -1746,7 +1752,8 @@ class PostgresPropertyRepository(BasePostgresRepository, PropertyRepository):
                 FROM class_property cp
                 JOIN best b ON b.class_id = cp.class_node_id
                 WHERE cp.property_id = $2
-                ORDER BY b.depth, b.ord
+                -- cp.id tie-break: deterministic for same-depth diamond ties
+                ORDER BY b.depth, b.ord, cp.id
                 """,
                 node_id,
                 property_id,
