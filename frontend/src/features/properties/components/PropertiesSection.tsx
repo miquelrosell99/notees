@@ -20,6 +20,7 @@ import { Button } from '@/components/ui/Button';
 import { getPropertyValueRenderer } from '../utils/propertyValueRegistry';
 import '../utils/registerPropertyRenderers';
 import { addSelectionOption } from '@/api/properties';
+import { getApiErrorMessage } from '@/utils/apiError';
 import { PropertySuggestionPopup } from './PropertySuggestionPopup';
 import { PropertyList, type PropertyEntry } from './PropertyList';
 import type { ContextMenuItem } from '@/components/ui/ContextMenu';
@@ -86,6 +87,12 @@ export function PropertiesSection({
   const [isExpanded, setIsExpanded] = useState(!defaultCollapsed);
   const [showHidden, _setShowHidden] = useState(false);
   const [showPropertyPopup, setShowPropertyPopup] = useState(false);
+  // Manually-added properties that cannot take the empty placeholder write:
+  // effective-required without an effective default makes the backend reject
+  // the placeholder (400 required_property), dead-ending the add. They render
+  // as empty editable rows instead, so the user's first real value is the
+  // initial write. Cleared per id once a value is written or the row removed.
+  const [pendingAddIds, setPendingAddIds] = useState<string[]>([]);
 
   const { data: node, isLoading: nodeLoading } = useNode(nodeUuid, { include_properties: true });
   const { data: allProperties } = useProperties();
@@ -214,8 +221,25 @@ export function PropertiesSection({
       }
     }
 
+    // Manually-added required-without-default properties render as empty rows
+    // until the user's first real value lands on the node (then the ad-hoc
+    // branch above owns the row).
+    for (const pendingId of pendingAddIds) {
+      if (addedPropertyIds.has(pendingId)) continue;
+      const prop = allProperties.find(p => p.uuid === pendingId);
+      if (!prop) continue;
+      entries.push({
+        property: prop,
+        value: null,
+        readOnly: prop.readonly,
+        required: prop.required,
+        hasDefault: prop.default_value != null,
+      });
+      addedPropertyIds.add(pendingId);
+    }
+
     return entries;
-  }, [node, allProperties, classPropertyEdges]);
+  }, [node, allProperties, classPropertyEdges, pendingAddIds]);
 
   // Track which property IDs come from classes (cannot be removed, only emptied)
   const classPropertyIds = useMemo(() => {
@@ -229,8 +253,11 @@ export function PropertiesSection({
   const { error: notifyError } = useNotifications();
 
   const handlePropertyChange = useCallback((propertyId: string, value: unknown) => {
+    // A real value on a pending-add row is the initial write — the ad-hoc
+    // branch owns the row from here on.
+    setPendingAddIds((ids) => ids.filter((id) => id !== propertyId));
     setPropertyMutation.mutate({ nodeUuid, propertyId, value }, {
-      onError: () => notifyError('Failed to save property', 'Please try again.'),
+      onError: (error) => notifyError('Failed to save property', getApiErrorMessage(error, 'Please try again.')),
     });
   }, [nodeUuid, setPropertyMutation, notifyError]);
 
@@ -251,6 +278,17 @@ export function PropertiesSection({
 
   // Handler for selecting an existing property to add
   const handleSelectProperty = useCallback((property: Property) => {
+    setShowPropertyPopup(false);
+    // Effective-required without an effective default: the backend rejects an
+    // empty placeholder write (400 required_property), dead-ending the add.
+    // Add the row locally instead so the user's first real value is the
+    // initial write. (A manually added property's effective attributes are
+    // its base attributes — class-bound properties are already listed and
+    // excluded from the popup.)
+    if (property.required && property.default_value == null) {
+      setPendingAddIds((ids) => (ids.includes(property.uuid) ? ids : [...ids, property.uuid]));
+      return;
+    }
     // Set a default value for the property based on its type
     // Note: null values cause the property to be removed, so we use empty strings
     // for text-like types to ensure the property is actually added
@@ -261,9 +299,10 @@ export function PropertiesSection({
     if (defaultValue === null || defaultValue === undefined) {
       defaultValue = '';
     }
-    setPropertyMutation.mutate({ nodeUuid, propertyId: property.uuid, value: defaultValue });
-    setShowPropertyPopup(false);
-  }, [nodeUuid, setPropertyMutation]);
+    setPropertyMutation.mutate({ nodeUuid, propertyId: property.uuid, value: defaultValue }, {
+      onError: (error) => notifyError('Failed to save property', getApiErrorMessage(error, 'Please try again.')),
+    });
+  }, [nodeUuid, setPropertyMutation, notifyError]);
 
   // Handler for creating a new property with full configuration
   const handleCreateNewProperty = useCallback((data: PropertyCreate & { selection_options?: { name: string; icon?: string }[] }) => {
@@ -406,11 +445,16 @@ export function PropertiesSection({
       danger: true,
       disabled: isClassProperty || isReadOnlyEntry,
       onClick: () => {
+        if (pendingAddIds.includes(property.uuid)) {
+          // Pending add never reached the server — just drop the local row.
+          setPendingAddIds((ids) => ids.filter((id) => id !== property.uuid));
+          return;
+        }
         setPropertyMutation.mutate({ nodeUuid, propertyId: property.uuid, value: null });
       },
     });
     return items;
-  }, [openPropertyView, setPropertyMutation, nodeUuid, classPropertyIds, nodePropertiesByUuid]);
+  }, [openPropertyView, setPropertyMutation, nodeUuid, classPropertyIds, nodePropertiesByUuid, pendingAddIds]);
 
   if (nodeLoading) {
     return (

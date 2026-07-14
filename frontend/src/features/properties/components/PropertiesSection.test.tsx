@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => ({
   nodeClassPropertyEdges: vi.fn(),
   setPropertyMutate: vi.fn(),
   notifyError: vi.fn(),
+  popupProperty: null as Property | null,
 }));
 
 vi.mock('@/features/properties/hooks', () => ({
@@ -32,6 +33,17 @@ vi.mock('@/features/properties/hooks', () => ({
 
 vi.mock('@/stores/notificationStore', () => ({
   useNotifications: () => ({ error: mocks.notifyError }),
+}));
+
+// Stub the suggestion popup with a button that selects a test-chosen
+// property, so add-property flow tests can drive handleSelectProperty.
+vi.mock('./PropertySuggestionPopup', () => ({
+  PropertySuggestionPopup: ({ onSelect }: { onSelect: (p: Property) => void }) =>
+    createElement(
+      'button',
+      { type: 'button', onClick: () => onSelect(mocks.popupProperty as Property) },
+      'pick-property',
+    ),
 }));
 
 vi.mock('@/features/content', () => ({
@@ -479,5 +491,149 @@ describe('PropertiesSection class edge resolution', () => {
     render(createElement(PropertiesSection, { nodeUuid: 'node-1', showAddProperty: false }), { wrapper });
 
     expect(screen.getByTestId('property-value')).toHaveAttribute('data-value', 'null');
+  });
+});
+
+/**
+ * NEW-6: coded backend errors ({ code, message } detail) must reach the
+ * failure toast, and adding an effective-required property without an
+ * effective default must not dead-end on the rejected empty placeholder
+ * write — the row is added locally so the first real value is the initial
+ * write.
+ */
+describe('PropertiesSection add-property flow and error toasts', () => {
+  beforeEach(() => {
+    mocks.allProperties = [];
+    mocks.classProperties = [];
+    mocks.popupProperty = null;
+  });
+
+  it('surfaces the backend coded error message in the failure toast', () => {
+    const prop = makeProperty({ uuid: 'prop-1', name: 'Prop 1', type: 'text' });
+    mocks.allProperties = [prop];
+    mocks.node = makeNode({ [prop.uuid]: 'x' });
+    mocks.setPropertyMutate.mockImplementation((_vars, opts) => {
+      opts?.onError?.({
+        response: { data: { detail: { code: 'required_property', message: 'Prop 1 is required and has no default' } } },
+      });
+    });
+
+    render(createElement(PropertiesSection, { nodeUuid: 'node-1', showAddProperty: false }), { wrapper });
+    fireEvent.click(screen.getByTestId('property-value-change'));
+
+    expect(mocks.notifyError).toHaveBeenCalledWith(
+      'Failed to save property',
+      'Prop 1 is required and has no default',
+    );
+  });
+
+  it('surfaces a plain string detail in the failure toast', () => {
+    const prop = makeProperty({ uuid: 'prop-1', name: 'Prop 1', type: 'text' });
+    mocks.allProperties = [prop];
+    mocks.node = makeNode({ [prop.uuid]: 'x' });
+    mocks.setPropertyMutate.mockImplementation((_vars, opts) => {
+      opts?.onError?.({ response: { data: { detail: 'Property assignment not found' } } });
+    });
+
+    render(createElement(PropertiesSection, { nodeUuid: 'node-1', showAddProperty: false }), { wrapper });
+    fireEvent.click(screen.getByTestId('property-value-change'));
+
+    expect(mocks.notifyError).toHaveBeenCalledWith('Failed to save property', 'Property assignment not found');
+  });
+
+  it('falls back to the generic hint when the error carries no detail', () => {
+    const prop = makeProperty({ uuid: 'prop-1', name: 'Prop 1', type: 'text' });
+    mocks.allProperties = [prop];
+    mocks.node = makeNode({ [prop.uuid]: 'x' });
+    mocks.setPropertyMutate.mockImplementation((_vars, opts) => {
+      opts?.onError?.({});
+    });
+
+    render(createElement(PropertiesSection, { nodeUuid: 'node-1', showAddProperty: false }), { wrapper });
+    fireEvent.click(screen.getByTestId('property-value-change'));
+
+    expect(mocks.notifyError).toHaveBeenCalledWith('Failed to save property', 'Please try again.');
+  });
+
+  it('adds an effective-required property without a default as an empty row, without a placeholder write', () => {
+    const prop = makeProperty({ uuid: 'prop-req-nodef', name: 'Required No Default', type: 'text', required: true });
+    mocks.allProperties = [prop];
+    mocks.popupProperty = prop;
+    mocks.node = makeNode({});
+
+    render(createElement(PropertiesSection, { nodeUuid: 'node-1' }), { wrapper });
+    fireEvent.click(screen.getByText('pick-property'));
+
+    // No placeholder write — the backend would 400 required_property on it.
+    expect(mocks.setPropertyMutate).not.toHaveBeenCalled();
+    // The row is present with an empty value, ready for the first real write.
+    expect(screen.getByText('Required No Default')).toBeInTheDocument();
+    expect(screen.getByTestId('property-value')).toHaveAttribute('data-value', 'null');
+  });
+
+  it('first real value on a pending-add row becomes the initial write', () => {
+    const prop = makeProperty({ uuid: 'prop-req-nodef', name: 'Required No Default', type: 'text', required: true });
+    mocks.allProperties = [prop];
+    mocks.popupProperty = prop;
+    mocks.node = makeNode({});
+
+    render(createElement(PropertiesSection, { nodeUuid: 'node-1' }), { wrapper });
+    fireEvent.click(screen.getByText('pick-property'));
+    fireEvent.click(screen.getByTestId('property-value-change'));
+
+    expect(mocks.setPropertyMutate).toHaveBeenCalledWith(
+      { nodeUuid: 'node-1', propertyId: 'prop-req-nodef', value: 'changed-value' },
+      expect.objectContaining({ onError: expect.any(Function) }),
+    );
+  });
+
+  it('removing a pending-add row needs no server call', () => {
+    const prop = makeProperty({ uuid: 'prop-req-nodef', name: 'Required No Default', type: 'text', required: true });
+    mocks.allProperties = [prop];
+    mocks.popupProperty = prop;
+    mocks.node = makeNode({});
+
+    render(createElement(PropertiesSection, { nodeUuid: 'node-1' }), { wrapper });
+    fireEvent.click(screen.getByText('pick-property'));
+
+    openRowContextMenu('Required No Default');
+    // Required without a default: no "Empty property" item.
+    expect(screen.queryByText('Empty property')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText('Remove from node'));
+
+    expect(mocks.setPropertyMutate).not.toHaveBeenCalled();
+    expect(screen.queryByText('Required No Default')).not.toBeInTheDocument();
+  });
+
+  it('keeps the placeholder write for non-required properties', () => {
+    const prop = makeProperty({ uuid: 'prop-normal', name: 'Normal Prop', type: 'text' });
+    mocks.allProperties = [prop];
+    mocks.popupProperty = prop;
+    mocks.node = makeNode({});
+
+    render(createElement(PropertiesSection, { nodeUuid: 'node-1' }), { wrapper });
+    fireEvent.click(screen.getByText('pick-property'));
+
+    expect(mocks.setPropertyMutate).toHaveBeenCalledWith(
+      expect.objectContaining({ nodeUuid: 'node-1', propertyId: 'prop-normal' }),
+      expect.objectContaining({ onError: expect.any(Function) }),
+    );
+  });
+
+  it('keeps the placeholder write for required properties WITH a default (enforcement rewrites it)', () => {
+    const prop = makeProperty({
+      uuid: 'prop-req-def', name: 'Required With Default', type: 'text', required: true, default_value: 'd',
+    });
+    mocks.allProperties = [prop];
+    mocks.popupProperty = prop;
+    mocks.node = makeNode({});
+
+    render(createElement(PropertiesSection, { nodeUuid: 'node-1' }), { wrapper });
+    fireEvent.click(screen.getByText('pick-property'));
+
+    expect(mocks.setPropertyMutate).toHaveBeenCalledWith(
+      expect.objectContaining({ nodeUuid: 'node-1', propertyId: 'prop-req-def' }),
+      expect.objectContaining({ onError: expect.any(Function) }),
+    );
   });
 });
