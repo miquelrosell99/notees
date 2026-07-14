@@ -21,7 +21,11 @@ from app.features.properties.models import (
     PropertyTypeChangeRequest,
     PropertyUpdateRequest,
 )
-from app.features.properties.router.helpers import _build_node_uuid_map, _property_to_response
+from app.features.properties.router.helpers import (
+    _build_default_uuid_maps,
+    _build_node_uuid_map,
+    _property_to_response,
+)
 from app.features.properties.service import _UNSET, PropertyNotFoundError, PropertyService
 from app.logging_config import get_logger
 from app.models import User
@@ -56,6 +60,11 @@ async def _properties_to_responses(
 ) -> list[PropertyResponse]:
     """Convert multiple domain Property entities to API responses with UUID references."""
     node_uuid_map, class_uuid_map = await _build_property_response_maps(node_repo, properties)
+    default_uuid_maps = None
+    if property_repo is not None:
+        default_uuid_maps = await _build_default_uuid_maps(
+            [(p, p.type.value) for p in properties], property_repo, node_repo
+        )
     return [
         await _property_to_response(
             p,
@@ -63,6 +72,7 @@ async def _properties_to_responses(
             class_uuid_map=class_uuid_map,
             property_repo=property_repo,
             node_repo=node_repo,
+            default_uuid_maps=default_uuid_maps,
         )
         for p in properties
     ]
