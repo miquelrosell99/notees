@@ -593,7 +593,8 @@ class PostgresPropertyRepository(BasePostgresRepository, PropertyRepository):
         """Change a property's type if no values exist.
 
         Typed default columns are type-specific, so they are all cleared on a
-        type change — a leftover default would be invalid cross-type data.
+        type change — on the property itself and on its class_property edges:
+        a leftover default would be invalid cross-type data.
         """
         from app.features.properties.attributes import DEFAULT_COLUMNS
 
@@ -632,6 +633,12 @@ class PostgresPropertyRepository(BasePostgresRepository, PropertyRepository):
 
             if new_type != PropertyType.SELECTION:
                 await conn.execute("DELETE FROM property_selection_line WHERE property_id = $1", property_id)
+
+            # Class-edge defaults are typed too; clear them with the property's.
+            await conn.execute(
+                f"UPDATE class_property SET {clear_defaults_sql} WHERE property_id = $1",
+                property_id,
+            )
 
         return await self.get_by_id(property_id)
 
