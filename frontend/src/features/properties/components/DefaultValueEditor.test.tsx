@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
+import { useState } from 'react';
 import { DefaultValueEditor } from './DefaultValueEditor';
 import type { Property } from '@/types/api';
 
@@ -30,9 +31,23 @@ function makeProp(overrides: Partial<Property>): Property {
 describe('DefaultValueEditor', () => {
   it('edits a text default and clears it', () => {
     const onChange = vi.fn();
-    render(<DefaultValueEditor property={makeProp({ type: 'text' })} value={null} onChange={onChange} />);
-    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'hello' } });
-    expect(onChange).toHaveBeenCalledWith('hello');
+    // Controlled harness mirroring real usage: the parent stores the value.
+    function Harness() {
+      const [value, setValue] = useState<unknown | null>(null);
+      return (
+        <DefaultValueEditor
+          property={makeProp({ type: 'text' })}
+          value={value}
+          onChange={(v) => { onChange(v); setValue(v); }}
+        />
+      );
+    }
+    render(<Harness />);
+    const input = screen.getByRole('textbox');
+    fireEvent.change(input, { target: { value: 'hello' } });
+    expect(onChange).toHaveBeenLastCalledWith('hello');
+    fireEvent.change(input, { target: { value: '' } });
+    expect(onChange).toHaveBeenLastCalledWith(null);
   });
 
   it('selects a selection option by uuid', () => {
