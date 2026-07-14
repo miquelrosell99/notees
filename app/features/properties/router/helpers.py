@@ -57,6 +57,66 @@ async def _default_value_response(
     return value
 
 
+async def _build_default_uuid_maps(
+    typed_objs: list[tuple[Any, str]],
+    property_repo: PropertyRepository,
+    node_repo: NodeRepository,
+) -> tuple[dict[int, str], dict[int, str]]:
+    """Batch-resolve typed default ids to UUIDs for a list of rows.
+
+    Collects the internal ids stored in typed default columns across all
+    (obj, prop_type) pairs and resolves them with one query per kind, so
+    list endpoints don't issue a lookup per defaulted row. Returns
+    (selection_line_uuid_map, node_uuid_map).
+    """
+    from app.domain.entities import PropertyType
+    from app.features.properties.attributes import default_value_from_columns
+
+    selection_ids: set[int] = set()
+    node_ids: set[int] = set()
+    for obj, prop_type in typed_objs:
+        value = default_value_from_columns(obj, PropertyType(prop_type))
+        if value is None:
+            continue
+        if prop_type == "selection":
+            selection_ids.add(value)
+        elif prop_type in ("node", "date", "image"):
+            node_ids.add(value)
+
+    selection_map: dict[int, str] = {}
+    if selection_ids:
+        lines = await property_repo.get_selection_lines_by_ids(list(selection_ids))
+        selection_map = {
+            line.id: str(line.uuid) for line in lines if line.id is not None
+        }
+    node_map = await _build_node_uuid_map(node_repo, list(node_ids))
+    return selection_map, node_map
+
+
+def _default_value_response_from_maps(
+    obj: Any,
+    prop_type: str,
+    default_uuid_maps: tuple[dict[int, str], dict[int, str]],
+) -> Any:
+    """Public form of the typed default column using precomputed UUID maps.
+
+    Matches ``_default_value_response`` semantics: unresolved (dangling) ids
+    map to None, scalar defaults pass through verbatim.
+    """
+    from app.domain.entities import PropertyType
+    from app.features.properties.attributes import default_value_from_columns
+
+    value = default_value_from_columns(obj, PropertyType(prop_type))
+    if value is None:
+        return None
+    selection_map, node_map = default_uuid_maps
+    if prop_type == "selection":
+        return selection_map.get(value)
+    if prop_type in ("node", "date", "image"):
+        return node_map.get(value)
+    return value
+
+
 async def _build_node_uuid_map(node_repo: NodeRepository, node_ids: list[int]) -> dict[int, str]:
     """Build a mapping of internal node IDs to public UUIDs."""
     unique_ids = [node_id for node_id in set(node_ids) if node_id is not None]
@@ -134,6 +194,7 @@ async def _property_to_response(
     class_uuid_map: dict[int, str] | None = None,
     property_repo: PropertyRepository | None = None,
     node_repo: NodeRepository | None = None,
+    default_uuid_maps: tuple[dict[int, str], dict[int, str]] | None = None,
 ) -> PropertyResponse:
     """Convert domain Property to API response.
 
@@ -142,7 +203,8 @@ async def _property_to_response(
     avoid N+1 lookups; single-property endpoints may omit the maps and the helper
     will fall back to the numeric IDs already present on the entity. Supply
     ``property_repo``/``node_repo`` so selection/node defaults can be exposed
-    as UUIDs.
+    as UUIDs, or pass precomputed ``default_uuid_maps`` (see
+    ``_build_default_uuid_maps``) when converting a list.
     """
     assert prop.id is not None, "Property must be persisted"
     node_uuid = None
@@ -156,6 +218,16 @@ async def _property_to_response(
             class_filters = [class_uuid_map[cid] for cid in prop._class_filters if cid in class_uuid_map]
         else:
             class_filters = [str(cid) for cid in prop._class_filters]
+
+    default_value: Any
+    if default_uuid_maps is not None:
+        default_value = _default_value_response_from_maps(
+            prop, prop.type.value, default_uuid_maps
+        )
+    else:
+        default_value = await _default_value_response(
+            prop, prop.type.value, property_repo, node_repo
+        )
 
     return PropertyResponse(
         id=prop.id,
@@ -172,9 +244,7 @@ async def _property_to_response(
         required=prop.required,
         readonly=prop.readonly,
         hide_when_empty=prop.hide_when_empty,
-        default_value=await _default_value_response(
-            prop, prop.type.value, property_repo, node_repo
-        ),
+        default_value=default_value,
         create_date=prop.create_date,
         write_date=prop.write_date,
         class_filters=class_filters,

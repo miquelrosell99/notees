@@ -28,7 +28,11 @@ from app.features.properties.models import (
     ClassPropertyResponse,
     ClassPropertyUpdateRequest,
 )
-from app.features.properties.router.helpers import _default_value_response
+from app.features.properties.router.helpers import (
+    _build_default_uuid_maps,
+    _default_value_response,
+    _default_value_response_from_maps,
+)
 from app.features.properties.service import _UNSET, PropertyNotFoundError, PropertyService
 from app.models import User
 
@@ -112,8 +116,17 @@ async def _class_property_to_response(
     class_uuid_map: dict[int, str],
     property_repo=None,
     node_repo: NodeRepository | None = None,
+    default_uuid_maps: tuple[dict[int, str], dict[int, str]] | None = None,
 ) -> ClassPropertyResponse:
     """Convert a ClassProperty entity pair to a UUID-aware response."""
+    if default_uuid_maps is not None:
+        default_value = _default_value_response_from_maps(
+            cp, prop.type.value, default_uuid_maps
+        )
+    else:
+        default_value = await _default_value_response(
+            cp, prop.type.value, property_repo, node_repo
+        )
     return ClassPropertyResponse(
         id=cp.id,  # type: ignore[arg-type]
         class_property_uuid=cp.uuid,
@@ -125,7 +138,7 @@ async def _class_property_to_response(
         property_name=prop.name,
         property_type=prop.type.value,
         sequence=cp.sequence,
-        default_value=await _default_value_response(cp, prop.type.value, property_repo, node_repo),
+        default_value=default_value,
         hidden=cp.hidden,
         required=cp.required,
         readonly=cp.readonly,
@@ -149,12 +162,22 @@ async def get_class_properties(
 
     class_node_ids = [cp.class_node_id for cp, _ in class_properties]
     class_uuid_map = await _build_node_uuid_map(node_repo, class_node_ids)
+    default_uuid_maps = await _build_default_uuid_maps(
+        [(cp, prop.type.value) for cp, prop in class_properties],
+        service._property_repo,
+        node_repo,
+    )
 
     result = []
     for cp, prop in class_properties:
         result.append(
             await _class_property_to_response(
-                cp, prop, class_uuid_map, service._property_repo, node_repo
+                cp,
+                prop,
+                class_uuid_map,
+                service._property_repo,
+                node_repo,
+                default_uuid_maps=default_uuid_maps,
             )
         )
 
