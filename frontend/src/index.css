@@ -67,15 +67,6 @@ textarea,
   -ms-user-select: text;
 }
 
-/* On Android suppress the browser pull-to-refresh / reload gesture completely. */
-.android-app,
-.android-app body,
-.android-app .mobile-content,
-.android-app .main-content,
-.android-app .mobile-drawer {
-  overscroll-behavior-y: none;
-}
-
 h1, h2, h3, h4, h5, h6 {
   margin: 0;
   color: var(--color-on-surface);
