@@ -77,6 +77,7 @@ export type QueryPropertyType =
   | 'checkbox'
   | 'select'
   | 'multi_select'
+  | 'selection'
   | 'node'
   | 'url'
   | 'email';
