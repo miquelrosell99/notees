@@ -6,13 +6,14 @@
  * - Own search input field (no inline text pollution)
  * - Shift+Enter for alternative action
  * - Focus management (editor → popup → editor)
- * - Position adjustment to stay in viewport
+ * - Floating UI positioning — flips above the caret and stays in the viewport
  * - Filter pills: typing prefixes like user:, page:, class:, daily: adds filter pills
  * - Value picker: certain filters open an inline value selector
  */
 
 import { useState, useRef, useEffect, useMemo, useCallback, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { autoUpdate, computePosition, flip, offset, shift, type VirtualElement } from '@floating-ui/dom';
 import type { Node } from '@/types';
 import { useNodeSearch, type NodeSearchItem } from '@/features/content';
 import { nodeNameToText } from '@/features/queries';
@@ -129,6 +130,7 @@ function scanQueryFilters(
 
 export interface TriggerPopupProps {
   type: TriggerPopupType;
+  /** Caret anchor in VIEWPORT coordinates: `top` = caret bottom, `caretTop` = caret top (the popup is position: fixed) */
   position: { top: number; left: number; caretTop: number };
   onSelectNode?: (node: Node, mode: 'default' | 'alternative', isUserMention: boolean) => void;
   onSelectCommand?: (commandId: string) => void;
@@ -188,16 +190,9 @@ export function TriggerPopup({
     return [...SLASH_COMMANDS, ...pluginCommands];
   }, []);
 
-  const [placement, setPlacement] = useState<'below' | 'above'>(() => {
-    const estimatedHeight = 280;
-    const gap = 4;
-    const roomBelow = window.innerHeight - position.top - gap;
-    const roomAbove = position.caretTop - gap;
-    if (estimatedHeight <= roomBelow) return 'below';
-    if (estimatedHeight <= roomAbove) return 'above';
-    return 'below';
-  });
-  const [popupPos, setPopupPos] = useState<{ top?: number; bottom?: number; left: number }>({ top: position.top, left: position.left });
+  // Set by Floating UI's resolved placement: 'above' reverses the layout so the
+  // search bar stays next to the caret while the popup grows upward.
+  const [placement, setPlacement] = useState<'below' | 'above'>('below');
   const [isPositioned, setIsPositioned] = useState(false);
   const [activeFilters, setActiveFilters] = useState<ActiveFilter[]>([]);
   const [dismissedFilterKeys, setDismissedFilterKeys] = useState<Set<string>>(new Set());
@@ -398,43 +393,49 @@ export function TriggerPopup({
     }
   }, [type, hiddenSlashCommandIds, onClose, allSlashCommands]);
 
-  // Position adjustment
+  // Position the popup with Floating UI against a virtual element that spans
+  // the caret line (caretTop → top). computePosition measures the real popup
+  // size for exact flip/shift decisions — no estimated-height guesswork — and
+  // autoUpdate re-anchors on scroll (any ancestor), resize, element resize,
+  // and layout shifts. `position` is in viewport coordinates (the popup is
+  // position: fixed); top/left are written imperatively so repositioning never
+  // goes through React renders.
   useLayoutEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
+    const floating = containerRef.current;
+    if (!floating) return;
 
-    const gap = 4;
-    const padding = 8;
-    const popupWidth = 320;
-    let left = position.left;
+    const reference: VirtualElement = {
+      getBoundingClientRect: () => ({
+        x: position.left,
+        y: position.caretTop,
+        width: 0,
+        height: position.top - position.caretTop,
+        top: position.caretTop,
+        left: position.left,
+        right: position.left,
+        bottom: position.top,
+      }),
+    };
 
-    if (left + popupWidth > window.innerWidth - padding) {
-      left = window.innerWidth - popupWidth - padding;
-    }
-    if (left < padding) left = padding;
+    const update = () => {
+      computePosition(reference, floating, {
+        placement: 'bottom-start',
+        strategy: 'fixed',
+        middleware: [
+          offset(4),
+          flip({ padding: 8, fallbackPlacements: ['top-start'] }),
+          shift({ padding: 8, crossAxis: true }),
+        ],
+      }).then(({ x, y, placement: resolved }) => {
+        floating.style.left = `${x}px`;
+        floating.style.top = `${y}px`;
+        setPlacement(resolved.startsWith('top') ? 'above' : 'below');
+        setIsPositioned(true);
+      });
+    };
 
-    const roomBelow = window.innerHeight - position.top - gap;
-    const roomAbove = position.caretTop - gap;
-
-    // Use a stable estimated height for the initial placement decision so the
-    // popup doesn't flip above/below as the result list grows or shrinks.
-    const estimatedHeight = 280;
-
-    if (estimatedHeight <= roomBelow) {
-      // Anchor the top edge just below the caret; the popup grows downward.
-      setPlacement('below');
-      setPopupPos({ top: position.top + gap, left });
-    } else if (estimatedHeight <= roomAbove) {
-      // Anchor the bottom edge (search bar) just above the caret; the popup
-      // grows upward while the search bar stays fixed.
-      setPlacement('above');
-      setPopupPos({ bottom: window.innerHeight - (position.caretTop - gap), left });
-    } else {
-      // Not enough room either way; prefer below and clamp to viewport.
-      setPlacement('below');
-      setPopupPos({ top: Math.max(padding, Math.min(position.top + gap, window.innerHeight - estimatedHeight - padding)), left });
-    }
-    setIsPositioned(true);
+    update();
+    return autoUpdate(reference, floating, update);
   }, [position]);
 
   // Create new node
@@ -859,9 +860,8 @@ export function TriggerPopup({
       className={`trigger-popup trigger-popup--${type} ${placement === 'above' ? 'trigger-popup--above' : ''}${isInlineSlash ? ' trigger-popup--inline' : ''}`}
       style={{
         position: 'fixed',
-        top: popupPos.top,
-        bottom: popupPos.bottom,
-        left: popupPos.left,
+        // top/left are written imperatively by Floating UI so repositioning
+        // (scroll, resize, flip) never goes through React renders.
         zIndex: 'var(--z-1000)',
         visibility: isPositioned ? 'visible' : 'hidden',
         maxHeight: placement === 'above' ? position.caretTop - 4 : undefined,

@@ -246,7 +246,8 @@
 
 /* Portal panel - rendered in body with fixed positioning */
 .btn-panel--portal {
-  /* Position is handled inline via style prop */
+  /* Position (top/right/bottom/left) is written imperatively by Floating UI
+     (computePosition/autoUpdate), bypassing React renders entirely */
   /* Override relative positioning from position classes */
   position: fixed !important;
   /* Reset all directional offsets from position variant classes
