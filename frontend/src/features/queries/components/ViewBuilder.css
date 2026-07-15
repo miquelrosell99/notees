@@ -151,11 +151,6 @@
   resize: vertical;
 }
 
-.view-builder__text-query-textarea:focus {
-  outline: none;
-  border-color: var(--color-primary);
-}
-
 .view-builder__text-query-error {
   font-size: var(--font-size-caption);
   color: var(--color-error);

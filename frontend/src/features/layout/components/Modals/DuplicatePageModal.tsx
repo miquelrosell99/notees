@@ -186,6 +186,7 @@ export function DuplicatePageModal({
               setSelectedClass(null);
             }}
             placeholder="Search or create a class..."
+            aria-label="Search or create a class"
             onKeyDown={(e) => {
               if (e.key === 'Enter' && selectedClass) {
                 e.preventDefault();

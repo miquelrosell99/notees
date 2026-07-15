@@ -46,6 +46,11 @@
   transform: scale(1.15);
 }
 
+.settings-accent-swatch:focus-visible {
+  outline: var(--border-width-thick) solid var(--color-accent);
+  outline-offset: var(--focus-outline-offset);
+}
+
 .settings-accent-swatch--active {
   border-color: var(--color-accent);
   box-shadow: var(--shadow-focus-ring-primary-container);

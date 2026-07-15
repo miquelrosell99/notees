@@ -216,7 +216,6 @@
 }
 
 .timeline-search-input:focus {
-  border-color: var(--color-accent);
   background: var(--color-surface-container-high);
 }
 

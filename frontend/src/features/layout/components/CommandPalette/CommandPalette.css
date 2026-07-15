@@ -36,6 +36,10 @@
   overflow: hidden;
 }
 
+.command-palette:focus-within {
+  box-shadow: var(--shadow-focus-ring);
+}
+
 .command-palette__input-container {
   display: flex;
   align-items: center;
@@ -51,6 +55,11 @@
   font: var(--font-body-large);
   color: var(--color-on-surface);
   outline: none;
+}
+
+.command-palette__input:focus-visible {
+  outline: none;
+  box-shadow: none;
 }
 
 .command-palette__spinner {

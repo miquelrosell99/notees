@@ -166,7 +166,7 @@ export function SidebarPinnedPages({ onContextMenu, onItemClick }: SidebarPinned
         >
           {expanded ? <ChevronDownIcon size="xs" /> : <ChevronRightIcon size="xs" />}
           <PinIcon size="xs" />
-          <h2 className="sidebar-section-title">Pinned</h2>
+          <span className="sidebar-section-title">Pinned</span>
         </button>
         {currentPageIsPinnable && (
           <Button

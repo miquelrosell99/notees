@@ -999,6 +999,7 @@ const GraphView = memo(function GraphView({
               type="text"
               className="graph-search-input"
               placeholder="Search to add nodes..."
+              aria-label="Search to add nodes"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onFocus={() => setSearchOpen(true)}

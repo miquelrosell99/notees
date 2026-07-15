@@ -140,6 +140,7 @@
 
 .page-title-input:focus-visible {
   outline: none;
+  box-shadow: var(--shadow-focus-ring);
 }
 
 .page-title-input--medium {
@@ -182,10 +183,6 @@
   .page-title-container {
     min-width: var(--layout-size-xs);
   }
-}
-
-.page-title-input:focus {
-  outline: none;
 }
 
 /* Read-only page title (system pages) */

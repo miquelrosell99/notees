@@ -264,6 +264,7 @@ export function LinkEditModal({
               type="text"
               className="link-edit-modal__input"
               placeholder="https://..."
+              aria-label="URL"
               value={url}
               onChange={e => setUrl(e.target.value)}
               autoComplete="off"

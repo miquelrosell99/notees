@@ -94,7 +94,7 @@
 }
 
 .group-by-selector__search-box:focus-within {
-  border-color: color-mix(in srgb, var(--color-primary) 35%, var(--color-outline-variant));
+  box-shadow: var(--shadow-focus-ring);
 }
 
 .group-by-selector__search-input {
@@ -104,6 +104,11 @@
   outline: none;
   font-size: var(--font-size-button);
   color: var(--color-on-surface);
+}
+
+.group-by-selector__search-input:focus-visible {
+  outline: none;
+  box-shadow: none;
 }
 
 .group-by-selector__search-input::placeholder {

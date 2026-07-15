@@ -66,10 +66,6 @@
   box-sizing: border-box;
 }
 
-.ep-search-input:focus {
-  border-color: color-mix(in srgb, var(--color-primary) 35%, var(--color-outline-variant));
-}
-
 .ep-search-input::placeholder {
   color: var(--color-on-surface-variant);
 }
