@@ -9,6 +9,7 @@ import { create } from 'zustand';
 interface ModalState {
   isCalendarOpen: boolean;
   isTasksPopupOpen: boolean;
+  isFilterBuilderOpen: boolean;
 
   isCommandPaletteOpen: boolean;
   isImportDataModalOpen: boolean;
@@ -35,6 +36,7 @@ interface ModalState {
   toggleCalendar: () => void;
   setTasksPopupOpen: (open: boolean) => void;
   toggleTasksPopup: () => void;
+  setFilterBuilderOpen: (open: boolean) => void;
 
   setCommandPaletteOpen: (open: boolean) => void;
   toggleCommandPalette: () => void;
@@ -61,6 +63,7 @@ interface ModalState {
 export const useModalStore = create<ModalState>()((set) => ({
   isCalendarOpen: false,
   isTasksPopupOpen: false,
+  isFilterBuilderOpen: false,
 
   isCommandPaletteOpen: false,
   isImportDataModalOpen: false,
@@ -87,6 +90,7 @@ export const useModalStore = create<ModalState>()((set) => ({
   toggleCalendar: () => set((s) => ({ isCalendarOpen: !s.isCalendarOpen })),
   setTasksPopupOpen: (open) => set({ isTasksPopupOpen: open }),
   toggleTasksPopup: () => set((s) => ({ isTasksPopupOpen: !s.isTasksPopupOpen })),
+  setFilterBuilderOpen: (open) => set({ isFilterBuilderOpen: open }),
 
   setCommandPaletteOpen: (open) => set({ isCommandPaletteOpen: open }),
   toggleCommandPalette: () => set((s) => ({ isCommandPaletteOpen: !s.isCommandPaletteOpen })),

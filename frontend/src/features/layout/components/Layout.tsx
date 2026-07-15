@@ -44,6 +44,7 @@ const ShareModal = React.lazy(() => import('@/features/content/components/nodes/
 const RebuildLinksModal = React.lazy(() => import('@/features/maintenance/components/RebuildLinksModal').then(m => ({ default: m.RebuildLinksModal })));
 const FixRawLinksModal = React.lazy(() => import('@/features/maintenance/components/FixRawLinksModal').then(m => ({ default: m.FixRawLinksModal })));
 const MergePagesModal = React.lazy(() => import('./Modals').then(m => ({ default: m.MergePagesModal })));
+const FilterBuilderModal = React.lazy(() => import('@/features/queries/components/FilterBuilderModal').then(m => ({ default: m.FilterBuilderModal })));
 const CreatePageWithUuidModal = React.lazy(() => import('@/features/layout/components/Modals').then(m => ({ default: m.CreatePageWithUuidModal })));
 const AutoExportProgressModal = React.lazy(() => import('@/features/workspace/components/AutoExportProgressModal').then(m => ({ default: m.AutoExportProgressModal })));
 import { Card } from '@/components/ui/Card';
@@ -448,6 +449,11 @@ export function Layout() {
             isOpen={isMergePagesModalOpen}
             onClose={() => setMergePagesModalOpen(false)}
           />
+        </Suspense>
+
+        {/* Filter Builder Modal (global — "New temporary query" palette command) */}
+        <Suspense fallback={null}>
+          <FilterBuilderModal />
         </Suspense>
 
         {/* Presentation Modal */}
