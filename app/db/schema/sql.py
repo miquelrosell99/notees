@@ -2041,4 +2041,154 @@ BEGIN
           SELECT 1 FROM property_value_selection pvs WHERE pvs.node_property_id = np.id
       );
 END $$;
+
+-- Migration: repair node_property rows that reference another workspace's
+-- copy of a per-workspace seeded property (e.g. Status). Writes once resolved
+-- property UUIDs without workspace scoping, so nodes could end up with
+-- foreign-workspace property assignments. Idempotent: re-runs are no-ops.
+DO $$
+DECLARE
+    deleted_count integer;
+BEGIN
+    -- Case 1: node already has its own workspace's assignment of the same
+    -- property UUID — the foreign assignment is a duplicate. Drop its values
+    -- and the row.
+    DELETE FROM property_value_selection pvs
+    USING node_property np, node n, property p
+    WHERE pvs.node_property_id = np.id
+      AND np.node_id = n.id AND np.property_id = p.id
+      AND p.workspace_id IS NOT NULL AND p.workspace_id <> n.workspace_id
+      AND EXISTS (
+          SELECT 1 FROM node_property own_np
+          JOIN property own_p ON own_p.id = own_np.property_id
+          WHERE own_np.node_id = n.id AND own_p.uuid = p.uuid
+            AND (own_p.workspace_id = n.workspace_id OR own_p.workspace_id IS NULL)
+      );
+
+    -- property_value_scalar / property_value_relation also key
+    -- node_property_id (ON DELETE CASCADE; made explicit here).
+    DELETE FROM property_value_scalar pv
+    USING node_property np, node n, property p
+    WHERE pv.node_property_id = np.id
+      AND np.node_id = n.id AND np.property_id = p.id
+      AND p.workspace_id IS NOT NULL AND p.workspace_id <> n.workspace_id
+      AND EXISTS (
+          SELECT 1 FROM node_property own_np
+          JOIN property own_p ON own_p.id = own_np.property_id
+          WHERE own_np.node_id = n.id AND own_p.uuid = p.uuid
+            AND (own_p.workspace_id = n.workspace_id OR own_p.workspace_id IS NULL)
+      );
+
+    DELETE FROM property_value_relation pv
+    USING node_property np, node n, property p
+    WHERE pv.node_property_id = np.id
+      AND np.node_id = n.id AND np.property_id = p.id
+      AND p.workspace_id IS NOT NULL AND p.workspace_id <> n.workspace_id
+      AND EXISTS (
+          SELECT 1 FROM node_property own_np
+          JOIN property own_p ON own_p.id = own_np.property_id
+          WHERE own_np.node_id = n.id AND own_p.uuid = p.uuid
+            AND (own_p.workspace_id = n.workspace_id OR own_p.workspace_id IS NULL)
+      );
+
+    DELETE FROM node_property np
+    USING node n, property p
+    WHERE np.node_id = n.id AND np.property_id = p.id
+      AND p.workspace_id IS NOT NULL AND p.workspace_id <> n.workspace_id
+      AND EXISTS (
+          SELECT 1 FROM node_property own_np
+          JOIN property own_p ON own_p.id = own_np.property_id
+          WHERE own_np.node_id = n.id AND own_p.uuid = p.uuid
+            AND (own_p.workspace_id = n.workspace_id OR own_p.workspace_id IS NULL)
+      );
+
+    -- Case 2: only the foreign assignment exists and the node's workspace has
+    -- its own copy of the property — remap. Selection values are re-pointed
+    -- to the same-named line of the workspace copy; unmatched values drop.
+    UPDATE property_value_selection pvs
+    SET selection_line_id = new_line.id,
+        property_id = new_p.id
+    FROM node_property np, node n, property old_p, property new_p,
+         property_selection_line old_line, property_selection_line new_line
+    WHERE pvs.node_property_id = np.id
+      AND np.node_id = n.id AND np.property_id = old_p.id
+      AND old_p.workspace_id IS NOT NULL AND old_p.workspace_id <> n.workspace_id
+      AND new_p.uuid = old_p.uuid AND new_p.active = TRUE
+      AND (new_p.workspace_id = n.workspace_id OR new_p.workspace_id IS NULL)
+      AND old_line.id = pvs.selection_line_id
+      AND new_line.property_id = new_p.id AND new_line.name = old_line.name;
+
+    -- Scalar/relation values carry a denormalized property_id; re-point it to
+    -- the workspace copy as well (their values are workspace-independent, so
+    -- no name-based mapping is needed).
+    UPDATE property_value_scalar pv
+    SET property_id = new_p.id
+    FROM node_property np, node n, property old_p, property new_p
+    WHERE pv.node_property_id = np.id
+      AND np.node_id = n.id AND np.property_id = old_p.id
+      AND old_p.workspace_id IS NOT NULL AND old_p.workspace_id <> n.workspace_id
+      AND new_p.uuid = old_p.uuid AND new_p.active = TRUE
+      AND (new_p.workspace_id = n.workspace_id OR new_p.workspace_id IS NULL);
+
+    UPDATE property_value_relation pv
+    SET property_id = new_p.id
+    FROM node_property np, node n, property old_p, property new_p
+    WHERE pv.node_property_id = np.id
+      AND np.node_id = n.id AND np.property_id = old_p.id
+      AND old_p.workspace_id IS NOT NULL AND old_p.workspace_id <> n.workspace_id
+      AND new_p.uuid = old_p.uuid AND new_p.active = TRUE
+      AND (new_p.workspace_id = n.workspace_id OR new_p.workspace_id IS NULL);
+
+    -- Drop selection values that could not be remapped by name (still tagged
+    -- to the foreign property after the remap UPDATE above).
+    DELETE FROM property_value_selection pvs
+    USING node_property np, node n, property p
+    WHERE pvs.node_property_id = np.id
+      AND np.node_id = n.id AND np.property_id = p.id
+      AND p.workspace_id IS NOT NULL AND p.workspace_id <> n.workspace_id
+      AND pvs.property_id = p.id;
+
+    UPDATE node_property np
+    SET property_id = new_p.id
+    FROM node n, property old_p, property new_p
+    WHERE np.node_id = n.id AND np.property_id = old_p.id
+      AND old_p.workspace_id IS NOT NULL AND old_p.workspace_id <> n.workspace_id
+      AND new_p.uuid = old_p.uuid AND new_p.active = TRUE
+      AND (new_p.workspace_id = n.workspace_id OR new_p.workspace_id IS NULL)
+      AND NOT EXISTS (
+          SELECT 1 FROM node_property own_np
+          WHERE own_np.node_id = n.id AND own_np.property_id = new_p.id AND own_np.id <> np.id
+      );
+
+    -- Case 3: final sweep — anything still cross-workspace here either has no
+    -- own-workspace property copy (unreadable in the node's workspace) or was
+    -- skipped by the remap guard because a duplicate assignment exists.
+    -- Delete it (values first) and report.
+    DELETE FROM property_value_selection pvs
+    USING node_property np, node n, property p
+    WHERE pvs.node_property_id = np.id
+      AND np.node_id = n.id AND np.property_id = p.id
+      AND p.workspace_id IS NOT NULL AND p.workspace_id <> n.workspace_id;
+
+    DELETE FROM property_value_scalar pv
+    USING node_property np, node n, property p
+    WHERE pv.node_property_id = np.id
+      AND np.node_id = n.id AND np.property_id = p.id
+      AND p.workspace_id IS NOT NULL AND p.workspace_id <> n.workspace_id;
+
+    DELETE FROM property_value_relation pv
+    USING node_property np, node n, property p
+    WHERE pv.node_property_id = np.id
+      AND np.node_id = n.id AND np.property_id = p.id
+      AND p.workspace_id IS NOT NULL AND p.workspace_id <> n.workspace_id;
+
+    DELETE FROM node_property np
+    USING node n, property p
+    WHERE np.node_id = n.id AND np.property_id = p.id
+      AND p.workspace_id IS NOT NULL AND p.workspace_id <> n.workspace_id;
+    GET DIAGNOSTICS deleted_count = ROW_COUNT;
+    IF deleted_count > 0 THEN
+        RAISE NOTICE 'Removed % remaining cross-workspace node_property rows', deleted_count;
+    END IF;
+END $$;
 """
