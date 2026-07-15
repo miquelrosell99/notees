@@ -76,19 +76,21 @@ export function useTasksPopupData() {
     () => ({
       overdue: {
         nodes: [...(overdue.data?.nodes ?? [])].sort(byTaskDateAsc),
-        totalCount: overdue.data?.total_count ?? 0,
+        // Unlimited query: the backend only sends total_count when
+        // limit/offset is set, so fall back to the row count.
+        totalCount: overdue.data?.total_count ?? overdue.data?.nodes.length ?? 0,
       },
       today: {
         nodes: today.data?.nodes ?? [],
-        totalCount: today.data?.total_count ?? 0,
+        totalCount: today.data?.total_count ?? today.data?.nodes.length ?? 0,
       },
       upcoming: {
         nodes: [...(upcoming.data?.nodes ?? [])].sort(byTaskDateAsc),
-        totalCount: upcoming.data?.total_count ?? 0,
+        totalCount: upcoming.data?.total_count ?? upcoming.data?.nodes.length ?? 0,
       },
       completed: {
         nodes: completed.data?.nodes ?? [],
-        totalCount: completed.data?.total_count ?? 0,
+        totalCount: completed.data?.total_count ?? completed.data?.nodes.length ?? 0,
       },
     }),
     [overdue.data, today.data, upcoming.data, completed.data],

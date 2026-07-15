@@ -63,4 +63,27 @@ describe('useTasksPopupData', () => {
     expect(result.current.sections.completed.totalCount).toBe(2);
     expect(executeQueryMock).toHaveBeenCalledTimes(4);
   });
+
+  it('falls back to row counts when the backend omits total_count (unlimited queries)', async () => {
+    // The backend only computes total_count when limit/offset is set
+    // (postgres_query.py) — the overdue/today requests are unlimited, so
+    // their responses carry no total_count at all.
+    executeQueryMock.mockImplementation(async (req) => {
+      const ast = JSON.stringify(req.query_ast);
+      if (ast.includes('task_closed_date')) return { nodes: [], total_count: 2 } as never;
+      if (ast.includes('less_than') && !ast.includes('greater_than')) {
+        return { nodes: [{ uuid: 'o1' }, { uuid: 'o2' }, { uuid: 'o3' }] } as never; // overdue: no total_count
+      }
+      if (ast.includes('greater_than')) return { nodes: [{ uuid: 'u1' }], total_count: 7 } as never;
+      return { nodes: [{ uuid: 't1' }, { uuid: 't2' }] } as never; // today: no total_count
+    });
+    const { result } = renderHook(() => useTasksPopupData(), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.dueCount).toBe(5); // 3 overdue rows + 2 today rows
+    expect(result.current.sections.overdue.totalCount).toBe(3);
+    expect(result.current.sections.today.totalCount).toBe(2);
+    // Limited queries still prefer the authoritative total_count over row count.
+    expect(result.current.sections.upcoming.totalCount).toBe(7);
+    expect(result.current.sections.completed.totalCount).toBe(2);
+  });
 });
