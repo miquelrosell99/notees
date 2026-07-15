@@ -722,6 +722,7 @@ export function TriggerPopup({
         }}
         onKeyDown={handleKeyDown}
         placeholder={type === 'slash' ? 'Search commands...' : 'Search or type filter (user:, page:, class:, daily:)...'}
+        aria-label={type === 'slash' ? 'Search commands' : 'Search or type filter'}
         className="trigger-popup__input"
       />
     </div>
