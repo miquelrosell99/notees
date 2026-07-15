@@ -1,0 +1,141 @@
+/**
+ * Tasks Popup Component Styles
+ *
+ * Follows the CalendarPopup conventions: card surface, outline-variant border,
+ * shape-medium radius scale, popover z-index. Spacing uses the numeric
+ * --spacing-N scale (--spacing-xs does not exist in the design tokens).
+ */
+
+/* ==================== Tasks Popup Container ==================== */
+.tasks-popup {
+  min-width: 320px;
+  max-width: 380px;
+  max-height: 420px;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  z-index: var(--z-popover);
+}
+
+/* ==================== Quick-Add Input ==================== */
+.tasks-popup__quick-add {
+  padding: var(--spacing-sm);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.tasks-popup__quick-add input {
+  width: 100%;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+}
+
+/* ==================== Scrollable Body ==================== */
+.tasks-popup__body {
+  overflow-y: auto;
+  padding: var(--spacing-1) 0;
+}
+
+/* ==================== Section Headers ==================== */
+.tasks-popup__section-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-1) var(--spacing-sm);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-secondary);
+}
+
+.tasks-popup__section-title--danger {
+  color: var(--color-error);
+}
+
+.tasks-popup__section-title--muted {
+  color: var(--color-text-tertiary);
+}
+
+.tasks-popup__count {
+  font-weight: 500;
+}
+
+/* ==================== Task Rows ==================== */
+.tasks-popup__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.tasks-popup__row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-1);
+  padding: 2px var(--spacing-sm);
+}
+
+.tasks-popup__circle {
+  background: none;
+  border: none;
+  padding: 2px;
+  cursor: pointer;
+  color: var(--color-text-secondary);
+  flex-shrink: 0;
+}
+
+.tasks-popup__circle:hover {
+  color: var(--color-primary);
+}
+
+.tasks-popup__row--completed .tasks-popup__name {
+  text-decoration: line-through;
+  color: var(--color-text-tertiary);
+}
+
+.tasks-popup__title {
+  flex: 1;
+  min-width: 0;
+  background: none;
+  border: none;
+  padding: 2px 0;
+  cursor: pointer;
+  text-align: left;
+  color: var(--color-text);
+}
+
+.tasks-popup__title:hover .tasks-popup__name {
+  color: var(--color-primary);
+}
+
+.tasks-popup__name {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--font-size-sm);
+}
+
+.tasks-popup__meta {
+  display: flex;
+  gap: var(--spacing-1);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-tertiary);
+}
+
+/* ==================== State Messages ==================== */
+.tasks-popup__state {
+  padding: var(--spacing-md);
+  text-align: center;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+}
+
+.tasks-popup__state--error {
+  color: var(--color-error);
+}
