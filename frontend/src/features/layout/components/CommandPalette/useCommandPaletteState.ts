@@ -33,8 +33,6 @@ interface UseCommandPaletteStateParams {
 export function useCommandPaletteState({ isOpen, onClose }: UseCommandPaletteStateParams) {
   const [query, setQuery] = useState('');
   const [appliedFilters, setAppliedFilters] = useState<AppliedFilter[]>([]);
-  const [classPopupPosition, setClassPopupPosition] = useState<{ top: number; left: number } | null>(null);
-  const [filterPrefixPopupPosition, setFilterPrefixPopupPosition] = useState<{ top: number; left: number } | null>(null);
   const [duplicateModal, setDuplicateModal] = useState<DuplicateModalState>({
     isOpen: false,
     pageName: '',
@@ -197,7 +195,6 @@ export function useCommandPaletteState({ isOpen, onClose }: UseCommandPaletteSta
     if (isOpen) {
       setQuery('');
         setAppliedFilters([]);
-        setClassPopupPosition(null);
         setMaxPages(INITIAL_MAX_PAGES);
         setMaxBlocks(INITIAL_MAX_BLOCKS);
         setMaxProperties(INITIAL_MAX_PROPERTIES);;
@@ -210,34 +207,6 @@ export function useCommandPaletteState({ isOpen, onClose }: UseCommandPaletteSta
       getRandomPages(5).then(setRandomPages).catch(() => {});
     }
   }, [isOpen, queryClient]);
-
-  // Calculate class popup position when typing class: filter
-  useEffect(() => {
-    if (isTypingClass && inputRef.current) {
-      const inputRect = inputRef.current.getBoundingClientRect();
-
-      // Position below the input (use screen coordinates for fixed positioning)
-      setClassPopupPosition({
-        top: inputRect.bottom + 4,
-        left: inputRect.left,
-      });
-    } else {
-      setClassPopupPosition(null);
-    }
-  }, [isTypingClass]);
-
-  // Calculate filter prefix popup position when typing a standalone colon
-  useEffect(() => {
-    if (isTypingColon && inputRef.current) {
-      const inputRect = inputRef.current.getBoundingClientRect();
-      setFilterPrefixPopupPosition({
-        top: inputRect.bottom + 4,
-        left: inputRect.left,
-      });
-    } else {
-      setFilterPrefixPopupPosition(null);
-    }
-  }, [isTypingColon]);
 
   // Handle class selection from popup
   const handleClassSelect = useCallback((classNode: Node) => {
@@ -344,10 +313,6 @@ export function useCommandPaletteState({ isOpen, onClose }: UseCommandPaletteSta
     setQuery,
     appliedFilters,
     setAppliedFilters,
-    classPopupPosition,
-    setClassPopupPosition,
-    filterPrefixPopupPosition,
-    setFilterPrefixPopupPosition,
     duplicateModal,
     setDuplicateModal,
     maxPages,

@@ -5,8 +5,9 @@
  * selection inside the editor root.
  */
 
-import { useEffect, useState, useCallback, useRef, type JSX } from 'react';
+import { useEffect, useLayoutEffect, useState, useCallback, useRef, type JSX } from 'react';
 import { createPortal } from 'react-dom';
+import { autoUpdate, computePosition, flip, offset, shift, type VirtualElement } from '@floating-ui/dom';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import {
@@ -69,9 +70,16 @@ function computeActiveMarks(state: InlineEditorState, start: number, end: number
 
 export function FloatingToolbar({ rootRef, stateRef, applyMutation }: FloatingToolbarProps): JSX.Element | null {
   const [isVisible, setIsVisible] = useState(false);
-  const [position, setPosition] = useState({ top: 0, left: 0 });
   const [activeMarks, setActiveMarks] = useState<Set<MarkType>>(new Set());
   const showTimeoutRef = useRef<number | null>(null);
+  const toolbarRef = useRef<HTMLDivElement>(null);
+  // Live selection Range the toolbar is anchored to. The virtual element below
+  // re-reads its rect on every compute, so scroll, resize, and drag-selection
+  // changes all reposition against the current selection.
+  const rangeRef = useRef<Range | null>(null);
+  // Latest Floating UI recompute, so the debounced selectionchange handler can
+  // reposition the toolbar when the selection moves while it stays visible.
+  const updatePositionRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     const updateToolbar = () => {
@@ -146,11 +154,17 @@ export function FloatingToolbar({ rootRef, stateRef, applyMutation }: FloatingTo
 
         const currentRange = sel.getRangeAt(0);
         const currentRect = currentRange.getBoundingClientRect();
-        setPosition({
-          top: currentRect.bottom + 8 + window.scrollY,
-          left: currentRect.left + window.scrollX,
-        });
+        if (currentRect.width === 0 || currentRect.height === 0) {
+          setIsVisible(false);
+          showTimeoutRef.current = null;
+          return;
+        }
+
+        rangeRef.current = currentRange;
         setIsVisible(true);
+        // The selection may have moved while the toolbar was already visible
+        // (drag selection) — recompute against the new range rect.
+        updatePositionRef.current?.();
         showTimeoutRef.current = null;
       }, 150);
     };
@@ -163,6 +177,47 @@ export function FloatingToolbar({ rootRef, stateRef, applyMutation }: FloatingTo
       }
     };
   }, [rootRef, stateRef]);
+
+  // Anchor the toolbar to the live selection with Floating UI: the virtual
+  // element re-reads the Range rect on every compute, and autoUpdate re-runs
+  // the compute on scroll (any ancestor), resize, element resize, and layout
+  // shifts. flip() moves the toolbar above the selection when there is no room
+  // below — the old hand-rolled positioning could not do that. top/left and
+  // visibility are written straight to the toolbar element, so repositioning
+  // never goes through React renders.
+  useLayoutEffect(() => {
+    if (!isVisible) {
+      updatePositionRef.current = null;
+      return;
+    }
+    const floating = toolbarRef.current;
+    if (!floating) return;
+
+    const reference: VirtualElement = {
+      getBoundingClientRect: () =>
+        rangeRef.current?.getBoundingClientRect() ?? new DOMRect(),
+    };
+
+    const update = () => {
+      computePosition(reference, floating, {
+        placement: 'bottom-start',
+        strategy: 'fixed',
+        middleware: [
+          offset(8),
+          flip({ padding: 8, fallbackPlacements: ['top-start'] }),
+          shift({ padding: 8, crossAxis: true }),
+        ],
+      }).then(({ x, y }) => {
+        floating.style.left = `${x}px`;
+        floating.style.top = `${y}px`;
+        floating.style.visibility = 'visible';
+      });
+    };
+
+    updatePositionRef.current = update;
+    update();
+    return autoUpdate(reference, floating, update);
+  }, [isVisible]);
 
   const handleFormat = useCallback(
     (mark: MarkType) => {
@@ -179,12 +234,15 @@ export function FloatingToolbar({ rootRef, stateRef, applyMutation }: FloatingTo
 
   const toolbar = (
     <div
+      ref={toolbarRef}
       className="floating-toolbar"
       data-editor-companion="true"
       style={{
-        position: 'absolute',
-        top: position.top,
-        left: position.left,
+        position: 'fixed',
+        // Hidden until Floating UI's first compute writes top/left and flips
+        // visibility to 'visible' — all imperatively, so repositioning never
+        // goes through React renders.
+        visibility: 'hidden',
         zIndex: 'var(--z-1000)',
         pointerEvents: 'auto',
       }}

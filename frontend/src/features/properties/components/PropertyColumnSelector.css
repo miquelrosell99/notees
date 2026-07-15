@@ -3,8 +3,7 @@
 .property-column-selector {
   display: flex;
   flex-direction: column;
-  min-width: var(--layout-size-7xl);
-  max-width: var(--layout-size-9xl);
+  width: 100%;
   max-height: 31.25rem;
 }
 

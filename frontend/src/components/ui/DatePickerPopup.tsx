@@ -99,7 +99,7 @@ export function DatePickerPopup({
   const position = useViewportFlip(
     anchorRef ?? fallbackAnchorRef,
     true,
-    { popupRef, popupWidth: 320, popupHeight: 440, fixed: true },
+    { popupRef, popupHeight: 440, fixed: true },
   );
 
   // Auto-focus input on mount (preventScroll avoids viewport shift)

@@ -25,17 +25,9 @@ export function IconColorPickerRow({
   onColorChange,
 }: IconColorPickerRowProps) {
   const [showPicker, setShowPicker] = useState(false);
-  const [pickerPos, setPickerPos] = useState({ x: 0, y: 0 });
   const triggerRef = useRef<HTMLButtonElement>(null);
 
   const handleIconClick = useCallback(() => {
-    if (triggerRef.current) {
-      const rect = triggerRef.current.getBoundingClientRect();
-      setPickerPos({
-        x: Math.min(rect.left, window.innerWidth - 340),
-        y: Math.min(rect.bottom + 4, window.innerHeight - 450),
-      });
-    }
     setShowPicker((prev) => !prev);
   }, []);
 
@@ -104,7 +96,7 @@ export function IconColorPickerRow({
             value={currentIcon || ''}
             onSelect={handleIconSelect}
             onClose={() => setShowPicker(false)}
-            position={pickerPos}
+            anchorRef={triggerRef}
           />,
           document.body,
         )}

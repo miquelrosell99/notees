@@ -10,10 +10,11 @@
  * Callers configure via `actions?: [ActionName, ActionScope][]`.
  * PageContextMenu / BlockContextMenu are backward-compatible aliases.
  */
-import { useMemo, useCallback, useState, useRef } from 'react';
+import { useMemo, useCallback, useState, useRef, useLayoutEffect } from 'react';
 import { copyToClipboard } from '@/utils/clipboardManager';
 import { useClipboardStore } from '@/stores/clipboardStore';
 import { createPortal } from 'react-dom';
+import { autoUpdate, computePosition, flip, shift, type VirtualElement } from '@floating-ui/dom';
 import { useArchiveNode, useUnarchiveNode, useDeleteNode, useUpdateNode, useLinkedReferencesCount } from '@/features/content';
 import { nodeNameToText } from '@/features/queries';
 import { useSettingsStore, usePresentationStore } from '@/stores';
@@ -42,7 +43,6 @@ import { startSingleExportJob, pollExportJob, fetchExportResult } from '@/api/ex
 import type { Node, NodeUpdate } from '@/types';
 
 import type { ContentAST } from '@/runtime/types';
-import { adjustMenuPosition } from './NodeContextMenu/adjustMenuPosition';
 import { IconColorPickerRow } from './NodeContextMenu/iconRow';
 import { MoveToSubmenu } from './NodeContextMenu/moveTo';
 import {
@@ -59,6 +59,9 @@ import type { MutationIntent } from '@/runtime/types';
 
 
 // ==================== Common Context Menu Items ====================
+
+/** Minimum clearance from the menu to the viewport edge. */
+const MENU_VIEWPORT_PADDING = 8;
 
 interface BaseContextMenuProps {
   /** The node to show context menu for */
@@ -522,15 +525,60 @@ export function NodeContextMenu({
   }, [node.uuid, isPageFavorited, onClose, addFavoriteMutation, removeFavoriteMutation]);
 
   const menuVisible = !showDeleteModal && !showArchiveModal && !showASTModal && !showExportModal && !showShareModal;
-  const menuCallbackRef = useCallback((el: HTMLDivElement | null) => {
-    wrapperRef.current = el;
-    adjustMenuPosition(el, position, anchorEl);
-  }, [position, anchorEl]);
+
+  // Position the menu with Floating UI and keep it anchored while open.
+  // autoUpdate repositions on scroll (any ancestor), resize, element resize,
+  // and layout shifts. Styles are written straight to the wrapper element, so
+  // repositioning never goes through React renders.
+  useLayoutEffect(() => {
+    if (!menuVisible) return;
+    const floating = wrapperRef.current;
+    if (!floating) return;
+
+    let reference: HTMLElement | VirtualElement;
+    if (anchorEl) {
+      reference = anchorEl;
+    } else if (position) {
+      const { x, y } = position;
+      reference = {
+        getBoundingClientRect: () => ({
+          x, y, width: 0, height: 0,
+          top: y, left: x, right: x, bottom: y,
+        }),
+      };
+    } else {
+      floating.style.visibility = 'visible';
+      return;
+    }
+
+    const update = () => {
+      computePosition(reference, floating, {
+        placement: 'bottom-start',
+        strategy: 'fixed',
+        middleware: [
+          // No offset: legacy positioning opened flush at the anchor/point.
+          flip({ padding: MENU_VIEWPORT_PADDING, fallbackPlacements: ['top-start'] }),
+          shift({ padding: MENU_VIEWPORT_PADDING, crossAxis: true }),
+        ],
+      }).then(({ x, y }) => {
+        floating.style.left = `${x}px`;
+        floating.style.top = `${y}px`;
+        floating.style.right = 'auto';
+        floating.style.bottom = 'auto';
+        floating.style.visibility = 'visible';
+      });
+    };
+
+    update();
+    return autoUpdate(reference, floating, update);
+  }, [menuVisible, anchorEl, position]);
 
   return (
     <>
       {menuVisible && createPortal(
-        <div ref={menuCallbackRef} className="node-context-menu-wrapper">
+        // Hidden until Floating UI writes the first position, to avoid a
+        // flash at the top-left corner (computePosition resolves async).
+        <div ref={wrapperRef} className="node-context-menu-wrapper" style={{ visibility: 'hidden' }}>
           <IconColorPickerRow
             currentIcon={node.icon ?? null}
             currentColor={node.color ?? null}

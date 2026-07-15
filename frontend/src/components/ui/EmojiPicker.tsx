@@ -13,9 +13,11 @@ import React, {
   useMemo,
   useRef,
   useEffect,
+  useLayoutEffect,
   useCallback,
   type ReactNode,
 } from 'react';
+import { autoUpdate, computePosition, flip, offset, shift } from '@floating-ui/dom';
 
 import { MDI_ICON_LIST } from '@/utils/mdiIconList';
 import { getMdiClass } from '@/utils/iconDom';
@@ -323,6 +325,11 @@ function SectionHeader({ children }: { children: ReactNode }) {
 
 type TabType = 'all' | 'emojis' | 'icons';
 
+/** Gap between the anchor element and the picker popup. */
+const POPUP_GAP = 4;
+/** Minimum clearance from the picker popup to the viewport edge. */
+const VIEWPORT_PADDING = 8;
+
 export interface EmojiPickerProps {
   /** Currently selected value (emoji character or camelCase MDI key e.g. "mdiCalendar") */
   value?: string;
@@ -330,8 +337,8 @@ export interface EmojiPickerProps {
   onSelect: (value: string) => void;
   /** Called when picker should close */
   onClose: () => void;
-  /** Position for popup mode */
-  position?: { x: number; y: number };
+  /** Anchor element the popup positions itself against (popup mode only) */
+  anchorRef?: React.RefObject<HTMLElement | null>;
   /** Show as fixed popup (true) or inline block (false) */
   asPopup?: boolean;
   /** Show a colour button in the header */
@@ -346,7 +353,7 @@ export function EmojiPicker({
   value,
   onSelect,
   onClose,
-  position,
+  anchorRef,
   asPopup = true,
   useColor = false,
   color,
@@ -384,6 +391,42 @@ export function EmojiPicker({
     document.addEventListener('mousedown', handle);
     return () => document.removeEventListener('mousedown', handle);
   }, [asPopup, onClose]);
+
+  // Position the picker against its anchor with Floating UI and keep it
+  // anchored on scroll/resize. The picker is hidden until the first compute
+  // so it never flashes at an unpositioned spot; position styles are written
+  // straight to the element, so repositioning never goes through React renders.
+  useLayoutEffect(() => {
+    if (!asPopup) return;
+    const floating = pickerRef.current;
+    const reference = anchorRef?.current;
+    if (!floating) return;
+    if (!reference) {
+      floating.style.visibility = 'visible';
+      return;
+    }
+
+    floating.style.visibility = 'hidden';
+
+    const update = () => {
+      computePosition(reference, floating, {
+        placement: 'bottom-start',
+        strategy: 'fixed',
+        middleware: [
+          offset(POPUP_GAP),
+          flip({ padding: VIEWPORT_PADDING, fallbackPlacements: ['top-start'] }),
+          shift({ padding: VIEWPORT_PADDING, crossAxis: true }),
+        ],
+      }).then(({ x, y }) => {
+        floating.style.left = `${x}px`;
+        floating.style.top = `${y}px`;
+        floating.style.visibility = 'visible';
+      });
+    };
+
+    update();
+    return autoUpdate(reference, floating, update);
+  }, [asPopup, anchorRef]);
 
   const allMdiNames = useMemo(
     () => MDI_ICON_LIST.filter((k) => k.startsWith('mdi')).sort(),
@@ -423,9 +466,6 @@ export function EmojiPicker({
     return /^mdi[A-Z]/.test(val);
   }
 
-const popupStyle: React.CSSProperties =
-    asPopup && position ? { position: 'fixed', left: position.x, top: position.y } : {};
-
   const handleTabChange = (tab: TabType) => {
     setActiveTab(tab);
     setSearch('');
@@ -436,7 +476,6 @@ const popupStyle: React.CSSProperties =
     <div
       ref={pickerRef}
       className={`ep ${asPopup ? 'ep--popup' : 'ep--inline'}`}
-      style={popupStyle}
       role={asPopup ? 'dialog' : undefined}
       aria-modal={asPopup ? 'true' : undefined}
       aria-label={asPopup ? 'Icon picker' : undefined}
@@ -587,17 +626,9 @@ export function EmojiPickerTrigger({
   onColorChange,
 }: EmojiPickerTriggerProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [position, setPosition] = useState({ x: 0, y: 0 });
   const triggerRef = useRef<HTMLButtonElement>(null);
 
   const handleClick = useCallback(() => {
-    if (triggerRef.current) {
-      const rect = triggerRef.current.getBoundingClientRect();
-      setPosition({
-        x: Math.min(rect.left, window.innerWidth - 340),
-        y: Math.min(rect.bottom + 4, window.innerHeight - 450),
-      });
-    }
     setIsOpen((prev) => !prev);
   }, []);
 
@@ -631,7 +662,7 @@ export function EmojiPickerTrigger({
           value={value}
           onSelect={handleSelect}
           onClose={() => setIsOpen(false)}
-          position={position}
+          anchorRef={triggerRef}
           useColor={useColor}
           color={color}
           onColorChange={onColorChange}

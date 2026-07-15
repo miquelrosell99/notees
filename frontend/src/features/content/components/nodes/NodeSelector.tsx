@@ -9,9 +9,10 @@
  * All modes use the shared NodeResultItem component so the result list UI is
  * consistent everywhere nodes are selected.
  */
-import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useQueries } from '@tanstack/react-query';
+import { autoUpdate, computePosition, flip, offset, shift, size as floatingSize } from '@floating-ui/dom';
 import { useKeyboardListNav } from '@/hooks/useKeyboardListNav';
 import { useViewportFlip } from '@/hooks/useViewportFlip';
 import { NodeRef } from './NodeRef';
@@ -33,6 +34,15 @@ import type { Node } from '@/types';
 import './NodeSelector.css';
 
 type TriggerMode = 'pill-row' | 'select' | 'inline';
+
+/** Gap between trigger/anchor and the floating picker or dropdown. */
+const PICKER_GAP = 4;
+/** Viewport edge clearance for the pill-row / anchored picker. */
+const PICKER_EDGE_PADDING = 8;
+/** Viewport edge clearance for the select-mode dropdown. */
+const MENU_EDGE_PADDING = 16;
+/** Max height of the multi-select dropdown. */
+const MULTI_MENU_MAX_HEIGHT = 320;
 
 interface NodeSelectorProps {
   /** The nodes to display as pills (or selected values in 'select' mode) */
@@ -135,7 +145,6 @@ export function NodeSelector({
   const [searchQuery, setSearchQuery] = useState(initialSearchQuery);
   const [appliedFilters, setAppliedFilters] = useState<AppliedFilter[]>([]);
   const [displayLimit, setDisplayLimit] = useState(trigger === 'select' ? 15 : 10);
-  const [pickerPos, setPickerPos] = useState<{ top: number; left: number } | null>(null);
   const pickerRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLDivElement>(null);
   const arrowBtnRef = useRef<HTMLButtonElement>(null);
@@ -348,55 +357,70 @@ export function NodeSelector({
     { maxHeight: 320, includeWidth: true, minWidth: 240, popupRef: menuRef },
   );
 
-  // Position menu for 'select' multi mode - anchored to arrow button, right-aligned
-  const [multiMenuPos, setMultiMenuPos] = useState<{ top: number; left: number; maxHeight: number } | null>(null);
-  useEffect(() => {
-    if (!(trigger === 'select' && multi && isPickerOpen) || !arrowBtnRef.current) {
-      setMultiMenuPos(null);
-      return;
-    }
-    const rect = arrowBtnRef.current.getBoundingClientRect();
-    const viewportHeight = window.innerHeight;
-    const viewportWidth = window.innerWidth;
-    const dropdownWidth = 280;
-    const gap = 4;
-    const spaceBelow = viewportHeight - rect.bottom;
-    const spaceAbove = rect.top;
-    const maxPopupHeight = 320;
+  // Position the multi-select dropdown with Floating UI: anchored to the arrow
+  // button, right-aligned ('bottom-end'), flipping above when there's no room
+  // below. Position and max-height are written imperatively to the menu element
+  // so scroll-driven repositioning never goes through React renders.
+  useLayoutEffect(() => {
+    if (!(trigger === 'select' && multi && isPickerOpen)) return;
+    const reference = arrowBtnRef.current;
+    const floating = menuRef.current;
+    if (!reference || !floating) return;
 
-    let top: number;
-    let maxHeight: number;
-    if (spaceBelow >= maxPopupHeight || spaceBelow > spaceAbove) {
-      top = rect.bottom + window.scrollY + gap;
-      maxHeight = Math.min(maxPopupHeight, spaceBelow - gap * 2);
-    } else {
-      maxHeight = Math.min(maxPopupHeight, spaceAbove - gap * 2);
-      top = rect.top + window.scrollY - maxHeight - gap;
-    }
+    const update = () => {
+      computePosition(reference, floating, {
+        placement: 'bottom-end',
+        strategy: 'absolute',
+        middleware: [
+          offset(PICKER_GAP),
+          flip({ padding: MENU_EDGE_PADDING, fallbackPlacements: ['top-end'] }),
+          floatingSize({
+            padding: MENU_EDGE_PADDING,
+            apply({ availableHeight }) {
+              floating.style.maxHeight = `${Math.min(MULTI_MENU_MAX_HEIGHT, Math.max(0, availableHeight - PICKER_GAP))}px`;
+            },
+          }),
+          shift({ padding: MENU_EDGE_PADDING, crossAxis: true }),
+        ],
+      }).then(({ x, y }) => {
+        floating.style.left = `${x}px`;
+        floating.style.top = `${y}px`;
+        floating.style.visibility = 'visible';
+      });
+    };
 
-    // Right-align to arrow button
-    let left = rect.right + window.scrollX - dropdownWidth;
-    if (left < 16) left = 16;
-    if (left + dropdownWidth > viewportWidth - 16) {
-      left = viewportWidth - dropdownWidth - 16;
-    }
-
-    setMultiMenuPos({ top, left, maxHeight });
+    update();
+    return autoUpdate(reference, floating, update);
   }, [trigger, multi, isPickerOpen]);
 
-  // Position for 'pill-row' mode (simple fixed positioning)
-  useEffect(() => {
-    if (isAnchored && anchorEl) {
-      const rect = anchorEl.getBoundingClientRect();
-      const left = Math.min(rect.left, window.innerWidth - 280 - 8);
-      setPickerPos({ top: rect.bottom + 4, left });
-    } else if (trigger === 'pill-row' && isPickerOpen && buttonRef.current) {
-      const rect = buttonRef.current.getBoundingClientRect();
-      setPickerPos({ top: rect.bottom + 4, left: rect.left });
-    } else if (!isPickerOpen) {
-      setPickerPos(null);
-    }
-  }, [isPickerOpen, trigger, isAnchored, anchorEl]);
+  // Position the pill-row / anchored picker with Floating UI. The picker is
+  // position:fixed (and portaled to body in anchored mode), so the strategy is
+  // 'fixed'. Hidden until the first compute, then positioned imperatively.
+  useLayoutEffect(() => {
+    if (!isPickerOpen) return;
+    const reference = isAnchored ? anchorEl : trigger === 'pill-row' ? buttonRef.current : null;
+    const floating = pickerRef.current;
+    if (!reference || !floating) return;
+
+    const update = () => {
+      computePosition(reference, floating, {
+        placement: 'bottom-start',
+        strategy: 'fixed',
+        middleware: [
+          offset(PICKER_GAP),
+          flip({ padding: PICKER_EDGE_PADDING, fallbackPlacements: ['top-start'] }),
+          shift({ padding: PICKER_EDGE_PADDING, crossAxis: true }),
+        ],
+      }).then(({ x, y }) => {
+        floating.style.left = `${x}px`;
+        floating.style.top = `${y}px`;
+        floating.style.visibility = 'visible';
+      });
+    };
+
+    update();
+    return autoUpdate(reference, floating, update);
+  }, [isPickerOpen, isAnchored, anchorEl, trigger]);
 
   // Close picker when clicking outside
   useEffect(() => {
@@ -444,15 +468,13 @@ export function NodeSelector({
     };
   }, [isPickerOpen, trigger, isAnchored, onClose, anchorEl]);
 
-  // Focus search input when picker opens
-  // Include pickerPos in deps because in pill-row mode the picker only renders
-  // after pickerPos is set (one render cycle after isPickerOpen becomes true),
-  // so the ref is null on the first run.
+  // Focus search input when picker opens. The picker always renders (hidden
+  // until positioned) while open, so the input ref is available on the first run.
   useEffect(() => {
     if (isPickerOpen && searchInputRef.current) {
       searchInputRef.current.focus();
     }
-  }, [isPickerOpen, pickerPos, menuPosition, multiMenuPos]);
+  }, [isPickerOpen, menuPosition]);
 
   const handleAdd = useCallback((node: Node) => {
     // Prevent adding duplicates
@@ -778,7 +800,7 @@ export function NodeSelector({
         )}
         
         {/* Dropdown Menu for multi-select - Rendered in Portal */}
-        {multi && isPickerOpen && multiMenuPos && createPortal(
+        {multi && isPickerOpen && createPortal(
           <Card
             ref={menuRef}
             className="node-selector__dropdown node-selector__dropdown--portal"
@@ -789,10 +811,12 @@ export function NodeSelector({
             data-editor-companion
             style={{
               position: 'absolute',
-              top: `${multiMenuPos.top}px`,
-              left: `${multiMenuPos.left}px`,
+              // top/left/maxHeight are set imperatively by Floating UI; hidden
+              // until the first position is computed
+              top: 0,
+              left: 0,
               width: '17.5rem',
-              maxHeight: `${multiMenuPos.maxHeight}px`,
+              visibility: 'hidden',
             }}
           >
             <SearchField
@@ -979,14 +1003,14 @@ export function NodeSelector({
 
   // Anchored mode: render only the picker panel portal, no trigger UI
   if (isAnchored) {
-    return pickerPos ? createPortal(
+    return createPortal(
       <div
         className="node-selector__picker"
         ref={pickerRef}
         role="dialog"
         aria-label="Select node"
         data-editor-companion
-        style={{ top: pickerPos.top, left: pickerPos.left }}
+        style={{ visibility: 'hidden' }}
       >
         <input
           ref={searchInputRef}
@@ -1026,7 +1050,7 @@ export function NodeSelector({
         </div>
       </div>,
       document.body,
-    ) : null;
+    );
   }
 
   return (
@@ -1066,14 +1090,14 @@ export function NodeSelector({
             aria-label={emptyText || 'Add'}
           />
           
-          {isPickerOpen && pickerPos && (
+          {isPickerOpen && (
             <div
               className="node-selector__picker"
               ref={pickerRef}
               role="dialog"
               aria-label="Select node"
               data-editor-companion
-              style={{ top: pickerPos.top, left: pickerPos.left }}
+              style={{ visibility: 'hidden' }}
             >
               <input
                 ref={searchInputRef}

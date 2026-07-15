@@ -4,8 +4,9 @@
  * A reusable context menu component that displays a list of actions
  * at the specified position. Uses the Card component for consistent styling.
  */
-import React, { useRef, useEffect, useCallback, useState, type ReactNode } from 'react';
+import React, { useRef, useEffect, useCallback, useLayoutEffect, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { autoUpdate, computePosition, flip, shift, type Placement, type Strategy, type VirtualElement } from '@floating-ui/dom';
 
 import { Card } from './Card';
 import { Separator } from './Separator';
@@ -38,6 +39,9 @@ export interface ContextMenuAnchor {
   position?: { x: number; y: number };
 }
 
+/** Minimum clearance from the menu to the viewport edge. */
+const VIEWPORT_PADDING = 8;
+
 interface ContextMenuProps {
   items: ContextMenuItem[];
   /** Explicit screen position (fallback when anchorEl is not provided) */
@@ -64,6 +68,8 @@ export function ContextMenu({ items, position, anchorEl, onClose, title, activeI
   const [focusedIndex, setFocusedIndex] = useState(-1);
   const [activeSubmenu, setActiveSubmenu] = useState<string | null>(null);
   const [closingSubmenu, setClosingSubmenu] = useState(false);
+  const posX = position?.x;
+  const posY = position?.y;
 
   const closeSubmenuAnimated = useCallback(() => {
     setClosingSubmenu(true);
@@ -144,47 +150,51 @@ export function ContextMenu({ items, position, anchorEl, onClose, title, activeI
     };
   }, [onClose, navigableItems, focusedIndex, containerRef]);
 
-  // Adjust position to stay within viewport via callback ref
-  const menuCallbackRef = useCallback((el: HTMLDivElement | null) => {
-    menuRef.current = el;
-    if (!el) return;
-    const menuRect = el.getBoundingClientRect();
-    const padding = 8;
-    let x: number;
-    let y: number;
+  // Position the menu with Floating UI and keep it anchored to the anchor
+  // element (or explicit point, via a virtual element). autoUpdate repositions
+  // on scroll (any ancestor), resize, element resize, and layout shifts.
+  // Styles are written straight to the menu element, so repositioning never
+  // goes through React renders.
+  useLayoutEffect(() => {
+    const floating = menuRef.current;
+    if (!floating) return;
 
-    const anchorRect = anchorEl?.getBoundingClientRect();
-    const originY = anchorRect ? anchorRect.bottom : (position?.y ?? 0);
+    const alignment = alignRight ? 'end' : 'start';
+    const placement: Placement = `bottom-${alignment}`;
+    const reference: Element | VirtualElement = anchorEl ?? {
+      getBoundingClientRect: () => {
+        const x = posX ?? 0;
+        const y = posY ?? 0;
+        return { x, y, width: 0, height: 0, top: y, left: x, right: x, bottom: y };
+      },
+    };
 
-    if (anchorRect) {
-      if (alignRight) {
-        x = anchorRect.right - menuRect.width;
-      } else {
-        x = anchorRect.left;
-      }
-      y = originY;
-    } else {
-      y = originY;
-      if (alignRight) {
-        x = (position?.x ?? 0) - menuRect.width;
-      } else {
-        x = position?.x ?? 0;
-      }
-    }
+    // Portal mode renders position:fixed (see ContextMenu.css); inline mode
+    // positions absolutely within its offset parent. The position style is
+    // written imperatively so the strategy always matches the element.
+    const strategy: Strategy = inline ? 'absolute' : 'fixed';
 
-    // Keep within viewport
-    if (x + menuRect.width > window.innerWidth) {
-      x = window.innerWidth - menuRect.width - padding;
-    }
-    if (y + menuRect.height > window.innerHeight) {
-      // Flip above anchor (or position for non-anchor)
-      y = (anchorRect ? anchorRect.top : (position?.y ?? 0)) - menuRect.height;
-    }
-    if (x < padding) x = padding;
-    if (y < padding) y = padding;
-    el.style.left = `${x}px`;
-    el.style.top = `${y}px`;
-  }, [position, anchorEl, alignRight]);
+    const update = () => {
+      computePosition(reference, floating, {
+        placement,
+        strategy,
+        middleware: [
+          flip({ padding: VIEWPORT_PADDING, fallbackPlacements: [`top-${alignment}`] }),
+          shift({ padding: VIEWPORT_PADDING, crossAxis: true }),
+        ],
+      }).then(({ x, y }) => {
+        floating.style.position = strategy;
+        floating.style.left = `${x}px`;
+        floating.style.top = `${y}px`;
+        floating.style.right = 'auto';
+        floating.style.bottom = 'auto';
+        floating.style.visibility = 'visible';
+      });
+    };
+
+    update();
+    return autoUpdate(reference, floating, update);
+  }, [anchorEl, posX, posY, alignRight, inline]);
 
   const handleItemClick = (item: ContextMenuItem, event?: React.MouseEvent) => {
     if (item.disabled || item.separator) return;
@@ -211,8 +221,11 @@ export function ContextMenu({ items, position, anchorEl, onClose, title, activeI
 
   const menu = (
     <Card
-      ref={menuCallbackRef}
+      ref={menuRef}
       className={`context-menu ${className}`}
+      // Hidden until Floating UI has positioned it (visibility is flipped to
+      // visible imperatively after the first computePosition).
+      style={{ visibility: 'hidden' }}
       role="menu"
       elevation="high"
       radius="floating"

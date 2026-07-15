@@ -137,12 +137,18 @@ function getTextInRange(state: InlineEditorState, start: number, end: number): s
   return out;
 }
 
+/**
+ * Caret position in VIEWPORT coordinates (getBoundingClientRect space).
+ * TriggerPopup and the follow-on pickers are position: fixed, so scroll
+ * offsets must NOT be added — doing so strands the popup off-screen whenever
+ * the page is scrolled.
+ */
 function getCaretCoordinates(root: HTMLElement): { top: number; left: number; caretTop: number } {
   const rootRect = root.getBoundingClientRect();
   const fallback = {
-    top: rootRect.bottom + window.scrollY,
-    left: rootRect.left + window.scrollX,
-    caretTop: rootRect.top + window.scrollY,
+    top: rootRect.bottom,
+    left: rootRect.left,
+    caretTop: rootRect.top,
   };
 
   const selection = window.getSelection();
@@ -157,9 +163,9 @@ function getCaretCoordinates(root: HTMLElement): { top: number; left: number; ca
   if (rect.width === 0 && rect.height === 0) return fallback;
 
   return {
-    top: rect.bottom + window.scrollY,
-    left: rect.left + window.scrollX,
-    caretTop: rect.top + window.scrollY,
+    top: rect.bottom,
+    left: rect.left,
+    caretTop: rect.top,
   };
 }
 
@@ -184,6 +190,7 @@ export function InlineTriggers({
   const [commentText, setCommentText] = useState('');
   const dateAnchorRef = useRef<HTMLSpanElement>(null);
   const propertyAnchorRef = useRef<HTMLSpanElement>(null);
+  const propertyPopupRef = useRef<HTMLDivElement>(null);
   const commentInputRef = useRef<HTMLInputElement>(null);
   const dateInsertOffsetRef = useRef<number | null>(null);
   const urlInsertOffsetRef = useRef<number | null>(null);
@@ -199,7 +206,8 @@ export function InlineTriggers({
   const slashLastQueryRef = useRef('');
   const slashCountRef = useRef(0);
   const slashActiveIdRef = useRef<string | null>(null);
-  // Caret rect (document coords) captured when the inline slash popup opens.
+  // Caret rect (viewport coords — the popups are position: fixed) captured when
+  // the inline slash popup opens.
   // This is the same anchor that keeps the slash popup itself correctly placed,
   // so follow-on popups (date/property) reuse it instead of re-reading the live
   // DOM selection — which is unreliable after the trigger text is deleted and can
@@ -214,7 +222,7 @@ export function InlineTriggers({
   const propertyPosition = useViewportFlip(
     propertyAnchorRef,
     propertyPickerOpen,
-    { popupWidth: 320, popupHeight: 360, fixed: true },
+    { popupHeight: 360, fixed: true, popupRef: propertyPopupRef },
   );
 
   useEffect(() => {
@@ -596,9 +604,9 @@ export function InlineTriggers({
         // the user is editing it) rather than risk an off-screen caret read.
         const r = (rootRef.current ?? document.body).getBoundingClientRect();
         return {
-          top: r.bottom + window.scrollY,
-          left: r.left + window.scrollX,
-          caretTop: r.top + window.scrollY,
+          top: r.bottom,
+          left: r.left,
+          caretTop: r.top,
         };
       };
 
@@ -647,10 +655,9 @@ export function InlineTriggers({
       if (commandId === 'date') {
         dateInsertOffsetRef.current = insertOffset;
         const coords = reopenAt();
-        setDateAnchorPos({
-          top: coords.caretTop - window.scrollY,
-          left: coords.left - window.scrollX,
-        });
+        // Zero-size fixed anchor at the caret top (viewport coords) — the
+        // DatePickerPopup flips/clamps from there via useViewportFlip.
+        setDateAnchorPos({ top: coords.caretTop, left: coords.left });
         handleClose();
         setDatePickerOpen(true);
         return;
@@ -665,10 +672,9 @@ export function InlineTriggers({
 
       if (commandId === 'property') {
         const coords = reopenAt();
-        setPropertyAnchorPos({
-          top: coords.caretTop - window.scrollY,
-          left: coords.left - window.scrollX,
-        });
+        // Zero-size fixed anchor at the caret top (viewport coords) — the
+        // property picker flips/clamps from there via useViewportFlip.
+        setPropertyAnchorPos({ top: coords.caretTop, left: coords.left });
         handleClose();
         setPropertyPickerOpen(true);
         return;
@@ -1009,6 +1015,7 @@ export function InlineTriggers({
           )}
           {createPortal(
             <div
+              ref={propertyPopupRef}
               data-editor-companion
               style={{
                 position: 'fixed',

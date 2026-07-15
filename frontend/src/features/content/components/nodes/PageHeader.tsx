@@ -79,12 +79,10 @@ export function PageHeader({
   
   // Icon picker state
   const [showIconPicker, setShowIconPicker] = useState(false);
-  const [iconPickerPos, setIconPickerPos] = useState({ x: 0, y: 0 });
-  
+
   // + class popup state
   const [classPopupOpen, setClassPopupOpen] = useState(false);
   const [classQuery, setClassQuery] = useState('');
-  const [classPopupPosition, setClassPopupPosition] = useState({ top: 0, left: 0 });
   
   // Local state for input value (to show preview before committing)
   const [inputValue, setInputValue] = useState(nodeNameToText(page.name) || '');
@@ -161,14 +159,6 @@ export function PageHeader({
     const typingMatch = newValue.match(/(^|.*\s)\+(\S*)$/);
     if (typingMatch && isNameEditable) {
       const query = typingMatch[2];
-      // Position popup below the textarea
-      if (titleRef.current) {
-        const rect = titleRef.current.getBoundingClientRect();
-        setClassPopupPosition({
-          top: rect.bottom + 4,
-          left: rect.left,
-        });
-      }
       setClassQuery(query);
       setClassPopupOpen(true);
     } else {
@@ -360,18 +350,11 @@ export function PageHeader({
       const data: NodeUpdate = { name: cleanName };
       updateNode.mutate({ nodeUuid: page.uuid, data });
     }
-  }, [page.uuid, page.uuid, page.name, page.is_daily, page.is_monthly, page.is_yearly, pageClassUuid, updateNode, createNode, onNameChange]);
+  }, [page.uuid, page.name, page.is_daily, page.is_monthly, page.is_yearly, pageClassUuid, updateNode, createNode, onNameChange]);
 
   // Handle icon change via emoji picker
   const handleIconClick = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
     e.stopPropagation();
-    if (iconRef.current) {
-      const rect = iconRef.current.getBoundingClientRect();
-      setIconPickerPos({
-        x: Math.min(rect.left, window.innerWidth - 320),
-        y: Math.min(rect.bottom + 4, window.innerHeight - 400),
-      });
-    }
     setShowIconPicker((prev) => !prev);
   }, []);
 
@@ -518,20 +501,20 @@ export function PageHeader({
           value={page.icon || ''}
           onSelect={handleIconSelect}
           onClose={() => setShowIconPicker(false)}
-          position={iconPickerPos}
+          anchorRef={iconRef}
           useColor={true}
           color={parseIconField(page.icon ?? '').color ?? null}
           onColorChange={handleIconColorChange}
         />
       )}
-      
+
       {/* Class suggestion popup when typing @ in page title */}
       {classPopupOpen && (
         <SuggestionPopup
           isOpen={true}
           query={classQuery}
           type="class"
-          position={classPopupPosition}
+          anchorRef={titleRef}
           onSelect={(node) => handleClassSelect(node)}
           onClose={handleClassPopupClose}
           onCreate={handleClassCreate}

@@ -21,7 +21,8 @@
  * 
  * NOTE: Moved out of core/ - has domain knowledge (Node type, useNodeSearch hook)
  */
-import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import { useState, useCallback, useRef, useEffect, useLayoutEffect, useMemo, type RefObject } from 'react';
+import { autoUpdate, computePosition, flip, offset, shift } from '@floating-ui/dom';
 import { Spinner } from '@/components/ui/Spinner';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
 import './SuggestionPopup.css';
@@ -42,6 +43,11 @@ import { getEffectiveIcon } from '@/utils/nodeIcon';
 
 export type SuggestionType = 'type' | 'class' | 'tag' | 'link';
 
+/** Gap between the anchor element and the popup. */
+const POPUP_GAP = 4;
+/** Minimum clearance from the popup to the viewport edge. */
+const VIEWPORT_PADDING = 8;
+
 export interface SuggestionPopupProps {
   /** Whether the popup is visible */
   isOpen: boolean;
@@ -49,8 +55,8 @@ export interface SuggestionPopupProps {
   query: string;
   /** Type of suggestion (type, tag, or link) */
   type: SuggestionType;
-  /** Position to render the popup */
-  position: { top: number; left: number };
+  /** Anchor element the popup positions itself against */
+  anchorRef: RefObject<HTMLElement | null>;
   /** Callback when an item is selected */
   onSelect: (node: Node, addInline: boolean) => void;
   /** Callback to close the popup */
@@ -90,7 +96,7 @@ export function SuggestionPopup({
   isOpen,
   query,
   type,
-  position,
+  anchorRef,
   onSelect,
   onClose,
   onCreate,
@@ -109,7 +115,6 @@ export function SuggestionPopup({
 }: SuggestionPopupProps) {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
-  const [adjustedPosition, setAdjustedPosition] = useState(position);
   const [displayLimit, setDisplayLimit] = useState(10);
 
   // Register with the global overlay stack so Escape closes this popup
@@ -426,43 +431,43 @@ export function SuggestionPopup({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isOpen, onClose]);
   
-  // Adjust position to stay within viewport after render
-  useEffect(() => {
-    if (!isOpen || !containerRef.current) return;
-    
-    const popupRect = containerRef.current.getBoundingClientRect();
-    const padding = 8;
-    
-    let { top, left } = position;
-    
-    // Adjust horizontal position
-    if (left + popupRect.width > window.innerWidth - padding) {
-      left = window.innerWidth - popupRect.width - padding;
+  // Position the popup against its anchor with Floating UI and keep it
+  // anchored on scroll/resize and while results change its size (autoUpdate's
+  // ResizeObserver re-runs the compute). Hidden until the first compute so it
+  // never flashes at an unpositioned spot; position styles are written
+  // straight to the element, so repositioning never goes through React renders.
+  useLayoutEffect(() => {
+    if (!isOpen) return;
+    const floating = containerRef.current;
+    const reference = anchorRef.current;
+    if (!floating) return;
+    if (!reference) {
+      floating.style.visibility = 'visible';
+      return;
     }
-    if (left < padding) {
-      left = padding;
-    }
-    
-    // Adjust vertical position - flip above if not enough space below
-    if (top + popupRect.height > window.innerHeight - padding) {
-      // Try to flip above cursor
-      const topAbove = position.top - popupRect.height - 24;
-      if (topAbove >= padding) {
-        top = topAbove;
-      } else {
-        // Not enough space above either, position at bottom with padding
-        top = window.innerHeight - popupRect.height - padding;
-      }
-    }
-    
-    // Ensure not above top edge
-    if (top < padding) {
-      top = padding;
-    }
-    
-    setAdjustedPosition({ top, left });
-  }, [isOpen, position, allItems.length, selectedNodes.length, query]);
-  
+
+    floating.style.visibility = 'hidden';
+
+    const update = () => {
+      computePosition(reference, floating, {
+        placement: 'bottom-start',
+        strategy: 'fixed',
+        middleware: [
+          offset(POPUP_GAP),
+          flip({ padding: VIEWPORT_PADDING, fallbackPlacements: ['top-start'] }),
+          shift({ padding: VIEWPORT_PADDING, crossAxis: true }),
+        ],
+      }).then(({ x, y }) => {
+        floating.style.left = `${x}px`;
+        floating.style.top = `${y}px`;
+        floating.style.visibility = 'visible';
+      });
+    };
+
+    update();
+    return autoUpdate(reference, floating, update);
+  }, [isOpen, anchorRef]);
+
   if (!isOpen) return null;
 
   // Determine if any inline filters are active
@@ -520,8 +525,8 @@ export function SuggestionPopup({
       className={`suggestion-popup ${multiSelect ? 'suggestion-popup--multi-select' : ''}`}
       style={{
         position: 'fixed',
-        top: adjustedPosition.top,
-        left: adjustedPosition.left,
+        // top/left are set imperatively by Floating UI so repositioning
+        // never goes through React renders
         zIndex: 'var(--z-1000)',
       }}
       onFocus={(e) => e.stopPropagation()}

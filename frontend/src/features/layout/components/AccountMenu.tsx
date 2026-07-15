@@ -4,8 +4,9 @@
  * Square button with user profile initial that shows a dropdown menu
  * with User Settings, Workspaces, and Log Out actions.
  */
-import { useState, useRef, useEffect, useCallback, type ReactNode } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect, type ReactNode, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
+import { autoUpdate, computePosition, flip, offset, shift, type Placement } from '@floating-ui/dom';
 import { useAuthStore } from '@/stores';
 import { useNotifications } from '@/hooks/useNotifications';
 import { NotificationPanel } from './NotificationBell';
@@ -19,6 +20,56 @@ import { isAndroidApp } from '@/features/layout/hooks/useAndroidBridge';
 import { cn } from '@/utils/cn';
 import './AccountMenu.css';
 import { Icon } from '@/components/ui/icons';
+
+/** Space between the trigger and the floating menu/panel. */
+const MENU_GAP = 8;
+
+type MenuPlacement = 'bottom' | 'top';
+type MenuAlign = 'left' | 'right';
+
+/** Map placement + alignment props to a Floating UI placement. */
+const toPlacement = (placement: MenuPlacement, align: MenuAlign): Placement =>
+  `${placement}-${align === 'left' ? 'start' : 'end'}`;
+
+/**
+ * Anchor a portaled (position:fixed) floating element to a reference element
+ * with Floating UI. autoUpdate repositions on scroll (any ancestor), resize,
+ * element resize, and layout shifts; styles are written straight to the
+ * floating element, so repositioning never goes through React renders.
+ */
+function useAnchoredPopup(
+  enabled: boolean,
+  referenceRef: RefObject<HTMLElement | null>,
+  floatingRef: RefObject<HTMLElement | null>,
+  placement: Placement,
+  fallbackPlacement: Placement,
+) {
+  useLayoutEffect(() => {
+    if (!enabled) return;
+    const reference = referenceRef.current;
+    const floating = floatingRef.current;
+    if (!reference || !floating) return;
+
+    const update = () => {
+      computePosition(reference, floating, {
+        placement,
+        strategy: 'fixed',
+        middleware: [
+          offset(MENU_GAP),
+          flip({ padding: MENU_GAP, fallbackPlacements: [fallbackPlacement] }),
+          shift({ padding: MENU_GAP, crossAxis: true }),
+        ],
+      }).then(({ x, y }) => {
+        floating.style.left = `${x}px`;
+        floating.style.top = `${y}px`;
+        floating.style.visibility = 'visible';
+      });
+    };
+
+    update();
+    return autoUpdate(reference, floating, update);
+  }, [enabled, referenceRef, floatingRef, placement, fallbackPlacement]);
+}
 
 interface AccountMenuProps {
   onOpenUserSettings: () => void;
@@ -36,9 +87,9 @@ interface AccountMenuProps {
     label: string;
   }) => ReactNode;
   /** Dropdown placement relative to the trigger. Defaults to opening below. */
-  placement?: 'bottom' | 'top';
+  placement?: MenuPlacement;
   /** Horizontal alignment of the dropdown relative to the trigger. Defaults to right. */
-  align?: 'left' | 'right';
+  align?: MenuAlign;
 }
 
 export function AccountMenu({
@@ -52,7 +103,6 @@ export function AccountMenu({
   align = 'right',
 }: AccountMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [menuPos, setMenuPos] = useState<{ top?: number; bottom?: number; left?: number; right?: number } | null>(null);
   const [notificationPanel, setNotificationPanel] = useState<{ open: boolean; filter?: string; title?: string }>({ open: false });
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -89,31 +139,12 @@ export function AccountMenu({
 
   useClickOutside([triggerRef, menuRef], () => setIsOpen(false), isOpen);
 
-  // Compute portal position when opened
-  const updatePosition = useCallback(() => {
-    if (!triggerRef.current) return;
-    const rect = triggerRef.current.getBoundingClientRect();
-    const horizontal = align === 'left'
-      ? { left: rect.left }
-      : { right: window.innerWidth - rect.right };
-    if (placement === 'top') {
-      setMenuPos({
-        bottom: window.innerHeight - rect.top + 8,
-        ...horizontal,
-      });
-    } else {
-      setMenuPos({
-        top: rect.bottom + 8,
-        ...horizontal,
-      });
-    }
-  }, [placement, align]);
-
-  useEffect(() => {
-    if (isOpen) {
-      updatePosition();
-    }
-  }, [isOpen, updatePosition]);
+  // Keep the dropdown and notification panel anchored to the trigger; flip to
+  // the opposite side when they would overflow the viewport.
+  const resolvedPlacement = toPlacement(placement, align);
+  const fallbackPlacement = toPlacement(placement === 'bottom' ? 'top' : 'bottom', align);
+  useAnchoredPopup(isOpen, triggerRef, menuRef, resolvedPlacement, fallbackPlacement);
+  useAnchoredPopup(notificationPanel.open, triggerRef, notifRef, resolvedPlacement, fallbackPlacement);
 
   // Close notification panel when clicking outside
   useEffect(() => {
@@ -189,17 +220,16 @@ export function AccountMenu({
         </Button>
       )}
 
-      {isOpen && menuPos && createPortal(
+      {isOpen && createPortal(
         <Card
           ref={menuRef}
           className="account-menu__dropdown"
           elevation="high"
           radius="floating"
           padding={false}
-          style={{
-            ...(menuPos.top !== undefined ? { top: `${menuPos.top}px` } : { bottom: `${menuPos.bottom}px` }),
-            ...(menuPos.left !== undefined ? { left: `${menuPos.left}px` } : { right: `${menuPos.right}px` }),
-          }}
+          // top/left are set imperatively by Floating UI; hidden until the
+          // first computePosition has positioned the menu
+          style={{ visibility: 'hidden' }}
         >
           <div className="account-menu__user-info">
             <span className="account-menu__user-avatar">{initial}</span>
@@ -258,14 +288,13 @@ export function AccountMenu({
         document.body
       )}
 
-      {notificationPanel.open && menuPos && createPortal(
+      {notificationPanel.open && createPortal(
         <div
           ref={notifRef}
           className="account-menu__notification-panel"
-          style={{
-            ...(menuPos.top !== undefined ? { top: `${menuPos.top}px` } : { bottom: `${menuPos.bottom}px` }),
-            ...(menuPos.left !== undefined ? { left: `${menuPos.left}px` } : { right: `${menuPos.right}px` }),
-          }}
+          // top/left are set imperatively by Floating UI; hidden until the
+          // first computePosition has positioned the panel
+          style={{ visibility: 'hidden' }}
         >
           <NotificationPanel
             filterType={notificationPanel.filter}
