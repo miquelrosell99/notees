@@ -10,12 +10,13 @@
  * - Focus trapping (optional)
  * - Consistent header/footer structure
  */
-import { useEffect, useCallback, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Card } from './Card';
 import { Button } from './Button';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
 import { useOverlaySurface } from '@/hooks/useOverlaySurface';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import './Modal.css';
 
 export type ModalSize = 'sm' | 'md' | 'lg' | 'xl';
@@ -54,42 +55,6 @@ export interface ModalProps {
  * Modal component for dialogs, forms, and confirmations.
  * Provides consistent backdrop, escape handling, and layout.
  */
-function useIsMobileViewport(enabled: boolean) {
-  const [isMobile, setIsMobile] = useState(false);
-
-  useEffect(() => {
-    if (!enabled || typeof window === 'undefined') return;
-
-    const getMobileBreakpoint = () => {
-      const raw = getComputedStyle(document.documentElement)
-        .getPropertyValue('--breakpoint-mobile')
-        .trim();
-      const value = parseInt(raw, 10);
-      return Number.isFinite(value) ? value : 480;
-    };
-
-    let mq = window.matchMedia(`(max-width: ${getMobileBreakpoint()}px)`);
-    const update = () => setIsMobile(mq.matches);
-
-    update();
-
-    const handleChange = () => {
-      // Re-read the breakpoint in case the token changed at runtime.
-      mq = window.matchMedia(`(max-width: ${getMobileBreakpoint()}px)`);
-      update();
-    };
-
-    window.addEventListener('resize', handleChange);
-    mq.addEventListener?.('change', update);
-    return () => {
-      window.removeEventListener('resize', handleChange);
-      mq.removeEventListener?.('change', update);
-    };
-  }, [enabled]);
-
-  return isMobile;
-}
-
 export function Modal({
   isOpen,
   onClose,
@@ -106,7 +71,8 @@ export function Modal({
   contentClassName = '',
 }: ModalProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const isMobile = useIsMobileViewport(variant === 'auto');
+  // Bottom-sheet below the tablet breakpoint, matching the app layout switch.
+  const isMobile = useIsMobile();
   const isSheet = variant === 'sheet' || (variant === 'auto' && isMobile);
 
   // Register with the global overlay stack so Escape closes this modal

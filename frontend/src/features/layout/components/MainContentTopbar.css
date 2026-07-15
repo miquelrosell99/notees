@@ -16,6 +16,7 @@
   transition: opacity var(--motion-duration-medium) var(--motion-easing-standard);
 }
 
-.main-content-header[data-focus-mode="true"]:hover {
+.main-content-header[data-focus-mode="true"]:hover,
+.main-content-header[data-focus-mode="true"]:focus-within {
   opacity: var(--opacity-100);
 }

@@ -84,6 +84,15 @@ body.notees-dragging-block .block-ui[data-row-hover="true"] .block-collapse-arro
   opacity: var(--opacity-0);
 }
 
+/* Touch devices have no hover to reveal the arrow. It only renders for blocks
+   with children, so always show it; the 44px hit area comes from the
+   .icon-only-touch-target utility on the button. */
+@media (hover: none) {
+  .block-collapse-arrow .block-collapse-arrow__icon {
+    opacity: var(--opacity-100);
+  }
+}
+
 /* Small list-view sizing for the collapse arrow. */
 .block-ui[data-list-size="sm"] .block-collapse-arrow {
   width: var(--icon-size-xs);

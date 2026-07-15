@@ -204,18 +204,6 @@
   background-color: var(--color-hover-overlay);
 }
 
-/* Navigation actions - hidden by default, shown on hover */
-.node-list-group__actions {
-  display: flex;
-  gap: var(--spacing-1);
-  opacity: var(--opacity-0);
-  transition: opacity var(--motion-duration-short) var(--motion-easing-standard);
-}
-
-.node-list-group__header:hover .node-list-group__actions {
-  opacity: var(--opacity-100);
-}
-
 /* Collapse arrow button - positioned to the left of the header */
 .node-list-group__collapse-arrow {
   position: absolute;

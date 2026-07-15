@@ -11,6 +11,7 @@ import { NodeRef } from './NodeRef';
 import { Pill } from '@/components/ui/Pill';
 
 import { useRemoveClass, useClasses } from '@/features/content';
+import { useViewportFlip } from '@/hooks/useViewportFlip';
 import { isNonRemovableClass, SYSTEM_CLASS_UUIDS } from '@/constants';
 import type { Node } from '@/types';
 import './ClassPillsRow.css';
@@ -34,9 +35,24 @@ export const ClassPillsRow = memo(function ClassPillsRow({
   const [overflowCount, setOverflowCount] = useState(0);
   const [showPopup, setShowPopup] = useState(false);
   const [showAddPopup, setShowAddPopup] = useState(false);
-  const [popupPos, setPopupPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const overflowButtonRef = useRef<HTMLButtonElement>(null);
+  const addButtonRef = useRef<HTMLButtonElement>(null);
+  const popupRef = useRef<HTMLDivElement>(null);
+  const addPopupRef = useRef<HTMLDivElement>(null);
   const removeClass = useRemoveClass();
   const { data: allClasses } = useClasses();
+
+  // Popups flip/clamp against the viewport; rendered hidden until positioned.
+  const popupPosition = useViewportFlip(overflowButtonRef, showPopup, {
+    popupRef,
+    popupHeight: 300,
+    fixed: true,
+  });
+  const addPopupPosition = useViewportFlip(addButtonRef, showAddPopup, {
+    popupRef: addPopupRef,
+    popupHeight: 300,
+    fixed: true,
+  });
 
   const classIdsKey = classes.map((c) => c.uuid).join(',');
 
@@ -64,14 +80,9 @@ export const ClassPillsRow = memo(function ClassPillsRow({
     return () => ro.disconnect();
   }, [classes.length, classIdsKey]);
 
-  const handleOverflowClick = useCallback(
-    (e: React.MouseEvent) => {
-      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-      setPopupPos({ x: rect.left, y: rect.bottom + 4 });
-      setShowPopup((prev) => !prev);
-    },
-    []
-  );
+  const handleOverflowClick = useCallback(() => {
+    setShowPopup((prev) => !prev);
+  }, []);
 
   const handleRemove = useCallback(
     (classId: string) => {
@@ -111,6 +122,7 @@ export const ClassPillsRow = memo(function ClassPillsRow({
         })}
         {overflowCount > 0 && (
           <button
+            ref={overflowButtonRef}
             type="button"
             className="class-pills-row__overflow-wrapper"
             onClick={handleOverflowClick}
@@ -124,15 +136,12 @@ export const ClassPillsRow = memo(function ClassPillsRow({
         )}
         {onAddClass && !readOnly && availableClasses.length > 0 && (
           <Button
+            ref={addButtonRef}
             variant="ghost"
             size="xs"
             icon="mdi mdi-plus"
-            className="class-pills-row__add"
-            onClick={(e) => {
-              const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-              setPopupPos({ x: rect.left, y: rect.bottom + 4 });
-              setShowAddPopup((prev) => !prev);
-            }}
+            className="class-pills-row__add hover-reveal"
+            onClick={() => setShowAddPopup((prev) => !prev)}
             title="Add class"
             aria-label="Add class"
           />
@@ -147,11 +156,13 @@ export const ClassPillsRow = memo(function ClassPillsRow({
             onClick={handleClosePopup}
           />
           <div
+            ref={popupRef}
             className="class-pills-popup"
             style={{
               position: 'fixed',
-              left: popupPos.x,
-              top: popupPos.y,
+              left: popupPosition?.left ?? 0,
+              top: popupPosition?.top ?? 0,
+              visibility: popupPosition ? 'visible' : 'hidden',
               zIndex: 'var(--z-10000)',
             }}
           >
@@ -199,11 +210,13 @@ export const ClassPillsRow = memo(function ClassPillsRow({
             onClick={() => setShowAddPopup(false)}
           />
           <div
+            ref={addPopupRef}
             className="class-pills-popup"
             style={{
               position: 'fixed',
-              left: popupPos.x,
-              top: popupPos.y,
+              left: addPopupPosition?.left ?? 0,
+              top: addPopupPosition?.top ?? 0,
+              visibility: addPopupPosition ? 'visible' : 'hidden',
               zIndex: 'var(--z-10000)',
             }}
           >

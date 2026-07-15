@@ -58,24 +58,6 @@
   align-items: center;
 }
 
-/* Delete button (top right, hover only) */
-.query-block-list__delete {
-  position: absolute;
-  top: var(--font-size-sm);
-  right: var(--font-size-sm);
-  opacity: var(--opacity-0);
-  transition: opacity var(--motion-duration-medium);
-  flex-shrink: 0;
-}
-
-.query-block-list__card:hover .query-block-list__delete {
-  opacity: var(--opacity-60);
-}
-
-.query-block-list__delete:hover {
-  opacity: var(--opacity-100) !important;
-}
-
 /* Add button */
 .query-block-list__add {
   padding-left: var(--spacing-2);
@@ -156,9 +138,4 @@
 
 .query-block-list__add-menu-item:hover {
   background-color: var(--color-hover-overlay);
-}
-
-/* Read-only mode */
-.query-block-list--readonly .query-block-list__delete {
-  display: none;
 }
