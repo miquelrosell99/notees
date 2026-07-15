@@ -8,7 +8,7 @@ import { registerCommand, COMMAND_IDS } from '@/stores/commandRegistry';
 import { useNavigationStore, useModalStore } from '@/stores';
 import { useNotificationStore } from '@/stores/notificationStore';
 import { getRandomPages } from '@/api/nodes';
-import { buildTasksQueryAST, buildTodayQueryAST } from '@/utils/taskQueries';
+import { buildTodayQueryAST } from '@/utils/taskQueries';
 import { createEmptyQueryAST } from '@/types/queryAST';
 import { SYSTEM_PAGE_UUIDS } from '@/constants/systemProperties';
 import type { QueryAST, StyleCondition } from '@/types/queryAST';
@@ -138,17 +138,6 @@ registerCommand({
       },
     };
     useNavigationStore.getState().openNodeCollection('Broken links', brokenLinksQuery);
-  },
-});
-
-registerCommand({
-  id: COMMAND_IDS.OPEN_TASKS,
-  label: 'Open Tasks',
-  icon: 'mdi mdi-format-list-checkbox',
-  context: 'global',
-  palette: { category: 'navigation', keywords: ['task', 'todo', 'query'] },
-  execute: () => {
-    useNavigationStore.getState().openNodeCollection('Tasks', buildTasksQueryAST());
   },
 });
 
