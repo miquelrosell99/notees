@@ -261,6 +261,17 @@ export function SidebarRail({ hidden }: SidebarRailProps) {
           className="sidebar-rail__btn"
           variant="ghost"
           size="md"
+          icon="mdi mdi-checkbox-marked-circle-outline"
+          fullWidth
+          active={mainViewType === 'tasks'}
+          onClick={() => setMainViewType('tasks')}
+          aria-label="Tasks"
+          title="Tasks"
+        />
+        <Button
+          className="sidebar-rail__btn"
+          variant="ghost"
+          size="md"
           icon="mdi mdi-book-open-page-variant"
           fullWidth
           active={isPagesActive}
