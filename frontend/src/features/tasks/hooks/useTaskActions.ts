@@ -1,7 +1,6 @@
 import { useMemo, useCallback } from 'react';
 import { getOperationRuntime } from '@/runtime';
 import { getNode } from '@/runtime/graphHelpers';
-import { upsertNodes } from '@/runtime/eventBus';
 import { useSetNodeProperty, useProperties } from '@/features/properties';
 import { useAddClass, useRemoveClass } from '@/features/content';
 import {
@@ -10,14 +9,11 @@ import {
   TASK_STATUSES,
   TASK_CLOSED_STATUSES,
 } from '@/constants/systemProperties';
-import { queryClient } from '@/lib/queryClient';
-import { propertyKeys } from '@/hooks/queryKeys';
+import { setRuntimeTaskStatus, resolveTaskStatusIds } from './taskStatusShared';
+import type { TaskStatus } from './taskStatusShared';
 import type { Node } from '@/types/api';
 
-/**
- * All known task statuses (matches backend TASK_STATUS_OPTIONS).
- */
-export type TaskStatus = (typeof TASK_STATUSES)[number];
+export type { TaskStatus } from './taskStatusShared';
 
 /**
  * Check if a node is a task by looking at the runtime graph node.
@@ -41,36 +37,6 @@ function getTaskStatus(node: Node | undefined): TaskStatus | null {
   const status = gn.taskStatus;
   if (!status) return null;
   return TASK_STATUSES.includes(status as TaskStatus) ? (status as TaskStatus) : null;
-}
-
-/**
- * Optimistically mirror a task-status change into the runtime so the status
- * badge (read from the runtime projection in BlockAfterContent) updates
- * immediately, without waiting for a server refetch.
- */
-function setRuntimeTaskStatus(nodeUuid: string, status: TaskStatus | null): void {
-  const runtime = getOperationRuntime();
-  const gn = getNode(runtime, nodeUuid);
-  if (gn) upsertNodes([{ ...gn, taskStatus: status }]);
-}
-
-/**
- * Resolve the numeric property ID and option ID for a given task status name.
- * Looks up from the TanStack Query property cache.
- */
-function resolveTaskStatusIds(
-  statusName: TaskStatus
-): { propertyId: string; optionId: string } | null {
-  const allProperties = queryClient.getQueryData<
-    { uuid: string; options?: { uuid: string; name: string }[] }[]
-  >(propertyKeys.lists());
-  const statusProp = allProperties?.find(
-    (p) => p.uuid === SYSTEM_PROPERTY_UUIDS.task_status
-  );
-  if (!statusProp) return null;
-  const option = statusProp.options?.find((o) => o.name === statusName);
-  if (!option) return null;
-  return { propertyId: statusProp.uuid, optionId: option.uuid };
 }
 
 /**

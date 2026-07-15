@@ -173,6 +173,7 @@ export const taskKeys = {
   recurrence: (nodeUuid: string) => [...taskKeys.all, 'recurrence', nodeUuid] as const,
   completions: (nodeUuid: string, limit?: number, offset?: number) =>
     [...taskKeys.all, 'completions', nodeUuid, { limit: limit ?? 50, offset: offset ?? 0 }] as const,
+  popup: (section: string) => [...taskKeys.all, 'popup', section] as const,
   view: (activeTab?: string) => ['tasks-view', activeTab] as const,
 };
 
