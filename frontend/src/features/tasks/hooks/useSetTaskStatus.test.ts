@@ -15,8 +15,9 @@ import type { CoreNode } from '@/runtime';
 import { getNode } from '@/runtime/graphHelpers';
 import { resetRuntimeEventBus } from '@/runtime/eventBus';
 import { queryClient } from '@/lib/queryClient';
-import { propertyKeys } from '@/hooks/queryKeys';
+import { propertyKeys, taskKeys } from '@/hooks/queryKeys';
 import { SYSTEM_PROPERTY_UUIDS } from '@/constants/systemProperties';
+import { getTodayDayUuid } from '@/utils/dateUuid';
 import { useSetTaskStatus } from './useSetTaskStatus';
 
 const mocks = vi.hoisted(() => ({
@@ -112,5 +113,48 @@ describe('useSetTaskStatus', () => {
     const onSettled = setPropertyMutate.mock.calls[0][1].onSettled as () => void;
     act(() => onSettled());
     expect(spy).toHaveBeenCalledWith({ queryKey: ['tasks', 'popup'] });
+  });
+
+  it('optimistically moves a completed task from its open section into the completed section', () => {
+    const node = { uuid: 'task-1', name: 'Task' };
+    queryClient.setQueryData(taskKeys.popup('today'), { nodes: [node], total_count: 1 });
+    queryClient.setQueryData(taskKeys.popup('completed'), { nodes: [], total_count: 0 });
+
+    const { result } = renderHook(() => useSetTaskStatus(), { wrapper });
+    act(() => result.current('task-1', 'Done'));
+
+    expect(queryClient.getQueryData(taskKeys.popup('today'))).toEqual({ nodes: [], total_count: 0 });
+    expect(queryClient.getQueryData(taskKeys.popup('completed'))).toEqual({ nodes: [node], total_count: 1 });
+  });
+
+  it('moves an un-completed task back into the open section matching its date', () => {
+    const node = {
+      uuid: 'task-1',
+      name: 'Task',
+      properties_uuid: { [SYSTEM_PROPERTY_UUIDS.task_scheduled]: getTodayDayUuid() },
+    };
+    queryClient.setQueryData(taskKeys.popup('completed'), { nodes: [node], total_count: 1 });
+    queryClient.setQueryData(taskKeys.popup('today'), { nodes: [], total_count: 0 });
+
+    const { result } = renderHook(() => useSetTaskStatus(), { wrapper });
+    act(() => result.current('task-1', 'Pending'));
+
+    expect(queryClient.getQueryData(taskKeys.popup('completed'))).toEqual({ nodes: [], total_count: 0 });
+    expect(queryClient.getQueryData(taskKeys.popup('today'))).toEqual({ nodes: [node], total_count: 1 });
+  });
+
+  it('rolls the popup sections back when the mutation errors', () => {
+    const node = { uuid: 'task-1', name: 'Task' };
+    queryClient.setQueryData(taskKeys.popup('today'), { nodes: [node], total_count: 1 });
+    queryClient.setQueryData(taskKeys.popup('completed'), { nodes: [], total_count: 0 });
+
+    const { result } = renderHook(() => useSetTaskStatus(), { wrapper });
+    act(() => result.current('task-1', 'Done'));
+
+    const onError = setPropertyMutate.mock.calls[0][1].onError as () => void;
+    act(() => onError());
+
+    expect(queryClient.getQueryData(taskKeys.popup('today'))).toEqual({ nodes: [node], total_count: 1 });
+    expect(queryClient.getQueryData(taskKeys.popup('completed'))).toEqual({ nodes: [], total_count: 0 });
   });
 });
