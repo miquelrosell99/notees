@@ -97,7 +97,7 @@ export function QuerySection({
 
       <div className="node-view-section__title-area">
         {icon && <span className="node-view-section__icon">{icon}</span>}
-        <h3 className="node-view-section__title">{title}</h3>
+        <h2 className="node-view-section__title">{title}</h2>
         {count !== undefined && (
           <span className="node-view-section__count">({count})</span>
         )}

@@ -67,7 +67,7 @@ export function UnlinkedMentionsSection({
             <span className="node-view-section__icon">
               <SearchIcon size="sm" />
             </span>
-            <h3 className="node-view-section__title">Unlinked Mentions</h3>
+            <h2 className="node-view-section__title">Unlinked Mentions</h2>
             <span className="node-view-section__count">({sortedMentions.length})</span>
           </div>
         </div>
