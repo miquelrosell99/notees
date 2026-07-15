@@ -1,7 +1,7 @@
 """Helper functions for the Nodes API."""
 
 import json
-from typing import Any
+from typing import Any, Literal
 
 from app.dependencies import (
     _get_node_service,
@@ -81,17 +81,27 @@ def _maybe_parse_date_range(prop_type: str, value: Any) -> Any:
     return value
 
 
-def extract_properties_dict(all_prop_values: dict[int, dict[str, Any]]) -> dict[str, Any]:
+def extract_properties_dict(
+    all_prop_values: dict[int, dict[str, Any]],
+    *,
+    key: Literal["id", "uuid"] = "id",
+) -> dict[str, Any]:
     """Convert raw property values from the repository into a JSON-serializable dict.
 
     For multi-value properties, returns an array of values (even if empty or single value).
     For single-value properties, returns a single value.
+
+    Args:
+        all_prop_values: Raw values keyed by internal property id.
+        key: Dict key to emit — ``"id"`` (internal numeric id, default) or
+            ``"uuid"`` (the preferred public property identifier).
     """
     props_dict: dict[str, Any] = {}
 
     for prop_id, prop_data in all_prop_values.items():
         prop = prop_data["property"]
         values = prop_data["values"]
+        dict_key = str(prop_id) if key == "id" else prop.uuid
         if values:
             if prop.is_multi:
                 # Multi-value: always return array, deduplicated to avoid import artifacts
@@ -103,18 +113,18 @@ def extract_properties_dict(all_prop_values: dict[int, dict[str, Any]]) -> dict[
                     if extracted is not None and extracted not in seen:
                         seen.add(extracted)
                         unique_values.append(extracted)
-                props_dict[str(prop_id)] = unique_values
+                props_dict[dict_key] = unique_values
             else:
                 # Single-value: return scalar
                 extracted = _extract_property_value(values[0])
                 extracted = _maybe_parse_date_range(prop.type.value, extracted)
                 if extracted is not None:
-                    props_dict[str(prop_id)] = extracted
+                    props_dict[dict_key] = extracted
                 else:
-                    props_dict[str(prop_id)] = None
+                    props_dict[dict_key] = None
         else:
             # No values yet - for multi, return empty array; for single, return null
-            props_dict[str(prop_id)] = [] if prop.is_multi else None
+            props_dict[dict_key] = [] if prop.is_multi else None
 
     return props_dict
 
