@@ -37,12 +37,17 @@ export function useQuickAddTask() {
           parent_uuid: daily.uuid,
           class_uuids: [SYSTEM_CLASS_UUIDS.task],
         });
-        setProperty.mutate({
-          nodeUuid: node.uuid,
-          propertyId: SYSTEM_PROPERTY_UUIDS.task_scheduled,
-          value: getTodayDayUuid(),
-        });
-        invalidateTaskPopupQueries();
+        // Invalidate on settle, not synchronously: the section refetch must
+        // not race the scheduled-write commit (the task matches no section
+        // until then).
+        setProperty.mutate(
+          {
+            nodeUuid: node.uuid,
+            propertyId: SYSTEM_PROPERTY_UUIDS.task_scheduled,
+            value: getTodayDayUuid(),
+          },
+          { onSettled: invalidateTaskPopupQueries },
+        );
       } catch (err) {
         useNotificationStore
           .getState()
