@@ -425,6 +425,9 @@
   --panel-width-xs: 110px;
   --presence-avatar-font-size: var(--font-size-3xs);
   --qr-size: 256px;
+  /* QR codes must keep a light mat in every theme or scanners fail;
+     intentionally not themed (like --color-white). */
+  --qr-background: var(--color-white);
   --scratchpad-empty-height: 80px;
   --scratchpad-width: 360px;
   --selection-btn-size-lg: 42px;
@@ -544,8 +547,6 @@
   --space-4: var(--spacing-5);
 
   /* Generic layout dimension scale */
-  --icon-size-xs: 14px;
-  --button-min-height: 44px;
   --layout-size-2xs: 80px;
   --layout-size-xs: 100px;
   --layout-size-sm: 120px;
