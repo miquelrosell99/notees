@@ -19,6 +19,10 @@
   overflow: hidden;
 }
 
+.property-suggestion-popup:focus-within {
+  box-shadow: var(--shadow-focus-ring);
+}
+
 /* Anchored mode: a fixed, portaled wrapper owns placement (slash-command picker). */
 .property-suggestion-popup--anchored {
   position: static;
@@ -36,6 +40,11 @@
   font: var(--font-body-small);
   color: var(--color-on-surface);
   outline: none;
+}
+
+.property-suggestion-popup__search:focus-visible {
+  outline: none;
+  box-shadow: none;
 }
 
 .property-suggestion-popup__search::placeholder {

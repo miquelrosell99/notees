@@ -30,11 +30,6 @@
   color: var(--color-on-surface);
 }
 
-.find-replace-input:focus {
-  outline: none;
-  border-color: var(--accent-color, var(--color-accent));
-}
-
 .find-replace-count {
   font-size: var(--font-size-sm);
   color: var(--color-on-surface-variant);

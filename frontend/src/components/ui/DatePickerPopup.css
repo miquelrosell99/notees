@@ -37,10 +37,6 @@
   transition: border-color var(--motion-duration-short) var(--motion-easing-standard);
 }
 
-.date-picker-text-input:focus {
-  border-color: color-mix(in srgb, var(--color-primary) 35%, var(--color-outline-variant));
-}
-
 .date-picker-text-input::placeholder {
   color: var(--color-on-surface-variant);
 }

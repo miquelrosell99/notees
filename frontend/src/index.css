@@ -98,8 +98,9 @@ input, textarea, select {
   border-radius: var(--shape-extra-large);
 }
 
-input:focus, textarea:focus, select:focus {
+input:focus-visible, textarea:focus-visible, select:focus-visible {
   outline: none;
+  box-shadow: var(--shadow-focus-ring);
 }
 
 /* Scrollbar styling */

@@ -71,10 +71,6 @@
   outline: none;
 }
 
-.trigger-popup__input:focus {
-  border-color: var(--color-primary);
-}
-
 /* ─── Filter pills ──────────────────────────────────────────────── */
 
 .trigger-popup__filter-pills {

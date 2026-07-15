@@ -1104,6 +1104,7 @@ export function NodeSelector({
                 type="text"
                 className="node-selector__search"
                 placeholder={searchPlaceholder}
+                aria-label={searchPlaceholder}
                 value={searchQuery}
                 onChange={(e) => handleSearchChange(e.target.value)}
                 onKeyDown={handleKeyDown}

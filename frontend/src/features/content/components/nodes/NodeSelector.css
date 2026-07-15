@@ -293,6 +293,11 @@
   overflow: hidden;
 }
 
+.node-selector__picker:focus-within,
+.node-selector__dropdown:focus-within {
+  box-shadow: var(--shadow-focus-ring);
+}
+
 .node-selector__search {
   width: 100%;
   box-sizing: border-box;
@@ -304,6 +309,11 @@
   font: var(--font-body-small);
   color: var(--color-on-surface);
   outline: none;
+}
+
+.node-selector__search:focus-visible {
+  outline: none;
+  box-shadow: none;
 }
 
 .node-selector__search::placeholder {
