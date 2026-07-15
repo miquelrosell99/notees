@@ -3,7 +3,8 @@
  */
 import { useState, useRef, useEffect } from 'react';
 import { useNotifications, useMarkNotificationRead, useMarkAllNotificationsRead } from '@/hooks/useNotifications';
-import { Icon, Button } from '@/components/ui';
+import { useNavigationStore } from '@/stores';
+import { Icon, Button, Spinner } from '@/components/ui';
 import './NotificationBell.css';
 
 export interface NotificationPanelProps {
@@ -13,9 +14,10 @@ export interface NotificationPanelProps {
 }
 
 export function NotificationPanel({ filterType, title, onClose }: NotificationPanelProps) {
-  const { data, isLoading } = useNotifications(false);
+  const { data, isLoading, error, refetch } = useNotifications(false);
   const markRead = useMarkNotificationRead();
   const markAllRead = useMarkAllNotificationsRead();
+  const openNode = useNavigationStore((s) => s.openNode);
 
   const allNotifications = data?.notifications ?? [];
   const notifications = filterType
@@ -36,7 +38,14 @@ export function NotificationPanel({ filterType, title, onClose }: NotificationPa
 
       <div className="notification-bell__list">
         {isLoading ? (
-          <div className="notification-bell__empty">Loading…</div>
+          <div className="notification-bell__empty"><Spinner size="sm" centered /></div>
+        ) : error ? (
+          <div className="notification-bell__empty" role="alert">
+            <div>Failed to load notifications</div>
+            <Button variant="ghost" size="sm" onClick={() => refetch()}>
+              Try again
+            </Button>
+          </div>
         ) : notifications.length === 0 ? (
           <div className="notification-bell__empty">No new notifications</div>
         ) : (
@@ -49,7 +58,7 @@ export function NotificationPanel({ filterType, title, onClose }: NotificationPa
               onClick={() => {
                 if (!n.is_read && n.uuid) markRead.mutate(n.uuid);
                 if (n.node_uuid) {
-                  window.location.href = `/node/${n.node_uuid}`;
+                  openNode(n.node_uuid);
                 }
                 onClose?.();
               }}
