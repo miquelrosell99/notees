@@ -34,7 +34,7 @@ The mobile app is a first-class native companion. It covers the workflows most u
 | Rich inline formatting (bold, links, code) | ✅ | ❌ |
 | Bidirectional `[[links]]` | ✅ | ✅ (rendered as text, still parsed on save) |
 | Daily journal | ✅ | ✅ |
-| Task lists | ✅ | ✅ (top-bar Tasks popup) |
+| Task lists | ✅ (top-bar Tasks popup) | ✅ (dedicated Tasks tab) |
 | Search with filters | ✅ | ✅ |
 | Favorites | ✅ | ✅ |
 | Recents | ✅ | ✅ |
