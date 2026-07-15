@@ -148,6 +148,7 @@ export function TasksView() {
             onNodeShiftClick={handleNodeShiftClick}
             editable={false}
             showClasses={true}
+            showGroupBy
             showAddButton
             onAdd={handleCreateTask}
             can_create={!!taskClassUuid}
