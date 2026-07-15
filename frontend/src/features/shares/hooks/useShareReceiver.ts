@@ -1,5 +1,5 @@
 /**
- * Hook that detects shared content from Android share intent or PWA share_target.
+ * Hook that detects shared content from the PWA share_target.
  * When ?shared=true is in the URL, creates a block in the Scratchpad and opens it.
  */
 import { useEffect } from 'react';
