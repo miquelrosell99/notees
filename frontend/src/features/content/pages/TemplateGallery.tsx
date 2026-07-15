@@ -120,6 +120,7 @@ export function TemplateGallery() {
             editable={false}
             showClasses={true}
             hideToolbar={true}
+            groupBy="none"
             onNodeClick={(node) => openNode(node.uuid)}
             customContextMenuItems={contextMenuItems}
           />

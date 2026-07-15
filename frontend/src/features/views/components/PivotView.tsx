@@ -441,6 +441,7 @@ export const PivotView = memo(function PivotView({
               <NodeCollection
                 nodes={drilldownNodes}
                 viewMode="list"
+                groupBy="none"
                 editable={false}
                 onNodeClick={onNodeClick}
                 showEmpty
