@@ -14,6 +14,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createElement, type ReactNode } from 'react';
 import { getOperationRuntime, setOperationRuntime, OperationRuntime } from '@/runtime';
 import type { CoreNode } from '@/runtime';
+import { getNode } from '@/runtime/graphHelpers';
+import { resetRuntimeEventBus } from '@/runtime/eventBus';
 import { queryClient } from '@/lib/queryClient';
 import { propertyKeys } from '@/hooks/queryKeys';
 import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from '@/constants/systemProperties';
@@ -86,7 +88,11 @@ function wrapper({ children }: { children: ReactNode }) {
 describe('useTaskActions', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    setOperationRuntime(new OperationRuntime());
+    const runtime = new OperationRuntime();
+    setOperationRuntime(runtime);
+    // The event bus is a singleton: rebind it to the fresh runtime so the
+    // hook's optimistic upsertNodes() calls land in this test's runtime.
+    resetRuntimeEventBus(runtime);
     queryClient.setQueryData(propertyKeys.lists(), [TASK_STATUS_PROPERTY]);
   });
 
@@ -159,5 +165,34 @@ describe('useTaskActions', () => {
     // must not fire (addClass still runs — it does not need the property).
     expect(mocks.setPropertyMutate).not.toHaveBeenCalled();
     warn.mockRestore();
+  });
+
+  it('optimistically upserts taskStatus into the runtime when applying a status', () => {
+    loadRuntimeNode('Pending');
+    const { result } = renderHook(() => useTaskActions(blockNode), { wrapper });
+
+    act(() => result.current.cycleTaskStatus());
+
+    // The badge reads taskStatus from the runtime — it must update without
+    // waiting for a server refetch.
+    expect(getNode(getOperationRuntime(), 'block-1')?.taskStatus).toBe('Done');
+  });
+
+  it('sets taskStatus in the runtime when opening a task', () => {
+    loadRuntimeNode(null);
+    const { result } = renderHook(() => useTaskActions(blockNode), { wrapper });
+
+    act(() => result.current.cycleTaskStatus());
+
+    expect(getNode(getOperationRuntime(), 'block-1')?.taskStatus).toBe('Pending');
+  });
+
+  it('clears taskStatus in the runtime when clearing a task', () => {
+    loadRuntimeNode('Done');
+    const { result } = renderHook(() => useTaskActions(blockNode), { wrapper });
+
+    act(() => result.current.cycleTaskStatus());
+
+    expect(getNode(getOperationRuntime(), 'block-1')?.taskStatus).toBeNull();
   });
 });
