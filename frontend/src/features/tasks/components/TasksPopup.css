@@ -8,9 +8,8 @@
 
 /* ==================== Tasks Popup Container ==================== */
 .tasks-popup {
-  min-width: 320px;
-  max-width: 380px;
-  max-height: 420px;
+  width: min(380px, calc(100vw - 2 * var(--spacing-4)));
+  max-height: min(420px, 70dvh);
   display: flex;
   flex-direction: column;
   background: var(--color-surface);
@@ -33,6 +32,11 @@
   outline: none;
   color: var(--color-text);
   font-size: var(--font-size-sm);
+}
+
+.tasks-popup__quick-add input:focus-visible {
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-focus-ring);
 }
 
 /* ==================== Scrollable Body ==================== */
@@ -93,19 +97,51 @@
   align-items: flex-start;
   gap: var(--spacing-1);
   padding: 2px var(--spacing-sm);
+  min-height: var(--height-button-md);
+}
+
+/* Roomier rows on touch devices (44px minimum target height). */
+@media (hover: none) {
+  .tasks-popup__row {
+    min-height: var(--button-min-height);
+  }
 }
 
 .tasks-popup__circle {
+  position: relative;
   background: none;
   border: none;
   padding: 2px;
   cursor: pointer;
   color: var(--color-text-secondary);
   flex-shrink: 0;
+  border-radius: var(--shape-full);
+}
+
+/* Invisible minimum hit-area overlay so the target stays ≥ 44×44 even though
+   the visible circle is small (same pattern as .btn--icon-only::after). */
+.tasks-popup__circle::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: max(100%, var(--button-min-height));
+  height: max(100%, var(--button-min-height));
+  pointer-events: auto;
 }
 
 .tasks-popup__circle:hover {
   color: var(--color-primary);
+}
+
+.tasks-popup__circle:active {
+  color: var(--color-accent-active);
+}
+
+.tasks-popup__circle:focus-visible {
+  outline: var(--border-width-thick) solid var(--color-primary);
+  outline-offset: var(--focus-outline-offset);
 }
 
 .tasks-popup__row--completed .tasks-popup__name {
