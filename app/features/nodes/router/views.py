@@ -369,7 +369,9 @@ async def _include_properties_for_results(
 ) -> list[dict[str, Any]]:
     """Fetch and attach properties for each node in results.
 
-    This adds 'properties' to each node dict, populated with their property values.
+    This adds 'properties' (keyed by internal numeric property id) and
+    'properties_uuid' (keyed by property UUID, the preferred public identifier)
+    to each node dict, populated with their property values.
     Recursively processes children as well.
     Uses batched fetching for efficiency — collects all node IDs first,
     then fetches all properties in bulk.
@@ -394,18 +396,24 @@ async def _include_properties_for_results(
 
     # Batch fetch: get all property values for all node IDs at once
     props_map: dict[int, dict] = {}
+    props_uuid_map: dict[int, dict] = {}
     batch_result = await property_repo.get_all_property_values_batch(all_ids)
     for node_id, prop_data in batch_result.items():
         props_dict = extract_properties_dict(prop_data)
         if props_dict:
             props_map[node_id] = props_dict
+        props_uuid_dict = extract_properties_dict(prop_data, key="uuid")
+        if props_uuid_dict:
+            props_uuid_map[node_id] = props_uuid_dict
 
-    # Assign properties from the map
+    # Assign properties from the maps
     def _assign_properties(nodes: list[dict[str, Any]]):
         for node in nodes:
             node_id = node.get("id")
             if node_id and node_id in props_map:
                 node["properties"] = props_map[node_id]
+            if node_id and node_id in props_uuid_map:
+                node["properties_uuid"] = props_uuid_map[node_id]
             if node.get("children"):
                 _assign_properties(node["children"])
 

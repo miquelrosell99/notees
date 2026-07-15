@@ -48,6 +48,55 @@ async def sample_page(authenticated_client, test_user):
 
 @pytest.mark.integration
 @pytest.mark.asyncio
+async def test_execute_include_properties_returns_properties_uuid(
+    authenticated_client, property_repository, text_property
+):
+    """include_properties attaches `properties_uuid` (keyed by property UUID,
+    the preferred public identifier) alongside numeric-id-keyed `properties`."""
+    resp = await authenticated_client.post(
+        "/api/nodes/",
+        json={"name": "Props UUID Page", "class_uuids": [SYSTEM_CLASS_UUIDS["page"]]},
+    )
+    assert resp.status_code == 200
+    page_id = resp.json()["id"]
+    await property_repository.set_scalar_value(page_id, text_property.id, "active")
+
+    query = {
+        "type": "query",
+        "version": "1.0",
+        "scope": {"type": "scope", "scope_type": "pages"},
+        "root_group": {
+            "type": "group",
+            "logic": "AND",
+            "children": [
+                {
+                    "type": "condition",
+                    "condition_type": "property",
+                    "property_name": "id",
+                    "property_type": "number",
+                    "operator": "equals",
+                    "value": page_id,
+                }
+            ],
+        },
+    }
+    response = await authenticated_client.post(
+        "/api/nodes/views/execute",
+        json={"query_ast": query, "include_properties": True},
+    )
+    assert response.status_code == 200
+    nodes = response.json()["nodes"]
+    assert len(nodes) == 1
+    node = nodes[0]
+    assert node["properties"][str(text_property.id)] == "active"
+    # properties_uuid carries the same values, keyed by the property's UUID.
+    assert node["properties_uuid"] is not None
+    assert node["properties_uuid"][text_property.uuid] == "active"
+    assert node["properties_uuid"][text_property.uuid] == node["properties"][str(text_property.id)]
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
 async def test_date_placeholder_create_date_today(authenticated_client, sample_page):
     """{today} resolves to a date and can filter by create_date."""
     query = {
