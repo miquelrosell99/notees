@@ -125,11 +125,10 @@ export function ArchivedPagesView({ className = '' }: ArchivedPagesViewProps) {
         confirmLabel="Delete All"
         cancelLabel="Cancel"
         variant="danger"
-        onConfirm={() =>
-          deleteAllMutation.mutate((nodes ?? []).map((n) => n.uuid), {
-            onSuccess: () => setShowDeleteAllConfirm(false),
-          })
-        }
+        onConfirm={async () => {
+          await deleteAllMutation.mutateAsync((nodes ?? []).map((n) => n.uuid));
+          setShowDeleteAllConfirm(false);
+        }}
         onCancel={() => setShowDeleteAllConfirm(false)}
       />
 
@@ -146,11 +145,11 @@ export function ArchivedPagesView({ className = '' }: ArchivedPagesViewProps) {
         confirmLabel={pendingAction?.type === 'delete' ? 'Delete' : 'Unarchive'}
         cancelLabel="Cancel"
         variant={pendingAction?.type === 'delete' ? 'danger' : 'primary'}
-        onConfirm={() => {
+        onConfirm={async () => {
           if (pendingAction?.type === 'delete') {
-            deleteMutation.mutate(pendingAction.node.uuid);
+            await deleteMutation.mutateAsync(pendingAction.node.uuid);
           } else if (pendingAction) {
-            unarchiveMutation.mutate(pendingAction.node.uuid);
+            await unarchiveMutation.mutateAsync(pendingAction.node.uuid);
           }
           setPendingAction(null);
         }}
