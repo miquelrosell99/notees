@@ -11,7 +11,6 @@ export * from './useBatchedNodeByUuid';
 export * from './useVirtualizedQuery';
 export * from './useKeyboardListNav';
 export * from './useViewportFlip';
-export * from './usePopupPosition';
 export { useCommand } from './useCommand';
 export { useKeyboardShortcut } from './useKeyboardShortcut';
 export { useGlobalKeyboardListener } from './useGlobalKeyboardListener';

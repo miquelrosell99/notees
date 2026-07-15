@@ -40,7 +40,9 @@ svg[class*="icon"],
   display: flex;
   flex-direction: column;
   height: 100vh;
+  height: 100dvh;
   width: 100vw;
+  width: 100dvw;
   overflow: hidden;
   background: var(--color-background);
   /* Safe-area for notch/home-bar devices (desktop no-ops to 0) */
