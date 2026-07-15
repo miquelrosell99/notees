@@ -763,6 +763,13 @@
   --breakpoint-wide: 1440px;
 }
 
+/* Mobile: shallower block indent so deep trees keep usable text width */
+@media (max-width: 768px) {
+  :root {
+    --block-indent-step: 22px;
+  }
+}
+
 /* ==================== Global Keyframes Library ==================== */
 
 /* Fade in */

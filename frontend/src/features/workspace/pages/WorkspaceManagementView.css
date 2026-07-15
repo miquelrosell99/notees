@@ -272,7 +272,7 @@
 }
 
 /* Responsive */
-@media (max-width: 640px) {
+@media (max-width: 768px) {
   .workspace-management__container {
     padding: var(--spacing-4);
   }

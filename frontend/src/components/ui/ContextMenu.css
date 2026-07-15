@@ -161,3 +161,10 @@ button.context-menu-item:hover:not(.disabled) {
 .context-menu-content-row {
   padding: var(--spacing-1) var(--spacing-3);
 }
+
+/* Touch: long-press menus are the primary affordance — taller items */
+@media (hover: none) {
+  .context-menu-item {
+    padding: var(--spacing-3);
+  }
+}

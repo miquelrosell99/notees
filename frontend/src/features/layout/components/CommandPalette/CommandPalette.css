@@ -435,3 +435,10 @@
   min-width: var(--spacing-5);
   text-align: center;
 }
+
+/* Touch devices have no hardware keyboard — hide the shortcut hints */
+@media (hover: none) {
+  .command-palette__footer {
+    display: none;
+  }
+}

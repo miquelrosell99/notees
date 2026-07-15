@@ -116,6 +116,28 @@ export function Layout() {
   // Responsive: true on phones/small tablets
   const isMobile = useIsMobile();
 
+  // Narrow-desktop band (769–1024px): full chrome leaves too little content
+  // width, so auto-collapse the right sidebar once per band entry. The user
+  // can re-open it manually; it collapses again only when the band is
+  // re-entered from outside.
+  const wasNarrowDesktopRef = useRef(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 769px) and (max-width: 1024px)');
+    const syncRightSidebar = () => {
+      if (
+        mq.matches &&
+        !wasNarrowDesktopRef.current &&
+        useNavigationStore.getState().rightSidebarOpen
+      ) {
+        useNavigationStore.setState({ rightSidebarOpen: false });
+      }
+      wasNarrowDesktopRef.current = mq.matches;
+    };
+    syncRightSidebar();
+    mq.addEventListener('change', syncRightSidebar);
+    return () => mq.removeEventListener('change', syncRightSidebar);
+  }, []);
+
   // Sidebar resize state (desktop only)
   const [leftSidebarWidth, setLeftSidebarWidth] = useState<number | null>(null);
   const [rightSidebarWidth, setRightSidebarWidth] = useState<number | null>(null);

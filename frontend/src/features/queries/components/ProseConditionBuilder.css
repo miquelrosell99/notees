@@ -44,6 +44,17 @@
   animation: validation-pulse 2s var(--motion-easing-ease-in-out) infinite;
 }
 
+/* Mobile: let the inline row wrap and the input take a full row */
+@media (max-width: 768px) {
+  .prose-condition__inline {
+    flex-wrap: wrap;
+  }
+
+  .prose-condition__input {
+    min-width: 0;
+  }
+}
+
 @keyframes validation-pulse {
   0%, 100% {
     border-color: var(--color-error);
