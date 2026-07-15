@@ -124,6 +124,7 @@ export function TrashView({ className = '' }: TrashViewProps) {
                 size="sm"
                 onClick={() => setShowDeleteSelectedConfirm(true)}
                 disabled={batchDeleteMutation.isPending}
+                loading={batchDeleteMutation.isPending}
               >
                 {batchDeleteMutation.isPending ? 'Deleting...' : `Delete Selected (${selectedIds.size})`}
               </Button>
@@ -142,6 +143,7 @@ export function TrashView({ className = '' }: TrashViewProps) {
                   size="sm"
                   onClick={() => setShowEmptyConfirm(true)}
                   disabled={emptyTrashMutation.isPending}
+                  loading={emptyTrashMutation.isPending}
                 >
                   {emptyTrashMutation.isPending ? 'Emptying...' : 'Empty Trash'}
                 </Button>

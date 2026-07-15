@@ -63,6 +63,8 @@ import { NodeMetadataSection } from '@/features/content/components/nodes/NodeMet
 import { Modal } from '@/components/ui/Modal';
 import { TableIcon, PageIcon, LinkIcon } from '@/components/ui/icons';
 import { Button } from '@/components/ui/Button';
+import { DataStateView } from '@/components/ui/DataStateView';
+import { LoadingSkeleton } from '@/components/ui/LoadingSkeleton';
 import { getPropertyValueRenderer } from '@/features/properties';
 import '@/features/properties';
 import { BlockPresenceOverlay } from '@/features/collab';
@@ -354,7 +356,7 @@ export function NodeView({
   // We rely on the global default staleTime so switching tabs does not force a full
   // refetch (and full editor re-initialization) on every remount. Mutations that
   // change metadata already invalidate nodeKeys.detailBase, so the cache stays fresh.
-  const { data: node, isLoading, error } = useNode(nodeUuid, {
+  const { data: node, isLoading, error, refetch } = useNode(nodeUuid, {
     include_children: true,
     include_properties: showProperties || showQueries,
     include_backlinks: showProperties || showQueries,
@@ -981,14 +983,32 @@ export function NodeView({
       header: <MainContentTopbar focusMode={isFocusMode} />,
       content: (
         <article className={`node-view node-view--loading ${viewMode}`}>
-          <div className="loading-state"><div className="loading-state__spinner" /></div>
+          <LoadingSkeleton rows={8} showHeading />
         </article>
       )
     };
   }
   
-  // Error state
-  if (error || !node) {
+  // Error state — transient failures (network, 5xx, timeout) offer a retry
+  if (error) {
+    return {
+      header: <MainContentTopbar focusMode={isFocusMode} />,
+      content: (
+        <article className={`node-view node-view--error ${viewMode}`}>
+          <DataStateView
+            error={error}
+            errorTitle="Failed to load node"
+            onRetry={refetch}
+          >
+            {null}
+          </DataStateView>
+        </article>
+      )
+    };
+  }
+  
+  // Not-found state
+  if (!node) {
     return {
       header: <MainContentTopbar focusMode={isFocusMode} />,
       content: (

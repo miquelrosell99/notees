@@ -331,7 +331,7 @@ export function SystemSettingsModal({ isOpen, onClose }: SystemSettingsModalProp
             <Button type="button" variant="ghost" onClick={() => setShowCreateModal(false)}>
               Cancel
             </Button>
-            <Button type="submit" variant="primary" disabled={createUserMutation.isPending}>
+            <Button type="submit" variant="primary" disabled={createUserMutation.isPending} loading={createUserMutation.isPending}>
               {createUserMutation.isPending ? 'Creating...' : 'Create User'}
             </Button>
           </div>
