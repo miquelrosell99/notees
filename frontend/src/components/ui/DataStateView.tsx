@@ -23,6 +23,7 @@ import type { ReactNode } from 'react';
 import { LoadingSkeleton } from './LoadingSkeleton';
 import { EmptyState } from './EmptyState';
 import { Button } from './Button';
+import { Icon } from './Icon';
 import './DataStateView.css';
 
 export interface DataStateViewProps {
@@ -85,7 +86,7 @@ export function DataStateView({
       error instanceof Error ? error.message : 'An unexpected error occurred.';
     return (
       <div className={`data-state-view data-state-view--error ${className}`} role="alert">
-        <div className="data-state-view__error-icon" aria-hidden="true">⚠</div>
+        <Icon path="mdi-alert-outline" className="data-state-view__error-icon" />
         <h3 className="data-state-view__error-title">{errorTitle}</h3>
         <p className="data-state-view__error-message">{message}</p>
         {onRetry && (

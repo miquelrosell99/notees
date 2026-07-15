@@ -5,7 +5,7 @@
  */
 import './Badge.css';
 
-export type BadgeVariant = 'primary' | 'secondary' | 'success' | 'warning' | 'error' | 'neutral';
+export type BadgeVariant = 'primary' | 'secondary' | 'warning' | 'neutral';
 export type BadgeSize = 'xs' | 'sm' | 'md';
 
 export interface BadgeProps {
