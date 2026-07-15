@@ -21,7 +21,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useNavigationStore, useModalStore } from '@/stores';
 import { useInputContext } from '@/stores/inputContext';
-import { reportDrawerStateToAndroid } from '@/features/layout';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
 import { Button } from '@/components/ui/Button';
 import { CardMobileLayoutProvider } from '@/components/ui/CardMobileLayoutContext';
@@ -57,11 +56,6 @@ export function MobileLayout({ currentNodeUuid }: MobileLayoutProps) {
     onEscape: toggleSidebar,
     restoreFocus: true,
   });
-
-  // Keep the Android native back-button handler in sync with drawer state
-  useEffect(() => {
-    reportDrawerStateToAndroid(drawerOpen);
-  }, [drawerOpen]);
 
   // Auto-close drawer when user taps a note — mirrors Obsidian
   const prevNodeIdRef = useRef(currentNodeUuid);

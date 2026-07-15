@@ -1,8 +1,8 @@
 /**
  * Centralized authentication helpers
  *
- * Access tokens are now stored in an HTTPOnly cookie set by the backend, so
- * this module no longer reads or writes the JWT to localStorage. It only
+ * Access tokens are stored in an HTTPOnly cookie set by the backend, so
+ * this module does not read or write the JWT to localStorage. It only
  * manages non-sensitive user data and long-lived API keys (which still require
  * localStorage so they can be sent as the X-API-Key header).
  */
@@ -12,35 +12,15 @@ const API_KEY_KEY = 'api_key';
 
 /**
  * Store user data in storage.
- * When running inside the Android app, native encrypted storage is the source
- * of truth and we do NOT mirror back to localStorage.
  */
 export function setUserData(user: unknown): void {
-  const json = JSON.stringify(user);
-  if (isAndroidApp() && typeof window.Android!.storeUserData === 'function') {
-    window.Android!.storeUserData(json);
-  } else {
-    localStorage.setItem(USER_KEY, json);
-  }
+  localStorage.setItem(USER_KEY, JSON.stringify(user));
 }
 
 /**
  * Get stored user data.
- * Prefers native encrypted storage when running inside the Android app.
  */
 export function getUserData<T = unknown>(): T | null {
-  if (isAndroidApp() && typeof window.Android!.getUserData === 'function') {
-    const nativeUser = window.Android!.getUserData();
-    if (nativeUser) {
-      try {
-        return JSON.parse(nativeUser) as T;
-      } catch {
-        return null;
-      }
-    }
-    return null;
-  }
-
   const userStr = localStorage.getItem(USER_KEY);
   if (!userStr) return null;
   try {
@@ -51,14 +31,10 @@ export function getUserData<T = unknown>(): T | null {
 }
 
 /**
- * Clear stored user data from all storage layers.
+ * Clear stored user data.
  */
 export function clearUserData(): void {
-  if (isAndroidApp() && typeof window.Android!.clearUserData === 'function') {
-    window.Android!.clearUserData();
-  } else {
-    localStorage.removeItem(USER_KEY);
-  }
+  localStorage.removeItem(USER_KEY);
 }
 
 /**
@@ -94,42 +70,21 @@ export function isAuthenticated(): boolean {
 
 /**
  * Get the API key for the current server.
- * Prefers native encrypted storage when running inside the Android app.
  */
 export function getApiKey(): string | null {
-  if (isAndroidApp() && typeof window.Android!.getApiKey === 'function') {
-    return window.Android!.getApiKey();
-  }
   return localStorage.getItem(API_KEY_KEY);
 }
 
 /**
  * Store an API key.
- * When running inside the Android app, native encrypted storage is the source
- * of truth and we do NOT mirror back to localStorage.
  */
 export function setApiKey(key: string): void {
-  if (isAndroidApp() && typeof window.Android!.storeApiKey === 'function') {
-    window.Android!.storeApiKey(key);
-  } else {
-    localStorage.setItem(API_KEY_KEY, key);
-  }
+  localStorage.setItem(API_KEY_KEY, key);
 }
 
 /**
  * Clear the stored API key.
  */
 export function clearApiKey(): void {
-  if (isAndroidApp() && typeof window.Android!.clearApiKey === 'function') {
-    window.Android!.clearApiKey();
-  } else {
-    localStorage.removeItem(API_KEY_KEY);
-  }
-}
-
-function isAndroidApp(): boolean {
-  return (
-    typeof window !== 'undefined' &&
-    window.Android?.isNativeApp() === true
-  );
+  localStorage.removeItem(API_KEY_KEY);
 }
