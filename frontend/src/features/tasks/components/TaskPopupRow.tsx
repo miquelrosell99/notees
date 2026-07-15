@@ -1,4 +1,5 @@
 import { Icon } from '@/components/ui';
+import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { dayUuidToDate } from '@/utils/dateUuid';
 import { getTaskDateUuid } from '@/features/tasks/hooks/useTasksPopupData';
 import { parseAST } from '@/lib/astBuilder';
@@ -31,6 +32,16 @@ export function TaskPopupRow({ node, completed = false, showDate = false, onTogg
   const name = plainName(node);
   const dateUuid = showDate ? getTaskDateUuid(node) : null;
   const dateLabel = dateUuid ? shortDateLabel(dateUuid) : null;
+  const prefersReducedMotion = useReducedMotion();
+
+  const handleToggle = () => {
+    // Light haptic on toggle — skip when the user prefers reduced motion
+    // (same gating as the shared Button component).
+    if (!prefersReducedMotion && typeof navigator !== 'undefined' && navigator.vibrate) {
+      navigator.vibrate(10);
+    }
+    onToggle(node, completed);
+  };
 
   return (
     <li className={`tasks-popup__row${completed ? ' tasks-popup__row--completed' : ''}`}>
@@ -39,7 +50,7 @@ export function TaskPopupRow({ node, completed = false, showDate = false, onTogg
         className="tasks-popup__circle"
         aria-label={completed ? `Mark "${name}" as not done` : `Mark "${name}" as done`}
         aria-pressed={completed}
-        onClick={() => onToggle(node, completed)}
+        onClick={handleToggle}
       >
         <Icon
           path={completed ? 'mdi mdi-checkbox-marked-circle' : 'mdi mdi-checkbox-blank-circle-outline'}
