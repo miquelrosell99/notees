@@ -267,7 +267,7 @@ export function MobileLayout({ currentNodeUuid }: MobileLayoutProps) {
       <TopBar />
 
       {/* ── Full-width content ── */}
-      <main className="mobile-content">
+      <main id="main-content" className="mobile-content">
         <CardMobileLayoutProvider value={true}>
           <MainContent />
         </CardMobileLayoutProvider>

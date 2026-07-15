@@ -72,6 +72,9 @@ export function NodeInline({
       e.preventDefault();
       onShiftClick();
     } else if (onClick) {
+      // Keep SPA navigation in the click handler; without this the browser
+      // would follow the href and trigger a full page load.
+      e.preventDefault();
       onClick();
     }
   }, [onClick, onShiftClick]);
@@ -87,13 +90,16 @@ export function NodeInline({
   }, [nodeUuid, nodeUuid, providedDisplayText, displayText]);
 
   const href = onClick && nodeUuid ? `/node/${nodeUuid}` : undefined;
-  const Tag = onClick ? 'a' : 'span' as const;
+  // Clickable items render as a real link when a target URL exists, otherwise
+  // as a button so they stay keyboard-focusable with the right semantics.
+  const Tag = onClick ? (href ? 'a' : 'button') : 'span';
 
   return (
     <Tag
       className={`node-inline ${onClick ? 'node-inline--clickable' : ''} ${className}`}
       data-variant={variant}
       href={href}
+      type={Tag === 'button' ? 'button' : undefined}
       onClick={onClick ? handleClick : undefined}
       draggable={draggable}
       onDragStart={handleDragStart}

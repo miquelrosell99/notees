@@ -267,7 +267,9 @@ export function Layout() {
                 aria-label="Primary sidebar"
                 aria-hidden={isSidebarCollapsed}
               >
-                <Sidebar collapsed={isSidebarCollapsed} />
+                <nav aria-label="Primary" style={{ display: 'flex', flex: 1, minWidth: 0 }}>
+                  <Sidebar collapsed={isSidebarCollapsed} />
+                </nav>
                 {!isSidebarCollapsed && (
                   /* eslint-disable jsx-a11y/no-noninteractive-element-interactions, jsx-a11y/no-noninteractive-tabindex */
                   <div

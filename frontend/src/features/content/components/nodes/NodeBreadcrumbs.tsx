@@ -110,6 +110,7 @@ function NodeBreadcrumbsElement({
         icon={item.icon}
         showBullet={!!item.icon}
         propertyName={item.isProperty ? item.name : undefined}
+        nodeUuid={item.isProperty ? undefined : item.nodeUuid}
         onClick={() => onClick(item)}
         className={`node-breadcrumb-link ${item.isProperty ? 'node-breadcrumb-property' : ''}`}
       />

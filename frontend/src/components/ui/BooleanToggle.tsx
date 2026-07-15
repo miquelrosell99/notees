@@ -69,9 +69,11 @@ export const BooleanToggle = forwardRef<HTMLInputElement, BooleanToggleProps>(fu
       <input
         ref={ref}
         type="checkbox"
+        role="switch"
         id={toggleId}
         className="toggle-input"
         disabled={disabled}
+        aria-checked={rest.checked ?? false}
         {...rest}
         onChange={handleChange}
       />

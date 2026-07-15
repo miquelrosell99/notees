@@ -90,8 +90,29 @@ export function ContextMenu({ items, position, anchorEl, onClose, title, activeI
     },
   });
 
-  // Get non-separator items for keyboard navigation
-  const navigableItems = items.filter(item => !item.separator && !item.disabled);
+  // Get keyboard-navigable items (the buttons rendered in the menu;
+  // separators, disabled items, and custom content rows are skipped)
+  const navigableItems = items.filter(item => !item.separator && !item.disabled && !item.content);
+
+  const handleItemClick = useCallback((item: ContextMenuItem, event?: React.MouseEvent) => {
+    if (item.disabled || item.separator) return;
+
+    // If item has submenu, toggle it
+    if (item.submenu) {
+      if (activeSubmenu === item.id) {
+        closeSubmenuAnimated();
+      } else {
+        setActiveSubmenu(item.id);
+        setClosingSubmenu(false);
+      }
+      return;
+    }
+
+    item.onClick?.(event);
+    if (!item.keepOpen) {
+      onClose();
+    }
+  }, [activeSubmenu, closeSubmenuAnimated, onClose]);
 
   // Handle click outside
   useEffect(() => {
@@ -119,22 +140,21 @@ export function ContextMenu({ items, position, anchorEl, onClose, title, activeI
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'ArrowDown') {
         e.preventDefault();
-        setFocusedIndex(prev => 
+        setFocusedIndex(prev =>
           prev < navigableItems.length - 1 ? prev + 1 : 0
         );
       } else if (e.key === 'ArrowUp') {
         e.preventDefault();
-        setFocusedIndex(prev => 
+        setFocusedIndex(prev =>
           prev > 0 ? prev - 1 : navigableItems.length - 1
         );
       } else if (e.key === 'Enter' && focusedIndex >= 0) {
+        // preventDefault also suppresses the focused button's native click,
+        // so the item is activated exactly once.
         e.preventDefault();
         const item = navigableItems[focusedIndex];
-        if (item && !item.disabled) {
-          item.onClick?.();
-          if (!item.keepOpen) {
-            onClose();
-          }
+        if (item) {
+          handleItemClick(item);
         }
       }
     };
@@ -148,7 +168,21 @@ export function ContextMenu({ items, position, anchorEl, onClose, title, activeI
       document.removeEventListener('click', handleClickOutside, true);
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [onClose, navigableItems, focusedIndex, containerRef]);
+  }, [onClose, navigableItems, focusedIndex, containerRef, handleItemClick]);
+
+  // Move real DOM focus to the keyboard-navigated item so it is announced by
+  // screen readers, and keep it scrolled into view.
+  useEffect(() => {
+    if (focusedIndex < 0) return;
+    const buttons = menuRef.current?.querySelectorAll<HTMLButtonElement>(
+      '.context-menu-item:not(:disabled)',
+    );
+    const el = buttons?.[focusedIndex];
+    if (el) {
+      el.focus();
+      el.scrollIntoView?.({ block: 'nearest' });
+    }
+  }, [focusedIndex]);
 
   // Position the menu with Floating UI and keep it anchored to the anchor
   // element (or explicit point, via a virtual element). autoUpdate repositions
@@ -195,26 +229,6 @@ export function ContextMenu({ items, position, anchorEl, onClose, title, activeI
     update();
     return autoUpdate(reference, floating, update);
   }, [anchorEl, posX, posY, alignRight, inline]);
-
-  const handleItemClick = (item: ContextMenuItem, event?: React.MouseEvent) => {
-    if (item.disabled || item.separator) return;
-    
-    // If item has submenu, toggle it
-    if (item.submenu) {
-      if (activeSubmenu === item.id) {
-        closeSubmenuAnimated();
-      } else {
-        setActiveSubmenu(item.id);
-        setClosingSubmenu(false);
-      }
-      return;
-    }
-    
-    item.onClick?.(event);
-    if (!item.keepOpen) {
-      onClose();
-    }
-  };
 
   // Track index in navigable items for focus
   let navigableIndex = -1;

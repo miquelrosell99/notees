@@ -30,6 +30,7 @@ function InlineLinkWrapper({ nodeUuid, children }: { nodeUuid: string; children:
   const addSidebarCard = useNavigationStore(s => s.addSidebarCard);
   const { workspaceId } = useParams<{ workspaceId?: string }>();
   const { data: node } = useBatchedNodeByUuidFallback(nodeUuid);
+  const href = workspaceId ? `/${workspaceId}/${nodeUuid}` : `/node/${nodeUuid}`;
 
   const handleClick = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -50,10 +51,23 @@ function InlineLinkWrapper({ nodeUuid, children }: { nodeUuid: string; children:
     window.open(`/${workspaceId ?? ''}/${node.uuid}`, '_blank', 'noopener,noreferrer');
   }, [node, workspaceId]);
 
+  // Suppress the native middle-click navigation on the anchor — the tab is
+  // already opened in handleMouseDown (window.open).
+  const handleAuxClick = useCallback((e: React.MouseEvent) => {
+    if (e.button !== 1) return;
+    e.preventDefault();
+  }, []);
+
   return (
-    <span className="inline-link-wrapper" onClick={handleClick} onMouseDown={handleMouseDown}>
+    <a
+      className="inline-link-wrapper"
+      href={href}
+      onClick={handleClick}
+      onMouseDown={handleMouseDown}
+      onAuxClick={handleAuxClick}
+    >
       {children}
-    </span>
+    </a>
   );
 }
 

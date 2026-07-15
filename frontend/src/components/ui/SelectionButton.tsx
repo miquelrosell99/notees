@@ -153,6 +153,33 @@ export const SelectionButton = forwardRef<HTMLDivElement, SelectionButtonProps>(
     }
   };
 
+  // Radio-group keyboard pattern: arrow keys move selection to the
+  // previous/next option and DOM focus follows the selection.
+  const handleOptionKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (disabled || visibleOptions.length === 0) return;
+      let delta = 0;
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') delta = -1;
+      else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') delta = 1;
+      else return;
+      e.preventDefault();
+      const currentIndex = visibleOptions.findIndex((opt) => opt.value === value);
+      const nextIndex =
+        currentIndex === -1
+          ? 0
+          : (currentIndex + delta + visibleOptions.length) % visibleOptions.length;
+      const next = visibleOptions[nextIndex];
+      if (next.value !== value) {
+        onChange(next.value);
+      }
+      const optionElements = containerRef.current?.querySelectorAll<HTMLElement>(
+        '.selection-button__option',
+      );
+      optionElements?.[nextIndex]?.focus();
+    },
+    [disabled, visibleOptions, value, onChange],
+  );
+
   const handleWheel = useCallback(
     (e: React.WheelEvent) => {
       if (!scrollToChange || disabled || options.length <= 1) return;
@@ -207,8 +234,11 @@ export const SelectionButton = forwardRef<HTMLDivElement, SelectionButtonProps>(
       />
 
       {/* Visible options */}
-      {visibleOptions.map((option) => {
+      {visibleOptions.map((option, index) => {
         const isSelected = option.value === value;
+        // Roving tabindex: selected option (or the first when nothing is
+        // selected) is the only tab stop in the radiogroup.
+        const isTabStop = isSelected || (!visibleOptions.some((opt) => opt.value === value) && index === 0);
         return (
           <button
             key={option.value}
@@ -217,8 +247,10 @@ export const SelectionButton = forwardRef<HTMLDivElement, SelectionButtonProps>(
             aria-checked={isSelected}
             aria-label={option.label}
             title={option.label}
+            tabIndex={isTabStop ? 0 : -1}
             className={`selection-button__option ${isSelected ? 'selection-button__option--selected' : ''}`}
             onClick={() => handleOptionClick(option.value)}
+            onKeyDown={handleOptionKeyDown}
             disabled={disabled}
           >
             <Icon path={option.icon} size={iconSize} />
