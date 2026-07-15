@@ -16,7 +16,6 @@ import { Button } from '@/components/ui/Button';
 import { useClickOutside } from '@/hooks/useClickOutside';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
 import { useOverlaySurface } from '@/hooks/useOverlaySurface';
-import { isAndroidApp } from '@/features/layout/hooks/useAndroidBridge';
 import { cn } from '@/utils/cn';
 import './AccountMenu.css';
 import { Icon } from '@/components/ui/icons';
@@ -183,11 +182,6 @@ export function AccountMenu({
     logout();
   };
 
-  const handleChangeServer = () => {
-    setIsOpen(false);
-    window.Android?.showServerSettings();
-  };
-
   const handleOpenNotifications = (filter?: string, title?: string) => {
     setIsOpen(false);
     setNotificationPanel({ open: true, filter, title });
@@ -275,15 +269,6 @@ export function AccountMenu({
             <Icon path={"mdi mdi-logout"} size={0.7} />
             <span>Log out</span>
           </button>
-          {isAndroidApp() && (
-            <>
-              <div className="account-menu__divider" />
-              <button className="account-menu__item" onClick={handleChangeServer}>
-                <Icon path={"mdi mdi-server-network"} size={0.7} />
-                <span>Change server</span>
-              </button>
-            </>
-          )}
         </Card>,
         document.body
       )}

@@ -22,11 +22,6 @@
   padding-top: env(safe-area-inset-top);
 }
 
-/* On Android the native shell already pads for the status bar — don't double up */
-.android-app .mobile-canvas {
-  padding-top: 0;
-}
-
 /* ── Top bar ─────────────────────────────────────────────────── */
 /* TopBar already has its own height; just make it shrink-proof */
 .mobile-canvas > .top-bar-card {
@@ -46,16 +41,6 @@
 /* Ensure scrollable content clears the FAB (56px + 16px gap) */
 .mobile-content .main-content {
   padding-bottom: calc(var(--mobile-bottom-sheet-height) + env(safe-area-inset-bottom));
-}
-
-/* On Android the native shell already pads for the nav bar — don't double up */
-.android-app .mobile-content {
-  padding-bottom: 0;
-}
-
-.android-app .mobile-drawer {
-  padding-top: 0;
-  padding-bottom: 0;
 }
 
 /* ── Off-canvas drawer ───────────────────────────────────────── */
@@ -109,11 +94,6 @@
   /* Provide a background so it isn't transparent */
   background: var(--color-surface);
   border-radius: 0 var(--shape-sheet) var(--shape-sheet) 0;
-}
-
-/* On Android the native shell draws hard edges — no rounded drawer corners */
-.android-app .mobile-drawer .sidebar {
-  border-radius: 0;
 }
 
 /* Override desktop collapse styles that use visibility/opacity/transform */

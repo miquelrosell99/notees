@@ -20,7 +20,7 @@ import { useGlobalKeyboardListener } from './hooks/useGlobalKeyboardListener';
 import { useDisableNativeContextMenu } from './hooks/useDisableNativeContextMenu';
 import { useWindowFocusActiveBlock } from './hooks/useWindowFocusActiveBlock';
 import { useCommand } from './hooks/useCommand';
-import { useUndoStackPersistence, useAndroidBridge, AppRoutes } from '@/features/layout';
+import { useUndoStackPersistence, AppRoutes } from '@/features/layout';
 import { CommandRegistrations } from './features/commands';
 import { COMMAND_IDS } from './stores/commandRegistry';
 import { DndProvider } from './providers/DndProvider';
@@ -94,9 +94,6 @@ function GlobalKeyboardHandler() {
 }
 
 function AppContent() {
-  // Register the Android bridge as early as possible — before auth gates — so
-  // the native shell can call window.noteesBridge even while the app is loading.
-  useAndroidBridge();
   // Start the backend health poller. It runs for the lifetime of the app.
   useBackendHealth();
   // Register web background sync (Periodic Background Sync + one-shot sync).
