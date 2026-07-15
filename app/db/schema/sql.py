@@ -2158,6 +2158,19 @@ BEGIN
       AND NOT EXISTS (
           SELECT 1 FROM node_property own_np
           WHERE own_np.node_id = n.id AND own_np.property_id = new_p.id AND own_np.id <> np.id
+      )
+      -- One node can carry foreign assignments of the same property UUID from
+      -- several foreign workspaces. The guards are evaluated against the
+      -- pre-statement snapshot, so without this tiebreak all of them would be
+      -- re-pointed to the same new_p.id and violate UNIQUE(node_id,
+      -- property_id). Only the lowest-id row per (node, UUID) is remapped;
+      -- the rest stay cross-workspace and Case 3 deletes them.
+      AND NOT EXISTS (
+          SELECT 1 FROM node_property other_np
+          JOIN property other_p ON other_p.id = other_np.property_id
+          WHERE other_np.node_id = n.id AND other_p.uuid = old_p.uuid
+            AND other_p.workspace_id IS NOT NULL AND other_p.workspace_id <> n.workspace_id
+            AND other_np.id < np.id
       );
 
     -- Case 3: final sweep — anything still cross-workspace here either has no
