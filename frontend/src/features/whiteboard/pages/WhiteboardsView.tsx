@@ -113,6 +113,7 @@ export function WhiteboardsView({ className = '' }: WhiteboardsViewProps) {
             onNodeShiftClick={handleNodeShiftClick}
             pagesOnly
             editable={false}
+            groupBy="none"
             showAddButton
             onAdd={handleCreateWhiteboard}
             can_create={!!whiteboardClassUuid}
