@@ -236,7 +236,7 @@ export function SidebarFavorites({ onContextMenu, onItemClick }: SidebarFavorite
         >
           {expanded ? <ChevronDownIcon size="xs" /> : <ChevronRightIcon size="xs" />}
           <StarIcon size="xs" />
-          <h2 className="sidebar-section-title">Favorites</h2>
+          <span className="sidebar-section-title">Favorites</span>
         </button>
         {currentPageIsFavoritable && (
           <Button

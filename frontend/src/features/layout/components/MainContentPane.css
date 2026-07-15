@@ -2,3 +2,9 @@
   padding: 0;
   overflow: hidden;
 }
+
+/* Keep the welcome heading at the size the previous h2 rendered at
+   (UA h1 default is 2em). */
+.empty-state h1 {
+  font-size: var(--font-size-3xl);
+}
