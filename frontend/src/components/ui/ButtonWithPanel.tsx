@@ -9,8 +9,9 @@
  *   <div>Panel content here</div>
  * </ButtonWithPanel>
  */
-import { useState, useRef, useEffect, useCallback, type ReactNode } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect, useCallback, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { autoUpdate, computePosition, flip, offset, shift, type Placement, type Strategy } from '@floating-ui/dom';
 import { Button, type ButtonProps, type ButtonSize, type ButtonVariant } from './Button';
 import { Card } from './Card';
 import { useClickOutside } from '@/hooks/useClickOutside';
@@ -24,11 +25,21 @@ const PANEL_GAP = 8;
 const VIEWPORT_MARGIN = 16;
 /** Default panel width when no explicit width is provided. */
 const DEFAULT_PANEL_WIDTH = 280;
-/** Estimated panel height used for viewport collision detection. */
-const ESTIMATED_PANEL_HEIGHT = 300;
 
 export type PanelPosition = 'left' | 'right' | 'top' | 'bottom';
 export type PanelAlignment = 'start' | 'center' | 'end';
+
+/** Map panel position + alignment props to a Floating UI placement. */
+const toPlacement = (position: PanelPosition, alignment: PanelAlignment): Placement =>
+  alignment === 'center' ? position : `${position}-${alignment}`;
+
+/** Fallback order when the preferred placement doesn't fit in the viewport. */
+const FALLBACK_POSITIONS: Record<PanelPosition, PanelPosition[]> = {
+  right: ['left', 'bottom', 'top'],
+  left: ['right', 'bottom', 'top'],
+  bottom: ['top', 'right', 'left'],
+  top: ['bottom', 'right', 'left'],
+};
 
 export interface ButtonWithPanelProps {
   icon?: string;
@@ -97,7 +108,6 @@ export function ButtonWithPanel({
   const containerRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
-  const [portalPosition, setPortalPosition] = useState<{ top?: number; bottom?: number; left: number }>({ left: 0 });
   const [selectedIndex, setSelectedIndex] = useState(0);
   
   // Handle open state changes
@@ -174,83 +184,45 @@ export function ButtonWithPanel({
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, selectedIndex]);
 
-  // Calculate portal position when panel opens with viewport-aware positioning
-  useEffect(() => {
-    if (!usePortal || !isOpen || !containerRef.current) return;
-    
-    const rect = containerRef.current.getBoundingClientRect();
-    const actualWidth = typeof panelWidth === 'number' ? panelWidth : DEFAULT_PANEL_WIDTH;
-    const estimatedHeight = ESTIMATED_PANEL_HEIGHT;
-    const viewportWidth = window.innerWidth;
-    const viewportHeight = window.innerHeight;
-    
-    let top = 0;
-    let left = 0;
-    const preferredPosition = panelPosition;
-    
-    // Try to fit in preferred position, fallback if doesn't fit
-    const tryPosition = (pos: PanelPosition): { top: number; left: number; fits: boolean } => {
-      let t = 0;
-      let l = 0;
-      
-      switch (pos) {
-        case 'right':
-          l = rect.right + PANEL_GAP;
-          t = panelAlignment === 'start' ? rect.top 
-              : panelAlignment === 'end' ? rect.bottom - estimatedHeight
-              : rect.top + rect.height / 2 - estimatedHeight / 2;
-          return { top: t, left: l, fits: l + actualWidth <= viewportWidth - VIEWPORT_MARGIN };
-        case 'left':
-          l = rect.left - PANEL_GAP - actualWidth;
-          t = panelAlignment === 'start' ? rect.top 
-              : panelAlignment === 'end' ? rect.bottom - estimatedHeight
-              : rect.top + rect.height / 2 - estimatedHeight / 2;
-          return { top: t, left: l, fits: l >= VIEWPORT_MARGIN };
-        case 'bottom':
-          t = rect.bottom + PANEL_GAP;
-          l = panelAlignment === 'start' ? rect.left 
-               : panelAlignment === 'end' ? rect.right - actualWidth 
-               : rect.left + rect.width / 2 - actualWidth / 2;
-          return { top: t, left: l, fits: t + estimatedHeight <= viewportHeight - VIEWPORT_MARGIN };
-        case 'top':
-          t = rect.top - PANEL_GAP - estimatedHeight;
-          l = panelAlignment === 'start' ? rect.left 
-               : panelAlignment === 'end' ? rect.right - actualWidth 
-               : rect.left + rect.width / 2 - actualWidth / 2;
-          return { top: t, left: l, fits: rect.top - PANEL_GAP >= estimatedHeight + VIEWPORT_MARGIN };
-      }
-    };
-    
-    // Try preferred position first
-    let result = tryPosition(preferredPosition);
-    let chosenPosition = preferredPosition;
-    
-    // If doesn't fit, try alternatives
-    if (!result.fits) {
-      const alternatives: PanelPosition[] = 
-        preferredPosition === 'right' ? ['left', 'bottom', 'top'] :
-        preferredPosition === 'left' ? ['right', 'bottom', 'top'] :
-        preferredPosition === 'bottom' ? ['top', 'right', 'left'] :
-        ['bottom', 'right', 'left'];
-      
-      for (const alt of alternatives) {
-        result = tryPosition(alt);
-        if (result.fits) { chosenPosition = alt; break; }
-      }
-    }
-    
-    // Clamp horizontal
-    left = Math.max(VIEWPORT_MARGIN, Math.min(result.left, viewportWidth - actualWidth - VIEWPORT_MARGIN));
+  // Position the panel with Floating UI and keep it anchored to the trigger.
+  // autoUpdate repositions on scroll (any ancestor), resize, element resize,
+  // and layout shifts; computePosition measures the real panel size for exact
+  // flip/shift decisions. Styles are written straight to the panel element, so
+  // repositioning never goes through React renders.
+  useLayoutEffect(() => {
+    if (!isOpen) return;
+    const reference = containerRef.current;
+    const floating = panelRef.current;
+    if (!reference || !floating) return;
 
-    if (chosenPosition === 'top') {
-      // Anchor bottom edge to button top: panel grows upward, height-independent
-      const bottomAnchor = viewportHeight - (rect.top - PANEL_GAP);
-      setPortalPosition({ bottom: Math.max(VIEWPORT_MARGIN, bottomAnchor), left });
-    } else {
-      top = Math.max(VIEWPORT_MARGIN, Math.min(result.top, viewportHeight - estimatedHeight - VIEWPORT_MARGIN));
-      setPortalPosition({ top, left });
-    }
-  }, [isOpen, usePortal, panelWidth, panelPosition, panelAlignment]);
+    const strategy: Strategy = usePortal ? 'fixed' : 'absolute';
+
+    const update = () => {
+      computePosition(reference, floating, {
+        placement: toPlacement(panelPosition, panelAlignment),
+        strategy,
+        middleware: [
+          offset(PANEL_GAP),
+          flip({
+            padding: VIEWPORT_MARGIN,
+            fallbackPlacements: FALLBACK_POSITIONS[panelPosition].map((pos) =>
+              toPlacement(pos, panelAlignment)
+            ),
+          }),
+          shift({ padding: VIEWPORT_MARGIN, crossAxis: true }),
+        ],
+      }).then(({ x, y }) => {
+        floating.style.left = `${x}px`;
+        floating.style.top = `${y}px`;
+        // Neutralize the legacy CSS position-class offsets (.btn-panel--bottom etc.)
+        floating.style.right = 'auto';
+        floating.style.bottom = 'auto';
+      });
+    };
+
+    update();
+    return autoUpdate(reference, floating, update);
+  }, [isOpen, usePortal, panelPosition, panelAlignment, panelWidth]);
   
   // Calculate panel position styles
   const getPanelStyle = (): React.CSSProperties => {
@@ -361,11 +333,9 @@ export function ButtonWithPanel({
           className={`${panelClasses} btn-panel--portal`}
           style={{
             ...getPanelStyle(),
+            // top/right/bottom/left are set imperatively by Floating UI so
+            // repositioning never goes through React renders
             position: 'fixed',
-            ...(portalPosition.bottom !== undefined
-              ? { bottom: `${portalPosition.bottom}px` }
-              : { top: `${portalPosition.top ?? 0}px` }),
-            left: `${portalPosition.left}px`,
             zIndex: 'var(--z-modal)',
           }}
           role="dialog"

@@ -13,8 +13,9 @@
  *   <ColorButton color="var(--color-preset-red)" showPicker onColorChange={handleChange} />
  *   <ColorButton color={myColor} showPicker colors={myPalette} onColorChange={handleChange} />
  */
-import { forwardRef, useState, useRef, useEffect, useLayoutEffect, useCallback, type ButtonHTMLAttributes } from 'react';
+import { forwardRef, useState, useRef, useEffect, useLayoutEffect, type ButtonHTMLAttributes } from 'react';
 import { createPortal } from 'react-dom';
+import { autoUpdate, computePosition, flip, offset, shift } from '@floating-ui/dom';
 import { Button } from './Button';
 import { TextField } from './TextField';
 import { PRESET_COLOR_ENTRIES } from '@/utils/colorPresets';
@@ -32,6 +33,11 @@ export interface ColorEntry {
 
 // Default built-in palette from data-colors.css
 const DEFAULT_COLOR_ENTRIES: ColorEntry[] = PRESET_COLOR_ENTRIES;
+
+/** Space between the button and the picker popover. */
+const PICKER_GAP = 4;
+/** Minimum clearance from the picker to the viewport edge. */
+const VIEWPORT_MARGIN = 16;
 
 function isValidHexColor(color: string): boolean {
   return /^#?([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/.test(color);
@@ -114,52 +120,40 @@ export const ColorButton = forwardRef<HTMLButtonElement, ColorButtonProps>(funct
 ) {
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   const [hexInput, setHexInput] = useState('');
-  const [pickerPosition, setPickerPosition] = useState({ top: 0, left: 0 });
   const buttonRef = useRef<HTMLButtonElement>(null);
   const pickerRef = useRef<HTMLDivElement>(null);
 
   const palette = colors ?? DEFAULT_COLOR_ENTRIES;
 
-  const calculatePosition = useCallback(() => {
-    if (!buttonRef.current || !pickerRef.current) return;
-
-    const buttonRect = buttonRef.current.getBoundingClientRect();
-    const pickerRect = pickerRef.current.getBoundingClientRect();
-    const viewportWidth = window.innerWidth;
-    const viewportHeight = window.innerHeight;
-
-    // Align left edge of picker to left edge of button, below it
-    let left = buttonRect.left;
-    let top = buttonRect.bottom + 4;
-
-    // If it overflows the right viewport edge, shift left to fit
-    if (left + pickerRect.width > viewportWidth - 16) {
-      left = viewportWidth - pickerRect.width - 16;
-    }
-
-    // Check if it fits on the bottom, otherwise move to top
-    if (top + pickerRect.height > viewportHeight - 16) {
-      top = buttonRect.top - pickerRect.height - 4;
-    }
-
-    // Clamp to viewport
-    left = Math.max(16, left);
-    top = Math.max(16, top);
-
-    setPickerPosition({ top, left });
-  }, []);
-
+  // Position the picker with Floating UI and keep it anchored to the button.
+  // autoUpdate repositions on scroll (any ancestor), resize, element resize,
+  // and layout shifts; styles are written straight to the picker element, so
+  // repositioning never goes through React renders.
   useLayoutEffect(() => {
-    if (isPickerOpen) {
-      calculatePosition();
-      window.addEventListener('resize', calculatePosition);
-      window.addEventListener('scroll', calculatePosition, true);
-      return () => {
-        window.removeEventListener('resize', calculatePosition);
-        window.removeEventListener('scroll', calculatePosition, true);
-      };
-    }
-  }, [isPickerOpen, calculatePosition]);
+    if (!isPickerOpen) return;
+    const reference = buttonRef.current;
+    const floating = pickerRef.current;
+    if (!reference || !floating) return;
+
+    const update = () => {
+      computePosition(reference, floating, {
+        placement: 'bottom-start',
+        strategy: 'fixed',
+        middleware: [
+          offset(PICKER_GAP),
+          flip({ padding: VIEWPORT_MARGIN, fallbackPlacements: ['top-start'] }),
+          shift({ padding: VIEWPORT_MARGIN, crossAxis: true }),
+        ],
+      }).then(({ x, y }) => {
+        floating.style.left = `${x}px`;
+        floating.style.top = `${y}px`;
+        floating.style.visibility = 'visible';
+      });
+    };
+
+    update();
+    return autoUpdate(reference, floating, update);
+  }, [isPickerOpen]);
 
   useEffect(() => {
     if (!isPickerOpen) return;
@@ -249,8 +243,9 @@ export const ColorButton = forwardRef<HTMLButtonElement, ColorButtonProps>(funct
           onMouseDownCapture={(e) => e.stopPropagation()}
           style={{
             position: 'fixed',
-            top: `${pickerPosition.top}px`,
-            left: `${pickerPosition.left}px`,
+            // top/left are set imperatively by Floating UI; hidden until the
+            // first computePosition has positioned the picker
+            visibility: 'hidden',
             zIndex: 'var(--z-tooltip)',
           }}
         >

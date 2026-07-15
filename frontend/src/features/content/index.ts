@@ -23,7 +23,6 @@ export { AllPagesTimelineView } from './pages/AllPagesTimelineView';
 export { NodeCollection } from './components/nodes/NodeCollection';
 export { NodeCollectionToolbar } from './components/nodes/NodeCollectionToolbar';
 export { NodeResultItem } from './components/nodes/NodeResultItem';
-export { TransclusionPopover } from './components/transclusion/TransclusionPopover';
 export { NodeInline } from './components/blocks/NodeInline';
 export { NodeNameContent } from './components/blocks/NodeNameContent';
 export { NodeRef } from './components/nodes/NodeRef';

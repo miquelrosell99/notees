@@ -167,8 +167,6 @@ export function useCommandPalette({ isOpen, onClose, onSelect }: CommandPaletteP
     query: state.query,
     setQuery: state.setQuery,
     appliedFilters: state.appliedFilters,
-    classPopupPosition: state.classPopupPosition,
-    filterPrefixPopupPosition: state.filterPrefixPopupPosition,
     duplicateModal: state.duplicateModal,
     setDuplicateModal: state.setDuplicateModal,
     inputRef: state.inputRef,
