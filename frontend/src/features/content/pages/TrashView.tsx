@@ -37,10 +37,9 @@ export function TrashView({ className = '' }: TrashViewProps) {
   const { restore, permanentDelete, emptyTrash: emptyTrashMutation, batchDelete: batchDeleteMutation } = useTrashMutations();
 
   // Handle empty trash confirmation
-  const handleEmptyTrashConfirm = useCallback(() => {
-    emptyTrashMutation.mutate(undefined, {
-      onSuccess: () => setShowEmptyConfirm(false),
-    });
+  const handleEmptyTrashConfirm = useCallback(async () => {
+    await emptyTrashMutation.mutateAsync(undefined);
+    setShowEmptyConfirm(false);
   }, [emptyTrashMutation]);
   
   // Toggle node selection (shift+click)
@@ -213,14 +212,11 @@ export function TrashView({ className = '' }: TrashViewProps) {
         confirmLabel="Delete Selected"
         cancelLabel="Cancel"
         variant="danger"
-        onConfirm={() =>
-          batchDeleteMutation.mutate([...selectedIds], {
-            onSuccess: () => {
-              setSelectedIds(new Set());
-              setShowDeleteSelectedConfirm(false);
-            },
-          })
-        }
+        onConfirm={async () => {
+          await batchDeleteMutation.mutateAsync([...selectedIds]);
+          setSelectedIds(new Set());
+          setShowDeleteSelectedConfirm(false);
+        }}
         onCancel={() => setShowDeleteSelectedConfirm(false)}
       />
 
@@ -233,9 +229,9 @@ export function TrashView({ className = '' }: TrashViewProps) {
         confirmLabel="Delete Permanently"
         cancelLabel="Cancel"
         variant="danger"
-        onConfirm={() => {
+        onConfirm={async () => {
           if (deleteTarget) {
-            permanentDelete.mutate(deleteTarget.uuid);
+            await permanentDelete.mutateAsync(deleteTarget.uuid);
           }
           setDeleteTarget(null);
         }}
