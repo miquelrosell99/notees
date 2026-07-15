@@ -11,13 +11,15 @@
  * PageContextMenu / BlockContextMenu are backward-compatible aliases.
  */
 import { useMemo, useCallback, useState, useRef, useLayoutEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { copyToClipboard } from '@/utils/clipboardManager';
 import { useClipboardStore } from '@/stores/clipboardStore';
 import { createPortal } from 'react-dom';
 import { autoUpdate, computePosition, flip, shift, type VirtualElement } from '@floating-ui/dom';
 import { useArchiveNode, useUnarchiveNode, useDeleteNode, useUpdateNode, useLinkedReferencesCount } from '@/features/content';
 import { nodeNameToText } from '@/features/queries';
-import { useSettingsStore, usePresentationStore } from '@/stores';
+import { useSettingsStore, usePresentationStore, useUndoStore } from '@/stores';
+import { useNotificationStore } from '@/stores/notificationStore';
 import {
   useCurrentNodeUuid,
   useOpenNodeAction,
@@ -118,6 +120,7 @@ export function NodeContextMenu({
   const archiveNode = useArchiveNode();
   const unarchiveNode = useUnarchiveNode();
   const updateNode = useUpdateNode();
+  const queryClient = useQueryClient();
   const currentNodeUuid = useCurrentNodeUuid();
   const openNode = useOpenNodeAction();
   const openLocalGraph = useOpenLocalGraphAction();
@@ -141,10 +144,37 @@ export function NodeContextMenu({
       setShowDeleteModal(true);
     } else {
       if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
-      deleteNode.mutate(node.uuid);
+      // Block deletion goes through the runtime undo engine (useDeleteNode →
+      // applyNodeIntent with pushUndo: true), so a genuine undo exists — offer
+      // it as a toast action instead of gating behind a confirmation modal.
+      const undoEngine = getUndoEngine();
+      const undoStackBefore = undoEngine.getUndoStack();
+      const undoTopBefore = undoStackBefore[undoStackBefore.length - 1] ?? null;
+      deleteNode.mutate(node.uuid, {
+        onSuccess: () => {
+          const stack = undoEngine.getUndoStack();
+          const undoTop = stack[stack.length - 1] ?? null;
+          const undoAvailable = undoTop !== null && undoTop !== undoTopBefore && undoTop.forward.type === 'delete_block';
+          const notifications = useNotificationStore.getState();
+          const toastId = notifications.addNotification({
+            type: 'success',
+            title: 'Block deleted',
+            duration: 6000,
+            action: undoAvailable
+              ? {
+                  label: 'Undo',
+                  onClick: () => {
+                    useNotificationStore.getState().removeNotification(toastId);
+                    void useUndoStore.getState().performUndo(queryClient);
+                  },
+                }
+              : undefined,
+          });
+        },
+      });
       onClose();
     }
-  }, [node.is_page, node.uuid, deleteNode, onClose]);
+  }, [node.is_page, node.uuid, deleteNode, onClose, queryClient]);
 
   const handleArchiveClick = useCallback(() => {
     // Always warn for blocks (they always have a parent); warn for pages only if they have a parent
@@ -599,7 +629,7 @@ export function NodeContextMenu({
         confirmLabel="Delete"
         cancelLabel="Cancel"
         variant="danger"
-        onConfirm={() => { deleteNode.mutate(node.uuid); setShowDeleteModal(false); onClose(); }}
+        onConfirm={async () => { await deleteNode.mutateAsync(node.uuid); setShowDeleteModal(false); onClose(); }}
         onCancel={() => { setShowDeleteModal(false); onClose(); }}
       />
       <ConfirmationModal
@@ -614,7 +644,7 @@ export function NodeContextMenu({
         confirmLabel="Archive"
         cancelLabel="Cancel"
         variant="danger"
-        onConfirm={() => { archiveNode.mutate(node.uuid); setShowArchiveModal(false); onClose(); }}
+        onConfirm={async () => { await archiveNode.mutateAsync(node.uuid); setShowArchiveModal(false); onClose(); }}
         onCancel={() => { setShowArchiveModal(false); onClose(); }}
       />
       <ASTViewerModal

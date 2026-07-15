@@ -8,7 +8,9 @@ import { Button } from '@/components/ui/Button';
 import { TextField } from '@/components/ui/TextField';
 import { Dropdown } from '@/components/ui/Dropdown';
 import { Badge } from '@/components/ui/Badge';
-import { Icon, LinkIcon } from '@/components/ui/icons';
+import { InlineConfirmButton } from '@/components/ui/InlineConfirmButton';
+import { Icon, LinkIcon, DeleteIcon } from '@/components/ui/icons';
+import { useCopiedState } from '@/hooks/useCopiedState';
 // Kept as a deep import to avoid a circular dependency: the shares barrel
 // exports PublicShareView/ShareInboxView/SharesUnifiedView, which import the
 // content barrel. If this content component also imported the shares barrel,
@@ -50,6 +52,8 @@ export function ShareModal({ nodeUuid, isOpen, onClose }: ShareModalProps) {
   const [inviteEmail, setInviteEmail] = useState('');
   const [invitePermission, setInvitePermission] = useState<'read' | 'write' | 'comment'>('read');
   const [publicPassword, setPublicPassword] = useState('');
+  const [copied, triggerCopy] = useCopiedState();
+  const [copiedShareUuid, setCopiedShareUuid] = useState<string | null>(null);
 
   const handleCreatePublic = useCallback(() => {
     createShare.mutate(
@@ -58,9 +62,11 @@ export function ShareModal({ nodeUuid, isOpen, onClose }: ShareModalProps) {
     );
   }, [nodeUuid, expiryDate, publicPassword, createShare]);
 
-  const handleCopy = useCallback((url: string) => {
-    copyToClipboard(url);
-  }, []);
+  const handleCopy = useCallback((shareUuid: string, url: string) => {
+    void copyToClipboard(url);
+    setCopiedShareUuid(shareUuid);
+    triggerCopy();
+  }, [triggerCopy]);
 
   const handleInvite = useCallback(() => {
     const email = inviteEmail.trim();
@@ -112,6 +118,7 @@ export function ShareModal({ nodeUuid, isOpen, onClose }: ShareModalProps) {
                 size="sm"
                 onClick={handleCreatePublic}
                 disabled={createShare.isPending}
+                loading={createShare.isPending}
               >
                 <LinkIcon size="sm" />
                 Create link
@@ -125,7 +132,9 @@ export function ShareModal({ nodeUuid, isOpen, onClose }: ShareModalProps) {
             <div className="share-modal__empty">No public links yet</div>
           ) : (
             <div className="share-modal__list">
-              {shares.map((share) => (
+              {shares.map((share) => {
+                const isCopied = copied && copiedShareUuid === share.share_uuid;
+                return (
                 <div key={share.share_uuid} className="share-modal__item">
                   <div className="share-modal__item-info">
                     <div className="share-modal__item-url">
@@ -142,23 +151,26 @@ export function ShareModal({ nodeUuid, isOpen, onClose }: ShareModalProps) {
                     </div>
                   </div>
                   <div className="share-modal__item-actions">
-                    <Button aria-label="Copy link"
+                    <Button aria-label={isCopied ? 'Copied' : 'Copy link'}
                       variant="ghost"
                       size="sm"
-                      icon="mdi mdi-content-copy"
-                      title="Copy link"
-                      onClick={() => handleCopy(share.url)}
+                      icon={isCopied ? 'mdi mdi-check' : 'mdi mdi-content-copy'}
+                      title={isCopied ? 'Copied' : 'Copy link'}
+                      onClick={() => handleCopy(share.share_uuid, share.url)}
                     />
-                    <Button aria-label="Revoke link"
+                    <InlineConfirmButton
                       variant="ghost"
                       size="sm"
-                      icon="mdi mdi-delete-outline"
                       title="Revoke link"
-                      onClick={() => deleteShare.mutate(share.share_uuid)}
-                    />
+                      confirmTitle="Confirm revoke"
+                      onConfirm={async () => { await deleteShare.mutateAsync(share.share_uuid); }}
+                    >
+                      <DeleteIcon size="sm" />
+                    </InlineConfirmButton>
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </section>
@@ -199,6 +211,7 @@ export function ShareModal({ nodeUuid, isOpen, onClose }: ShareModalProps) {
                   size="sm"
                   onClick={handleInvite}
                   disabled={createUserShare.isPending || !inviteEmail.trim()}
+                  loading={createUserShare.isPending}
                 >
                   Invite
                 </Button>
@@ -224,13 +237,15 @@ export function ShareModal({ nodeUuid, isOpen, onClose }: ShareModalProps) {
                         >
                           {share.permission === 'write' ? 'Can edit' : share.permission === 'comment' ? 'Can comment' : 'Read only'}
                         </Badge>
-                        <Button aria-label="Remove access"
+                        <InlineConfirmButton
                           variant="ghost"
                           size="sm"
-                          icon="mdi mdi-delete-outline"
                           title="Remove access"
-                          onClick={() => deleteUserShare.mutate(share.share_uuid)}
-                        />
+                          confirmTitle="Confirm remove"
+                          onConfirm={async () => { await deleteUserShare.mutateAsync(share.share_uuid); }}
+                        >
+                          <DeleteIcon size="sm" />
+                        </InlineConfirmButton>
                       </div>
                     </div>
                   ))}

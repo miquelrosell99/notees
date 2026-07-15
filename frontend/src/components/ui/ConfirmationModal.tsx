@@ -57,7 +57,9 @@ export function ConfirmationModal({
     }
   }, [isPending, onConfirm]);
 
-  // Enter anywhere inside the modal = confirm (capture phase to beat button activation)
+  // Enter on the dialog body = confirm (capture phase to beat button activation).
+  // Interactive elements handle Enter themselves — Enter on the focused Cancel
+  // button must cancel, never trigger the (possibly destructive) shortcut.
   useEffect(() => {
     if (!isOpen || isPending) return;
     const handler = (e: KeyboardEvent) => {
@@ -65,6 +67,7 @@ export function ConfirmationModal({
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       const target = e.target as HTMLElement;
       if (!target.closest('.confirmation-modal')) return;
+      if (target.closest('button, input, select, textarea, a, [contenteditable]')) return;
       e.preventDefault();
       e.stopPropagation();
       handleConfirm();
@@ -79,7 +82,7 @@ export function ConfirmationModal({
       onClose={onCancel}
       size="sm"
       showCloseButton={false}
-      className="confirmation-modal"
+      className={`confirmation-modal confirmation-modal--${variant}`}
     >
       <div className="confirmation-modal__header">
         <div className="confirmation-modal__icon">
@@ -111,6 +114,7 @@ export function ConfirmationModal({
           variant={variant === 'danger' ? 'danger' : 'primary'}
           onClick={handleConfirm}
           loading={isPending}
+          hapticIntensity={variant === 'danger' ? 'medium' : 'light'}
         >
           {confirmLabel}
         </Button>
