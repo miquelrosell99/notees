@@ -162,13 +162,10 @@ export function PropertyView({
   const handlePropertyDelete = useCallback(async () => {
     if (!property) return;
 
-    try {
-      await deletePropertyMutation.mutateAsync(property.uuid);
-      // Navigate to home after deletion
-      navigate('/');
-    } catch (err) {
-      console.error('Failed to delete property:', err);
-    }
+    // Let errors propagate so the confirmation modal shows its inline error.
+    await deletePropertyMutation.mutateAsync(property.uuid);
+    // Navigate to home after deletion
+    navigate('/');
   }, [property, deletePropertyMutation, navigate]);
   
   // Context menu handlers
@@ -186,8 +183,8 @@ export function PropertyView({
     setShowDeleteModal(true);
   }, []);
   
-  const handleConfirmDelete = useCallback(() => {
-    handlePropertyDelete();
+  const handleConfirmDelete = useCallback(async () => {
+    await handlePropertyDelete();
     setShowDeleteModal(false);
     setShowContextMenu(false);
   }, [handlePropertyDelete]);

@@ -26,6 +26,7 @@ export function TasksPopup({ isOpen, onClose, anchorRef }: TasksPopupProps) {
   const position = useViewportFlip(
     anchorRef as React.RefObject<HTMLElement>,
     isOpen,
+    // 420 is the max height estimate (CSS caps at min(420px, 70dvh)); the hook measures the rendered popup, so the value itself is ignored.
     { popupRef, popupHeight: 420, fixed: true },
   );
 

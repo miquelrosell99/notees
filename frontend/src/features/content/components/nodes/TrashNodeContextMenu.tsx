@@ -74,8 +74,8 @@ export function TrashNodeContextMenu({ node, position, onClose }: TrashNodeConte
     setShowRestoreModal(true);
   }, []);
   
-  const handleConfirmRestore = useCallback(() => {
-    restoreMutation.mutate(node.uuid);
+  const handleConfirmRestore = useCallback(async () => {
+    await restoreMutation.mutateAsync(node.uuid);
     setShowRestoreModal(false);
   }, [node.uuid, restoreMutation]);
   
@@ -88,8 +88,8 @@ export function TrashNodeContextMenu({ node, position, onClose }: TrashNodeConte
     setShowPermanentDeleteModal(true);
   }, []);
   
-  const handleConfirmPermanentDelete = useCallback(() => {
-    permanentDeleteMutation.mutate(node.uuid);
+  const handleConfirmPermanentDelete = useCallback(async () => {
+    await permanentDeleteMutation.mutateAsync(node.uuid);
     setShowPermanentDeleteModal(false);
   }, [node.uuid, permanentDeleteMutation]);
   

@@ -62,26 +62,10 @@
   min-height: var(--layout-size-2xl);
 }
 
-.loading-state,
 .error-state {
   padding: var(--spacing-4);
   color: var(--color-on-surface-variant);
   font: var(--font-body-medium);
-}
-
-.loading-state {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.loading-state__spinner {
-  width: var(--icon-size-lg);
-  height: var(--height-xs);
-  border: var(--border-width-thick) solid var(--color-outline-variant);
-  border-top-color: var(--color-on-surface-variant);
-  border-radius: var(--shape-full);
-  animation: spin 0.8s var(--motion-easing-linear) infinite;
 }
 
 /* Footer */

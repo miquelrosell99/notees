@@ -19,18 +19,6 @@
   margin: 0;
 }
 
-.share-inbox-view__loading,
-.share-inbox-view__empty {
-  text-align: center;
-  padding: var(--spacing-12) var(--spacing-4);
-  color: var(--text-muted);
-}
-
-.share-inbox-view__empty-hint {
-  font-size: var(--font-size-base);
-  margin-top: var(--spacing-2);
-}
-
 .share-inbox-view__list {
   display: flex;
   flex-direction: column;

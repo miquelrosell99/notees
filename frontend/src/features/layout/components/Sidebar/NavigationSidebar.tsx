@@ -169,11 +169,10 @@ function SidebarTools({ layout }: SidebarToolsProps) {
       <ConfirmationModal
         isOpen={showEmptyTrashConfirm}
         onCancel={() => setShowEmptyTrashConfirm(false)}
-        onConfirm={() =>
-          emptyTrashMutation.mutate(undefined, {
-            onSuccess: () => setShowEmptyTrashConfirm(false),
-          })
-        }
+        onConfirm={async () => {
+          await emptyTrashMutation.mutateAsync(undefined);
+          setShowEmptyTrashConfirm(false);
+        }}
         title="Empty Trash"
         message="This will permanently delete all items in the trash. This action cannot be undone."
         confirmLabel="Empty Trash"
