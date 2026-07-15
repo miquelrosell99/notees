@@ -130,6 +130,7 @@ function InlineLinkWrapper({ nodeUuid, children }: { nodeUuid: string; children:
   const refNode = useReferencedNode(nodeUuid);
   const { data: fallback } = useBatchedNodeByUuid(!refNode ? nodeUuid : null, { skipGlobalError: true });
   const node = refNode ?? fallback ?? null;
+  const href = workspaceId ? `/${workspaceId}/${nodeUuid}` : `/node/${nodeUuid}`;
 
   const handleClick = useCallback(
     (e: React.MouseEvent) => {
@@ -156,10 +157,23 @@ function InlineLinkWrapper({ nodeUuid, children }: { nodeUuid: string; children:
     [node, workspaceId],
   );
 
+  // Suppress the native middle-click navigation on the anchor — the tab is
+  // already opened in handleMouseDown (window.open).
+  const handleAuxClick = useCallback((e: React.MouseEvent) => {
+    if (e.button !== 1) return;
+    e.preventDefault();
+  }, []);
+
   return (
-    <span className="inline-link-wrapper" onClick={handleClick} onMouseDown={handleMouseDown}>
+    <a
+      className="inline-link-wrapper"
+      href={href}
+      onClick={handleClick}
+      onMouseDown={handleMouseDown}
+      onAuxClick={handleAuxClick}
+    >
       {children}
-    </span>
+    </a>
   );
 }
 

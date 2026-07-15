@@ -161,6 +161,7 @@ function Tab<TValue extends string = string>({
   disabled = false,
   className = '',
   onClick,
+  onKeyDown,
   ...props
 }: TabProps<TValue>) {
   const { value, onChange, baseId } = useTabsContext<TValue>('Tabs.Tab');
@@ -179,6 +180,40 @@ function Tab<TValue extends string = string>({
     [disabled, isActive, onChange, tabValue, onClick],
   );
 
+  // WAI-ARIA tabs: ArrowLeft/ArrowRight (plus Home/End) move focus between
+  // tabs and activate the target tab (automatic activation).
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLButtonElement>) => {
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight' && e.key !== 'Home' && e.key !== 'End') {
+        onKeyDown?.(e);
+        return;
+      }
+      const list = e.currentTarget.closest('[role="tablist"]');
+      const tabs = list
+        ? Array.from(list.querySelectorAll<HTMLButtonElement>('[role="tab"]:not(:disabled)'))
+        : [];
+      const currentIndex = tabs.indexOf(e.currentTarget);
+      if (currentIndex === -1) {
+        onKeyDown?.(e);
+        return;
+      }
+      e.preventDefault();
+      let nextIndex = currentIndex;
+      if (e.key === 'ArrowLeft') nextIndex = currentIndex > 0 ? currentIndex - 1 : tabs.length - 1;
+      else if (e.key === 'ArrowRight') nextIndex = currentIndex < tabs.length - 1 ? currentIndex + 1 : 0;
+      else if (e.key === 'Home') nextIndex = 0;
+      else nextIndex = tabs.length - 1;
+      const nextTab = tabs[nextIndex];
+      nextTab.focus();
+      const nextValue = nextTab.dataset.value as TValue | undefined;
+      if (nextValue !== undefined && nextValue !== tabValue) {
+        onChange(nextValue);
+      }
+      onKeyDown?.(e);
+    },
+    [onChange, tabValue, onKeyDown],
+  );
+
   return (
     <button
       id={tabId}
@@ -187,6 +222,8 @@ function Tab<TValue extends string = string>({
       aria-selected={isActive}
       aria-controls={panelId}
       disabled={disabled}
+      tabIndex={isActive ? 0 : -1}
+      data-value={valueKey}
       className={cn(
         'tabs__tab',
         isActive && 'tabs__tab--active',
@@ -194,6 +231,7 @@ function Tab<TValue extends string = string>({
         className,
       )}
       onClick={handleClick}
+      onKeyDown={handleKeyDown}
       {...props}
     >
       {icon && <Icon path={icon} size={0.75} className="tabs__tab-icon" />}
