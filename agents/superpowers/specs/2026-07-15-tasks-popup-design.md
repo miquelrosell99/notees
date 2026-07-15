@@ -32,7 +32,8 @@ surface for bulk management, kanban-by-status, and the other four statuses.
 ## Architecture
 
 - **Open state:** `isTasksPopupOpen` / `toggleTasksPopup` / `setTasksPopupOpen`
-  in the navigation store, mirroring the calendar popup state (`TopBar.tsx`).
+  in the modal store (`stores/modalStore.ts`), mirroring the calendar popup
+  state (`isCalendarOpen` / `toggleCalendar`).
 - **Trigger:** icon `Button` in `TopBar` next to the calendar button, with a
   `ButtonBadge` count = overdue + today open tasks (Pending/Doing).
 - **Entry points:** rail Tasks button → `toggleTasksPopup()`; palette
