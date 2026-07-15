@@ -14,7 +14,6 @@
  *   • Tap hamburger  → open sidebar drawer
  *   • Tap note title in sidebar → navigate + drawer auto-closes
  *   • Tap backdrop   → close drawer
- *   • Android back   → close drawer first, then navigate back in web history
  *   • Swipe-right from left edge (≤28 px) → open sidebar
  *   • Drag drawer left → close sidebar
  */
