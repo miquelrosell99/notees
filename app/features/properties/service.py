@@ -639,6 +639,10 @@ class PropertyService:
                     line = await self._property_repo.get_selection_line_by_uuid(item)
                     if line is None or line.id is None:
                         raise PropertyNotFoundError(f"Selection line {item} not found")
+                    if line.property_id != prop.id:
+                        raise ValueError(
+                            f"Selection line {item} does not belong to property {prop.uuid}"
+                        )
                     return line.id
                 raise ValueError(
                     f"Selection property expects selection line UUID or array of UUIDs, got {type(item)}"
