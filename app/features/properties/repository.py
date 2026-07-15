@@ -317,9 +317,25 @@ class PostgresPropertyRepository(BasePostgresRepository, PropertyRepository):
             return prop
 
     async def get_by_uuid(self, uuid: str) -> Property | None:
-        """Get property by UUID."""
+        """Get property by UUID, preferring this workspace's copy.
+
+        System properties are seeded per workspace with identical UUIDs, so a
+        bare UUID lookup can resolve to another workspace's copy and corrupt
+        writes. Prefer the row owned by this workspace; fall back to
+        workspace-agnostic (NULL) rows.
+        """
         async with acquire_connection(self._pool) as conn:
-            row = await conn.fetchrow("SELECT id FROM property WHERE uuid = $1 AND active = TRUE", uuid)
+            row = await conn.fetchrow(
+                """
+                SELECT id FROM property
+                WHERE uuid = $1 AND active = TRUE
+                  AND (workspace_id = $2 OR workspace_id IS NULL)
+                ORDER BY (workspace_id = $2) DESC, id
+                LIMIT 1
+                """,
+                uuid,
+                self._workspace_id,
+            )
             if not row:
                 return None
             return await self.get_by_id(row["id"])
@@ -330,8 +346,15 @@ class PostgresPropertyRepository(BasePostgresRepository, PropertyRepository):
             return []
         async with acquire_connection(self._pool) as conn:
             rows = await conn.fetch(
-                "SELECT * FROM property WHERE uuid = ANY($1) AND active = TRUE",
+                """
+                SELECT DISTINCT ON (uuid) *
+                FROM property
+                WHERE uuid = ANY($1) AND active = TRUE
+                  AND (workspace_id = $2 OR workspace_id IS NULL)
+                ORDER BY uuid, (workspace_id = $2) DESC, id
+                """,
                 uuids,
+                self._workspace_id,
             )
             uuid_to_row = {str(row["uuid"]): row for row in rows}
             properties = [self._row_to_property(uuid_to_row[uuid]) for uuid in uuids if uuid in uuid_to_row]
