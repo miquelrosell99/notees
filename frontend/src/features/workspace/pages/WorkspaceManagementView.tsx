@@ -347,6 +347,7 @@ export function WorkspaceManagementView({
                               hapticIntensity="medium"
                               onClick={handleRestoreConfirm}
                               disabled={restoreMutation.isPending}
+                              loading={restoreMutation.isPending}
                             >
                               {restoreMutation.isPending ? 'Restoring...' : 'Confirm Restore'}
                             </Button>

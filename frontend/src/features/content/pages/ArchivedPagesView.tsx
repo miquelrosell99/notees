@@ -71,6 +71,7 @@ export function ArchivedPagesView({ className = '' }: ArchivedPagesViewProps) {
               size="sm"
               onClick={() => setShowDeleteAllConfirm(true)}
               disabled={deleteAllMutation.isPending}
+              loading={deleteAllMutation.isPending}
             >
               {deleteAllMutation.isPending ? 'Deleting...' : 'Delete All'}
             </Button>

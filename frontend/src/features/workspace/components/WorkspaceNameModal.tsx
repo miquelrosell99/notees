@@ -104,6 +104,7 @@ export function WorkspaceNameModal({
             type="submit"
             variant="primary"
             disabled={isLoading || !nameIsValid}
+            loading={isLoading}
             onClick={handleSubmit}
           >
             {isLoading ? 'Processing...' : submitLabel}
