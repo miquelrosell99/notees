@@ -61,7 +61,7 @@ Detailed guidance lives in focused reference documents under `agents/`; this fil
 | Frontend | Axios | 1.16.1 | HTTP client |
 | Frontend | @dnd-kit | latest | Drag & drop |
 | Frontend | sql.js | 1.14.0 | In-browser SQLite (WASM) |
-| Mobile | Kotlin + Android SDK | 36 (minSdk 26) | WebView wrapper app |
+| Mobile | Flutter (Dart) | — | Native mobile app, lives in `miquelrosell99/notees-flutter` |
 | Containerization | Docker + Docker Compose | — | Production deployment and local development stack |
 
 ---
