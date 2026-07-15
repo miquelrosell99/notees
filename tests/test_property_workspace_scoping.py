@@ -9,6 +9,7 @@ workspace copy and only fall back to workspace-agnostic (NULL) rows.
 
 import secrets
 
+import asyncpg
 import pytest
 
 from app.db import schema
@@ -17,6 +18,20 @@ from app.domain.entities.constants import SYSTEM_PROPERTY_UUIDS
 from app.features.properties.repository import PostgresPropertyRepository
 
 STATUS_UUID = SYSTEM_PROPERTY_UUIDS["task_status"]
+
+
+async def _rerun_startup_schema(database_url: str) -> None:
+    """Re-run the schema exactly the way backend startup does.
+
+    main.py calls init_database(conn) on every startup; the db_pool fixture
+    does it once on a fresh schema. This repeats it on the live database to
+    simulate a container restart.
+    """
+    conn = await asyncpg.connect(database_url)
+    try:
+        await schema.init_database(conn)
+    finally:
+        await conn.close()
 
 
 async def _seed_second_workspace(db_pool, user_id: int) -> int:
@@ -152,3 +167,150 @@ async def test_set_property_rejects_foreign_selection_line(db_pool, test_user, a
         status_a,
     )
     assert row_count == 0
+
+
+@pytest.mark.asyncio
+async def test_startup_repair_cleans_cross_workspace_assignments(
+    db_pool, test_user, database_url: str
+):
+    """The startup repair dedupes/remaps cross-workspace property assignments.
+
+    Before property UUID lookups were workspace-scoped, writes could assign
+    workspace B's copy of a per-workspace seeded property (e.g. Status) to a
+    node in workspace A. The idempotent repair block in SCHEMA_SQL must:
+    (a) delete the foreign assignment when the node also has its own
+        workspace's assignment of the same property UUID (duplicate), and
+    (b) remap the foreign assignment to the node's own workspace copy when it
+        is the only one, re-pointing the selection value to the same-named
+        line of the workspace copy.
+    """
+    user_id = int(test_user["id"])
+    ws_a = test_user["workspace_id"]
+    ws_b = await _seed_second_workspace(db_pool, user_id)
+
+    status_a = await _status_property_id(db_pool, ws_a)
+    status_b = await _status_property_id(db_pool, ws_b)
+
+    async def _line_id(property_id: int, name: str) -> int:
+        line_id = await db_pool.fetchval(
+            "SELECT id FROM property_selection_line "
+            "WHERE property_id = $1 AND name = $2",
+            property_id,
+            name,
+        )
+        assert line_id is not None, "seed must create Status options per workspace"
+        return line_id
+
+    pending_a = await _line_id(status_a, "Pending")
+    done_a = await _line_id(status_a, "Done")
+    done_b = await _line_id(status_b, "Done")
+
+    # Two plain (non-task) nodes in workspace A.
+    node_rows = await db_pool.fetch(
+        """
+        INSERT INTO node (workspace_id, name)
+        VALUES ($1, 'RepairNode1'), ($1, 'RepairNode2')
+        RETURNING id
+        """,
+        ws_a,
+    )
+    node1_id, node2_id = (row["id"] for row in node_rows)
+
+    async def _assign(node_id: int, property_id: int, line_id: int) -> int:
+        np_id = await db_pool.fetchval(
+            "INSERT INTO node_property (node_id, property_id) "
+            "VALUES ($1, $2) RETURNING id",
+            node_id,
+            property_id,
+        )
+        await db_pool.execute(
+            """
+            INSERT INTO property_value_selection
+                (node_property_id, property_id, node_id, selection_line_id)
+            VALUES ($1, $2, $3, $4)
+            """,
+            np_id,
+            property_id,
+            node_id,
+            line_id,
+        )
+        return np_id
+
+    # (a) node1 has its own assignment of A's Status plus a duplicate foreign
+    # assignment of B's Status (value: B's "Done" line).
+    np_own = await _assign(node1_id, status_a, pending_a)
+    np_dup = await _assign(node1_id, status_b, done_b)
+    # (b) node2's only Status assignment points at B's property.
+    np_foreign = await _assign(node2_id, status_b, done_b)
+
+    cross_ws_count = await db_pool.fetchval(
+        """
+        SELECT count(*) FROM node_property np
+        JOIN node n ON n.id = np.node_id
+        JOIN property p ON p.id = np.property_id
+        WHERE p.workspace_id IS NOT NULL AND p.workspace_id <> n.workspace_id
+        """
+    )
+    assert cross_ws_count == 2, "fixture must create exactly the contaminated rows"
+
+    # When: the startup schema runs again (simulated container restart).
+    await _rerun_startup_schema(database_url)
+
+    # Then (a): the foreign duplicate is gone; the own assignment and its
+    # value are untouched.
+    assert await db_pool.fetchval(
+        "SELECT count(*) FROM node_property WHERE id = $1", np_dup
+    ) == 0
+    own_row = await db_pool.fetchrow(
+        """
+        SELECT np.property_id, pvs.selection_line_id
+        FROM node_property np
+        JOIN property_value_selection pvs ON pvs.node_property_id = np.id
+        WHERE np.id = $1
+        """,
+        np_own,
+    )
+    assert own_row is not None, "the node's own assignment must survive the repair"
+    assert own_row["property_id"] == status_a
+    assert own_row["selection_line_id"] == pending_a
+
+    # Then (b): the assignment is re-pointed to A's property with the
+    # same-named ("Done") line of A's copy.
+    remapped = await db_pool.fetchrow(
+        """
+        SELECT np.property_id, pvs.property_id AS value_property_id,
+               pvs.selection_line_id
+        FROM node_property np
+        JOIN property_value_selection pvs ON pvs.node_property_id = np.id
+        WHERE np.id = $1
+        """,
+        np_foreign,
+    )
+    assert remapped is not None, "a lone foreign assignment must be remapped, not dropped"
+    assert remapped["property_id"] == status_a
+    assert remapped["value_property_id"] == status_a
+    assert remapped["selection_line_id"] == done_a
+
+    # No cross-workspace assignments remain.
+    assert await db_pool.fetchval(
+        """
+        SELECT count(*) FROM node_property np
+        JOIN node n ON n.id = np.node_id
+        JOIN property p ON p.id = np.property_id
+        WHERE p.workspace_id IS NOT NULL AND p.workspace_id <> n.workspace_id
+        """
+    ) == 0
+
+    # Idempotent: a second simulated restart changes nothing.
+    await _rerun_startup_schema(database_url)
+    assert await db_pool.fetchval(
+        "SELECT property_id FROM node_property WHERE id = $1", np_foreign
+    ) == status_a
+    assert await db_pool.fetchval(
+        """
+        SELECT count(*) FROM node_property np
+        JOIN node n ON n.id = np.node_id
+        JOIN property p ON p.id = np.property_id
+        WHERE p.workspace_id IS NOT NULL AND p.workspace_id <> n.workspace_id
+        """
+    ) == 0
