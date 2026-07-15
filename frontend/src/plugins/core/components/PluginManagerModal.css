@@ -7,8 +7,8 @@
 .plugin-manager__error {
   padding: var(--spacing-3, 0.75rem);
   border-radius: var(--radius-md, 0.375rem);
-  background-color: var(--color-error-bg, #fee2e2);
-  color: var(--color-error, #b91c1c);
+  background-color: var(--color-error-container);
+  color: var(--color-error);
 }
 
 .plugin-manager__install {
@@ -25,10 +25,10 @@
 .plugin-manager__install-row input {
   flex: 1;
   padding: var(--spacing-2, 0.5rem);
-  border: 1px solid var(--color-border, #e5e7eb);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-md, 0.375rem);
-  background-color: var(--color-surface, #ffffff);
-  color: var(--color-text, #111827);
+  background-color: var(--color-surface);
+  color: var(--color-text);
 }
 
 .plugin-manager__list {
@@ -45,9 +45,9 @@
   align-items: center;
   justify-content: space-between;
   padding: var(--spacing-3, 0.75rem);
-  border: 1px solid var(--color-border, #e5e7eb);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-md, 0.375rem);
-  background-color: var(--color-surface-raised, #f9fafb);
+  background-color: var(--color-surface-container);
 }
 
 .plugin-manager__info {
@@ -57,19 +57,19 @@
 }
 
 .plugin-manager__meta {
-  font-size: 0.875rem;
-  color: var(--color-text-muted, #6b7280);
+  font-size: var(--font-size-base);
+  color: var(--color-text-muted);
 }
 
 .plugin-manager__error-badge {
-  font-size: 0.75rem;
-  color: var(--color-error, #b91c1c);
+  font-size: var(--font-size-sm);
+  color: var(--color-error);
 }
 
 .plugin-manager__progress {
   margin: 0;
-  font-size: 0.875rem;
-  color: var(--color-text-muted, #6b7280);
+  font-size: var(--font-size-base);
+  color: var(--color-text-muted);
 }
 
 .plugin-manager__actions {
