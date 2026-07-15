@@ -153,6 +153,15 @@ registerCommand({
 });
 
 registerCommand({
+  id: COMMAND_IDS.NEW_TEMP_QUERY,
+  label: 'New temporary query',
+  icon: 'mdi mdi-filter-outline',
+  context: 'global',
+  palette: { category: 'navigation', keywords: ['query', 'filter', 'search', 'temporary', 'view'] },
+  execute: () => useModalStore.getState().setFilterBuilderOpen(true),
+});
+
+registerCommand({
   id: COMMAND_IDS.CAPTURE_TASK,
   label: 'Capture task',
   icon: 'mdi mdi-plus-circle-outline',

@@ -20,6 +20,7 @@ import './MainContentPane.css';
 const PropertyViewFull = React.lazy(() => import('@/features/properties/pages/PropertyView').then(m => ({ default: m.PropertyViewFull })));
 const WhiteboardView = React.lazy(() => import('@/features/whiteboard').then(m => ({ default: m.WhiteboardView })));
 const SharesUnifiedView = React.lazy(() => import('@/features/shares/pages/SharesUnifiedView').then(m => ({ default: m.SharesUnifiedView })));
+const NodeCollectionView = React.lazy(() => import('@/features/content').then(m => ({ default: m.NodeCollectionView })));
 
 interface MainContentPaneProps {
   viewType: MainViewType;
@@ -40,6 +41,8 @@ export function MainContentPane({
   const { data: allClasses } = useClasses();
   const { systemClassUuids } = useSystemClasses();
   const viewMode = useNavigationStore(s => s.viewMode);
+  const nodeCollectionQueryAST = useNavigationStore(s => s.nodeCollectionQueryAST);
+  const nodeCollectionNodeUuids = useNavigationStore(s => s.nodeCollectionNodeUuids);
 
   const nodeColorStyle = useMemo(() => {
     const color = getEffectiveColor(currentNode, allClasses);
@@ -137,10 +140,13 @@ export function MainContentPane({
   if (viewType === 'node-collection') {
     return (
       <div className="main-content">
-        <div className="empty-state">
-          <h2>{nodeCollectionTitle || 'Collection'}</h2>
-          <p>This collection view isn&apos;t available in the main area.</p>
-        </div>
+        <Suspense fallback={<LoadingScreen fullscreen={false} label="Loading…" />}>
+          <NodeCollectionView
+            title={nodeCollectionTitle ?? 'Temporary query'}
+            queryAST={nodeCollectionQueryAST}
+            nodeUuids={nodeCollectionNodeUuids}
+          />
+        </Suspense>
       </div>
     );
   }

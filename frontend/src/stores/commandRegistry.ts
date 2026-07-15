@@ -202,6 +202,7 @@ export const COMMAND_IDS = {
   OPEN_BROKEN_LINKS: 'nav.brokenLinks',
   OPEN_TODAY: 'nav.today',
   CAPTURE_TASK: 'task.capture',
+  NEW_TEMP_QUERY: 'query.newTemporary',
   FORCE_REEXPORT: 'data.forceReexport',
 
   // View navigation (command palette)

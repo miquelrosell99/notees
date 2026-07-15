@@ -177,6 +177,16 @@ const matches = nodes.filter(n => evaluateQueryAST(queryAST, n, ctx));
 
 ---
 
+## Temporary vs Stored Queries
+
+Queries come in two lifetimes over one building system (`QueryAST` IR + `ViewBuilder` + `executeQuery` — ad-hoc ASTs need no saved view):
+
+- **Temporary**: `openNodeCollection(title, ast)` / `openNodeCollectionFromNodes(title, uuids)` in `navigationStore` set the `node-collection` main view, rendered by `NodeCollectionView` (`features/content/pages/`). In-memory only — the store has no `persist` and `url.ts` maps the view type to `''`, so temporary queries are cleared on reload and never deep-linkable. Entry points: palette commands "New temporary query" (opens `FilterBuilderModal`, Run-primary), "Broken links", "Open Today", Ctrl+Enter on palette search results.
+- **Stored**: NodeViews (per-node saved views), query-class blocks (AST embedded in the block `name` JSON as `[paragraph, query]` — see `useQueryBlock`), inline `QuerySection` ASTs in pages.
+- **Promotion**: `useSaveQueryAsView` (`features/queries/hooks/`) turns a temporary AST into a stored artifact — a new page plus a query-class child block — and navigates to it. Exposed as "Save as view…" in `NodeCollectionView` and `FilterBuilderModal`.
+
+---
+
 ## Block Editor (Custom Inline Editor)
 
 The block editor uses a **custom contentEditable inline editor** — no external editor framework. React owns the block tree (hierarchy, depth, drag-and-drop, selection); the inline editor owns only the text inside a single block, and is mounted **only for the block currently being edited** — all other blocks render a cheap static DOM view. This is the main lever for keeping heap pressure low on large pages.
