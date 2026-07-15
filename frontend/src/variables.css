@@ -43,13 +43,13 @@
   --color-error-pressed: #89211f;
 
   /* ==================== Warning ==================== */
-  --color-warning: #d97706;
+  --color-warning: #8f6216;
   --color-on-warning: #ffffff;
   --color-warning-container: #fffbeb;
   --color-on-warning-container: #78350f;
 
   /* ==================== Success ==================== */
-  --color-success: #16a34a;
+  --color-success: #3d7253;
   --color-on-success: #ffffff;
   --color-success-container: #d1fae5;
   --color-on-success-container: #14532d;
@@ -88,11 +88,11 @@
   --color-pressed-overlay: rgba(0, 0, 0, 0.12);
 
   /* ==================== Accent (sage default) ==================== */
-  --color-accent: #5B7D5B;
+  --color-accent: #527051;
   --color-on-accent: #ffffff;
   --color-accent-hover: color-mix(in srgb, var(--color-accent) 90%, black);
   --color-accent-active: color-mix(in srgb, var(--color-accent) 80%, black);
-  --color-accent-subtle: #8BA88B;
+  --color-accent-subtle: #6f8a6d;
   --color-surface-tint: transparent;
 
   /* ==================== Graph View (light defaults) ==================== */
@@ -101,9 +101,9 @@
   --graph-bg: transparent;
 
   /* Graph semantic colors */
-  --graph-edge-cooccurrence: #7c3aed;
-  --graph-edge-path: #d97706;
-  --graph-node-path: #d97706;
+  --graph-edge-cooccurrence: #8a6cc9;
+  --graph-edge-path: #b4763e;
+  --graph-node-path: #b4763e;
 
   /* Graph UI surfaces */
   --graph-btn-bg: rgba(255, 255, 255, 0.8);
@@ -636,14 +636,14 @@
 
   /* State */
   --color-disabled: #404040;
-  --color-on-disabled: #9ca3af;
+  --color-on-disabled: #a8a29e;
   --color-hover-overlay: rgba(255, 255, 255, 0.05);
   --color-focus-overlay: rgba(255, 255, 255, 0.08);
   --color-pressed-overlay: rgba(255, 255, 255, 0.12);
 
   /* Accent — default to sage in dark mode so primary actions stay readable */
   --color-accent: #7FB285;
-  --color-accent-subtle: #8BA88B;
+  --color-accent-subtle: #648868;
   --color-on-accent: #121211;
 
   /* Graph view tokens */
@@ -652,9 +652,9 @@
   --graph-bg: transparent;
 
   /* Graph semantic colors */
-  --graph-edge-cooccurrence: #a855f7;
-  --graph-edge-path: #fbbf24;
-  --graph-node-path: #fbbf24;
+  --graph-edge-cooccurrence: #a78bd4;
+  --graph-edge-path: #d4a24a;
+  --graph-node-path: #d4a24a;
 
   /* Graph UI surfaces */
   --graph-btn-bg: rgba(23, 23, 23, 0.75);
@@ -700,8 +700,8 @@
 }
 
 [data-accent="sage"] {
-  --color-accent: #5B7D5B;
-  --color-accent-subtle: #8BA88B;
+  --color-accent: #527051;
+  --color-accent-subtle: #6f8a6d;
   --color-on-accent: #ffffff;
 }
 
@@ -724,7 +724,7 @@
 }
 
 [data-accent="custom"] {
-  --color-accent: var(--color-accent-custom, #5B7D5B);
+  --color-accent: var(--color-accent-custom, #527051);
   --color-on-accent: var(--color-on-accent-custom, #ffffff);
   --color-accent-subtle: color-mix(in srgb, var(--color-accent) 72%, var(--color-on-accent));
 }
@@ -733,6 +733,7 @@
 /* Lightened/desaturated accents so primary buttons remain readable on dark surfaces. */
 [data-theme="dark"][data-accent="sage"] {
   --color-accent: #7FB285;
+  --color-accent-subtle: #648868;
   --color-on-accent: #000000;
 }
 
@@ -817,14 +818,14 @@
   --shadow-presence-text: 0 1px 2px rgba(0, 0, 0, 0.3);
 
   /* Callout semantic colors */
-  --color-callout-warning: #d97706;
-  --color-callout-warning-bg: rgba(217, 119, 6, 0.08);
-  --color-callout-tip: #0d9488;
-  --color-callout-tip-bg: rgba(13, 148, 136, 0.08);
-  --color-callout-danger: #dc2626;
-  --color-callout-danger-bg: rgba(220, 38, 38, 0.08);
-  --color-callout-success: #16a34a;
-  --color-callout-success-bg: rgba(22, 163, 74, 0.08);
+  --color-callout-warning: #8f6216;
+  --color-callout-warning-bg: rgba(143, 98, 22, 0.08);
+  --color-callout-tip: #3a756d;
+  --color-callout-tip-bg: rgba(58, 117, 109, 0.08);
+  --color-callout-danger: #b04a45;
+  --color-callout-danger-bg: rgba(176, 74, 69, 0.08);
+  --color-callout-success: #3d7253;
+  --color-callout-success-bg: rgba(61, 114, 83, 0.08);
 }
 
 /* === Semantic functional tokens === */

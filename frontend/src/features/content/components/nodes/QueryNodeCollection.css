@@ -150,7 +150,7 @@
 
 .query-section__mode-warning {
   font-size: var(--font-size-button);
-  color: var(--color-warning);
+  color: var(--color-on-warning-container);
   font-weight: 500;
 }
 
