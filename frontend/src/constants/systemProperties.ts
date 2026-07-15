@@ -37,6 +37,9 @@ export const TASK_STATUSES = [
 /** Terminal task statuses that should be treated as "completed". */
 export const TASK_CLOSED_STATUSES = new Set<string>(['Done', 'Cancelled']);
 
+/** Open statuses hidden from the tasks popup (still open, but not actionable there). */
+export const TASK_POPUP_HIDDEN_STATUSES = new Set<string>(['Backlog', 'Reviewing']);
+
 /**
  * Ordered list of the non-terminal task statuses.
  *
