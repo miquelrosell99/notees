@@ -197,9 +197,9 @@ export function TopBar() {
 
   return (
     <Card
-      variant="filled"
+      variant="transparent"
       elevation="none"
-      radius="md"
+      radius="none"
       padding={false}
       className="top-bar-card"
       data-focus-mode={viewMode === 'focus' || undefined}

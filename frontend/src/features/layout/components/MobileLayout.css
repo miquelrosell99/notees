@@ -123,14 +123,19 @@
   height: var(--height-2xl);
   border-radius: var(--shape-button-large);
   border: none;
-  background: var(--color-primary);
-  color: var(--color-on-primary);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: var(--z-popover);
   transition: transform var(--motion-duration-short) var(--motion-easing-standard);
+}
+
+.mobile-fab:focus-visible {
+  outline: var(--border-width-thick) solid var(--color-accent);
+  outline-offset: var(--focus-outline-offset);
 }
 
 .mobile-fab:active {

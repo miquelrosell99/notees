@@ -20,7 +20,8 @@
     background-color var(--motion-duration-short) var(--motion-easing-standard),
     border-color var(--motion-duration-short) var(--motion-easing-standard),
     color var(--motion-duration-short) var(--motion-easing-standard),
-    opacity var(--motion-duration-short) var(--motion-easing-standard);
+    opacity var(--motion-duration-short) var(--motion-easing-standard),
+    transform var(--motion-duration-short) var(--motion-easing-standard);
   user-select: none;
   white-space: nowrap;
   text-decoration: none;
@@ -33,6 +34,11 @@
   background: var(--color-surface-container-high);
   color: var(--color-on-surface);
   border-color: var(--color-outline);
+}
+
+/* Tactile press feedback — same subtle scale as Pill/Card siblings. */
+.btn:active:not(:disabled) {
+  transform: scale(var(--tactile-press-scale));
 }
 
 .btn:focus-visible {
@@ -259,6 +265,26 @@
   color: var(--color-error);
 }
 
+/* Solid danger variant — destructive confirmations that must read as the
+   strongest action on screen (e.g. ConfirmationModal confirm button). */
+.btn--danger-solid {
+  background: var(--color-error);
+  border-color: var(--color-error);
+  color: var(--color-on-error);
+}
+
+.btn--danger-solid:hover:not(:disabled) {
+  background: var(--color-error-hover);
+  border-color: var(--color-error-hover);
+  color: var(--color-on-error);
+}
+
+.btn--danger-solid:active:not(:disabled) {
+  background: var(--color-error-pressed);
+  border-color: var(--color-error-pressed);
+  color: var(--color-on-error);
+}
+
 /* Active toggle state hover — keep pressed appearance */
 .btn--default.btn--active:hover:not(:disabled),
 .btn--ghost.btn--active:hover:not(:disabled) {
@@ -268,11 +294,11 @@
 }
 
 /* ==================== States ==================== */
+/* No pointer-events:none — disabled buttons must still show title tooltips. */
 .btn--disabled,
 .btn:disabled {
   opacity: var(--opacity-50);
   cursor: not-allowed;
-  pointer-events: none;
 }
 
 .btn--full-width {
@@ -280,8 +306,9 @@
 }
 
 /* ==================== Loading State ==================== */
-.btn--loading .btn__icon .spinner {
-  /* Keep the spinner fully visible even though the disabled state lowers opacity. */
+/* A loading button is working, not greyed out — keep full opacity. */
+.btn--loading.btn--disabled,
+.btn--loading:disabled {
   opacity: var(--opacity-100);
 }
 
