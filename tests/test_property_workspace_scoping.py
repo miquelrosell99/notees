@@ -109,3 +109,46 @@ async def test_get_by_uuid_falls_back_to_null_workspace(db_pool, test_user):
     assert prop is not None
     assert prop.uuid == null_prop_uuid
     assert prop.name == "LegacyGlobalProp"
+
+
+@pytest.mark.asyncio
+async def test_set_property_rejects_foreign_selection_line(db_pool, test_user, auth_client):
+    """A selection-line UUID of another property must not persist on write.
+
+    Both workspaces seed a "Status" selection property under the same system
+    UUID. The property lookup is workspace-scoped, so the write below targets
+    workspace A's own Status property — but the selection-line UUID belongs to
+    workspace B's Status property. The service must reject the mismatched line
+    (ValueError -> 400 in the values router) and persist nothing.
+    """
+    user_id = int(test_user["id"])
+    ws_a = test_user["workspace_id"]
+    ws_b = await _seed_second_workspace(db_pool, user_id)
+
+    status_a = await _status_property_id(db_pool, ws_a)
+    status_b = await _status_property_id(db_pool, ws_b)
+
+    foreign_line_uuid = await db_pool.fetchval(
+        "SELECT uuid::text FROM property_selection_line WHERE property_id = $1 LIMIT 1",
+        status_b,
+    )
+    assert foreign_line_uuid is not None, "seed must create Status options per workspace"
+
+    node_uuid = (await auth_client.post("/api/nodes/", json={"name": "N"})).json()["uuid"]
+
+    resp = await auth_client.post(
+        f"/api/nodes/{node_uuid}/properties",
+        json={"property_uuid": STATUS_UUID, "value": foreign_line_uuid},
+    )
+    assert resp.status_code == 400, resp.text
+
+    row_count = await db_pool.fetchval(
+        """
+        SELECT COUNT(*) FROM node_property np
+        JOIN node n ON n.id = np.node_id
+        WHERE n.uuid = $1 AND np.property_id = $2
+        """,
+        node_uuid,
+        status_a,
+    )
+    assert row_count == 0
