@@ -6,12 +6,8 @@
 
 
 /* ==================== Top Bar Card Container ==================== */
-.top-bar-card {
-  background: transparent !important;
-  overflow: visible !important;
-}
-
-/* Focus mode — dim the chrome, reveal on hover. Driven by data-focus-mode
+/* The card uses variant="transparent", so no container overrides are needed.
+   Focus mode — dim the chrome, reveal on hover. Driven by data-focus-mode
    on the Card root (set by TopBar.tsx). */
 .top-bar-card[data-focus-mode="true"] {
   opacity: var(--opacity-15);

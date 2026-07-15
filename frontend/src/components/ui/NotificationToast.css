@@ -7,14 +7,21 @@
 
 .notification-toast-container {
   position: fixed;
-  bottom: var(--spacing-4);
-  right: var(--spacing-4);
+  bottom: calc(var(--spacing-4) + env(safe-area-inset-bottom));
+  right: calc(var(--spacing-4) + env(safe-area-inset-right));
   z-index: var(--z-floating);
   display: flex;
   flex-direction: column;
   gap: var(--spacing-2);
   max-width: var(--layout-size-9xl);
   pointer-events: none;
+}
+
+/* Lift toasts above the mobile FAB (height --height-2xl at bottom --spacing-5). */
+@media (max-width: 768px) {
+  .notification-toast-container {
+    bottom: calc(var(--spacing-5) + env(safe-area-inset-bottom) + var(--height-2xl) + var(--spacing-2));
+  }
 }
 
 .notification-toast {
@@ -31,6 +38,28 @@
 }
 
 /* Uses global slideInRight keyframe from variables.css */
+
+.notification-toast--exiting {
+  animation: toastExit var(--motion-duration-medium-fast) var(--motion-easing-accelerate) forwards;
+}
+
+@keyframes toastExit {
+  to {
+    opacity: var(--opacity-0);
+    transform: translateX(var(--spacing-4));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .notification-toast,
+  .notification-toast--exiting {
+    animation: none;
+  }
+
+  .notification-toast--exiting {
+    opacity: var(--opacity-0);
+  }
+}
 
 .notification-toast--success {
   border-left: var(--border-width-extra-thick) solid var(--color-success);
@@ -55,8 +84,6 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: var(--font-size-sm);
-  font-weight: 600;
 }
 
 .notification-toast--success .notification-toast__icon {
