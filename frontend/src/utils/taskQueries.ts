@@ -29,7 +29,7 @@ function notCompletedConditions(): PropertyCondition[] {
       'task_status',
       'not_equals',
       status,
-      'select',
+      'selection',
       SYSTEM_PROPERTY_UUIDS.task_status,
     )
   );
@@ -227,7 +227,7 @@ function popupOpenConditions(): PropertyCondition[] {
         'task_status',
         'not_equals',
         status,
-        'select',
+        'selection',
         SYSTEM_PROPERTY_UUIDS.task_status,
       )
     ),
@@ -328,7 +328,7 @@ export function buildPopupCompletedTodayQueryAST(): QueryAST {
       logic: 'AND',
       children: [
         createClassCondition(SYSTEM_CLASS_UUIDS.task),
-        createPropertyCondition('task_status', 'equals', 'Done', 'select', SYSTEM_PROPERTY_UUIDS.task_status),
+        createPropertyCondition('task_status', 'equals', 'Done', 'selection', SYSTEM_PROPERTY_UUIDS.task_status),
         createPropertyCondition('task_closed_date', 'equals', todayUuid, 'date', SYSTEM_PROPERTY_UUIDS.task_closed_date),
       ],
     },

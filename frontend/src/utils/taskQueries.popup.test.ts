@@ -54,6 +54,19 @@ describe('popup task query ASTs', () => {
     expect(conds.some((c) => c.operator === 'less_than')).toBe(true);
   });
 
+  it.each([
+    ['overdue', buildPopupOverdueQueryAST],
+    ['today', buildPopupTodayQueryAST],
+    ['upcoming', buildPopupUpcomingQueryAST],
+    ['completed', buildPopupCompletedTodayQueryAST],
+  ] as const)('%s routes task_status conditions through the selection tables', (_name, build) => {
+    // The backend QueryAST compiler only routes property_type 'selection' to
+    // the selection-value tables; any other value silently mis-filters.
+    const types = statusConditions(build()).map((c) => c.property_type);
+    expect(types.length).toBeGreaterThan(0);
+    expect(types.every((t) => t === 'selection')).toBe(true);
+  });
+
   it('completed-today selects Done tasks closed today', () => {
     const conds = collectConditions(buildPopupCompletedTodayQueryAST());
     expect(conds).toContainEqual(
