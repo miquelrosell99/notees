@@ -18,6 +18,7 @@ import { useCommentCount } from '@/features/content';
 import { Icon, Button } from '@/components/ui';
 import type { ButtonBadge } from '@/components/ui/Button';
 import { CalendarPopup } from '@/features/content';
+import { TasksPopup, useTasksPopupData } from '@/features/tasks';
 import { Card } from '@/components/ui/Card';
 import { ContextMenu } from '@/components/ui/ContextMenu';
 import type { ContextMenuItem } from '@/components/ui/ContextMenu';
@@ -78,6 +79,9 @@ export function TopBar() {
     isCalendarOpen,
     toggleCalendar,
     setCalendarOpen,
+    isTasksPopupOpen,
+    toggleTasksPopup,
+    setTasksPopupOpen,
     isScratchpadOpen,
     toggleScratchpad,
     setScratchpadOpen,
@@ -86,12 +90,16 @@ export function TopBar() {
       isCalendarOpen: s.isCalendarOpen,
       toggleCalendar: s.toggleCalendar,
       setCalendarOpen: s.setCalendarOpen,
+      isTasksPopupOpen: s.isTasksPopupOpen,
+      toggleTasksPopup: s.toggleTasksPopup,
+      setTasksPopupOpen: s.setTasksPopupOpen,
       isScratchpadOpen: s.isScratchpadOpen,
       toggleScratchpad: s.toggleScratchpad,
       setScratchpadOpen: s.setScratchpadOpen,
     }))
   );
   const calendarBtnRef = useRef<HTMLButtonElement>(null);
+  const tasksBtnRef = useRef<HTMLButtonElement>(null);
   const scratchpadBtnRef = useRef<HTMLButtonElement>(null);
   const undoBtnRef = useRef<HTMLButtonElement>(null);
   const redoBtnRef = useRef<HTMLButtonElement>(null);
@@ -170,6 +178,9 @@ export function TopBar() {
 
   // Comment count for the active node
   const { data: commentCount } = useCommentCount(currentNodeUuid);
+
+  // Due-task count for the tasks popup badge
+  const { dueCount } = useTasksPopupData();
 
   // Build badges for the right sidebar toggle button
   const sidebarBadges = useMemo(() => {
@@ -311,6 +322,27 @@ export function TopBar() {
             className="toolbar-btn"
             badges={scratchpadEntryCount > 0 ? [{ count: scratchpadEntryCount, position: 'top-right' }] : undefined}
           />
+
+          {/* Tasks popup button */}
+          <div className="top-bar-tasks-container">
+            <Button
+              ref={tasksBtnRef}
+              icon={"mdi mdi-checkbox-marked-circle-outline"}
+              variant="ghost"
+              size="sm"
+              active={isTasksPopupOpen}
+              onClick={toggleTasksPopup}
+              aria-label="Open tasks"
+              title="Open tasks"
+              className="toolbar-btn"
+              badges={dueCount > 0 ? [{ count: dueCount, position: 'top-right' }] : undefined}
+            />
+            <TasksPopup
+              isOpen={isTasksPopupOpen}
+              onClose={() => setTasksPopupOpen(false)}
+              anchorRef={tasksBtnRef as React.RefObject<HTMLElement>}
+            />
+          </div>
 
           {/* Calendar button */}
           <div className="top-bar-calendar-container">
