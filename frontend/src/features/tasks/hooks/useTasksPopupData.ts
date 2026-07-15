@@ -8,12 +8,13 @@ import {
   buildPopupOverdueQueryAST,
   buildPopupTodayQueryAST,
   buildPopupUpcomingQueryAST,
+  buildPopupUnscheduledQueryAST,
   buildPopupCompletedTodayQueryAST,
 } from '@/utils/taskQueries';
 import type { QueryExecuteRequest } from '@/types/nodeView';
 import type { Node } from '@/types/api';
 
-export type PopupSection = 'overdue' | 'today' | 'upcoming' | 'completed';
+export type PopupSection = 'overdue' | 'today' | 'upcoming' | 'unscheduled' | 'completed';
 
 export interface PopupSectionData {
   nodes: Node[];
@@ -28,6 +29,8 @@ export function getPopupQueryForSection(section: PopupSection): QueryExecuteRequ
       return { query_ast: buildPopupTodayQueryAST(), include_properties: true };
     case 'upcoming':
       return { query_ast: buildPopupUpcomingQueryAST(7), include_properties: true, limit: 20 };
+    case 'unscheduled':
+      return { query_ast: buildPopupUnscheduledQueryAST(), include_properties: true, limit: 10 };
     case 'completed':
       return { query_ast: buildPopupCompletedTodayQueryAST(), include_properties: true, limit: 10 };
   }
@@ -71,6 +74,11 @@ export function useTasksPopupData() {
     queryFn: () => executeQuery(getPopupQueryForSection('completed')),
     staleTime: 30_000,
   });
+  const unscheduled = useQuery({
+    queryKey: taskKeys.popup('unscheduled'),
+    queryFn: () => executeQuery(getPopupQueryForSection('unscheduled')),
+    staleTime: 30_000,
+  });
 
   const sections = useMemo<Record<PopupSection, PopupSectionData>>(
     () => ({
@@ -92,18 +100,26 @@ export function useTasksPopupData() {
         nodes: completed.data?.nodes ?? [],
         totalCount: completed.data?.total_count ?? completed.data?.nodes.length ?? 0,
       },
+      unscheduled: {
+        // No date to sort by — show recently updated first.
+        nodes: [...(unscheduled.data?.nodes ?? [])].sort((a, b) =>
+          (b.write_date ?? '').localeCompare(a.write_date ?? '')
+        ),
+        totalCount: unscheduled.data?.total_count ?? unscheduled.data?.nodes.length ?? 0,
+      },
     }),
-    [overdue.data, today.data, upcoming.data, completed.data],
+    [overdue.data, today.data, upcoming.data, completed.data, unscheduled.data],
   );
 
   const dueCount = sections.overdue.totalCount + sections.today.totalCount;
-  const isLoading = overdue.isLoading || today.isLoading || upcoming.isLoading || completed.isLoading;
-  const isError = overdue.isError || today.isError || upcoming.isError || completed.isError;
+  const isLoading = overdue.isLoading || today.isLoading || upcoming.isLoading || completed.isLoading || unscheduled.isLoading;
+  const isError = overdue.isError || today.isError || upcoming.isError || completed.isError || unscheduled.isError;
   const refetch = () => {
     void overdue.refetch();
     void today.refetch();
     void upcoming.refetch();
     void completed.refetch();
+    void unscheduled.refetch();
   };
 
   return { sections, dueCount, isLoading, isError, refetch };

@@ -316,6 +316,18 @@ export function buildPopupUpcomingQueryAST(days = 7): QueryAST {
   });
 }
 
+/** No date for the popup: neither scheduled nor deadline set, Pending/Doing only. */
+export function buildPopupUnscheduledQueryAST(): QueryAST {
+  return popupTaskAST({
+    type: 'group',
+    logic: 'AND',
+    children: [
+      createPropertyCondition('task_scheduled', 'is_empty', undefined, 'date', SYSTEM_PROPERTY_UUIDS.task_scheduled),
+      createPropertyCondition('task_deadline', 'is_empty', undefined, 'date', SYSTEM_PROPERTY_UUIDS.task_deadline),
+    ],
+  });
+}
+
 /** Completed today for the popup: Done tasks whose closed date is today. */
 export function buildPopupCompletedTodayQueryAST(): QueryAST {
   const todayUuid = getTodayDayUuid();
