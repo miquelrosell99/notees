@@ -48,15 +48,15 @@
   align-items: center;
   margin: 0 auto;
   padding: var(--spacing-4);
-  background: #ffffff;
+  background: var(--qr-background);
   border-radius: var(--shape-medium);
   width: fit-content;
 }
 
 .totp-qr svg {
   display: block;
-  width: 200px;
-  height: 200px;
+  width: var(--layout-size-2xl);
+  height: var(--layout-size-2xl);
 }
 
 .totp-manual {

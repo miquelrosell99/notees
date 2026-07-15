@@ -7,7 +7,7 @@
 }
 
 .convert-to-block-modal__selector {
-  min-height: 200px;
+  min-height: var(--layout-size-2xl);
 }
 
 .convert-to-block-modal__error {
