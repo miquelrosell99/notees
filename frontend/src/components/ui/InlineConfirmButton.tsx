@@ -43,11 +43,12 @@ export function InlineConfirmButton({
   disabled = false,
 }: InlineConfirmButtonProps) {
   const [isConfirming, setIsConfirming] = useState(false);
+  const [isPending, setIsPending] = useState(false);
 
   // Reset confirming state when disabled changes
   useEffect(() => {
     if (disabled) {
-       
+
       setIsConfirming(false);
     }
   }, [disabled]);
@@ -57,9 +58,20 @@ export function InlineConfirmButton({
   }, []);
 
   const handleConfirm = useCallback(async () => {
-    await onConfirm();
-    setIsConfirming(false);
-  }, [onConfirm]);
+    if (isPending) return;
+    setIsPending(true);
+    try {
+      await onConfirm();
+    } catch (error) {
+      // Errors surface through the callers' own channels (e.g. the global
+      // mutation error toast) — swallow here to avoid unhandled rejections,
+      // but keep a console trail for debugging.
+      console.error('[InlineConfirmButton] Confirm action failed:', error);
+    } finally {
+      setIsPending(false);
+      setIsConfirming(false);
+    }
+  }, [isPending, onConfirm]);
 
   const handleCancel = useCallback(() => {
     setIsConfirming(false);
@@ -72,6 +84,7 @@ export function InlineConfirmButton({
           variant="danger"
           size={size}
           onClick={handleConfirm}
+          loading={isPending}
           title={confirmTitle}
           aria-label={confirmTitle}
         >
