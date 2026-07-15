@@ -30,7 +30,6 @@ export type MainViewType =
   | 'shares'
   | 'inbox'
   | 'whiteboards'
-  | 'tasks'
   | 'templates'
   | 'flashcards'
   | string;
