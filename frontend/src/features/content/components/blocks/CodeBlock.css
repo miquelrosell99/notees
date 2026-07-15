@@ -32,6 +32,15 @@
   pointer-events: auto;
 }
 
+/* Touch devices: read-only blocks have no focusable content, so hover is the
+   only reveal path — keep the header always visible instead. */
+@media (hover: none) {
+  .code-block-header {
+    opacity: var(--opacity-100);
+    pointer-events: auto;
+  }
+}
+
 .code-block-language-selector {
   background: var(--color-surface);
   border-radius: var(--shape-small);

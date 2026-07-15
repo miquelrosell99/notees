@@ -35,11 +35,11 @@
   border-bottom: var(--border-width-default) solid var(--color-outline-variant);
 }
 
-/* Mobile: tighter rows and smaller label column */
+/* Mobile: smaller label column, rows keep the minimum touch-target height */
 @media (max-width: 768px) {
   .property-row {
     grid-template-columns: minmax(100px, 140px) 1fr;
-    min-height: var(--height-md);
+    min-height: var(--button-min-height);
   }
 
   .property-row__label,

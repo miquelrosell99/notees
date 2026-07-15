@@ -32,6 +32,7 @@
   display: flex;
   flex-direction: column;
   max-height: 90vh;
+  max-height: 90dvh;
   min-height: min-content;
   /* Never shrink below the natural width of the header, content, or footer
      so buttons and other non-wrapping elements stay inside the modal. */
@@ -47,6 +48,7 @@
   margin-top: auto;
   margin-bottom: 0;
   max-height: calc(90vh - env(safe-area-inset-bottom));
+  max-height: calc(90dvh - env(safe-area-inset-bottom));
   border-radius: var(--shape-sheet) var(--shape-sheet) 0 0;
   animation: modalSheetSlideIn var(--motion-duration-long) var(--motion-easing-decelerate);
 }
