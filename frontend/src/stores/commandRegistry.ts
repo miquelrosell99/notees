@@ -200,7 +200,6 @@ export const COMMAND_IDS = {
   RESET_VIEWS: 'page.resetViews',
   OPEN_RANDOM_PAGE: 'nav.randomPage',
   OPEN_BROKEN_LINKS: 'nav.brokenLinks',
-  OPEN_TASKS: 'nav.tasks',
   OPEN_TODAY: 'nav.today',
   CAPTURE_TASK: 'task.capture',
   FORCE_REEXPORT: 'data.forceReexport',
