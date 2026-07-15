@@ -343,7 +343,7 @@ export const NodeCollection = memo(function NodeCollection({
   const showInternalToolbar = !hideToolbar && (leftElement || showGroupByInToolbar || showViewSwitcher || effectiveShowAdd || capabilities.ganttConfig);
 
   // Enable grouping for list view when any group-by level is active
-  const enableGrouping = showGroupByProp && viewMode === 'list' && isGroupByActive(groupBy);
+  const enableGrouping = viewMode === 'list' && isGroupByActive(groupBy);
 
   // Create context value
   const contextValue = useMemo<NodeCollectionContextValue>(() => ({

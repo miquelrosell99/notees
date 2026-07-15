@@ -34,6 +34,7 @@ function CommentsList({ comments }: CommentsListProps) {
       <NodeCollection
         nodes={collapsedComments}
         viewMode="list"
+        groupBy="none"
         editable={false}
         sortable={false}
         hideToolbar

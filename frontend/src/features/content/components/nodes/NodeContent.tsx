@@ -508,6 +508,7 @@ export function NodeContent({
           nodes={children}
           viewMode={viewMode}
           availableViewModes={[viewMode]}
+          groupBy="none"
           editable={editable}
           onNodeClick={handleNodeClick}
           onNodeShiftClick={handleNodeShiftClick}

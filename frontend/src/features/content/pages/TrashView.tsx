@@ -180,6 +180,7 @@ export function TrashView({ className = '' }: TrashViewProps) {
             editable={false}
             showClasses={true}
             hideToolbar={true}
+            groupBy="none"
             customContextMenu={TrashNodeContextMenu}
             customContextMenuItems={generateContextMenuItems}
             onNodeClick={(node) => openNode(node.uuid)}

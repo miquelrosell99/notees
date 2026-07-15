@@ -767,6 +767,7 @@ export const TimelineView = memo(function TimelineView({
             <NodeCollection
               nodes={selectedEvent.nodes}
               viewMode="list"
+              groupBy="none"
               editable={false}
               showClasses={true}
               pagesOnly={true}

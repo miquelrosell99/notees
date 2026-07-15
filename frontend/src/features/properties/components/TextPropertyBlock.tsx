@@ -126,6 +126,7 @@ function SingleTextBlock({
         nodes={[blockNode]}
         viewMode="list"
         availableViewModes={['list']}
+        groupBy="none"
         editable={!readOnly}
         onNodeClick={handleNodeClick}
         onNodeShiftClick={handleNodeShiftClick}

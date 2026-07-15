@@ -107,6 +107,7 @@ export function ArchivedPagesView({ className = '' }: ArchivedPagesViewProps) {
             editable={false}
             showClasses={true}
             hideToolbar={true}
+            groupBy="none"
             customContextMenu={ArchivedNodeContextMenu}
             customContextMenuItems={generateContextMenuItems}
             onNodeClick={(node) => openNode(node.uuid)}
