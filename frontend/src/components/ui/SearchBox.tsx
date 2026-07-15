@@ -7,11 +7,17 @@
  * `features/content/components/nodes/NodeSearchBox.tsx` to wire Notees search
  * hooks and default node rendering.
  */
-import { useState, useCallback, useRef, useEffect, type ReactNode } from 'react';
+import { useState, useCallback, useRef, useEffect, useLayoutEffect, type ReactNode } from 'react';
+import { autoUpdate, computePosition, flip, offset, shift } from '@floating-ui/dom';
 import { Spinner } from '@/components/ui/Spinner';
 import { useKeyboardListNav } from '@/hooks/useKeyboardListNav';
 import { SearchField } from './SearchField';
 import './SearchBox.css';
+
+/** Gap between the input and the dropdown. */
+const DROPDOWN_GAP = 4;
+/** Viewport edge clearance for the dropdown. */
+const DROPDOWN_EDGE_PADDING = 8;
 
 export interface SearchBoxProps<T> {
   /** Current query value */
@@ -58,9 +64,9 @@ export function SearchBox<T>({
   onClose,
 }: SearchBoxProps<T>) {
   const [isOpen, setIsOpen] = useState(false);
-  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   const showCreateOption = showCreate && query.trim().length > 0 && !isLoading;
   const totalItems = results.length + (showCreateOption ? 1 : 0);
@@ -72,19 +78,39 @@ export function SearchBox<T>({
     }
   }, [focusOnMount]);
 
-  // Update dropdown position when opening
-  const updateDropdownPosition = useCallback(() => {
-    if (containerRef.current) {
-      const rect = containerRef.current.getBoundingClientRect();
-      setDropdownPosition({
-        top: rect.bottom + 4,
-        left: rect.left,
-        width: rect.width,
-      });
-    }
-  }, []);
+  // Position the fixed dropdown with Floating UI. autoUpdate keeps it anchored
+  // to the input on scroll/resize; flip moves it above when there's no room
+  // below. top/left/width are written imperatively to the dropdown element so
+  // repositioning never goes through React renders.
+  useLayoutEffect(() => {
+    if (!isOpen) return;
+    const reference = containerRef.current;
+    const floating = dropdownRef.current;
+    if (!reference || !floating) return;
 
-  // Close dropdown when clicking outside and update position on scroll
+    const update = () => {
+      computePosition(reference, floating, {
+        placement: 'bottom-start',
+        strategy: 'fixed',
+        middleware: [
+          offset(DROPDOWN_GAP),
+          flip({ padding: DROPDOWN_EDGE_PADDING, fallbackPlacements: ['top-start'] }),
+          shift({ padding: DROPDOWN_EDGE_PADDING, crossAxis: true }),
+        ],
+      }).then(({ x, y }) => {
+        floating.style.left = `${x}px`;
+        floating.style.top = `${y}px`;
+        floating.style.right = 'auto';
+        floating.style.width = `${reference.getBoundingClientRect().width}px`;
+        floating.style.visibility = 'visible';
+      });
+    };
+
+    update();
+    return autoUpdate(reference, floating, update);
+  }, [isOpen]);
+
+  // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as HTMLElement)) {
@@ -92,30 +118,15 @@ export function SearchBox<T>({
       }
     };
 
-    const handleScroll = () => {
-      if (isOpen) {
-        updateDropdownPosition();
-      }
-    };
-
     document.addEventListener('mousedown', handleClickOutside);
-    window.addEventListener('scroll', handleScroll, true);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      window.removeEventListener('scroll', handleScroll, true);
-    };
-  }, [isOpen, updateDropdownPosition]);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     onQueryChange(value);
-    if (value.length > 0) {
-      updateDropdownPosition();
-      setIsOpen(true);
-    } else {
-      setIsOpen(false);
-    }
-  }, [onQueryChange, updateDropdownPosition]);
+    setIsOpen(value.length > 0);
+  }, [onQueryChange]);
 
   const handleSelect = useCallback((item: T | 'create') => {
     onQueryChange('');
@@ -178,7 +189,6 @@ export function SearchBox<T>({
         onChange={handleInputChange}
         onFocus={() => {
           if (query.length > 0) {
-            updateDropdownPosition();
             setIsOpen(true);
           }
         }}
@@ -188,13 +198,11 @@ export function SearchBox<T>({
 
       {isOpen && (
         <div
+          ref={dropdownRef}
           className="search-dropdown search-dropdown--fixed"
-          style={{
-            position: 'fixed',
-            top: `${dropdownPosition.top}px`,
-            left: `${dropdownPosition.left}px`,
-            width: `${dropdownPosition.width}px`,
-          }}
+          // top/left/width are set imperatively by Floating UI; hidden until
+          // the first position is computed
+          style={{ visibility: 'hidden' }}
         >
           {isLoading && (
             <div className="search-loading"><Spinner size="sm" label="Searching..." /></div>

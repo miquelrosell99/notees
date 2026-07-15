@@ -30,8 +30,6 @@ export function CommandPalette(props: CommandPaletteProps) {
     query,
     setQuery,
     appliedFilters,
-    classPopupPosition,
-    filterPrefixPopupPosition,
     duplicateModal,
     setDuplicateModal,
     inputRef,
@@ -152,12 +150,12 @@ export function CommandPalette(props: CommandPaletteProps) {
         </div>
 
         {/* Class suggestion popup when typing class: filter */}
-        {isTypingClass && classPopupPosition && (
+        {isTypingClass && (
           <SuggestionPopup
             isOpen={true}
             query={classQuery}
             type="class"
-            position={classPopupPosition}
+            anchorRef={inputRef}
             onSelect={(node) => handleClassSelect(node)}
             onClose={() => {
               // Remove the class: filter text when closing
@@ -169,9 +167,9 @@ export function CommandPalette(props: CommandPaletteProps) {
         )}
 
         {/* Filter prefix popup when typing a standalone colon */}
-        {isTypingColon && filterPrefixPopupPosition && (
+        {isTypingColon && (
           <FilterPrefixPopup
-            position={filterPrefixPopupPosition}
+            anchorRef={inputRef}
             onSelect={handleFilterPrefixSelect}
             onClose={handleFilterPrefixClose}
           />
