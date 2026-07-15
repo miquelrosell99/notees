@@ -138,10 +138,6 @@ export function LoginView({ registrationEnabled = false }: LoginViewProps) {
             />
           )}
 
-          {isRegister && passwordError && (
-            <div className="error-message" role="alert">{passwordError}</div>
-          )}
-
           {!isRegister && (
             <Checkbox
               id="remember-me"

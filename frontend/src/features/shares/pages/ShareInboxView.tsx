@@ -2,7 +2,7 @@
  * ShareInboxView — Shows all nodes shared with the current user.
  */
 import { useCallback } from 'react';
-import { Spinner } from '@/components/ui/Spinner';
+import { DataStateView } from '@/components/ui/DataStateView';
 import { useShareInbox } from '@/features/shares';
 import { useNavigationStore } from '@/stores';
 import { switchWorkspace } from '@/features/workspace';
@@ -11,7 +11,7 @@ import { NodeInline } from '@/features/content';
 import './ShareInboxView.css';
 
 export function ShareInboxView() {
-  const { data, isLoading } = useShareInbox();
+  const { data, isLoading, error, refetch } = useShareInbox();
   const openNode = useNavigationStore((s) => s.openNode);
 
   const handleOpen = useCallback(
@@ -37,16 +37,16 @@ export function ShareInboxView() {
         </h1>
       </div>
 
-      {isLoading ? (
-        <div className="share-inbox-view__loading"><Spinner size="md" centered /></div>
-      ) : items.length === 0 ? (
-        <div className="share-inbox-view__empty">
-          <p>Nothing shared with you yet</p>
-          <p className="share-inbox-view__empty-hint">
-            Pages and blocks shared with you appear here.
-          </p>
-        </div>
-      ) : (
+      <DataStateView
+        isLoading={isLoading}
+        error={error}
+        isEmpty={items.length === 0}
+        onRetry={refetch}
+        errorTitle="Failed to load share inbox"
+        emptyTitle="Nothing shared with you yet"
+        emptyDescription="Pages and blocks shared with you appear here."
+        skeletonRows={4}
+      >
         <div className="share-inbox-view__list">
           {items.map((item) => (
             <div key={item.share_uuid} className="share-inbox-view__item">
@@ -89,7 +89,7 @@ export function ShareInboxView() {
             </div>
           ))}
         </div>
-      )}
+      </DataStateView>
     </div>
   );
 }

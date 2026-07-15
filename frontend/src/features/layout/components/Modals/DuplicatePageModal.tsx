@@ -154,6 +154,7 @@ export function DuplicatePageModal({
             onClick={handleCreate}
             size="sm"
             disabled={!selectedClass || isCreating}
+            loading={isCreating}
           >
             {isCreating ? 'Creating...' : 'Create'}
           </Button>

@@ -131,6 +131,7 @@ export function QuickAddModal({ isOpen, onClose }: QuickAddModalProps) {
             size="sm"
             onClick={handleSend}
             disabled={!hasContent || !destinationPageUuid || isCreating}
+            loading={isCreating}
             icon="mdi mdi-send"
           >
             Send
