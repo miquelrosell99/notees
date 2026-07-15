@@ -10,7 +10,7 @@
  * trash, settings, and account remain reachable.
  */
 import { useState, useCallback, useMemo } from 'react';
-import { useNavigationStore } from '@/stores';
+import { useModalStore, useNavigationStore } from '@/stores';
 import { useShallow } from 'zustand/react/shallow';
 
 import { useIsMobile } from '@/hooks';
@@ -204,6 +204,9 @@ export function SidebarRail({ hidden }: SidebarRailProps) {
     }))
   );
 
+  const isTasksPopupOpen = useModalStore((s) => s.isTasksPopupOpen);
+  const toggleTasksPopup = useModalStore((s) => s.toggleTasksPopup);
+
   const { data: workspaceSettings } = useWorkspaceSettings();
   const showJournals = (workspaceSettings?.sidebar_show_journals as boolean | undefined) ?? true;
   const showInbox = (workspaceSettings?.sidebar_show_inbox as boolean | undefined) ?? true;
@@ -263,8 +266,8 @@ export function SidebarRail({ hidden }: SidebarRailProps) {
           size="md"
           icon="mdi mdi-checkbox-marked-circle-outline"
           fullWidth
-          active={mainViewType === 'tasks'}
-          onClick={() => setMainViewType('tasks')}
+          active={isTasksPopupOpen}
+          onClick={toggleTasksPopup}
           aria-label="Tasks"
           title="Tasks"
         />

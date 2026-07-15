@@ -28,7 +28,7 @@ registerCommand({
   icon: 'mdi mdi-checkbox-marked-circle-outline',
   context: 'global',
   palette: { category: 'navigation', keywords: ['task', 'todo'] },
-  execute: () => useNavigationStore.getState().setMainViewType('tasks'),
+  execute: () => useModalStore.getState().toggleTasksPopup(),
 });
 
 registerCommand({
