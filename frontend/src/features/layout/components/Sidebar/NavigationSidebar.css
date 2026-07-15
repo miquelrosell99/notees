@@ -204,7 +204,7 @@
   align-items: center;
   padding: 0 var(--spacing-2);
   border-radius: var(--shape-small);
-  transition: background var(--motion-duration-short) var(--motion-easing-standard);
+  transition: background var(--motion-duration-short) var(--motion-easing-standard), color var(--motion-duration-short) var(--motion-easing-standard);
   position: relative;
   will-change: transform;
   cursor: pointer;
@@ -217,9 +217,12 @@
   background: var(--color-hover-overlay);
 }
 
+/* Accent means active: accent text + subtle accent wash. */
 .sidebar-favorite-item.active,
 .sidebar-pinned-item.active {
-  background: var(--color-primary-container);
+  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+  color: var(--color-accent);
+  font-weight: 600;
 }
 
 .sidebar-favorite-item:focus-visible,
@@ -367,6 +370,15 @@
   align-items: center;
 }
 
+/* Touch: these rows are primary navigation in the mobile drawer — 44px targets. */
+@media (hover: none) {
+  .sidebar-favorite-item .block-row,
+  .sidebar-recent-item .block-row,
+  .sidebar-pinned-item .block-row {
+    min-height: var(--button-min-height);
+  }
+}
+
 /* ==================== Recents List ==================== */
 .sidebar-recents-list {
   padding: 0;
@@ -383,7 +395,7 @@
   padding: var(--spacing-1) var(--spacing-2);
   cursor: pointer;
   border-radius: var(--shape-small);
-  transition: background var(--motion-duration-short) var(--motion-easing-standard);
+  transition: background var(--motion-duration-short) var(--motion-easing-standard), color var(--motion-duration-short) var(--motion-easing-standard);
   min-width: 0;
   overflow: hidden;
 }
@@ -393,7 +405,9 @@
 }
 
 .sidebar-recent-item.active {
-  background: var(--color-primary-container);
+  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+  color: var(--color-accent);
+  font-weight: 600;
 }
 
 .sidebar-recent-item:focus-visible {

@@ -68,7 +68,7 @@ export const FIRST_DAY_OF_WEEK_OPTIONS: FirstDayOfWeekOption[] = [
 
 export const ACCENT_COLOR_OPTIONS: { value: AccentColor; label: string; hex: string }[] = [
   { value: 'monochrome', label: 'Monochrome', hex: '#404040' },
-  { value: 'sage', label: 'Sage', hex: '#5B7D5B' },
+  { value: 'sage', label: 'Sage', hex: '#527051' },
   { value: 'teal', label: 'Teal', hex: '#2D6B5B' },
   { value: 'rose', label: 'Rose', hex: '#8B5B5B' },
   { value: 'navy', label: 'Navy', hex: '#1E3A5F' },
@@ -202,7 +202,7 @@ export function applyAccentColor(accentColor: AccentColor, customHex?: string): 
   document.documentElement.setAttribute('data-accent', accentColor);
 
   if (accentColor === 'custom') {
-    const hex = customHex && isValidHexColor(customHex) ? customHex : '#5B7D5B';
+    const hex = customHex && isValidHexColor(customHex) ? customHex : '#527051';
     document.documentElement.style.setProperty('--color-accent-custom', hex);
     document.documentElement.style.setProperty('--color-on-accent-custom', getContrastColor(hex));
   } else {
@@ -300,7 +300,7 @@ export const useSettingsStore = create<SettingsState>()(
       theme: 'system',
       oledMode: false,
       accentColor: 'sage',
-      customAccentHex: '#5B7D5B',
+      customAccentHex: '#527051',
       dateFormat: 'YYYY/MM/DD',
       defaultView: 'journal',
       showDailyNotes: true,
@@ -334,7 +334,7 @@ export const useSettingsStore = create<SettingsState>()(
 
       setCustomAccentHex: (customAccentHex) => {
         const { accentColor } = useSettingsStore.getState();
-        const validHex = isValidHexColor(customAccentHex) ? customAccentHex : '#5B7D5B';
+        const validHex = isValidHexColor(customAccentHex) ? customAccentHex : '#527051';
         set({ customAccentHex: validHex });
         if (accentColor === 'custom') {
           applyAccentColor('custom', validHex);

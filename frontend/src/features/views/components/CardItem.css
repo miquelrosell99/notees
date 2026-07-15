@@ -243,13 +243,12 @@
 
 /* ─── Card header ──────────────────────────────────────────────── */
 
+/* No background tint or divider — typography carries the hierarchy. */
 .node-card__header {
   display: flex;
   align-items: center;
   gap: var(--spacing-2);
   padding: var(--spacing-2) var(--spacing-3);
-  background: var(--color-surface-container-high);
-  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
 }
 
 .node-card__header--with-breadcrumbs {
@@ -322,24 +321,7 @@
   border-radius: var(--shape-medium) var(--shape-medium) 0 0;
 }
 
-/* Separators between header and cover */
-.node-card--cover-top .node-card__header {
-  border-top: var(--border-width-default) solid var(--color-outline-variant);
-}
-
-.node-card--cover-left .node-card__header {
-  border-left: var(--border-width-default) solid var(--color-outline-variant);
-}
-
-.node-card--cover-right .node-card__header {
-  border-right: var(--border-width-default) solid var(--color-outline-variant);
-}
-
 /* ─── Properties row ────────────────────────────────────────────── */
-
-.node-card__properties-row {
-  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
-}
 
 .node-card__properties-row:empty {
   display: none;
@@ -357,7 +339,6 @@
   flex-wrap: wrap;
   gap: var(--spacing-1);
   padding: var(--spacing-2) var(--spacing-3);
-  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
   min-height: var(--spacing-8);
   align-items: center;
   min-width: 0;
@@ -442,11 +423,6 @@
 /* Collapsed body — hidden */
 .node-card__body--collapsed {
   display: none;
-}
-
-/* Show border on tags row to separate from body */
-.node-card__tags-row {
-  border-bottom: var(--border-width-default) solid var(--color-outline-variant);
 }
 
 /* ─── Children (inline subtree editor) ─────────────────────────── */

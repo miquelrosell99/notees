@@ -18,7 +18,7 @@ import { Spinner } from '@/components/ui/Spinner';
 import { useReducedMotion } from '@/hooks';
 import { cn } from '@/utils/cn';
 
-export type ButtonVariant = 'default' | 'primary' | 'ghost' | 'danger';
+export type ButtonVariant = 'default' | 'primary' | 'ghost' | 'danger' | 'danger-solid';
 export type ButtonSize = 'xs' | 'sm' | 'md' | 'lg';
 export type ButtonHapticIntensity = 'light' | 'medium' | 'none';
 

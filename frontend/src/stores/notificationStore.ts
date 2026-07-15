@@ -28,6 +28,9 @@ interface NotificationState {
   addNotification: (notification: Omit<Notification, 'id'>) => string;
   removeNotification: (id: string) => void;
   clearAll: () => void;
+  /** Pause/resume a toast's auto-dismiss countdown (hover/focus). */
+  pauseAutoDismiss: (id: string) => void;
+  resumeAutoDismiss: (id: string) => void;
   
   // Convenience methods
   success: (title: string, message?: string) => string;
@@ -37,6 +40,20 @@ interface NotificationState {
 }
 
 const DEFAULT_DURATION = 4000; // 4 seconds
+
+/** Scheduled auto-dismiss timers, tracked so hover/focus can pause them. */
+interface AutoDismissTimer {
+  timeoutId: ReturnType<typeof setTimeout> | null;
+  startedAt: number;
+  remainingMs: number;
+}
+const autoDismissTimers = new Map<string, AutoDismissTimer>();
+
+function clearAutoDismissTimer(id: string) {
+  const timer = autoDismissTimers.get(id);
+  if (timer?.timeoutId != null) clearTimeout(timer.timeoutId);
+  autoDismissTimers.delete(id);
+}
 
 export const useNotificationStore = create<NotificationState>()((set, get) => ({
   notifications: [],
@@ -55,24 +72,54 @@ export const useNotificationStore = create<NotificationState>()((set, get) => ({
       notifications: [...state.notifications, fullNotification],
     }));
     
-    // Auto-remove after duration (if not persistent)
-    if (duration > 0) {
-      setTimeout(() => {
-        get().removeNotification(id);
-      }, duration);
+    // Auto-remove after duration (if not persistent). Toasts carrying an
+    // action never auto-dismiss — the user needs time to respond.
+    if (duration > 0 && !fullNotification.action) {
+      autoDismissTimers.set(id, {
+        timeoutId: setTimeout(() => get().removeNotification(id), duration),
+        startedAt: Date.now(),
+        remainingMs: duration,
+      });
     }
     
     return id;
   },
   
   removeNotification: (id) => {
+    clearAutoDismissTimer(id);
     set((state) => ({
       notifications: state.notifications.filter((n) => n.id !== id),
     }));
   },
   
   clearAll: () => {
+    for (const id of autoDismissTimers.keys()) clearAutoDismissTimer(id);
     set({ notifications: [] });
+  },
+  
+  pauseAutoDismiss: (id) => {
+    const timer = autoDismissTimers.get(id);
+    if (!timer || timer.timeoutId === null) return;
+    clearTimeout(timer.timeoutId);
+    autoDismissTimers.set(id, {
+      timeoutId: null,
+      startedAt: timer.startedAt,
+      remainingMs: Math.max(0, timer.remainingMs - (Date.now() - timer.startedAt)),
+    });
+  },
+  
+  resumeAutoDismiss: (id) => {
+    const timer = autoDismissTimers.get(id);
+    if (!timer || timer.timeoutId !== null) return;
+    if (timer.remainingMs <= 0) {
+      get().removeNotification(id);
+      return;
+    }
+    autoDismissTimers.set(id, {
+      timeoutId: setTimeout(() => get().removeNotification(id), timer.remainingMs),
+      startedAt: Date.now(),
+      remainingMs: timer.remainingMs,
+    });
   },
   
   // Convenience methods

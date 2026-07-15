@@ -481,7 +481,7 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
                         value={customHexInput}
                         onChange={(e) => handleCustomAccentChange(e.target.value)}
                         onBlur={handleCustomHexBlur}
-                        placeholder="#5B7D5B"
+                        placeholder="#527051"
                         maxLength={7}
                         aria-label="Custom accent hex value"
                       />
@@ -707,7 +707,7 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
               </div>
 
               <div className="settings-section">
-                <h4 className="settings-section__title">Edit Profile</h4>
+                <h3 className="settings-section__title">Edit Profile</h3>
                 <Card>
                   <div className="settings-form-row">
                     <label className="settings-form-label" htmlFor="profile-name">Name</label>
@@ -744,7 +744,7 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
               </div>
 
               <div className="settings-section">
-                <h4 className="settings-section__title">Change Password</h4>
+                <h3 className="settings-section__title">Change Password</h3>
                 <Card>
                   <p className="settings-section__description">
                     Changing your password will sign you out everywhere and revoke all API keys.
@@ -794,7 +794,7 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
               </div>
 
               <div className="settings-section">
-                <h4 className="settings-section__title">Device Access (API Keys)</h4>
+                <h3 className="settings-section__title">Device Access (API Keys)</h3>
                 <Card>
                   <p className="settings-section__description">
                     API keys allow mobile apps and background services to access your data without keeping a web session open.
@@ -858,7 +858,7 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
               </div>
 
               <div className="settings-section">
-                <h4 className="settings-section__title">Account Actions</h4>
+                <h3 className="settings-section__title">Account Actions</h3>
                 <Card>
                   <Button className="settings-btn settings-btn--logout" variant="danger" size="md" onClick={handleLogout}>
                     Log out
@@ -1006,9 +1006,8 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
                 <h3 className="settings-section__title">About Notees</h3>
                 <Card>
                   <div className="settings-about">
-                    <div className="settings-about__logo">N</div>
+                    <img src="/notees-icon.svg" alt="" className="settings-about__logo" />
                     <h4 className="settings-about__name">Notees</h4>
-                    <p className="settings-about__version">Version 1.0.0</p>
                     <p className="settings-about__description">
                       A powerful note-taking app with graph visualization,
                       bidirectional linking, and more.
@@ -1024,9 +1023,8 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
                 <h3 className="settings-section__title">Privacy</h3>
                 <Card>
                   <div className="settings-privacy-card">
-                    <h4 className="settings-privacy-card__title">Privacy</h4>
                     <p className="settings-privacy-card__text">
-                      No cloud. All data stays on your device.
+                      No cloud. All data stays on your server.
                     </p>
                   </div>
                 </Card>
@@ -1036,9 +1034,30 @@ export function UserSettingsModal({ isOpen, onClose }: UserSettingsModalProps) {
                 <h3 className="settings-section__title">Links</h3>
                 <Card>
                   <div className="settings-links">
-                    <button type="button" className="settings-link">Documentation</button>
-                    <button type="button" className="settings-link">Report a bug</button>
-                    <button type="button" className="settings-link">Feature request</button>
+                    <a
+                      href="https://github.com/miquelrosell99/notees#readme"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="settings-link"
+                    >
+                      Documentation
+                    </a>
+                    <a
+                      href="https://github.com/miquelrosell99/notees/issues"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="settings-link"
+                    >
+                      Report a bug
+                    </a>
+                    <a
+                      href="https://github.com/miquelrosell99/notees/issues/new"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="settings-link"
+                    >
+                      Feature request
+                    </a>
                   </div>
                 </Card>
               </div>
