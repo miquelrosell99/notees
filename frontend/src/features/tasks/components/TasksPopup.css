@@ -66,6 +66,21 @@
   font-weight: 500;
 }
 
+.tasks-popup__section-link {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+}
+
+.tasks-popup__section-link:hover {
+  color: var(--color-primary);
+}
+
 /* ==================== Task Rows ==================== */
 .tasks-popup__list {
   list-style: none;

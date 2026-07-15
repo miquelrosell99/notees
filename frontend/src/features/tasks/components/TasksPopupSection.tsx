@@ -8,6 +8,7 @@ interface TasksPopupSectionProps {
   totalCount: number;
   completed?: boolean;
   showDates?: boolean;
+  onHeaderClick?: () => void;
   onToggle: (node: Node, completed: boolean) => void;
   onOpen: (node: Node) => void;
 }
@@ -19,6 +20,7 @@ export function TasksPopupSection({
   totalCount,
   completed = false,
   showDates = false,
+  onHeaderClick,
   onToggle,
   onOpen,
 }: TasksPopupSectionProps) {
@@ -26,7 +28,13 @@ export function TasksPopupSection({
   return (
     <section className="tasks-popup__section" aria-label={title}>
       <header className={`tasks-popup__section-title tasks-popup__section-title--${tone}`}>
-        <span>{title}</span>
+        {onHeaderClick ? (
+          <button type="button" className="tasks-popup__section-link" onClick={onHeaderClick}>
+            {title}
+          </button>
+        ) : (
+          <span>{title}</span>
+        )}
         <span className="tasks-popup__count">
           {totalCount > nodes.length ? `${nodes.length} of ${totalCount}` : totalCount}
         </span>

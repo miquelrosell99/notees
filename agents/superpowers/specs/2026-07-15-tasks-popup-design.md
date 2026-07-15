@@ -19,8 +19,9 @@ surface for bulk management, kanban-by-status, and the other four statuses.
 2. **Circle logic:** Only tasks with status **Pending** or **Doing** appear as
    open circles. Backlog / Reviewing never appear in the popup; Done/Cancelled
    are not open items. Check → `Done`; uncheck (in Completed section) → `Pending`.
-3. **Sections:** Overdue / Today / Upcoming (next 7 days) / **Completed today**
-   (struck through, so check-offs feel rewarding and misclicks are undoable).
+3. **Sections:** Overdue / Today / Upcoming (next 7 days) / **No date** /
+   **Completed today** (struck through, so check-offs feel rewarding and
+   misclicks are undoable).
 4. **Quick-add:** One-line input at the top; Enter creates a task block on
    today's daily journal page, scheduled today, status Pending.
 5. **Trigger badge:** Top-bar icon shows a badge with the overdue + today
@@ -28,6 +29,13 @@ surface for bulk management, kanban-by-status, and the other four statuses.
 6. **Container:** Top-bar dropdown mirroring the existing `CalendarPopup`
    pattern (open state in the navigation store, dropdown `Card`, shared toggle
    for all entry points). Not a sidebar panel, not a center modal.
+7. **No-date section (added 2026-07-15):** Unscheduled tasks (no scheduled AND
+   no deadline, Pending/Doing) appear as a "No date" section between Upcoming
+   and Completed today — a section, not a tab, so one scroll shows everything
+   actionable. Sorted by recently updated (`write_date` desc), capped at 10
+   rows with the "x of y" count. Deliberately excluded from the trigger badge:
+   the badge means "act now" (overdue + today). The section header is a link
+   to the task class page for the full list.
 
 ## Architecture
 

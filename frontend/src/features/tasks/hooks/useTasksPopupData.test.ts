@@ -14,15 +14,16 @@ function wrapper({ children }: { children: ReactNode }) {
 }
 
 describe('getPopupQueryForSection', () => {
-  it.each(['overdue', 'today', 'upcoming', 'completed'] as const)(
+  it.each(['overdue', 'today', 'upcoming', 'unscheduled', 'completed'] as const)(
     'requests properties for the %s section',
     (section) => {
       expect(getPopupQueryForSection(section).include_properties).toBe(true);
     },
   );
 
-  it('caps upcoming at 20 and completed at 10 rows', () => {
+  it('caps upcoming at 20 and unscheduled/completed at 10 rows', () => {
     expect(getPopupQueryForSection('upcoming').limit).toBe(20);
+    expect(getPopupQueryForSection('unscheduled').limit).toBe(10);
     expect(getPopupQueryForSection('completed').limit).toBe(10);
     expect(getPopupQueryForSection('overdue').limit).toBeUndefined();
     expect(getPopupQueryForSection('today').limit).toBeUndefined();
@@ -49,6 +50,7 @@ describe('useTasksPopupData', () => {
     executeQueryMock.mockImplementation(async (req) => {
       const ast = JSON.stringify(req.query_ast);
       if (ast.includes('task_closed_date')) return { nodes: [], total_count: 2 } as never;
+      if (ast.includes('is_empty')) return { nodes: [{ uuid: 'n1' }], total_count: 1116 } as never;
       if (ast.includes('less_than') && !ast.includes('greater_than')) return { nodes: [{ uuid: 'o1' }], total_count: 5 } as never;
       if (ast.includes('greater_than')) return { nodes: [{ uuid: 'u1' }], total_count: 7 } as never;
       return { nodes: [{ uuid: 't1' }], total_count: 3 } as never; // today: equals only
@@ -61,7 +63,28 @@ describe('useTasksPopupData', () => {
     expect(result.current.dueCount).toBe(8); // 5 overdue + 3 today
     expect(result.current.sections.upcoming.totalCount).toBe(7);
     expect(result.current.sections.completed.totalCount).toBe(2);
-    expect(executeQueryMock).toHaveBeenCalledTimes(4);
+    // Unscheduled tasks exist but stay out of the badge count.
+    expect(result.current.sections.unscheduled.totalCount).toBe(1116);
+    expect(executeQueryMock).toHaveBeenCalledTimes(5);
+  });
+
+  it('sorts unscheduled tasks by recently updated first', async () => {
+    executeQueryMock.mockImplementation(async (req) => {
+      const ast = JSON.stringify(req.query_ast);
+      if (ast.includes('is_empty')) {
+        return {
+          nodes: [
+            { uuid: 'old', write_date: '2026-07-10T08:00:00Z' },
+            { uuid: 'new', write_date: '2026-07-14T12:00:00Z' },
+          ],
+          total_count: 2,
+        } as never;
+      }
+      return { nodes: [], total_count: 0 } as never;
+    });
+    const { result } = renderHook(() => useTasksPopupData(), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.sections.unscheduled.nodes.map((n) => n.uuid)).toEqual(['new', 'old']);
   });
 
   it('falls back to row counts when the backend omits total_count (unlimited queries)', async () => {
@@ -71,6 +94,7 @@ describe('useTasksPopupData', () => {
     executeQueryMock.mockImplementation(async (req) => {
       const ast = JSON.stringify(req.query_ast);
       if (ast.includes('task_closed_date')) return { nodes: [], total_count: 2 } as never;
+      if (ast.includes('is_empty')) return { nodes: [{ uuid: 'n1' }], total_count: 1116 } as never;
       if (ast.includes('less_than') && !ast.includes('greater_than')) {
         return { nodes: [{ uuid: 'o1' }, { uuid: 'o2' }, { uuid: 'o3' }] } as never; // overdue: no total_count
       }
@@ -85,5 +109,6 @@ describe('useTasksPopupData', () => {
     // Limited queries still prefer the authoritative total_count over row count.
     expect(result.current.sections.upcoming.totalCount).toBe(7);
     expect(result.current.sections.completed.totalCount).toBe(2);
+    expect(result.current.sections.unscheduled.totalCount).toBe(1116);
   });
 });

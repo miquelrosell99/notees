@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { TasksPopup } from './TasksPopup';
 import { useNavigationStore } from '@/stores';
+import { SYSTEM_CLASS_UUIDS } from '@/constants/systemProperties';
 import type { PopupSectionData } from '@/features/tasks/hooks/useTasksPopupData';
 
 const setTaskStatusMock = vi.fn();
@@ -20,6 +21,7 @@ const sections: Record<string, PopupSectionData> = {
     totalCount: 1,
   },
   completed: { nodes: [{ uuid: 'c1', name: 'Done task', page_name: 'Journal' }] as never, totalCount: 1 },
+  unscheduled: { nodes: [{ uuid: 'n1', name: 'Someday task', page_name: 'Inbox' }] as never, totalCount: 1 },
 };
 
 vi.mock('@/features/tasks/hooks/useTasksPopupData', () => ({
@@ -51,14 +53,24 @@ describe('TasksPopup', () => {
     useNavigationStore.setState({ openNode: vi.fn() } as never);
   });
 
-  it('renders all four sections with their rows', () => {
+  it('renders all five sections with their rows', () => {
     renderPopup();
     expect(screen.getByText('Overdue')).toBeInTheDocument();
     expect(screen.getByText('Today')).toBeInTheDocument();
     expect(screen.getByText('Upcoming')).toBeInTheDocument();
+    expect(screen.getByText('No date')).toBeInTheDocument();
     expect(screen.getByText('Completed today')).toBeInTheDocument();
     expect(screen.getByText('Overdue task')).toBeInTheDocument();
+    expect(screen.getByText('Someday task')).toBeInTheDocument();
     expect(screen.getByText('Done task')).toBeInTheDocument();
+  });
+
+  it('the No date header links to the task class page and closes', () => {
+    const onClose = vi.fn();
+    renderPopup(onClose);
+    fireEvent.click(screen.getByRole('button', { name: 'No date' }));
+    expect(useNavigationStore.getState().openNode).toHaveBeenCalledWith(SYSTEM_CLASS_UUIDS.task);
+    expect(onClose).toHaveBeenCalled();
   });
 
   it('checking an open task sets it Done; unchecking a completed one sets Pending', () => {
