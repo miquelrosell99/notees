@@ -493,8 +493,9 @@
 }
 
 .page-item.active {
-  background: var(--color-primary-container);
-  color: var(--color-on-primary-container);
+  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+  color: var(--color-accent);
+  font-weight: 600;
 }
 
 .page-bullet {

@@ -48,8 +48,8 @@ export function ArchivedNodeContextMenu({ node, position, onClose }: ArchivedNod
     setShowUnarchiveModal(true);
   }, []);
   
-  const handleConfirmUnarchive = useCallback(() => {
-    unarchiveNode.mutate(node.uuid);
+  const handleConfirmUnarchive = useCallback(async () => {
+    await unarchiveNode.mutateAsync(node.uuid);
     setShowUnarchiveModal(false);
     onClose();
   }, [node.uuid, unarchiveNode, onClose]);
@@ -63,8 +63,8 @@ export function ArchivedNodeContextMenu({ node, position, onClose }: ArchivedNod
     setShowDeleteModal(true);
   }, []);
   
-  const handleConfirmDelete = useCallback(() => {
-    deleteNode.mutate(node.uuid);
+  const handleConfirmDelete = useCallback(async () => {
+    await deleteNode.mutateAsync(node.uuid);
     setShowDeleteModal(false);
     onClose();
   }, [node.uuid, deleteNode, onClose]);
