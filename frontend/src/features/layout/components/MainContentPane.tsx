@@ -13,7 +13,6 @@ import { WhiteboardsView } from '@/features/whiteboard';
 import { useNavigationStore } from '@/stores';
 import { getEffectiveColor } from '@/utils/nodeIcon';
 import { JournalsView } from '@/features/journals';
-import { TasksView } from '@/features/tasks';
 import { getViewDefinition } from '@/plugins/core';
 import type { MainViewType } from '@/stores';
 import './MainContentPane.css';
@@ -84,14 +83,6 @@ export function MainContentPane({
     return (
       <div className="main-content">
         <WhiteboardsView />
-      </div>
-    );
-  }
-
-  if (viewType === 'tasks') {
-    return (
-      <div className="main-content">
-        <TasksView />
       </div>
     );
   }

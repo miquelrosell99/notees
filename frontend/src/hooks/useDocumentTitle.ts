@@ -24,7 +24,6 @@ const VIEW_LABELS: Record<string, string> = {
   shares: 'Shares',
   inbox: 'Inbox',
   whiteboards: 'Whiteboards',
-  tasks: 'Tasks',
   templates: 'Templates',
   flashcards: 'Flashcards',
 };
