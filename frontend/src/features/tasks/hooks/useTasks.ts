@@ -13,14 +13,14 @@ import type { QueryExecuteRequest } from '@/types/nodeView';
 
 type TaskTab = 'all' | 'today' | 'future';
 
-function getQueryForTab(tab: TaskTab): QueryExecuteRequest {
+export function getQueryForTab(tab: TaskTab): QueryExecuteRequest {
   switch (tab) {
     case 'all':
-      return { query_ast: buildTasksQueryAST() };
+      return { query_ast: buildTasksQueryAST(), include_properties: true };
     case 'today':
-      return { query_ast: buildTodayOverdueQueryAST() };
+      return { query_ast: buildTodayOverdueQueryAST(), include_properties: true };
     case 'future':
-      return { query_ast: buildFutureQueryAST() };
+      return { query_ast: buildFutureQueryAST(), include_properties: true };
   }
 }
 

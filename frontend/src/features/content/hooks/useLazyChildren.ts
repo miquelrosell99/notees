@@ -40,10 +40,12 @@ export function useLazyChildren(): void {
       pendingRef.current.add(blockId);
 
       try {
-        // Fetch the expanded node with its children from the API
+        // Fetch the expanded node with its children from the API. Properties
+        // are included so the runtime upsert does not wipe taskStatus (and
+        // other property-derived fields) on lazily-loaded children.
         const nodeData = await nodesApi.getNode(blockId, {
           include_children: true,
-          include_properties: false,
+          include_properties: true,
         });
 
         if (!nodeData?.children?.length) {

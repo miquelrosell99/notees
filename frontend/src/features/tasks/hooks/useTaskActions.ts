@@ -1,6 +1,7 @@
 import { useMemo, useCallback } from 'react';
 import { getOperationRuntime } from '@/runtime';
 import { getNode } from '@/runtime/graphHelpers';
+import { upsertNodes } from '@/runtime/eventBus';
 import { useSetNodeProperty, useProperties } from '@/features/properties';
 import { useAddClass, useRemoveClass } from '@/features/content';
 import {
@@ -40,6 +41,17 @@ function getTaskStatus(node: Node | undefined): TaskStatus | null {
   const status = gn.taskStatus;
   if (!status) return null;
   return TASK_STATUSES.includes(status as TaskStatus) ? (status as TaskStatus) : null;
+}
+
+/**
+ * Optimistically mirror a task-status change into the runtime so the status
+ * badge (read from the runtime projection in BlockAfterContent) updates
+ * immediately, without waiting for a server refetch.
+ */
+function setRuntimeTaskStatus(nodeUuid: string, status: TaskStatus | null): void {
+  const runtime = getOperationRuntime();
+  const gn = getNode(runtime, nodeUuid);
+  if (gn) upsertNodes([{ ...gn, taskStatus: status }]);
 }
 
 /**
@@ -104,6 +116,7 @@ export function useTaskActions(node: Node) {
         propertyId: ids.propertyId,
         value: ids.optionId,
       });
+      setRuntimeTaskStatus(node.uuid, status);
     },
     [node.uuid, setProperty]
   );
@@ -129,6 +142,7 @@ export function useTaskActions(node: Node) {
       propertyId: SYSTEM_PROPERTY_UUIDS.task_status,
       value: null,
     });
+    setRuntimeTaskStatus(node.uuid, null);
     removeClass.mutate({ nodeUuid: node.uuid, classId: SYSTEM_CLASS_UUIDS.task });
   }, [node.uuid, setProperty, removeClass]);
 
