@@ -85,8 +85,8 @@ Existing API keys keep working (document that keys bypass 2FA — standard behav
   `handleAuthFailure()` redirect; the pre-auth token is held only in memory for the
   verify call.
 
-Works in the Kotlin WebView: QR is just an image/SVG on screen; scanning is done by the
-external authenticator app, so no camera-in-WebView is needed.
+Works in the Flutter mobile app: QR is just an image/SVG on screen; scanning is done by the
+external authenticator app, so no in-app camera is needed.
 
 ## Scripts
 

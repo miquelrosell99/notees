@@ -31,7 +31,6 @@ Notees implements the following security controls:
 - Restrictive default CORS; wildcard origins with credentials are rejected.
 - Security headers including HSTS (production-only), CSP, X-Frame-Options, and COOP/COEP/CORP.
 - Request body size limits (55 MB) and content-type sniffing protection.
-- Encrypted mobile storage via AndroidX Security `EncryptedSharedPreferences`.
 
 ## Dependency Auditing
 
