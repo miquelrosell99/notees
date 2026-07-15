@@ -40,6 +40,7 @@ describe('useQuickAddTask', () => {
     );
     expect(setPropertyMutateMock).toHaveBeenCalledWith(
       expect.objectContaining({ nodeUuid: 'new-task-uuid', value: expect.stringMatching(/^00000000-0000-0000-00dd-/) }),
+      expect.objectContaining({ onSettled: expect.any(Function) }),
     );
   });
 
