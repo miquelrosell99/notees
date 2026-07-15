@@ -2,7 +2,7 @@
 
 A self-hosted, privacy-first note-taking application with bidirectional linking and offline support.
 
-![Python](https://img.shields.io/badge/python-3.13+-blue.svg)
+![Python](https://img.shields.io/badge/python-3.12+-blue.svg)
 ![React](https://img.shields.io/badge/react-19-61dafb.svg)
 ![TypeScript](https://img.shields.io/badge/typescript-6-3178c6.svg)
 ![License](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)
@@ -17,10 +17,14 @@ This project was developed with the assistance of AI tools. AI was used througho
 - **Block-Based Editor** — Outliner-style editing where every block can be referenced, embedded, or moved.
 - **Daily Journal** — Built-in daily, monthly, and yearly journal pages with calendar navigation.
 - **Types & Properties** — Organize notes with types and custom properties for powerful filtering.
-- **Tasks** — Track todos inline or as dedicated task pages with status, priority, and due dates.
+- **Tasks** — Track todos inline or as dedicated task pages with status, priority, and due dates. A top-bar Tasks popup shows overdue, today, upcoming, and unscheduled tasks.
+- **Queries & Collections** — Build structured queries with the visual query builder and view results as lists, tables, kanban boards, calendars, and more. Run temporary ad-hoc queries or save them as views.
+- **Graph View & Whiteboard** — Explore your knowledge graph interactively, or sketch on an infinite canvas.
+- **Flashcards** — Create and study cloze-deletion flashcards.
 - **Offline-First** — Works without internet. Changes sync when you're back online.
 - **Self-Hosted** — Your data stays on your server. No cloud dependencies.
-- **Multi-Database** — Create separate knowledge bases for different projects or contexts.
+- **Multi-Workspace** — Create separate knowledge bases for different projects or contexts.
+- **Plugin System** — Extend Notees with built-in or user-installed plugins (importers, export formats, commands).
 - **Export** — Export notes to Markdown, HTML, or PDF.
 
 ## Web vs. Mobile App
@@ -109,21 +113,27 @@ docker compose up -d
 ```
 notees/
 ├── app/                    # Backend (FastAPI)
-│   ├── domain/             # Core business logic
-│   │   ├── entities/       # Domain models (Node, User)
-│   │   ├── services/       # Domain services
-│   │   └── errors.py       # Domain exceptions
+│   ├── features/           # Feature modules (router + service + port + repository)
+│   ├── domain/             # Shared domain kernel (entities, services, ports)
+│   ├── infrastructure/     # Infrastructure adapters
+│   ├── plugins/            # Runtime plugin system
 │   ├── db/                 # Database layer (asyncpg, PostgreSQL)
-│   ├── routers/            # API endpoints
+│   ├── routers/            # API router aggregation (re-exports feature routers)
 │   └── static/dist/        # Built frontend
 ├── frontend/               # Frontend (React 19 + TypeScript + Vite)
 │   ├── src/
-│   │   ├── components/     # React components
-│   │   ├── hooks/          # Custom React hooks
+│   │   ├── features/       # Feature-first modules (tasks, queries, editor, …)
+│   │   ├── components/ui/  # Reusable UI atoms
+│   │   ├── hooks/          # Generic React hooks (+ query key factories)
 │   │   ├── stores/         # Zustand state management
-│   │   └── types/          # TypeScript types
+│   │   ├── runtime/ sync/  # Offline-first operation runtime and sync
+│   │   ├── views/ lib/     # Top-level views / core libraries
+│   │   └── types/ utils/   # Shared TypeScript types / utilities
 │   └── vite.config.ts
 ├── tests/                  # Backend test suite (pytest)
+├── agents/                 # Developer/agent reference docs
+├── docs/                   # User-facing documentation
+├── scripts/                # Utility scripts
 └── data/                   # User data (gitignored)
 ```
 
@@ -205,45 +215,60 @@ Notees follows a **hexagonal architecture** (ports & adapters) pattern:
 - **Infrastructure Layer** — Database and external service implementations
 - **API Layer** — FastAPI routers that expose HTTP endpoints
 
-### Node Types
+### The Node Model
 
-The core concept is the **Node** — everything is a node with composable types:
+The core concept is the **Node** — everything (pages, blocks, tags, properties, journals, tasks) is a row in a single `node` table, differentiated by boolean flags kept in sync with **system class** assignments. Hierarchy is an adjacency list (`parent_id`). Built-in classes include:
 
-| Type | Description |
-|------|-------------|
-| `PAGE` | A document/note that can contain blocks |
-| `BLOCK` | Content within a page |
-| `TAG` | Categorization (always also a page) |
-| `PROPERTY` | Custom metadata schema (always also a page) |
-| `DAILY` | Daily journal entry (always also a page) |
-| `TASK` | Todo item (can be page or block) |
+| Class | Description |
+|-------|-------------|
+| `page` | A document/note that can contain blocks |
+| `class` | A type that categorizes other nodes |
+| `day` / `month` / `year` | Journal pages |
+| `task` | Todo item (page or block) with status, priority, and dates |
+| `comment` | A comment attached to a node |
+| `template` | A reusable page/block template |
+| `asset` | An uploaded file or image |
+| `quote` | A quotation block |
+| `query` | A saved query block rendering a live collection |
+| `code` | A syntax-highlighted code block |
+| `whiteboard` | An infinite-canvas drawing |
+| `card` / `cloze` | Flashcards for spaced repetition |
+
+Users can define their own classes and properties on top of these.
 
 ## API
 
-The REST API is available at `/api/*`:
+The REST API is available at `/api/*` (also mirrored under `/api/v1/*`):
 
 | Endpoint | Description |
 |----------|-------------|
 | `POST /api/auth/login` | Authenticate user |
 | `GET /api/nodes` | List nodes |
 | `POST /api/nodes` | Create node |
-| `GET /api/nodes/{id}` | Get node by ID |
-| `PUT /api/nodes/{id}` | Update node |
-| `DELETE /api/nodes/{id}` | Delete node |
+| `GET /api/nodes/{uuid}` | Get node by UUID |
+| `PUT /api/nodes/{uuid}` | Update node |
+| `DELETE /api/nodes/{uuid}` | Delete node |
 | `GET /api/search` | Search nodes |
-| `GET /api/daily/{date}` | Get/create daily page |
+| `POST /api/daily` | Get or create the daily page for a date |
+| `POST /api/nodes/views/execute` | Run an ad-hoc QueryAST (no saved view needed) |
 
 ## Configuration
 
-Environment variables (or `.env` file):
+Environment variables (or `.env` file — see `.env.example` for the full list):
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `SECRET_KEY` | (required) | JWT signing key - must be set! |
+| `SECRET_KEY` | (required) | JWT signing key (min 32 characters) - must be set! |
 | `POSTGRES_PASSWORD` | (required) | PostgreSQL password |
 | `ADMIN_PASSWORD` | (unset) | Initial admin password - required for first-boot registration |
-| `PUID` | `1000` | Host user ID for file permissions |
-| `PGID` | `1000` | Host group ID for file permissions |
+| `REGISTRATION_ENABLED` | `false` | Allow open user registration |
+| `ENVIRONMENT` | `development` | Set to `production` for HSTS/HTTPS redirect and short-lived tokens |
+| `CORS_ORIGINS` | (unset) | Comma-separated allowed origins; disabled by default |
+| `POSTGRES_HOST` / `POSTGRES_PORT` | `localhost` / `5433` | PostgreSQL connection |
+| `POSTGRES_USER` / `POSTGRES_DB` | `notees` | PostgreSQL user and database |
+| `REDIS_URL` | `redis://localhost:6380/0` | Redis (rate limiting, real-time broadcast) |
+| `PORT` | `8001` | Backend port for local runs |
+| `PUID` / `PGID` | `1000` | Host user/group IDs for file permissions |
 | `TZ` | `UTC` | Container timezone |
 | `LOG_LEVEL` | `INFO` | Logging verbosity |
 
@@ -302,7 +327,7 @@ Before deploying to production:
 
 ## Contributing
 
-Contributions are welcome! Please read the contributing guidelines before submitting a pull request.
+Contributions are welcome!
 
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
