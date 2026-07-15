@@ -1,0 +1,19 @@
+/* FilterBuilderModal — standalone temporary-query builder */
+
+.filter-builder {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+}
+
+.filter-builder__hint {
+  margin: 0;
+  font: var(--font-body-small);
+  color: var(--color-on-surface-variant);
+}
+
+.filter-builder__count {
+  margin-right: auto;
+  font: var(--font-body-small);
+  color: var(--color-on-surface-variant);
+}
