@@ -3,6 +3,7 @@ import {
   buildPopupOverdueQueryAST,
   buildPopupTodayQueryAST,
   buildPopupUpcomingQueryAST,
+  buildPopupUnscheduledQueryAST,
   buildPopupCompletedTodayQueryAST,
 } from './taskQueries';
 import { SYSTEM_PROPERTY_UUIDS } from '@/constants/systemProperties';
@@ -33,6 +34,7 @@ describe('popup task query ASTs', () => {
     ['overdue', buildPopupOverdueQueryAST],
     ['today', buildPopupTodayQueryAST],
     ['upcoming', buildPopupUpcomingQueryAST],
+    ['unscheduled', buildPopupUnscheduledQueryAST],
   ] as const)('%s shows only Pending/Doing tasks', (_name, build) => {
     const excluded = statusConditions(build())
       .filter((c) => c.operator === 'not_equals')
@@ -54,10 +56,18 @@ describe('popup task query ASTs', () => {
     expect(conds.some((c) => c.operator === 'less_than')).toBe(true);
   });
 
+  it('unscheduled requires both scheduled and deadline to be empty', () => {
+    const conds = collectConditions(buildPopupUnscheduledQueryAST());
+    const empties = conds.filter((c) => c.operator === 'is_empty').map((c) => c.property_name);
+    expect(empties).toContain('task_scheduled');
+    expect(empties).toContain('task_deadline');
+  });
+
   it.each([
     ['overdue', buildPopupOverdueQueryAST],
     ['today', buildPopupTodayQueryAST],
     ['upcoming', buildPopupUpcomingQueryAST],
+    ['unscheduled', buildPopupUnscheduledQueryAST],
     ['completed', buildPopupCompletedTodayQueryAST],
   ] as const)('%s routes task_status conditions through the selection tables', (_name, build) => {
     // The backend QueryAST compiler only routes property_type 'selection' to

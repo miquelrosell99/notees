@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useViewportFlip } from '@/hooks/useViewportFlip';
 import { useNavigationStore } from '@/stores';
+import { SYSTEM_CLASS_UUIDS } from '@/constants/systemProperties';
 import { useTasksPopupData } from '@/features/tasks/hooks/useTasksPopupData';
 import { useSetTaskStatus } from '@/features/tasks/hooks/useSetTaskStatus';
 import { useQuickAddTask } from '@/features/tasks/hooks/useQuickAddTask';
@@ -66,6 +67,11 @@ export function TasksPopup({ isOpen, onClose, anchorRef }: TasksPopupProps) {
     onClose();
   };
 
+  const handleOpenTaskClass = () => {
+    openNode(SYSTEM_CLASS_UUIDS.task);
+    onClose();
+  };
+
   const handleQuickAddKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key !== 'Enter' || isAdding) return;
     const value = quickAddValue;
@@ -82,6 +88,7 @@ export function TasksPopup({ isOpen, onClose, anchorRef }: TasksPopupProps) {
     sections.overdue.nodes.length === 0 &&
     sections.today.nodes.length === 0 &&
     sections.upcoming.nodes.length === 0 &&
+    sections.unscheduled.nodes.length === 0 &&
     sections.completed.nodes.length === 0;
 
   return (
@@ -139,6 +146,14 @@ export function TasksPopup({ isOpen, onClose, anchorRef }: TasksPopupProps) {
           nodes={sections.upcoming.nodes}
           totalCount={sections.upcoming.totalCount}
           showDates
+          onToggle={handleToggle}
+          onOpen={handleOpen}
+        />
+        <TasksPopupSection
+          title="No date"
+          nodes={sections.unscheduled.nodes}
+          totalCount={sections.unscheduled.totalCount}
+          onHeaderClick={handleOpenTaskClass}
           onToggle={handleToggle}
           onOpen={handleOpen}
         />
