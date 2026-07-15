@@ -123,7 +123,7 @@ export function SidebarRecents({ onContextMenu, onItemClick }: SidebarRecentsPro
       >
         {expanded ? <ChevronDownIcon size="xs" /> : <ChevronRightIcon size="xs" />}
         <ClockIcon size="xs" />
-        <h2 className="sidebar-section-title">Recents</h2>
+        <span className="sidebar-section-title">Recents</span>
       </button>
       {expanded && (
         <div className="sidebar-recents-list">

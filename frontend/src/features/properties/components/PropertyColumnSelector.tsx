@@ -230,6 +230,7 @@ export function PropertyColumnSelector({
             type="text"
             className="property-column-selector__search-input"
             placeholder="Search properties..."
+            aria-label="Search properties"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />

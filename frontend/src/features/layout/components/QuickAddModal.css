@@ -31,11 +31,6 @@
   margin-bottom: 0;
 }
 
-.quick-add-textarea:focus {
-  outline: none;
-  border-color: var(--color-primary);
-}
-
 .quick-add-footer {
   display: flex;
   align-items: center;

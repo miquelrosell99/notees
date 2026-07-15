@@ -231,6 +231,8 @@ export function PublicShareView() {
               type="password"
               className="public-share-view__password-input"
               placeholder="Enter password"
+              aria-label="Shared page password"
+              aria-describedby={error ? 'public-share-password-error' : undefined}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') handleSubmitPassword(); }}
@@ -242,7 +244,7 @@ export function PublicShareView() {
               Unlock
             </button>
           </div>
-          {error && <p className="public-share-view__password-error">{error}</p>}
+          {error && <p id="public-share-password-error" className="public-share-view__password-error" role="alert">{error}</p>}
         </div>
       </div>
     );

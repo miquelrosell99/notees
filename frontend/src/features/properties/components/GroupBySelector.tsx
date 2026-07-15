@@ -187,6 +187,7 @@ export function GroupBySelector({ value, onChange, onClose, hidePageOption = fal
             type="text"
             className="group-by-selector__search-input"
             placeholder="Search properties…"
+            aria-label="Search properties"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             ref={inputRef}
