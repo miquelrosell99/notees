@@ -176,8 +176,10 @@
 /* ==================== Mobile TopBar ==================== */
 /*
  * On mobile, hide desktop-only controls (back/forward, undo/redo,
- * separators, right-sidebar toggle, scratchpad) to leave only the
+ * separators, scratchpad) to leave only the
  * essentials: hamburger menu + app title + calendar + account.
+ * The right-sidebar toggle stays visible — it is the entry point for
+ * the References bottom sheet.
  */
 @media (max-width: 768px) {
   .top-bar {
@@ -191,11 +193,6 @@
   .toolbar-btn[aria-label="Undo"],
   .toolbar-btn[aria-label="Redo"],
   .toolbar-btn[aria-label="Open scratchpad"] {
-    display: none;
-  }
-
-  /* The right sidebar dock button is useless on mobile (no right sidebar) */
-  .toolbar-btn[aria-label="Toggle right sidebar"] {
     display: none;
   }
 

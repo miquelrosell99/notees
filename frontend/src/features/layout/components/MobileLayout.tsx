@@ -5,10 +5,12 @@
  *   [TopBar]
  *   [Full-width content]
  *   [Left sidebar – off-canvas overlay drawer, slides in from left]
+ *   [Right sidebar content – "References" bottom sheet, swipe-to-dismiss]
  *
- * The right sidebar is intentionally omitted on mobile.  The linked-
- * references / local-graph data it contains is still reachable via the
- * desktop view — keeping the mobile experience focused.
+ * The right sidebar's content (sidebar cards, linked references, local
+ * graph) is available on mobile as a bottom sheet: tap the mdi-dock-right
+ * button in the top bar to open it; swipe down, tap the backdrop, or use
+ * the close button to dismiss it.
  *
  * Interaction model (mirrors Obsidian mobile):
  *   • Tap hamburger  → open sidebar drawer
@@ -16,13 +18,17 @@
  *   • Tap backdrop   → close drawer
  *   • Swipe-right from left edge (≤28 px) → open sidebar
  *   • Drag drawer left → close sidebar
+ *   • Tap mdi-dock-right → open References sheet
+ *   • Drag sheet down  → close References sheet
  */
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useNavigationStore, useModalStore } from '@/stores';
 import { useInputContext } from '@/stores/inputContext';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
 import { Button } from '@/components/ui/Button';
+import { Modal } from '@/components/ui/Modal';
 import { CardMobileLayoutProvider } from '@/components/ui/CardMobileLayoutContext';
+import { RightSidebarCards } from '@/features/sidebar';
 import { Sidebar } from './Sidebar';
 import { MainContent } from './MainContent';
 import { TopBar } from './TopBar';
@@ -43,6 +49,8 @@ interface MobileLayoutProps {
 export function MobileLayout({ currentNodeUuid }: MobileLayoutProps) {
   const isSidebarCollapsed = useNavigationStore(s => s.isSidebarCollapsed);
   const toggleSidebar = useNavigationStore(s => s.toggleSidebar);
+  const rightSidebarOpen = useNavigationStore(s => s.rightSidebarOpen);
+  const toggleRightSidebar = useNavigationStore(s => s.toggleRightSidebar);
   const setScratchpadOpen = useModalStore(s => s.setScratchpadOpen);
   const drawerOpen = !isSidebarCollapsed;
   const drawerRef = useRef<HTMLElement | null>(null);
@@ -56,14 +64,15 @@ export function MobileLayout({ currentNodeUuid }: MobileLayoutProps) {
     restoreFocus: true,
   });
 
-  // Auto-close drawer when user taps a note — mirrors Obsidian
+  // Auto-close drawer and References sheet when user taps a note — mirrors Obsidian
   const prevNodeIdRef = useRef(currentNodeUuid);
   useEffect(() => {
-    if (currentNodeUuid !== prevNodeIdRef.current && drawerOpen) {
-      toggleSidebar();
+    if (currentNodeUuid !== prevNodeIdRef.current) {
+      if (drawerOpen) toggleSidebar();
+      if (rightSidebarOpen) toggleRightSidebar();
     }
     prevNodeIdRef.current = currentNodeUuid;
-  }, [currentNodeUuid, drawerOpen, toggleSidebar]);
+  }, [currentNodeUuid, drawerOpen, rightSidebarOpen, toggleSidebar, toggleRightSidebar]);
 
   // Close drawer when any modal / popup overlay opens
   useEffect(() => {
@@ -73,6 +82,13 @@ export function MobileLayout({ currentNodeUuid }: MobileLayoutProps) {
       }
     });
   }, [drawerOpen, toggleSidebar]);
+
+  // The References sheet and the drawer must never both be open. The overlay
+  // subscription above already closes the drawer when the sheet opens; this
+  // covers the reverse path (edge swipe opening the drawer over the sheet).
+  useEffect(() => {
+    if (drawerOpen && rightSidebarOpen) toggleRightSidebar();
+  }, [drawerOpen, rightSidebarOpen, toggleRightSidebar]);
 
   // Fade in the backdrop when the drawer is open and not being dragged.
   useEffect(() => {
@@ -292,6 +308,18 @@ export function MobileLayout({ currentNodeUuid }: MobileLayoutProps) {
           aria-hidden="true"
         />
       )}
+
+      {/* ── Right-sidebar content as a bottom sheet ── */}
+      <Modal
+        variant="sheet"
+        isOpen={rightSidebarOpen}
+        onClose={toggleRightSidebar}
+        title="References"
+        showCloseButton
+        className="mobile-references-sheet"
+      >
+        <RightSidebarCards />
+      </Modal>
 
       {/* ── FAB: open Scratchpad ── */}
       {!drawerOpen && (

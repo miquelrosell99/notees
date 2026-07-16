@@ -10,13 +10,19 @@
  * - Focus trapping (optional)
  * - Consistent header/footer structure
  */
-import { useCallback, useRef, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Card } from './Card';
 import { Button } from './Button';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
 import { useOverlaySurface } from '@/hooks/useOverlaySurface';
 import { useIsMobile } from '@/hooks/useIsMobile';
+import {
+  SHEET_DRAG_SLOP_PX,
+  shouldEngageSheetDrag,
+  shouldDismissSheet,
+  type SheetDragRegion,
+} from './sheetGesture';
 import './Modal.css';
 
 export type ModalSize = 'sm' | 'md' | 'lg' | 'xl';
@@ -71,6 +77,7 @@ export function Modal({
   contentClassName = '',
 }: ModalProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const backdropRef = useRef<HTMLDivElement>(null);
   // Bottom-sheet below the tablet breakpoint, matching the app layout switch.
   const isMobile = useIsMobile();
   const isSheet = variant === 'sheet' || (variant === 'auto' && isMobile);
@@ -100,11 +107,155 @@ export function Modal({
     [closeOnBackdrop, onClose]
   );
 
+  // Swipe-to-dismiss for the bottom-sheet variant. Mirrors the MobileLayout
+  // drawer gesture: the drag offset is injected as a CSS variable, the
+  // `modal--dragging` class disables the transform transition while dragging,
+  // and the scrim fades proportionally to the offset.
+  useEffect(() => {
+    if (!isOpen || !isSheet) return;
+    const sheet = containerRef.current;
+    if (!sheet) return;
+    const backdrop = backdropRef.current;
+
+    let rafId: number | null = null;
+    const drag = {
+      touchId: null as number | null,
+      region: null as SheetDragRegion | null,
+      scrollerEl: null as HTMLElement | null,
+      startY: 0,
+      startTime: 0,
+      offset: 0,
+      sheetHeight: 0,
+      engaged: false,
+    };
+
+    const setDragVars = (offset: number, scrimOpacity: number) => {
+      sheet.style.setProperty('--sheet-drag-offset', `${offset}px`);
+      backdrop?.style.setProperty('--sheet-scrim-opacity', String(scrimOpacity));
+    };
+
+    const resetDragVars = () => {
+      sheet.style.removeProperty('--sheet-drag-offset');
+      backdrop?.style.removeProperty('--sheet-scrim-opacity');
+      sheet.classList.remove('modal--dragging');
+    };
+
+    const findTrackedTouch = (list: TouchList): Touch | null => {
+      for (const touch of Array.from(list)) {
+        if (touch.identifier === drag.touchId) return touch;
+      }
+      return null;
+    };
+
+    // The element a downward pull would scroll, if any: the first scrollable
+    // ancestor between the touch target and the sheet. Sheet content may nest
+    // its own scroll containers (e.g. the references card list), so this is
+    // not necessarily `.modal__content`.
+    const findScrollableAncestor = (el: HTMLElement): HTMLElement | null => {
+      let node: HTMLElement | null = el;
+      while (node && node !== sheet) {
+        if (node.scrollHeight > node.clientHeight) {
+          const overflowY = window.getComputedStyle(node).overflowY;
+          if (overflowY === 'auto' || overflowY === 'scroll') return node;
+        }
+        node = node.parentElement;
+      }
+      return null;
+    };
+
+    const onTouchStart = (e: TouchEvent) => {
+      if (drag.touchId !== null) return; // already tracking a touch
+      const target = e.target as HTMLElement;
+      const contentEl = sheet.querySelector<HTMLElement>('.modal__content');
+      let region: SheetDragRegion | null = null;
+      let scrollerEl: HTMLElement | null = null;
+      if (target.closest('.modal__drag-handle') || target.closest('.modal__header')) {
+        region = 'chrome';
+      } else if (contentEl?.contains(target)) {
+        region = 'content';
+        scrollerEl = findScrollableAncestor(target);
+      }
+      if (!region) return;
+
+      const touch = e.changedTouches[0];
+      drag.touchId = touch.identifier;
+      drag.region = region;
+      drag.scrollerEl = scrollerEl;
+      drag.startY = touch.clientY;
+      drag.startTime = Date.now();
+      drag.offset = 0;
+      drag.sheetHeight = sheet.getBoundingClientRect().height;
+      drag.engaged = false;
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      const touch = findTrackedTouch(e.changedTouches);
+      if (!touch || !drag.region) return;
+      const dy = touch.clientY - drag.startY;
+
+      if (!drag.engaged) {
+        // An upward move is scrolling, not a dismiss — never engage this gesture.
+        if (dy < -SHEET_DRAG_SLOP_PX) {
+          drag.touchId = null;
+          return;
+        }
+        if (!shouldEngageSheetDrag(drag.region, drag.scrollerEl?.scrollTop ?? 0, dy)) return;
+        drag.engaged = true;
+        sheet.classList.add('modal--dragging');
+      }
+
+      // The gesture owns the touch from here on: keep the content from scrolling.
+      e.preventDefault();
+      const offset = Math.max(0, dy);
+      drag.offset = offset;
+      const scrimOpacity = Math.max(0, 1 - offset / (drag.sheetHeight || 1));
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => setDragVars(offset, scrimOpacity));
+    };
+
+    const onTouchEnd = (e: TouchEvent) => {
+      const touch = findTrackedTouch(e.changedTouches);
+      if (!touch) return;
+      drag.touchId = null;
+      if (!drag.engaged) return;
+      drag.engaged = false;
+
+      const dt = Date.now() - drag.startTime;
+      const velocity = dt > 0 ? drag.offset / dt : 0;
+      const dismiss = shouldDismissSheet(drag.offset, velocity, drag.sheetHeight);
+
+      // Re-enable the transition and clear the offset: the sheet snaps back.
+      resetDragVars();
+      if (dismiss) onClose();
+    };
+
+    const onTouchCancel = () => {
+      if (drag.touchId === null) return;
+      drag.touchId = null;
+      drag.engaged = false;
+      resetDragVars();
+    };
+
+    sheet.addEventListener('touchstart', onTouchStart, { passive: true });
+    sheet.addEventListener('touchmove', onTouchMove, { passive: false });
+    sheet.addEventListener('touchend', onTouchEnd, { passive: true });
+    sheet.addEventListener('touchcancel', onTouchCancel, { passive: true });
+    return () => {
+      sheet.removeEventListener('touchstart', onTouchStart);
+      sheet.removeEventListener('touchmove', onTouchMove);
+      sheet.removeEventListener('touchend', onTouchEnd);
+      sheet.removeEventListener('touchcancel', onTouchCancel);
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      resetDragVars();
+    };
+  }, [isOpen, isSheet, onClose]);
+
   if (!isOpen) return null;
 
   const modal = (
     // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- backdrop closes on click; explicit close button provided
     <div
+      ref={backdropRef}
       className="modal-backdrop"
       onClick={handleBackdropClick}
     >
