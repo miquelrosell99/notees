@@ -8,7 +8,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--color-scrim);
+  /* Scrim alpha is driven by the sheet drag gesture via --sheet-scrim-opacity. */
+  background: color-mix(in srgb, var(--color-scrim) calc(var(--sheet-scrim-opacity, 1) * 100%), transparent);
   z-index: var(--z-modal-backdrop);
   animation: backdropFadeIn var(--motion-duration-extra-long) var(--motion-easing-standard);
   /* Prevent content from disappearing under notches/home bars on sheet variants. */
@@ -50,7 +51,15 @@
   max-height: calc(90vh - env(safe-area-inset-bottom));
   max-height: calc(90dvh - env(safe-area-inset-bottom));
   border-radius: var(--shape-sheet) var(--shape-sheet) 0 0;
+  /* Drag-to-dismiss offset is injected as a CSS variable by the touch gesture */
+  transform: translateY(var(--sheet-drag-offset, 0px));
+  transition: transform var(--motion-duration-medium) var(--motion-easing-standard);
   animation: modalSheetSlideIn var(--motion-duration-long) var(--motion-easing-decelerate);
+}
+
+/* Disable the transform transition while the user is dragging the sheet */
+.modal--dragging {
+  transition: none !important;
 }
 
 .modal.modal--sheet .modal__header {

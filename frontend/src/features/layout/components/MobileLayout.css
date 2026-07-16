@@ -114,6 +114,14 @@
   transition: opacity var(--motion-duration-medium) var(--motion-easing-standard);
 }
 
+/* ── References bottom sheet (right-sidebar content) ─────────── */
+/* The desktop right sidebar is presented on mobile as a Modal bottom
+   sheet (swipe-to-dismiss is handled by Modal); cap its height so the
+   top bar stays visible. */
+.modal.modal--sheet.mobile-references-sheet {
+  max-height: calc(85dvh - env(safe-area-inset-bottom));
+}
+
 /* ── Floating action button ──────────────────────────────────── */
 .mobile-fab {
   position: fixed;
