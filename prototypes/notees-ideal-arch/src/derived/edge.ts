@@ -3,23 +3,27 @@ import { uuidv7 } from "../uuid";
 
 const REF_MARK_RE = /\[\[([^\]]+)\]\]/g;
 
-function extractRefTargetIds(content: unknown[]): string[] {
-  const targets = new Set<string>();
+function extractRefTargets(content: unknown[]): { targetId: string; label: string | null }[] {
+  const targets = new Map<string, string | null>();
 
   for (const child of content) {
     const c = child as any;
     if (c.type === "ref" && c.targetId) {
-      targets.add(c.targetId);
+      // Explicit ref children preserve their label.
+      targets.set(c.targetId, c.label ?? null);
     } else if (c.type === "text" && typeof c.text === "string") {
       let match: RegExpExecArray | null;
       REF_MARK_RE.lastIndex = 0;
       while ((match = REF_MARK_RE.exec(c.text)) !== null) {
-        targets.add(match[1]);
+        // Inline [[targetId]] refs have no label.
+        if (!targets.has(match[1])) {
+          targets.set(match[1], null);
+        }
       }
     }
   }
 
-  return Array.from(targets);
+  return Array.from(targets.entries()).map(([targetId, label]) => ({ targetId, label }));
 }
 
 export function rebuildEdgesForNode(db: Database, nodeId: string): void {
@@ -31,12 +35,12 @@ export function rebuildEdgesForNode(db: Database, nodeId: string): void {
   db.run("DELETE FROM edge WHERE source_id = ?", [nodeId]);
 
   const content = JSON.parse(node.content) as any[];
-  const targetIds = extractRefTargetIds(content);
+  const targets = extractRefTargets(content);
   const stmt = db.prepare(
     "INSERT INTO edge (id, workspace_id, source_id, target_id, type, property_schema_id, metadata, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
   );
 
-  for (const targetId of targetIds) {
+  for (const { targetId, label } of targets) {
     stmt.run(
       uuidv7(),
       node.workspace_id,
@@ -44,7 +48,7 @@ export function rebuildEdgesForNode(db: Database, nodeId: string): void {
       targetId,
       "reference",
       null,
-      JSON.stringify({ label: null }),
+      JSON.stringify({ label }),
       new Date().toISOString()
     );
   }
