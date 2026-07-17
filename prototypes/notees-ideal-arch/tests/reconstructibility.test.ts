@@ -6,6 +6,7 @@ import { applyNodeOperation } from "../src/derived/node";
 import { applyChildOrderOperation } from "../src/derived/childOrder";
 import { applyPropertyOperation } from "../src/derived/property";
 import { rebuildEdgesForNode } from "../src/derived/edge";
+import { reindexNode } from "../src/derived/search";
 import { uuidv7 } from "../src/uuid";
 
 test("derived state is reconstructible from operation log", () => {
@@ -71,7 +72,10 @@ test("derived state is reconstructible from operation log", () => {
       applyChildOrderOperation(db2, op);
       applyPropertyOperation(db2, op);
       const p = op.payload as any;
-      if (p?.nodeId) rebuildEdgesForNode(db2, p.nodeId);
+      if (p?.nodeId) {
+        rebuildEdgesForNode(db2, p.nodeId);
+        reindexNode(db2, p.nodeId);
+      }
     })();
   }
 
@@ -111,4 +115,8 @@ test("derived state is reconstructible from operation log", () => {
     expect(crdt2[i].text_state).toEqual(crdt1[i].text_state);
     expect(crdt2[i].tree_state).toEqual(crdt1[i].tree_state);
   }
+
+  const search1 = db1.query("SELECT node_id, content FROM search_index ORDER BY node_id").all();
+  const search2 = db2.query("SELECT node_id, content FROM search_index ORDER BY node_id").all();
+  expect(search2).toEqual(search1);
 });
