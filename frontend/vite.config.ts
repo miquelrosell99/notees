@@ -103,6 +103,7 @@ export default defineConfig({
       '@/hooks': path.resolve(__dirname, './src/hooks'),
       '@/stores': path.resolve(__dirname, './src/stores'),
       '@/api': path.resolve(__dirname, './src/api'),
+      '@/core': path.resolve(__dirname, './src/core'),
       '@/editor': path.resolve(__dirname, './src/editor'),
       '@/runtime': path.resolve(__dirname, './src/runtime'),
     },
