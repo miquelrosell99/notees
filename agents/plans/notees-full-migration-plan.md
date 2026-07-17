@@ -1,7 +1,7 @@
 # Notees Full Migration Plan: Current App → Ideal Architecture
 
 **Date:** 2026-07-17  
-**Branch:** `main` (Phase 2 snapshot `cbb37cbf`)  
+**Branch:** `main` (Phase 2 snapshot committed)  
 **Scope:** Migrate the real Notees app (`app/`, `frontend/`, PostgreSQL) to the local-first, operation-log, CRDT-driven architecture defined in `docs/superpowers/specs/2026-07-17-notees-ideal-data-architecture-design.md`.
 
 ---
@@ -101,7 +101,7 @@ Alternatives considered and rejected:
 
 **Goal:** Export existing Notees workspaces into the new operation-log + SQLite format.
 
-**Status:** Done. Snapshot commit `cbb37cbf`.
+**Status:** Done. Snapshot committed to `main`.
 
 **Completed sub-tasks:**
 - B1: Node/hierarchy migration (`app/core/migration/nodes.py`).
