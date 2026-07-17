@@ -10,7 +10,7 @@ export function compareHlc(a: Hlc, b: Hlc): number {
 
 export function maxHlc(a: Hlc, b: Hlc): Hlc {
   const cmp = compareHlc(a, b);
-  return cmp >= 0 ? a : b;
+  return cmp >= 0 ? { ...a } : { ...b };
 }
 
 export class Clock {
@@ -23,8 +23,6 @@ export class Clock {
   advance(physicalTime: number): Hlc {
     if (physicalTime > this.last.physical) {
       this.last = { physical: physicalTime, logical: 0 };
-    } else if (physicalTime === this.last.physical) {
-      this.last = { physical: this.last.physical, logical: this.last.logical + 1 };
     } else {
       this.last = { physical: this.last.physical, logical: this.last.logical + 1 };
     }
