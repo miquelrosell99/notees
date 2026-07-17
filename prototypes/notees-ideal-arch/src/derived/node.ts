@@ -8,7 +8,7 @@ export function applyNodeOperation(db: Database, op: Operation): void {
 
   if (opType === "node.create") {
     db.run(
-      `INSERT INTO node (id, workspace_id, kind, class_ids, parent_id, content, created_at, updated_at, created_by, updated_by)
+      `INSERT OR IGNORE INTO node (id, workspace_id, kind, class_ids, parent_id, content, created_at, updated_at, created_by, updated_by)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         payload.nodeId,
