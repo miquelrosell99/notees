@@ -91,6 +91,14 @@ test("derived state is reconstructible from operation log", () => {
     .all();
   expect(props2).toEqual(props1);
 
+  const tombstones1 = db1
+    .query("SELECT node_id, property_schema_id, idx, hlc_physical, hlc_logical, actor_id FROM property_value_tombstone ORDER BY node_id, property_schema_id, idx")
+    .all();
+  const tombstones2 = db2
+    .query("SELECT node_id, property_schema_id, idx, hlc_physical, hlc_logical, actor_id FROM property_value_tombstone ORDER BY node_id, property_schema_id, idx")
+    .all();
+  expect(tombstones2).toEqual(tombstones1);
+
   const order1 = db1
     .query("SELECT parent_id, child_id FROM node_child_order ORDER BY parent_id, child_id")
     .all();

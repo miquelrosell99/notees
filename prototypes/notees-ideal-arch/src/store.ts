@@ -185,4 +185,12 @@ export class WorkspaceStore {
   getBacklinks(nodeId: string): string[] {
     return getBacklinks(this.db, nodeId);
   }
+
+  getDb(): Database {
+    return this.db;
+  }
+
+  getWorkspaceId(): string {
+    return this.workspaceId;
+  }
 }

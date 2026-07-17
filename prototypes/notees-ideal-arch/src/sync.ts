@@ -1,10 +1,8 @@
 import type { WorkspaceStore } from "./store";
 import type { MemoryRelay } from "./relay";
-import type { EncryptedEnvelope } from "./crypto";
 import { decryptEnvelope, encryptEnvelope } from "./crypto";
 import type { Operation } from "./operation";
 import { createOperation } from "./operation";
-import type { Database } from "bun:sqlite";
 import { compareHlc, maxHlc, type Hlc } from "./clock";
 
 export class SyncEngine {
@@ -18,17 +16,9 @@ export class SyncEngine {
     this.lastReceivedHlc = this.loadWatermark();
   }
 
-  private getWorkspaceId(): string {
-    return (this.store as any).workspaceId as string;
-  }
-
-  private getDb(): Database {
-    return (this.store as any).db as Database;
-  }
-
   private loadWatermark(): Hlc {
-    const db = this.getDb();
-    const workspaceId = this.getWorkspaceId();
+    const db = this.store.getDb();
+    const workspaceId = this.store.getWorkspaceId();
     const row = db
       .query("SELECT hlc_physical, hlc_logical FROM sync_watermark WHERE workspace_id = ?")
       .get(workspaceId) as { hlc_physical: number; hlc_logical: number } | undefined;
@@ -36,8 +26,8 @@ export class SyncEngine {
   }
 
   private saveWatermark(hlc: Hlc): void {
-    const db = this.getDb();
-    const workspaceId = this.getWorkspaceId();
+    const db = this.store.getDb();
+    const workspaceId = this.store.getWorkspaceId();
     db.run(
       `INSERT INTO sync_watermark (workspace_id, hlc_physical, hlc_logical)
        VALUES (?, ?, ?)
@@ -49,7 +39,7 @@ export class SyncEngine {
   }
 
   async pushTo(relay: MemoryRelay): Promise<void> {
-    const db = this.getDb();
+    const db = this.store.getDb();
     const rows = db
       .query("SELECT * FROM operation ORDER BY hlc_physical ASC, hlc_logical ASC")
       .all() as any[];
@@ -77,7 +67,7 @@ export class SyncEngine {
   }
 
   async pullFrom(relay: MemoryRelay): Promise<void> {
-    const workspaceId = this.getWorkspaceId();
+    const workspaceId = this.store.getWorkspaceId();
     const envelopes = relay.catchUp(workspaceId, this.lastReceivedHlc);
     envelopes.sort((a, b) => {
       const cmp = compareHlc(a.hlc, b.hlc);

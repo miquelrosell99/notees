@@ -139,3 +139,163 @@ test("property.unset ignores stale unset when newer set exists", () => {
     .get("node-1", "status") as { value: string };
   expect(JSON.parse(row.value)).toEqual({ value: "active" });
 });
+
+test("tombstone blocks stale property.set after concurrent unset", () => {
+  const db = new Database(":memory:");
+  createSchema(db);
+  db.run("INSERT INTO node (id, workspace_id, kind, class_ids, content) VALUES (?, ?, ?, ?, ?)", [
+    "node-1", "ws-1", "page", "[]", "[]",
+  ]);
+
+  const setOp = createOperation(
+    {
+      workspaceId: "ws-1",
+      actorId: "actor-1",
+      hlc: { physical: 1000, logical: 0 },
+      affectedNodeIds: ["node-1"],
+      opType: "property.set",
+    },
+    { propertyValueId: "pv-1", nodeId: "node-1", schemaId: "status", index: 0, value: { value: "active" } }
+  );
+  applyPropertyOperation(db, setOp);
+
+  const unsetOp = createOperation(
+    {
+      workspaceId: "ws-1",
+      actorId: "actor-2",
+      hlc: { physical: 2000, logical: 0 },
+      affectedNodeIds: ["node-1"],
+      opType: "property.unset",
+    },
+    { nodeId: "node-1", schemaId: "status", index: 0 }
+  );
+  applyPropertyOperation(db, unsetOp);
+
+  const staleSetOp = createOperation(
+    {
+      workspaceId: "ws-1",
+      actorId: "actor-1",
+      hlc: { physical: 1500, logical: 0 },
+      affectedNodeIds: ["node-1"],
+      opType: "property.set",
+    },
+    { propertyValueId: "pv-2", nodeId: "node-1", schemaId: "status", index: 0, value: { value: "stale" } }
+  );
+  applyPropertyOperation(db, staleSetOp);
+
+  const row = db
+    .query("SELECT 1 FROM property_value WHERE node_id = ? AND property_schema_id = ?")
+    .get("node-1", "status");
+  expect(row).toBeNull();
+});
+
+test("tombstone wins property.unset tie-break by actor id", () => {
+  const db = new Database(":memory:");
+  createSchema(db);
+  db.run("INSERT INTO node (id, workspace_id, kind, class_ids, content) VALUES (?, ?, ?, ?, ?)", [
+    "node-1", "ws-1", "page", "[]", "[]",
+  ]);
+
+  const setOp = createOperation(
+    {
+      workspaceId: "ws-1",
+      actorId: "actor-b",
+      hlc: { physical: 1000, logical: 0 },
+      affectedNodeIds: ["node-1"],
+      opType: "property.set",
+    },
+    { propertyValueId: "pv-1", nodeId: "node-1", schemaId: "status", index: 0, value: { value: "active" } }
+  );
+  applyPropertyOperation(db, setOp);
+
+  const unsetOp = createOperation(
+    {
+      workspaceId: "ws-1",
+      actorId: "actor-c",
+      hlc: { physical: 1000, logical: 0 },
+      affectedNodeIds: ["node-1"],
+      opType: "property.unset",
+    },
+    { nodeId: "node-1", schemaId: "status", index: 0 }
+  );
+  applyPropertyOperation(db, unsetOp);
+
+  const row = db
+    .query("SELECT 1 FROM property_value WHERE node_id = ? AND property_schema_id = ?")
+    .get("node-1", "status");
+  expect(row).toBeNull();
+});
+
+test("property.unset loses tie-break when actor id is lower than existing set", () => {
+  const db = new Database(":memory:");
+  createSchema(db);
+  db.run("INSERT INTO node (id, workspace_id, kind, class_ids, content) VALUES (?, ?, ?, ?, ?)", [
+    "node-1", "ws-1", "page", "[]", "[]",
+  ]);
+
+  const setOp = createOperation(
+    {
+      workspaceId: "ws-1",
+      actorId: "actor-b",
+      hlc: { physical: 1000, logical: 0 },
+      affectedNodeIds: ["node-1"],
+      opType: "property.set",
+    },
+    { propertyValueId: "pv-1", nodeId: "node-1", schemaId: "status", index: 0, value: { value: "active" } }
+  );
+  applyPropertyOperation(db, setOp);
+
+  const unsetOp = createOperation(
+    {
+      workspaceId: "ws-1",
+      actorId: "actor-a",
+      hlc: { physical: 1000, logical: 0 },
+      affectedNodeIds: ["node-1"],
+      opType: "property.unset",
+    },
+    { nodeId: "node-1", schemaId: "status", index: 0 }
+  );
+  applyPropertyOperation(db, unsetOp);
+
+  const row = db
+    .query("SELECT value FROM property_value WHERE node_id = ? AND property_schema_id = ?")
+    .get("node-1", "status") as { value: string };
+  expect(JSON.parse(row.value)).toEqual({ value: "active" });
+});
+
+test("property.set wins tie-break by actor id when HLCs are equal", () => {
+  const db = new Database(":memory:");
+  createSchema(db);
+  db.run("INSERT INTO node (id, workspace_id, kind, class_ids, content) VALUES (?, ?, ?, ?, ?)", [
+    "node-1", "ws-1", "page", "[]", "[]",
+  ]);
+
+  const setOpA = createOperation(
+    {
+      workspaceId: "ws-1",
+      actorId: "actor-a",
+      hlc: { physical: 1000, logical: 0 },
+      affectedNodeIds: ["node-1"],
+      opType: "property.set",
+    },
+    { propertyValueId: "pv-1", nodeId: "node-1", schemaId: "status", index: 0, value: { value: "a" } }
+  );
+  applyPropertyOperation(db, setOpA);
+
+  const setOpB = createOperation(
+    {
+      workspaceId: "ws-1",
+      actorId: "actor-b",
+      hlc: { physical: 1000, logical: 0 },
+      affectedNodeIds: ["node-1"],
+      opType: "property.set",
+    },
+    { propertyValueId: "pv-2", nodeId: "node-1", schemaId: "status", index: 0, value: { value: "b" } }
+  );
+  applyPropertyOperation(db, setOpB);
+
+  const row = db
+    .query("SELECT value FROM property_value WHERE node_id = ? AND property_schema_id = ?")
+    .get("node-1", "status") as { value: string };
+  expect(JSON.parse(row.value)).toEqual({ value: "b" });
+});

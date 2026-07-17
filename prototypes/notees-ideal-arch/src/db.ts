@@ -67,7 +67,18 @@ export function createSchema(db: Database): void {
       idx INTEGER NOT NULL DEFAULT 0,
       hlc_physical INTEGER NOT NULL DEFAULT 0,
       hlc_logical INTEGER NOT NULL DEFAULT 0,
+      actor_id TEXT,
       UNIQUE(node_id, property_schema_id, idx)
+    );
+
+    CREATE TABLE IF NOT EXISTS property_value_tombstone (
+      node_id TEXT NOT NULL,
+      property_schema_id TEXT NOT NULL,
+      idx INTEGER NOT NULL DEFAULT 0,
+      hlc_physical INTEGER NOT NULL DEFAULT 0,
+      hlc_logical INTEGER NOT NULL DEFAULT 0,
+      actor_id TEXT,
+      PRIMARY KEY (node_id, property_schema_id, idx)
     );
 
     CREATE TABLE IF NOT EXISTS edge (
