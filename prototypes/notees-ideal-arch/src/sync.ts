@@ -5,19 +5,51 @@ import { decryptEnvelope, encryptEnvelope } from "./crypto";
 import type { Operation } from "./operation";
 import { createOperation } from "./operation";
 import type { Database } from "bun:sqlite";
-import { maxHlc, type Hlc } from "./clock";
+import { compareHlc, maxHlc, type Hlc } from "./clock";
 
 export class SyncEngine {
-  private lastReceivedHlc: Hlc = { physical: 0, logical: 0 };
+  private lastReceivedHlc: Hlc;
 
   constructor(
     private store: WorkspaceStore,
     private actorId: string,
     private key: CryptoKey
-  ) {}
+  ) {
+    this.lastReceivedHlc = this.loadWatermark();
+  }
+
+  private getWorkspaceId(): string {
+    return (this.store as any).workspaceId as string;
+  }
+
+  private getDb(): Database {
+    return (this.store as any).db as Database;
+  }
+
+  private loadWatermark(): Hlc {
+    const db = this.getDb();
+    const workspaceId = this.getWorkspaceId();
+    const row = db
+      .query("SELECT hlc_physical, hlc_logical FROM sync_watermark WHERE workspace_id = ?")
+      .get(workspaceId) as { hlc_physical: number; hlc_logical: number } | undefined;
+    return row ? { physical: row.hlc_physical, logical: row.hlc_logical } : { physical: 0, logical: 0 };
+  }
+
+  private saveWatermark(hlc: Hlc): void {
+    const db = this.getDb();
+    const workspaceId = this.getWorkspaceId();
+    db.run(
+      `INSERT INTO sync_watermark (workspace_id, hlc_physical, hlc_logical)
+       VALUES (?, ?, ?)
+       ON CONFLICT(workspace_id) DO UPDATE SET
+         hlc_physical = excluded.hlc_physical,
+         hlc_logical = excluded.hlc_logical`,
+      [workspaceId, hlc.physical, hlc.logical]
+    );
+  }
 
   async pushTo(relay: MemoryRelay): Promise<void> {
-    const db = (this.store as any).db as Database;
+    const db = this.getDb();
     const rows = db
       .query("SELECT * FROM operation ORDER BY hlc_physical ASC, hlc_logical ASC")
       .all() as any[];
@@ -45,8 +77,9 @@ export class SyncEngine {
   }
 
   async pullFrom(relay: MemoryRelay): Promise<void> {
-    const workspaceId = (this.store as any).workspaceId as string;
+    const workspaceId = this.getWorkspaceId();
     const envelopes = relay.catchUp(workspaceId, this.lastReceivedHlc);
+    envelopes.sort((a, b) => compareHlc(a.hlc, b.hlc));
     for (const env of envelopes) {
       const payload = await decryptEnvelope(env, this.key);
       const op = createOperation(
@@ -63,5 +96,6 @@ export class SyncEngine {
       this.store.apply(op);
       this.lastReceivedHlc = maxHlc(this.lastReceivedHlc, env.hlc);
     }
+    this.saveWatermark(this.lastReceivedHlc);
   }
 }
