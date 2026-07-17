@@ -13,20 +13,22 @@ test("derived state is reconstructible from operation log", () => {
   const store1 = new WorkspaceStore(db1, "ws-1", "actor-1");
 
   const parentId = uuidv7();
+  const otherParentId = uuidv7();
   const childId = uuidv7();
-  const propertyValueId = uuidv7();
-  const schemaId = uuidv7();
 
   store1.createNode({ nodeId: parentId, kind: "page", parentId: null });
+  store1.createNode({ nodeId: otherParentId, kind: "page", parentId: null });
+  store1.updateText(parentId, (t) => t.insert(0, "Parent title"));
+
   store1.createNode({ nodeId: childId, kind: "block", parentId: parentId });
+  store1.moveNode(childId, otherParentId);
   store1.updateText(childId, (t) => t.insert(0, "Hello"));
   store1.setProperty({
-    propertyValueId,
-    nodeId: parentId,
-    schemaId,
-    value: { value: "active" },
+    propertyValueId: uuidv7(),
+    nodeId: childId,
+    schemaId: uuidv7(),
+    value: { value: "child-value" },
   });
-  store1.moveNode(childId, null);
   store1.deleteNode(childId);
 
   const db2 = new Database(":memory:");
@@ -96,4 +98,17 @@ test("derived state is reconstructible from operation log", () => {
   const edges1 = db1.query("SELECT source_id, target_id, type FROM edge ORDER BY source_id, target_id").all();
   const edges2 = db2.query("SELECT source_id, target_id, type FROM edge ORDER BY source_id, target_id").all();
   expect(edges2).toEqual(edges1);
+
+  const crdt1 = db1
+    .query("SELECT node_id, text_state, tree_state FROM crdt_state ORDER BY node_id")
+    .all() as { node_id: string; text_state: Uint8Array; tree_state: Uint8Array }[];
+  const crdt2 = db2
+    .query("SELECT node_id, text_state, tree_state FROM crdt_state ORDER BY node_id")
+    .all() as { node_id: string; text_state: Uint8Array; tree_state: Uint8Array }[];
+  expect(crdt2.length).toBe(crdt1.length);
+  for (let i = 0; i < crdt1.length; i++) {
+    expect(crdt2[i].node_id).toBe(crdt1[i].node_id);
+    expect(crdt2[i].text_state).toEqual(crdt1[i].text_state);
+    expect(crdt2[i].tree_state).toEqual(crdt1[i].tree_state);
+  }
 });
