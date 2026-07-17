@@ -14,8 +14,10 @@ test("node.delete cascades to derived tables", () => {
   const schemaId = uuidv7();
 
   store.createNode({ nodeId: parentId, kind: "page", parentId: null });
-  store.createNode({ nodeId: childId, kind: "block", parentId: parentId });
   store.createNode({ nodeId: otherId, kind: "page", parentId: null });
+  store.createNode({ nodeId: childId, kind: "block", parentId: parentId });
+  // Populate node_child_order by moving the child; createNode alone does not.
+  store.moveNode(childId, otherId);
   store.updateText(childId, (t) => t.insert(0, "Hello [[ref]]"));
   store.setProperty({ propertyValueId, nodeId: childId, schemaId, value: { value: "active" } });
 
