@@ -158,24 +158,30 @@ Alternatives considered and rejected:
 
 **Goal:** Make QueryAST compile to SQLite SQL against the new derived tables.
 
-**Status:** Pending.
+**Status:** In progress. Detailed plan: `agents/plans/phase3-queryast-sqlite.md`.
 
 **Deliverables:**
 1. `app/core/query_ast/` — SQLite SQL compiler mirroring `app/domain/services/query_ast_sql.py`.
 2. Frontend QueryAST compiler `frontend/src/core/query/compileToSqlite.ts`.
-3. Test parity: run existing QueryAST test cases against the SQLite compiler.
+3. Add `class_hierarchy` derived table (backend replay + frontend schema/appliers) to support class inheritance queries.
+4. Test parity: run existing QueryAST test cases against the SQLite compiler.
 
 **Files to create/modify:**
 - Create `app/core/query_ast/`.
 - Create `frontend/src/core/query/`.
 - Create `tests/core/query_ast/`.
+- Modify `app/core/migration/replay.py` for `class_hierarchy`.
+- Modify `frontend/src/core/db/schema.ts` and derived appliers for `class_hierarchy`.
 
 **Verification:**
+- `uv run pytest tests/core/query_ast -m unit --no-cov`
+- `cd frontend && npm run test:run src/core/query && npx tsc -b --noEmit`
 - Existing QueryAST fixtures produce equivalent results against SQLite derived state.
 
 **Subagent breakdown:**
-- Subagent C1: Backend SQLite QueryAST compiler.
-- Subagent C2: Frontend SQLite QueryAST compiler + tests.
+- Subagent C1: Backend SQLite QueryAST compiler + `class_hierarchy` replay extension.
+- Subagent C2: Frontend SQLite QueryAST compiler + `class_hierarchy` schema/applier extension.
+- Subagent C3: Parity tests comparing PostgreSQL and SQLite compilers on shared fixtures.
 
 ---
 
