@@ -180,7 +180,7 @@ Alternatives considered and rejected:
 
 **Subagent breakdown:**
 - Subagent C1: Backend SQLite QueryAST compiler + `class_hierarchy` replay extension.
-- Subagent C2: Frontend SQLite QueryAST compiler + `class_hierarchy` schema/applier extension.
+- Subagent C2: Frontend SQLite QueryAST compiler + `class_hierarchy` schema/applier extension. ✅ Done
 - Subagent C3: Parity tests comparing PostgreSQL and SQLite compilers on shared fixtures.
 
 ---
