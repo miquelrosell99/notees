@@ -1,5 +1,5 @@
 import type { EncryptedEnvelope } from "./crypto";
-import type { Hlc } from "./clock";
+import { compareHlc } from "./clock";
 
 export class MemoryRelay {
   private envelopes = new Map<string, EncryptedEnvelope[]>();
@@ -19,10 +19,8 @@ export class MemoryRelay {
     this.subscribers.set(workspaceId, list);
   }
 
-  catchUp(workspaceId: string, afterHlc: Hlc): EncryptedEnvelope[] {
+  catchUp(workspaceId: string, afterHlc: { physical: number; logical: number }): EncryptedEnvelope[] {
     const list = this.envelopes.get(workspaceId) ?? [];
-    return list.filter(
-      (env) => env.hlc.physical > afterHlc.physical || (env.hlc.physical === afterHlc.physical && env.hlc.logical > afterHlc.logical)
-    );
+    return list.filter((env) => compareHlc(env.hlc, afterHlc) >= 0);
   }
 }
