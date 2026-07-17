@@ -20,7 +20,7 @@ export class TextCrdt {
     this.text.delete(index, length);
   }
 
-  toString(): string {
+  toPlaintext(): string {
     return this.text.toString();
   }
 
