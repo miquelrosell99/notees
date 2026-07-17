@@ -1,0 +1,17 @@
+{
+  "name": "notees-ideal-arch-prototype",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "test": "bun test",
+    "dev": "bun run src/main.ts"
+  },
+  "dependencies": {
+    "uuidv7": "^1.0.0",
+    "yjs": "^13.6.0"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.5.0"
+  }
+}
