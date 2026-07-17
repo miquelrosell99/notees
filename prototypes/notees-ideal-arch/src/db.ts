@@ -65,6 +65,8 @@ export function createSchema(db: Database): void {
       property_schema_id TEXT NOT NULL,
       value TEXT NOT NULL,
       idx INTEGER NOT NULL DEFAULT 0,
+      hlc_physical INTEGER NOT NULL DEFAULT 0,
+      hlc_logical INTEGER NOT NULL DEFAULT 0,
       UNIQUE(node_id, property_schema_id, idx)
     );
 
@@ -89,6 +91,12 @@ export function createSchema(db: Database): void {
       node_id UNINDEXED,
       content,
       tokenize='porter unicode61'
+    );
+
+    CREATE TABLE IF NOT EXISTS sync_watermark (
+      workspace_id TEXT PRIMARY KEY,
+      hlc_physical INTEGER NOT NULL,
+      hlc_logical INTEGER NOT NULL
     );
   `);
 }
