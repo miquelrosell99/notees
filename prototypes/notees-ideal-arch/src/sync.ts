@@ -79,7 +79,11 @@ export class SyncEngine {
   async pullFrom(relay: MemoryRelay): Promise<void> {
     const workspaceId = this.getWorkspaceId();
     const envelopes = relay.catchUp(workspaceId, this.lastReceivedHlc);
-    envelopes.sort((a, b) => compareHlc(a.hlc, b.hlc));
+    envelopes.sort((a, b) => {
+      const cmp = compareHlc(a.hlc, b.hlc);
+      if (cmp !== 0) return cmp;
+      return a.id.localeCompare(b.id);
+    });
     for (const env of envelopes) {
       const payload = await decryptEnvelope(env, this.key);
       const op = createOperation(

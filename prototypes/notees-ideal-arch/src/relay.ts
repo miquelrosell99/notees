@@ -21,6 +21,6 @@ export class MemoryRelay {
 
   catchUp(workspaceId: string, afterHlc: { physical: number; logical: number }): EncryptedEnvelope[] {
     const list = this.envelopes.get(workspaceId) ?? [];
-    return list.filter((env) => compareHlc(env.hlc, afterHlc) >= 0);
+    return list.filter((env) => compareHlc(env.hlc, afterHlc) > 0);
   }
 }
