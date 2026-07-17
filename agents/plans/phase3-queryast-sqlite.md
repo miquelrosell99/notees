@@ -101,9 +101,10 @@ docker compose -f compose.dev.yaml exec frontend npm run test:run src/core/query
   - Create `app/core/query_ast/compiler.py`, `__init__.py`, and backend tests.
   - Extend `app/core/migration/replay.py` with `class_hierarchy`.
   - Add `tests/core/query_ast/` coverage.
-- **Subagent C2 — Frontend SQLite compiler**
-  - Create `frontend/src/core/query/compileToSqlite.ts` and tests.
-  - Extend `frontend/src/core/db/schema.ts` and derived appliers with `class_hierarchy`.
+- **Subagent C2 — Frontend SQLite compiler** ✅ Done
+  - Created `frontend/src/core/query/compileToSqlite.ts` and `frontend/src/core/query/__tests__/compileToSqlite.test.ts`.
+  - Added `class_hierarchy` table to `frontend/src/core/db/schema.ts` and populated it from `class.create`/`class.update` in `frontend/src/core/derived/node.ts`.
+  - Caveats: dynamic `nested_group` modes for path conditions are implemented but not exhaustively tested; `regex`/`fts` content operators and tag conditions remain out of scope as documented.
 - **Subagent C3 — Cross-check / parity**
   - Build shared fixture-based tests that compile the same AST with both PostgreSQL and SQLite compilers and compare results.
   - Validate against the real migrated SQLite state produced by Phase 2.
