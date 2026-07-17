@@ -6,7 +6,7 @@ import { applyNodeOperation } from "./derived/node";
 import { applyChildOrderOperation } from "./derived/childOrder";
 import { applyPropertyOperation } from "./derived/property";
 import { rebuildEdgesForNode } from "./derived/edge";
-import { loadTextCrdt } from "./derived/crdtState";
+import { loadTextCrdt, loadTreeCrdt, saveTreeCrdt } from "./derived/crdtState";
 import { createOperation, type Operation } from "./operation";
 
 export class WorkspaceStore {
@@ -84,6 +84,45 @@ export class WorkspaceStore {
   }
 
   moveNode(nodeId: string, newParentId: string | null): void {
+    const oldParentRow = this.db
+      .query("SELECT parent_id FROM node WHERE id = ?")
+      .get(nodeId) as { parent_id: string | null } | undefined;
+    const oldParentId = oldParentRow?.parent_id ?? null;
+
+    if (oldParentId !== null) {
+      const oldTree = loadTreeCrdt(this.db, oldParentId);
+      oldTree.delete(nodeId);
+      saveTreeCrdt(this.db, oldParentId, oldTree);
+      const oldUpdateOp = createOperation(
+        {
+          workspaceId: this.workspaceId,
+          actorId: this.actorId,
+          hlc: this.clock.advance(Date.now()),
+          affectedNodeIds: [oldParentId],
+          opType: "node.updateContent",
+        },
+        { nodeId: oldParentId, treeUpdate: Array.from(oldTree.getState()) }
+      );
+      this.apply(oldUpdateOp);
+    }
+
+    if (newParentId !== null) {
+      const newTree = loadTreeCrdt(this.db, newParentId);
+      newTree.insert(nodeId, newTree.toArray().length);
+      saveTreeCrdt(this.db, newParentId, newTree);
+      const newUpdateOp = createOperation(
+        {
+          workspaceId: this.workspaceId,
+          actorId: this.actorId,
+          hlc: this.clock.advance(Date.now()),
+          affectedNodeIds: [newParentId],
+          opType: "node.updateContent",
+        },
+        { nodeId: newParentId, treeUpdate: Array.from(newTree.getState()) }
+      );
+      this.apply(newUpdateOp);
+    }
+
     const op = createOperation(
       {
         workspaceId: this.workspaceId,
@@ -93,6 +132,20 @@ export class WorkspaceStore {
         opType: "node.move",
       },
       { nodeId, newParentId }
+    );
+    this.apply(op);
+  }
+
+  deleteNode(nodeId: string): void {
+    const op = createOperation(
+      {
+        workspaceId: this.workspaceId,
+        actorId: this.actorId,
+        hlc: this.clock.advance(Date.now()),
+        affectedNodeIds: [nodeId],
+        opType: "node.delete",
+      },
+      { nodeId }
     );
     this.apply(op);
   }

@@ -24,7 +24,12 @@ export function applyNodeOperation(db: Database, op: Operation): void {
       ]
     );
   } else if (opType === "node.delete") {
-    db.run("DELETE FROM node WHERE id = ?", [payload.nodeId]);
+    const nodeId = payload.nodeId;
+    db.run("DELETE FROM node WHERE id = ?", [nodeId]);
+    db.run("DELETE FROM node_child_order WHERE parent_id = ? OR child_id = ?", [nodeId, nodeId]);
+    db.run("DELETE FROM property_value WHERE node_id = ?", [nodeId]);
+    db.run("DELETE FROM edge WHERE source_id = ? OR target_id = ?", [nodeId, nodeId]);
+    db.run("DELETE FROM crdt_state WHERE node_id = ?", [nodeId]);
   } else if (opType === "node.move") {
     db.run("UPDATE node SET parent_id = ?, updated_at = ?, updated_by = ? WHERE id = ?", [
       payload.newParentId ?? null,
