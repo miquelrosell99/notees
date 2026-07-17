@@ -34,6 +34,7 @@ export class SyncEngine {
         payload: JSON.parse(row.payload),
       };
       const encrypted = await encryptEnvelope(op.payload, this.key, {
+        id: op.envelope.id,
         actorId: op.envelope.actorId,
         affectedNodeIds: op.envelope.affectedNodeIds,
         opType: op.envelope.opType,
@@ -50,6 +51,7 @@ export class SyncEngine {
       const payload = await decryptEnvelope(env, this.key);
       const op = createOperation(
         {
+          id: env.id,
           workspaceId,
           actorId: env.actorId,
           hlc: env.hlc,
