@@ -27,10 +27,23 @@ export function applyPropertyOperation(db: Database, op: Operation): void {
       );
     }
   } else if (op.envelope.opType === "property.unset") {
-    db.run("DELETE FROM property_value WHERE node_id = ? AND property_schema_id = ? AND idx = ?", [
-      payload.nodeId,
-      payload.schemaId,
-      payload.index ?? 0,
-    ]);
+    const incomingHlc = op.envelope.hlc;
+    const existing = db
+      .query("SELECT hlc_physical, hlc_logical FROM property_value WHERE node_id = ? AND property_schema_id = ? AND idx = ?")
+      .get(payload.nodeId, payload.schemaId, payload.index ?? 0) as
+      | { hlc_physical: number; hlc_logical: number }
+      | undefined;
+    if (existing) {
+      const existingHlc = { physical: existing.hlc_physical, logical: existing.hlc_logical };
+      if (compareHlc(incomingHlc, existingHlc) >= 0) {
+        db.run("DELETE FROM property_value WHERE node_id = ? AND property_schema_id = ? AND idx = ?", [
+          payload.nodeId,
+          payload.schemaId,
+          payload.index ?? 0,
+        ]);
+      }
+    } else {
+      // Nothing to unset; stale unset is a no-op.
+    }
   }
 }
