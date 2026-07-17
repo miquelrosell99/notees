@@ -1,5 +1,6 @@
 import { Database } from "bun:sqlite";
 import type { Operation } from "../operation";
+import { loadTextCrdt, saveTextCrdt } from "./crdtState";
 
 export function applyNodeOperation(db: Database, op: Operation): void {
   const { opType } = op.envelope;
@@ -57,5 +58,18 @@ export function applyNodeOperation(db: Database, op: Operation): void {
       op.envelope.actorId,
       payload.nodeId,
     ]);
+  } else if (opType === "node.updateContent") {
+    if (payload.textUpdate) {
+      const text = loadTextCrdt(db, payload.nodeId);
+      text.applyUpdate(Uint8Array.from(payload.textUpdate));
+      saveTextCrdt(db, payload.nodeId, text);
+      const ast = [{ type: "text", text: text.toPlaintext() }];
+      db.run("UPDATE node SET content = ?, updated_at = ?, updated_by = ? WHERE id = ?", [
+        JSON.stringify(ast),
+        new Date().toISOString(),
+        op.envelope.actorId,
+        payload.nodeId,
+      ]);
+    }
   }
 }
