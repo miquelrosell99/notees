@@ -32,27 +32,33 @@ export function rebuildEdgesForNode(db: Database, nodeId: string): void {
     | undefined;
   if (!node) return;
 
-  db.run("DELETE FROM edge WHERE source_id = ?", [nodeId]);
-
   const content = JSON.parse(node.content) as any[];
-  const targets = extractRefTargets(content);
-  const stmt = db.prepare(
+  const desired = new Map<string, { label: string | null; metadata: string }>();
+  for (const { targetId, label } of extractRefTargets(content)) {
+    desired.set(targetId, { label, metadata: JSON.stringify({ label }) });
+  }
+
+  const existingRows = db
+    .query("SELECT id, target_id, metadata FROM edge WHERE source_id = ? AND type = ?")
+    .all(nodeId, "reference") as { id: string; target_id: string; metadata: string }[];
+
+  for (const row of existingRows) {
+    const wanted = desired.get(row.target_id);
+    if (!wanted) {
+      db.run("DELETE FROM edge WHERE id = ?", [row.id]);
+    } else if (row.metadata !== wanted.metadata) {
+      db.run("UPDATE edge SET metadata = ? WHERE id = ?", [wanted.metadata, row.id]);
+    }
+    desired.delete(row.target_id);
+  }
+
+  const insert = db.prepare(
     "INSERT INTO edge (id, workspace_id, source_id, target_id, type, property_schema_id, metadata, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
   );
-
-  for (const { targetId, label } of targets) {
-    stmt.run(
-      uuidv7(),
-      node.workspace_id,
-      nodeId,
-      targetId,
-      "reference",
-      null,
-      JSON.stringify({ label }),
-      new Date().toISOString()
-    );
+  for (const [targetId, { metadata }] of desired) {
+    insert.run(uuidv7(), node.workspace_id, nodeId, targetId, "reference", null, metadata, new Date().toISOString());
   }
-  stmt.finalize();
+  insert.finalize();
 }
 
 export function getBacklinks(db: Database, nodeId: string): string[] {
