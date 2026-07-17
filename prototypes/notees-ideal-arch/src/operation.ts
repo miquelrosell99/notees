@@ -31,12 +31,12 @@ const OP_TYPES = new Set([
 ]);
 
 export function createOperation(
-  partial: Omit<OperationEnvelope, "id">,
+  partial: Omit<OperationEnvelope, "id"> & { id?: string },
   payload: unknown
 ): Operation {
   return {
     envelope: {
-      id: uuidv7(),
+      id: partial.id ?? uuidv7(),
       ...partial,
     },
     payload,

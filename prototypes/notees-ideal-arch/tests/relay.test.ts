@@ -8,6 +8,7 @@ test("relay broadcasts and catches up envelopes per workspace", () => {
   relay.subscribe("ws-1", (env) => seen.push(env));
 
   const env: EncryptedEnvelope = {
+    id: "op-1",
     ciphertext: "abc",
     iv: "iv",
     actorId: "actor-1",

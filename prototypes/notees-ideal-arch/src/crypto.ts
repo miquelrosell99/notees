@@ -1,6 +1,7 @@
 import type { Hlc } from "./clock";
 
 export interface EncryptedEnvelope {
+  id: string;
   ciphertext: string; // base64
   iv: string; // base64
   actorId: string;
@@ -26,12 +27,13 @@ export async function deriveKey(password: string): Promise<CryptoKey> {
 export async function encryptEnvelope(
   payload: unknown,
   key: CryptoKey,
-  metadata: { actorId: string; affectedNodeIds: string[]; opType: string; hlc: Hlc }
+  metadata: { id: string; actorId: string; affectedNodeIds: string[]; opType: string; hlc: Hlc }
 ): Promise<EncryptedEnvelope> {
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const plaintext = ENCODER.encode(JSON.stringify(payload));
   const encrypted = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, plaintext);
   return {
+    id: metadata.id,
     ciphertext: btoa(String.fromCharCode(...new Uint8Array(encrypted))),
     iv: btoa(String.fromCharCode(...iv)),
     actorId: metadata.actorId,
