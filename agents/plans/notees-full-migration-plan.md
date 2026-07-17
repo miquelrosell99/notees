@@ -1,7 +1,7 @@
 # Notees Full Migration Plan: Current App → Ideal Architecture
 
 **Date:** 2026-07-17  
-**Branch:** `main` (caveat closure merged at `df9f567d`)  
+**Branch:** `main` (Phase 2 snapshot `cbb37cbf`)  
 **Scope:** Migrate the real Notees app (`app/`, `frontend/`, PostgreSQL) to the local-first, operation-log, CRDT-driven architecture defined in `docs/superpowers/specs/2026-07-17-notees-ideal-data-architecture-design.md`.
 
 ---
@@ -50,7 +50,7 @@ Alternatives considered and rejected:
 
 **Goal:** Establish the new architecture module tree and the operation-log/SQLite core inside the real Notees repo.
 
-**Status:** Done. Committed as `feat(core,relay,frontend): Phase 1 new core skeleton`.
+**Status:** Done. Committed as `feat(core,relay,frontend): Phase 1 new core skeleton` (`8c193397`).
 
 **Completed sub-tasks:**
 - A1: `app/core/` operation types, HLC, UUIDv7, validation (28 tests).
@@ -59,7 +59,7 @@ Alternatives considered and rejected:
 - A4: `pyproject.toml` packages, `@/core` Vite alias, relay router tests.
 
 **Verification:**
-- `uv run pytest tests/core -m unit --no-cov` → 45 passed.
+- `uv run pytest tests/core -m unit --no-cov` → 98 passed.
 - `uv run ruff check app/core app/relay tests/core pyproject.toml` → clean.
 - `cd frontend && npm run test:run src/core && npm run typecheck` → 6 passed, typecheck clean.
 
@@ -101,29 +101,50 @@ Alternatives considered and rejected:
 
 **Goal:** Export existing Notees workspaces into the new operation-log + SQLite format.
 
-**Status:** Pending.
+**Status:** Done. Snapshot commit `cbb37cbf`.
 
-**Deliverables:**
-1. `scripts/migrate_to_ideal.py` — read PostgreSQL, emit operations for every workspace.
-2. Operation generators for:
-   - `node.create` (pages, blocks, classes, with class assignments).
-   - `node.updateContent` (title/body text as CRDT updates).
-   - `node.move` (reconstruct tree positions).
-   - `propertySchema.create` and `property.set`.
-   - `class.create` / `class.update`.
-   - `node.delete` for soft-deleted rows.
-3. Asset migration: create `file` property nodes and copy blobs into content-addressed storage.
-4. Validation: replay generated operations into a test SQLite store and compare derived state against PostgreSQL.
+**Completed sub-tasks:**
+- B1: Node/hierarchy migration (`app/core/migration/nodes.py`).
+  - Reuses fixed PostgreSQL system-class UUIDs (`task`, `day`, `asset`, etc.).
+  - Creates soft-deleted-only nodes before deleting them so references stay valid.
+  - Skips `node.move` for dangling parent references.
+- B2: Property/class/schema migration (`app/core/migration/properties.py`).
+  - Maps legacy scalar/relation/selection values to `propertySchema.create` and `property.set`.
+  - Skips property values attached to deleted nodes.
+- B3: Asset/link/reference migration (`app/core/migration/assets.py`, `links.py`).
+  - Rewrites inline `node_link` AST entries with migrated target UUIDs.
+  - Maps asset rows to `asset` class file nodes and copies blobs content-addressed.
+- B4: Validation/replay (`app/core/migration/validation.py`, `replay.py`, `scripts/validate_migration.py`).
+  - Replays operations into SQLite and reports counts, orphans, duplicates.
+  - Recursively extracts reference edges from nested AST paragraphs.
 
-**Files to create/modify:**
-- Create `scripts/migrate_to_ideal.py`.
-- Create `app/core/migration/` package.
-- Create `tests/core/migration/` tests.
-- Read-only access to `app/db/schema/sql.py`, `app/features/nodes/`, `app/features/properties/`.
+**Key fixes applied during this phase:**
+- `_is_valid_uuid` now accepts `uuid.UUID` objects returned by asyncpg, so existing PostgreSQL UUIDs are preserved instead of regenerated.
+- System-class `class.assign` operations reference the same global UUIDs already stored in PostgreSQL, eliminating 2,474 orphans.
+- `node_link` edges are parsed from the first segment of `link_id`, raising edge count from 3 to ~16k (matching `node_link` row count).
+
+**Files created/modified:**
+- `app/core/migration/` package (nodes, properties, assets, links, replay, validation, writer, connection).
+- `scripts/validate_migration.py`.
+- `tests/core/migration/` test suite.
 
 **Verification:**
-- Migration script runs against a copy of production-like data.
-- Derived SQLite state matches PostgreSQL state for nodes, properties, hierarchy, and edges within tolerance.
+- `uv run pytest tests/core -m unit --no-cov` → 98 passed.
+- `uv run ruff check app/core/migration tests/core/migration scripts/validate_migration.py` → clean.
+- `uv run python scripts/validate_migration.py` against the live PostgreSQL database:
+  ```
+  Operations:        133,804
+  Nodes:             35,655
+  Hierarchy edges:   30,289
+  Properties:        3,160
+  Edges:             16,652
+  Orphan operations: 0
+  Duplicate ids:     0
+  ```
+  - Zero orphan operations and zero duplicate operation IDs.
+  - Edges align with the 16,658 `node_link` rows in PostgreSQL (small variance from duplicate source/target pairs).
+  - Hierarchy edges differ from PostgreSQL `parent_id IS NOT NULL` count (30,294) by 5 due to skipped dangling-parent moves.
+  - Node count differs from PostgreSQL live-node row count (36,021) because PostgreSQL duplicates system-class rows per workspace while the derived store uses a single UUID per system class.
 
 **Subagent breakdown:**
 - Subagent B1: Node/hierarchy migration.
@@ -277,4 +298,4 @@ Phase 1 → Phase 2 → Phase 3 → Phase 4 → Phase 5 → Phase 6
 
 ## Immediate Next Step
 
-Begin **Phase 1** by creating the `app/core/` skeleton and porting the operation-log/HLC/CRDT foundation from `prototypes/notees-ideal-arch/` into the production codebase.
+Begin **Phase 3** (QueryAST retarget to SQLite) by creating `app/core/query_ast/` and a SQLite SQL compiler that mirrors the current PostgreSQL QueryAST compiler against the new derived tables.
