@@ -101,6 +101,15 @@ export function createSchema(db: Database): void {
     -- sql.js is compiled without the FTS5 extension, so we use a plain table
     -- here. A production build that links a full SQLite can switch this back to
     -- a CREATE VIRTUAL TABLE ... USING fts5 statement without changing callers.
+    CREATE TABLE IF NOT EXISTS class_hierarchy (
+      class_id TEXT NOT NULL,
+      ancestor_id TEXT NOT NULL,
+      PRIMARY KEY (class_id, ancestor_id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_class_hierarchy_ancestor
+    ON class_hierarchy (ancestor_id);
+
     CREATE TABLE IF NOT EXISTS search_index (
       node_id TEXT PRIMARY KEY,
       content TEXT
