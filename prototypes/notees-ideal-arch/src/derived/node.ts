@@ -1,6 +1,7 @@
 import { Database } from "bun:sqlite";
 import type { Operation } from "../operation";
 import { loadTextCrdt, saveTextCrdt } from "./crdtState";
+import { reindexNode } from "./search";
 
 export function applyNodeOperation(db: Database, op: Operation): void {
   const { opType } = op.envelope;
@@ -76,6 +77,7 @@ export function applyNodeOperation(db: Database, op: Operation): void {
         op.envelope.actorId,
         payload.nodeId,
       ]);
+      reindexNode(db, payload.nodeId);
     }
   }
 }

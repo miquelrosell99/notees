@@ -5,7 +5,7 @@ import { createSchema } from "./db";
 import { applyNodeOperation } from "./derived/node";
 import { applyChildOrderOperation } from "./derived/childOrder";
 import { applyPropertyOperation } from "./derived/property";
-import { rebuildEdgesForNode } from "./derived/edge";
+import { getBacklinks, rebuildEdgesForNode } from "./derived/edge";
 import { loadTextCrdt, loadTreeCrdt, saveTreeCrdt } from "./derived/crdtState";
 import { createOperation, type Operation } from "./operation";
 
@@ -180,5 +180,9 @@ export class WorkspaceStore {
 
   getNode(id: string): { kind: string; content: string } {
     return this.db.query("SELECT kind, content FROM node WHERE id = ?").get(id) as { kind: string; content: string };
+  }
+
+  getBacklinks(nodeId: string): string[] {
+    return getBacklinks(this.db, nodeId);
   }
 }
