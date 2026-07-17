@@ -1,0 +1,91 @@
+import { describe, it, expect, beforeAll } from 'vitest';
+import { webcrypto } from 'node:crypto';
+import { WorkspaceStore } from '../store';
+import { uuidv7 } from '../uuid';
+import { createTestDatabase } from './helpers';
+
+describe('WorkspaceStore', () => {
+  beforeAll(() => {
+    if (!globalThis.crypto?.subtle) {
+      Object.defineProperty(globalThis, 'crypto', { value: webcrypto, configurable: true });
+    }
+  });
+
+  it('creates nodes', async () => {
+    const db = await createTestDatabase();
+    const workspaceId = uuidv7();
+    const actorId = uuidv7();
+    const store = new WorkspaceStore(db, workspaceId, actorId);
+
+    const nodeId = uuidv7();
+    store.createNode({ nodeId, kind: 'page', parentId: null });
+
+    const node = store.getNode(nodeId);
+    expect(node).toBeDefined();
+    expect(node?.kind).toBe('page');
+  });
+
+  it('updates text content', async () => {
+    const db = await createTestDatabase();
+    const workspaceId = uuidv7();
+    const actorId = uuidv7();
+    const store = new WorkspaceStore(db, workspaceId, actorId);
+
+    const nodeId = uuidv7();
+    store.createNode({ nodeId, kind: 'page', parentId: null });
+    store.updateText(nodeId, (text) => text.insert(0, 'Hello world'));
+
+    const node = store.getNode(nodeId);
+    expect(node).toBeDefined();
+    const content = JSON.parse(node!.content);
+    expect(content[0].text).toBe('Hello world');
+  });
+
+  it('moves nodes between parents', async () => {
+    const db = await createTestDatabase();
+    const workspaceId = uuidv7();
+    const actorId = uuidv7();
+    const store = new WorkspaceStore(db, workspaceId, actorId);
+
+    const parentId = uuidv7();
+    const childId = uuidv7();
+    store.createNode({ nodeId: parentId, kind: 'page', parentId: null });
+    store.createNode({ nodeId: childId, kind: 'block', parentId: null });
+    store.moveNode(childId, parentId);
+
+    expect(store.getChildren(parentId)).toContain(childId);
+  });
+
+  it('sets and unsets properties', async () => {
+    const db = await createTestDatabase();
+    const workspaceId = uuidv7();
+    const actorId = uuidv7();
+    const store = new WorkspaceStore(db, workspaceId, actorId);
+
+    const nodeId = uuidv7();
+    const schemaId = uuidv7();
+    const propertyValueId = uuidv7();
+    store.createNode({ nodeId, kind: 'page', parentId: null });
+    store.setProperty({ propertyValueId, nodeId, schemaId, value: 'done' });
+
+    const row = store.getProperty({ nodeId, schemaId });
+    expect(row).toBeDefined();
+    expect(JSON.parse(row!.value)).toBe('done');
+
+    store.unsetProperty({ nodeId, schemaId });
+    expect(store.getProperty({ nodeId, schemaId })).toBeUndefined();
+  });
+
+  it('deletes nodes and their derived state', async () => {
+    const db = await createTestDatabase();
+    const workspaceId = uuidv7();
+    const actorId = uuidv7();
+    const store = new WorkspaceStore(db, workspaceId, actorId);
+
+    const nodeId = uuidv7();
+    store.createNode({ nodeId, kind: 'page', parentId: null });
+    store.deleteNode(nodeId);
+
+    expect(store.getNode(nodeId)).toBeUndefined();
+  });
+});

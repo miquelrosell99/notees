@@ -1,0 +1,15 @@
+export { Clock, compareHlc, maxHlc } from './clock';
+export type { Hlc } from './clock';
+export { uuidv7 } from './uuid';
+export { TextCrdt, textOperationPayload } from './crdt/text';
+export { TreeCrdt, treeOperationPayload } from './crdt/tree';
+export { createOperation, validateOperation } from './types/operation';
+export type { Operation, OperationEnvelope } from './types/operation';
+export { createSchema } from './db/schema';
+export { createDatabase, openWorkspaceDatabase } from './db/connection';
+export { WorkspaceStore } from './store';
+export { SyncEngine } from './sync';
+export { MemoryRelay, MemoryTransport } from './transport';
+export type { Transport } from './transport';
+export { deriveKey, encryptEnvelope, decryptEnvelope } from './crypto';
+export type { EncryptedEnvelope } from './crypto';
