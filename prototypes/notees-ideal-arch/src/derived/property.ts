@@ -35,15 +35,14 @@ export function applyPropertyOperation(db: Database, op: Operation): void {
       | undefined;
     if (existing) {
       const existingHlc = { physical: existing.hlc_physical, logical: existing.hlc_logical };
-      if (compareHlc(incomingHlc, existingHlc) >= 0) {
+      if (compareHlc(incomingHlc, existingHlc) > 0) {
         db.run("DELETE FROM property_value WHERE node_id = ? AND property_schema_id = ? AND idx = ?", [
           payload.nodeId,
           payload.schemaId,
           payload.index ?? 0,
         ]);
       }
-    } else {
-      // Nothing to unset; stale unset is a no-op.
     }
+    // If there is no existing value, the unset is a no-op (nothing to delete).
   }
 }

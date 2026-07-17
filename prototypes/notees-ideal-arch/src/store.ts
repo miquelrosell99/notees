@@ -164,6 +164,20 @@ export class WorkspaceStore {
     this.apply(op);
   }
 
+  unsetProperty(args: { nodeId: string; schemaId: string; index?: number }): void {
+    const op = createOperation(
+      {
+        workspaceId: this.workspaceId,
+        actorId: this.actorId,
+        hlc: this.clock.advance(Date.now()),
+        affectedNodeIds: [args.nodeId],
+        opType: "property.unset",
+      },
+      { nodeId: args.nodeId, schemaId: args.schemaId, index: args.index ?? 0 }
+    );
+    this.apply(op);
+  }
+
   getNode(id: string): { kind: string; content: string } {
     return this.db.query("SELECT kind, content FROM node WHERE id = ?").get(id) as { kind: string; content: string };
   }
