@@ -15,7 +15,6 @@
  * 7-phase import pipeline.
  */
  
-// @ts-expect-error sql.js has no type declarations
 import initSqlJs, { type Database } from 'sql.js';
 import type {
   LogseqExport,
