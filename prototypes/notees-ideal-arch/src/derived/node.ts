@@ -24,6 +24,7 @@ export function applyNodeOperation(db: Database, op: Operation): void {
         op.envelope.actorId,
       ]
     );
+    reindexNode(db, payload.nodeId);
   } else if (opType === "node.delete") {
     const nodeId = payload.nodeId;
     db.run("DELETE FROM node WHERE id = ?", [nodeId]);
