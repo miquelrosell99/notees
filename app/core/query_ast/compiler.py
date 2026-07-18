@@ -237,15 +237,14 @@ ORDER BY {order_by_sql}"""
             return "n.id = ?"
 
         if scope_type == "specific_pages":
-            page_uuids = getattr(scope, "page_uuids", None) or scope.excluded_page_uuids or []
+            page_uuids = scope.page_uuids or []
             if not page_uuids:
                 return None
             placeholders = [self._add_param(u) for u in page_uuids]
-            self.params.append(self.workspace_id)
             if scope.include_descendants:
                 return (
                     f"pa.page_id IN (SELECT pa2.page_id FROM page_ancestors pa2 "
-                    f"WHERE pa2.id IN ({', '.join(placeholders)}) AND pa2.workspace_id = ?)"
+                    f"WHERE pa2.id IN ({', '.join(placeholders)}))"
                 )
             return f"pa.page_id IN ({', '.join(placeholders)})"
 
