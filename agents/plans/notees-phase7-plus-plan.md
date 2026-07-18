@@ -109,28 +109,28 @@ All legacy mutable-row consumers have been removed and the only runtime path is 
 ## Phase 9: Production Hardening (in progress)
 
 Current gaps discovered at the start of Phase 9:
-- `PostgresRelayStorage` is a stub; production still falls back to `SqliteRelayStorage`.
-- PostgreSQL has no `relay_envelope`, `snapshot`, or `compacted_operation_segment` schema.
 - Frontend schema has `snapshot`/`compacted_operation_segment` tables but no implementation.
 - `frontend/src/core/db/connection.ts` returns an in-memory DB; persistence helpers in `frontend/src/core/persistence/indexedDb.ts` are not wired in.
 - `SyncEngine.push()` re-pushes the entire operation log every sync; needs a push watermark or outbox.
 - No storage quota monitoring or warnings.
-- No relay rate-limiting or envelope-size validation.
 - No WebSocket reconnection/backoff tests or catch-up stress tests.
-- No Playwright E2E tests.
+- No Playwright E2E tests beyond the minimal auth/redirect smoke tests.
 
-### Phase 9A — Backend relay production adapter
+### Phase 9A — Backend relay production adapter (done)
 
-1. Add PostgreSQL relay schema (`app/db/schema/relay.sql` or migration):
-   - `relay_envelope` (id, workspace_id, actor_id, physical, logical, affected_node_ids JSONB, op_type, ciphertext, iv, timestamp).
-   - `relay_snapshot` (id, workspace_id, hlc, state_hash, data bytea/blob, created_at).
-   - `compacted_operation_segment` (id, workspace_id, from_hlc, to_hlc, snapshot_id, operation_count, created_at).
-   - Indexes for workspace + HLC, envelope id uniqueness.
-2. Implement `PostgresRelayStorage` in `app/relay/storage.py` using asyncpg.
-3. Switch `app/relay/dependencies.py::get_relay_storage` to return `PostgresRelayStorage` in production/dev and `SqliteRelayStorage` only in tests.
-4. Add `/api/relay/snapshot` maintenance endpoint and `app/relay/service.py` snapshot/compaction helpers.
-5. Add relay rate-limiting (per-actor/workspace batch buckets) and envelope size/HLC validation.
-6. Add WebSocket reconnection backoff and catch-up pagination stress tests.
+1. Added PostgreSQL relay schema (`app/db/schema/relay.sql`):
+   - `relay_envelope`, `relay_snapshot`, `compacted_operation_segment` with indexes.
+2. Implemented `PostgresRelayStorage` in `app/relay/storage.py` using asyncpg.
+3. Switched `get_relay_storage` to Postgres in non-test environments.
+4. Added `/api/relay/snapshot` and `/api/relay/compact` admin/owner endpoints.
+5. Added per-actor/workspace rate limiting and envelope/batch size validation.
+6. Added tests: `tests/core/test_relay_postgres_storage.py`,
+   `tests/core/test_relay_admin_endpoints.py`, plus updates to
+   `tests/core/test_relay.py`.
+
+**Verification:** `uv run pytest tests/core tests/unit -m unit --no-cov -q` → 341 passed.
+
+**Commit:** `8c0cc41e` — `feat(relay): implement PostgreSQL relay storage, snapshots, compaction, and rate limiting`.
 
 ### Phase 9B — Frontend persistence, snapshots, and storage quota
 
