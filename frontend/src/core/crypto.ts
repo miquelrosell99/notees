@@ -24,6 +24,47 @@ export async function deriveKey(password: string): Promise<CryptoKey> {
   );
 }
 
+/**
+ * Derive a user-specific AES wrapping key from the user id and the shared secret.
+ *
+ * TODO(D6): Phase 6 should move to true client-side key generation. This
+ * prototype mirrors the server-side `derive_user_wrapping_key` helper so the
+ * client can unwrap a workspace key that was wrapped by the server.
+ */
+export async function deriveUserWrappingKey(userId: string, secret: string): Promise<CryptoKey> {
+  return deriveKey(`${userId}:${secret}`);
+}
+
+/**
+ * Convenience to derive the workspace AES key from the workspace id and secret.
+ *
+ * TODO(D6): Phase 6 should move to true client-side key generation. This
+ * prototype mirrors the server-side `derive_workspace_key` helper.
+ */
+export async function deriveWorkspaceKey(workspaceId: string, secret: string): Promise<CryptoKey> {
+  return deriveKey(`${workspaceId}:${secret}`);
+}
+
+/**
+ * Unwrap a workspace master key that was wrapped with a user wrapping key.
+ *
+ * Returns a `CryptoKey` suitable for AES-GCM encrypt/decrypt. The raw bytes are
+ * imported as non-extractable because callers should never need to serialize the
+ * unwrapped master key.
+ */
+export async function unwrapWorkspaceKey(
+  wrapped: { ciphertext: string; iv: string },
+  wrappingKey: CryptoKey
+): Promise<CryptoKey> {
+  const iv = Uint8Array.from(atob(wrapped.iv), (c) => c.charCodeAt(0));
+  const ciphertext = Uint8Array.from(atob(wrapped.ciphertext), (c) => c.charCodeAt(0));
+  const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, wrappingKey, ciphertext);
+  return crypto.subtle.importKey('raw', decrypted, { name: 'AES-GCM', length: 256 }, false, [
+    'encrypt',
+    'decrypt',
+  ]);
+}
+
 export async function encryptEnvelope(
   payload: unknown,
   key: CryptoKey,
