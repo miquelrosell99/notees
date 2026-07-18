@@ -36,6 +36,33 @@ class TestOperationEnvelope:
         assert envelope.id
         assert envelope.timestamp
 
+    @pytest.mark.parametrize(
+        "op_type",
+        [
+            "task.recordCompletion",
+            "task.deleteCompletion",
+            "task.setRecurrence",
+            "task.deleteRecurrence",
+            "asset.upload",
+            "asset.delete",
+            "activity.record",
+            "link.click",
+            "share.public.create",
+            "share.public.revoke",
+            "share.user.grant",
+            "share.user.revoke",
+            "plugin.op",
+        ],
+    )
+    def test_new_island_op_types_are_valid(self, op_type: str) -> None:
+        envelope = OperationEnvelope(
+            workspace_id="ws-1",
+            actor_id="actor-1",
+            hlc=Hlc(physical=10, logical=0),
+            op_type=op_type,
+        )
+        assert envelope.op_type == op_type
+
     def test_unknown_op_type_raises(self) -> None:
         with pytest.raises(ValidationError):
             OperationEnvelope(
