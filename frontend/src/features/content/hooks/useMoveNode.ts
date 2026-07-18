@@ -8,6 +8,8 @@ import {
   applyNodeIntent,
 } from './useNodeMutations.utils';
 import { waitForOperationAck } from '@/sync/waitForOperation';
+import { ENABLE_SQLITE_STORE } from '@/core/utils/featureFlags';
+import { useMoveNodeAdapter } from '@/core/adapters';
 
 /**
  * Hook to move a node.
@@ -15,7 +17,7 @@ import { waitForOperationAck } from '@/sync/waitForOperation';
  * The optimistic update is handled by OperationRuntime. SyncManager dispatches
  * the API call and writes the result back to the cache.
  */
-export function useMoveNode() {
+export function useMoveNodeLegacy() {
   const queryClient = useQueryClient();
 
   return useMutation<Node | null, Error, { nodeUuid: string; parentId: string | null; position?: number }>({
@@ -60,4 +62,11 @@ export function useMoveNode() {
       queryClient.invalidateQueries({ queryKey: nodeKeys.breadcrumbsAll(), refetchType: 'none' });
     },
   });
+}
+
+export function useMoveNode() {
+  const legacyResult = useMoveNodeLegacy();
+  const sqliteResult = useMoveNodeAdapter();
+
+  return ENABLE_SQLITE_STORE ? sqliteResult : legacyResult;
 }

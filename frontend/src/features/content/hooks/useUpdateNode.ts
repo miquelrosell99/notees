@@ -14,8 +14,10 @@ import { invalidateNodeCaches, findNodeInCache, ensureNodeInRuntime, applyNodeIn
 import { updateNodeInTreeCaches, updateNodeInListCaches, updateNodeInFlatCaches, updateNodeInUuidBatchCaches } from '@/hooks/cacheUtils';
 import { waitForOperationAck } from '@/sync/waitForOperation';
 import type { GraphNode } from '@/runtime/types';
+import { ENABLE_SQLITE_STORE } from '@/core/utils/featureFlags';
+import { useUpdateNodeAdapter } from '@/core/adapters';
 
-export function useUpdateNode() {
+export function useUpdateNodeLegacy() {
   const queryClient = useQueryClient();
 
   return useMutation<Node | null, Error, { nodeUuid: string; data: NodeUpdate }>({
@@ -149,4 +151,11 @@ export function useUpdateNode() {
       }
     },
   });
+}
+
+export function useUpdateNode() {
+  const legacyResult = useUpdateNodeLegacy();
+  const sqliteResult = useUpdateNodeAdapter();
+
+  return ENABLE_SQLITE_STORE ? sqliteResult : legacyResult;
 }

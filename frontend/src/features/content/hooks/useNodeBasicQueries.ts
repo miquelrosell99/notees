@@ -9,22 +9,43 @@ import { isApiError } from '@/api/client';
 import * as nodesApi from '@/api/nodes';
 import { nodeKeys } from '@/hooks/queryKeys';
 import type { Node } from '@/types/api';
+import { ENABLE_SQLITE_STORE } from '@/core/utils/featureFlags';
+import {
+  useNodeAdapter,
+  useNodesAdapter,
+  useNodeChildrenAdapter,
+} from '@/core/adapters';
 import { findNodeInTreeByUuid } from './useNodeQueries.utils';
 
-export function useNodes(filters?: { pages_only?: boolean; parent_uuid?: string; tag_uuid?: string; page_size?: number } | null) {
+/**
+ * Legacy list-node query. Imported by the SQLite adapter so the adapter can
+ * delegate when ENABLE_SQLITE_STORE is off without creating a circular call.
+ */
+export function useNodesLegacy(filters?: { pages_only?: boolean; parent_uuid?: string; tag_uuid?: string; page_size?: number } | null) {
   return useQuery({
     queryKey: nodeKeys.list(filters ?? {}),
     queryFn: () => nodesApi.listNodes(filters ?? undefined),
-    enabled: filters !== null,
+    enabled: filters !== null && !ENABLE_SQLITE_STORE,
     placeholderData: [],
   });
+}
+
+export function useNodes(filters?: { pages_only?: boolean; parent_uuid?: string; tag_uuid?: string; page_size?: number } | null) {
+  const legacyResult = useNodesLegacy(filters);
+  const sqliteResult = useNodesAdapter(filters ?? undefined);
+
+  return ENABLE_SQLITE_STORE ? sqliteResult : legacyResult;
 }
 
 /**
  * Hook to fetch a single node by ID
  */
 
-export function useNode(
+/**
+ * Legacy single-node query. Imported by the SQLite adapter so the adapter can
+ * delegate when ENABLE_SQLITE_STORE is off without creating a circular call.
+ */
+export function useNodeLegacy(
   id: string | null,
   options?: {
     include_children?: boolean;
@@ -46,7 +67,7 @@ export function useNode(
   const result = useQuery({
     queryKey: nodeKeys.detail(id ?? '', apiOptions),
     queryFn: () => nodesApi.getNode(nodeUuid!, apiOptions),
-    enabled: !!nodeUuid,
+    enabled: !!nodeUuid && !ENABLE_SQLITE_STORE,
     meta,
     staleTime,
     gcTime,
@@ -74,7 +95,7 @@ export function useNode(
       return failureCount < 1;
     },
   });
-  
+
   // If we get a 404 for the currently viewed node, navigate to home
   // Wrapped in useEffect to avoid scheduling state updates during render,
   // which can trigger "Maximum update depth exceeded" loops.
@@ -96,6 +117,22 @@ export function useNode(
   }, [result.error, nodeUuid, navigate, workspaceId]);
 
   return result;
+}
+
+export function useNode(
+  id: string | null,
+  options?: {
+    include_children?: boolean;
+    include_backlinks?: boolean;
+    include_properties?: boolean;
+    meta?: Record<string, unknown>;
+    staleTime?: number;
+  }
+) {
+  const legacyResult = useNodeLegacy(id, options);
+  const sqliteResult = useNodeAdapter(id, options);
+
+  return ENABLE_SQLITE_STORE ? sqliteResult : legacyResult;
 }
 
 /**
@@ -129,7 +166,11 @@ export function useNodeMetadata(id: string | null) {
  * Results are normalized into the main node cache on success.
  */
 
-export function useNodeChildren(parentId: string | null) {
+/**
+ * Legacy children query. Imported by the SQLite adapter so the adapter can
+ * delegate when ENABLE_SQLITE_STORE is off without creating a circular call.
+ */
+export function useNodeChildrenLegacy(parentId: string | null) {
   const parentUuid = parentId;
   return useQuery({
     queryKey: nodeKeys.childrenOnly(parentId ?? ''),
@@ -137,9 +178,16 @@ export function useNodeChildren(parentId: string | null) {
       const parent = await nodesApi.getNode(parentUuid!, { include_children: true });
       return parent.children ?? [];
     },
-    enabled: !!parentUuid,
+    enabled: !!parentUuid && !ENABLE_SQLITE_STORE,
     staleTime: 1000 * 60 * 5,
   });
+}
+
+export function useNodeChildren(parentId: string | null) {
+  const legacyResult = useNodeChildrenLegacy(parentId);
+  const sqliteResult = useNodeChildrenAdapter(parentId);
+
+  return ENABLE_SQLITE_STORE ? sqliteResult : legacyResult;
 }
 
 /**
@@ -181,4 +229,3 @@ export function usePageContent(pageId: string | null) {
  * Hook to fetch workspace data for visualization
  * @deprecated Use useGraphNodes + useGraphLinks separately instead
  */
-
