@@ -866,8 +866,6 @@ class FakePropertyRepository:
         clear_defaults: bool = False,
         default_columns: dict[str, Any] | None = None,
     ) -> Property | None:
-        from app.features.properties.attributes import DEFAULT_COLUMNS
-
         prop = self._properties.get(property_id)
         if prop is None:
             return None
@@ -883,9 +881,6 @@ class FakePropertyRepository:
             prop.readonly = readonly
         if hide_when_empty is not None:
             prop.hide_when_empty = hide_when_empty
-        if clear_defaults:
-            for col in DEFAULT_COLUMNS:
-                setattr(prop, col, None)
         if default_columns:
             for col, val in default_columns.items():
                 setattr(prop, col, val)

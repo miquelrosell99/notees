@@ -7,13 +7,11 @@
  *   'block'     — Uses the block's own nodeId to display the child block as a card.
  *   'reference' — Uses the referenced node's nodeId to display that node as a card.
  */
-import React, { useMemo, useCallback } from 'react';
+import React, { useCallback } from 'react';
 import { Spinner } from '@/components/ui/Spinner';
 import type { WhiteboardCardElement } from '@/features/whiteboard/types/whiteboard';
-import { useNode, apiNodesToGraphNodes } from '@/features/content';
+import { useNode } from '@/features/content';
 import { NodeCard } from '@/features/views';
-import type { Node } from '@/types/api';
-import { upsertNodes } from '@/runtime/eventBus';
 
 
 interface Props {
@@ -25,22 +23,6 @@ interface Props {
 
 const WhiteboardNodeCard: React.FC<{ nodeUuid: string; element: WhiteboardCardElement; zoom: number }> = ({ nodeUuid, element, zoom }) => {
   const { data: node } = useNode(nodeUuid, { include_children: true });
-
-  // Sync node + children into OperationRuntime so BlockEditor can find their content.
-  // Mirrors the same useMemo pattern used by CardView.
-  useMemo(() => {
-    if (!node) return;
-    const allNodes: Node[] = [];
-    const collect = (n: Node) => {
-      allNodes.push(n);
-      if (n.children) {
-        for (const child of n.children) collect(child);
-      }
-    };
-    collect(node);
-    const { graphNodes } = apiNodesToGraphNodes(allNodes);
-    upsertNodes(graphNodes);
-  }, [node]);
 
   // Stop pointer events from reaching the whiteboard canvas ONLY when the
   // click target is an interactive element (button, input, select, textarea,

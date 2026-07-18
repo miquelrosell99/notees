@@ -23,7 +23,7 @@ import { useCreateNode, useRemoveClass, useAddClass, useUpdateNode, useResolvedC
 import { getNodeUuidByServerId } from '@/features/content/hooks/useNodeMutations.utils';
 import { useContentSave } from '@/features/editor';
 import { useCreateFlashcard } from '@/plugins/builtin/flashcards';
-import { stringifyAST, StringifyMode } from '@/lib';
+
 import { nodeNameToText } from '@/features/queries';
 import { useNavigationStore } from '@/stores';
 import { Button } from '@/components/ui/Button';
@@ -51,13 +51,6 @@ import { CustomInlineEditor } from '@/features/editor/custom/components/CustomIn
 import { parseAST, parseLinkId } from '@/lib/astBuilder';
 import { PropertiesSection } from '@/features/properties';
 import { BlockList } from '@/features/content';
-import { getOperationRuntime } from '@/runtime';
-import { getNode, getAllNodes } from '@/runtime/graphHelpers';
-import { upsertNodes } from '@/runtime/eventBus';
-import { getRuntimeDisplayName } from '@/features/content/hooks/runtimeContentOverlay';
-
-
-
 interface CardTitleEditorProps {
   blockId: string;
   initialContent: string;
@@ -252,7 +245,7 @@ export const NodeCard = memo(function NodeCard({
       parent_uuid: node.uuid,
       sequence: maxSequence + 1,
     });
-  }, [node.uuid, node.uuid, children, createNode]);
+  }, [node.uuid, children, createNode]);
 
   const handleOpenInView = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -370,13 +363,7 @@ export const NodeCard = memo(function NodeCard({
 
   // Navigate via pills — redirect aliases to main node when known locally.
   const handleNavigateToNode = useCallback((linkId: string) => {
-    // Resolve to a target UUID synchronously. Use the runtime when available,
-    // otherwise parse the link id. Avoiding an async fetch here eliminates the
-    // stale-closure race where a later click could be overwritten by an earlier
-    // fetch that finishes second.
-    const runtime = getOperationRuntime();
-    const graphNode = getNode(runtime, linkId);
-    const nodeUuid = graphNode?.blockId ?? parseLinkId(linkId).nodeUuid;
+    const nodeUuid = parseLinkId(linkId).nodeUuid;
 
     const targetNode = allNodes?.find(n => n.uuid === nodeUuid);
     if (targetNode?.aliased_uuid) {
@@ -384,20 +371,19 @@ export const NodeCard = memo(function NodeCard({
       return;
     }
 
-    const isPage = graphNode?.isPage ?? targetNode?.is_page ?? true;
+    const isPage = targetNode?.is_page ?? true;
     onNodeClick?.({ uuid: nodeUuid, is_page: isPage } as unknown as Node);
   }, [allNodes, onNodeClick]);
 
   const handleOpenBlockInSidebar = useCallback((blockId: string) => {
-    const runtime = getOperationRuntime();
-    const graphNode = getNode(runtime, blockId);
-    if (!graphNode?.blockId) return;
+    const nodeUuid = parseLinkId(blockId).nodeUuid;
+    const targetNode = allNodes?.find(n => n.uuid === nodeUuid);
     if (onNodeShiftClick) {
-      onNodeShiftClick({ uuid: graphNode.blockId, is_page: false } as unknown as Node);
+      onNodeShiftClick(targetNode ?? ({ uuid: nodeUuid, is_page: false } as unknown as Node));
     } else {
-      addSidebarCard(graphNode.blockId, 'block');
+      addSidebarCard(nodeUuid, 'block');
     }
-  }, [onNodeShiftClick, addSidebarCard]);
+  }, [allNodes, onNodeShiftClick, addSidebarCard]);
 
   // Manual asset class state
   const [_manualAssetBlockId, setManualAssetBlockId] = useState<string | null>(null);
@@ -405,27 +391,13 @@ export const NodeCard = memo(function NodeCard({
 
   // Add class to block (uses API mutation)
   const handleAddClass = useCallback((blockId: string, classId: string) => {
-    // Optimistically update the runtime for immediate visual feedback
-    const runtime = getOperationRuntime();
-    const graphNode = getAllNodes(runtime).find(n => n.blockId === blockId);
-    if (graphNode) {
-      const classStrId = String(classId);
-      if (!graphNode.classIds.includes(classStrId)) {
-        upsertNodes([{
-          ...graphNode,
-          classIds: [...graphNode.classIds, classStrId],
-        }]);
-      }
-    }
-
     // Check if this is adding the asset class manually
     const assetCls = _propsAllClasses?.find(c => c.uuid === SYSTEM_CLASS_UUIDS.asset);
     if (assetCls && classId === assetCls.uuid) {
       addClass.mutate({ nodeUuid: blockId, classId });
       const block = children.find(c => c.uuid === blockId);
-      const blockContent = block?.name || '';
       setManualAssetBlockId(blockId);
-      setManualAssetBlockContent(blockContent);
+      setManualAssetBlockContent(block?.name || '');
       // Cards don't have a full asset upload flow currently — just add the class
       // (future: open modal)
     } else {
@@ -476,11 +448,8 @@ export const NodeCard = memo(function NodeCard({
           { nodeUuid: blockServerId, classId: cls.uuid },
           {
             onSuccess: () => {
-              const runtime = getOperationRuntime();
-              const graphNode = getAllNodes(runtime).find(n => n.blockId === blockServerId);
-              const frontText = graphNode
-                ? stringifyAST(graphNode.contentAST, { mode: StringifyMode.TEXT_ONLY }).trim()
-                : '';
+              const block = allNodes?.find(n => n.uuid === blockServerId);
+              const frontText = block ? nodeNameToText(block.name).trim() : '';
               createFlashcard.mutate({ nodeUuid: blockServerId, frontText, backText: '' });
             },
           },
@@ -494,7 +463,7 @@ export const NodeCard = memo(function NodeCard({
         break;
       }
     }
-  }, [_propsAllClasses, addClass, createFlashcard]);
+  }, [_propsAllClasses, addClass, allNodes, createFlashcard]);
 
   // Handle table creation from modal — new table
   const handleTableConfirm = useCallback(async (size: TableGridSize) => {
@@ -683,7 +652,7 @@ export const NodeCard = memo(function NodeCard({
             <div className="node-card__title-wrapper">
               <CardTitleEditor
                 blockId={String(node.uuid || node.uuid)}
-                initialContent={getRuntimeDisplayName(node)}
+                initialContent={nodeNameToText(node.name)}
                 readOnly={!editable}
                 onContentChange={handleBlockContentChange}
                 onNavigateToNode={handleNavigateToNode}

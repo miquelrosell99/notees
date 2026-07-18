@@ -22,7 +22,7 @@ const STATUS_CONFIG: Record<
 };
 
 export function SyncStatusIndicator(): ReactNode {
-  const { status, pendingCount, failedCount, lastError, queue } = useSyncStatusStore();
+  const { status, pendingCount, failedCount, lastError } = useSyncStatusStore();
   const [open, setOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
 
@@ -52,33 +52,21 @@ export function SyncStatusIndicator(): ReactNode {
         <div
           className="sync-status-indicator__popover"
           role="dialog"
-          aria-label="Sync queue"
+          aria-label="Sync status"
         >
           <div className="sync-status-indicator__popover-header">
             <strong>{config.label}</strong>
             {pendingCount > 0 && <span>{pendingCount} pending</span>}
             {failedCount > 0 && <span className="sync-status-indicator__failed">{failedCount} failed</span>}
           </div>
-          {queue.length === 0 ? (
+          {pendingCount === 0 && failedCount === 0 ? (
             <p className="sync-status-indicator__empty">All changes are saved.</p>
           ) : (
-            <ul className="sync-status-indicator__queue">
-              {queue.slice(0, 20).map((entry) => (
-                <li key={entry.op.id} className="sync-status-indicator__queue-item">
-                  <span className="sync-status-indicator__queue-type">{entry.op.type}</span>
-                  <span className="sync-status-indicator__queue-meta">
-                    {entry.attemptCount > 0
-                      ? `${entry.attemptCount} retries`
-                      : 'pending'}
-                  </span>
-                  {entry.lastError && (
-                    <span className="sync-status-indicator__queue-error" title={entry.lastError}>
-                      {entry.lastError}
-                    </span>
-                  )}
-                </li>
-              ))}
-            </ul>
+            <p className="sync-status-indicator__summary">
+              {pendingCount > 0 && `${pendingCount} change${pendingCount === 1 ? '' : 's'} pending`}
+              {pendingCount > 0 && failedCount > 0 && ' · '}
+              {failedCount > 0 && `${failedCount} failed`}
+            </p>
           )}
           {lastError && (
             <p className="sync-status-indicator__last-error" title={lastError}>

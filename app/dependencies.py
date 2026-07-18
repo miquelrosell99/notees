@@ -8,7 +8,7 @@ Updated for workspace-based schema:
 - Repositories now take user_id for audit trails and permission checks
 - Uses get_or_create_user_workspace instead of get_or_create_user_workspace
 
-Performance: Workspace context (workspace_id, page_class_id) is cached in-memory
+Performance: Workspace context (workspace_id) is cached in-memory
 per user to avoid acquiring a DB connection on every request.
 """
 
@@ -28,50 +28,17 @@ from app.features.workspaces.port import WorkspaceIORepository, WorkspaceReposit
 
 from .config import settings
 from .db.connection import acquire_connection, get_pool
-from .db.schema import get_or_create_user_workspace
+from .db.schema import SYSTEM_CLASS_UUIDS, get_or_create_user_workspace
 from .domain.permissions import PermissionChecker
 from .domain.ports import EmailSender, PushNotificationSender
-from .domain.repositories import (
-    PostgresPermissionRepository,
-    PostgresQueryRepository,
-    PostgresSettingsRepository,
-)
-from .domain.repositories.factories import make_user_repository
-from .domain.repositories.interfaces import (
-    PermissionRepository,
-    QueryRepository,
-    SettingsRepository,
-)
-from .features.activity.repository import PostgresActivityRepository
-from .features.assets.repository import PostgresAssetRepository
-from .features.nodes.class_extension_service import ClassExtensionService
-from .features.nodes.class_management_service import ClassManagementService
-from .features.nodes.dependencies import (
-    _make_class_extend_repository,
-    _make_link_repository,
-    _make_mention_repository,
-    _make_node_repository,
-    _make_node_view_repository,
-)
-from .features.nodes.link_service import LinkParsingService
-from .features.nodes.mention_service import MentionService
-from .features.nodes.node_service import NodeService
-from .features.nodes.port import (
-    LinkRepository,
-    MentionRepository,
-    NodeRepository,
-    NodeViewRepository,
-)
+from .domain.repositories import PostgresPermissionRepository, PostgresSettingsRepository
+from .domain.repositories.interfaces import PermissionRepository, SettingsRepository
 from .features.notifications.port import NotificationRepository, PushDeviceRepository
 from .features.notifications.repository import (
     PostgresNotificationRepository,
     PostgresPushDeviceRepository,
 )
 from .features.notifications.service import NotificationService
-from .features.properties.port import PropertyRepository
-from .features.properties.repository import PostgresPropertyRepository
-from .features.undo.repository import PostgresUndoRepository
-from .features.undo.service import UndoService
 from .features.workspaces.dependencies import (
     _make_workspace_io_repository,
     _make_workspace_repository,
@@ -233,20 +200,17 @@ async def _get_workspace_context_cached(pool: asyncpg.Pool, user_id: int) -> tup
             workspace_id = await get_or_create_user_workspace(conn, user_id, workspace_uuid=active_uuid)
         except ValueError:
             raise HTTPException(status_code=404, detail="No workspace found. Please create a workspace first.") from None
-
-    node_repo = _make_node_repository(pool, workspace_id, 0, user_id)
-    page_class_id = await node_repo.get_page_class_id() or 1
+        # Resolve the internal numeric id of the page class node; callers that
+        # still pass page_class_id around receive a sensible default.
+        page_class_row = await conn.fetchrow(
+            "SELECT id FROM node WHERE workspace_id = $1 AND uuid = $2",
+            workspace_id,
+            SYSTEM_CLASS_UUIDS["page"],
+        )
+        page_class_id = page_class_row["id"] if page_class_row else 1
 
     _workspace_context_cache[user_id] = (workspace_id, page_class_id, now)
     return workspace_id, page_class_id
-
-
-async def _get_page_class_id_cached(
-    pool: asyncpg.Pool, workspace_id: int, user_id: int
-) -> int:
-    """Return the page class id for a workspace, independent of active workspace."""
-    node_repo = _make_node_repository(pool, workspace_id, 0, user_id)
-    return await node_repo.get_page_class_id() or 1
 
 
 @asynccontextmanager
@@ -316,68 +280,13 @@ def _make_permission_repository(
     return PostgresPermissionRepository(pool, workspace_id, user_id)
 
 
-def _make_property_repository(
-    pool: asyncpg.Pool,
-    workspace_id: int,
-    user_id: int,
-) -> PropertyRepository:
-    return PostgresPropertyRepository(pool, workspace_id, user_id)
-
-
 def _make_settings_repository(pool: asyncpg.Pool) -> SettingsRepository:
     return PostgresSettingsRepository(pool)
-
-
-def _make_query_repository(
-    pool: asyncpg.Pool,
-    workspace_id: int,
-    user_id: str,
-) -> QueryRepository:
-    return PostgresQueryRepository(pool, workspace_id, user_id)
 
 
 # ------------------------------------------------------------------------------
 # FastAPI dependencies yielding repository interfaces
 # ------------------------------------------------------------------------------
-
-
-async def get_node_repository(user: User = Depends(get_current_user)) -> AsyncGenerator[NodeRepository, None]:
-    """Get a NodeRepository for the current user's workspace.
-
-    Uses cached workspace context to avoid holding a pool connection.
-    """
-    pool = await get_pool()
-    user_id = int(user.id)
-    workspace_id, page_class_id = await _get_workspace_context_cached(pool, user_id)
-    yield _make_node_repository(pool, workspace_id, page_class_id, user_id)
-
-
-async def get_property_repository(
-    user: User = Depends(get_current_user),
-) -> AsyncGenerator[PropertyRepository, None]:
-    """Get a PropertyRepository for the current user's workspace."""
-    pool = await get_pool()
-    user_id = int(user.id)
-    workspace_id, _ = await _get_workspace_context_cached(pool, user_id)
-    yield _make_property_repository(pool, workspace_id, user_id)
-
-
-async def get_link_repository(user: User = Depends(get_current_user)) -> AsyncGenerator[LinkRepository, None]:
-    """Get a LinkRepository for the current user's workspace."""
-    pool = await get_pool()
-    user_id = int(user.id)
-    workspace_id, _ = await _get_workspace_context_cached(pool, user_id)
-    yield _make_link_repository(pool, workspace_id, user_id)
-
-
-async def get_mention_repository(
-    user: User = Depends(get_current_user),
-) -> AsyncGenerator[MentionRepository, None]:
-    """Get a MentionRepository for the current user's workspace."""
-    pool = await get_pool()
-    user_id = int(user.id)
-    workspace_id, _ = await _get_workspace_context_cached(pool, user_id)
-    yield _make_mention_repository(pool, workspace_id, user_id)
 
 
 async def get_settings_repository() -> AsyncGenerator[SettingsRepository, None]:
@@ -398,23 +307,6 @@ async def get_workspace_io_repository() -> AsyncGenerator[WorkspaceIORepository,
     yield _make_workspace_io_repository(pool)
 
 
-async def get_node_view_repository(
-    user: User = Depends(get_current_user),
-) -> AsyncGenerator[NodeViewRepository, None]:
-    """Get a NodeViewRepository for the current user's workspace."""
-    yield await _get_node_view_repo(user)
-
-
-async def get_query_executor(
-    user: User = Depends(get_current_user),
-) -> AsyncGenerator[QueryRepository, None]:
-    """Get a QueryRepository for the current user's workspace."""
-    pool = await get_pool()
-    user_id = int(user.id)
-    workspace_id, _ = await _get_workspace_context_cached(pool, user_id)
-    yield _make_query_repository(pool, workspace_id, user.id)
-
-
 async def get_workspace_id(user: User = Depends(get_current_user)) -> int:
     """Get the current user's active workspace ID."""
     pool = await get_pool()
@@ -431,165 +323,6 @@ async def get_permission_checker(
     user_id = int(user.id)
     permission_repo = _make_permission_repository(pool, workspace_id, user_id)
     yield PermissionChecker(user_id, permission_repo)
-
-
-async def _get_node_view_repo(user: User) -> NodeViewRepository:
-    """Return a NodeView repository for the user's workspace."""
-    pool = await get_pool()
-    user_id = int(user.id)
-    workspace_id, _ = await _get_workspace_context_cached(pool, user_id)
-    return _make_node_view_repository(pool, workspace_id, str(user_id))
-
-
-async def _get_node_service(user: User) -> NodeService:
-    """Return a NodeService wired to the user's active workspace."""
-    pool = await get_pool()
-    user_id = int(user.id)
-    workspace_id, page_class_id = await _get_workspace_context_cached(pool, user_id)
-    return await _get_node_service_for_workspace(user, workspace_id, page_class_id)
-
-
-async def get_node_service(
-    user: User = Depends(get_current_user),
-) -> AsyncGenerator[NodeService, None]:
-    """FastAPI dependency yielding a NodeService."""
-    yield await _get_node_service(user)
-
-
-async def _get_node_service_for_workspace(
-    user: User, workspace_id: int, page_class_id: int = 0
-) -> NodeService:
-    """Return a NodeService wired to the given workspace."""
-    from app.db.connection import get_workspace_uuid
-    from app.features.assets.service import AssetFileService
-
-    pool = await get_pool()
-    user_id = int(user.id)
-
-    permission_repo = _make_permission_repository(pool, workspace_id, user_id)
-    node_repo = _make_node_repository(
-        pool, workspace_id, page_class_id, user_id, permission_repo=permission_repo
-    )
-    property_repo = _make_property_repository(pool, workspace_id, user_id)
-    link_repo = _make_link_repository(pool, workspace_id, user_id)
-    settings_repo = _make_settings_repository(pool)
-    activity_repo = PostgresActivityRepository(pool, workspace_id, user_id)
-    class_extend_repo = _make_class_extend_repository(pool, workspace_id, user_id)
-    asset_repo = PostgresAssetRepository(pool, workspace_id, user_id)
-
-    user_repo = make_user_repository(pool)
-    link_service = LinkParsingService(node_repo, link_repo)
-    mention_repo = _make_mention_repository(pool, workspace_id, user_id)
-    mention_service = MentionService(node_repo, mention_repo, link_repo, user_id=user_id)
-    workspace_uuid = await get_workspace_uuid(workspace_id)
-    asset_file_service = AssetFileService(workspace_uuid, asset_repo) if workspace_uuid else None
-    return NodeService(
-        node_repo,
-        property_repo,
-        link_service,
-        page_class_id,
-        workspace_id=workspace_id,
-        user_id=user_id,
-        settings_repo=settings_repo,
-        activity_repo=activity_repo,
-        class_extend_repo=class_extend_repo,
-        user_repository=user_repo,
-        mention_service=mention_service,
-        permission_repository=permission_repo,
-        asset_file_service=asset_file_service,
-    )
-
-
-async def _get_class_management_service(user: User) -> ClassManagementService:
-    """Return a ClassManagementService wired to the user's workspace."""
-    pool = await get_pool()
-    user_id = int(user.id)
-    workspace_id, _ = await _get_workspace_context_cached(pool, user_id)
-    node_repo = _make_node_repository(pool, workspace_id, 0, user_id)
-    property_repo = _make_property_repository(pool, workspace_id, user_id)
-    class_extend_repo = _make_class_extend_repository(pool, workspace_id, user_id)
-    return ClassManagementService(workspace_id, node_repo, property_repo, class_extend_repo)
-
-
-async def _get_undo_service(user: User) -> UndoService:
-    """Return an UndoService wired to the user's workspace."""
-    pool = await get_pool()
-    user_id = int(user.id)
-    workspace_id, _ = await _get_workspace_context_cached(pool, user_id)
-    undo_repo = PostgresUndoRepository(pool, workspace_id, user_id)
-    return UndoService(undo_repo)
-
-
-async def _get_class_extension_service(user: User) -> ClassExtensionService:
-    """Return a ClassExtensionService wired to the user's workspace."""
-    pool = await get_pool()
-    user_id = int(user.id)
-    workspace_id, _ = await _get_workspace_context_cached(pool, user_id)
-
-    property_repo = _make_property_repository(pool, workspace_id, user_id)
-    class_extend_repo = _make_class_extend_repository(pool, workspace_id, user_id)
-    node_repo = _make_node_repository(pool, workspace_id, 0, user_id)
-    return ClassExtensionService(workspace_id, property_repo, class_extend_repo, node_repo)
-
-
-class RepositoryBundle:
-    """Bundle of all repositories for a user's workspace.
-
-    Updated for workspace-based schema:
-    - workspace_id -> workspace_id
-    - Repositories now receive user_id for audit trails and permission checks
-    """
-
-    def __init__(
-        self,
-        pool: asyncpg.Pool,
-        workspace_id: int,
-        page_class_id: int,
-        user_id: int,
-    ):
-        self.pool = pool
-        self.workspace_id = workspace_id
-        self.page_class_id = page_class_id
-        self.user_id = user_id
-        self._node_repo: NodeRepository | None = None
-        self._property_repo: PropertyRepository | None = None
-        self._link_repo: LinkRepository | None = None
-
-    @property
-    def node(self) -> NodeRepository:
-        if self._node_repo is None:
-            self._node_repo = _make_node_repository(
-                self.pool, self.workspace_id, self.page_class_id, self.user_id
-            )
-        return self._node_repo
-
-    @property
-    def props(self) -> PropertyRepository:
-        if self._property_repo is None:
-            self._property_repo = _make_property_repository(
-                self.pool, self.workspace_id, self.user_id
-            )
-        return self._property_repo
-
-    @property
-    def link(self) -> LinkRepository:
-        if self._link_repo is None:
-            self._link_repo = _make_link_repository(
-                self.pool, self.workspace_id, self.user_id
-            )
-        return self._link_repo
-
-
-async def get_repositories(user: User = Depends(get_current_user)) -> AsyncGenerator[RepositoryBundle, None]:
-    """Get a bundle of all repositories for the current user's workspace.
-
-    Use this when you need multiple repository types in a single endpoint
-    to avoid creating multiple workspace lookups.
-    """
-    pool = await get_pool()
-    user_id = int(user.id)
-    workspace_id, page_class_id = await _get_workspace_context_cached(pool, user_id)
-    yield RepositoryBundle(pool, workspace_id, page_class_id, user_id)
 
 
 async def get_notification_repository() -> AsyncGenerator[NotificationRepository, None]:

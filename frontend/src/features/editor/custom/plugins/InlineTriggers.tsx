@@ -29,12 +29,11 @@ import { getOrCreateDaily } from '@/api/nodes';
 import { addSelectionOption } from '@/api/properties';
 import { generateUUID } from '@/utils/uuid';
 import type { DateRangeValue } from '@/utils/dateRange';
-import { getOperationRuntime } from '@/runtime';
-import { getNode, getAllNodes } from '@/runtime/graphHelpers';
-import { getRuntimeEventBus, applyRuntimeIntent } from '@/runtime/eventBus';
+import { useParams } from 'react-router-dom';
+import { getWorkspaceStore } from '@/core/adapters/workspaceStoreAdapter';
 import { SYSTEM_CLASS_UUIDS } from '@/constants/systemProperties';
 import { useEditorFocusStore } from '@/stores/editorFocusStore';
-import { flushAllContentSaves } from '@/hooks/contentSaveTracker';
+import { serializeContentAST } from '@/features/editor/editor/editorConfig';
 import { useViewportFlip } from '@/hooks/useViewportFlip';
 import { getSlashCommand } from '@/plugins/core';
 import { Modal, Button, TextField } from '@/components/ui';
@@ -49,6 +48,7 @@ import {
 } from '../model/inlineEditorModel';
 import { isInsideEditorCompanion } from '../utils/editorCompanion';
 import type { InlineEditorState } from '../model/types';
+import type { ASTDocument } from '@/types/ast';
 
 interface PopupState {
   type: TriggerPopupType;
@@ -179,6 +179,7 @@ export function InlineTriggers({
   onTemplateInstantiate,
   templateClassFilters,
 }: InlineTriggersProps): JSX.Element | null {
+  const { workspaceId } = useParams<{ workspaceId?: string }>();
   const [popup, setPopup] = useState<PopupState | null>(null);
   const [dateRangePickerOpen, setDateRangePickerOpen] = useState(false);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
@@ -263,10 +264,10 @@ export function InlineTriggers({
   }, [commentPromptOpen]);
 
   const resolveBlockServerId = useCallback(() => {
-    const runtime = getOperationRuntime();
-    const graphNode = getNode(runtime, blockId);
-    blockServerIdRef.current = graphNode?.blockId;
-  }, [blockId]);
+    if (!workspaceId) return;
+    const store = getWorkspaceStore(workspaceId);
+    blockServerIdRef.current = store?.getNode(blockId)?.id;
+  }, [blockId, workspaceId]);
 
   const openTrigger = useCallback(
     (key: TriggerChar, fromComposition = false) => {
@@ -515,29 +516,36 @@ export function InlineTriggers({
     async (nodeUuid: string) => {
       const offset = placeholderOffsetRef.current;
       if (offset === null) return;
+      if (!workspaceId) return;
 
-      const runtime = getOperationRuntime();
-      const hostNode = getNode(runtime, blockId);
+      const store = getWorkspaceStore(workspaceId);
+      if (!store) return;
+
+      const hostNode = store.getNode(blockId);
       if (!hostNode?.parentId) return;
 
       removePlaceholder();
       const newBlockId = generateUUID();
       useEditorFocusStore.getState().setPendingFocus(newBlockId);
-      await applyRuntimeIntent({
-        type: 'create_block',
-        parentId: hostNode.parentId,
-        afterBlockId: blockId,
-        blockId: newBlockId,
-        contentAST: [
+
+      store.createNode({ nodeId: newBlockId, kind: 'block', parentId: hostNode.parentId });
+      // TODO: ordered insertion after `blockId` requires a custom tree-CRDT update;
+      // `moveNode` currently appends to the end of the parent list.
+      store.moveNode(newBlockId, hostNode.parentId);
+      store.updateText(newBlockId, (text) => {
+        const contentAST: ASTDocument = [
           {
             type: 'paragraph',
             children: [{ type: 'node_link', link_id: nodeUuid, ref_type: 'embed' }],
           },
-        ],
+        ];
+        const serialized = serializeContentAST(contentAST);
+        const current = text.toPlaintext();
+        text.delete(0, current.length);
+        text.insert(0, serialized);
       });
-      getRuntimeEventBus().flushEvents();
     },
-    [blockId, removePlaceholder],
+    [blockId, removePlaceholder, workspaceId],
   );
 
   const handleSelectNode = useCallback(
@@ -563,7 +571,6 @@ export function InlineTriggers({
         case 'class': {
           if (mode === 'alternative') {
             insertPill(node.uuid, 'class');
-            flushAllContentSaves();
           }
           if (blockServerIdRef.current != null) {
             onAddClass?.(blockServerIdRef.current, node.uuid);
@@ -716,19 +723,24 @@ export function InlineTriggers({
   const hiddenSlashCommandIds = (() => {
     const hidden = new Set<string>();
     const blockServerId = blockServerIdRef.current;
-    if (blockServerId == null) {
+    if (blockServerId == null || workspaceId == null) {
       hidden.add('cloze');
       return hidden;
     }
 
-    const runtime = getOperationRuntime();
-    const blockNode = getAllNodes(runtime).find((n) => n.blockId === blockServerId);
+    const store = getWorkspaceStore(workspaceId);
+    if (!store) {
+      hidden.add('cloze');
+      return hidden;
+    }
+
+    const blockNode = store.getNode(blockServerId);
     if (!blockNode?.parentId) {
       hidden.add('cloze');
       return hidden;
     }
 
-    const parentNode = getAllNodes(runtime).find((n) => n.blockId === blockNode.parentId);
+    const parentNode = store.getNode(blockNode.parentId);
     const parentIsCard = parentNode?.classIds.includes(SYSTEM_CLASS_UUIDS.card) ?? false;
     if (!parentIsCard) {
       hidden.add('cloze');
@@ -939,6 +951,7 @@ export function InlineTriggers({
           hiddenSlashCommandIds={hiddenSlashCommandIds}
           contextBlockServerId={blockServerIdRef.current}
           linkSearchMode={popup.linkSearchMode}
+          workspaceId={workspaceId}
           inline={popup.inline}
           controlledQuery={popup.inline ? inlineSlashQuery : undefined}
           controlledSelectedIndex={popup.inline ? slashSelectedIndex : undefined}

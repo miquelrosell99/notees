@@ -56,7 +56,6 @@ from .db.connection import acquire_connection, close_pool, init_pool, request_co
 from .db.schema import init_database
 from .domain.errors import (
     DomainError,
-    DuplicateNodeError,
     NodeNotFoundError,
     PermissionDeniedError,
 )
@@ -416,24 +415,6 @@ async def node_not_found_exception_handler(request, exc: NodeNotFoundError):
     """Return HTTP 404 for node not found errors."""
     logger.warning(f"Node not found on {request.method} {request.url.path}: {exc.node_id}")
     return _error_response(code=exc.code, message=exc.message, status=404)
-
-
-@app.exception_handler(DuplicateNodeError)
-async def duplicate_node_exception_handler(request, exc: DuplicateNodeError):
-    """Return HTTP 409 for duplicate node errors."""
-    logger.warning(f"Duplicate node on {request.method} {request.url.path}: {exc.name}")
-    return JSONResponse(
-        status_code=409,
-        content={
-            "error": {
-                "code": exc.code,
-                "message": exc.message,
-                "status": 409,
-                "name": exc.name,
-                "conflicting_classes": exc.conflicting_classes,
-            }
-        },
-    )
 
 
 @app.exception_handler(DomainError)

@@ -7,12 +7,12 @@
  */
 
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { useParams } from 'react-router-dom';
 import { useEditorFocusStore } from '@/stores/editorFocusStore';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { useNavigationStore } from '@/stores/navigationStore';
+import { useWorkspaceStore } from '@/core/hooks';
 import './BulletLineOverlay.css';
-import { getOperationRuntime } from '@/runtime';
-import { getAncestors } from '@/runtime/graphHelpers';
 
 interface VirtualItemInfo {
   index: number;
@@ -117,10 +117,28 @@ export const BulletLineOverlay = memo(function BulletLineOverlay({
   virtualItems,
   onLineClick,
 }: BulletLineOverlayProps) {
+  const { workspaceId } = useParams<{ workspaceId?: string }>();
+  const { store } = useWorkspaceStore(workspaceId ?? '');
   const activeBlockId = useEditorFocusStore((s) => s.activeBlockId);
   const showBulletThread = useSettingsStore((s) => s.showBulletThread);
   const isFocusMode = useNavigationStore((s) => s.viewMode === 'focus');
   const isEditing = activeBlockId != null;
+
+  const getAncestorIds = useCallback(
+    (nodeId: string): string[] => {
+      if (!store) return [];
+      const ancestors: string[] = [];
+      const visited = new Set<string>();
+      let current = store.getNode(nodeId)?.parentId ?? null;
+      while (current && !visited.has(current)) {
+        visited.add(current);
+        ancestors.push(current);
+        current = store.getNode(current)?.parentId ?? null;
+      }
+      return ancestors;
+    },
+    [store],
+  );
 
   const [spans, setSpans] = useState<LineSpan[]>([]);
   const [connectors, setConnectors] = useState<Connector[]>([]);
@@ -144,10 +162,9 @@ export const BulletLineOverlay = memo(function BulletLineOverlay({
       const step = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--block-indent-step')) || 24;
       const containerRect = container.getBoundingClientRect();
 
-      // Build active-path set from runtime when a block is being edited.
-      const runtime = getOperationRuntime();
-      const activeAncestors = activeBlockId ? getAncestors(runtime, activeBlockId) : [];
-      const activePath = new Set<string>(activeAncestors.map((n) => n.blockId));
+      // Build active-path set from the core store when a block is being edited.
+      const activeAncestorIds = activeBlockId ? getAncestorIds(activeBlockId) : [];
+      const activePath = new Set<string>(activeAncestorIds);
       if (activeBlockId) activePath.add(activeBlockId);
 
       // Collect visible rows with coordinates.
@@ -246,8 +263,8 @@ export const BulletLineOverlay = memo(function BulletLineOverlay({
       const newActivePathChain: Point[] = [];
       if (activeBlockId) {
         const chain: Point[] = [];
-        for (const ancestor of [...activeAncestors].reverse()) {
-          const row = rows.find((r) => r.blockUuid === ancestor.blockId);
+        for (const ancestorId of [...activeAncestorIds].reverse()) {
+          const row = rows.find((r) => r.blockUuid === ancestorId);
           if (row) chain.push({ x: row.x, y: row.y });
         }
         const activeRow = rows.find((r) => r.blockUuid === activeBlockId);
@@ -260,7 +277,7 @@ export const BulletLineOverlay = memo(function BulletLineOverlay({
       setActivePathChain(newActivePathChain);
       setSize({ width: containerRect.width, height: containerRect.height });
     });
-  }, [containerRef, flatNodes, activeBlockId, virtualized, virtualItems]);
+  }, [containerRef, flatNodes, activeBlockId, virtualized, virtualItems, getAncestorIds]);
 
   useEffect(() => {
     computeOverlay();

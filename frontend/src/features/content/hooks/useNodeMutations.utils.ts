@@ -5,16 +5,8 @@
 import type { QueryClient } from '@tanstack/react-query';
 import type { Node } from '@/types/api';
 import { nodeKeys } from '@/hooks/queryKeys';
-import { queryClient } from '@/lib/queryClient';
-import { apiNodeToGraphNode } from './useRuntimeSync';
 import { nodeViewKeys } from './useNodeViews';
 import { findNodeInRootTree } from '@/utils/nodeTree';
-import { getOperationRuntime } from '@/runtime';
-import { getRuntimeEventBus } from '@/runtime/eventBus';
-import { getUndoEngine } from '@/stores/undoEngine';
-import { waitForOperationAck } from '@/sync/waitForOperation';
-import { flushAllContentSaves } from '@/hooks/contentSaveTracker';
-import type { MutationIntent } from '@/runtime/types';
 
 
 export function invalidateNodeCaches(
@@ -240,102 +232,6 @@ export function hasTableClass(node: Node, allClasses: Node[] | undefined): boole
   return node.classes_uuid.includes(tableClass.uuid);
 }
 
-const STRUCTURAL_INTENTS = new Set<string>([
-  'split_block',
-  'merge_blocks',
-  'create_block',
-  'delete_block',
-  'move_block',
-  'indent_block',
-  'outdent_block',
-  'move_up',
-  'move_down',
-  'reorder_blocks',
-  'move_node',
-]);
-
-function isStructuralIntent(intent: MutationIntent): boolean {
-  if (intent.type === 'batch') {
-    return intent.intents.some(isStructuralIntent);
-  }
-  return STRUCTURAL_INTENTS.has(intent.type);
-}
-
-/**
- * Apply a runtime mutation intent and return the operation ID so callers can
- * wait for SyncManager to acknowledge it.
- *
- * Structural intents (delete, move, create, etc.) flush any pending debounced
- * content saves first so they do not race with in-flight text edits.
- */
-export async function applyNodeIntent(intent: MutationIntent): Promise<string> {
-  if (isStructuralIntent(intent)) {
-    flushAllContentSaves();
-  }
-  await getUndoEngine().applyIntent(intent, { pushUndo: true });
-  getRuntimeEventBus().flushEvents();
-  const ops = getOperationRuntime().getOperations();
-  // The operation we just added is the last new one.
-  return ops[ops.length - 1]?.id ?? '';
-}
-
-/**
- * Emit a runtime intent for a node UUID and wait for acknowledgement.
- * Returns false if the node is not in the runtime (caller should fall back to
- * a direct API mutation).
- */
-export function ensureNodeInRuntime(nodeUuid: string): string | null {
-  const runtime = getOperationRuntime();
-  const runtimeNode = runtime.getNode(nodeUuid);
-  if (runtimeNode) {
-    return runtimeNode.blockId;
-  }
-
-  let cachedNode: Node | null | undefined = queryClient.getQueryData<Node>(nodeKeys.byUuid(nodeUuid));
-  // The node may only be cached inside a parent page's detail/page-content tree,
-  // a uuid-batch entry, a list result, etc. (e.g. a block the user is interacting
-  // with before any individual by-uuid fetch).
-  if (!cachedNode) {
-    cachedNode = findNodeInAnyCache(queryClient, nodeUuid);
-  }
-  if (!cachedNode) return null;
-
-  const allClasses = queryClient.getQueryData<Node[]>(nodeKeys.classes());
-  runtime.upsertBaseNodes([apiNodeToGraphNode(cachedNode, allClasses ?? undefined)]);
-  return runtime.getNode(nodeUuid)?.blockId ?? cachedNode.uuid;
-}
-
-export async function emitNodeIntentAndWait(
-  nodeUuid: string,
-  intent: MutationIntent,
-): Promise<boolean> {
-  if (!ensureNodeInRuntime(nodeUuid)) return false;
-
-  const operationId = await applyNodeIntent(intent);
-  if (!operationId) return false;
-
-  await waitForOperationAck(operationId);
-  return true;
-}
-
-// ─── UUID bridge helpers (legacy numeric names kept for minimal caller churn) ───
-
-function findNodeUuidInCache(queryClient: QueryClient, nodeUuid: string): string | null {
-  const node = findNodeInCache(queryClient, nodeUuid);
-  return node?.uuid ?? null;
-}
-
-export function getRuntimeBlockIdForServerId(nodeUuid: string): string | null {
-  const runtime = getOperationRuntime();
-  return runtime.getNode(nodeUuid)?.blockId ?? null;
-}
-
-export function getNodeUuidByServerId(queryClient: QueryClient, nodeUuid: string): string | null {
-  const runtimeNodeUuid = getRuntimeBlockIdForServerId(nodeUuid);
-  if (runtimeNodeUuid) return runtimeNodeUuid;
-  return findNodeUuidInCache(queryClient, nodeUuid);
-}
-
 export function getClassUuidByServerId(queryClient: QueryClient, classUuid: string): string | null {
   const classes = queryClient.getQueryData<Node[]>(nodeKeys.classes());
   if (!classes) return null;
@@ -346,4 +242,21 @@ export function getTagUuidByServerId(queryClient: QueryClient, tagUuid: string):
   const pages = queryClient.getQueryData<Node[]>(nodeKeys.pages());
   if (!pages) return null;
   return pages.find((p) => p.uuid === tagUuid)?.uuid ?? null;
+}
+
+// ─── UUID bridge helpers (legacy numeric names kept for minimal caller churn) ───
+
+function findNodeUuidInCache(queryClient: QueryClient, nodeUuid: string): string | null {
+  const node = findNodeInCache(queryClient, nodeUuid);
+  return node?.uuid ?? null;
+}
+
+/**
+ * Resolve a node UUID from the query cache.
+ *
+ * The legacy runtime block-ID lookup has been retired: the core store uses the
+ * same public UUIDs as the server, so no translation is necessary.
+ */
+export function getNodeUuidByServerId(queryClient: QueryClient, nodeUuid: string): string | null {
+  return findNodeUuidInCache(queryClient, nodeUuid);
 }

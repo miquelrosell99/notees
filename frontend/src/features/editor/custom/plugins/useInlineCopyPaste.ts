@@ -2,10 +2,11 @@
  * useInlineCopyPaste — React paste handler for the custom inline editor.
  *
  * Handles image/audio/file delegation, link-pill paste, internal block paste,
- * and plain text insertion.
+ * and plain text insertion through the core WorkspaceStore.
  */
 
 import { useCallback, useRef, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
 import { generateUUID } from '@/utils/uuid';
 import {
   tryParseInternalFormat,
@@ -16,11 +17,8 @@ import type { ASTDocument } from '@/types/ast';
 import { useClipboardStore } from '@/stores/clipboardStore';
 import { paragraph, text as astText, buildLinkId, nodeLink } from '@/lib/astBuilder';
 import { serializeContentAST } from '@/features/editor/editor/editorConfig';
-import { getOperationRuntime } from '@/runtime';
-import { getNode } from '@/runtime/graphHelpers';
-import { getRuntimeEventBus, applyRuntimeIntent } from '@/runtime/eventBus';
+import { getWorkspaceStore } from '@/core/adapters/workspaceStoreAdapter';
 import { useEditorFocusStore } from '@/stores/editorFocusStore';
-import { liveSyncManager } from '@/features/collab';
 import { insertText, insertAtomicNode } from '../model/inlineEditorModel';
 import type { InlineEditorState } from '../model/types';
 
@@ -57,31 +55,44 @@ function parseBlockName(name: string): ASTDocument {
   return [paragraph(astText(name))];
 }
 
-async function pasteBlockTree(
-  blocks: BlockData[],
+/**
+ * Recursively create a tree of blocks under `parentId`.
+ *
+ * NOTE: Ordered insertion after a specific sibling is not exposed by the public
+ * core store API yet; `moveNode` appends to the parent. A TODO marks where a
+ * tree-CRDT update should be used once available.
+ */
+function createBlockTree(
+  workspaceId: string,
   parentId: string,
+  blocks: BlockData[],
   afterBlockId: string | null,
-): Promise<string[]> {
+): string[] {
   const createdIds: string[] = [];
-  let lastAfter = afterBlockId;
 
   for (const block of blocks) {
     const contentAST = parseBlockName(block.name);
     const newId = generateUUID();
     createdIds.push(newId);
 
-    await applyRuntimeIntent({
-      type: 'create_block',
-      parentId,
-      afterBlockId: lastAfter,
-      blockId: newId,
-      contentAST,
+    const store = getWorkspaceStore(workspaceId);
+    if (!store) continue;
+
+    store.createNode({ nodeId: newId, kind: 'block', parentId });
+    if (afterBlockId !== null) {
+      // TODO: ordered insertion after `afterBlockId` requires a custom tree update.
+      void afterBlockId;
+    }
+    store.moveNode(newId, parentId);
+    store.updateText(newId, (text) => {
+      const serialized = serializeContentAST(contentAST);
+      const current = text.toPlaintext();
+      text.delete(0, current.length);
+      text.insert(0, serialized);
     });
 
-    lastAfter = newId;
-
     if (block.children && block.children.length > 0) {
-      await pasteBlockTree(block.children, newId, null);
+      createBlockTree(workspaceId, newId, block.children, null);
     }
   }
 
@@ -94,6 +105,7 @@ export function useInlineCopyPaste({
   blockId,
   onPasteImage,
 }: UseInlineCopyPasteProps): (event: React.ClipboardEvent<HTMLDivElement>) => void {
+  const { workspaceId } = useParams<{ workspaceId?: string }>();
   const onPasteImageRef = useRef(onPasteImage);
   useEffect(() => {
     onPasteImageRef.current = onPasteImage;
@@ -104,14 +116,13 @@ export function useInlineCopyPaste({
       const clipboardData = event.clipboardData;
       if (!clipboardData) return;
 
+      const store = workspaceId ? getWorkspaceStore(workspaceId) : undefined;
       const analysis = analyzeClipboard(clipboardData);
       if (analysis.type === 'image' || analysis.type === 'audio' || analysis.type === 'file') {
         if (analysis.file) {
-          const runtime = getOperationRuntime();
-          const graphNode = getNode(runtime, blockId);
-          const blockServerId = graphNode?.blockId;
-          if (blockServerId != null && onPasteImageRef.current) {
-            const hasContent = !isBlockEmpty(graphNode?.contentAST);
+          const blockServerId = store?.getNode(blockId)?.id ?? blockId;
+          if (onPasteImageRef.current) {
+            const hasContent = !isBlockEmpty(stateRef.current.ast);
             onPasteImageRef.current(blockServerId, analysis.file, hasContent);
             event.preventDefault();
             event.stopPropagation();
@@ -134,25 +145,14 @@ export function useInlineCopyPaste({
           applyMutation((prev) =>
             insertAtomicNode(prev, nodeLink(buildLinkId(targetUuid, generateUUID()), 'node')),
           );
-
-          const runtime = getOperationRuntime();
-          const graphNode = getNode(runtime, blockId);
-          if (graphNode?.blockId) {
-            liveSyncManager.sendBlockUpdate(
-              blockId,
-              graphNode.blockId,
-              serializeContentAST(stateRef.current.ast),
-            );
-            getRuntimeEventBus().flushEvents();
-          }
           return;
         }
       }
 
       const blockData = tryParseInternalFormat(text);
       if (blockData && blockData.blocks.length > 0) {
-        const runtime = getOperationRuntime();
-        const currentNode = getNode(runtime, blockId);
+        if (!store || !workspaceId) return;
+        const currentNode = store.getNode(blockId);
         if (!currentNode?.parentId) return;
 
         event.preventDefault();
@@ -160,38 +160,35 @@ export function useInlineCopyPaste({
         const parentId = currentNode.parentId;
 
         void (async () => {
-          if (isBlockEmpty(currentNode.contentAST)) {
+          if (isBlockEmpty(stateRef.current.ast)) {
             const [firstBlock, ...restBlocks] = blockData.blocks;
             const firstAST = parseBlockName(firstBlock.name);
-            const serializedFirst = serializeContentAST(firstAST);
-            await applyRuntimeIntent({ type: 'update_content', blockId, contentAST: firstAST });
-            if (currentNode.blockId) {
-              liveSyncManager.sendBlockUpdate(blockId, currentNode.blockId, serializedFirst);
-            }
+
+            store.updateText(blockId, (text) => {
+              const serialized = serializeContentAST(firstAST);
+              const current = text.toPlaintext();
+              text.delete(0, current.length);
+              text.insert(0, serialized);
+            });
 
             if (firstBlock.children && firstBlock.children.length > 0) {
-              await pasteBlockTree(firstBlock.children, blockId, null);
+              createBlockTree(workspaceId, blockId, firstBlock.children, null);
             }
 
             if (restBlocks.length > 0) {
-              const created = await pasteBlockTree(restBlocks, parentId, blockId);
-              getRuntimeEventBus().flushEvents();
+              const created = createBlockTree(workspaceId, parentId, restBlocks, blockId);
               if (created.length > 0) {
                 useEditorFocusStore.getState().setPendingFocus(created[created.length - 1]);
               }
             } else {
-              getRuntimeEventBus().flushEvents();
               useEditorFocusStore.getState().setPendingFocus(blockId);
             }
           } else {
-            const created = await pasteBlockTree(blockData.blocks, parentId, blockId);
-            getRuntimeEventBus().flushEvents();
+            const created = createBlockTree(workspaceId, parentId, blockData.blocks, blockId);
             if (created.length > 0) {
               useEditorFocusStore.getState().setPendingFocus(created[created.length - 1]);
             }
           }
-
-          getRuntimeEventBus().flushEvents();
         })();
         return;
       }
@@ -200,7 +197,7 @@ export function useInlineCopyPaste({
       event.stopPropagation();
       applyMutation((prev) => insertText(prev, text));
     },
-    [stateRef, applyMutation, blockId],
+    [stateRef, applyMutation, blockId, workspaceId],
   );
 
   return handlePaste;
