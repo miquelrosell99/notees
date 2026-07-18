@@ -1,13 +1,11 @@
 import { useState, useCallback, useRef, useEffect, useMemo, useDeferredValue } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { Node } from '@/types';
-import type { RecentPage } from '@/api/nodes';
 import { useProperties } from '@/features/properties';
-import { useSearch, useCreateNode, useTodayNote, usePages, usePageClass, useHierarchicalPath, useClassClass, useClasses } from '@/features/content';
+import { useSearch, useCreateNode, useTodayNote, usePages, usePageClass, useHierarchicalPath, useClassClass, useClasses, useRecents } from '@/features/content';
 import { nodeNameToText } from '@/features/queries';
 import { useCommandPaletteSearch } from '@/hooks/useCommandPaletteSearch';
 import {
-  getRecentPages,
   getRecentlyCreatedPages,
   getRandomPages,
 } from '@/api/nodes';
@@ -179,9 +177,18 @@ export function useCommandPaletteState({ isOpen, onClose }: UseCommandPaletteSta
   );
 
   // Empty-state sections: recently accessed, recently created, random pages
-  const [recentAccessedPages, setRecentAccessedPages] = useState<RecentPage[]>([]);
-  const [recentCreatedPages, setRecentCreatedPages] = useState<RecentPage[]>([]);
-  const [randomPages, setRandomPages] = useState<RecentPage[]>([]);
+  const { data: recentAccessedItems } = useRecents(5);
+  const recentAccessedPages = useMemo<Node[]>(() => {
+    const items = recentAccessedItems ?? [];
+    const pages: Node[] = [];
+    for (const item of items) {
+      const node = pageMap.get(item.nodeUuid);
+      if (node) pages.push(node);
+    }
+    return pages;
+  }, [recentAccessedItems, pageMap]);
+  const [recentCreatedPages, setRecentCreatedPages] = useState<Node[]>([]);
+  const [randomPages, setRandomPages] = useState<Node[]>([]);
 
   // Reset section limits when search query changes
   useEffect(() => {
@@ -201,8 +208,7 @@ export function useCommandPaletteState({ isOpen, onClose }: UseCommandPaletteSta
       inputRef.current?.focus();
       queryClient.invalidateQueries({ queryKey: nodeKeys.allPages() });
       queryClient.invalidateQueries({ queryKey: nodeKeys.classes() });
-      // Fetch empty-state sections
-      getRecentPages(5).then(setRecentAccessedPages).catch(() => {});
+      // Fetch empty-state sections (recently accessed is derived from the local store)
       getRecentlyCreatedPages(5).then(setRecentCreatedPages).catch(() => {});
       getRandomPages(5).then(setRandomPages).catch(() => {});
     }

@@ -6,10 +6,16 @@
  * popup appears.
  */
 import { useCallback } from 'react';
-import * as nodesApi from '@/api/nodes';
 import { CalendarPopup as CalendarPopupBase, type CalendarMode } from '@/components/ui';
 import { useExistingDailyPages } from '@/features/content';
+import {
+  getOrCreateDailyNote,
+  getOrCreateMonthlyNote,
+  getOrCreateYearlyNote,
+} from '@/features/content/hooks/useNodeDateQueries';
 import { useNavigationStore, useSettingsStore } from '@/stores';
+import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
+import { getWorkspaceStore } from '@/core/adapters/workspaceStoreAdapter';
 
 export interface CalendarPopupProps {
   isOpen: boolean;
@@ -31,25 +37,35 @@ function toIsoLocal(date: Date): string {
 export function CalendarPopup({ isOpen, onClose, anchorRef, goToTodaySignal, initialMode }: CalendarPopupProps) {
   const openNode = useNavigationStore((state) => state.openNode);
   const firstDayOfWeek = useSettingsStore((state) => state.firstDayOfWeek);
+  const workspaceUuid = useCurrentWorkspaceUuid();
   const { data: dailyPages = [] } = useExistingDailyPages();
 
   const handleSelectDay = useCallback(async (date: Date) => {
-    const node = await nodesApi.getOrCreateDaily(toIsoLocal(date));
+    if (!workspaceUuid) return;
+    const store = getWorkspaceStore(workspaceUuid);
+    if (!store) return;
+    const node = getOrCreateDailyNote(store, toIsoLocal(date));
     openNode(node.uuid);
     onClose();
-  }, [openNode, onClose]);
+  }, [openNode, onClose, workspaceUuid]);
 
   const handleSelectMonth = useCallback(async (year: number, month: number) => {
-    const node = await nodesApi.getOrCreateMonthly(year, month + 1);
+    if (!workspaceUuid) return;
+    const store = getWorkspaceStore(workspaceUuid);
+    if (!store) return;
+    const node = getOrCreateMonthlyNote(store, year, month + 1);
     openNode(node.uuid);
     onClose();
-  }, [openNode, onClose]);
+  }, [openNode, onClose, workspaceUuid]);
 
   const handleSelectYear = useCallback(async (year: number) => {
-    const node = await nodesApi.getOrCreateYearly(year);
+    if (!workspaceUuid) return;
+    const store = getWorkspaceStore(workspaceUuid);
+    if (!store) return;
+    const node = getOrCreateYearlyNote(store, year);
     openNode(node.uuid);
     onClose();
-  }, [openNode, onClose]);
+  }, [openNode, onClose, workspaceUuid]);
 
   return (
     <CalendarPopupBase

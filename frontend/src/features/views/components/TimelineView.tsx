@@ -10,8 +10,14 @@
 import { useState, useCallback, useMemo, useRef, useEffect, memo } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { setSetting, useSettingsQuery } from '@/features/workspace';
-import * as nodesApi from '@/api/nodes';
+import {
+  getOrCreateDailyNote,
+  getOrCreateMonthlyNote,
+  getOrCreateYearlyNote,
+} from '@/features/content/hooks/useNodeDateQueries';
 import { useNavigationStore } from '@/stores';
+import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
+import { getWorkspaceStore } from '@/core/adapters/workspaceStoreAdapter';
 import type { Node } from '@/types';
 import type { TimeEvent, DatePropertyConfig, TimelineTransform, NodeTimelineRendererProps } from '../types/timelineTypes';
 import { getDateLanePalette } from '../types/viewTypes';
@@ -136,7 +142,8 @@ export const TimelineView = memo(function TimelineView({
   const { openNode, addSidebarCard } = useNavigationStore(
     useShallow((state) => ({ openNode: state.openNode, addSidebarCard: state.addSidebarCard })),
   );
-  
+  const workspaceUuid = useCurrentWorkspaceUuid();
+
   const { data: serverSettings } = useSettingsQuery();
   
   const currentZoomLevel = useMemo(() => getZoomLevelFromScale(transform.scale), [transform.scale]);
@@ -382,12 +389,15 @@ export const TimelineView = memo(function TimelineView({
       const date = clickedMarker.date;
       const interval = clickedMarker.interval;
       
+      if (!workspaceUuid) return;
+      const store = getWorkspaceStore(workspaceUuid);
+      if (!store) return;
       try {
         // Determine if it's a day, month, or year based on interval
         if (interval === 24 * 60 * 60 * 1000) {
           // Daily marker
           const formattedDate = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-          const dailyNode = await nodesApi.getOrCreateDaily(formattedDate);
+          const dailyNode = getOrCreateDailyNote(store, formattedDate);
           if (e.shiftKey) {
             addSidebarCard(dailyNode.uuid, 'page');
           } else {
@@ -395,7 +405,7 @@ export const TimelineView = memo(function TimelineView({
           }
         } else if (interval >= 30 * 24 * 60 * 60 * 1000 && interval <= 90 * 24 * 60 * 60 * 1000) {
           // Monthly marker (30 days or 3 months)
-          const monthlyNode = await nodesApi.getOrCreateMonthly(date.getFullYear(), date.getMonth() + 1);
+          const monthlyNode = getOrCreateMonthlyNote(store, date.getFullYear(), date.getMonth() + 1);
           if (e.shiftKey) {
             addSidebarCard(monthlyNode.uuid, 'page');
           } else {
@@ -403,7 +413,7 @@ export const TimelineView = memo(function TimelineView({
           }
         } else if (interval >= 365 * 24 * 60 * 60 * 1000) {
           // Yearly marker
-          const yearlyNode = await nodesApi.getOrCreateYearly(date.getFullYear());
+          const yearlyNode = getOrCreateYearlyNote(store, date.getFullYear());
           if (e.shiftKey) {
             addSidebarCard(yearlyNode.uuid, 'page');
           } else {
@@ -443,7 +453,7 @@ export const TimelineView = memo(function TimelineView({
       setSelectedEvent(null);
       setCardPosition(null);
     }
-  }, [spatialIndex, dimensions.width, dimensions.height, transform.scale, transform.panX, openNode, addSidebarCard]);
+  }, [spatialIndex, dimensions.width, dimensions.height, transform.scale, transform.panX, openNode, addSidebarCard, workspaceUuid]);
   
   const handleMouseDown = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
     isPanningRef.current = true;

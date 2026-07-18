@@ -144,18 +144,6 @@ async function createWorkspace(baseURL: string, cookies: string[], name: string)
   return resp.json();
 }
 
-async function refreshSession(baseURL: string, cookies: string[]): Promise<string[]> {
-  const resp = await fetch(`${baseURL}/api/auth/refresh`, {
-    method: 'POST',
-    headers: { Cookie: cookies.join('; ') },
-  });
-  if (!resp.ok) {
-    const body = await resp.text().catch(() => '');
-    throw new Error(`Failed to refresh session: ${resp.status} ${body}`);
-  }
-  return resp.headers.getSetCookie?.() ?? (resp.headers.get('set-cookie')?.split(', ') ?? []);
-}
-
 export default async function globalSetup(config: FullConfig) {
   const baseURL = config.projects[0]?.use.baseURL ?? 'http://localhost:5173';
   const env = loadEnv();
@@ -175,17 +163,18 @@ export default async function globalSetup(config: FullConfig) {
   await completeEnrollment(baseURL, testCookies);
   await createWorkspace(baseURL, testCookies, 'E2E Workspace');
 
-  // 3. Refresh the session so the persisted cookies have the maximum remaining
-  //    lifetime. This prevents access-token expiry from breaking later tests.
-  const freshCookies = await refreshSession(baseURL, testCookies);
-
-  // 4. Seed the browser storage state: HTTPOnly cookies + persisted auth user.
+  // 3. Seed the browser storage state: HTTPOnly cookies + persisted auth user.
+  // NOTE: We intentionally do NOT call /api/auth/refresh here. Rotating the
+  // refresh token would invalidate the token stored in the shared
+  // storageState, causing subsequent tests to be redirected to /auth when the
+  // access token expires. In development the access token lasts 8 hours, so
+  // refreshing is unnecessary for the E2E suite.
   const browser = await chromium.launch({
     executablePath: existsSync(ALPINE_CHROMIUM_PATH) ? ALPINE_CHROMIUM_PATH : undefined,
   });
   const context = await browser.newContext();
   await context.addCookies(
-    freshCookies.map((cookie) => {
+    testCookies.map((cookie) => {
       const parsed: Record<string, string> = {};
       const [kv, ...attrs] = cookie.split(';').map((s) => s.trim());
       const [name, value] = kv.split('=');
@@ -211,7 +200,10 @@ export default async function globalSetup(config: FullConfig) {
   );
 
   const page = await context.newPage();
-  await page.goto(`${baseURL}/workspaces`);
+  // Use domcontentloaded: Vite dev mode keeps some resources (lazy chunks,
+  // HMR websocket) open past the standard load event, so waiting for 'load'
+  // would time out even though the app is interactive.
+  await page.goto(`${baseURL}/workspaces`, { timeout: 60_000, waitUntil: 'domcontentloaded' });
   await page.evaluate((user) => {
     localStorage.setItem('user', JSON.stringify(user));
     localStorage.setItem(

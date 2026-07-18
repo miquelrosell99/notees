@@ -2,7 +2,9 @@ import { useState, useCallback, useMemo, useRef } from 'react';
 import { useNode } from '@/features/content';
 import { DatePickerPopup } from '@/features/content';
 import { Button } from '@/components/ui/Button';
-import { getOrCreateDaily } from '@/api/nodes';
+import { getOrCreateDailyNote } from '@/features/content/hooks/useNodeDateQueries';
+import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
+import { getWorkspaceStore } from '@/core/adapters/workspaceStoreAdapter';
 import { nodeNameToText } from '@/features/queries';
 import './DatePropertyValue.css';
 
@@ -28,6 +30,7 @@ export function DatePropertyValue({
   const anchorRef = useRef<HTMLButtonElement>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const workspaceUuid = useCurrentWorkspaceUuid();
 
   // Convert day page UUID (YYYYMMDD) to YYYY-MM-DD for the DatePickerPopup
   const isoValue = useMemo(() => {
@@ -44,16 +47,19 @@ export function DatePropertyValue({
       onDelete?.();
       return;
     }
+    if (!workspaceUuid) return;
+    const store = getWorkspaceStore(workspaceUuid);
+    if (!store) return;
     setLoading(true);
     try {
-      const newDayNode = await getOrCreateDaily(isoDate);
+      const newDayNode = getOrCreateDailyNote(store, isoDate);
       onChange(newDayNode.uuid);
     } catch (err) {
       console.error('Failed to create/get day page:', err);
     } finally {
       setLoading(false);
     }
-  }, [onChange, onDelete]);
+  }, [onChange, onDelete, workspaceUuid]);
 
   const handleClick = useCallback(async (e: React.MouseEvent) => {
     if (readOnly || loading) return;

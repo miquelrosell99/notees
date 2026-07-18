@@ -14,7 +14,7 @@
 import { useEffect, useCallback, useRef, type MutableRefObject } from 'react';
 import { useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useNavigationStore, useSettingsStore, useAuthStore, type MainViewType, type DefaultView } from '@/stores';
+import { useNavigationStore, useSettingsStore, useAuthStore, useFavoritesStore, useRecentsStore, type MainViewType, type DefaultView } from '@/stores';
 import { useShallow } from 'zustand/react/shallow';
 import { useTodayNote } from '@/features/content';
 import { useNavigationHistoryStore } from '@/stores/navigationHistoryStore';
@@ -23,7 +23,7 @@ import { getNodeByUuid } from '@/api/nodes';
 import { getPropertyByUuid } from '@/api/properties';
 import { SPECIAL_VIEWS } from './url';
 import { isUuid } from '@/utils/uuid';
-import { favoriteKeys, recentKeys, workspaceKeys } from '@/hooks/queryKeys';
+import { workspaceKeys } from '@/hooks/queryKeys';
 import { getLogger } from '@/utils/logger';
 import { isDayUuid, isMonthUuid, isYearUuid } from '@/utils/dateUuid';
 
@@ -102,8 +102,8 @@ export function useRouteAdapter({ hasInitialized, isProcessingUrl }: RouteAdapte
           mainViewType: 'node',
         });
 
-        queryClient.removeQueries({ queryKey: favoriteKeys.all });
-        queryClient.removeQueries({ queryKey: recentKeys.all });
+        useFavoritesStore.getState().clearFavorites();
+        useRecentsStore.getState().clearRecents();
         queryClient.clear();
 
         await queryClient.fetchQuery({
@@ -111,8 +111,6 @@ export function useRouteAdapter({ hasInitialized, isProcessingUrl }: RouteAdapte
           queryFn: () => listWorkspaces(),
         });
 
-        queryClient.invalidateQueries({ queryKey: favoriteKeys.all });
-        queryClient.invalidateQueries({ queryKey: recentKeys.all });
         return true;
       } finally {
         useNavigationStore.setState({ isSwitchingWorkspace: false });

@@ -1,10 +1,12 @@
 import { useCallback, useState } from 'react';
-import * as nodesApi from '@/api/nodes';
 import { useCreateNode } from '@/features/content';
+import { getOrCreateDailyNote } from '@/features/content/hooks/useNodeDateQueries';
 import { useSetNodeProperty } from '@/features/properties';
 import { useNotificationStore } from '@/stores/notificationStore';
 import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from '@/constants/systemProperties';
 import { getTodayDayUuid } from '@/utils/dateUuid';
+import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
+import { getWorkspaceStore } from '@/core/adapters/workspaceStoreAdapter';
 import { invalidateTaskPopupQueries } from './taskStatusShared';
 
 /** Local ISO date (YYYY-MM-DD), matching the CalendarPopup wrapper's format. */
@@ -24,14 +26,21 @@ export function useQuickAddTask() {
   const [isAdding, setIsAdding] = useState(false);
   const createNode = useCreateNode();
   const setProperty = useSetNodeProperty();
+  const workspaceUuid = useCurrentWorkspaceUuid();
 
   const quickAdd = useCallback(
     async (name: string) => {
       const trimmed = name.trim();
       if (!trimmed || isAdding) return;
+      if (!workspaceUuid) return;
+      const store = getWorkspaceStore(workspaceUuid);
+      if (!store) {
+        useNotificationStore.getState().error('Failed to add task', 'Workspace store not available');
+        return;
+      }
       setIsAdding(true);
       try {
-        const daily = await nodesApi.getOrCreateDaily(toIsoLocal(new Date()));
+        const daily = getOrCreateDailyNote(store, toIsoLocal(new Date()));
         const node = await createNode.mutateAsync({
           name: trimmed,
           parent_uuid: daily.uuid,
@@ -57,7 +66,7 @@ export function useQuickAddTask() {
         setIsAdding(false);
       }
     },
-    [createNode, setProperty, isAdding],
+    [createNode, setProperty, isAdding, workspaceUuid],
   );
 
   return { quickAdd, isAdding };

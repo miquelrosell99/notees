@@ -25,7 +25,7 @@ import {
   useCreateProperty,
 } from '@/features/properties';
 import { DatePickerPopup, useCreateComment } from '@/features/content';
-import { getOrCreateDaily } from '@/api/nodes';
+import { getOrCreateDailyNote } from '@/features/content/hooks/useNodeDateQueries';
 import { addSelectionOption } from '@/api/properties';
 import { generateUUID } from '@/utils/uuid';
 import type { DateRangeValue } from '@/utils/dateRange';
@@ -419,8 +419,11 @@ export function InlineTriggers({
   const handleDateSelect = useCallback(
     async (isoDate: string) => {
       const insertOffset = dateInsertOffsetRef.current;
+      if (!workspaceId) return;
+      const store = getWorkspaceStore(workspaceId);
+      if (!store) return;
       try {
-        const dayNode = await getOrCreateDaily(isoDate);
+        const dayNode = getOrCreateDailyNote(store, isoDate);
         applyMutation((prev) => {
           const fallbackOffset =
             prev.selection.type === 'collapsed' ? prev.selection.offset : 0;
@@ -442,7 +445,7 @@ export function InlineTriggers({
         dateInsertOffsetRef.current = null;
       }
     },
-    [applyMutation],
+    [applyMutation, workspaceId],
   );
 
   const handleUrlSave = useCallback(

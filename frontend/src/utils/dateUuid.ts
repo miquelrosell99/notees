@@ -71,6 +71,31 @@ export function dateToDayUuid(date: Date): string {
 }
 
 /**
+ * Generate a day UUID from an ISO date string (YYYY-MM-DD).
+ */
+export function dateStrToDayUuid(dateStr: string): string {
+  const clean = dateStr.replace(/-/g, '');
+  return `${DAY_PREFIX}${clean}0000`;
+}
+
+/**
+ * Generate a month UUID for a given year and month (1-12).
+ */
+export function yearMonthToMonthUuid(year: number, month: number): string {
+  const y = String(year).padStart(4, '0');
+  const m = String(month).padStart(2, '0');
+  return `${MONTH_PREFIX}${y}${m}000000`;
+}
+
+/**
+ * Generate a year UUID for a given year.
+ */
+export function yearToYearUuid(year: number): string {
+  const y = String(year).padStart(4, '0');
+  return `${YEAR_PREFIX}${y}00000000`;
+}
+
+/**
  * Generate a day UUID for today.
  */
 export function getTodayDayUuid(): string {

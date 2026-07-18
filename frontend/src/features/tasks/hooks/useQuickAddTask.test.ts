@@ -3,21 +3,25 @@ import { renderHook, act } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createElement, type ReactNode } from 'react';
 import { useQuickAddTask } from './useQuickAddTask';
-import * as nodesApi from '@/api/nodes';
 
 const mutateAsyncMock = vi.fn();
 const setPropertyMutateMock = vi.fn();
+const getOrCreateDailyNoteMock = vi.hoisted(() => vi.fn());
 
-// The real module exposes named function exports (no `nodesApi` object);
-// the hook consumes it via a namespace import, like CalendarPopup does.
-vi.mock('@/api/nodes', () => ({
-  getOrCreateDaily: vi.fn(),
-}));
 vi.mock('@/features/content', () => ({
   useCreateNode: () => ({ mutateAsync: mutateAsyncMock }),
 }));
+vi.mock('@/features/content/hooks/useNodeDateQueries', () => ({
+  getOrCreateDailyNote: getOrCreateDailyNoteMock,
+}));
 vi.mock('@/features/properties', () => ({
   useSetNodeProperty: () => ({ mutate: setPropertyMutateMock }),
+}));
+vi.mock('@/hooks/useCurrentWorkspaceUuid', () => ({
+  useCurrentWorkspaceUuid: () => 'ws-1',
+}));
+vi.mock('@/core/adapters/workspaceStoreAdapter', () => ({
+  getWorkspaceStore: () => ({}),
 }));
 
 function wrapper({ children }: { children: ReactNode }) {
@@ -28,7 +32,7 @@ function wrapper({ children }: { children: ReactNode }) {
 describe('useQuickAddTask', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(nodesApi.getOrCreateDaily).mockResolvedValue({ uuid: 'daily-uuid' } as never);
+    getOrCreateDailyNoteMock.mockReturnValue({ uuid: 'daily-uuid' });
     mutateAsyncMock.mockResolvedValue({ uuid: 'new-task-uuid' });
   });
 
