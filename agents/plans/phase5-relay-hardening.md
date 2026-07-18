@@ -69,7 +69,9 @@ What is missing:
 
 ## Sub-Task Breakdown
 
-### E1 — Relay HTTP/WebSocket endpoints
+### E1 — Relay HTTP/WebSocket endpoints ✅ Done
+
+**Status:** Committed as `feat(relay): Phase 5 E1 WebSocket and paginated catch-up` (`7016e8f2`).
 
 **Goal:** Add real-time forwarding and paginated catch-up.
 
@@ -98,6 +100,11 @@ What is missing:
 **Verification:**
 - `uv run pytest tests/core/test_relay_ws.py tests/core/test_relay_router.py -m unit --no-cov` passes.
 - WebSocket broadcast test: client A sends envelope, client B receives it.
+
+**Results:**
+- `uv run pytest tests/core/test_relay_ws.py tests/core/test_relay_router.py tests/core/test_relay.py -m unit --no-cov` → 25 passed.
+- `uv run ruff check app/relay` → clean.
+- `cd frontend && npm run test:run src/core && npx tsc -b --noEmit` → 52 passed, typecheck clean.
 
 ---
 

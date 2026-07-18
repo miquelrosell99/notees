@@ -302,7 +302,7 @@ Alternatives considered and rejected:
 - Manual multi-tab convergence test with `VITE_ENABLE_SQLITE_STORE=true`.
 
 **Subagent breakdown:**
-- Subagent E1: Relay HTTP/WebSocket endpoints.
+- Subagent E1: Relay HTTP/WebSocket endpoints. ✅ Done (`7016e8f2`).
 - Subagent E2: Permission + share integration.
 - Subagent E3: Key management + encryption.
 - Subagent E4: Conformance and load tests.
