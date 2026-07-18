@@ -20,7 +20,6 @@ import { getNode } from '@/runtime/graphHelpers';
 import type { MutationIntent } from '@/runtime/types';
 import { getUndoEngine } from '@/stores/undoEngine';
 import { liveSyncManager } from '@/features/collab';
-import { localSyncEngine } from '@/features/sync/engine/localSyncEngine';
 import { flushRegistry } from '@/hooks/contentSaveTracker';
 import { ENABLE_SQLITE_STORE } from '@/core/utils/featureFlags';
 import { WorkspaceStoreContext } from '@/core/hooks/WorkspaceStoreContext';
@@ -182,7 +181,6 @@ export function useContentSave(options: UseContentSaveOptions = {}) {
         saveBlock(blockId, pendingItem.content);
       });
       pending.clear();
-      void localSyncEngine.flush();
     };
   }, [saveBlock]);
 
@@ -194,13 +192,11 @@ export function useContentSave(options: UseContentSaveOptions = {}) {
   useEffect(() => {
     const handleBeforeUnload = () => {
       flushAll();
-      void localSyncEngine.flush();
     };
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'hidden') {
         flushAll();
-        void localSyncEngine.flush();
       }
     };
 
