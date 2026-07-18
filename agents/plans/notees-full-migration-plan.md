@@ -1,7 +1,7 @@
 # Notees Full Migration Plan: Current App → Ideal Architecture
 
 **Date:** 2026-07-18  
-**Branch:** `main` (Phase 3 complete, Phase 4 in progress)  
+**Branch:** `main` (Phase 5 complete, Phase 6 in progress)  
 **Scope:** Migrate the real Notees app (`app/`, `frontend/`, PostgreSQL) to the local-first, operation-log, CRDT-driven architecture defined in `docs/superpowers/specs/2026-07-17-notees-ideal-data-architecture-design.md`.
 
 ---
@@ -311,23 +311,36 @@ Alternatives considered and rejected:
 
 ## Phase 6: Cleanup and Deprecation
 
-**Goal:** Remove the old mutable-row stack once the new stack is proven.
+**Goal:** Remove the surfaces that are genuinely superseded by the new core, while keeping legacy service/repo/runtime layers as a compatibility shim for still-active feature islands.
 
-**Status:** Pending.
+**Status:** In progress. Detailed plan: `agents/plans/phase6-cleanup-deprecation.md`.
 
 **Deliverables:**
-1. Remove `app/features/nodes/`, `app/features/properties/`, `app/features/sync/` old implementations.
-2. Remove old `app/routers/`, `app/domain/services/query_ast_sql.py`, mutable schema sections.
-3. Remove old frontend `frontend/src/features/sync/local/` IndexedDB mirror.
-4. Final migration run for all workspaces.
-5. Update documentation and AGENTS.md.
+1. **F1 — Backend safe cleanup:**
+   - Remove `app/features/sync/` (router, service, service_v2, repository, port, dependencies) — superseded by `app/relay/`.
+   - Unmount legacy `nodes_router`, `properties_router`, `sync_router` from `app/main.py` and `app/routers/__init__.py`.
+   - Remove dead router endpoint modules under `app/features/nodes/router/` and `app/features/properties/router/` that have no consumers outside the unmounted routers.
+   - Remove `app/domain/services/query_ast_sql.py`, `app/domain/repositories/postgres_query.py`, and `app/domain/services/query_ast_validation.py` once verified unused.
+   - Clean legacy sync factory from `app/dependencies.py`.
+2. **F2 — Frontend safe cleanup:**
+   - Remove `VITE_ENABLE_SQLITE_STORE` and make the SQLite core path the default for hooks that already have adapter twins.
+   - Remove legacy v2 sync dispatcher (`SyncManagerV2`, `localSyncEngine`, `LocalIndexManager`, `QueryLiveUpdater`, conflict/store utilities).
+   - Disconnect `runtime/eventBus.ts` and `useContentSave.ts` from `localSyncEngine`.
+   - Prune `frontend/src/features/sync/local/` files that are no longer imported; retain `localQuery.ts`, `buildOfflineLinkedReferences.ts`, and `substituteRuntimeParams.ts` until their consumers are retargeted to the core SQLite compiler.
+3. **F3 — Final migration and docs:**
+   - Run `scripts/seed_relay_from_postgres.py --all` against the live DB.
+   - Update `AGENTS.md` and user-facing docs; add changelog note.
 
-**Files to modify/delete:**
-- Large deletion PR; final cleanup.
+**What stays for Phase 7:**
+- `app/features/nodes/` and `app/features/properties/` service/repository/port/postgres layers (used by tasks, assets, import, shares, activity, undo, plugins).
+- `frontend/src/runtime/` and the runtime-based block-tree overlay (used by editor/content hooks).
+- `frontend/src/features/sync/local/` query helpers still imported by query hooks.
 
 **Verification:**
-- Full test suite passes.
-- Production migration smoke test passes.
+- `uv run ruff check app/` passes.
+- `uv run pytest tests/core tests/relay tests/unit -m unit --no-cov` passes.
+- `uv run python scripts/seed_relay_from_postgres.py --all` succeeds.
+- `cd frontend && npx tsc -b --noEmit && npm run lint && npm run test:run src/core src/features/content src/features/properties src/features/sync src/runtime` passes.
 
 ---
 
