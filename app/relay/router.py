@@ -5,6 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.relay.dependencies import get_actor_id, get_relay_service
+from app.relay.key_router import router as key_router
 from app.relay.models import (
     BatchRequest,
     CatchUpPaginatedResponse,
@@ -15,6 +16,8 @@ from app.relay.service import RelayService
 from app.relay.websocket import websocket_endpoint
 
 router = APIRouter(prefix="/api/relay", tags=["relay"])
+
+router.include_router(key_router)
 
 
 @router.post("/batch")

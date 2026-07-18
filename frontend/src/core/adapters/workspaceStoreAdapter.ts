@@ -1,4 +1,5 @@
 import { createDatabase } from '../db/connection';
+import { deriveUserWrappingKey, unwrapWorkspaceKey } from '../crypto';
 import { loadWorkspaceDatabase, saveWorkspaceDatabase } from '../persistence/indexedDb';
 import { SyncEngine } from '../sync';
 import { WorkspaceStore } from '../store';
@@ -10,6 +11,22 @@ interface RegistryEntry {
   key: CryptoKey;
 }
 
+interface WrappedKeySpec {
+  wrappedKey: { ciphertext: string; iv: string };
+  userId: string;
+  secret: string;
+}
+
+function isWrappedKeySpec(value: CryptoKey | WrappedKeySpec): value is WrappedKeySpec {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'wrappedKey' in value &&
+    'userId' in value &&
+    'secret' in value
+  );
+}
+
 const registry = new Map<string, RegistryEntry>();
 
 export async function getOrCreateWorkspaceStore(
@@ -17,9 +34,29 @@ export async function getOrCreateWorkspaceStore(
   actorId: string,
   key: CryptoKey,
   transport: Transport
+): Promise<WorkspaceStore>;
+export async function getOrCreateWorkspaceStore(
+  workspaceId: string,
+  actorId: string,
+  spec: WrappedKeySpec,
+  transport: Transport
+): Promise<WorkspaceStore>;
+export async function getOrCreateWorkspaceStore(
+  workspaceId: string,
+  actorId: string,
+  keyOrSpec: CryptoKey | WrappedKeySpec,
+  transport: Transport
 ): Promise<WorkspaceStore> {
   const existing = registry.get(workspaceId);
   if (existing) return existing.store;
+
+  let key: CryptoKey;
+  if (isWrappedKeySpec(keyOrSpec)) {
+    const wrappingKey = await deriveUserWrappingKey(keyOrSpec.userId, keyOrSpec.secret);
+    key = await unwrapWorkspaceKey(keyOrSpec.wrappedKey, wrappingKey);
+  } else {
+    key = keyOrSpec;
+  }
 
   const saved = await loadWorkspaceDatabase(workspaceId);
   const db = await createDatabase(saved);
