@@ -34,3 +34,5 @@ export type { UnsetPropertyArgs } from './useUnsetProperty';
 export { useQueryAst } from './useQueryAst';
 export { useStorageQuota } from './useStorageQuota';
 export type { StorageQuota } from './useStorageQuota';
+export { useClasses } from './useClasses';
+export type { UseClassesResult } from './useClasses';
