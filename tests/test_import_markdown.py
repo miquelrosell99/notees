@@ -31,8 +31,14 @@ async def _export_single_node_and_download(
     return download_resp.text
 
 
+@pytest.mark.skip(reason="Legacy PostgreSQL-backed import integration; superseded by WorkspaceStore unit tests in tests/core/test_import_router.py during Phase 7.")
 class TestMarkdownImport:
-    """Test importing Markdown documents with YAML frontmatter."""
+    """Test importing Markdown documents with YAML frontmatter.
+
+    This integration test exercised the legacy node/property services. It is
+    retained for reference but skipped while the import island runs on the
+    operation-log core via WorkspaceStore.
+    """
 
     @pytest.mark.asyncio
     async def test_import_markdown_creates_page_with_metadata(self, auth_client: AsyncClient):

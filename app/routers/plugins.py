@@ -336,6 +336,8 @@ async def run_import(
     context = ImportContext(
         workspace_id=workspace_id,
         user_id=int(user.id),
+        workspace_uuid=workspace_uuid,
+        actor_uuid=user.uuid,
         plugin_context=plugin_context,
         filename=file.filename,
     )

@@ -303,7 +303,9 @@ class PostgresShareRepository(BasePostgresRepository, ShareRepository):
                     active = TRUE,
                     write_uid = EXCLUDED.write_uid,
                     write_date = NOW()
-                RETURNING id, uuid, node_id, user_id, can_read, can_write, create_date, create_uid
+                RETURNING id, uuid, node_id, user_id, can_read, can_write, create_date, create_uid,
+                          (SELECT uuid FROM "user" WHERE id = node_share.user_id) as user_uuid,
+                          (SELECT uuid FROM "user" WHERE id = node_share.create_uid) as create_user_uuid
                 """,
                 node_id,
                 target_id,
@@ -337,7 +339,8 @@ class PostgresShareRepository(BasePostgresRepository, ShareRepository):
             rows = await conn.fetch(
                 """
                 SELECT ns.id, ns.uuid as share_uuid, ns.node_id, ns.user_id, u.email, ns.can_read, ns.can_write,
-                       ns.create_date, ns.create_uid
+                       ns.create_date, ns.create_uid, u.uuid as user_uuid,
+                       (SELECT uuid FROM "user" WHERE id = ns.create_uid) as create_user_uuid
                 FROM node_share ns
                 JOIN "user" u ON u.id = ns.user_id
                 WHERE ns.node_id = $1 AND ns.active = TRUE
@@ -414,7 +417,8 @@ class PostgresShareRepository(BasePostgresRepository, ShareRepository):
         async with acquire_connection(self._pool) as conn, conn.transaction():
             share_row = await conn.fetchrow(
                 """
-                SELECT ns.id, ns.node_id, ns.create_uid, n.create_uid as node_owner_id
+                SELECT ns.id, ns.uuid as share_uuid, ns.node_id, ns.create_uid, n.create_uid as node_owner_id,
+                       n.uuid as node_uuid
                 FROM node_share ns
                 JOIN node n ON n.id = ns.node_id
                 WHERE ns.uuid = $1 AND ns.active = TRUE AND n.workspace_id = $2
@@ -446,4 +450,8 @@ class PostgresShareRepository(BasePostgresRepository, ShareRepository):
                     share_row["node_id"],
                 )
 
-        return {"node_id": share_row["node_id"]}
+        return {
+            "node_id": share_row["node_id"],
+            "node_uuid": str(share_row["node_uuid"]),
+            "share_uuid": str(share_row["share_uuid"]),
+        }

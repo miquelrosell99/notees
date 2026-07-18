@@ -37,22 +37,22 @@ class BibTeXImporter(ImporterAdapter):
             result.messages.append("No BibTeX entries found")
             return result
 
-        source_class_id = await plugin_ctx.ensure_class(
-            context.workspace_id,
-            context.user_id,
+        source_class_uuid = await plugin_ctx.ensure_class(
+            context.workspace_uuid or str(context.workspace_id),
+            context.actor_uuid or str(context.user_id),
             "Source: BibTeX",
             icon="file-document-outline",
         )
 
         for entry in entries:
             name = entry.title or entry.cite_key
-            node = await plugin_ctx.create_page(
-                context.workspace_id,
-                context.user_id,
+            node_uuid = await plugin_ctx.create_page(
+                context.workspace_uuid or str(context.workspace_id),
+                context.actor_uuid or str(context.user_id),
                 name,
-                additional_classes=[source_class_id],
+                class_uuids=[source_class_uuid],
             )
-            result.created_node_ids.append(node.id)
+            result.created_node_ids.append(node_uuid)
 
         result.messages.append(f"Imported {len(entries)} BibTeX entries")
         return result

@@ -365,11 +365,14 @@ class FakeShareRepository:
 
         share_row = {
             "id": self._next_node_share_id,
+            "uuid": generate_uuid(),
             "node_id": node_id,
             "user_id": target.id,
+            "user_uuid": str(target.uuid),
             "can_write": permission == "write",
             "create_date": datetime.now(),
             "create_uid": user_id,
+            "create_user_uuid": str(target.uuid),
         }
         self._node_user_shares.append(share_row)
         self._next_node_share_id += 1

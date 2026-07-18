@@ -144,20 +144,46 @@ def apply_class_unassign(conn: sqlite3.Connection, op: Operation) -> None:
 def apply_node_update_content(conn: sqlite3.Connection, op: Operation) -> None:
     """Apply a ``node.updateContent`` operation.
 
-    Migration emits a simplified content AST under ``crdtUpdate`` rather than a
-    binary Yjs update. Treat it as the node content directly.
+    Supports two payload shapes:
+
+    * ``crdtUpdate`` — a simplified content AST (list or single dict). This is
+      used by migration scripts and legacy content paths.
+    * ``textUpdate`` — a Yjs text update as a list of byte values (or bytes).
+      The update is stored in ``crdt_state.text_state`` so the server can serve
+      it back as a binary Yjs state blob; the node content is set to a minimal
+      text placeholder because the server does not interpret Yjs updates.
     """
     payload = op.payload
     node_id = payload["nodeId"]
-    crdt_update = payload.get("crdtUpdate")
     ts = op.envelope.timestamp.isoformat() if op.envelope.timestamp else None
 
-    if isinstance(crdt_update, list):
-        content = crdt_update
-    elif isinstance(crdt_update, dict):
-        content = [crdt_update]
+    text_update = payload.get("textUpdate")
+    if text_update is not None:
+        if isinstance(text_update, list):
+            blob = bytes(text_update)
+        elif isinstance(text_update, bytes):
+            blob = text_update
+        else:
+            blob = b""
+
+        conn.execute(
+            """
+            INSERT INTO crdt_state (node_id, text_state)
+            VALUES (?, ?)
+            ON CONFLICT (node_id) DO UPDATE
+            SET text_state = EXCLUDED.text_state
+            """,
+            (node_id, blob),
+        )
+        content = [{"type": "text", "text": ""}]
     else:
-        content = []
+        crdt_update = payload.get("crdtUpdate")
+        if isinstance(crdt_update, list):
+            content = crdt_update
+        elif isinstance(crdt_update, dict):
+            content = [crdt_update]
+        else:
+            content = []
 
     conn.execute(
         "UPDATE node SET content = ?, updated_at = ?, updated_by = ? WHERE id = ?",

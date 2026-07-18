@@ -1,90 +1,22 @@
 """Tests for asset file operations and lifecycle with content-addressed storage."""
+
 import hashlib
 import shutil
-from typing import Any
 
 import pytest
 
-from app.features.assets.port import AssetRepository
+from app.features.assets.service import AssetFileService
 
-
-class _FakeAssetRepository(AssetRepository):
-    """In-memory stub for AssetRepository used in AssetFileService unit tests."""
-
-    def __init__(self):
-        self._files: dict[int, dict[str, Any]] = {}
-        self._next_id = 1
-
-    async def get_page_and_asset_class_ids(self, user_id: int) -> tuple[int, int]:
-        return 1, 2
-
-    async def convert_node_to_asset(
-        self,
-        node_id: int,
-        asset_uuid: str,
-        name: str,
-        asset_class_id: int,
-        user_id: int,
-        asset_id: int | None = None,
-    ) -> None:
-        pass
-
-    async def asset_exists_by_uuid(self, uuid: str) -> bool:
-        return False
-
-    async def create_asset(
-        self,
-        hash: str,
-        size: int,
-        mime_type: str | None,
-        original_name: str | None,
-        user_id: int,
-    ) -> int:
-        file_id = self._next_id
-        self._next_id += 1
-        self._files[file_id] = {
-            "id": file_id,
-            "hash": hash,
-            "size": size,
-            "mime_type": mime_type,
-            "original_name": original_name,
-            "refs_count": 1,
-        }
-        return file_id
-
-    async def find_asset_by_hash(self, hash: str) -> dict[str, Any] | None:
-        for row in self._files.values():
-            if row["hash"] == hash:
-                return dict(row)
-        return None
-
-    async def get_asset_by_id(self, asset_id: int) -> dict[str, Any] | None:
-        row = self._files.get(asset_id)
-        return dict(row) if row else None
-
-    async def increment_asset_ref_count(self, asset_id: int) -> None:
-        if asset_id in self._files:
-            self._files[asset_id]["refs_count"] += 1
-
-    async def decrement_asset_ref_count(self, asset_id: int) -> int:
-        if asset_id not in self._files:
-            return 0
-        self._files[asset_id]["refs_count"] -= 1
-        return self._files[asset_id]["refs_count"]
+pytestmark = pytest.mark.unit
 
 
 @pytest.fixture
 def asset_file_service(tmp_path):
     """Return an AssetFileService using a temporary assets directory."""
-    from app.features.assets.service import AssetFileService
-
-    service = AssetFileService(str(tmp_path), _FakeAssetRepository())
-    original_dir = service.assets_dir
-    service.assets_dir = tmp_path
+    service = AssetFileService("test-workspace", tmp_path)
     try:
         yield service
     finally:
-        service.assets_dir = original_dir
         if tmp_path.exists():
             shutil.rmtree(tmp_path)
 
@@ -93,17 +25,17 @@ def asset_file_service(tmp_path):
 async def test_asset_file_deduplication(asset_file_service):
     """Uploading the same bytes twice reuses the same content file."""
     content = b"duplicate me"
-    id1, ext1, path1 = await asset_file_service.create_asset(
+    hash1, ext1, path1 = await asset_file_service.create_asset(
         file_bytes=content,
         original_filename="a.jpg",
         content_type="image/jpeg",
     )
-    id2, ext2, path2 = await asset_file_service.create_asset(
+    hash2, ext2, path2 = await asset_file_service.create_asset(
         file_bytes=content,
         original_filename="b.jpg",
         content_type="image/jpeg",
     )
-    assert id1 == id2
+    assert hash1 == hash2
     assert ext1 == ext2 == ".jpg"
     assert path1 == path2
     assert path1.exists()
@@ -113,14 +45,14 @@ async def test_asset_file_deduplication(asset_file_service):
 async def test_asset_file_deletes_when_unref_count_zero(asset_file_service):
     """Deleting the last reference removes the content file."""
     content = b"test image content"
-    file_id, _ext, source_path = await asset_file_service.create_asset(
+    file_hash, _ext, source_path = await asset_file_service.create_asset(
         file_bytes=content,
         original_filename="test.jpg",
         content_type="image/jpeg",
     )
     assert source_path.exists()
 
-    deleted = await asset_file_service.delete_asset(file_id)
+    deleted = await asset_file_service.delete_asset(file_hash)
     assert deleted is True
     assert not source_path.exists()
 
@@ -129,15 +61,15 @@ async def test_asset_file_deletes_when_unref_count_zero(asset_file_service):
 async def test_asset_file_deletion_keeps_file_with_refs(asset_file_service):
     """Deleting one reference keeps the file when others remain."""
     content = b"shared content"
-    file_id, _ext, source_path = await asset_file_service.create_asset(
+    file_hash, _ext, source_path = await asset_file_service.create_asset(
         file_bytes=content,
         original_filename="x.png",
         content_type="image/png",
     )
     # Simulate a second reference by incrementing the count.
-    await asset_file_service._asset_repo.increment_asset_ref_count(file_id)
+    asset_file_service._increment_ref(file_hash, ".png")
 
-    deleted = await asset_file_service.delete_asset(file_id)
+    deleted = await asset_file_service.delete_asset(file_hash)
     assert deleted is False
     assert source_path.exists()
 
@@ -146,7 +78,7 @@ async def test_asset_file_deletion_keeps_file_with_refs(asset_file_service):
 async def test_asset_file_storage_path_is_content_addressed(asset_file_service):
     """Files are stored under assets/<hash prefix>/<hash>."""
     content = b"hello world"
-    _file_id, _ext, source_path = await asset_file_service.create_asset(
+    _file_hash, _ext, source_path = await asset_file_service.create_asset(
         file_bytes=content,
         original_filename="doc.png",
         content_type="image/png",
