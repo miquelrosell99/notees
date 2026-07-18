@@ -27,8 +27,10 @@ import { invalidateNodeCaches } from './useNodeMutations.utils';
 import { insertChildIntoTreeCaches } from '@/hooks/cacheUtils';
 import { inFlightBlocks } from './useBlockPersist.utils';
 import { generateUUID } from '@/utils/uuid';
+import { ENABLE_SQLITE_STORE } from '@/core/utils/featureFlags';
+import { useCreateNodeAdapter } from '@/core/adapters';
 
-export function useCreateNode() {
+export function useCreateNodeLegacy() {
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -163,4 +165,11 @@ export function useCreateNode() {
       }
     },
   });
+}
+
+export function useCreateNode() {
+  const legacyResult = useCreateNodeLegacy();
+  const sqliteResult = useCreateNodeAdapter();
+
+  return ENABLE_SQLITE_STORE ? sqliteResult : legacyResult;
 }

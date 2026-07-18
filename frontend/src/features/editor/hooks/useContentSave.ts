@@ -12,7 +12,8 @@
  *   content operations (best-effort timeout).
  */
 
-import { useCallback, useRef, useEffect } from 'react';
+import { useCallback, useRef, useEffect, useContext } from 'react';
+import { useParams } from 'react-router-dom';
 import { parseAST, convertMarkdownInAST } from '@/lib/astBuilder';
 import { getOperationRuntime } from '@/runtime';
 import { getNode } from '@/runtime/graphHelpers';
@@ -21,6 +22,9 @@ import { getUndoEngine } from '@/stores/undoEngine';
 import { liveSyncManager } from '@/features/collab';
 import { localSyncEngine } from '@/features/sync/engine/localSyncEngine';
 import { flushRegistry } from '@/hooks/contentSaveTracker';
+import { ENABLE_SQLITE_STORE } from '@/core/utils/featureFlags';
+import { WorkspaceStoreContext } from '@/core/hooks/WorkspaceStoreContext';
+import { getOrCreateWorkspaceStore } from '@/core/adapters/workspaceStoreAdapter';
 
 export { flushAllContentSaves, awaitAllContentSaves } from '@/hooks/contentSaveTracker';
 
@@ -49,6 +53,8 @@ interface UseContentSaveOptions {
 export function useContentSave(options: UseContentSaveOptions = {}) {
   const { delay = DEFAULT_TEXT_DEBOUNCE_MS } = options;
   const pendingChangesRef = useRef<Map<string, PendingChange>>(new Map());
+  const { workspaceId } = useParams<{ workspaceId?: string }>();
+  const ctx = useContext(WorkspaceStoreContext);
 
   const resolveGraphNode = useCallback((blockId: string) => {
     const runtime = getOperationRuntime();
@@ -59,10 +65,26 @@ export function useContentSave(options: UseContentSaveOptions = {}) {
     const ast = parseAST(content);
     const converted = convertMarkdownInAST(ast);
 
+    const finalContent = converted !== ast ? JSON.stringify(converted) : content;
+
+    if (ENABLE_SQLITE_STORE) {
+      if (!ctx || !workspaceId) return;
+      const store = await getOrCreateWorkspaceStore(
+        workspaceId,
+        ctx.actorId,
+        ctx.cryptoKey,
+        ctx.transport
+      );
+      store.updateText(blockId, (text) => {
+        const current = text.toPlaintext();
+        text.delete(0, current.length);
+        text.insert(0, finalContent);
+      });
+      return;
+    }
+
     const graphNode = resolveGraphNode(blockId);
     if (!graphNode) return;
-
-    const finalContent = converted !== ast ? JSON.stringify(converted) : content;
 
     if (typeof navigator !== 'undefined' && navigator.onLine) {
       try {
@@ -78,7 +100,7 @@ export function useContentSave(options: UseContentSaveOptions = {}) {
       contentAST: converted,
     };
     await getUndoEngine().applyIntent(intent, { sourceEditorId: intent.sourceEditorId });
-  }, [resolveGraphNode]);
+  }, [resolveGraphNode, ctx, workspaceId]);
 
   const flushBlock = useCallback((blockId: string) => {
     const pending = pendingChangesRef.current.get(blockId);
