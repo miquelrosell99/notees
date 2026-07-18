@@ -2,6 +2,7 @@ import type { LogseqExport } from '@/utils/ednParser';
 import type { Node } from '@/types/api';
 import type { TaskReportData, TaskPhaseResult } from '@/components/ui/TaskReport';
 import type { QueryClient } from '@tanstack/react-query';
+import type { WorkspaceStore } from '@/core/store';
 
 export type ImportMode = 'additive' | 'override';
 
@@ -38,6 +39,7 @@ export interface ImportContext {
   };
 
   queryClient: QueryClient;
+  store: WorkspaceStore;
 
   setImportStatus: (s: string) => void;
   setImportProgress: (n: number) => void;

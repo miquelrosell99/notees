@@ -1,83 +1,66 @@
 /**
- * Favorites server state via TanStack Query.
+ * Favorites local-first state backed by a persisted Zustand store.
  *
- * Provides query/mutation hooks for components and imperative helpers
+ * Provides query/mutation-shaped hooks for components and imperative helpers
  * for non-component code (mutation callbacks, dynamic imports, etc.).
  */
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import * as nodesApi from '@/api/nodes';
-import { queryClient } from '@/lib/queryClient';
-import { favoriteKeys } from '@/hooks/queryKeys';
-
+import { useFavoritesStore } from '@/stores/favoritesStore';
 
 export function useFavorites() {
-  return useQuery<string[], Error>({
-    queryKey: favoriteKeys.list(),
-    queryFn: () =>
-      nodesApi.getFavorites(1, 50).then((response) => response.items.map((node) => node.uuid)),
-  });
+  const favorites = useFavoritesStore((state) => state.favorites);
+  return { data: favorites, isLoading: false, error: null };
 }
 
 export function useAddFavoriteMutation() {
-  const qc = useQueryClient();
-  return useMutation<string[], Error, string>({
-    mutationFn: async (nodeUuid) => {
-      return nodesApi.addFavorite(nodeUuid).then((items) => items);
-    },
-    onSuccess: (data) => {
-      qc.setQueryData<string[]>(favoriteKeys.list(), data);
-      qc.invalidateQueries({ queryKey: favoriteKeys.all });
-    },
-  });
+  const addFavorite = useFavoritesStore((state) => state.addFavorite);
+  return {
+    mutate: (nodeUuid: string) => addFavorite(nodeUuid),
+    mutateAsync: async (nodeUuid: string) => addFavorite(nodeUuid),
+  } as {
+    mutate: (nodeUuid: string) => void;
+    mutateAsync: (nodeUuid: string) => Promise<void>;
+  };
 }
 
 export function useRemoveFavoriteMutation() {
-  const qc = useQueryClient();
-  return useMutation<string[], Error, string>({
-    mutationFn: async (nodeUuid) => {
-      return nodesApi.removeFavorite(nodeUuid).then((items) => items);
-    },
-    onSuccess: (data) => {
-      qc.setQueryData<string[]>(favoriteKeys.list(), data);
-      qc.invalidateQueries({ queryKey: favoriteKeys.all });
-    },
-  });
+  const removeFavorite = useFavoritesStore((state) => state.removeFavorite);
+  return {
+    mutate: (nodeUuid: string) => removeFavorite(nodeUuid),
+    mutateAsync: async (nodeUuid: string) => removeFavorite(nodeUuid),
+  } as {
+    mutate: (nodeUuid: string) => void;
+    mutateAsync: (nodeUuid: string) => Promise<void>;
+  };
 }
 
 export function useReorderFavoritesMutation() {
-  const qc = useQueryClient();
-  return useMutation<string[], Error, { fromIndex: number; toIndex: number }>({
-    mutationFn: ({ fromIndex, toIndex }) =>
-      nodesApi.reorderFavorites(fromIndex, toIndex).then((items) => items),
-    onSuccess: (data) => {
-      qc.setQueryData<string[]>(favoriteKeys.list(), data);
-      qc.invalidateQueries({ queryKey: favoriteKeys.all });
-    },
-  });
+  const reorderFavorites = useFavoritesStore((state) => state.reorderFavorites);
+  return {
+    mutate: ({ fromIndex, toIndex }: { fromIndex: number; toIndex: number }) =>
+      reorderFavorites(fromIndex, toIndex),
+    mutateAsync: async ({ fromIndex, toIndex }: { fromIndex: number; toIndex: number }) =>
+      reorderFavorites(fromIndex, toIndex),
+  } as {
+    mutate: (args: { fromIndex: number; toIndex: number }) => void;
+    mutateAsync: (args: { fromIndex: number; toIndex: number }) => Promise<void>;
+  };
 }
 
 export async function addFavorite(nodeUuid: string): Promise<string[]> {
-  const data = await nodesApi.addFavorite(nodeUuid);
-  queryClient.setQueryData<string[]>(favoriteKeys.list(), data);
-  queryClient.invalidateQueries({ queryKey: favoriteKeys.all });
-  return data;
+  useFavoritesStore.getState().addFavorite(nodeUuid);
+  return useFavoritesStore.getState().favorites;
 }
 
 export async function removeFavorite(nodeUuid: string): Promise<string[]> {
-  const data = await nodesApi.removeFavorite(nodeUuid);
-  queryClient.setQueryData<string[]>(favoriteKeys.list(), data);
-  queryClient.invalidateQueries({ queryKey: favoriteKeys.all });
-  return data;
+  useFavoritesStore.getState().removeFavorite(nodeUuid);
+  return useFavoritesStore.getState().favorites;
 }
 
 export async function reorderFavorites(fromIndex: number, toIndex: number): Promise<string[]> {
-  const data = await nodesApi.reorderFavorites(fromIndex, toIndex);
-  queryClient.setQueryData<string[]>(favoriteKeys.list(), data);
-  queryClient.invalidateQueries({ queryKey: favoriteKeys.all });
-  return data;
+  useFavoritesStore.getState().reorderFavorites(fromIndex, toIndex);
+  return useFavoritesStore.getState().favorites;
 }
 
 export function isFavorite(nodeUuid: string): boolean {
-  const favorites = queryClient.getQueryData<string[]>(favoriteKeys.list());
-  return favorites?.includes(nodeUuid) ?? false;
+  return useFavoritesStore.getState().isFavorite(nodeUuid);
 }
