@@ -26,6 +26,7 @@ export interface QueryNodesFilters {
   isPage?: boolean;
   isClass?: boolean;
   isDaily?: boolean;
+  includeArchived?: boolean;
 }
 
 function buildSearchFilters(filters: QueryNodesFilters): SearchFilters {
@@ -49,6 +50,9 @@ export function queryNodes(
   store: WorkspaceStore,
   filters: QueryNodesFilters,
 ): Node[] {
+  const includeArchived = filters.includeArchived ?? false;
+  const isActiveMatch = (n: Node): boolean => includeArchived || n.active !== false;
+
   if (filters.ast) {
     const ast = substituteRuntimeParams(filters.ast, filters.runtimeParams ?? {});
     const compiled = compileToSqlite(ast, store.getWorkspaceId());
@@ -60,6 +64,7 @@ export function queryNodes(
     return rows
       .map((row) => projectNode(store, row.id))
       .filter((n): n is Node => n !== undefined)
+      .filter(isActiveMatch)
       .slice(0, LOCAL_QUERY_RESULT_LIMIT);
   }
 
@@ -80,6 +85,7 @@ export function queryNodes(
     return rows
       .map((row) => projectNode(store, row.id))
       .filter((n): n is Node => n !== undefined)
+      .filter(isActiveMatch)
       .slice(0, LOCAL_QUERY_RESULT_LIMIT);
   }
 
@@ -88,12 +94,17 @@ export function queryNodes(
     .sort((a, b) => b.score - a.score)
     .map((r) => projectNode(store, r.id))
     .filter((n): n is Node => n !== undefined)
+    .filter(isActiveMatch)
     .slice(0, LOCAL_QUERY_RESULT_LIMIT);
 }
 
 function listNodesSql(workspaceId: string, filters: QueryNodesFilters): { sql: string; params: (string | number)[] } {
   const where: string[] = ['n.workspace_id = ?'];
   const params: (string | number)[] = [workspaceId];
+
+  if (!filters.includeArchived) {
+    where.push('n.active = 1');
+  }
 
   if (filters.isPage !== undefined) {
     where.push('n.kind = ?');

@@ -25,6 +25,7 @@ export interface NodeRow {
   parentId: string | null;
   classIds: string[];
   content: string;
+  active: boolean;
   createdAt: string | null;
   updatedAt: string | null;
   createdBy: string | null;
@@ -267,6 +268,72 @@ export class WorkspaceStore {
     this.apply(op);
   }
 
+  archiveNode(nodeId: string): void {
+    const op = createOperation(
+      {
+        workspaceId: this.workspaceId,
+        actorId: this.actorId,
+        hlc: this.clock.advance(Date.now()),
+        affectedNodeIds: [nodeId],
+        opType: 'node.archive',
+      },
+      { nodeId }
+    );
+    this.apply(op);
+  }
+
+  restoreNode(nodeId: string): void {
+    const op = createOperation(
+      {
+        workspaceId: this.workspaceId,
+        actorId: this.actorId,
+        hlc: this.clock.advance(Date.now()),
+        affectedNodeIds: [nodeId],
+        opType: 'node.restore',
+      },
+      { nodeId }
+    );
+    this.apply(op);
+  }
+
+  permanentDeleteNode(nodeId: string): void {
+    const op = createOperation(
+      {
+        workspaceId: this.workspaceId,
+        actorId: this.actorId,
+        hlc: this.clock.advance(Date.now()),
+        affectedNodeIds: [nodeId],
+        opType: 'node.permanentDelete',
+      },
+      { nodeId }
+    );
+    this.apply(op);
+  }
+
+  convertNode(args: {
+    nodeId: string;
+    kind: 'page' | 'block' | 'class';
+    parentId?: string | null;
+    classIds?: string[];
+  }): void {
+    const op = createOperation(
+      {
+        workspaceId: this.workspaceId,
+        actorId: this.actorId,
+        hlc: this.clock.advance(Date.now()),
+        affectedNodeIds: [args.nodeId, args.parentId].filter((id): id is string => !!id),
+        opType: 'node.convert',
+      },
+      {
+        nodeId: args.nodeId,
+        kind: args.kind,
+        parentId: args.parentId ?? null,
+        classIds: args.classIds ?? [],
+      }
+    );
+    this.apply(op);
+  }
+
   setProperty(args: {
     propertyValueId: string;
     nodeId: string;
@@ -333,6 +400,7 @@ export class WorkspaceStore {
       parentId: string | null;
       classIds: string;
       content: string;
+      active: number;
       createdAt: string | null;
       updatedAt: string | null;
       createdBy: string | null;
@@ -346,6 +414,7 @@ export class WorkspaceStore {
          parent_id AS parentId,
          class_ids AS classIds,
          content,
+         active,
          created_at AS createdAt,
          updated_at AS updatedAt,
          created_by AS createdBy,
@@ -357,6 +426,7 @@ export class WorkspaceStore {
     if (!row) return undefined;
     return {
       ...row,
+      active: row.active !== 0,
       classIds: JSON.parse(row.classIds) as string[],
     };
   }

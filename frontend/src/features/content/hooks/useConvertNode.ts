@@ -1,17 +1,15 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import type { Node } from '@/types/api';
+import { useParams } from 'react-router-dom';
+import { useWorkspaceStore } from '@/core/hooks';
 import { nodeKeys } from '@/hooks/queryKeys';
 import { nodeViewKeys } from './useNodeViews';
-import * as nodesApi from '@/api/nodes';
-
 
 function invalidateAfterConversion(
   queryClient: ReturnType<typeof useQueryClient>,
-  node: Node,
+  nodeUuid: string,
   oldParentId: string | null | undefined,
   newParentId: string | null | undefined,
 ) {
-  // The page list changes whenever is_page flips
   queryClient.invalidateQueries({ queryKey: nodeKeys.allPages() });
   queryClient.invalidateQueries({ queryKey: nodeKeys.pages() });
   queryClient.invalidateQueries({ queryKey: nodeKeys.searchAll() });
@@ -19,18 +17,15 @@ function invalidateAfterConversion(
   queryClient.invalidateQueries({ queryKey: nodeKeys.graphNodes() });
   queryClient.invalidateQueries({ queryKey: nodeViewKeys.queryResults() });
 
-  // The node itself
-  queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(node.uuid) });
-  queryClient.invalidateQueries({ queryKey: nodeKeys.breadcrumbs(node.uuid) });
+  queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(nodeUuid) });
+  queryClient.invalidateQueries({ queryKey: nodeKeys.breadcrumbs(nodeUuid) });
 
-  // Old location
   if (oldParentId) {
     queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(oldParentId) });
     queryClient.invalidateQueries({ queryKey: nodeKeys.pageContent(oldParentId) });
     queryClient.invalidateQueries({ queryKey: nodeKeys.childrenOnly(oldParentId) });
   }
 
-  // New location
   if (newParentId) {
     queryClient.invalidateQueries({ queryKey: nodeKeys.detailBase(newParentId) });
     queryClient.invalidateQueries({ queryKey: nodeKeys.pageContent(newParentId) });
@@ -43,14 +38,24 @@ function invalidateAfterConversion(
  */
 export function useConvertToPage() {
   const queryClient = useQueryClient();
+  const { workspaceId } = useParams<{ workspaceId?: string }>();
+  const { store } = useWorkspaceStore(workspaceId ?? '');
 
-  return useMutation<Node, Error, { nodeUuid: string; name?: string; oldParentId?: string | null }>({
+  return useMutation<void, Error, { nodeUuid: string; name?: string; oldParentId?: string | null }>({
     mutationFn: async ({ nodeUuid, name }) => {
       if (!nodeUuid) throw new Error('Node UUID not found');
-      return nodesApi.convertToPage(nodeUuid, name);
+      if (!store) throw new Error('Workspace store is not ready');
+      store.convertNode({ nodeId: nodeUuid, kind: 'page', parentId: null });
+      if (name !== undefined && name !== '') {
+        store.updateText(nodeUuid, (text) => {
+          const current = text.toPlaintext();
+          text.delete(0, current.length);
+          text.insert(0, name);
+        });
+      }
     },
-    onSuccess: (node, variables) => {
-      invalidateAfterConversion(queryClient, node, variables.oldParentId, null);
+    onSuccess: (_, variables) => {
+      invalidateAfterConversion(queryClient, variables.nodeUuid, variables.oldParentId, null);
     },
   });
 }
@@ -60,18 +65,21 @@ export function useConvertToPage() {
  */
 export function useConvertToBlock() {
   const queryClient = useQueryClient();
+  const { workspaceId } = useParams<{ workspaceId?: string }>();
+  const { store } = useWorkspaceStore(workspaceId ?? '');
 
   return useMutation<
-    Node,
+    void,
     Error,
     { nodeUuid: string; parentId: string; position?: number; oldParentId?: string | null }
   >({
-    mutationFn: async ({ nodeUuid, parentId, position }) => {
+    mutationFn: async ({ nodeUuid, parentId }) => {
       if (!nodeUuid || !parentId) throw new Error('Node UUID not found');
-      return nodesApi.convertToBlock(nodeUuid, parentId, position);
+      if (!store) throw new Error('Workspace store is not ready');
+      store.convertNode({ nodeId: nodeUuid, kind: 'block', parentId });
     },
-    onSuccess: (node, variables) => {
-      invalidateAfterConversion(queryClient, node, variables.oldParentId, node.parent_uuid);
+    onSuccess: (_, variables) => {
+      invalidateAfterConversion(queryClient, variables.nodeUuid, variables.oldParentId, variables.parentId);
     },
   });
 }

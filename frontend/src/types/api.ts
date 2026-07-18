@@ -943,6 +943,11 @@ export interface SearchResponse {
   count?: number;
 }
 
+/**
+ * Batch property values result: nodeUuid -> propertyUuid -> value.
+ */
+export type BatchPropertiesResult = Record<string, Record<string, unknown>>;
+
 // ==================== Version History ====================
 
 /**

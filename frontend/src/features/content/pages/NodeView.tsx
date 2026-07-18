@@ -466,10 +466,8 @@ export function NodeView({
   }, [node, addClass, allClasses]);
   
   // Navigate to the destination page after a page has been converted to a block
-  const handleConvertedToBlock = useCallback((converted: Node) => {
-    if (converted.page_uuid) {
-      openNodeAction(converted.page_uuid);
-    }
+  const handleConvertedToBlock = useCallback((parentId: string) => {
+    openNodeAction(parentId);
   }, [openNodeAction]);
 
   // Handle adding a tag via NodeSelector

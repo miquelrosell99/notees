@@ -34,6 +34,7 @@ import type {
   GraphData,
   TextLink,
   NodeVersion,
+  BatchPropertiesResult,
 } from '@/types/api';
 
 export type { GraphNode, GraphLink, GraphData, TextLink, NodeVersion };
@@ -319,8 +320,6 @@ export async function removeProperty(
  * Batch-fetch property values for multiple nodes in a single request.
  * Returns { nodeUuid -> { propertyUuid -> value } }.
  */
-export type BatchPropertiesResult = Record<string, Record<string, unknown>>;
-
 export async function batchGetPropertyValues(
   nodeUuids: string[]
 ): Promise<BatchPropertiesResult> {

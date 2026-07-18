@@ -144,7 +144,7 @@ export function projectNode(store: WorkspaceStore, nodeId: string, depth = MAX_C
     parent_uuid: node.parentId,
     page_uuid: pageUuid,
     sequence: resolveSequence(store, nodeId, node.parentId),
-    active: true,
+    active: node.active,
     is_page: isPage,
     is_class: isClass,
     create_date: node.createdAt ?? now,

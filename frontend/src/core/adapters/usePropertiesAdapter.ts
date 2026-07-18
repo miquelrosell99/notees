@@ -1,7 +1,6 @@
 import { useParams } from 'react-router-dom';
 import type { UseQueryResult } from '@tanstack/react-query';
-import type { Property } from '@/types/api';
-import type { BatchPropertiesResult } from '@/api/nodes';
+import type { Property, BatchPropertiesResult } from '@/types/api';
 import { usePropertySchemas } from '../hooks/usePropertySchemas';
 import { useWorkspaceStore } from '../hooks/useWorkspaceStore';
 import { queryAll } from '../db/sqlite';
