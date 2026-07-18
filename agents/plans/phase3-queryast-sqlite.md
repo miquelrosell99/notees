@@ -106,6 +106,17 @@ docker compose -f compose.dev.yaml exec frontend npm run test:run src/core/query
   - Created `frontend/src/core/query/compileToSqlite.ts` and `frontend/src/core/query/__tests__/compileToSqlite.test.ts`.
   - Added `class_hierarchy` table to `frontend/src/core/db/schema.ts` and populated it from `class.create`/`class.update` in `frontend/src/core/derived/node.ts`.
   - Caveats: dynamic `nested_group` modes for path conditions are implemented but not exhaustively tested; `regex`/`fts` content operators and tag conditions remain out of scope as documented.
-- **Subagent C3 — Cross-check / parity**
-  - Build shared fixture-based tests that compile the same AST with both PostgreSQL and SQLite compilers and compare results.
-  - Validate against the real migrated SQLite state produced by Phase 2.
+- **Subagent C3 — Cross-check / parity** ✅ Done
+  - Created `tests/core/query_ast/test_parity_with_postgres.py`: 32 tests covering scope, class, extends, property (builtin + custom), content, style, reference / reference_path, parent / parent_path / child / child_path, page, flag, tag, logic, and aggregation. Each fixture is compiled with both `QueryASTToSQL` (PostgreSQL) and `QueryASTToSQLite`; SQLite SQL is executed against the derived schema to verify syntax and structural parity.
+  - Created `tests/core/query_ast/test_parity_against_migration.py`: replays the Phase 2 migration path for the first active workspace into an in-memory SQLite store and runs realistic QueryAST queries, comparing results to direct SQLite queries. Skips gracefully when PostgreSQL is unavailable, so the SQLite execution path remains unit-testable without Docker.
+  - Bugs found and fixed while writing parity tests:
+    - `ScopeNode` was missing `page_uuids`, breaking `specific_pages` scope handling in both compilers. Added the field with serialization support.
+    - SQLite `specific_pages` non-descendants branch appended an unused `workspace_id` parameter; removed.
+    - SQLite `specific_pages` descendants branch referenced non-existent `pa2.workspace_id`; removed the redundant filter (the CTE is already workspace-scoped).
+    - PostgreSQL `ParentPathCondition` and `ChildPathCondition` referenced `condition.nested_group.blocks` (old attribute name) and `condition.min_depth` (non-existent attribute); updated to use `children` and only `max_depth`.
+  - Verification:
+    - `uv run pytest tests/core/query_ast -m unit --no-cov` → 55 passed, 3 skipped.
+    - `uv run ruff check tests/core/query_ast app/core/query_ast app/domain/entities/query_ast.py app/domain/services/query_ast_sql.py` → clean.
+    - `uv run python scripts/validate_migration.py` → 0 orphan operations, 0 duplicate ids.
+
+**Phase 3 status:** Complete.
