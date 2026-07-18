@@ -17,6 +17,7 @@ from pydantic import BaseModel
 
 from app.dependencies import (
     get_current_user,
+    get_settings_repository,
     invalidate_workspace_cache,
     require_read_or_write_scope,
     require_write_scope,
@@ -36,8 +37,10 @@ from app.features.workspaces.manager import (
     switch_workspace,
 )
 from app.features.workspaces.service import WorkspaceService
+from app.domain.repositories.interfaces import SettingsRepository
 from app.logging_config import get_logger
 from app.models import PaginatedResponse, User, WorkspaceCreate
+from app.utils.datetime_utils import utc_now
 
 router = APIRouter(
     prefix="/workspaces",
@@ -104,6 +107,35 @@ async def switch_workspace_endpoint(workspace_uuid: str, user: User = Depends(ge
         raise HTTPException(status_code=404, detail=f"Workspace '{workspace_uuid}' not found")
     invalidate_workspace_cache(int(user.id))
     return {"status": "ok", "active": workspace_uuid}
+
+
+@router.get("/{workspace_uuid}/settings", dependencies=[Depends(require_read_or_write_scope)])
+async def get_workspace_settings_endpoint(
+    workspace_uuid: str,
+    user: User = Depends(get_current_user),
+    settings_repo: SettingsRepository = Depends(get_settings_repository),
+):
+    """Get all settings for a workspace."""
+    workspace_id = await settings_repo.get_workspace_id_by_uuid(workspace_uuid)
+    if workspace_id is None:
+        raise HTTPException(status_code=404, detail=f"Workspace '{workspace_uuid}' not found")
+    return await settings_repo.get_workspace_settings(workspace_id)
+
+
+@router.put("/{workspace_uuid}/settings/{key}", dependencies=[Depends(require_write_scope)])
+async def set_workspace_setting_endpoint(
+    workspace_uuid: str,
+    key: str,
+    data: dict,
+    user: User = Depends(get_current_user),
+    settings_repo: SettingsRepository = Depends(get_settings_repository),
+):
+    """Set a single workspace setting."""
+    workspace_id = await settings_repo.get_workspace_id_by_uuid(workspace_uuid)
+    if workspace_id is None:
+        raise HTTPException(status_code=404, detail=f"Workspace '{workspace_uuid}' not found")
+    await settings_repo.set_workspace_setting(workspace_id, key, data.get("value"), utc_now(), int(user.id))
+    return {"success": True}
 
 
 @router.put("/{name}/rename", dependencies=[Depends(require_write_scope)])

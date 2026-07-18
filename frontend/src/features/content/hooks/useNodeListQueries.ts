@@ -5,12 +5,12 @@
 import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import * as nodesApi from '@/api/nodes';
 import { nodeKeys } from '@/hooks/queryKeys';
-import { useAuthStore } from '@/stores';
 import { useOnlineStatus } from '@/hooks/useOnlineStatus';
 import { useConnectionStore } from '@/stores/connectionStore';
 import { useWorkspaces } from '@/features/workspace';
 import { getWorkspaceStore } from '@/core/adapters/workspaceStoreAdapter';
 import { queryNodes } from '@/core/query/queryNodes';
+import { useClasses as useCoreClasses } from '@/core/hooks';
 
 export function usePages(options?: { includeChildren?: boolean; rootOnly?: boolean }) {
   const { includeChildren = false, rootOnly = false } = options ?? {};
@@ -117,14 +117,7 @@ export function useTags() {
  */
 
 export function useClasses(options?: { enabled?: boolean }) {
-  const authVerified = useAuthStore((s) => s.authVerified);
-  return useQuery({
-    queryKey: nodeKeys.classes(),
-    queryFn: () => nodesApi.listClasses(),
-    placeholderData: [],
-    staleTime: 1000 * 60 * 5, // 5 minutes - class list rarely changes
-    enabled: options?.enabled ?? authVerified,
-  });
+  return useCoreClasses(options);
 }
 
 /**
@@ -132,12 +125,18 @@ export function useClasses(options?: { enabled?: boolean }) {
  */
 
 export function useSearchClasses(query: string) {
-  return useQuery({
-    queryKey: nodeKeys.classSearch(query),
-    queryFn: () => nodesApi.searchClasses(query),
-    enabled: query.length > 0,
-    placeholderData: keepPreviousData,
-  });
+  const { data: allClasses, isLoading, error } = useCoreClasses({ enabled: query.length > 0 });
+  const normalizedQuery = query.toLowerCase().trim();
+  const filtered = !normalizedQuery
+    ? allClasses
+    : allClasses?.filter((cls) =>
+        (typeof cls.name === 'string' ? cls.name : '').toLowerCase().includes(normalizedQuery),
+      );
+  return {
+    data: filtered,
+    isLoading,
+    error,
+  };
 }
 
 /**

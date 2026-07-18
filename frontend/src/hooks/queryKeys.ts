@@ -150,6 +150,7 @@ export const settingsKeys = {
 
 export const workspaceSettingsKeys = {
   all: ['workspace-settings'] as const,
+  detail: (workspaceUuid: string) => [...workspaceSettingsKeys.all, workspaceUuid] as const,
 };
 
 // ==================== Favorites Query Keys ====================

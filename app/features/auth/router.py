@@ -13,9 +13,10 @@ from pyrate_limiter import Duration
 
 from app.config import settings
 from app.db.connection import get_pool
-from app.dependencies import get_current_user, get_push_device_repository
+from app.dependencies import get_current_user, get_push_device_repository, get_settings_repository
 from app.domain.errors import PasswordRequiredError, RegistrationDisabledError
 from app.domain.repositories.factories import make_user_repository
+from app.domain.repositories.interfaces import SettingsRepository
 from app.features.auth import auth as auth_module
 from app.features.auth import totp
 from app.features.auth.dependencies import get_invite_repository
@@ -43,6 +44,7 @@ from app.models import (
     UserUpdate,
 )
 from app.rate_limit import auth_identifier, auth_per_account_limiter, ip_only_identifier, per_ip_limiter
+from app.utils.datetime_utils import utc_now
 from app.utils.password import PasswordVerificationError, password_needs_rehash, verify_password
 
 
@@ -474,6 +476,27 @@ async def get_me(user: User = Depends(get_current_user)):  # noqa: B008
         "is_active": user.is_active,
         "totp_enabled": user.totp_enabled,
     }
+
+
+@router.get("/me/settings")
+async def get_me_settings(
+    user: User = Depends(get_current_user),
+    settings_repo: SettingsRepository = Depends(get_settings_repository),
+):
+    """Get all settings for the current user."""
+    return await settings_repo.get_user_settings(int(user.id))
+
+
+@router.put("/me/settings/{key}")
+async def set_me_setting(
+    key: str,
+    data: dict,
+    user: User = Depends(get_current_user),
+    settings_repo: SettingsRepository = Depends(get_settings_repository),
+):
+    """Set a single user setting."""
+    await settings_repo.set_user_setting(int(user.id), key, data.get("value"), utc_now())
+    return {"success": True}
 
 
 @router.put("/me", response_model=User)
