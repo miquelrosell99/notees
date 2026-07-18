@@ -1,17 +1,21 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createElement, type ReactNode } from 'react';
+import { webcrypto } from 'node:crypto';
 import { NodeCollectionView } from './NodeCollectionView';
 import { createEmptyQueryAST, createClassCondition } from '@/types/queryAST';
+import { WorkspaceStore } from '@/core/store';
+import { createTestDatabase } from '@/core/__tests__/helpers';
+import { uuidv7 } from '@/core/uuid';
 
 const openNodeMock = vi.fn();
 const closeNodeCollectionMock = vi.fn();
 const addSidebarCardMock = vi.fn();
 const saveAsViewMock = vi.fn().mockResolvedValue(undefined);
-const getNodeMock = vi.fn();
 
 let queryCollectionProps: Record<string, unknown> = {};
+let testStore: WorkspaceStore | undefined;
 
 vi.mock('@/features/content/components/nodes/QueryNodeCollection', () => ({
   QueryNodeCollection: (props: Record<string, unknown>) => {
@@ -49,9 +53,18 @@ vi.mock('@/features/queries', () => ({
   useSaveQueryAsView: () => ({ saveAsView: saveAsViewMock, isSaving: false }),
 }));
 
-vi.mock('@/api/nodes', () => ({
-  getNode: (...args: unknown[]) => getNodeMock(...args),
+vi.mock('@/hooks/useCurrentWorkspaceUuid', () => ({
+  useCurrentWorkspaceUuid: vi.fn(() => 'ws-test'),
 }));
+
+vi.mock('@/core/hooks/useWorkspaceStore', () => ({
+  useWorkspaceStore: vi.fn(() => ({ store: testStore, isLoading: false, error: null })),
+}));
+
+async function createTestStore(): Promise<WorkspaceStore> {
+  const db = await createTestDatabase();
+  return new WorkspaceStore(db, uuidv7(), uuidv7());
+}
 
 function wrapper({ children }: { children: ReactNode }) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -68,10 +81,27 @@ const ast = {
 };
 
 describe('NodeCollectionView', () => {
-  beforeEach(() => {
+  beforeAll(() => {
+    if (!globalThis.crypto?.subtle) {
+      Object.defineProperty(globalThis, 'crypto', { value: webcrypto, configurable: true });
+    }
+  });
+
+  beforeEach(async () => {
     vi.clearAllMocks();
     queryCollectionProps = {};
-    getNodeMock.mockImplementation(async (uuid: string) => ({ uuid, name: `Node ${uuid}`, is_page: false }));
+    testStore = await createTestStore();
+
+    testStore.createNode({ nodeId: 'a', kind: 'page', parentId: null });
+    testStore.createNode({ nodeId: 'b', kind: 'page', parentId: null });
+    testStore.updateText('a', (text) => {
+      text.delete(0, text.toPlaintext().length);
+      text.insert(0, 'Node a');
+    });
+    testStore.updateText('b', (text) => {
+      text.delete(0, text.toPlaintext().length);
+      text.insert(0, 'Node b');
+    });
   });
 
   it('AST mode renders title, Temporary chip, intent prose and a save action', () => {
@@ -105,7 +135,6 @@ describe('NodeCollectionView', () => {
     await waitFor(() => expect(screen.getByText('Node a')).toBeInTheDocument());
     expect(screen.getByText('Node b')).toBeInTheDocument();
     expect(screen.getByText('(2)')).toBeInTheDocument();
-    expect(getNodeMock).toHaveBeenCalledTimes(2);
     expect(screen.queryByRole('button', { name: /save as view/i })).not.toBeInTheDocument();
   });
 

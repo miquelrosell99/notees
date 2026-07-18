@@ -11,7 +11,7 @@
  * each invocation increments a generation counter; only the most recent
  * generation is allowed to update the store or clear the isProcessingUrl flag.
  */
-import { useEffect, useCallback, useRef, type MutableRefObject } from 'react';
+import { useEffect, useCallback, useRef, useContext, type MutableRefObject } from 'react';
 import { useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigationStore, useSettingsStore, useAuthStore, useFavoritesStore, useRecentsStore, type MainViewType, type DefaultView } from '@/stores';
@@ -19,7 +19,9 @@ import { useShallow } from 'zustand/react/shallow';
 import { useTodayNote } from '@/features/content';
 import { useNavigationHistoryStore } from '@/stores/navigationHistoryStore';
 import { listWorkspaces, switchWorkspace } from '@/features/workspace';
-import { getNodeByUuid } from '@/api/nodes';
+import { WorkspaceStoreContext } from '@/core/hooks/WorkspaceStoreContext';
+import { getOrCreateWorkspaceStore } from '@/core/adapters/workspaceStoreAdapter';
+import { getNodeByUuid } from '@/core/query/nodeByUuid';
 import { getPropertyByUuid } from '@/api/properties';
 import { SPECIAL_VIEWS } from './url';
 import { isUuid } from '@/utils/uuid';
@@ -124,8 +126,10 @@ export function useRouteAdapter({ hasInitialized, isProcessingUrl }: RouteAdapte
     useNavigationStore.setState({ currentNodeUuid: null, mainViewType: 'node' });
   }, []);
 
+  const ctx = useContext(WorkspaceStoreContext);
+
   const processRoute = useCallback(async () => {
-    if (!workspaceId || isLoadingDbs || !dbData) return;
+    if (!workspaceId || isLoadingDbs || !dbData || !ctx) return;
 
     const generation = ++routeGenerationRef.current;
     const isLatestGeneration = () => generation === routeGenerationRef.current;
@@ -134,6 +138,14 @@ export function useRouteAdapter({ hasInitialized, isProcessingUrl }: RouteAdapte
     try {
       await ensureWorkspace(workspaceId);
 
+      if (!isLatestGeneration()) return;
+
+      const store = await getOrCreateWorkspaceStore(
+        workspaceId,
+        ctx.actorId,
+        ctx.cryptoKey,
+        ctx.transport,
+      );
       if (!isLatestGeneration()) return;
 
       if (!entityUuid) {
@@ -163,16 +175,14 @@ export function useRouteAdapter({ hasInitialized, isProcessingUrl }: RouteAdapte
 
         // Pages/nodes are the common case; try them first to avoid spurious
         // property 404s on every page navigation.
-        try {
-          const node = await getNodeByUuid(uuid);
+        const node = getNodeByUuid(store, uuid);
+        if (node) {
           if (!isLatestGeneration()) return;
           log.debug('UUID resolved to node', { uuid, id: node.uuid, is_page: node.is_page });
           openNode(node.uuid);
           return;
-        } catch {
-          if (!isLatestGeneration()) return;
-          /* not a node */
         }
+        if (!isLatestGeneration()) return;
 
         if (!isDateUuid) {
           try {
@@ -206,6 +216,7 @@ export function useRouteAdapter({ hasInitialized, isProcessingUrl }: RouteAdapte
     entityUuid,
     isLoadingDbs,
     dbData,
+    ctx,
     ensureWorkspace,
     goHome,
     setMainViewType,

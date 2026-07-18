@@ -10,13 +10,13 @@ import { DataStateView } from '@/components/ui/DataStateView';
 import { useNavigationStore } from '@/stores';
 import { useTemplates, useTemplateVariables, useInstantiateTemplate } from '@/features/content';
 import { useClasses } from '@/features/content/hooks/useNodeQueries';
-import { createNode } from '@/api/nodes';
+import { useCreateNodeAdapter } from '@/core/adapters';
 import { SYSTEM_CLASS_UUIDS } from '@/constants/systemProperties';
 import { TemplateVariableDialog } from '../components/TemplateVariableDialog';
 import { useAuthStore } from '@/features/auth/stores/authStore';
 import { queryClient } from '@/lib/queryClient';
 import { nodeKeys, templateKeys } from '@/hooks/queryKeys';
-import type { Node } from '@/types';
+import type { Node } from '@/types/api';
 import type { NodeCollectionViewMode } from '@/types/nodeCollection';
 import type { ContextMenuItem } from '@/components/ui/ContextMenu';
 import './TemplateGallery.css';
@@ -27,6 +27,7 @@ export function TemplateGallery() {
   const { data: allClasses } = useClasses();
   const { data: templatesResponse, isLoading, error, refetch } = useTemplates();
   const instantiate = useInstantiateTemplate();
+  const createNode = useCreateNodeAdapter();
 
   const [viewMode, setViewMode] = useState<NodeCollectionViewMode>('list');
   const [pendingTemplate, setPendingTemplate] = useState<Node | null>(null);
@@ -43,7 +44,7 @@ export function TemplateGallery() {
   const handleCreateTemplate = useCallback(async () => {
     if (templateClassUuid == null) return;
     try {
-      const newTemplate = await createNode({
+      const newTemplate = await createNode.mutateAsync({
         name: 'New template',
         class_uuids: [templateClassUuid],
       });
@@ -52,7 +53,7 @@ export function TemplateGallery() {
     } catch (e) {
       console.error('[TemplateGallery] failed to create template', e);
     }
-  }, [templateClassUuid, openNode]);
+  }, [templateClassUuid, openNode, createNode]);
 
   const handleInstantiate = useCallback((template: Node) => {
     setPendingTemplate(template);

@@ -7,11 +7,11 @@
  * - Row building (grouping + sorting)
  */
 import { useMemo, useState, useCallback } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import type { Node } from '@/types';
 import type { Property } from '@/types/api';
-import { getNode } from '@/api/nodes';
-import { nodeKeys } from '@/hooks/queryKeys';
+import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
+import { useWorkspaceStore } from '@/core/hooks/useWorkspaceStore';
+import { getNodeByUuid } from '@/core/query/nodeByUuid';
 import {
   resolveDate,
   getDateRange,
@@ -59,16 +59,21 @@ export function useGanttData(
     return Array.from(uuids);
   }, [nodes, startDateProperty, endDateProperty]);
 
-  // Fetch day nodes to resolve UUIDs into actual dates
-  const { data: dayNodeMap = new Map<string, Node>(), isLoading } = useQuery({
-    queryKey: nodeKeys.ganttDayNodes(dayNodeUuids),
-    queryFn: async (): Promise<Map<string, Node>> => {
-      const fetched = await Promise.all(dayNodeUuids.map((nodeUuid) => getNode(nodeUuid)));
-      return new Map(fetched.map((n) => [n.uuid, n]));
-    },
-    enabled: dayNodeUuids.length > 0,
-    staleTime: 5 * 60 * 1000,
-  });
+  const workspaceUuid = useCurrentWorkspaceUuid();
+  const { store, isLoading: storeLoading } = useWorkspaceStore(workspaceUuid ?? '');
+
+  // Resolve day nodes from the local-first core store
+  const dayNodeMap = useMemo<Map<string, Node>>(() => {
+    if (!store) return new Map();
+    const map = new Map<string, Node>();
+    for (const nodeUuid of dayNodeUuids) {
+      const node = getNodeByUuid(store, nodeUuid);
+      if (node) map.set(nodeUuid, node);
+    }
+    return map;
+  }, [store, dayNodeUuids]);
+
+  const isLoading = dayNodeUuids.length > 0 && storeLoading;
 
   // Optimistic date overrides while API calls are in-flight
   const [optimisticOverrides, setOptimisticOverrides] = useState<

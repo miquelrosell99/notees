@@ -2,9 +2,11 @@ import { useMemo } from 'react';
 import { useQueries } from '@tanstack/react-query';
 import type { Property, Node } from '@/types/api';
 import { useSetNodeProperty } from '../hooks';
-import { nodeKeys } from '@/features/content';
+import { nodeKeys } from '@/hooks/queryKeys';
 import { useNavigationStore } from '@/stores';
-import * as nodesApi from '@/api/nodes';
+import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
+import { useWorkspaceStore } from '@/core/hooks/useWorkspaceStore';
+import { getNodeByUuid } from '@/core/query/nodeByUuid';
 import { NodeSelector } from '@/features/content';
 import { AssetImage } from '@/features/content';
 import { Spinner } from '@/components/ui/Spinner';
@@ -31,6 +33,8 @@ export function NodePropertyCell({
 }: NodePropertyCellProps) {
   const setPropertyMutation = useSetNodeProperty();
   const openNode = useNavigationStore(state => state.openNode);
+  const workspaceUuid = useCurrentWorkspaceUuid();
+  const { store, isLoading: storeLoading } = useWorkspaceStore(workspaceUuid ?? '');
 
   // Parse node UUIDs from value
   const isMultiValue = property.multi || Array.isArray(value);
@@ -40,11 +44,17 @@ export function NodePropertyCell({
       ? [value]
       : [];
 
-  // Fetch all nodes in parallel
+  // Resolve nodes from the local-first core store
   const nodeQueries = useQueries({
     queries: nodeUuids.map((nodeUuid) => ({
       queryKey: nodeKeys.byUuid(nodeUuid),
-      queryFn: () => nodesApi.getNode(nodeUuid, { include_children: false }),
+      queryFn: () => {
+        if (!store) throw new Error('Workspace store is not ready');
+        const node = getNodeByUuid(store, nodeUuid);
+        if (!node) throw new Error(`Node ${nodeUuid} not found`);
+        return node;
+      },
+      enabled: !!store,
       staleTime: 5 * 60 * 1000,
     })),
   });
@@ -56,7 +66,7 @@ export function NodePropertyCell({
       .filter((n): n is Node => n !== undefined);
   }, [nodeQueries]);
 
-  const isLoading = nodeQueries.some(q => q.isLoading);
+  const isLoading = storeLoading || nodeQueries.some(q => q.isLoading);
 
   // Asset properties: render as images
   if (isAssetProperty && nodeUuids.length > 0) {

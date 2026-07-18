@@ -21,10 +21,8 @@ import type { QueryAST } from '@/types/queryAST';
 import { createEmptyQueryAST } from '@/types/queryAST';
 import { getQueryIntent } from '@/lib/astProseRenderer';
 import type { GraphColorGroup } from '../types/viewTypes';
-import type { GraphNode as ApiGraphNode, GraphLink } from '@/api/nodes';
-import type { Node } from '@/types';
+import type { GraphNode as ApiGraphNode, GraphLink, Node as ApiNode } from '@/types/api';
 import { evaluateQueryAST, buildEvalContext } from '../utils/evaluateQueryAST';
-import type { Node as ApiNode } from '@/types/api';
 import './GraphGroupModal.css';
 
 // ==================== Types ====================
@@ -40,7 +38,7 @@ interface GraphGroupModalProps {
   /** Links for live match count */
   links: GraphLink[];
   /** Classes for live match count */
-  classes: Node[];
+  classes: ApiNode[];
 }
 
 const COLOR_ENTRIES: ColorEntry[] = [

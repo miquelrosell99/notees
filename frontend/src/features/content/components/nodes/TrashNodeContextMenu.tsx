@@ -4,14 +4,12 @@
  * Context menu for nodes in the trash view with restore and permanent delete actions.
  */
 import { useCallback, useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import * as nodesApi from '@/api/nodes';
 import { nodeNameToText } from '@/features/queries';
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/ContextMenu';
 import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
 import type { Node } from '@/types';
 import { copyToClipboard } from '@/utils/clipboardManager';
-import { nodeKeys, trashKeys } from '@/hooks/queryKeys';
+import { useTrashMutations } from '@/features/content/hooks/useTrash';
 
 import './NodeContextMenu.css';
 
@@ -28,70 +26,32 @@ interface TrashNodeContextMenuProps {
  * Context menu for deleted nodes in trash view
  */
 export function TrashNodeContextMenu({ node, position, onClose }: TrashNodeContextMenuProps) {
-  const queryClient = useQueryClient();
   const [showPermanentDeleteModal, setShowPermanentDeleteModal] = useState(false);
   const [showRestoreModal, setShowRestoreModal] = useState(false);
-  
-  // Restore mutation
-  const restoreMutation = useMutation({
-    mutationFn: async (nodeUuid: string) => {
-      if (!nodeUuid) throw new Error('Node UUID not found');
-      return nodesApi.restoreNode(nodeUuid);
-    },
-    onMutate: () => {
-      // Close menu immediately; invalidate caches optimistically so the UI
-      // updates even if this component unmounts before onSuccess fires.
-      onClose();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: trashKeys.all });
-      queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
-      queryClient.invalidateQueries({ queryKey: nodeKeys.allLinkedRefs(), refetchType: 'active' });
-      queryClient.invalidateQueries({ queryKey: nodeKeys.allPropertyBacklinks(), refetchType: 'active' });
-      queryClient.invalidateQueries({ queryKey: nodeKeys.allBacklinks(), refetchType: 'active' });
-    },
-  });
-
-  // Permanent delete mutation
-  const permanentDeleteMutation = useMutation({
-    mutationFn: async (nodeUuid: string) => {
-      if (!nodeUuid) throw new Error('Node UUID not found');
-      return nodesApi.permanentlyDeleteNode(nodeUuid);
-    },
-    onMutate: () => {
-      onClose();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: trashKeys.all });
-      queryClient.invalidateQueries({ queryKey: nodeKeys.lists() });
-      queryClient.invalidateQueries({ queryKey: nodeKeys.allLinkedRefs(), refetchType: 'active' });
-      queryClient.invalidateQueries({ queryKey: nodeKeys.allPropertyBacklinks(), refetchType: 'active' });
-      queryClient.invalidateQueries({ queryKey: nodeKeys.allBacklinks(), refetchType: 'active' });
-    },
-  });
+  const { restore, permanentDelete } = useTrashMutations();
   
   const handleRestoreClick = useCallback(() => {
     setShowRestoreModal(true);
   }, []);
   
   const handleConfirmRestore = useCallback(async () => {
-    await restoreMutation.mutateAsync(node.uuid);
+    await restore.mutateAsync(node.uuid);
     setShowRestoreModal(false);
-  }, [node.uuid, restoreMutation]);
-  
+  }, [node.uuid, restore]);
+
   const handleCancelRestore = useCallback(() => {
     setShowRestoreModal(false);
     onClose();
   }, [onClose]);
-  
+
   const handlePermanentDeleteClick = useCallback(() => {
     setShowPermanentDeleteModal(true);
   }, []);
-  
+
   const handleConfirmPermanentDelete = useCallback(async () => {
-    await permanentDeleteMutation.mutateAsync(node.uuid);
+    await permanentDelete.mutateAsync(node.uuid);
     setShowPermanentDeleteModal(false);
-  }, [node.uuid, permanentDeleteMutation]);
+  }, [node.uuid, permanentDelete]);
   
   const handleCancelPermanentDelete = useCallback(() => {
     setShowPermanentDeleteModal(false);

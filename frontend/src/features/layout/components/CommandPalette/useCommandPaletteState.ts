@@ -5,10 +5,9 @@ import { useProperties } from '@/features/properties';
 import { useSearch, useCreateNode, useTodayNote, usePages, usePageClass, useHierarchicalPath, useClassClass, useClasses, useRecents } from '@/features/content';
 import { nodeNameToText } from '@/features/queries';
 import { useCommandPaletteSearch } from '@/hooks/useCommandPaletteSearch';
-import {
-  getRecentlyCreatedPages,
-  getRandomPages,
-} from '@/api/nodes';
+import { getWorkspaceStore } from '@/core/adapters/workspaceStoreAdapter';
+import { queryNodes } from '@/core/query/queryNodes';
+import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
 import { useSettingsStore, formatDate as formatDateWithPreference, formatMonth, formatYear } from '@/stores';
 import { useNotifications } from '@/stores/notificationStore';
 
@@ -23,12 +22,37 @@ import {
   INITIAL_MAX_PROPERTIES,
 } from './CommandPalette.types';
 
+function getWorkspacePages(workspaceUuid: string | null): Node[] {
+  if (!workspaceUuid) return [];
+  const store = getWorkspaceStore(workspaceUuid);
+  if (!store) return [];
+  return queryNodes(store, { isPage: true });
+}
+
+async function getRecentlyCreatedPages(limit: number, workspaceUuid: string | null): Promise<Node[]> {
+  return getWorkspacePages(workspaceUuid)
+    .sort((a, b) => new Date(b.create_date).getTime() - new Date(a.create_date).getTime())
+    .slice(0, limit);
+}
+
+async function getRandomPages(limit: number, workspaceUuid: string | null): Promise<Node[]> {
+  const pages = getWorkspacePages(workspaceUuid);
+  if (pages.length === 0) return [];
+  const shuffled = [...pages];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled.slice(0, limit);
+}
+
 interface UseCommandPaletteStateParams {
   isOpen: boolean;
   onClose: () => void;
 }
 
 export function useCommandPaletteState({ isOpen, onClose }: UseCommandPaletteStateParams) {
+  const workspaceUuid = useCurrentWorkspaceUuid();
   const [query, setQuery] = useState('');
   const [appliedFilters, setAppliedFilters] = useState<AppliedFilter[]>([]);
   const [duplicateModal, setDuplicateModal] = useState<DuplicateModalState>({
@@ -209,10 +233,10 @@ export function useCommandPaletteState({ isOpen, onClose }: UseCommandPaletteSta
       queryClient.invalidateQueries({ queryKey: nodeKeys.allPages() });
       queryClient.invalidateQueries({ queryKey: nodeKeys.classes() });
       // Fetch empty-state sections (recently accessed is derived from the local store)
-      getRecentlyCreatedPages(5).then(setRecentCreatedPages).catch(() => {});
-      getRandomPages(5).then(setRandomPages).catch(() => {});
+      getRecentlyCreatedPages(5, workspaceUuid).then(setRecentCreatedPages).catch(() => {});
+      getRandomPages(5, workspaceUuid).then(setRandomPages).catch(() => {});
     }
-  }, [isOpen, queryClient]);
+  }, [isOpen, queryClient, workspaceUuid]);
 
   // Handle class selection from popup
   const handleClassSelect = useCallback((classNode: Node) => {
@@ -300,12 +324,12 @@ export function useCommandPaletteState({ isOpen, onClose }: UseCommandPaletteSta
   // Refresh random pages
   const refreshRandomPages = useCallback(async () => {
     try {
-      const pages = await getRandomPages(5);
+      const pages = await getRandomPages(5, workspaceUuid);
       setRandomPages(pages);
     } catch {
       // ignore
     }
-  }, []);
+  }, [workspaceUuid]);
 
   // Close on backdrop click
   const handleBackdropClick = useCallback((e: React.MouseEvent) => {

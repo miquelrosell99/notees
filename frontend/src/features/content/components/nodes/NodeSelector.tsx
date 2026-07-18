@@ -27,7 +27,9 @@ import { SelectTrigger, type SelectTriggerSize } from '@/components/ui/SelectTri
 
 import { useNodeSearch, usePages, useClasses, useCreateNode, usePageClass, useClassClass, type NodeSearchMode, nodeKeys } from '@/features/content';
 import { parseQueryWithFilters, type AppliedFilter } from '@/utils/searchFilters';
-import * as nodesApi from '@/api/nodes';
+import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
+import { useWorkspaceStore } from '@/core/hooks/useWorkspaceStore';
+import { getNodeByUuid } from '@/core/query/nodeByUuid';
 import { nodeNameToText } from '@/features/queries';
 import { SYSTEM_CLASS_UUIDS } from '@/constants';
 import type { Node } from '@/types';
@@ -158,13 +160,16 @@ export function NodeSelector({
     return Array.isArray(value) ? value : [value];
   }, [value]);
 
+  const workspaceUuid = useCurrentWorkspaceUuid();
+  const { store } = useWorkspaceStore(workspaceUuid ?? '');
+
   // Fetch each node by ID individually - reliable regardless of pagination
   const nodeQueries = useQueries({
     queries: nodesProp ? [] : valueIds.map((nodeUuid) => ({
       queryKey: nodeKeys.detail(nodeUuid, { include_children: false }),
-      queryFn: () => nodesApi.getNode(nodeUuid, { include_children: false }),
+      queryFn: () => (store ? getNodeByUuid(store, nodeUuid) : null),
       staleTime: 5 * 60 * 1000,
-      enabled: !!nodeUuid,
+      enabled: !!nodeUuid && !!store,
     })),
   });
 
@@ -172,7 +177,7 @@ export function NodeSelector({
   const resolvedNodesFromValue = useMemo(() => {
     return nodeQueries
       .map(query => query.data)
-      .filter((n): n is Node => n !== undefined);
+      .filter((n): n is Node => n !== undefined && n !== null);
   }, [nodeQueries]);
 
   // Use either nodes prop or resolved nodes from value

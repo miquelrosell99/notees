@@ -1,13 +1,13 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { NodeViewSection } from '@/features/content';
 import { Button } from '@/components/ui/Button';
 import { Spinner } from '@/components/ui/Spinner';
 import { Icon } from '@/components/ui/icons';
-import { getNodeVersions, restoreNodeVersion, type NodeVersion } from '@/api/nodes';
 import { useSettingsStore, formatDate } from '@/stores';
 import { useNotifications } from '@/stores/notificationStore';
 import { useQueryClient } from '@tanstack/react-query';
 import { nodeKeys } from '@/hooks/queryKeys';
+import type { NodeVersion } from '@/types/api';
 
 interface SidebarVersionsProps {
   nodeUuid: string;
@@ -15,32 +15,19 @@ interface SidebarVersionsProps {
 
 export function SidebarVersions({ nodeUuid }: SidebarVersionsProps) {
   const [expanded, setExpanded] = useState(false);
-  const [versions, setVersions] = useState<NodeVersion[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [versions] = useState<NodeVersion[]>([]);
+  const [loading] = useState(false);
   const dateFormat = useSettingsStore(s => s.dateFormat);
   const queryClient = useQueryClient();
-  const { success: notifySuccess, error: notifyError } = useNotifications();
+  const { error: notifyError } = useNotifications();
 
-  useEffect(() => {
-    if (expanded && nodeUuid) {
-      setLoading(true);
-      getNodeVersions(nodeUuid, 30)
-        .then(v => setVersions(v))
-        .catch(() => setVersions([]))
-        .finally(() => setLoading(false));
-    }
-  }, [expanded, nodeUuid]);
-
-  const handleRestore = useCallback(async (versionUuid: string) => {
-    try {
-      await restoreNodeVersion(nodeUuid, versionUuid);
-      queryClient.invalidateQueries({ queryKey: nodeKeys.byUuid(nodeUuid) });
-      notifySuccess('Version restored', 'The node content has been restored.');
-      getNodeVersions(nodeUuid, 30).then(setVersions).catch(() => {});
-    } catch {
-      notifyError('Failed to restore', 'Could not restore this version.');
-    }
-  }, [nodeUuid, queryClient, notifySuccess, notifyError]);
+  const handleRestore = useCallback(async (_versionUuid: string) => {
+    // Version restore is not implemented in the local-first operation-log core.
+    // The operation log itself is the authoritative history; a future feature
+    // can expose per-operation restore points here.
+    queryClient.invalidateQueries({ queryKey: nodeKeys.byUuid(nodeUuid) });
+    notifyError('Not implemented', 'Version restore is not yet available in the local-first core.');
+  }, [nodeUuid, queryClient, notifyError]);
 
   return (
     <NodeViewSection

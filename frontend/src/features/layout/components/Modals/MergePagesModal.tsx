@@ -10,12 +10,13 @@ import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { ConfirmationModal } from '@/components/ui/ConfirmationModal';
 import { NodeSelector, nodeViewKeys } from '@/features/content';
-import { mergePages } from '@/api/nodes';
 import { useQueryClient } from '@tanstack/react-query';
 import { nodeKeys } from '@/hooks/queryKeys';
 import { useCurrentNodeUuid, useOpenNode } from '@/features/layout';
 import { nodeNameToText } from '@/features/queries';
 import { useNode } from '@/features/content';
+import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
+import { useWorkspaceStore } from '@/core/hooks/useWorkspaceStore';
 import type { Node } from '@/types';
 import './MergePagesModal.css';
 
@@ -29,6 +30,8 @@ export function MergePagesModal({ isOpen, onClose }: MergePagesModalProps) {
   const openNode = useOpenNode();
   const { data: currentNode } = useNode(currentNodeUuid);
   const queryClient = useQueryClient();
+  const workspaceUuid = useCurrentWorkspaceUuid();
+  const { store } = useWorkspaceStore(workspaceUuid ?? '');
 
   const [sourceNode, setSourceNode] = useState<Node | null>(null);
   const [targetNode, setTargetNode] = useState<Node | null>(null);
@@ -40,9 +43,9 @@ export function MergePagesModal({ isOpen, onClose }: MergePagesModalProps) {
   useEffect(() => {
     if (isOpen) {
       setError(null);
-        setIsMerging(false);
-        setTargetNode(null);
-        setSourceNode(currentNode?.is_page ? currentNode : null);;
+      setIsMerging(false);
+      setTargetNode(null);
+      setSourceNode(currentNode?.is_page ? currentNode : null);
     }
   }, [isOpen]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -53,26 +56,24 @@ export function MergePagesModal({ isOpen, onClose }: MergePagesModalProps) {
   }, [onClose]);
 
   const handleProceed = useCallback(async () => {
-    if (!sourceNode || !targetNode) return;
+    if (!sourceNode || !targetNode || !store) return;
+    if (sourceNode.uuid === targetNode.uuid) {
+      setError('Source and target must be different pages.');
+      return;
+    }
     setIsMerging(true);
     setError(null);
     try {
-      await mergePages(sourceNode.uuid, targetNode.uuid);
-
-      // Remove all queries for the deleted source node so they don't refetch
-      // and fail with 404 when we invalidate everything else.
-      queryClient.removeQueries({ queryKey: nodeKeys.detailBase(sourceNode.uuid) });
-      queryClient.removeQueries({ queryKey: nodeKeys.metadata(sourceNode.uuid) });
-      queryClient.removeQueries({ queryKey: nodeKeys.pageContent(sourceNode.uuid) });
-      queryClient.removeQueries({ queryKey: nodeKeys.backlinks(sourceNode.uuid) });
-      queryClient.removeQueries({ queryKey: nodeKeys.linkedRefs(sourceNode.uuid) });
-      queryClient.removeQueries({ queryKey: nodeKeys.propertyBacklinks(sourceNode.uuid) });
-      queryClient.removeQueries({ queryKey: nodeKeys.breadcrumbs(sourceNode.uuid) });
-      queryClient.removeQueries({ queryKey: nodeKeys.childrenOnly(sourceNode.uuid) });
-      queryClient.removeQueries({ queryKey: nodeKeys.aliases(sourceNode.uuid) });
-      if (sourceNode.uuid) {
-        queryClient.removeQueries({ queryKey: nodeKeys.byUuid(sourceNode.uuid) });
+      // Move all children from source to target.
+      const children = store.getChildren(sourceNode.uuid);
+      for (const childId of children) {
+        store.moveNode(childId, targetNode.uuid);
       }
+
+      // Archive the source page. Backlink redirection is not yet implemented
+      // in the local-first core; the operation log is the source of truth and
+      // future work can add a bulk link-rewrite operation.
+      store.archiveNode(sourceNode.uuid);
 
       // Switch to the target page before invalidating so the old view
       // unmounts and doesn't try to refetch the deleted source.
@@ -91,14 +92,12 @@ export function MergePagesModal({ isOpen, onClose }: MergePagesModalProps) {
 
       handleClose();
     } catch (e: unknown) {
-      const msg =
-        (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??
-        (e instanceof Error ? e.message : 'Merge failed');
+      const msg = e instanceof Error ? e.message : 'Merge failed';
       setError(msg);
     } finally {
       setIsMerging(false);
     }
-  }, [sourceNode, targetNode, queryClient, openNode, handleClose]);
+  }, [sourceNode, targetNode, store, queryClient, openNode, handleClose]);
 
   const handleAskConfirm = useCallback(() => {
     setShowConfirm(true);

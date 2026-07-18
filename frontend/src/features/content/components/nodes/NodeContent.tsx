@@ -19,7 +19,7 @@ import { useContentSave } from '@/features/editor';
 import { useCreateFlashcard } from '@/plugins/builtin/flashcards';
 import { nodeNameToText } from '@/features/queries';
 
-import type { Node } from '@/types';
+import type { Node } from '@/types/api';
 // GraphNode type no longer needed here — projection moved to useBlockTree
 import type { NodeCollectionViewMode } from '@/types/nodeCollection';
 import { NodeCollection } from './NodeCollection';
@@ -27,7 +27,10 @@ import { AssetUploadModal } from '@/features/assets';
 import { Modal } from '@/components/ui/Modal';
 import { NodeSelector } from './NodeSelector';
 import { type Asset, type AssetCategory, uploadAsset } from '@/features/assets';
-import { createNode } from '@/api/nodes';
+import { useCreateNodeAdapter } from '@/core/adapters';
+import { useInstantiateTemplate } from '../../hooks/useTemplates';
+import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
+import { useWorkspaceStore } from '@/core/hooks/useWorkspaceStore';
 import { SYSTEM_CLASS_UUIDS, SYSTEM_PROPERTY_UUIDS } from '@/constants/systemProperties';
 import { TableCreationModal, type TableGridSize } from '@/components/ui/TableCreationModal';
 import { TemplateVariableDialog } from '../TemplateVariableDialog';
@@ -144,6 +147,10 @@ export function NodeContent({
   const [moveTargetBlockId, setMoveTargetBlockId] = useState<string | null>(null);
   const updateNode = useUpdateNode();
   const queryClient = useQueryClient();
+  const workspaceUuid = useCurrentWorkspaceUuid();
+  const { store } = useWorkspaceStore(workspaceUuid ?? '');
+  const createNode = useCreateNodeAdapter();
+  const instantiateTemplate = useInstantiateTemplate();
 
   // Template instantiation state
   const [pendingTemplate, setPendingTemplate] = useState<{
@@ -172,16 +179,17 @@ export function NodeContent({
     dynamicContext: Record<string, string>,
   ) => {
     try {
-      const { instantiateTemplate } = await import('@/api/nodes');
-
       // Insert template children as children of the block where /template was typed.
       // Core store uses public UUIDs directly, so blockServerId is the parent UUID.
       const parentUuid = blockServerId ?? node.uuid;
-      const result = await instantiateTemplate(templateNodeId, {
-        parent_uuid: parentUuid,
-        as_blocks: true,
-        variables,
-        dynamic_context: dynamicContext,
+      const result = await instantiateTemplate.mutateAsync({
+        nodeUuid: templateNodeId,
+        options: {
+          parent_uuid: parentUuid,
+          as_blocks: true,
+          variables,
+          dynamic_context: dynamicContext,
+        },
       });
       if (result.blocks.length === 0) return;
 
@@ -251,7 +259,7 @@ export function NodeContent({
     } catch (e) {
       console.error('[NodeContent] template instantiation failed', e);
     }
-  }, [node.uuid, queryClient]);
+  }, [node.uuid, queryClient, instantiateTemplate]);
 
   // Handle slash commands from the editor
   const handleSlashCommand = useCallback((commandId: string, blockServerId: string | undefined) => {
@@ -365,18 +373,24 @@ export function NodeContent({
       const parentUuid = children.find(c => c.uuid === tableTargetBlockId)?.uuid;
       if (!parentUuid) return;
       // Create header row
-      const headerRow = await createNode({ name: '', parent_uuid: parentUuid, sequence: 0 });
+      const headerRow = await createNode.mutateAsync({ name: '', parent_uuid: parentUuid, sequence: 0 });
+      if (store) store.moveNode(headerRow.uuid, parentUuid);
       await Promise.all(
         Array.from({ length: size.columns }, (_, i) =>
-          createNode({ name: `Column ${i + 1}`, parent_uuid: headerRow.uuid, sequence: i })
+          createNode.mutateAsync({ name: `Column ${i + 1}`, parent_uuid: headerRow.uuid, sequence: i }).then((col) => {
+            if (store) store.moveNode(col.uuid, headerRow.uuid);
+          })
         )
       );
       // Create data rows
       for (let r = 1; r < size.rows; r++) {
-        const row = await createNode({ name: '', parent_uuid: parentUuid, sequence: r });
+        const row = await createNode.mutateAsync({ name: '', parent_uuid: parentUuid, sequence: r });
+        if (store) store.moveNode(row.uuid, parentUuid);
         await Promise.all(
           Array.from({ length: size.columns }, (_, c) =>
-            createNode({ name: '', parent_uuid: row.uuid, sequence: c })
+            createNode.mutateAsync({ name: '', parent_uuid: row.uuid, sequence: c }).then((col) => {
+              if (store) store.moveNode(col.uuid, row.uuid);
+            })
           )
         );
       }
@@ -385,7 +399,7 @@ export function NodeContent({
     }
     setIsTableModalOpen(false);
     setTableTargetBlockId(null);
-  }, [tableTargetBlockId, systemClassMap, addClass, children]);
+  }, [tableTargetBlockId, systemClassMap, addClass, children, createNode, store]);
 
   // Handle table creation — adapt existing children as columns
   const handleTableAdaptExisting = useCallback(() => {
