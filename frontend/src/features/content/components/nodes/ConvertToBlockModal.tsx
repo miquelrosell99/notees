@@ -10,7 +10,7 @@ interface ConvertToBlockModalProps {
   node: Node;
   isOpen: boolean;
   onClose: () => void;
-  onConverted?: (node: Node) => void;
+  onConverted?: (parentId: string) => void;
 }
 
 export function ConvertToBlockModal({ node, isOpen, onClose, onConverted }: ConvertToBlockModalProps) {
@@ -29,13 +29,13 @@ export function ConvertToBlockModal({ node, isOpen, onClose, onConverted }: Conv
     setError(null);
 
     try {
-      const converted = await convert.mutateAsync({
+      await convert.mutateAsync({
         nodeUuid: node.uuid,
         parentId: selectedParentId,
         oldParentId: node.parent_uuid,
       });
       handleClose();
-      onConverted?.(converted);
+      onConverted?.(selectedParentId);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Conversion failed');
     }
