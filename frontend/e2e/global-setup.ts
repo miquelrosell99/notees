@@ -16,6 +16,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const ADMIN_EMAIL = 'admin@notees.local';
 const TEST_USER_PASSWORD = 'E2eTestP@ssw0rd!2026';
 const STORAGE_STATE_PATH = join(__dirname, '.auth', 'user.json');
+const ALPINE_CHROMIUM_PATH = '/usr/lib/chromium/chromium';
 
 function testUserEmail(): string {
   const ts = Date.now();
@@ -101,6 +102,32 @@ async function fetchMe(baseURL: string, cookies: string[]) {
   return resp.json();
 }
 
+async function setUserSetting(
+  baseURL: string,
+  cookies: string[],
+  key: string,
+  value: unknown,
+): Promise<void> {
+  const resp = await fetch(`${baseURL}/api/auth/me/settings/${encodeURIComponent(key)}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      Cookie: cookies.join('; '),
+    },
+    body: JSON.stringify({ value }),
+  });
+  if (!resp.ok) {
+    const body = await resp.text().catch(() => '');
+    throw new Error(`Failed to set setting ${key}: ${resp.status} ${body}`);
+  }
+}
+
+async function completeEnrollment(baseURL: string, cookies: string[]): Promise<void> {
+  await setUserSetting(baseURL, cookies, 'theme', 'system');
+  await setUserSetting(baseURL, cookies, 'date_format', 'iso');
+  await setUserSetting(baseURL, cookies, 'enrollment_completed', true);
+}
+
 async function createWorkspace(baseURL: string, cookies: string[], name: string) {
   const resp = await fetch(`${baseURL}/api/workspaces/`, {
     method: 'POST',
@@ -117,6 +144,18 @@ async function createWorkspace(baseURL: string, cookies: string[], name: string)
   return resp.json();
 }
 
+async function refreshSession(baseURL: string, cookies: string[]): Promise<string[]> {
+  const resp = await fetch(`${baseURL}/api/auth/refresh`, {
+    method: 'POST',
+    headers: { Cookie: cookies.join('; ') },
+  });
+  if (!resp.ok) {
+    const body = await resp.text().catch(() => '');
+    throw new Error(`Failed to refresh session: ${resp.status} ${body}`);
+  }
+  return resp.headers.getSetCookie?.() ?? (resp.headers.get('set-cookie')?.split(', ') ?? []);
+}
+
 export default async function globalSetup(config: FullConfig) {
   const baseURL = config.projects[0]?.use.baseURL ?? 'http://localhost:5173';
   const env = loadEnv();
@@ -130,16 +169,23 @@ export default async function globalSetup(config: FullConfig) {
   const email = testUserEmail();
   await adminCreateUser(baseURL, adminCookies, email);
 
-  // 2. Authenticate as the test user and create a workspace via API.
+  // 2. Authenticate as the test user, complete enrollment, and create a workspace via API.
   const testCookies = await apiLogin(baseURL, email, TEST_USER_PASSWORD);
   const me = await fetchMe(baseURL, testCookies);
+  await completeEnrollment(baseURL, testCookies);
   await createWorkspace(baseURL, testCookies, 'E2E Workspace');
 
-  // 3. Seed the browser storage state: HTTPOnly cookies + persisted auth user.
-  const browser = await chromium.launch();
+  // 3. Refresh the session so the persisted cookies have the maximum remaining
+  //    lifetime. This prevents access-token expiry from breaking later tests.
+  const freshCookies = await refreshSession(baseURL, testCookies);
+
+  // 4. Seed the browser storage state: HTTPOnly cookies + persisted auth user.
+  const browser = await chromium.launch({
+    executablePath: existsSync(ALPINE_CHROMIUM_PATH) ? ALPINE_CHROMIUM_PATH : undefined,
+  });
   const context = await browser.newContext();
   await context.addCookies(
-    testCookies.map((cookie) => {
+    freshCookies.map((cookie) => {
       const parsed: Record<string, string> = {};
       const [kv, ...attrs] = cookie.split(';').map((s) => s.trim());
       const [name, value] = kv.split('=');

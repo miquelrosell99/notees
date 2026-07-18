@@ -43,7 +43,7 @@ import './AppRoutes.css';
 
 const Layout = React.lazy(() => import('./Layout').then((m) => ({ default: m.Layout })));
 const LoginView = React.lazy(() => import('@/features/auth/pages/LoginView').then((m) => ({ default: m.LoginView })));
-const WorkspaceManagementView = React.lazy(() => import('@/features/workspace/pages/WorkspaceManagementView').then((m) => ({ default: m.WorkspaceManagementView })));
+import { WorkspaceManagementView } from '@/features/workspace/pages/WorkspaceManagementView';
 const EnrollmentView = React.lazy(() => import('@/features/auth/pages/EnrollmentView').then((m) => ({ default: m.EnrollmentView })));
 const InviteAcceptView = React.lazy(() => import('@/features/auth/pages/InviteAcceptView').then((m) => ({ default: m.InviteAcceptView })));
 const PublicShareView = React.lazy(() => import('@/features/shares/pages/PublicShareView').then((m) => ({ default: m.PublicShareView })));
@@ -347,14 +347,12 @@ function AuthenticatedShell() {
 
   if (hasNoWorkspaces || hasNoActiveWorkspace || isWorkspacesRoute || showWorkspaceManager) {
     return (
-      <Suspense fallback={<LoadingScreen label="Loading…" />}>
-        <WorkspaceManagementView
-          onWorkspaceSelected={() => {
-            setShowWorkspaceManager(false);
-            queryClient.invalidateQueries({ queryKey: workspaceKeys.all });
-          }}
-        />
-      </Suspense>
+      <WorkspaceManagementView
+        onWorkspaceSelected={() => {
+          setShowWorkspaceManager(false);
+          queryClient.invalidateQueries({ queryKey: workspaceKeys.all });
+        }}
+      />
     );
   }
 
