@@ -11,18 +11,40 @@ import { useWorkspaces } from '@/features/workspace';
 import { getWorkspaceStore } from '@/core/adapters/workspaceStoreAdapter';
 import { queryNodes } from '@/core/query/queryNodes';
 import { useClasses as useCoreClasses } from '@/core/hooks';
+import { useCurrentWorkspaceUuid } from '@/hooks/useCurrentWorkspaceUuid';
+import { useWorkspaceStore } from '@/core/hooks/useWorkspaceStore';
+
+function useCoreNodeQuery(
+  queryKey: readonly unknown[],
+  filters: Parameters<typeof queryNodes>[1],
+  enabled = true,
+) {
+  const workspaceUuid = useCurrentWorkspaceUuid();
+  const { store, isLoading, error } = useWorkspaceStore(enabled && workspaceUuid ? workspaceUuid : '');
+
+  const result = useQuery({
+    queryKey: [...queryKey],
+    queryFn: () => {
+      if (!store) return [];
+      return queryNodes(store, filters);
+    },
+    enabled: enabled && !!store,
+    placeholderData: [],
+  });
+
+  return {
+    ...result,
+    isLoading: result.isLoading || isLoading,
+    error: result.error ?? error,
+  };
+}
 
 export function usePages(options?: { includeChildren?: boolean; rootOnly?: boolean }) {
   const { includeChildren = false, rootOnly = false } = options ?? {};
-  return useQuery({
-    queryKey: nodeKeys.pages({ includeChildren, rootOnly }),
-    queryFn: () => nodesApi.listNodes({
-      pages_only: true,
-      include_children: includeChildren,
-      root_only: rootOnly,
-    }),
-    placeholderData: [],
-  });
+  // TODO(D9): includeChildren/rootOnly are legacy API concepts. The core store
+  // lists all pages; tree roots vs. children should be filtered by callers that
+  // need top-level pages only.
+  return useCoreNodeQuery(nodeKeys.pages({ includeChildren, rootOnly }), { isPage: true });
 }
 
 /**
@@ -104,11 +126,7 @@ export function useSearch(query: string, filters?: {
  */
 
 export function useTags() {
-  return useQuery({
-    queryKey: nodeKeys.tags(),
-    queryFn: () => nodesApi.listNodes({ pages_only: true }),
-    placeholderData: [],
-  });
+  return useCoreNodeQuery(nodeKeys.tags(), { isPage: true });
 }
 
 /**
@@ -144,18 +162,13 @@ export function useSearchClasses(query: string) {
  */
 
 export function useNodesByTag(tagUuid: string | null) {
-  return useQuery({
-    queryKey: nodeKeys.list({ tag_uuid: tagUuid ?? '' }),
-    queryFn: () => {
-      if (!tagUuid) throw new Error('Tag UUID not found');
-      return nodesApi.listNodes({ tag_uuid: tagUuid });
-    },
-    enabled: !!tagUuid,
-    placeholderData: [],
-  });
+  return useCoreNodeQuery(
+    nodeKeys.list({ tag_uuid: tagUuid ?? '' }),
+    { classIds: tagUuid ? [tagUuid] : [] },
+    !!tagUuid,
+  );
 }
 
 /**
  * Hook to fetch tasks
  */
-

@@ -174,7 +174,22 @@ Current gaps discovered at the start of Phase 9:
 2. No authenticated test redirects to `/auth` because of token rotation.
 3. Relay endpoints authenticate correctly with cookie-based sessions.
 
-**Next:** Remove remaining legacy `/api/nodes/*` callers that still fire during normal app load (visible in backend logs as 404s) and complete Phase 9D/E cleanup.
+**Next:** Remove remaining legacy `/api/nodes/*` callers that still fire during normal app load (visible in backend logs as 404s). Snapshot commit `6216bff1` marks this milestone.
+
+## Phase 9D/E — Remove remaining legacy frontend API callers (in progress)
+
+The E2E smoke suite is green, but the backend logs still show many 404s from the frontend hitting deleted `/api/nodes/*` endpoints during normal load. These callers must be ported to the core store or removed before the migration can be considered complete.
+
+**High-priority groups:**
+1. `listNodes` callers — `useNodeListQueries.ts`, `useNodeBasicQueries.ts`, `useNodeSearch.ts`, `useQuickAdd.ts`, `PageHeader.tsx`, `useCommandPaletteSelection.ts`.
+2. Node read/write callers — `useNodeLinkQueries.ts`, `useNodeGraphQueries.ts`, `useNodeMiscQueries.ts`, `useBatchedNode*.ts`.
+3. Mutation callers — `useTrash.ts`, `useArchiveNode.ts`, `useAddClass.ts`, `useSetNodeProperty.ts`, `CommandRegistrations.tsx`, `Layout.tsx`.
+4. Importer/maintenance callers — `useLogseqImporter*.ts`, `FixRawLinksModal.tsx`, `RebuildLinksModal.tsx`.
+5. `api/nodes.ts` itself can be deleted once all consumers are gone.
+
+**Approach:** port to core store operations/mutations; do not add backward-compatibility shims. Remove dead code aggressively.
+
+**Verification:** after each group, run `npx tsc -b --noEmit`, `npm run lint`, `npm run test:run`, and `npm run test:e2e`.
 
 ## Phase 10: Final Documentation and Release (in progress)
 

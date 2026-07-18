@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { Node } from '@/types';
-import { listNodes } from '@/api/nodes';
+import { listCorePages } from '@/core/query/listPages';
 import {
   getOrCreateDailyNote,
   getOrCreateMonthlyNote,
@@ -134,7 +134,7 @@ export function useCommandPaletteSelection(params: UseCommandPaletteSelectionPar
           const classUuids = [pageClassUuid, ...selectedClasses.map(c => c.uuid)];
 
           if (parsed.isHierarchical) {
-            const freshPages = await listNodes({ pages_only: true, include_children: true });
+            const freshPages = workspaceUuid ? listCorePages(workspaceUuid) : [];
             parentUuid = await resolveHierarchicalParentUuid(
               parsed.parentSegments,
               freshPages,
