@@ -95,7 +95,9 @@ What is missing:
 
 ---
 
-### D2 — Node read/write bridge for content and editor features
+### D2 — Node read/write bridge for content and editor features ✅ Done
+
+**Status:** Committed as `feat(core,frontend): Phase 4 D2 node read/write bridge and editor content adapter` (`06626a6d`).
 
 **Goal:** Make the existing content/editor UI work against the new core without rewriting components.
 
@@ -121,6 +123,13 @@ What is missing:
 - Unit tests for each adapter hook.
 - TypeScript compilation clean.
 - Manual smoke test: open a workspace, navigate to a page, edit text, see reactive update.
+
+**Results:**
+- `npm run test:run src/core/adapters` → 8 passed.
+- `npx tsc -b --noEmit` → clean.
+- `npm run lint` → clean (only pre-existing warnings).
+- `npm run test:run src/core` → 35 passed.
+- `npm run test:run src/features/content/hooks src/features/editor/hooks` → 24 passed.
 
 ---
 
