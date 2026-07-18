@@ -6,6 +6,9 @@ local-first, operation-based, CRDT-driven data architecture.
 
 from app.core.clock import Clock, Hlc, compare_hlc, max_hlc
 from app.core.operation import Operation, OperationEnvelope, create_operation
+from app.core.store import WorkspaceStore
+from app.core.sync import SyncEngine
+from app.core.transport import MemoryRelay, MemoryTransport, Transport
 from app.core.uuid import uuidv7
 from app.core.validation import validate_operation
 
@@ -14,8 +17,13 @@ __all__ = [
     "Hlc",
     "compare_hlc",
     "max_hlc",
+    "MemoryRelay",
+    "MemoryTransport",
     "Operation",
     "OperationEnvelope",
+    "SyncEngine",
+    "Transport",
+    "WorkspaceStore",
     "create_operation",
     "uuidv7",
     "validate_operation",
